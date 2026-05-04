@@ -56,16 +56,6 @@ export function createGithubIntegrationRoutes({
     },
   });
 
-  const callbackPageRoute = defineRoute({
-    method: 'GET',
-    path: '/callback',
-    description: 'Serve the GitHub App installation browser callback.',
-    handler: (_request, reply) => {
-      reply.type('text/html; charset=utf-8');
-      return githubCallbackPageHtml();
-    },
-  });
-
   const callbackApiRoute = defineRoute({
     method: 'GET',
     path: '/callback/api',
@@ -97,78 +87,6 @@ export function createGithubIntegrationRoutes({
 
   return {
     prefix: '/integrations/github',
-    routes: [createInstallRoute, callbackPageRoute, callbackApiRoute],
+    routes: [createInstallRoute, callbackApiRoute],
   };
-}
-
-function githubCallbackPageHtml(): string {
-  const clientBaseUrl = JSON.stringify(config.CLIENT_BASE_URL);
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Connecting GitHub...</title>
-  </head>
-  <body>
-    <script>
-      const clientBaseUrl = ${clientBaseUrl};
-
-      const redirect = (status, code, message) => {
-        const url = new URL("/", clientBaseUrl);
-        url.searchParams.set("integration_provider", "github");
-        url.searchParams.set("integration_status", status);
-        if (code) url.searchParams.set("integration_error_code", code);
-        if (message) url.searchParams.set("integration_error_message", message);
-        window.location.replace(url.toString());
-      };
-
-      const readError = async (response) => {
-        try {
-          return await response.json();
-        } catch {
-          return {};
-        }
-      };
-
-      const connect = async () => {
-        try {
-          const sessionResponse = await fetch("/auth/refresh", {
-            method: "POST",
-            credentials: "include",
-            headers: {"accept": "application/json"},
-          });
-          if (!sessionResponse.ok) {
-            const error = await readError(sessionResponse);
-            redirect("error", error.code, error.message);
-            return;
-          }
-
-          const session = await sessionResponse.json();
-          const callbackResponse = await fetch(
-            "/integrations/github/callback/api" + window.location.search,
-            {
-              credentials: "include",
-              headers: {
-                "accept": "application/json",
-                "authorization": "Bearer " + session.token,
-              },
-            },
-          );
-          if (callbackResponse.ok) {
-            redirect("connected");
-            return;
-          }
-
-          const error = await readError(callbackResponse);
-          redirect("error", error.code, error.message);
-        } catch {
-          redirect("error", "github-callback-network-error", "Could not complete GitHub connection.");
-        }
-      };
-
-      connect();
-    </script>
-  </body>
-</html>`;
 }

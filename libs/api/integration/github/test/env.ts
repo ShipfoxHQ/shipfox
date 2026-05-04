@@ -5,7 +5,6 @@ process.env.POSTGRES_PASSWORD = 'password';
 process.env.POSTGRES_DATABASE = 'api_test';
 process.env.POSTGRES_MAX_CONNECTIONS = '5';
 process.env.TZ = 'UTC';
-process.env.CLIENT_BASE_URL = 'http://localhost:5173';
 process.env.GITHUB_APP_ID = '1';
 process.env.GITHUB_APP_PRIVATE_KEY = 'test-private-key';
 process.env.GITHUB_APP_CLIENT_ID = 'test-client-id';

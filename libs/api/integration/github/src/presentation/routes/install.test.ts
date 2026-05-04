@@ -149,21 +149,6 @@ describe('GitHub integration routes', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('serves the GitHub browser callback page without bearer auth', async () => {
-    const app = await createTestApp();
-
-    const res = await app.inject({
-      method: 'GET',
-      url: '/integrations/github/callback?code=code&installation_id=123&state=state',
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.headers['content-type']).toContain('text/html');
-    expect(res.body).toContain('/auth/refresh');
-    expect(res.body).toContain('/integrations/github/callback/api');
-    expect(res.body).toContain('http://localhost:5173');
-  });
-
   it('handles a verified GitHub callback', async () => {
     const app = await createTestApp();
     const workspaceId = crypto.randomUUID();
