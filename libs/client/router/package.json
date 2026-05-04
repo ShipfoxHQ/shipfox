@@ -27,6 +27,7 @@
   "dependencies": {
     "@shipfox/client-api": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
+    "@shipfox/client-integrations": "workspace:*",
     "@shipfox/client-projects": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",

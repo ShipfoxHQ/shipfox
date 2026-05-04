@@ -82,8 +82,6 @@
 
 - [ ] **Full cross-site browser auth cookies** — The first client auth foundation supports cross-origin, same-site browser auth with `SameSite=Lax` refresh cookies. If the frontend and API ever live on unrelated sites, add explicit cookie policy config for `SameSite=None; Secure`, verify browser behavior in Playwright, and document the deployment constraints. This is intentionally deferred until that hosting shape is required.
 
-- [ ] **Create client DESIGN.md** — The first client auth foundation uses `/Users/noe.charmet/code/platform/libs/shared/react/ui` as the temporary design source of truth. Once the client grows beyond auth, create a repo-local `DESIGN.md` that records typography, color tokens, spacing, component vocabulary, responsive rules, and accessibility expectations so future screens do not drift from the repatriated UI system.
-
 ## Outbox / Dispatcher
 
 - [ ] **Outbox row retention** — Add periodic cleanup of dispatched outbox rows older than 7 days. Dispatched rows accumulate in each module's `{module}_outbox` table. At scale this bloats the table. Simple fix: periodic `DELETE FROM {module}_outbox WHERE dispatched_at < now() - interval '7 days'` in the dispatcher workflow or a separate Temporal cron. Consider archiving to a separate table first if audit trail is needed. Blocked on: outbox + dispatcher implementation.

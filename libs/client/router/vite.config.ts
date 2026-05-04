@@ -19,6 +19,7 @@ export default defineConfig({
         '@tanstack/react-router',
         '@shipfox/client-api',
         '@shipfox/client-auth',
+        '@shipfox/client-integrations',
         '@shipfox/client-projects',
         '@shipfox/react-ui',
       ],

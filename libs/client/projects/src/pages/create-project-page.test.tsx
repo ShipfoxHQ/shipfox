@@ -4,56 +4,12 @@ import {jsonResponse, renderProjectPage} from '#test/pages.js';
 import {CreateProjectPage} from './create-project-page.js';
 
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
+const SECOND_CONNECTION_ID = '66666666-6666-4666-8666-666666666666';
 const REPOSITORY_NOT_FOUND_RE = /Repository not found/;
+const DEBUG_RADIO_LABEL_RE = /Debug Source Control/;
 
 describe('CreateProjectPage', () => {
-  test('connects Debug source control and creates a project from a listed repository', async () => {
-    const requestBodies: unknown[] = [];
-    let connected = false;
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
-      const request = input as Request;
-      if (request.method !== 'GET') {
-        requestBodies.push(await request.json());
-      }
-      if (request.url.includes('/integration-connections?')) {
-        return jsonResponse({connections: connected ? [connectionDto()] : []});
-      }
-      if (request.url.endsWith('/integrations/debug/connections')) {
-        connected = true;
-        return jsonResponse(connectionDto());
-      }
-      if (request.url.endsWith(`/integration-connections/${CONNECTION_ID}/repositories`)) {
-        return jsonResponse({repositories: [repositoryDto()], next_cursor: null});
-      }
-      if (request.url.endsWith('/projects')) {
-        return jsonResponse(projectDto({id: '44444444-4444-4444-8444-444444444444'}));
-      }
-      return jsonResponse(projectDto({id: '44444444-4444-4444-8444-444444444444'}));
-    });
-    configureApiClient({fetchImpl});
-
-    renderProjectPage('/projects/new', <CreateProjectPage />);
-    fireEvent.click(await screen.findByRole('button', {name: 'Connect Debug'}));
-    expect(await screen.findByText('debug-owner/platform')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
-
-    expect(await screen.findByRole('heading', {name: 'Project Detail'})).toBeInTheDocument();
-    await waitFor(() =>
-      expect(requestBodies).toEqual(
-        expect.arrayContaining([
-          {workspace_id: '11111111-1111-4111-8111-111111111111'},
-          expect.objectContaining({
-            source: {
-              connection_id: CONNECTION_ID,
-              external_repository_id: 'platform',
-            },
-          }),
-        ]),
-      ),
-    );
-  });
-
-  test('uses existing source connections and listed repositories', async () => {
+  test('with a single connection: pre-selects, renders repos, creates a project', async () => {
     const requestBodies: unknown[] = [];
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const request = input as Request;
@@ -63,17 +19,17 @@ describe('CreateProjectPage', () => {
       if (request.url.includes('/integration-connections?')) {
         return jsonResponse({connections: [connectionDto()]});
       }
-      if (request.url.endsWith(`/integration-connections/${CONNECTION_ID}/repositories`)) {
+      if (request.url.includes(`/integration-connections/${CONNECTION_ID}/repositories`)) {
         return jsonResponse({repositories: [repositoryDto()], next_cursor: null});
       }
       if (request.url.endsWith('/projects')) {
         return jsonResponse(projectDto({id: '44444444-4444-4444-8444-444444444444'}));
       }
-      return jsonResponse(projectDto({id: '44444444-4444-4444-8444-444444444444'}));
+      return jsonResponse({});
     });
     configureApiClient({fetchImpl});
 
-    renderProjectPage('/projects/new', <CreateProjectPage />);
+    renderProjectPage('/setup/projects/new', <CreateProjectPage />);
     expect(await screen.findByText('Debug Source Control')).toBeInTheDocument();
     expect(await screen.findByText('debug-owner/platform')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
@@ -91,13 +47,59 @@ describe('CreateProjectPage', () => {
     );
   });
 
+  test('with multiple connections: hides repo picker until a connection is selected', async () => {
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (request.url.includes('/integration-connections?')) {
+        return Promise.resolve(
+          jsonResponse({connections: [connectionDto(), secondConnectionDto()]}),
+        );
+      }
+      if (request.url.includes(`/integration-connections/${CONNECTION_ID}/repositories`)) {
+        return Promise.resolve(jsonResponse({repositories: [repositoryDto()], next_cursor: null}));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    configureApiClient({fetchImpl});
+
+    renderProjectPage('/setup/projects/new', <CreateProjectPage />);
+    expect(await screen.findByText('Debug Source Control')).toBeInTheDocument();
+    expect(await screen.findByText('Other Debug Source')).toBeInTheDocument();
+    expect(screen.queryByText('debug-owner/platform')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', {name: DEBUG_RADIO_LABEL_RE}));
+
+    expect(await screen.findByText('debug-owner/platform')).toBeInTheDocument();
+  });
+
+  test('with a single connection: shows "Add another integration" link to /setup/integrations', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn((input: RequestInfo | URL) => {
+        const request = input as Request;
+        if (request.url.includes('/integration-connections?')) {
+          return Promise.resolve(jsonResponse({connections: [connectionDto()]}));
+        }
+        if (request.url.includes(`/integration-connections/${CONNECTION_ID}/repositories`)) {
+          return Promise.resolve(
+            jsonResponse({repositories: [repositoryDto()], next_cursor: null}),
+          );
+        }
+        return Promise.resolve(jsonResponse({}));
+      }),
+    });
+
+    renderProjectPage('/setup/projects/new', <CreateProjectPage />);
+    const link = await screen.findByRole('link', {name: 'Add another integration'});
+    expect(link).toHaveAttribute('href', '/setup/integrations');
+  });
+
   test('navigates to the existing project for duplicate recovery', async () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       const request = input as Request;
       if (request.url.includes('/integration-connections?')) {
         return Promise.resolve(jsonResponse({connections: [connectionDto()]}));
       }
-      if (request.url.endsWith(`/integration-connections/${CONNECTION_ID}/repositories`)) {
+      if (request.url.includes(`/integration-connections/${CONNECTION_ID}/repositories`)) {
         return Promise.resolve(jsonResponse({repositories: [repositoryDto()], next_cursor: null}));
       }
       if (request.url.endsWith('/projects')) {
@@ -111,11 +113,13 @@ describe('CreateProjectPage', () => {
           ),
         );
       }
-      return Promise.resolve(projectDtoResponse('55555555-5555-4555-8555-555555555555'));
+      return Promise.resolve(
+        jsonResponse(projectDto({id: '55555555-5555-4555-8555-555555555555'})),
+      );
     });
     configureApiClient({fetchImpl});
 
-    renderProjectPage('/projects/new', <CreateProjectPage />);
+    renderProjectPage('/setup/projects/new', <CreateProjectPage />);
     expect(await screen.findByText('debug-owner/platform')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
@@ -128,14 +132,14 @@ describe('CreateProjectPage', () => {
       if (request.url.includes('/integration-connections?')) {
         return Promise.resolve(jsonResponse({connections: [connectionDto()]}));
       }
-      if (request.url.endsWith(`/integration-connections/${CONNECTION_ID}/repositories`)) {
+      if (request.url.includes(`/integration-connections/${CONNECTION_ID}/repositories`)) {
         return Promise.resolve(jsonResponse({repositories: [repositoryDto()], next_cursor: null}));
       }
       return Promise.resolve(jsonResponse({code: 'repository-not-found'}, {status: 422}));
     });
     configureApiClient({fetchImpl});
 
-    renderProjectPage('/projects/new', <CreateProjectPage />);
+    renderProjectPage('/setup/projects/new', <CreateProjectPage />);
     expect(await screen.findByText('debug-owner/platform')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
@@ -157,6 +161,20 @@ function connectionDto() {
   };
 }
 
+function secondConnectionDto() {
+  return {
+    id: SECOND_CONNECTION_ID,
+    workspace_id: '11111111-1111-4111-8111-111111111111',
+    provider: 'debug',
+    external_account_id: 'debug-2',
+    display_name: 'Other Debug Source',
+    lifecycle_status: 'active',
+    capabilities: ['source_control'],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
 function repositoryDto() {
   return {
     connection_id: CONNECTION_ID,
@@ -169,10 +187,6 @@ function repositoryDto() {
     clone_url: 'https://debug.local/debug-owner/platform.git',
     html_url: 'https://debug.local/debug-owner/platform',
   };
-}
-
-function projectDtoResponse(id: string) {
-  return jsonResponse(projectDto({id}));
 }
 
 function projectDto({id}: {id: string}) {

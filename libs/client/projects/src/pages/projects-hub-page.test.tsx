@@ -15,7 +15,7 @@ describe('ProjectsHubPage', () => {
     expect(await screen.findByText('Create your first project')).toBeInTheDocument();
     expect(screen.getAllByRole('link', {name: 'Create project'})[0]).toHaveAttribute(
       'href',
-      '/projects/new',
+      '/setup/projects/new',
     );
   });
 
