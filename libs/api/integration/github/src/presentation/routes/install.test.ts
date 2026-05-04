@@ -1,4 +1,5 @@
 import {AUTH_USER, setUserContext} from '@shipfox/api-auth-context';
+import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {GithubApiClient} from '#api/client.js';
@@ -60,9 +61,15 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
   };
 }
 
-async function createTestApp(github = githubClient()): Promise<FastifyInstance> {
+interface CreateTestAppOptions {
+  github?: GithubApiClient;
+  existingConnection?: IntegrationConnection<'github'> | undefined;
+}
+
+async function createTestApp(options: CreateTestAppOptions = {}): Promise<FastifyInstance> {
   const provider = createGithubIntegrationProvider({
-    github,
+    github: options.github ?? githubClient(),
+    getExistingGithubConnection: vi.fn(() => Promise.resolve(options.existingConnection)),
     connectGithubInstallation: vi.fn((input) =>
       Promise.resolve({
         id: crypto.randomUUID(),
@@ -130,6 +137,33 @@ describe('GitHub integration routes', () => {
     expect(requireMembershipMock).toHaveBeenCalledWith(expect.objectContaining({workspaceId}));
   });
 
+  it('requires auth on the GitHub callback API', async () => {
+    const app = await createTestApp();
+    const state = await createInstallState(app, crypto.randomUUID());
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integrations/github/callback/api?code=code&installation_id=123&state=${state}`,
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('serves the GitHub browser callback page without bearer auth', async () => {
+    const app = await createTestApp();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/integrations/github/callback?code=code&installation_id=123&state=state',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.body).toContain('/auth/refresh');
+    expect(res.body).toContain('/integrations/github/callback/api');
+    expect(res.body).toContain('http://localhost:5173');
+  });
+
   it('handles a verified GitHub callback', async () => {
     const app = await createTestApp();
     const workspaceId = crypto.randomUUID();
@@ -137,7 +171,8 @@ describe('GitHub integration routes', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: `/integrations/github/callback?code=code&installation_id=123&state=${state}`,
+      url: `/integrations/github/callback/api?code=code&installation_id=123&state=${state}`,
+      headers: {authorization: 'Bearer user'},
     });
 
     expect(res.statusCode).toBe(200);
@@ -150,22 +185,49 @@ describe('GitHub integration routes', () => {
   });
 
   it('rejects callbacks for inaccessible installations', async () => {
-    const app = await createTestApp(
-      githubClient({
+    const app = await createTestApp({
+      github: githubClient({
         listUserInstallations: vi.fn(() =>
           Promise.resolve({installationIds: [999], nextCursor: null}),
         ),
       }),
-    );
+    });
     const state = await createInstallState(app, crypto.randomUUID());
 
     const res = await app.inject({
       method: 'GET',
-      url: `/integrations/github/callback?code=code&installation_id=123&state=${state}`,
+      url: `/integrations/github/callback/api?code=code&installation_id=123&state=${state}`,
+      headers: {authorization: 'Bearer user'},
     });
 
     expect(res.statusCode).toBe(403);
     expect(res.json().code).toBe('github-installation-not-authorized');
+  });
+
+  it('returns 409 when the installation is already linked to another workspace', async () => {
+    const app = await createTestApp({
+      existingConnection: {
+        id: crypto.randomUUID(),
+        workspaceId: crypto.randomUUID(),
+        provider: 'github',
+        externalAccountId: '123',
+        displayName: 'GitHub shipfox',
+        lifecycleStatus: 'active',
+        capabilities: ['source_control'],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    const state = await createInstallState(app, crypto.randomUUID());
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integrations/github/callback/api?code=code&installation_id=123&state=${state}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('github-installation-already-linked');
   });
 });
 

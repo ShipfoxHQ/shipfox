@@ -12,6 +12,7 @@ export interface GithubInstallation {
   suspendedAt: Date | null;
   deletedAt: Date | null;
   latestEvent: Record<string, unknown>;
+  installerUserId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +26,7 @@ export interface UpsertGithubInstallationParams {
   suspendedAt?: Date | null | undefined;
   deletedAt?: Date | null | undefined;
   latestEvent: Record<string, unknown>;
+  installerUserId?: string | null | undefined;
 }
 
 type GithubDb = ReturnType<typeof db>;
@@ -47,17 +49,19 @@ export async function upsertGithubInstallation(
       suspendedAt: params.suspendedAt ?? null,
       deletedAt: params.deletedAt ?? null,
       latestEvent: params.latestEvent,
+      installerUserId: params.installerUserId ?? null,
     })
     .onConflictDoUpdate({
-      target: githubInstallations.connectionId,
+      target: githubInstallations.installationId,
       set: {
-        installationId: params.installationId,
+        connectionId: params.connectionId,
         accountLogin: params.accountLogin,
         accountType: params.accountType,
         repositorySelection: params.repositorySelection,
         suspendedAt: params.suspendedAt ?? null,
         deletedAt: params.deletedAt ?? null,
         latestEvent: params.latestEvent,
+        installerUserId: params.installerUserId ?? null,
         updatedAt: now,
       },
     })
@@ -74,6 +78,19 @@ export async function getGithubInstallationByConnectionId(
     .select()
     .from(githubInstallations)
     .where(eq(githubInstallations.connectionId, connectionId))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return undefined;
+  return toGithubInstallation(row);
+}
+
+export async function getGithubInstallationByInstallationId(
+  installationId: string,
+): Promise<GithubInstallation | undefined> {
+  const rows = await db()
+    .select()
+    .from(githubInstallations)
+    .where(eq(githubInstallations.installationId, installationId))
     .limit(1);
   const row = rows[0];
   if (!row) return undefined;

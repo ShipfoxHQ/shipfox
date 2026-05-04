@@ -3,6 +3,7 @@ import {createDebugIntegrationProvider} from '@shipfox/api-integration-debug';
 import {
   type ConnectGithubInstallationInput,
   createGithubIntegrationProvider,
+  getGithubInstallationByInstallationId,
   db as githubDb,
   migrationsPath as githubMigrationsPath,
   upsertGithubInstallation,
@@ -76,11 +77,22 @@ function createConfiguredProviders(): IntegrationProvider[] {
   if (config.INTEGRATIONS_ENABLE_GITHUB_PROVIDER) {
     providers.push(
       createGithubIntegrationProvider({
+        getExistingGithubConnection,
         connectGithubInstallation,
       }),
     );
   }
   return providers;
+}
+
+async function getExistingGithubConnection(input: {
+  installationId: string;
+}): Promise<CoreIntegrationConnection<'github'> | undefined> {
+  const installation = await getGithubInstallationByInstallationId(input.installationId);
+  if (!installation) return undefined;
+  const connection = await getIntegrationConnectionById(installation.connectionId);
+  if (!connection) return undefined;
+  return connection as CoreIntegrationConnection<'github'>;
 }
 
 async function connectGithubInstallation(

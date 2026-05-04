@@ -15,6 +15,7 @@ export const githubInstallations = pgTable(
     suspendedAt: timestamp('suspended_at', {withTimezone: true}),
     deletedAt: timestamp('deleted_at', {withTimezone: true}),
     latestEvent: jsonb('latest_event').notNull().$type<Record<string, unknown>>(),
+    installerUserId: uuid('installer_user_id'),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
@@ -38,6 +39,7 @@ export function toGithubInstallation(row: GithubInstallationDb): GithubInstallat
     suspendedAt: row.suspendedAt,
     deletedAt: row.deletedAt,
     latestEvent: row.latestEvent,
+    installerUserId: row.installerUserId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

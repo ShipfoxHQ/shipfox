@@ -1,12 +1,17 @@
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import type {GithubApiClient, GithubInstallationDetails} from '#api/client.js';
-import {GithubInstallationNotAuthorizedError} from './errors.js';
+import {
+  GithubInstallationAlreadyLinkedError,
+  GithubInstallationNotAuthorizedError,
+  GithubInstallStateActorMismatchError,
+} from './errors.js';
 import {verifyGithubInstallState} from './state.js';
 
 export interface ConnectGithubInstallationInput {
   workspaceId: string;
   installationId: string;
   displayName: string;
+  installerUserId: string;
   installation: {
     installationId: string;
     accountLogin: string;
@@ -15,6 +20,7 @@ export interface ConnectGithubInstallationInput {
     suspendedAt: Date | null;
     deletedAt: Date | null;
     latestEvent: Record<string, unknown>;
+    installerUserId: string;
   };
 }
 
@@ -23,7 +29,11 @@ export interface HandleGithubCallbackParams {
   code: string;
   installationId: number;
   state: string;
+  sessionUserId: string;
   requireWorkspaceMembership: (params: {workspaceId: string; userId: string}) => Promise<unknown>;
+  getExistingGithubConnection: (input: {
+    installationId: string;
+  }) => Promise<IntegrationConnection<'github'> | undefined>;
   connectGithubInstallation: (
     input: ConnectGithubInstallationInput,
   ) => Promise<IntegrationConnection<'github'>>;
@@ -33,10 +43,22 @@ export async function handleGithubCallback(
   params: HandleGithubCallbackParams,
 ): Promise<IntegrationConnection<'github'>> {
   const claims = verifyGithubInstallState(params.state);
+  if (claims.userId !== params.sessionUserId) {
+    throw new GithubInstallStateActorMismatchError();
+  }
   await params.requireWorkspaceMembership({
     workspaceId: claims.workspaceId,
     userId: claims.userId,
   });
+
+  const installationIdStr = String(params.installationId);
+  const existing = await params.getExistingGithubConnection({installationId: installationIdStr});
+  if (existing && existing.workspaceId !== claims.workspaceId) {
+    throw new GithubInstallationAlreadyLinkedError(params.installationId);
+  }
+  if (existing && existing.lifecycleStatus === 'active') {
+    return existing;
+  }
 
   const userAccessToken = await params.github.exchangeOAuthCode(params.code);
   const accessible = await userCanAccessInstallation({
@@ -49,9 +71,10 @@ export async function handleGithubCallback(
   const installation = await params.github.getInstallation(params.installationId);
   return await params.connectGithubInstallation({
     workspaceId: claims.workspaceId,
-    installationId: String(params.installationId),
+    installationId: installationIdStr,
     displayName: `GitHub ${installation.account.login}`,
-    installation: toConnectionInstallationInput(installation),
+    installerUserId: claims.userId,
+    installation: toConnectionInstallationInput(installation, claims.userId),
   });
 }
 
@@ -72,7 +95,10 @@ async function userCanAccessInstallation(params: {
   return false;
 }
 
-function toConnectionInstallationInput(installation: GithubInstallationDetails) {
+function toConnectionInstallationInput(
+  installation: GithubInstallationDetails,
+  installerUserId: string,
+) {
   return {
     installationId: String(installation.id),
     accountLogin: installation.account.login,
@@ -81,5 +107,6 @@ function toConnectionInstallationInput(installation: GithubInstallationDetails) 
     suspendedAt: installation.suspendedAt,
     deletedAt: null,
     latestEvent: installation.raw,
+    installerUserId,
   };
 }

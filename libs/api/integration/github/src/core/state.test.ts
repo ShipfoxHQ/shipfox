@@ -24,7 +24,7 @@ describe('GitHub install state', () => {
       now: new Date('2026-04-30T00:00:00.000Z'),
     });
 
-    const result = () => verifyGithubInstallState(state, new Date('2026-04-30T00:11:00.000Z'));
+    const result = () => verifyGithubInstallState(state, new Date('2026-04-30T00:31:00.000Z'));
 
     expect(result).toThrow(GithubInstallStateError);
   });

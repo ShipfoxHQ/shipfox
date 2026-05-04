@@ -2,7 +2,7 @@ import {createHmac, randomUUID, timingSafeEqual} from 'node:crypto';
 import {config} from '#config.js';
 import {GithubInstallStateError} from './errors.js';
 
-const STATE_TTL_SECONDS = 10 * 60;
+const STATE_TTL_SECONDS = 30 * 60;
 
 interface GithubInstallStatePayload {
   workspaceId: string;

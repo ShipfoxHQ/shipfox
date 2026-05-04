@@ -15,6 +15,7 @@ export {signGithubInstallState, verifyGithubInstallState} from '#core/state.js';
 export type {GithubInstallation, UpsertGithubInstallationParams} from '#db/installations.js';
 export {
   getGithubInstallationByConnectionId,
+  getGithubInstallationByInstallationId,
   upsertGithubInstallation,
 } from '#db/installations.js';
 export {closeDb, db, migrationsPath};
@@ -36,6 +37,7 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
     routes: [
       createGithubIntegrationRoutes({
         github,
+        getExistingGithubConnection: options.getExistingGithubConnection,
         connectGithubInstallation: options.connectGithubInstallation,
       }),
     ],

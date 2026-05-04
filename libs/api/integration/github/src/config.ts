@@ -1,6 +1,7 @@
 import {createConfig, str} from '@shipfox/config';
 
 export const config = createConfig({
+  CLIENT_BASE_URL: str({default: 'http://localhost:3000'}),
   GITHUB_APP_ID: str(),
   GITHUB_APP_PRIVATE_KEY: str(),
   GITHUB_APP_CLIENT_ID: str(),
