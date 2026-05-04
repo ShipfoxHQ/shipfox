@@ -26,7 +26,7 @@ export async function run(): Promise<void> {
 
   createPostgresClient();
 
-  const integrations = createIntegrationsContext();
+  const integrations = await createIntegrationsContext();
   const projectsModule = createProjectsModule({sourceControl: integrations.sourceControl});
 
   const {auth, routes, e2eRoutes, workers} = await initializeModules({

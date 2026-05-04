@@ -71,7 +71,7 @@ export function sourceProvider(overrides: Partial<IntegrationProvider> = {}): In
 }
 
 export async function createTestApp(providers: IntegrationProvider[]): Promise<FastifyInstance> {
-  const integrationsModule = createIntegrationsModule({providers});
+  const integrationsModule = await createIntegrationsModule({providers});
   const app = await createApp({
     auth: [fakeUserAuth],
     routes: integrationsModule.routes ?? [],
