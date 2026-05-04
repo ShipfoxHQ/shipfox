@@ -8,6 +8,7 @@ CREATE TABLE "integrations_github_installations" (
 	"suspended_at" timestamp with time zone,
 	"deleted_at" timestamp with time zone,
 	"latest_event" jsonb NOT NULL,
+	"installer_user_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
