@@ -25,6 +25,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/client-api": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/client-projects": "workspace:*",
     "@shipfox/react-ui": "workspace:*",

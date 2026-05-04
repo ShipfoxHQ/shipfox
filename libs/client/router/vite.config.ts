@@ -17,6 +17,7 @@ export default defineConfig({
         'react-dom',
         'react/jsx-runtime',
         '@tanstack/react-router',
+        '@shipfox/client-api',
         '@shipfox/client-auth',
         '@shipfox/client-projects',
         '@shipfox/react-ui',

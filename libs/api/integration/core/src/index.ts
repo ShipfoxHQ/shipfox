@@ -1,5 +1,7 @@
+import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {createDebugIntegrationProvider} from '@shipfox/api-integration-debug';
-import type {ShipfoxModule} from '@shipfox/node-module';
+import type {ConnectGithubInstallationInput} from '@shipfox/api-integration-github';
+import type {ModuleDatabase, ShipfoxModule} from '@shipfox/node-module';
 import type {IntegrationProvider} from '#core/entities/provider.js';
 import {
   createIntegrationProviderRegistry,
@@ -60,26 +62,100 @@ export interface IntegrationsContext {
   sourceControl: IntegrationSourceControlService;
 }
 
-function createConfiguredProviders(): IntegrationProvider[] {
+interface GithubModuleParts {
+  provider: IntegrationProvider;
+  database: ModuleDatabase;
+}
+
+async function loadGithubModuleParts(): Promise<GithubModuleParts> {
+  const {
+    createGithubIntegrationProvider,
+    getGithubInstallationByInstallationId,
+    db: githubDb,
+    migrationsPath: githubMigrationsPath,
+    upsertGithubInstallation,
+  } = await import('@shipfox/api-integration-github');
+
+  async function getExistingGithubConnection(input: {
+    installationId: string;
+  }): Promise<CoreIntegrationConnection<'github'> | undefined> {
+    const installation = await getGithubInstallationByInstallationId(input.installationId);
+    if (!installation) return undefined;
+    const connection = await getIntegrationConnectionById(installation.connectionId);
+    if (!connection) return undefined;
+    return connection as CoreIntegrationConnection<'github'>;
+  }
+
+  async function connectGithubInstallation(
+    input: ConnectGithubInstallationInput,
+  ): Promise<CoreIntegrationConnection<'github'>> {
+    return await db().transaction(async (tx) => {
+      const connection = await upsertIntegrationConnection(
+        {
+          workspaceId: input.workspaceId,
+          provider: 'github',
+          externalAccountId: input.installationId,
+          displayName: input.displayName,
+          lifecycleStatus: 'active',
+        },
+        {tx},
+      );
+
+      await upsertGithubInstallation(
+        {
+          connectionId: connection.id,
+          ...input.installation,
+        },
+        {tx},
+      );
+
+      return connection as CoreIntegrationConnection<'github'>;
+    });
+  }
+
+  return {
+    provider: createGithubIntegrationProvider({
+      getExistingGithubConnection,
+      connectGithubInstallation,
+    }),
+    database: {db: githubDb, migrationsPath: githubMigrationsPath},
+  };
+}
+
+async function createConfiguredProviders(): Promise<{
+  providers: IntegrationProvider[];
+  github: GithubModuleParts | undefined;
+}> {
   const providers: IntegrationProvider[] = [];
   if (config.INTEGRATIONS_ENABLE_DEBUG_PROVIDER) {
     providers.push(createDebugIntegrationProvider({upsertIntegrationConnection}));
   }
-  return providers;
+  let github: GithubModuleParts | undefined;
+  if (config.INTEGRATIONS_ENABLE_GITHUB_PROVIDER) {
+    github = await loadGithubModuleParts();
+    providers.push(github.provider);
+  }
+  return {providers, github};
 }
 
-export function createIntegrationsModule(
+export async function createIntegrationsModule(
   options: CreateIntegrationsModuleOptions = {},
-): ShipfoxModule {
-  return createIntegrationsContext(options).module;
+): Promise<ShipfoxModule> {
+  return (await createIntegrationsContext(options)).module;
 }
 
-export function createIntegrationsContext(
+export async function createIntegrationsContext(
   options: CreateIntegrationsModuleOptions = {},
-): IntegrationsContext {
-  const registry = createIntegrationProviderRegistry(
-    options.providers ?? createConfiguredProviders(),
-  );
+): Promise<IntegrationsContext> {
+  let providers: IntegrationProvider[];
+  let github: GithubModuleParts | undefined;
+  if (options.providers) {
+    providers = options.providers;
+  } else {
+    ({providers, github} = await createConfiguredProviders());
+  }
+
+  const registry = createIntegrationProviderRegistry(providers);
   const sourceControl = createSourceControlIntegrationService({
     registry,
     getIntegrationConnectionById,
@@ -87,11 +163,9 @@ export function createIntegrationsContext(
 
   const module: ShipfoxModule = {
     name: 'integrations',
-    database: {db, migrationsPath},
+    database: github ? [{db, migrationsPath}, github.database] : {db, migrationsPath},
     routes: createIntegrationRoutes(registry, sourceControl),
   };
 
   return {module, registry, capabilities: {sourceControl}, sourceControl};
 }
-
-export const integrationsModule: ShipfoxModule = createIntegrationsModule();
