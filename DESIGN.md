@@ -2,7 +2,7 @@
 
 Source of truth for visual and interaction decisions. Read this before writing any UI.
 
-The system is already built. The CSS lives in `libs/shared/react/ui/index.css` (chicago workspace) and the broader catalog of tokens and components lives in the shared `@shipfox/react-ui` package. This document explains what the system is, why it is shaped this way, and how to apply it to the product surfaces described in `.claude/research/system-design.md`.
+The system is already built. The CSS lives in `libs/shared/react/ui/index.css` (chicago workspace) and the broader catalog of tokens and components lives in the shared `@shipfox/react-ui` package. This document explains what the system is and why it is shaped this way. It does not prescribe what individual product pages should look like — surface-level designs live with the features they belong to.
 
 ---
 
@@ -14,13 +14,7 @@ The system is already built. The CSS lives in `libs/shared/react/ui/index.css` (
 
 **Space/industry.** Developer platform / build & deploy / workflow orchestration. Peers: GitHub Actions, GitLab CI, Buildkite, CircleCI, Argo Workflows, Temporal Cloud, Linear, Vercel, Resend.
 
-**Project type.** Web application (dashboard-heavy) with marketing and auth surfaces. The center of gravity is the run viewer — a long-running observation surface where users tail logs, inspect step output, and watch a DAG resolve over minutes to hours.
-
-**Design implications.**
-- Density beats spaciousness. A run viewer needs to show a lot at once.
-- Monospace is not decoration. Logs, IDs, SHAs, durations, and YAML are first-class content.
-- Status semantics must be unambiguous. `running`, `succeeded`, `failed`, `cancelled`, `awaiting-manual`, `runner-disappeared` are not synonyms.
-- Latency-perceived UI matters. Live logs and DAG transitions need to feel real-time without flicker.
+**Project type.** Web application (dashboard-heavy) with marketing and auth surfaces. The center of gravity is operator-facing observation: tailing logs, inspecting step output, watching state machines resolve. That bias toward density, monospace, and unambiguous status is what shapes the system.
 
 ---
 
@@ -210,21 +204,15 @@ Marketing surfaces breathe more (`p-48` and up). Settings and admin look more li
 
 ## 6. Layout
 
-**Approach.** Hybrid. Grid-disciplined inside the app (predictable left nav + content + right rail composition). Editorial latitude only on marketing and auth.
+**Approach.** Hybrid. Grid-disciplined inside the app (predictable left nav + content + optional right rail). Editorial latitude only on marketing and auth.
 
-**App composition (default).**
-- Top header: 56px tall. Left: logo + workspace switcher. Right: search, notifications, user menu.
+**App shell defaults.**
+- Top header: 56px tall.
 - Left nav: 240–260px wide. Collapsible to a 56px icon rail.
-- Content: fluid, max width capped at ~1440px for very wide screens (workspace shell can be wider).
-- Right rail (optional, run viewer): 360–420px for "details for the selected job/step."
+- Content: fluid, max width capped at ~1440px for very wide screens.
+- Right rail (when present, e.g., for a "details panel"): 360–420px.
 
-**Run viewer composition.**
-- DAG canvas dominates. Pan/zoom, no scroll inside.
-- Below or beside: jobs table. Click a job → details panel slides over the right rail.
-- Inside details: tabs for `logs | steps | artifacts | timing`.
-
-**Marketing composition.**
-- Single 1280px max content width. Generous vertical rhythm. Asymmetric blocks allowed.
+**Marketing.** Single 1280px max content width. Generous vertical rhythm. Asymmetric blocks allowed.
 
 **Border radius.** Use the radius scale, not arbitrary values.
 
@@ -341,91 +329,70 @@ Webhook deliveries and trigger events have their own state surface. Use the same
 
 ---
 
-## 10. Surface guidance
+## 10. Design patterns
 
-### 10.1 The DAG view
+System-level patterns. These describe *how* the design system is meant to be applied — what to reach for, what to avoid. Page-specific designs live with their features.
 
-This is the most visible surface in the product. It must be readable at 5, 50, and 500 nodes.
+### Status display
 
-**Composition.** Pan/zoom canvas. Nodes flow top-to-bottom or left-to-right based on user preference; default is top-to-bottom. Edges are 1px `border-neutral-strong` lines with directional arrows; on hover or selection the edge promotes to `border-highlights-interactive` (orange). Edges that connect a satisfied dependency render solid; pending edges render with `dasharray`.
+Two ways to express state, picked by context:
 
-**Node anatomy.**
-- Card (`rounded-8`, `bg-background-components-base`, `shadow-border-base`).
-- Header row: status dot + job name (`Text size="md"`, font-medium, truncated).
-- Sub row: duration (`Code variant="label"` → `text-xs font-code` muted) + retry count if > 0 + "manual" badge if applicable.
-- Optional: capability tag chips (sm).
+- **Dot** (8px circle) when state is one attribute among many in a dense row or node — the dot leads the row, the rest of the row is content. Solid for terminal states, pulsing ring for an in-progress state.
+- **Pill** (`rounded-4` or `rounded-full`, `text-xs`, leading icon) when state is the headline of a card or section header.
 
-**Status dot.** 8px circle, color from the status taxonomy. Solid for terminal states. Pulsing ring (1.5s ease-in-out) for `running`. No dot for `pending` (use neutral border instead).
+Color always comes from the `--tag-*` family — never from raw color primitives. The dot or pill is sufficient on its own. Don't also tint the row/card background to match; that turns a status surface into a circus and fights dark mode.
 
-**Selected state.** `shadow-border-interactive-with-active` — orange focus ring. Other nodes dim to ~64% opacity. The right-rail details panel animates in with a 200ms ease-out.
+### Code, data, and identifiers
 
-**Anti-patterns.** Colored backgrounds on nodes (the dot plus the border carry status — full color fills make the canvas look like a circus). Animated edges (you'll regret this when the user zooms out and there are 200 of them). Dropping shadows behind nodes on hover (use the focus ring instead).
+`font-code` (Commit Mono) is structural, not decorative. Reach for it whenever the content is something the user types, copies, or pattern-matches against:
 
-### 10.2 Live log tail
+- Source code, YAML, JSON
+- Logs and command output
+- SHAs, IDs, paths, refs, URLs
+- Durations, byte counts, sequence numbers, line numbers
+- Capability tokens, environment names, tag/label values
 
-The second-most-visible surface. Performance and predictability rule.
+Body text in `font-display`. Numbers inside body text rendered as content (e.g., "14 jobs failed") in display; numbers presented as data (durations, counters, line numbers) in code. Both fonts have tabular numerals enabled by default at the `html` level so columns of figures don't jitter.
 
-**Anatomy.**
-- Header: job name, status pill, duration, copy/download buttons (`transparent` size sm).
-- Body: monospace, `text-sm font-code`, `bg-background-contrast-base` (near-black even in light mode), white-on-dark text. Stable line height (20px). Tabular nums on line numbers.
-- Sticky autoscroll: scrolls with new content unless the user scrolls up; show a "Jump to live" pill (rounded-full, `bg-background-highlight-interactive`) bottom-right when paused.
-- ANSI color support: render the standard 8-color set + bold + dim.
-- Sequence/byte indicator in the bottom status bar: `seq 4291 · 234 KB · live`.
+### Density posture
 
-**Anti-patterns.** Wrapping log lines on by default (engineers will turn it off; default to no-wrap with horizontal scroll). Animating new lines (sickening at 50 lps). Hiding line numbers (operators reference them). Using `text-md` for log content (waste of pixel real estate; `text-sm` is the right call here).
+Default to comfortable-compact. The system's defaults already encode this — `h-32` buttons, `gap-16` form rows, `p-24` card padding, 36–44px table rows. When in doubt, take the denser of two reasonable options for app surfaces and the more spacious one for marketing.
 
-### 10.3 Jobs / Steps / Runs tables
+A surface is at the wrong density when:
+- A table needs horizontal scroll because cells have too much padding.
+- An app page has more whitespace than content above the fold.
+- A marketing page feels like a settings panel.
 
-Tables are the bread and butter of the admin and run-listing surfaces.
+### Live and frequently-updating data
 
-**Composition.**
-- 36–44px row height. Zebra rows off by default — use `border-border-neutral-base` between rows instead.
-- Column types:
-  - **Status** (40px) — leading status dot or small pill.
-  - **Identity** — run number / job name (`Text size="md"`, font-medium) + sub-line metadata (`Text size="xs"` muted) such as commit SHA + branch.
-  - **Time** — `Text size="sm"` with relative ("4 min ago") + absolute on tooltip. Always tabular.
-  - **Duration** — `Code variant="paragraph"` (`text-sm font-code`) right-aligned. Always tabular.
-  - **Actor** — small avatar + name, or "system" / source badge.
-  - **Actions** — `transparent` size `sm` icon buttons, right-aligned, only visible on row hover.
-- Row hover: `bg-background-components-hover`. Row click: navigate (don't toggle a check). Row selection (multi-select): use a leading checkbox column.
+Data that changes more than once a second should not animate on update. New log lines, polling status changes, counter ticks — all of these append or swap silently. Animation here causes nausea and obscures the change.
 
-**Sticky header** + right-aligned numeric columns + tabular nums. No exceptions.
+Discrete events (a job transitions from `running` to `succeeded`, a panel slides in) get short, ease-out transitions in the 150–250ms range. Reserve the running-state pulsing ring for the indicator dot itself, not the surrounding card.
 
-### 10.4 YAML / config inspector (Definitions)
+### Tables
 
-When a workflow definition is shown:
+Tables show up everywhere. The system expects:
+- Sticky header.
+- Hairline borders between rows (`border-border-neutral-base`), not zebra fills.
+- Right-aligned numeric columns with tabular nums.
+- Row hover surfaces (`bg-background-components-hover`).
+- Inline row actions in `transparent` or `transparentMuted` button variants, revealed on hover, not always visible.
 
-- `code-block` component, `bg-background-contrast-base`, `font-code` `text-sm`.
-- Line numbers in `text-foreground-neutral-muted`.
-- Validation errors: gutter marker (red dot) at the offending line + an inline `Alert` block above the editor with file + line + message.
-- Read-only by default. If editing is enabled, use the `shipql-editor` component pattern for monaco-shaped affordances.
+### Code, log, and config blocks
 
-### 10.5 Trigger event inspector
+When showing multi-line code/log/YAML content:
+- Always `font-code`, `text-sm`, on a contrast surface (`bg-background-contrast-base`) regardless of theme — code reads better on near-black even in light mode.
+- Default to no-wrap with horizontal scroll. Engineers will reach for "soft wrap" if they want it.
+- Show line numbers in `text-foreground-neutral-muted`.
+- Inline validation errors get an `Alert` above the block with file + line; don't rely on color alone.
 
-Each event row expands into a JSON viewer. Pretty-print JSON, syntax-highlight via the same monospace + ANSI palette as logs. Source badge at the top (`tag-purple-*` for "github", `tag-blue-*` for "jira", neutral for "manual"). Idempotency key (`source:externalId`) shown as a `Code variant="label"` muted in the header.
+### Empty states
 
-### 10.6 Runner registration & queue admin
+Use the `empty-state` component pattern. Anatomy: small muted icon, `Header variant="h3"`, one-line `Text size="sm"` muted subtext, one primary CTA. Tell the user what is missing and the next action. No illustrations of cartoon rockets. No "Oops!" copy. No decorative blobs.
 
-A grid of runner cards (xs in dense mode, md in default).
+### Marketing surfaces
 
-- **Online indicator.** Small green dot (`tag-success-icon`) with a 2s pulsing ring while heartbeats are flowing. Switches to a static neutral dot after `last_heartbeat > 30s`. Switches to `tag-error-icon` (red) after threshold breach (operator attention needed).
-- **Capability tags.** Small `tag-neutral-*` pills, `text-xs font-code` (capabilities are configuration tokens, render them in mono).
-- **Tenant scope.** Single-line label: "instance / group: foo / project: bar" with `Text size="xs"` muted.
-- **Last seen.** Relative time, tooltip with absolute.
-
-The pending jobs queue is a table (see 10.3) sorted by `created_at ASC`. Show capabilities and ref on the row.
-
-### 10.7 Webhook deliveries
-
-A two-pane view: subscriptions on the left, deliveries on the right. Each delivery row shows: status pill, subscription target (truncated URL with tooltip), event type (`Code variant="label"`), attempt count, last response code, last attempt time. Failed-but-not-disabled deliveries get a `Replay` action. Auto-disabled subscriptions surface a banner with the disable reason and "Re-enable" CTA.
-
-### 10.8 Empty states
-
-Use the `empty-state` component pattern. Anatomy: small icon (size-32, muted), heading (`Header variant="h3"`), one-line subtext (`Text size="sm"` muted), one primary CTA. No illustrations of cartoon rockets. No "Oops!" copy. Tell the user what is missing and the next action.
-
-### 10.9 Marketing & auth
-
-These surfaces breathe more. `text-5xl` headlines, `text-xl` body, `gap-64` between sections, full-bleed background panels in `bg-background-neutral-background`. The brand allows itself slightly more orange here (link underlines, accent dot in the wordmark, focus rings) but the same restraint holds — no gradients on CTAs, no decorative blobs.
+Marketing breathes more — `text-5xl` headlines, `text-xl` body, `gap-64` section gaps, full-bleed background panels in `bg-background-neutral-background`. The brand allows itself slightly more orange (link underlines, accent dot in the wordmark) but the same restraint applies: no gradients on CTAs, no decorative blobs, no centered-everything hero with three icon-in-circle features.
 
 ---
 
@@ -448,9 +415,9 @@ Tags / pills have their own token family because they need distinct background +
 
 - Color contrast: text on background combinations are tuned for WCAG AA. Verify before introducing new tokens.
 - Focus visibility: every interactive element has a `--shadow-*-focus` ring using primary orange. Do not strip `outline` without providing the ring.
-- Keyboard: all actions reachable. Run-viewer keyboard map: `j`/`k` traverse jobs, `enter` open details, `c` cancel, `r` retry, `?` shortcuts cheatsheet.
-- Motion: respect `prefers-reduced-motion`. Disable the running-state pulse and tab transitions when the user has it set.
-- ARIA: icon-only buttons require `aria-label`. Live regions on log tails (`aria-live="polite"`) and toast notifications.
+- Keyboard: all actions reachable. Surfaces with list-shaped content (tables, DAGs, log entries) should support `j`/`k` traversal and `?` for a shortcuts cheatsheet.
+- Motion: respect `prefers-reduced-motion`. Disable pulsing indicators and tab transitions when the user has it set.
+- ARIA: icon-only buttons require `aria-label`. Live-updating regions (logs, toasts) use `aria-live="polite"`.
 
 ---
 
@@ -462,7 +429,7 @@ Tags / pills have their own token family because they need distinct background +
 4. **Decorative gradients on CTAs.** Buttons are flat with token-driven shadow stacks. If a designer mocks a purple-to-pink gradient button, push back.
 5. **Status colors on backgrounds of cards/rows.** Status lives in dots, pills, and borders — not in entire row fills (which fight zebra patterns and dark mode).
 6. **Mixing icon styles.** Don't put a Lucide icon next to a Remix icon in the same toolbar. Pick one set per surface.
-7. **Animating new log lines.** Don't.
+7. **Animating high-frequency append-only data.** New log lines, polling counters, status ticks should swap silently. Reserve transitions for discrete events.
 8. **Bypassing the typography components.** No raw `<h1 class="text-3xl font-medium">`. Use `<Header variant="h1">`.
 9. **3-column feature grids with icons in colored circles.** Marketing surfaces stay restrained.
 10. **Custom drop-shadow values.** Use the `--shadow-*` tokens. Custom shadows break dark mode.
@@ -473,7 +440,7 @@ Tags / pills have their own token family because they need distinct background +
 
 | Date | Decision | Rationale |
 |---|---|---|
-| 2026-05-05 | Initial DESIGN.md drafted | Documents the existing token-driven system in `libs/shared/react/ui` and adds product-surface guidance grounded in `system-design.md`. |
+| 2026-05-05 | Initial DESIGN.md drafted | Documents the existing token-driven system in `libs/shared/react/ui`. Scope is the design system itself plus reusable patterns (status display, code/data, tables, live data, empty states) — not page-level designs, which live with their features. |
 | 2026-05-05 | Brand orange is interactive/focus-only, not the primary CTA fill | Status colors and primary actions both compete for attention — using inverted neutral as the primary CTA reserves orange for "where you are right now" semantics. |
 | 2026-05-05 | Tabular nums on by default | Run viewers, log line numbers, durations, and counts must not jitter on update. |
 | 2026-05-05 | Inter for UI, Commit Mono for code | Inter is the dev-tools default for legibility at 13–14px; Commit Mono carries warmth for the heavy log/YAML/SHA surfaces. |
