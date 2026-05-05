@@ -24,8 +24,8 @@ export function IntegrationGalleryPage() {
       <div className="mx-auto flex w-full max-w-[640px] flex-col gap-20">
         <header className="flex flex-col gap-8">
           {hasConnection ? (
-            <ButtonLink asChild variant="muted" className="w-fit">
-              <Link to="/">Back to projects</Link>
+            <ButtonLink variant="muted" href="/">
+              Back to projects
             </ButtonLink>
           ) : null}
           <div>

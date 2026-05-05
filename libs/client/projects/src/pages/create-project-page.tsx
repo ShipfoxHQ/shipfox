@@ -151,8 +151,8 @@ export function CreateProjectPage() {
       <div className="mx-auto flex w-full max-w-[760px] flex-col gap-24">
         <header className="flex flex-col gap-8">
           {hasProjects ? (
-            <ButtonLink asChild variant="muted" className="w-fit">
-              <Link to="/">Back to projects</Link>
+            <ButtonLink variant="muted" href="/">
+              Back to projects
             </ButtonLink>
           ) : null}
           <div>
