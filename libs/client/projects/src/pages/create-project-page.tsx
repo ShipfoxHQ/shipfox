@@ -10,6 +10,7 @@ import {
 import {
   Alert,
   Button,
+  ButtonLink,
   Card,
   CardContent,
   CardDescription,
@@ -24,7 +25,11 @@ import {
 import {useQueryClient} from '@tanstack/react-query';
 import {Link, Navigate, useNavigate} from '@tanstack/react-router';
 import {type FormEvent, useEffect, useRef, useState} from 'react';
-import {projectsQueryKeys, useCreateProjectMutation} from '#hooks/api/projects.js';
+import {
+  projectsQueryKeys,
+  useCreateProjectMutation,
+  useProjectsInfiniteQuery,
+} from '#hooks/api/projects.js';
 import {projectErrorCopy} from '#project-error.js';
 
 const REPOSITORY_NAME_SPLIT_RE = /[/-]/;
@@ -39,6 +44,9 @@ export function CreateProjectPage() {
 
   const connectionsQuery = useSourceConnectionsQuery(workspace?.id);
   const connections = connectionsQuery.data?.connections ?? [];
+
+  const projectsQuery = useProjectsInfiniteQuery(workspace?.id);
+  const hasProjects = (projectsQuery.data?.pages.flatMap((page) => page.projects) ?? []).length > 0;
 
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | undefined>();
   useEffect(() => {
@@ -142,9 +150,11 @@ export function CreateProjectPage() {
     <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
       <div className="mx-auto flex w-full max-w-[760px] flex-col gap-24">
         <header className="flex flex-col gap-8">
-          <Button asChild variant="transparent" className="w-fit px-0">
-            <Link to="/">Back to projects</Link>
-          </Button>
+          {hasProjects ? (
+            <ButtonLink asChild variant="muted" className="w-fit">
+              <Link to="/">Back to projects</Link>
+            </ButtonLink>
+          ) : null}
           <div>
             <Header variant="h1">Create project</Header>
             <Text size="md" className="text-foreground-neutral-muted">

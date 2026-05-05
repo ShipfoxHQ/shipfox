@@ -1,26 +1,16 @@
 import {ApiError} from '@shipfox/client-api';
 import {useAuthState} from '@shipfox/client-auth';
-import {Alert, Button, Card, Header, Icon, Skeleton, Text} from '@shipfox/react-ui';
+import {Alert, Button, ButtonLink, Card, Header, Icon, Skeleton, Text} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
-import type {ReactNode} from 'react';
 import {useIntegrationProvidersQuery, useSourceConnectionsQuery} from '#hooks/api/integrations.js';
 import {PROVIDER_CATALOG} from '#provider-catalog.js';
-
-function ConnectLink({provider, children}: {provider: string; children: ReactNode}) {
-  if (provider === 'github') {
-    return <Link to="/setup/integrations/github">{children}</Link>;
-  }
-  if (provider === 'debug') {
-    return <Link to="/setup/integrations/debug">{children}</Link>;
-  }
-  return null;
-}
 
 export function IntegrationGalleryPage() {
   const auth = useAuthState();
   const workspace = auth.workspaces[0];
   const connectionsQuery = useSourceConnectionsQuery(workspace?.id);
   const hasConnection = (connectionsQuery.data?.connections ?? []).length > 0;
+
   const query = useIntegrationProvidersQuery({capability: 'source_control'});
   const providers = query.data?.providers ?? [];
   const renderable = providers.flatMap((provider) => {
@@ -34,9 +24,9 @@ export function IntegrationGalleryPage() {
       <div className="mx-auto flex w-full max-w-[640px] flex-col gap-20">
         <header className="flex flex-col gap-8">
           {hasConnection ? (
-            <Button asChild variant="transparent" className="w-fit px-0">
+            <ButtonLink asChild variant="muted" className="w-fit">
               <Link to="/">Back to projects</Link>
-            </Button>
+            </ButtonLink>
           ) : null}
           <div>
             <Header variant="h1">Connect source control</Header>
@@ -89,9 +79,16 @@ export function IntegrationGalleryPage() {
                       {provider.display_name}
                     </Text>
                   </div>
-                  <Button asChild>
-                    <ConnectLink provider={provider.provider}>Connect</ConnectLink>
-                  </Button>
+                  {provider.provider === 'github' ? (
+                    <Button asChild variant="secondary">
+                      <Link to="/setup/integrations/github">Connect</Link>
+                    </Button>
+                  ) : null}
+                  {provider.provider === 'debug' ? (
+                    <Button asChild variant="secondary">
+                      <Link to="/setup/integrations/debug">Connect</Link>
+                    </Button>
+                  ) : null}
                 </div>
               </Card>
             ))}
