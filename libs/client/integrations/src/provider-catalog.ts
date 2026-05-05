@@ -1,15 +1,17 @@
+import type {IconName} from '@shipfox/react-ui';
+
 export interface ProviderCatalogEntry {
-  description: string;
+  iconName: IconName;
   setupPath: string;
 }
 
 export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
   github: {
-    description: 'Install the Shipfox GitHub App on the repositories you want to import.',
+    iconName: 'github',
     setupPath: '/setup/integrations/github',
   },
   debug: {
-    description: 'Three local fixture repositories for development and tests.',
+    iconName: 'componentLine',
     setupPath: '/setup/integrations/debug',
   },
 };

@@ -14,18 +14,18 @@ describe('integration connection queries', () => {
       workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
-      displayName: 'Debug Source Control',
+      displayName: 'Debug',
     });
 
     const second = await upsertIntegrationConnection({
       workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
-      displayName: 'Renamed Debug Source Control',
+      displayName: 'Renamed Debug',
     });
 
     expect(second.id).toBe(first.id);
-    expect(second.displayName).toBe('Renamed Debug Source Control');
+    expect(second.displayName).toBe('Renamed Debug');
   });
 
   it('allows multiple same-provider connections when external account differs', async () => {
@@ -52,7 +52,7 @@ describe('integration connection queries', () => {
       workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
-      displayName: 'Debug Source Control',
+      displayName: 'Debug',
     });
     await upsertIntegrationConnection({
       workspaceId,

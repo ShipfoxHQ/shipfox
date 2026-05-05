@@ -24,7 +24,7 @@ type Story = StoryObj<typeof meta>;
 
 const SAMPLE_CONNECTIONS = [
   {id: 'conn-1', name: 'GitHub Source Control', subtitle: 'github · acme'},
-  {id: 'conn-2', name: 'Debug Source Control', subtitle: 'debug · debug'},
+  {id: 'conn-2', name: 'Debug', subtitle: 'debug · debug'},
   {id: 'conn-3', name: 'Other GitHub Source', subtitle: 'github · acme-fork'},
 ];
 

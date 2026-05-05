@@ -6,7 +6,7 @@ import {CreateProjectPage} from './create-project-page.js';
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 const SECOND_CONNECTION_ID = '66666666-6666-4666-8666-666666666666';
 const REPOSITORY_NOT_FOUND_RE = /Repository not found/;
-const DEBUG_RADIO_LABEL_RE = /Debug Source Control/;
+const DEBUG_RADIO_LABEL_RE = /^Debug debug · debug$/;
 
 describe('CreateProjectPage', () => {
   test('with a single connection: pre-selects, renders repos, creates a project', async () => {
@@ -30,7 +30,7 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage('/setup/projects/new', <CreateProjectPage />);
-    expect(await screen.findByText('Debug Source Control')).toBeInTheDocument();
+    expect(await screen.findByText('Debug')).toBeInTheDocument();
     expect(await screen.findByText('debug-owner/platform')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
@@ -63,7 +63,7 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage('/setup/projects/new', <CreateProjectPage />);
-    expect(await screen.findByText('Debug Source Control')).toBeInTheDocument();
+    expect(await screen.findByText('Debug')).toBeInTheDocument();
     expect(await screen.findByText('Other Debug Source')).toBeInTheDocument();
     expect(screen.queryByText('debug-owner/platform')).not.toBeInTheDocument();
 
@@ -153,7 +153,7 @@ function connectionDto() {
     workspace_id: '11111111-1111-4111-8111-111111111111',
     provider: 'debug',
     external_account_id: 'debug',
-    display_name: 'Debug Source Control',
+    display_name: 'Debug',
     lifecycle_status: 'active',
     capabilities: ['source_control'],
     created_at: new Date().toISOString(),

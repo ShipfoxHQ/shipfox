@@ -9,7 +9,7 @@ export {DebugSourceControlProvider} from '#core/source-control.js';
 export function createDebugIntegrationProvider(options: CreateDebugIntegrationRoutesOptions) {
   return {
     provider: 'debug' as const,
-    displayName: 'Debug Source Control',
+    displayName: 'Debug',
     adapters: {
       source_control: new DebugSourceControlProvider(),
     },

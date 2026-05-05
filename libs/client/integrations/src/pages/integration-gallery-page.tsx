@@ -1,17 +1,6 @@
 import {ApiError} from '@shipfox/client-api';
 import {useAuthState} from '@shipfox/client-auth';
-import {
-  Alert,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Header,
-  Skeleton,
-  Text,
-} from '@shipfox/react-ui';
+import {Alert, Button, Card, Header, Icon, Skeleton, Text} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {useIntegrationProvidersQuery, useSourceConnectionsQuery} from '#hooks/api/integrations.js';
 import {PROVIDER_CATALOG} from '#provider-catalog.js';
@@ -40,7 +29,7 @@ export function IntegrationGalleryPage() {
 
   return (
     <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
-      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-24">
+      <div className="mx-auto flex w-full max-w-[640px] flex-col gap-20">
         <header className="flex flex-col gap-8">
           {hasConnection ? (
             <Button asChild variant="transparent" className="w-fit px-0">
@@ -74,33 +63,34 @@ export function IntegrationGalleryPage() {
         ) : null}
 
         {!query.isPending && !query.isError && renderable.length === 0 ? (
-          <Card className="items-start gap-12 p-24">
-            <CardHeader>
-              <CardTitle variant="h3">No source-control providers configured</CardTitle>
-              <CardDescription>
-                Enable at least one source-control provider in the application settings.
-              </CardDescription>
-            </CardHeader>
+          <Card className="items-start gap-8 p-16">
+            <Text size="sm" bold>
+              No source-control providers configured
+            </Text>
+            <Text size="sm" className="text-foreground-neutral-muted">
+              Enable at least one source-control provider in the application settings.
+            </Text>
           </Card>
         ) : null}
 
         {renderable.length > 0 ? (
-          <section className="flex flex-col gap-12" aria-label="Available providers">
+          <section className="flex flex-col gap-8" aria-label="Available providers">
             {renderable.map(({provider, catalog, link}) => (
-              <Card key={provider.provider} className="p-24">
-                <CardContent className="flex items-center justify-between gap-18 max-[640px]:flex-col max-[640px]:items-start">
-                  <div className="min-w-0">
-                    <Text size="lg" bold>
+              <Card key={provider.provider} className="p-16">
+                <div className="flex items-center justify-between gap-12">
+                  <div className="flex min-w-0 items-center gap-12">
+                    <Icon
+                      name={catalog.iconName}
+                      className="size-24 shrink-0 text-foreground-neutral-base"
+                    />
+                    <Text size="md" bold className="truncate">
                       {provider.display_name}
                     </Text>
-                    <Text size="sm" className="text-foreground-neutral-muted">
-                      {catalog.description}
-                    </Text>
                   </div>
-                  <Button asChild>
-                    <Link {...link}>Connect {provider.display_name}</Link>
+                  <Button asChild size="sm" variant="secondary">
+                    <Link {...link}>Connect</Link>
                   </Button>
-                </CardContent>
+                </div>
               </Card>
             ))}
           </section>
@@ -112,11 +102,16 @@ export function IntegrationGalleryPage() {
 
 function GallerySkeleton() {
   return (
-    <div className="flex flex-col gap-12" role="status" aria-label="Loading providers">
+    <div className="flex flex-col gap-8" role="status" aria-label="Loading providers">
       {[0, 1].map((row) => (
-        <Card className="p-24" key={row}>
-          <Skeleton className="h-20 w-1/3" />
-          <Skeleton className="h-16 w-2/3" />
+        <Card className="p-16" key={row}>
+          <div className="flex items-center justify-between gap-12">
+            <div className="flex items-center gap-12">
+              <Skeleton className="size-24 shrink-0" />
+              <Skeleton className="h-16 w-120" />
+            </div>
+            <Skeleton className="h-28 w-72" />
+          </div>
         </Card>
       ))}
     </div>
