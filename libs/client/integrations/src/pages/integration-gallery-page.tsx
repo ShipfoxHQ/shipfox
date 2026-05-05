@@ -2,15 +2,18 @@ import {ApiError} from '@shipfox/client-api';
 import {useAuthState} from '@shipfox/client-auth';
 import {Alert, Button, Card, Header, Icon, Skeleton, Text} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
+import type {ReactNode} from 'react';
 import {useIntegrationProvidersQuery, useSourceConnectionsQuery} from '#hooks/api/integrations.js';
 import {PROVIDER_CATALOG} from '#provider-catalog.js';
 
-type SetupLinkProps = {to: '/setup/integrations/github'} | {to: '/setup/integrations/debug'};
-
-function setupLinkFor(provider: string): SetupLinkProps | undefined {
-  if (provider === 'github') return {to: '/setup/integrations/github'};
-  if (provider === 'debug') return {to: '/setup/integrations/debug'};
-  return undefined;
+function ConnectLink({provider, children}: {provider: string; children: ReactNode}) {
+  if (provider === 'github') {
+    return <Link to="/setup/integrations/github">{children}</Link>;
+  }
+  if (provider === 'debug') {
+    return <Link to="/setup/integrations/debug">{children}</Link>;
+  }
+  return null;
 }
 
 export function IntegrationGalleryPage() {
@@ -22,9 +25,8 @@ export function IntegrationGalleryPage() {
   const providers = query.data?.providers ?? [];
   const renderable = providers.flatMap((provider) => {
     const catalog = PROVIDER_CATALOG[provider.provider];
-    const link = setupLinkFor(provider.provider);
-    if (!catalog || !link) return [];
-    return [{provider, catalog, link}];
+    if (!catalog) return [];
+    return [{provider, catalog}];
   });
 
   return (
@@ -75,7 +77,7 @@ export function IntegrationGalleryPage() {
 
         {renderable.length > 0 ? (
           <section className="flex flex-col gap-8" aria-label="Available providers">
-            {renderable.map(({provider, catalog, link}) => (
+            {renderable.map(({provider, catalog}) => (
               <Card key={provider.provider} className="p-16">
                 <div className="flex items-center justify-between gap-12">
                   <div className="flex min-w-0 items-center gap-12">
@@ -88,7 +90,7 @@ export function IntegrationGalleryPage() {
                     </Text>
                   </div>
                   <Button asChild size="sm" variant="secondary">
-                    <Link {...link}>Connect</Link>
+                    <ConnectLink provider={provider.provider}>Connect</ConnectLink>
                   </Button>
                 </div>
               </Card>
