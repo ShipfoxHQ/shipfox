@@ -32,10 +32,10 @@
   },
   "dependencies": {
     "@shipfox/api-integration-core-dto": "workspace:*",
-    "@shipfox/api-integration-debug-dto": "workspace:*",
     "@shipfox/api-projects-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
+    "@shipfox/client-integrations": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",
     "@tanstack/react-query": "^5.100.5",

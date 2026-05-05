@@ -10,23 +10,21 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ProjectsNewRouteImport } from './routes/projects/new'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects/$projectId'
 import { Route as AuthVerifyEmailRouteImport } from './routes/auth/verify-email'
 import { Route as AuthSignupRouteImport } from './routes/auth/signup'
 import { Route as AuthResetRouteImport } from './routes/auth/reset'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
+import { Route as SetupIntegrationsIndexRouteImport } from './routes/setup/integrations/index'
+import { Route as SetupProjectsNewRouteImport } from './routes/setup/projects/new'
+import { Route as SetupIntegrationsGithubRouteImport } from './routes/setup/integrations/github'
+import { Route as SetupIntegrationsDebugRouteImport } from './routes/setup/integrations/debug'
 import { Route as IntegrationsGithubCallbackRouteImport } from './routes/integrations/github/callback'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectsNewRoute = ProjectsNewRouteImport.update({
-  id: '/projects/new',
-  path: '/projects/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
@@ -59,6 +57,26 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   path: '/auth/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SetupIntegrationsIndexRoute = SetupIntegrationsIndexRouteImport.update({
+  id: '/setup/integrations/',
+  path: '/setup/integrations/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupProjectsNewRoute = SetupProjectsNewRouteImport.update({
+  id: '/setup/projects/new',
+  path: '/setup/projects/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupIntegrationsGithubRoute = SetupIntegrationsGithubRouteImport.update({
+  id: '/setup/integrations/github',
+  path: '/setup/integrations/github',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupIntegrationsDebugRoute = SetupIntegrationsDebugRouteImport.update({
+  id: '/setup/integrations/debug',
+  path: '/setup/integrations/debug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IntegrationsGithubCallbackRoute =
   IntegrationsGithubCallbackRouteImport.update({
     id: '/integrations/github/callback',
@@ -74,8 +92,11 @@ export interface FileRoutesByFullPath {
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/projects/new': typeof ProjectsNewRoute
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
+  '/setup/integrations/debug': typeof SetupIntegrationsDebugRoute
+  '/setup/integrations/github': typeof SetupIntegrationsGithubRoute
+  '/setup/projects/new': typeof SetupProjectsNewRoute
+  '/setup/integrations/': typeof SetupIntegrationsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -85,8 +106,11 @@ export interface FileRoutesByTo {
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/projects/new': typeof ProjectsNewRoute
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
+  '/setup/integrations/debug': typeof SetupIntegrationsDebugRoute
+  '/setup/integrations/github': typeof SetupIntegrationsGithubRoute
+  '/setup/projects/new': typeof SetupProjectsNewRoute
+  '/setup/integrations': typeof SetupIntegrationsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -97,8 +121,11 @@ export interface FileRoutesById {
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/projects/new': typeof ProjectsNewRoute
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
+  '/setup/integrations/debug': typeof SetupIntegrationsDebugRoute
+  '/setup/integrations/github': typeof SetupIntegrationsGithubRoute
+  '/setup/projects/new': typeof SetupProjectsNewRoute
+  '/setup/integrations/': typeof SetupIntegrationsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -110,8 +137,11 @@ export interface FileRouteTypes {
     | '/auth/signup'
     | '/auth/verify-email'
     | '/projects/$projectId'
-    | '/projects/new'
     | '/integrations/github/callback'
+    | '/setup/integrations/debug'
+    | '/setup/integrations/github'
+    | '/setup/projects/new'
+    | '/setup/integrations/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -121,8 +151,11 @@ export interface FileRouteTypes {
     | '/auth/signup'
     | '/auth/verify-email'
     | '/projects/$projectId'
-    | '/projects/new'
     | '/integrations/github/callback'
+    | '/setup/integrations/debug'
+    | '/setup/integrations/github'
+    | '/setup/projects/new'
+    | '/setup/integrations'
   id:
     | '__root__'
     | '/'
@@ -132,8 +165,11 @@ export interface FileRouteTypes {
     | '/auth/signup'
     | '/auth/verify-email'
     | '/projects/$projectId'
-    | '/projects/new'
     | '/integrations/github/callback'
+    | '/setup/integrations/debug'
+    | '/setup/integrations/github'
+    | '/setup/projects/new'
+    | '/setup/integrations/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -144,8 +180,11 @@ export interface RootRouteChildren {
   AuthSignupRoute: typeof AuthSignupRoute
   AuthVerifyEmailRoute: typeof AuthVerifyEmailRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
-  ProjectsNewRoute: typeof ProjectsNewRoute
   IntegrationsGithubCallbackRoute: typeof IntegrationsGithubCallbackRoute
+  SetupIntegrationsDebugRoute: typeof SetupIntegrationsDebugRoute
+  SetupIntegrationsGithubRoute: typeof SetupIntegrationsGithubRoute
+  SetupProjectsNewRoute: typeof SetupProjectsNewRoute
+  SetupIntegrationsIndexRoute: typeof SetupIntegrationsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -155,13 +194,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/projects/new': {
-      id: '/projects/new'
-      path: '/projects/new'
-      fullPath: '/projects/new'
-      preLoaderRoute: typeof ProjectsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects/$projectId': {
@@ -206,6 +238,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/setup/integrations/': {
+      id: '/setup/integrations/'
+      path: '/setup/integrations'
+      fullPath: '/setup/integrations/'
+      preLoaderRoute: typeof SetupIntegrationsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/projects/new': {
+      id: '/setup/projects/new'
+      path: '/setup/projects/new'
+      fullPath: '/setup/projects/new'
+      preLoaderRoute: typeof SetupProjectsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/integrations/github': {
+      id: '/setup/integrations/github'
+      path: '/setup/integrations/github'
+      fullPath: '/setup/integrations/github'
+      preLoaderRoute: typeof SetupIntegrationsGithubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/integrations/debug': {
+      id: '/setup/integrations/debug'
+      path: '/setup/integrations/debug'
+      fullPath: '/setup/integrations/debug'
+      preLoaderRoute: typeof SetupIntegrationsDebugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/integrations/github/callback': {
       id: '/integrations/github/callback'
       path: '/integrations/github/callback'
@@ -224,8 +284,11 @@ const rootRouteChildren: RootRouteChildren = {
   AuthSignupRoute: AuthSignupRoute,
   AuthVerifyEmailRoute: AuthVerifyEmailRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
-  ProjectsNewRoute: ProjectsNewRoute,
   IntegrationsGithubCallbackRoute: IntegrationsGithubCallbackRoute,
+  SetupIntegrationsDebugRoute: SetupIntegrationsDebugRoute,
+  SetupIntegrationsGithubRoute: SetupIntegrationsGithubRoute,
+  SetupProjectsNewRoute: SetupProjectsNewRoute,
+  SetupIntegrationsIndexRoute: SetupIntegrationsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

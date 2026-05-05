@@ -23,7 +23,7 @@ interface UpsertDebugConnectionInput {
   workspaceId: string;
   provider: 'debug';
   externalAccountId: 'debug';
-  displayName: 'Debug Source Control';
+  displayName: 'Debug';
   lifecycleStatus: 'active';
 }
 
@@ -69,7 +69,7 @@ export function createDebugIntegrationRoutes({
         workspaceId,
         provider: 'debug',
         externalAccountId: 'debug',
-        displayName: 'Debug Source Control',
+        displayName: 'Debug',
         lifecycleStatus: 'active',
       });
 

@@ -69,6 +69,7 @@ export type ListRepositoriesParamsDto = z.infer<typeof listRepositoriesParamsSch
 export const listRepositoriesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().optional(),
+  search: z.string().min(1).max(100).optional(),
 });
 export type ListRepositoriesQueryDto = z.infer<typeof listRepositoriesQuerySchema>;
 

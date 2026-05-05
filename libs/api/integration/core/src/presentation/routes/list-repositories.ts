@@ -34,6 +34,7 @@ export function createListRepositoriesRoute(sourceControl: IntegrationSourceCont
         connection,
         limit: request.query.limit,
         cursor: request.query.cursor,
+        search: request.query.search,
       });
 
       return {

@@ -51,15 +51,20 @@ function createTestRouter(path: string, element: ReactElement) {
   });
   const newProjectRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/projects/new',
-    component: () => (initialPath === '/projects/new' ? element : <CreateProjectPage />),
+    path: '/setup/projects/new',
+    component: () => (initialPath === '/setup/projects/new' ? element : <CreateProjectPage />),
+  });
+  const integrationsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/setup/integrations',
+    component: () => <div>Integrations gallery placeholder</div>,
   });
   const projectRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/projects/$projectId',
     component: () => {
       const params = useParams({strict: false}) as {projectId?: string};
-      if (initialPath.startsWith('/projects/') && initialPath !== '/projects/new') {
+      if (initialPath.startsWith('/projects/')) {
         return element;
       }
 
@@ -69,7 +74,12 @@ function createTestRouter(path: string, element: ReactElement) {
 
   return createRouter({
     history: createMemoryHistory({initialEntries: [path]}),
-    routeTree: rootRoute.addChildren([indexRoute, newProjectRoute, projectRoute]),
+    routeTree: rootRoute.addChildren([
+      indexRoute,
+      newProjectRoute,
+      integrationsRoute,
+      projectRoute,
+    ]),
   });
 }
 

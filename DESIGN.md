@@ -261,7 +261,7 @@ Buttons are `rounded-6`. Status pills are `rounded-4` or `rounded-full`. Cards a
 
 The system ships with batteries — use them. Inventory in this workspace:
 
-`alert`, `badge`, `button`, `card`, `icon`, `input`, `label`, `loader`, `skeleton`, `theme`, `toast`, `tooltip`, `typography`.
+`alert`, `badge`, `button`, `card`, `icon`, `input`, `label`, `loader`, `radio-group`, `skeleton`, `theme`, `toast`, `tooltip`, `typography`.
 
 The broader `@shipfox/react-ui` catalog adds: `avatar`, `button-group`, `calendar`, `checkbox`, `code-block`, `combobox`, `command`, `confetti`, `count-up`, `dashboard`, `date-picker`, `date-time-range-picker`, `dot-grid`, `dropdown-menu`, `dynamic-item`, `empty-state`, `form`, `inline-tips`, `interval-selector`, `item`, `kbd`, `modal`, `moving-border`, `popover`, `scroll-area`, `search`, `select`, `sheet`, `shiny-text`, `shipql-editor`, `slider`, `switch`, `table`, `tabs`, `textarea`. When a surface needs one of these, copy it over from the broader catalog rather than rebuilding.
 
@@ -445,3 +445,4 @@ Tags / pills have their own token family because they need distinct background +
 | 2026-05-05 | Tabular nums on by default | Run viewers, log line numbers, durations, and counts must not jitter on update. |
 | 2026-05-05 | Inter for UI, Commit Mono for code | Inter is the dev-tools default for legibility at 13–14px; Commit Mono carries warmth for the heavy log/YAML/SHA surfaces. |
 | 2026-05-05 | Spacing base = 1px (Tailwind class names == pixels) | Already in `index.css`; documented here because it diverges from stock Tailwind. |
+| 2026-05-05 | Added `radio-group` component (radix wrappers) | Required for accessible single-select pickers in workspace setup (connection picker, repository picker). Hand-rolled keyboard nav was rejected; radix ships tested arrow-key + Home/End + focus management. |

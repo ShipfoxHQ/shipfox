@@ -1,31 +1,35 @@
-import type {IntegrationConnectionDto, RepositoryDto} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {createProjectBodySchema} from '@shipfox/api-projects-dto';
 import {useAuthState} from '@shipfox/client-auth';
 import {
+  ConnectionPicker,
+  RepositoryPicker,
+  useRepositoriesInfiniteQuery,
+  useSourceConnectionsQuery,
+} from '@shipfox/client-integrations';
+import {
   Alert,
   Button,
+  ButtonLink,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
+  FullPageLoader,
   Header,
+  Input,
   Label,
-  Skeleton,
   Text,
   toast,
 } from '@shipfox/react-ui';
 import {useQueryClient} from '@tanstack/react-query';
-import {Link, useNavigate} from '@tanstack/react-router';
+import {Link, Navigate, useNavigate} from '@tanstack/react-router';
 import {type FormEvent, useEffect, useRef, useState} from 'react';
-import {ProjectPreviewRail, type ProjectPreviewState} from '#components/project-preview-rail.js';
 import {
-  integrationsQueryKeys,
   projectsQueryKeys,
-  useCreateDebugConnectionMutation,
   useCreateProjectMutation,
-  useRepositoriesQuery,
-  useSourceConnectionsQuery,
+  useProjectsInfiniteQuery,
 } from '#hooks/api/projects.js';
 import {projectErrorCopy} from '#project-error.js';
 
@@ -36,81 +40,80 @@ export function CreateProjectPage() {
   const workspace = auth.workspaces[0];
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const createConnection = useCreateDebugConnectionMutation();
   const createProject = useCreateProjectMutation();
   const errorRef = useRef<HTMLDivElement>(null);
+
   const connectionsQuery = useSourceConnectionsQuery(workspace?.id);
   const connections = connectionsQuery.data?.connections ?? [];
+
+  const projectsQuery = useProjectsInfiniteQuery(workspace?.id);
+  const hasProjects = (projectsQuery.data?.pages.flatMap((page) => page.projects) ?? []).length > 0;
+
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | undefined>();
-  const selectedConnection = connections.find(
-    (connection) => connection.id === selectedConnectionId,
+  const singleConnectionId = connections.length === 1 ? connections[0]?.id : undefined;
+  const effectiveSelectedConnectionId = selectedConnectionId ?? singleConnectionId;
+  useEffect(() => {
+    if (singleConnectionId && selectedConnectionId !== singleConnectionId) {
+      setSelectedConnectionId(singleConnectionId);
+    }
+  }, [singleConnectionId, selectedConnectionId]);
+
+  const selectedConnection: IntegrationConnectionDto | undefined = connections.find(
+    (connection) => connection.id === effectiveSelectedConnectionId,
   );
-  const repositoriesQuery = useRepositoriesQuery(selectedConnectionId);
-  const repositories = repositoriesQuery.data?.repositories ?? [];
+
+  const [repoFilter, setRepoFilter] = useState('');
+  const debouncedRepoFilter = useDebouncedValue(repoFilter, 250);
+  const trimmedFilter = debouncedRepoFilter.trim();
+
+  const repositoriesQuery = useRepositoriesInfiniteQuery(
+    effectiveSelectedConnectionId,
+    trimmedFilter ? {search: trimmedFilter} : undefined,
+  );
+  const repositories = repositoriesQuery.data?.pages.flatMap((page) => page.repositories) ?? [];
+
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | undefined>();
+  useEffect(() => {
+    if (!selectedRepositoryId && repositories[0]) {
+      setSelectedRepositoryId(repositories[0].external_repository_id);
+    }
+  }, [repositories, selectedRepositoryId]);
   const selectedRepository = repositories.find(
     (repository) => repository.external_repository_id === selectedRepositoryId,
   );
+
   const [nameTouched, setNameTouched] = useState(false);
   const [name, setName] = useState('');
   const defaultProjectName = projectNameFromRepository(
     selectedRepository?.name ?? selectedRepositoryId ?? '',
   );
   const projectName = nameTouched ? name : defaultProjectName;
-  const [formError, setFormError] = useState<string | undefined>();
-  const [previewState, setPreviewState] = useState<ProjectPreviewState>('waiting');
 
-  useEffect(() => {
-    if (!selectedConnectionId && connections[0]) {
-      setSelectedConnectionId(connections[0].id);
-      setSelectedRepositoryId(undefined);
-    }
-  }, [connections, selectedConnectionId]);
+  const [formError, setFormError] = useState<string | undefined>();
 
   function selectConnection(connectionId: string) {
     setSelectedConnectionId(connectionId);
     setSelectedRepositoryId(undefined);
   }
 
-  useEffect(() => {
-    if (!selectedRepositoryId && repositories[0]) {
-      setSelectedRepositoryId(repositories[0].external_repository_id);
-    }
-  }, [repositories, selectedRepositoryId]);
+  if (connectionsQuery.isPending) {
+    return <FullPageLoader />;
+  }
 
-  async function onConnectDebug() {
-    setFormError(undefined);
-    if (!workspace) {
-      setFormError('Workspace is still loading. Try again in a moment.');
-      return;
-    }
-
-    try {
-      const connection = await createConnection.mutateAsync({workspace_id: workspace.id});
-      setSelectedConnectionId(connection.id);
-      setSelectedRepositoryId(undefined);
-      await queryClient.invalidateQueries({
-        queryKey: integrationsQueryKeys.sourceConnections(workspace.id),
-      });
-      toast.success('Debug source control connected.');
-    } catch (error) {
-      const copy = projectErrorCopy(error);
-      setFormError(`${copy.title}: ${copy.message}`);
-      requestAnimationFrame(() => errorRef.current?.focus());
-    }
+  if (!connectionsQuery.isError && connections.length === 0) {
+    return <Navigate to="/setup/integrations" replace />;
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(undefined);
-    setPreviewState('ready');
     if (!workspace) {
       setFormError('Workspace is still loading. Try again in a moment.');
       errorRef.current?.focus();
       return;
     }
     if (!selectedConnection) {
-      setFormError('Connect a source-control integration before creating a project.');
+      setFormError('Choose a source-control connection before creating a project.');
       errorRef.current?.focus();
       return;
     }
@@ -125,7 +128,6 @@ export function CreateProjectPage() {
       return;
     }
 
-    setPreviewState('creating');
     try {
       const projectBody = createProjectBodySchema.parse({
         workspace_id: workspace.id,
@@ -136,15 +138,12 @@ export function CreateProjectPage() {
         },
       });
       const project = await createProject.mutateAsync(projectBody);
-
-      setPreviewState('created');
       await queryClient.invalidateQueries({queryKey: projectsQueryKeys.list(workspace.id)});
       queryClient.setQueryData(projectsQueryKeys.detail(project.id), project);
       toast.success('Project created.');
       await navigate({to: '/projects/$projectId', params: {projectId: project.id}});
     } catch (error) {
       const copy = projectErrorCopy(error);
-      setPreviewState('error');
       if (copy.existingProjectId) {
         toast.info('Project already exists.');
         await navigate({to: '/projects/$projectId', params: {projectId: copy.existingProjectId}});
@@ -155,219 +154,171 @@ export function CreateProjectPage() {
     }
   }
 
+  const showRepoPicker = Boolean(selectedConnection);
+  const filteredEmptyMessage = trimmedFilter
+    ? `No repositories matching "${repoFilter.trim()}".`
+    : 'No repositories visible to this connection.';
+
   return (
     <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
       <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-24">
         <header className="flex flex-col gap-8">
-          <Button asChild variant="transparent" className="w-fit px-0">
-            <Link to="/">Back to Projects</Link>
-          </Button>
+          {hasProjects ? (
+            <ButtonLink variant="muted" href="/">
+              Back to projects
+            </ButtonLink>
+          ) : null}
           <div>
             <Header variant="h1">Create project</Header>
             <Text size="md" className="text-foreground-neutral-muted">
-              Connect source control, choose a repository, and create a project.
+              Choose a repository to create a project from.
             </Text>
           </div>
         </header>
 
-        <section className="grid gap-24 lg:grid-cols-[minmax(0,560px)_minmax(320px,1fr)]">
-          <form onSubmit={onSubmit} noValidate aria-labelledby="create-project-title">
-            <Card className="gap-20 p-24">
-              <CardHeader>
-                <CardTitle id="create-project-title" variant="h2">
-                  Source setup
-                </CardTitle>
-                <CardDescription>
-                  Debug source control provides local repositories for development.
-                </CardDescription>
-              </CardHeader>
+        {connectionsQuery.isError ? (
+          <Alert variant="error">
+            <Text size="sm">Could not load source-control connections. Try again.</Text>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => connectionsQuery.refetch()}
+              className="mt-8 w-fit"
+            >
+              Retry
+            </Button>
+          </Alert>
+        ) : null}
 
-              {formError ? (
-                <Alert variant="error" animated={false}>
-                  <div ref={errorRef} tabIndex={-1}>
-                    {formError}
-                  </div>
-                </Alert>
+        <form
+          onSubmit={onSubmit}
+          noValidate
+          aria-labelledby="create-project-title"
+          className="grid items-start gap-24 lg:grid-cols-[minmax(0,1fr)_360px]"
+        >
+          <Card className="gap-20 p-24">
+            <CardHeader>
+              <CardTitle id="create-project-title" variant="h2">
+                Source
+              </CardTitle>
+              <CardDescription>
+                Pick a repository visible to one of your source-control connections.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="flex flex-col gap-18">
+              {connections.length > 0 ? (
+                <ConnectionPicker
+                  connections={connections}
+                  selectedConnectionId={effectiveSelectedConnectionId}
+                  onSelect={selectConnection}
+                />
               ) : null}
 
-              <CardContent className="flex flex-col gap-18">
-                <SourceConnectionPicker
-                  connections={connections}
-                  isLoading={connectionsQuery.isPending}
-                  selectedConnectionId={selectedConnectionId}
-                  onSelect={selectConnection}
-                  onConnectDebug={onConnectDebug}
-                  isConnecting={createConnection.isPending}
-                />
+              {connections.length === 1 ? (
+                <Button asChild variant="transparent" size="sm" className="w-fit">
+                  <Link to="/setup/integrations">Add another integration</Link>
+                </Button>
+              ) : null}
 
+              {showRepoPicker ? (
                 <RepositoryPicker
                   repositories={repositories}
-                  isLoading={repositoriesQuery.isPending && Boolean(selectedConnectionId)}
                   selectedRepositoryId={selectedRepositoryId}
                   onSelect={setSelectedRepositoryId}
-                  disabled={!selectedConnectionId}
+                  isLoading={repositoriesQuery.isPending}
+                  isFetchingNextPage={repositoriesQuery.isFetchingNextPage}
+                  hasNextPage={repositoriesQuery.hasNextPage}
+                  onLoadMore={() => repositoriesQuery.fetchNextPage()}
+                  emptyMessage={filteredEmptyMessage}
+                  searchValue={repoFilter}
+                  onSearchChange={setRepoFilter}
                 />
+              ) : null}
+            </CardContent>
+          </Card>
 
-                <div className="flex flex-col gap-8">
-                  <Label htmlFor="project-name">Project name</Label>
-                  <input
-                    id="project-name"
-                    className="h-40 rounded-6 border border-border-neutral-base bg-background-neutral-base px-12 text-sm"
-                    value={projectName}
-                    onChange={(event) => {
-                      setNameTouched(true);
-                      setName(event.target.value);
-                    }}
-                    placeholder="Platform"
-                  />
+          <Card className="gap-20 p-24 lg:sticky lg:top-32">
+            <CardHeader>
+              <CardTitle variant="h2">Project details</CardTitle>
+              <CardDescription>Pick a name and create the project.</CardDescription>
+            </CardHeader>
+
+            {formError ? (
+              <Alert variant="error" animated={false}>
+                <div ref={errorRef} tabIndex={-1}>
+                  {formError}
                 </div>
-              </CardContent>
+              </Alert>
+            ) : null}
 
-              <Button
-                type="submit"
-                iconRight="chevronRight"
-                isLoading={createProject.isPending}
-                disabled={!selectedConnection || !selectedRepository}
-              >
-                Create project
-              </Button>
-            </Card>
-          </form>
+            <CardContent className="flex flex-col gap-18">
+              <ProjectSummary
+                connection={selectedConnection}
+                repositoryFullName={selectedRepository?.full_name}
+              />
 
-          <ProjectPreviewRail
-            repositoryId={selectedRepositoryId ?? ''}
-            connectionName={selectedConnection?.display_name}
-            projectName={projectName}
-            state={previewState}
-            createdProject={createProject.data}
-          />
-        </section>
+              <div className="flex flex-col gap-8">
+                <Label htmlFor="project-name">Project name</Label>
+                <Input
+                  id="project-name"
+                  value={projectName}
+                  onChange={(event) => {
+                    setNameTouched(true);
+                    setName(event.target.value);
+                  }}
+                  placeholder="Platform"
+                />
+              </div>
+            </CardContent>
+
+            <Button
+              type="submit"
+              iconRight="chevronRight"
+              isLoading={createProject.isPending}
+              disabled={!selectedConnection || !selectedRepository}
+            >
+              Create project
+            </Button>
+          </Card>
+        </form>
       </div>
     </main>
   );
 }
 
-function SourceConnectionPicker({
-  connections,
-  isLoading,
-  selectedConnectionId,
-  onSelect,
-  onConnectDebug,
-  isConnecting,
-}: {
-  connections: IntegrationConnectionDto[];
-  isLoading: boolean;
-  selectedConnectionId: string | undefined;
-  onSelect: (connectionId: string) => void;
-  onConnectDebug: () => void;
-  isConnecting: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-10">
-      <div className="flex items-center justify-between gap-12">
-        <Label>Source connection</Label>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          isLoading={isConnecting}
-          onClick={onConnectDebug}
-        >
-          Connect Debug
-        </Button>
-      </div>
-      {isLoading ? <Skeleton className="h-58 w-full" /> : null}
-      {!isLoading && connections.length === 0 ? (
-        <div className="rounded-8 border border-border-neutral-base bg-background-subtle-base p-14">
-          <Text size="sm" bold>
-            No source-control connection
-          </Text>
-          <Text size="xs" className="text-foreground-neutral-muted">
-            Connect Debug source control to list repositories.
-          </Text>
-        </div>
-      ) : null}
-      {connections.map((connection) => (
-        <ConnectionButton
-          key={connection.id}
-          connection={connection}
-          selected={connection.id === selectedConnectionId}
-          onClick={() => onSelect(connection.id)}
-        />
-      ))}
-    </div>
-  );
-}
-
-function ConnectionButton({
+function ProjectSummary({
   connection,
-  selected,
-  onClick,
+  repositoryFullName,
 }: {
-  connection: IntegrationConnectionDto;
-  selected: boolean;
-  onClick: () => void;
+  connection: IntegrationConnectionDto | undefined;
+  repositoryFullName: string | undefined;
 }) {
   return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onClick}
-      className="rounded-8 border border-border-neutral-base bg-background-neutral-base p-14 text-left aria-pressed:border-border-highlights-interactive"
-    >
-      <Text size="sm" bold>
-        {connection.display_name}
-      </Text>
-      <Text size="xs" className="text-foreground-neutral-muted">
-        {connection.provider} · {connection.external_account_id}
-      </Text>
-    </button>
+    <dl className="flex flex-col gap-8">
+      <SummaryRow
+        label="Connection"
+        value={connection ? connection.display_name : 'Pick a connection'}
+        muted={!connection}
+      />
+      <SummaryRow
+        label="Repository"
+        value={repositoryFullName ?? 'Pick a repository'}
+        muted={!repositoryFullName}
+      />
+    </dl>
   );
 }
 
-function RepositoryPicker({
-  repositories,
-  isLoading,
-  selectedRepositoryId,
-  onSelect,
-  disabled,
-}: {
-  repositories: RepositoryDto[];
-  isLoading: boolean;
-  selectedRepositoryId: string | undefined;
-  onSelect: (repositoryId: string) => void;
-  disabled: boolean;
-}) {
+function SummaryRow({label, value, muted}: {label: string; value: string; muted: boolean}) {
   return (
-    <div className="flex flex-col gap-10">
-      <Label>Repository</Label>
-      {disabled ? (
-        <div className="rounded-8 border border-border-neutral-base bg-background-subtle-base p-14">
-          <Text size="sm">Connect source control first.</Text>
-        </div>
-      ) : null}
-      {isLoading ? <Skeleton className="h-58 w-full" /> : null}
-      {!disabled && !isLoading && repositories.length === 0 ? (
-        <div className="rounded-8 border border-border-neutral-base bg-background-subtle-base p-14">
-          <Text size="sm">No repositories found.</Text>
-        </div>
-      ) : null}
-      {repositories.map((repository) => (
-        <button
-          key={repository.external_repository_id}
-          type="button"
-          aria-pressed={repository.external_repository_id === selectedRepositoryId}
-          onClick={() => onSelect(repository.external_repository_id)}
-          className="rounded-8 border border-border-neutral-base bg-background-neutral-base p-14 text-left aria-pressed:border-border-highlights-interactive"
-        >
-          <Text size="sm" bold>
-            {repository.full_name}
-          </Text>
-          <Text size="xs" className="text-foreground-neutral-muted">
-            {repository.external_repository_id} · {repository.default_branch}
-          </Text>
-        </button>
-      ))}
+    <div className="flex flex-col gap-2">
+      <Text size="xs" className="text-foreground-neutral-muted">
+        {label}
+      </Text>
+      <Text size="sm" className={muted ? 'text-foreground-neutral-muted' : ''}>
+        {value}
+      </Text>
     </div>
   );
 }
@@ -379,4 +330,13 @@ function projectNameFromRepository(repositoryId: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handle = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(handle);
+  }, [value, delayMs]);
+  return debounced;
 }

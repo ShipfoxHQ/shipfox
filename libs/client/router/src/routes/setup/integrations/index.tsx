@@ -1,12 +1,12 @@
 import {AuthGuard, WorkspaceGuard} from '@shipfox/client-auth';
-import {CreateProjectPage} from '@shipfox/client-projects';
+import {IntegrationGalleryPage} from '@shipfox/client-integrations';
 import {createFileRoute} from '@tanstack/react-router';
 
-export const Route = createFileRoute('/projects/new')({
+export const Route = createFileRoute('/setup/integrations/')({
   component: () => (
     <AuthGuard>
       <WorkspaceGuard>
-        <CreateProjectPage />
+        <IntegrationGalleryPage />
       </WorkspaceGuard>
     </AuthGuard>
   ),

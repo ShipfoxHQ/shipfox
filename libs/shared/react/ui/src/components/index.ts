@@ -6,6 +6,7 @@ export * from './icon/index.js';
 export * from './input/index.js';
 export * from './label/index.js';
 export * from './loader/index.js';
+export * from './radio-group/index.js';
 export * from './skeleton/index.js';
 export * from './theme/index.js';
 export * from './toast/index.js';

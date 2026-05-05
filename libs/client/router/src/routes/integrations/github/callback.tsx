@@ -4,6 +4,13 @@ import {FullPageLoader, toast} from '@shipfox/react-ui';
 import {createFileRoute, useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect} from 'react';
 
+interface GithubCallbackParams {
+  code: string;
+  installationId: number;
+  state: string;
+  setupAction?: string;
+}
+
 const callbackRequests = new Map<string, Promise<void>>();
 const toastedCallbacks = new Set<string>();
 
@@ -17,6 +24,17 @@ function GithubCallbackRoute() {
   const refreshAuth = useRefreshAuth();
 
   useEffect(() => {
+    const missing = missingCallbackParams(search);
+    if (missing.length > 0) {
+      const message = `GitHub callback is missing: ${missing.join(', ')}. ${
+        missing.includes('code')
+          ? 'Enable "Request user authorization (OAuth) during installation" on the Shipfox GitHub App.'
+          : ''
+      }`;
+      toast.error(message);
+      navigate({to: '/', replace: true});
+      return;
+    }
     const params = githubCallbackParams(search);
     if (!params) {
       toast.error('GitHub callback is missing required parameters.');
@@ -25,11 +43,12 @@ function GithubCallbackRoute() {
     }
 
     let disposed = false;
-    const key = params.toString();
+    const query = encodeCallbackQuery(params);
+    const key = query;
     let request = callbackRequests.get(key);
     if (!request) {
       request = refreshAuth().then(async (session) => {
-        await apiRequest(`/integrations/github/callback/api?${params.toString()}`, {
+        await apiRequest(`/integrations/github/callback/api?${query}`, {
           headers: {authorization: `Bearer ${session.token}`},
         });
       });
@@ -62,24 +81,44 @@ function GithubCallbackRoute() {
   return <FullPageLoader />;
 }
 
-function githubCallbackParams(search: Record<string, unknown>): URLSearchParams | undefined {
-  const code = stringParam(search.code);
-  const installationId = stringParam(search.installation_id);
-  const state = stringParam(search.state);
-  if (!code || !installationId || !state) return undefined;
+function missingCallbackParams(search: Record<string, unknown>): string[] {
+  const missing: string[] = [];
+  if (!stringParam(search.code)) missing.push('code');
+  if (!numberParam(search.installation_id)) missing.push('installation_id');
+  if (!stringParam(search.state)) missing.push('state');
+  return missing;
+}
 
-  const params = new URLSearchParams({
-    code,
-    installation_id: installationId,
-    state,
-  });
+function githubCallbackParams(search: Record<string, unknown>): GithubCallbackParams | undefined {
+  const code = stringParam(search.code);
+  const installationId = numberParam(search.installation_id);
+  const state = stringParam(search.state);
+  if (!code || installationId === undefined || !state) return undefined;
+
   const setupAction = stringParam(search.setup_action);
-  if (setupAction) params.set('setup_action', setupAction);
-  return params;
+  return setupAction ? {code, installationId, state, setupAction} : {code, installationId, state};
+}
+
+function encodeCallbackQuery(params: GithubCallbackParams): string {
+  const search = new URLSearchParams();
+  search.set('code', params.code);
+  search.set('installation_id', params.installationId.toString());
+  search.set('state', params.state);
+  if (params.setupAction) search.set('setup_action', params.setupAction);
+  return search.toString();
 }
 
 function stringParam(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function numberParam(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
 }
 
 function githubCallbackErrorMessage(error: unknown): string {

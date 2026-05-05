@@ -38,7 +38,7 @@ export function ProjectsHubPage() {
           </div>
           <div className="flex flex-col items-end gap-8 max-[640px]:items-start">
             <Button asChild iconLeft="addLine">
-              <Link to="/projects/new">Create project</Link>
+              <Link to="/setup/projects/new">Create project</Link>
             </Button>
           </div>
         </header>
@@ -115,7 +115,7 @@ function EmptyProjects() {
         </CardDescription>
       </CardHeader>
       <Button asChild iconRight="chevronRight">
-        <Link to="/projects/new">Create project</Link>
+        <Link to="/setup/projects/new">Create project</Link>
       </Button>
     </Card>
   );

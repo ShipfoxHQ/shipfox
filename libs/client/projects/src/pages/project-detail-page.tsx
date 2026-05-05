@@ -1,6 +1,7 @@
 import {
   Alert,
   Button,
+  ButtonLink,
   Card,
   CardContent,
   CardDescription,
@@ -11,7 +12,6 @@ import {
   StatusBadge,
   Text,
 } from '@shipfox/react-ui';
-import {Link} from '@tanstack/react-router';
 import {useProjectQuery} from '#hooks/api/projects.js';
 import {projectErrorCopy} from '#project-error.js';
 
@@ -22,9 +22,9 @@ export function ProjectDetailPage({projectId}: {projectId: string}) {
   return (
     <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
       <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-24">
-        <Button asChild variant="transparent" className="w-fit px-0">
-          <Link to="/">Back to Projects</Link>
-        </Button>
+        <ButtonLink variant="muted" href="/">
+          Back to projects
+        </ButtonLink>
 
         {query.isPending ? (
           <Card className="p-24">
