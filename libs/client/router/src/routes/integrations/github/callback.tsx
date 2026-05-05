@@ -17,6 +17,17 @@ function GithubCallbackRoute() {
   const refreshAuth = useRefreshAuth();
 
   useEffect(() => {
+    const missing = missingCallbackParams(search);
+    if (missing.length > 0) {
+      const message = `GitHub callback is missing: ${missing.join(', ')}. ${
+        missing.includes('code')
+          ? 'Enable "Request user authorization (OAuth) during installation" on the Shipfox GitHub App.'
+          : ''
+      }`;
+      toast.error(message);
+      navigate({to: '/', replace: true});
+      return;
+    }
     const params = githubCallbackParams(search);
     if (!params) {
       toast.error('GitHub callback is missing required parameters.');
@@ -60,6 +71,14 @@ function GithubCallbackRoute() {
   }, [navigate, refreshAuth, search]);
 
   return <FullPageLoader />;
+}
+
+function missingCallbackParams(search: Record<string, unknown>): string[] {
+  const missing: string[] = [];
+  if (!stringParam(search.code)) missing.push('code');
+  if (!stringParam(search.installation_id)) missing.push('installation_id');
+  if (!stringParam(search.state)) missing.push('state');
+  return missing;
 }
 
 function githubCallbackParams(search: Record<string, unknown>): URLSearchParams | undefined {
