@@ -68,7 +68,7 @@ export function CreateProjectPage() {
 
   const repositoriesQuery = useRepositoriesInfiniteQuery(
     effectiveSelectedConnectionId,
-    trimmedFilter ? {q: trimmedFilter} : undefined,
+    trimmedFilter ? {search: trimmedFilter} : undefined,
   );
   const repositories = repositoriesQuery.data?.pages.flatMap((page) => page.repositories) ?? [];
 

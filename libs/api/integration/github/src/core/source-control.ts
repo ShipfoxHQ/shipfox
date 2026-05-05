@@ -33,7 +33,7 @@ export class GithubSourceControlProvider
     }
 
     const installationId = Number.parseInt(installation.installationId, 10);
-    const needle = input.q?.trim().toLowerCase();
+    const needle = input.search?.trim().toLowerCase();
 
     if (!needle) {
       const page = await this.github.listInstallationRepositories({

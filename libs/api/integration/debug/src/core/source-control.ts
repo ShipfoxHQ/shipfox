@@ -28,7 +28,7 @@ interface ListRepositoriesInput {
   connection: unknown;
   limit: number;
   cursor?: string | undefined;
-  q?: string | undefined;
+  search?: string | undefined;
 }
 
 interface ResolveRepositoryInput {
@@ -81,7 +81,7 @@ const DEBUG_REPOSITORIES: RepositorySnapshot[] = [
 export class DebugSourceControlProvider {
   async listRepositories(input: ListRepositoriesInput): Promise<RepositoryPage> {
     await Promise.resolve();
-    const filtered = filterByQuery(DEBUG_REPOSITORIES, input.q);
+    const filtered = filterBySearch(DEBUG_REPOSITORIES, input.search);
     const offset = input.cursor ? Number.parseInt(input.cursor, 10) : 0;
     const start = Number.isNaN(offset) ? 0 : offset;
     const repositories = filtered.slice(start, start + input.limit);
@@ -105,12 +105,12 @@ export class DebugSourceControlProvider {
   }
 }
 
-function filterByQuery(
+function filterBySearch(
   repositories: RepositorySnapshot[],
-  q: string | undefined,
+  search: string | undefined,
 ): RepositorySnapshot[] {
-  if (!q) return repositories;
-  const needle = q.trim().toLowerCase();
+  if (!search) return repositories;
+  const needle = search.trim().toLowerCase();
   if (!needle) return repositories;
   return repositories.filter((repo) => repo.fullName.toLowerCase().includes(needle));
 }

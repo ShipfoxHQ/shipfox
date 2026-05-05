@@ -19,8 +19,8 @@ export const integrationsQueryKeys = {
     [...integrationsQueryKeys.all, 'providers', capability] as const,
   sourceConnections: (workspaceId: string) =>
     [...integrationsQueryKeys.all, 'source-connections', workspaceId] as const,
-  repositories: (connectionId: string, q: string) =>
-    [...integrationsQueryKeys.all, 'repositories', connectionId, q] as const,
+  repositories: (connectionId: string, search: string) =>
+    [...integrationsQueryKeys.all, 'repositories', connectionId, search] as const,
 };
 
 export async function listIntegrationProviders({
@@ -71,18 +71,18 @@ export async function createGithubInstall(body: CreateGithubInstallBodyDto) {
 export async function listRepositories({
   connectionId,
   cursor,
-  q,
+  search,
   signal,
 }: {
   connectionId: string;
   cursor?: string;
-  q?: string;
+  search?: string;
   signal?: AbortSignal;
 }) {
-  const search = new URLSearchParams();
-  if (cursor) search.set('cursor', cursor);
-  if (q) search.set('q', q);
-  const query = search.toString();
+  const params = new URLSearchParams();
+  if (cursor) params.set('cursor', cursor);
+  if (search) params.set('search', search);
+  const query = params.toString();
   const path = query
     ? `/integration-connections/${connectionId}/repositories?${query}`
     : `/integration-connections/${connectionId}/repositories`;
@@ -109,22 +109,22 @@ export function useSourceConnectionsQuery(workspaceId: string | undefined) {
 
 export function useRepositoriesInfiniteQuery(
   connectionId: string | undefined,
-  options?: {q?: string},
+  options?: {search?: string},
 ) {
-  const trimmedQ = options?.q?.trim() ?? '';
+  const trimmedSearch = options?.search?.trim() ?? '';
   return useInfiniteQuery({
     queryKey: connectionId
-      ? integrationsQueryKeys.repositories(connectionId, trimmedQ)
+      ? integrationsQueryKeys.repositories(connectionId, trimmedSearch)
       : [...integrationsQueryKeys.all, 'repositories'],
     enabled: Boolean(connectionId),
     initialPageParam: undefined as string | undefined,
     queryFn: ({pageParam, signal}) => {
-      const args: {connectionId: string; cursor?: string; q?: string; signal: AbortSignal} = {
+      const args: {connectionId: string; cursor?: string; search?: string; signal: AbortSignal} = {
         connectionId: connectionId ?? '',
         signal,
       };
       if (pageParam) args.cursor = pageParam;
-      if (trimmedQ) args.q = trimmedQ;
+      if (trimmedSearch) args.search = trimmedSearch;
       return listRepositories(args);
     },
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
