@@ -1,4 +1,5 @@
 import {ApiError} from '@shipfox/client-api';
+import {useAuthState} from '@shipfox/client-auth';
 import {
   Alert,
   Button,
@@ -12,7 +13,7 @@ import {
   Text,
 } from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
-import {useIntegrationProvidersQuery} from '#hooks/api/integrations.js';
+import {useIntegrationProvidersQuery, useSourceConnectionsQuery} from '#hooks/api/integrations.js';
 import {PROVIDER_CATALOG} from '#provider-catalog.js';
 
 type SetupLinkProps = {to: '/setup/integrations/github'} | {to: '/setup/integrations/debug'};
@@ -24,6 +25,10 @@ function setupLinkFor(provider: string): SetupLinkProps | undefined {
 }
 
 export function IntegrationGalleryPage() {
+  const auth = useAuthState();
+  const workspace = auth.workspaces[0];
+  const connectionsQuery = useSourceConnectionsQuery(workspace?.id);
+  const hasConnection = (connectionsQuery.data?.connections ?? []).length > 0;
   const query = useIntegrationProvidersQuery({capability: 'source_control'});
   const providers = query.data?.providers ?? [];
   const renderable = providers.flatMap((provider) => {
@@ -37,9 +42,11 @@ export function IntegrationGalleryPage() {
     <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
       <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-24">
         <header className="flex flex-col gap-8">
-          <Button asChild variant="transparent" className="w-fit px-0">
-            <Link to="/">Back to projects</Link>
-          </Button>
+          {hasConnection ? (
+            <Button asChild variant="transparent" className="w-fit px-0">
+              <Link to="/">Back to projects</Link>
+            </Button>
+          ) : null}
           <div>
             <Header variant="h1">Connect source control</Header>
             <Text size="md" className="text-foreground-neutral-muted">
