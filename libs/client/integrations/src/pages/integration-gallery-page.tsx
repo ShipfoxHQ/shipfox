@@ -89,7 +89,7 @@ export function IntegrationGalleryPage() {
                       {provider.display_name}
                     </Text>
                   </div>
-                  <Button asChild size="sm" variant="secondary">
+                  <Button asChild>
                     <ConnectLink provider={provider.provider}>Connect</ConnectLink>
                   </Button>
                 </div>
@@ -112,7 +112,7 @@ function GallerySkeleton() {
               <Skeleton className="size-24 shrink-0" />
               <Skeleton className="h-16 w-120" />
             </div>
-            <Skeleton className="h-28 w-72" />
+            <Skeleton className="h-32 w-96" />
           </div>
         </Card>
       ))}
