@@ -18,6 +18,7 @@ import {
   CardTitle,
   FullPageLoader,
   Header,
+  Input,
   Label,
   Text,
   toast,
@@ -61,6 +62,14 @@ export function CreateProjectPage() {
 
   const repositoriesQuery = useRepositoriesInfiniteQuery(selectedConnectionId);
   const repositories = repositoriesQuery.data?.pages.flatMap((page) => page.repositories) ?? [];
+
+  const [repoFilter, setRepoFilter] = useState('');
+  const trimmedFilter = repoFilter.trim().toLowerCase();
+  const filteredRepositories = trimmedFilter
+    ? repositories.filter((repository) =>
+        repository.full_name.toLowerCase().includes(trimmedFilter),
+      )
+    : repositories;
 
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | undefined>();
   useEffect(() => {
@@ -145,10 +154,13 @@ export function CreateProjectPage() {
   }
 
   const showRepoPicker = Boolean(selectedConnection);
+  const filteredEmptyMessage = trimmedFilter
+    ? `No repositories matching "${repoFilter.trim()}".`
+    : 'No repositories visible to this connection.';
 
   return (
     <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
-      <div className="mx-auto flex w-full max-w-[760px] flex-col gap-24">
+      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-24">
         <header className="flex flex-col gap-8">
           {hasProjects ? (
             <ButtonLink variant="muted" href="/">
@@ -177,24 +189,21 @@ export function CreateProjectPage() {
           </Alert>
         ) : null}
 
-        <form onSubmit={onSubmit} noValidate aria-labelledby="create-project-title">
+        <form
+          onSubmit={onSubmit}
+          noValidate
+          aria-labelledby="create-project-title"
+          className="grid items-start gap-24 lg:grid-cols-[minmax(0,1fr)_360px]"
+        >
           <Card className="gap-20 p-24">
             <CardHeader>
               <CardTitle id="create-project-title" variant="h2">
-                Project source
+                Source
               </CardTitle>
               <CardDescription>
                 Pick a repository visible to one of your source-control connections.
               </CardDescription>
             </CardHeader>
-
-            {formError ? (
-              <Alert variant="error" animated={false}>
-                <div ref={errorRef} tabIndex={-1}>
-                  {formError}
-                </div>
-              </Alert>
-            ) : null}
 
             <CardContent className="flex flex-col gap-18">
               {connections.length === 1 && selectedConnection ? (
@@ -210,23 +219,54 @@ export function CreateProjectPage() {
               ) : null}
 
               {showRepoPicker ? (
-                <RepositoryPicker
-                  repositories={repositories}
-                  selectedRepositoryId={selectedRepositoryId}
-                  onSelect={setSelectedRepositoryId}
-                  isLoading={repositoriesQuery.isPending}
-                  isFetchingNextPage={repositoriesQuery.isFetchingNextPage}
-                  hasNextPage={repositoriesQuery.hasNextPage}
-                  onLoadMore={() => repositoriesQuery.fetchNextPage()}
-                  emptyMessage="No repositories visible to this connection."
-                />
+                <div className="flex flex-col gap-10">
+                  <Input
+                    type="search"
+                    placeholder="Search repositories…"
+                    aria-label="Search repositories"
+                    value={repoFilter}
+                    onChange={(event) => setRepoFilter(event.target.value)}
+                    disabled={repositories.length === 0}
+                  />
+                  <RepositoryPicker
+                    repositories={filteredRepositories}
+                    selectedRepositoryId={selectedRepositoryId}
+                    onSelect={setSelectedRepositoryId}
+                    isLoading={repositoriesQuery.isPending}
+                    isFetchingNextPage={repositoriesQuery.isFetchingNextPage}
+                    hasNextPage={repositoriesQuery.hasNextPage && !trimmedFilter}
+                    onLoadMore={() => repositoriesQuery.fetchNextPage()}
+                    emptyMessage={filteredEmptyMessage}
+                  />
+                </div>
               ) : null}
+            </CardContent>
+          </Card>
+
+          <Card className="gap-20 p-24 lg:sticky lg:top-32">
+            <CardHeader>
+              <CardTitle variant="h2">Project details</CardTitle>
+              <CardDescription>Pick a name and create the project.</CardDescription>
+            </CardHeader>
+
+            {formError ? (
+              <Alert variant="error" animated={false}>
+                <div ref={errorRef} tabIndex={-1}>
+                  {formError}
+                </div>
+              </Alert>
+            ) : null}
+
+            <CardContent className="flex flex-col gap-18">
+              <ProjectSummary
+                connection={selectedConnection}
+                repositoryFullName={selectedRepository?.full_name}
+              />
 
               <div className="flex flex-col gap-8">
                 <Label htmlFor="project-name">Project name</Label>
-                <input
+                <Input
                   id="project-name"
-                  className="h-32 rounded-6 border border-border-neutral-base bg-background-neutral-base px-12 text-md"
                   value={projectName}
                   onChange={(event) => {
                     setNameTouched(true);
@@ -264,9 +304,45 @@ function SingleConnectionSummary({connection}: {connection: IntegrationConnectio
           {connection.provider} · {connection.external_account_id}
         </Text>
       </div>
-      <Button asChild variant="transparent" size="sm" className="w-fit px-0">
+      <Button asChild variant="transparent" size="sm" className="w-fit">
         <Link to="/setup/integrations">Add another integration</Link>
       </Button>
+    </div>
+  );
+}
+
+function ProjectSummary({
+  connection,
+  repositoryFullName,
+}: {
+  connection: IntegrationConnectionDto | undefined;
+  repositoryFullName: string | undefined;
+}) {
+  return (
+    <dl className="flex flex-col gap-8">
+      <SummaryRow
+        label="Connection"
+        value={connection ? connection.display_name : 'Pick a connection'}
+        muted={!connection}
+      />
+      <SummaryRow
+        label="Repository"
+        value={repositoryFullName ?? 'Pick a repository'}
+        muted={!repositoryFullName}
+      />
+    </dl>
+  );
+}
+
+function SummaryRow({label, value, muted}: {label: string; value: string; muted: boolean}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Text size="xs" className="text-foreground-neutral-muted">
+        {label}
+      </Text>
+      <Text size="sm" className={muted ? 'text-foreground-neutral-muted' : ''}>
+        {value}
+      </Text>
     </div>
   );
 }

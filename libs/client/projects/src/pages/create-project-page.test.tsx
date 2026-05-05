@@ -30,8 +30,8 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage('/setup/projects/new', <CreateProjectPage />);
-    expect(await screen.findByText('Debug')).toBeInTheDocument();
-    expect(await screen.findByText('debug-owner/platform')).toBeInTheDocument();
+    expect((await screen.findAllByText('Debug')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
     await waitFor(() =>
@@ -63,13 +63,13 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage('/setup/projects/new', <CreateProjectPage />);
-    expect(await screen.findByText('Debug')).toBeInTheDocument();
+    expect((await screen.findAllByText('Debug')).length).toBeGreaterThan(0);
     expect(await screen.findByText('Other Debug Source')).toBeInTheDocument();
     expect(screen.queryByText('debug-owner/platform')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('radio', {name: DEBUG_RADIO_LABEL_RE}));
 
-    expect(await screen.findByText('debug-owner/platform')).toBeInTheDocument();
+    expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
   });
 
   test('with a single connection: shows "Add another integration" link to /setup/integrations', async () => {
@@ -120,7 +120,7 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage('/setup/projects/new', <CreateProjectPage />);
-    expect(await screen.findByText('debug-owner/platform')).toBeInTheDocument();
+    expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
     expect(await screen.findByRole('heading', {name: 'Project Detail'})).toBeInTheDocument();
@@ -140,7 +140,7 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage('/setup/projects/new', <CreateProjectPage />);
-    expect(await screen.findByText('debug-owner/platform')).toBeInTheDocument();
+    expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
     expect(await screen.findByText(REPOSITORY_NOT_FOUND_RE)).toBeInTheDocument();
