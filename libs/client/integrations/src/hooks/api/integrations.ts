@@ -19,8 +19,8 @@ export const integrationsQueryKeys = {
     [...integrationsQueryKeys.all, 'providers', capability] as const,
   sourceConnections: (workspaceId: string) =>
     [...integrationsQueryKeys.all, 'source-connections', workspaceId] as const,
-  repositories: (connectionId: string) =>
-    [...integrationsQueryKeys.all, 'repositories', connectionId] as const,
+  repositories: (connectionId: string, q: string) =>
+    [...integrationsQueryKeys.all, 'repositories', connectionId, q] as const,
 };
 
 export async function listIntegrationProviders({
@@ -71,14 +71,17 @@ export async function createGithubInstall(body: CreateGithubInstallBodyDto) {
 export async function listRepositories({
   connectionId,
   cursor,
+  q,
   signal,
 }: {
   connectionId: string;
   cursor?: string;
+  q?: string;
   signal?: AbortSignal;
 }) {
   const search = new URLSearchParams();
   if (cursor) search.set('cursor', cursor);
+  if (q) search.set('q', q);
   const query = search.toString();
   const path = query
     ? `/integration-connections/${connectionId}/repositories?${query}`
@@ -104,19 +107,26 @@ export function useSourceConnectionsQuery(workspaceId: string | undefined) {
   });
 }
 
-export function useRepositoriesInfiniteQuery(connectionId: string | undefined) {
+export function useRepositoriesInfiniteQuery(
+  connectionId: string | undefined,
+  options?: {q?: string},
+) {
+  const trimmedQ = options?.q?.trim() ?? '';
   return useInfiniteQuery({
     queryKey: connectionId
-      ? integrationsQueryKeys.repositories(connectionId)
+      ? integrationsQueryKeys.repositories(connectionId, trimmedQ)
       : [...integrationsQueryKeys.all, 'repositories'],
     enabled: Boolean(connectionId),
     initialPageParam: undefined as string | undefined,
-    queryFn: ({pageParam, signal}) =>
-      listRepositories(
-        pageParam
-          ? {connectionId: connectionId ?? '', cursor: pageParam, signal}
-          : {connectionId: connectionId ?? '', signal},
-      ),
+    queryFn: ({pageParam, signal}) => {
+      const args: {connectionId: string; cursor?: string; q?: string; signal: AbortSignal} = {
+        connectionId: connectionId ?? '',
+        signal,
+      };
+      if (pageParam) args.cursor = pageParam;
+      if (trimmedQ) args.q = trimmedQ;
+      return listRepositories(args);
+    },
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
   });
 }

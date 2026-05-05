@@ -13,6 +13,9 @@ import {GithubIntegrationProviderError} from './errors.js';
 
 type GithubIntegrationConnection = IntegrationConnection<'github'>;
 
+const SEARCH_PAGE_SIZE = 100;
+const SEARCH_MAX_PAGES_PER_REQUEST = 5;
+
 export class GithubSourceControlProvider
   implements SourceControlProvider<GithubIntegrationConnection>
 {
@@ -29,15 +32,43 @@ export class GithubSourceControlProvider
       );
     }
 
-    const page = await this.github.listInstallationRepositories({
-      installationId: Number.parseInt(installation.installationId, 10),
-      limit: input.limit,
-      cursor: input.cursor,
-    });
+    const installationId = Number.parseInt(installation.installationId, 10);
+    const needle = input.q?.trim().toLowerCase();
+
+    if (!needle) {
+      const page = await this.github.listInstallationRepositories({
+        installationId,
+        limit: input.limit,
+        cursor: input.cursor,
+      });
+      return {
+        repositories: page.repositories.map(toRepositorySnapshot),
+        nextCursor: page.nextCursor,
+      };
+    }
+
+    const matches: RepositorySnapshot[] = [];
+    let cursor = input.cursor;
+    let pagesScanned = 0;
+    while (matches.length < input.limit && pagesScanned < SEARCH_MAX_PAGES_PER_REQUEST) {
+      const page = await this.github.listInstallationRepositories({
+        installationId,
+        limit: SEARCH_PAGE_SIZE,
+        cursor,
+      });
+      pagesScanned += 1;
+      for (const repo of page.repositories) {
+        if (repo.fullName.toLowerCase().includes(needle)) {
+          matches.push(toRepositorySnapshot(repo));
+        }
+      }
+      cursor = page.nextCursor ?? undefined;
+      if (!cursor) break;
+    }
 
     return {
-      repositories: page.repositories.map(toRepositorySnapshot),
-      nextCursor: page.nextCursor,
+      repositories: matches.slice(0, input.limit),
+      nextCursor: cursor ?? null,
     };
   }
 

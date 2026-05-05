@@ -50,26 +50,27 @@ export function CreateProjectPage() {
   const hasProjects = (projectsQuery.data?.pages.flatMap((page) => page.projects) ?? []).length > 0;
 
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | undefined>();
+  const singleConnectionId = connections.length === 1 ? connections[0]?.id : undefined;
+  const effectiveSelectedConnectionId = selectedConnectionId ?? singleConnectionId;
   useEffect(() => {
-    if (connections.length === 1 && !selectedConnectionId) {
-      setSelectedConnectionId(connections[0]?.id);
+    if (singleConnectionId && selectedConnectionId !== singleConnectionId) {
+      setSelectedConnectionId(singleConnectionId);
     }
-  }, [connections, selectedConnectionId]);
+  }, [singleConnectionId, selectedConnectionId]);
 
   const selectedConnection: IntegrationConnectionDto | undefined = connections.find(
-    (connection) => connection.id === selectedConnectionId,
+    (connection) => connection.id === effectiveSelectedConnectionId,
   );
 
-  const repositoriesQuery = useRepositoriesInfiniteQuery(selectedConnectionId);
-  const repositories = repositoriesQuery.data?.pages.flatMap((page) => page.repositories) ?? [];
-
   const [repoFilter, setRepoFilter] = useState('');
-  const trimmedFilter = repoFilter.trim().toLowerCase();
-  const filteredRepositories = trimmedFilter
-    ? repositories.filter((repository) =>
-        repository.full_name.toLowerCase().includes(trimmedFilter),
-      )
-    : repositories;
+  const debouncedRepoFilter = useDebouncedValue(repoFilter, 250);
+  const trimmedFilter = debouncedRepoFilter.trim();
+
+  const repositoriesQuery = useRepositoriesInfiniteQuery(
+    effectiveSelectedConnectionId,
+    trimmedFilter ? {q: trimmedFilter} : undefined,
+  );
+  const repositories = repositoriesQuery.data?.pages.flatMap((page) => page.repositories) ?? [];
 
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | undefined>();
   useEffect(() => {
@@ -206,31 +207,32 @@ export function CreateProjectPage() {
             </CardHeader>
 
             <CardContent className="flex flex-col gap-18">
-              {connections.length === 1 && selectedConnection ? (
-                <SingleConnectionSummary connection={selectedConnection} />
-              ) : null}
-
-              {connections.length > 1 ? (
+              {connections.length > 0 ? (
                 <ConnectionPicker
                   connections={connections}
-                  selectedConnectionId={selectedConnectionId}
+                  selectedConnectionId={effectiveSelectedConnectionId}
                   onSelect={selectConnection}
                 />
               ) : null}
 
+              {connections.length === 1 ? (
+                <Button asChild variant="transparent" size="sm" className="w-fit">
+                  <Link to="/setup/integrations">Add another integration</Link>
+                </Button>
+              ) : null}
+
               {showRepoPicker ? (
                 <RepositoryPicker
-                  repositories={filteredRepositories}
+                  repositories={repositories}
                   selectedRepositoryId={selectedRepositoryId}
                   onSelect={setSelectedRepositoryId}
                   isLoading={repositoriesQuery.isPending}
                   isFetchingNextPage={repositoriesQuery.isFetchingNextPage}
-                  hasNextPage={repositoriesQuery.hasNextPage && !trimmedFilter}
+                  hasNextPage={repositoriesQuery.hasNextPage}
                   onLoadMore={() => repositoriesQuery.fetchNextPage()}
                   emptyMessage={filteredEmptyMessage}
                   searchValue={repoFilter}
                   onSearchChange={setRepoFilter}
-                  searchDisabled={repositories.length === 0}
                 />
               ) : null}
             </CardContent>
@@ -285,25 +287,6 @@ export function CreateProjectPage() {
   );
 }
 
-function SingleConnectionSummary({connection}: {connection: IntegrationConnectionDto}) {
-  return (
-    <div className="flex flex-col gap-8">
-      <Label>Source connection</Label>
-      <div className="rounded-8 border border-border-neutral-base bg-background-neutral-base p-14">
-        <Text size="sm" bold>
-          {connection.display_name}
-        </Text>
-        <Text size="xs" className="text-foreground-neutral-muted">
-          {connection.provider} · {connection.external_account_id}
-        </Text>
-      </div>
-      <Button asChild variant="transparent" size="sm" className="w-fit">
-        <Link to="/setup/integrations">Add another integration</Link>
-      </Button>
-    </div>
-  );
-}
-
 function ProjectSummary({
   connection,
   repositoryFullName,
@@ -347,4 +330,13 @@ function projectNameFromRepository(repositoryId: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handle = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(handle);
+  }, [value, delayMs]);
+  return debounced;
 }

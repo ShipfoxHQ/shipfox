@@ -39,6 +39,7 @@ export interface ListRepositoriesInput<
   connection: Connection;
   limit: number;
   cursor?: string | undefined;
+  q?: string | undefined;
 }
 
 export interface ResolveRepositoryInput<

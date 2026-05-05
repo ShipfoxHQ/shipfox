@@ -30,6 +30,7 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage('/setup/projects/new', <CreateProjectPage />);
+    expect(await screen.findByRole('radio', {name: DEBUG_RADIO_LABEL_RE})).toBeChecked();
     expect((await screen.findAllByText('Debug')).length).toBeGreaterThan(0);
     expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));

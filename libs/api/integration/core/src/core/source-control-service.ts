@@ -17,6 +17,7 @@ export interface ListSourceRepositoriesInput {
   connection: IntegrationConnection;
   limit: number;
   cursor?: string | undefined;
+  q?: string | undefined;
 }
 
 export interface ResolveSourceRepositoryInput {
@@ -54,12 +55,13 @@ export function createSourceControlIntegrationService({
   return {
     getConnection,
 
-    async listRepositories({connection, limit, cursor}) {
+    async listRepositories({connection, limit, cursor, q}) {
       const sourceControl = registry.getAdapter(connection.provider, 'source_control');
       return await sourceControl.listRepositories({
         connection,
         limit,
         cursor,
+        q,
       });
     },
 
