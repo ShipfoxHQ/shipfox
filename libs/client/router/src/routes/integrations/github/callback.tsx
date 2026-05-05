@@ -98,7 +98,9 @@ function githubCallbackParams(search: Record<string, unknown>): URLSearchParams 
 }
 
 function stringParam(value: unknown): string | undefined {
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
+  if (typeof value === 'string' && value.length > 0) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return undefined;
 }
 
 function githubCallbackErrorMessage(error: unknown): string {
