@@ -1,5 +1,5 @@
 import type {RepositoryDto} from '@shipfox/api-integration-core-dto';
-import {Button, Label, RadioGroup, RadioGroupItem, Skeleton, Text} from '@shipfox/react-ui';
+import {Button, Input, Label, RadioGroup, RadioGroupItem, Skeleton, Text} from '@shipfox/react-ui';
 import {useId} from 'react';
 
 export function RepositoryPicker({
@@ -11,6 +11,9 @@ export function RepositoryPicker({
   hasNextPage,
   onLoadMore,
   emptyMessage = 'No repositories found.',
+  searchValue,
+  onSearchChange,
+  searchDisabled,
 }: {
   repositories: RepositoryDto[];
   selectedRepositoryId: string | undefined;
@@ -20,12 +23,27 @@ export function RepositoryPicker({
   hasNextPage?: boolean;
   onLoadMore?: () => void;
   emptyMessage?: string;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  searchDisabled?: boolean;
 }) {
   const labelId = useId();
+  const showSearch = onSearchChange !== undefined;
 
   return (
     <div className="flex flex-col gap-10">
       <Label id={labelId}>Repository</Label>
+
+      {showSearch ? (
+        <Input
+          type="search"
+          placeholder="Search repositories…"
+          aria-label="Search repositories"
+          value={searchValue ?? ''}
+          onChange={(event) => onSearchChange?.(event.target.value)}
+          disabled={searchDisabled}
+        />
+      ) : null}
 
       {isLoading ? <Skeleton className="h-58 w-full" /> : null}
 

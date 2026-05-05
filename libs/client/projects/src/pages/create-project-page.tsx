@@ -219,26 +219,19 @@ export function CreateProjectPage() {
               ) : null}
 
               {showRepoPicker ? (
-                <div className="flex flex-col gap-10">
-                  <Input
-                    type="search"
-                    placeholder="Search repositories…"
-                    aria-label="Search repositories"
-                    value={repoFilter}
-                    onChange={(event) => setRepoFilter(event.target.value)}
-                    disabled={repositories.length === 0}
-                  />
-                  <RepositoryPicker
-                    repositories={filteredRepositories}
-                    selectedRepositoryId={selectedRepositoryId}
-                    onSelect={setSelectedRepositoryId}
-                    isLoading={repositoriesQuery.isPending}
-                    isFetchingNextPage={repositoriesQuery.isFetchingNextPage}
-                    hasNextPage={repositoriesQuery.hasNextPage && !trimmedFilter}
-                    onLoadMore={() => repositoriesQuery.fetchNextPage()}
-                    emptyMessage={filteredEmptyMessage}
-                  />
-                </div>
+                <RepositoryPicker
+                  repositories={filteredRepositories}
+                  selectedRepositoryId={selectedRepositoryId}
+                  onSelect={setSelectedRepositoryId}
+                  isLoading={repositoriesQuery.isPending}
+                  isFetchingNextPage={repositoriesQuery.isFetchingNextPage}
+                  hasNextPage={repositoriesQuery.hasNextPage && !trimmedFilter}
+                  onLoadMore={() => repositoriesQuery.fetchNextPage()}
+                  emptyMessage={filteredEmptyMessage}
+                  searchValue={repoFilter}
+                  onSearchChange={setRepoFilter}
+                  searchDisabled={repositories.length === 0}
+                />
               ) : null}
             </CardContent>
           </Card>
