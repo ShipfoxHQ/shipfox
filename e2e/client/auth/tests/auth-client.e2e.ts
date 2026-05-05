@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {expect, test} from './test.js';
 
 const LOGIN_URL_RE = /\/auth\/login$/u;
+const SETUP_INTEGRATIONS_URL_RE = /\/setup\/integrations\/?$/u;
 
 test('redirects guests from the app root to login', async ({page}) => {
   await page.goto('/');
@@ -44,6 +45,8 @@ test('creates a workspace through the real onboarding UI', async ({page, auth}) 
   await page.getByLabel('Workspace name').fill(workspaceName);
   await page.getByRole('button', {name: 'Create workspace'}).click();
 
-  await expect(page.getByRole('heading', {name: 'Projects'})).toBeVisible();
-  await expect(page.getByText(workspaceName)).toBeVisible();
+  // Fresh workspace has zero source-control connections, so / redirects to
+  // /setup/integrations (the integration gallery).
+  await expect(page).toHaveURL(SETUP_INTEGRATIONS_URL_RE);
+  await expect(page.getByRole('heading', {name: 'Connect source control'})).toBeVisible();
 });
