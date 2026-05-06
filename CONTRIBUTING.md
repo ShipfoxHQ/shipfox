@@ -119,16 +119,17 @@ through these HTTP APIs, not through direct database access.
 ## Visual Regression Testing
 
 Visual drift is caught on every PR via [Argos](https://argos-ci.com/). One Argos
-project receives two named builds per PR (`storybook` and `client-pages`) using
-Argos's [build-splitting](https://argos-ci.com/docs/build-splitting); each posts
-its own GitHub check.
+project receives one named build per source module (`storybook` for the
+component library, `client-auth` for the auth E2E surface, etc.) using Argos's
+[build-splitting](https://argos-ci.com/docs/build-splitting); each posts its own
+GitHub check.
 
 ### What's covered
 
-| Surface | Source | Captured |
+| Build name | Source | Captured |
 | --- | --- | --- |
-| `storybook` build | `@shipfox/react-ui` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/shared/react/ui/.storybook/preview.tsx` as `parameters.argos.modes`) |
-| `client-pages` build | Playwright specs in `e2e/client/*` via `@argos-ci/playwright` reporter | explicit `argosScreenshot()` calls at user-visible checkpoints |
+| `storybook` | `@shipfox/react-ui` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/shared/react/ui/.storybook/preview.tsx` as `parameters.argos.modes`) |
+| `client-auth` | `@shipfox/e2e-client-auth` Playwright specs via `@argos-ci/playwright` reporter | explicit `argosScreenshot()` calls at user-visible checkpoints |
 
 The goal is review-grade signal on UI drift, not 100% state coverage. Capture the
 states a reviewer would want to eyeball on a PR; skip anything that re-renders
@@ -182,11 +183,12 @@ Conventions:
   `projects/empty-state`). The directory-style prefix groups related shots in
   the Argos UI.
 
-New `e2e/client/*` packages do not need any extra Argos wiring — the reporter
-is registered in each package's `playwright.config.ts` (currently mirrored from
-`e2e/client/auth/playwright.config.ts`). If you add a new client E2E package,
-copy that config including the reporter array and the `buildName: 'client-pages'`
-option so the captures end up in the same Argos build.
+New `e2e/client/*` packages register their own Argos reporter in their
+`playwright.config.ts` with a `buildName` that matches the package suffix
+(e.g. `e2e/client/auth` → `'client-auth'`, `e2e/client/projects` →
+`'client-projects'`). One named Argos build per E2E module keeps PR checks
+scoped: a regression in the auth flow doesn't taint the review surface for
+projects.
 
 ### Reviewing drift
 
