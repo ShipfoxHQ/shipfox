@@ -233,6 +233,17 @@ describe.each(runnerEventTypeEnum.enumValues)('createRunnerEvent "%s"', (eventTy
 });
 ```
 
+## Visual Regression Testing
+
+Argos catches UI drift on every PR via two named builds per project:
+
+- `storybook` — `@shipfox/react-ui` stories captured in **light + dark** by `@storybook/test-runner` + `@argos-ci/storybook`. Adding a new story snapshots automatically in both themes.
+- `client-pages` — explicit `argosScreenshot(page, '<surface>/<state>')` calls in `e2e/client/*` Playwright specs. Place the call **after** the assertions that prove the page reached the expected state — the helper waits for fonts and layout, not for content you have not asserted on.
+
+To cover a component state a single render cannot reach (error states, populated lists, etc.), add it as a new story rather than driving interactions in `play`. To cover a new page state, add an `argosScreenshot` call in the existing test that already drives there; do not write a screenshot-only spec.
+
+The four `.storybook/test-runner-*` files plus the matching `biome.json` override exist to work around the project `.swcrc` excluding `*.stories.tsx` (load-bearing for `shipfox-swc` builds). Do not modify them without re-verifying that `turbo build --filter=@shipfox/react-ui` still keeps stories out of `dist/`. See `CONTRIBUTING.md#visual-regression-testing` for the longer walkthrough.
+
 ## Design System
 
 Always read [DESIGN.md](DESIGN.md) before making any visual or UI decisions. Token

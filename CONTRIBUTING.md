@@ -116,6 +116,103 @@ E2E setup APIs are module-owned routes under `/__e2e/<module>`. They are mounted
 when both `E2E_ENABLED=true` and `E2E_ADMIN_API_KEY` are set. Tests must create data
 through these HTTP APIs, not through direct database access.
 
+## Visual Regression Testing
+
+Visual drift is caught on every PR via [Argos](https://argos-ci.com/). One Argos
+project receives two named builds per PR (`storybook` and `client-pages`) using
+Argos's [build-splitting](https://argos-ci.com/docs/build-splitting); each posts
+its own GitHub check.
+
+### What's covered
+
+| Surface | Source | Captured |
+| --- | --- | --- |
+| `storybook` build | `@shipfox/react-ui` stories via `@storybook/test-runner` + `@argos-ci/storybook` | every story in **light + dark** (declared in `libs/shared/react/ui/.storybook/preview.tsx` as `parameters.argos.modes`) |
+| `client-pages` build | Playwright specs in `e2e/client/*` via `@argos-ci/playwright` reporter | explicit `argosScreenshot()` calls at user-visible checkpoints |
+
+The goal is review-grade signal on UI drift, not 100% state coverage. Capture the
+states a reviewer would want to eyeball on a PR; skip anything that re-renders
+the same DOM as a covered state.
+
+### Run locally
+
+Library snapshots are cheap to capture locally — useful when iterating on a
+component:
+
+```sh
+turbo storybook:build --filter=@shipfox/react-ui
+pnpm --filter=@shipfox/react-ui argos:visual
+```
+
+`argos:visual` boots `http-server` against `storybook-static/`, runs the
+test-runner against every story, and writes PNGs to
+`libs/shared/react/ui/screenshots/` (gitignored). No `ARGOS_TOKEN` needed for
+capture; uploads are CI-only via `pnpm --filter=@shipfox/react-ui argos:upload`.
+
+Page snapshots ride on the existing E2E flow — when you run
+`turbo test:e2e --filter=@shipfox/e2e-client-auth` locally without `CI=true`,
+the Argos reporter is not active, so no screenshots are uploaded.
+
+### Add a new component snapshot
+
+Just add a story. The test-runner auto-discovers `.stories.@(js|jsx|ts|tsx|mdx)`
+under `src/**` and snaps each one in both themes. To cover a state that a
+single render can't reach (e.g. error states, populated lists), add it as a
+new story rather than driving interactions in the story `play` function.
+
+### Add a new client-page snapshot
+
+In an `e2e/client/<feature>` spec:
+
+```ts
+import {argosScreenshot} from '@shipfox/playwright';
+
+test('shows the empty state for new workspaces', async ({page, auth}) => {
+  // ...drive UI to the state you want to verify...
+  await expect(page.getByRole('heading', {name: 'No projects yet'})).toBeVisible();
+  await argosScreenshot(page, 'projects/empty-state');
+});
+```
+
+Conventions:
+
+- Snapshot **after** the assertions that prove the page reached the expected
+  state — `argosScreenshot` waits for fonts and stable layout, but it cannot
+  wait for content you have not asserted on.
+- Name snapshots `<surface>/<state>` (e.g. `auth/login`,
+  `projects/empty-state`). The directory-style prefix groups related shots in
+  the Argos UI.
+
+New `e2e/client/*` packages do not need any extra Argos wiring — the reporter
+is registered in each package's `playwright.config.ts` (currently mirrored from
+`e2e/client/auth/playwright.config.ts`). If you add a new client E2E package,
+copy that config including the reporter array and the `buildName: 'client-pages'`
+option so the captures end up in the same Argos build.
+
+### Reviewing drift
+
+When a PR diff is non-trivial, both Argos checks may flip from green to "review
+required". Open the Argos build, mark each diff as accepted (intentional UI
+change) or rejected (regression). Approving a build updates the baseline once
+the PR merges to `main`.
+
+### Files you should not have to touch
+
+- `libs/shared/react/ui/.storybook/test-runner.ts` — `postVisit` hook that
+  drives `argosScreenshot`.
+- `libs/shared/react/ui/.storybook/test-runner-jest.config.cjs` — overrides the
+  default Jest transform map so Storybook stories can be processed by the
+  test-runner. Necessary because the project root `.swcrc` excludes
+  `*.stories.tsx` (load-bearing for `shipfox-swc` production builds).
+- `libs/shared/react/ui/.storybook/test-runner-stories-transform.js` — calls
+  `transformPlaywright` then `@swc/core` with `swcrc: false` so the same
+  exclusion does not block screenshot capture.
+- `biome.json` override permitting `@swc/core` import in the file above.
+
+If you find yourself wanting to change one of these, double-check that the
+production `turbo build --filter=@shipfox/react-ui` still excludes
+`*.stories.tsx` from `dist/` afterwards.
+
 ## Import Aliases
 
 Packages use Node.js [subpath imports](https://nodejs.org/api/packages.html#subpath-imports) (`imports` field in `package.json`) instead of TypeScript `paths`:

@@ -152,6 +152,16 @@
       }
     },
     {
+      "includes": ["**/.storybook/test-runner-stories-transform.js"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["libs/shared/node/opentelemetry/**", "libs/shared/node/log/**"],
       "linter": {
         "rules": {

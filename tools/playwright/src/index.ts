@@ -1,3 +1,4 @@
+export {argosScreenshot} from '@argos-ci/playwright';
 export {
   type APIRequestContext,
   type BrowserContext,
