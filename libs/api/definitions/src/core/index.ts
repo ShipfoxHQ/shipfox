@@ -14,6 +14,7 @@ export {
   resolveSyncSource,
   type SyncFailureClassification,
   type SyncSourceContext,
+  UNRESOLVED_SYNC_REF,
   WORKFLOW_PREFIX,
 } from './sync-definitions.js';
 export {DagValidationError, validateDag} from './validate-dag.js';

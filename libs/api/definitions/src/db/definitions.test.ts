@@ -347,8 +347,8 @@ describe('definition queries', () => {
         projectId,
         ref: 'main',
         upserts: [
-          {configPath: 'kept.yml', name: 'Kept', definition: spec('Kept')},
-          {configPath: 'new.yml', name: 'New', definition: spec('New')},
+          {configPath: 'kept.yml', name: 'Kept', definition: spec('Kept'), contentHash: 'h-kept'},
+          {configPath: 'new.yml', name: 'New', definition: spec('New'), contentHash: 'h-new'},
         ],
       });
 
@@ -358,6 +358,34 @@ describe('definition queries', () => {
         'kept.yml',
         'new.yml',
       ]);
+    });
+
+    test('applyVcsDefinitionsBatch skips outbox events for unchanged content hashes', async () => {
+      await db().execute(sql`TRUNCATE definitions_outbox CASCADE`);
+
+      const first = await applyVcsDefinitionsBatch({
+        projectId,
+        ref: 'main',
+        upserts: [
+          {configPath: 'a.yml', name: 'A', definition: spec('A'), contentHash: 'h-a-v1'},
+          {configPath: 'b.yml', name: 'B', definition: spec('B'), contentHash: 'h-b-v1'},
+        ],
+      });
+
+      expect(first.appliedCount).toBe(2);
+      expect(await listOutboxRowsForProject(projectId)).toHaveLength(2);
+
+      const second = await applyVcsDefinitionsBatch({
+        projectId,
+        ref: 'main',
+        upserts: [
+          {configPath: 'a.yml', name: 'A', definition: spec('A'), contentHash: 'h-a-v1'},
+          {configPath: 'b.yml', name: 'B v2', definition: spec('B v2'), contentHash: 'h-b-v2'},
+        ],
+      });
+
+      expect(second.appliedCount).toBe(1);
+      expect(await listOutboxRowsForProject(projectId)).toHaveLength(3);
     });
   });
 

@@ -12,6 +12,7 @@ export type DefinitionSyncErrorCode =
   | 'provider-malformed-response'
   | 'content-too-large'
   | 'too-many-files'
+  | 'connection-unavailable'
   | 'unknown';
 
 export interface DefinitionSyncState {

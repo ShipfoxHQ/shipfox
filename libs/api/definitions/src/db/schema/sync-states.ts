@@ -27,6 +27,7 @@ export const definitionSyncErrorCodeEnum = pgEnum('definitions_sync_error_code',
   'provider-malformed-response',
   'content-too-large',
   'too-many-files',
+  'connection-unavailable',
   'unknown',
 ]);
 

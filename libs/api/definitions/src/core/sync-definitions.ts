@@ -1,4 +1,8 @@
+import {createHash} from 'node:crypto';
 import {
+  IntegrationConnectionInactiveError,
+  IntegrationConnectionNotFoundError,
+  IntegrationConnectionWorkspaceMismatchError,
   IntegrationProviderError,
   type IntegrationSourceControlService,
   MAX_REPOSITORY_FILE_BYTES,
@@ -11,6 +15,7 @@ import {parseDefinition} from './parse-definition.js';
 export const WORKFLOW_PREFIX = '.shipfox/workflows/';
 export const MAX_WORKFLOW_FILES = 100;
 export const FILE_FETCH_CONCURRENCY = 4;
+export const UNRESOLVED_SYNC_REF = '__unresolved__';
 
 export interface SyncSourceContext {
   workspaceId: string;
@@ -71,6 +76,7 @@ export interface ParsedWorkflow {
   path: string;
   name: string;
   definition: WorkflowSpec;
+  contentHash: string;
 }
 
 export interface FetchAndParseWorkflowsParams extends SyncSourceContext {
@@ -102,7 +108,8 @@ export async function fetchAndParseWorkflows(
 
     try {
       const definition = parseDefinition(snapshot.content);
-      return {path: snapshot.path, name: definition.name, definition};
+      const contentHash = sha256Hex(snapshot.content);
+      return {path: snapshot.path, name: definition.name, definition, contentHash};
     } catch (error) {
       if (error instanceof DefinitionParseError) {
         throw new DefinitionSyncPermanentError(
@@ -124,6 +131,13 @@ export interface SyncFailureClassification {
 export function classifySyncFailure(error: unknown): SyncFailureClassification {
   if (error instanceof DefinitionSyncPermanentError) {
     return {code: error.code, message: error.message, retryable: false};
+  }
+  if (
+    error instanceof IntegrationConnectionNotFoundError ||
+    error instanceof IntegrationConnectionInactiveError ||
+    error instanceof IntegrationConnectionWorkspaceMismatchError
+  ) {
+    return {code: 'connection-unavailable', message: error.message, retryable: false};
   }
   if (error instanceof IntegrationProviderError) {
     return {
@@ -154,6 +168,10 @@ function providerErrorCode(reason: string): DefinitionSyncErrorCode {
   if (reason === 'content-too-large') return 'content-too-large';
   if (reason === 'too-many-files') return 'too-many-files';
   return 'unknown';
+}
+
+function sha256Hex(content: string): string {
+  return createHash('sha256').update(content, 'utf8').digest('hex');
 }
 
 async function mapWithConcurrency<T, U>(

@@ -59,6 +59,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "content_hash": {
+          "name": "content_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "fetched_at": {
           "name": "fetched_at",
           "type": "timestamp with time zone",
@@ -399,6 +405,7 @@
         "provider-malformed-response",
         "content-too-large",
         "too-many-files",
+        "connection-unavailable",
         "unknown"
       ]
     },

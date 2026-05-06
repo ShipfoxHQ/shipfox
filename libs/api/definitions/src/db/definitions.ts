@@ -14,6 +14,7 @@ export interface UpsertDefinitionParams {
   source?: 'manual' | 'vcs' | undefined;
   name: string;
   definition: WorkflowSpec;
+  contentHash?: string | null | undefined;
   sha?: string | undefined;
   ref?: string | undefined;
 }
@@ -28,6 +29,7 @@ function buildUpsertQuery(tx: Tx, params: UpsertDefinitionParams) {
     name: params.name,
     source,
     definition: params.definition,
+    contentHash: params.contentHash ?? null,
     fetchedAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -41,6 +43,7 @@ function buildUpsertQuery(tx: Tx, params: UpsertDefinitionParams) {
     ref: params.ref ?? null,
     name: params.name,
     definition: params.definition,
+    contentHash: params.contentHash ?? null,
   };
 
   if (params.sha) {
@@ -165,7 +168,12 @@ export async function softDeleteVcsDefinitionsNotIn(
 export interface ApplyVcsDefinitionsBatchParams {
   projectId: string;
   ref: string;
-  upserts: Array<{configPath: string; name: string; definition: WorkflowSpec}>;
+  upserts: Array<{
+    configPath: string;
+    name: string;
+    definition: WorkflowSpec;
+    contentHash: string;
+  }>;
 }
 
 export interface ApplyVcsDefinitionsBatchResult {
@@ -179,6 +187,27 @@ export async function applyVcsDefinitionsBatch(
   return await db().transaction(async (tx) => {
     let appliedCount = 0;
     for (const item of params.upserts) {
+      const existing = await tx
+        .select({
+          contentHash: workflowDefinitions.contentHash,
+          deletedAt: workflowDefinitions.deletedAt,
+        })
+        .from(workflowDefinitions)
+        .where(
+          and(
+            eq(workflowDefinitions.projectId, params.projectId),
+            eq(workflowDefinitions.ref, params.ref),
+            eq(workflowDefinitions.configPath, item.configPath),
+          ),
+        )
+        .limit(1);
+
+      const previous = existing[0];
+      const unchanged =
+        previous !== undefined &&
+        previous.deletedAt === null &&
+        previous.contentHash === item.contentHash;
+
       const rows = await buildUpsertQuery(tx, {
         projectId: params.projectId,
         configPath: item.configPath,
@@ -186,15 +215,18 @@ export async function applyVcsDefinitionsBatch(
         ref: params.ref,
         name: item.name,
         definition: item.definition,
+        contentHash: item.contentHash,
       });
       const row = rows[0];
       if (!row) throw new Error('Upsert returned no rows');
 
-      await writeOutboxEvent<DefinitionsEventMap>(tx, definitionsOutbox, {
-        type: DEFINITION_RESOLVED,
-        payload: {definitionId: row.id, projectId: row.projectId, configPath: row.configPath},
-      });
-      appliedCount += 1;
+      if (!unchanged) {
+        await writeOutboxEvent<DefinitionsEventMap>(tx, definitionsOutbox, {
+          type: DEFINITION_RESOLVED,
+          payload: {definitionId: row.id, projectId: row.projectId, configPath: row.configPath},
+        });
+        appliedCount += 1;
+      }
     }
 
     const keepConfigPaths = params.upserts.map((upsert) => upsert.configPath);

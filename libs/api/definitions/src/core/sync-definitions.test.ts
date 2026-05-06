@@ -1,4 +1,7 @@
 import {
+  IntegrationConnectionInactiveError,
+  IntegrationConnectionNotFoundError,
+  IntegrationConnectionWorkspaceMismatchError,
   IntegrationProviderError,
   type IntegrationSourceControlService,
 } from '@shipfox/api-integration-core';
@@ -17,6 +20,8 @@ jobs:
     steps:
       - run: pnpm test
 `;
+
+const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
 
 function sourceControl(
   overrides: Partial<IntegrationSourceControlService> = {},
@@ -144,6 +149,27 @@ describe('fetchAndParseWorkflows', () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.name).toBe('CI');
     expect(result[0]?.path).toBe('.shipfox/workflows/ci.yml');
+    expect(result[0]?.contentHash).toMatch(SHA256_HEX_RE);
+  });
+
+  it('produces stable content hashes for identical content', async () => {
+    const sourceControlA = sourceControl();
+    const sourceControlB = sourceControl();
+
+    const a = await fetchAndParseWorkflows({
+      ...baseContext,
+      ref: 'main',
+      paths: ['.shipfox/workflows/ci.yml'],
+      sourceControl: sourceControlA,
+    });
+    const b = await fetchAndParseWorkflows({
+      ...baseContext,
+      ref: 'main',
+      paths: ['.shipfox/workflows/ci.yml'],
+      sourceControl: sourceControlB,
+    });
+
+    expect(a[0]?.contentHash).toBe(b[0]?.contentHash);
   });
 
   it('rejects oversized contents as content-too-large', async () => {
@@ -222,6 +248,22 @@ describe('classifySyncFailure', () => {
     );
 
     expect(result).toEqual({code: 'invalid-definition', message: 'bad yaml', retryable: false});
+  });
+
+  it.each([
+    () => new IntegrationConnectionNotFoundError('connection-1'),
+    () => new IntegrationConnectionInactiveError('connection-1'),
+    () => new IntegrationConnectionWorkspaceMismatchError('connection-1'),
+  ])('classifies connection lifecycle errors as non-retryable connection-unavailable', (build) => {
+    const error = build();
+
+    const result = classifySyncFailure(error);
+
+    expect(result).toEqual({
+      code: 'connection-unavailable',
+      message: error.message,
+      retryable: false,
+    });
   });
 
   it('falls back to unknown + retryable for plain errors', () => {

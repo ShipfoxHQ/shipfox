@@ -8,9 +8,6 @@ vi.mock('@temporalio/activity', () => ({
   Context: {
     current: () => ({heartbeat: vi.fn()}),
   },
-  log: {
-    info: vi.fn(),
-  },
 }));
 
 const validYaml = `
@@ -190,7 +187,7 @@ describe('definition sync activities', () => {
       expect(rows[0]?.finishedAt).not.toBeNull();
     });
 
-    it('skips writing when ref is unknown', async () => {
+    it('persists failures with the unresolved sentinel ref when no ref was produced', async () => {
       const activities = createDefinitionSyncActivities(sourceControl());
 
       await activities.markDefinitionSyncFailed({
@@ -199,15 +196,19 @@ describe('definition sync activities', () => {
         sourceConnectionId,
         sourceExternalRepositoryId: 'debug:platform',
         ref: null,
-        code: 'unknown',
-        message: 'resolve failed before producing a ref',
+        code: 'connection-unavailable',
+        message: 'connection disabled before resolving repository',
       });
 
       const rows = await db()
         .select()
         .from(definitionSyncStates)
         .where(sql`${definitionSyncStates.projectId} = ${projectId}`);
-      expect(rows).toHaveLength(0);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.ref).toBe('__unresolved__');
+      expect(rows[0]?.status).toBe('failed');
+      expect(rows[0]?.lastErrorCode).toBe('connection-unavailable');
+      expect(rows[0]?.lastErrorMessage).toBe('connection disabled before resolving repository');
     });
   });
 

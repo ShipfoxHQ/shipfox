@@ -1,5 +1,5 @@
 CREATE TYPE "public"."definitions_source" AS ENUM('manual', 'vcs');--> statement-breakpoint
-CREATE TYPE "public"."definitions_sync_error_code" AS ENUM('no-workflow-files', 'invalid-definition', 'provider-repository-not-found', 'provider-file-not-found', 'provider-access-denied', 'provider-rate-limited', 'provider-timeout', 'provider-unavailable', 'provider-malformed-response', 'content-too-large', 'too-many-files', 'unknown');--> statement-breakpoint
+CREATE TYPE "public"."definitions_sync_error_code" AS ENUM('no-workflow-files', 'invalid-definition', 'provider-repository-not-found', 'provider-file-not-found', 'provider-access-denied', 'provider-rate-limited', 'provider-timeout', 'provider-unavailable', 'provider-malformed-response', 'content-too-large', 'too-many-files', 'connection-unavailable', 'unknown');--> statement-breakpoint
 CREATE TYPE "public"."definitions_sync_status" AS ENUM('pending', 'syncing', 'succeeded', 'failed');--> statement-breakpoint
 CREATE TABLE "definitions_workflow_definitions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
@@ -10,6 +10,7 @@ CREATE TABLE "definitions_workflow_definitions" (
 	"ref" text,
 	"name" text NOT NULL,
 	"definition" jsonb NOT NULL,
+	"content_hash" text,
 	"fetched_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,

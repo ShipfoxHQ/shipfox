@@ -1,5 +1,5 @@
 import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
-import {Context, log} from '@temporalio/activity';
+import {Context} from '@temporalio/activity';
 import {ApplicationFailure} from '@temporalio/common';
 import type {DefinitionSyncErrorCode} from '#core/entities/sync-state.js';
 import {
@@ -8,6 +8,7 @@ import {
   discoverWorkflowFiles,
   fetchAndParseWorkflows,
   resolveSyncSource,
+  UNRESOLVED_SYNC_REF,
 } from '#core/index.js';
 import {applyVcsDefinitionsBatch, markDefinitionSyncState} from '#db/index.js';
 
@@ -107,6 +108,7 @@ function createFetchAndApplyActivity(sourceControl: IntegrationSourceControlServ
           configPath: entry.path,
           name: entry.name,
           definition: entry.definition,
+          contentHash: entry.contentHash,
         })),
       });
     });
@@ -132,19 +134,11 @@ function createMarkSyncFailedActivity() {
   return async function markDefinitionSyncFailed(
     input: MarkSyncFailedActivityInput,
   ): Promise<void> {
-    if (input.ref === null) {
-      log.info('Skipping markDefinitionSyncFailed because ref is unknown', {
-        projectId: input.projectId,
-        code: input.code,
-      });
-      return;
-    }
-
     await markDefinitionSyncState({
       projectId: input.projectId,
       sourceConnectionId: input.sourceConnectionId,
       sourceExternalRepositoryId: input.sourceExternalRepositoryId,
-      ref: input.ref,
+      ref: input.ref ?? UNRESOLVED_SYNC_REF,
       status: 'failed',
       lastErrorCode: input.code,
       lastErrorMessage: input.message,

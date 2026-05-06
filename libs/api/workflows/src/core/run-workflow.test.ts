@@ -25,6 +25,7 @@ function buildDefinition(overrides?: Partial<WorkflowDefinition>): WorkflowDefin
         build: {steps: [{run: 'echo hello'}]},
       },
     },
+    contentHash: null,
     fetchedAt: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
