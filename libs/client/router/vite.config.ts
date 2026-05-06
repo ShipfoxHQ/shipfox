@@ -17,6 +17,7 @@ export default defineConfig({
         'react-dom',
         'react/jsx-runtime',
         'jotai',
+        'zod',
         '@tanstack/react-router',
         '@shipfox/client-api',
         '@shipfox/client-app-shell',

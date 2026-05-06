@@ -35,10 +35,22 @@ import {projectErrorCopy} from '#project-error.js';
 
 const REPOSITORY_NAME_SPLIT_RE = /[/-]/;
 
-export function CreateProjectPage() {
+export interface CreateProjectPageProps {
+  /**
+   * Optional workspace id passed via the URL search param. Setup routes are
+   * not nested under `/workspaces/$wid`, so the workspace context is carried
+   * through `?wid=...` from links like the hub page's "New project" button.
+   */
+  workspaceIdFromUrl?: string | undefined;
+}
+
+export function CreateProjectPage({workspaceIdFromUrl}: CreateProjectPageProps = {}) {
   const auth = useAuthState();
   const activeWorkspace = useMaybeActiveWorkspace();
-  const workspace = activeWorkspace ?? auth.workspaces[0];
+  const fromUrl = workspaceIdFromUrl
+    ? auth.workspaces.find((w) => w.id === workspaceIdFromUrl)
+    : undefined;
+  const workspace = fromUrl ?? activeWorkspace ?? auth.workspaces[0];
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const createProject = useCreateProjectMutation();

@@ -75,7 +75,11 @@ export function ProjectSwitcher({workspaceId, activeProjectId, onSelect}: Projec
           <CommandSeparator />
           <CommandGroup>
             <CommandItem value="__create" onSelect={() => onSelect?.()} asChild>
-              <Link to="/setup/projects/new" className="flex items-center gap-8">
+              <Link
+                to="/setup/projects/new"
+                search={{wid: workspaceId}}
+                className="flex items-center gap-8"
+              >
                 <Icon name="addLine" className="size-16" />
                 Create project
               </Link>

@@ -13,6 +13,7 @@ import {
   Text,
   toast,
 } from '@shipfox/react-ui';
+import {useNavigate} from '@tanstack/react-router';
 import {type FormEvent, useState} from 'react';
 import {useCreateWorkspaceAuth} from '#hooks/api/workspace-auth.js';
 import {authErrorMessage, type FieldErrors, fieldErrorsFromZod} from './form-utils.js';
@@ -38,6 +39,7 @@ const previewBars = [
 
 export function WorkspaceOnboardingPage() {
   const createWorkspace = useCreateWorkspaceAuth();
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<WorkspaceField>>({});
   const [formError, setFormError] = useState<string | undefined>();
@@ -55,6 +57,11 @@ export function WorkspaceOnboardingPage() {
     try {
       await createWorkspace.mutateAsync(parsed.data);
       toast.success('Workspace created.');
+      // The auth atom now contains the new workspace. Navigate to `/` so the
+      // index redirect sends the user into the new workspace. Previously this
+      // happened implicitly through <WorkspaceGuard>; the guard is gone, so
+      // we navigate explicitly.
+      await navigate({to: '/'});
     } catch (error) {
       setFormError(authErrorMessage(error));
     }
