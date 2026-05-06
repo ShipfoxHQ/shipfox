@@ -220,8 +220,10 @@ class OctokitGithubApiClient implements GithubApiClient {
   }): Promise<GithubFilePage> {
     const octokit = await this.getApp().getInstallationOctokit(input.installationId);
     const startPath = input.prefix.replace(TRAILING_SLASHES_RE, '');
+    const offset = input.cursor ? Number.parseInt(input.cursor, 10) : 0;
+    const start = Number.isNaN(offset) || offset < 0 ? 0 : offset;
     const collected: GithubFileEntry[] = [];
-    const overflowLimit = input.limit + 1;
+    const overflowLimit = start + input.limit + 1;
 
     type GetContentData = Awaited<ReturnType<typeof octokit.rest.repos.getContent>>['data'];
 
@@ -274,8 +276,6 @@ class OctokitGithubApiClient implements GithubApiClient {
     await walk(startPath, 0);
 
     const sorted = collected.sort((a, b) => a.path.localeCompare(b.path));
-    const offset = input.cursor ? Number.parseInt(input.cursor, 10) : 0;
-    const start = Number.isNaN(offset) || offset < 0 ? 0 : offset;
     const page = sorted.slice(start, start + input.limit);
     const consumed = start + page.length;
     const hasMore = consumed < sorted.length;

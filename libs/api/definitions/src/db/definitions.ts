@@ -30,8 +30,8 @@ function buildUpsertQuery(tx: Tx, params: UpsertDefinitionParams) {
     source,
     definition: params.definition,
     contentHash: params.contentHash ?? null,
-    fetchedAt: new Date(),
-    updatedAt: new Date(),
+    fetchedAt: sql`now()`,
+    updatedAt: sql`now()`,
     deletedAt: null,
   };
 

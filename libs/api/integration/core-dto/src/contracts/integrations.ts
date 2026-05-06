@@ -145,6 +145,7 @@ export class IntegrationProviderError extends Error {
     public readonly retryAfterSeconds?: number | undefined,
   ) {
     super(message);
+    this.name = 'IntegrationProviderError';
   }
 }
 

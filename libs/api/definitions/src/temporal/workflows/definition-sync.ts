@@ -67,7 +67,11 @@ export async function definitionSyncWorkflow(
     };
   } catch (error) {
     const {code, message} = classifyWorkflowError(error);
-    await markDefinitionSyncFailed({...input, ref, code, message});
+    try {
+      await markDefinitionSyncFailed({...input, ref, code, message});
+    } catch {
+      // Preserve the workflow's original failure when failure persistence also exhausts retries.
+    }
     throw error;
   }
 }
