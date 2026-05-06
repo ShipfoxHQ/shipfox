@@ -346,6 +346,7 @@ export function ShipfoxLoader({
         height={size}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
+        data-visual-test="blackout"
         style={{
           imageRendering: 'pixelated',
           display: 'block',

@@ -9,6 +9,13 @@ const withTheme: Decorator = (Story, context) => (
 const preview: Preview = {
   decorators: [withTheme],
   parameters: {
+    argos: {
+      modes: {
+        light: {theme: 'light'},
+        dark: {theme: 'dark'},
+      },
+      fitToContent: false,
+    },
     viewport: {
       viewports: {
         large: {

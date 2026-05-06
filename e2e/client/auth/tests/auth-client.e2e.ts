@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {argosScreenshot} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
 const LOGIN_URL_RE = /\/auth\/login$/u;
@@ -9,6 +10,7 @@ test('redirects guests from the app root to login', async ({page}) => {
 
   await expect(page).toHaveURL(LOGIN_URL_RE);
   await expect(page.getByRole('heading', {name: 'Connect to Shipfox'})).toBeVisible();
+  await argosScreenshot(page, 'auth/login');
 });
 
 test('logs in through the UI with an E2E-created verified user', async ({page, auth}) => {
@@ -20,6 +22,7 @@ test('logs in through the UI with an E2E-created verified user', async ({page, a
   await page.getByRole('button', {name: 'Log in'}).click();
 
   await expect(page.getByRole('heading', {name: 'Create your workspace'})).toBeVisible();
+  await argosScreenshot(page, 'auth/post-login-workspace');
 });
 
 test('hydrates an E2E browser session from the refresh cookie after reload', async ({
@@ -49,4 +52,5 @@ test('creates a workspace through the real onboarding UI', async ({page, auth}) 
   // /setup/integrations (the integration gallery).
   await expect(page).toHaveURL(SETUP_INTEGRATIONS_URL_RE);
   await expect(page.getByRole('heading', {name: 'Connect source control'})).toBeVisible();
+  await argosScreenshot(page, 'auth/setup-integrations');
 });

@@ -116,6 +116,101 @@ E2E setup APIs are module-owned routes under `/__e2e/<module>`. They are mounted
 when both `E2E_ENABLED=true` and `E2E_ADMIN_API_KEY` are set. Tests must create data
 through these HTTP APIs, not through direct database access.
 
+## Visual Regression Testing
+
+Visual drift is caught on every PR via [Argos](https://argos-ci.com/). One Argos
+project receives one named build per source module (`react-ui` for the
+component library, `client-auth` for the auth E2E surface, etc.) using Argos's
+[build-splitting](https://argos-ci.com/docs/build-splitting); each posts its own
+GitHub check.
+
+### What's covered
+
+| Build name | Source | Captured |
+| --- | --- | --- |
+| `react-ui` | `@shipfox/react-ui` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/shared/react/ui/.storybook/preview.tsx` as `parameters.argos.modes`) |
+| `client-auth` | `@shipfox/e2e-client-auth` Playwright specs via `@argos-ci/playwright` reporter | explicit `argosScreenshot()` calls at user-visible checkpoints |
+
+The goal is review-grade signal on UI drift, not 100% state coverage. Capture the
+states a reviewer would want to eyeball on a PR; skip anything that re-renders
+the same DOM as a covered state.
+
+### Run locally
+
+Library capture is part of the standard test task — useful when iterating on a
+component:
+
+```sh
+turbo test --filter=@shipfox/react-ui
+```
+
+This runs Vitest in browser mode against every story, producing PNGs in
+`libs/shared/react/ui/screenshots/` (gitignored). No `ARGOS_TOKEN` is needed
+locally; the `argosVitestPlugin` only uploads when `process.env.CI` is set.
+
+Page snapshots ride on the existing E2E flow — when you run
+`turbo test:e2e --filter=@shipfox/e2e-client-auth` locally without `CI=true`,
+the Argos reporter is not active, so no screenshots are uploaded.
+
+### Add a new component snapshot
+
+Just add a story. `@storybook/addon-vitest` discovers `.stories.@(js|jsx|ts|tsx|mdx)`
+under `src/**` automatically and the Argos vitest plugin captures each one in
+both themes. To cover a state that a single render can't reach (e.g. error
+states, populated lists), add it as a new story rather than driving
+interactions in `play`.
+
+### Add a new client-page snapshot
+
+In an `e2e/client/<feature>` spec:
+
+```ts
+import {argosScreenshot} from '@shipfox/playwright';
+
+test('shows the empty state for new workspaces', async ({page, auth}) => {
+  // ...drive UI to the state you want to verify...
+  await expect(page.getByRole('heading', {name: 'No projects yet'})).toBeVisible();
+  await argosScreenshot(page, 'projects/empty-state');
+});
+```
+
+Conventions:
+
+- Snapshot **after** the assertions that prove the page reached the expected
+  state — `argosScreenshot` waits for fonts and stable layout, but it cannot
+  wait for content you have not asserted on.
+- Name snapshots `<surface>/<state>` (e.g. `auth/login`,
+  `projects/empty-state`). The directory-style prefix groups related shots in
+  the Argos UI.
+
+New `e2e/client/*` packages register their own Argos reporter in their
+`playwright.config.ts` with a `buildName` that matches the package suffix
+(e.g. `e2e/client/auth` → `'client-auth'`, `e2e/client/projects` →
+`'client-projects'`). One named Argos build per E2E module keeps PR checks
+scoped: a regression in the auth flow doesn't taint the review surface for
+projects.
+
+### Reviewing drift
+
+When a PR diff is non-trivial, both Argos checks may flip from green to "review
+required". Open the Argos build, mark each diff as accepted (intentional UI
+change) or rejected (regression). Approving a build updates the baseline once
+the PR merges to `main`.
+
+### Plumbing files
+
+- `libs/shared/react/ui/vitest.config.ts` — defines the `storybook` Vitest
+  project that wraps stories with `storybookTest()` and `argosVitestPlugin()`.
+  The plugin writes PNGs to `screenshots/` and uploads when `process.env.CI`
+  is set.
+- `libs/shared/react/ui/.storybook/vitest.setup.ts` — adds a Framer Motion
+  `MotionConfig reducedMotion="always"` decorator on top of the regular
+  `preview.tsx` annotations, so animations are quiet during capture.
+- `turbo.jsonc` `globalPassThroughEnv` includes `ARGOS_TOKEN` and `CI` so
+  the Vitest plugin and Playwright reporter actually receive them when run
+  through Turbo. If you add another env var the visual flow needs (e.g. a
+  custom reference-branch override), allowlist it here.
+
 ## Import Aliases
 
 Packages use Node.js [subpath imports](https://nodejs.org/api/packages.html#subpath-imports) (`imports` field in `package.json`) instead of TypeScript `paths`:
