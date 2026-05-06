@@ -10,7 +10,6 @@ import {
 import {
   Alert,
   Button,
-  ButtonLink,
   Card,
   CardContent,
   CardDescription,
@@ -26,11 +25,7 @@ import {
 import {useQueryClient} from '@tanstack/react-query';
 import {Link, Navigate, useNavigate} from '@tanstack/react-router';
 import {type FormEvent, useEffect, useRef, useState} from 'react';
-import {
-  projectsQueryKeys,
-  useCreateProjectMutation,
-  useProjectsInfiniteQuery,
-} from '#hooks/api/projects.js';
+import {projectsQueryKeys, useCreateProjectMutation} from '#hooks/api/projects.js';
 import {projectErrorCopy} from '#project-error.js';
 
 const REPOSITORY_NAME_SPLIT_RE = /[/-]/;
@@ -44,9 +39,6 @@ export function CreateProjectPage() {
 
   const connectionsQuery = useSourceConnectionsQuery(workspace?.id);
   const connections = connectionsQuery.data?.connections ?? [];
-
-  const projectsQuery = useProjectsInfiniteQuery(workspace?.id);
-  const hasProjects = (projectsQuery.data?.pages.flatMap((page) => page.projects) ?? []).length > 0;
 
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | undefined>();
   const singleConnectionId = connections.length === 1 ? connections[0]?.id : undefined;
@@ -171,17 +163,10 @@ export function CreateProjectPage() {
   return (
     <div className="flex w-full flex-col gap-24">
       <header className="flex flex-col gap-8">
-        {hasProjects ? (
-          <ButtonLink variant="muted" href="/">
-            Back to projects
-          </ButtonLink>
-        ) : null}
-        <div>
-          <Header variant="h1">Create project</Header>
-          <Text size="md" className="text-foreground-neutral-muted">
-            Choose a repository to create a project from.
-          </Text>
-        </div>
+        <Header variant="h1">Create project</Header>
+        <Text size="md" className="text-foreground-neutral-muted">
+          Choose a repository to create a project from.
+        </Text>
       </header>
 
       {connectionsQuery.isError ? (
