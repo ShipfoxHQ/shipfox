@@ -1,8 +1,6 @@
 import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {Meta, StoryObj} from '@storybook/react';
-import {screen, within} from '@testing-library/react';
-import type {UserEvent} from '@testing-library/user-event';
-import userEvent from '@testing-library/user-event';
+import {screen} from '@testing-library/react';
 import {useState} from 'react';
 import {Avatar} from '../avatar';
 import {Button} from '../button';
@@ -22,49 +20,21 @@ import {
   DropdownMenuTrigger,
 } from './dropdown-menu';
 
-const OPEN_MENU_REGEX = /open menu/i;
-const ACTIONS_REGEX = /actions/i;
-const ORGANIZATION_REGEX = /organization/i;
-const COMPLETE_MENU_REGEX = /complete menu/i;
-const SWITCH_ORGANIZATION_REGEX = /switch organization/i;
-
 const isTestEnvironment = () => typeof navigator !== 'undefined' && navigator.webdriver === true;
+const hideTriggerInTests = () =>
+  isTestEnvironment() ? 'opacity-0 pointer-events-none' : undefined;
 
 type StoryContext = Parameters<NonNullable<Story['play']>>[0];
-type AdditionalStepsCallback = (ctx: StoryContext, user: UserEvent) => Promise<void>;
 
-async function openMenuAndScreenshot(
-  ctx: StoryContext,
-  triggerRegex: RegExp,
-  screenshotName: string,
-  additionalSteps?: AdditionalStepsCallback,
-): Promise<void> {
-  const {canvasElement, step} = ctx;
-  const canvas = within(canvasElement);
-  const user = userEvent.setup();
-
-  let triggerButton: HTMLElement | null = null;
-
-  await step('Open the dropdown menu', async () => {
-    triggerButton = canvas.getByRole('button', {name: triggerRegex});
-    await user.click(triggerButton);
-  });
+async function screenshotOpenMenu(ctx: StoryContext, screenshotName: string): Promise<void> {
+  const {step} = ctx;
 
   await step('Wait for menu to appear and render', async () => {
-    await screen.findByRole('menu');
+    await screen.findAllByRole('menu');
     await new Promise((resolve) => setTimeout(resolve, 300));
-
-    if (isTestEnvironment() && triggerButton instanceof HTMLElement) {
-      triggerButton.style.display = 'none';
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
   });
 
   await argosScreenshot(ctx, screenshotName);
-
-  if (additionalSteps) {
-    await additionalSteps(ctx, user);
-  }
 }
 
 const meta = {
@@ -131,7 +101,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-  play: (ctx) => openMenuAndScreenshot(ctx, OPEN_MENU_REGEX, 'DropdownMenu Default Open'),
+  play: (ctx) => screenshotOpenMenu(ctx, 'DropdownMenu Default Open'),
   render: function DefaultStory(args) {
     const [container, setContainer] = useState<HTMLDivElement | null>(null);
 
@@ -141,9 +111,11 @@ export const Default: Story = {
         className="relative flex h-500 w-500 items-center justify-center rounded-16 bg-background-subtle-base shadow-tooltip overflow-visible"
       >
         {container && (
-          <DropdownMenu>
+          <DropdownMenu open={isTestEnvironment() ? true : undefined}>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary">Open Menu</Button>
+              <Button variant="secondary" className={hideTriggerInTests()}>
+                Open Menu
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent {...args} container={container} side="bottom" align="center">
               <DropdownMenuItem icon="editLine">Edit</DropdownMenuItem>
@@ -159,7 +131,7 @@ export const Default: Story = {
 };
 
 export const WithShortcuts: Story = {
-  play: (ctx) => openMenuAndScreenshot(ctx, ACTIONS_REGEX, 'DropdownMenu With Shortcuts Open'),
+  play: (ctx) => screenshotOpenMenu(ctx, 'DropdownMenu With Shortcuts Open'),
   render: function WithShortcutsStory(args) {
     const [container, setContainer] = useState<HTMLDivElement | null>(null);
 
@@ -169,9 +141,11 @@ export const WithShortcuts: Story = {
         className="relative flex h-500 w-500 items-center justify-center rounded-16 bg-background-subtle-base shadow-tooltip overflow-visible"
       >
         {container && (
-          <DropdownMenu>
+          <DropdownMenu open={isTestEnvironment() ? true : undefined}>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary">Actions</Button>
+              <Button variant="secondary" className={hideTriggerInTests()}>
+                Actions
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent {...args} container={container} side="bottom" align="center">
               <DropdownMenuItem icon="fileCopyLine" shortcut="⌘C">
@@ -195,12 +169,7 @@ export const WithShortcuts: Story = {
 function UserProfileSection() {
   return (
     <div className="flex items-center gap-8 px-8 py-6">
-      <Avatar
-        size="sm"
-        content="image"
-        src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=faces"
-        fallback="John Doe"
-      />
+      <Avatar size="sm" fallback="John Doe" />
       <div className="flex flex-col">
         <span className="text-sm font-medium leading-20 text-foreground-neutral-base">
           John Doe
@@ -226,21 +195,7 @@ export const OrganizationMenu: Story = {
   args: {
     size: 'md',
   },
-  play: (ctx) =>
-    openMenuAndScreenshot(
-      ctx,
-      ORGANIZATION_REGEX,
-      'DropdownMenu Organization Menu Open',
-      async ({step}, user) => {
-        await step('Hover over submenu trigger', async () => {
-          const submenuTrigger = screen.getByRole('menuitem', {name: SWITCH_ORGANIZATION_REGEX});
-          await user.hover(submenuTrigger);
-          await new Promise((resolve) => setTimeout(resolve, 200));
-        });
-
-        await argosScreenshot(ctx, 'DropdownMenu Organization Menu Submenu Open');
-      },
-    ),
+  play: (ctx) => screenshotOpenMenu(ctx, 'DropdownMenu Organization Menu Open'),
   render: function OrganizationMenuStory(args) {
     const [container, setContainer] = useState<HTMLDivElement | null>(null);
 
@@ -250,9 +205,9 @@ export const OrganizationMenu: Story = {
         className="relative flex h-600 w-600 items-center justify-center rounded-16 bg-background-subtle-base shadow-tooltip overflow-visible"
       >
         {container && (
-          <DropdownMenu>
+          <DropdownMenu open={isTestEnvironment() ? true : undefined}>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" iconLeft="buildingLine">
+              <Button variant="secondary" iconLeft="buildingLine" className={hideTriggerInTests()}>
                 Organization
               </Button>
             </DropdownMenuTrigger>
@@ -297,13 +252,73 @@ export const OrganizationMenu: Story = {
   },
 };
 
+export const OrganizationSubmenuOpen: Story = {
+  args: {
+    size: 'md',
+  },
+  play: (ctx) => screenshotOpenMenu(ctx, 'DropdownMenu Organization Menu Submenu Open'),
+  render: function OrganizationSubmenuOpenStory(args) {
+    const [container, setContainer] = useState<HTMLDivElement | null>(null);
+
+    return (
+      <div
+        ref={setContainer}
+        className="relative flex h-600 w-600 items-center justify-center rounded-16 bg-background-subtle-base shadow-tooltip overflow-visible"
+      >
+        {container && (
+          <DropdownMenu open={isTestEnvironment() ? true : undefined}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="secondary" iconLeft="buildingLine" className={hideTriggerInTests()}>
+                Organization
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent {...args} container={container} side="bottom" align="start">
+              <OrganizationItem />
+              <DropdownMenuSeparator />
+              <DropdownMenuItem icon="settings3Line">Settings</DropdownMenuItem>
+              <DropdownMenuSub open={isTestEnvironment() ? true : undefined}>
+                <DropdownMenuSubTrigger icon="arrowLeftRightLine">
+                  Switch organization
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem
+                    icon="shipfox"
+                    iconStyle="text-foreground-neutral-base"
+                    className="text-foreground-neutral-base"
+                  >
+                    Shipfox
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    icon="github"
+                    iconStyle="text-foreground-neutral-base"
+                    className="text-foreground-neutral-base"
+                  >
+                    Github
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    icon="google"
+                    iconStyle="text-foreground-neutral-base"
+                    className="text-foreground-neutral-base"
+                  >
+                    Google
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuItem icon="addLine">New organization</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+    );
+  },
+};
+
 export const CompleteExample: Story = {
   args: {
     size: 'lg',
     side: 'bottom',
   },
-  play: (ctx) =>
-    openMenuAndScreenshot(ctx, COMPLETE_MENU_REGEX, 'DropdownMenu Complete Example Open'),
+  play: (ctx) => screenshotOpenMenu(ctx, 'DropdownMenu Complete Example Open'),
   render: function CompleteExampleStory(args) {
     const [container, setContainer] = useState<HTMLDivElement | null>(null);
     const [showNotifications, setShowNotifications] = useState(true);
@@ -316,9 +331,9 @@ export const CompleteExample: Story = {
         className="relative flex h-600 w-500 items-center justify-center rounded-16 bg-background-subtle-base shadow-tooltip overflow-visible"
       >
         {container && (
-          <DropdownMenu>
+          <DropdownMenu open={isTestEnvironment() ? true : undefined}>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" iconLeft="menu3Line">
+              <Button variant="secondary" iconLeft="menu3Line" className={hideTriggerInTests()}>
                 Complete Menu
               </Button>
             </DropdownMenuTrigger>

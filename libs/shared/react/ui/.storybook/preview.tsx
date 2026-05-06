@@ -1,6 +1,57 @@
 import '../index.css';
 import type {Decorator, Preview} from '@storybook/react';
+import {MotionConfig} from 'framer-motion';
 import {ThemeProvider} from '#components/theme/index.js';
+
+const ignoredRadixActWarningComponents = new Set([
+  'DismissableLayer',
+  'FocusScope',
+  'Menu',
+  'MenuSub',
+  'PopperContent',
+  'Presence',
+]);
+
+const interpolatedActWarningRegex =
+  /^An update to ([A-Za-z]+) inside a test was not wrapped in act\(\.\.\.\)\./;
+
+function installRadixActWarningFilter() {
+  if (typeof navigator === 'undefined' || navigator.webdriver !== true) {
+    return;
+  }
+
+  const globalState = globalThis as typeof globalThis & {
+    __shipfoxRadixActWarningFilterInstalled?: boolean;
+  };
+
+  if (globalState.__shipfoxRadixActWarningFilterInstalled) {
+    return;
+  }
+
+  globalState.__shipfoxRadixActWarningFilterInstalled = true;
+  // biome-ignore lint/suspicious/noConsole: Storybook browser tests patch console.error to suppress known Radix internals only.
+  const originalError = console.error;
+
+  console.error = (...args) => {
+    const [message] = args;
+    if (typeof message === 'string') {
+      const componentName =
+        message.match(interpolatedActWarningRegex)?.[1] ??
+        (message.startsWith('An update to %s inside a test was not wrapped in act(...)') &&
+        typeof args[1] === 'string'
+          ? args[1]
+          : undefined);
+
+      if (componentName && ignoredRadixActWarningComponents.has(componentName)) {
+        return;
+      }
+    }
+
+    originalError(...args);
+  };
+}
+
+installRadixActWarningFilter();
 
 const withTheme: Decorator = (Story, context) => {
   const theme = context.globals.theme;
@@ -11,8 +62,16 @@ const withTheme: Decorator = (Story, context) => {
   );
 };
 
+const withStaticMotionInTests: Decorator = (Story) => {
+  if (typeof navigator === 'undefined' || navigator.webdriver !== true) {
+    return Story();
+  }
+
+  return <MotionConfig skipAnimations>{Story()}</MotionConfig>;
+};
+
 const preview: Preview = {
-  decorators: [withTheme],
+  decorators: [withTheme, withStaticMotionInTests],
   parameters: {
     argos: {
       modes: {

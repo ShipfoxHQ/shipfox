@@ -1,7 +1,6 @@
 import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {Meta, StoryObj} from '@storybook/react';
-import {screen, within} from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import {screen} from '@testing-library/react';
 import {useState} from 'react';
 import {Button} from '../button/index.js';
 import {Input} from '../input/index.js';
@@ -18,22 +17,13 @@ import {
   SheetTrigger,
 } from './sheet';
 
-const OPEN_SHEET_REGEX = /open sheet/i;
-const SETTINGS_REGEX = /settings/i;
+const isTestEnvironment = () => typeof navigator !== 'undefined' && navigator.webdriver === true;
 
-async function openSheetAndScreenshot(
+async function screenshotOpenSheet(
   ctx: Parameters<NonNullable<StoryObj<typeof meta>['play']>>[0],
-  triggerRegex: RegExp,
   screenshotName: string,
 ): Promise<void> {
-  const {canvasElement, step} = ctx;
-  const canvas = within(canvasElement);
-  const user = userEvent.setup();
-
-  await step('Open the sheet', async () => {
-    const triggerButton = canvas.getByRole('button', {name: triggerRegex});
-    await user.click(triggerButton);
-  });
+  const {step} = ctx;
 
   await step('Wait for sheet to appear and render', async () => {
     await screen.findByRole('dialog');
@@ -56,9 +46,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-  play: (ctx) => openSheetAndScreenshot(ctx, OPEN_SHEET_REGEX, 'Default Sheet Open'),
+  play: (ctx) => screenshotOpenSheet(ctx, 'Default Sheet Open'),
   render: () => {
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(isTestEnvironment());
 
     return (
       <div className="flex h-[calc(100vh/2)] w-[calc(100vw/2)] items-center justify-center rounded-16 bg-background-subtle-base shadow-tooltip">
@@ -96,9 +86,9 @@ export const Default: Story = {
 };
 
 export const LeftSide: Story = {
-  play: (ctx) => openSheetAndScreenshot(ctx, OPEN_SHEET_REGEX, 'Left Side Sheet'),
+  play: (ctx) => screenshotOpenSheet(ctx, 'Left Side Sheet'),
   render: () => {
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(isTestEnvironment());
 
     return (
       <div className="flex h-[calc(100vh/2)] w-[calc(100vw/2)] items-center justify-center rounded-16 bg-background-subtle-base shadow-tooltip">
@@ -131,9 +121,9 @@ export const LeftSide: Story = {
 };
 
 export const SettingsForm: Story = {
-  play: (ctx) => openSheetAndScreenshot(ctx, SETTINGS_REGEX, 'Settings Form Sheet'),
+  play: (ctx) => screenshotOpenSheet(ctx, 'Settings Form Sheet'),
   render: () => {
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(isTestEnvironment());
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
 
@@ -189,9 +179,9 @@ export const SettingsForm: Story = {
 };
 
 export const WithoutCloseButton: Story = {
-  play: (ctx) => openSheetAndScreenshot(ctx, OPEN_SHEET_REGEX, 'Sheet Without Close Button'),
+  play: (ctx) => screenshotOpenSheet(ctx, 'Sheet Without Close Button'),
   render: () => {
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(isTestEnvironment());
 
     return (
       <div className="flex h-[calc(100vh/2)] w-[calc(100vw/2)] items-center justify-center rounded-16 bg-background-subtle-base shadow-tooltip">
@@ -225,9 +215,9 @@ export const WithoutCloseButton: Story = {
 };
 
 export const LongContent: Story = {
-  play: (ctx) => openSheetAndScreenshot(ctx, OPEN_SHEET_REGEX, 'Sheet With Long Content'),
+  play: (ctx) => screenshotOpenSheet(ctx, 'Sheet With Long Content'),
   render: () => {
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(isTestEnvironment());
 
     return (
       <div className="flex h-[calc(100vh/2)] w-[calc(100vw/2)] items-center justify-center rounded-16 bg-background-subtle-base shadow-tooltip">

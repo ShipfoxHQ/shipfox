@@ -11,5 +11,6 @@ execSync(command, {
   env: {
     ...process.env,
     LOG_LEVEL: process.env.LOG_LEVEL ?? 'silent',
+    STORYBOOK_DISABLE_TELEMETRY: process.env.STORYBOOK_DISABLE_TELEMETRY ?? 'true',
   },
 });
