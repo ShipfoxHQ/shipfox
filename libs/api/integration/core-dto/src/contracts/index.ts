@@ -2,13 +2,17 @@ export type {
   CheckoutSpec,
   CreateCheckoutSpecInput,
   FetchFileInput,
+  FileEntry,
+  FilePage,
   FileSnapshot,
   IntegrationCapability,
   IntegrationConnection,
   IntegrationConnectionLifecycleStatus,
   IntegrationProvider,
   IntegrationProviderAdapters,
+  IntegrationProviderErrorReason,
   IntegrationProviderKind,
+  ListFilesInput,
   ListRepositoriesInput,
   RegisteredIntegrationProvider,
   RepositoryPage,
@@ -16,4 +20,10 @@ export type {
   RepositoryVisibility,
   ResolveRepositoryInput,
   SourceControlProvider,
+} from './integrations.js';
+export {
+  buildProviderRepositoryId,
+  IntegrationProviderError,
+  MAX_REPOSITORY_FILE_BYTES,
+  parseProviderRepositoryId,
 } from './integrations.js';

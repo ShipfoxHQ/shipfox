@@ -33,7 +33,7 @@ describe('createProjectFromSource', () => {
             updatedAt: new Date(),
           },
           repository: {
-            externalRepositoryId: 'platform',
+            externalRepositoryId: 'debug:platform',
             owner: 'debug-owner',
             name: 'platform',
             fullName: 'debug-owner/platform',
@@ -44,6 +44,8 @@ describe('createProjectFromSource', () => {
           },
         };
       }),
+      listFiles: vi.fn(),
+      fetchFile: vi.fn(),
     };
   });
 
@@ -53,14 +55,14 @@ describe('createProjectFromSource', () => {
       workspaceId,
       name: 'Platform',
       sourceConnectionId,
-      sourceExternalRepositoryId: 'platform',
+      sourceExternalRepositoryId: 'debug:platform',
       sourceControl,
     });
 
     expect(project.workspaceId).toBe(workspaceId);
     expect(project.name).toBe('Platform');
     expect(project.sourceConnectionId).toBe(sourceConnectionId);
-    expect(project.sourceExternalRepositoryId).toBe('platform');
+    expect(project.sourceExternalRepositoryId).toBe('debug:platform');
   });
 
   test('emits project lifecycle events in the same transaction', async () => {
@@ -69,7 +71,7 @@ describe('createProjectFromSource', () => {
       workspaceId,
       name: 'Platform',
       sourceConnectionId,
-      sourceExternalRepositoryId: 'platform',
+      sourceExternalRepositoryId: 'debug:platform',
       sourceControl,
     });
 
@@ -86,11 +88,11 @@ describe('createProjectFromSource', () => {
       expect.arrayContaining([
         expect.objectContaining({
           sourceConnectionId,
-          sourceExternalRepositoryId: 'platform',
+          sourceExternalRepositoryId: 'debug:platform',
         }),
         expect.objectContaining({
           sourceConnectionId,
-          externalRepositoryId: 'platform',
+          externalRepositoryId: 'debug:platform',
           provider: 'debug',
         }),
       ]),
@@ -103,7 +105,7 @@ describe('createProjectFromSource', () => {
       workspaceId,
       name: 'Platform',
       sourceConnectionId,
-      sourceExternalRepositoryId: 'platform',
+      sourceExternalRepositoryId: 'debug:platform',
       sourceControl,
     });
 
@@ -112,7 +114,7 @@ describe('createProjectFromSource', () => {
       workspaceId,
       name: 'Platform Again',
       sourceConnectionId,
-      sourceExternalRepositoryId: 'platform',
+      sourceExternalRepositoryId: 'debug:platform',
       sourceControl,
     });
 

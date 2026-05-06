@@ -10,6 +10,10 @@
 
 - [ ] **GitHub lifecycle webhook handling** — Add GitHub App webhook verification and handlers for installation suspend/delete and repository access changes. The backend currently stores `latest_event`, `suspended_at`, and `deleted_at` on `integrations_github_installations`, but the first GitHub provider PR only updates those fields during callback. Webhook ingestion should keep connection lifecycle state accurate when GitHub changes app access after installation.
 
+- [ ] **Webhook-driven definition resync** — Resync source-backed workflow definitions when GitHub push/repository-change webhooks indicate files under `.shipfox/workflows/` may have changed. PR #4 syncs definitions at project source binding time; continuous sync should be built after GitHub webhook verification and ingestion exist so repository edits do not silently diverge from Shipfox definitions.
+
+- [ ] **Commit-pinned and alternate-branch definition sync** — Design immutable commit-SHA-pinned workflow definition snapshots for reproducible runs, plus an explicit user/test path to sync definitions from a non-default branch before merge. PR #4 intentionally syncs only the repository default branch using `ref`; this follow-up needs schema/index retention rules and workflow-run source-version semantics.
+
 ## Add cursor-based pagination to list endpoints
 
 **What:** Add cursor-based pagination to `listWorkflowRunsByProject`, `listDefinitionsByProject`, and future list queries.

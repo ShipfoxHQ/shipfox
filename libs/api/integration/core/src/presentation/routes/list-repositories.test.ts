@@ -122,6 +122,14 @@ describe('GET /integration-connections/:connectionId/repositories', () => {
               await Promise.resolve();
               throw new Error('not used');
             },
+            listFiles: async () => {
+              await Promise.resolve();
+              return {files: [], nextCursor: null};
+            },
+            fetchFile: async () => {
+              await Promise.resolve();
+              throw new Error('not used');
+            },
           },
         },
       }),

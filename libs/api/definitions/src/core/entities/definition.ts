@@ -32,7 +32,9 @@ export interface WorkflowDefinition {
   ref: string | null;
   name: string;
   definition: WorkflowSpec;
+  contentHash: string | null;
   fetchedAt: Date;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt: Date | null;
 }

@@ -30,6 +30,13 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
     listInstallationRepositories: vi.fn(() =>
       Promise.resolve({repositories: [], nextCursor: null}),
     ),
+    getRepository: vi.fn(() => {
+      throw new Error('not used');
+    }),
+    listRepositoryFiles: vi.fn(() => Promise.resolve({files: [], nextCursor: null})),
+    fetchRepositoryFile: vi.fn(() => {
+      throw new Error('not used');
+    }),
     ...overrides,
   };
 }

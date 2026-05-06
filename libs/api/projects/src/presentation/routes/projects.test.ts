@@ -60,7 +60,7 @@ describe('project routes', () => {
             updatedAt: new Date(),
           },
           repository: {
-            externalRepositoryId: 'platform',
+            externalRepositoryId: 'debug:platform',
             owner: 'debug-owner',
             name: 'platform',
             fullName: 'debug-owner/platform',
@@ -71,6 +71,8 @@ describe('project routes', () => {
           },
         };
       }),
+      listFiles: vi.fn(),
+      fetchFile: vi.fn(),
     };
     app = await createApp({
       auth: [fakeUserAuth],
@@ -94,7 +96,7 @@ describe('project routes', () => {
         name: 'Platform',
         source: {
           connection_id: sourceConnectionId,
-          external_repository_id: 'platform',
+          external_repository_id: 'debug:platform',
         },
       },
     });
@@ -103,7 +105,7 @@ describe('project routes', () => {
     expect(res.json().name).toBe('Platform');
     expect(res.json().source).toEqual({
       connection_id: sourceConnectionId,
-      external_repository_id: 'platform',
+      external_repository_id: 'debug:platform',
     });
   });
 
@@ -117,7 +119,7 @@ describe('project routes', () => {
         name: 'Platform',
         source: {
           connection_id: sourceConnectionId,
-          external_repository_id: 'platform',
+          external_repository_id: 'debug:platform',
         },
       },
     });
@@ -142,7 +144,7 @@ describe('project routes', () => {
       name: 'Platform',
       source: {
         connection_id: sourceConnectionId,
-        external_repository_id: 'platform',
+        external_repository_id: 'debug:platform',
       },
     };
     await app.inject({
@@ -178,7 +180,7 @@ describe('project routes', () => {
         name: 'Platform',
         source: {
           connection_id: sourceConnectionId,
-          external_repository_id: 'platform',
+          external_repository_id: 'debug:platform',
         },
       },
     });

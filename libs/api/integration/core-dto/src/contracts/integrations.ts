@@ -55,6 +55,25 @@ export interface FileSnapshot {
   content: string;
 }
 
+export interface FileEntry {
+  path: string;
+  type: 'file';
+  size: number | null;
+}
+
+export interface FilePage {
+  files: FileEntry[];
+  nextCursor: string | null;
+}
+
+export interface ListFilesInput<Connection extends IntegrationConnection = IntegrationConnection>
+  extends ResolveRepositoryInput<Connection> {
+  ref: string;
+  prefix: string;
+  limit: number;
+  cursor?: string | undefined;
+}
+
 export interface FetchFileInput<Connection extends IntegrationConnection = IntegrationConnection>
   extends ResolveRepositoryInput<Connection> {
   ref: string;
@@ -77,7 +96,8 @@ export interface SourceControlProvider<
 > {
   listRepositories(input: ListRepositoriesInput<Connection>): Promise<RepositoryPage>;
   resolveRepository(input: ResolveRepositoryInput<Connection>): Promise<RepositorySnapshot>;
-  fetchFile?(input: FetchFileInput<Connection>): Promise<FileSnapshot>;
+  listFiles(input: ListFilesInput<Connection>): Promise<FilePage>;
+  fetchFile(input: FetchFileInput<Connection>): Promise<FileSnapshot>;
   createCheckoutSpec?(input: CreateCheckoutSpecInput<Connection>): Promise<CheckoutSpec>;
 }
 
@@ -105,4 +125,63 @@ export interface RegisteredIntegrationProvider<
 > extends IntegrationProvider<ProviderKind, Route, Connection> {
   adapters: IntegrationProviderAdapters<Connection>;
   capabilities: IntegrationCapability[];
+}
+
+export type IntegrationProviderErrorReason =
+  | 'repository-not-found'
+  | 'file-not-found'
+  | 'access-denied'
+  | 'rate-limited'
+  | 'timeout'
+  | 'provider-unavailable'
+  | 'malformed-provider-response'
+  | 'content-too-large'
+  | 'too-many-files';
+
+export class IntegrationProviderError extends Error {
+  constructor(
+    public readonly reason: IntegrationProviderErrorReason,
+    message: string,
+    public readonly retryAfterSeconds?: number | undefined,
+  ) {
+    super(message);
+    this.name = 'IntegrationProviderError';
+  }
+}
+
+export const MAX_REPOSITORY_FILE_BYTES = 1_000_000;
+
+export function buildProviderRepositoryId(
+  provider: IntegrationProviderKind,
+  value: string,
+): string {
+  return `${provider}:${value}`;
+}
+
+export function parseProviderRepositoryId(
+  externalRepositoryId: string,
+  expectedProvider: IntegrationProviderKind,
+): string {
+  const separatorIndex = externalRepositoryId.indexOf(':');
+  if (separatorIndex <= 0) {
+    throw new IntegrationProviderError(
+      'repository-not-found',
+      `External repository id is missing a provider prefix: ${externalRepositoryId}`,
+    );
+  }
+  const prefix = externalRepositoryId.slice(0, separatorIndex);
+  const value = externalRepositoryId.slice(separatorIndex + 1);
+  if (prefix !== expectedProvider) {
+    throw new IntegrationProviderError(
+      'repository-not-found',
+      `External repository id ${externalRepositoryId} is not owned by provider ${expectedProvider}`,
+    );
+  }
+  if (!value) {
+    throw new IntegrationProviderError(
+      'repository-not-found',
+      `External repository id ${externalRepositoryId} is missing a provider-owned value`,
+    );
+  }
+  return value;
 }

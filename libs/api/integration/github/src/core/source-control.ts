@@ -1,11 +1,19 @@
-import type {
-  IntegrationConnection,
-  ListRepositoriesInput,
-  RepositoryPage,
-  RepositorySnapshot,
-  RepositoryVisibility,
-  ResolveRepositoryInput,
-  SourceControlProvider,
+import {Buffer} from 'node:buffer';
+import {
+  buildProviderRepositoryId,
+  type FetchFileInput,
+  type FilePage,
+  type FileSnapshot,
+  type IntegrationConnection,
+  type ListFilesInput,
+  type ListRepositoriesInput,
+  MAX_REPOSITORY_FILE_BYTES,
+  parseProviderRepositoryId,
+  type RepositoryPage,
+  type RepositorySnapshot,
+  type RepositoryVisibility,
+  type ResolveRepositoryInput,
+  type SourceControlProvider,
 } from '@shipfox/api-integration-core-dto';
 import type {GithubApiClient, GithubRepository} from '#api/client.js';
 import {getGithubInstallationByConnectionId} from '#db/installations.js';
@@ -13,6 +21,7 @@ import {GithubIntegrationProviderError} from './errors.js';
 
 type GithubIntegrationConnection = IntegrationConnection<'github'>;
 
+const GITHUB_PROVIDER = 'github';
 const SEARCH_PAGE_SIZE = 100;
 const SEARCH_MAX_PAGES_PER_REQUEST = 5;
 
@@ -75,27 +84,80 @@ export class GithubSourceControlProvider
   async resolveRepository(
     input: ResolveRepositoryInput<GithubIntegrationConnection>,
   ): Promise<RepositorySnapshot> {
-    let cursor: string | undefined;
-    do {
-      const page = await this.listRepositories({
-        connection: input.connection,
-        limit: 100,
-        cursor,
-      });
-      const repository = page.repositories.find(
-        (item) => item.externalRepositoryId === input.externalRepositoryId,
-      );
-      if (repository) return repository;
-      cursor = page.nextCursor ?? undefined;
-    } while (cursor);
+    const installationId = await this.installationId(input.connection.id);
+    const locator = parseGithubRepositoryLocator(input.externalRepositoryId);
+    const repository = await this.github.getRepository({
+      installationId,
+      owner: locator.owner,
+      repo: locator.repo,
+    });
 
-    throw new GithubIntegrationProviderError('repository-not-found', 'GitHub repository not found');
+    return toRepositorySnapshot(repository);
+  }
+
+  async listFiles(input: ListFilesInput<GithubIntegrationConnection>): Promise<FilePage> {
+    const installationId = await this.installationId(input.connection.id);
+    const locator = parseGithubRepositoryLocator(input.externalRepositoryId);
+    const page = await this.github.listRepositoryFiles({
+      installationId,
+      owner: locator.owner,
+      repo: locator.repo,
+      ref: input.ref,
+      prefix: input.prefix,
+      limit: input.limit,
+      cursor: input.cursor,
+    });
+
+    return {
+      files: page.files.map((file) => ({path: file.path, type: 'file', size: file.size})),
+      nextCursor: page.nextCursor,
+    };
+  }
+
+  async fetchFile(input: FetchFileInput<GithubIntegrationConnection>): Promise<FileSnapshot> {
+    const installationId = await this.installationId(input.connection.id);
+    const locator = parseGithubRepositoryLocator(input.externalRepositoryId);
+    const file = await this.github.fetchRepositoryFile({
+      installationId,
+      owner: locator.owner,
+      repo: locator.repo,
+      ref: input.ref,
+      path: input.path,
+    });
+
+    if (
+      file.size > MAX_REPOSITORY_FILE_BYTES ||
+      Buffer.byteLength(file.content, 'utf8') > MAX_REPOSITORY_FILE_BYTES
+    ) {
+      throw new GithubIntegrationProviderError(
+        'content-too-large',
+        'GitHub file content is larger than the supported limit',
+      );
+    }
+
+    return {
+      path: file.path,
+      ref: input.ref,
+      content: file.content,
+    };
+  }
+
+  private async installationId(connectionId: string): Promise<number> {
+    const installation = await getGithubInstallationByConnectionId(connectionId);
+    if (!installation) {
+      throw new GithubIntegrationProviderError(
+        'access-denied',
+        'GitHub installation details were not found for the connection',
+      );
+    }
+
+    return Number.parseInt(installation.installationId, 10);
   }
 }
 
 function toRepositorySnapshot(repository: GithubRepository): RepositorySnapshot {
   return {
-    externalRepositoryId: String(repository.id),
+    externalRepositoryId: buildProviderRepositoryId(GITHUB_PROVIDER, repository.fullName),
     owner: repository.ownerLogin,
     name: repository.name,
     fullName: repository.fullName,
@@ -104,6 +166,22 @@ function toRepositorySnapshot(repository: GithubRepository): RepositorySnapshot 
     cloneUrl: repository.cloneUrl,
     htmlUrl: repository.htmlUrl,
   };
+}
+
+function parseGithubRepositoryLocator(externalRepositoryId: string): {
+  owner: string;
+  repo: string;
+} {
+  const value = parseProviderRepositoryId(externalRepositoryId, GITHUB_PROVIDER);
+  const [owner, repo, ...rest] = value.split('/');
+  if (!owner || !repo || rest.length > 0) {
+    throw new GithubIntegrationProviderError(
+      'repository-not-found',
+      `GitHub repository id ${externalRepositoryId} must follow the form ${GITHUB_PROVIDER}:owner/repo`,
+    );
+  }
+
+  return {owner, repo};
 }
 
 function toRepositoryVisibility(repository: GithubRepository): RepositoryVisibility {

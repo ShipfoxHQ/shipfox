@@ -4,6 +4,27 @@ import {
 } from '#core/errors.js';
 import {createIntegrationProviderRegistry} from './registry.js';
 
+function sourceControlAdapter() {
+  return {
+    listRepositories: async () => {
+      await Promise.resolve();
+      return {repositories: [], nextCursor: null};
+    },
+    resolveRepository: async () => {
+      await Promise.resolve();
+      throw new Error('not used');
+    },
+    listFiles: async () => {
+      await Promise.resolve();
+      return {files: [], nextCursor: null};
+    },
+    fetchFile: async () => {
+      await Promise.resolve();
+      throw new Error('not used');
+    },
+  };
+}
+
 describe('integration provider registry', () => {
   it('lists providers by capability', () => {
     const registry = createIntegrationProviderRegistry([
@@ -11,16 +32,7 @@ describe('integration provider registry', () => {
         provider: 'debug',
         displayName: 'Debug',
         adapters: {
-          source_control: {
-            listRepositories: async () => {
-              await Promise.resolve();
-              return {repositories: [], nextCursor: null};
-            },
-            resolveRepository: async () => {
-              await Promise.resolve();
-              throw new Error('not used');
-            },
-          },
+          source_control: sourceControlAdapter(),
         },
       },
       {
@@ -41,16 +53,7 @@ describe('integration provider registry', () => {
         provider: 'debug',
         displayName: 'Debug',
         adapters: {
-          source_control: {
-            listRepositories: async () => {
-              await Promise.resolve();
-              return {repositories: [], nextCursor: null};
-            },
-            resolveRepository: async () => {
-              await Promise.resolve();
-              throw new Error('not used');
-            },
-          },
+          source_control: sourceControlAdapter(),
         },
       },
     ]);

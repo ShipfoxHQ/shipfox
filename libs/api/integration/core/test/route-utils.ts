@@ -47,7 +47,7 @@ export function sourceProvider(overrides: Partial<IntegrationProvider> = {}): In
           return {
             repositories: [
               {
-                externalRepositoryId: 'platform',
+                externalRepositoryId: 'debug:platform',
                 owner: 'debug-owner',
                 name: 'platform',
                 fullName: 'debug-owner/platform',
@@ -61,6 +61,14 @@ export function sourceProvider(overrides: Partial<IntegrationProvider> = {}): In
           };
         },
         resolveRepository: async () => {
+          await Promise.resolve();
+          throw new Error('not used');
+        },
+        listFiles: async () => {
+          await Promise.resolve();
+          return {files: [], nextCursor: null};
+        },
+        fetchFile: async () => {
           await Promise.resolve();
           throw new Error('not used');
         },

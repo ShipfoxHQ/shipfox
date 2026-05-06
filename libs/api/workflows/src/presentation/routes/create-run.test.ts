@@ -33,9 +33,11 @@ function buildDefinition(projectId: string): WorkflowDefinition {
       name: 'Test Workflow',
       jobs: {build: {steps: [{run: 'echo hello'}]}},
     },
+    contentHash: null,
     fetchedAt: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
+    deletedAt: null,
   };
 }
 

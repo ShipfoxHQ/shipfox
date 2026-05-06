@@ -2,8 +2,9 @@ import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
 import {workflowDefinitions} from './schema/definitions.js';
 import {definitionsOutbox} from './schema/outbox.js';
+import {definitionSyncStates} from './schema/sync-states.js';
 
-export const schema = {workflowDefinitions, definitionsOutbox};
+export const schema = {workflowDefinitions, definitionsOutbox, definitionSyncStates};
 
 let _db: NodePgDatabase<typeof schema> | undefined;
 

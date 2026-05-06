@@ -1,9 +1,13 @@
+import {Buffer} from 'node:buffer';
+import {MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-core-dto';
 import ky, {HTTPError, TimeoutError} from 'ky';
 import {App, Octokit, RequestError} from 'octokit';
 import {config, normalizedGithubPrivateKey} from '#config.js';
 import {GithubIntegrationProviderError} from '#core/errors.js';
 
 const NEXT_PAGE_RE = /[?&]page=(\d+)/;
+const TRAILING_SLASHES_RE = /\/+$/;
+const MAX_TREE_WALK_DEPTH = 10;
 
 export interface GithubAccount {
   login: string;
@@ -36,6 +40,22 @@ export interface GithubRepositoryPage {
   nextCursor: string | null;
 }
 
+export interface GithubFileEntry {
+  path: string;
+  size: number | null;
+}
+
+export interface GithubFilePage {
+  files: GithubFileEntry[];
+  nextCursor: string | null;
+}
+
+export interface GithubFileContent {
+  path: string;
+  content: string;
+  size: number;
+}
+
 export interface GithubUserInstallationPage {
   installationIds: number[];
   nextCursor: string | null;
@@ -53,6 +73,27 @@ export interface GithubApiClient {
     limit: number;
     cursor?: string | undefined;
   }): Promise<GithubRepositoryPage>;
+  getRepository(input: {
+    installationId: number;
+    owner: string;
+    repo: string;
+  }): Promise<GithubRepository>;
+  listRepositoryFiles(input: {
+    installationId: number;
+    owner: string;
+    repo: string;
+    ref: string;
+    prefix: string;
+    limit: number;
+    cursor?: string | undefined;
+  }): Promise<GithubFilePage>;
+  fetchRepositoryFile(input: {
+    installationId: number;
+    owner: string;
+    repo: string;
+    ref: string;
+    path: string;
+  }): Promise<GithubFileContent>;
 }
 
 export function createGithubApiClient(): GithubApiClient {
@@ -152,6 +193,142 @@ class OctokitGithubApiClient implements GithubApiClient {
     };
   }
 
+  async getRepository(input: {
+    installationId: number;
+    owner: string;
+    repo: string;
+  }): Promise<GithubRepository> {
+    const octokit = await this.getApp().getInstallationOctokit(input.installationId);
+    const response = await mapGithubError(() =>
+      octokit.rest.repos.get({
+        owner: input.owner,
+        repo: input.repo,
+      }),
+    );
+
+    return toGithubRepository(response.data);
+  }
+
+  async listRepositoryFiles(input: {
+    installationId: number;
+    owner: string;
+    repo: string;
+    ref: string;
+    prefix: string;
+    limit: number;
+    cursor?: string | undefined;
+  }): Promise<GithubFilePage> {
+    const octokit = await this.getApp().getInstallationOctokit(input.installationId);
+    const startPath = input.prefix.replace(TRAILING_SLASHES_RE, '');
+    const offset = input.cursor ? Number.parseInt(input.cursor, 10) : 0;
+    const start = Number.isNaN(offset) || offset < 0 ? 0 : offset;
+    const collected: GithubFileEntry[] = [];
+    const overflowLimit = start + input.limit + 1;
+
+    type GetContentData = Awaited<ReturnType<typeof octokit.rest.repos.getContent>>['data'];
+
+    const walk = async (path: string, depth: number): Promise<void> => {
+      if (collected.length >= overflowLimit) return;
+      if (depth > MAX_TREE_WALK_DEPTH) return;
+
+      let data: GetContentData;
+      try {
+        const response = await mapGithubError(
+          () =>
+            octokit.rest.repos.getContent({
+              owner: input.owner,
+              repo: input.repo,
+              path,
+              ref: input.ref,
+            }),
+          'file-not-found',
+        );
+        data = response.data;
+      } catch (error) {
+        if (error instanceof GithubIntegrationProviderError && error.reason === 'file-not-found') {
+          return;
+        }
+        throw error;
+      }
+
+      if (!Array.isArray(data)) {
+        if (data.type === 'file' && data.path) {
+          collected.push({path: data.path, size: typeof data.size === 'number' ? data.size : null});
+        }
+        return;
+      }
+
+      const entries = [...data].sort((a, b) => (a.path ?? '').localeCompare(b.path ?? ''));
+      for (const entry of entries) {
+        if (collected.length >= overflowLimit) return;
+        if (!entry.path) continue;
+        if (entry.type === 'file') {
+          collected.push({
+            path: entry.path,
+            size: typeof entry.size === 'number' ? entry.size : null,
+          });
+        } else if (entry.type === 'dir') {
+          await walk(entry.path, depth + 1);
+        }
+      }
+    };
+
+    await walk(startPath, 0);
+
+    const sorted = collected.sort((a, b) => a.path.localeCompare(b.path));
+    const page = sorted.slice(start, start + input.limit);
+    const consumed = start + page.length;
+    const hasMore = consumed < sorted.length;
+
+    return {
+      files: page,
+      nextCursor: hasMore ? String(consumed) : null,
+    };
+  }
+
+  async fetchRepositoryFile(input: {
+    installationId: number;
+    owner: string;
+    repo: string;
+    ref: string;
+    path: string;
+  }): Promise<GithubFileContent> {
+    const octokit = await this.getApp().getInstallationOctokit(input.installationId);
+    const response = await mapGithubError(
+      () =>
+        octokit.rest.repos.getContent({
+          owner: input.owner,
+          repo: input.repo,
+          path: input.path,
+          ref: input.ref,
+        }),
+      'file-not-found',
+    );
+    const data = response.data;
+
+    if (Array.isArray(data) || data.type !== 'file') {
+      throw new GithubIntegrationProviderError('file-not-found', 'GitHub path is not a file');
+    }
+    if (data.size > MAX_REPOSITORY_FILE_BYTES) {
+      throw new GithubIntegrationProviderError(
+        'content-too-large',
+        'GitHub file content is larger than the supported limit',
+      );
+    }
+    if (typeof data.content !== 'string' || data.encoding !== 'base64') {
+      throw new GithubIntegrationProviderError(
+        'malformed-provider-response',
+        'GitHub file response did not include base64 content',
+      );
+    }
+
+    return {
+      path: data.path,
+      size: data.size,
+      content: Buffer.from(data.content, 'base64').toString('utf8'),
+    };
+  }
+
   private getApp(): App {
     if (!this.app) {
       this.app = new App({
@@ -193,25 +370,28 @@ async function mapGithubOAuthError<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
-async function mapGithubError<T>(operation: () => Promise<T>): Promise<T> {
+async function mapGithubError<T>(
+  operation: () => Promise<T>,
+  notFoundReason: 'repository-not-found' | 'file-not-found' = 'repository-not-found',
+): Promise<T> {
   try {
     return await operation();
   } catch (error) {
     if (error instanceof GithubIntegrationProviderError) throw error;
     if (error instanceof RequestError) {
       if (error.status === 404) {
-        throw new GithubIntegrationProviderError('repository-not-found', error.message);
+        throw new GithubIntegrationProviderError(notFoundReason, error.message);
       }
-      if (error.status === 401 || error.status === 403) {
+      if (error.status === 429 || isGithubRateLimitError(error)) {
         throw new GithubIntegrationProviderError(
-          'access-denied',
+          'rate-limited',
           error.message,
           retryAfterSeconds(error),
         );
       }
-      if (error.status === 429) {
+      if (error.status === 401 || error.status === 403) {
         throw new GithubIntegrationProviderError(
-          'rate-limited',
+          'access-denied',
           error.message,
           retryAfterSeconds(error),
         );
@@ -225,6 +405,10 @@ async function mapGithubError<T>(operation: () => Promise<T>): Promise<T> {
     }
     throw error;
   }
+}
+
+function isGithubRateLimitError(error: RequestError): boolean {
+  return error.status === 403 && error.response?.headers['x-ratelimit-remaining'] === '0';
 }
 
 function retryAfterSeconds(error: RequestError): number | undefined {

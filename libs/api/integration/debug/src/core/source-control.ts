@@ -1,53 +1,29 @@
-type IntegrationProviderErrorReason =
-  | 'repository-not-found'
-  | 'access-denied'
-  | 'rate-limited'
-  | 'timeout'
-  | 'provider-unavailable'
-  | 'malformed-provider-response';
+import {
+  buildProviderRepositoryId,
+  type FetchFileInput,
+  type FilePage,
+  type FileSnapshot,
+  IntegrationProviderError,
+  type ListFilesInput,
+  type ListRepositoriesInput,
+  parseProviderRepositoryId,
+  type RepositoryPage,
+  type RepositorySnapshot,
+  type ResolveRepositoryInput,
+  type SourceControlProvider,
+} from '@shipfox/api-integration-core-dto';
 
-type RepositoryVisibility = 'public' | 'private' | 'internal' | 'unknown';
+export class DebugIntegrationProviderError extends IntegrationProviderError {}
 
-interface RepositorySnapshot {
-  externalRepositoryId: string;
-  owner: string;
-  name: string;
-  fullName: string;
-  defaultBranch: string;
-  visibility: RepositoryVisibility;
-  cloneUrl: string;
-  htmlUrl: string;
-}
+const DEBUG_PROVIDER = 'debug';
 
-interface RepositoryPage {
-  repositories: RepositorySnapshot[];
-  nextCursor: string | null;
-}
-
-interface ListRepositoriesInput {
-  connection: unknown;
-  limit: number;
-  cursor?: string | undefined;
-  search?: string | undefined;
-}
-
-interface ResolveRepositoryInput {
-  externalRepositoryId: string;
-}
-
-export class DebugIntegrationProviderError extends Error {
-  constructor(
-    public readonly reason: IntegrationProviderErrorReason,
-    message: string,
-    public readonly retryAfterSeconds?: number | undefined,
-  ) {
-    super(message);
-  }
+function debugRepositoryId(name: string): string {
+  return buildProviderRepositoryId(DEBUG_PROVIDER, name);
 }
 
 const DEBUG_REPOSITORIES: RepositorySnapshot[] = [
   {
-    externalRepositoryId: 'platform',
+    externalRepositoryId: debugRepositoryId('platform'),
     owner: 'debug-owner',
     name: 'platform',
     fullName: 'debug-owner/platform',
@@ -57,7 +33,7 @@ const DEBUG_REPOSITORIES: RepositorySnapshot[] = [
     htmlUrl: 'https://debug.local/debug-owner/platform',
   },
   {
-    externalRepositoryId: 'api',
+    externalRepositoryId: debugRepositoryId('api'),
     owner: 'debug-owner',
     name: 'api',
     fullName: 'debug-owner/api',
@@ -67,7 +43,7 @@ const DEBUG_REPOSITORIES: RepositorySnapshot[] = [
     htmlUrl: 'https://debug.local/debug-owner/api',
   },
   {
-    externalRepositoryId: 'runner',
+    externalRepositoryId: debugRepositoryId('runner'),
     owner: 'debug-owner',
     name: 'runner',
     fullName: 'debug-owner/runner',
@@ -78,7 +54,43 @@ const DEBUG_REPOSITORIES: RepositorySnapshot[] = [
   },
 ];
 
-export class DebugSourceControlProvider {
+const DEBUG_FILES = new Map<string, Record<string, string>>([
+  [
+    'platform',
+    {
+      '.shipfox/workflows/ci.yml': `
+name: CI
+jobs:
+  build:
+    steps:
+      - run: pnpm test
+`,
+      '.shipfox/workflows/deploy.yaml': `
+name: Deploy
+jobs:
+  deploy:
+    steps:
+      - run: pnpm deploy
+`,
+      'README.md': '# Debug platform\n',
+    },
+  ],
+  [
+    'api',
+    {
+      '.shipfox/workflows/api.yml': `
+name: API
+jobs:
+  test:
+    steps:
+      - run: turbo test --filter=@shipfox/api
+`,
+    },
+  ],
+  ['runner', {}],
+]);
+
+export class DebugSourceControlProvider implements SourceControlProvider {
   async listRepositories(input: ListRepositoriesInput): Promise<RepositoryPage> {
     await Promise.resolve();
     const filtered = filterBySearch(DEBUG_REPOSITORIES, input.search);
@@ -95,6 +107,7 @@ export class DebugSourceControlProvider {
 
   async resolveRepository(input: ResolveRepositoryInput): Promise<RepositorySnapshot> {
     await Promise.resolve();
+    parseDebugRepositoryName(input.externalRepositoryId);
     const repository = DEBUG_REPOSITORIES.find(
       (item) => item.externalRepositoryId === input.externalRepositoryId,
     );
@@ -102,6 +115,52 @@ export class DebugSourceControlProvider {
       throw new DebugIntegrationProviderError('repository-not-found', 'Repository not found');
     }
     return repository;
+  }
+
+  async listFiles(input: ListFilesInput): Promise<FilePage> {
+    await this.resolveRepository(input);
+    const name = parseDebugRepositoryName(input.externalRepositoryId);
+    const filesByPath = DEBUG_FILES.get(name) ?? {};
+    const matching = Object.entries(filesByPath)
+      .filter(([path]) => path.startsWith(input.prefix))
+      .map(([path, content]) => ({path, type: 'file' as const, size: content.length}))
+      .sort((a, b) => a.path.localeCompare(b.path));
+    const offset = input.cursor ? Number.parseInt(input.cursor, 10) : 0;
+    const start = Number.isNaN(offset) ? 0 : offset;
+    const files = matching.slice(start, start + input.limit);
+    const nextOffset = start + files.length;
+
+    return {
+      files,
+      nextCursor: nextOffset < matching.length ? String(nextOffset) : null,
+    };
+  }
+
+  async fetchFile(input: FetchFileInput): Promise<FileSnapshot> {
+    await this.resolveRepository(input);
+    const name = parseDebugRepositoryName(input.externalRepositoryId);
+    const filesByPath = DEBUG_FILES.get(name) ?? {};
+    const content = filesByPath[input.path];
+    if (content === undefined) {
+      throw new DebugIntegrationProviderError('file-not-found', 'File not found');
+    }
+
+    return {
+      path: input.path,
+      ref: input.ref,
+      content,
+    };
+  }
+}
+
+function parseDebugRepositoryName(externalRepositoryId: string): string {
+  try {
+    return parseProviderRepositoryId(externalRepositoryId, DEBUG_PROVIDER);
+  } catch (error) {
+    if (error instanceof IntegrationProviderError) {
+      throw new DebugIntegrationProviderError(error.reason, error.message);
+    }
+    throw error;
   }
 }
 

@@ -4,7 +4,7 @@ import type {RepositorySnapshot, SourceControlProvider} from './providers/source
 import {createSourceControlIntegrationService} from './source-control-service.js';
 
 const repository: RepositorySnapshot = {
-  externalRepositoryId: 'platform',
+  externalRepositoryId: 'debug:platform',
   owner: 'debug-owner',
   name: 'platform',
   fullName: 'debug-owner/platform',
@@ -37,6 +37,17 @@ describe('integration source-control service', () => {
         await Promise.resolve();
         return repository;
       },
+      listFiles: async () => {
+        await Promise.resolve();
+        return {
+          files: [{path: '.shipfox/workflows/ci.yml', type: 'file', size: 64}],
+          nextCursor: null,
+        };
+      },
+      fetchFile: async () => {
+        await Promise.resolve();
+        return {path: '.shipfox/workflows/ci.yml', ref: 'main', content: 'name: CI'};
+      },
       ...overrides,
     };
     return createSourceControlIntegrationService({
@@ -62,11 +73,11 @@ describe('integration source-control service', () => {
     const result = await service.resolveRepository({
       workspaceId,
       connectionId: connection.id,
-      externalRepositoryId: 'platform',
+      externalRepositoryId: 'debug:platform',
     });
 
     expect(result.connection.id).toBe(connection.id);
-    expect(result.repository.externalRepositoryId).toBe('platform');
+    expect(result.repository.externalRepositoryId).toBe('debug:platform');
   });
 
   it('rejects a missing connection', async () => {
@@ -75,7 +86,7 @@ describe('integration source-control service', () => {
     const result = service.resolveRepository({
       workspaceId,
       connectionId: crypto.randomUUID(),
-      externalRepositoryId: 'platform',
+      externalRepositoryId: 'debug:platform',
     });
 
     await expect(result).rejects.toThrow('Integration connection not found');
@@ -87,7 +98,7 @@ describe('integration source-control service', () => {
     const result = service.resolveRepository({
       workspaceId: crypto.randomUUID(),
       connectionId: connection.id,
-      externalRepositoryId: 'platform',
+      externalRepositoryId: 'debug:platform',
     });
 
     await expect(result).rejects.toThrow('requested workspace');
@@ -104,9 +115,38 @@ describe('integration source-control service', () => {
     const result = service.resolveRepository({
       workspaceId,
       connectionId: connection.id,
-      externalRepositoryId: 'missing',
+      externalRepositoryId: 'debug:missing',
     });
 
     await expect(result).rejects.toMatchObject({reason: 'repository-not-found'});
+  });
+
+  it('lists files through an active source-control connection', async () => {
+    const service = createService();
+
+    const result = await service.listFiles({
+      workspaceId,
+      connectionId: connection.id,
+      externalRepositoryId: 'debug:platform',
+      ref: 'main',
+      prefix: '.shipfox/workflows/',
+      limit: 100,
+    });
+
+    expect(result.files[0]?.path).toBe('.shipfox/workflows/ci.yml');
+  });
+
+  it('fetches files through an active source-control connection', async () => {
+    const service = createService();
+
+    const result = await service.fetchFile({
+      workspaceId,
+      connectionId: connection.id,
+      externalRepositoryId: 'debug:platform',
+      ref: 'main',
+      path: '.shipfox/workflows/ci.yml',
+    });
+
+    expect(result.content).toBe('name: CI');
   });
 });

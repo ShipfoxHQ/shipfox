@@ -1,20 +1,6 @@
-export type GithubIntegrationProviderErrorReason =
-  | 'repository-not-found'
-  | 'access-denied'
-  | 'rate-limited'
-  | 'timeout'
-  | 'provider-unavailable'
-  | 'malformed-provider-response';
+import {IntegrationProviderError} from '@shipfox/api-integration-core-dto';
 
-export class GithubIntegrationProviderError extends Error {
-  constructor(
-    public readonly reason: GithubIntegrationProviderErrorReason,
-    message: string,
-    public readonly retryAfterSeconds?: number | undefined,
-  ) {
-    super(message);
-  }
-}
+export class GithubIntegrationProviderError extends IntegrationProviderError {}
 
 export class GithubInstallStateError extends Error {}
 
