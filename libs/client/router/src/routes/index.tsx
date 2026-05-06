@@ -1,7 +1,6 @@
-import {lastWorkspaceIdAtom} from '@shipfox/client-auth';
+import {getLastWorkspaceId} from '@shipfox/client-auth';
 import {FullPageLoader} from '@shipfox/react-ui';
 import {createFileRoute, redirect} from '@tanstack/react-router';
-import {getDefaultStore} from 'jotai';
 
 export const Route = createFileRoute('/')({
   beforeLoad: ({context}) => {
@@ -13,7 +12,7 @@ export const Route = createFileRoute('/')({
     if (!auth.isAuthenticated) throw redirect({to: '/auth/login'});
     const [first, ...rest] = auth.workspaces;
     if (!first) throw redirect({to: '/setup/workspaces/new'});
-    const lastId = getDefaultStore().get(lastWorkspaceIdAtom);
+    const lastId = getLastWorkspaceId();
     const all = [first, ...rest];
     const target = all.find((w) => w.id === lastId)?.id ?? first.id;
     throw redirect({to: '/workspaces/$wid', params: {wid: target}});

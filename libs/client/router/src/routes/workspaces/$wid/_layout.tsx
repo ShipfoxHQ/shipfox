@@ -1,4 +1,5 @@
 import {MainLayout} from '@shipfox/client-app-shell';
+import {rememberLastWorkspaceId} from '@shipfox/client-auth';
 import {ShipfoxLoader} from '@shipfox/react-ui';
 import {createFileRoute, redirect} from '@tanstack/react-router';
 
@@ -9,6 +10,11 @@ export const Route = createFileRoute('/workspaces/$wid/_layout')({
     if (!auth.isAuthenticated) throw redirect({to: '/auth/login'});
     if (!auth.workspaces.some((w) => w.id === params.wid)) {
       throw redirect({to: '/'});
+    }
+    try {
+      rememberLastWorkspaceId(params.wid);
+    } catch {
+      // localStorage may throw in private browsing or quota-exceeded; routing is still URL-driven.
     }
   },
   pendingComponent: () => (

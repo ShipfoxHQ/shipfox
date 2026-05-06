@@ -1,5 +1,7 @@
 import {atomWithStorage} from 'jotai/utils';
 
+const LAST_WORKSPACE_ID_STORAGE_KEY = 'shipfox.lastWorkspaceId';
+
 /**
  * Persists the last active workspace id in localStorage under
  * `shipfox.lastWorkspaceId`.
@@ -14,6 +16,25 @@ import {atomWithStorage} from 'jotai/utils';
  * persistence is best-effort.
  */
 export const lastWorkspaceIdAtom = atomWithStorage<string | undefined>(
-  'shipfox.lastWorkspaceId',
+  LAST_WORKSPACE_ID_STORAGE_KEY,
   undefined,
 );
+
+export function getLastWorkspaceId(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+
+  try {
+    const raw = window.localStorage.getItem(LAST_WORKSPACE_ID_STORAGE_KEY);
+    if (!raw) return undefined;
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === 'string' ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function rememberLastWorkspaceId(workspaceId: string): void {
+  if (typeof window === 'undefined') return;
+
+  window.localStorage.setItem(LAST_WORKSPACE_ID_STORAGE_KEY, JSON.stringify(workspaceId));
+}

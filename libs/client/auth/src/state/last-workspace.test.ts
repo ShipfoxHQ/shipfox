@@ -1,5 +1,9 @@
 import {createStore} from 'jotai';
-import {lastWorkspaceIdAtom} from './last-workspace.js';
+import {
+  getLastWorkspaceId,
+  lastWorkspaceIdAtom,
+  rememberLastWorkspaceId,
+} from './last-workspace.js';
 
 describe('lastWorkspaceIdAtom', () => {
   beforeEach(() => {
@@ -39,5 +43,21 @@ describe('lastWorkspaceIdAtom', () => {
 
     expect(seen).toEqual(['workspace-1', 'workspace-2']);
     unsubscribe();
+  });
+
+  test('rememberLastWorkspaceId persists a root redirect target', () => {
+    rememberLastWorkspaceId('workspace-1');
+
+    const result = getLastWorkspaceId();
+
+    expect(result).toBe('workspace-1');
+  });
+
+  test('getLastWorkspaceId ignores malformed storage', () => {
+    window.localStorage.setItem('shipfox.lastWorkspaceId', '{');
+
+    const result = getLastWorkspaceId();
+
+    expect(result).toBeUndefined();
   });
 });
