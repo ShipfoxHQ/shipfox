@@ -1,4 +1,7 @@
-import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
+import {
+  IntegrationProviderError,
+  type IntegrationSourceControlService,
+} from '@shipfox/api-integration-core';
 import {ApplicationFailure} from '@temporalio/common';
 import {sql} from 'drizzle-orm';
 import {db, definitionSyncStates} from '#db/index.js';
@@ -91,12 +94,36 @@ describe('definition sync activities', () => {
       expect(rows[0]?.ref).toBe('main');
     });
 
-    it('rethrows resolveRepository failures untranslated when retryable', async () => {
+    it('translates retryable resolveRepository failures into retryable ApplicationFailures', async () => {
+      const activities = createDefinitionSyncActivities(
+        sourceControl({
+          resolveRepository: vi.fn(() => {
+            return Promise.reject(new Error('temporary outage'));
+          }),
+        }),
+      );
+
+      const result = activities.prepareDefinitionSync({
+        projectId,
+        workspaceId: crypto.randomUUID(),
+        sourceConnectionId,
+        sourceExternalRepositoryId: 'debug:platform',
+      });
+
+      await expect(result).rejects.toBeInstanceOf(ApplicationFailure);
+      await expect(result).rejects.toMatchObject({
+        nonRetryable: false,
+        type: 'unknown',
+        message: 'temporary outage',
+      });
+    });
+
+    it('preserves retryable provider error codes for workflow-level failure persistence', async () => {
       const activities = createDefinitionSyncActivities(
         sourceControl({
           resolveRepository: vi.fn(() => {
             return Promise.reject(
-              Object.assign(new Error('temporary outage'), {reason: 'timeout'}),
+              new IntegrationProviderError('timeout', 'GitHub request timed out'),
             );
           }),
         }),
@@ -109,7 +136,11 @@ describe('definition sync activities', () => {
         sourceExternalRepositoryId: 'debug:platform',
       });
 
-      await expect(result).rejects.not.toBeInstanceOf(ApplicationFailure);
+      await expect(result).rejects.toMatchObject({
+        nonRetryable: false,
+        type: 'provider-timeout',
+        message: 'GitHub request timed out',
+      });
     });
   });
 

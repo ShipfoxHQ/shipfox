@@ -1,5 +1,8 @@
-import {ApplicationFailure, proxyActivities} from '@temporalio/workflow';
-import type {DefinitionSyncErrorCode} from '#core/entities/sync-state.js';
+import {ActivityFailure, ApplicationFailure, proxyActivities} from '@temporalio/workflow';
+import {
+  type DefinitionSyncErrorCode,
+  isDefinitionSyncErrorCode,
+} from '#core/entities/sync-state.js';
 import type {createDefinitionSyncActivities} from '../activities/index.js';
 
 export interface DefinitionSyncWorkflowInput {
@@ -69,12 +72,15 @@ export async function definitionSyncWorkflow(
   }
 }
 
-function classifyWorkflowError(error: unknown): {
+export function classifyWorkflowError(error: unknown): {
   code: DefinitionSyncErrorCode;
   message: string;
 } {
+  if (error instanceof ActivityFailure && error.cause instanceof ApplicationFailure) {
+    return classifyWorkflowError(error.cause);
+  }
   if (error instanceof ApplicationFailure) {
-    const code = (error.type ?? 'unknown') as DefinitionSyncErrorCode;
+    const code = isDefinitionSyncErrorCode(error.type) ? error.type : 'unknown';
     return {code, message: error.message ?? code};
   }
   return {code: 'unknown', message: error instanceof Error ? error.message : String(error)};

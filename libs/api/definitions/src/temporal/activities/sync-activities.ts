@@ -4,7 +4,6 @@ import {ApplicationFailure} from '@temporalio/common';
 import type {DefinitionSyncErrorCode} from '#core/entities/sync-state.js';
 import {
   classifySyncFailure,
-  DefinitionSyncPermanentError,
   discoverWorkflowFiles,
   fetchAndParseWorkflows,
   resolveSyncSource,
@@ -151,9 +150,6 @@ async function runWithPermanentTranslation<T>(operation: () => Promise<T>): Prom
   try {
     return await operation();
   } catch (error) {
-    if (error instanceof DefinitionSyncPermanentError) {
-      throw ApplicationFailure.nonRetryable(error.message, error.code);
-    }
     if (error instanceof ApplicationFailure) {
       throw error;
     }
@@ -161,6 +157,6 @@ async function runWithPermanentTranslation<T>(operation: () => Promise<T>): Prom
     if (!failure.retryable) {
       throw ApplicationFailure.nonRetryable(failure.message, failure.code);
     }
-    throw error;
+    throw ApplicationFailure.retryable(failure.message, failure.code);
   }
 }
