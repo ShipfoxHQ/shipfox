@@ -1,7 +1,16 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": ["mise.toml", "biome.json"],
-  "globalPassThroughEnv": ["GITHUB_*", "ACTIONS_*", "LOG_*", "E2E_*", "API_URL", "CLIENT_URL"],
+  "globalPassThroughEnv": [
+    "GITHUB_*",
+    "ACTIONS_*",
+    "LOG_*",
+    "E2E_*",
+    "API_URL",
+    "CLIENT_URL",
+    "ARGOS_TOKEN",
+    "CI"
+  ],
   "tasks": {
     "build": {
       "cache": true,

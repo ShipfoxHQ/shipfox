@@ -28,11 +28,13 @@ jobs:
       - name: Start test services
         run: docker compose up --wait -d postgres temporal
 
-      - name: Run verification
-        run: turbo check type test build depcruise
-
-      - name: Install E2E browser
+      - name: Install Playwright browsers
         run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
+
+      - name: Run verification
+        env:
+          ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
+        run: turbo check type test build depcruise
 
       - name: Run E2E tests
         env:
@@ -42,6 +44,7 @@ jobs:
           E2E_ENABLED: "true"
           VITE_API_URL: http://localhost:16101
           VITE_ENABLE_TEST_VCS_PROVIDER: "true"
+          ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
         run: |
           pnpm --filter=@shipfox/api dev > /tmp/shipfox-api.log 2>&1 &
           api_pid=$!

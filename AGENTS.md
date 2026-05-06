@@ -233,6 +233,17 @@ describe.each(runnerEventTypeEnum.enumValues)('createRunnerEvent "%s"', (eventTy
 });
 ```
 
+## Visual Regression Testing
+
+Argos catches UI drift on every PR via one named build per source module:
+
+- `react-ui` — `@shipfox/react-ui` stories captured in **light + dark** by `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin`. Capture is part of `turbo test` for `@shipfox/react-ui`. Adding a new story snapshots automatically in both themes.
+- `client-<module>` (today: `client-auth`) — explicit `argosScreenshot(page, '<surface>/<state>')` calls in the matching `e2e/client/<module>/*` Playwright specs. Each E2E package sets its own `buildName` matching the package suffix so PR checks stay scoped per surface. Place the call **after** the assertions that prove the page reached the expected state — the helper waits for fonts and layout, not for content you have not asserted on.
+
+To cover a component state a single render cannot reach (error states, populated lists, etc.), add it as a new story rather than driving interactions in `play`. To cover a new page state, add an `argosScreenshot` call in the existing test that already drives there; do not write a screenshot-only spec.
+
+`ARGOS_TOKEN` and `CI` are passed through Turbo via `globalPassThroughEnv` in `turbo.jsonc`. If you add another env var the visual flow needs, allowlist it there or Turbo will silently strip it. See `CONTRIBUTING.md#visual-regression-testing` for the longer walkthrough.
+
 ## Design System
 
 Always read [DESIGN.md](DESIGN.md) before making any visual or UI decisions. Token

@@ -90,6 +90,10 @@
 
 - [ ] **Full cross-site browser auth cookies** — The first client auth foundation supports cross-origin, same-site browser auth with `SameSite=Lax` refresh cookies. If the frontend and API ever live on unrelated sites, add explicit cookie policy config for `SameSite=None; Secure`, verify browser behavior in Playwright, and document the deployment constraints. This is intentionally deferred until that hosting shape is required.
 
+## Visual testing
+
+- [ ] **Smoke gate for Argos uploads** — assert N>0 screenshots arrived per CI run so a missing `ARGOS_TOKEN` or a misconfigured `@argos-ci/playwright` reporter surfaces in GitHub Actions instead of going silent. The Storybook upload step already exits non-zero on token failure; the Playwright reporter currently warns and exits 0. Implementation sketch: post-step that queries the Argos build via API, or counts files written by the reporter before upload. Effort: ~30 min. Accepted as v1 risk in the visual-testing baseline plan.
+
 ## Outbox / Dispatcher
 
 - [ ] **Outbox row retention** — Add periodic cleanup of dispatched outbox rows older than 7 days. Dispatched rows accumulate in each module's `{module}_outbox` table. At scale this bloats the table. Simple fix: periodic `DELETE FROM {module}_outbox WHERE dispatched_at < now() - interval '7 days'` in the dispatcher workflow or a separate Temporal cron. Consider archiving to a separate table first if audit trail is needed. Blocked on: outbox + dispatcher implementation.
