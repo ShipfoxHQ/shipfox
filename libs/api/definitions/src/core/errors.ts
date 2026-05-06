@@ -7,3 +7,13 @@ export class DefinitionParseError extends Error {
     this.name = 'DefinitionParseError';
   }
 }
+
+export class DefinitionSyncPermanentError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'DefinitionSyncPermanentError';
+  }
+}

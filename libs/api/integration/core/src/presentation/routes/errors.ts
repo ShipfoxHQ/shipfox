@@ -22,11 +22,14 @@ function isProviderError(error: unknown): error is IntegrationProviderError {
       'reason' in error &&
       typeof error.reason === 'string' &&
       (error.reason === 'repository-not-found' ||
+        error.reason === 'file-not-found' ||
         error.reason === 'access-denied' ||
         error.reason === 'rate-limited' ||
         error.reason === 'timeout' ||
         error.reason === 'provider-unavailable' ||
-        error.reason === 'malformed-provider-response'))
+        error.reason === 'malformed-provider-response' ||
+        error.reason === 'content-too-large' ||
+        error.reason === 'too-many-files'))
   );
 }
 

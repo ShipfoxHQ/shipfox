@@ -2,13 +2,17 @@ export type {
   CheckoutSpec,
   CreateCheckoutSpecInput,
   FetchFileInput,
+  FileEntry,
+  FilePage,
   FileSnapshot,
   IntegrationCapability,
   IntegrationConnection,
   IntegrationConnectionLifecycleStatus,
   IntegrationProvider,
   IntegrationProviderAdapters,
+  IntegrationProviderErrorReason,
   IntegrationProviderKind,
+  ListFilesInput,
   ListRepositoriesInput,
   RegisteredIntegrationProvider,
   RepositoryPage,
@@ -17,3 +21,4 @@ export type {
   ResolveRepositoryInput,
   SourceControlProvider,
 } from './integrations.js';
+export {IntegrationProviderError} from './integrations.js';

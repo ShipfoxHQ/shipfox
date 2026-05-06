@@ -1,3 +1,4 @@
+import type {IntegrationProviderErrorReason} from '@shipfox/api-integration-core-dto';
 import {ClientError} from '@shipfox/node-fastify';
 import {
   GithubInstallationAlreadyLinkedError,
@@ -5,10 +6,9 @@ import {
   GithubInstallStateActorMismatchError,
   GithubInstallStateError,
   GithubIntegrationProviderError,
-  type GithubIntegrationProviderErrorReason,
 } from '#core/errors.js';
 
-function providerStatus(reason: GithubIntegrationProviderErrorReason): number {
+function providerStatus(reason: IntegrationProviderErrorReason): number {
   if (reason === 'rate-limited') return 429;
   if (reason === 'timeout' || reason === 'provider-unavailable') return 503;
   return 422;

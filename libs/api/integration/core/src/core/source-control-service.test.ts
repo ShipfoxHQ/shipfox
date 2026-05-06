@@ -37,6 +37,17 @@ describe('integration source-control service', () => {
         await Promise.resolve();
         return repository;
       },
+      listFiles: async () => {
+        await Promise.resolve();
+        return {
+          files: [{path: '.shipfox/workflows/ci.yml', type: 'file', size: 64}],
+          nextCursor: null,
+        };
+      },
+      fetchFile: async () => {
+        await Promise.resolve();
+        return {path: '.shipfox/workflows/ci.yml', ref: 'main', content: 'name: CI'};
+      },
       ...overrides,
     };
     return createSourceControlIntegrationService({
@@ -108,5 +119,34 @@ describe('integration source-control service', () => {
     });
 
     await expect(result).rejects.toMatchObject({reason: 'repository-not-found'});
+  });
+
+  it('lists files through an active source-control connection', async () => {
+    const service = createService();
+
+    const result = await service.listFiles({
+      workspaceId,
+      connectionId: connection.id,
+      externalRepositoryId: 'platform',
+      ref: 'main',
+      prefix: '.shipfox/workflows/',
+      limit: 100,
+    });
+
+    expect(result.files[0]?.path).toBe('.shipfox/workflows/ci.yml');
+  });
+
+  it('fetches files through an active source-control connection', async () => {
+    const service = createService();
+
+    const result = await service.fetchFile({
+      workspaceId,
+      connectionId: connection.id,
+      externalRepositoryId: 'platform',
+      ref: 'main',
+      path: '.shipfox/workflows/ci.yml',
+    });
+
+    expect(result.content).toBe('name: CI');
   });
 });

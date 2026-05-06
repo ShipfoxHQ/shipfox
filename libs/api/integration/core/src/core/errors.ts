@@ -1,3 +1,7 @@
+import {
+  IntegrationProviderError,
+  type IntegrationProviderErrorReason,
+} from '@shipfox/api-integration-core-dto';
 import type {IntegrationCapability, IntegrationProviderKind} from '#core/entities/provider.js';
 
 export class IntegrationConnectionNotFoundError extends Error {
@@ -30,20 +34,4 @@ export class IntegrationProviderUnavailableError extends Error {
   }
 }
 
-export type IntegrationProviderErrorReason =
-  | 'repository-not-found'
-  | 'access-denied'
-  | 'rate-limited'
-  | 'timeout'
-  | 'provider-unavailable'
-  | 'malformed-provider-response';
-
-export class IntegrationProviderError extends Error {
-  constructor(
-    public readonly reason: IntegrationProviderErrorReason,
-    message: string,
-    public readonly retryAfterSeconds?: number | undefined,
-  ) {
-    super(message);
-  }
-}
+export {IntegrationProviderError, type IntegrationProviderErrorReason};

@@ -10,5 +10,11 @@ export {
   upsertDefinition,
 } from './definitions.js';
 export {definitionsOutbox} from './schema/outbox.js';
+export {definitionSyncStates} from './schema/sync-states.js';
+export {
+  type DefinitionSyncStateKey,
+  type MarkDefinitionSyncParams,
+  markDefinitionSyncState,
+} from './sync-states.js';
 
 export const migrationsPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../drizzle');

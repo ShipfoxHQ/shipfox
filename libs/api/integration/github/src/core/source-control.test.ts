@@ -30,6 +30,32 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
         nextCursor: '2',
       }),
     ),
+    getRepository: vi.fn(() =>
+      Promise.resolve({
+        id: 42,
+        ownerLogin: 'shipfox',
+        name: 'platform',
+        fullName: 'shipfox/platform',
+        defaultBranch: 'main',
+        private: true,
+        visibility: 'private',
+        cloneUrl: 'https://github.com/shipfox/platform.git',
+        htmlUrl: 'https://github.com/shipfox/platform',
+      }),
+    ),
+    listRepositoryFiles: vi.fn(() =>
+      Promise.resolve({
+        files: [{path: '.shipfox/workflows/ci.yml', size: 64}],
+        nextCursor: null,
+      }),
+    ),
+    fetchRepositoryFile: vi.fn(() =>
+      Promise.resolve({
+        path: '.shipfox/workflows/ci.yml',
+        content: 'name: CI\njobs:\n  build:\n    steps:\n      - run: pnpm test\n',
+        size: 58,
+      }),
+    ),
     ...overrides,
   };
 }
@@ -72,27 +98,31 @@ describe('GithubSourceControlProvider', () => {
     });
   }
 
+  function connection() {
+    return {
+      id: connectionId,
+      workspaceId: crypto.randomUUID(),
+      provider: 'github' as const,
+      externalAccountId: '123',
+      displayName: 'GitHub shipfox',
+      lifecycleStatus: 'active' as const,
+      capabilities: ['source_control' as const],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+
   it('lists repositories using installation auth metadata', async () => {
     await createConnectionWithInstallation();
     const github = githubClient();
     const provider = new GithubSourceControlProvider(github);
 
     const result = await provider.listRepositories({
-      connection: {
-        id: connectionId,
-        workspaceId: crypto.randomUUID(),
-        provider: 'github',
-        externalAccountId: '123',
-        displayName: 'GitHub shipfox',
-        lifecycleStatus: 'active',
-        capabilities: ['source_control'],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
+      connection: connection(),
       limit: 50,
     });
 
-    expect(result.repositories[0]?.externalRepositoryId).toBe('42');
+    expect(result.repositories[0]?.externalRepositoryId).toBe('shipfox/platform');
     expect(result.repositories[0]?.visibility).toBe('private');
     expect(result.nextCursor).toBe('2');
     expect(github.listInstallationRepositories).toHaveBeenCalledWith({
@@ -102,46 +132,23 @@ describe('GithubSourceControlProvider', () => {
     });
   });
 
-  it('resolves repositories by external id across pages', async () => {
+  it('resolves repositories directly from the provider-owned repository id', async () => {
     await createConnectionWithInstallation();
-    const github = githubClient({
-      listInstallationRepositories: vi
-        .fn()
-        .mockResolvedValueOnce({repositories: [], nextCursor: '2'})
-        .mockResolvedValueOnce({
-          repositories: [
-            {
-              id: 42,
-              ownerLogin: 'shipfox',
-              name: 'platform',
-              fullName: 'shipfox/platform',
-              defaultBranch: 'main',
-              private: true,
-              cloneUrl: 'https://github.com/shipfox/platform.git',
-              htmlUrl: 'https://github.com/shipfox/platform',
-            },
-          ],
-          nextCursor: null,
-        }),
-    });
+    const github = githubClient();
     const provider = new GithubSourceControlProvider(github);
 
     const result = await provider.resolveRepository({
-      connection: {
-        id: connectionId,
-        workspaceId: crypto.randomUUID(),
-        provider: 'github',
-        externalAccountId: '123',
-        displayName: 'GitHub shipfox',
-        lifecycleStatus: 'active',
-        capabilities: ['source_control'],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      externalRepositoryId: '42',
+      connection: connection(),
+      externalRepositoryId: 'shipfox/platform',
     });
 
     expect(result.fullName).toBe('shipfox/platform');
+    expect(github.getRepository).toHaveBeenCalledWith({
+      installationId,
+      owner: 'shipfox',
+      repo: 'platform',
+    });
+    expect(github.listInstallationRepositories).not.toHaveBeenCalled();
   });
 
   it('rejects missing installation metadata', async () => {
@@ -163,5 +170,75 @@ describe('GithubSourceControlProvider', () => {
     });
 
     await expect(result).rejects.toBeInstanceOf(GithubIntegrationProviderError);
+  });
+
+  it('lists repository files using the provider-owned repository id', async () => {
+    await createConnectionWithInstallation();
+    const github = githubClient();
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = await provider.listFiles({
+      connection: connection(),
+      externalRepositoryId: 'shipfox/platform',
+      ref: 'main',
+      prefix: '.shipfox/workflows/',
+      limit: 100,
+    });
+
+    expect(result.files[0]?.path).toBe('.shipfox/workflows/ci.yml');
+    expect(github.listRepositoryFiles).toHaveBeenCalledWith({
+      installationId,
+      owner: 'shipfox',
+      repo: 'platform',
+      ref: 'main',
+      prefix: '.shipfox/workflows/',
+      limit: 100,
+      cursor: undefined,
+    });
+  });
+
+  it('fetches repository file contents using the provider-owned repository id', async () => {
+    await createConnectionWithInstallation();
+    const github = githubClient();
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = await provider.fetchFile({
+      connection: connection(),
+      externalRepositoryId: 'shipfox/platform',
+      ref: 'main',
+      path: '.shipfox/workflows/ci.yml',
+    });
+
+    expect(result.content).toContain('name: CI');
+    expect(github.fetchRepositoryFile).toHaveBeenCalledWith({
+      installationId,
+      owner: 'shipfox',
+      repo: 'platform',
+      ref: 'main',
+      path: '.shipfox/workflows/ci.yml',
+    });
+  });
+
+  it('rejects oversized repository file contents', async () => {
+    await createConnectionWithInstallation();
+    const github = githubClient({
+      fetchRepositoryFile: vi.fn(() =>
+        Promise.resolve({
+          path: '.shipfox/workflows/huge.yml',
+          content: 'x'.repeat(1_000_001),
+          size: 1_000_001,
+        }),
+      ),
+    });
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = provider.fetchFile({
+      connection: connection(),
+      externalRepositoryId: 'shipfox/platform',
+      ref: 'main',
+      path: '.shipfox/workflows/huge.yml',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'content-too-large'});
   });
 });

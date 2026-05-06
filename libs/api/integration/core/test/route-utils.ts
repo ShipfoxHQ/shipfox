@@ -64,6 +64,14 @@ export function sourceProvider(overrides: Partial<IntegrationProvider> = {}): In
           await Promise.resolve();
           throw new Error('not used');
         },
+        listFiles: async () => {
+          await Promise.resolve();
+          return {files: [], nextCursor: null};
+        },
+        fetchFile: async () => {
+          await Promise.resolve();
+          throw new Error('not used');
+        },
       },
     },
     ...overrides,

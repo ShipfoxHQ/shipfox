@@ -127,7 +127,16 @@ describe('debug integration routes', () => {
       upsertIntegrationConnection: createUpsertStub(),
     });
     const result = await provider.adapters.source_control.listRepositories({
-      connection: {},
+      connection: {
+        id: crypto.randomUUID(),
+        workspaceId: crypto.randomUUID(),
+        provider: 'debug',
+        externalAccountId: 'debug',
+        displayName: 'Debug',
+        lifecycleStatus: 'active',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
       limit: 50,
     });
 

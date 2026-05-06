@@ -39,6 +39,11 @@ export {
 } from '#core/errors.js';
 export type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 export type {
+  FetchFileInput,
+  FileEntry,
+  FilePage,
+  FileSnapshot,
+  ListFilesInput,
   ListRepositoriesInput,
   RepositoryPage,
   RepositorySnapshot,

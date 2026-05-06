@@ -1,5 +1,5 @@
 import {authModule} from '@shipfox/api-auth';
-import {definitionsModule} from '@shipfox/api-definitions';
+import {createDefinitionsModule} from '@shipfox/api-definitions';
 import {dispatcherModule} from '@shipfox/api-dispatcher';
 import {createIntegrationsContext} from '@shipfox/api-integration-core';
 import {createProjectsModule} from '@shipfox/api-projects';
@@ -28,6 +28,7 @@ export async function run(): Promise<void> {
 
   const integrations = await createIntegrationsContext();
   const projectsModule = createProjectsModule({sourceControl: integrations.sourceControl});
+  const definitionsModule = createDefinitionsModule({sourceControl: integrations.sourceControl});
 
   const {auth, routes, e2eRoutes, workers} = await initializeModules({
     modules: [
