@@ -13,6 +13,7 @@
     "type": "shipfox-tsc-check"
   },
   "devDependencies": {
+    "@shipfox/api-auth": "workspace:*",
     "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",

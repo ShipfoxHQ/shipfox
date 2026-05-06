@@ -107,6 +107,10 @@ E2E setup must stay HTTP-first. Add module-owned setup routes under
 `/__e2e/<module>` and wrap them in `@shipfox/e2e-helper-*` helpers; do not create
 E2E data through direct database access.
 
+Each E2E package must also declare an explicit workspace dependency on the package
+it verifies, such as `@shipfox/client-auth` for `@shipfox/e2e-client-auth`, so
+Turbo includes the referenced package in the task DAG.
+
 ## Unit Testing Strategy (Node Apps)
 
 Tests use **Vitest** and run against a real PostgreSQL database, not mocks. The philosophy is to test against real infrastructure where possible and only mock external dependencies (feature flags, cloud provider APIs, etc.).

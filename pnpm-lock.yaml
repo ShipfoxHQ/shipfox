@@ -173,6 +173,9 @@ importers:
 
   e2e/api/auth:
     devDependencies:
+      '@shipfox/api-auth':
+        specifier: workspace:*
+        version: link:../../../libs/api/auth
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../../../libs/api/auth-dto
@@ -200,6 +203,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/client-auth':
+        specifier: workspace:*
+        version: link:../../../libs/client/auth
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../core
