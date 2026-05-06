@@ -69,8 +69,22 @@ export async function definitionSyncWorkflow(
     const {code, message} = classifyWorkflowError(error);
     try {
       await markDefinitionSyncFailed({...input, ref, code, message});
-    } catch {
-      // Preserve the workflow's original failure when failure persistence also exhausts retries.
+    } catch (markFailedError) {
+      const failureOptions = {
+        message: `Definition sync failed with ${code}: ${message}; additionally failed to persist failure state: ${formatWorkflowError(markFailedError)}`,
+        type: 'definition-sync-failure-persistence-failed',
+        nonRetryable: true,
+        details: [
+          {
+            syncFailureCode: code,
+            syncFailureMessage: message,
+            failurePersistenceMessage: formatWorkflowError(markFailedError),
+          },
+        ],
+      };
+      throw ApplicationFailure.create(
+        error instanceof Error ? {...failureOptions, cause: error} : failureOptions,
+      );
     }
     throw error;
   }
@@ -88,4 +102,8 @@ export function classifyWorkflowError(error: unknown): {
     return {code, message: error.message ?? code};
   }
   return {code: 'unknown', message: error instanceof Error ? error.message : String(error)};
+}
+
+function formatWorkflowError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
