@@ -22,7 +22,7 @@ export default defineConfig(
             argosVitestPlugin({
               uploadToArgos: !!process.env.CI,
               token: process.env.ARGOS_TOKEN,
-              buildName: 'storybook',
+              buildName: 'react-ui',
               argosCSS: `
                 *, *::before, *::after {
                   animation-delay: 0s !important;

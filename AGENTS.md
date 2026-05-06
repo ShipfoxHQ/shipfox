@@ -237,7 +237,7 @@ describe.each(runnerEventTypeEnum.enumValues)('createRunnerEvent "%s"', (eventTy
 
 Argos catches UI drift on every PR via one named build per source module:
 
-- `storybook` — `@shipfox/react-ui` stories captured in **light + dark** by `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin`. Capture is part of `turbo test` for `@shipfox/react-ui`. Adding a new story snapshots automatically in both themes.
+- `react-ui` — `@shipfox/react-ui` stories captured in **light + dark** by `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin`. Capture is part of `turbo test` for `@shipfox/react-ui`. Adding a new story snapshots automatically in both themes.
 - `client-<module>` (today: `client-auth`) — explicit `argosScreenshot(page, '<surface>/<state>')` calls in the matching `e2e/client/<module>/*` Playwright specs. Each E2E package sets its own `buildName` matching the package suffix so PR checks stay scoped per surface. Place the call **after** the assertions that prove the page reached the expected state — the helper waits for fonts and layout, not for content you have not asserted on.
 
 To cover a component state a single render cannot reach (error states, populated lists, etc.), add it as a new story rather than driving interactions in `play`. To cover a new page state, add an `argosScreenshot` call in the existing test that already drives there; do not write a screenshot-only spec.

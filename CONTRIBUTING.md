@@ -119,7 +119,7 @@ through these HTTP APIs, not through direct database access.
 ## Visual Regression Testing
 
 Visual drift is caught on every PR via [Argos](https://argos-ci.com/). One Argos
-project receives one named build per source module (`storybook` for the
+project receives one named build per source module (`react-ui` for the
 component library, `client-auth` for the auth E2E surface, etc.) using Argos's
 [build-splitting](https://argos-ci.com/docs/build-splitting); each posts its own
 GitHub check.
@@ -128,7 +128,7 @@ GitHub check.
 
 | Build name | Source | Captured |
 | --- | --- | --- |
-| `storybook` | `@shipfox/react-ui` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/shared/react/ui/.storybook/preview.tsx` as `parameters.argos.modes`) |
+| `react-ui` | `@shipfox/react-ui` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/shared/react/ui/.storybook/preview.tsx` as `parameters.argos.modes`) |
 | `client-auth` | `@shipfox/e2e-client-auth` Playwright specs via `@argos-ci/playwright` reporter | explicit `argosScreenshot()` calls at user-visible checkpoints |
 
 The goal is review-grade signal on UI drift, not 100% state coverage. Capture the
