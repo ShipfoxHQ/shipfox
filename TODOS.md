@@ -4,7 +4,11 @@
 
 - [ ] **Production GitHub/GitLab provider setup design** — Design the production connection picker, repository search/list states, provider permissions, revoked/unavailable access handling, and `.shipfox` config status once real GitHub/GitLab providers and repository list/search APIs exist.
 
-- [ ] **Projects Playwright E2E** — Add browser coverage for Projects hub -> create -> detail once the client/API E2E harness exists.
+- [ ] **Projects Playwright E2E (incl. layout journey)** — Add browser coverage for Projects hub -> create -> detail once the client/API E2E harness exists. Layout-specific paths to cover (added 2026-05-06 by /plan-eng-review on `noe-charmet/rework-ui-layout`): workspace switch via combobox + URL update + lastWorkspaceIdAtom write; project switch from one project to another within a workspace; `/` redirect honors lastWorkspaceIdAtom (valid + stale + undefined cases); workspace-project consistency guard at `/workspaces/$wid/projects/$pid` redirects on cross-workspace pid; auth-gated routes (`/workspaces/$wid`, `/setup/*`) redirect unauthenticated visits to `/auth/login`; cmd+K opens workspace switcher.
+
+- [ ] **Project switcher lazy-fetch + pagination** — The project switcher in the new top-nav (added on `noe-charmet/rework-ui-layout`) fetches `useProjectsInfiniteQuery(workspaceId)` eagerly on every `MainLayout` mount. Acceptable while workspaces have <~100 projects; degrades at scale. Couple the fix with the existing "cursor-based pagination" TODO under the workflows section: when the list endpoints adopt cursor pagination, switch the project switcher to (a) lazy-fetch on dropdown open, (b) fetch only the first page initially, (c) load more pages on scroll. Single coordinated change.
+
+- [ ] **Deep-link restoration after auth redirect** — Today: an unauthenticated user pasting `/workspaces/$wid/projects/$pid` is redirected to `/auth/login`, and after sign-in they land on `/workspaces/$first` (or whatever lastWorkspaceIdAtom points to), losing the original URL. Common UX expectation is that the original URL is preserved. Implementation sketch: when the workspace `_layout.tsx` `beforeLoad` redirects to `/auth/login`, attach `?redirect=<encoded-path>` to the destination; the login page consumes the search param on success and navigates there. Small scope; deferred until users complain or QA flags it.
 
 ## Integrations
 

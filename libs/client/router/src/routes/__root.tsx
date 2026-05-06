@@ -1,5 +1,6 @@
 import {Header, Text} from '@shipfox/react-ui';
-import {createRootRoute, Link, Outlet} from '@tanstack/react-router';
+import {createRootRouteWithContext, Link, Outlet} from '@tanstack/react-router';
+import type {RouterContext} from '../router.js';
 
 function NotFoundPage() {
   return (
@@ -13,7 +14,7 @@ function NotFoundPage() {
   );
 }
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<RouterContext>()({
   component: Outlet,
   notFoundComponent: NotFoundPage,
 });

@@ -204,12 +204,13 @@ Marketing surfaces breathe more (`p-48` and up). Settings and admin look more li
 
 ## 6. Layout
 
-**Approach.** Hybrid. Grid-disciplined inside the app (predictable left nav + content + optional right rail). Editorial latitude only on marketing and auth.
+**Approach.** Hybrid. Grid-disciplined inside the app (predictable top nav + content + optional right rail). Editorial latitude only on marketing and auth.
 
 **App shell defaults.**
-- Top header: 56px tall.
-- Left nav: 240–260px wide. Collapsible to a 56px icon rail.
-- Content: fluid, max width capped at ~1440px for very wide screens.
+- Top header: 56px tall, sticky. Holds logo, workspace crumb, project crumb (when in a project), and user menu.
+- Tab strip: 40px tall, sticky directly below the nav. Always reserved (the slot renders even when no tabs apply) so navigation between workspace home and project detail does not jump.
+- No persistent left nav in v1. Navigation chrome lives entirely in the top bar.
+- Content: fluid, max width capped at 1120px inside the app shell (`max-w-[1120px] mx-auto px-24 py-32`), scaling to ~1440px for marketing.
 - Right rail (when present, e.g., for a "details panel"): 360–420px.
 
 **Marketing.** Single 1280px max content width. Generous vertical rhythm. Asymmetric blocks allowed.
@@ -293,6 +294,22 @@ Use `lucide-react` for stylistically-warm icons in marketing, `@remixicon/react`
 ### Loader
 
 `ShipfoxLoader` is the brand spinner. Use it for page-level loads and meaningful blocking states. Use the lightweight spinner icon (`Icon name="spinner"`) inside buttons and small inline spots.
+
+### Top-nav layout components
+
+The app shell ships in `@shipfox/client-app-shell`. Workspace switcher lives in `@shipfox/client-auth`; project switcher lives in `@shipfox/client-projects`. Each nav element below has fixed dimensions and tokens:
+
+| Component | Dimensions | Tokens / treatment |
+|---|---|---|
+| `NavBar` | `h-56`, `sticky top-0 z-30`, `px-16 gap-12 flex items-center` | `bg-background-subtle-base`, `border-b border-border-neutral-base` |
+| `Logo` | `h-24` (wordmark), `h-20` (mark) | Uses `useResolvedTheme()` to pick light vs dark wordmark; multi-color SVG so `currentColor` does not apply |
+| `WorkspaceCrumb` / `ProjectCrumb` | name link `px-6 py-4 rounded-6`, chevron trigger `size-24 rounded-4 ml-2` | hover `bg-background-components-hover`; active link gets `aria-current="page"`; chevron uses `aria-haspopup="listbox"` + `aria-expanded` |
+| `WorkspaceSwitcher` / `ProjectSwitcher` | popover `w-[280px]` / `w-[320px]` | Built on `Command` + `Popover` + `ScrollArea`; always shows a separator + "+ Create" item at the bottom |
+| `UserMenu` | trigger 28px circular avatar | `Avatar size="sm" content="letters"`; dropdown items: theme switcher (`light` / `dark` / `system`) + `Logout` |
+| `ProjectTabs` | `h-40`, `sticky top-56 z-20`, `px-16 gap-12` | Always rendered (height reserved). Active tab: `border-b-2 border-border-highlights-interactive`. Indicator slide respects `prefers-reduced-motion` via `useReducedMotion()` |
+| `Footer` | `h-40`, `px-16 flex justify-between` | `border-t border-border-neutral-base`, `text-xs text-foreground-neutral-muted`. Left: Docs / Support. Right: empty in v1 (no status badge — see §13). |
+
+Auth and onboarding screens render under `LimitedLayout` (bare `<Outlet />`); they keep their existing centered-card layouts and do not get nav chrome.
 
 ---
 
@@ -446,3 +463,6 @@ Tags / pills have their own token family because they need distinct background +
 | 2026-05-05 | Inter for UI, Commit Mono for code | Inter is the dev-tools default for legibility at 13–14px; Commit Mono carries warmth for the heavy log/YAML/SHA surfaces. |
 | 2026-05-05 | Spacing base = 1px (Tailwind class names == pixels) | Already in `index.css`; documented here because it diverges from stock Tailwind. |
 | 2026-05-05 | Added `radio-group` component (radix wrappers) | Required for accessible single-select pickers in workspace setup (connection picker, repository picker). Hand-rolled keyboard nav was rejected; radix ships tested arrow-key + Home/End + focus management. |
+| 2026-05-07 | Top-nav-only app shell (no left rail) | Mirrors Vercel/Linear; defers left-rail real estate until secondary navigation demand is real. Tab strip beneath nav covers per-project sub-page navigation. Workspace and project crumbs in the top nav have split affordances: name links to entity home, chevron opens picker. |
+| 2026-05-07 | Footer ships without a status badge | Hardcoded green status pill would lie about state (anti-pattern §13). Real status feed deferred until status tooling exists. Footer carries only Docs and Support links. |
+| 2026-05-07 | Added UI primitives: `tabs`, `dropdown-menu`, `avatar`, `popover`, `combobox`, `command`, `sheet`, `kbd`, `scroll-area`, `logo` | Top-nav layout requires switcher (Combobox over Popover+Command), user menu (DropdownMenu), avatar, theme-aware Logo, and mobile collapse (Sheet). Ported from the broader catalog; `--copy-files` flag added to the SWC build script so SVG assets land in `dist/`. |

@@ -1,6 +1,6 @@
 import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {createProjectBodySchema} from '@shipfox/api-projects-dto';
-import {useAuthState} from '@shipfox/client-auth';
+import {useAuthState, useMaybeActiveWorkspace} from '@shipfox/client-auth';
 import {
   ConnectionPicker,
   RepositoryPicker,
@@ -37,7 +37,8 @@ const REPOSITORY_NAME_SPLIT_RE = /[/-]/;
 
 export function CreateProjectPage() {
   const auth = useAuthState();
-  const workspace = auth.workspaces[0];
+  const activeWorkspace = useMaybeActiveWorkspace();
+  const workspace = activeWorkspace ?? auth.workspaces[0];
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const createProject = useCreateProjectMutation();
@@ -141,12 +142,18 @@ export function CreateProjectPage() {
       await queryClient.invalidateQueries({queryKey: projectsQueryKeys.list(workspace.id)});
       queryClient.setQueryData(projectsQueryKeys.detail(project.id), project);
       toast.success('Project created.');
-      await navigate({to: '/projects/$projectId', params: {projectId: project.id}});
+      await navigate({
+        to: '/workspaces/$wid/projects/$pid',
+        params: {wid: workspace.id, pid: project.id},
+      });
     } catch (error) {
       const copy = projectErrorCopy(error);
       if (copy.existingProjectId) {
         toast.info('Project already exists.');
-        await navigate({to: '/projects/$projectId', params: {projectId: copy.existingProjectId}});
+        await navigate({
+          to: '/workspaces/$wid/projects/$pid',
+          params: {wid: workspace.id, pid: copy.existingProjectId},
+        });
         return;
       }
       setFormError(`${copy.title}: ${copy.message}`);

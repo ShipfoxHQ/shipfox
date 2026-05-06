@@ -1,5 +1,5 @@
 import {ApiError} from '@shipfox/client-api';
-import {useAuthState} from '@shipfox/client-auth';
+import {useAuthState, useMaybeActiveWorkspace} from '@shipfox/client-auth';
 import {Alert, ButtonLink, FullPageLoader, Text, toast} from '@shipfox/react-ui';
 import {useQueryClient} from '@tanstack/react-query';
 import {Link, useNavigate} from '@tanstack/react-router';
@@ -8,7 +8,8 @@ import {integrationsQueryKeys, useCreateDebugConnectionMutation} from '#hooks/ap
 
 export function DebugInstallPage() {
   const auth = useAuthState();
-  const workspace = auth.workspaces[0];
+  const activeWorkspace = useMaybeActiveWorkspace();
+  const workspace = activeWorkspace ?? auth.workspaces[0];
   const createConnection = useCreateDebugConnectionMutation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();

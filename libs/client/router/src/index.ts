@@ -1,6 +1,6 @@
 import {router} from './router.js';
 
-export type {RouterIds, RouterType} from './router.js';
+export type {RouterContext, RouterIds, RouterType} from './router.js';
 export {router};
 
 declare module '@tanstack/react-router' {

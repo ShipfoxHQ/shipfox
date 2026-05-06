@@ -1,5 +1,5 @@
 import {ApiError} from '@shipfox/client-api';
-import {useAuthState} from '@shipfox/client-auth';
+import {useAuthState, useMaybeActiveWorkspace} from '@shipfox/client-auth';
 import {useSourceConnectionsQuery} from '@shipfox/client-integrations';
 import {Alert, Button, FullPageLoader, Header, Text} from '@shipfox/react-ui';
 import {Navigate} from '@tanstack/react-router';
@@ -8,7 +8,8 @@ import {ProjectsHubPage} from '#pages/projects-hub-page.js';
 
 export function HomeRouter() {
   const auth = useAuthState();
-  const workspace = auth.workspaces[0];
+  const activeWorkspace = useMaybeActiveWorkspace();
+  const workspace = activeWorkspace ?? auth.workspaces[0];
 
   const connectionsQuery = useSourceConnectionsQuery(workspace?.id);
   const projectsQuery = useProjectsInfiniteQuery(workspace?.id);

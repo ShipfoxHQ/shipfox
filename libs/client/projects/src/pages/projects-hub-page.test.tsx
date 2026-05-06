@@ -1,17 +1,25 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {fireEvent, screen} from '@testing-library/react';
-import {jsonResponse, renderProjectPage} from '#test/pages.js';
+import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {ProjectsHubPage} from './projects-hub-page.js';
 
+const NEW_PROJECT_REGEX = /New project/i;
+
 describe('ProjectsHubPage', () => {
-  test('renders empty state with create CTA', async () => {
+  test('renders Projects H2 + New project button + empty state with create CTA', async () => {
     configureApiClient({
       fetchImpl: vi.fn().mockResolvedValue(jsonResponse({projects: [], next_cursor: null})),
     });
 
-    renderProjectPage('/', <ProjectsHubPage />);
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
 
+    // Regression: the page-level "Projects" title is now an in-content H2 (the
+    // top nav owns identity); the old workspace-name/email subtitle is gone.
     expect(await screen.findByRole('heading', {name: 'Projects'})).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: NEW_PROJECT_REGEX})).toHaveAttribute(
+      'href',
+      '/setup/projects/new',
+    );
     expect(await screen.findByText('Create your first project')).toBeInTheDocument();
     expect(screen.getAllByRole('link', {name: 'Create project'})[0]).toHaveAttribute(
       'href',
@@ -36,7 +44,7 @@ describe('ProjectsHubPage', () => {
       );
     configureApiClient({fetchImpl});
 
-    renderProjectPage('/', <ProjectsHubPage />);
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
     expect(await screen.findByText('Platform')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: 'Load more'}));
 
@@ -50,7 +58,7 @@ describe('ProjectsHubPage', () => {
       fetchImpl: vi.fn().mockResolvedValue(jsonResponse({code: 'server-error'}, {status: 500})),
     });
 
-    renderProjectPage('/', <ProjectsHubPage />);
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
 
     expect(await screen.findByText('Project request failed')).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'Retry'})).toBeInTheDocument();

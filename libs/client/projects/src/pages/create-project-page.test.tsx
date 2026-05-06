@@ -124,7 +124,10 @@ describe('CreateProjectPage', () => {
     expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
-    expect(await screen.findByRole('heading', {name: 'Project Detail'})).toBeInTheDocument();
+    // After duplicate recovery, navigation lands on the workspace-scoped
+    // project detail URL. The new ProjectDetailPage uses section H2s instead
+    // of a project-name H1.
+    expect(await screen.findByRole('heading', {name: 'Source identity'})).toBeInTheDocument();
   });
 
   test('shows provider-specific submit errors', async () => {

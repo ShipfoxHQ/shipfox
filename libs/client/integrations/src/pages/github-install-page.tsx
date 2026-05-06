@@ -1,5 +1,5 @@
 import {ApiError} from '@shipfox/client-api';
-import {useAuthState} from '@shipfox/client-auth';
+import {useAuthState, useMaybeActiveWorkspace} from '@shipfox/client-auth';
 import {Alert, ButtonLink, FullPageLoader, Text} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {useEffect, useRef, useState} from 'react';
@@ -7,7 +7,8 @@ import {useCreateGithubInstallMutation} from '#hooks/api/integrations.js';
 
 export function GithubInstallPage() {
   const auth = useAuthState();
-  const workspace = auth.workspaces[0];
+  const activeWorkspace = useMaybeActiveWorkspace();
+  const workspace = activeWorkspace ?? auth.workspaces[0];
   const createInstall = useCreateGithubInstallMutation();
   const startedRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();

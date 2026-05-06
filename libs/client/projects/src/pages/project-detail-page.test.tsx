@@ -1,18 +1,20 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {screen} from '@testing-library/react';
-import {jsonResponse, renderProjectPage} from '#test/pages.js';
+import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {ProjectDetailPage} from './project-detail-page.js';
 
 describe('ProjectDetailPage', () => {
-  test('renders project metadata', async () => {
+  test('renders project metadata via section H2s (project name lives in the nav crumb)', async () => {
     configureApiClient({fetchImpl: vi.fn().mockResolvedValue(jsonResponse(projectDto()))});
 
     renderProjectPage(
-      '/projects/44444444-4444-4444-8444-444444444444',
+      `/workspaces/${PROJECT_TEST_WID}/projects/44444444-4444-4444-8444-444444444444`,
       <ProjectDetailPage projectId="44444444-4444-4444-8444-444444444444" />,
     );
 
-    expect(await screen.findByRole('heading', {name: 'Platform'})).toBeInTheDocument();
+    // Regression: the page no longer renders the project name as an in-page H1
+    // (it's in the NavBar breadcrumb in production). Section H2s + body data remain.
+    expect(await screen.findByRole('heading', {name: 'Source identity'})).toBeInTheDocument();
     expect(screen.getAllByText('platform')[0]).toBeInTheDocument();
     expect(screen.getByText('Workflow discovery')).toBeInTheDocument();
   });
@@ -22,7 +24,10 @@ describe('ProjectDetailPage', () => {
       fetchImpl: vi.fn().mockResolvedValue(jsonResponse({code: 'not-found'}, {status: 404})),
     });
 
-    renderProjectPage('/projects/missing', <ProjectDetailPage projectId="missing" />);
+    renderProjectPage(
+      `/workspaces/${PROJECT_TEST_WID}/projects/missing`,
+      <ProjectDetailPage projectId="missing" />,
+    );
 
     expect(await screen.findByText('This project was not found.')).toBeInTheDocument();
   });

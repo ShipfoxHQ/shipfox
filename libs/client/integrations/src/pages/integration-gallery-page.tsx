@@ -1,5 +1,5 @@
 import {ApiError} from '@shipfox/client-api';
-import {useAuthState} from '@shipfox/client-auth';
+import {useAuthState, useMaybeActiveWorkspace} from '@shipfox/client-auth';
 import {Alert, Button, ButtonLink, Card, Header, Icon, Skeleton, Text} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {useIntegrationProvidersQuery, useSourceConnectionsQuery} from '#hooks/api/integrations.js';
@@ -7,7 +7,8 @@ import {PROVIDER_CATALOG} from '#provider-catalog.js';
 
 export function IntegrationGalleryPage() {
   const auth = useAuthState();
-  const workspace = auth.workspaces[0];
+  const activeWorkspace = useMaybeActiveWorkspace();
+  const workspace = activeWorkspace ?? auth.workspaces[0];
   const connectionsQuery = useSourceConnectionsQuery(workspace?.id);
   const hasConnection = (connectionsQuery.data?.connections ?? []).length > 0;
 

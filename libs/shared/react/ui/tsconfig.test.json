@@ -4,5 +4,5 @@
     "rootDir": "."
   },
   "include": ["src", "test"],
-  "exclude": []
+  "exclude": ["**/*.stories.tsx"]
 }

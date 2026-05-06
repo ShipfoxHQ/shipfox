@@ -10,26 +10,30 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ProjectsProjectIdRouteImport } from './routes/projects/$projectId'
+import { Route as SetupLayoutRouteImport } from './routes/setup/_layout'
 import { Route as AuthVerifyEmailRouteImport } from './routes/auth/verify-email'
 import { Route as AuthSignupRouteImport } from './routes/auth/signup'
 import { Route as AuthResetRouteImport } from './routes/auth/reset'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
-import { Route as SetupIntegrationsIndexRouteImport } from './routes/setup/integrations/index'
-import { Route as SetupProjectsNewRouteImport } from './routes/setup/projects/new'
-import { Route as SetupIntegrationsGithubRouteImport } from './routes/setup/integrations/github'
-import { Route as SetupIntegrationsDebugRouteImport } from './routes/setup/integrations/debug'
+import { Route as WorkspacesWidLayoutRouteImport } from './routes/workspaces/$wid/_layout'
 import { Route as IntegrationsGithubCallbackRouteImport } from './routes/integrations/github/callback'
+import { Route as WorkspacesWidLayoutIndexRouteImport } from './routes/workspaces/$wid/_layout/index'
+import { Route as SetupLayoutIntegrationsIndexRouteImport } from './routes/setup/_layout/integrations/index'
+import { Route as SetupLayoutWorkspacesNewRouteImport } from './routes/setup/_layout/workspaces/new'
+import { Route as SetupLayoutProjectsNewRouteImport } from './routes/setup/_layout/projects/new'
+import { Route as SetupLayoutIntegrationsGithubRouteImport } from './routes/setup/_layout/integrations/github'
+import { Route as SetupLayoutIntegrationsDebugRouteImport } from './routes/setup/_layout/integrations/debug'
+import { Route as WorkspacesWidLayoutProjectsPidRouteImport } from './routes/workspaces/$wid/_layout/projects/$pid'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
-  id: '/projects/$projectId',
-  path: '/projects/$projectId',
+const SetupLayoutRoute = SetupLayoutRouteImport.update({
+  id: '/setup/_layout',
+  path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthVerifyEmailRoute = AuthVerifyEmailRouteImport.update({
@@ -57,24 +61,9 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   path: '/auth/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SetupIntegrationsIndexRoute = SetupIntegrationsIndexRouteImport.update({
-  id: '/setup/integrations/',
-  path: '/setup/integrations/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SetupProjectsNewRoute = SetupProjectsNewRouteImport.update({
-  id: '/setup/projects/new',
-  path: '/setup/projects/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SetupIntegrationsGithubRoute = SetupIntegrationsGithubRouteImport.update({
-  id: '/setup/integrations/github',
-  path: '/setup/integrations/github',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SetupIntegrationsDebugRoute = SetupIntegrationsDebugRouteImport.update({
-  id: '/setup/integrations/debug',
-  path: '/setup/integrations/debug',
+const WorkspacesWidLayoutRoute = WorkspacesWidLayoutRouteImport.update({
+  id: '/workspaces/$wid/_layout',
+  path: '/workspaces/$wid',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IntegrationsGithubCallbackRoute =
@@ -82,6 +71,47 @@ const IntegrationsGithubCallbackRoute =
     id: '/integrations/github/callback',
     path: '/integrations/github/callback',
     getParentRoute: () => rootRouteImport,
+  } as any)
+const WorkspacesWidLayoutIndexRoute =
+  WorkspacesWidLayoutIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
+const SetupLayoutIntegrationsIndexRoute =
+  SetupLayoutIntegrationsIndexRouteImport.update({
+    id: '/integrations/',
+    path: '/integrations/',
+    getParentRoute: () => SetupLayoutRoute,
+  } as any)
+const SetupLayoutWorkspacesNewRoute =
+  SetupLayoutWorkspacesNewRouteImport.update({
+    id: '/workspaces/new',
+    path: '/workspaces/new',
+    getParentRoute: () => SetupLayoutRoute,
+  } as any)
+const SetupLayoutProjectsNewRoute = SetupLayoutProjectsNewRouteImport.update({
+  id: '/projects/new',
+  path: '/projects/new',
+  getParentRoute: () => SetupLayoutRoute,
+} as any)
+const SetupLayoutIntegrationsGithubRoute =
+  SetupLayoutIntegrationsGithubRouteImport.update({
+    id: '/integrations/github',
+    path: '/integrations/github',
+    getParentRoute: () => SetupLayoutRoute,
+  } as any)
+const SetupLayoutIntegrationsDebugRoute =
+  SetupLayoutIntegrationsDebugRouteImport.update({
+    id: '/integrations/debug',
+    path: '/integrations/debug',
+    getParentRoute: () => SetupLayoutRoute,
+  } as any)
+const WorkspacesWidLayoutProjectsPidRoute =
+  WorkspacesWidLayoutProjectsPidRouteImport.update({
+    id: '/projects/$pid',
+    path: '/projects/$pid',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -91,12 +121,16 @@ export interface FileRoutesByFullPath {
   '/auth/reset': typeof AuthResetRoute
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/setup': typeof SetupLayoutRouteWithChildren
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
-  '/setup/integrations/debug': typeof SetupIntegrationsDebugRoute
-  '/setup/integrations/github': typeof SetupIntegrationsGithubRoute
-  '/setup/projects/new': typeof SetupProjectsNewRoute
-  '/setup/integrations/': typeof SetupIntegrationsIndexRoute
+  '/workspaces/$wid': typeof WorkspacesWidLayoutRouteWithChildren
+  '/setup/integrations/debug': typeof SetupLayoutIntegrationsDebugRoute
+  '/setup/integrations/github': typeof SetupLayoutIntegrationsGithubRoute
+  '/setup/projects/new': typeof SetupLayoutProjectsNewRoute
+  '/setup/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
+  '/setup/integrations/': typeof SetupLayoutIntegrationsIndexRoute
+  '/workspaces/$wid/': typeof WorkspacesWidLayoutIndexRoute
+  '/workspaces/$wid/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -105,12 +139,15 @@ export interface FileRoutesByTo {
   '/auth/reset': typeof AuthResetRoute
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/setup': typeof SetupLayoutRouteWithChildren
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
-  '/setup/integrations/debug': typeof SetupIntegrationsDebugRoute
-  '/setup/integrations/github': typeof SetupIntegrationsGithubRoute
-  '/setup/projects/new': typeof SetupProjectsNewRoute
-  '/setup/integrations': typeof SetupIntegrationsIndexRoute
+  '/setup/integrations/debug': typeof SetupLayoutIntegrationsDebugRoute
+  '/setup/integrations/github': typeof SetupLayoutIntegrationsGithubRoute
+  '/setup/projects/new': typeof SetupLayoutProjectsNewRoute
+  '/setup/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
+  '/setup/integrations': typeof SetupLayoutIntegrationsIndexRoute
+  '/workspaces/$wid': typeof WorkspacesWidLayoutIndexRoute
+  '/workspaces/$wid/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -120,12 +157,16 @@ export interface FileRoutesById {
   '/auth/reset': typeof AuthResetRoute
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/setup/_layout': typeof SetupLayoutRouteWithChildren
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
-  '/setup/integrations/debug': typeof SetupIntegrationsDebugRoute
-  '/setup/integrations/github': typeof SetupIntegrationsGithubRoute
-  '/setup/projects/new': typeof SetupProjectsNewRoute
-  '/setup/integrations/': typeof SetupIntegrationsIndexRoute
+  '/workspaces/$wid/_layout': typeof WorkspacesWidLayoutRouteWithChildren
+  '/setup/_layout/integrations/debug': typeof SetupLayoutIntegrationsDebugRoute
+  '/setup/_layout/integrations/github': typeof SetupLayoutIntegrationsGithubRoute
+  '/setup/_layout/projects/new': typeof SetupLayoutProjectsNewRoute
+  '/setup/_layout/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
+  '/setup/_layout/integrations/': typeof SetupLayoutIntegrationsIndexRoute
+  '/workspaces/$wid/_layout/': typeof WorkspacesWidLayoutIndexRoute
+  '/workspaces/$wid/_layout/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -136,12 +177,16 @@ export interface FileRouteTypes {
     | '/auth/reset'
     | '/auth/signup'
     | '/auth/verify-email'
-    | '/projects/$projectId'
+    | '/setup'
     | '/integrations/github/callback'
+    | '/workspaces/$wid'
     | '/setup/integrations/debug'
     | '/setup/integrations/github'
     | '/setup/projects/new'
+    | '/setup/workspaces/new'
     | '/setup/integrations/'
+    | '/workspaces/$wid/'
+    | '/workspaces/$wid/projects/$pid'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -150,12 +195,15 @@ export interface FileRouteTypes {
     | '/auth/reset'
     | '/auth/signup'
     | '/auth/verify-email'
-    | '/projects/$projectId'
+    | '/setup'
     | '/integrations/github/callback'
     | '/setup/integrations/debug'
     | '/setup/integrations/github'
     | '/setup/projects/new'
+    | '/setup/workspaces/new'
     | '/setup/integrations'
+    | '/workspaces/$wid'
+    | '/workspaces/$wid/projects/$pid'
   id:
     | '__root__'
     | '/'
@@ -164,12 +212,16 @@ export interface FileRouteTypes {
     | '/auth/reset'
     | '/auth/signup'
     | '/auth/verify-email'
-    | '/projects/$projectId'
+    | '/setup/_layout'
     | '/integrations/github/callback'
-    | '/setup/integrations/debug'
-    | '/setup/integrations/github'
-    | '/setup/projects/new'
-    | '/setup/integrations/'
+    | '/workspaces/$wid/_layout'
+    | '/setup/_layout/integrations/debug'
+    | '/setup/_layout/integrations/github'
+    | '/setup/_layout/projects/new'
+    | '/setup/_layout/workspaces/new'
+    | '/setup/_layout/integrations/'
+    | '/workspaces/$wid/_layout/'
+    | '/workspaces/$wid/_layout/projects/$pid'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -179,12 +231,9 @@ export interface RootRouteChildren {
   AuthResetRoute: typeof AuthResetRoute
   AuthSignupRoute: typeof AuthSignupRoute
   AuthVerifyEmailRoute: typeof AuthVerifyEmailRoute
-  ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
+  SetupLayoutRoute: typeof SetupLayoutRouteWithChildren
   IntegrationsGithubCallbackRoute: typeof IntegrationsGithubCallbackRoute
-  SetupIntegrationsDebugRoute: typeof SetupIntegrationsDebugRoute
-  SetupIntegrationsGithubRoute: typeof SetupIntegrationsGithubRoute
-  SetupProjectsNewRoute: typeof SetupProjectsNewRoute
-  SetupIntegrationsIndexRoute: typeof SetupIntegrationsIndexRoute
+  WorkspacesWidLayoutRoute: typeof WorkspacesWidLayoutRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -196,11 +245,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/projects/$projectId': {
-      id: '/projects/$projectId'
-      path: '/projects/$projectId'
-      fullPath: '/projects/$projectId'
-      preLoaderRoute: typeof ProjectsProjectIdRouteImport
+    '/setup/_layout': {
+      id: '/setup/_layout'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupLayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/verify-email': {
@@ -238,32 +287,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/setup/integrations/': {
-      id: '/setup/integrations/'
-      path: '/setup/integrations'
-      fullPath: '/setup/integrations/'
-      preLoaderRoute: typeof SetupIntegrationsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/setup/projects/new': {
-      id: '/setup/projects/new'
-      path: '/setup/projects/new'
-      fullPath: '/setup/projects/new'
-      preLoaderRoute: typeof SetupProjectsNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/setup/integrations/github': {
-      id: '/setup/integrations/github'
-      path: '/setup/integrations/github'
-      fullPath: '/setup/integrations/github'
-      preLoaderRoute: typeof SetupIntegrationsGithubRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/setup/integrations/debug': {
-      id: '/setup/integrations/debug'
-      path: '/setup/integrations/debug'
-      fullPath: '/setup/integrations/debug'
-      preLoaderRoute: typeof SetupIntegrationsDebugRouteImport
+    '/workspaces/$wid/_layout': {
+      id: '/workspaces/$wid/_layout'
+      path: '/workspaces/$wid'
+      fullPath: '/workspaces/$wid'
+      preLoaderRoute: typeof WorkspacesWidLayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/integrations/github/callback': {
@@ -273,8 +301,90 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IntegrationsGithubCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/workspaces/$wid/_layout/': {
+      id: '/workspaces/$wid/_layout/'
+      path: '/'
+      fullPath: '/workspaces/$wid/'
+      preLoaderRoute: typeof WorkspacesWidLayoutIndexRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
+    '/setup/_layout/integrations/': {
+      id: '/setup/_layout/integrations/'
+      path: '/integrations'
+      fullPath: '/setup/integrations/'
+      preLoaderRoute: typeof SetupLayoutIntegrationsIndexRouteImport
+      parentRoute: typeof SetupLayoutRoute
+    }
+    '/setup/_layout/workspaces/new': {
+      id: '/setup/_layout/workspaces/new'
+      path: '/workspaces/new'
+      fullPath: '/setup/workspaces/new'
+      preLoaderRoute: typeof SetupLayoutWorkspacesNewRouteImport
+      parentRoute: typeof SetupLayoutRoute
+    }
+    '/setup/_layout/projects/new': {
+      id: '/setup/_layout/projects/new'
+      path: '/projects/new'
+      fullPath: '/setup/projects/new'
+      preLoaderRoute: typeof SetupLayoutProjectsNewRouteImport
+      parentRoute: typeof SetupLayoutRoute
+    }
+    '/setup/_layout/integrations/github': {
+      id: '/setup/_layout/integrations/github'
+      path: '/integrations/github'
+      fullPath: '/setup/integrations/github'
+      preLoaderRoute: typeof SetupLayoutIntegrationsGithubRouteImport
+      parentRoute: typeof SetupLayoutRoute
+    }
+    '/setup/_layout/integrations/debug': {
+      id: '/setup/_layout/integrations/debug'
+      path: '/integrations/debug'
+      fullPath: '/setup/integrations/debug'
+      preLoaderRoute: typeof SetupLayoutIntegrationsDebugRouteImport
+      parentRoute: typeof SetupLayoutRoute
+    }
+    '/workspaces/$wid/_layout/projects/$pid': {
+      id: '/workspaces/$wid/_layout/projects/$pid'
+      path: '/projects/$pid'
+      fullPath: '/workspaces/$wid/projects/$pid'
+      preLoaderRoute: typeof WorkspacesWidLayoutProjectsPidRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
   }
 }
+
+interface SetupLayoutRouteChildren {
+  SetupLayoutIntegrationsDebugRoute: typeof SetupLayoutIntegrationsDebugRoute
+  SetupLayoutIntegrationsGithubRoute: typeof SetupLayoutIntegrationsGithubRoute
+  SetupLayoutProjectsNewRoute: typeof SetupLayoutProjectsNewRoute
+  SetupLayoutWorkspacesNewRoute: typeof SetupLayoutWorkspacesNewRoute
+  SetupLayoutIntegrationsIndexRoute: typeof SetupLayoutIntegrationsIndexRoute
+}
+
+const SetupLayoutRouteChildren: SetupLayoutRouteChildren = {
+  SetupLayoutIntegrationsDebugRoute: SetupLayoutIntegrationsDebugRoute,
+  SetupLayoutIntegrationsGithubRoute: SetupLayoutIntegrationsGithubRoute,
+  SetupLayoutProjectsNewRoute: SetupLayoutProjectsNewRoute,
+  SetupLayoutWorkspacesNewRoute: SetupLayoutWorkspacesNewRoute,
+  SetupLayoutIntegrationsIndexRoute: SetupLayoutIntegrationsIndexRoute,
+}
+
+const SetupLayoutRouteWithChildren = SetupLayoutRoute._addFileChildren(
+  SetupLayoutRouteChildren,
+)
+
+interface WorkspacesWidLayoutRouteChildren {
+  WorkspacesWidLayoutIndexRoute: typeof WorkspacesWidLayoutIndexRoute
+  WorkspacesWidLayoutProjectsPidRoute: typeof WorkspacesWidLayoutProjectsPidRoute
+}
+
+const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
+  WorkspacesWidLayoutIndexRoute: WorkspacesWidLayoutIndexRoute,
+  WorkspacesWidLayoutProjectsPidRoute: WorkspacesWidLayoutProjectsPidRoute,
+}
+
+const WorkspacesWidLayoutRouteWithChildren =
+  WorkspacesWidLayoutRoute._addFileChildren(WorkspacesWidLayoutRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -283,12 +393,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthResetRoute: AuthResetRoute,
   AuthSignupRoute: AuthSignupRoute,
   AuthVerifyEmailRoute: AuthVerifyEmailRoute,
-  ProjectsProjectIdRoute: ProjectsProjectIdRoute,
+  SetupLayoutRoute: SetupLayoutRouteWithChildren,
   IntegrationsGithubCallbackRoute: IntegrationsGithubCallbackRoute,
-  SetupIntegrationsDebugRoute: SetupIntegrationsDebugRoute,
-  SetupIntegrationsGithubRoute: SetupIntegrationsGithubRoute,
-  SetupProjectsNewRoute: SetupProjectsNewRoute,
-  SetupIntegrationsIndexRoute: SetupIntegrationsIndexRoute,
+  WorkspacesWidLayoutRoute: WorkspacesWidLayoutRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
