@@ -122,7 +122,7 @@ describe('GithubSourceControlProvider', () => {
       limit: 50,
     });
 
-    expect(result.repositories[0]?.externalRepositoryId).toBe('shipfox/platform');
+    expect(result.repositories[0]?.externalRepositoryId).toBe('github:shipfox/platform');
     expect(result.repositories[0]?.visibility).toBe('private');
     expect(result.nextCursor).toBe('2');
     expect(github.listInstallationRepositories).toHaveBeenCalledWith({
@@ -139,7 +139,7 @@ describe('GithubSourceControlProvider', () => {
 
     const result = await provider.resolveRepository({
       connection: connection(),
-      externalRepositoryId: 'shipfox/platform',
+      externalRepositoryId: 'github:shipfox/platform',
     });
 
     expect(result.fullName).toBe('shipfox/platform');
@@ -179,7 +179,7 @@ describe('GithubSourceControlProvider', () => {
 
     const result = await provider.listFiles({
       connection: connection(),
-      externalRepositoryId: 'shipfox/platform',
+      externalRepositoryId: 'github:shipfox/platform',
       ref: 'main',
       prefix: '.shipfox/workflows/',
       limit: 100,
@@ -204,7 +204,7 @@ describe('GithubSourceControlProvider', () => {
 
     const result = await provider.fetchFile({
       connection: connection(),
-      externalRepositoryId: 'shipfox/platform',
+      externalRepositoryId: 'github:shipfox/platform',
       ref: 'main',
       path: '.shipfox/workflows/ci.yml',
     });
@@ -217,6 +217,27 @@ describe('GithubSourceControlProvider', () => {
       ref: 'main',
       path: '.shipfox/workflows/ci.yml',
     });
+  });
+
+  it.each([
+    'shipfox/platform',
+    'github:',
+    'github:foo',
+    'github:foo/bar/baz',
+    'debug:foo/bar',
+    '',
+  ])('rejects malformed external repository id %s', async (externalRepositoryId) => {
+    await createConnectionWithInstallation();
+    const github = githubClient();
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = provider.resolveRepository({
+      connection: connection(),
+      externalRepositoryId,
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'repository-not-found'});
+    expect(github.getRepository).not.toHaveBeenCalled();
   });
 
   it('rejects oversized repository file contents', async () => {
@@ -234,7 +255,7 @@ describe('GithubSourceControlProvider', () => {
 
     const result = provider.fetchFile({
       connection: connection(),
-      externalRepositoryId: 'shipfox/platform',
+      externalRepositoryId: 'github:shipfox/platform',
       ref: 'main',
       path: '.shipfox/workflows/huge.yml',
     });

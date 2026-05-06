@@ -20,7 +20,7 @@ describe('DebugSourceControlProvider', () => {
       limit: 1,
     });
 
-    expect(result.repositories[0]?.externalRepositoryId).toBe('platform');
+    expect(result.repositories[0]?.externalRepositoryId).toBe('debug:platform');
     expect(result.nextCursor).toBe('1');
   });
 
@@ -29,7 +29,7 @@ describe('DebugSourceControlProvider', () => {
 
     const result = await provider.resolveRepository({
       connection,
-      externalRepositoryId: 'platform',
+      externalRepositoryId: 'debug:platform',
     });
 
     expect(result.fullName).toBe('debug-owner/platform');
@@ -40,10 +40,21 @@ describe('DebugSourceControlProvider', () => {
 
     const result = provider.resolveRepository({
       connection,
-      externalRepositoryId: 'unknown',
+      externalRepositoryId: 'debug:unknown',
     });
 
     await expect(result).rejects.toBeInstanceOf(DebugIntegrationProviderError);
+  });
+
+  it('rejects ids that do not carry the debug prefix', async () => {
+    const provider = new DebugSourceControlProvider();
+
+    const result = provider.resolveRepository({
+      connection,
+      externalRepositoryId: 'github:platform',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'repository-not-found'});
   });
 
   it('lists deterministic workflow files', async () => {
@@ -51,7 +62,7 @@ describe('DebugSourceControlProvider', () => {
 
     const result = await provider.listFiles({
       connection,
-      externalRepositoryId: 'platform',
+      externalRepositoryId: 'debug:platform',
       ref: 'main',
       prefix: '.shipfox/workflows/',
       limit: 50,
@@ -68,7 +79,7 @@ describe('DebugSourceControlProvider', () => {
 
     const result = await provider.fetchFile({
       connection,
-      externalRepositoryId: 'platform',
+      externalRepositoryId: 'debug:platform',
       ref: 'main',
       path: '.shipfox/workflows/ci.yml',
     });

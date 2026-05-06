@@ -17,6 +17,11 @@ import {migrationsPath} from '#db/migrations.js';
 import {createIntegrationRoutes} from '#presentation/routes/index.js';
 import {config} from './config.js';
 
+export {
+  buildProviderRepositoryId,
+  MAX_REPOSITORY_FILE_BYTES,
+  parseProviderRepositoryId,
+} from '@shipfox/api-integration-core-dto';
 export type {
   IntegrationConnection,
   IntegrationConnectionLifecycleStatus,

@@ -1,10 +1,12 @@
 import {
+  buildProviderRepositoryId,
   type FetchFileInput,
   type FilePage,
   type FileSnapshot,
   IntegrationProviderError,
   type ListFilesInput,
   type ListRepositoriesInput,
+  parseProviderRepositoryId,
   type RepositoryPage,
   type RepositorySnapshot,
   type ResolveRepositoryInput,
@@ -13,9 +15,15 @@ import {
 
 export class DebugIntegrationProviderError extends IntegrationProviderError {}
 
+const DEBUG_PROVIDER = 'debug';
+
+function debugRepositoryId(name: string): string {
+  return buildProviderRepositoryId(DEBUG_PROVIDER, name);
+}
+
 const DEBUG_REPOSITORIES: RepositorySnapshot[] = [
   {
-    externalRepositoryId: 'platform',
+    externalRepositoryId: debugRepositoryId('platform'),
     owner: 'debug-owner',
     name: 'platform',
     fullName: 'debug-owner/platform',
@@ -25,7 +33,7 @@ const DEBUG_REPOSITORIES: RepositorySnapshot[] = [
     htmlUrl: 'https://debug.local/debug-owner/platform',
   },
   {
-    externalRepositoryId: 'api',
+    externalRepositoryId: debugRepositoryId('api'),
     owner: 'debug-owner',
     name: 'api',
     fullName: 'debug-owner/api',
@@ -35,7 +43,7 @@ const DEBUG_REPOSITORIES: RepositorySnapshot[] = [
     htmlUrl: 'https://debug.local/debug-owner/api',
   },
   {
-    externalRepositoryId: 'runner',
+    externalRepositoryId: debugRepositoryId('runner'),
     owner: 'debug-owner',
     name: 'runner',
     fullName: 'debug-owner/runner',
@@ -99,6 +107,7 @@ export class DebugSourceControlProvider implements SourceControlProvider {
 
   async resolveRepository(input: ResolveRepositoryInput): Promise<RepositorySnapshot> {
     await Promise.resolve();
+    parseDebugRepositoryName(input.externalRepositoryId);
     const repository = DEBUG_REPOSITORIES.find(
       (item) => item.externalRepositoryId === input.externalRepositoryId,
     );
@@ -110,7 +119,8 @@ export class DebugSourceControlProvider implements SourceControlProvider {
 
   async listFiles(input: ListFilesInput): Promise<FilePage> {
     await this.resolveRepository(input);
-    const filesByPath = DEBUG_FILES.get(input.externalRepositoryId) ?? {};
+    const name = parseDebugRepositoryName(input.externalRepositoryId);
+    const filesByPath = DEBUG_FILES.get(name) ?? {};
     const matching = Object.entries(filesByPath)
       .filter(([path]) => path.startsWith(input.prefix))
       .map(([path, content]) => ({path, type: 'file' as const, size: content.length}))
@@ -128,7 +138,8 @@ export class DebugSourceControlProvider implements SourceControlProvider {
 
   async fetchFile(input: FetchFileInput): Promise<FileSnapshot> {
     await this.resolveRepository(input);
-    const filesByPath = DEBUG_FILES.get(input.externalRepositoryId) ?? {};
+    const name = parseDebugRepositoryName(input.externalRepositoryId);
+    const filesByPath = DEBUG_FILES.get(name) ?? {};
     const content = filesByPath[input.path];
     if (content === undefined) {
       throw new DebugIntegrationProviderError('file-not-found', 'File not found');
@@ -139,6 +150,17 @@ export class DebugSourceControlProvider implements SourceControlProvider {
       ref: input.ref,
       content,
     };
+  }
+}
+
+function parseDebugRepositoryName(externalRepositoryId: string): string {
+  try {
+    return parseProviderRepositoryId(externalRepositoryId, DEBUG_PROVIDER);
+  } catch (error) {
+    if (error instanceof IntegrationProviderError) {
+      throw new DebugIntegrationProviderError(error.reason, error.message);
+    }
+    throw error;
   }
 }
 

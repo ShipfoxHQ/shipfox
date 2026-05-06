@@ -147,3 +147,40 @@ export class IntegrationProviderError extends Error {
     super(message);
   }
 }
+
+export const MAX_REPOSITORY_FILE_BYTES = 1_000_000;
+
+export function buildProviderRepositoryId(
+  provider: IntegrationProviderKind,
+  value: string,
+): string {
+  return `${provider}:${value}`;
+}
+
+export function parseProviderRepositoryId(
+  externalRepositoryId: string,
+  expectedProvider: IntegrationProviderKind,
+): string {
+  const separatorIndex = externalRepositoryId.indexOf(':');
+  if (separatorIndex <= 0) {
+    throw new IntegrationProviderError(
+      'repository-not-found',
+      `External repository id is missing a provider prefix: ${externalRepositoryId}`,
+    );
+  }
+  const prefix = externalRepositoryId.slice(0, separatorIndex);
+  const value = externalRepositoryId.slice(separatorIndex + 1);
+  if (prefix !== expectedProvider) {
+    throw new IntegrationProviderError(
+      'repository-not-found',
+      `External repository id ${externalRepositoryId} is not owned by provider ${expectedProvider}`,
+    );
+  }
+  if (!value) {
+    throw new IntegrationProviderError(
+      'repository-not-found',
+      `External repository id ${externalRepositoryId} is missing a provider-owned value`,
+    );
+  }
+  return value;
+}

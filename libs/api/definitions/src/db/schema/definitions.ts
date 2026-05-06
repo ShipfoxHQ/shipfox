@@ -20,6 +20,7 @@ export const workflowDefinitions = pgTable(
     fetchedAt: timestamp('fetched_at', {withTimezone: true}).notNull().defaultNow(),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at', {withTimezone: true}),
   },
   (table) => [
     uniqueIndex('definitions_wd_project_id_config_path_unique')
@@ -51,5 +52,6 @@ export function toDefinition(row: DefinitionDb): WorkflowDefinition {
     fetchedAt: row.fetchedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    deletedAt: row.deletedAt,
   };
 }

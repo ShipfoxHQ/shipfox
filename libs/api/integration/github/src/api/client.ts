@@ -1,11 +1,13 @@
 import {Buffer} from 'node:buffer';
+import {MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-core-dto';
 import ky, {HTTPError, TimeoutError} from 'ky';
 import {App, Octokit, RequestError} from 'octokit';
 import {config, normalizedGithubPrivateKey} from '#config.js';
 import {GithubIntegrationProviderError} from '#core/errors.js';
 
 const NEXT_PAGE_RE = /[?&]page=(\d+)/;
-const MAX_FILE_CONTENT_BYTES = 1_000_000;
+const TRAILING_SLASHES_RE = /\/+$/;
+const MAX_TREE_WALK_DEPTH = 10;
 
 export interface GithubAccount {
   login: string;
@@ -217,38 +219,70 @@ class OctokitGithubApiClient implements GithubApiClient {
     cursor?: string | undefined;
   }): Promise<GithubFilePage> {
     const octokit = await this.getApp().getInstallationOctokit(input.installationId);
-    const response = await mapGithubError(() =>
-      octokit.rest.git.getTree({
-        owner: input.owner,
-        repo: input.repo,
-        tree_sha: input.ref,
-        recursive: 'true',
-      }),
-    );
+    const startPath = input.prefix.replace(TRAILING_SLASHES_RE, '');
+    const collected: GithubFileEntry[] = [];
+    const overflowLimit = input.limit + 1;
 
-    if (response.data.truncated) {
-      throw new GithubIntegrationProviderError(
-        'too-many-files',
-        'GitHub repository tree is too large to sync safely',
-      );
-    }
+    type GetContentData = Awaited<ReturnType<typeof octokit.rest.repos.getContent>>['data'];
 
-    const files = response.data.tree
-      .filter((entry) => entry.type === 'blob' && entry.path?.startsWith(input.prefix))
-      .map((entry) => ({
-        path: entry.path ?? '',
-        size: typeof entry.size === 'number' ? entry.size : null,
-      }))
-      .filter((entry) => entry.path)
-      .sort((a, b) => a.path.localeCompare(b.path));
+    const walk = async (path: string, depth: number): Promise<void> => {
+      if (collected.length >= overflowLimit) return;
+      if (depth > MAX_TREE_WALK_DEPTH) return;
+
+      let data: GetContentData;
+      try {
+        const response = await mapGithubError(
+          () =>
+            octokit.rest.repos.getContent({
+              owner: input.owner,
+              repo: input.repo,
+              path,
+              ref: input.ref,
+            }),
+          'file-not-found',
+        );
+        data = response.data;
+      } catch (error) {
+        if (error instanceof GithubIntegrationProviderError && error.reason === 'file-not-found') {
+          return;
+        }
+        throw error;
+      }
+
+      if (!Array.isArray(data)) {
+        if (data.type === 'file' && data.path) {
+          collected.push({path: data.path, size: typeof data.size === 'number' ? data.size : null});
+        }
+        return;
+      }
+
+      const entries = [...data].sort((a, b) => (a.path ?? '').localeCompare(b.path ?? ''));
+      for (const entry of entries) {
+        if (collected.length >= overflowLimit) return;
+        if (!entry.path) continue;
+        if (entry.type === 'file') {
+          collected.push({
+            path: entry.path,
+            size: typeof entry.size === 'number' ? entry.size : null,
+          });
+        } else if (entry.type === 'dir') {
+          await walk(entry.path, depth + 1);
+        }
+      }
+    };
+
+    await walk(startPath, 0);
+
+    const sorted = collected.sort((a, b) => a.path.localeCompare(b.path));
     const offset = input.cursor ? Number.parseInt(input.cursor, 10) : 0;
-    const start = Number.isNaN(offset) ? 0 : offset;
-    const page = files.slice(start, start + input.limit);
-    const nextOffset = start + page.length;
+    const start = Number.isNaN(offset) || offset < 0 ? 0 : offset;
+    const page = sorted.slice(start, start + input.limit);
+    const consumed = start + page.length;
+    const hasMore = consumed < sorted.length;
 
     return {
       files: page,
-      nextCursor: nextOffset < files.length ? String(nextOffset) : null,
+      nextCursor: hasMore ? String(consumed) : null,
     };
   }
 
@@ -275,7 +309,7 @@ class OctokitGithubApiClient implements GithubApiClient {
     if (Array.isArray(data) || data.type !== 'file') {
       throw new GithubIntegrationProviderError('file-not-found', 'GitHub path is not a file');
     }
-    if (data.size > MAX_FILE_CONTENT_BYTES) {
+    if (data.size > MAX_REPOSITORY_FILE_BYTES) {
       throw new GithubIntegrationProviderError(
         'content-too-large',
         'GitHub file content is larger than the supported limit',
@@ -374,11 +408,7 @@ async function mapGithubError<T>(
 }
 
 function isGithubRateLimitError(error: RequestError): boolean {
-  return (
-    error.status === 403 &&
-    (error.response?.headers['x-ratelimit-remaining'] === '0' ||
-      error.response?.headers['retry-after'] !== undefined)
-  );
+  return error.status === 403 && error.response?.headers['x-ratelimit-remaining'] === '0';
 }
 
 function retryAfterSeconds(error: RequestError): number | undefined {

@@ -47,7 +47,7 @@ export function sourceProvider(overrides: Partial<IntegrationProvider> = {}): In
           return {
             repositories: [
               {
-                externalRepositoryId: 'platform',
+                externalRepositoryId: 'debug:platform',
                 owner: 'debug-owner',
                 name: 'platform',
                 fullName: 'debug-owner/platform',

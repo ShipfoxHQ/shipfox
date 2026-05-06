@@ -1,16 +1,19 @@
 import {Buffer} from 'node:buffer';
-import type {
-  FetchFileInput,
-  FilePage,
-  FileSnapshot,
-  IntegrationConnection,
-  ListFilesInput,
-  ListRepositoriesInput,
-  RepositoryPage,
-  RepositorySnapshot,
-  RepositoryVisibility,
-  ResolveRepositoryInput,
-  SourceControlProvider,
+import {
+  buildProviderRepositoryId,
+  type FetchFileInput,
+  type FilePage,
+  type FileSnapshot,
+  type IntegrationConnection,
+  type ListFilesInput,
+  type ListRepositoriesInput,
+  MAX_REPOSITORY_FILE_BYTES,
+  parseProviderRepositoryId,
+  type RepositoryPage,
+  type RepositorySnapshot,
+  type RepositoryVisibility,
+  type ResolveRepositoryInput,
+  type SourceControlProvider,
 } from '@shipfox/api-integration-core-dto';
 import type {GithubApiClient, GithubRepository} from '#api/client.js';
 import {getGithubInstallationByConnectionId} from '#db/installations.js';
@@ -18,9 +21,9 @@ import {GithubIntegrationProviderError} from './errors.js';
 
 type GithubIntegrationConnection = IntegrationConnection<'github'>;
 
+const GITHUB_PROVIDER = 'github';
 const SEARCH_PAGE_SIZE = 100;
 const SEARCH_MAX_PAGES_PER_REQUEST = 5;
-const MAX_FILE_CONTENT_BYTES = 1_000_000;
 
 export class GithubSourceControlProvider
   implements SourceControlProvider<GithubIntegrationConnection>
@@ -82,7 +85,7 @@ export class GithubSourceControlProvider
     input: ResolveRepositoryInput<GithubIntegrationConnection>,
   ): Promise<RepositorySnapshot> {
     const installationId = await this.installationId(input.connection.id);
-    const locator = parseRepositoryLocator(input.externalRepositoryId);
+    const locator = parseGithubRepositoryLocator(input.externalRepositoryId);
     const repository = await this.github.getRepository({
       installationId,
       owner: locator.owner,
@@ -94,7 +97,7 @@ export class GithubSourceControlProvider
 
   async listFiles(input: ListFilesInput<GithubIntegrationConnection>): Promise<FilePage> {
     const installationId = await this.installationId(input.connection.id);
-    const locator = parseRepositoryLocator(input.externalRepositoryId);
+    const locator = parseGithubRepositoryLocator(input.externalRepositoryId);
     const page = await this.github.listRepositoryFiles({
       installationId,
       owner: locator.owner,
@@ -113,7 +116,7 @@ export class GithubSourceControlProvider
 
   async fetchFile(input: FetchFileInput<GithubIntegrationConnection>): Promise<FileSnapshot> {
     const installationId = await this.installationId(input.connection.id);
-    const locator = parseRepositoryLocator(input.externalRepositoryId);
+    const locator = parseGithubRepositoryLocator(input.externalRepositoryId);
     const file = await this.github.fetchRepositoryFile({
       installationId,
       owner: locator.owner,
@@ -123,8 +126,8 @@ export class GithubSourceControlProvider
     });
 
     if (
-      file.size > MAX_FILE_CONTENT_BYTES ||
-      Buffer.byteLength(file.content, 'utf8') > MAX_FILE_CONTENT_BYTES
+      file.size > MAX_REPOSITORY_FILE_BYTES ||
+      Buffer.byteLength(file.content, 'utf8') > MAX_REPOSITORY_FILE_BYTES
     ) {
       throw new GithubIntegrationProviderError(
         'content-too-large',
@@ -154,7 +157,7 @@ export class GithubSourceControlProvider
 
 function toRepositorySnapshot(repository: GithubRepository): RepositorySnapshot {
   return {
-    externalRepositoryId: repository.fullName,
+    externalRepositoryId: buildProviderRepositoryId(GITHUB_PROVIDER, repository.fullName),
     owner: repository.ownerLogin,
     name: repository.name,
     fullName: repository.fullName,
@@ -165,12 +168,16 @@ function toRepositorySnapshot(repository: GithubRepository): RepositorySnapshot 
   };
 }
 
-function parseRepositoryLocator(externalRepositoryId: string): {owner: string; repo: string} {
-  const [owner, repo, ...rest] = externalRepositoryId.split('/');
+function parseGithubRepositoryLocator(externalRepositoryId: string): {
+  owner: string;
+  repo: string;
+} {
+  const value = parseProviderRepositoryId(externalRepositoryId, GITHUB_PROVIDER);
+  const [owner, repo, ...rest] = value.split('/');
   if (!owner || !repo || rest.length > 0) {
     throw new GithubIntegrationProviderError(
       'repository-not-found',
-      'GitHub repository id is not a valid provider-owned locator',
+      `GitHub repository id ${externalRepositoryId} must follow the form ${GITHUB_PROVIDER}:owner/repo`,
     );
   }
 

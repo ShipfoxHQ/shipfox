@@ -2,11 +2,18 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 export {closeDb, db, schema} from './db.js';
-export type {UpsertDefinitionParams} from './definitions.js';
+export type {
+  ApplyVcsDefinitionsBatchParams,
+  ApplyVcsDefinitionsBatchResult,
+  SoftDeleteVcsDefinitionsParams,
+  UpsertDefinitionParams,
+} from './definitions.js';
 export {
+  applyVcsDefinitionsBatch,
   getDefinitionById,
   invalidateCache,
   listDefinitionsByProject,
+  softDeleteVcsDefinitionsNotIn,
   upsertDefinition,
 } from './definitions.js';
 export {definitionsOutbox} from './schema/outbox.js';

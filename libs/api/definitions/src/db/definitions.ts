@@ -1,6 +1,6 @@
 import {DEFINITION_RESOLVED, type DefinitionsEventMap} from '@shipfox/api-definitions-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {and, asc, eq, sql} from 'drizzle-orm';
+import {and, asc, eq, isNull, notInArray, sql} from 'drizzle-orm';
 import type {WorkflowDefinition, WorkflowSpec} from '#core/entities/definition.js';
 import {db} from './db.js';
 import {toDefinition, workflowDefinitions} from './schema/definitions.js';
@@ -30,6 +30,7 @@ function buildUpsertQuery(tx: Tx, params: UpsertDefinitionParams) {
     definition: params.definition,
     fetchedAt: new Date(),
     updatedAt: new Date(),
+    deletedAt: null,
   };
 
   const values = {
@@ -106,7 +107,7 @@ export async function getDefinitionById(id: string): Promise<WorkflowDefinition 
   const rows = await db()
     .select()
     .from(workflowDefinitions)
-    .where(eq(workflowDefinitions.id, id))
+    .where(and(eq(workflowDefinitions.id, id), isNull(workflowDefinitions.deletedAt)))
     .limit(1);
   const row = rows[0];
 
@@ -118,10 +119,93 @@ export async function listDefinitionsByProject(projectId: string): Promise<Workf
   const rows = await db()
     .select()
     .from(workflowDefinitions)
-    .where(eq(workflowDefinitions.projectId, projectId))
+    .where(and(eq(workflowDefinitions.projectId, projectId), isNull(workflowDefinitions.deletedAt)))
     .orderBy(asc(workflowDefinitions.name));
 
   return rows.map(toDefinition);
+}
+
+export interface SoftDeleteVcsDefinitionsParams {
+  projectId: string;
+  ref: string;
+  keepConfigPaths: string[];
+}
+
+async function softDeleteVcsDefinitionsNotInTx(
+  tx: Tx,
+  params: SoftDeleteVcsDefinitionsParams,
+): Promise<number> {
+  const now = new Date();
+  const baseWhere = and(
+    eq(workflowDefinitions.projectId, params.projectId),
+    eq(workflowDefinitions.source, 'vcs'),
+    eq(workflowDefinitions.ref, params.ref),
+    isNull(workflowDefinitions.deletedAt),
+  );
+  const where =
+    params.keepConfigPaths.length > 0
+      ? and(baseWhere, notInArray(workflowDefinitions.configPath, params.keepConfigPaths))
+      : baseWhere;
+
+  const rows = await tx
+    .update(workflowDefinitions)
+    .set({deletedAt: now, updatedAt: now})
+    .where(where)
+    .returning({id: workflowDefinitions.id});
+
+  return rows.length;
+}
+
+export async function softDeleteVcsDefinitionsNotIn(
+  params: SoftDeleteVcsDefinitionsParams,
+): Promise<number> {
+  return await db().transaction((tx) => softDeleteVcsDefinitionsNotInTx(tx, params));
+}
+
+export interface ApplyVcsDefinitionsBatchParams {
+  projectId: string;
+  ref: string;
+  upserts: Array<{configPath: string; name: string; definition: WorkflowSpec}>;
+}
+
+export interface ApplyVcsDefinitionsBatchResult {
+  appliedCount: number;
+  deletedCount: number;
+}
+
+export async function applyVcsDefinitionsBatch(
+  params: ApplyVcsDefinitionsBatchParams,
+): Promise<ApplyVcsDefinitionsBatchResult> {
+  return await db().transaction(async (tx) => {
+    let appliedCount = 0;
+    for (const item of params.upserts) {
+      const rows = await buildUpsertQuery(tx, {
+        projectId: params.projectId,
+        configPath: item.configPath,
+        source: 'vcs',
+        ref: params.ref,
+        name: item.name,
+        definition: item.definition,
+      });
+      const row = rows[0];
+      if (!row) throw new Error('Upsert returned no rows');
+
+      await writeOutboxEvent<DefinitionsEventMap>(tx, definitionsOutbox, {
+        type: DEFINITION_RESOLVED,
+        payload: {definitionId: row.id, projectId: row.projectId, configPath: row.configPath},
+      });
+      appliedCount += 1;
+    }
+
+    const keepConfigPaths = params.upserts.map((upsert) => upsert.configPath);
+    const deletedCount = await softDeleteVcsDefinitionsNotInTx(tx, {
+      projectId: params.projectId,
+      ref: params.ref,
+      keepConfigPaths,
+    });
+
+    return {appliedCount, deletedCount};
+  });
 }
 
 export async function invalidateCache(params: {projectId: string; ref: string}): Promise<void> {

@@ -1,5 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {sql} from 'drizzle-orm';
+import {index, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {
   DefinitionSyncErrorCode,
   DefinitionSyncState,
@@ -52,6 +53,7 @@ export const definitionSyncStates = pgTable(
       table.sourceExternalRepositoryId,
       table.ref,
     ),
+    index('definitions_sync_states_failed_idx').on(table.updatedAt).where(sql`"status" = 'failed'`),
   ],
 );
 

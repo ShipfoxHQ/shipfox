@@ -53,6 +53,7 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
+    "@temporalio/activity": "^1.16.1",
     "@temporalio/client": "^1.16.1",
     "@temporalio/common": "^1.16.1",
     "@temporalio/testing": "^1.16.1",

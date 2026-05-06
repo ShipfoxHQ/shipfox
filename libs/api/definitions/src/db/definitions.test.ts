@@ -10,11 +10,14 @@ import {sql} from 'drizzle-orm';
 import type {WorkflowSpec} from '#core/entities/definition.js';
 import {db} from './db.js';
 import {
+  applyVcsDefinitionsBatch,
   getDefinitionById,
   invalidateCache,
   listDefinitionsByProject,
+  softDeleteVcsDefinitionsNotIn,
   upsertDefinition,
 } from './definitions.js';
+import {workflowDefinitions} from './schema/definitions.js';
 import {definitionsOutbox} from './schema/outbox.js';
 
 function spec(name = 'Test Workflow'): WorkflowSpec {
@@ -261,6 +264,100 @@ describe('definition queries', () => {
       const definitions = await listDefinitionsByProject(crypto.randomUUID());
 
       expect(definitions).toEqual([]);
+    });
+  });
+
+  describe('soft-delete + restore', () => {
+    test('soft-deletes VCS definitions for a ref that are not in the keep set', async () => {
+      const stale = await upsertDefinition({
+        projectId,
+        configPath: 'old.yml',
+        name: 'Old',
+        definition: spec('Old'),
+        ref: 'main',
+        source: 'vcs',
+      });
+      const kept = await upsertDefinition({
+        projectId,
+        configPath: 'kept.yml',
+        name: 'Kept',
+        definition: spec('Kept'),
+        ref: 'main',
+        source: 'vcs',
+      });
+
+      const deletedCount = await softDeleteVcsDefinitionsNotIn({
+        projectId,
+        ref: 'main',
+        keepConfigPaths: ['kept.yml'],
+      });
+
+      expect(deletedCount).toBe(1);
+      const after = await listDefinitionsByProject(projectId);
+      expect(after.map((definition) => definition.id)).toEqual([kept.id]);
+      const staleRow = await db()
+        .select()
+        .from(workflowDefinitions)
+        .where(sql`${workflowDefinitions.id} = ${stale.id}`);
+      expect(staleRow[0]?.deletedAt).not.toBeNull();
+    });
+
+    test('reactivates a previously soft-deleted definition by clearing deleted_at on next upsert', async () => {
+      const original = await upsertDefinition({
+        projectId,
+        configPath: 'recovered.yml',
+        name: 'Recovered v1',
+        definition: spec('Recovered v1'),
+        ref: 'main',
+        source: 'vcs',
+      });
+      await softDeleteVcsDefinitionsNotIn({
+        projectId,
+        ref: 'main',
+        keepConfigPaths: [],
+      });
+
+      const restored = await upsertDefinition({
+        projectId,
+        configPath: 'recovered.yml',
+        name: 'Recovered v2',
+        definition: spec('Recovered v2'),
+        ref: 'main',
+        source: 'vcs',
+      });
+
+      expect(restored.id).toBe(original.id);
+      expect(restored.name).toBe('Recovered v2');
+      expect(restored.deletedAt).toBeNull();
+      const visible = await listDefinitionsByProject(projectId);
+      expect(visible.map((definition) => definition.id)).toEqual([restored.id]);
+    });
+
+    test('applyVcsDefinitionsBatch upserts and soft-deletes in a single transaction', async () => {
+      await upsertDefinition({
+        projectId,
+        configPath: 'orphaned.yml',
+        name: 'Orphan',
+        definition: spec('Orphan'),
+        ref: 'main',
+        source: 'vcs',
+      });
+
+      const result = await applyVcsDefinitionsBatch({
+        projectId,
+        ref: 'main',
+        upserts: [
+          {configPath: 'kept.yml', name: 'Kept', definition: spec('Kept')},
+          {configPath: 'new.yml', name: 'New', definition: spec('New')},
+        ],
+      });
+
+      expect(result).toEqual({appliedCount: 2, deletedCount: 1});
+      const visible = await listDefinitionsByProject(projectId);
+      expect(visible.map((definition) => definition.configPath).sort()).toEqual([
+        'kept.yml',
+        'new.yml',
+      ]);
     });
   });
 

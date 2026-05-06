@@ -1,4 +1,5 @@
-import {proxyActivities} from '@temporalio/workflow';
+import {ApplicationFailure, proxyActivities} from '@temporalio/workflow';
+import type {DefinitionSyncErrorCode} from '#core/entities/sync-state.js';
 import type {createDefinitionSyncActivities} from '../activities/index.js';
 
 export interface DefinitionSyncWorkflowInput {
@@ -8,20 +9,73 @@ export interface DefinitionSyncWorkflowInput {
   sourceExternalRepositoryId: string;
 }
 
-const {syncDefinitionsForProjectSource} = proxyActivities<
+export interface DefinitionSyncWorkflowResult {
+  ref: string;
+  appliedCount: number;
+  deletedCount: number;
+}
+
+const PROVIDER_RETRY = {
+  initialInterval: '5 seconds',
+  backoffCoefficient: 2,
+  maximumInterval: '1 minute',
+  maximumAttempts: 5,
+} as const;
+
+const DB_RETRY = {
+  initialInterval: '1 second',
+  backoffCoefficient: 2,
+  maximumInterval: '15 seconds',
+  maximumAttempts: 5,
+} as const;
+
+const {prepareDefinitionSync, discoverDefinitionWorkflows, fetchAndApplyDefinitionWorkflows} =
+  proxyActivities<ReturnType<typeof createDefinitionSyncActivities>>({
+    startToCloseTimeout: '5 minutes',
+    heartbeatTimeout: '30 seconds',
+    retry: PROVIDER_RETRY,
+  });
+
+const {markDefinitionSyncSucceeded, markDefinitionSyncFailed} = proxyActivities<
   ReturnType<typeof createDefinitionSyncActivities>
 >({
-  startToCloseTimeout: '1 minute',
-  retry: {
-    initialInterval: '5 seconds',
-    backoffCoefficient: 2,
-    maximumInterval: '1 minute',
-    maximumAttempts: 5,
-  },
+  startToCloseTimeout: '30 seconds',
+  retry: DB_RETRY,
 });
 
 export async function definitionSyncWorkflow(
   input: DefinitionSyncWorkflowInput,
-): Promise<{ref: string; syncedDefinitions: number}> {
-  return await syncDefinitionsForProjectSource(input);
+): Promise<DefinitionSyncWorkflowResult> {
+  let ref: string | null = null;
+
+  try {
+    const prepared = await prepareDefinitionSync(input);
+    ref = prepared.ref;
+
+    const {paths} = await discoverDefinitionWorkflows({...input, ref});
+    const applied = await fetchAndApplyDefinitionWorkflows({...input, ref, paths});
+
+    await markDefinitionSyncSucceeded({...input, ref});
+
+    return {
+      ref,
+      appliedCount: applied.appliedCount,
+      deletedCount: applied.deletedCount,
+    };
+  } catch (error) {
+    const {code, message} = classifyWorkflowError(error);
+    await markDefinitionSyncFailed({...input, ref, code, message});
+    throw error;
+  }
+}
+
+function classifyWorkflowError(error: unknown): {
+  code: DefinitionSyncErrorCode;
+  message: string;
+} {
+  if (error instanceof ApplicationFailure) {
+    const code = (error.type ?? 'unknown') as DefinitionSyncErrorCode;
+    return {code, message: error.message ?? code};
+  }
+  return {code: 'unknown', message: error instanceof Error ? error.message : String(error)};
 }

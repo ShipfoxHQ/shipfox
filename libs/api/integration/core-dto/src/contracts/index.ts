@@ -21,4 +21,9 @@ export type {
   ResolveRepositoryInput,
   SourceControlProvider,
 } from './integrations.js';
-export {IntegrationProviderError} from './integrations.js';
+export {
+  buildProviderRepositoryId,
+  IntegrationProviderError,
+  MAX_REPOSITORY_FILE_BYTES,
+  parseProviderRepositoryId,
+} from './integrations.js';

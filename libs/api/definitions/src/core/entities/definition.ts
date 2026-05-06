@@ -35,4 +35,5 @@ export interface WorkflowDefinition {
   fetchedAt: Date;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt: Date | null;
 }

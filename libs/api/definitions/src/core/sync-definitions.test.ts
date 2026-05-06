@@ -2,9 +2,13 @@ import {
   IntegrationProviderError,
   type IntegrationSourceControlService,
 } from '@shipfox/api-integration-core';
-import type {WorkflowSpec} from './entities/definition.js';
 import {DefinitionSyncPermanentError} from './errors.js';
-import {type SyncDefinitionUpsert, syncDefinitionsFromSource} from './sync-definitions.js';
+import {
+  classifySyncFailure,
+  discoverWorkflowFiles,
+  fetchAndParseWorkflows,
+  resolveSyncSource,
+} from './sync-definitions.js';
 
 const validYaml = `
 name: CI
@@ -33,7 +37,7 @@ function sourceControl(
           updatedAt: new Date(),
         },
         repository: {
-          externalRepositoryId: 'platform',
+          externalRepositoryId: 'debug:platform',
           owner: 'debug-owner',
           name: 'platform',
           fullName: 'debug-owner/platform',
@@ -57,73 +61,113 @@ function sourceControl(
   };
 }
 
-function syncParams(overrides: Partial<{sourceControl: IntegrationSourceControlService}> = {}) {
-  const upserts: SyncDefinitionUpsert[] = [];
-  const states: string[] = [];
-  return {
-    upserts,
-    states,
-    params: {
-      projectId: 'project-1',
-      workspaceId: 'workspace-1',
-      sourceConnectionId: 'connection-1',
-      sourceExternalRepositoryId: 'platform',
-      sourceControl: overrides.sourceControl ?? sourceControl(),
-      markSyncing: vi.fn(() => {
-        states.push('syncing');
-        return Promise.resolve();
-      }),
-      markSucceeded: vi.fn(() => {
-        states.push('succeeded');
-        return Promise.resolve();
-      }),
-      markFailed: vi.fn(() => {
-        states.push('failed');
-        return Promise.resolve();
-      }),
-      upsertDefinition: vi.fn((input: SyncDefinitionUpsert) => {
-        upserts.push(input);
-        return Promise.resolve({} as WorkflowSpec);
-      }),
-    },
-  };
-}
+const baseContext = {
+  workspaceId: 'workspace-1',
+  sourceConnectionId: 'connection-1',
+  sourceExternalRepositoryId: 'debug:platform',
+};
 
-describe('syncDefinitionsFromSource', () => {
-  it('fetches workflow YAML and upserts VCS definitions', async () => {
-    const {params, upserts, states} = syncParams();
+describe('resolveSyncSource', () => {
+  it('returns the repository default branch as ref', async () => {
+    const result = await resolveSyncSource({...baseContext, sourceControl: sourceControl()});
 
-    const result = await syncDefinitionsFromSource(params);
+    expect(result).toEqual({ref: 'main'});
+  });
+});
 
-    expect(result).toEqual({ref: 'main', syncedDefinitions: 1});
-    expect(states).toEqual(['syncing', 'succeeded']);
-    expect(upserts[0]).toMatchObject({
-      projectId: 'project-1',
-      configPath: '.shipfox/workflows/ci.yml',
-      source: 'vcs',
+describe('discoverWorkflowFiles', () => {
+  it('returns yaml/yml workflow paths', async () => {
+    const result = await discoverWorkflowFiles({
+      ...baseContext,
       ref: 'main',
-      name: 'CI',
+      sourceControl: sourceControl({
+        listFiles: vi.fn(() =>
+          Promise.resolve({
+            files: [
+              {path: '.shipfox/workflows/ci.yml', type: 'file' as const, size: 64},
+              {path: '.shipfox/workflows/deploy.yaml', type: 'file' as const, size: 64},
+              {path: '.shipfox/workflows/README.md', type: 'file' as const, size: 64},
+            ],
+            nextCursor: null,
+          }),
+        ),
+      }),
     });
+
+    expect(result.paths).toEqual(['.shipfox/workflows/ci.yml', '.shipfox/workflows/deploy.yaml']);
   });
 
-  it('marks no workflow files as a permanent failed sync', async () => {
-    const {params, states} = syncParams({
+  it('throws no-workflow-files when nothing matches the yaml extensions', async () => {
+    const result = discoverWorkflowFiles({
+      ...baseContext,
+      ref: 'main',
       sourceControl: sourceControl({
-        listFiles: vi.fn(() => Promise.resolve({files: [], nextCursor: null})),
+        listFiles: vi.fn(() =>
+          Promise.resolve({
+            files: [{path: '.shipfox/workflows/README.md', type: 'file' as const, size: 1}],
+            nextCursor: null,
+          }),
+        ),
       }),
     });
 
-    const result = syncDefinitionsFromSource(params);
+    await expect(result).rejects.toMatchObject({code: 'no-workflow-files'});
+  });
+
+  it('throws too-many-files when the listing reports more pages', async () => {
+    const result = discoverWorkflowFiles({
+      ...baseContext,
+      ref: 'main',
+      sourceControl: sourceControl({
+        listFiles: vi.fn(() =>
+          Promise.resolve({
+            files: [{path: '.shipfox/workflows/ci.yml', type: 'file' as const, size: 1}],
+            nextCursor: '1',
+          }),
+        ),
+      }),
+    });
+
+    await expect(result).rejects.toMatchObject({code: 'too-many-files'});
+  });
+});
+
+describe('fetchAndParseWorkflows', () => {
+  it('fetches and parses each provided path', async () => {
+    const result = await fetchAndParseWorkflows({
+      ...baseContext,
+      ref: 'main',
+      paths: ['.shipfox/workflows/ci.yml'],
+      sourceControl: sourceControl(),
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.name).toBe('CI');
+    expect(result[0]?.path).toBe('.shipfox/workflows/ci.yml');
+  });
+
+  it('rejects oversized contents as content-too-large', async () => {
+    const huge = 'x'.repeat(1_000_001);
+    const result = fetchAndParseWorkflows({
+      ...baseContext,
+      ref: 'main',
+      paths: ['.shipfox/workflows/big.yml'],
+      sourceControl: sourceControl({
+        fetchFile: vi.fn(() =>
+          Promise.resolve({path: '.shipfox/workflows/big.yml', ref: 'main', content: huge}),
+        ),
+      }),
+    });
 
     await expect(result).rejects.toBeInstanceOf(DefinitionSyncPermanentError);
-    expect(states).toEqual(['syncing', 'failed']);
-    expect(params.markFailed).toHaveBeenCalledWith(
-      expect.objectContaining({code: 'no-workflow-files'}),
-    );
+    await expect(result).rejects.toMatchObject({code: 'content-too-large'});
   });
 
-  it('marks invalid YAML as a permanent failed sync', async () => {
-    const {params} = syncParams({
+  it('rejects invalid YAML as invalid-definition', async () => {
+    const result = fetchAndParseWorkflows({
+      ...baseContext,
+      ref: 'main',
+      paths: ['.shipfox/workflows/bad.yml'],
       sourceControl: sourceControl({
         fetchFile: vi.fn(() =>
           Promise.resolve({
@@ -135,27 +179,54 @@ describe('syncDefinitionsFromSource', () => {
       }),
     });
 
-    const result = syncDefinitionsFromSource(params);
-
-    await expect(result).rejects.toBeInstanceOf(DefinitionSyncPermanentError);
-    expect(params.markFailed).toHaveBeenCalledWith(
-      expect.objectContaining({code: 'invalid-definition'}),
-    );
+    await expect(result).rejects.toMatchObject({code: 'invalid-definition'});
   });
 
-  it('leaves transient provider failures retryable', async () => {
-    const {params, states} = syncParams({
-      sourceControl: sourceControl({
-        listFiles: vi.fn(() => {
-          throw new IntegrationProviderError('timeout', 'Provider timed out');
-        }),
-      }),
+  it('emits onProgress for every path', async () => {
+    const onProgress = vi.fn();
+    await fetchAndParseWorkflows({
+      ...baseContext,
+      ref: 'main',
+      paths: ['.shipfox/workflows/ci.yml'],
+      sourceControl: sourceControl(),
+      onProgress,
     });
 
-    const result = syncDefinitionsFromSource(params);
+    expect(onProgress).toHaveBeenCalledWith('.shipfox/workflows/ci.yml');
+  });
+});
 
-    await expect(result).rejects.toMatchObject({reason: 'timeout'});
-    expect(states).toEqual(['syncing']);
-    expect(params.markFailed).not.toHaveBeenCalled();
+describe('classifySyncFailure', () => {
+  it.each([
+    ['rate-limited', true, 'provider-rate-limited'],
+    ['timeout', true, 'provider-timeout'],
+    ['provider-unavailable', true, 'provider-unavailable'],
+    ['access-denied', false, 'provider-access-denied'],
+    ['repository-not-found', false, 'provider-repository-not-found'],
+    ['file-not-found', false, 'provider-file-not-found'],
+    ['malformed-provider-response', false, 'provider-malformed-response'],
+    ['content-too-large', false, 'content-too-large'],
+    ['too-many-files', false, 'too-many-files'],
+  ])('maps IntegrationProviderError(%s) to retryable=%s code=%s', (reason, retryable, code) => {
+    const result = classifySyncFailure(
+      // biome-ignore lint/suspicious/noExplicitAny: enumerated reason
+      new IntegrationProviderError(reason as any, 'boom'),
+    );
+
+    expect(result).toEqual({code, message: 'boom', retryable});
+  });
+
+  it('classifies DefinitionSyncPermanentError as non-retryable', () => {
+    const result = classifySyncFailure(
+      new DefinitionSyncPermanentError('invalid-definition', 'bad yaml'),
+    );
+
+    expect(result).toEqual({code: 'invalid-definition', message: 'bad yaml', retryable: false});
+  });
+
+  it('falls back to unknown + retryable for plain errors', () => {
+    const result = classifySyncFailure(new Error('boom'));
+
+    expect(result).toEqual({code: 'unknown', message: 'boom', retryable: true});
   });
 });

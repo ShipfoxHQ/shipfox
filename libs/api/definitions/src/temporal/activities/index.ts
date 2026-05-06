@@ -1,8 +1,10 @@
-import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
-import {createSyncDefinitionsActivity} from './sync-activities.js';
-
-export function createDefinitionSyncActivities(sourceControl: IntegrationSourceControlService) {
-  return {
-    syncDefinitionsForProjectSource: createSyncDefinitionsActivity(sourceControl),
-  };
-}
+export type {
+  DiscoverWorkflowsActivityResult,
+  FetchAndApplyActivityInput,
+  FetchAndApplyActivityResult,
+  MarkSyncFailedActivityInput,
+  PrepareSyncResult,
+  SyncRefScopedInput,
+  SyncWorkflowInput,
+} from './sync-activities.js';
+export {createDefinitionSyncActivities} from './sync-activities.js';

@@ -40,5 +40,6 @@ export const definitionFactory = Factory.define<WorkflowDefinition>(({sequence, 
     fetchedAt: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
+    deletedAt: null,
   };
 });

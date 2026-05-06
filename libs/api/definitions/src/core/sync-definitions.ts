@@ -1,137 +1,49 @@
 import {
   IntegrationProviderError,
   type IntegrationSourceControlService,
+  MAX_REPOSITORY_FILE_BYTES,
 } from '@shipfox/api-integration-core';
+import type {WorkflowSpec} from './entities/definition.js';
 import type {DefinitionSyncErrorCode} from './entities/sync-state.js';
 import {DefinitionParseError, DefinitionSyncPermanentError} from './errors.js';
 import {parseDefinition} from './parse-definition.js';
 
-const WORKFLOW_PREFIX = '.shipfox/workflows/';
-const MAX_WORKFLOW_FILES = 100;
-const MAX_FILE_BYTES = 1_000_000;
-const FILE_FETCH_CONCURRENCY = 4;
+export const WORKFLOW_PREFIX = '.shipfox/workflows/';
+export const MAX_WORKFLOW_FILES = 100;
+export const FILE_FETCH_CONCURRENCY = 4;
 
-export interface SyncDefinitionsFromSourceParams {
-  projectId: string;
+export interface SyncSourceContext {
   workspaceId: string;
   sourceConnectionId: string;
   sourceExternalRepositoryId: string;
   sourceControl: IntegrationSourceControlService;
-  markSyncing: (input: SyncStateUpdate) => Promise<void>;
-  markSucceeded: (input: SyncStateUpdate) => Promise<void>;
-  markFailed: (input: SyncFailureUpdate) => Promise<void>;
-  upsertDefinition: (input: SyncDefinitionUpsert) => Promise<unknown>;
 }
 
-export interface SyncStateUpdate {
-  projectId: string;
-  sourceConnectionId: string;
-  sourceExternalRepositoryId: string;
+export interface ResolvedSyncSource {
   ref: string;
 }
 
-export interface SyncFailureUpdate extends SyncStateUpdate {
-  code: DefinitionSyncErrorCode;
-  message: string;
-}
-
-export interface SyncDefinitionUpsert {
-  projectId: string;
-  configPath: string;
-  source: 'vcs';
-  ref: string;
-  name: string;
-  definition: ReturnType<typeof parseDefinition>;
-}
-
-export interface SyncDefinitionsFromSourceResult {
-  ref: string;
-  syncedDefinitions: number;
-}
-
-export async function syncDefinitionsFromSource(
-  params: SyncDefinitionsFromSourceParams,
-): Promise<SyncDefinitionsFromSourceResult> {
+export async function resolveSyncSource(params: SyncSourceContext): Promise<ResolvedSyncSource> {
   const source = await params.sourceControl.resolveRepository({
     workspaceId: params.workspaceId,
     connectionId: params.sourceConnectionId,
     externalRepositoryId: params.sourceExternalRepositoryId,
   });
-  const ref = source.repository.defaultBranch;
-  const state = {
-    projectId: params.projectId,
-    sourceConnectionId: params.sourceConnectionId,
-    sourceExternalRepositoryId: params.sourceExternalRepositoryId,
-    ref,
-  };
-
-  await params.markSyncing(state);
-
-  try {
-    const files = await listWorkflowFiles(params, ref);
-    const definitions = await mapWithConcurrency(files, FILE_FETCH_CONCURRENCY, async (file) => {
-      const snapshot = await params.sourceControl.fetchFile({
-        workspaceId: params.workspaceId,
-        connectionId: params.sourceConnectionId,
-        externalRepositoryId: params.sourceExternalRepositoryId,
-        ref,
-        path: file.path,
-      });
-
-      if (new TextEncoder().encode(snapshot.content).length > MAX_FILE_BYTES) {
-        throw new DefinitionSyncPermanentError(
-          'content-too-large',
-          `Workflow file is larger than ${MAX_FILE_BYTES} bytes: ${file.path}`,
-        );
-      }
-
-      try {
-        const definition = parseDefinition(snapshot.content);
-        return {path: snapshot.path, definition};
-      } catch (error) {
-        if (error instanceof DefinitionParseError) {
-          throw new DefinitionSyncPermanentError(
-            'invalid-definition',
-            `Invalid workflow definition at ${snapshot.path}: ${error.message}`,
-          );
-        }
-        throw error;
-      }
-    });
-
-    for (const item of definitions) {
-      await params.upsertDefinition({
-        projectId: params.projectId,
-        configPath: item.path,
-        source: 'vcs',
-        ref,
-        name: item.definition.name,
-        definition: item.definition,
-      });
-    }
-
-    await params.markSucceeded(state);
-
-    return {ref, syncedDefinitions: definitions.length};
-  } catch (error) {
-    const failure = toSyncFailure(error);
-    if (!failure.retryable) {
-      await params.markFailed({...state, code: failure.code, message: failure.message});
-      throw new DefinitionSyncPermanentError(failure.code, failure.message);
-    }
-    throw error;
-  }
+  return {ref: source.repository.defaultBranch};
 }
 
-async function listWorkflowFiles(
-  params: SyncDefinitionsFromSourceParams,
-  ref: string,
-): Promise<Array<{path: string}>> {
+export interface DiscoverWorkflowFilesParams extends SyncSourceContext {
+  ref: string;
+}
+
+export async function discoverWorkflowFiles(
+  params: DiscoverWorkflowFilesParams,
+): Promise<{paths: string[]}> {
   const page = await params.sourceControl.listFiles({
     workspaceId: params.workspaceId,
     connectionId: params.sourceConnectionId,
     externalRepositoryId: params.sourceExternalRepositoryId,
-    ref,
+    ref: params.ref,
     prefix: WORKFLOW_PREFIX,
     limit: MAX_WORKFLOW_FILES,
   });
@@ -142,52 +54,93 @@ async function listWorkflowFiles(
     );
   }
 
-  const files = page.files.filter(
-    (file) => file.path.endsWith('.yml') || file.path.endsWith('.yaml'),
-  );
-  if (files.length === 0) {
+  const paths = page.files
+    .filter((file) => file.path.endsWith('.yml') || file.path.endsWith('.yaml'))
+    .map((file) => file.path);
+  if (paths.length === 0) {
     throw new DefinitionSyncPermanentError(
       'no-workflow-files',
       `No workflow files were found under ${WORKFLOW_PREFIX}`,
     );
   }
 
-  return files;
+  return {paths};
 }
 
-function toSyncFailure(error: unknown): {
+export interface ParsedWorkflow {
+  path: string;
+  name: string;
+  definition: WorkflowSpec;
+}
+
+export interface FetchAndParseWorkflowsParams extends SyncSourceContext {
+  ref: string;
+  paths: string[];
+  onProgress?: ((path: string) => void) | undefined;
+}
+
+export async function fetchAndParseWorkflows(
+  params: FetchAndParseWorkflowsParams,
+): Promise<ParsedWorkflow[]> {
+  return await mapWithConcurrency(params.paths, FILE_FETCH_CONCURRENCY, async (path) => {
+    params.onProgress?.(path);
+
+    const snapshot = await params.sourceControl.fetchFile({
+      workspaceId: params.workspaceId,
+      connectionId: params.sourceConnectionId,
+      externalRepositoryId: params.sourceExternalRepositoryId,
+      ref: params.ref,
+      path,
+    });
+
+    if (Buffer.byteLength(snapshot.content, 'utf8') > MAX_REPOSITORY_FILE_BYTES) {
+      throw new DefinitionSyncPermanentError(
+        'content-too-large',
+        `Workflow file is larger than ${MAX_REPOSITORY_FILE_BYTES} bytes: ${snapshot.path}`,
+      );
+    }
+
+    try {
+      const definition = parseDefinition(snapshot.content);
+      return {path: snapshot.path, name: definition.name, definition};
+    } catch (error) {
+      if (error instanceof DefinitionParseError) {
+        throw new DefinitionSyncPermanentError(
+          'invalid-definition',
+          `Invalid workflow definition at ${snapshot.path}: ${error.message}`,
+        );
+      }
+      throw error;
+    }
+  });
+}
+
+export interface SyncFailureClassification {
   code: DefinitionSyncErrorCode;
   message: string;
   retryable: boolean;
-} {
+}
+
+export function classifySyncFailure(error: unknown): SyncFailureClassification {
   if (error instanceof DefinitionSyncPermanentError) {
-    return {code: error.code as DefinitionSyncErrorCode, message: error.message, retryable: false};
+    return {code: error.code, message: error.message, retryable: false};
   }
   if (error instanceof IntegrationProviderError) {
     return {
       code: providerErrorCode(error.reason),
       message: error.message,
-      retryable:
-        error.reason === 'rate-limited' ||
-        error.reason === 'timeout' ||
-        error.reason === 'provider-unavailable',
+      retryable: isProviderReasonRetryable(error.reason),
     };
   }
-  if (error instanceof Error && 'reason' in error && typeof error.reason === 'string') {
-    const reason = error.reason;
-    return {
-      code: providerErrorCode(reason),
-      message: error.message,
-      retryable:
-        reason === 'rate-limited' || reason === 'timeout' || reason === 'provider-unavailable',
-    };
-  }
-
   return {
     code: 'unknown',
     message: error instanceof Error ? error.message : String(error),
     retryable: true,
   };
+}
+
+function isProviderReasonRetryable(reason: string): boolean {
+  return reason === 'rate-limited' || reason === 'timeout' || reason === 'provider-unavailable';
 }
 
 function providerErrorCode(reason: string): DefinitionSyncErrorCode {
@@ -210,12 +163,18 @@ async function mapWithConcurrency<T, U>(
 ): Promise<U[]> {
   const results = new Array<U>(items.length);
   let next = 0;
+  let aborted = false;
 
   async function worker(): Promise<void> {
-    while (next < items.length) {
+    while (!aborted && next < items.length) {
       const index = next;
       next += 1;
-      results[index] = await mapper(items[index] as T);
+      try {
+        results[index] = await mapper(items[index] as T);
+      } catch (error) {
+        aborted = true;
+        throw error;
+      }
     }
   }
 
