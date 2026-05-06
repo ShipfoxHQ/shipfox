@@ -157,8 +157,26 @@ function DropdownMenuItem({
   closeOnSelect = true,
   iconStyle,
   onSelect,
+  asChild = false,
   ...props
 }: DropdownMenuItemProps) {
+  if (asChild) {
+    return (
+      <DropdownMenuPrimitive.Item
+        data-slot="dropdown-menu-item"
+        className={cn(dropdownMenuItemVariants({inset, variant}), className)}
+        onSelect={(e) => {
+          if (!closeOnSelect) e.preventDefault();
+          onSelect?.(e);
+        }}
+        asChild
+        {...props}
+      >
+        {children}
+      </DropdownMenuPrimitive.Item>
+    );
+  }
+
   return (
     <DropdownMenuPrimitive.Item
       data-slot="dropdown-menu-item"
