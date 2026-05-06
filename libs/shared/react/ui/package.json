@@ -67,6 +67,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@argos-ci/storybook": "^5.3.4",
     "@shipfox/biome": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
@@ -75,6 +76,8 @@
     "@storybook/react": "^10.0.0",
     "@storybook/react-vite": "^10.0.0",
     "@tailwindcss/vite": "^4.1.13",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.1.11",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
