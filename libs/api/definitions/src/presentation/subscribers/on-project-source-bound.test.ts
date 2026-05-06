@@ -3,20 +3,12 @@ import type {DomainEvent} from '@shipfox/node-outbox';
 import {onProjectSourceBound} from './on-project-source-bound.js';
 
 const startMock = vi.fn();
-const errorLogMock = vi.fn();
 
 vi.mock('@shipfox/node-temporal', () => ({
   temporalClient: () => ({
     workflow: {
       start: startMock,
     },
-  }),
-}));
-
-vi.mock('@shipfox/node-opentelemetry', () => ({
-  logger: () => ({
-    info: vi.fn(),
-    error: errorLogMock,
   }),
 }));
 
@@ -43,7 +35,6 @@ function buildEvent(payload: ProjectSourceBoundEvent): DomainEvent {
 describe('onProjectSourceBound', () => {
   beforeEach(() => {
     startMock.mockReset();
-    errorLogMock.mockReset();
     startMock.mockResolvedValue({});
   });
 
@@ -69,7 +60,7 @@ describe('onProjectSourceBound', () => {
     });
   });
 
-  it('logs and rethrows when the temporal client fails to start', async () => {
+  it('rethrows when the temporal client fails to start', async () => {
     const failure = new Error('temporal unavailable');
     startMock.mockRejectedValueOnce(failure);
     const payload = buildPayload();
@@ -77,13 +68,5 @@ describe('onProjectSourceBound', () => {
     const result = onProjectSourceBound(buildEvent(payload));
 
     await expect(result).rejects.toBe(failure);
-    expect(errorLogMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        err: failure,
-        projectId: payload.projectId,
-        sourceConnectionId: payload.sourceConnectionId,
-      }),
-      'Failed to start definition sync workflow',
-    );
   });
 });

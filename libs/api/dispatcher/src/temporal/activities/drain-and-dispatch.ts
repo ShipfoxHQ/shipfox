@@ -1,3 +1,4 @@
+import {captureException} from '@shipfox/node-error-monitoring';
 import {drainAll, getSubscribers, markDispatched} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 
@@ -15,10 +16,13 @@ export async function drainAndDispatch(): Promise<void> {
       try {
         await handler(row.event);
       } catch (error) {
-        logger().error(
-          {err: error, eventType: row.event.type, eventId: row.id},
-          'Handler failed for outbox event',
-        );
+        const errorContext = {
+          eventType: row.event.type,
+          eventId: row.id,
+          eventPayload: row.event.payload,
+        };
+        logger().error({err: error, ...errorContext}, 'Handler failed for outbox event');
+        captureException(error, {extra: errorContext});
         allSucceeded = false;
       }
     }
