@@ -18,6 +18,10 @@ export function HomeRouter() {
     return <FullPageLoader />;
   }
 
+  if (!workspace) {
+    return <FullPageLoader />;
+  }
+
   if (connectionsQuery.isError) {
     return (
       <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
@@ -52,11 +56,11 @@ export function HomeRouter() {
   const projects = projectsQuery.data?.pages.flatMap((page) => page.projects) ?? [];
 
   if (connections.length === 0) {
-    return <Navigate to="/setup/integrations" replace />;
+    return <Navigate to="/workspaces/$wid/integrations" params={{wid: workspace.id}} replace />;
   }
 
   if (projects.length === 0) {
-    return <Navigate to="/setup/projects/new" replace />;
+    return <Navigate to="/workspaces/$wid/projects/new" params={{wid: workspace.id}} replace />;
   }
 
   return <ProjectsHubPage />;

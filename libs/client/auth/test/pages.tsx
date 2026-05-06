@@ -24,6 +24,11 @@ function createTestRouter(path: string, element: ReactElement) {
     path: '/',
     component: () => (path.split('?')[0] === '/' ? element : <h1>Authenticated home</h1>),
   });
+  const workspaceRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: 'workspaces/$wid',
+    component: () => <h1>Authenticated home</h1>,
+  });
   const loginRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/auth/login',
@@ -46,6 +51,7 @@ function createTestRouter(path: string, element: ReactElement) {
   });
   const routeTree = rootRoute.addChildren([
     indexRoute,
+    workspaceRoute,
     loginRoute,
     signupRoute,
     passwordResetRoute,

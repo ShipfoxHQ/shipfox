@@ -1,5 +1,5 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {fireEvent, screen} from '@testing-library/react';
+import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {AuthGuard, WorkspaceGuard} from '#components/auth-guard.js';
 import {pageUserFactory} from '#test/factories/user.js';
 import {renderAuthPage} from '#test/pages.js';
@@ -7,7 +7,12 @@ import {jsonResponse, requestUrl} from '#test/utils.js';
 
 describe('WorkspaceOnboardingPage', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     configureApiClient({baseUrl: 'https://api.example.test', getAccessToken: undefined});
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
   });
 
   test('creates a workspace before showing the signed-in app', async () => {
@@ -72,8 +77,12 @@ describe('WorkspaceOnboardingPage', () => {
     });
     fireEvent.click(screen.getByRole('button', {name: 'Create workspace'}));
 
-    expect(await screen.findByRole('heading', {name: 'Authenticated home'})).toBeInTheDocument();
-    expect(requestBody).toEqual({name: 'Acme'});
+    await waitFor(() => {
+      expect(requestBody).toEqual({name: 'Acme'});
+      expect(JSON.parse(window.localStorage.getItem('shipfox.lastWorkspaceId') ?? 'null')).toBe(
+        '33333333-3333-4333-8333-333333333333',
+      );
+    });
   });
 
   test('validates the workspace name locally', async () => {

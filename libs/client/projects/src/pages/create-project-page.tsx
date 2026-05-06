@@ -1,6 +1,6 @@
 import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {createProjectBodySchema} from '@shipfox/api-projects-dto';
-import {useAuthState, useMaybeActiveWorkspace} from '@shipfox/client-auth';
+import {useMaybeActiveWorkspace} from '@shipfox/client-auth';
 import {
   ConnectionPicker,
   RepositoryPicker,
@@ -35,22 +35,8 @@ import {projectErrorCopy} from '#project-error.js';
 
 const REPOSITORY_NAME_SPLIT_RE = /[/-]/;
 
-export interface CreateProjectPageProps {
-  /**
-   * Optional workspace id passed via the URL search param. Setup routes are
-   * not nested under `/workspaces/$wid`, so the workspace context is carried
-   * through `?wid=...` from links like the hub page's "New project" button.
-   */
-  workspaceIdFromUrl?: string | undefined;
-}
-
-export function CreateProjectPage({workspaceIdFromUrl}: CreateProjectPageProps = {}) {
-  const auth = useAuthState();
-  const activeWorkspace = useMaybeActiveWorkspace();
-  const fromUrl = workspaceIdFromUrl
-    ? auth.workspaces.find((w) => w.id === workspaceIdFromUrl)
-    : undefined;
-  const workspace = fromUrl ?? activeWorkspace ?? auth.workspaces[0];
+export function CreateProjectPage() {
+  const workspace = useMaybeActiveWorkspace();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const createProject = useCreateProjectMutation();
@@ -113,8 +99,12 @@ export function CreateProjectPage({workspaceIdFromUrl}: CreateProjectPageProps =
     return <FullPageLoader />;
   }
 
+  if (!workspace) {
+    return <FullPageLoader />;
+  }
+
   if (!connectionsQuery.isError && connections.length === 0) {
-    return <Navigate to="/setup/integrations" replace />;
+    return <Navigate to="/workspaces/$wid/integrations" params={{wid: workspace.id}} replace />;
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -179,130 +169,130 @@ export function CreateProjectPage({workspaceIdFromUrl}: CreateProjectPageProps =
     : 'No repositories visible to this connection.';
 
   return (
-    <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
-      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-24">
-        <header className="flex flex-col gap-8">
-          {hasProjects ? (
-            <ButtonLink variant="muted" href="/">
-              Back to projects
-            </ButtonLink>
-          ) : null}
-          <div>
-            <Header variant="h1">Create project</Header>
-            <Text size="md" className="text-foreground-neutral-muted">
-              Choose a repository to create a project from.
-            </Text>
-          </div>
-        </header>
-
-        {connectionsQuery.isError ? (
-          <Alert variant="error">
-            <Text size="sm">Could not load source-control connections. Try again.</Text>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => connectionsQuery.refetch()}
-              className="mt-8 w-fit"
-            >
-              Retry
-            </Button>
-          </Alert>
+    <div className="flex w-full flex-col gap-24">
+      <header className="flex flex-col gap-8">
+        {hasProjects ? (
+          <ButtonLink variant="muted" href="/">
+            Back to projects
+          </ButtonLink>
         ) : null}
+        <div>
+          <Header variant="h1">Create project</Header>
+          <Text size="md" className="text-foreground-neutral-muted">
+            Choose a repository to create a project from.
+          </Text>
+        </div>
+      </header>
 
-        <form
-          onSubmit={onSubmit}
-          noValidate
-          aria-labelledby="create-project-title"
-          className="grid items-start gap-24 lg:grid-cols-[minmax(0,1fr)_360px]"
-        >
-          <Card className="gap-20 p-24">
-            <CardHeader>
-              <CardTitle id="create-project-title" variant="h2">
-                Source
-              </CardTitle>
-              <CardDescription>
-                Pick a repository visible to one of your source-control connections.
-              </CardDescription>
-            </CardHeader>
+      {connectionsQuery.isError ? (
+        <Alert variant="error">
+          <Text size="sm">Could not load source-control connections. Try again.</Text>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => connectionsQuery.refetch()}
+            className="mt-8 w-fit"
+          >
+            Retry
+          </Button>
+        </Alert>
+      ) : null}
 
-            <CardContent className="flex flex-col gap-18">
-              {connections.length > 0 ? (
-                <ConnectionPicker
-                  connections={connections}
-                  selectedConnectionId={effectiveSelectedConnectionId}
-                  onSelect={selectConnection}
-                />
-              ) : null}
+      <form
+        onSubmit={onSubmit}
+        noValidate
+        aria-labelledby="create-project-title"
+        className="grid items-start gap-24 lg:grid-cols-[minmax(0,1fr)_360px]"
+      >
+        <Card className="gap-20 p-24">
+          <CardHeader>
+            <CardTitle id="create-project-title" variant="h2">
+              Source
+            </CardTitle>
+            <CardDescription>
+              Pick a repository visible to one of your source-control connections.
+            </CardDescription>
+          </CardHeader>
 
-              {connections.length === 1 ? (
-                <Button asChild variant="transparent" size="sm" className="w-fit">
-                  <Link to="/setup/integrations">Add another integration</Link>
-                </Button>
-              ) : null}
-
-              {showRepoPicker ? (
-                <RepositoryPicker
-                  repositories={repositories}
-                  selectedRepositoryId={selectedRepositoryId}
-                  onSelect={setSelectedRepositoryId}
-                  isLoading={repositoriesQuery.isPending}
-                  isFetchingNextPage={repositoriesQuery.isFetchingNextPage}
-                  hasNextPage={repositoriesQuery.hasNextPage}
-                  onLoadMore={() => repositoriesQuery.fetchNextPage()}
-                  emptyMessage={filteredEmptyMessage}
-                  searchValue={repoFilter}
-                  onSearchChange={setRepoFilter}
-                />
-              ) : null}
-            </CardContent>
-          </Card>
-
-          <Card className="gap-20 p-24 lg:sticky lg:top-32">
-            <CardHeader>
-              <CardTitle variant="h2">Project details</CardTitle>
-              <CardDescription>Pick a name and create the project.</CardDescription>
-            </CardHeader>
-
-            {formError ? (
-              <Alert variant="error" animated={false}>
-                <div ref={errorRef} tabIndex={-1}>
-                  {formError}
-                </div>
-              </Alert>
+          <CardContent className="flex flex-col gap-18">
+            {connections.length > 0 ? (
+              <ConnectionPicker
+                connections={connections}
+                selectedConnectionId={effectiveSelectedConnectionId}
+                onSelect={selectConnection}
+              />
             ) : null}
 
-            <CardContent className="flex flex-col gap-18">
-              <ProjectSummary
-                connection={selectedConnection}
-                repositoryFullName={selectedRepository?.full_name}
+            {connections.length === 1 ? (
+              <Button asChild variant="transparent" size="sm" className="w-fit">
+                <Link to="/workspaces/$wid/integrations" params={{wid: workspace.id}}>
+                  Add another integration
+                </Link>
+              </Button>
+            ) : null}
+
+            {showRepoPicker ? (
+              <RepositoryPicker
+                repositories={repositories}
+                selectedRepositoryId={selectedRepositoryId}
+                onSelect={setSelectedRepositoryId}
+                isLoading={repositoriesQuery.isPending}
+                isFetchingNextPage={repositoriesQuery.isFetchingNextPage}
+                hasNextPage={repositoriesQuery.hasNextPage}
+                onLoadMore={() => repositoriesQuery.fetchNextPage()}
+                emptyMessage={filteredEmptyMessage}
+                searchValue={repoFilter}
+                onSearchChange={setRepoFilter}
               />
+            ) : null}
+          </CardContent>
+        </Card>
 
-              <div className="flex flex-col gap-8">
-                <Label htmlFor="project-name">Project name</Label>
-                <Input
-                  id="project-name"
-                  value={projectName}
-                  onChange={(event) => {
-                    setNameTouched(true);
-                    setName(event.target.value);
-                  }}
-                  placeholder="Platform"
-                />
+        <Card className="gap-20 p-24 lg:sticky lg:top-32">
+          <CardHeader>
+            <CardTitle variant="h2">Project details</CardTitle>
+            <CardDescription>Pick a name and create the project.</CardDescription>
+          </CardHeader>
+
+          {formError ? (
+            <Alert variant="error" animated={false}>
+              <div ref={errorRef} tabIndex={-1}>
+                {formError}
               </div>
-            </CardContent>
+            </Alert>
+          ) : null}
 
-            <Button
-              type="submit"
-              iconRight="chevronRight"
-              isLoading={createProject.isPending}
-              disabled={!selectedConnection || !selectedRepository}
-            >
-              Create project
-            </Button>
-          </Card>
-        </form>
-      </div>
-    </main>
+          <CardContent className="flex flex-col gap-18">
+            <ProjectSummary
+              connection={selectedConnection}
+              repositoryFullName={selectedRepository?.full_name}
+            />
+
+            <div className="flex flex-col gap-8">
+              <Label htmlFor="project-name">Project name</Label>
+              <Input
+                id="project-name"
+                value={projectName}
+                onChange={(event) => {
+                  setNameTouched(true);
+                  setName(event.target.value);
+                }}
+                placeholder="Platform"
+              />
+            </div>
+          </CardContent>
+
+          <Button
+            type="submit"
+            iconRight="chevronRight"
+            isLoading={createProject.isPending}
+            disabled={!selectedConnection || !selectedRepository}
+          >
+            Create project
+          </Button>
+        </Card>
+      </form>
+    </div>
   );
 }
 

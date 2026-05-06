@@ -60,14 +60,19 @@ function createTestRouter(path: string, element: ReactElement) {
     component: () =>
       initialPath === `/workspaces/${PROJECT_TEST_WID}` ? element : <ProjectsHubPage />,
   });
-  const newProjectRoute = createRoute({
+  const workspaceNewProjectRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/setup/projects/new',
-    component: () => (initialPath === '/setup/projects/new' ? element : <CreateProjectPage />),
+    path: '/workspaces/$wid/projects/new',
+    component: () =>
+      initialPath === `/workspaces/${PROJECT_TEST_WID}/projects/new` ? (
+        element
+      ) : (
+        <CreateProjectPage />
+      ),
   });
   const integrationsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/setup/integrations',
+    path: '/workspaces/$wid/integrations',
     component: () => <div>Integrations gallery placeholder</div>,
   });
   const projectDetailRoute = createRoute({
@@ -75,7 +80,7 @@ function createTestRouter(path: string, element: ReactElement) {
     path: '/workspaces/$wid/projects/$pid',
     component: () => {
       const params = useParams({strict: false}) as {pid?: string};
-      if (initialPath.startsWith('/workspaces/') && initialPath.includes('/projects/')) {
+      if (initialPath === `/workspaces/${PROJECT_TEST_WID}/projects/${params.pid}`) {
         return element;
       }
 
@@ -88,7 +93,7 @@ function createTestRouter(path: string, element: ReactElement) {
     routeTree: rootRoute.addChildren([
       indexRoute,
       workspaceRoute,
-      newProjectRoute,
+      workspaceNewProjectRoute,
       integrationsRoute,
       projectDetailRoute,
     ]),

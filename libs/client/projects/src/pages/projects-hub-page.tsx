@@ -29,7 +29,7 @@ export function ProjectsHubPage() {
       <header className="flex items-start justify-between gap-24 max-[640px]:flex-col">
         <Header variant="h2">Projects</Header>
         <Button asChild iconLeft="addLine">
-          <Link to="/setup/projects/new" search={{wid: workspace.id}}>
+          <Link to="/workspaces/$wid/projects/new" params={{wid: workspace.id}}>
             New project
           </Link>
         </Button>
@@ -108,7 +108,7 @@ function EmptyProjects({workspaceId}: {workspaceId: string}) {
         </CardDescription>
       </CardHeader>
       <Button asChild iconRight="chevronRight">
-        <Link to="/setup/projects/new" search={{wid: workspaceId}}>
+        <Link to="/workspaces/$wid/projects/new" params={{wid: workspaceId}}>
           Create project
         </Link>
       </Button>

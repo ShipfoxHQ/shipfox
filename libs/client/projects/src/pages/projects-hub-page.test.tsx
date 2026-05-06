@@ -4,7 +4,7 @@ import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js'
 import {ProjectsHubPage} from './projects-hub-page.js';
 
 const NEW_PROJECT_REGEX = /New project/i;
-const SETUP_PROJECTS_NEW_HREF_REGEX = /^\/setup\/projects\/new\?wid=/;
+const WORKSPACE_PROJECTS_NEW_HREF = `/workspaces/${PROJECT_TEST_WID}/projects/new`;
 
 describe('ProjectsHubPage', () => {
   test('renders Projects H2 + New project button + empty state with create CTA', async () => {
@@ -17,15 +17,16 @@ describe('ProjectsHubPage', () => {
     // Regression: the page-level "Projects" title is now an in-content H2 (the
     // top nav owns identity); the old workspace-name/email subtitle is gone.
     expect(await screen.findByRole('heading', {name: 'Projects'})).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: NEW_PROJECT_REGEX}).getAttribute('href')).toMatch(
-      SETUP_PROJECTS_NEW_HREF_REGEX,
+    expect(screen.getByRole('link', {name: NEW_PROJECT_REGEX})).toHaveAttribute(
+      'href',
+      WORKSPACE_PROJECTS_NEW_HREF,
     );
     expect(await screen.findByText('Create your first project')).toBeInTheDocument();
     expect(
       (screen.getAllByRole('link', {name: 'Create project'})[0] as HTMLAnchorElement).getAttribute(
         'href',
       ),
-    ).toMatch(SETUP_PROJECTS_NEW_HREF_REGEX);
+    ).toBe(WORKSPACE_PROJECTS_NEW_HREF);
   });
 
   test('renders projects and loads the next cursor page', async () => {

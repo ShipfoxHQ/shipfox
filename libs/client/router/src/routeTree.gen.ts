@@ -19,12 +19,12 @@ import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as WorkspacesWidLayoutRouteImport } from './routes/workspaces/$wid/_layout'
 import { Route as IntegrationsGithubCallbackRouteImport } from './routes/integrations/github/callback'
 import { Route as WorkspacesWidLayoutIndexRouteImport } from './routes/workspaces/$wid/_layout/index'
-import { Route as SetupLayoutIntegrationsIndexRouteImport } from './routes/setup/_layout/integrations/index'
 import { Route as SetupLayoutWorkspacesNewRouteImport } from './routes/setup/_layout/workspaces/new'
-import { Route as SetupLayoutProjectsNewRouteImport } from './routes/setup/_layout/projects/new'
-import { Route as SetupLayoutIntegrationsGithubRouteImport } from './routes/setup/_layout/integrations/github'
-import { Route as SetupLayoutIntegrationsDebugRouteImport } from './routes/setup/_layout/integrations/debug'
+import { Route as WorkspacesWidLayoutIntegrationsIndexRouteImport } from './routes/workspaces/$wid/_layout/integrations/index'
+import { Route as WorkspacesWidLayoutProjectsNewRouteImport } from './routes/workspaces/$wid/_layout/projects/new'
 import { Route as WorkspacesWidLayoutProjectsPidRouteImport } from './routes/workspaces/$wid/_layout/projects/$pid'
+import { Route as WorkspacesWidLayoutIntegrationsGithubRouteImport } from './routes/workspaces/$wid/_layout/integrations/github'
+import { Route as WorkspacesWidLayoutIntegrationsDebugRouteImport } from './routes/workspaces/$wid/_layout/integrations/debug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -78,39 +78,40 @@ const WorkspacesWidLayoutIndexRoute =
     path: '/',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
-const SetupLayoutIntegrationsIndexRoute =
-  SetupLayoutIntegrationsIndexRouteImport.update({
-    id: '/integrations/',
-    path: '/integrations/',
-    getParentRoute: () => SetupLayoutRoute,
-  } as any)
 const SetupLayoutWorkspacesNewRoute =
   SetupLayoutWorkspacesNewRouteImport.update({
     id: '/workspaces/new',
     path: '/workspaces/new',
     getParentRoute: () => SetupLayoutRoute,
   } as any)
-const SetupLayoutProjectsNewRoute = SetupLayoutProjectsNewRouteImport.update({
-  id: '/projects/new',
-  path: '/projects/new',
-  getParentRoute: () => SetupLayoutRoute,
-} as any)
-const SetupLayoutIntegrationsGithubRoute =
-  SetupLayoutIntegrationsGithubRouteImport.update({
-    id: '/integrations/github',
-    path: '/integrations/github',
-    getParentRoute: () => SetupLayoutRoute,
+const WorkspacesWidLayoutIntegrationsIndexRoute =
+  WorkspacesWidLayoutIntegrationsIndexRouteImport.update({
+    id: '/integrations/',
+    path: '/integrations/',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
-const SetupLayoutIntegrationsDebugRoute =
-  SetupLayoutIntegrationsDebugRouteImport.update({
-    id: '/integrations/debug',
-    path: '/integrations/debug',
-    getParentRoute: () => SetupLayoutRoute,
+const WorkspacesWidLayoutProjectsNewRoute =
+  WorkspacesWidLayoutProjectsNewRouteImport.update({
+    id: '/projects/new',
+    path: '/projects/new',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
 const WorkspacesWidLayoutProjectsPidRoute =
   WorkspacesWidLayoutProjectsPidRouteImport.update({
     id: '/projects/$pid',
     path: '/projects/$pid',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
+const WorkspacesWidLayoutIntegrationsGithubRoute =
+  WorkspacesWidLayoutIntegrationsGithubRouteImport.update({
+    id: '/integrations/github',
+    path: '/integrations/github',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
+const WorkspacesWidLayoutIntegrationsDebugRoute =
+  WorkspacesWidLayoutIntegrationsDebugRouteImport.update({
+    id: '/integrations/debug',
+    path: '/integrations/debug',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
 
@@ -124,13 +125,13 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupLayoutRouteWithChildren
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
   '/workspaces/$wid': typeof WorkspacesWidLayoutRouteWithChildren
-  '/setup/integrations/debug': typeof SetupLayoutIntegrationsDebugRoute
-  '/setup/integrations/github': typeof SetupLayoutIntegrationsGithubRoute
-  '/setup/projects/new': typeof SetupLayoutProjectsNewRoute
   '/setup/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
-  '/setup/integrations/': typeof SetupLayoutIntegrationsIndexRoute
   '/workspaces/$wid/': typeof WorkspacesWidLayoutIndexRoute
+  '/workspaces/$wid/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
+  '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
+  '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -141,13 +142,13 @@ export interface FileRoutesByTo {
   '/auth/verify-email': typeof AuthVerifyEmailRoute
   '/setup': typeof SetupLayoutRouteWithChildren
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
-  '/setup/integrations/debug': typeof SetupLayoutIntegrationsDebugRoute
-  '/setup/integrations/github': typeof SetupLayoutIntegrationsGithubRoute
-  '/setup/projects/new': typeof SetupLayoutProjectsNewRoute
   '/setup/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
-  '/setup/integrations': typeof SetupLayoutIntegrationsIndexRoute
   '/workspaces/$wid': typeof WorkspacesWidLayoutIndexRoute
+  '/workspaces/$wid/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
+  '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
+  '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/integrations': typeof WorkspacesWidLayoutIntegrationsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -160,13 +161,13 @@ export interface FileRoutesById {
   '/setup/_layout': typeof SetupLayoutRouteWithChildren
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
   '/workspaces/$wid/_layout': typeof WorkspacesWidLayoutRouteWithChildren
-  '/setup/_layout/integrations/debug': typeof SetupLayoutIntegrationsDebugRoute
-  '/setup/_layout/integrations/github': typeof SetupLayoutIntegrationsGithubRoute
-  '/setup/_layout/projects/new': typeof SetupLayoutProjectsNewRoute
   '/setup/_layout/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
-  '/setup/_layout/integrations/': typeof SetupLayoutIntegrationsIndexRoute
   '/workspaces/$wid/_layout/': typeof WorkspacesWidLayoutIndexRoute
+  '/workspaces/$wid/_layout/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
+  '/workspaces/$wid/_layout/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/_layout/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
+  '/workspaces/$wid/_layout/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/_layout/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -180,13 +181,13 @@ export interface FileRouteTypes {
     | '/setup'
     | '/integrations/github/callback'
     | '/workspaces/$wid'
-    | '/setup/integrations/debug'
-    | '/setup/integrations/github'
-    | '/setup/projects/new'
     | '/setup/workspaces/new'
-    | '/setup/integrations/'
     | '/workspaces/$wid/'
+    | '/workspaces/$wid/integrations/debug'
+    | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/projects/$pid'
+    | '/workspaces/$wid/projects/new'
+    | '/workspaces/$wid/integrations/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -197,13 +198,13 @@ export interface FileRouteTypes {
     | '/auth/verify-email'
     | '/setup'
     | '/integrations/github/callback'
-    | '/setup/integrations/debug'
-    | '/setup/integrations/github'
-    | '/setup/projects/new'
     | '/setup/workspaces/new'
-    | '/setup/integrations'
     | '/workspaces/$wid'
+    | '/workspaces/$wid/integrations/debug'
+    | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/projects/$pid'
+    | '/workspaces/$wid/projects/new'
+    | '/workspaces/$wid/integrations'
   id:
     | '__root__'
     | '/'
@@ -215,13 +216,13 @@ export interface FileRouteTypes {
     | '/setup/_layout'
     | '/integrations/github/callback'
     | '/workspaces/$wid/_layout'
-    | '/setup/_layout/integrations/debug'
-    | '/setup/_layout/integrations/github'
-    | '/setup/_layout/projects/new'
     | '/setup/_layout/workspaces/new'
-    | '/setup/_layout/integrations/'
     | '/workspaces/$wid/_layout/'
+    | '/workspaces/$wid/_layout/integrations/debug'
+    | '/workspaces/$wid/_layout/integrations/github'
     | '/workspaces/$wid/_layout/projects/$pid'
+    | '/workspaces/$wid/_layout/projects/new'
+    | '/workspaces/$wid/_layout/integrations/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -308,13 +309,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWidLayoutIndexRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
-    '/setup/_layout/integrations/': {
-      id: '/setup/_layout/integrations/'
-      path: '/integrations'
-      fullPath: '/setup/integrations/'
-      preLoaderRoute: typeof SetupLayoutIntegrationsIndexRouteImport
-      parentRoute: typeof SetupLayoutRoute
-    }
     '/setup/_layout/workspaces/new': {
       id: '/setup/_layout/workspaces/new'
       path: '/workspaces/new'
@@ -322,26 +316,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupLayoutWorkspacesNewRouteImport
       parentRoute: typeof SetupLayoutRoute
     }
-    '/setup/_layout/projects/new': {
-      id: '/setup/_layout/projects/new'
+    '/workspaces/$wid/_layout/integrations/': {
+      id: '/workspaces/$wid/_layout/integrations/'
+      path: '/integrations'
+      fullPath: '/workspaces/$wid/integrations/'
+      preLoaderRoute: typeof WorkspacesWidLayoutIntegrationsIndexRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
+    '/workspaces/$wid/_layout/projects/new': {
+      id: '/workspaces/$wid/_layout/projects/new'
       path: '/projects/new'
-      fullPath: '/setup/projects/new'
-      preLoaderRoute: typeof SetupLayoutProjectsNewRouteImport
-      parentRoute: typeof SetupLayoutRoute
-    }
-    '/setup/_layout/integrations/github': {
-      id: '/setup/_layout/integrations/github'
-      path: '/integrations/github'
-      fullPath: '/setup/integrations/github'
-      preLoaderRoute: typeof SetupLayoutIntegrationsGithubRouteImport
-      parentRoute: typeof SetupLayoutRoute
-    }
-    '/setup/_layout/integrations/debug': {
-      id: '/setup/_layout/integrations/debug'
-      path: '/integrations/debug'
-      fullPath: '/setup/integrations/debug'
-      preLoaderRoute: typeof SetupLayoutIntegrationsDebugRouteImport
-      parentRoute: typeof SetupLayoutRoute
+      fullPath: '/workspaces/$wid/projects/new'
+      preLoaderRoute: typeof WorkspacesWidLayoutProjectsNewRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
     }
     '/workspaces/$wid/_layout/projects/$pid': {
       id: '/workspaces/$wid/_layout/projects/$pid'
@@ -350,23 +337,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWidLayoutProjectsPidRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
+    '/workspaces/$wid/_layout/integrations/github': {
+      id: '/workspaces/$wid/_layout/integrations/github'
+      path: '/integrations/github'
+      fullPath: '/workspaces/$wid/integrations/github'
+      preLoaderRoute: typeof WorkspacesWidLayoutIntegrationsGithubRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
+    '/workspaces/$wid/_layout/integrations/debug': {
+      id: '/workspaces/$wid/_layout/integrations/debug'
+      path: '/integrations/debug'
+      fullPath: '/workspaces/$wid/integrations/debug'
+      preLoaderRoute: typeof WorkspacesWidLayoutIntegrationsDebugRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
   }
 }
 
 interface SetupLayoutRouteChildren {
-  SetupLayoutIntegrationsDebugRoute: typeof SetupLayoutIntegrationsDebugRoute
-  SetupLayoutIntegrationsGithubRoute: typeof SetupLayoutIntegrationsGithubRoute
-  SetupLayoutProjectsNewRoute: typeof SetupLayoutProjectsNewRoute
   SetupLayoutWorkspacesNewRoute: typeof SetupLayoutWorkspacesNewRoute
-  SetupLayoutIntegrationsIndexRoute: typeof SetupLayoutIntegrationsIndexRoute
 }
 
 const SetupLayoutRouteChildren: SetupLayoutRouteChildren = {
-  SetupLayoutIntegrationsDebugRoute: SetupLayoutIntegrationsDebugRoute,
-  SetupLayoutIntegrationsGithubRoute: SetupLayoutIntegrationsGithubRoute,
-  SetupLayoutProjectsNewRoute: SetupLayoutProjectsNewRoute,
   SetupLayoutWorkspacesNewRoute: SetupLayoutWorkspacesNewRoute,
-  SetupLayoutIntegrationsIndexRoute: SetupLayoutIntegrationsIndexRoute,
 }
 
 const SetupLayoutRouteWithChildren = SetupLayoutRoute._addFileChildren(
@@ -375,12 +368,23 @@ const SetupLayoutRouteWithChildren = SetupLayoutRoute._addFileChildren(
 
 interface WorkspacesWidLayoutRouteChildren {
   WorkspacesWidLayoutIndexRoute: typeof WorkspacesWidLayoutIndexRoute
+  WorkspacesWidLayoutIntegrationsDebugRoute: typeof WorkspacesWidLayoutIntegrationsDebugRoute
+  WorkspacesWidLayoutIntegrationsGithubRoute: typeof WorkspacesWidLayoutIntegrationsGithubRoute
   WorkspacesWidLayoutProjectsPidRoute: typeof WorkspacesWidLayoutProjectsPidRoute
+  WorkspacesWidLayoutProjectsNewRoute: typeof WorkspacesWidLayoutProjectsNewRoute
+  WorkspacesWidLayoutIntegrationsIndexRoute: typeof WorkspacesWidLayoutIntegrationsIndexRoute
 }
 
 const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
   WorkspacesWidLayoutIndexRoute: WorkspacesWidLayoutIndexRoute,
+  WorkspacesWidLayoutIntegrationsDebugRoute:
+    WorkspacesWidLayoutIntegrationsDebugRoute,
+  WorkspacesWidLayoutIntegrationsGithubRoute:
+    WorkspacesWidLayoutIntegrationsGithubRoute,
   WorkspacesWidLayoutProjectsPidRoute: WorkspacesWidLayoutProjectsPidRoute,
+  WorkspacesWidLayoutProjectsNewRoute: WorkspacesWidLayoutProjectsNewRoute,
+  WorkspacesWidLayoutIntegrationsIndexRoute:
+    WorkspacesWidLayoutIntegrationsIndexRoute,
 }
 
 const WorkspacesWidLayoutRouteWithChildren =
