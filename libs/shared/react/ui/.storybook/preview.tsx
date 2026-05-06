@@ -2,9 +2,14 @@ import '../index.css';
 import type {Decorator, Preview} from '@storybook/react';
 import {ThemeProvider} from '#components/theme/index.js';
 
-const withTheme: Decorator = (Story, context) => (
-  <ThemeProvider defaultTheme={context.globals.theme}>{Story()}</ThemeProvider>
-);
+const withTheme: Decorator = (Story, context) => {
+  const theme = context.globals.theme;
+  return (
+    <ThemeProvider key={theme} defaultTheme={theme} storageKey={`shipfox-theme-${theme}`}>
+      {Story()}
+    </ThemeProvider>
+  );
+};
 
 const preview: Preview = {
   decorators: [withTheme],
