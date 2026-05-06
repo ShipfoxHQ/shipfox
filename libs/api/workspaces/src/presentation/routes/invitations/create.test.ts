@@ -77,7 +77,7 @@ describe('POST /workspaces/:workspaceId/invitations', () => {
     expect(res.json().code).toBe('forbidden');
   });
 
-  test('transforms missing workspace into 404', async () => {
+  test('returns 403 when caller has no claim to the workspace (whether or not it exists)', async () => {
     const owner = await signupVerifyLogin(app, 'invite-create-missing-workspace');
 
     const res = await app.inject({
@@ -87,7 +87,7 @@ describe('POST /workspaces/:workspaceId/invitations', () => {
       payload: {email: uniqueEmail('missing-workspace-invite')},
     });
 
-    expect(res.statusCode).toBe(404);
-    expect(res.json().code).toBe('not-found');
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('forbidden');
   });
 });

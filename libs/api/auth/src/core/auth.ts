@@ -1,3 +1,4 @@
+import {listMembershipsByUser} from '@shipfox/api-workspaces';
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {config, mailer} from '#config.js';
 import {consumeEmailVerification, createEmailVerification} from '#db/email-verifications.js';
@@ -18,6 +19,7 @@ import {
 } from '#db/users.js';
 import type {User} from './entities/user.js';
 import {
+  AuthDependencyUnavailableError,
   EmailNotVerifiedError,
   EmailTakenError,
   InvalidCredentialsError,
@@ -47,9 +49,13 @@ function daysFromNow(days: number): Date {
 }
 
 async function signAccessToken(user: User): Promise<string> {
+  const memberships = await listMembershipsByUser({userId: user.id}).catch((error: unknown) => {
+    throw new AuthDependencyUnavailableError('workspaces', error);
+  });
   return await signUserToken({
     userId: user.id,
     email: user.email,
+    memberships: memberships.map((m) => ({workspaceId: m.workspaceId, role: m.role})),
     secret: config.AUTH_JWT_SECRET,
     expiresIn: config.AUTH_JWT_EXPIRES_IN,
   });

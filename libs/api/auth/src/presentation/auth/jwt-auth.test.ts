@@ -35,6 +35,7 @@ describe('jwt-auth', () => {
     const token = await signUserToken({
       userId: user.id,
       email: user.email,
+      memberships: [],
       secret: SECRET,
       expiresIn: '7d',
     });
@@ -71,6 +72,7 @@ describe('jwt-auth', () => {
     const token = await signUserToken({
       userId: user.id,
       email: user.email,
+      memberships: [],
       secret: SECRET,
       expiresIn: '-1s',
     });
@@ -89,6 +91,7 @@ describe('jwt-auth', () => {
     const token = await signUserToken({
       userId: user.id,
       email: user.email,
+      memberships: [],
       secret: SECRET,
       expiresIn: '7d',
     });
@@ -109,6 +112,7 @@ describe('jwt-auth', () => {
     const token = await signUserToken({
       userId,
       email,
+      memberships: [],
       secret: SECRET,
       expiresIn: '7d',
     });

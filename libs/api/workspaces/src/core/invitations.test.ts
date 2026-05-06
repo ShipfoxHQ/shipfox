@@ -71,6 +71,7 @@ describe('invitations core', () => {
       workspaceId: workspace.id,
       email,
       invitedByUserId: inviter.userId,
+      invitedByMemberships: [{workspaceId: workspace.id, role: 'admin'}],
     });
 
     expect(invitation.email).toBe(email);
@@ -92,12 +93,14 @@ describe('invitations core', () => {
       workspaceId: workspace.id,
       email,
       invitedByUserId: inviter.userId,
+      invitedByMemberships: [{workspaceId: workspace.id, role: 'admin'}],
     });
 
     const promise = createWorkspaceInvitation({
       workspaceId: workspace.id,
       email,
       invitedByUserId: inviter.userId,
+      invitedByMemberships: [{workspaceId: workspace.id, role: 'admin'}],
     });
 
     await expect(promise).rejects.toBeInstanceOf(OpenInvitationExistsError);
@@ -117,6 +120,7 @@ describe('invitations core', () => {
       workspaceId: workspace.id,
       email: invitee.email,
       invitedByUserId: inviter.userId,
+      invitedByMemberships: [{workspaceId: workspace.id, role: 'admin'}],
     });
     const token = extractToken(captured[0]);
 

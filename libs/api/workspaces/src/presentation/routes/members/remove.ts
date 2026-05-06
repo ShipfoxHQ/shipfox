@@ -5,6 +5,7 @@ import {
   LastMemberError,
   MembershipNotFoundError,
   MembershipRequiredError,
+  WorkspaceInactiveError,
   WorkspaceNotFoundError,
 } from '#core/errors.js';
 import {removeWorkspaceMember} from '#core/index.js';
@@ -36,6 +37,9 @@ export const removeMemberRoute = defineRoute({
     if (error instanceof LastMemberError) {
       throw new ClientError(error.message, 'last-member', {status: 409});
     }
+    if (error instanceof WorkspaceInactiveError) {
+      throw new ClientError('Workspace is not active', 'workspace-inactive', {status: 403});
+    }
     throw error;
   },
   handler: async (request, reply) => {
@@ -46,7 +50,12 @@ export const removeMemberRoute = defineRoute({
 
     const {workspaceId, userId} = request.params;
 
-    await removeWorkspaceMember({workspaceId, userId, requesterUserId: client.userId});
+    await removeWorkspaceMember({
+      workspaceId,
+      userId,
+      requesterUserId: client.userId,
+      requesterMemberships: client.memberships,
+    });
 
     reply.code(204);
   },

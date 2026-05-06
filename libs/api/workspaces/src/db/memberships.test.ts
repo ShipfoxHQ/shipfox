@@ -28,6 +28,15 @@ describe('memberships db', () => {
     expect(membership.workspaceId).toBe(workspace.id);
   });
 
+  test('createMembership defaults role to admin (migration backfill smoke)', async () => {
+    const user = await createUser({email: emailFor('role-default'), hashedPassword: 'h'});
+    const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
+
+    const membership = await createMembership({userId: user.userId, workspaceId: workspace.id});
+
+    expect(membership.role).toBe('admin');
+  });
+
   test('rejects duplicate (user_id, workspace_id)', async () => {
     const user = await createUser({email: emailFor('dup'), hashedPassword: 'h'});
     const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});

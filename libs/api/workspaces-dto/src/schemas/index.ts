@@ -31,6 +31,8 @@ export {
   membershipDtoSchema,
   membershipWithUserSchema,
   membershipWithWorkspaceSchema,
+  type WorkspaceRole,
+  workspaceRoleSchema,
 } from './membership.js';
 export {
   type CreateWorkspaceBodyDto,

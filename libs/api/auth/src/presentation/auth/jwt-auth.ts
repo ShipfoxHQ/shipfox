@@ -1,5 +1,6 @@
 import {
   AUTH_USER,
+  buildUserContext,
   getUserContext,
   setUserContext,
   type UserContext,
@@ -41,10 +42,11 @@ export function createJwtAuthMethod(): AuthMethod {
         throw new ClientError('Invalid or expired token', 'unauthorized', {status: 401});
       });
 
-      const clientContext: ClientContext = {
+      const clientContext: ClientContext = buildUserContext({
         userId: claims.sub,
         email: claims.email,
-      };
+        memberships: claims.memberships,
+      });
 
       setUserContext(request, clientContext);
     },

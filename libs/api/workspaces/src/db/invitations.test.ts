@@ -110,6 +110,7 @@ describe('invitations db', () => {
     expect(result?.invitation.acceptedAt).toBeInstanceOf(Date);
     expect(result?.invitation.acceptedByUserId).toBe(accepter.userId);
     expect(result?.membership.userId).toBe(accepter.userId);
+    expect(result?.membership.role).toBe('admin');
     expect(result?.alreadyMember).toBe(false);
   });
 

@@ -9,6 +9,7 @@ export const membershipFactory = Factory.define<Membership>(({onCreate}) => {
       userEmail: membership.userEmail,
       userName: membership.userName,
       workspaceId: membership.workspaceId,
+      role: membership.role,
     }),
   );
 
@@ -18,6 +19,7 @@ export const membershipFactory = Factory.define<Membership>(({onCreate}) => {
     userEmail: `member-${crypto.randomUUID()}@example.com`,
     userName: null,
     workspaceId: crypto.randomUUID(),
+    role: 'admin',
     createdAt: new Date(),
     updatedAt: new Date(),
   };

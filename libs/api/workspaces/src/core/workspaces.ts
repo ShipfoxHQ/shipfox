@@ -1,3 +1,5 @@
+import type {UserContextMembership} from '@shipfox/api-auth-context';
+import type {WorkspaceRole} from '@shipfox/api-workspaces-dto';
 import {db} from '#db/db.js';
 import {
   findMembership,
@@ -14,34 +16,40 @@ import type {Workspace} from './entities/workspace.js';
 import {
   MembershipNotFoundError,
   MembershipRequiredError,
+  WorkspaceInactiveError,
   WorkspaceNotFoundError,
 } from './errors.js';
 
 export interface RequireWorkspaceMembershipParams {
   workspaceId: string;
   userId: string;
+  memberships: ReadonlyArray<UserContextMembership>;
 }
 
 export interface RequireWorkspaceMembershipResult {
   workspace: Workspace;
   workspaceId: string;
   userId: string;
+  role: WorkspaceRole;
 }
 
 export async function requireWorkspaceMembership(
   params: RequireWorkspaceMembershipParams,
 ): Promise<RequireWorkspaceMembershipResult> {
-  const workspace = await getWorkspaceById(params.workspaceId);
-  if (!workspace) {
-    throw new WorkspaceNotFoundError(params.workspaceId);
-  }
-
-  const membership = await findMembership({userId: params.userId, workspaceId: params.workspaceId});
+  const membership = params.memberships.find((m) => m.workspaceId === params.workspaceId);
   if (!membership) {
     throw new MembershipRequiredError(params.workspaceId);
   }
 
-  return {workspace, workspaceId: workspace.id, userId: params.userId};
+  const workspace = await getWorkspaceById(params.workspaceId);
+  if (!workspace) {
+    throw new WorkspaceNotFoundError(params.workspaceId);
+  }
+  if (workspace.status !== 'active') {
+    throw new WorkspaceInactiveError(params.workspaceId);
+  }
+
+  return {workspace, workspaceId: workspace.id, userId: params.userId, role: membership.role};
 }
 
 export async function createWorkspaceForUser(params: {
@@ -58,6 +66,7 @@ export async function createWorkspaceForUser(params: {
       userEmail: params.userEmail ?? `user-${params.userId}@example.local`,
       userName: params.userName ?? null,
       workspaceId: workspaceRow.id,
+      role: 'admin',
     });
     return toWorkspace(workspaceRow);
   });
@@ -81,10 +90,12 @@ export async function listUserWorkspaceMemberships(params: {
 export async function listWorkspaceMembers(params: {
   workspaceId: string;
   requesterUserId: string;
+  requesterMemberships: ReadonlyArray<UserContextMembership>;
 }): Promise<MembershipWithUser[]> {
   await requireWorkspaceMembership({
     workspaceId: params.workspaceId,
     userId: params.requesterUserId,
+    memberships: params.requesterMemberships,
   });
 
   return listMembershipsByWorkspace({workspaceId: params.workspaceId});
@@ -93,11 +104,13 @@ export async function listWorkspaceMembers(params: {
 export async function removeWorkspaceMember(params: {
   workspaceId: string;
   requesterUserId: string;
+  requesterMemberships: ReadonlyArray<UserContextMembership>;
   userId: string;
 }): Promise<void> {
   await requireWorkspaceMembership({
     workspaceId: params.workspaceId,
     userId: params.requesterUserId,
+    memberships: params.requesterMemberships,
   });
 
   const target = await findMembership({userId: params.userId, workspaceId: params.workspaceId});

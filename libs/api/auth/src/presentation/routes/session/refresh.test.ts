@@ -2,6 +2,7 @@ import type {FastifyInstance} from 'fastify';
 import {
   cookieHeader,
   createAuthTestApp,
+  listMembershipsByUserMock,
   resetCapturedMail,
   signupVerifyLogin,
 } from '#test/routes.js';
@@ -67,5 +68,19 @@ describe('POST /auth/refresh', () => {
 
     expect(stale.statusCode).toBe(401);
     expect(stale.json().code).toBe('unauthorized');
+  });
+
+  test('transforms membership dependency outages into 503', async () => {
+    const account = await signupVerifyLogin(app, 'refresh-workspaces-down');
+    listMembershipsByUserMock.mockRejectedValueOnce(new Error('workspaces DB down'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/refresh',
+      headers: {cookie: cookieHeader(account.refreshCookie)},
+    });
+
+    expect(res.statusCode).toBe(503);
+    expect(res.json().code).toBe('auth-dependency-unavailable');
   });
 });

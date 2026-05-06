@@ -76,6 +76,7 @@ export function createGithubIntegrationRoutes({
         installationId: request.query.installation_id,
         state: request.query.state,
         sessionUserId: actor.userId,
+        sessionMemberships: actor.memberships,
         requireWorkspaceMembership,
         getExistingGithubConnection,
         connectGithubInstallation,

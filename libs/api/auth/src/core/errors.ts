@@ -61,6 +61,18 @@ export class EmailNotVerifiedError extends Error {
   }
 }
 
+export class AuthDependencyUnavailableError extends Error {
+  readonly dependency: string;
+  override readonly cause: unknown;
+
+  constructor(dependency: string, cause: unknown) {
+    super(`Authentication dependency unavailable: ${dependency}`);
+    this.name = 'AuthDependencyUnavailableError';
+    this.dependency = dependency;
+    this.cause = cause;
+  }
+}
+
 export class TokenInvalidError extends Error {
   constructor(reason?: string) {
     super(reason ? `Invalid token: ${reason}` : 'Invalid token');

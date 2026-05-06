@@ -1,9 +1,14 @@
 import {z} from 'zod';
 
+export const workspaceRoleSchema = z.enum(['admin']);
+
+export type WorkspaceRole = z.infer<typeof workspaceRoleSchema>;
+
 export const membershipDtoSchema = z.object({
   id: z.string().uuid(),
   user_id: z.string().uuid(),
   workspace_id: z.string().uuid(),
+  role: workspaceRoleSchema,
   created_at: z.string(),
   updated_at: z.string(),
 });

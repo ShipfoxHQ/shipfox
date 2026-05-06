@@ -1,3 +1,4 @@
+import type {WorkspaceRole} from '@shipfox/api-workspaces-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import type {Membership} from '#core/entities/membership.js';
 import {LastMemberError} from '#core/errors.js';
@@ -10,6 +11,7 @@ export interface CreateMembershipParams {
   userEmail?: string | undefined;
   userName?: string | null | undefined;
   workspaceId: string;
+  role?: WorkspaceRole | undefined;
 }
 
 export async function createMembership(params: CreateMembershipParams): Promise<Membership> {
@@ -20,6 +22,7 @@ export async function createMembership(params: CreateMembershipParams): Promise<
       userEmail: params.userEmail ?? `user-${params.userId}@example.local`,
       userName: params.userName ?? null,
       workspaceId: params.workspaceId,
+      role: params.role ?? 'admin',
     })
     .returning();
 

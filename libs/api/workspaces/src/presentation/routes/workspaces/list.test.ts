@@ -1,4 +1,4 @@
-import {setUserContext} from '@shipfox/api-auth-context';
+import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
@@ -15,7 +15,10 @@ describe('GET /workspaces', () => {
     app.setValidatorCompiler(validatorCompiler);
     app.setSerializerCompiler(serializerCompiler);
     app.addHook('onRequest', (request, _reply, done) => {
-      setUserContext(request, {userId, email: 'caller@example.com'});
+      setUserContext(
+        request,
+        buildUserContext({userId, email: 'caller@example.com', memberships: []}),
+      );
       done();
     });
     app.get('/workspaces', listUserWorkspacesRoute);

@@ -9,6 +9,7 @@ export type {Membership} from '#core/entities/membership.js';
 export type {Workspace, WorkspaceStatus} from '#core/entities/workspace.js';
 export {requireWorkspaceMembership} from '#core/workspaces.js';
 export {db, migrationsPath} from '#db/index.js';
+export {listMembershipsByUser} from '#db/memberships.js';
 export {createApiKeyAuthMethod} from '#presentation/auth/api-key-auth.js';
 export {requireMembership} from '#presentation/auth/require-membership.js';
 export {workspacesRoutes as routes} from '#presentation/routes/index.js';

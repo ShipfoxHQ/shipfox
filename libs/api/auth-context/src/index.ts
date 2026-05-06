@@ -1,12 +1,40 @@
+import type {WorkspaceRole} from '@shipfox/api-workspaces-dto';
+
 export const AUTH_USER = 'user';
 export const AUTH_API_KEY = 'api-key';
 export const AUTH_RUNNER_TOKEN = 'runner-token';
 
 export type WorkspaceStatus = 'active' | 'suspended' | 'deleted';
 
+export interface UserContextMembership {
+  workspaceId: string;
+  role: WorkspaceRole;
+}
+
 export interface UserContext {
   userId: string;
   email: string;
+  memberships: ReadonlyArray<UserContextMembership>;
+  canAccess(workspaceId: string): boolean;
+  hasRole(workspaceId: string, role: WorkspaceRole): boolean;
+}
+
+export interface BuildUserContextParams {
+  userId: string;
+  email: string;
+  memberships?: ReadonlyArray<UserContextMembership> | undefined;
+}
+
+export function buildUserContext(params: BuildUserContextParams): UserContext {
+  const memberships = params.memberships ?? [];
+  return {
+    userId: params.userId,
+    email: params.email,
+    memberships,
+    canAccess: (workspaceId) => memberships.some((m) => m.workspaceId === workspaceId),
+    hasRole: (workspaceId, role) =>
+      memberships.some((m) => m.workspaceId === workspaceId && m.role === role),
+  };
 }
 
 export interface ApiKeyContext {

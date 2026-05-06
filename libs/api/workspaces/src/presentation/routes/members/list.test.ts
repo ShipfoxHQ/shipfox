@@ -1,4 +1,5 @@
 import type {FastifyInstance} from 'fastify';
+import {createWorkspace as createWorkspaceRow} from '#db/workspaces.js';
 import {
   createInvite,
   createWorkspace,
@@ -49,6 +50,22 @@ describe('GET /workspaces/:workspaceId/members', () => {
     ).toEqual([guest.email, owner.email].sort());
   });
 
+  test('authorizes from a static membership claim without a membership row', async () => {
+    const userId = crypto.randomUUID();
+    const email = `members-list-claim-${crypto.randomUUID()}@example.com`;
+    const workspace = await createWorkspaceRow({name: `Workspace ${crypto.randomUUID()}`});
+    const token = `claim:${userId}:${email}:${workspace.id}`;
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspace.id}/members`,
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().members).toEqual([]);
+  });
+
   test('transforms missing membership into 403', async () => {
     const owner = await signupVerifyLogin(app, 'members-list-member-owner');
     const outsider = await signupVerifyLogin(app, 'members-list-outsider');
@@ -64,7 +81,7 @@ describe('GET /workspaces/:workspaceId/members', () => {
     expect(res.json().code).toBe('forbidden');
   });
 
-  test('transforms missing workspace into 404', async () => {
+  test('returns 403 when caller has no claim to the workspace (whether or not it exists)', async () => {
     const owner = await signupVerifyLogin(app, 'members-list-missing-workspace');
 
     const res = await app.inject({
@@ -73,7 +90,7 @@ describe('GET /workspaces/:workspaceId/members', () => {
       headers: {authorization: `Bearer ${owner.token}`},
     });
 
-    expect(res.statusCode).toBe(404);
-    expect(res.json().code).toBe('not-found');
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('forbidden');
   });
 });

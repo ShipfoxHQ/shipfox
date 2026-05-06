@@ -75,6 +75,7 @@ describe('POST /auth/change-password', () => {
     const token = await signUserToken({
       userId: crypto.randomUUID(),
       email: 'missing@example.com',
+      memberships: [],
       secret: ROUTE_TEST_SECRET,
       expiresIn: '15m',
     });

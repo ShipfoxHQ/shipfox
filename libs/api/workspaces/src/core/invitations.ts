@@ -1,3 +1,4 @@
+import type {UserContextMembership} from '@shipfox/api-auth-context';
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {config, mailer} from '#config.js';
 import {
@@ -30,10 +31,12 @@ export async function createWorkspaceInvitation(params: {
   workspaceId: string;
   email: string;
   invitedByUserId: string;
+  invitedByMemberships: ReadonlyArray<UserContextMembership>;
 }): Promise<Invitation> {
   await requireWorkspaceMembership({
     workspaceId: params.workspaceId,
     userId: params.invitedByUserId,
+    memberships: params.invitedByMemberships,
   });
 
   const rawToken = generateOpaqueToken('invitation');
@@ -94,10 +97,12 @@ export async function acceptWorkspaceInvitation(params: {
 export async function listWorkspaceInvitations(params: {
   workspaceId: string;
   requesterUserId: string;
+  requesterMemberships: ReadonlyArray<UserContextMembership>;
 }): Promise<Invitation[]> {
   await requireWorkspaceMembership({
     workspaceId: params.workspaceId,
     userId: params.requesterUserId,
+    memberships: params.requesterMemberships,
   });
 
   return listOpenInvitationsByWorkspace({workspaceId: params.workspaceId});
@@ -106,11 +111,13 @@ export async function listWorkspaceInvitations(params: {
 export async function revokeWorkspaceInvitation(params: {
   workspaceId: string;
   requesterUserId: string;
+  requesterMemberships: ReadonlyArray<UserContextMembership>;
   invitationId: string;
 }): Promise<void> {
   await requireWorkspaceMembership({
     workspaceId: params.workspaceId,
     userId: params.requesterUserId,
+    memberships: params.requesterMemberships,
   });
 
   const invitation = await findInvitationById({id: params.invitationId});

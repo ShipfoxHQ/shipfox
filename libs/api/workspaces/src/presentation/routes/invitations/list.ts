@@ -2,7 +2,11 @@ import {AUTH_USER, getUserContext} from '@shipfox/api-auth-context';
 import {listInvitationsResponseSchema} from '@shipfox/api-workspaces-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {MembershipRequiredError, WorkspaceNotFoundError} from '#core/errors.js';
+import {
+  MembershipRequiredError,
+  WorkspaceInactiveError,
+  WorkspaceNotFoundError,
+} from '#core/errors.js';
 import {listWorkspaceInvitations} from '#core/index.js';
 import {toInvitationDto} from '#presentation/dto/index.js';
 
@@ -24,6 +28,9 @@ export const listInvitationsRoute = defineRoute({
     if (error instanceof MembershipRequiredError) {
       throw new ClientError('Not a member of this workspace', 'forbidden', {status: 403});
     }
+    if (error instanceof WorkspaceInactiveError) {
+      throw new ClientError('Workspace is not active', 'workspace-inactive', {status: 403});
+    }
     throw error;
   },
   handler: async (request) => {
@@ -36,6 +43,7 @@ export const listInvitationsRoute = defineRoute({
     const invitations = await listWorkspaceInvitations({
       workspaceId,
       requesterUserId: client.userId,
+      requesterMemberships: client.memberships,
     });
 
     return {
