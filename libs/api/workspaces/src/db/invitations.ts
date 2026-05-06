@@ -154,7 +154,6 @@ export async function acceptInvitation(
           userEmail: invRow.email,
           userName: params.acceptedByUserName ?? null,
           workspaceId: invRow.workspaceId,
-          role: 'admin',
         })
         .returning();
       const createdRow = created[0];

@@ -66,7 +66,6 @@ export async function createWorkspaceForUser(params: {
       userEmail: params.userEmail ?? `user-${params.userId}@example.local`,
       userName: params.userName ?? null,
       workspaceId: workspaceRow.id,
-      role: 'admin',
     });
     return toWorkspace(workspaceRow);
   });

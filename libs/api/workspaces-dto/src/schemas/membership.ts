@@ -8,7 +8,6 @@ export const membershipDtoSchema = z.object({
   id: z.string().uuid(),
   user_id: z.string().uuid(),
   workspace_id: z.string().uuid(),
-  role: workspaceRoleSchema,
   created_at: z.string(),
   updated_at: z.string(),
 });

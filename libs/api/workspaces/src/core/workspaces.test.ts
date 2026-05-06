@@ -4,7 +4,7 @@ import {MembershipRequiredError, WorkspaceNotFoundError} from './errors.js';
 import {createWorkspaceForUser, requireWorkspaceMembership} from './workspaces.js';
 
 describe('workspaces core', () => {
-  test('createWorkspaceForUser creates a workspace and admin membership for the user', async () => {
+  test('createWorkspaceForUser creates a workspace and membership for the user', async () => {
     const user = userFactory.build();
 
     const workspace = await createWorkspaceForUser({
@@ -17,7 +17,6 @@ describe('workspaces core', () => {
 
     expect(workspace.name).toBe('Core Workspace');
     expect(membership).toBeDefined();
-    expect(membership?.role).toBe('admin');
   });
 
   test('requireWorkspaceMembership returns the workspace + role when memberships include it', async () => {

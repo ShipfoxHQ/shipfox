@@ -70,7 +70,7 @@ const fakeUserAuth: AuthMethod = {
       buildUserContext({
         userId,
         email,
-        memberships: memberships.map((m) => ({workspaceId: m.workspaceId, role: m.role})),
+        memberships: memberships.map((m) => ({workspaceId: m.workspaceId, role: 'admin' as const})),
       }),
     );
   },

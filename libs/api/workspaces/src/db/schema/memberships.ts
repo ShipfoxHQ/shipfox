@@ -1,10 +1,8 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {index, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {index, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {Membership} from '#core/entities/membership.js';
 import {pgTable} from './common.js';
 import {workspaces} from './workspaces.js';
-
-export const workspaceRoleEnum = pgEnum('workspace_role', ['admin']);
 
 export const memberships = pgTable(
   'memberships',
@@ -16,7 +14,6 @@ export const memberships = pgTable(
     workspaceId: uuid('workspace_id')
       .notNull()
       .references(() => workspaces.id, {onDelete: 'cascade'}),
-    role: workspaceRoleEnum('role').notNull().default('admin'),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
@@ -36,7 +33,6 @@ export function toMembership(row: MembershipDb): Membership {
     userEmail: row.userEmail,
     userName: row.userName,
     workspaceId: row.workspaceId,
-    role: row.role,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

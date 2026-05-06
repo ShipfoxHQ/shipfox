@@ -55,7 +55,7 @@ async function signAccessToken(user: User): Promise<string> {
   return await signUserToken({
     userId: user.id,
     email: user.email,
-    memberships: memberships.map((m) => ({workspaceId: m.workspaceId, role: m.role})),
+    memberships: memberships.map((m) => ({workspaceId: m.workspaceId, role: 'admin' as const})),
     secret: config.AUTH_JWT_SECRET,
     expiresIn: config.AUTH_JWT_EXPIRES_IN,
   });
