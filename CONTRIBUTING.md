@@ -127,7 +127,7 @@ its own GitHub check.
 
 | Surface | Source | Captured |
 | --- | --- | --- |
-| `storybook` build | `@shipfox/react-ui` stories via `@storybook/test-runner` + `@argos-ci/storybook` | every story in **light + dark** (declared in `libs/shared/react/ui/.storybook/preview.tsx` as `parameters.argos.modes`) |
+| `storybook` build | `@shipfox/react-ui` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/shared/react/ui/.storybook/preview.tsx` as `parameters.argos.modes`) |
 | `client-pages` build | Playwright specs in `e2e/client/*` via `@argos-ci/playwright` reporter | explicit `argosScreenshot()` calls at user-visible checkpoints |
 
 The goal is review-grade signal on UI drift, not 100% state coverage. Capture the
@@ -136,18 +136,16 @@ the same DOM as a covered state.
 
 ### Run locally
 
-Library snapshots are cheap to capture locally — useful when iterating on a
+Library capture is part of the standard test task — useful when iterating on a
 component:
 
 ```sh
-turbo storybook:build --filter=@shipfox/react-ui
-pnpm --filter=@shipfox/react-ui argos:visual
+turbo test --filter=@shipfox/react-ui
 ```
 
-`argos:visual` boots `http-server` against `storybook-static/`, runs the
-test-runner against every story, and writes PNGs to
-`libs/shared/react/ui/screenshots/` (gitignored). No `ARGOS_TOKEN` needed for
-capture; uploads are CI-only via `pnpm --filter=@shipfox/react-ui argos:upload`.
+This runs Vitest in browser mode against every story, producing PNGs in
+`libs/shared/react/ui/screenshots/` (gitignored). No `ARGOS_TOKEN` is needed
+locally; the `argosVitestPlugin` only uploads when `process.env.CI` is set.
 
 Page snapshots ride on the existing E2E flow — when you run
 `turbo test:e2e --filter=@shipfox/e2e-client-auth` locally without `CI=true`,
@@ -155,10 +153,11 @@ the Argos reporter is not active, so no screenshots are uploaded.
 
 ### Add a new component snapshot
 
-Just add a story. The test-runner auto-discovers `.stories.@(js|jsx|ts|tsx|mdx)`
-under `src/**` and snaps each one in both themes. To cover a state that a
-single render can't reach (e.g. error states, populated lists), add it as a
-new story rather than driving interactions in the story `play` function.
+Just add a story. `@storybook/addon-vitest` discovers `.stories.@(js|jsx|ts|tsx|mdx)`
+under `src/**` automatically and the Argos vitest plugin captures each one in
+both themes. To cover a state that a single render can't reach (e.g. error
+states, populated lists), add it as a new story rather than driving
+interactions in `play`.
 
 ### Add a new client-page snapshot
 
@@ -196,22 +195,19 @@ required". Open the Argos build, mark each diff as accepted (intentional UI
 change) or rejected (regression). Approving a build updates the baseline once
 the PR merges to `main`.
 
-### Files you should not have to touch
+### Plumbing files
 
-- `libs/shared/react/ui/.storybook/test-runner.ts` — `postVisit` hook that
-  drives `argosScreenshot`.
-- `libs/shared/react/ui/.storybook/test-runner-jest.config.cjs` — overrides the
-  default Jest transform map so Storybook stories can be processed by the
-  test-runner. Necessary because the project root `.swcrc` excludes
-  `*.stories.tsx` (load-bearing for `shipfox-swc` production builds).
-- `libs/shared/react/ui/.storybook/test-runner-stories-transform.js` — calls
-  `transformPlaywright` then `@swc/core` with `swcrc: false` so the same
-  exclusion does not block screenshot capture.
-- `biome.json` override permitting `@swc/core` import in the file above.
-
-If you find yourself wanting to change one of these, double-check that the
-production `turbo build --filter=@shipfox/react-ui` still excludes
-`*.stories.tsx` from `dist/` afterwards.
+- `libs/shared/react/ui/vitest.config.ts` — defines the `storybook` Vitest
+  project that wraps stories with `storybookTest()` and `argosVitestPlugin()`.
+  The plugin writes PNGs to `screenshots/` and uploads when `process.env.CI`
+  is set.
+- `libs/shared/react/ui/.storybook/vitest.setup.ts` — adds a Framer Motion
+  `MotionConfig reducedMotion="always"` decorator on top of the regular
+  `preview.tsx` annotations, so animations are quiet during capture.
+- `turbo.jsonc` `globalPassThroughEnv` includes `ARGOS_TOKEN` and `CI` so
+  the Vitest plugin and Playwright reporter actually receive them when run
+  through Turbo. If you add another env var the visual flow needs (e.g. a
+  custom reference-branch override), allowlist it here.
 
 ## Import Aliases
 

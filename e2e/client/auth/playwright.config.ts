@@ -8,7 +8,14 @@ export default defineConfig({
   reporter: process.env.CI
     ? [
         ['github'],
-        ['@argos-ci/playwright/reporter', {uploadToArgos: true, buildName: 'client-pages'}],
+        [
+          '@argos-ci/playwright/reporter',
+          {
+            uploadToArgos: Boolean(process.env.ARGOS_TOKEN),
+            buildName: 'client-pages',
+            ignoreUploadFailures: true,
+          },
+        ],
       ]
     : 'list',
   use: {

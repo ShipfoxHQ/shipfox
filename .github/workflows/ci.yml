@@ -28,22 +28,13 @@ jobs:
       - name: Start test services
         run: docker compose up --wait -d postgres temporal
 
-      - name: Run verification
-        run: turbo check type test build depcruise
-
       - name: Install Playwright browsers
         run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
 
-      - name: Build Storybook
-        run: turbo storybook:build --filter=@shipfox/react-ui
-
-      - name: Capture Storybook screenshots
-        run: pnpm --filter=@shipfox/react-ui argos:visual
-
-      - name: Upload Storybook to Argos
+      - name: Run verification
         env:
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
-        run: pnpm --filter=@shipfox/react-ui argos:upload
+        run: turbo check type test build depcruise
 
       - name: Run E2E tests
         env:

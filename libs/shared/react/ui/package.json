@@ -35,8 +35,7 @@
     "check:fix": "shipfox-biome-check --write",
     "storybook": "storybook dev",
     "storybook:build": "storybook build -o storybook-static",
-    "argos:visual": "concurrently -k -s first -n SB,TEST 'http-server storybook-static -p 6006 -a 127.0.0.1 --silent' 'wait-on tcp:127.0.0.1:6006 && test-storybook --url http://127.0.0.1:6006'",
-    "argos:upload": "argos upload screenshots --build-name storybook",
+    "test": "shipfox-vitest-run",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
@@ -68,19 +67,18 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vite": "workspace:*",
+    "@shipfox/vitest": "workspace:*",
+    "@storybook/addon-vitest": "^10.3.6",
     "@storybook/react": "^10.0.0",
     "@storybook/react-vite": "^10.0.0",
-    "@storybook/test-runner": "^0.24.3",
-    "@swc/core": "^1.15.30",
     "@tailwindcss/vite": "^4.1.13",
     "@types/react": "^19.1.11",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
-    "concurrently": "^9.2.1",
-    "http-server": "^14.1.1",
+    "@vitest/browser-playwright": "^4.1.5",
     "storybook": "^10.0.0",
     "storybook-addon-pseudo-states": "^10.0.0",
     "vite": "^8.0.3",
-    "wait-on": "^9.0.5"
+    "vitest": "^4.1.5"
   }
 }
