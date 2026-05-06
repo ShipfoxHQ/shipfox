@@ -138,7 +138,7 @@ async function softDeleteVcsDefinitionsNotInTx(
   tx: Tx,
   params: SoftDeleteVcsDefinitionsParams,
 ): Promise<number> {
-  const now = new Date();
+  const now = sql`now()`;
   const baseWhere = and(
     eq(workflowDefinitions.projectId, params.projectId),
     eq(workflowDefinitions.source, 'vcs'),
