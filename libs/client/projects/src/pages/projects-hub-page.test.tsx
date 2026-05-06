@@ -1,12 +1,35 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {fireEvent, screen} from '@testing-library/react';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
+import {HomeRouter} from './home-router.js';
 import {ProjectsHubPage} from './projects-hub-page.js';
 
 const NEW_PROJECT_REGEX = /New project/i;
 const WORKSPACE_PROJECTS_NEW_HREF = `/workspaces/${PROJECT_TEST_WID}/projects/new`;
 
 describe('ProjectsHubPage', () => {
+  test('routes a workspace with no source connections to integrations', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn((input: RequestInfo | URL) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (url.includes('/integration-connections?')) {
+          return Promise.resolve(jsonResponse({connections: []}));
+        }
+        if (url.includes('/projects?')) {
+          return Promise.resolve(jsonResponse({projects: [], next_cursor: null}));
+        }
+
+        return Promise.resolve(
+          jsonResponse({code: 'not-found', message: 'Not found'}, {status: 404}),
+        );
+      }),
+    });
+
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <HomeRouter />);
+
+    expect(await screen.findByText('Integrations gallery placeholder')).toBeInTheDocument();
+  });
+
   test('renders Projects H2 + New project button + empty state with create CTA', async () => {
     configureApiClient({
       fetchImpl: vi.fn().mockResolvedValue(jsonResponse({projects: [], next_cursor: null})),
