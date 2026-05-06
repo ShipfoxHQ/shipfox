@@ -36,6 +36,7 @@ function buildDefinition(projectId: string): WorkflowDefinition {
     fetchedAt: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
+    deletedAt: null,
   };
 }
 

@@ -28,6 +28,7 @@ function buildDefinition(overrides?: Partial<WorkflowDefinition>): WorkflowDefin
     fetchedAt: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
+    deletedAt: null,
     ...overrides,
   };
 }

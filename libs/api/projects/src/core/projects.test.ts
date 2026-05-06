@@ -35,7 +35,7 @@ describe('createProjectFromSource', () => {
           repository: {
             externalRepositoryId: 'debug:platform',
             owner: 'debug-owner',
-            name: 'debug:platform',
+            name: 'platform',
             fullName: 'debug-owner/platform',
             defaultBranch: 'main',
             visibility: 'private' as const,
@@ -44,6 +44,8 @@ describe('createProjectFromSource', () => {
           },
         };
       }),
+      listFiles: vi.fn(),
+      fetchFile: vi.fn(),
     };
   });
 
