@@ -14,7 +14,7 @@ const preview: Preview = {
         light: {theme: 'light'},
         dark: {theme: 'dark'},
       },
-      fitToContent: {zoom: 1, padding: 16},
+      fitToContent: false,
     },
     viewport: {
       viewports: {
