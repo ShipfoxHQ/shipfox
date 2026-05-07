@@ -1,5 +1,5 @@
 import {ApiError} from '@shipfox/client-api';
-import {useAuthState} from '@shipfox/client-auth';
+import {useAuthState, useMaybeActiveWorkspace} from '@shipfox/client-auth';
 import {useSourceConnectionsQuery} from '@shipfox/client-integrations';
 import {Alert, Button, FullPageLoader, Header, Text} from '@shipfox/react-ui';
 import {Navigate} from '@tanstack/react-router';
@@ -8,12 +8,17 @@ import {ProjectsHubPage} from '#pages/projects-hub-page.js';
 
 export function HomeRouter() {
   const auth = useAuthState();
-  const workspace = auth.workspaces[0];
+  const activeWorkspace = useMaybeActiveWorkspace();
+  const workspace = activeWorkspace ?? auth.workspaces[0];
 
   const connectionsQuery = useSourceConnectionsQuery(workspace?.id);
   const projectsQuery = useProjectsInfiniteQuery(workspace?.id);
 
   if (connectionsQuery.isPending || projectsQuery.isPending) {
+    return <FullPageLoader />;
+  }
+
+  if (!workspace) {
     return <FullPageLoader />;
   }
 
@@ -51,11 +56,11 @@ export function HomeRouter() {
   const projects = projectsQuery.data?.pages.flatMap((page) => page.projects) ?? [];
 
   if (connections.length === 0) {
-    return <Navigate to="/setup/integrations" replace />;
+    return <Navigate to="/workspaces/$wid/integrations" params={{wid: workspace.id}} replace />;
   }
 
   if (projects.length === 0) {
-    return <Navigate to="/setup/projects/new" replace />;
+    return <Navigate to="/workspaces/$wid/projects/new" params={{wid: workspace.id}} replace />;
   }
 
   return <ProjectsHubPage />;

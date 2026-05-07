@@ -12,6 +12,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/client-app-shell": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/client-projects": "workspace:*",
     "@shipfox/client-router": "workspace:*",

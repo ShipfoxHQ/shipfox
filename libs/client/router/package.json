@@ -26,14 +26,17 @@
   },
   "dependencies": {
     "@shipfox/client-api": "workspace:*",
+    "@shipfox/client-app-shell": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/client-integrations": "workspace:*",
     "@shipfox/client-projects": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",
     "@tanstack/react-router": "^1.168.25",
+    "jotai": "^2.19.1",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

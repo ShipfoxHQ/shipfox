@@ -1,13 +1,11 @@
 import {
   Alert,
   Button,
-  ButtonLink,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-  Header,
   Skeleton,
   StatusBadge,
   Text,
@@ -20,79 +18,62 @@ export function ProjectDetailPage({projectId}: {projectId: string}) {
   const errorCopy = query.error ? projectErrorCopy(query.error) : undefined;
 
   return (
-    <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
-      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-24">
-        <ButtonLink variant="muted" href="/">
-          Back to projects
-        </ButtonLink>
+    <div className="flex w-full flex-col gap-24">
+      {query.isPending ? (
+        <Card className="p-24">
+          <Skeleton className="h-28 w-1/3" />
+          <Skeleton className="h-18 w-1/2" />
+        </Card>
+      ) : null}
 
-        {query.isPending ? (
-          <Card className="p-24">
-            <Skeleton className="h-28 w-1/3" />
-            <Skeleton className="h-18 w-1/2" />
+      {query.isError ? (
+        <Alert variant="error" animated={false}>
+          <div className="flex flex-col gap-8">
+            <Text size="sm" bold>
+              {errorCopy?.title ?? 'Project unavailable'}
+            </Text>
+            <Text size="sm">
+              {query.error && 'status' in query.error && query.error.status === 404
+                ? 'This project was not found.'
+                : errorCopy?.message}
+            </Text>
+            <Button size="sm" variant="secondary" onClick={() => query.refetch()}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      ) : null}
+
+      {query.data ? (
+        <section className="grid gap-18 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <Card className="p-20">
+            <CardHeader>
+              <CardTitle variant="h2">Source identity</CardTitle>
+              <CardDescription>Source-control binding for this project.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-12 sm:grid-cols-2">
+              <Metadata label="Connection id" value={query.data.source.connection_id} />
+              <Metadata
+                label="External repository id"
+                value={query.data.source.external_repository_id}
+              />
+            </CardContent>
           </Card>
-        ) : null}
 
-        {query.isError ? (
-          <Alert variant="error" animated={false}>
-            <div className="flex flex-col gap-8">
-              <Text size="sm" bold>
-                {errorCopy?.title ?? 'Project unavailable'}
-              </Text>
-              <Text size="sm">
-                {query.error && 'status' in query.error && query.error.status === 404
-                  ? 'This project was not found.'
-                  : errorCopy?.message}
-              </Text>
-              <Button size="sm" variant="secondary" onClick={() => query.refetch()}>
-                Retry
-              </Button>
-            </div>
-          </Alert>
-        ) : null}
-
-        {query.data ? (
-          <>
-            <header className="flex items-start justify-between gap-24 max-[640px]:flex-col">
-              <div className="min-w-0">
-                <Header variant="h1" className="break-words">
-                  {query.data.name}
-                </Header>
-                <Text size="md" className="text-foreground-neutral-muted break-words">
-                  {query.data.source.external_repository_id}
-                </Text>
-              </div>
-              <StatusBadge variant="success">Connected</StatusBadge>
-            </header>
-
-            <section className="grid gap-18 lg:grid-cols-[minmax(0,1fr)_360px]">
-              <Card className="p-20">
-                <CardHeader>
-                  <CardTitle variant="h2">Source identity</CardTitle>
-                  <CardDescription>Source-control binding for this project.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-12 sm:grid-cols-2">
-                  <Metadata label="Connection id" value={query.data.source.connection_id} />
-                  <Metadata
-                    label="External repository id"
-                    value={query.data.source.external_repository_id}
-                  />
-                </CardContent>
-              </Card>
-
-              <Card className="p-20">
-                <CardHeader>
-                  <CardTitle variant="h3">Workflow discovery</CardTitle>
-                  <CardDescription>
-                    Definitions from .shipfox workflows will appear here in a later phase.
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            </section>
-          </>
-        ) : null}
-      </div>
-    </main>
+          <Card className="p-20">
+            <CardHeader>
+              <CardTitle variant="h3">Workflow discovery</CardTitle>
+              <CardDescription>
+                Definitions from .shipfox workflows will appear here in a later phase.
+              </CardDescription>
+              <StatusBadge variant="success" className="self-start">
+                Connected
+              </StatusBadge>
+            </CardHeader>
+          </Card>
+        </section>
+      ) : null}
+    </div>
   );
 }
 

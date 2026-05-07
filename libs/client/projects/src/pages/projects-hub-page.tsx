@@ -1,5 +1,5 @@
 import type {ProjectResponseDto} from '@shipfox/api-projects-dto';
-import {useAuthState} from '@shipfox/client-auth';
+import {useActiveWorkspace} from '@shipfox/client-auth';
 import {
   Alert,
   Button,
@@ -19,73 +19,66 @@ import {useProjectsInfiniteQuery} from '#hooks/api/projects.js';
 import {projectErrorCopy} from '#project-error.js';
 
 export function ProjectsHubPage() {
-  const auth = useAuthState();
-  const workspace = auth.workspaces[0];
-  const query = useProjectsInfiniteQuery(workspace?.id);
+  const workspace = useActiveWorkspace();
+  const query = useProjectsInfiniteQuery(workspace.id);
   const projects = query.data?.pages.flatMap((page) => page.projects) ?? [];
   const errorCopy = query.error ? projectErrorCopy(query.error) : undefined;
 
   return (
-    <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
-      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-24">
-        <header className="flex items-start justify-between gap-24 max-[640px]:flex-col">
-          <div className="min-w-0">
-            <Header variant="h1">Projects</Header>
-            <Text size="md" className="text-foreground-neutral-muted break-words">
-              {workspace?.name ?? 'Workspace'} · Signed in as{' '}
-              {auth.user?.email ?? 'your Shipfox account'}
+    <div className="flex w-full flex-col gap-24">
+      <header className="flex items-start justify-between gap-24 max-[640px]:flex-col">
+        <Header variant="h2">Projects</Header>
+        <Button asChild iconLeft="addLine">
+          <Link to="/workspaces/$wid/projects/new" params={{wid: workspace.id}}>
+            New project
+          </Link>
+        </Button>
+      </header>
+
+      {query.isPending ? <ProjectsSkeleton /> : null}
+
+      {query.isError && !query.data ? (
+        <Alert variant="error">
+          <div className="flex flex-col gap-8">
+            <Text size="sm" bold>
+              {errorCopy?.title}
             </Text>
-          </div>
-          <div className="flex flex-col items-end gap-8 max-[640px]:items-start">
-            <Button asChild iconLeft="addLine">
-              <Link to="/setup/projects/new">Create project</Link>
+            <Text size="sm">{errorCopy?.message}</Text>
+            <Button size="sm" variant="secondary" onClick={() => query.refetch()}>
+              Retry
             </Button>
           </div>
-        </header>
+        </Alert>
+      ) : null}
 
-        {query.isPending ? <ProjectsSkeleton /> : null}
+      {!query.isPending && !query.isError && projects.length === 0 ? (
+        <EmptyProjects workspaceId={workspace.id} />
+      ) : null}
 
-        {query.isError && !query.data ? (
-          <Alert variant="error">
-            <div className="flex flex-col gap-8">
-              <Text size="sm" bold>
-                {errorCopy?.title}
+      {projects.length > 0 ? (
+        <section className="flex flex-col gap-12" aria-label="Projects list">
+          {projects.map((project) => (
+            <ProjectRow project={project} key={project.id} workspaceId={workspace.id} />
+          ))}
+          {query.error && query.data ? (
+            <Alert variant="warning">
+              <Text size="sm">
+                Could not load the next page. Existing projects are still shown.
               </Text>
-              <Text size="sm">{errorCopy?.message}</Text>
-              <Button size="sm" variant="secondary" onClick={() => query.refetch()}>
-                Retry
-              </Button>
-            </div>
-          </Alert>
-        ) : null}
-
-        {!query.isPending && !query.isError && projects.length === 0 ? <EmptyProjects /> : null}
-
-        {projects.length > 0 ? (
-          <section className="flex flex-col gap-12" aria-label="Projects list">
-            {projects.map((project) => (
-              <ProjectRow project={project} key={project.id} />
-            ))}
-            {query.error && query.data ? (
-              <Alert variant="warning">
-                <Text size="sm">
-                  Could not load the next page. Existing projects are still shown.
-                </Text>
-              </Alert>
-            ) : null}
-            {query.hasNextPage ? (
-              <Button
-                variant="secondary"
-                isLoading={query.isFetchingNextPage}
-                onClick={() => query.fetchNextPage()}
-              >
-                Load more
-              </Button>
-            ) : null}
-          </section>
-        ) : null}
-      </div>
-    </main>
+            </Alert>
+          ) : null}
+          {query.hasNextPage ? (
+            <Button
+              variant="secondary"
+              isLoading={query.isFetchingNextPage}
+              onClick={() => query.fetchNextPage()}
+            >
+              Load more
+            </Button>
+          ) : null}
+        </section>
+      ) : null}
+    </div>
   );
 }
 
@@ -102,7 +95,7 @@ function ProjectsSkeleton() {
   );
 }
 
-function EmptyProjects() {
+function EmptyProjects({workspaceId}: {workspaceId: string}) {
   return (
     <Card className="items-center gap-18 p-32 text-center">
       <div className="flex size-44 items-center justify-center rounded-8 border border-border-neutral-base bg-background-neutral-base">
@@ -115,16 +108,22 @@ function EmptyProjects() {
         </CardDescription>
       </CardHeader>
       <Button asChild iconRight="chevronRight">
-        <Link to="/setup/projects/new">Create project</Link>
+        <Link to="/workspaces/$wid/projects/new" params={{wid: workspaceId}}>
+          Create project
+        </Link>
       </Button>
     </Card>
   );
 }
 
-function ProjectRow({project}: {project: ProjectResponseDto}) {
+function ProjectRow({project, workspaceId}: {project: ProjectResponseDto; workspaceId: string}) {
   return (
     <Card className="p-18">
-      <Link to="/projects/$projectId" params={{projectId: project.id}} className="block">
+      <Link
+        to="/workspaces/$wid/projects/$pid"
+        params={{wid: workspaceId, pid: project.id}}
+        className="block"
+      >
         <CardContent className="flex items-center justify-between gap-18 max-[640px]:flex-col max-[640px]:items-start">
           <div className="min-w-0">
             <Text size="lg" bold className="truncate">

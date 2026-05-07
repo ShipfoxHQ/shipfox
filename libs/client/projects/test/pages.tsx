@@ -18,6 +18,11 @@ import {CreateProjectPage} from '#pages/create-project-page.js';
 import {ProjectDetailPage} from '#pages/project-detail-page.js';
 import {ProjectsHubPage} from '#pages/projects-hub-page.js';
 
+// All test renders that exercise pages requiring `useActiveWorkspace()` mount
+// under `/workspaces/$wid`. The seeded workspace id (see authState) is the wid
+// used in routes.
+export const PROJECT_TEST_WID = '11111111-1111-4111-8111-111111111111';
+
 const authState: AuthState = {
   status: 'authenticated',
   token: 'token',
@@ -30,7 +35,7 @@ const authState: AuthState = {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
-  workspaces: [{id: '11111111-1111-4111-8111-111111111111', name: 'Acme', membershipId: 'm-1'}],
+  workspaces: [{id: PROJECT_TEST_WID, name: 'Acme', membershipId: 'm-1'}],
 };
 
 export function jsonResponse(body: unknown, init: ResponseInit = {}) {
@@ -49,26 +54,37 @@ function createTestRouter(path: string, element: ReactElement) {
     path: '/',
     component: () => (initialPath === '/' ? element : <ProjectsHubPage />),
   });
-  const newProjectRoute = createRoute({
+  const workspaceRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/setup/projects/new',
-    component: () => (initialPath === '/setup/projects/new' ? element : <CreateProjectPage />),
+    path: '/workspaces/$wid',
+    component: () =>
+      initialPath === `/workspaces/${PROJECT_TEST_WID}` ? element : <ProjectsHubPage />,
+  });
+  const workspaceNewProjectRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/projects/new',
+    component: () =>
+      initialPath === `/workspaces/${PROJECT_TEST_WID}/projects/new` ? (
+        element
+      ) : (
+        <CreateProjectPage />
+      ),
   });
   const integrationsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/setup/integrations',
+    path: '/workspaces/$wid/integrations',
     component: () => <div>Integrations gallery placeholder</div>,
   });
-  const projectRoute = createRoute({
+  const projectDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/projects/$projectId',
+    path: '/workspaces/$wid/projects/$pid',
     component: () => {
-      const params = useParams({strict: false}) as {projectId?: string};
-      if (initialPath.startsWith('/projects/')) {
+      const params = useParams({strict: false}) as {pid?: string};
+      if (initialPath === `/workspaces/${PROJECT_TEST_WID}/projects/${params.pid}`) {
         return element;
       }
 
-      return <ProjectDetailPage projectId={params.projectId ?? 'p-1'} />;
+      return <ProjectDetailPage projectId={params.pid ?? 'p-1'} />;
     },
   });
 
@@ -76,9 +92,10 @@ function createTestRouter(path: string, element: ReactElement) {
     history: createMemoryHistory({initialEntries: [path]}),
     routeTree: rootRoute.addChildren([
       indexRoute,
-      newProjectRoute,
+      workspaceRoute,
+      workspaceNewProjectRoute,
       integrationsRoute,
-      projectRoute,
+      projectDetailRoute,
     ]),
   });
 }

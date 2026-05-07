@@ -1,6 +1,6 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {fireEvent, screen, waitFor} from '@testing-library/react';
-import {jsonResponse, renderProjectPage} from '#test/pages.js';
+import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {CreateProjectPage} from './create-project-page.js';
 
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
@@ -29,7 +29,7 @@ describe('CreateProjectPage', () => {
     });
     configureApiClient({fetchImpl});
 
-    renderProjectPage('/setup/projects/new', <CreateProjectPage />);
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
     expect(await screen.findByRole('radio', {name: DEBUG_RADIO_LABEL_RE})).toBeChecked();
     expect((await screen.findAllByText('Debug')).length).toBeGreaterThan(0);
     expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
@@ -63,7 +63,7 @@ describe('CreateProjectPage', () => {
     });
     configureApiClient({fetchImpl});
 
-    renderProjectPage('/setup/projects/new', <CreateProjectPage />);
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
     expect((await screen.findAllByText('Debug')).length).toBeGreaterThan(0);
     expect(await screen.findByText('Other Debug Source')).toBeInTheDocument();
     expect(screen.queryByText('debug-owner/platform')).not.toBeInTheDocument();
@@ -73,7 +73,7 @@ describe('CreateProjectPage', () => {
     expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
   });
 
-  test('with a single connection: shows "Add another integration" link to /setup/integrations', async () => {
+  test('with a single connection: shows workspace-scoped "Add another integration" link', async () => {
     configureApiClient({
       fetchImpl: vi.fn((input: RequestInfo | URL) => {
         const request = input as Request;
@@ -89,9 +89,9 @@ describe('CreateProjectPage', () => {
       }),
     });
 
-    renderProjectPage('/setup/projects/new', <CreateProjectPage />);
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
     const link = await screen.findByRole('link', {name: 'Add another integration'});
-    expect(link).toHaveAttribute('href', '/setup/integrations');
+    expect(link).toHaveAttribute('href', `/workspaces/${PROJECT_TEST_WID}/integrations`);
   });
 
   test('navigates to the existing project for duplicate recovery', async () => {
@@ -120,11 +120,14 @@ describe('CreateProjectPage', () => {
     });
     configureApiClient({fetchImpl});
 
-    renderProjectPage('/setup/projects/new', <CreateProjectPage />);
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
     expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
-    expect(await screen.findByRole('heading', {name: 'Project Detail'})).toBeInTheDocument();
+    // After duplicate recovery, navigation lands on the workspace-scoped
+    // project detail URL. The new ProjectDetailPage uses section H2s instead
+    // of a project-name H1.
+    expect(await screen.findByRole('heading', {name: 'Source identity'})).toBeInTheDocument();
   });
 
   test('shows provider-specific submit errors', async () => {
@@ -140,7 +143,7 @@ describe('CreateProjectPage', () => {
     });
     configureApiClient({fetchImpl});
 
-    renderProjectPage('/setup/projects/new', <CreateProjectPage />);
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
     expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 

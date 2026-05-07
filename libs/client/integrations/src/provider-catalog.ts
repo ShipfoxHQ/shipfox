@@ -8,10 +8,10 @@ export interface ProviderCatalogEntry {
 export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
   github: {
     iconName: 'github',
-    setupPath: '/setup/integrations/github',
+    setupPath: '/workspaces/$wid/integrations/github',
   },
   debug: {
     iconName: 'componentLine',
-    setupPath: '/setup/integrations/debug',
+    setupPath: '/workspaces/$wid/integrations/debug',
   },
 };

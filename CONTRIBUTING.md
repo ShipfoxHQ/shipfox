@@ -203,9 +203,6 @@ the PR merges to `main`.
   project that wraps stories with `storybookTest()` and `argosVitestPlugin()`.
   The plugin writes PNGs to `screenshots/` and uploads when `process.env.CI`
   is set.
-- `libs/shared/react/ui/.storybook/vitest.setup.ts` — adds a Framer Motion
-  `MotionConfig reducedMotion="always"` decorator on top of the regular
-  `preview.tsx` annotations, so animations are quiet during capture.
 - `turbo.jsonc` `globalPassThroughEnv` includes `ARGOS_TOKEN` and `CI` so
   the Vitest plugin and Playwright reporter actually receive them when run
   through Turbo. If you add another env var the visual flow needs (e.g. a

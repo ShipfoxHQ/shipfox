@@ -3,7 +3,7 @@ import {argosScreenshot} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
 const LOGIN_URL_RE = /\/auth\/login$/u;
-const SETUP_INTEGRATIONS_URL_RE = /\/setup\/integrations\/?$/u;
+const WORKSPACE_INTEGRATIONS_URL_RE = /\/workspaces\/[^/]+\/integrations\/?$/u;
 
 test('redirects guests from the app root to login', async ({page}) => {
   await page.goto('/');
@@ -48,9 +48,9 @@ test('creates a workspace through the real onboarding UI', async ({page, auth}) 
   await page.getByLabel('Workspace name').fill(workspaceName);
   await page.getByRole('button', {name: 'Create workspace'}).click();
 
-  // Fresh workspace has zero source-control connections, so / redirects to
-  // /setup/integrations (the integration gallery).
-  await expect(page).toHaveURL(SETUP_INTEGRATIONS_URL_RE);
+  // Fresh workspace has zero source-control connections, so the workspace home
+  // redirects to the scoped integration gallery.
+  await expect(page).toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
   await expect(page.getByRole('heading', {name: 'Connect source control'})).toBeVisible();
   await argosScreenshot(page, 'auth/setup-integrations');
 });

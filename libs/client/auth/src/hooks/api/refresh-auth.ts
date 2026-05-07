@@ -54,7 +54,12 @@ export function useRefreshAuth() {
         retry: false,
         staleTime: 0,
       });
-      setState(toAuthenticatedState(result));
+      // Resolve workspaces before flipping auth state to authenticated. A
+      // single atomic setState avoids the intermediate window where the
+      // user appears authenticated with zero workspaces, which previously
+      // caused the `/` redirect to send users with workspaces straight to
+      // `/setup/workspaces/new`.
+      let memberships: Awaited<ReturnType<typeof listUserWorkspaces>>['memberships'] = [];
       try {
         const workspaces = await queryClient.fetchQuery({
           queryKey: userWorkspacesQueryKey,
@@ -62,10 +67,13 @@ export function useRefreshAuth() {
           retry: false,
           staleTime: 0,
         });
-        setState(toAuthenticatedState(result, workspaces.memberships));
+        memberships = workspaces.memberships;
       } catch {
-        // Auth is valid even if the workspace read model is temporarily unavailable.
+        // Auth is valid even if the workspace read model is temporarily
+        // unavailable; fall through with an empty membership list and let
+        // the route guards send the user to the appropriate setup page.
       }
+      setState(toAuthenticatedState(result, memberships));
       return result;
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {

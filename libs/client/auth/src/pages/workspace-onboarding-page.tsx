@@ -13,8 +13,11 @@ import {
   Text,
   toast,
 } from '@shipfox/react-ui';
+import {useNavigate} from '@tanstack/react-router';
+import {useSetAtom} from 'jotai';
 import {type FormEvent, useState} from 'react';
 import {useCreateWorkspaceAuth} from '#hooks/api/workspace-auth.js';
+import {lastWorkspaceIdAtom} from '#state/last-workspace.js';
 import {authErrorMessage, type FieldErrors, fieldErrorsFromZod} from './form-utils.js';
 
 type WorkspaceField = 'name';
@@ -38,6 +41,8 @@ const previewBars = [
 
 export function WorkspaceOnboardingPage() {
   const createWorkspace = useCreateWorkspaceAuth();
+  const navigate = useNavigate();
+  const setLastWorkspaceId = useSetAtom(lastWorkspaceIdAtom);
   const [name, setName] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<WorkspaceField>>({});
   const [formError, setFormError] = useState<string | undefined>();
@@ -53,8 +58,19 @@ export function WorkspaceOnboardingPage() {
 
     setFieldErrors({});
     try {
-      await createWorkspace.mutateAsync(parsed.data);
+      const created = await createWorkspace.mutateAsync(parsed.data);
       toast.success('Workspace created.');
+      // Pin the new workspace as the last-active one so a page refresh and
+      // future visits to `/` land on it. Going through `/` directly would
+      // honor a stale `lastWorkspaceIdAtom` and send the user back to a
+      // previously selected workspace.
+      try {
+        setLastWorkspaceId(created.id);
+      } catch {
+        // localStorage may throw in private browsing or quota-exceeded;
+        // navigation still proceeds with the new id passed below.
+      }
+      await navigate({to: '/workspaces/$wid', params: {wid: created.id}});
     } catch (error) {
       setFormError(authErrorMessage(error));
     }
