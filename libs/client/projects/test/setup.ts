@@ -22,6 +22,11 @@ Object.defineProperty(window, 'scrollTo', {
   value: () => undefined,
 });
 
+Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
+  configurable: true,
+  value: () => undefined,
+});
+
 Object.defineProperty(window, 'matchMedia', {
   configurable: true,
   value: (query: string) => ({
