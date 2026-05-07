@@ -182,6 +182,10 @@ Conventions:
 - Name snapshots `<surface>/<state>` (e.g. `auth/login`,
   `projects/empty-state`). The directory-style prefix groups related shots in
   the Argos UI.
+- Keep any generated entity data that is visible in a screenshot deterministic.
+  Random users, IDs, and hidden setup data are fine for isolation, but names,
+  titles, and other rendered text should use fixed values so Argos only reports
+  meaningful UI drift.
 
 New `e2e/client/*` packages register their own Argos reporter in their
 `playwright.config.ts` with a `buildName` that matches the package suffix
