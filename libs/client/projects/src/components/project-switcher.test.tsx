@@ -1,4 +1,3 @@
-import {configureApiClient} from '@shipfox/client-api';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {
   createMemoryHistory,
@@ -9,7 +8,8 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import {fireEvent, render, screen} from '@testing-library/react';
-import {jsonResponse, PROJECT_TEST_WID} from '#test/pages.js';
+import {projectsQueryKeys} from '#hooks/api/projects.js';
+import {PROJECT_TEST_WID} from '#test/pages.js';
 import {ProjectSwitcher} from './project-switcher.js';
 
 const CREATE_PROJECT_LABEL_RE = /Create project/u;
@@ -17,17 +17,9 @@ const CREATE_PROJECT_LABEL_RE = /Create project/u;
 describe('ProjectSwitcher', () => {
   test('keeps Create project pinned and keyboard-selectable under empty search', async () => {
     const onSelect = vi.fn();
-    configureApiClient({
-      baseUrl: 'https://api.example.test',
-      fetchImpl: vi.fn().mockResolvedValue(
-        jsonResponse({
-          projects: [projectDto({id: 'project-1', name: 'Platform'})],
-          next_cursor: null,
-        }),
-      ),
-    });
+    const projects = [projectDto({id: 'project-1', name: 'Platform'})];
 
-    renderProjectSwitcher({onSelect});
+    renderProjectSwitcher({onSelect, projects});
     await screen.findByRole('option', {name: 'Platform'});
     const createOption = screen.getByRole('option', {name: CREATE_PROJECT_LABEL_RE});
     const searchInput = screen.getByPlaceholderText('Search projects...');
@@ -47,8 +39,20 @@ describe('ProjectSwitcher', () => {
   });
 });
 
-function renderProjectSwitcher({onSelect}: {onSelect: () => void}) {
-  const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+function renderProjectSwitcher({
+  onSelect,
+  projects,
+}: {
+  onSelect: () => void;
+  projects: ReturnType<typeof projectDto>[];
+}) {
+  const queryClient = new QueryClient({
+    defaultOptions: {queries: {retry: false, staleTime: Number.POSITIVE_INFINITY}},
+  });
+  queryClient.setQueryData(projectsQueryKeys.list(PROJECT_TEST_WID), {
+    pages: [{projects, next_cursor: null}],
+    pageParams: [undefined],
+  });
   const rootRoute = createRootRoute({component: Outlet});
   const workspaceRoute = createRoute({
     getParentRoute: () => rootRoute,
