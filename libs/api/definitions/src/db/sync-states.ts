@@ -1,3 +1,4 @@
+import {and, desc, eq} from 'drizzle-orm';
 import type {
   DefinitionSyncErrorCode,
   DefinitionSyncState,
@@ -58,5 +59,28 @@ export async function markDefinitionSyncState(
     .returning();
 
   if (!row) throw new Error('Definition sync state upsert returned no rows');
+  return toDefinitionSyncState(row);
+}
+
+export async function getLatestDefinitionSyncState(params: {
+  projectId: string;
+  sourceConnectionId: string;
+  sourceExternalRepositoryId: string;
+}): Promise<DefinitionSyncState | undefined> {
+  const rows = await db()
+    .select()
+    .from(definitionSyncStates)
+    .where(
+      and(
+        eq(definitionSyncStates.projectId, params.projectId),
+        eq(definitionSyncStates.sourceConnectionId, params.sourceConnectionId),
+        eq(definitionSyncStates.sourceExternalRepositoryId, params.sourceExternalRepositoryId),
+      ),
+    )
+    .orderBy(desc(definitionSyncStates.updatedAt))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return undefined;
   return toDefinitionSyncState(row);
 }

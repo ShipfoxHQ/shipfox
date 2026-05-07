@@ -1,10 +1,10 @@
-import {getApiKeyContext} from '@shipfox/api-auth-context';
 import {definitionListResponseSchema} from '@shipfox/api-definitions-dto';
-import {ProjectNotFoundError, requireProjectForWorkspace} from '@shipfox/api-projects';
+import {ProjectNotFoundError, requireProjectAccess} from '@shipfox/api-projects';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {listDefinitionsByProject} from '#db/definitions.js';
-import {toDefinitionDto} from '#presentation/dto/index.js';
+import {getLatestDefinitionSyncState} from '#db/sync-states.js';
+import {toDefinitionDto, toDefinitionSyncSummaryDto} from '#presentation/dto/index.js';
 
 export const listDefinitionsRoute = defineRoute({
   method: 'GET',
@@ -26,15 +26,17 @@ export const listDefinitionsRoute = defineRoute({
   },
   handler: async (request) => {
     const {project_id: projectId} = request.query;
-    const apiKeyContext = getApiKeyContext(request);
-    if (!apiKeyContext) {
-      throw new ClientError('Authentication required', 'unauthorized', {status: 401});
-    }
-    await requireProjectForWorkspace({projectId, workspaceId: apiKeyContext.workspaceId});
+    const {project} = await requireProjectAccess({request, projectId});
     const definitions = await listDefinitionsByProject(projectId);
+    const syncState = await getLatestDefinitionSyncState({
+      projectId,
+      sourceConnectionId: project.sourceConnectionId,
+      sourceExternalRepositoryId: project.sourceExternalRepositoryId,
+    });
 
     return {
       definitions: definitions.map(toDefinitionDto),
+      sync: toDefinitionSyncSummaryDto(syncState),
     };
   },
 });

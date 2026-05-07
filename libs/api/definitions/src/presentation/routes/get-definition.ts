@@ -1,6 +1,5 @@
-import {getApiKeyContext} from '@shipfox/api-auth-context';
 import {definitionResponseSchema} from '@shipfox/api-definitions-dto';
-import {ProjectNotFoundError, requireProjectForWorkspace} from '@shipfox/api-projects';
+import {ProjectNotFoundError, requireProjectAccess} from '@shipfox/api-projects';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {getDefinitionById} from '#db/definitions.js';
@@ -31,14 +30,7 @@ export const getDefinitionRoute = defineRoute({
     if (!definition) {
       throw new ClientError('Definition not found', 'not-found', {status: 404});
     }
-    const apiKeyContext = getApiKeyContext(request);
-    if (!apiKeyContext) {
-      throw new ClientError('Authentication required', 'unauthorized', {status: 401});
-    }
-    await requireProjectForWorkspace({
-      projectId: definition.projectId,
-      workspaceId: apiKeyContext.workspaceId,
-    });
+    await requireProjectAccess({request, projectId: definition.projectId});
 
     return toDefinitionDto(definition);
   },

@@ -1,6 +1,5 @@
-import {getApiKeyContext} from '@shipfox/api-auth-context';
 import {createDefinitionBodySchema, definitionResponseSchema} from '@shipfox/api-definitions-dto';
-import {ProjectNotFoundError, requireProjectForWorkspace} from '@shipfox/api-projects';
+import {ProjectNotFoundError, requireProjectAccess} from '@shipfox/api-projects';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {DefinitionParseError} from '#core/errors.js';
 import {parseDefinition} from '#core/parse-definition.js';
@@ -31,11 +30,7 @@ export const createDefinitionRoute = defineRoute({
   },
   handler: async (request) => {
     const {project_id: projectId, config_path, source, yaml: yamlString, sha, ref} = request.body;
-    const apiKeyContext = getApiKeyContext(request);
-    if (!apiKeyContext) {
-      throw new ClientError('Authentication required', 'unauthorized', {status: 401});
-    }
-    await requireProjectForWorkspace({projectId, workspaceId: apiKeyContext.workspaceId});
+    await requireProjectAccess({request, projectId});
 
     const spec = parseDefinition(yamlString);
 

@@ -1,5 +1,7 @@
-import type {DefinitionDto} from '@shipfox/api-definitions-dto';
+import type {DefinitionDto, DefinitionSyncSummaryDto} from '@shipfox/api-definitions-dto';
 import type {WorkflowDefinition} from '#core/entities/definition.js';
+import type {DefinitionSyncState} from '#core/entities/sync-state.js';
+import {UNRESOLVED_SYNC_REF} from '#core/sync-definitions.js';
 
 export function toDefinitionDto(definition: WorkflowDefinition): DefinitionDto {
   return {
@@ -14,5 +16,21 @@ export function toDefinitionDto(definition: WorkflowDefinition): DefinitionDto {
     fetched_at: definition.fetchedAt.toISOString(),
     created_at: definition.createdAt.toISOString(),
     updated_at: definition.updatedAt.toISOString(),
+  };
+}
+
+export function toDefinitionSyncSummaryDto(
+  syncState: DefinitionSyncState | undefined,
+): DefinitionSyncSummaryDto | null {
+  if (!syncState) return null;
+
+  return {
+    ref: syncState.ref === UNRESOLVED_SYNC_REF ? null : syncState.ref,
+    status: syncState.status,
+    last_sync_at: (syncState.finishedAt ?? syncState.updatedAt).toISOString(),
+    started_at: syncState.startedAt?.toISOString() ?? null,
+    finished_at: syncState.finishedAt?.toISOString() ?? null,
+    last_error_code: syncState.lastErrorCode,
+    last_error_message: syncState.lastErrorMessage,
   };
 }

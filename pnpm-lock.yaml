@@ -1553,12 +1553,18 @@ importers:
 
   libs/client/projects:
     dependencies:
+      '@shipfox/api-definitions-dto':
+        specifier: workspace:*
+        version: link:../../api/definitions-dto
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../../api/integration/core-dto
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../../api/projects-dto
+      '@shipfox/api-workflows-dto':
+        specifier: workspace:*
+        version: link:../../api/workflows-dto
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api

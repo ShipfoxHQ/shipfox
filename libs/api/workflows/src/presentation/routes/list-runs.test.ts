@@ -1,14 +1,19 @@
-import {setApiKeyContext} from '@shipfox/api-auth-context';
+import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {createWorkflowRun} from '#db/workflow-runs.js';
 import {listRunsRoute} from './list-runs.js';
 
+const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
+
 vi.mock('@shipfox/api-projects', () => ({
   ProjectNotFoundError: class ProjectNotFoundError extends Error {},
-  requireProjectForWorkspace: vi.fn(({projectId, workspaceId}) =>
-    Promise.resolve({id: projectId, workspaceId}),
+  requireProjectAccess: vi.fn(({projectId}) =>
+    Promise.resolve({
+      project: {id: projectId, workspaceId: projectAccessState.workspaceId},
+      workspaceId: projectAccessState.workspaceId,
+    }),
   ),
 }));
 
@@ -22,12 +27,14 @@ describe('GET /api/workflows/runs', () => {
     app.setValidatorCompiler(validatorCompiler);
     app.setSerializerCompiler(serializerCompiler);
     app.addHook('onRequest', (request, _reply, done) => {
-      setApiKeyContext(request, {
-        apiKeyId: crypto.randomUUID(),
-        workspaceId,
-        workspaceStatus: 'active',
-        scopes: ['*'],
-      });
+      setUserContext(
+        request,
+        buildUserContext({
+          userId: crypto.randomUUID(),
+          email: 'user@example.com',
+          memberships: [{workspaceId, role: 'admin'}],
+        }),
+      );
       done();
     });
     app.get('/api/workflows/runs', listRunsRoute);
@@ -37,6 +44,7 @@ describe('GET /api/workflows/runs', () => {
   beforeEach(() => {
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
+    projectAccessState.workspaceId = workspaceId;
   });
 
   test('returns runs for a project', async () => {

@@ -17,6 +17,7 @@ export * from './radio-group/index.js';
 export * from './scroll-area/index.js';
 export * from './sheet/index.js';
 export * from './skeleton/index.js';
+export * from './table/index.js';
 export * from './tabs/index.js';
 export * from './theme/index.js';
 export * from './toast/index.js';

@@ -1,9 +1,24 @@
-import {setApiKeyContext} from '@shipfox/api-auth-context';
+import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {requireProjectAccess} from '@shipfox/api-projects';
+import {ClientError} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {createWorkflowRun} from '#db/workflow-runs.js';
 import {getRunRoute} from './get-run.js';
+
+const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
+
+vi.mock('@shipfox/api-projects', () => ({
+  requireProjectAccess: vi.fn(({projectId}) =>
+    Promise.resolve({
+      project: {id: projectId, workspaceId: projectAccessState.workspaceId},
+      workspaceId: projectAccessState.workspaceId,
+    }),
+  ),
+}));
+
+const mockRequireProjectAccess = vi.mocked(requireProjectAccess);
 
 describe('GET /api/workflows/runs/:id', () => {
   let app: FastifyInstance;
@@ -14,12 +29,14 @@ describe('GET /api/workflows/runs/:id', () => {
     app.setValidatorCompiler(validatorCompiler);
     app.setSerializerCompiler(serializerCompiler);
     app.addHook('onRequest', (request, _reply, done) => {
-      setApiKeyContext(request, {
-        apiKeyId: crypto.randomUUID(),
-        workspaceId,
-        workspaceStatus: 'active',
-        scopes: ['*'],
-      });
+      setUserContext(
+        request,
+        buildUserContext({
+          userId: crypto.randomUUID(),
+          email: 'user@example.com',
+          memberships: [{workspaceId, role: 'admin'}],
+        }),
+      );
       done();
     });
     app.get('/api/workflows/runs/:id', getRunRoute);
@@ -28,6 +45,21 @@ describe('GET /api/workflows/runs/:id', () => {
 
   beforeEach(() => {
     workspaceId = crypto.randomUUID();
+    projectAccessState.workspaceId = workspaceId;
+    mockRequireProjectAccess.mockImplementation(({projectId}) =>
+      Promise.resolve({
+        project: {
+          id: projectId,
+          workspaceId,
+          sourceConnectionId: crypto.randomUUID(),
+          sourceExternalRepositoryId: `repo:${crypto.randomUUID()}`,
+          name: 'Project',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        workspaceId,
+      }),
+    );
   });
 
   test('returns 200 with run, jobs, and steps', async () => {
@@ -70,5 +102,44 @@ describe('GET /api/workflows/runs/:id', () => {
 
     expect(res.statusCode).toBe(404);
     expect(res.json().code).toBe('not-found');
+  });
+
+  test('returns 404 for inaccessible run', async () => {
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId: crypto.randomUUID(),
+      definitionId: crypto.randomUUID(),
+      definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
+      triggerContext: {type: 'manual'},
+    });
+    mockRequireProjectAccess.mockRejectedValueOnce(
+      new ClientError('Not a member of this workspace', 'forbidden', {status: 403}),
+    );
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}`,
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('not-found');
+  });
+
+  test('propagates unexpected errors from project access check', async () => {
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId: crypto.randomUUID(),
+      definitionId: crypto.randomUUID(),
+      definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
+      triggerContext: {type: 'manual'},
+    });
+    mockRequireProjectAccess.mockRejectedValueOnce(new Error('database connection lost'));
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}`,
+    });
+
+    expect(res.statusCode).toBe(500);
   });
 });

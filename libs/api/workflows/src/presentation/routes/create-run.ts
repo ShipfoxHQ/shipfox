@@ -1,5 +1,4 @@
-import {getApiKeyContext} from '@shipfox/api-auth-context';
-import {ProjectNotFoundError, requireProjectForWorkspace} from '@shipfox/api-projects';
+import {ProjectNotFoundError, requireProjectAccess} from '@shipfox/api-projects';
 import {createRunBodySchema, runResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {DefinitionNotFoundError, ProjectMismatchError} from '#core/errors.js';
@@ -29,23 +28,14 @@ export const createRunRoute = defineRoute({
     throw error;
   },
   handler: async (request, reply) => {
-    const {project_id: projectId, definition_id, inputs} = request.body;
+    const {project_id: projectId, definition_id} = request.body;
 
-    const apiKeyContext = getApiKeyContext(request);
-    if (!apiKeyContext) {
-      throw new ClientError('Authentication required', 'unauthorized', {status: 401});
-    }
-
-    const project = await requireProjectForWorkspace({
-      projectId,
-      workspaceId: apiKeyContext.workspaceId,
-    });
+    const {project} = await requireProjectAccess({request, projectId});
 
     const run = await runWorkflow({
       workspaceId: project.workspaceId,
       projectId: project.id,
       definitionId: definition_id,
-      inputs,
     });
 
     reply.status(201);

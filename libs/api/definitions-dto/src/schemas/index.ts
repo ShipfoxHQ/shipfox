@@ -4,9 +4,11 @@ export {
   type DefinitionDto,
   type DefinitionListResponseDto,
   type DefinitionResponseDto,
+  type DefinitionSyncSummaryDto,
   definitionDtoSchema,
   definitionListResponseSchema,
   definitionResponseSchema,
+  definitionSyncSummarySchema,
 } from './dto.js';
 export {type JobDto, jobSchema} from './job.js';
 export {type RunStepDto, runStepSchema} from './step.js';

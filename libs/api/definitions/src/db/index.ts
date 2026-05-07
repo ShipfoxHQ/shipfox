@@ -20,6 +20,7 @@ export {definitionsOutbox} from './schema/outbox.js';
 export {definitionSyncStates} from './schema/sync-states.js';
 export {
   type DefinitionSyncStateKey,
+  getLatestDefinitionSyncState,
   type MarkDefinitionSyncParams,
   markDefinitionSyncState,
 } from './sync-states.js';

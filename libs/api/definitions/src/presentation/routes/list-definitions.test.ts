@@ -1,14 +1,29 @@
-import {setApiKeyContext} from '@shipfox/api-auth-context';
+import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
+import {markDefinitionSyncState} from '#db/index.js';
 import {definitionFactory} from '#test/index.js';
 import {listDefinitionsRoute} from './list-definitions.js';
 
+const projectAccessState = vi.hoisted(() => ({
+  workspaceId: '',
+  sourceConnectionId: '',
+  sourceExternalRepositoryId: '',
+}));
+
 vi.mock('@shipfox/api-projects', () => ({
   ProjectNotFoundError: class ProjectNotFoundError extends Error {},
-  requireProjectForWorkspace: vi.fn(({projectId, workspaceId}) =>
-    Promise.resolve({id: projectId, workspaceId}),
+  requireProjectAccess: vi.fn(({projectId}) =>
+    Promise.resolve({
+      project: {
+        id: projectId,
+        workspaceId: projectAccessState.workspaceId,
+        sourceConnectionId: projectAccessState.sourceConnectionId,
+        sourceExternalRepositoryId: projectAccessState.sourceExternalRepositoryId,
+      },
+      workspaceId: projectAccessState.workspaceId,
+    }),
   ),
 }));
 
@@ -16,18 +31,22 @@ describe('GET /api/definitions', () => {
   let app: FastifyInstance;
   let workspaceId: string;
   let projectId: string;
+  let sourceConnectionId: string;
+  let sourceExternalRepositoryId: string;
 
   beforeAll(async () => {
     app = Fastify();
     app.setValidatorCompiler(validatorCompiler);
     app.setSerializerCompiler(serializerCompiler);
     app.addHook('onRequest', (request, _reply, done) => {
-      setApiKeyContext(request, {
-        apiKeyId: crypto.randomUUID(),
-        workspaceId,
-        workspaceStatus: 'active',
-        scopes: ['*'],
-      });
+      setUserContext(
+        request,
+        buildUserContext({
+          userId: crypto.randomUUID(),
+          email: 'user@example.com',
+          memberships: [{workspaceId, role: 'admin'}],
+        }),
+      );
       done();
     });
     app.get('/api/definitions', listDefinitionsRoute);
@@ -37,11 +56,27 @@ describe('GET /api/definitions', () => {
   beforeEach(() => {
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
+    sourceConnectionId = crypto.randomUUID();
+    sourceExternalRepositoryId = `repo:${crypto.randomUUID()}`;
+    projectAccessState.workspaceId = workspaceId;
+    projectAccessState.sourceConnectionId = sourceConnectionId;
+    projectAccessState.sourceExternalRepositoryId = sourceExternalRepositoryId;
   });
 
-  test('returns 200 with definitions list', async () => {
+  test('returns 200 with definitions list and sync summary', async () => {
     await definitionFactory.create({projectId, name: 'Bravo', configPath: 'b.yml'});
     await definitionFactory.create({projectId, name: 'Alpha', configPath: 'a.yml'});
+    const startedAt = new Date('2026-05-07T01:00:00.000Z');
+    const finishedAt = new Date('2026-05-07T01:00:05.000Z');
+    await markDefinitionSyncState({
+      projectId,
+      sourceConnectionId,
+      sourceExternalRepositoryId,
+      ref: 'main',
+      status: 'succeeded',
+      startedAt,
+      finishedAt,
+    });
 
     const res = await app.inject({
       method: 'GET',
@@ -53,16 +88,55 @@ describe('GET /api/definitions', () => {
     expect(body.definitions).toHaveLength(2);
     expect(body.definitions[0].name).toBe('Alpha');
     expect(body.definitions[1].name).toBe('Bravo');
+    expect(body.sync).toEqual({
+      ref: 'main',
+      status: 'succeeded',
+      last_sync_at: finishedAt.toISOString(),
+      started_at: startedAt.toISOString(),
+      finished_at: finishedAt.toISOString(),
+      last_error_code: null,
+      last_error_message: null,
+    });
   });
 
-  test('returns 200 with empty array for project with no definitions', async () => {
+  test('returns 200 with empty array and null sync for project with no definitions', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: `/api/definitions?project_id=${crypto.randomUUID()}`,
+      url: `/api/definitions?project_id=${projectId}`,
     });
 
     expect(res.statusCode).toBe(200);
     expect(res.json().definitions).toEqual([]);
+    expect(res.json().sync).toBeNull();
+  });
+
+  test('returns failed sync summary', async () => {
+    const startedAt = new Date('2026-05-07T02:00:00.000Z');
+    await markDefinitionSyncState({
+      projectId,
+      sourceConnectionId,
+      sourceExternalRepositoryId,
+      ref: 'main',
+      status: 'failed',
+      startedAt,
+      lastErrorCode: 'no-workflow-files',
+      lastErrorMessage: 'No workflow files found',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/definitions?project_id=${projectId}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().sync).toMatchObject({
+      ref: 'main',
+      status: 'failed',
+      started_at: startedAt.toISOString(),
+      finished_at: null,
+      last_error_code: 'no-workflow-files',
+      last_error_message: 'No workflow files found',
+    });
   });
 
   test('invalid projectId UUID returns 400', async () => {

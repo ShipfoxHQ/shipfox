@@ -1,1 +1,1 @@
-export {toDefinitionDto} from './definition.js';
+export {toDefinitionDto, toDefinitionSyncSummaryDto} from './definition.js';

@@ -1,13 +1,18 @@
-import {setApiKeyContext} from '@shipfox/api-auth-context';
+import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {createDefinitionRoute} from './create-definition.js';
 
+const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
+
 vi.mock('@shipfox/api-projects', () => ({
   ProjectNotFoundError: class ProjectNotFoundError extends Error {},
-  requireProjectForWorkspace: vi.fn(({projectId, workspaceId}) =>
-    Promise.resolve({id: projectId, workspaceId}),
+  requireProjectAccess: vi.fn(({projectId}) =>
+    Promise.resolve({
+      project: {id: projectId, workspaceId: projectAccessState.workspaceId},
+      workspaceId: projectAccessState.workspaceId,
+    }),
   ),
 }));
 
@@ -21,12 +26,14 @@ describe('POST /api/definitions', () => {
     app.setValidatorCompiler(validatorCompiler);
     app.setSerializerCompiler(serializerCompiler);
     app.addHook('onRequest', (request, _reply, done) => {
-      setApiKeyContext(request, {
-        apiKeyId: crypto.randomUUID(),
-        workspaceId,
-        workspaceStatus: 'active',
-        scopes: ['*'],
-      });
+      setUserContext(
+        request,
+        buildUserContext({
+          userId: crypto.randomUUID(),
+          email: 'user@example.com',
+          memberships: [{workspaceId, role: 'admin'}],
+        }),
+      );
       done();
     });
     app.post('/api/definitions', createDefinitionRoute);
@@ -36,6 +43,7 @@ describe('POST /api/definitions', () => {
   beforeEach(() => {
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
+    projectAccessState.workspaceId = workspaceId;
   });
 
   const validYaml = `

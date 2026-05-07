@@ -1,4 +1,4 @@
-import {getApiKeyContext} from '@shipfox/api-auth-context';
+import {requireProjectAccess} from '@shipfox/api-projects';
 import {jobDtoSchema, runResponseSchema, stepDtoSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
@@ -27,16 +27,18 @@ export const getRunRoute = defineRoute({
   },
   handler: async (request) => {
     const {id} = request.params;
-    const apiKeyContext = getApiKeyContext(request);
-    if (!apiKeyContext) {
-      throw new ClientError('Authentication required', 'unauthorized', {status: 401});
-    }
 
     const run = await getWorkflowRunById(id);
-
-    if (!run || run.workspaceId !== apiKeyContext.workspaceId) {
+    if (!run) {
       throw new ClientError('Run not found', 'not-found', {status: 404});
     }
+
+    await requireProjectAccess({request, projectId: run.projectId}).catch((err: unknown) => {
+      if (err instanceof ClientError && (err.status === 403 || err.status === 404)) {
+        throw new ClientError('Run not found', 'not-found', {status: 404});
+      }
+      throw err;
+    });
 
     const runJobs = await getJobsByRunId(run.id);
     const allSteps = await getStepsByJobIds(runJobs.map((j) => j.id));
