@@ -58,7 +58,7 @@ export function WorkspaceSwitcher({activeWorkspaceId, onSelect}: WorkspaceSwitch
         </CommandGroup>
       </CommandList>
       <CommandSeparator />
-      <CommandGroup>
+      <CommandGroup forceMount>
         <CommandItem value="__create" onSelect={() => onSelect?.()} forceMount asChild>
           <Link to="/setup/workspaces/new" className="flex items-center gap-8">
             <Icon name="addLine" className="size-16" />
