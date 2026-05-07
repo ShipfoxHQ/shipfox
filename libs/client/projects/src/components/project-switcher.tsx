@@ -15,7 +15,7 @@ import {useProjectsInfiniteQuery} from '#hooks/api/projects.js';
 
 export interface ProjectSwitcherProps {
   workspaceId: string;
-  activeProjectId: string | undefined;
+  activeProjectId?: string | undefined;
   onSelect?: () => void;
 }
 
@@ -41,11 +41,25 @@ export function ProjectSwitcher({workspaceId, activeProjectId, onSelect}: Projec
     onSelect?.();
   };
 
+  const handleSelectAll = () => {
+    navigate({to: '/workspaces/$wid', params: {wid: workspaceId}});
+    onSelect?.();
+  };
+
   return (
     <Command>
       <CommandInput placeholder="Search projects..." />
       <ScrollArea>
         <CommandList className="max-h-300">
+          <CommandGroup>
+            <CommandItem value="__all" keywords={['all projects']} onSelect={handleSelectAll}>
+              <Icon
+                name="check"
+                className={`size-16 mr-8 ${activeProjectId ? 'opacity-0' : 'opacity-100'}`}
+              />
+              All projects
+            </CommandItem>
+          </CommandGroup>
           {query.isError ? (
             <CommandEmpty>Couldn&apos;t load projects.</CommandEmpty>
           ) : query.isLoading ? (

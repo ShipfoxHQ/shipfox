@@ -1,4 +1,4 @@
-import {and, desc, eq, lt, or, type SQL} from 'drizzle-orm';
+import {and, desc, eq, ilike, lt, or, type SQL} from 'drizzle-orm';
 import type {Project} from '#core/entities/project.js';
 import {ProjectAlreadyExistsError, ProjectNotFoundError} from '#core/errors.js';
 import {db} from './db.js';
@@ -20,6 +20,11 @@ export interface ListProjectsParams {
   workspaceId: string;
   limit: number;
   cursor?: ProjectCursor | undefined;
+  search?: string | undefined;
+}
+
+function escapeIlikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
 }
 
 export interface ListProjectsResult {
@@ -97,6 +102,9 @@ export async function listProjects(params: ListProjectsParams): Promise<ListProj
   const conditions = [eq(projects.workspaceId, params.workspaceId)];
   const cursorCondition = cursorWhere(params);
   if (cursorCondition) conditions.push(cursorCondition);
+  if (params.search) {
+    conditions.push(ilike(projects.name, `%${escapeIlikePattern(params.search)}%`));
+  }
 
   const rows = await db()
     .select()

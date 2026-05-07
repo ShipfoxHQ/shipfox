@@ -145,6 +145,57 @@ describe('project routes', () => {
     expect(res.json().projects[0].source.connection_id).toBe(sourceConnectionId);
   });
 
+  test('filters projects by `search` (case-insensitive substring on name)', async () => {
+    const names = ['Platform', 'Runner', 'Notifier'];
+    for (const [index, name] of names.entries()) {
+      vi.mocked(sourceControl.resolveRepository).mockResolvedValueOnce({
+        connection: {
+          id: sourceConnectionId,
+          workspaceId,
+          provider: 'debug',
+          externalAccountId: 'debug',
+          displayName: 'Debug',
+          lifecycleStatus: 'active',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        repository: {
+          externalRepositoryId: `debug:${name.toLowerCase()}-${index}`,
+          owner: 'debug-owner',
+          name: name.toLowerCase(),
+          fullName: `debug-owner/${name.toLowerCase()}`,
+          defaultBranch: 'main',
+          visibility: 'private',
+          cloneUrl: `https://debug.local/debug-owner/${name.toLowerCase()}.git`,
+          htmlUrl: `https://debug.local/debug-owner/${name.toLowerCase()}`,
+        },
+      });
+      await app.inject({
+        method: 'POST',
+        url: '/projects',
+        headers: {authorization: 'Bearer user'},
+        payload: {
+          workspace_id: workspaceId,
+          name,
+          source: {
+            connection_id: sourceConnectionId,
+            external_repository_id: `debug:${name.toLowerCase()}-${index}`,
+          },
+        },
+      });
+    }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/projects?workspace_id=${workspaceId}&search=runn`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    const returned = res.json().projects.map((project: {name: string}) => project.name);
+    expect(returned).toEqual(['Runner']);
+  });
+
   test('returns 409 when the source repository already has a project', async () => {
     const payload = {
       workspace_id: workspaceId,

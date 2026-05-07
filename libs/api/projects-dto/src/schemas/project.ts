@@ -36,6 +36,7 @@ export const listProjectsQuerySchema = z.object({
   workspace_id: z.string().uuid(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().optional(),
+  search: z.string().min(1).max(100).optional(),
 });
 
 export type ListProjectsQueryDto = z.infer<typeof listProjectsQuerySchema>;
