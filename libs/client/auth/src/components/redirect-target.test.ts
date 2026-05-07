@@ -28,6 +28,8 @@ describe('sanitizeRedirectPath', () => {
     ['plain /auth/login', '/auth/login'],
     ['/auth bare', '/auth'],
     ['/auth/reset with token', '/auth/reset?token=x'],
+    ['/auth with query bypass', '/auth?token=x'],
+    ['/auth with fragment bypass', '/auth#foo'],
   ])('rejects %s', (_label, input) => {
     test('returns undefined', () => {
       const result = sanitizeRedirectPath(input);
