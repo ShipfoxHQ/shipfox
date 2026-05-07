@@ -7,10 +7,9 @@ import {
   CommandList,
   CommandSeparator,
   Icon,
-  ScrollArea,
 } from '@shipfox/react-ui';
-import {Link, useNavigate} from '@tanstack/react-router';
-import {useEffect} from 'react';
+import {useNavigate} from '@tanstack/react-router';
+import {type KeyboardEvent, useEffect, useState} from 'react';
 import {useProjectsInfiniteQuery} from '#hooks/api/projects.js';
 
 export interface ProjectSwitcherProps {
@@ -21,6 +20,7 @@ export interface ProjectSwitcherProps {
 
 export function ProjectSwitcher({workspaceId, activeProjectId, onSelect}: ProjectSwitcherProps) {
   const navigate = useNavigate();
+  const [searchValue, setSearchValue] = useState('');
   const query = useProjectsInfiniteQuery(workspaceId);
   const projects = query.data?.pages.flatMap((page) => page.projects) ?? [];
 
@@ -46,61 +46,83 @@ export function ProjectSwitcher({workspaceId, activeProjectId, onSelect}: Projec
     onSelect?.();
   };
 
+  const handleCreate = () => {
+    navigate({to: '/workspaces/$wid/projects/new', params: {wid: workspaceId}});
+    onSelect?.();
+  };
+
+  const normalizedSearch = searchValue.trim().toLowerCase();
+  const hasSearchMatch =
+    normalizedSearch.length === 0 ||
+    'all projects'.includes(normalizedSearch) ||
+    projects.some((project) =>
+      [project.id, project.name].some((value) => value.toLowerCase().includes(normalizedSearch)),
+    );
+  const shouldCreateFromEmptySearch = !query.isLoading && !query.isError && !hasSearchMatch;
+
+  const handleCommandKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== 'Enter' || !shouldCreateFromEmptySearch) {
+      return;
+    }
+
+    event.preventDefault();
+    handleCreate();
+  };
+
   return (
-    <Command>
-      <CommandInput placeholder="Search projects..." />
-      <ScrollArea>
-        <CommandList className="max-h-300">
-          <CommandGroup>
-            <CommandItem value="__all" keywords={['all projects']} onSelect={handleSelectAll}>
-              <Icon
-                name="check"
-                className={`size-16 mr-8 ${activeProjectId ? 'opacity-0' : 'opacity-100'}`}
-              />
-              All projects
-            </CommandItem>
-          </CommandGroup>
-          {query.isError ? (
-            <CommandEmpty>Couldn&apos;t load projects.</CommandEmpty>
-          ) : query.isLoading ? (
-            <CommandEmpty>Loading projects...</CommandEmpty>
-          ) : projects.length === 0 ? (
-            <CommandEmpty>No projects yet.</CommandEmpty>
-          ) : (
-            <CommandGroup heading="Projects">
-              {projects.map((project) => (
-                <CommandItem
-                  key={project.id}
-                  value={project.id}
-                  keywords={[project.name]}
-                  onSelect={() => handleSelect(project.id)}
-                >
-                  <Icon
-                    name="check"
-                    className={`size-16 mr-8 ${
-                      activeProjectId === project.id ? 'opacity-100' : 'opacity-0'
-                    }`}
-                  />
-                  {project.name}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          )}
-          <CommandSeparator />
-          <CommandGroup>
-            <CommandItem value="__create" onSelect={() => onSelect?.()} asChild>
-              <Link
-                to="/workspaces/$wid/projects/new"
-                params={{wid: workspaceId}}
-                className="flex items-center gap-8"
+    <Command onKeyDown={handleCommandKeyDown}>
+      <CommandInput
+        placeholder="Search projects..."
+        value={searchValue}
+        onValueChange={setSearchValue}
+      />
+      <CommandList>
+        {query.isError ? (
+          <CommandEmpty>Couldn&apos;t load projects.</CommandEmpty>
+        ) : query.isLoading ? (
+          <CommandEmpty>Loading projects...</CommandEmpty>
+        ) : projects.length === 0 ? (
+          <CommandEmpty>No projects yet.</CommandEmpty>
+        ) : (
+          <CommandEmpty>No projects found.</CommandEmpty>
+        )}
+        <CommandGroup>
+          <CommandItem value="__all" keywords={['all projects']} onSelect={handleSelectAll}>
+            <Icon
+              name="check"
+              className={`size-16 mr-8 ${activeProjectId ? 'opacity-0' : 'opacity-100'}`}
+            />
+            All projects
+          </CommandItem>
+        </CommandGroup>
+        {projects.length > 0 ? (
+          <CommandGroup heading="Projects">
+            {projects.map((project) => (
+              <CommandItem
+                key={project.id}
+                value={project.id}
+                keywords={[project.name]}
+                onSelect={() => handleSelect(project.id)}
               >
-                <Icon name="addLine" className="size-16" />
-                Create project
-              </Link>
-            </CommandItem>
+                <Icon
+                  name="check"
+                  className={`size-16 mr-8 ${
+                    activeProjectId === project.id ? 'opacity-100' : 'opacity-0'
+                  }`}
+                />
+                {project.name}
+              </CommandItem>
+            ))}
           </CommandGroup>
-        </CommandList>
-      </ScrollArea>
+        ) : null}
+      </CommandList>
+      <CommandSeparator />
+      <CommandGroup forceMount>
+        <CommandItem value="__create" onSelect={handleCreate} forceMount>
+          <Icon name="addLine" className="size-16" />
+          Create project
+        </CommandItem>
+      </CommandGroup>
     </Command>
   );
 }
