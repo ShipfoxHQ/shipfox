@@ -48,7 +48,7 @@ test('creates the first workspace via onboarding and persists lastWorkspaceId', 
 }) => {
   const user = await auth.createUser();
   await auth.loginAs(page, user);
-  const workspaceName = `E2E Workspace ${randomUUID()}`;
+  const workspaceName = 'E2E Onboarding Workspace';
 
   await page.goto('/');
   await expect(page).toHaveURL(ONBOARDING_URL_RE);
@@ -66,8 +66,10 @@ test('creates the first workspace via onboarding and persists lastWorkspaceId', 
 
 test('switches between workspaces from the top nav', async ({page, auth, workspaces}) => {
   const user = await auth.createUser();
-  const wsA = await workspaces.create({userId: user.user.id, name: `A ${randomUUID()}`});
-  const wsB = await workspaces.create({userId: user.user.id, name: `B ${randomUUID()}`});
+  const workspaceAName = 'Alpha Workspace';
+  const workspaceBName = 'Beta Workspace';
+  const wsA = await workspaces.create({userId: user.user.id, name: workspaceAName});
+  const wsB = await workspaces.create({userId: user.user.id, name: workspaceBName});
   await auth.loginAs(page, user);
 
   await page.goto(`/workspaces/${wsA.id}`);
@@ -75,17 +77,17 @@ test('switches between workspaces from the top nav', async ({page, auth, workspa
 
   await page.getByLabel('Switch workspace').click();
   await argosScreenshot(page, 'workspaces/switcher-open');
-  await page.getByRole('option', {name: wsB.name}).click();
+  await page.getByRole('option', {name: workspaceBName}).click();
 
   await expect(page).toHaveURL(workspaceUrlRe(wsB.id));
-  await expect(page.getByRole('link', {name: wsB.name})).toBeVisible();
+  await expect(page.getByRole('link', {name: workspaceBName})).toBeVisible();
   expect(await readLastWorkspaceId(page)).toBe(wsB.id);
 });
 
 test('persists the active workspace across reload and via /', async ({page, auth, workspaces}) => {
   const user = await auth.createUser();
-  const wsA = await workspaces.create({userId: user.user.id, name: `A ${randomUUID()}`});
-  const wsB = await workspaces.create({userId: user.user.id, name: `B ${randomUUID()}`});
+  const wsA = await workspaces.create({userId: user.user.id, name: 'Alpha Workspace'});
+  const wsB = await workspaces.create({userId: user.user.id, name: 'Beta Workspace'});
   await auth.loginAs(page, user);
 
   await page.goto(`/workspaces/${wsB.id}/integrations`);
@@ -106,20 +108,21 @@ test('creates a second workspace from the switcher mid-session', async ({
   workspaces,
 }) => {
   const user = await auth.createUser();
-  const wsA = await workspaces.create({userId: user.user.id, name: `A ${randomUUID()}`});
+  const workspaceAName = 'Alpha Workspace';
+  const workspaceBName = 'Beta Workspace';
+  const wsA = await workspaces.create({userId: user.user.id, name: workspaceAName});
   await auth.loginAs(page, user);
 
   await page.goto(`/workspaces/${wsA.id}`);
   await page.getByLabel('Switch workspace').click();
-  await expect(page.getByRole('option', {name: wsA.name})).toBeVisible();
+  await expect(page.getByRole('option', {name: workspaceAName})).toBeVisible();
   await expect(page.getByRole('option', {name: CREATE_WORKSPACE_LABEL_RE})).toBeVisible();
   await argosScreenshot(page, 'workspaces/switcher-single-with-create');
 
   await page.getByRole('option', {name: CREATE_WORKSPACE_LABEL_RE}).click();
   await expect(page).toHaveURL(ONBOARDING_URL_RE);
 
-  const newName = `B ${randomUUID()}`;
-  await page.getByLabel('Workspace name').fill(newName);
+  await page.getByLabel('Workspace name').fill(workspaceBName);
   await page.getByRole('button', {name: 'Create workspace'}).click();
 
   await expect(page).toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
@@ -129,8 +132,8 @@ test('creates a second workspace from the switcher mid-session', async ({
 
   // Switcher now lists both workspaces.
   await page.getByLabel('Switch workspace').click();
-  await expect(page.getByRole('option', {name: wsA.name})).toBeVisible();
-  await expect(page.getByRole('option', {name: newName})).toBeVisible();
+  await expect(page.getByRole('option', {name: workspaceAName})).toBeVisible();
+  await expect(page.getByRole('option', {name: workspaceBName})).toBeVisible();
   expect(await readLastWorkspaceId(page)).toBe(newWid);
 });
 
@@ -140,7 +143,7 @@ test('switcher keeps Create workspace visible when search filters every workspac
   workspaces,
 }) => {
   const user = await auth.createUser();
-  const wsA = await workspaces.create({userId: user.user.id, name: `A ${randomUUID()}`});
+  const wsA = await workspaces.create({userId: user.user.id, name: 'Alpha Workspace'});
   await auth.loginAs(page, user);
 
   await page.goto(`/workspaces/${wsA.id}`);
@@ -168,7 +171,7 @@ test('routes a returning user with workspaces straight to /workspaces/$wid', asy
   workspaces,
 }) => {
   const user = await auth.createUser();
-  const wsA = await workspaces.create({userId: user.user.id, name: `A ${randomUUID()}`});
+  const wsA = await workspaces.create({userId: user.user.id, name: 'Alpha Workspace'});
   await auth.loginAs(page, user);
 
   // Record every URL the page transits through. The PR #23 regression was a

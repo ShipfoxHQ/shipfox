@@ -64,7 +64,7 @@ jobs:
 
           wait_for "$API_URL/readyz"
           wait_for "$CLIENT_URL"
-          turbo test:e2e --filter=@shipfox/e2e-api-auth --filter=@shipfox/e2e-client-auth
+          turbo test:e2e
 
       - name: Upload E2E API logs
         if: failure() && steps.e2e.outcome == 'failure'

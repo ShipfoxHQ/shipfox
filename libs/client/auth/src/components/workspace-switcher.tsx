@@ -41,34 +41,36 @@ export function WorkspaceSwitcher({activeWorkspaceId, onSelect}: WorkspaceSwitch
   return (
     <Command>
       <CommandInput placeholder="Search workspaces..." />
-      <CommandList>
-        <CommandEmpty>No workspaces found.</CommandEmpty>
-        <CommandGroup heading="Workspaces">
-          {workspaces.map((workspace) => (
-            <CommandItem
-              key={workspace.id}
-              value={workspace.id}
-              keywords={[workspace.name]}
-              onSelect={() => handleSelect(workspace.id)}
-            >
-              <Icon
-                name="check"
-                className={`size-16 mr-8 ${
-                  activeWorkspaceId === workspace.id ? 'opacity-100' : 'opacity-0'
-                }`}
-              />
-              {workspace.name}
-            </CommandItem>
-          ))}
+      <CommandList className="max-h-none overflow-visible overflow-y-visible p-0">
+        <div className="max-h-300 overflow-y-auto overflow-x-hidden p-4 scrollbar">
+          <CommandEmpty>No workspaces found.</CommandEmpty>
+          <CommandGroup heading="Workspaces">
+            {workspaces.map((workspace) => (
+              <CommandItem
+                key={workspace.id}
+                value={workspace.id}
+                keywords={[workspace.name]}
+                onSelect={() => handleSelect(workspace.id)}
+              >
+                <Icon
+                  name="check"
+                  className={`size-16 mr-8 ${
+                    activeWorkspaceId === workspace.id ? 'opacity-100' : 'opacity-0'
+                  }`}
+                />
+                {workspace.name}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </div>
+        <CommandSeparator alwaysRender className="mx-0" />
+        <CommandGroup forceMount className="p-4">
+          <CommandItem value="__create" onSelect={handleCreate} forceMount>
+            <Icon name="addLine" className="size-16" />
+            Create workspace
+          </CommandItem>
         </CommandGroup>
       </CommandList>
-      <CommandSeparator />
-      <CommandGroup forceMount>
-        <CommandItem value="__create" onSelect={handleCreate} forceMount>
-          <Icon name="addLine" className="size-16" />
-          Create workspace
-        </CommandItem>
-      </CommandGroup>
     </Command>
   );
 }

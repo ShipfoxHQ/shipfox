@@ -236,9 +236,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
-      '@shipfox/client-auth':
+      '@shipfox/client-router':
         specifier: workspace:*
-        version: link:../../../libs/client/auth
+        version: link:../../../libs/client/router
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../core

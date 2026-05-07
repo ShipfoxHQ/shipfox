@@ -15,7 +15,7 @@
   "devDependencies": {
     "@shipfox/api-workspaces": "workspace:*",
     "@shipfox/biome": "workspace:*",
-    "@shipfox/client-auth": "workspace:*",
+    "@shipfox/client-router": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
     "@shipfox/e2e-helper-auth": "workspace:*",
     "@shipfox/e2e-helper-workspaces": "workspace:*",
