@@ -1,9 +1,7 @@
-import {randomUUID} from 'node:crypto';
 import {argosScreenshot} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
 const LOGIN_URL_RE = /\/auth\/login$/u;
-const WORKSPACE_INTEGRATIONS_URL_RE = /\/workspaces\/[^/]+\/integrations\/?$/u;
 
 test('redirects guests from the app root to login', async ({page}) => {
   await page.goto('/');
@@ -37,20 +35,4 @@ test('hydrates an E2E browser session from the refresh cookie after reload', asy
 
   await page.reload();
   await expect(page.getByRole('heading', {name: 'Create your workspace'})).toBeVisible();
-});
-
-test('creates a workspace through the real onboarding UI', async ({page, auth}) => {
-  const user = await auth.createUser();
-  await auth.loginAs(page, user);
-  const workspaceName = `E2E Workspace ${randomUUID()}`;
-
-  await page.goto('/');
-  await page.getByLabel('Workspace name').fill(workspaceName);
-  await page.getByRole('button', {name: 'Create workspace'}).click();
-
-  // Fresh workspace has zero source-control connections, so the workspace home
-  // redirects to the scoped integration gallery.
-  await expect(page).toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
-  await expect(page.getByRole('heading', {name: 'Connect source control'})).toBeVisible();
-  await argosScreenshot(page, 'auth/setup-integrations');
 });

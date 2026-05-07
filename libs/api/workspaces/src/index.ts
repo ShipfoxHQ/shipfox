@@ -1,6 +1,7 @@
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath} from '#db/index.js';
 import {createApiKeyAuthMethod} from '#presentation/auth/api-key-auth.js';
+import {workspacesE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {workspacesRoutes} from '#presentation/routes/index.js';
 
 export type {ApiKey} from '#core/entities/api-key.js';
@@ -19,4 +20,5 @@ export const workspacesModule: ShipfoxModule = {
   database: {db, migrationsPath},
   auth: [createApiKeyAuthMethod()],
   routes: workspacesRoutes,
+  e2eRoutes: [workspacesE2eRoutes],
 };
