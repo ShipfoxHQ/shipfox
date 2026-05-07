@@ -97,16 +97,20 @@ test('restores a nested deep link after login', async ({page, auth, workspaces})
 
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill(user.password);
+  // Snapshot the navigation log before submit so the assertion ignores the
+  // pre-login visit to `target` and only proves the post-login restore.
+  const preLoginCount = urlsSeen.length;
   await page.getByRole('button', {name: 'Log in'}).click();
 
   await expect(page).toHaveURL(workspaceUrlRe(ws.id));
 
-  const visitedNestedPath = urlsSeen.some(
+  const postLoginUrls = urlsSeen.slice(preLoginCount);
+  const visitedNestedPath = postLoginUrls.some(
     (url) => new URL(url).pathname === `/workspaces/${ws.id}/projects/new`,
   );
   expect(
     visitedNestedPath,
-    `expected URL to transit through /projects/new after login: ${urlsSeen.join(', ')}`,
+    `expected URL to transit through /projects/new after login: ${postLoginUrls.join(', ')}`,
   ).toBe(true);
 });
 
@@ -130,11 +134,15 @@ test('preserves search and hash in the deep link after login', async ({page, aut
 
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill(user.password);
+  // Snapshot the navigation log before submit so the assertion ignores the
+  // pre-login visit to `target` and only proves the post-login restore.
+  const preLoginCount = urlsSeen.length;
   await page.getByRole('button', {name: 'Log in'}).click();
 
   await expect(page).toHaveURL(workspaceUrlRe(ws.id));
 
-  const visitedTargetWithSearchAndHash = urlsSeen.some((url) => {
+  const postLoginUrls = urlsSeen.slice(preLoginCount);
+  const visitedTargetWithSearchAndHash = postLoginUrls.some((url) => {
     const u = new URL(url);
     return (
       u.pathname === `/workspaces/${ws.id}` && u.search === '?tab=runs' && u.hash === '#header'
@@ -142,7 +150,7 @@ test('preserves search and hash in the deep link after login', async ({page, aut
   });
   expect(
     visitedTargetWithSearchAndHash,
-    `expected URL to transit with ?tab=runs#header preserved: ${urlsSeen.join(', ')}`,
+    `expected URL to transit with ?tab=runs#header preserved: ${postLoginUrls.join(', ')}`,
   ).toBe(true);
 });
 
