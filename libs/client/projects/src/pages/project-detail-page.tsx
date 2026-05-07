@@ -382,7 +382,10 @@ function SyncBadge({
   if (isPending) {
     return <StatusBadge variant="neutral">Loading</StatusBadge>;
   }
-  if (!sync) {
+  if (sync === undefined) {
+    return <StatusBadge variant="neutral">Unavailable</StatusBadge>;
+  }
+  if (sync === null) {
     return <StatusBadge variant="neutral">No sync</StatusBadge>;
   }
 

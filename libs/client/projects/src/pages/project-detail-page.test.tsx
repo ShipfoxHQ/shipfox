@@ -35,6 +35,8 @@ describe('ProjectDetailPage', () => {
     );
 
     expect(await screen.findByText('Workflows unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('No sync')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', {name: 'Source identity'})).toBeInTheDocument();
   });
 
