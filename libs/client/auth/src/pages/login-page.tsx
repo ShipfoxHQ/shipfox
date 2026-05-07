@@ -91,7 +91,10 @@ export function LoginPage() {
         </Button>
       </form>
       <Text size="sm" className="text-center text-foreground-neutral-subtle">
-        New to Shipfox? <Link to="/auth/signup">Create an account</Link>
+        New to Shipfox?{' '}
+        <ButtonLink asChild variant="interactive" underline>
+          <Link to="/auth/signup">Create an account</Link>
+        </ButtonLink>
       </Text>
     </AuthShell>
   );

@@ -73,7 +73,10 @@ function PasswordResetRequest() {
           Use another email
         </Button>
         <Text size="sm" className="text-center text-foreground-neutral-subtle">
-          Remembered it? <Link to="/auth/login">Log in</Link>
+          Remembered it?{' '}
+          <ButtonLink asChild variant="interactive" underline>
+            <Link to="/auth/login">Log in</Link>
+          </ButtonLink>
         </Text>
       </AuthShell>
     );
@@ -108,7 +111,10 @@ function PasswordResetRequest() {
         </Button>
       </form>
       <Text size="sm" className="text-center text-foreground-neutral-subtle">
-        Remembered it? <Link to="/auth/login">Log in</Link>
+        Remembered it?{' '}
+        <ButtonLink asChild variant="interactive" underline>
+          <Link to="/auth/login">Log in</Link>
+        </ButtonLink>
       </Text>
     </AuthShell>
   );
