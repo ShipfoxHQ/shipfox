@@ -49,6 +49,21 @@ describe('memberships db', () => {
     expect(list[0]?.workspaceName).toBe(workspace.name);
   });
 
+  test('lists memberships sorted by workspace name ascending', async () => {
+    const user = await createUser({email: emailFor('order'), hashedPassword: 'h'});
+    const suffix = crypto.randomUUID();
+    const charlie = await createWorkspace({name: `order-${suffix}-Charlie`});
+    const alpha = await createWorkspace({name: `order-${suffix}-Alpha`});
+    const bravo = await createWorkspace({name: `order-${suffix}-Bravo`});
+    await createMembership({userId: user.userId, workspaceId: charlie.id});
+    await createMembership({userId: user.userId, workspaceId: alpha.id});
+    await createMembership({userId: user.userId, workspaceId: bravo.id});
+
+    const list = await listMembershipsByUser({userId: user.userId});
+
+    expect(list.map((m) => m.workspaceName)).toEqual([alpha.name, bravo.name, charlie.name]);
+  });
+
   test('lists memberships by workspace joined with user info', async () => {
     const user = await createUser({email: emailFor('listt'), hashedPassword: 'h', name: 'Listy'});
     const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});

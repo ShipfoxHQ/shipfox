@@ -165,6 +165,44 @@ test('switcher keeps Create workspace visible when search filters every workspac
   await expect(page).toHaveURL(ONBOARDING_URL_RE);
 });
 
+test('switcher list scrolls while Create workspace stays pinned', async ({
+  page,
+  auth,
+  workspaces,
+}) => {
+  const user = await auth.createUser();
+  const first = await workspaces.create({userId: user.user.id, name: 'Workspace 01'});
+  for (let i = 2; i <= 20; i++) {
+    const name = `Workspace ${String(i).padStart(2, '0')}`;
+    await workspaces.create({userId: user.user.id, name});
+  }
+  await auth.loginAs(page, user);
+
+  await page.goto(`/workspaces/${first.id}`);
+  await expect(page).toHaveURL(workspaceUrlRe(first.id));
+
+  await page.getByLabel('Switch workspace').click();
+  await expect(page.getByRole('option', {name: 'Workspace 01'})).toBeVisible();
+  await expect(page.getByRole('option', {name: CREATE_WORKSPACE_LABEL_RE})).toBeVisible();
+  await argosScreenshot(page, 'workspaces/switcher-many-overflow');
+
+  // Scroll the inner max-h-300 container to the bottom. Walk up from a
+  // workspace option until we hit the first ancestor whose content overflows
+  // its box — that is the scrollable div wrapping the Workspaces CommandGroup.
+  // The Create workspace footer is a sibling of that div, so scrolling it
+  // cannot move the footer; the second snapshot proves that.
+  await page.evaluate(() => {
+    let el = document.querySelector('[role="option"]')?.parentElement ?? null;
+    while (el && el.scrollHeight <= el.clientHeight) {
+      el = el.parentElement;
+    }
+    if (el) el.scrollTop = el.scrollHeight;
+  });
+  await expect(page.getByRole('option', {name: 'Workspace 20'})).toBeInViewport();
+  await expect(page.getByRole('option', {name: CREATE_WORKSPACE_LABEL_RE})).toBeVisible();
+  await argosScreenshot(page, 'workspaces/switcher-many-overflow-scrolled');
+});
+
 test('routes a returning user with workspaces straight to /workspaces/$wid', async ({
   page,
   auth,

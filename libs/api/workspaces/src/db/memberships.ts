@@ -42,7 +42,8 @@ export async function listMembershipsByUser(params: {
     })
     .from(memberships)
     .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
-    .where(eq(memberships.userId, params.userId));
+    .where(eq(memberships.userId, params.userId))
+    .orderBy(workspaces.name);
 
   return rows.map((row) => ({...toMembership(row.membership), workspaceName: row.workspaceName}));
 }
