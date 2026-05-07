@@ -32,7 +32,8 @@ export function ProjectsHubPage() {
 
   const isInitialLoading = query.isPending;
   const isDebouncePending = trimmedInput !== debouncedSearch;
-  const isSearching = Boolean(trimmedInput) && (isDebouncePending || query.isFetching);
+  const isSearching =
+    Boolean(trimmedInput) && (isDebouncePending || (query.isFetching && !query.isFetchingNextPage));
   const hasNoData = !query.data;
 
   return (

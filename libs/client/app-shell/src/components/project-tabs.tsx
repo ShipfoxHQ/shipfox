@@ -18,9 +18,11 @@ export function ProjectTabs() {
   }`;
   const activeProps = {
     className: 'border-b-2 border-border-highlights-interactive text-foreground-neutral-base',
+    'aria-selected': 'true' as const,
   };
   const inactiveProps = {
     className: 'border-b-2 border-transparent text-foreground-neutral-muted',
+    'aria-selected': 'false' as const,
   };
 
   return (
