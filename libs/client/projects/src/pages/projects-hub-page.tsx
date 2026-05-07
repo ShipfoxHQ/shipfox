@@ -24,13 +24,15 @@ import {projectErrorCopy} from '#project-error.js';
 export function ProjectsHubPage() {
   const workspace = useActiveWorkspace();
   const [searchInput, setSearchInput] = useState('');
-  const debouncedSearch = useDebouncedValue(searchInput, 250).trim();
+  const trimmedInput = searchInput.trim();
+  const debouncedSearch = useDebouncedValue(trimmedInput, 250);
   const query = useProjectsInfiniteQuery(workspace.id, debouncedSearch || undefined);
   const projects = query.data?.pages.flatMap((page) => page.projects) ?? [];
   const errorCopy = query.error ? projectErrorCopy(query.error) : undefined;
 
   const isInitialLoading = query.isPending;
-  const isSearching = Boolean(debouncedSearch && query.isFetching);
+  const isDebouncePending = trimmedInput !== debouncedSearch;
+  const isSearching = Boolean(trimmedInput) && (isDebouncePending || query.isFetching);
   const hasNoData = !query.data;
 
   return (
@@ -52,7 +54,8 @@ export function ProjectsHubPage() {
               isSearching ? (
                 <Icon
                   name="spinner"
-                  className="size-16 animate-spin text-foreground-neutral-muted"
+                  size={16}
+                  className="text-foreground-neutral-muted"
                   aria-hidden="true"
                 />
               ) : undefined
