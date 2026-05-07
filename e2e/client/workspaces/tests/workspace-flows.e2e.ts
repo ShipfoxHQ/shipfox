@@ -154,6 +154,12 @@ test('switcher keeps Create workspace visible when search filters every workspac
   await expect(page.getByText('No workspaces found.')).toBeVisible();
   await expect(page.getByRole('option', {name: CREATE_WORKSPACE_LABEL_RE})).toBeVisible();
   await argosScreenshot(page, 'workspaces/switcher-empty-search');
+
+  // The create item is the only forceMount-ed option, so cmdk auto-selects
+  // it. Enter must navigate via the onSelect handler — if it falls back to
+  // a Link's native click, keyboard users get nothing.
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(ONBOARDING_URL_RE);
 });
 
 test('routes a returning user with workspaces straight to /workspaces/$wid', async ({

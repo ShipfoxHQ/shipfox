@@ -8,7 +8,7 @@ import {
   CommandSeparator,
   Icon,
 } from '@shipfox/react-ui';
-import {Link, useNavigate} from '@tanstack/react-router';
+import {useNavigate} from '@tanstack/react-router';
 import {useSetAtom} from 'jotai';
 import {useAuthState} from '#hooks/use-auth-state.js';
 import {lastWorkspaceIdAtom} from '#state/last-workspace.js';
@@ -30,6 +30,11 @@ export function WorkspaceSwitcher({activeWorkspaceId, onSelect}: WorkspaceSwitch
       // localStorage may throw in private browsing or quota-exceeded; persistence is best-effort.
     }
     navigate({to: '/workspaces/$wid', params: {wid: workspaceId}});
+    onSelect?.();
+  };
+
+  const handleCreate = () => {
+    navigate({to: '/setup/workspaces/new'});
     onSelect?.();
   };
 
@@ -59,11 +64,9 @@ export function WorkspaceSwitcher({activeWorkspaceId, onSelect}: WorkspaceSwitch
       </CommandList>
       <CommandSeparator />
       <CommandGroup forceMount>
-        <CommandItem value="__create" onSelect={() => onSelect?.()} forceMount asChild>
-          <Link to="/setup/workspaces/new" className="flex items-center gap-8">
-            <Icon name="addLine" className="size-16" />
-            Create workspace
-          </Link>
+        <CommandItem value="__create" onSelect={handleCreate} forceMount>
+          <Icon name="addLine" className="size-16" />
+          Create workspace
         </CommandItem>
       </CommandGroup>
     </Command>
