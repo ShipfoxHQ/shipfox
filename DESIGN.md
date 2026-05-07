@@ -304,7 +304,7 @@ The app shell ships in `@shipfox/client-app-shell`. Workspace switcher lives in 
 | `NavBar` | `h-56`, `sticky top-0 z-30`, `px-16 gap-12 flex items-center` | `bg-background-subtle-base`, `border-b border-border-neutral-base` |
 | `Logo` | `h-24` (wordmark), `h-20` (mark) | Uses `useResolvedTheme()` to pick light vs dark wordmark; multi-color SVG so `currentColor` does not apply |
 | `WorkspaceCrumb` / `ProjectCrumb` | name link `px-6 py-4 rounded-6`, chevron trigger `size-24 rounded-4 ml-2` | hover `bg-background-components-hover`; active link gets `aria-current="page"`; chevron uses `aria-haspopup="listbox"` + `aria-expanded` |
-| `WorkspaceSwitcher` / `ProjectSwitcher` | popover `w-[280px]` / `w-[320px]` | Built on `Command` + `Popover` + `ScrollArea`; always shows a separator + "+ Create" item at the bottom |
+| `WorkspaceSwitcher` / `ProjectSwitcher` | popover `w-[280px]` / `w-[320px]` | Built on `Command` + `Popover`; always shows a separator + "+ Create" item pinned at the bottom (sibling of the scrolling `CommandList`, with `forceMount` so it stays visible under search) |
 | `UserMenu` | trigger 28px circular avatar | `Avatar size="sm" content="letters"`; dropdown items: theme switcher (`light` / `dark` / `system`) + `Logout` |
 | `ProjectTabs` | `h-40`, `sticky top-56 z-20`, `px-16 gap-12` | Always rendered (height reserved). Active tab: `border-b-2 border-border-highlights-interactive`. Indicator slide respects `prefers-reduced-motion` via `useReducedMotion()` |
 | `Footer` | `h-40`, `px-16 flex justify-between` | `border-t border-border-neutral-base`, `text-xs text-foreground-neutral-muted`. Left: Docs / Support. Right: empty in v1 (no status badge — see §13). |
