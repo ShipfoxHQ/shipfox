@@ -23,6 +23,10 @@ export function DebugInstallPage() {
       .then(async () => {
         await queryClient.invalidateQueries({
           queryKey: integrationsQueryKeys.sourceConnections(workspaceId),
+          // HomeRouter is the next active observer, not this page, so the
+          // default 'active' refetch would no-op and leave the cache stale
+          // until after HomeRouter's first render redirects back here.
+          refetchType: 'all',
         });
         toast.success('Debug source control connected.');
         await navigate({to: '/workspaces/$wid', params: {wid: workspaceId}});
