@@ -33,8 +33,11 @@ export const getRunRoute = defineRoute({
       throw new ClientError('Run not found', 'not-found', {status: 404});
     }
 
-    await requireProjectAccess({request, projectId: run.projectId}).catch(() => {
-      throw new ClientError('Run not found', 'not-found', {status: 404});
+    await requireProjectAccess({request, projectId: run.projectId}).catch((err: unknown) => {
+      if (err instanceof ClientError && (err.status === 403 || err.status === 404)) {
+        throw new ClientError('Run not found', 'not-found', {status: 404});
+      }
+      throw err;
     });
 
     const runJobs = await getJobsByRunId(run.id);

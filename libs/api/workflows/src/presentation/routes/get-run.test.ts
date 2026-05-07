@@ -1,5 +1,6 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import {requireProjectAccess} from '@shipfox/api-projects';
+import {ClientError} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
@@ -111,7 +112,9 @@ describe('GET /api/workflows/runs/:id', () => {
       definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
       triggerContext: {type: 'manual'},
     });
-    mockRequireProjectAccess.mockRejectedValueOnce(new Error('forbidden'));
+    mockRequireProjectAccess.mockRejectedValueOnce(
+      new ClientError('Not a member of this workspace', 'forbidden', {status: 403}),
+    );
 
     const res = await app.inject({
       method: 'GET',
@@ -120,5 +123,23 @@ describe('GET /api/workflows/runs/:id', () => {
 
     expect(res.statusCode).toBe(404);
     expect(res.json().code).toBe('not-found');
+  });
+
+  test('propagates unexpected errors from project access check', async () => {
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId: crypto.randomUUID(),
+      definitionId: crypto.randomUUID(),
+      definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
+      triggerContext: {type: 'manual'},
+    });
+    mockRequireProjectAccess.mockRejectedValueOnce(new Error('database connection lost'));
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}`,
+    });
+
+    expect(res.statusCode).toBe(500);
   });
 });
