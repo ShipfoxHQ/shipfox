@@ -5,7 +5,9 @@ export const Route = createFileRoute('/setup/_layout')({
   beforeLoad: ({context, location}) => {
     const auth = context.auth;
     if (!auth || auth.isLoading) return;
-    if (!auth.isAuthenticated) throw redirect({to: '/auth/login'});
+    if (!auth.isAuthenticated) {
+      throw redirect({to: '/auth/login', search: {redirect: location.href}});
+    }
     // If the user has no workspaces and they're not already on the workspace
     // creation page, send them there.
     if (auth.workspaces.length === 0 && !location.pathname.startsWith('/setup/workspaces/new')) {
