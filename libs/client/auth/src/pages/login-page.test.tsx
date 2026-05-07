@@ -1,5 +1,6 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {fireEvent, screen} from '@testing-library/react';
+import {GuestGuard} from '#components/auth-guard.js';
 import {pageUserFactory} from '#test/factories/user.js';
 import {renderAuthPage} from '#test/pages.js';
 import {jsonResponse} from '#test/utils.js';
@@ -75,7 +76,12 @@ describe('LoginPage', () => {
       });
     configureApiClient({fetchImpl});
 
-    renderAuthPage('/auth/login', <LoginPage />);
+    renderAuthPage(
+      '/auth/login',
+      <GuestGuard>
+        <LoginPage />
+      </GuestGuard>,
+    );
     fireEvent.change(await screen.findByLabelText('Email'), {
       target: {value: 'login@example.com'},
     });

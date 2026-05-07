@@ -1,6 +1,6 @@
 import {loginBodySchema} from '@shipfox/api-auth-dto';
 import {Alert, Button, ButtonLink, Input, Label, Text} from '@shipfox/react-ui';
-import {Link, useNavigate} from '@tanstack/react-router';
+import {Link} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
 import {type FormEvent, useState} from 'react';
 import {AuthShell} from '#/components/auth-shell.js';
@@ -12,7 +12,6 @@ type LoginField = 'email' | 'password';
 
 export function LoginPage() {
   const login = useLoginAuth();
-  const navigate = useNavigate();
   const [authFormDraft, setAuthFormDraft] = useAtom(authFormDraftAtom);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<LoginField>>({});
   const [formError, setFormError] = useState<string | undefined>();
@@ -31,7 +30,10 @@ export function LoginPage() {
     try {
       await login.mutateAsync(parsed.data);
       setAuthFormDraft(initialAuthFormDraft);
-      await navigate({to: '/', replace: true});
+      // The route's GuestGuard redirects authenticated users to `/`. Letting
+      // the guard fire from the auth-state-driven re-render guarantees the
+      // router sees the freshly-hydrated workspace memberships before `/`
+      // evaluates its redirect — explicit navigate races the React render.
     } catch (error) {
       setFormError(authErrorMessage(error));
     }

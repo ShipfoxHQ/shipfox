@@ -17,8 +17,12 @@ export function useLoginAuth() {
   return useMutation({
     mutationFn: loginAuth,
     onSuccess: async (result) => {
-      setState(toAuthenticatedState(result));
       queryClient.setQueryData(authRefreshQueryKey, result);
+      // Resolve workspaces before flipping auth state to authenticated. A
+      // single atomic setState avoids the intermediate window where the user
+      // appears authenticated with zero workspaces, which sent users with
+      // workspaces straight to `/setup/workspaces/new` after form login.
+      let memberships: Awaited<ReturnType<typeof listUserWorkspaces>>['memberships'] = [];
       try {
         const workspaces = await queryClient.fetchQuery({
           queryKey: userWorkspacesQueryKey,
@@ -26,11 +30,12 @@ export function useLoginAuth() {
           retry: false,
           staleTime: 0,
         });
-        setState(toAuthenticatedState(result, workspaces.memberships));
+        memberships = workspaces.memberships;
         queryClient.setQueryData(userWorkspacesQueryKey, workspaces);
       } catch {
         // The user is authenticated even if workspace hydration fails.
       }
+      setState(toAuthenticatedState(result, memberships));
     },
   });
 }
