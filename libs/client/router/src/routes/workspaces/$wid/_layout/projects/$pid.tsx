@@ -14,8 +14,7 @@ function ProjectDetailRoute() {
 
   // Workspace-project consistency guard: if the project belongs to a different
   // workspace than the URL claims, replace-navigate to the workspace home so
-  // the URL stops lying. Backend project-scope authorization is a separate
-  // TODO ("Project-scope authorization model" in TODOS.md).
+  // the URL stops lying.
   useEffect(() => {
     if (project && project.workspace_id !== wid) {
       navigate({to: '/workspaces/$wid', params: {wid}, replace: true});
