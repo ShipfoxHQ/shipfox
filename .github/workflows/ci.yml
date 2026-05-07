@@ -37,6 +37,7 @@ jobs:
         run: turbo check type test build depcruise
 
       - name: Run E2E tests
+        id: e2e
         env:
           API_URL: http://localhost:16101
           CLIENT_URL: http://localhost:5173
@@ -46,38 +47,29 @@ jobs:
           VITE_ENABLE_TEST_VCS_PROVIDER: "true"
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
         run: |
-          pnpm --filter=@shipfox/api dev > /tmp/shipfox-api.log 2>&1 &
+          set -euo pipefail
+
+          log_dir="$RUNNER_TEMP/shipfox-e2e-logs"
+          mkdir -p "$log_dir"
+
+          pnpm --filter=@shipfox/api dev > "$log_dir/shipfox-api.log" 2>&1 &
           api_pid=$!
-          pnpm --filter=@shipfox/client dev > /tmp/shipfox-client.log 2>&1 &
+          pnpm --filter=@shipfox/client dev > "$log_dir/shipfox-client.log" 2>&1 &
           client_pid=$!
           trap 'kill $api_pid $client_pid 2>/dev/null || true' EXIT
 
-          for _ in {1..60}; do
-            if curl --fail --silent --show-error "$API_URL/readyz" >/dev/null; then
-              break
-            fi
-            sleep 1
-          done
+          wait_for() {
+            timeout 60 bash -c 'until curl --fail --silent "$1" >/dev/null; do sleep 1; done' _ "$1"
+          }
 
-          if ! curl --fail --silent --show-error "$API_URL/readyz"; then
-            cat /tmp/shipfox-api.log
-            exit 1
-          fi
+          wait_for "$API_URL/readyz"
+          wait_for "$CLIENT_URL"
+          turbo test:e2e --filter=@shipfox/e2e-api-auth --filter=@shipfox/e2e-client-auth
 
-          for _ in {1..60}; do
-            if curl --fail --silent --show-error "$CLIENT_URL" >/dev/null; then
-              break
-            fi
-            sleep 1
-          done
-
-          if ! curl --fail --silent --show-error "$CLIENT_URL" >/dev/null; then
-            cat /tmp/shipfox-client.log
-            exit 1
-          fi
-
-          if ! turbo test:e2e --filter=@shipfox/e2e-api-auth --filter=@shipfox/e2e-client-auth; then
-            cat /tmp/shipfox-api.log
-            cat /tmp/shipfox-client.log
-            exit 1
-          fi
+      - name: Upload E2E API logs
+        if: failure() && steps.e2e.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-api-logs
+          path: ${{ runner.temp }}/shipfox-e2e-logs/shipfox-api.log
+          if-no-files-found: error
