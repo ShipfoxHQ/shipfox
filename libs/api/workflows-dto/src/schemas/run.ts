@@ -3,7 +3,6 @@ import {z} from 'zod';
 export const createRunBodySchema = z.object({
   project_id: z.string().uuid(),
   definition_id: z.string().uuid(),
-  inputs: z.record(z.unknown()).optional(),
 });
 
 export type CreateRunBodyDto = z.infer<typeof createRunBodySchema>;
