@@ -80,7 +80,17 @@ test('hydrates an E2E browser session from the refresh cookie after reload', asy
 test('restores a nested deep link after login', async ({page, auth, workspaces}) => {
   const user = await auth.createUser();
   const ws = await workspaces.create({userId: user.user.id, name: `DL ${randomUUID()}`});
+  // Fresh E2E workspaces have no source connections, so CreateProjectPage will
+  // redirect to /integrations the moment it mounts. The deep-link restore is
+  // proven by the URL transiting *through* /projects/new before that redirect.
   const target = `/workspaces/${ws.id}/projects/new`;
+
+  const urlsSeen: string[] = [];
+  page.on('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) {
+      urlsSeen.push(frame.url());
+    }
+  });
 
   await page.goto(target);
   await expect(page).toHaveURL(LOGIN_WITH_REDIRECT_URL_RE);
@@ -89,13 +99,31 @@ test('restores a nested deep link after login', async ({page, auth, workspaces})
   await page.getByLabel('Password').fill(user.password);
   await page.getByRole('button', {name: 'Log in'}).click();
 
-  await expect(page).toHaveURL(new RegExp(`/workspaces/${ws.id}/projects/new$`, 'u'));
+  await expect(page).toHaveURL(workspaceUrlRe(ws.id));
+
+  const visitedNestedPath = urlsSeen.some(
+    (url) => new URL(url).pathname === `/workspaces/${ws.id}/projects/new`,
+  );
+  expect(
+    visitedNestedPath,
+    `expected URL to transit through /projects/new after login: ${urlsSeen.join(', ')}`,
+  ).toBe(true);
 });
 
 test('preserves search and hash in the deep link after login', async ({page, auth, workspaces}) => {
   const user = await auth.createUser();
   const ws = await workspaces.create({userId: user.user.id, name: `DL ${randomUUID()}`});
+  // HomeRouter at /workspaces/$wid redirects fresh workspaces to /integrations
+  // and that redirect drops the search/hash. The restore is proven by the URL
+  // transiting through the original deep target with search and hash intact.
   const target = `/workspaces/${ws.id}?tab=runs#header`;
+
+  const urlsSeen: string[] = [];
+  page.on('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) {
+      urlsSeen.push(frame.url());
+    }
+  });
 
   await page.goto(target);
   await expect(page).toHaveURL(LOGIN_WITH_REDIRECT_URL_RE);
@@ -104,7 +132,18 @@ test('preserves search and hash in the deep link after login', async ({page, aut
   await page.getByLabel('Password').fill(user.password);
   await page.getByRole('button', {name: 'Log in'}).click();
 
-  await expect(page).toHaveURL(new RegExp(`/workspaces/${ws.id}\\?tab=runs#header$`, 'u'));
+  await expect(page).toHaveURL(workspaceUrlRe(ws.id));
+
+  const visitedTargetWithSearchAndHash = urlsSeen.some((url) => {
+    const u = new URL(url);
+    return (
+      u.pathname === `/workspaces/${ws.id}` && u.search === '?tab=runs' && u.hash === '#header'
+    );
+  });
+  expect(
+    visitedTargetWithSearchAndHash,
+    `expected URL to transit with ?tab=runs#header preserved: ${urlsSeen.join(', ')}`,
+  ).toBe(true);
 });
 
 test('blocks open-redirect to a cross-origin URL after login', async ({page, auth, workspaces}) => {
