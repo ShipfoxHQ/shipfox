@@ -1,5 +1,5 @@
 import {signupBodySchema} from '@shipfox/api-auth-dto';
-import {Alert, Button, Input, Label, Text} from '@shipfox/react-ui';
+import {Alert, Button, ButtonLink, Input, Label, Text} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
 import {type FormEvent, useState} from 'react';
@@ -60,7 +60,10 @@ export function SignupPage() {
           Use another email
         </Button>
         <Text size="sm" className="text-center text-foreground-neutral-subtle">
-          Already verified? <Link to="/auth/login">Log in</Link>
+          Already verified?{' '}
+          <ButtonLink asChild variant="interactive" underline>
+            <Link to="/auth/login">Log in</Link>
+          </ButtonLink>
         </Text>
       </AuthShell>
     );
@@ -136,7 +139,10 @@ export function SignupPage() {
         </Button>
       </form>
       <Text size="sm" className="text-center text-foreground-neutral-subtle">
-        Already have an account? <Link to="/auth/login">Log in</Link>
+        Already have an account?{' '}
+        <ButtonLink asChild variant="interactive" underline>
+          <Link to="/auth/login">Log in</Link>
+        </ButtonLink>
       </Text>
     </AuthShell>
   );
