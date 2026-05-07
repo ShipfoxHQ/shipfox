@@ -74,6 +74,7 @@ describe('handleGithubCallback', () => {
       installationId: 123,
       state,
       sessionUserId: userId,
+      sessionMemberships: [],
       requireWorkspaceMembership,
       getExistingGithubConnection,
       connectGithubInstallation,
@@ -81,7 +82,11 @@ describe('handleGithubCallback', () => {
 
     expect(result.externalAccountId).toBe('123');
     expect(github.listUserInstallations).toHaveBeenCalledTimes(2);
-    expect(requireWorkspaceMembership).toHaveBeenCalledWith({workspaceId, userId});
+    expect(requireWorkspaceMembership).toHaveBeenCalledWith({
+      workspaceId,
+      userId,
+      memberships: [],
+    });
     expect(getExistingGithubConnection).toHaveBeenCalledWith({installationId: '123'});
     expect(connectGithubInstallation).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -109,6 +114,7 @@ describe('handleGithubCallback', () => {
       installationId: 123,
       state,
       sessionUserId: userId,
+      sessionMemberships: [],
       requireWorkspaceMembership: vi.fn(() => Promise.resolve()),
       getExistingGithubConnection: vi.fn(() => Promise.resolve(undefined)),
       connectGithubInstallation: vi.fn(() => {
@@ -133,6 +139,7 @@ describe('handleGithubCallback', () => {
       installationId: 123,
       state,
       sessionUserId: crypto.randomUUID(),
+      sessionMemberships: [],
       requireWorkspaceMembership: vi.fn(() => Promise.resolve()),
       getExistingGithubConnection: vi.fn(() => Promise.resolve(undefined)),
       connectGithubInstallation: vi.fn(() => {
@@ -160,6 +167,7 @@ describe('handleGithubCallback', () => {
       installationId: 123,
       state,
       sessionUserId: userId,
+      sessionMemberships: [],
       requireWorkspaceMembership: vi.fn(() => Promise.resolve()),
       getExistingGithubConnection: vi.fn(() => Promise.resolve(existing)),
       connectGithubInstallation,
@@ -183,6 +191,7 @@ describe('handleGithubCallback', () => {
       installationId: 123,
       state,
       sessionUserId: userId,
+      sessionMemberships: [],
       requireWorkspaceMembership: vi.fn(() => Promise.resolve()),
       getExistingGithubConnection: vi.fn(() => Promise.resolve(existing)),
       connectGithubInstallation: vi.fn(() => {
@@ -210,6 +219,7 @@ describe('handleGithubCallback', () => {
       installationId: 123,
       state,
       sessionUserId: userId,
+      sessionMemberships: [],
       requireWorkspaceMembership: vi.fn(() => Promise.resolve()),
       getExistingGithubConnection: vi.fn(() => Promise.resolve(existing)),
       connectGithubInstallation,

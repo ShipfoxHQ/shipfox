@@ -1,19 +1,51 @@
-import {signUserToken, verifyUserToken} from './jwt.js';
+import {SignJWT} from 'jose';
+import {signUserToken, type TokenMembership, verifyUserToken} from './jwt.js';
 
 const SECRET = 'test-secret-do-not-use-in-prod';
 
+function encodeSecret(secret: string): Uint8Array {
+  return new TextEncoder().encode(secret);
+}
+
 describe('jwt', () => {
-  test('signs a token and verifies it', async () => {
+  test('signs a token with memberships and verifies it round-trip', async () => {
     const userId = crypto.randomUUID();
     const email = `jwt-${crypto.randomUUID()}@example.com`;
+    const memberships: TokenMembership[] = [
+      {workspaceId: crypto.randomUUID(), role: 'admin'},
+      {workspaceId: crypto.randomUUID(), role: 'admin'},
+    ];
 
-    const token = await signUserToken({userId, email, secret: SECRET, expiresIn: '7d'});
+    const token = await signUserToken({
+      userId,
+      email,
+      memberships,
+      secret: SECRET,
+      expiresIn: '7d',
+    });
     const claims = await verifyUserToken({token, secret: SECRET});
 
     expect(claims.sub).toBe(userId);
     expect(claims.email).toBe(email);
+    expect(claims.memberships).toEqual(memberships);
     expect(claims.iat).toBeTypeOf('number');
     expect(claims.exp).toBeGreaterThan(claims.iat);
+  });
+
+  test('signs and verifies a token with empty memberships', async () => {
+    const userId = crypto.randomUUID();
+    const email = `jwt-${crypto.randomUUID()}@example.com`;
+
+    const token = await signUserToken({
+      userId,
+      email,
+      memberships: [],
+      secret: SECRET,
+      expiresIn: '7d',
+    });
+    const claims = await verifyUserToken({token, secret: SECRET});
+
+    expect(claims.memberships).toEqual([]);
   });
 
   test('rejects expired token', async () => {
@@ -21,6 +53,7 @@ describe('jwt', () => {
     const token = await signUserToken({
       userId,
       email: `jwt-${crypto.randomUUID()}@example.com`,
+      memberships: [],
       secret: SECRET,
       expiresIn: '-1s',
     });
@@ -33,6 +66,7 @@ describe('jwt', () => {
     const token = await signUserToken({
       userId,
       email: `jwt-${crypto.randomUUID()}@example.com`,
+      memberships: [],
       secret: SECRET,
       expiresIn: '7d',
     });
@@ -50,10 +84,78 @@ describe('jwt', () => {
     const token = await signUserToken({
       userId,
       email: `jwt-${crypto.randomUUID()}@example.com`,
+      memberships: [],
       secret: SECRET,
       expiresIn: '7d',
     });
 
     await expect(verifyUserToken({token, secret: 'different-secret'})).rejects.toThrow();
+  });
+
+  test('rejects a token with missing memberships claim', async () => {
+    const token = await new SignJWT({email: `jwt-${crypto.randomUUID()}@example.com`})
+      .setProtectedHeader({alg: 'HS256'})
+      .setSubject(crypto.randomUUID())
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(encodeSecret(SECRET));
+
+    await expect(verifyUserToken({token, secret: SECRET})).rejects.toThrow();
+  });
+
+  test('rejects a token whose memberships is not an array', async () => {
+    const token = await new SignJWT({
+      email: `jwt-${crypto.randomUUID()}@example.com`,
+      memberships: 'not-an-array',
+    })
+      .setProtectedHeader({alg: 'HS256'})
+      .setSubject(crypto.randomUUID())
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(encodeSecret(SECRET));
+
+    await expect(verifyUserToken({token, secret: SECRET})).rejects.toThrow();
+  });
+
+  test('rejects a token with non-UUID workspaceId in memberships', async () => {
+    const token = await new SignJWT({
+      email: `jwt-${crypto.randomUUID()}@example.com`,
+      memberships: [{workspaceId: 'not-a-uuid', role: 'admin'}],
+    })
+      .setProtectedHeader({alg: 'HS256'})
+      .setSubject(crypto.randomUUID())
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(encodeSecret(SECRET));
+
+    await expect(verifyUserToken({token, secret: SECRET})).rejects.toThrow();
+  });
+
+  test('rejects a token with unknown role value', async () => {
+    const token = await new SignJWT({
+      email: `jwt-${crypto.randomUUID()}@example.com`,
+      memberships: [{workspaceId: crypto.randomUUID(), role: 'owner'}],
+    })
+      .setProtectedHeader({alg: 'HS256'})
+      .setSubject(crypto.randomUUID())
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(encodeSecret(SECRET));
+
+    await expect(verifyUserToken({token, secret: SECRET})).rejects.toThrow();
+  });
+
+  test('rejects a token with non-UUID sub', async () => {
+    const token = await new SignJWT({
+      email: `jwt-${crypto.randomUUID()}@example.com`,
+      memberships: [],
+    })
+      .setProtectedHeader({alg: 'HS256'})
+      .setSubject('not-a-uuid')
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(encodeSecret(SECRET));
+
+    await expect(verifyUserToken({token, secret: SECRET})).rejects.toThrow();
   });
 });

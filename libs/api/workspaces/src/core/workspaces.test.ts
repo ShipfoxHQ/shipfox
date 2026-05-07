@@ -19,7 +19,7 @@ describe('workspaces core', () => {
     expect(membership).toBeDefined();
   });
 
-  test('requireWorkspaceMembership returns the workspace for a member', async () => {
+  test('requireWorkspaceMembership returns the workspace + role when memberships include it', async () => {
     const user = userFactory.build();
     const workspace = await createWorkspaceForUser({
       name: 'Member Workspace',
@@ -31,13 +31,15 @@ describe('workspaces core', () => {
     const result = await requireWorkspaceMembership({
       workspaceId: workspace.id,
       userId: user.userId,
+      memberships: [{workspaceId: workspace.id, role: 'admin'}],
     });
 
     expect(result.workspace.id).toBe(workspace.id);
     expect(result.userId).toBe(user.userId);
+    expect(result.role).toBe('admin');
   });
 
-  test('requireWorkspaceMembership rejects missing workspaces and non-members', async () => {
+  test('requireWorkspaceMembership rejects when memberships do not include the workspace', async () => {
     const owner = userFactory.build();
     const outsider = userFactory.build();
     const workspace = await createWorkspaceForUser({
@@ -47,16 +49,24 @@ describe('workspaces core', () => {
       userName: owner.name,
     });
 
-    const missingWorkspace = requireWorkspaceMembership({
-      workspaceId: crypto.randomUUID(),
-      userId: owner.userId,
-    });
-    await expect(missingWorkspace).rejects.toBeInstanceOf(WorkspaceNotFoundError);
-
     const nonMember = requireWorkspaceMembership({
       workspaceId: workspace.id,
       userId: outsider.userId,
+      memberships: [],
     });
     await expect(nonMember).rejects.toBeInstanceOf(MembershipRequiredError);
+  });
+
+  test('requireWorkspaceMembership rejects with WorkspaceNotFoundError when workspace does not exist', async () => {
+    const owner = userFactory.build();
+    const ghostId = crypto.randomUUID();
+
+    const missingWorkspace = requireWorkspaceMembership({
+      workspaceId: ghostId,
+      userId: owner.userId,
+      memberships: [{workspaceId: ghostId, role: 'admin'}],
+    });
+
+    await expect(missingWorkspace).rejects.toBeInstanceOf(WorkspaceNotFoundError);
   });
 });

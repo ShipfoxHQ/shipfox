@@ -1,6 +1,7 @@
 import type {FastifyInstance} from 'fastify';
 import {
   createAuthTestApp,
+  listMembershipsByUserMock,
   login,
   resetCapturedMail,
   signup,
@@ -59,5 +60,18 @@ describe('POST /auth/login', () => {
 
     expect(res.statusCode).toBe(403);
     expect(res.json().code).toBe('email-not-verified');
+  });
+
+  test('transforms membership dependency outages into 503', async () => {
+    const email = uniqueEmail('login-workspaces-down');
+    const password = 'correct horse battery staple';
+    await signup(app, {email, password});
+    await verifyEmail(app, email);
+    listMembershipsByUserMock.mockRejectedValueOnce(new Error('workspaces DB down'));
+
+    const res = await login(app, {email, password});
+
+    expect(res.statusCode).toBe(503);
+    expect(res.json().code).toBe('auth-dependency-unavailable');
   });
 });

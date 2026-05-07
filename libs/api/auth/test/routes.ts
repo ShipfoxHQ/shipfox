@@ -38,12 +38,20 @@ vi.mock('#config.js', () => ({
   mailer: testConfig.mailer,
 }));
 
+vi.mock('@shipfox/api-workspaces', () => ({
+  listMembershipsByUser: vi.fn(() => Promise.resolve([])),
+}));
+
+const {listMembershipsByUser} = await import('@shipfox/api-workspaces');
+
 const TOKEN_RE = /token=([\w\-_=]+)/;
 
 export const ROUTE_TEST_SECRET = testConfig.secret;
+export const listMembershipsByUserMock = vi.mocked(listMembershipsByUser);
 
 export function resetCapturedMail(): void {
   testConfig.captured.length = 0;
+  listMembershipsByUserMock.mockResolvedValue([]);
 }
 
 export function capturedMail(): MailMessage[] {

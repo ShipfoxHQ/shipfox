@@ -14,12 +14,14 @@ import {
   signup,
 } from '#core/auth.js';
 import {
+  AuthDependencyUnavailableError,
   EmailNotVerifiedError,
   EmailTakenError,
   InvalidCredentialsError,
   TokenInvalidError,
   UserNotFoundError,
 } from '#core/errors.js';
+import {verifyUserToken} from '#core/jwt.js';
 import {db} from '#db/db.js';
 import {findActiveRefreshTokenByHash} from '#db/refresh-tokens.js';
 import {users} from '#db/schema/users.js';
@@ -57,6 +59,13 @@ vi.mock('#config.js', () => ({
   },
   mailer: testConfig.mailer,
 }));
+
+vi.mock('@shipfox/api-workspaces', () => ({
+  listMembershipsByUser: vi.fn(() => Promise.resolve([])),
+}));
+
+const {listMembershipsByUser} = await import('@shipfox/api-workspaces');
+const listMembershipsByUserMock = vi.mocked(listMembershipsByUser);
 
 const TOKEN_RE = /token=([\w\-_=]+)/;
 
@@ -320,5 +329,88 @@ describe('auth core', () => {
 
     expect(user?.hashedPassword).toEqual(expect.any(String));
     expect(user?.hashedPassword).not.toBe(password);
+  });
+
+  test('login embeds the user current memberships into the access token', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+    const workspaceA = crypto.randomUUID();
+    const workspaceB = crypto.randomUUID();
+    listMembershipsByUserMock.mockResolvedValueOnce([
+      {
+        id: crypto.randomUUID(),
+        userId: user.id,
+        userEmail: user.email,
+        userName: null,
+        workspaceId: workspaceA,
+        workspaceName: 'Workspace A',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: crypto.randomUUID(),
+        userId: user.id,
+        userEmail: user.email,
+        userName: null,
+        workspaceId: workspaceB,
+        workspaceName: 'Workspace B',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    const result = await login({email: user.email, password: user.plainPassword});
+
+    const claims = await verifyUserToken({token: result.token, secret: 'auth-core-test-secret'});
+    expect(claims.memberships).toEqual([
+      {workspaceId: workspaceA, role: 'admin'},
+      {workspaceId: workspaceB, role: 'admin'},
+    ]);
+  });
+
+  test('refresh re-fetches memberships so newly-added workspaces appear in the next token', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+    listMembershipsByUserMock.mockResolvedValueOnce([]);
+    const loginResult = await login({email: user.email, password: user.plainPassword});
+
+    const newWorkspaceId = crypto.randomUUID();
+    listMembershipsByUserMock.mockResolvedValueOnce([
+      {
+        id: crypto.randomUUID(),
+        userId: user.id,
+        userEmail: user.email,
+        userName: null,
+        workspaceId: newWorkspaceId,
+        workspaceName: 'New Workspace',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+    const refreshed = await refreshAccessToken({refreshToken: loginResult.refreshToken});
+
+    const refreshedClaims = await verifyUserToken({
+      token: refreshed.token,
+      secret: 'auth-core-test-secret',
+    });
+    expect(refreshedClaims.memberships).toEqual([{workspaceId: newWorkspaceId, role: 'admin'}]);
+  });
+
+  test('login fails closed when listMembershipsByUser throws', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+    listMembershipsByUserMock.mockRejectedValueOnce(new Error('workspaces DB down'));
+
+    const promise = login({email: user.email, password: user.plainPassword});
+
+    await expect(promise).rejects.toBeInstanceOf(AuthDependencyUnavailableError);
+  });
+
+  test('refresh fails closed when listMembershipsByUser throws', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+    listMembershipsByUserMock.mockResolvedValueOnce([]);
+    const loginResult = await login({email: user.email, password: user.plainPassword});
+
+    listMembershipsByUserMock.mockRejectedValueOnce(new Error('workspaces DB down'));
+    const promise = refreshAccessToken({refreshToken: loginResult.refreshToken});
+
+    await expect(promise).rejects.toBeInstanceOf(AuthDependencyUnavailableError);
   });
 });

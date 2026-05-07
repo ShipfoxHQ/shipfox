@@ -35,6 +35,8 @@
     "@fastify/cookie": "^11.0.2",
     "@node-rs/argon2": "^2.0.2",
     "@shipfox/api-auth-dto": "workspace:*",
+    "@shipfox/api-workspaces": "workspace:*",
+    "@shipfox/api-workspaces-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",

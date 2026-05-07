@@ -1,4 +1,4 @@
-import {AUTH_USER, setUserContext} from '@shipfox/api-auth-context';
+import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import {afterEach, beforeEach} from '@shipfox/vitest/vi';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
@@ -17,6 +17,7 @@ vi.mock('@shipfox/api-workspaces', () => ({
         updatedAt: new Date(),
       },
       userId: 'user-1',
+      role: 'admin',
     }),
   ),
 }));
@@ -31,7 +32,10 @@ const fakeUserAuth: AuthMethod = {
       throw new ClientError('Invalid user token', 'unauthorized', {status: 401});
     }
 
-    setUserContext(request, {userId: 'user-1', email: 'user@example.com'});
+    setUserContext(
+      request,
+      buildUserContext({userId: 'user-1', email: 'user@example.com', memberships: []}),
+    );
     return Promise.resolve();
   },
 };
@@ -106,6 +110,7 @@ export function useIntegrationRouteTest() {
         updatedAt: new Date(),
       },
       userId: 'user-1',
+      role: 'admin',
     });
   });
 

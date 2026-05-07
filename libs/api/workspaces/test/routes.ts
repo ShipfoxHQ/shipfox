@@ -1,10 +1,11 @@
 import type {OutgoingHttpHeaders} from 'node:http';
-import {AUTH_USER, setUserContext} from '@shipfox/api-auth-context';
+import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {createInvitation} from '#db/invitations.js';
+import {listMembershipsByUser} from '#db/memberships.js';
 import {createApiKeyAuthMethod} from '#presentation/auth/api-key-auth.js';
 import {workspacesRoutes} from '#presentation/routes/index.js';
 
@@ -46,11 +47,32 @@ export const ROUTE_TEST_SECRET = testConfig.secret;
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
   authenticate: async (request) => {
-    await Promise.resolve();
     const raw = request.headers.authorization?.replace(BEARER_RE, '');
+    if (raw?.startsWith('claim:')) {
+      const [, userId, email, workspaceId] = raw.split(':');
+      if (!userId || !email || !workspaceId) throw new Error('Invalid test user claim token');
+      setUserContext(
+        request,
+        buildUserContext({
+          userId,
+          email,
+          memberships: [{workspaceId, role: 'admin'}],
+        }),
+      );
+      return;
+    }
+
     const [userId, email] = raw?.startsWith('user:') ? raw.slice(5).split(':') : [];
     if (!userId || !email) throw new Error('Invalid test user token');
-    setUserContext(request, {userId, email});
+    const memberships = await listMembershipsByUser({userId});
+    setUserContext(
+      request,
+      buildUserContext({
+        userId,
+        email,
+        memberships: memberships.map((m) => ({workspaceId: m.workspaceId, role: 'admin' as const})),
+      }),
+    );
   },
 };
 

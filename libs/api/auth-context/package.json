@@ -24,6 +24,9 @@
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
+  "dependencies": {
+    "@shipfox/api-workspaces-dto": "workspace:*"
+  },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
     "@shipfox/swc": "workspace:*",

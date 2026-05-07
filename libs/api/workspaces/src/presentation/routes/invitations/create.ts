@@ -5,6 +5,7 @@ import {z} from 'zod';
 import {
   MembershipRequiredError,
   OpenInvitationExistsError,
+  WorkspaceInactiveError,
   WorkspaceNotFoundError,
 } from '#core/errors.js';
 import {createWorkspaceInvitation} from '#core/index.js';
@@ -32,6 +33,9 @@ export const createInvitationRoute = defineRoute({
     if (error instanceof OpenInvitationExistsError) {
       throw new ClientError(error.message, 'open-invitation-exists', {status: 409});
     }
+    if (error instanceof WorkspaceInactiveError) {
+      throw new ClientError('Workspace is not active', 'workspace-inactive', {status: 403});
+    }
     throw error;
   },
   handler: async (request, reply) => {
@@ -46,6 +50,7 @@ export const createInvitationRoute = defineRoute({
       workspaceId,
       email,
       invitedByUserId: client.userId,
+      invitedByMemberships: client.memberships,
     });
 
     reply.code(201);

@@ -1,3 +1,4 @@
+import type {UserContextMembership} from '@shipfox/api-auth-context';
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import type {GithubApiClient, GithubInstallationDetails} from '#api/client.js';
 import {
@@ -30,7 +31,12 @@ export interface HandleGithubCallbackParams {
   installationId: number;
   state: string;
   sessionUserId: string;
-  requireWorkspaceMembership: (params: {workspaceId: string; userId: string}) => Promise<unknown>;
+  sessionMemberships: ReadonlyArray<UserContextMembership>;
+  requireWorkspaceMembership: (params: {
+    workspaceId: string;
+    userId: string;
+    memberships: ReadonlyArray<UserContextMembership>;
+  }) => Promise<unknown>;
   getExistingGithubConnection: (input: {
     installationId: string;
   }) => Promise<IntegrationConnection<'github'> | undefined>;
@@ -49,6 +55,7 @@ export async function handleGithubCallback(
   await params.requireWorkspaceMembership({
     workspaceId: claims.workspaceId,
     userId: claims.userId,
+    memberships: params.sessionMemberships,
   });
 
   const installationIdStr = String(params.installationId);

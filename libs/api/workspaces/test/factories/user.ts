@@ -1,7 +1,12 @@
-import type {UserContext} from '@shipfox/api-auth-context';
 import {Factory} from 'fishery';
 
-export const userFactory = Factory.define<UserContext & {name: string | null}>(({sequence}) => {
+export interface TestUser {
+  userId: string;
+  email: string;
+  name: string | null;
+}
+
+export const userFactory = Factory.define<TestUser>(({sequence}) => {
   return {
     userId: crypto.randomUUID(),
     email: `user-${sequence}-${crypto.randomUUID()}@example.com`,

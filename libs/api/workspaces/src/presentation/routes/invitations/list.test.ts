@@ -60,7 +60,7 @@ describe('GET /workspaces/:workspaceId/invitations', () => {
     expect(res.json().code).toBe('forbidden');
   });
 
-  test('transforms missing workspace into 404', async () => {
+  test('returns 403 when caller has no claim to the workspace (whether or not it exists)', async () => {
     const owner = await signupVerifyLogin(app, 'invite-list-missing-workspace');
 
     const res = await app.inject({
@@ -69,7 +69,7 @@ describe('GET /workspaces/:workspaceId/invitations', () => {
       headers: {authorization: `Bearer ${owner.token}`},
     });
 
-    expect(res.statusCode).toBe(404);
-    expect(res.json().code).toBe('not-found');
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('forbidden');
   });
 });

@@ -289,6 +289,12 @@ importers:
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../auth-dto
+      '@shipfox/api-workspaces':
+        specifier: workspace:*
+        version: link:../workspaces
+      '@shipfox/api-workspaces-dto':
+        specifier: workspace:*
+        version: link:../workspaces-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
@@ -352,6 +358,10 @@ importers:
         version: 2.4.0
 
   libs/api/auth-context:
+    dependencies:
+      '@shipfox/api-workspaces-dto':
+        specifier: workspace:*
+        version: link:../workspaces-dto
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*

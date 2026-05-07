@@ -5,6 +5,7 @@ import {
   InvitationNotFoundError,
   InvitationWorkspaceMismatchError,
   MembershipRequiredError,
+  WorkspaceInactiveError,
   WorkspaceNotFoundError,
 } from '#core/errors.js';
 import {revokeWorkspaceInvitation} from '#core/index.js';
@@ -38,6 +39,9 @@ export const revokeInvitationRoute = defineRoute({
         status: 403,
       });
     }
+    if (error instanceof WorkspaceInactiveError) {
+      throw new ClientError('Workspace is not active', 'workspace-inactive', {status: 403});
+    }
     throw error;
   },
   handler: async (request, reply) => {
@@ -52,6 +56,7 @@ export const revokeInvitationRoute = defineRoute({
       workspaceId,
       invitationId,
       requesterUserId: client.userId,
+      requesterMemberships: client.memberships,
     });
 
     reply.code(204);

@@ -5,8 +5,7 @@ import type {
 } from '@shipfox/api-workspaces-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {useMutation} from '@tanstack/react-query';
-import {useSetAtom} from 'jotai';
-import {authStateAtom} from '#state/auth.js';
+import {useRefreshAuth} from './refresh-auth.js';
 
 async function createWorkspace(body: CreateWorkspaceBodyDto) {
   return await apiRequest<WorkspaceResponseDto>('/workspaces', {method: 'POST', body});
@@ -22,24 +21,15 @@ export async function listUserWorkspaces(token?: string) {
 }
 
 export function useCreateWorkspaceAuth() {
-  const setState = useSetAtom(authStateAtom);
+  const refreshAuth = useRefreshAuth();
 
   return useMutation({
     mutationFn: createWorkspace,
     onSuccess: async () => {
-      const result = await listUserWorkspaces();
-      setState((state) => {
-        if (state.status !== 'authenticated') return state;
-
-        return {
-          ...state,
-          workspaces: result.memberships.map((membership) => ({
-            id: membership.workspace_id,
-            name: membership.workspace_name,
-            membershipId: membership.id,
-          })),
-        };
-      });
+      // The new workspace introduces a membership the existing access token
+      // doesn't carry. Refresh so the next request includes it in the JWT
+      // claim and passes the in-memory canAccess() check on the server.
+      await refreshAuth();
     },
   });
 }

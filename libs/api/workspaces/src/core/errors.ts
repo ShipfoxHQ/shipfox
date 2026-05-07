@@ -5,6 +5,13 @@ export class WorkspaceNotFoundError extends Error {
   }
 }
 
+export class WorkspaceInactiveError extends Error {
+  constructor(workspaceId: string) {
+    super(`Workspace is not active: ${workspaceId}`);
+    this.name = 'WorkspaceInactiveError';
+  }
+}
+
 export class ApiKeyNotFoundError extends Error {
   constructor(id: string) {
     super(`API key not found: ${id}`);

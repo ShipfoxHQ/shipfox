@@ -1,7 +1,11 @@
 import {loginBodySchema, loginResponseSchema} from '@shipfox/api-auth-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {login} from '#core/auth.js';
-import {EmailNotVerifiedError, InvalidCredentialsError} from '#core/errors.js';
+import {
+  AuthDependencyUnavailableError,
+  EmailNotVerifiedError,
+  InvalidCredentialsError,
+} from '#core/errors.js';
 import {setRefreshTokenCookie} from '#presentation/auth/refresh-cookie.js';
 import {toAuthSessionDto} from '#presentation/dto/user.js';
 
@@ -21,6 +25,15 @@ export const loginRoute = defineRoute({
     }
     if (error instanceof EmailNotVerifiedError) {
       throw new ClientError('Email not verified', 'email-not-verified', {status: 403});
+    }
+    if (error instanceof AuthDependencyUnavailableError) {
+      throw new ClientError(
+        'Authentication dependency unavailable',
+        'auth-dependency-unavailable',
+        {
+          status: 503,
+        },
+      );
     }
     throw error;
   },

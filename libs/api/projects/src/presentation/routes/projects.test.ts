@@ -19,6 +19,7 @@ vi.mock('@shipfox/api-workspaces', () => ({
         updatedAt: new Date(),
       },
       userId: 'user-1',
+      role: 'admin',
       request,
     }),
   ),
@@ -27,7 +28,13 @@ vi.mock('@shipfox/api-workspaces', () => ({
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
   authenticate: (request: FastifyRequest) => {
-    setUserContext(request, {userId: 'user-1', email: 'user@example.com'});
+    setUserContext(request, {
+      userId: 'user-1',
+      email: 'user@example.com',
+      memberships: [],
+      canAccess: () => true,
+      hasRole: () => true,
+    });
     return Promise.resolve();
   },
 };

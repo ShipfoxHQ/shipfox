@@ -1,7 +1,7 @@
 import {refreshResponseSchema} from '@shipfox/api-auth-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {refreshAccessToken} from '#core/auth.js';
-import {TokenInvalidError} from '#core/errors.js';
+import {AuthDependencyUnavailableError, TokenInvalidError} from '#core/errors.js';
 import {
   clearRefreshTokenCookie,
   getRefreshTokenCookie,
@@ -24,6 +24,15 @@ export const refreshRoute = defineRoute({
       throw new ClientError('Refresh token is invalid or expired', 'unauthorized', {
         status: 401,
       });
+    }
+    if (error instanceof AuthDependencyUnavailableError) {
+      throw new ClientError(
+        'Authentication dependency unavailable',
+        'auth-dependency-unavailable',
+        {
+          status: 503,
+        },
+      );
     }
     throw error;
   },
