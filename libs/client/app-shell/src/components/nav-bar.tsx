@@ -21,18 +21,14 @@ export function NavBar() {
       </Link>
       <span className="h-20 w-px bg-border-neutral-base" aria-hidden="true" />
       <WorkspaceCrumb workspace={workspace} />
-      {params.pid && project ? (
-        <>
-          <span className="text-foreground-neutral-muted" aria-hidden="true">
-            /
-          </span>
-          <ProjectCrumb
-            workspaceId={workspace.id}
-            projectId={project.id}
-            projectName={project.name}
-          />
-        </>
-      ) : null}
+      <span className="text-foreground-neutral-muted" aria-hidden="true">
+        /
+      </span>
+      <ProjectCrumb
+        workspaceId={workspace.id}
+        projectId={project?.id}
+        projectName={project?.name}
+      />
       <div className="flex-1" />
       <UserMenu />
     </header>

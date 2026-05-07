@@ -18,14 +18,14 @@ export const listProjectsRoute = defineRoute({
     },
   },
   handler: async (request) => {
-    const {workspace_id: workspaceId, limit, cursor} = request.query;
+    const {workspace_id: workspaceId, limit, cursor, search} = request.query;
     const decodedCursor = decodeProjectCursor(cursor);
     if (cursor && !decodedCursor) {
       throw new ClientError('Invalid cursor', 'invalid-cursor', {status: 400});
     }
 
     await requireMembership({request, workspaceId});
-    const result = await listProjects({workspaceId, limit, cursor: decodedCursor});
+    const result = await listProjects({workspaceId, limit, cursor: decodedCursor, search});
 
     return {
       projects: result.projects.map(toProjectDto),

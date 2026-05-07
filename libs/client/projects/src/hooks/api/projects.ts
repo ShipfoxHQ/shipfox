@@ -4,11 +4,12 @@ import type {
   ProjectResponseDto,
 } from '@shipfox/api-projects-dto';
 import {apiRequest} from '@shipfox/client-api';
-import {useInfiniteQuery, useMutation, useQuery} from '@tanstack/react-query';
+import {keepPreviousData, useInfiniteQuery, useMutation, useQuery} from '@tanstack/react-query';
 
 export const projectsQueryKeys = {
   all: ['projects'] as const,
-  list: (workspaceId: string) => [...projectsQueryKeys.all, 'list', workspaceId] as const,
+  list: (workspaceId: string, search?: string) =>
+    [...projectsQueryKeys.all, 'list', workspaceId, search ?? ''] as const,
   detail: (projectId: string) => [...projectsQueryKeys.all, 'detail', projectId] as const,
 };
 
@@ -16,17 +17,20 @@ export async function listProjects({
   workspaceId,
   limit = 50,
   cursor,
+  search,
   signal,
 }: {
   workspaceId: string;
   limit?: number;
   cursor?: string | undefined;
+  search?: string | undefined;
   signal?: AbortSignal;
 }) {
-  const search = new URLSearchParams({workspace_id: workspaceId, limit: String(limit)});
-  if (cursor) search.set('cursor', cursor);
+  const params = new URLSearchParams({workspace_id: workspaceId, limit: String(limit)});
+  if (cursor) params.set('cursor', cursor);
+  if (search) params.set('search', search);
 
-  return await apiRequest<ListProjectsResponseDto>(`/projects?${search.toString()}`, {signal});
+  return await apiRequest<ListProjectsResponseDto>(`/projects?${params.toString()}`, {signal});
 }
 
 export async function getProject(projectId: string) {
@@ -37,16 +41,21 @@ export async function createProject(body: CreateProjectBodyDto) {
   return await apiRequest<ProjectResponseDto>('/projects', {method: 'POST', body});
 }
 
-export function useProjectsInfiniteQuery(workspaceId: string | undefined, limit = 50) {
+export function useProjectsInfiniteQuery(
+  workspaceId: string | undefined,
+  search?: string,
+  limit = 50,
+) {
   return useInfiniteQuery({
     queryKey: workspaceId
-      ? projectsQueryKeys.list(workspaceId)
+      ? projectsQueryKeys.list(workspaceId, search)
       : [...projectsQueryKeys.all, 'list'],
     enabled: Boolean(workspaceId),
     initialPageParam: undefined as string | undefined,
     queryFn: ({pageParam, signal}) =>
-      listProjects({workspaceId: workspaceId ?? '', limit, cursor: pageParam, signal}),
+      listProjects({workspaceId: workspaceId ?? '', limit, cursor: pageParam, search, signal}),
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+    placeholderData: keepPreviousData,
   });
 }
 
