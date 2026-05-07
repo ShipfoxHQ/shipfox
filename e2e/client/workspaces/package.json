@@ -1,0 +1,26 @@
+{
+  "name": "@shipfox/e2e-client-workspaces",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#test/*": "./tests/*"
+  },
+  "scripts": {
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "test:e2e": "shipfox-playwright-test",
+    "type": "shipfox-tsc-check"
+  },
+  "devDependencies": {
+    "@shipfox/api-workspaces": "workspace:*",
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/client-auth": "workspace:*",
+    "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-helper-auth": "workspace:*",
+    "@shipfox/e2e-helper-workspaces": "workspace:*",
+    "@shipfox/playwright": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*"
+  }
+}

@@ -142,3 +142,6 @@ vite.config.ts.timestamp-*
 # Playwright
 test-results/
 playwright-report/
+
+# Argos visual regression artifacts
+screenshots/

@@ -9,6 +9,12 @@ export {
   revokeApiKeyResponseSchema,
 } from './api-key.js';
 export {
+  type E2eCreateWorkspaceBodyDto,
+  type E2eCreateWorkspaceResponseDto,
+  e2eCreateWorkspaceBodySchema,
+  e2eCreateWorkspaceResponseSchema,
+} from './e2e.js';
+export {
   type AcceptInvitationBodyDto,
   type AcceptInvitationResponseDto,
   acceptInvitationBodySchema,
