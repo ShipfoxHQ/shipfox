@@ -7,9 +7,8 @@ import {
   CommandList,
   CommandSeparator,
   Icon,
-  ScrollArea,
 } from '@shipfox/react-ui';
-import {Link, useNavigate} from '@tanstack/react-router';
+import {useNavigate} from '@tanstack/react-router';
 import {useSetAtom} from 'jotai';
 import {useAuthState} from '#hooks/use-auth-state.js';
 import {lastWorkspaceIdAtom} from '#state/last-workspace.js';
@@ -34,41 +33,42 @@ export function WorkspaceSwitcher({activeWorkspaceId, onSelect}: WorkspaceSwitch
     onSelect?.();
   };
 
+  const handleCreate = () => {
+    navigate({to: '/setup/workspaces/new'});
+    onSelect?.();
+  };
+
   return (
     <Command>
       <CommandInput placeholder="Search workspaces..." />
-      <ScrollArea>
-        <CommandList className="max-h-300">
-          <CommandEmpty>No workspaces found.</CommandEmpty>
-          <CommandGroup heading="Workspaces">
-            {workspaces.map((workspace) => (
-              <CommandItem
-                key={workspace.id}
-                value={workspace.id}
-                keywords={[workspace.name]}
-                onSelect={() => handleSelect(workspace.id)}
-              >
-                <Icon
-                  name="check"
-                  className={`size-16 mr-8 ${
-                    activeWorkspaceId === workspace.id ? 'opacity-100' : 'opacity-0'
-                  }`}
-                />
-                {workspace.name}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-          <CommandSeparator />
-          <CommandGroup>
-            <CommandItem value="__create" onSelect={() => onSelect?.()} asChild>
-              <Link to="/setup/workspaces/new" className="flex items-center gap-8">
-                <Icon name="addLine" className="size-16" />
-                Create workspace
-              </Link>
+      <CommandList>
+        <CommandEmpty>No workspaces found.</CommandEmpty>
+        <CommandGroup heading="Workspaces">
+          {workspaces.map((workspace) => (
+            <CommandItem
+              key={workspace.id}
+              value={workspace.id}
+              keywords={[workspace.name]}
+              onSelect={() => handleSelect(workspace.id)}
+            >
+              <Icon
+                name="check"
+                className={`size-16 mr-8 ${
+                  activeWorkspaceId === workspace.id ? 'opacity-100' : 'opacity-0'
+                }`}
+              />
+              {workspace.name}
             </CommandItem>
-          </CommandGroup>
-        </CommandList>
-      </ScrollArea>
+          ))}
+        </CommandGroup>
+      </CommandList>
+      <CommandSeparator />
+      <CommandGroup forceMount>
+        <CommandItem value="__create" onSelect={handleCreate} forceMount>
+          <Icon name="addLine" className="size-16" />
+          Create workspace
+        </CommandItem>
+      </CommandGroup>
     </Command>
   );
 }

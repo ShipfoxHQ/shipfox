@@ -134,6 +134,34 @@ test('creates a second workspace from the switcher mid-session', async ({
   expect(await readLastWorkspaceId(page)).toBe(newWid);
 });
 
+test('switcher keeps Create workspace visible when search filters every workspace out', async ({
+  page,
+  auth,
+  workspaces,
+}) => {
+  const user = await auth.createUser();
+  const wsA = await workspaces.create({userId: user.user.id, name: `A ${randomUUID()}`});
+  await auth.loginAs(page, user);
+
+  await page.goto(`/workspaces/${wsA.id}`);
+  await page.getByLabel('Switch workspace').click();
+  await page.getByPlaceholder('Search workspaces...').fill('zzz-no-match');
+
+  // forceMount on both the create CommandGroup and CommandItem keeps the
+  // footer rendered when cmdk would otherwise hide its parent group because
+  // no items match the filter. Without forceMount on the group, the
+  // CommandItem stays in the DOM but its parent gets [hidden].
+  await expect(page.getByText('No workspaces found.')).toBeVisible();
+  await expect(page.getByRole('option', {name: CREATE_WORKSPACE_LABEL_RE})).toBeVisible();
+  await argosScreenshot(page, 'workspaces/switcher-empty-search');
+
+  // The create item is the only forceMount-ed option, so cmdk auto-selects
+  // it. Enter must navigate via the onSelect handler — if it falls back to
+  // a Link's native click, keyboard users get nothing.
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(ONBOARDING_URL_RE);
+});
+
 test('routes a returning user with workspaces straight to /workspaces/$wid', async ({
   page,
   auth,
