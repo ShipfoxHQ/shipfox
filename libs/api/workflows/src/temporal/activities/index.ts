@@ -1,6 +1,7 @@
 import {
   bulkSetStepStatuses,
   enqueueJobForRunner,
+  failJobAsTimedOutActivity,
   loadRunDag,
   setJobStatus,
   setRunStatus,
@@ -13,5 +14,6 @@ export function createOrchestrationActivities() {
     setJobStatus,
     bulkSetStepStatuses,
     enqueueJobForRunner,
+    failJobAsTimedOutActivity,
   };
 }

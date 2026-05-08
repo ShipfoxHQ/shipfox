@@ -1,4 +1,4 @@
-import {type ChildProcess, execFileSync, spawn} from 'node:child_process';
+import {execFileSync, spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {unlink, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -13,7 +13,10 @@ export interface StepResult {
 
 const MAX_OUTPUT_BYTES = 1024 * 1024; // 1MB
 
-export function executeRunStep(step: JobPayloadStepDto): Promise<StepResult> {
+export function executeRunStep(
+  step: JobPayloadStepDto,
+  options: {signal?: AbortSignal} = {},
+): Promise<StepResult> {
   if (step.type !== 'run') {
     return Promise.resolve({
       success: false,
@@ -29,33 +32,24 @@ export function executeRunStep(step: JobPayloadStepDto): Promise<StepResult> {
     });
   }
 
-  return runShellCommand(command);
+  return runShellCommand(command, options);
 }
 
-async function runShellCommand(command: string): Promise<StepResult> {
+async function runShellCommand(
+  command: string,
+  options: {signal?: AbortSignal},
+): Promise<StepResult> {
   const scriptPath = join(tmpdir(), `shipfox-runner-${randomUUID()}.sh`);
 
   try {
     await writeFile(scriptPath, command, {mode: 0o700});
-
-    const result = await spawnAndCapture(scriptPath);
-    return result;
+    return await spawnAndCapture(scriptPath, options);
   } finally {
     await unlink(scriptPath).catch(() => undefined);
   }
 }
 
-/** Active child process, exposed for force-kill on second SIGINT. */
-let activeProcess: ChildProcess | null = null;
-
-export function killActiveProcess(): void {
-  if (activeProcess) {
-    activeProcess.kill('SIGKILL');
-    activeProcess = null;
-  }
-}
-
-function spawnAndCapture(scriptPath: string): Promise<StepResult> {
+function spawnAndCapture(scriptPath: string, options: {signal?: AbortSignal}): Promise<StepResult> {
   return new Promise((resolve) => {
     const shell = findShell();
     const args =
@@ -63,11 +57,13 @@ function spawnAndCapture(scriptPath: string): Promise<StepResult> {
         ? ['--noprofile', '--norc', '-eo', 'pipefail', scriptPath]
         : ['-e', scriptPath];
 
+    // detached:true makes the shell a process-group leader so killGroup() can
+    // SIGKILL its grandchildren too (Linux does not propagate signals down the
+    // parent chain). We don't unref() — output capture still needs `close`.
     const child = spawn(shell, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      detached: true,
     });
-
-    activeProcess = child;
 
     let output = '';
     let truncated = false;
@@ -92,8 +88,36 @@ function spawnAndCapture(scriptPath: string): Promise<StepResult> {
       appendOutput(chunk);
     });
 
+    const killGroup = () => {
+      if (child.pid !== undefined) {
+        try {
+          // Negative pid signals the entire process group.
+          process.kill(-child.pid, 'SIGKILL');
+        } catch {
+          // Process already exited.
+        }
+      }
+    };
+
+    let onAbort: (() => void) | undefined;
+    if (options.signal) {
+      if (options.signal.aborted) {
+        killGroup();
+      } else {
+        onAbort = () => killGroup();
+        options.signal.addEventListener('abort', onAbort, {once: true});
+      }
+    }
+
+    const cleanupAbortListener = () => {
+      if (onAbort && options.signal) {
+        options.signal.removeEventListener('abort', onAbort);
+        onAbort = undefined;
+      }
+    };
+
     child.on('close', (code) => {
-      activeProcess = null;
+      cleanupAbortListener();
       const finalOutput = truncated ? `[output truncated]\n${output}` : output;
       resolve({
         success: code === 0,
@@ -102,7 +126,7 @@ function spawnAndCapture(scriptPath: string): Promise<StepResult> {
     });
 
     child.on('error', (err) => {
-      activeProcess = null;
+      cleanupAbortListener();
       logger().error({err}, 'Failed to spawn shell process');
       resolve({
         success: false,

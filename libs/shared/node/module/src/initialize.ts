@@ -113,6 +113,7 @@ export async function startModuleWorkers(options: {workers: ModuleWorker[]}): Pr
           await temporalClient().workflow.start(workflow.name, {
             taskQueue: workerDef.taskQueue,
             workflowId: workflow.id,
+            ...(workflow.cronSchedule ? {cronSchedule: workflow.cronSchedule} : {}),
           });
         } catch (error) {
           if (error instanceof Error && error.name === 'WorkflowExecutionAlreadyStartedError') {

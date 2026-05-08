@@ -11,7 +11,8 @@ CREATE TABLE "workflows_jobs" (
 	"position" integer NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"timed_out_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "workflows_outbox" (

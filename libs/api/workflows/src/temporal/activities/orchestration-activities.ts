@@ -5,6 +5,7 @@ import type {StepStatus} from '#core/entities/step.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {
   bulkUpdateStepStatuses,
+  failJobAsTimedOut,
   getJobsByRunId,
   getStepsByJobIds,
   getWorkflowRunById,
@@ -129,4 +130,13 @@ export async function enqueueJobForRunner(params: {
     runId: params.runId,
     payload,
   });
+}
+
+export async function failJobAsTimedOutActivity(params: {
+  jobId: string;
+  runId: string;
+  expectedVersion: number;
+}): Promise<{newVersion: number}> {
+  const job = await failJobAsTimedOut(params);
+  return {newVersion: job.version};
 }

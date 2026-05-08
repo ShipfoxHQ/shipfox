@@ -1,5 +1,9 @@
 import type {WorkflowSpec} from '@shipfox/api-definitions';
-import {WORKFLOW_RUN_CREATED, type WorkflowsEventMap} from '@shipfox/api-workflows-dto';
+import {
+  WORKFLOW_RUN_CREATED,
+  WORKFLOWS_JOB_TIMED_OUT,
+  type WorkflowsEventMap,
+} from '@shipfox/api-workflows-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, asc, desc, eq, inArray, sql} from 'drizzle-orm';
 import type {Job, JobStatus} from '#core/entities/job.js';
@@ -169,6 +173,36 @@ export async function updateWorkflowRunStatus(
   return toWorkflowRun(row);
 }
 
+type Tx = Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0];
+
+export interface UpdateJobStatusAtVersionParams {
+  jobId: string;
+  status: JobStatus;
+  expectedVersion: number;
+  markTimedOut?: boolean;
+}
+
+// Returns null on version mismatch so callers can choose throw vs treat-as-success.
+async function updateJobStatusAtVersion(
+  tx: Tx,
+  params: UpdateJobStatusAtVersionParams,
+): Promise<Job | null> {
+  const rows = await tx
+    .update(jobs)
+    .set({
+      status: params.status,
+      version: sql`${jobs.version} + 1`,
+      updatedAt: new Date(),
+      ...(params.markTimedOut ? {timedOutAt: new Date()} : {}),
+    })
+    .where(and(eq(jobs.id, params.jobId), eq(jobs.version, params.expectedVersion)))
+    .returning();
+
+  const row = rows[0];
+  if (!row) return null;
+  return toJob(row);
+}
+
 export interface UpdateJobStatusParams {
   jobId: string;
   status: JobStatus;
@@ -176,22 +210,56 @@ export interface UpdateJobStatusParams {
 }
 
 export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Job> {
-  const rows = await db()
-    .update(jobs)
-    .set({
+  const updated = await db().transaction(async (tx) =>
+    updateJobStatusAtVersion(tx, {
+      jobId: params.jobId,
       status: params.status,
-      version: sql`${jobs.version} + 1`,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(jobs.id, params.jobId), eq(jobs.version, params.expectedVersion)))
-    .returning();
-
-  const row = rows[0];
-  if (!row)
+      expectedVersion: params.expectedVersion,
+    }),
+  );
+  if (!updated)
     throw new Error(
       `Optimistic lock failure: job ${params.jobId} version ${params.expectedVersion}`,
     );
-  return toJob(row);
+  return updated;
+}
+
+export interface FailJobAsTimedOutParams {
+  jobId: string;
+  runId: string;
+  expectedVersion: number;
+}
+
+// Idempotent under retry: a 0-row UPDATE re-reads the row, and a non-null
+// `timed_out_at` proves an earlier attempt of this same activity already
+// finalized — return its version without writing a second outbox event.
+export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promise<Job> {
+  return await db().transaction(async (tx) => {
+    const updated = await updateJobStatusAtVersion(tx, {
+      jobId: params.jobId,
+      status: 'failed',
+      expectedVersion: params.expectedVersion,
+      markTimedOut: true,
+    });
+
+    if (!updated) {
+      const existing = await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1);
+      const row = existing[0];
+      if (row && row.timedOutAt !== null) {
+        return toJob(row);
+      }
+      throw new Error(
+        `Optimistic lock failure: job ${params.jobId} version ${params.expectedVersion}`,
+      );
+    }
+
+    await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+      type: WORKFLOWS_JOB_TIMED_OUT,
+      payload: {jobId: params.jobId, runId: params.runId},
+    });
+
+    return updated;
+  });
 }
 
 export interface BulkUpdateStepStatusesParams {

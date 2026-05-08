@@ -1,19 +1,19 @@
-import {completeJobBodySchema, completeJobResponseSchema} from '@shipfox/api-runners-dto';
+import {heartbeatResponseSchema} from '@shipfox/api-runners-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {RunningJobNotFoundError} from '#core/errors.js';
-import {completeJob} from '#core/jobs.js';
+import {recordHeartbeat} from '#db/jobs.js';
 import {getRunnerContext} from '#presentation/auth/index.js';
 
-export const completeJobRoute = defineRoute({
+export const heartbeatRoute = defineRoute({
   method: 'POST',
-  path: '/:jobId/complete',
-  description: 'Mark a runner job as finished and send its result',
+  path: '/:jobId/heartbeat',
+  description:
+    'Keeps a running job alive while the runner is still working on it. Returns whether the server has asked the runner to cancel.',
   schema: {
     params: z.object({jobId: z.string().uuid()}),
-    body: completeJobBodySchema,
     response: {
-      200: completeJobResponseSchema,
+      200: heartbeatResponseSchema,
     },
   },
   errorHandler: (error) => {
@@ -24,11 +24,13 @@ export const completeJobRoute = defineRoute({
   },
   handler: async (request) => {
     const {jobId} = request.params;
-    const {status, output} = request.body;
     const runner = getRunnerContext(request);
 
-    await completeJob({jobId, runnerTokenId: runner.runnerTokenId}, {status, output});
+    const {cancellationRequested} = await recordHeartbeat({
+      jobId,
+      runnerTokenId: runner.runnerTokenId,
+    });
 
-    return {ok: true};
+    return {cancel: cancellationRequested};
   },
 });

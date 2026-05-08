@@ -19,4 +19,5 @@ export interface Job {
   version: number;
   createdAt: Date;
   updatedAt: Date;
+  timedOutAt: Date | null;
 }

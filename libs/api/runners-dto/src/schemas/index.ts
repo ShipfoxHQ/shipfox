@@ -4,6 +4,7 @@ export {
   completeJobBodySchema,
   completeJobResponseSchema,
 } from './complete-job.js';
+export {type HeartbeatResponseDto, heartbeatResponseSchema} from './heartbeat.js';
 export {
   type JobPayloadDto,
   type JobPayloadResponseDto,

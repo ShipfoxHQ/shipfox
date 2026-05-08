@@ -1,11 +1,13 @@
 import type {WorkflowSpec} from '@shipfox/api-definitions';
-import {WORKFLOW_RUN_CREATED} from '@shipfox/api-workflows-dto';
+import {WORKFLOW_RUN_CREATED, WORKFLOWS_JOB_TIMED_OUT} from '@shipfox/api-workflows-dto';
 import {eq, sql} from 'drizzle-orm';
 import {db} from './db.js';
+import {jobs} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
 import {
   bulkUpdateStepStatuses,
   createWorkflowRun,
+  failJobAsTimedOut,
   getJobsByRunId,
   getStepsByJobId,
   getWorkflowRunById,
@@ -453,6 +455,98 @@ describe('workflow run queries', () => {
       await expect(
         updateJobStatus({jobId: runJobs[0]?.id ?? '', status: 'running', expectedVersion: 99}),
       ).rejects.toThrow('Optimistic lock failure');
+    });
+  });
+
+  describe('failJobAsTimedOut', () => {
+    async function findOutboxForJob(jobId: string) {
+      const all = await db()
+        .select()
+        .from(workflowsOutbox)
+        .where(eq(workflowsOutbox.eventType, WORKFLOWS_JOB_TIMED_OUT));
+      return all.filter((row) => (row.payload as Record<string, unknown>).jobId === jobId);
+    }
+
+    test('atomic: marks job failed + timed_out_at, writes outbox event', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        definition: spec(),
+        triggerContext: {type: 'manual'},
+      });
+      const runJobs = await getJobsByRunId(run.id);
+      const job = runJobs[0];
+      expect(job).toBeDefined();
+
+      const updated = await failJobAsTimedOut({
+        jobId: job?.id as string,
+        runId: run.id,
+        expectedVersion: 1,
+      });
+
+      expect(updated.status).toBe('failed');
+      expect(updated.version).toBe(2);
+      expect(updated.timedOutAt).not.toBeNull();
+
+      const outboxRows = await findOutboxForJob(job?.id as string);
+      expect(outboxRows).toHaveLength(1);
+      expect(outboxRows[0]?.payload).toEqual({jobId: job?.id, runId: run.id});
+    });
+
+    test('idempotent retry: row already timed out → returns current version, no second outbox', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        definition: spec(),
+        triggerContext: {type: 'manual'},
+      });
+      const runJobs = await getJobsByRunId(run.id);
+      const job = runJobs[0];
+
+      await failJobAsTimedOut({jobId: job?.id as string, runId: run.id, expectedVersion: 1});
+
+      // Second attempt with the same expectedVersion simulates a Temporal
+      // activity retry after the first attempt's commit succeeded.
+      const second = await failJobAsTimedOut({
+        jobId: job?.id as string,
+        runId: run.id,
+        expectedVersion: 1,
+      });
+
+      expect(second.version).toBe(2);
+      expect(second.status).toBe('failed');
+      expect(second.timedOutAt).not.toBeNull();
+
+      const outboxRows = await findOutboxForJob(job?.id as string);
+      expect(outboxRows).toHaveLength(1);
+    });
+
+    test('lock-mismatch with NULL timed_out_at → throws, no outbox', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        definition: spec(),
+        triggerContext: {type: 'manual'},
+      });
+      const runJobs = await getJobsByRunId(run.id);
+      const job = runJobs[0];
+
+      // Defensive: simulate a hypothetical separate writer (no realistic path
+      // today) that bumped version + status without setting timed_out_at.
+      await db()
+        .update(jobs)
+        .set({status: 'failed', version: 5})
+        .where(eq(jobs.id, job?.id as string));
+
+      await expect(
+        failJobAsTimedOut({jobId: job?.id as string, runId: run.id, expectedVersion: 1}),
+      ).rejects.toThrow('Optimistic lock failure');
+
+      const outboxRows = await findOutboxForJob(job?.id as string);
+      expect(outboxRows).toHaveLength(0);
     });
   });
 

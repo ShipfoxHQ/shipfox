@@ -30,6 +30,7 @@ export const jobs = pgTable(
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
+    timedOutAt: timestamp('timed_out_at', {withTimezone: true}),
   },
   (table) => [index('workflows_jobs_run_id_idx').on(table.runId)],
 );
@@ -49,5 +50,6 @@ export function toJob(row: JobDb): Job {
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    timedOutAt: row.timedOutAt,
   };
 }

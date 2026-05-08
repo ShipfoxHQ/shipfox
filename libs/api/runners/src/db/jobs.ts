@@ -4,7 +4,7 @@ import {
   type RunnersEventMap,
 } from '@shipfox/api-runners-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {and, eq, sql} from 'drizzle-orm';
+import {and, eq, lt, sql} from 'drizzle-orm';
 import {RunningJobNotFoundError} from '#core/errors.js';
 import {db} from './db.js';
 import {runnersOutbox} from './schema/outbox.js';
@@ -70,44 +70,112 @@ export async function claimJob(params: {
   });
 }
 
-export async function completeJob(
-  params: {jobId: string; runnerTokenId: string},
-  result: {status: 'succeeded' | 'failed'; output?: unknown},
-): Promise<{runId: string}> {
+export interface FinalizeRunningJobParams {
+  jobId: string;
+  /** When provided, only delete the row if it belongs to this runner token. */
+  runnerTokenId?: string;
+  /** When provided, only delete the row if its heartbeat is older than this. */
+  staleBeforeMs?: number;
+  status: 'succeeded' | 'failed';
+  output?: unknown;
+  /** Whether to throw `RunningJobNotFoundError` when no row matches the filters. */
+  onMissing: 'throw' | 'noop';
+}
+
+/**
+ * Race-safe by construction: all guard predicates (token scope, stale
+ * heartbeat) live inside the DELETE's WHERE, and the outbox event is written
+ * in the same transaction only when a row was actually deleted. So a heartbeat
+ * arriving between an outer "is this stuck?" check and this call cannot cause
+ * a live job to be finalized, and two concurrent finalizers cannot both emit
+ * the same `runners.job.completed` event.
+ */
+export async function finalizeRunningJob(
+  params: FinalizeRunningJobParams,
+): Promise<{runId: string} | undefined> {
   return await db().transaction(async (tx) => {
-    const rows = await tx
-      .select({runId: runningJobs.runId})
-      .from(runningJobs)
-      .where(
-        and(
-          eq(runningJobs.jobId, params.jobId),
-          eq(runningJobs.runnerTokenId, params.runnerTokenId),
-        ),
-      )
-      .limit(1);
-
-    const row = rows[0];
-    if (!row) throw new RunningJobNotFoundError(params.jobId);
-
-    await tx
-      .delete(runningJobs)
-      .where(
-        and(
-          eq(runningJobs.jobId, params.jobId),
-          eq(runningJobs.runnerTokenId, params.runnerTokenId),
+    const conditions = [eq(runningJobs.jobId, params.jobId)];
+    if (params.runnerTokenId !== undefined) {
+      conditions.push(eq(runningJobs.runnerTokenId, params.runnerTokenId));
+    }
+    if (params.staleBeforeMs !== undefined) {
+      conditions.push(
+        lt(
+          runningJobs.lastHeartbeatAt,
+          sql`now() - (${params.staleBeforeMs} || ' milliseconds')::interval`,
         ),
       );
+    }
+
+    const deleted = await tx
+      .delete(runningJobs)
+      .where(and(...conditions))
+      .returning({runId: runningJobs.runId});
+
+    const row = deleted[0];
+    if (!row) {
+      if (params.onMissing === 'throw') {
+        throw new RunningJobNotFoundError(params.jobId);
+      }
+      return undefined;
+    }
 
     await writeOutboxEvent<RunnersEventMap>(tx, runnersOutbox, {
       type: RUNNER_JOB_COMPLETED,
       payload: {
         jobId: params.jobId,
         runId: row.runId,
-        status: result.status,
-        output: result.output,
+        status: params.status,
+        output: params.output,
       },
     });
 
     return {runId: row.runId};
   });
+}
+
+export async function recordHeartbeat(params: {
+  jobId: string;
+  runnerTokenId: string;
+}): Promise<{cancellationRequested: boolean}> {
+  const updated = await db()
+    .update(runningJobs)
+    .set({lastHeartbeatAt: sql`now()`})
+    .where(
+      and(eq(runningJobs.jobId, params.jobId), eq(runningJobs.runnerTokenId, params.runnerTokenId)),
+    )
+    .returning({cancellationRequestedAt: runningJobs.cancellationRequestedAt});
+
+  const row = updated[0];
+  if (!row) throw new RunningJobNotFoundError(params.jobId);
+  return {cancellationRequested: row.cancellationRequestedAt !== null};
+}
+
+// `COALESCE` keeps the original timestamp so concurrent or redelivered calls
+// are no-ops; missing rows are silently skipped.
+export async function requestJobCancellation(params: {jobId: string}): Promise<void> {
+  await db()
+    .update(runningJobs)
+    .set({
+      cancellationRequestedAt: sql`COALESCE(${runningJobs.cancellationRequestedAt}, now())`,
+    })
+    .where(eq(runningJobs.jobId, params.jobId));
+}
+
+// Candidate set only — callers must re-check the cutoff inside any subsequent
+// DELETE so a heartbeat that lands between this read and the write is honored.
+export async function findStuckJobs(params: {
+  thresholdSeconds: number;
+  limit?: number;
+}): Promise<Array<{jobId: string}>> {
+  return await db()
+    .select({jobId: runningJobs.jobId})
+    .from(runningJobs)
+    .where(
+      lt(
+        runningJobs.lastHeartbeatAt,
+        sql`now() - (${params.thresholdSeconds} || ' seconds')::interval`,
+      ),
+    )
+    .limit(params.limit ?? 100);
 }
