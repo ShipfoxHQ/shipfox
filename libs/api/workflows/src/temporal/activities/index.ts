@@ -1,7 +1,9 @@
 import {
   bulkSetStepStatuses,
+  detectAndFailStuckJobsActivity,
   enqueueJobForRunner,
   loadRunDag,
+  requestJobCancellationActivity,
   setJobStatus,
   setRunStatus,
 } from './orchestration-activities.js';
@@ -13,5 +15,7 @@ export function createOrchestrationActivities() {
     setJobStatus,
     bulkSetStepStatuses,
     enqueueJobForRunner,
+    detectAndFailStuckJobsActivity,
+    requestJobCancellationActivity,
   };
 }

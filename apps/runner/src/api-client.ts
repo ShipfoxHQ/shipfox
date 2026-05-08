@@ -1,4 +1,8 @@
-import {type JobPayloadDto, jobPayloadResponseSchema} from '@shipfox/api-runners-dto';
+import {
+  heartbeatResponseSchema,
+  type JobPayloadDto,
+  jobPayloadResponseSchema,
+} from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import ky, {HTTPError} from 'ky';
 import {config} from '#config.js';
@@ -36,6 +40,18 @@ export async function completeJob(params: {
       output: params.output,
     },
   });
+}
+
+export async function heartbeat(
+  jobId: string,
+  options: {signal?: AbortSignal} = {},
+): Promise<{cancel: boolean}> {
+  const response = await api.post(
+    `runners/jobs/${jobId}/heartbeat`,
+    options.signal ? {signal: options.signal} : undefined,
+  );
+  const body = await response.json();
+  return heartbeatResponseSchema.parse(body);
 }
 
 export {HTTPError};

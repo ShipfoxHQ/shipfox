@@ -29,7 +29,7 @@ export const workflowsModule: ShipfoxModule = {
       taskQueue: WORKFLOWS_TASK_QUEUE,
       workflowsPath,
       activities: createOrchestrationActivities,
-      workflows: [],
+      workflows: [{name: 'stuckJobDetector', id: 'stuck-job-detector', cronSchedule: '* * * * *'}],
     },
   ],
 };

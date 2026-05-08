@@ -2,9 +2,15 @@ import type {JobPayloadDto} from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {executeRunStep} from '#run-step.js';
 
+export interface ExecuteJobResult {
+  status: 'succeeded' | 'failed';
+  output: string;
+}
+
 export async function executeJob(
   job: JobPayloadDto,
-): Promise<{status: 'succeeded' | 'failed'; output: string}> {
+  options: {signal?: AbortSignal} = {},
+): Promise<ExecuteJobResult> {
   const steps = [...job.steps].sort((a, b) => a.position - b.position);
   let output = '';
 
@@ -15,7 +21,7 @@ export async function executeJob(
       `Running ${stepLabel}`,
     );
 
-    const result = await executeRunStep(step);
+    const result = await executeRunStep(step, options);
     output += result.output;
 
     if (!result.success) {

@@ -24,6 +24,8 @@ export interface TestConfig {
   duplicateSignal?: boolean;
   /** If true, enqueueJobForRunner does nothing (no signal — for timeout testing) */
   skipSignal?: boolean;
+  /** If true, requestJobCancellationActivity throws (for timeout error-path testing) */
+  cancellationActivityError?: string;
 }
 
 export let cfg: TestConfig;
@@ -163,6 +165,19 @@ function createMockActivities() {
       if (cfg.duplicateSignal) {
         await handle.signal('job-completed', {status: 'failed', output: 'duplicate'});
       }
+    },
+
+    requestJobCancellationActivity: async (params: {jobId: string}) => {
+      calls.push({name: 'requestJobCancellationActivity', params});
+      if (cfg.cancellationActivityError) {
+        const {ApplicationFailure} = await import('@temporalio/common');
+        throw ApplicationFailure.nonRetryable(cfg.cancellationActivityError);
+      }
+    },
+
+    detectAndFailStuckJobsActivity: (params: {thresholdSeconds: number}) => {
+      calls.push({name: 'detectAndFailStuckJobsActivity', params});
+      return {failed: 0};
     },
   };
 }

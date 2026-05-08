@@ -34,20 +34,6 @@
 
 **Depends on:** Nothing. Can be done as a standalone PR.
 
-## Add job execution timeout + stuck runner detection
-
-**What:** Add a timeout to the `condition()` call in `jobOrchestration`, and a periodic Temporal cron that finds stale `runners_running_jobs` rows (last_heartbeat_at > N minutes ago) and fails them.
-
-**Why:** If a runner claims a job and disappears, the `jobOrchestration` workflow parks on its signal forever. The run never completes. Silent failure in production.
-
-**Pros:** Prevents infinite hangs, enables self-healing.
-
-**Cons:** Needs heartbeat protocol design, adds complexity to runner protocol.
-
-**Context:** The `condition()` in `jobOrchestration` accepts an optional timeout parameter. A 30-minute default timeout that fails the job with `runner_timeout` would be a minimal first pass. The stuck job detection cron is a Temporal workflow that queries `runners_running_jobs WHERE last_heartbeat_at < NOW() - interval '10 minutes'`.
-
-**Depends on:** Runner heartbeat protocol (`POST /runners/jobs/:id/heartbeat` endpoint).
-
 ## Add runner authentication
 
 **What:** Add authentication to runner protocol endpoints (`POST /runners/jobs/request` and `POST /runners/jobs/:id/complete`).
@@ -99,3 +85,15 @@
 ## Outbox / Dispatcher
 
 - [ ] **Outbox row retention** — Add periodic cleanup of dispatched outbox rows older than 7 days. Dispatched rows accumulate in each module's `{module}_outbox` table. At scale this bloats the table. Simple fix: periodic `DELETE FROM {module}_outbox WHERE dispatched_at < now() - interval '7 days'` in the dispatcher workflow or a separate Temporal cron. Consider archiving to a separate table first if audit trail is needed. Blocked on: outbox + dispatcher implementation.
+
+## Runner liveness follow-ups
+
+- [ ] **Per-job-type configurable timeout** — `jobOrchestration` currently hardcodes `JOB_MAX_DURATION = '60 minutes'`. Add a `timeout` field on the step/job spec parsed by Definitions, persisted on the `jobs` row, and read by `jobOrchestration` via input. Default to 60min when unset. Necessary for mixed quick/long-running jobs (notify steps don't need 60min; nightly ETL steps need more). Schema-additive on `jobs`.
+
+- [ ] **Bulk DELETE…RETURNING + bulk outbox in `detectAndFailStuckJobs`** — Today the function is N+1: SELECT stuck rows, then per-row `finalizeRunningJob` (atomic `DELETE … WHERE last_heartbeat_at < cutoff RETURNING run_id` + 1-row outbox insert). Total ~1 SELECT + N DELETEs per cron tick. Acceptable at handful-of-runners scale; revisit with a single transaction `DELETE FROM running_jobs WHERE last_heartbeat_at < $threshold RETURNING job_id, run_id` plus a multi-row outbox insert when concurrent-job counts demand it. Likely depends on a `writeOutboxEvents` (plural) helper in `@shipfox/node-outbox`.
+
+- [ ] **`cancelRun(runId)` + DAG-wide cancellation propagation** — The heartbeat-cancel plumbing is wired (cancellation_requested_at column + heartbeat response field) but only consumed by `jobOrchestration`'s timeout. Add a `cancelRun` command in Workflows that walks the DAG, calls `requestJobCancellation` for each running job in the run, and signals `WorkflowRunOrchestration`/child `JobOrchestration`s to abort. Spec context: `.claude/research/system-design.md:341`. Closes the user-facing "stop this run" UX gap without protocol change on the runner side.
+
+- [ ] **Calibrate stuck-job threshold + failure observability** — The detector uses a 180s threshold (≈18× the 10s heartbeat interval). Under a 3-minute Postgres or network blip, healthy long-running jobs whose heartbeats are silently failing will be killed. Two follow-ups: (1) emit a Prometheus/OpenTelemetry counter for "jobs failed by detector" so we can detect calibration mismatches in production; (2) consider raising the default to 300s (or making it configurable per-tenant) once we have load data. Couple this with a runner-side warning log when consecutive heartbeat failures exceed `intervalMs * N` so disconnects are visible before the detector fires.
+
+- [ ] **Move stuck-job-detector cron + activity into a runners-module Temporal worker** — Today the cron schedule and threshold live in `libs/api/workflows`, even though the runner-liveness policy belongs to `libs/api/runners`. The activity wrappers preserve SQL-level decoupling, but workflows still owns the schedule + threshold values. Add a Temporal worker to the runners module (new `ModuleWorker` with its own `taskQueue`, e.g. `runners-maintenance`). Move the cron registration there. Activity body becomes a direct call into the runners module's own functions, no cross-package import. Cleaner ownership, larger diff — defer until a second runners-side cron job (e.g. token-rotation, log-archival) makes the worker worth the boilerplate.

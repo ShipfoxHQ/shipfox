@@ -24,8 +24,10 @@ CREATE TABLE "runners_running_jobs" (
 	"runner_token" text NOT NULL,
 	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"last_heartbeat_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"cancellation_requested_at" timestamp with time zone,
 	CONSTRAINT "runners_running_jobs_job_id_unique" UNIQUE("job_id")
 );
 --> statement-breakpoint
 CREATE INDEX "runners_outbox_pending_idx" ON "runners_outbox" USING btree ("created_at") WHERE "dispatched_at" IS NULL;--> statement-breakpoint
-CREATE INDEX "runners_pending_jobs_created_idx" ON "runners_pending_jobs" USING btree ("created_at");
+CREATE INDEX "runners_pending_jobs_created_idx" ON "runners_pending_jobs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "runners_running_jobs_last_heartbeat_at_idx" ON "runners_running_jobs" USING btree ("last_heartbeat_at");

@@ -1,12 +1,16 @@
-import {setTimeout} from 'node:timers/promises';
+import {setTimeout as setTimeoutPromise} from 'node:timers/promises';
 import {logger} from '@shipfox/node-opentelemetry';
-import {completeJob, requestJob} from '#api-client.js';
+import {completeJob, HTTPError, requestJob} from '#api-client.js';
 import {config} from '#config.js';
-import {executeJob} from '#executor.js';
-import {killActiveProcess} from '#run-step.js';
+import {type ExecuteJobResult, executeJob} from '#executor.js';
+import {startHeartbeatLoop} from '#heartbeat-loop.js';
 
 let running = true;
 let shuttingDown = false;
+// Per-job controller. Set when a job starts, cleared when it completes.
+// SIGINT (second time) and the heartbeat loop both abort through this single
+// path; we no longer keep a module-level reference to the spawned child.
+let currentJobAbortController: AbortController | undefined;
 
 export async function startRunner(): Promise<void> {
   setupSignalHandlers();
@@ -35,18 +39,7 @@ export async function startRunner(): Promise<void> {
         'Job received',
       );
 
-      try {
-        const result = await executeJob(job);
-        await completeJob({jobId: job.job_id, status: result.status, output: result.output});
-        logger().info({jobId: job.job_id, status: result.status}, 'Job completed');
-      } catch (execError) {
-        logger().error({err: execError, jobId: job.job_id}, 'Job execution failed');
-        try {
-          await completeJob({jobId: job.job_id, status: 'failed', output: String(execError)});
-        } catch (reportError) {
-          logger().error({err: reportError, jobId: job.job_id}, 'Failed to report job failure');
-        }
-      }
+      await runJob(job);
     } catch (pollError) {
       logger().error({err: pollError}, 'Poll cycle failed');
       currentInterval = Math.min(currentInterval * 1.5, config.SHIPFOX_POLL_MAX_INTERVAL_MS);
@@ -57,11 +50,52 @@ export async function startRunner(): Promise<void> {
   logger().info('Runner stopped');
 }
 
+async function runJob(job: Awaited<ReturnType<typeof requestJob>> & object): Promise<void> {
+  const ac = new AbortController();
+  currentJobAbortController = ac;
+
+  const heartbeatLoop = startHeartbeatLoop(job.job_id, ac, {
+    intervalMs: config.SHIPFOX_HEARTBEAT_INTERVAL_MS,
+    maxStaleMs: config.SHIPFOX_HEARTBEAT_MAX_STALE_MS,
+  });
+
+  let result: ExecuteJobResult;
+  try {
+    result = await executeJob(job, {signal: ac.signal});
+    logger().info({jobId: job.job_id, status: result.status}, 'Job execution finished');
+  } catch (execError) {
+    logger().error({err: execError, jobId: job.job_id}, 'Job execution failed');
+    result = {status: 'failed', output: String(execError)};
+  } finally {
+    heartbeatLoop.stop();
+    if (currentJobAbortController === ac) currentJobAbortController = undefined;
+  }
+
+  // Codex F5: separate try/catch around the completion report. A 404 here is
+  // expected when the orchestration timeout or stuck-job-detector already
+  // finalized the job. Without this separation, a 404 would fall into the outer
+  // catch and trigger a SECOND completion attempt (which also 404s).
+  try {
+    await completeJob({jobId: job.job_id, status: result.status, output: result.output});
+    logger().info({jobId: job.job_id, status: result.status}, 'Job completed');
+  } catch (reportError) {
+    if (reportError instanceof HTTPError && reportError.response.status === 404) {
+      logger().info(
+        {jobId: job.job_id},
+        'Backend already finalized this job; skipping completion report',
+      );
+    } else {
+      logger().error({err: reportError, jobId: job.job_id}, 'Failed to report job completion');
+    }
+  }
+}
+
 function setupSignalHandlers(): void {
   const handleSignal = (signal: string) => {
     if (shuttingDown) {
-      logger().info({signal}, 'Second signal received, force-killing');
-      killActiveProcess();
+      logger().info({signal}, 'Second signal received, aborting current job');
+      currentJobAbortController?.abort('shutdown');
+      // Also exit promptly — the runner loop's interruptableSleep wakes on signals.
       process.exit(1);
     }
 
@@ -84,7 +118,7 @@ async function interruptableSleep(ms: number): Promise<void> {
   process.once('SIGTERM', onStop);
 
   try {
-    await setTimeout(ms, undefined, {signal: ac.signal});
+    await setTimeoutPromise(ms, undefined, {signal: ac.signal});
   } catch {
     // AbortError from signal interruption — expected
   } finally {

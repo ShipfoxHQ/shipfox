@@ -1,0 +1,114 @@
+import {logger} from '@shipfox/node-opentelemetry';
+import {HTTPError, heartbeat} from '#api-client.js';
+
+export interface HeartbeatLoopOptions {
+  intervalMs: number;
+  /**
+   * Max time an in-flight heartbeat HTTP call may stay outstanding before the
+   * loop aborts it and schedules the next tick. Bounds overlap to "at most one
+   * call in flight" under any API latency.
+   */
+  maxStaleMs: number;
+}
+
+export interface HeartbeatLoopHandle {
+  /** Aborts any in-flight heartbeat and clears the pending timer. Idempotent. */
+  stop: () => void;
+}
+
+/**
+ * Single-flight, setTimeout-chained heartbeat scheduler.
+ *
+ * Each tick carries its own AbortController passed to `ky` via `signal`. If the
+ * call hasn't returned within `maxStaleMs`, the loop aborts the in-flight call
+ * (so the OS socket doesn't linger) and schedules the next tick. There is at
+ * most one heartbeat HTTP call outstanding at any moment — codex F4.
+ *
+ *   tick fires → ┌─ heartbeat resolves before maxStaleMs ──► schedule next tick
+ *                ├─ heartbeat returns cancel:true ──────────► jobAc.abort('cancelled'); STOP
+ *                ├─ heartbeat returns 404 ───────────────────► jobAc.abort('orphaned');  STOP
+ *                ├─ maxStaleMs elapses ──────────────────────► httpAc.abort();
+ *                │                                               (in-flight call rejects with AbortError,
+ *                │                                                ignored as expected control flow)
+ *                │                                            schedule next tick
+ *                └─ other error ──────────────────────────────► log warn; schedule next tick
+ */
+export function startHeartbeatLoop(
+  jobId: string,
+  jobAbortController: AbortController,
+  options: HeartbeatLoopOptions,
+): HeartbeatLoopHandle {
+  let stopped = false;
+  let pendingTimer: NodeJS.Timeout | undefined;
+  let currentHttpAc: AbortController | undefined;
+
+  const scheduleNext = () => {
+    if (stopped) return;
+    pendingTimer = setTimeout(tick, options.intervalMs);
+  };
+
+  const tick = async () => {
+    if (stopped) return;
+
+    const httpAc = new AbortController();
+    currentHttpAc = httpAc;
+
+    // Max-stale guard: aborts the in-flight call if it doesn't return in time.
+    const staleTimer = setTimeout(() => {
+      logger().warn(
+        {jobId, maxStaleMs: options.maxStaleMs},
+        'Heartbeat exceeded max-stale; aborting in-flight call',
+      );
+      httpAc.abort();
+    }, options.maxStaleMs);
+
+    try {
+      const {cancel} = await heartbeat(jobId, {signal: httpAc.signal});
+      if (stopped) return;
+      if (cancel) {
+        logger().info({jobId}, 'Heartbeat returned cancel:true; aborting job');
+        jobAbortController.abort('cancelled');
+        return;
+      }
+      scheduleNext();
+    } catch (err) {
+      if (stopped) return;
+      // The max-stale guard fires httpAc.abort(); ky throws a DOMException-like error.
+      if (isAbortError(err)) {
+        scheduleNext();
+        return;
+      }
+      if (err instanceof HTTPError && err.response.status === 404) {
+        logger().info(
+          {jobId},
+          'Heartbeat returned 404; orchestration finalized this job, aborting runner-side',
+        );
+        jobAbortController.abort('orphaned');
+        return;
+      }
+      logger().warn({jobId, err: String(err)}, 'Heartbeat failed; scheduling next tick');
+      scheduleNext();
+    } finally {
+      clearTimeout(staleTimer);
+      if (currentHttpAc === httpAc) currentHttpAc = undefined;
+    }
+  };
+
+  // Kick off the first tick. Use setTimeout so callers see a `stop()` for the
+  // first interval too, and so tests can deterministically advance fake timers.
+  pendingTimer = setTimeout(tick, options.intervalMs);
+
+  return {
+    stop: () => {
+      if (stopped) return;
+      stopped = true;
+      if (pendingTimer) clearTimeout(pendingTimer);
+      if (currentHttpAc) currentHttpAc.abort();
+    },
+  };
+}
+
+function isAbortError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return err.name === 'AbortError' || err.name === 'TimeoutError';
+}
