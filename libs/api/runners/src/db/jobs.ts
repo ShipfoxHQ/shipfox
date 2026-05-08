@@ -70,32 +70,32 @@ export async function claimJob(params: {
   });
 }
 
-interface FinalizeRunningJobParams {
+export interface FinalizeRunningJobParams {
   jobId: string;
-  /** When provided, scopes the DELETE to that runner_token (completeJob path). */
+  /** When provided, only delete the row if it belongs to this runner token. */
   runnerTokenId?: string;
-  /** Detector path: only delete if last_heartbeat_at < now() - this many ms. */
+  /** When provided, only delete the row if its heartbeat is older than this. */
   staleBeforeMs?: number;
   status: 'succeeded' | 'failed';
   output?: unknown;
-  /** 'throw' (route paths) or 'noop' (detector paths). */
+  /** Whether to throw `RunningJobNotFoundError` when no row matches the filters. */
   onMissing: 'throw' | 'noop';
 }
 
 /**
- * Atomic finalize: a single DELETE...RETURNING with all guard predicates folded
- * into the WHERE clause, plus the outbox event written from the same transaction
- * only when a row was actually deleted.
+ * Single transactional `DELETE … RETURNING` with all guard predicates folded
+ * into the WHERE clause. The outbox event is written from the same transaction
+ * and only when a row was actually deleted.
  *
- * Closes codex F1 (detector race with heartbeat refresh): the staleBeforeMs cutoff
- * is re-evaluated INSIDE the DELETE, so a heartbeat that lands between the
- * iteration SELECT and the DELETE causes 0 rows affected — the live job survives.
- *
- * Closes codex F2 (loser-of-double-SELECT writing stale outbox): no SELECT before
- * DELETE, so two concurrent transactions can't both observe the row and then both
- * write outbox events from a stale run_id snapshot.
+ * Folding the predicates into the DELETE rather than checking them against an
+ * earlier SELECT is what makes this race-safe:
+ * - A heartbeat refreshing `last_heartbeat_at` between an outer "is this stuck?"
+ *   query and this DELETE causes the WHERE clause to fail, so the live job
+ *   survives and no spurious outbox event is written.
+ * - Two concurrent finalizers can't both observe the row and then both write
+ *   the same `runners.job.completed` event with a stale `run_id`.
  */
-async function finalizeRunningJob(
+export async function finalizeRunningJob(
   params: FinalizeRunningJobParams,
 ): Promise<{runId: string} | undefined> {
   return await db().transaction(async (tx) => {
@@ -139,26 +139,9 @@ async function finalizeRunningJob(
   });
 }
 
-export async function completeJob(
-  params: {jobId: string; runnerTokenId: string},
-  result: {status: 'succeeded' | 'failed'; output?: unknown},
-): Promise<{runId: string}> {
-  const finalized = await finalizeRunningJob({
-    jobId: params.jobId,
-    runnerTokenId: params.runnerTokenId,
-    status: result.status,
-    output: result.output,
-    onMissing: 'throw',
-  });
-  // onMissing:'throw' guarantees a non-undefined return, but TS can't see that.
-  if (!finalized) throw new RunningJobNotFoundError(params.jobId);
-  return finalized;
-}
-
 /**
- * Heartbeat: refreshes last_heartbeat_at, returns whether the orchestration has
- * requested the runner cancel this job. Module-internal — only the heartbeat
- * route handler calls this.
+ * Refreshes `last_heartbeat_at` for the runner that owns the job, returning
+ * whether the orchestration has requested cancellation.
  */
 export async function recordHeartbeat(params: {
   jobId: string;
@@ -178,8 +161,10 @@ export async function recordHeartbeat(params: {
 }
 
 /**
- * Public command. Idempotent: COALESCE preserves the first cancellation timestamp,
- * so concurrent callers don't reset it. No-op when the running_jobs row is gone.
+ * Sets `cancellation_requested_at` on the running job so the runner discovers
+ * the cancel on its next heartbeat. Idempotent: `COALESCE` keeps the original
+ * timestamp under concurrent calls. No-op when the row is gone (the job has
+ * already finished or been finalized by another path).
  */
 export async function requestJobCancellation(params: {jobId: string}): Promise<void> {
   await db()
@@ -191,16 +176,16 @@ export async function requestJobCancellation(params: {jobId: string}): Promise<v
 }
 
 /**
- * Public command. Periodically called by the stuck-job-detector cron.
- *
- * N+1 by design (~1 SELECT + N atomic DELETEs). Acceptable for v1 runner counts;
- * revisit with bulk `DELETE ... WHERE last_heartbeat_at < $cutoff RETURNING ...`
- * + bulk outbox insert when concurrent-job scale demands it. See TODOS.md.
+ * Returns up to `limit` job ids whose heartbeats are older than `thresholdSeconds`.
+ * The result is a candidate set only — callers must re-check the predicate inside
+ * any subsequent DELETE so a heartbeat refresh between this read and the delete
+ * does not cause the live job to be finalized.
  */
-export async function detectAndFailStuckJobs(params: {
+export async function findStuckJobs(params: {
   thresholdSeconds: number;
-}): Promise<{failed: number}> {
-  const candidateRows = await db()
+  limit?: number;
+}): Promise<Array<{jobId: string}>> {
+  return await db()
     .select({jobId: runningJobs.jobId})
     .from(runningJobs)
     .where(
@@ -209,18 +194,5 @@ export async function detectAndFailStuckJobs(params: {
         sql`now() - (${params.thresholdSeconds} || ' seconds')::interval`,
       ),
     )
-    .limit(100);
-
-  let failed = 0;
-  for (const candidate of candidateRows) {
-    const finalized = await finalizeRunningJob({
-      jobId: candidate.jobId,
-      staleBeforeMs: params.thresholdSeconds * 1000,
-      status: 'failed',
-      output: {reason: 'runner_disappeared'},
-      onMissing: 'noop',
-    });
-    if (finalized) failed += 1;
-  }
-  return {failed};
+    .limit(params.limit ?? 100);
 }

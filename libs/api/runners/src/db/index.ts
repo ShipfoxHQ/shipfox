@@ -2,12 +2,12 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 export {closeDb, db, schema} from './db.js';
-export type {ClaimedJob, EnqueueJobParams} from './jobs.js';
+export type {ClaimedJob, EnqueueJobParams, FinalizeRunningJobParams} from './jobs.js';
 export {
   claimJob,
-  completeJob,
-  detectAndFailStuckJobs,
   enqueueJob,
+  finalizeRunningJob,
+  findStuckJobs,
   recordHeartbeat,
   requestJobCancellation,
 } from './jobs.js';

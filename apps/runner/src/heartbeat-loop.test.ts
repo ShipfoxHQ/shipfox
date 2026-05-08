@@ -29,6 +29,10 @@ describe('startHeartbeatLoop', () => {
 
     const handle = startHeartbeatLoop('job-1', ac, {intervalMs: 100, maxStaleMs: 1000});
 
+    // Flush any pending microtasks before asserting the timer has not fired —
+    // a regression that resolved the first tick synchronously would leak past
+    // an immediate `expect` without this.
+    await Promise.resolve();
     expect(heartbeatMock).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
@@ -61,7 +65,7 @@ describe('startHeartbeatLoop', () => {
     handle.stop();
   });
 
-  test('max-stale guard aborts the in-flight call and schedules the next tick (codex F4)', async () => {
+  test('max-stale guard aborts the in-flight call and schedules the next tick', async () => {
     let receivedSignal: AbortSignal | undefined;
     heartbeatMock.mockImplementation(
       (_jobId: string, opts?: {signal?: AbortSignal}) =>

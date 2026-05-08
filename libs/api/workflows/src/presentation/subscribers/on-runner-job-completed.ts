@@ -3,19 +3,12 @@ import {logger} from '@shipfox/node-opentelemetry';
 import type {DomainEvent} from '@shipfox/node-outbox';
 import {temporalClient} from '@shipfox/node-temporal';
 
-/**
- * Backend-determined terminal state wins (codex F8).
- *
- * If `jobOrchestration` already terminated via timeout (or via a prior runner
- * completion), signaling the workflow handle throws `WorkflowNotFoundError` from
- * `@temporalio/common`. We swallow it intentionally — a runner-reported success
- * arriving after the workflow has declared the job failed cannot retroactively
- * change the system-of-record state. The runner-side log of the run still shows
- * what the runner thought, for forensics.
- *
- * Match by `error.name` rather than `instanceof` to keep this subscriber free of
- * a direct `@temporalio/common` dependency and resilient across SDK minor versions.
- */
+const WORKFLOW_NOT_FOUND = 'WorkflowNotFoundError';
+
+function isWorkflowNotFound(err: unknown): boolean {
+  return err instanceof Error && err.name === WORKFLOW_NOT_FOUND;
+}
+
 export async function onRunnerJobCompleted(event: DomainEvent): Promise<void> {
   const payload = event.payload as RunnerJobCompletedEvent;
   logger().info({jobId: payload.jobId, status: payload.status}, 'Signaling job orchestration');
@@ -26,10 +19,13 @@ export async function onRunnerJobCompleted(event: DomainEvent): Promise<void> {
       output: payload.output,
     });
   } catch (err) {
-    if (err instanceof Error && err.name === 'WorkflowNotFoundError') {
+    // The job orchestration may have already terminated (e.g. via the timeout
+    // path). In that case the workflow's status is authoritative and the
+    // late-arriving runner result is intentionally dropped.
+    if (isWorkflowNotFound(err)) {
       logger().debug(
         {jobId: payload.jobId, status: payload.status},
-        'Job workflow already terminated; runner-completion event discarded (timeout-wins policy)',
+        'Job workflow already terminated; runner-completion event discarded',
       );
       return;
     }

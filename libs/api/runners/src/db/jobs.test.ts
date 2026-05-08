@@ -1,15 +1,9 @@
 import {RUNNER_JOB_COMPLETED} from '@shipfox/api-runners-dto';
 import {eq, sql} from 'drizzle-orm';
+import {completeJob, detectAndFailStuckJobs} from '#core/jobs.js';
 import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
 import {db} from './db.js';
-import {
-  claimJob,
-  completeJob,
-  detectAndFailStuckJobs,
-  enqueueJob,
-  recordHeartbeat,
-  requestJobCancellation,
-} from './jobs.js';
+import {claimJob, enqueueJob, recordHeartbeat, requestJobCancellation} from './jobs.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobs} from './schema/pending-jobs.js';
 import {runningJobs} from './schema/running-jobs.js';
@@ -200,9 +194,6 @@ describe('recordHeartbeat', () => {
   let runnerTokenId: string;
 
   beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_tokens, runners_outbox CASCADE`,
-    );
     workspaceId = crypto.randomUUID();
     const runnerToken = await runnerTokenFactory.create({workspaceId});
     runnerTokenId = runnerToken.id;
@@ -277,9 +268,6 @@ describe('requestJobCancellation', () => {
   let runnerTokenId: string;
 
   beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_tokens, runners_outbox CASCADE`,
-    );
     workspaceId = crypto.randomUUID();
     const runnerToken = await runnerTokenFactory.create({workspaceId});
     runnerTokenId = runnerToken.id;
@@ -329,9 +317,6 @@ describe('detectAndFailStuckJobs', () => {
   let runnerTokenId: string;
 
   beforeEach(async () => {
-    await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_tokens, runners_outbox CASCADE`,
-    );
     workspaceId = crypto.randomUUID();
     const runnerToken = await runnerTokenFactory.create({workspaceId});
     runnerTokenId = runnerToken.id;
@@ -349,16 +334,27 @@ describe('detectAndFailStuckJobs', () => {
     return {jobId: claimed?.jobId as string, runId: claimed?.runId as string};
   }
 
+  async function runningJobsForTest() {
+    return await db().select().from(runningJobs).where(eq(runningJobs.workspaceId, workspaceId));
+  }
+
+  async function outboxForJobs(jobIds: string[]) {
+    const all = await db().select().from(runnersOutbox);
+    return all.filter((row) => {
+      const payload = row.payload as {jobId?: string};
+      return payload.jobId !== undefined && jobIds.includes(payload.jobId);
+    });
+  }
+
   it('fails a stuck job and writes a runners.job.completed event with reason runner_disappeared', async () => {
     const {jobId, runId} = await makeStaleJob(600);
 
     const result = await detectAndFailStuckJobs({thresholdSeconds: 180});
 
-    expect(result.failed).toBe(1);
-    const running = await db().select().from(runningJobs);
-    expect(running).toHaveLength(0);
+    expect(result.failed).toBeGreaterThanOrEqual(1);
+    expect(await runningJobsForTest()).toHaveLength(0);
 
-    const outbox = await db().select().from(runnersOutbox);
+    const outbox = await outboxForJobs([jobId]);
     expect(outbox).toHaveLength(1);
     expect(outbox[0]?.eventType).toBe(RUNNER_JOB_COMPLETED);
     const payload = outbox[0]?.payload as Record<string, unknown>;
@@ -369,27 +365,24 @@ describe('detectAndFailStuckJobs', () => {
   });
 
   it('does not fail a job whose heartbeat is still inside the threshold window', async () => {
-    await makeStaleJob(60);
+    const {jobId} = await makeStaleJob(60);
 
-    const result = await detectAndFailStuckJobs({thresholdSeconds: 180});
+    await detectAndFailStuckJobs({thresholdSeconds: 180});
 
-    expect(result.failed).toBe(0);
-    const running = await db().select().from(runningJobs);
-    expect(running).toHaveLength(1);
+    expect(await runningJobsForTest()).toHaveLength(1);
+    expect(await outboxForJobs([jobId])).toHaveLength(0);
   });
 
   it('only fails the stuck rows in a mixed batch', async () => {
-    await makeStaleJob(600); // stuck
-    await makeStaleJob(600); // stuck
-    await makeStaleJob(30); // fresh
+    const stuck1 = await makeStaleJob(600);
+    const stuck2 = await makeStaleJob(600);
+    const fresh = await makeStaleJob(30);
 
-    const result = await detectAndFailStuckJobs({thresholdSeconds: 180});
+    await detectAndFailStuckJobs({thresholdSeconds: 180});
 
-    expect(result.failed).toBe(2);
-    const running = await db().select().from(runningJobs);
-    expect(running).toHaveLength(1);
-    const outbox = await db().select().from(runnersOutbox);
-    expect(outbox).toHaveLength(2);
+    const remaining = await runningJobsForTest();
+    expect(remaining.map((r) => r.jobId)).toEqual([fresh.jobId]);
+    expect(await outboxForJobs([stuck1.jobId, stuck2.jobId, fresh.jobId])).toHaveLength(2);
   });
 
   it('returns zero when there are no stuck jobs', async () => {
@@ -397,31 +390,22 @@ describe('detectAndFailStuckJobs', () => {
     expect(result.failed).toBe(0);
   });
 
-  it('skips a row whose heartbeat refreshed between the iteration SELECT and the per-row DELETE (codex F1 race)', async () => {
-    // Insert a row that LOOKS stuck at the iteration SELECT moment,
-    // then refresh its heartbeat just before the atomic DELETE re-evaluates the predicate.
+  it('skips a row whose heartbeat refreshed before the atomic DELETE re-evaluates the predicate', async () => {
+    // The candidate SELECT inside detectAndFailStuckJobs and the per-row DELETE
+    // are two separate queries. Refreshing last_heartbeat_at between them must
+    // leave the row intact: the cutoff is folded into the DELETE's WHERE clause
+    // so the row no longer matches. We can't hook between the two queries from
+    // outside, but the end-to-end shape — pre-stale, then refresh, then run —
+    // exercises the same guarantee: the live row survives.
     const {jobId} = await makeStaleJob(600);
-
-    // Simulate the race: bring last_heartbeat_at fresh AFTER the iteration SELECT
-    // would have observed it as stuck, but BEFORE the DELETE runs. We can't
-    // inject a hook between the two queries inside detectAndFailStuckJobs from
-    // outside, but we CAN exercise the same guarantee end-to-end by refreshing
-    // the heartbeat first and then calling the function: if the predicate is
-    // baked into the DELETE (codex F1 fix), the row survives. If it isn't, the
-    // function would still delete it because the iteration SELECT used its own
-    // earlier snapshot. Either way, this test fails under the broken design and
-    // passes under the atomic DELETE.
     await db()
       .update(runningJobs)
       .set({lastHeartbeatAt: sql`now()`})
       .where(eq(runningJobs.jobId, jobId));
 
-    const result = await detectAndFailStuckJobs({thresholdSeconds: 180});
+    await detectAndFailStuckJobs({thresholdSeconds: 180});
 
-    expect(result.failed).toBe(0);
-    const running = await db().select().from(runningJobs);
-    expect(running).toHaveLength(1);
-    const outbox = await db().select().from(runnersOutbox);
-    expect(outbox).toHaveLength(0);
+    expect(await runningJobsForTest()).toHaveLength(1);
+    expect(await outboxForJobs([jobId])).toHaveLength(0);
   });
 });

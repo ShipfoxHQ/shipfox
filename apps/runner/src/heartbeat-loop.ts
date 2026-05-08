@@ -17,21 +17,15 @@ export interface HeartbeatLoopHandle {
 }
 
 /**
- * Single-flight, setTimeout-chained heartbeat scheduler.
+ * Single-flight, setTimeout-chained heartbeat scheduler. At most one heartbeat
+ * HTTP call is outstanding at any moment: the next tick is scheduled only after
+ * the current one resolves, rejects, or is aborted by the max-stale guard.
  *
- * Each tick carries its own AbortController passed to `ky` via `signal`. If the
- * call hasn't returned within `maxStaleMs`, the loop aborts the in-flight call
- * (so the OS socket doesn't linger) and schedules the next tick. There is at
- * most one heartbeat HTTP call outstanding at any moment — codex F4.
- *
- *   tick fires → ┌─ heartbeat resolves before maxStaleMs ──► schedule next tick
- *                ├─ heartbeat returns cancel:true ──────────► jobAc.abort('cancelled'); STOP
- *                ├─ heartbeat returns 404 ───────────────────► jobAc.abort('orphaned');  STOP
- *                ├─ maxStaleMs elapses ──────────────────────► httpAc.abort();
- *                │                                               (in-flight call rejects with AbortError,
- *                │                                                ignored as expected control flow)
- *                │                                            schedule next tick
- *                └─ other error ──────────────────────────────► log warn; schedule next tick
+ *   tick fires → heartbeat resolves before maxStaleMs ──► schedule next tick
+ *                heartbeat returns cancel:true ──────────► jobAc.abort('cancelled'); stop
+ *                heartbeat returns 404 ──────────────────► jobAc.abort('orphaned');  stop
+ *                maxStaleMs elapses ─────────────────────► httpAc.abort(); schedule next tick
+ *                other error ────────────────────────────► log warn; schedule next tick
  */
 export function startHeartbeatLoop(
   jobId: string,

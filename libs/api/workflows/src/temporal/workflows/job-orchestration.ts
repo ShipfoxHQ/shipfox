@@ -33,9 +33,9 @@ const {setJobStatus, enqueueJobForRunner, bulkSetStepStatuses} = proxyActivities
   startToCloseTimeout: '30s',
 });
 
-// Cancellation is best-effort; the stuck-job detector is the safety net. Bound
-// retries explicitly so a DB outage cannot block the failure path. With Temporal's
-// default retries the catch below would fire many minutes after the timeout.
+// Cancellation is best-effort: the stuck-job detector is the safety net.
+// Retries are bounded explicitly so a DB outage cannot delay the failure path
+// behind Temporal's many-minute default retry policy.
 const {requestJobCancellationActivity} = proxyActivities<
   ReturnType<typeof createOrchestrationActivities>
 >({
@@ -106,6 +106,10 @@ export async function jobOrchestration(
     }
     ({status, output} = signalPayload);
   } else {
+    // Timeout path: ask the runner to cancel via its next heartbeat. We don't
+    // gate the failure on this succeeding — if the cancellation activity errors
+    // (e.g. DB outage) we still mark the job failed; the stuck-job detector
+    // will eventually clean up the running_jobs row.
     try {
       await requestJobCancellationActivity({jobId: input.jobId});
     } catch (err) {

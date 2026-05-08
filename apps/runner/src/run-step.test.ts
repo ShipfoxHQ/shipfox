@@ -85,7 +85,7 @@ describe('executeRunStep', () => {
     expect(result.success).toBe(false);
   });
 
-  it('kills the entire process group on abort, including grandchildren (codex F9)', async () => {
+  it('kills the entire process group on abort, including grandchildren', async () => {
     // The shell parent has its own pid; the inner sleep is a grandchild whose
     // pid is printed before the wait. Without `detached:true` + `process.kill(-pid)`,
     // killing only the shell would leave the grandchild orphaned.

@@ -71,10 +71,10 @@ async function runJob(job: Awaited<ReturnType<typeof requestJob>> & object): Pro
     if (currentJobAbortController === ac) currentJobAbortController = undefined;
   }
 
-  // Codex F5: separate try/catch around the completion report. A 404 here is
-  // expected when the orchestration timeout or stuck-job-detector already
-  // finalized the job. Without this separation, a 404 would fall into the outer
-  // catch and trigger a SECOND completion attempt (which also 404s).
+  // Reporting completion is its own try/catch: a 404 here is the expected
+  // signal that the backend already finalized this job (orchestration timeout
+  // or stuck-job detector). We must not retry, and we must not let it fall
+  // into the outer execution-error path or we would post completion twice.
   try {
     await completeJob({jobId: job.job_id, status: result.status, output: result.output});
     logger().info({jobId: job.job_id, status: result.status}, 'Job completed');

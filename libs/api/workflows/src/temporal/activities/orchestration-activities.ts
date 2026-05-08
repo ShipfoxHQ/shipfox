@@ -131,21 +131,12 @@ export async function enqueueJobForRunner(params: {
   });
 }
 
-/**
- * Thin Temporal activity wrapper around the runners-module command. The runners
- * module owns the SQL; this exists only so a workflow can call into it via
- * Temporal's activity layer.
- */
 export async function detectAndFailStuckJobsActivity(params: {
   thresholdSeconds: number;
 }): Promise<{failed: number}> {
   return await detectAndFailStuckJobs(params);
 }
 
-/**
- * Thin wrapper. Keep the runtime cheap so the bounded retry policy in
- * jobOrchestration can complete within `scheduleToCloseTimeout`.
- */
 export async function requestJobCancellationActivity(params: {jobId: string}): Promise<void> {
   await requestJobCancellation(params);
 }

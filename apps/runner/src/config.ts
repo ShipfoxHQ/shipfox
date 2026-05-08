@@ -9,5 +9,5 @@ export const config = createConfig({
   SHIPFOX_HEARTBEAT_INTERVAL_MS: num({default: 10_000}),
   // Max time a single in-flight heartbeat may stay outstanding before the loop
   // aborts it and schedules the next tick. Bounds overlap under a hung API.
-  SHIPFOX_HEARTBEAT_MAX_STALE_MS: num({default: 30_000}),
+  SHIPFOX_HEARTBEAT_MAX_STALE_MS: num({default: 10_000}),
 });

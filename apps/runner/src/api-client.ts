@@ -1,6 +1,10 @@
 import {
+  type CompleteJobBodyDto,
+  type CompleteJobResponseDto,
+  completeJobResponseSchema,
+  type HeartbeatResponseDto,
   heartbeatResponseSchema,
-  type JobPayloadDto,
+  type JobPayloadResponseDto,
   jobPayloadResponseSchema,
 } from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -14,7 +18,7 @@ const api = ky.create({
   },
 });
 
-export async function requestJob(): Promise<JobPayloadDto | null> {
+export async function requestJob(): Promise<JobPayloadResponseDto | null> {
   logger().debug('Polling for job');
 
   const response = await api.post('runners/jobs/request');
@@ -23,35 +27,32 @@ export async function requestJob(): Promise<JobPayloadDto | null> {
     return null;
   }
 
-  const body = await response.json();
-  return jobPayloadResponseSchema.parse(body);
+  return jobPayloadResponseSchema.parse(await response.json());
 }
 
-export async function completeJob(params: {
-  jobId: string;
-  status: 'succeeded' | 'failed';
-  output?: string;
-}): Promise<void> {
+export async function completeJob(
+  params: CompleteJobBodyDto & {jobId: string},
+): Promise<CompleteJobResponseDto> {
   logger().info({jobId: params.jobId, status: params.status}, 'Reporting job completion');
 
-  await api.post(`runners/jobs/${params.jobId}/complete`, {
+  const response = await api.post(`runners/jobs/${params.jobId}/complete`, {
     json: {
       status: params.status,
       output: params.output,
-    },
+    } satisfies CompleteJobBodyDto,
   });
+  return completeJobResponseSchema.parse(await response.json());
 }
 
 export async function heartbeat(
   jobId: string,
   options: {signal?: AbortSignal} = {},
-): Promise<{cancel: boolean}> {
+): Promise<HeartbeatResponseDto> {
   const response = await api.post(
     `runners/jobs/${jobId}/heartbeat`,
     options.signal ? {signal: options.signal} : undefined,
   );
-  const body = await response.json();
-  return heartbeatResponseSchema.parse(body);
+  return heartbeatResponseSchema.parse(await response.json());
 }
 
 export {HTTPError};

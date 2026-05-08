@@ -2,7 +2,7 @@ import {completeJobBodySchema, completeJobResponseSchema} from '@shipfox/api-run
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {RunningJobNotFoundError} from '#core/errors.js';
-import {completeJob} from '#db/jobs.js';
+import {completeJob} from '#core/jobs.js';
 import {getRunnerContext} from '#presentation/auth/index.js';
 
 export const completeJobRoute = defineRoute({
