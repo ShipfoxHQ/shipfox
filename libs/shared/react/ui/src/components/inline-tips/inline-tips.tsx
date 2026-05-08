@@ -19,7 +19,7 @@ const inlineTipsLineVariants = cva('w-4 self-stretch my-4 rounded-full', {
   variants: {
     type: {
       default: 'bg-tag-neutral-icon',
-      info: 'bg-tag-warning-icon',
+      info: 'bg-tag-blue-icon',
       success: 'bg-tag-success-icon',
       error: 'bg-tag-error-icon',
     },

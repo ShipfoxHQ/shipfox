@@ -17,9 +17,9 @@ export function RunnersSettingsPage() {
 
       <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-32 max-[760px]:grid-cols-1">
         <SettingsNav workspaceId={workspace.id} />
-        <main>
+        <div>
           <WorkspaceRunnerTokensSettingsSection workspaceId={workspace.id} />
-        </main>
+        </div>
       </div>
     </div>
   );

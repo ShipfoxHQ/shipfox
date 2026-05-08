@@ -1,6 +1,5 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {cva} from 'class-variance-authority';
-import {motion, type Transition} from 'framer-motion';
 import {type ComponentProps, createContext, type ReactNode, useContext} from 'react';
 import {Drawer as VaulDrawer} from 'vaul';
 import {useMediaQuery} from '#hooks/useMediaQuery.js';
@@ -9,12 +8,6 @@ import {Button} from '../button/index.js';
 import {Icon} from '../icon/index.js';
 import {Kbd} from '../kbd/index.js';
 import {Header, Text} from '../typography/index.js';
-
-const modalDefaultTransition: Transition = {
-  type: 'spring',
-  stiffness: 300,
-  damping: 30,
-};
 
 type ModalContextValue = {
   breakpoint: string;
@@ -90,59 +83,29 @@ function ModalClose(props: ComponentProps<typeof DialogPrimitive.Close>) {
   return <VaulDrawer.Close {...props} />;
 }
 
-type ModalOverlayProps = ComponentProps<typeof DialogPrimitive.Overlay> & {
-  animated?: boolean;
-  transition?: Transition;
-};
+type ModalOverlayProps = ComponentProps<typeof DialogPrimitive.Overlay>;
 
-function ModalOverlay({
-  className,
-  animated = true,
-  transition = modalDefaultTransition,
-  ...props
-}: ModalOverlayProps) {
+function ModalOverlay({className, ...props}: ModalOverlayProps) {
   const {isDesktop} = useModalContext();
 
   if (!isDesktop) {
     return <VaulDrawer.Overlay className={cn(modalOverlayVariants(), className)} {...props} />;
   }
 
-  if (animated) {
-    return (
-      <DialogPrimitive.Overlay className={cn(modalOverlayVariants(), className)} asChild {...props}>
-        <motion.div
-          initial={{opacity: 0}}
-          animate={{opacity: 1}}
-          exit={{opacity: 0}}
-          transition={transition}
-        />
-      </DialogPrimitive.Overlay>
-    );
-  }
-
   return <DialogPrimitive.Overlay className={cn(modalOverlayVariants(), className)} {...props} />;
 }
 
 type ModalContentProps = ComponentProps<typeof DialogPrimitive.Content> & {
-  animated?: boolean;
-  transition?: Transition;
   overlayClassName?: string;
 };
 
-function ModalContent({
-  className,
-  children,
-  animated = true,
-  transition = modalDefaultTransition,
-  overlayClassName,
-  ...props
-}: ModalContentProps) {
+function ModalContent({className, children, overlayClassName, ...props}: ModalContentProps) {
   const {isDesktop} = useModalContext();
 
   if (!isDesktop) {
     return (
       <ModalPortal>
-        <ModalOverlay animated={animated} transition={transition} className={overlayClassName} />
+        <ModalOverlay className={overlayClassName} />
         <VaulDrawer.Content
           className={cn(
             'fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-background-neutral-base rounded-t-16 max-h-[85vh] shadow-tooltip',
@@ -166,7 +129,7 @@ function ModalContent({
 
   return (
     <ModalPortal>
-      <ModalOverlay animated={animated} transition={transition} className={overlayClassName} />
+      <ModalOverlay className={overlayClassName} />
       <DialogPrimitive.Content className={baseClasses} {...props}>
         <div className="relative size-full">
           <div className="pointer-events-none absolute inset-0 shadow-separator-inset rounded-16" />
@@ -339,6 +302,5 @@ export {
   ModalTitle,
   ModalTrigger,
   modalContentVariants,
-  modalDefaultTransition,
   modalOverlayVariants,
 };
