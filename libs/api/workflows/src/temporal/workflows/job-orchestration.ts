@@ -92,13 +92,21 @@ export async function jobOrchestration(
     }
     const {status, steps} = signalPayload;
 
+    // Apply step results FIRST: the activity validates strict consistency for
+    // succeeded jobs (no bogus/missing/duplicate stepIds) and throws on
+    // violation. Only mark the job final if the per-step state is consistent;
+    // otherwise the job stays running and the timeout path will catch it.
+    await applyStepResultsActivity({
+      jobId: input.jobId,
+      completionStatus: status,
+      reportedSteps: steps,
+    });
+
     const {newVersion: finalVersion} = await setJobStatus({
       jobId: input.jobId,
       status,
       version: runningVersion,
     });
-
-    await applyStepResultsActivity({jobId: input.jobId, reportedSteps: steps});
 
     return {status, jobVersion: finalVersion};
   }

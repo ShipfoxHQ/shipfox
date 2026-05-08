@@ -3,7 +3,7 @@ import {z} from 'zod';
 export const stepErrorSchema = z
   .object({
     message: z.string(),
-    exitCode: z.number().int().nullable().optional(),
+    exit_code: z.number().int().nullable().optional(),
     signal: z.string().optional(),
   })
   .nullable();

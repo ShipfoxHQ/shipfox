@@ -290,7 +290,21 @@ export interface ReportedStepResult {
 
 export interface ApplyStepResultsParams {
   jobId: string;
+  /**
+   * Job-level completion status. When 'succeeded', the activity enforces strict
+   * consistency: reported step ids must be the canonical set, with no
+   * duplicates and no unknowns. Violations throw — the workflow surfaces the
+   * failure and the job stays running until the timeout path catches it.
+   */
+  completionStatus: 'succeeded' | 'failed';
   reportedSteps: ReportedStepResult[];
+}
+
+export class StepResultsContractViolationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StepResultsContractViolationError';
+  }
 }
 
 /**
@@ -315,6 +329,11 @@ export interface ApplyStepResultsParams {
  */
 export async function applyStepResults(params: ApplyStepResultsParams): Promise<void> {
   if (params.reportedSteps.length === 0) {
+    if (params.completionStatus === 'succeeded') {
+      throw new StepResultsContractViolationError(
+        'completionStatus=succeeded with no reported steps',
+      );
+    }
     await bulkUpdateStepStatuses({jobId: params.jobId, status: 'failed'});
     return;
   }
@@ -326,6 +345,30 @@ export async function applyStepResults(params: ApplyStepResultsParams): Promise<
       .where(eq(steps.jobId, params.jobId));
     const canonicalIds = new Set(canonical.map((row) => row.id));
     const reportedIdSet = new Set(params.reportedSteps.map((r) => r.stepId));
+
+    if (params.completionStatus === 'succeeded') {
+      // Strict mode: every reported id must be canonical, every canonical id
+      // must be reported, and the reported list must have no duplicates. A
+      // bogus or missing id with status=succeeded would otherwise corrupt the
+      // run history (job marked succeeded while real steps end cancelled).
+      if (params.reportedSteps.length !== reportedIdSet.size) {
+        throw new StepResultsContractViolationError(
+          'duplicate stepId in reportedSteps with completionStatus=succeeded',
+        );
+      }
+      const unknown = params.reportedSteps.find((r) => !canonicalIds.has(r.stepId));
+      if (unknown) {
+        throw new StepResultsContractViolationError(
+          `unknown stepId ${unknown.stepId} with completionStatus=succeeded`,
+        );
+      }
+      const missing = canonical.filter((row) => !reportedIdSet.has(row.id));
+      if (missing.length > 0) {
+        throw new StepResultsContractViolationError(
+          `unreported canonical stepIds with completionStatus=succeeded: ${missing.map((r) => r.id).join(', ')}`,
+        );
+      }
+    }
 
     const updatedAt = new Date();
 

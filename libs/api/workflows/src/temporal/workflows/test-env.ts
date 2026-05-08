@@ -142,7 +142,11 @@ function createMockActivities() {
       calls.push({name: 'bulkSetStepStatuses', params});
     },
 
-    applyStepResultsActivity: (params: {jobId: string; reportedSteps: unknown[]}) => {
+    applyStepResultsActivity: (params: {
+      jobId: string;
+      completionStatus: 'succeeded' | 'failed';
+      reportedSteps: unknown[];
+    }) => {
       calls.push({name: 'applyStepResultsActivity', params});
     },
 
@@ -175,7 +179,7 @@ function createMockActivities() {
                 {
                   step_id: params.steps[0].id,
                   status: 'failed' as const,
-                  error: {message: 'mock failure', exitCode: 1},
+                  error: {message: 'mock failure', exit_code: 1},
                 },
               ]
             : [];

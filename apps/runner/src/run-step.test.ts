@@ -19,7 +19,7 @@ describe('executeRunStep', () => {
     const result = await executeRunStep(step);
 
     expect(result.success).toBe(false);
-    expect(result.error).toEqual({message: 'Command exited with code 1', exitCode: 1});
+    expect(result.error).toEqual({message: 'Command exited with code 1', exit_code: 1});
   });
 
   it('captures both stdout and stderr', async () => {
@@ -39,7 +39,7 @@ describe('executeRunStep', () => {
 
     expect(result.success).toBe(false);
     expect(result.error?.message).toContain('Unsupported step type: docker');
-    expect(result.error?.exitCode).toBeUndefined();
+    expect(result.error?.exit_code).toBeUndefined();
     expect(result.output).toBe('');
   });
 
@@ -50,7 +50,7 @@ describe('executeRunStep', () => {
 
     expect(result.success).toBe(false);
     expect(result.error?.message).toContain('missing or empty');
-    expect(result.error?.exitCode).toBeUndefined();
+    expect(result.error?.exit_code).toBeUndefined();
   });
 
   it('reports signal kill on result.error when aborted', async () => {
@@ -63,7 +63,7 @@ describe('executeRunStep', () => {
 
     const result = await promise;
     expect(result.success).toBe(false);
-    expect(result.error?.exitCode).toBeNull();
+    expect(result.error?.exit_code).toBeNull();
     expect(result.error?.signal).toBe('SIGKILL');
     expect(result.error?.message).toContain('SIGKILL');
   });

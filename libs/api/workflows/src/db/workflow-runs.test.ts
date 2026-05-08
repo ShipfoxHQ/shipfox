@@ -14,6 +14,7 @@ import {
   getStepsByJobId,
   getWorkflowRunById,
   listWorkflowRunsByProject,
+  StepResultsContractViolationError,
   updateJobStatus,
   updateWorkflowRunStatus,
 } from './workflow-runs.js';
@@ -628,6 +629,7 @@ describe('workflow run queries', () => {
 
       await applyStepResults({
         jobId,
+        completionStatus: 'failed',
         reportedSteps: [
           {stepId: jobSteps[0]?.id as string, status: 'succeeded', error: null},
           {
@@ -652,6 +654,7 @@ describe('workflow run queries', () => {
 
       await applyStepResults({
         jobId,
+        completionStatus: 'succeeded',
         reportedSteps: jobSteps.map((s) => ({
           stepId: s.id,
           status: 'succeeded' as const,
@@ -675,6 +678,7 @@ describe('workflow run queries', () => {
 
       await applyStepResults({
         jobId,
+        completionStatus: 'succeeded',
         reportedSteps: [
           {stepId: jobSteps[0]?.id as string, status: 'succeeded', error: null},
           {stepId: jobSteps[1]?.id as string, status: 'succeeded', error: null},
@@ -695,6 +699,7 @@ describe('workflow run queries', () => {
 
       await applyStepResults({
         jobId,
+        completionStatus: 'failed',
         reportedSteps: [{stepId: jobSteps[0]?.id as string, status: 'succeeded', error: null}],
       });
 
@@ -702,10 +707,10 @@ describe('workflow run queries', () => {
       expect(final[2]?.status).toBe('succeeded');
     });
 
-    test('empty reportedSteps[] falls back to bulk-fail (executor-throws path)', async () => {
+    test('empty reportedSteps[] with completionStatus=failed falls back to bulk-fail', async () => {
       const {jobId} = await seedJob(3);
 
-      await applyStepResults({jobId, reportedSteps: []});
+      await applyStepResults({jobId, completionStatus: 'failed', reportedSteps: []});
 
       const final = await getStepsByJobId(jobId);
       for (const step of final) {
@@ -717,6 +722,7 @@ describe('workflow run queries', () => {
       const {jobId, jobSteps} = await seedJob(3);
       const payload = {
         jobId,
+        completionStatus: 'failed' as const,
         reportedSteps: [
           {stepId: jobSteps[0]?.id as string, status: 'succeeded' as const, error: null},
           {
@@ -739,11 +745,12 @@ describe('workflow run queries', () => {
       expect(afterSecond.map((s) => s.updatedAt.toISOString())).toEqual(updatedAtAfterFirst);
     });
 
-    test('hostile: bogus stepId does not corrupt real steps (cancels every real step instead)', async () => {
+    test('hostile (failed): bogus stepId does not corrupt real steps', async () => {
       const {jobId, jobSteps} = await seedJob(3);
 
       await applyStepResults({
         jobId,
+        completionStatus: 'failed',
         reportedSteps: [
           {
             stepId: '00000000-0000-0000-0000-000000000999',
@@ -759,16 +766,16 @@ describe('workflow run queries', () => {
         expect(step.status).toBe('cancelled');
         expect(step.error).toBeNull();
       }
-      // Sanity check: the bogus id never matched a real row.
       expect(final.map((s) => s.id)).toEqual(jobSteps.map((s) => s.id));
     });
 
-    test('hostile: duplicate stepId is idempotent (terminal guard absorbs the second write)', async () => {
+    test('hostile (failed): duplicate stepId is idempotent (terminal guard absorbs the second write)', async () => {
       const {jobId, jobSteps} = await seedJob(2);
       const stepId = jobSteps[0]?.id as string;
 
       await applyStepResults({
         jobId,
+        completionStatus: 'failed',
         reportedSteps: [
           {stepId, status: 'succeeded', error: null},
           {stepId, status: 'failed', error: {message: 'should not apply', exitCode: 1}},
@@ -781,12 +788,13 @@ describe('workflow run queries', () => {
       expect(final[0]?.error).toBeNull();
     });
 
-    test('hostile: cross-job stepId is filtered out by the canonical-set check', async () => {
+    test('hostile (failed): cross-job stepId is filtered out by the canonical-set check', async () => {
       const seedA = await seedJob(2);
       const seedB = await seedJob(2);
 
       await applyStepResults({
         jobId: seedA.jobId,
+        completionStatus: 'failed',
         reportedSteps: [
           {stepId: seedA.jobSteps[0]?.id as string, status: 'succeeded', error: null},
           {stepId: seedB.jobSteps[0]?.id as string, status: 'succeeded', error: null},
@@ -798,6 +806,74 @@ describe('workflow run queries', () => {
       for (const step of finalB) {
         expect(step.status).toBe('pending');
       }
+    });
+
+    describe('strict mode (completionStatus=succeeded)', () => {
+      test('throws when reportedSteps is empty', async () => {
+        const {jobId} = await seedJob(2);
+
+        await expect(
+          applyStepResults({jobId, completionStatus: 'succeeded', reportedSteps: []}),
+        ).rejects.toThrow(StepResultsContractViolationError);
+      });
+
+      test('throws when a reported stepId is unknown to the job (bogus uuid)', async () => {
+        const {jobId, jobSteps} = await seedJob(2);
+
+        await expect(
+          applyStepResults({
+            jobId,
+            completionStatus: 'succeeded',
+            reportedSteps: [
+              {stepId: jobSteps[0]?.id as string, status: 'succeeded', error: null},
+              {
+                stepId: '00000000-0000-0000-0000-000000000999',
+                status: 'succeeded',
+                error: null,
+              },
+            ],
+          }),
+        ).rejects.toThrow(StepResultsContractViolationError);
+
+        // No DB writes leaked: every real step still pending.
+        const final = await getStepsByJobId(jobId);
+        for (const step of final) {
+          expect(step.status).toBe('pending');
+        }
+      });
+
+      test('throws when a canonical stepId is missing from the report', async () => {
+        const {jobId, jobSteps} = await seedJob(3);
+
+        await expect(
+          applyStepResults({
+            jobId,
+            completionStatus: 'succeeded',
+            reportedSteps: [
+              {stepId: jobSteps[0]?.id as string, status: 'succeeded', error: null},
+              {stepId: jobSteps[1]?.id as string, status: 'succeeded', error: null},
+              // jobSteps[2] missing
+            ],
+          }),
+        ).rejects.toThrow(StepResultsContractViolationError);
+      });
+
+      test('throws on duplicate stepIds in the report', async () => {
+        const {jobId, jobSteps} = await seedJob(2);
+        const stepId = jobSteps[0]?.id as string;
+
+        await expect(
+          applyStepResults({
+            jobId,
+            completionStatus: 'succeeded',
+            reportedSteps: [
+              {stepId, status: 'succeeded', error: null},
+              {stepId, status: 'succeeded', error: null},
+              {stepId: jobSteps[1]?.id as string, status: 'succeeded', error: null},
+            ],
+          }),
+        ).rejects.toThrow(StepResultsContractViolationError);
+      });
     });
   });
 });

@@ -22,6 +22,7 @@ export {
   getStepsByJobIds,
   getWorkflowRunById,
   listWorkflowRunsByProject,
+  StepResultsContractViolationError,
   updateJobStatus,
   updateWorkflowRunStatus,
 } from './workflow-runs.js';

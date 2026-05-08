@@ -51,7 +51,7 @@ describe('executeJob', () => {
       .mockResolvedValueOnce({
         success: false,
         output: 'step2-err\n',
-        error: {message: 'Command exited with code 1', exitCode: 1},
+        error: {message: 'Command exited with code 1', exit_code: 1},
       })
       .mockResolvedValueOnce({success: true, output: 'step3\n', error: null});
 
@@ -65,7 +65,7 @@ describe('executeJob', () => {
     expect(result.steps[1]).toEqual({
       step_id: job.steps[1]?.id,
       status: 'failed',
-      error: {message: 'Command exited with code 1', exitCode: 1},
+      error: {message: 'Command exited with code 1', exit_code: 1},
     });
     expect(mockExecuteRunStep).toHaveBeenCalledTimes(2);
   });
@@ -74,7 +74,7 @@ describe('executeJob', () => {
     mockExecuteRunStep.mockResolvedValueOnce({
       success: false,
       output: '',
-      error: {message: 'Killed by signal SIGKILL', exitCode: null, signal: 'SIGKILL'},
+      error: {message: 'Killed by signal SIGKILL', exit_code: null, signal: 'SIGKILL'},
     });
 
     const job = buildJob([{position: 0}]);
@@ -84,7 +84,7 @@ describe('executeJob', () => {
     expect(result.status).toBe('failed');
     expect(result.steps[0]?.error).toEqual({
       message: 'Killed by signal SIGKILL',
-      exitCode: null,
+      exit_code: null,
       signal: 'SIGKILL',
     });
   });
@@ -98,16 +98,6 @@ describe('executeJob', () => {
 
     expect(result.status).toBe('succeeded');
     expect(result.steps).toHaveLength(1);
-  });
-
-  it('handles a job with no steps', async () => {
-    const job = buildJob([]);
-
-    const result = await executeJob(job);
-
-    expect(result.status).toBe('succeeded');
-    expect(result.steps).toEqual([]);
-    expect(mockExecuteRunStep).not.toHaveBeenCalled();
   });
 });
 

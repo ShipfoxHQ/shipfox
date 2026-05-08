@@ -177,7 +177,7 @@ describe('POST /runners/jobs/:jobId/complete', () => {
           {
             step_id: crypto.randomUUID(),
             status: 'failed',
-            error: {message: 'boom', exitCode: 1},
+            error: {message: 'boom', exit_code: 1},
           },
         ],
       },
@@ -216,7 +216,7 @@ describe('POST /runners/jobs/:jobId/complete', () => {
           {
             step_id: crypto.randomUUID(),
             status: 'failed',
-            error: {message: 'Command exited with code 1', exitCode: 1},
+            error: {message: 'Command exited with code 1', exit_code: 1},
           },
         ],
       },

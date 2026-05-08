@@ -136,10 +136,10 @@ function spawnAndCapture(scriptPath: string, options: {signal?: AbortSignal}): P
         code === null
           ? {
               message: `Killed by signal ${signal ?? 'unknown'}`,
-              exitCode: null,
+              exit_code: null,
               ...(signal ? {signal} : {}),
             }
-          : {message: `Command exited with code ${code}`, exitCode: code};
+          : {message: `Command exited with code ${code}`, exit_code: code};
       resolve({success: false, output: finalOutput, error});
     });
 

@@ -120,6 +120,7 @@ describe('GET /api/workflows/runs/:id', () => {
 
     await applyStepResults({
       jobId,
+      completionStatus: 'failed',
       reportedSteps: [
         {stepId: steps[0]?.id as string, status: 'succeeded', error: null},
         {

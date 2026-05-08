@@ -105,18 +105,28 @@ export async function bulkSetStepStatuses(params: {
   await bulkUpdateStepStatuses(params);
 }
 
-// Snake_case `step_id` from the wire DTO converts to camel `stepId` here so
-// domain code never sees the external shape.
+// Wire (snake_case) → domain (camelCase) at the activity boundary so DB code
+// never sees the external shape. The completionStatus is forwarded so the
+// activity can enforce strict consistency for succeeded jobs.
 export async function applyStepResultsActivity(params: {
   jobId: string;
+  completionStatus: 'succeeded' | 'failed';
   reportedSteps: StepResultDto[];
 }): Promise<void> {
   await applyStepResults({
     jobId: params.jobId,
+    completionStatus: params.completionStatus,
     reportedSteps: params.reportedSteps.map((s) => ({
       stepId: s.step_id,
       status: s.status,
-      error: s.error as Record<string, unknown> | null,
+      error:
+        s.error == null
+          ? null
+          : {
+              message: s.error.message,
+              ...(s.error.exit_code !== undefined ? {exitCode: s.error.exit_code} : {}),
+              ...(s.error.signal !== undefined ? {signal: s.error.signal} : {}),
+            },
     })),
   });
 }
