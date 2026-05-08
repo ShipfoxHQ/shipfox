@@ -4,8 +4,7 @@ import {useReducedMotion} from 'framer-motion';
 /**
  * Sticky tab strip beneath the nav. Always renders the 40px container so
  * navigation between workspace home (no `pid`) and project detail does not
- * cause a layout jump. Inside a project, renders the single "Overview" tab
- * with brand-orange underline; otherwise the strip is empty.
+ * cause a layout jump.
  */
 export function ProjectTabs() {
   const params = useParams({strict: false}) as {wid?: string; pid?: string};
@@ -28,21 +27,33 @@ export function ProjectTabs() {
   return (
     <div
       role="tablist"
-      aria-label="Project sections"
+      aria-label={inProject ? 'Project sections' : 'Workspace sections'}
       className="sticky top-56 z-20 h-40 px-16 flex items-end gap-12 bg-background-subtle-base border-b border-border-neutral-base"
     >
       {inWorkspace && params.wid ? (
-        <Link
-          to="/workspaces/$wid"
-          params={{wid: params.wid}}
-          role="tab"
-          activeOptions={{exact: true}}
-          activeProps={activeProps}
-          inactiveProps={inactiveProps}
-          className={tabClassName}
-        >
-          Projects
-        </Link>
+        <>
+          <Link
+            to="/workspaces/$wid"
+            params={{wid: params.wid}}
+            role="tab"
+            activeOptions={{exact: true}}
+            activeProps={activeProps}
+            inactiveProps={inactiveProps}
+            className={tabClassName}
+          >
+            Projects
+          </Link>
+          <Link
+            to="/workspaces/$wid/settings/runners"
+            params={{wid: params.wid}}
+            role="tab"
+            activeProps={activeProps}
+            inactiveProps={inactiveProps}
+            className={tabClassName}
+          >
+            Settings
+          </Link>
+        </>
       ) : null}
       {inProject && params.wid && params.pid ? (
         <Link

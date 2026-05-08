@@ -3,7 +3,12 @@ import {db, migrationsPath, runnersOutbox} from '#db/index.js';
 import {createRunnerTokenAuthMethod, routes} from '#presentation/index.js';
 
 export type {RunnerToken} from '#core/index.js';
-export {RunningJobNotFoundError} from '#core/index.js';
+export {
+  createWorkspaceRunnerToken,
+  listUsableRunnerTokens,
+  RunningJobNotFoundError,
+  revokeWorkspaceRunnerToken,
+} from '#core/index.js';
 export type {ClaimedJob, EnqueueJobParams} from '#db/index.js';
 export {
   claimJob,

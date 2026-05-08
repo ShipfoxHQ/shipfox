@@ -4,3 +4,10 @@ export class RunningJobNotFoundError extends Error {
     this.name = 'RunningJobNotFoundError';
   }
 }
+
+export class RunnerTokenNotFoundError extends Error {
+  constructor(tokenId: string) {
+    super(`Runner token not found: ${tokenId}`);
+    this.name = 'RunnerTokenNotFoundError';
+  }
+}

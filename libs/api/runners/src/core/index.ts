@@ -1,2 +1,7 @@
 export type {RunnerToken} from './entities/runner-token.js';
-export {RunningJobNotFoundError} from './errors.js';
+export {RunnerTokenNotFoundError, RunningJobNotFoundError} from './errors.js';
+export {
+  createWorkspaceRunnerToken,
+  listUsableRunnerTokens,
+  revokeWorkspaceRunnerToken,
+} from './runner-tokens.js';

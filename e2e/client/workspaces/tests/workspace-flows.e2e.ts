@@ -5,6 +5,7 @@ import {expect, test} from './test.js';
 const ONBOARDING_URL_RE = /\/setup\/workspaces\/new\/?$/u;
 const WORKSPACE_INTEGRATIONS_URL_RE = /\/workspaces\/[^/]+\/integrations\/?$/u;
 const CREATE_WORKSPACE_LABEL_RE = /Create workspace/u;
+const RUNNER_TOKEN_PREFIX_RE = /^sf_rt_/u;
 const LAST_WORKSPACE_KEY = 'shipfox.lastWorkspaceId';
 
 function workspaceUrlRe(wid: string): RegExp {
@@ -201,6 +202,35 @@ test('switcher list scrolls while Create workspace stays pinned', async ({
   await expect(page.getByRole('option', {name: 'Workspace 20'})).toBeInViewport();
   await expect(page.getByRole('option', {name: CREATE_WORKSPACE_LABEL_RE})).toBeVisible();
   await argosScreenshot(page, 'workspaces/switcher-many-overflow-scrolled');
+});
+
+test('manages workspace runner tokens from settings', async ({page, auth, workspaces}) => {
+  const user = await auth.createUser();
+  const workspace = await workspaces.create({
+    userId: user.user.id,
+    name: 'Runner Settings Workspace',
+  });
+  await auth.loginAs(page, user);
+
+  await page.goto(`/workspaces/${workspace.id}/settings/runners`);
+  await expect(page).toHaveURL(new RegExp(`/workspaces/${workspace.id}/settings/runners/?$`, 'u'));
+  await expect(page.getByRole('heading', {name: 'Workspace settings'})).toBeVisible();
+  await expect(page.getByText('No usable runner tokens')).toBeVisible();
+  await argosScreenshot(page, 'workspaces/settings-runners-empty');
+
+  await page.getByLabel('Token name').fill('E2E runner');
+  await page.getByRole('button', {name: 'Create token'}).click();
+
+  await expect(page.getByText('Token created')).toBeVisible();
+  const rawToken = page.getByText(RUNNER_TOKEN_PREFIX_RE).first();
+  await expect(rawToken).toBeVisible();
+  await expect(page.getByRole('button', {name: 'Revoke E2E runner'})).toBeVisible();
+
+  await page.getByRole('button', {name: 'Revoke E2E runner'}).click();
+  await page.getByRole('button', {name: 'Revoke', exact: true}).last().click();
+
+  await expect(page.getByRole('button', {name: 'Revoke E2E runner'})).toHaveCount(0);
+  await expect(page.getByText('No usable runner tokens')).toBeVisible();
 });
 
 test('routes a returning user with workspaces straight to /workspaces/$wid', async ({

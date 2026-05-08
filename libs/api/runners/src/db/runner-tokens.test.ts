@@ -2,7 +2,12 @@ import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {eq, sql} from 'drizzle-orm';
 import {runnerTokenFactory} from '#test/index.js';
 import {db} from './db.js';
-import {createRunnerToken, resolveRunnerTokenByHash, revokeRunnerToken} from './runner-tokens.js';
+import {
+  createRunnerToken,
+  listUsableRunnerTokensByWorkspaceId,
+  resolveRunnerTokenByHash,
+  revokeRunnerToken,
+} from './runner-tokens.js';
 import {runnerTokens} from './schema/runner-tokens.js';
 
 describe('runner tokens', () => {
@@ -59,6 +64,25 @@ describe('runner tokens', () => {
 
     expect(crossWorkspaceResult).toBeUndefined();
     expect(ownWorkspaceResult?.revokedAt).toBeInstanceOf(Date);
+  });
+
+  it('lists only currently usable tokens for a workspace', async () => {
+    const workspaceId = crypto.randomUUID();
+    const usable = await runnerTokenFactory.create({workspaceId, name: 'usable'});
+    const expired = await runnerTokenFactory.create({
+      workspaceId,
+      name: 'expired',
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+    const revoked = await runnerTokenFactory.create({workspaceId, name: 'revoked'});
+    await runnerTokenFactory.create({workspaceId: crypto.randomUUID(), name: 'other workspace'});
+    await revokeRunnerToken({tokenId: revoked.id, workspaceId});
+
+    const tokens = await listUsableRunnerTokensByWorkspaceId(workspaceId);
+
+    expect(tokens.map((token) => token.id)).toEqual([usable.id]);
+    expect(tokens.map((token) => token.id)).not.toContain(expired.id);
+    expect(tokens[0]?.revokedAt).toBeNull();
   });
 
   it('stores only the token hash', async () => {
