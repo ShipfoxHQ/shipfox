@@ -38,7 +38,7 @@ export async function completeJob(
   const response = await api.post(`runners/jobs/${params.jobId}/complete`, {
     json: {
       status: params.status,
-      output: params.output,
+      steps: params.steps,
     } satisfies CompleteJobBodyDto,
   });
   return completeJobResponseSchema.parse(await response.json());

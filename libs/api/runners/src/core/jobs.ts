@@ -1,15 +1,16 @@
+import type {StepResultDto} from '@shipfox/api-runners-dto';
 import {finalizeRunningJob, findStuckJobs} from '#db/jobs.js';
 import {RunningJobNotFoundError} from './errors.js';
 
 export async function completeJob(
   params: {jobId: string; runnerTokenId: string},
-  result: {status: 'succeeded' | 'failed'; output?: unknown},
+  result: {status: 'succeeded' | 'failed'; steps: StepResultDto[]},
 ): Promise<{runId: string}> {
   const finalized = await finalizeRunningJob({
     jobId: params.jobId,
     runnerTokenId: params.runnerTokenId,
     status: result.status,
-    output: result.output,
+    steps: result.steps,
     onMissing: 'throw',
   });
   if (!finalized) throw new RunningJobNotFoundError(params.jobId);
@@ -26,11 +27,15 @@ export async function detectAndFailStuckJobs(params: {
 
   let failed = 0;
   for (const candidate of candidates) {
+    // Empty steps[] flows into the workflow's empty-fallback path, which
+    // bulk-fails every step. The "runner_disappeared" reason previously stored
+    // here was transport-only (never persisted) and the heartbeat audit log
+    // remains the source of truth for why a job went stuck.
     const finalized = await finalizeRunningJob({
       jobId: candidate.jobId,
       staleBeforeMs: params.thresholdSeconds * 1000,
       status: 'failed',
-      output: {reason: 'runner_disappeared'},
+      steps: [],
       onMissing: 'noop',
     });
     if (finalized) failed += 1;

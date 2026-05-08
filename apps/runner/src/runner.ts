@@ -64,7 +64,9 @@ async function runJob(job: Awaited<ReturnType<typeof requestJob>> & object): Pro
     logger().info({jobId: job.job_id, status: result.status}, 'Job execution finished');
   } catch (execError) {
     logger().error({err: execError, jobId: job.job_id}, 'Job execution failed');
-    result = {status: 'failed', output: String(execError)};
+    // Empty steps[] tells the API "we don't know which step crashed"; the
+    // workflow falls back to bulk-failing every step.
+    result = {status: 'failed', steps: []};
   } finally {
     heartbeatLoop.stop();
     if (currentJobAbortController === ac) currentJobAbortController = undefined;
@@ -73,7 +75,7 @@ async function runJob(job: Awaited<ReturnType<typeof requestJob>> & object): Pro
   // 404 here is the expected signal that the backend already finalized this
   // job; do not retry, do not fall through to the outer catch (would re-attempt).
   try {
-    await completeJob({jobId: job.job_id, status: result.status, output: result.output});
+    await completeJob({jobId: job.job_id, status: result.status, steps: result.steps});
     logger().info({jobId: job.job_id, status: result.status}, 'Job completed');
   } catch (reportError) {
     if (reportError instanceof HTTPError && reportError.response.status === 404) {

@@ -2,6 +2,7 @@ import {
   type JobPayloadDto,
   RUNNER_JOB_COMPLETED,
   type RunnersEventMap,
+  type StepResultDto,
 } from '@shipfox/api-runners-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, eq, lt, sql} from 'drizzle-orm';
@@ -77,7 +78,7 @@ export interface FinalizeRunningJobParams {
   /** When provided, only delete the row if its heartbeat is older than this. */
   staleBeforeMs?: number;
   status: 'succeeded' | 'failed';
-  output?: unknown;
+  steps: StepResultDto[];
   /** Whether to throw `RunningJobNotFoundError` when no row matches the filters. */
   onMissing: 'throw' | 'noop';
 }
@@ -126,7 +127,7 @@ export async function finalizeRunningJob(
         jobId: params.jobId,
         runId: row.runId,
         status: params.status,
-        output: params.output,
+        steps: params.steps,
       },
     });
 

@@ -1,3 +1,4 @@
+import type {StepResultDto} from '@shipfox/api-runners-dto';
 import {condition, defineSignal, proxyActivities, setHandler} from '@temporalio/workflow';
 
 import type {CompletionStatus} from '#core/dag.js';
@@ -10,8 +11,8 @@ import type {createOrchestrationActivities} from '../activities/index.js';
  *   ┌─ runner POST /complete arrives ──► signal payload set
  *   │                                     ▼
  *   │                                  setJobStatus(status from signal)
- *   │                                  bulkSetStepStatuses(status)
- *   │                                  return {status, output}
+ *   │                                  applyStepResultsActivity(reportedSteps)
+ *   │                                  return {status}
  *   │
  *   └─ JOB_MAX_DURATION elapses with no signal ──► condition() returns false
  *                                                  ▼
@@ -20,19 +21,23 @@ import type {createOrchestrationActivities} from '../activities/index.js';
  *                                                 workflows_outbox INSERT)
  *                                                  ▼
  *                                              bulkSetStepStatuses('failed')
- *                                              return {status:'failed',
- *                                                      output:{reason:'job_timeout'}}
+ *                                              return {status:'failed'}
  */
 
-const {setJobStatus, enqueueJobForRunner, bulkSetStepStatuses, failJobAsTimedOutActivity} =
-  proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
-    startToCloseTimeout: '30s',
-  });
+const {
+  setJobStatus,
+  enqueueJobForRunner,
+  bulkSetStepStatuses,
+  applyStepResultsActivity,
+  failJobAsTimedOutActivity,
+} = proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
+  startToCloseTimeout: '30s',
+});
 
 const JOB_MAX_DURATION = '60 minutes';
 
 export const jobCompletedSignal =
-  defineSignal<[{status: CompletionStatus; output?: unknown}]>('job-completed');
+  defineSignal<[{status: CompletionStatus; steps: StepResultDto[]}]>('job-completed');
 
 export interface JobOrchestrationInput {
   workspaceId: string;
@@ -52,7 +57,6 @@ export interface JobOrchestrationInput {
 export interface JobOrchestrationResult {
   status: CompletionStatus;
   jobVersion: number;
-  output?: unknown;
 }
 
 export async function jobOrchestration(
@@ -72,7 +76,7 @@ export async function jobOrchestration(
     steps: input.steps,
   });
 
-  let signalPayload: {status: CompletionStatus; output?: unknown} | undefined;
+  let signalPayload: {status: CompletionStatus; steps: StepResultDto[]} | undefined;
 
   setHandler(jobCompletedSignal, (r) => {
     if (!signalPayload) {
@@ -86,7 +90,7 @@ export async function jobOrchestration(
     if (!signalPayload) {
       throw new Error('Unreachable: condition() returned true so signalPayload is set');
     }
-    const {status, output} = signalPayload;
+    const {status, steps} = signalPayload;
 
     const {newVersion: finalVersion} = await setJobStatus({
       jobId: input.jobId,
@@ -94,9 +98,9 @@ export async function jobOrchestration(
       version: runningVersion,
     });
 
-    await bulkSetStepStatuses({jobId: input.jobId, status});
+    await applyStepResultsActivity({jobId: input.jobId, reportedSteps: steps});
 
-    return {status, jobVersion: finalVersion, output};
+    return {status, jobVersion: finalVersion};
   }
 
   // Timeout path. The activity is the critical path for the failure decision:
@@ -111,5 +115,5 @@ export async function jobOrchestration(
 
   await bulkSetStepStatuses({jobId: input.jobId, status: 'failed'});
 
-  return {status: 'failed', jobVersion: finalVersion, output: {reason: 'job_timeout'}};
+  return {status: 'failed', jobVersion: finalVersion};
 }

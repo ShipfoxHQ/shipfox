@@ -48,6 +48,9 @@ beforeAll(async () => {
       bulkSetStepStatuses: (params: unknown) => {
         calls.push({name: 'bulkSetStepStatuses', params});
       },
+      applyStepResultsActivity: (params: unknown) => {
+        calls.push({name: 'applyStepResultsActivity', params});
+      },
       enqueueJobForRunner: (params: unknown) => {
         // No-op — we want the workflow to block on the signal until the timeout fires.
         calls.push({name: 'enqueueJobForRunner', params});
@@ -90,9 +93,7 @@ const defaultJobInput = {
   steps: [{id: 'step-1', name: null, type: 'run', config: {cmd: 'echo hi'}, position: 0}],
 };
 
-function executeJob(
-  input: typeof defaultJobInput,
-): Promise<{status: string; jobVersion: number; output?: unknown}> {
+function executeJob(input: typeof defaultJobInput): Promise<{status: string; jobVersion: number}> {
   return testEnv.client.workflow.execute('jobOrchestration', {
     taskQueue: TASK_QUEUE,
     workflowId: `job:${input.jobId}-${Math.random()}`,
@@ -101,11 +102,10 @@ function executeJob(
 }
 
 describe('jobOrchestration timeout path', () => {
-  test('times out after JOB_MAX_DURATION; calls failJobAsTimedOutActivity once', async () => {
+  test('times out after JOB_MAX_DURATION; calls failJobAsTimedOutActivity then bulkSetStepStatuses', async () => {
     const result = await executeJob(defaultJobInput);
 
     expect(result.status).toBe('failed');
-    expect(result.output).toEqual({reason: 'job_timeout'});
 
     expect(callsNamed('failJobAsTimedOutActivity')).toHaveLength(1);
 
@@ -114,8 +114,11 @@ describe('jobOrchestration timeout path', () => {
     );
     expect(setJobStatuses).toEqual(['running']);
 
+    // Timeout path uses the bulk activity (no per-step detail available),
+    // NOT applyStepResultsActivity.
     const stepCall = callsNamed('bulkSetStepStatuses')[0];
     expect((stepCall?.params as {status: string})?.status).toBe('failed');
+    expect(callsNamed('applyStepResultsActivity')).toHaveLength(0);
   }, 60_000);
 
   test('failJobAsTimedOutActivity throws → workflow surfaces the error', async () => {

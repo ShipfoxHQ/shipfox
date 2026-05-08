@@ -274,5 +274,90 @@ export async function bulkUpdateStepStatuses(params: BulkUpdateStepStatusesParam
       status: params.status,
       updatedAt: new Date(),
     })
-    .where(eq(steps.jobId, params.jobId));
+    .where(
+      and(
+        eq(steps.jobId, params.jobId),
+        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+      ),
+    );
+}
+
+export interface ReportedStepResult {
+  stepId: string;
+  status: 'succeeded' | 'failed';
+  error: Record<string, unknown> | null;
+}
+
+export interface ApplyStepResultsParams {
+  jobId: string;
+  reportedSteps: ReportedStepResult[];
+}
+
+/**
+ * Persists per-step results from the runner, marks any unreported step in the
+ * job as `cancelled`, and never downgrades an already-terminal row.
+ *
+ *   reportedSteps[] ──► ┌──────────────────────────────────────┐
+ *                       │ canonical = SELECT id WHERE job_id=? │
+ *                       └──────────────────────────────────────┘
+ *                                       │
+ *                       ┌───────────────┴───────────────┐
+ *                       ▼                               ▼
+ *                 reported ∩ canonical          canonical \ reported
+ *                  status + error                  status='cancelled'
+ *                       │                               │
+ *                       ▼                               ▼
+ *                   one UPDATE per row,         one UPDATE id IN (...)
+ *                   guarded by terminal         guarded by terminal
+ *
+ * Unknown / cross-job step ids get filtered out by the canonical-set
+ * intersection so they cannot leak into either branch.
+ */
+export async function applyStepResults(params: ApplyStepResultsParams): Promise<void> {
+  if (params.reportedSteps.length === 0) {
+    await bulkUpdateStepStatuses({jobId: params.jobId, status: 'failed'});
+    return;
+  }
+
+  await db().transaction(async (tx) => {
+    const canonical = await tx
+      .select({id: steps.id})
+      .from(steps)
+      .where(eq(steps.jobId, params.jobId));
+    const canonicalIds = new Set(canonical.map((row) => row.id));
+    const reportedIdSet = new Set(params.reportedSteps.map((r) => r.stepId));
+
+    const updatedAt = new Date();
+
+    for (const reported of params.reportedSteps) {
+      if (!canonicalIds.has(reported.stepId)) continue;
+      await tx
+        .update(steps)
+        .set({
+          status: reported.status,
+          error: reported.error ?? null,
+          updatedAt,
+        })
+        .where(
+          and(
+            eq(steps.id, reported.stepId),
+            eq(steps.jobId, params.jobId),
+            sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+          ),
+        );
+    }
+
+    const cancelIds = canonical.map((row) => row.id).filter((id) => !reportedIdSet.has(id));
+    if (cancelIds.length > 0) {
+      await tx
+        .update(steps)
+        .set({status: 'cancelled', updatedAt})
+        .where(
+          and(
+            inArray(steps.id, cancelIds),
+            sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+          ),
+        );
+    }
+  });
 }

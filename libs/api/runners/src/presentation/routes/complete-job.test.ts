@@ -52,11 +52,18 @@ describe('POST /runners/jobs/:jobId/complete', () => {
     runnerTokenId = token.id;
   });
 
+  function buildSucceededBody(stepId: string) {
+    return {
+      status: 'succeeded' as const,
+      steps: [{step_id: stepId, status: 'succeeded' as const, error: null}],
+    };
+  }
+
   it('returns 401 without authorization', async () => {
     const res = await app.inject({
       method: 'POST',
       url: `/runners/jobs/${crypto.randomUUID()}/complete`,
-      payload: {status: 'succeeded'},
+      payload: buildSucceededBody(crypto.randomUUID()),
     });
 
     expect(res.statusCode).toBe(401);
@@ -67,21 +74,22 @@ describe('POST /runners/jobs/:jobId/complete', () => {
       method: 'POST',
       url: `/runners/jobs/${crypto.randomUUID()}/complete`,
       headers: {authorization: 'Bearer invalid'},
-      payload: {status: 'succeeded'},
+      payload: buildSucceededBody(crypto.randomUUID()),
     });
 
     expect(res.statusCode).toBe(401);
   });
 
-  it('returns 200 on successful completion by the owning runner token', async () => {
+  it('returns 200 on successful completion and outbox event carries steps', async () => {
     const pending = await pendingJobFactory.create({workspaceId});
     const claimed = await claimJob({workspaceId, runnerTokenId});
+    const stepId = pending.payload.steps[0]?.id ?? crypto.randomUUID();
 
     const res = await app.inject({
       method: 'POST',
       url: `/runners/jobs/${pending.jobId}/complete`,
       headers: {authorization: `Bearer ${rawToken}`},
-      payload: {status: 'succeeded'},
+      payload: buildSucceededBody(stepId),
     });
 
     expect(res.statusCode).toBe(200);
@@ -92,18 +100,21 @@ describe('POST /runners/jobs/:jobId/complete', () => {
     expect(claimed?.jobId).toBe(pending.jobId);
     expect(running).toHaveLength(0);
     expect(outboxRows[0]?.eventType).toBe(RUNNER_JOB_COMPLETED);
+    const payload = outboxRows[0]?.payload as {steps: unknown[]};
+    expect(payload.steps).toHaveLength(1);
   });
 
   it('allows a revoked token to complete a job it already owns', async () => {
     const pending = await pendingJobFactory.create({workspaceId});
     await claimJob({workspaceId, runnerTokenId});
     await revokeRunnerToken({tokenId: runnerTokenId, workspaceId});
+    const stepId = pending.payload.steps[0]?.id ?? crypto.randomUUID();
 
     const res = await app.inject({
       method: 'POST',
       url: `/runners/jobs/${pending.jobId}/complete`,
       headers: {authorization: `Bearer ${rawToken}`},
-      payload: {status: 'succeeded'},
+      payload: buildSucceededBody(stepId),
     });
 
     expect(res.statusCode).toBe(200);
@@ -114,12 +125,13 @@ describe('POST /runners/jobs/:jobId/complete', () => {
     const otherRawToken = `sf_r_${crypto.randomUUID()}`;
     await runnerTokenFactory.create({workspaceId}, {transient: {rawToken: otherRawToken}});
     await claimJob({workspaceId, runnerTokenId});
+    const stepId = pending.payload.steps[0]?.id ?? crypto.randomUUID();
 
     const res = await app.inject({
       method: 'POST',
       url: `/runners/jobs/${pending.jobId}/complete`,
       headers: {authorization: `Bearer ${otherRawToken}`},
-      payload: {status: 'succeeded'},
+      payload: buildSucceededBody(stepId),
     });
 
     const running = await db()
@@ -140,5 +152,76 @@ describe('POST /runners/jobs/:jobId/complete', () => {
     });
 
     expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects status=succeeded with empty steps[] (strict refine)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/runners/jobs/${crypto.randomUUID()}/complete`,
+      headers: {authorization: `Bearer ${rawToken}`},
+      payload: {status: 'succeeded', steps: []},
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects status=succeeded with a failed step (strict refine)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/runners/jobs/${crypto.randomUUID()}/complete`,
+      headers: {authorization: `Bearer ${rawToken}`},
+      payload: {
+        status: 'succeeded',
+        steps: [
+          {step_id: crypto.randomUUID(), status: 'succeeded', error: null},
+          {
+            step_id: crypto.randomUUID(),
+            status: 'failed',
+            error: {message: 'boom', exitCode: 1},
+          },
+        ],
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('accepts status=failed with empty steps[] (executor-throws / stuck path)', async () => {
+    const pending = await pendingJobFactory.create({workspaceId});
+    await claimJob({workspaceId, runnerTokenId});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/runners/jobs/${pending.jobId}/complete`,
+      headers: {authorization: `Bearer ${rawToken}`},
+      payload: {status: 'failed', steps: []},
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('accepts status=failed with mixed step statuses (mid-job failure)', async () => {
+    const pending = await pendingJobFactory.create({workspaceId});
+    await claimJob({workspaceId, runnerTokenId});
+    const stepId = pending.payload.steps[0]?.id ?? crypto.randomUUID();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/runners/jobs/${pending.jobId}/complete`,
+      headers: {authorization: `Bearer ${rawToken}`},
+      payload: {
+        status: 'failed',
+        steps: [
+          {step_id: stepId, status: 'succeeded', error: null},
+          {
+            step_id: crypto.randomUUID(),
+            status: 'failed',
+            error: {message: 'Command exited with code 1', exitCode: 1},
+          },
+        ],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
   });
 });

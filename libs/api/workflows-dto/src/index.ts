@@ -10,7 +10,9 @@ export {
   runListResponseSchema,
   runResponseSchema,
   type StepDto,
+  type StepErrorDtoShape,
   stepDtoSchema,
+  stepErrorDtoSchema,
 } from '#schemas/index.js';
 export {
   WORKFLOW_RUN_CREATED,

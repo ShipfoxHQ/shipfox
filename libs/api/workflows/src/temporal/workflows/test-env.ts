@@ -142,12 +142,16 @@ function createMockActivities() {
       calls.push({name: 'bulkSetStepStatuses', params});
     },
 
+    applyStepResultsActivity: (params: {jobId: string; reportedSteps: unknown[]}) => {
+      calls.push({name: 'applyStepResultsActivity', params});
+    },
+
     enqueueJobForRunner: async (params: {
       workspaceId: string;
       jobId: string;
       runId: string;
       jobName: string;
-      steps: unknown[];
+      steps: Array<{id: string}>;
     }) => {
       calls.push({name: 'enqueueJobForRunner', params});
 
@@ -159,11 +163,30 @@ function createMockActivities() {
       if (cfg.skipSignal) return;
 
       const status = cfg.jobResults.get(params.jobId) ?? 'succeeded';
+      // Mirror what the runner reports: per-step entries for every step in the
+      // payload, all marked succeeded for status='succeeded'; for failures, the
+      // first step is failed and the rest are omitted (the activity cancels
+      // them).
+      const steps =
+        status === 'succeeded'
+          ? params.steps.map((s) => ({step_id: s.id, status: 'succeeded' as const, error: null}))
+          : params.steps[0]
+            ? [
+                {
+                  step_id: params.steps[0].id,
+                  status: 'failed' as const,
+                  error: {message: 'mock failure', exitCode: 1},
+                },
+              ]
+            : [];
       const handle = testEnv.client.workflow.getHandle(`job:${params.jobId}`);
-      await handle.signal('job-completed', {status});
+      await handle.signal('job-completed', {status, steps});
 
       if (cfg.duplicateSignal) {
-        await handle.signal('job-completed', {status: 'failed', output: 'duplicate'});
+        await handle.signal('job-completed', {
+          status: 'failed',
+          steps: [],
+        });
       }
     },
 

@@ -1,9 +1,10 @@
 import {enqueueJob} from '@shipfox/api-runners';
-import type {JobPayloadDto} from '@shipfox/api-runners-dto';
+import type {JobPayloadDto, StepResultDto} from '@shipfox/api-runners-dto';
 import type {JobStatus} from '#core/entities/job.js';
 import type {StepStatus} from '#core/entities/step.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {
+  applyStepResults,
   bulkUpdateStepStatuses,
   failJobAsTimedOut,
   getJobsByRunId,
@@ -102,6 +103,22 @@ export async function bulkSetStepStatuses(params: {
   status: StepStatus;
 }): Promise<void> {
   await bulkUpdateStepStatuses(params);
+}
+
+// Snake_case `step_id` from the wire DTO converts to camel `stepId` here so
+// domain code never sees the external shape.
+export async function applyStepResultsActivity(params: {
+  jobId: string;
+  reportedSteps: StepResultDto[];
+}): Promise<void> {
+  await applyStepResults({
+    jobId: params.jobId,
+    reportedSteps: params.reportedSteps.map((s) => ({
+      stepId: s.step_id,
+      status: s.status,
+      error: s.error as Record<string, unknown> | null,
+    })),
+  });
 }
 
 export async function enqueueJobForRunner(params: {

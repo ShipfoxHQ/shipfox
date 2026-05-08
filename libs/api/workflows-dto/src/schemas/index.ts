@@ -9,4 +9,9 @@ export {
   runListResponseSchema,
   runResponseSchema,
 } from './run.js';
-export {type StepDto, stepDtoSchema} from './step.js';
+export {
+  type StepDto,
+  type StepErrorDtoShape,
+  stepDtoSchema,
+  stepErrorDtoSchema,
+} from './step.js';

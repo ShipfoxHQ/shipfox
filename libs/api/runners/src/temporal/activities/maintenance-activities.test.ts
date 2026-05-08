@@ -43,8 +43,7 @@ describe('detectAndFailStuckJobsActivity', () => {
       (row) => (row.payload as Record<string, unknown>).jobId === claimed?.jobId,
     );
     expect(matching).toHaveLength(1);
-    expect((matching[0]?.payload as Record<string, unknown>).output).toEqual({
-      reason: 'runner_disappeared',
-    });
+    expect((matching[0]?.payload as Record<string, unknown>).steps).toEqual([]);
+    expect((matching[0]?.payload as Record<string, unknown>).output).toBeUndefined();
   });
 });

@@ -4,13 +4,16 @@ import {fileURLToPath} from 'node:url';
 export {closeDb, db, schema} from './db.js';
 export {workflowsOutbox} from './schema/outbox.js';
 export type {
+  ApplyStepResultsParams,
   BulkUpdateStepStatusesParams,
   CreateWorkflowRunParams,
   FailJobAsTimedOutParams,
+  ReportedStepResult,
   UpdateJobStatusParams,
   UpdateWorkflowRunStatusParams,
 } from './workflow-runs.js';
 export {
+  applyStepResults,
   bulkUpdateStepStatuses,
   createWorkflowRun,
   failJobAsTimedOut,
