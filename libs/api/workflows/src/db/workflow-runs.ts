@@ -1,5 +1,9 @@
 import type {WorkflowSpec} from '@shipfox/api-definitions';
-import {WORKFLOW_RUN_CREATED, type WorkflowsEventMap} from '@shipfox/api-workflows-dto';
+import {
+  WORKFLOW_RUN_CREATED,
+  WORKFLOWS_JOB_TIMED_OUT,
+  type WorkflowsEventMap,
+} from '@shipfox/api-workflows-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, asc, desc, eq, inArray, sql} from 'drizzle-orm';
 import type {Job, JobStatus} from '#core/entities/job.js';
@@ -169,6 +173,44 @@ export async function updateWorkflowRunStatus(
   return toWorkflowRun(row);
 }
 
+/**
+ * Type of the inner argument to `db().transaction(async (tx) => …)`.
+ * Inferred so we don't have to track Drizzle's exact transaction type by hand.
+ */
+type Tx = Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0];
+
+export interface UpdateJobStatusAtVersionParams {
+  jobId: string;
+  status: JobStatus;
+  expectedVersion: number;
+  /** Set the timed_out_at column to now() on the same UPDATE. */
+  markTimedOut?: boolean;
+}
+
+/**
+ * Single source of truth for the optimistic-lock UPDATE on `jobs`.
+ * Returns `null` on version mismatch so callers can choose throw vs detect-as-success.
+ */
+async function updateJobStatusAtVersion(
+  tx: Tx,
+  params: UpdateJobStatusAtVersionParams,
+): Promise<Job | null> {
+  const rows = await tx
+    .update(jobs)
+    .set({
+      status: params.status,
+      version: sql`${jobs.version} + 1`,
+      updatedAt: new Date(),
+      ...(params.markTimedOut ? {timedOutAt: new Date()} : {}),
+    })
+    .where(and(eq(jobs.id, params.jobId), eq(jobs.version, params.expectedVersion)))
+    .returning();
+
+  const row = rows[0];
+  if (!row) return null;
+  return toJob(row);
+}
+
 export interface UpdateJobStatusParams {
   jobId: string;
   status: JobStatus;
@@ -176,22 +218,64 @@ export interface UpdateJobStatusParams {
 }
 
 export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Job> {
-  const rows = await db()
-    .update(jobs)
-    .set({
+  const updated = await db().transaction(async (tx) =>
+    updateJobStatusAtVersion(tx, {
+      jobId: params.jobId,
       status: params.status,
-      version: sql`${jobs.version} + 1`,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(jobs.id, params.jobId), eq(jobs.version, params.expectedVersion)))
-    .returning();
-
-  const row = rows[0];
-  if (!row)
+      expectedVersion: params.expectedVersion,
+    }),
+  );
+  if (!updated)
     throw new Error(
       `Optimistic lock failure: job ${params.jobId} version ${params.expectedVersion}`,
     );
-  return toJob(row);
+  return updated;
+}
+
+export interface FailJobAsTimedOutParams {
+  jobId: string;
+  runId: string;
+  expectedVersion: number;
+}
+
+/**
+ * Atomic timeout finalizer: UPDATE the job to failed + set timed_out_at + write
+ * the WORKFLOWS_JOB_TIMED_OUT outbox event in the same transaction.
+ *
+ * Idempotent under Temporal activity retry: if the UPDATE affects 0 rows
+ * (version already incremented by a prior successful attempt), re-read the row
+ * and check `timed_out_at`. If non-null, the prior attempt was this same activity
+ * — return its version as success, no second outbox event written.
+ */
+export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promise<Job> {
+  return await db().transaction(async (tx) => {
+    const updated = await updateJobStatusAtVersion(tx, {
+      jobId: params.jobId,
+      status: 'failed',
+      expectedVersion: params.expectedVersion,
+      markTimedOut: true,
+    });
+
+    if (!updated) {
+      const existing = await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1);
+      const row = existing[0];
+      if (row && row.timedOutAt !== null) {
+        // A prior successful attempt of this activity already finalized the job.
+        // Skip writing a second outbox event; the first one is in flight.
+        return toJob(row);
+      }
+      throw new Error(
+        `Optimistic lock failure: job ${params.jobId} version ${params.expectedVersion}`,
+      );
+    }
+
+    await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+      type: WORKFLOWS_JOB_TIMED_OUT,
+      payload: {jobId: params.jobId, runId: params.runId},
+    });
+
+    return updated;
+  });
 }
 
 export interface BulkUpdateStepStatusesParams {

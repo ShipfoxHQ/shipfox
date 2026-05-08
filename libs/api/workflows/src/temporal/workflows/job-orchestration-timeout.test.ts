@@ -16,7 +16,7 @@ let workerRunPromise: Promise<void> | undefined;
 
 let calls: ActivityCall[] = [];
 let versionSeq = 0;
-let cancellationActivityShouldThrow = false;
+let failJobAsTimedOutShouldThrow = false;
 
 function nextVersion(): number {
   return ++versionSeq;
@@ -52,14 +52,14 @@ beforeAll(async () => {
         // No-op — we want the workflow to block on the signal until the timeout fires.
         calls.push({name: 'enqueueJobForRunner', params});
       },
-      requestJobCancellationActivity: async (params: unknown) => {
-        calls.push({name: 'requestJobCancellationActivity', params});
-        if (cancellationActivityShouldThrow) {
+      failJobAsTimedOutActivity: async (params: unknown) => {
+        calls.push({name: 'failJobAsTimedOutActivity', params});
+        if (failJobAsTimedOutShouldThrow) {
           const {ApplicationFailure} = await import('@temporalio/common');
           throw ApplicationFailure.nonRetryable('simulated DB outage');
         }
+        return {newVersion: nextVersion()};
       },
-      detectAndFailStuckJobsActivity: () => ({failed: 0}),
     },
   });
 
@@ -78,7 +78,7 @@ afterAll(async () => {
 beforeEach(() => {
   calls = [];
   versionSeq = 0;
-  cancellationActivityShouldThrow = false;
+  failJobAsTimedOutShouldThrow = false;
 });
 
 const defaultJobInput = {
@@ -101,38 +101,42 @@ function executeJob(
 }
 
 describe('jobOrchestration timeout path', () => {
-  test('times out after JOB_MAX_DURATION when no signal arrives', async () => {
+  test('times out after JOB_MAX_DURATION; calls failJobAsTimedOutActivity once', async () => {
     const result = await executeJob(defaultJobInput);
 
     expect(result.status).toBe('failed');
     expect(result.output).toEqual({reason: 'job_timeout'});
 
-    // requestJobCancellationActivity is called BEFORE setJobStatus(failed)
-    // so the runner gets cancel:true on its next heartbeat.
-    expect(callsNamed('requestJobCancellationActivity')).toHaveLength(1);
+    // failJobAsTimedOutActivity is the single critical-path call for the
+    // timeout: it atomically updates the job status AND emits the outbox
+    // event in the same DB transaction. setJobStatus is only called once
+    // (for the 'running' transition); the timeout-failure transition goes
+    // through failJobAsTimedOutActivity instead.
+    expect(callsNamed('failJobAsTimedOutActivity')).toHaveLength(1);
 
     const setJobStatuses = callsNamed('setJobStatus').map(
       (c) => (c.params as {status: string}).status,
     );
-    expect(setJobStatuses).toEqual(['running', 'failed']);
+    expect(setJobStatuses).toEqual(['running']);
 
     const stepCall = callsNamed('bulkSetStepStatuses')[0];
     expect((stepCall?.params as {status: string})?.status).toBe('failed');
   }, 60_000);
 
-  test('still fails the job when requestJobCancellationActivity throws', async () => {
-    cancellationActivityShouldThrow = true;
+  test('failJobAsTimedOutActivity throws → workflow surfaces the error', async () => {
+    failJobAsTimedOutShouldThrow = true;
 
-    const result = await executeJob({...defaultJobInput, jobId: 'job-cancel-error'});
+    // Activity is configured with the default 30s startToCloseTimeout in
+    // jobOrchestration; the test environment retries by default. We mark
+    // the failure as nonRetryable so it surfaces immediately.
+    await expect(executeJob({...defaultJobInput, jobId: 'job-fail-error'})).rejects.toThrow();
 
-    // Even though cancellation failed, the failure path proceeds.
-    expect(result.status).toBe('failed');
-    expect(result.output).toEqual({reason: 'job_timeout'});
-
-    expect(callsNamed('requestJobCancellationActivity')).toHaveLength(1);
+    // setJobStatus only ran for the 'running' transition before the failure
+    // — the failed-status update was supposed to happen inside the activity
+    // and never made it.
     const setJobStatuses = callsNamed('setJobStatus').map(
       (c) => (c.params as {status: string}).status,
     );
-    expect(setJobStatuses).toEqual(['running', 'failed']);
+    expect(setJobStatuses).toEqual(['running']);
   }, 60_000);
 });

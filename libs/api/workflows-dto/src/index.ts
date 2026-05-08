@@ -15,7 +15,9 @@ export {
 export {
   WORKFLOW_RUN_CREATED,
   WORKFLOW_RUN_FINISHED,
+  WORKFLOWS_JOB_TIMED_OUT,
   type WorkflowRunCreatedEvent,
   type WorkflowRunFinishedEvent,
   type WorkflowsEventMap,
+  type WorkflowsJobTimedOutEvent,
 } from './events.js';

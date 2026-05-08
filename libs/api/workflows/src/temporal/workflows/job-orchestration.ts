@@ -1,48 +1,39 @@
-import {condition, defineSignal, log, proxyActivities, setHandler} from '@temporalio/workflow';
+import {condition, defineSignal, proxyActivities, setHandler} from '@temporalio/workflow';
 
 import type {CompletionStatus} from '#core/dag.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
 
 /**
- * Three terminal paths for a single job orchestration:
+ * Two terminal paths for a single job orchestration:
  *
  *   ┌─ runner POST /complete arrives ──► signal payload set
  *   │                                     ▼
- *   │                                  status = signalPayload.status
- *   │                                  output = signalPayload.output
+ *   │                                  setJobStatus(status from signal)
+ *   │                                  bulkSetStepStatuses(status)
+ *   │                                  return {status, output}
  *   │
- *   ├─ JOB_MAX_DURATION elapses with no signal ──► condition() returns false
- *   │                                               ▼
- *   │                                            requestJobCancellationActivity (best-effort,
- *   │                                              maximumAttempts:1, scheduleToClose:10s)
- *   │                                               ▼
- *   │                                            status = 'failed'
- *   │                                            output = { reason: 'job_timeout' }
- *   │
- *   └─ cancellation activity throws ──► caught; log.warn (workflow-side, deterministic)
- *                                        ▼
- *                                       status = 'failed' (same as above)
+ *   └─ JOB_MAX_DURATION elapses with no signal ──► condition() returns false
+ *                                                  ▼
+ *                                              failJobAsTimedOutActivity
+ *                                                (atomic: jobs UPDATE +
+ *                                                 workflows_outbox INSERT
+ *                                                 with WORKFLOWS_JOB_TIMED_OUT)
+ *                                                  ▼
+ *                                              bulkSetStepStatuses('failed')
+ *                                              return {status:'failed',
+ *                                                      output:{reason:'job_timeout'}}
  *
- * In all paths: setJobStatus(status) → bulkSetStepStatuses(status) → return.
+ * The runner-cancellation side-effect is now driven asynchronously: the runners
+ * module subscribes to WORKFLOWS_JOB_TIMED_OUT and calls requestJobCancellation
+ * inside its own module. That decoupling keeps workflows ↔ runners
+ * communication event-driven rather than via direct cross-module imports.
  */
 
-const {setJobStatus, enqueueJobForRunner, bulkSetStepStatuses} = proxyActivities<
-  ReturnType<typeof createOrchestrationActivities>
->({
-  startToCloseTimeout: '30s',
-});
-
-// Cancellation is best-effort: the stuck-job detector is the safety net.
-// Retries are bounded explicitly so a DB outage cannot delay the failure path
-// behind Temporal's many-minute default retry policy.
-const {requestJobCancellationActivity} = proxyActivities<
-  ReturnType<typeof createOrchestrationActivities>
->({
-  startToCloseTimeout: '5s',
-  scheduleToCloseTimeout: '10s',
-  retry: {maximumAttempts: 1},
-});
+const {setJobStatus, enqueueJobForRunner, bulkSetStepStatuses, failJobAsTimedOutActivity} =
+  proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
+    startToCloseTimeout: '30s',
+  });
 
 const JOB_MAX_DURATION = '60 minutes';
 
@@ -97,41 +88,34 @@ export async function jobOrchestration(
 
   const completed = await condition(() => signalPayload !== undefined, JOB_MAX_DURATION);
 
-  let status: CompletionStatus;
-  let output: unknown;
-
   if (completed) {
     if (!signalPayload) {
       throw new Error('Unreachable: condition() returned true so signalPayload is set');
     }
-    ({status, output} = signalPayload);
-  } else {
-    // Timeout path: ask the runner to cancel via its next heartbeat. We don't
-    // gate the failure on this succeeding — if the cancellation activity errors
-    // (e.g. DB outage) we still mark the job failed; the stuck-job detector
-    // will eventually clean up the running_jobs row.
-    try {
-      await requestJobCancellationActivity({jobId: input.jobId});
-    } catch (err) {
-      log.warn('requestJobCancellationActivity failed; proceeding to fail job', {
-        jobId: input.jobId,
-        err: String(err),
-      });
-    }
-    status = 'failed';
-    output = {reason: 'job_timeout'};
+    const {status, output} = signalPayload;
+
+    const {newVersion: finalVersion} = await setJobStatus({
+      jobId: input.jobId,
+      status,
+      version: runningVersion,
+    });
+
+    await bulkSetStepStatuses({jobId: input.jobId, status});
+
+    return {status, jobVersion: finalVersion, output};
   }
 
-  const {newVersion: finalVersion} = await setJobStatus({
+  // Timeout path. The activity is the critical path for the failure decision:
+  // it atomically updates the job status, marks `timed_out_at`, and enqueues
+  // WORKFLOWS_JOB_TIMED_OUT in the same transaction. The runners-side
+  // subscriber takes over from there to ask the runner to cancel.
+  const {newVersion: finalVersion} = await failJobAsTimedOutActivity({
     jobId: input.jobId,
-    status,
-    version: runningVersion,
+    runId: input.runId,
+    expectedVersion: runningVersion,
   });
 
-  await bulkSetStepStatuses({
-    jobId: input.jobId,
-    status,
-  });
+  await bulkSetStepStatuses({jobId: input.jobId, status: 'failed'});
 
-  return {status, jobVersion: finalVersion, output};
+  return {status: 'failed', jobVersion: finalVersion, output: {reason: 'job_timeout'}};
 }

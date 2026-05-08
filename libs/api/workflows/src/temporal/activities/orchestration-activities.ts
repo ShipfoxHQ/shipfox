@@ -1,10 +1,11 @@
-import {detectAndFailStuckJobs, enqueueJob, requestJobCancellation} from '@shipfox/api-runners';
+import {enqueueJob} from '@shipfox/api-runners';
 import type {JobPayloadDto} from '@shipfox/api-runners-dto';
 import type {JobStatus} from '#core/entities/job.js';
 import type {StepStatus} from '#core/entities/step.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {
   bulkUpdateStepStatuses,
+  failJobAsTimedOut,
   getJobsByRunId,
   getStepsByJobIds,
   getWorkflowRunById,
@@ -131,12 +132,11 @@ export async function enqueueJobForRunner(params: {
   });
 }
 
-export async function detectAndFailStuckJobsActivity(params: {
-  thresholdSeconds: number;
-}): Promise<{failed: number}> {
-  return await detectAndFailStuckJobs(params);
-}
-
-export async function requestJobCancellationActivity(params: {jobId: string}): Promise<void> {
-  await requestJobCancellation(params);
+export async function failJobAsTimedOutActivity(params: {
+  jobId: string;
+  runId: string;
+  expectedVersion: number;
+}): Promise<{newVersion: number}> {
+  const job = await failJobAsTimedOut(params);
+  return {newVersion: job.version};
 }
