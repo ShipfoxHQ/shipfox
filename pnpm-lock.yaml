@@ -258,6 +258,42 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/typescript
 
+  e2e/client/runners:
+    devDependencies:
+      '@shipfox/api-runners':
+        specifier: workspace:*
+        version: link:../../../libs/api/runners
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/client-router':
+        specifier: workspace:*
+        version: link:../../../libs/client/router
+      '@shipfox/client-runners':
+        specifier: workspace:*
+        version: link:../../../libs/client/runners
+      '@shipfox/client-workspace-settings':
+        specifier: workspace:*
+        version: link:../../../libs/client/workspace-settings
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+      '@shipfox/e2e-helper-auth':
+        specifier: workspace:*
+        version: link:../../helpers/auth
+      '@shipfox/e2e-helper-workspaces':
+        specifier: workspace:*
+        version: link:../../helpers/workspaces
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../tools/playwright
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
   e2e/client/workspaces:
     devDependencies:
       '@shipfox/api-workspaces':
