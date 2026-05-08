@@ -8,7 +8,6 @@ import {WorkspaceRunnerTokensSettingsSection} from './runner-tokens-settings-sec
 
 const RUNNERS_TEST_WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const tokensPath = `/workspaces/${RUNNERS_TEST_WORKSPACE_ID}/runners/tokens`;
-const RUNNER_TOKEN_ENV_RE = /SHIPFOX_RUNNER_TOKEN=sf_rt_raw-created-token/u;
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -110,7 +109,6 @@ describe('WorkspaceRunnerTokensSettingsSection', () => {
 
     expect(await screen.findByText('Token created')).toBeVisible();
     expect(screen.getByText('sf_rt_raw-created-token')).toBeVisible();
-    expect(screen.getByText(RUNNER_TOKEN_ENV_RE)).toBeVisible();
     expect(
       fetchImpl.mock.calls.some(
         ([input]) => requestPath(input) === tokensPath && requestMethod(input) === 'POST',

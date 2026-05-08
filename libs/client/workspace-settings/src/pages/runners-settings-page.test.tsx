@@ -9,7 +9,6 @@ import {
 import {RunnersSettingsPage} from './runners-settings-page.js';
 
 const tokensPath = `/workspaces/${WORKSPACE_SETTINGS_TEST_WID}/runners/tokens`;
-const RUNNER_TOKEN_ENV_RE = /SHIPFOX_RUNNER_TOKEN=sf_rt_raw-created-token/u;
 
 function runnerToken(overrides: Partial<Record<string, string | null>> = {}) {
   return {
@@ -94,7 +93,6 @@ describe('RunnersSettingsPage', () => {
 
     expect(await screen.findByText('Token created')).toBeVisible();
     expect(screen.getByText('sf_rt_raw-created-token')).toBeVisible();
-    expect(screen.getByText(RUNNER_TOKEN_ENV_RE)).toBeVisible();
     expect(
       fetchImpl.mock.calls.some(
         ([input]) => requestPath(input) === tokensPath && requestMethod(input) === 'POST',

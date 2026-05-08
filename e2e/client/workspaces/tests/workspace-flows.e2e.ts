@@ -218,12 +218,15 @@ test('manages workspace runner tokens from settings', async ({page, auth, worksp
   await expect(page.getByText('No usable runner tokens')).toBeVisible();
   await argosScreenshot(page, 'workspaces/settings-runners-empty');
 
-  await page.getByLabel('Token name').fill('E2E runner');
   await page.getByRole('button', {name: 'Create token'}).click();
+  await page.getByLabel('Token name').fill('E2E runner');
+  await page.getByRole('button', {name: 'Create token'}).last().click();
 
   await expect(page.getByText('Token created')).toBeVisible();
   const rawToken = page.getByText(RUNNER_TOKEN_PREFIX_RE).first();
   await expect(rawToken).toBeVisible();
+
+  await page.keyboard.press('Escape');
   await expect(page.getByRole('button', {name: 'Revoke E2E runner'})).toBeVisible();
 
   await page.getByRole('button', {name: 'Revoke E2E runner'}).click();

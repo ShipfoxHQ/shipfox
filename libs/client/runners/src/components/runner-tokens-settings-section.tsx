@@ -97,10 +97,7 @@ export function WorkspaceRunnerTokensSettingsSection({workspaceId}: {workspaceId
                 <ModalHeader title="Create runner token" />
                 <ModalBody className="gap-16">
                   {createdToken ? (
-                    <CreatedRunnerTokenPanel
-                      token={createdToken}
-                      onDismiss={() => handleOpenChange(false)}
-                    />
+                    <CreatedRunnerTokenPanel token={createdToken} />
                   ) : (
                     <>
                       <CreateRunnerTokenForm

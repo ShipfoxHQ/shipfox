@@ -2,6 +2,10 @@ import type {CreateRunnerTokenResponseDto} from '@shipfox/api-runners-dto';
 import {
   Button,
   Code,
+  InlineTips,
+  InlineTipsContent,
+  InlineTipsDescription,
+  InlineTipsTitle,
   Input,
   Label,
   Select,
@@ -33,8 +37,6 @@ function expirationHint(expiration: RunnerTokenExpirationOption): string {
   const formatted = new Intl.DateTimeFormat(undefined, {dateStyle: 'medium'}).format(expiresAt);
   return `Expires on ${formatted}.`;
 }
-
-const TRAILING_SLASH_RE = /\/$/u;
 
 export function CreateRunnerTokenForm({
   name,
@@ -97,19 +99,8 @@ export function CreateRunnerTokenForm({
   );
 }
 
-export function CreatedRunnerTokenPanel({
-  token,
-  onDismiss,
-}: {
-  token: CreateRunnerTokenResponseDto;
-  onDismiss: () => void;
-}) {
+export function CreatedRunnerTokenPanel({token}: {token: CreateRunnerTokenResponseDto}) {
   const [copied, setCopied] = useState(false);
-  const apiUrl = (import.meta.env.VITE_API_URL || window.location.origin).replace(
-    TRAILING_SLASH_RE,
-    '',
-  );
-  const command = `SHIPFOX_API_URL=${apiUrl} SHIPFOX_RUNNER_TOKEN=${token.raw_token}`;
 
   async function copy(value: string) {
     await navigator.clipboard?.writeText(value);
@@ -118,36 +109,26 @@ export function CreatedRunnerTokenPanel({
   }
 
   return (
-    <div className="flex w-full flex-col gap-12">
-      <div className="flex items-start justify-between gap-12">
-        <div className="flex flex-col gap-4">
-          <Text size="sm" bold>
-            Token created
-          </Text>
-          <Text size="sm" className="text-foreground-neutral-muted">
-            Copy it now. It will not be shown again.
-          </Text>
+    <InlineTips type="success" variant="secondary" className="items-start">
+      <InlineTipsContent className="flex flex-col gap-12">
+        <div className="flex flex-col gap-2">
+          <InlineTipsTitle className="mb-0">Token created</InlineTipsTitle>
+          <InlineTipsDescription>Copy it now. It will not be shown again.</InlineTipsDescription>
         </div>
-        <Button size="xs" variant="transparentMuted" onClick={onDismiss}>
-          Dismiss
-        </Button>
-      </div>
-      <div className="flex items-center gap-8 max-[640px]:flex-col max-[640px]:items-stretch">
-        <Code variant="paragraph" className="min-w-0 flex-1 break-all">
-          {token.raw_token}
-        </Code>
-        <Button
-          size="sm"
-          variant="secondary"
-          iconLeft="fileCopyLine"
-          onClick={() => copy(token.raw_token)}
-        >
-          {copied ? 'Copied' : 'Copy'}
-        </Button>
-      </div>
-      <Code variant="paragraph" className="break-all">
-        {command}
-      </Code>
-    </div>
+        <div className="flex items-center gap-8 max-[640px]:flex-col max-[640px]:items-stretch">
+          <Code variant="paragraph" className="min-w-0 flex-1 break-all">
+            {token.raw_token}
+          </Code>
+          <Button
+            size="sm"
+            variant="secondary"
+            iconLeft="fileCopyLine"
+            onClick={() => copy(token.raw_token)}
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
+        </div>
+      </InlineTipsContent>
+    </InlineTips>
   );
 }

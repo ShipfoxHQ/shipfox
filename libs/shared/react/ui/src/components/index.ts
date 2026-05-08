@@ -7,6 +7,7 @@ export * from './combobox/index.js';
 export * from './command/index.js';
 export * from './dropdown-menu/index.js';
 export * from './icon/index.js';
+export * from './inline-tips/index.js';
 export * from './input/index.js';
 export * from './kbd/index.js';
 export * from './label/index.js';
