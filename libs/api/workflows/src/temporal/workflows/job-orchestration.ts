@@ -4,11 +4,32 @@ import type {CompletionStatus} from '#core/dag.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
 
-const {setJobStatus, enqueueJobForRunner, bulkSetStepStatuses} = proxyActivities<
-  ReturnType<typeof createOrchestrationActivities>
->({
-  startToCloseTimeout: '30s',
-});
+/**
+ * Two terminal paths:
+ *
+ *   ┌─ runner POST /complete arrives ──► signal payload set
+ *   │                                     ▼
+ *   │                                  setJobStatus(status from signal)
+ *   │                                  bulkSetStepStatuses(status)
+ *   │                                  return {status, output}
+ *   │
+ *   └─ JOB_MAX_DURATION elapses with no signal ──► condition() returns false
+ *                                                  ▼
+ *                                              failJobAsTimedOutActivity
+ *                                                (atomic: jobs UPDATE +
+ *                                                 workflows_outbox INSERT)
+ *                                                  ▼
+ *                                              bulkSetStepStatuses('failed')
+ *                                              return {status:'failed',
+ *                                                      output:{reason:'job_timeout'}}
+ */
+
+const {setJobStatus, enqueueJobForRunner, bulkSetStepStatuses, failJobAsTimedOutActivity} =
+  proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
+    startToCloseTimeout: '30s',
+  });
+
+const JOB_MAX_DURATION = '60 minutes';
 
 export const jobCompletedSignal =
   defineSignal<[{status: CompletionStatus; output?: unknown}]>('job-completed');
@@ -59,21 +80,36 @@ export async function jobOrchestration(
     }
   });
 
-  await condition(() => signalPayload !== undefined);
+  const completed = await condition(() => signalPayload !== undefined, JOB_MAX_DURATION);
 
-  if (!signalPayload) throw new Error('Unreachable: condition() guarantees signalPayload is set');
-  const {status, output} = signalPayload;
+  if (completed) {
+    if (!signalPayload) {
+      throw new Error('Unreachable: condition() returned true so signalPayload is set');
+    }
+    const {status, output} = signalPayload;
 
-  const {newVersion: finalVersion} = await setJobStatus({
+    const {newVersion: finalVersion} = await setJobStatus({
+      jobId: input.jobId,
+      status,
+      version: runningVersion,
+    });
+
+    await bulkSetStepStatuses({jobId: input.jobId, status});
+
+    return {status, jobVersion: finalVersion, output};
+  }
+
+  // Timeout path. The activity is the critical path for the failure decision:
+  // it atomically updates the job status, marks `timed_out_at`, and enqueues
+  // WORKFLOWS_JOB_TIMED_OUT in the same transaction. The runners-side
+  // subscriber takes over from there to ask the runner to cancel.
+  const {newVersion: finalVersion} = await failJobAsTimedOutActivity({
     jobId: input.jobId,
-    status,
-    version: runningVersion,
+    runId: input.runId,
+    expectedVersion: runningVersion,
   });
 
-  await bulkSetStepStatuses({
-    jobId: input.jobId,
-    status,
-  });
+  await bulkSetStepStatuses({jobId: input.jobId, status: 'failed'});
 
-  return {status, jobVersion: finalVersion, output};
+  return {status: 'failed', jobVersion: finalVersion, output: {reason: 'job_timeout'}};
 }

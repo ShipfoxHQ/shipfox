@@ -1,5 +1,8 @@
 import {executeRunStep} from '#run-step.js';
 
+const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
+const ESRCH_REGEX = /ESRCH/;
+
 describe('executeRunStep', () => {
   it('succeeds with exit code 0', async () => {
     const step = buildStep({config: {run: 'echo hello'}});
@@ -67,6 +70,42 @@ describe('executeRunStep', () => {
 
     // With -eo pipefail, the false in the pipe causes failure
     expect(result.success).toBe(false);
+  });
+
+  it('kills the running script when the AbortSignal fires', async () => {
+    const step = buildStep({config: {run: 'sleep 30'}});
+    const ac = new AbortController();
+    const promise = executeRunStep(step, {signal: ac.signal});
+
+    // Give the shell a moment to actually spawn before we abort.
+    await new Promise((r) => setTimeout(r, 50));
+    ac.abort();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+  });
+
+  it('kills the entire process group on abort, including grandchildren', async () => {
+    const step = buildStep({
+      config: {run: 'sleep 30 & echo "GRANDCHILD_PID=$!"; wait'},
+    });
+    const ac = new AbortController();
+    const promise = executeRunStep(step, {signal: ac.signal});
+
+    await new Promise((r) => setTimeout(r, 200));
+    ac.abort();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+
+    const match = result.output.match(GRANDCHILD_PID_REGEX);
+    expect(match).not.toBeNull();
+    const grandchildPid = Number(match?.[1]);
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    // process.kill(pid, 0) throws ESRCH if the process is gone.
+    expect(() => process.kill(grandchildPid, 0)).toThrow(ESRCH_REGEX);
   });
 });
 

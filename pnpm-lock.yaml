@@ -1072,6 +1072,9 @@ importers:
       '@shipfox/api-runners-dto':
         specifier: workspace:*
         version: link:../runners-dto
+      '@shipfox/api-workflows-dto':
+        specifier: workspace:*
+        version: link:../workflows-dto
       '@shipfox/api-workspaces':
         specifier: workspace:*
         version: link:../workspaces
@@ -1093,6 +1096,9 @@ importers:
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../shared/node/postgres
+      '@shipfox/node-temporal':
+        specifier: workspace:*
+        version: link:../../shared/node/temporal
       '@shipfox/node-tokens':
         specifier: workspace:*
         version: link:../../shared/node/tokens
@@ -1118,6 +1124,24 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../tools/vitest
+      '@temporalio/activity':
+        specifier: ^1.16.1
+        version: 1.16.1
+      '@temporalio/client':
+        specifier: ^1.16.1
+        version: 1.16.1
+      '@temporalio/common':
+        specifier: ^1.16.1
+        version: 1.16.1
+      '@temporalio/testing':
+        specifier: ^1.16.1
+        version: 1.16.1(@swc/helpers@0.5.21)(tslib@2.8.1)
+      '@temporalio/worker':
+        specifier: ^1.16.1
+        version: 1.16.1(@swc/helpers@0.5.21)(tslib@2.8.1)
+      '@temporalio/workflow':
+        specifier: ^1.16.1
+        version: 1.16.1
       '@types/pg':
         specifier: ^8.15.5
         version: 8.20.0

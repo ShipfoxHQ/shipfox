@@ -7,6 +7,8 @@ export {
   completeJobResponseSchema,
   createRunnerTokenBodySchema,
   createRunnerTokenResponseSchema,
+  type HeartbeatResponseDto,
+  heartbeatResponseSchema,
   type JobPayloadDto,
   type JobPayloadResponseDto,
   type JobPayloadStepDto,
