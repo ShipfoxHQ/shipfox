@@ -12,6 +12,13 @@ import {
 const types = ['default', 'info', 'success', 'error'] as const;
 const variants = ['primary', 'secondary'] as const;
 
+const typeLabels = {
+  default: 'Default',
+  info: 'Info',
+  success: 'Success',
+  error: 'Error',
+} satisfies Record<(typeof types)[number], string>;
+
 const meta = {
   title: 'Components/InlineTips',
   component: InlineTips,
@@ -40,8 +47,10 @@ export const Default: Story = {
   render: (args) => (
     <InlineTips {...args}>
       <InlineTipsContent>
-        <InlineTipsTitle>Title</InlineTipsTitle>
-        <InlineTipsDescription>Description</InlineTipsDescription>
+        <InlineTipsTitle>{typeLabels[args.type]} level</InlineTipsTitle>
+        <InlineTipsDescription>
+          {typeLabels[args.type]} inline tip using the {args.variant} variant.
+        </InlineTipsDescription>
       </InlineTipsContent>
       <InlineTipsActions>
         <InlineTipsAction variant={args.variant}>Label</InlineTipsAction>
@@ -57,8 +66,10 @@ export const Variants: Story = {
       {variants.map((variant) => (
         <InlineTips key={variant} type="default" variant={variant}>
           <InlineTipsContent>
-            <InlineTipsTitle>Title</InlineTipsTitle>
-            <InlineTipsDescription>Description</InlineTipsDescription>
+            <InlineTipsTitle>{typeLabels.default} level</InlineTipsTitle>
+            <InlineTipsDescription>
+              {typeLabels.default} inline tip using the {variant} variant.
+            </InlineTipsDescription>
           </InlineTipsContent>
           <InlineTipsActions>
             <InlineTipsAction variant="primary">Label</InlineTipsAction>
@@ -83,8 +94,10 @@ export const DesignMock: Story = {
         {types.map((type) => (
           <InlineTips key={type} type={type} variant="primary">
             <InlineTipsContent>
-              <InlineTipsTitle>Title</InlineTipsTitle>
-              <InlineTipsDescription>Description</InlineTipsDescription>
+              <InlineTipsTitle>{typeLabels[type]} level</InlineTipsTitle>
+              <InlineTipsDescription>
+                {typeLabels[type]} inline tip using the primary variant.
+              </InlineTipsDescription>
             </InlineTipsContent>
             <InlineTipsActions>
               <InlineTipsAction variant="primary">Label</InlineTipsAction>
@@ -98,8 +111,10 @@ export const DesignMock: Story = {
         {types.map((type) => (
           <InlineTips key={type} type={type} variant="secondary">
             <InlineTipsContent>
-              <InlineTipsTitle>Title</InlineTipsTitle>
-              <InlineTipsDescription>Description</InlineTipsDescription>
+              <InlineTipsTitle>{typeLabels[type]} level</InlineTipsTitle>
+              <InlineTipsDescription>
+                {typeLabels[type]} inline tip using the secondary variant.
+              </InlineTipsDescription>
             </InlineTipsContent>
             <InlineTipsActions>
               <InlineTipsAction variant="primary">Label</InlineTipsAction>
