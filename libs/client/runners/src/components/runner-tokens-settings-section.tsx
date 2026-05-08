@@ -94,7 +94,15 @@ export function WorkspaceRunnerTokensSettingsSection({workspaceId}: {workspaceId
               </ModalTrigger>
               <ModalContent aria-describedby={undefined}>
                 <ModalTitle className="sr-only">Create runner token</ModalTitle>
-                <ModalHeader title="Create runner token" />
+                <ModalHeader>
+                  <Text
+                    size="lg"
+                    aria-hidden="true"
+                    className="overflow-ellipsis overflow-hidden whitespace-nowrap"
+                  >
+                    Create runner token
+                  </Text>
+                </ModalHeader>
                 <ModalBody className="gap-16">
                   {createdToken ? (
                     <CreatedRunnerTokenPanel token={createdToken} />

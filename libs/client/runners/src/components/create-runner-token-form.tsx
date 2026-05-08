@@ -100,12 +100,22 @@ export function CreateRunnerTokenForm({
 }
 
 export function CreatedRunnerTokenPanel({token}: {token: CreateRunnerTokenResponseDto}) {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   async function copy(value: string) {
-    await navigator.clipboard?.writeText(value);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1500);
+    if (!navigator.clipboard) {
+      setCopyState('failed');
+      window.setTimeout(() => setCopyState('idle'), 2500);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyState('copied');
+      window.setTimeout(() => setCopyState('idle'), 1500);
+    } catch {
+      setCopyState('failed');
+      window.setTimeout(() => setCopyState('idle'), 2500);
+    }
   }
 
   return (
@@ -125,9 +135,14 @@ export function CreatedRunnerTokenPanel({token}: {token: CreateRunnerTokenRespon
             iconLeft="fileCopyLine"
             onClick={() => copy(token.raw_token)}
           >
-            {copied ? 'Copied' : 'Copy'}
+            {copyState === 'copied' ? 'Copied' : 'Copy'}
           </Button>
         </div>
+        {copyState === 'failed' ? (
+          <Text size="sm" className="text-foreground-neutral-muted">
+            Copy failed — select and copy manually.
+          </Text>
+        ) : null}
       </InlineTipsContent>
     </InlineTips>
   );
