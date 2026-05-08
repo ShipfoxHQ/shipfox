@@ -505,11 +505,10 @@ describe('workflow run queries', () => {
       const runJobs = await getJobsByRunId(run.id);
       const job = runJobs[0];
 
-      // First attempt — succeeds.
       await failJobAsTimedOut({jobId: job?.id as string, runId: run.id, expectedVersion: 1});
 
-      // Second attempt — same expectedVersion (version is now 2). Simulates a
-      // Temporal activity retry after the first attempt's commit succeeded.
+      // Second attempt with the same expectedVersion simulates a Temporal
+      // activity retry after the first attempt's commit succeeded.
       const second = await failJobAsTimedOut({
         jobId: job?.id as string,
         runId: run.id,
@@ -535,9 +534,8 @@ describe('workflow run queries', () => {
       const runJobs = await getJobsByRunId(run.id);
       const job = runJobs[0];
 
-      // Simulate a separate writer that bumped version + status without
-      // setting timed_out_at. Defensive — no realistic concurrent writer
-      // exists today, but the activity must not claim success here.
+      // Defensive: simulate a hypothetical separate writer (no realistic path
+      // today) that bumped version + status without setting timed_out_at.
       await db()
         .update(jobs)
         .set({status: 'failed', version: 5})

@@ -83,17 +83,12 @@ export interface FinalizeRunningJobParams {
 }
 
 /**
- * Single transactional `DELETE … RETURNING` with all guard predicates folded
- * into the WHERE clause. The outbox event is written from the same transaction
- * and only when a row was actually deleted.
- *
- * Folding the predicates into the DELETE rather than checking them against an
- * earlier SELECT is what makes this race-safe:
- * - A heartbeat refreshing `last_heartbeat_at` between an outer "is this stuck?"
- *   query and this DELETE causes the WHERE clause to fail, so the live job
- *   survives and no spurious outbox event is written.
- * - Two concurrent finalizers can't both observe the row and then both write
- *   the same `runners.job.completed` event with a stale `run_id`.
+ * Race-safe by construction: all guard predicates (token scope, stale
+ * heartbeat) live inside the DELETE's WHERE, and the outbox event is written
+ * in the same transaction only when a row was actually deleted. So a heartbeat
+ * arriving between an outer "is this stuck?" check and this call cannot cause
+ * a live job to be finalized, and two concurrent finalizers cannot both emit
+ * the same `runners.job.completed` event.
  */
 export async function finalizeRunningJob(
   params: FinalizeRunningJobParams,
@@ -139,10 +134,6 @@ export async function finalizeRunningJob(
   });
 }
 
-/**
- * Refreshes `last_heartbeat_at` for the runner that owns the job, returning
- * whether the orchestration has requested cancellation.
- */
 export async function recordHeartbeat(params: {
   jobId: string;
   runnerTokenId: string;
@@ -160,12 +151,8 @@ export async function recordHeartbeat(params: {
   return {cancellationRequested: row.cancellationRequestedAt !== null};
 }
 
-/**
- * Sets `cancellation_requested_at` on the running job so the runner discovers
- * the cancel on its next heartbeat. Idempotent: `COALESCE` keeps the original
- * timestamp under concurrent calls. No-op when the row is gone (the job has
- * already finished or been finalized by another path).
- */
+// `COALESCE` keeps the original timestamp so concurrent or redelivered calls
+// are no-ops; missing rows are silently skipped.
 export async function requestJobCancellation(params: {jobId: string}): Promise<void> {
   await db()
     .update(runningJobs)
@@ -175,12 +162,8 @@ export async function requestJobCancellation(params: {jobId: string}): Promise<v
     .where(eq(runningJobs.jobId, params.jobId));
 }
 
-/**
- * Returns up to `limit` job ids whose heartbeats are older than `thresholdSeconds`.
- * The result is a candidate set only — callers must re-check the predicate inside
- * any subsequent DELETE so a heartbeat refresh between this read and the delete
- * does not cause the live job to be finalized.
- */
+// Candidate set only — callers must re-check the cutoff inside any subsequent
+// DELETE so a heartbeat that lands between this read and the write is honored.
 export async function findStuckJobs(params: {
   thresholdSeconds: number;
   limit?: number;

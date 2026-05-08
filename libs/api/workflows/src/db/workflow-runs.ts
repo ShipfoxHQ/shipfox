@@ -173,24 +173,16 @@ export async function updateWorkflowRunStatus(
   return toWorkflowRun(row);
 }
 
-/**
- * Type of the inner argument to `db().transaction(async (tx) => …)`.
- * Inferred so we don't have to track Drizzle's exact transaction type by hand.
- */
 type Tx = Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0];
 
 export interface UpdateJobStatusAtVersionParams {
   jobId: string;
   status: JobStatus;
   expectedVersion: number;
-  /** Set the timed_out_at column to now() on the same UPDATE. */
   markTimedOut?: boolean;
 }
 
-/**
- * Single source of truth for the optimistic-lock UPDATE on `jobs`.
- * Returns `null` on version mismatch so callers can choose throw vs detect-as-success.
- */
+// Returns null on version mismatch so callers can choose throw vs treat-as-success.
 async function updateJobStatusAtVersion(
   tx: Tx,
   params: UpdateJobStatusAtVersionParams,
@@ -238,15 +230,9 @@ export interface FailJobAsTimedOutParams {
   expectedVersion: number;
 }
 
-/**
- * Atomic timeout finalizer: UPDATE the job to failed + set timed_out_at + write
- * the WORKFLOWS_JOB_TIMED_OUT outbox event in the same transaction.
- *
- * Idempotent under Temporal activity retry: if the UPDATE affects 0 rows
- * (version already incremented by a prior successful attempt), re-read the row
- * and check `timed_out_at`. If non-null, the prior attempt was this same activity
- * — return its version as success, no second outbox event written.
- */
+// Idempotent under retry: a 0-row UPDATE re-reads the row, and a non-null
+// `timed_out_at` proves an earlier attempt of this same activity already
+// finalized — return its version without writing a second outbox event.
 export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promise<Job> {
   return await db().transaction(async (tx) => {
     const updated = await updateJobStatusAtVersion(tx, {
@@ -260,8 +246,6 @@ export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promis
       const existing = await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1);
       const row = existing[0];
       if (row && row.timedOutAt !== null) {
-        // A prior successful attempt of this activity already finalized the job.
-        // Skip writing a second outbox event; the first one is in flight.
         return toJob(row);
       }
       throw new Error(

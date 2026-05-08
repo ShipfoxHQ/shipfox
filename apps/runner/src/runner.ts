@@ -7,9 +7,8 @@ import {startHeartbeatLoop} from '#heartbeat-loop.js';
 
 let running = true;
 let shuttingDown = false;
-// Per-job controller. Set when a job starts, cleared when it completes.
-// SIGINT (second time) and the heartbeat loop both abort through this single
-// path; we no longer keep a module-level reference to the spawned child.
+// Module-level so the long-lived SIGINT handler can reach the in-flight job's
+// controller; locally-scoped capture isn't possible from a process-global handler.
 let currentJobAbortController: AbortController | undefined;
 
 export async function startRunner(): Promise<void> {
@@ -71,10 +70,8 @@ async function runJob(job: Awaited<ReturnType<typeof requestJob>> & object): Pro
     if (currentJobAbortController === ac) currentJobAbortController = undefined;
   }
 
-  // Reporting completion is its own try/catch: a 404 here is the expected
-  // signal that the backend already finalized this job (orchestration timeout
-  // or stuck-job detector). We must not retry, and we must not let it fall
-  // into the outer execution-error path or we would post completion twice.
+  // 404 here is the expected signal that the backend already finalized this
+  // job; do not retry, do not fall through to the outer catch (would re-attempt).
   try {
     await completeJob({jobId: job.job_id, status: result.status, output: result.output});
     logger().info({jobId: job.job_id, status: result.status}, 'Job completed');

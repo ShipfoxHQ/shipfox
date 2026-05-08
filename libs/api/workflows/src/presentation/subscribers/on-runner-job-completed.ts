@@ -19,9 +19,8 @@ export async function onRunnerJobCompleted(event: DomainEvent): Promise<void> {
       output: payload.output,
     });
   } catch (err) {
-    // The job orchestration may have already terminated (e.g. via the timeout
-    // path). In that case the workflow's status is authoritative and the
-    // late-arriving runner result is intentionally dropped.
+    // Workflow already terminated (e.g. timeout path); its status is
+    // authoritative, drop this late event.
     if (isWorkflowNotFound(err)) {
       logger().debug(
         {jobId: payload.jobId, status: payload.status},

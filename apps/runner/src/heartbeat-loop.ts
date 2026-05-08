@@ -47,7 +47,6 @@ export function startHeartbeatLoop(
     const httpAc = new AbortController();
     currentHttpAc = httpAc;
 
-    // Max-stale guard: aborts the in-flight call if it doesn't return in time.
     const staleTimer = setTimeout(() => {
       logger().warn(
         {jobId, maxStaleMs: options.maxStaleMs},
@@ -67,7 +66,7 @@ export function startHeartbeatLoop(
       scheduleNext();
     } catch (err) {
       if (stopped) return;
-      // The max-stale guard fires httpAc.abort(); ky throws a DOMException-like error.
+      // AbortError = max-stale guard fired; expected control flow, not a failure.
       if (isAbortError(err)) {
         scheduleNext();
         return;
@@ -88,8 +87,6 @@ export function startHeartbeatLoop(
     }
   };
 
-  // Kick off the first tick. Use setTimeout so callers see a `stop()` for the
-  // first interval too, and so tests can deterministically advance fake timers.
   pendingTimer = setTimeout(tick, options.intervalMs);
 
   return {

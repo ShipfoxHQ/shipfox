@@ -7,13 +7,6 @@ import {createRunnerTokenAuthMethod, onWorkflowsJobTimedOut, routes} from '#pres
 import {createRunnersMaintenanceActivities} from '#temporal/activities/index.js';
 import {RUNNERS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 
-// Public surface intentionally tiny:
-// - `runnersModule` is how the app composes this bounded context.
-// - `enqueueJob` is the documented synchronous Workflows → Runners command
-//   (see .claude/research/system-design.md). Workflows hands a job over to
-//   the runner queue via this call; everything else flows through events.
-// Anything else is internal and reachable only via `#db/...`, `#core/...`,
-// or `#presentation/...` from inside the package.
 export {enqueueJob} from '#db/index.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');

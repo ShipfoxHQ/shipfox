@@ -107,11 +107,6 @@ describe('jobOrchestration timeout path', () => {
     expect(result.status).toBe('failed');
     expect(result.output).toEqual({reason: 'job_timeout'});
 
-    // failJobAsTimedOutActivity is the single critical-path call for the
-    // timeout: it atomically updates the job status AND emits the outbox
-    // event in the same DB transaction. setJobStatus is only called once
-    // (for the 'running' transition); the timeout-failure transition goes
-    // through failJobAsTimedOutActivity instead.
     expect(callsNamed('failJobAsTimedOutActivity')).toHaveLength(1);
 
     const setJobStatuses = callsNamed('setJobStatus').map(
@@ -126,14 +121,8 @@ describe('jobOrchestration timeout path', () => {
   test('failJobAsTimedOutActivity throws → workflow surfaces the error', async () => {
     failJobAsTimedOutShouldThrow = true;
 
-    // Activity is configured with the default 30s startToCloseTimeout in
-    // jobOrchestration; the test environment retries by default. We mark
-    // the failure as nonRetryable so it surfaces immediately.
     await expect(executeJob({...defaultJobInput, jobId: 'job-fail-error'})).rejects.toThrow();
 
-    // setJobStatus only ran for the 'running' transition before the failure
-    // — the failed-status update was supposed to happen inside the activity
-    // and never made it.
     const setJobStatuses = callsNamed('setJobStatus').map(
       (c) => (c.params as {status: string}).status,
     );

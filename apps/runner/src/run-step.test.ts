@@ -86,16 +86,12 @@ describe('executeRunStep', () => {
   });
 
   it('kills the entire process group on abort, including grandchildren', async () => {
-    // The shell parent has its own pid; the inner sleep is a grandchild whose
-    // pid is printed before the wait. Without `detached:true` + `process.kill(-pid)`,
-    // killing only the shell would leave the grandchild orphaned.
     const step = buildStep({
       config: {run: 'sleep 30 & echo "GRANDCHILD_PID=$!"; wait'},
     });
     const ac = new AbortController();
     const promise = executeRunStep(step, {signal: ac.signal});
 
-    // Wait until we see the grandchild pid printed.
     await new Promise((r) => setTimeout(r, 200));
     ac.abort();
 
@@ -106,10 +102,9 @@ describe('executeRunStep', () => {
     expect(match).not.toBeNull();
     const grandchildPid = Number(match?.[1]);
 
-    // Give the OS a tick to deliver SIGKILL to the group.
     await new Promise((r) => setTimeout(r, 100));
 
-    // process.kill(pid, 0) throws ESRCH if the process is gone — what we want.
+    // process.kill(pid, 0) throws ESRCH if the process is gone.
     expect(() => process.kill(grandchildPid, 0)).toThrow(ESRCH_REGEX);
   });
 });

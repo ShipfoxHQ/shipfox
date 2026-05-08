@@ -57,12 +57,9 @@ function spawnAndCapture(scriptPath: string, options: {signal?: AbortSignal}): P
         ? ['--noprofile', '--norc', '-eo', 'pipefail', scriptPath]
         : ['-e', scriptPath];
 
-    // detached:true makes the spawned shell the leader of a new process group
-    // so killGroup() below can SIGKILL the shell AND every process it spawned
-    // (a step's script may launch node, docker, long-running children of its
-    // own — Linux does not propagate signals down the parent chain). Stdio is
-    // still piped and we do not unref(): the runner still awaits the close
-    // event for output capture and exit code.
+    // detached:true makes the shell a process-group leader so killGroup() can
+    // SIGKILL its grandchildren too (Linux does not propagate signals down the
+    // parent chain). We don't unref() — output capture still needs `close`.
     const child = spawn(shell, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
@@ -97,7 +94,7 @@ function spawnAndCapture(scriptPath: string, options: {signal?: AbortSignal}): P
           // Negative pid signals the entire process group.
           process.kill(-child.pid, 'SIGKILL');
         } catch {
-          // Process already exited; nothing to do.
+          // Process already exited.
         }
       }
     };

@@ -391,12 +391,8 @@ describe('detectAndFailStuckJobs', () => {
   });
 
   it('skips a row whose heartbeat refreshed before the atomic DELETE re-evaluates the predicate', async () => {
-    // The candidate SELECT inside detectAndFailStuckJobs and the per-row DELETE
-    // are two separate queries. Refreshing last_heartbeat_at between them must
-    // leave the row intact: the cutoff is folded into the DELETE's WHERE clause
-    // so the row no longer matches. We can't hook between the two queries from
-    // outside, but the end-to-end shape — pre-stale, then refresh, then run —
-    // exercises the same guarantee: the live row survives.
+    // Pre-stale, then refresh, then run — the cutoff is folded into the DELETE's
+    // WHERE so the live row survives even though the iteration SELECT saw it stale.
     const {jobId} = await makeStaleJob(600);
     await db()
       .update(runningJobs)

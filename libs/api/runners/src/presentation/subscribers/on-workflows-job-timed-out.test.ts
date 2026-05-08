@@ -62,8 +62,7 @@ describe('onWorkflowsJobTimedOut', () => {
   });
 
   it('no-op when the running_jobs row is gone (already finalized)', async () => {
-    // No claim, no row. Subscriber must not throw — the row was finalized by
-    // some other path before the event reached us.
+    // Row was finalized by another path before the event reached us.
     await expect(
       onWorkflowsJobTimedOut(buildEvent(crypto.randomUUID(), crypto.randomUUID())),
     ).resolves.toBeUndefined();

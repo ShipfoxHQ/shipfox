@@ -5,7 +5,7 @@ import type {CompletionStatus} from '#core/dag.js';
 import type {createOrchestrationActivities} from '../activities/index.js';
 
 /**
- * Two terminal paths for a single job orchestration:
+ * Two terminal paths:
  *
  *   ┌─ runner POST /complete arrives ──► signal payload set
  *   │                                     ▼
@@ -17,17 +17,11 @@ import type {createOrchestrationActivities} from '../activities/index.js';
  *                                                  ▼
  *                                              failJobAsTimedOutActivity
  *                                                (atomic: jobs UPDATE +
- *                                                 workflows_outbox INSERT
- *                                                 with WORKFLOWS_JOB_TIMED_OUT)
+ *                                                 workflows_outbox INSERT)
  *                                                  ▼
  *                                              bulkSetStepStatuses('failed')
  *                                              return {status:'failed',
  *                                                      output:{reason:'job_timeout'}}
- *
- * The runner-cancellation side-effect is now driven asynchronously: the runners
- * module subscribes to WORKFLOWS_JOB_TIMED_OUT and calls requestJobCancellation
- * inside its own module. That decoupling keeps workflows ↔ runners
- * communication event-driven rather than via direct cross-module imports.
  */
 
 const {setJobStatus, enqueueJobForRunner, bulkSetStepStatuses, failJobAsTimedOutActivity} =

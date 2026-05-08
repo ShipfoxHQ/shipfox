@@ -8,12 +8,6 @@ const {detectAndFailStuckJobsActivity} = proxyActivities<
   startToCloseTimeout: '60s',
 });
 
-/**
- * Cron-driven stuck-job detector. Runs once per Temporal cron tick. Each
- * invocation fails any running_jobs row whose `last_heartbeat_at` is older
- * than the threshold and emits the standard `runners.job.completed` event so
- * the corresponding orchestration advances normally.
- */
 const STUCK_JOB_THRESHOLD_SECONDS = 180;
 
 export async function stuckJobDetector(): Promise<void> {
