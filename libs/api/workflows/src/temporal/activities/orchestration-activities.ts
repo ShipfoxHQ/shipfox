@@ -1,9 +1,10 @@
 import {enqueueJob} from '@shipfox/api-runners';
-import type {JobPayloadDto} from '@shipfox/api-runners-dto';
+import type {JobPayloadDto, StepResultDto} from '@shipfox/api-runners-dto';
 import type {JobStatus} from '#core/entities/job.js';
 import type {StepStatus} from '#core/entities/step.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {
+  applyStepResults,
   bulkUpdateStepStatuses,
   failJobAsTimedOut,
   getJobsByRunId,
@@ -102,6 +103,32 @@ export async function bulkSetStepStatuses(params: {
   status: StepStatus;
 }): Promise<void> {
   await bulkUpdateStepStatuses(params);
+}
+
+// Wire (snake_case) → domain (camelCase) at the activity boundary so DB code
+// never sees the external shape. The completionStatus is forwarded so the
+// activity can enforce strict consistency for succeeded jobs.
+export async function applyStepResultsActivity(params: {
+  jobId: string;
+  completionStatus: 'succeeded' | 'failed';
+  reportedSteps: StepResultDto[];
+}): Promise<void> {
+  await applyStepResults({
+    jobId: params.jobId,
+    completionStatus: params.completionStatus,
+    reportedSteps: params.reportedSteps.map((s) => ({
+      stepId: s.step_id,
+      status: s.status,
+      error:
+        s.error == null
+          ? null
+          : {
+              message: s.error.message,
+              ...(s.error.exit_code !== undefined ? {exitCode: s.error.exit_code} : {}),
+              ...(s.error.signal !== undefined ? {signal: s.error.signal} : {}),
+            },
+    })),
+  });
 }
 
 export async function enqueueJobForRunner(params: {

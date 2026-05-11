@@ -18,7 +18,7 @@ describe('executeJob', () => {
     const callOrder: number[] = [];
     mockExecuteRunStep.mockImplementation((step) => {
       callOrder.push(step.position);
-      return Promise.resolve({success: true, output: ''});
+      return Promise.resolve({success: true, output: '', error: null});
     });
 
     const job = buildJob([
@@ -32,51 +32,72 @@ describe('executeJob', () => {
     expect(callOrder).toEqual([0, 1, 2]);
   });
 
-  it('returns succeeded when all steps pass', async () => {
-    mockExecuteRunStep.mockResolvedValue({success: true, output: 'ok\n'});
+  it('returns succeeded with one entry per step when all pass', async () => {
+    mockExecuteRunStep.mockResolvedValue({success: true, output: 'ok\n', error: null});
 
     const job = buildJob([{position: 0}, {position: 1}]);
 
     const result = await executeJob(job);
 
     expect(result.status).toBe('succeeded');
-    expect(result.output).toBe('ok\nok\n');
+    expect(result.steps).toHaveLength(2);
+    expect(result.steps[0]).toEqual({step_id: job.steps[0]?.id, status: 'succeeded', error: null});
+    expect(result.steps[1]).toEqual({step_id: job.steps[1]?.id, status: 'succeeded', error: null});
   });
 
-  it('stops on first failure and returns failed', async () => {
+  it('stops on first failure and only reports up to the failed step', async () => {
     mockExecuteRunStep
-      .mockResolvedValueOnce({success: true, output: 'step1\n'})
-      .mockResolvedValueOnce({success: false, output: 'step2-err\n'})
-      .mockResolvedValueOnce({success: true, output: 'step3\n'});
+      .mockResolvedValueOnce({success: true, output: 'step1\n', error: null})
+      .mockResolvedValueOnce({
+        success: false,
+        output: 'step2-err\n',
+        error: {message: 'Command exited with code 1', exit_code: 1},
+      })
+      .mockResolvedValueOnce({success: true, output: 'step3\n', error: null});
 
     const job = buildJob([{position: 0}, {position: 1}, {position: 2}]);
 
     const result = await executeJob(job);
 
     expect(result.status).toBe('failed');
-    expect(result.output).toBe('step1\nstep2-err\n');
+    expect(result.steps).toHaveLength(2);
+    expect(result.steps[0]?.status).toBe('succeeded');
+    expect(result.steps[1]).toEqual({
+      step_id: job.steps[1]?.id,
+      status: 'failed',
+      error: {message: 'Command exited with code 1', exit_code: 1},
+    });
     expect(mockExecuteRunStep).toHaveBeenCalledTimes(2);
   });
 
+  it('propagates signal-kill error shape from a failed step', async () => {
+    mockExecuteRunStep.mockResolvedValueOnce({
+      success: false,
+      output: '',
+      error: {message: 'Killed by signal SIGKILL', exit_code: null, signal: 'SIGKILL'},
+    });
+
+    const job = buildJob([{position: 0}]);
+
+    const result = await executeJob(job);
+
+    expect(result.status).toBe('failed');
+    expect(result.steps[0]?.error).toEqual({
+      message: 'Killed by signal SIGKILL',
+      exit_code: null,
+      signal: 'SIGKILL',
+    });
+  });
+
   it('handles a single step job', async () => {
-    mockExecuteRunStep.mockResolvedValue({success: true, output: 'done\n'});
+    mockExecuteRunStep.mockResolvedValue({success: true, output: 'done\n', error: null});
 
     const job = buildJob([{position: 0}]);
 
     const result = await executeJob(job);
 
     expect(result.status).toBe('succeeded');
-    expect(result.output).toBe('done\n');
-  });
-
-  it('handles a job with no steps', async () => {
-    const job = buildJob([]);
-
-    const result = await executeJob(job);
-
-    expect(result.status).toBe('succeeded');
-    expect(result.output).toBe('');
-    expect(mockExecuteRunStep).not.toHaveBeenCalled();
+    expect(result.steps).toHaveLength(1);
   });
 });
 

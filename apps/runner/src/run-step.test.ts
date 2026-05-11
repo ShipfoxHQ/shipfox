@@ -13,12 +13,13 @@ describe('executeRunStep', () => {
     expect(result.output).toContain('hello');
   });
 
-  it('fails with non-zero exit code', async () => {
+  it('fails with non-zero exit code and reports it on result.error', async () => {
     const step = buildStep({config: {run: 'exit 1'}});
 
     const result = await executeRunStep(step);
 
     expect(result.success).toBe(false);
+    expect(result.error).toEqual({message: 'Command exited with code 1', exit_code: 1});
   });
 
   it('captures both stdout and stderr', async () => {
@@ -31,22 +32,40 @@ describe('executeRunStep', () => {
     expect(result.output).toContain('err');
   });
 
-  it('returns failure for unsupported step type', async () => {
+  it('returns failure for unsupported step type with the reason on error.message', async () => {
     const step = buildStep({type: 'docker', config: {image: 'node:20'}});
 
     const result = await executeRunStep(step);
 
     expect(result.success).toBe(false);
-    expect(result.output).toContain('Unsupported step type: docker');
+    expect(result.error?.message).toContain('Unsupported step type: docker');
+    expect(result.error?.exit_code).toBeUndefined();
+    expect(result.output).toBe('');
   });
 
-  it('returns failure when config.run is missing', async () => {
+  it('returns failure when config.run is missing with the reason on error.message', async () => {
     const step = buildStep({config: {}});
 
     const result = await executeRunStep(step);
 
     expect(result.success).toBe(false);
-    expect(result.output).toContain('missing or empty');
+    expect(result.error?.message).toContain('missing or empty');
+    expect(result.error?.exit_code).toBeUndefined();
+  });
+
+  it('reports signal kill on result.error when aborted', async () => {
+    const step = buildStep({config: {run: 'sleep 30'}});
+    const ac = new AbortController();
+    const promise = executeRunStep(step, {signal: ac.signal});
+
+    await new Promise((r) => setTimeout(r, 50));
+    ac.abort();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(result.error?.exit_code).toBeNull();
+    expect(result.error?.signal).toBe('SIGKILL');
+    expect(result.error?.message).toContain('SIGKILL');
   });
 
   it('handles multi-line scripts', async () => {

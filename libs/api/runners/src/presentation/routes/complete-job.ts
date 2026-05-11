@@ -24,10 +24,10 @@ export const completeJobRoute = defineRoute({
   },
   handler: async (request) => {
     const {jobId} = request.params;
-    const {status, output} = request.body;
+    const {status, steps} = request.body;
     const runner = getRunnerContext(request);
 
-    await completeJob({jobId, runnerTokenId: runner.runnerTokenId}, {status, output});
+    await completeJob({jobId, runnerTokenId: runner.runnerTokenId}, {status, steps});
 
     return {ok: true};
   },

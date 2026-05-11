@@ -16,7 +16,7 @@ export async function onRunnerJobCompleted(event: DomainEvent): Promise<void> {
   try {
     await handle.signal('job-completed', {
       status: payload.status,
-      output: payload.output,
+      steps: payload.steps,
     });
   } catch (err) {
     // Workflow already terminated (e.g. timeout path); its status is

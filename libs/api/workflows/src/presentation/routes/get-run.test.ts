@@ -4,7 +4,12 @@ import {ClientError} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
-import {createWorkflowRun} from '#db/workflow-runs.js';
+import {
+  applyStepResults,
+  createWorkflowRun,
+  getJobsByRunId,
+  getStepsByJobId,
+} from '#db/workflow-runs.js';
 import {getRunRoute} from './get-run.js';
 
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
@@ -92,6 +97,60 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(body.jobs[0].steps).toHaveLength(2);
     expect(body.jobs[0].steps[0].name).toBe('Install');
     expect(body.jobs[0].steps[1].name).toBeNull();
+  });
+
+  test('exposes per-step error and cancelled status after applyStepResults', async () => {
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      definition: {
+        name: 'Test',
+        jobs: {build: {steps: [{run: 'a'}, {run: 'b'}, {run: 'c'}]}},
+      },
+      triggerContext: {type: 'manual'},
+    });
+
+    const runJobs = await getJobsByRunId(run.id);
+    const jobId = runJobs[0]?.id ?? '';
+    const steps = await getStepsByJobId(jobId);
+
+    await applyStepResults({
+      jobId,
+      completionStatus: 'failed',
+      reportedSteps: [
+        {stepId: steps[0]?.id as string, status: 'succeeded', error: null},
+        {
+          stepId: steps[1]?.id as string,
+          status: 'failed',
+          error: {message: 'Command exited with code 1', exitCode: 1},
+        },
+      ],
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    const responseSteps = body.jobs[0].steps as Array<{
+      status: string;
+      error: {message: string; exit_code?: number | null} | null;
+    }>;
+    expect(responseSteps[0]?.status).toBe('succeeded');
+    expect(responseSteps[0]?.error).toBeNull();
+    expect(responseSteps[1]?.status).toBe('failed');
+    expect(responseSteps[1]?.error).toEqual({
+      message: 'Command exited with code 1',
+      exit_code: 1,
+    });
+    expect(responseSteps[2]?.status).toBe('cancelled');
+    expect(responseSteps[2]?.error).toBeNull();
   });
 
   test('returns 404 for non-existent run', async () => {

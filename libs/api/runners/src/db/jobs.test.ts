@@ -141,13 +141,21 @@ describe('completeJob', () => {
     runnerTokenId = runnerToken.id;
   });
 
+  function succeededResult(stepId: string) {
+    return {
+      status: 'succeeded' as const,
+      steps: [{step_id: stepId, status: 'succeeded' as const, error: null}],
+    };
+  }
+
   it('deletes the running job and writes an outbox event', async () => {
-    await pendingJobFactory.create({workspaceId});
+    const pending = await pendingJobFactory.create({workspaceId});
     const claimed = await claimJob({workspaceId, runnerTokenId});
+    const stepId = pending.payload.steps[0]?.id ?? crypto.randomUUID();
 
     const result = await completeJob(
       {jobId: claimed?.jobId as string, runnerTokenId},
-      {status: 'succeeded'},
+      succeededResult(stepId),
     );
 
     expect(result.runId).toBe(claimed?.runId as string);
@@ -162,23 +170,28 @@ describe('completeJob', () => {
     expect(payload.jobId).toBe(claimed?.jobId as string);
     expect(payload.runId).toBe(claimed?.runId as string);
     expect(payload.status).toBe('succeeded');
+    expect(payload.steps).toHaveLength(1);
   });
 
   it('throws RunningJobNotFoundError when job is not running', async () => {
     await expect(
-      completeJob({jobId: crypto.randomUUID(), runnerTokenId}, {status: 'succeeded'}),
+      completeJob(
+        {jobId: crypto.randomUUID(), runnerTokenId},
+        succeededResult(crypto.randomUUID()),
+      ),
     ).rejects.toThrow('Running job not found');
   });
 
   it('does not complete a job owned by another runner token', async () => {
     const otherRunnerToken = await runnerTokenFactory.create({workspaceId});
-    await pendingJobFactory.create({workspaceId});
+    const pending = await pendingJobFactory.create({workspaceId});
     const claimed = await claimJob({workspaceId, runnerTokenId});
+    const stepId = pending.payload.steps[0]?.id ?? crypto.randomUUID();
 
     await expect(
       completeJob(
         {jobId: claimed?.jobId as string, runnerTokenId: otherRunnerToken.id},
-        {status: 'succeeded'},
+        succeededResult(stepId),
       ),
     ).rejects.toThrow('Running job not found');
 
@@ -346,7 +359,7 @@ describe('detectAndFailStuckJobs', () => {
     });
   }
 
-  it('fails a stuck job and writes a runners.job.completed event with reason runner_disappeared', async () => {
+  it('fails a stuck job and writes a runners.job.completed event with empty steps[]', async () => {
     const {jobId, runId} = await makeStaleJob(600);
 
     const result = await detectAndFailStuckJobs({thresholdSeconds: 180});
@@ -361,7 +374,10 @@ describe('detectAndFailStuckJobs', () => {
     expect(payload.jobId).toBe(jobId);
     expect(payload.runId).toBe(runId);
     expect(payload.status).toBe('failed');
-    expect(payload.output).toEqual({reason: 'runner_disappeared'});
+    // Stuck-job detection has no per-step detail; the workflow falls back to
+    // bulk-failing every step via the empty-steps path.
+    expect(payload.steps).toEqual([]);
+    expect(payload.output).toBeUndefined();
   });
 
   it('does not fail a job whose heartbeat is still inside the threshold window', async () => {

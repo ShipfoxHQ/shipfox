@@ -21,6 +21,10 @@ export {
   type RunnerTokenDto,
   revokeRunnerTokenResponseSchema,
   runnerTokenDtoSchema,
+  type StepErrorDto,
+  type StepResultDto,
+  stepErrorSchema,
+  stepResultSchema,
 } from '#schemas/index.js';
 export {
   RUNNER_JOB_COMPLETED,

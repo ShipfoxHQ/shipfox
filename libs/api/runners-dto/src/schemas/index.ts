@@ -3,6 +3,10 @@ export {
   type CompleteJobResponseDto,
   completeJobBodySchema,
   completeJobResponseSchema,
+  type StepErrorDto,
+  type StepResultDto,
+  stepErrorSchema,
+  stepResultSchema,
 } from './complete-job.js';
 export {type HeartbeatResponseDto, heartbeatResponseSchema} from './heartbeat.js';
 export {

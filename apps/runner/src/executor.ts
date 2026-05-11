@@ -1,10 +1,10 @@
-import type {JobPayloadDto} from '@shipfox/api-runners-dto';
+import type {JobPayloadDto, StepResultDto} from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {executeRunStep} from '#run-step.js';
 
 export interface ExecuteJobResult {
   status: 'succeeded' | 'failed';
-  output: string;
+  steps: StepResultDto[];
 }
 
 export async function executeJob(
@@ -12,7 +12,7 @@ export async function executeJob(
   options: {signal?: AbortSignal} = {},
 ): Promise<ExecuteJobResult> {
   const steps = [...job.steps].sort((a, b) => a.position - b.position);
-  let output = '';
+  const reported: StepResultDto[] = [];
 
   for (const step of steps) {
     const stepLabel = step.name ?? `step #${step.position}`;
@@ -22,15 +22,16 @@ export async function executeJob(
     );
 
     const result = await executeRunStep(step, options);
-    output += result.output;
 
     if (!result.success) {
       logger().error({stepId: step.id, stepName: step.name}, `Step ${stepLabel} failed`);
-      return {status: 'failed', output};
+      reported.push({step_id: step.id, status: 'failed', error: result.error});
+      return {status: 'failed', steps: reported};
     }
 
     logger().info({stepId: step.id, stepName: step.name}, `Step ${stepLabel} succeeded`);
+    reported.push({step_id: step.id, status: 'succeeded', error: null});
   }
 
-  return {status: 'succeeded', output};
+  return {status: 'succeeded', steps: reported};
 }

@@ -46,19 +46,19 @@
 
 **Depends on:** Nothing. Can be built independently.
 
-## Add per-step status reporting to runner protocol
+## Single-statement `applyStepResults` for many-step jobs
 
-**What:** Extend the runner completion protocol to report per-step results instead of a single job-level status. Update `CompleteJobBodyDto` to accept an array of `{ stepId, status, output }` alongside the job status. Update `jobOrchestration` to use per-step statuses instead of `bulkSetStepStatuses`.
+**What:** Collapse the N-update + 1-cancellation-sweep pattern in `applyStepResults` (`libs/api/workflows/src/db/workflow-runs.ts`) into a single `UPDATE steps SET status = CASE id WHEN ... END, error = CASE id WHEN ... END WHERE job_id = ?` for jobs with many reported steps.
 
-**Why:** Currently, the runner knows which steps succeeded and which failed (fail-fast execution), but the protocol only sends a single `{status, output}` for the entire job. The backend's `bulkSetStepStatuses` marks ALL steps with the same terminal status. If step 2 of 5 fails, steps 3-5 show as "failed" even though they were never executed. This makes debugging harder and the UI misleading.
+**Why:** The current implementation does N+1 UPDATEs per transaction. Fine for typical jobs (<20 steps). At 100+ steps, the round-trip overhead becomes the dominant cost.
 
-**Pros:** Accurate per-step status in the UI. Steps that were never executed show as "cancelled" or "skipped" instead of "failed." Step-level output for debugging.
+**Pros:** Single round-trip, atomic by construction.
 
-**Cons:** Protocol change requires coordinated runner + backend update. Adds complexity to the completion flow.
+**Cons:** SQL gets noisier; harder to read. Premature for current step counts.
 
-**Context:** The runner's executor already tracks per-step results internally. The change is mostly about widening the protocol to carry that data through. The `output` field in `CompleteJobBodyDto` is `z.unknown()` so a structured object could be sent today, but the backend ignores step-level detail. Both the DTO schema and the `jobOrchestration` signal handler need updates.
+**Context:** Tracked in the per-step-runtime-reporting plan. The terminal-state guard and canonical-set semantics must be preserved in the rewrite. Defer until typical jobs exceed ~20 steps.
 
-**Depends on:** Runner POC (needs a working runner to iterate on the protocol).
+**Depends on:** Nothing.
 
 ## Workspaces
 
