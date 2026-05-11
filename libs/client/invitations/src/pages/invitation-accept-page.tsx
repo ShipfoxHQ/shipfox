@@ -10,6 +10,7 @@ import {usePreviewInvitation} from '#hooks/api/preview-invitation.js';
 // fire the accept mutation twice for the same token.
 const inFlightAccepts = new Set<string>();
 const toastedTerminals = new Set<string>();
+const TOASTED_TERMINALS_MAX = 32;
 
 export function InvitationAcceptPage() {
   const search = useSearch({strict: false}) as {token?: unknown};
@@ -286,6 +287,10 @@ function GoHomeButton({
 
 function notifyOnce(key: string, fn: () => void): void {
   if (toastedTerminals.has(key)) return;
+  if (toastedTerminals.size >= TOASTED_TERMINALS_MAX) {
+    const oldest = toastedTerminals.values().next().value;
+    if (oldest !== undefined) toastedTerminals.delete(oldest);
+  }
   toastedTerminals.add(key);
   fn();
 }

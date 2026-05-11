@@ -153,8 +153,10 @@ export async function login(app: FastifyInstance, params: {email: string; passwo
 export async function signupVerifyLogin(
   app: FastifyInstance,
   prefix: string,
+  options: {name?: string} = {},
 ): Promise<{
   email: string;
+  name: string | null;
   password: string;
   refreshCookie: string;
   token: string;
@@ -165,11 +167,14 @@ export async function signupVerifyLogin(
   const password = 'correct horse battery staple';
   void app;
   const userId = crypto.randomUUID();
+  const name = options.name ?? null;
+  const tokenName = name ? `:${encodeURIComponent(name)}` : '';
   return {
     email,
+    name,
     password,
     refreshCookie: 'shipfox_refresh_token=test; Path=/auth',
-    token: `user:${userId}:${email}`,
+    token: `user:${userId}:${email}${tokenName}`,
     userId,
   };
 }

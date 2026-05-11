@@ -58,7 +58,7 @@ const workspaceTestDoubles = vi.hoisted(() => {
 
   return {
     acceptWorkspaceInvitation: vi.fn(),
-    findInvitationByToken: vi.fn(),
+    peekInvitationByRawToken: vi.fn(),
     listMembershipsByUser: vi.fn(() => Promise.resolve([])),
     InvitationEmailMismatchError,
     TokenAlreadyUsedError,
@@ -80,7 +80,7 @@ vi.mock('#config.js', () => ({
 
 vi.mock('@shipfox/api-workspaces', () => ({
   acceptWorkspaceInvitation: workspaceTestDoubles.acceptWorkspaceInvitation,
-  findInvitationByToken: workspaceTestDoubles.findInvitationByToken,
+  peekInvitationByRawToken: workspaceTestDoubles.peekInvitationByRawToken,
   InvitationEmailMismatchError: workspaceTestDoubles.InvitationEmailMismatchError,
   listMembershipsByUser: workspaceTestDoubles.listMembershipsByUser,
   TokenAlreadyUsedError: workspaceTestDoubles.TokenAlreadyUsedError,
@@ -88,7 +88,7 @@ vi.mock('@shipfox/api-workspaces', () => ({
   TokenInvalidError: workspaceTestDoubles.TokenInvalidError,
 }));
 
-const {acceptWorkspaceInvitation, findInvitationByToken, listMembershipsByUser} = await import(
+const {acceptWorkspaceInvitation, peekInvitationByRawToken, listMembershipsByUser} = await import(
   '@shipfox/api-workspaces'
 );
 
@@ -96,7 +96,7 @@ const TOKEN_RE = /token=([\w\-_=]+)/;
 
 export const ROUTE_TEST_SECRET = testConfig.secret;
 export const acceptWorkspaceInvitationMock = vi.mocked(acceptWorkspaceInvitation);
-export const findInvitationByTokenMock = vi.mocked(findInvitationByToken);
+export const peekInvitationByRawTokenMock = vi.mocked(peekInvitationByRawToken);
 export const listMembershipsByUserMock = vi.mocked(listMembershipsByUser);
 export const workspaceErrors = {
   InvitationEmailMismatchError: workspaceTestDoubles.InvitationEmailMismatchError,
@@ -108,7 +108,7 @@ export const workspaceErrors = {
 export function resetCapturedMail(): void {
   testConfig.captured.length = 0;
   acceptWorkspaceInvitationMock.mockReset();
-  findInvitationByTokenMock.mockReset();
+  peekInvitationByRawTokenMock.mockReset();
   listMembershipsByUserMock.mockReset();
   listMembershipsByUserMock.mockResolvedValue([]);
 }

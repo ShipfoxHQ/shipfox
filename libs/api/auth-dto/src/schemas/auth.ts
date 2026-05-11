@@ -14,7 +14,7 @@ export const signupBodySchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   name: z.string().min(1).max(255).optional(),
-  invitation_token: z.string().min(1).optional(),
+  invitation_token: z.string().min(1).max(256).optional(),
 });
 
 export type SignupBodyDto = z.infer<typeof signupBodySchema>;

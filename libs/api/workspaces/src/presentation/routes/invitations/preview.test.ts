@@ -46,8 +46,31 @@ describe('GET /invitations/preview', () => {
         workspace_id: workspaceId,
         workspace_name: 'Acme',
         email: inviteeEmail,
-        invited_by_display: owner.email,
+        invited_by_display: 'A workspace admin',
         expires_at: expect.any(String),
+      }),
+    );
+  });
+
+  test('surfaces the inviter display name when the owner has one', async () => {
+    const owner = await signupVerifyLogin(app, 'invite-preview-named-owner', {name: 'Owner User'});
+    const workspaceId = await createWorkspace(app, owner.token, 'Named Co');
+    const invite = await createInvite(app, {
+      token: owner.token,
+      workspaceId,
+      email: uniqueEmail('invite-preview-named'),
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/invitations/preview?token=${encodeURIComponent(invite.rawToken)}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(
+      expect.objectContaining({
+        status: 'pending',
+        invited_by_display: 'Owner User',
       }),
     );
   });

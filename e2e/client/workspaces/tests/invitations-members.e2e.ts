@@ -115,14 +115,12 @@ test('accepts an invitation from the public landing page via login', async ({
     workspaceId: workspace.id,
     email: invitee.email,
     invitedByUserId: owner.user.id,
-    invitedByDisplay: owner.email,
+    invitedByDisplay: 'Owner User',
   });
 
   await page.goto(`/invitations/accept?token=${encodeURIComponent(invitation.raw_token)}`);
   await expect(page.getByRole('heading', {name: 'Invitation Flow Workspace'})).toBeVisible();
-  await expect(
-    page.getByText(`Invited by ${owner.email} to join as ${invitee.email}.`),
-  ).toBeVisible();
+  await expect(page.getByText(`Invited by Owner User to join as ${invitee.email}.`)).toBeVisible();
   await stableArgosScreenshot(page, 'invitations/pending-unauth', [
     [owner.email, VISUAL_OWNER_EMAIL],
     [invitee.email, VISUAL_INVITEE_EMAIL],
@@ -179,7 +177,7 @@ test('creates an account from an invitation with the email locked', async ({
     workspaceId: workspace.id,
     email: inviteeEmail,
     invitedByUserId: owner.user.id,
-    invitedByDisplay: owner.email,
+    invitedByDisplay: 'Signup Owner',
   });
 
   await page.goto(`/invitations/accept?token=${encodeURIComponent(invitation.raw_token)}`);

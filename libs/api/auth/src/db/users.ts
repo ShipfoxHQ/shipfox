@@ -1,23 +1,46 @@
 import {eq} from 'drizzle-orm';
 import type {User} from '#core/entities/user.js';
+import {EmailTakenError} from '#core/errors.js';
 import {db} from './db.js';
-import {toUser, users} from './schema/users.js';
+import {toUser, type UserDb, users} from './schema/users.js';
 
 export interface CreateUserParams {
   email: string;
   hashedPassword: string;
   name?: string | null;
+  emailVerifiedAt?: Date | null;
+}
+
+// Drizzle wraps the underlying Postgres error; walk `.cause` to reach it.
+function isAuthUsersEmailUniqueViolation(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current != null; depth += 1) {
+    if (typeof current !== 'object') return false;
+    const {code, constraint} = current as {code?: unknown; constraint?: unknown};
+    if (code === '23505' && constraint === 'auth_users_email_unique') return true;
+    current = (current as {cause?: unknown}).cause;
+  }
+  return false;
 }
 
 export async function createUser(params: CreateUserParams): Promise<User> {
-  const rows = await db()
-    .insert(users)
-    .values({
-      email: params.email,
-      hashedPassword: params.hashedPassword,
-      name: params.name ?? null,
-    })
-    .returning();
+  let rows: UserDb[];
+  try {
+    rows = await db()
+      .insert(users)
+      .values({
+        email: params.email,
+        hashedPassword: params.hashedPassword,
+        name: params.name ?? null,
+        emailVerifiedAt: params.emailVerifiedAt ?? null,
+      })
+      .returning();
+  } catch (error) {
+    if (isAuthUsersEmailUniqueViolation(error)) {
+      throw new EmailTakenError(params.email);
+    }
+    throw error;
+  }
 
   const row = rows[0];
   if (!row) throw new Error('Insert returned no rows');

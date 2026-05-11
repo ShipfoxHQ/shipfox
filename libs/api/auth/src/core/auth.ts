@@ -1,9 +1,9 @@
 import {EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS} from '@shipfox/api-auth-dto';
 import {
   acceptWorkspaceInvitation,
-  findInvitationByToken,
   InvitationEmailMismatchError,
   listMembershipsByUser,
+  peekInvitationByRawToken,
   TokenAlreadyUsedError,
   TokenExpiredError,
   TokenInvalidError as WorkspacesTokenInvalidError,
@@ -145,9 +145,7 @@ export async function signupWithInvitation(
   // Step 1: Pre-validate the invitation BEFORE any user write so an invalid
   // token never produces an orphan user. Re-validation happens again inside
   // acceptWorkspaceInvitation (race-safe) after the user is created.
-  const invitation = await findInvitationByToken({
-    hashedToken: hashOpaqueToken(params.invitationToken),
-  });
+  const invitation = await peekInvitationByRawToken({token: params.invitationToken});
   if (!invitation) {
     throw new WorkspacesTokenInvalidError('Invitation token is invalid');
   }
@@ -161,25 +159,24 @@ export async function signupWithInvitation(
     throw new InvitationEmailMismatchError();
   }
 
-  // Step 2: Create the user, verified (invitation email is proof of ownership).
+  // Step 2: Create the user as verified. The invitation email is the proof of
+  // ownership, and this avoids a second auth-table write just to mark verified.
   const existing = await findUserByEmail({email: params.email});
   if (existing) {
     throw new EmailTakenError(params.email);
   }
   const hashedPassword = await hashPassword({password: params.password});
-  const created = await createDbUser({
+  const user = await createDbUser({
     email: params.email,
     hashedPassword,
     name: params.name ?? null,
+    emailVerifiedAt: new Date(),
   });
-  const user = await markEmailVerified({userId: created.id});
-  if (!user) {
-    throw new UserNotFoundError(created.id);
-  }
 
-  // Step 3: Accept the invitation. Failures here do NOT roll back the user —
-  // the user is verified and can retry via the canonical AUTH_USER accept
-  // route (plan §2 / D7 keep-and-retry).
+  // Step 3: Accept the invitation through the workspaces module boundary.
+  // This is intentionally not one database transaction with auth; treat it like
+  // calling another service. If it fails after user creation, return a verified
+  // signed-in user and an explicit retryable accept error.
   let membership: SignupWithInvitationResult['membership'] = null;
   let acceptError: SignupWithInvitationResult['acceptError'];
   try {
@@ -203,9 +200,6 @@ export async function signupWithInvitation(
     ) {
       acceptError = {code: error.name, message: error.message};
     } else {
-      // Unknown error — leave the user logged in so they can retry; surface
-      // a generic code instead of bubbling, since the user creation already
-      // succeeded and rolling it back would be worse UX.
       acceptError = {
         code: 'AcceptFailed',
         message: 'Could not accept the invitation; please retry from the invite link.',
@@ -213,8 +207,8 @@ export async function signupWithInvitation(
     }
   }
 
-  // Step 4: Issue session. signAccessToken re-reads listMembershipsByUser so
-  // the new membership (if accept succeeded) is already in the JWT (Codex F2).
+  // Step 4: Issue session. signAccessToken reads memberships through the
+  // workspaces module API, so a successful accept is reflected in the JWT.
   const token = await signAccessToken(user);
   const refreshToken = await createRefreshSession(user);
 
@@ -239,16 +233,10 @@ export async function createUser(params: CreateUserParams): Promise<User> {
     email: params.email,
     hashedPassword,
     name: params.name ?? null,
+    emailVerifiedAt: params.verified ? new Date() : null,
   });
 
-  if (!params.verified) return user;
-
-  const verified = await markEmailVerified({userId: user.id});
-  if (!verified) {
-    throw new UserNotFoundError(user.id);
-  }
-
-  return verified;
+  return user;
 }
 
 export interface LoginParams {

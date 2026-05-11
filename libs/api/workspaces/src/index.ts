@@ -14,10 +14,9 @@ export {
   TokenExpiredError,
   TokenInvalidError,
 } from '#core/errors.js';
-export {acceptWorkspaceInvitation} from '#core/invitations.js';
+export {acceptWorkspaceInvitation, peekInvitationByRawToken} from '#core/invitations.js';
 export {requireWorkspaceMembership} from '#core/workspaces.js';
 export {db, migrationsPath} from '#db/index.js';
-export {findInvitationByToken} from '#db/invitations.js';
 export {listMembershipsByUser} from '#db/memberships.js';
 export {createApiKeyAuthMethod} from '#presentation/auth/api-key-auth.js';
 export {requireMembership} from '#presentation/auth/require-membership.js';

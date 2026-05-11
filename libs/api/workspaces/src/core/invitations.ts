@@ -62,6 +62,12 @@ export async function createWorkspaceInvitation(params: {
   return invitation;
 }
 
+export async function peekInvitationByRawToken(params: {
+  token: string;
+}): Promise<Invitation | undefined> {
+  return await findInvitationByToken({hashedToken: hashOpaqueToken(params.token)});
+}
+
 export type PreviewInvitationResult =
   | {
       status: 'pending';
@@ -76,7 +82,7 @@ export type PreviewInvitationResult =
   | {status: 'invalid'};
 
 export async function previewInvitation(params: {token: string}): Promise<PreviewInvitationResult> {
-  const invitation = await findInvitationByToken({hashedToken: hashOpaqueToken(params.token)});
+  const invitation = await peekInvitationByRawToken({token: params.token});
   if (!invitation) {
     return {status: 'invalid'};
   }
@@ -115,7 +121,7 @@ export async function acceptWorkspaceInvitation(params: {
   email: string;
   name?: string | null | undefined;
 }): Promise<AcceptInvitationResult> {
-  const invitation = await findInvitationByToken({hashedToken: hashOpaqueToken(params.token)});
+  const invitation = await peekInvitationByRawToken({token: params.token});
   if (!invitation) {
     throw new TokenInvalidError('Invitation token is invalid');
   }

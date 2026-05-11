@@ -3,10 +3,10 @@ import {verifyUserToken} from '#core/jwt.js';
 import {
   acceptWorkspaceInvitationMock,
   createAuthTestApp,
-  findInvitationByTokenMock,
   getSetCookie,
   latestMailTo,
   listMembershipsByUserMock,
+  peekInvitationByRawTokenMock,
   ROUTE_TEST_SECRET,
   resetCapturedMail,
   signup,
@@ -59,7 +59,7 @@ describe('POST /auth/signup', () => {
     const invitationToken = `invite-${crypto.randomUUID()}`;
     const workspaceId = crypto.randomUUID();
     const membershipId = crypto.randomUUID();
-    findInvitationByTokenMock.mockResolvedValueOnce({
+    peekInvitationByRawTokenMock.mockResolvedValueOnce({
       id: crypto.randomUUID(),
       workspaceId,
       email,
@@ -110,7 +110,6 @@ describe('POST /auth/signup', () => {
         updatedAt: new Date(),
       },
     ]);
-
     const res = await app.inject({
       method: 'POST',
       url: '/auth/signup',
@@ -138,10 +137,10 @@ describe('POST /auth/signup', () => {
     expect(() => latestMailTo(email)).toThrow();
   });
 
-  test('returns partial success when accept fails after user creation', async () => {
+  test('returns partial success when invitation acceptance fails after user creation', async () => {
     const email = uniqueEmail('signup-invite-partial');
     const workspaceId = crypto.randomUUID();
-    findInvitationByTokenMock.mockResolvedValueOnce({
+    peekInvitationByRawTokenMock.mockResolvedValueOnce({
       id: crypto.randomUUID(),
       workspaceId,
       email,
@@ -220,9 +219,9 @@ describe('POST /auth/signup', () => {
   }) => {
     const email = uniqueEmail('signup-invite-error');
     if (invitation === undefined) {
-      findInvitationByTokenMock.mockResolvedValueOnce(undefined);
+      peekInvitationByRawTokenMock.mockResolvedValueOnce(undefined);
     } else {
-      findInvitationByTokenMock.mockResolvedValueOnce({
+      peekInvitationByRawTokenMock.mockResolvedValueOnce({
         id: crypto.randomUUID(),
         workspaceId: crypto.randomUUID(),
         email: invitation.email,
