@@ -10,11 +10,15 @@ export const stepErrorSchema = z
 
 export type StepErrorDto = z.infer<typeof stepErrorSchema>;
 
-export const stepResultSchema = z.object({
-  step_id: z.string().uuid(),
-  status: z.enum(['succeeded', 'failed']),
-  error: stepErrorSchema,
-});
+export const stepResultSchema = z
+  .object({
+    step_id: z.string().uuid(),
+    status: z.enum(['succeeded', 'failed']),
+    error: stepErrorSchema,
+  })
+  .refine((step) => (step.status === 'succeeded' ? step.error === null : step.error !== null), {
+    message: 'succeeded steps must have error=null and failed steps must include an error',
+  });
 
 export type StepResultDto = z.infer<typeof stepResultSchema>;
 

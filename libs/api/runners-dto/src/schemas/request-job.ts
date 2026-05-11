@@ -14,7 +14,7 @@ export const jobPayloadSchema = z.object({
   job_id: z.string().uuid(),
   run_id: z.string().uuid(),
   job_name: z.string(),
-  steps: z.array(jobPayloadStepSchema),
+  steps: z.array(jobPayloadStepSchema).min(1),
 });
 
 export type JobPayloadDto = z.infer<typeof jobPayloadSchema>;
