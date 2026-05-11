@@ -1,6 +1,8 @@
 import {z} from 'zod';
 import {userDtoSchema} from './user.js';
 
+export const EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS = 60;
+
 export const passwordSchema = z.string().min(12).max(128);
 export const emailSchema = z
   .string()
@@ -89,3 +91,9 @@ export const verifyEmailResendBodySchema = z.object({
 });
 
 export type VerifyEmailResendBodyDto = z.infer<typeof verifyEmailResendBodySchema>;
+
+export const verifyEmailResendResponseSchema = z.object({
+  next_resend_available_at: z.string().datetime(),
+});
+
+export type VerifyEmailResendResponseDto = z.infer<typeof verifyEmailResendResponseSchema>;

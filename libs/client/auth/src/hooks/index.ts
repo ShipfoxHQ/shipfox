@@ -6,7 +6,7 @@ export {
 } from './api/password-reset-auth.js';
 export {useRefreshAuth} from './api/refresh-auth.js';
 export {useSignupAuth} from './api/signup-auth.js';
-export {useVerifyEmailAuth} from './api/verify-email-auth.js';
+export {useResendEmailVerificationAuth, useVerifyEmailAuth} from './api/verify-email-auth.js';
 export {useCreateWorkspaceAuth} from './api/workspace-auth.js';
 export {useActiveWorkspace, useMaybeActiveWorkspace} from './use-active-workspace.js';
 export type {AuthStateValue} from './use-auth-state.js';

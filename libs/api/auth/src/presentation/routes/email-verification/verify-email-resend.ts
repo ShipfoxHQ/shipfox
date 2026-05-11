@@ -1,6 +1,5 @@
-import {verifyEmailResendBodySchema} from '@shipfox/api-auth-dto';
+import {verifyEmailResendBodySchema, verifyEmailResendResponseSchema} from '@shipfox/api-auth-dto';
 import {defineRoute} from '@shipfox/node-fastify';
-import {z} from 'zod';
 import {resendEmailVerification} from '#core/auth.js';
 
 export const verifyEmailResendRoute = defineRoute({
@@ -10,14 +9,16 @@ export const verifyEmailResendRoute = defineRoute({
   schema: {
     body: verifyEmailResendBodySchema,
     response: {
-      204: z.void(),
+      200: verifyEmailResendResponseSchema,
     },
   },
   handler: async (request, reply) => {
     const {email} = request.body;
 
-    await resendEmailVerification({email});
+    const result = await resendEmailVerification({email});
 
-    reply.code(204);
+    reply.code(200).send({
+      next_resend_available_at: result.nextResendAvailableAt.toISOString(),
+    });
   },
 });
