@@ -111,6 +111,69 @@ Each E2E package must also declare an explicit workspace dependency on the packa
 it verifies, such as `@shipfox/client-auth` for `@shipfox/e2e-client-auth`, so
 Turbo includes the referenced package in the task DAG.
 
+## Unit Testing Strategy (Client Apps)
+
+Client tests should default to the cheapest environment that can prove the
+behavior under test. React Testing Library is useful for DOM behavior, but it is
+too expensive for schema validation, request payload shaping, error-copy mapping,
+redirect sanitization, cache key generation, or other pure decisions.
+
+When adding or refactoring client tests:
+
+1. Put pure behavior in plain TypeScript helpers and test it in Vitest's `node`
+   environment. Examples include form parsing, DTO normalization, auth error
+   copy, URL sanitization, and token timing helpers.
+2. Keep React Testing Library for behavior that requires rendered React state:
+   provider wiring, hooks interacting with React Query/Jotai, focus/portal/menu
+   behavior, StrictMode idempotency, and a small number of page smoke tests.
+3. Move full user journeys to Playwright E2E instead of reproducing them through
+   a memory router, auth provider, query client, API mocks, and toast container in
+   every unit test.
+4. Avoid asserting schema details or exact request payloads in RTL page tests when
+   a Node helper test can cover the same branch directly.
+5. Avoid real timers in unit tests. Prefer immediate promises, fake timers, or
+   explicitly controlled promises over `setTimeout` sleeps.
+6. Use `fireEvent.change` for simple final-value form setup. Use
+   `userEvent.type` only when keyboard-level interaction semantics are the thing
+   being tested.
+
+Client packages that mix pure tests and DOM tests should split Vitest projects so
+`.test.ts` files can run in `node` without `test/setup.ts`, while `.test.tsx`
+files and browser-storage tests run in `jsdom`:
+
+```typescript
+export default defineConfig(
+  {
+    test: {
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: 'node',
+            environment: 'node',
+            include: ['src/**/*.test.ts'],
+            exclude: ['src/state/local-storage-backed.test.ts'],
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: 'dom',
+            environment: 'jsdom',
+            include: ['src/**/*.test.tsx', 'src/state/local-storage-backed.test.ts'],
+            setupFiles: ['test/setup.ts'],
+          },
+        },
+      ],
+    },
+  },
+  import.meta.url,
+);
+```
+
+The target shape is many fast Node tests for branch-heavy behavior, a small RTL
+suite for React integration, and Playwright for user-visible journeys.
+
 ## Unit Testing Strategy (Node Apps)
 
 Tests use **Vitest** and run against a real PostgreSQL database, not mocks. The philosophy is to test against real infrastructure where possible and only mock external dependencies (feature flags, cloud provider APIs, etc.).

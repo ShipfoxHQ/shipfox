@@ -1,4 +1,3 @@
-import {loginBodySchema} from '@shipfox/api-auth-dto';
 import {Alert, Button, ButtonLink, Input, Label, Text} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
@@ -6,7 +5,8 @@ import {type FormEvent, useState} from 'react';
 import {AuthShell} from '#/components/auth-shell.js';
 import {useLoginAuth} from '#hooks/api/login-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
-import {authErrorMessage, type FieldErrors, fieldErrorsFromZod} from './form-utils.js';
+import {parseLoginForm} from './auth-form-model.js';
+import {authErrorMessage, type FieldErrors} from './form-utils.js';
 
 type LoginField = 'email' | 'password';
 
@@ -20,15 +20,15 @@ export function LoginPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(undefined);
-    const parsed = loginBodySchema.safeParse({email, password});
-    if (!parsed.success) {
-      setFieldErrors(fieldErrorsFromZod<LoginField>(parsed.error));
+    const parsed = parseLoginForm({email, password});
+    if (!parsed.ok) {
+      setFieldErrors(parsed.fieldErrors);
       return;
     }
 
     setFieldErrors({});
     try {
-      await login.mutateAsync(parsed.data);
+      await login.mutateAsync(parsed.body);
       setAuthFormDraft(initialAuthFormDraft);
       // The route's GuestGuard redirects authenticated users to `/`. Letting
       // the guard fire from the auth-state-driven re-render guarantees the
