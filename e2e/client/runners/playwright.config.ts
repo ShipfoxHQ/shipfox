@@ -21,6 +21,7 @@ export default defineConfig({
   use: {
     baseURL: config.CLIENT_URL,
     trace: 'retain-on-failure',
+    timezoneId: 'UTC',
     contextOptions: {reducedMotion: 'reduce'},
   },
   projects: [

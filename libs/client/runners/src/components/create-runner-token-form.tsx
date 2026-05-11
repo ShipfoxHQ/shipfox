@@ -99,15 +99,8 @@ export function CreateRunnerTokenForm({
   );
 }
 
-const TRAILING_SLASH_RE = /\/$/u;
-
 export function CreatedRunnerTokenPanel({token}: {token: CreateRunnerTokenResponseDto}) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
-  const apiUrl = (import.meta.env.VITE_API_URL || window.location.origin).replace(
-    TRAILING_SLASH_RE,
-    '',
-  );
-  const command = `SHIPFOX_API_URL=${apiUrl} SHIPFOX_RUNNER_TOKEN=${token.raw_token}`;
 
   async function copy(value: string) {
     if (!navigator.clipboard) {
@@ -145,17 +138,9 @@ export function CreatedRunnerTokenPanel({token}: {token: CreateRunnerTokenRespon
             {copyState === 'copied' ? 'Copied' : 'Copy'}
           </Button>
         </div>
-        <div className="flex flex-col gap-6">
-          <Text size="sm" bold>
-            Local dev
-          </Text>
-          <Code variant="paragraph" className="break-all rounded-6 bg-background-neutral-base p-8">
-            {command}
-          </Code>
-        </div>
         {copyState === 'failed' ? (
           <Text size="sm" className="text-foreground-neutral-muted">
-            Copy failed — select and copy manually.
+            Copy failed: select and copy manually.
           </Text>
         ) : null}
       </InlineTipsContent>

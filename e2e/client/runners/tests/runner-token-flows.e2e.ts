@@ -2,8 +2,12 @@ import {argosScreenshot} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
 const RUNNER_TOKEN_PREFIX_RE = /^sf_rt_/u;
+const VISUAL_TEST_NOW = new Date('2026-01-15T12:00:00Z');
+const VISUAL_TEST_RUNNER_TOKEN = 'sf_rt_visual_regression_token';
 
 test('manages workspace runner tokens from settings', async ({page, auth, workspaces}) => {
+  await page.clock.setFixedTime(VISUAL_TEST_NOW);
+
   const user = await auth.createUser();
   const workspace = await workspaces.create({
     userId: user.user.id,
@@ -30,9 +34,10 @@ test('manages workspace runner tokens from settings', async ({page, auth, worksp
   await expect(page.getByText('Token created')).toBeVisible();
   const rawToken = page.getByText(RUNNER_TOKEN_PREFIX_RE).first();
   await expect(rawToken).toBeVisible();
-  await rawToken.evaluate((element: Element) =>
-    element.setAttribute('data-visual-test', 'blackout'),
-  );
+  await rawToken.evaluate((element: Element, token) => {
+    element.textContent = token;
+    element.setAttribute('data-visual-test', 'blackout');
+  }, VISUAL_TEST_RUNNER_TOKEN);
   await argosScreenshot(page, 'runners/settings-runners-create-token-success');
 
   await page.keyboard.press('Escape');
