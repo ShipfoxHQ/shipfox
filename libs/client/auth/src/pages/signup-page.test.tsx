@@ -86,6 +86,7 @@ describe('SignupPage', () => {
 
   test('enables resend after the signup cooldown expires', async () => {
     vi.useFakeTimers({toFake: ['Date', 'setInterval', 'clearInterval']});
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
     const user = pageUserFactory.build({email: 'new@example.com', name: 'New User'});
     const fetchImpl = vi
       .fn()
@@ -111,6 +112,7 @@ describe('SignupPage', () => {
     expect(screen.getByRole('button', {name: 'Resend verification email'})).not.toHaveAttribute(
       'aria-disabled',
     );
+    expect(clearIntervalSpy).toHaveBeenCalled();
   });
 
   test('resends verification email and restarts cooldown from the server response', async () => {
