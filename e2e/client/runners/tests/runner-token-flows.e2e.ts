@@ -3,7 +3,10 @@ import {expect, test} from './test.js';
 
 const RUNNER_TOKEN_PREFIX_RE = /^sf_rt_/u;
 const VISUAL_TEST_NOW = new Date('2026-01-15T12:00:00Z');
+const VISUAL_TEST_RUNNER_TOKEN_PREFIX = 'sf_rt_visual';
 const VISUAL_TEST_RUNNER_TOKEN = 'sf_rt_visual_regression_token';
+const VISUAL_TEST_CREATED_AT = 'Jan 15, 2026, 12:00 PM';
+const VISUAL_TEST_EXPIRES_AT = 'Jan 16, 2026, 12:00 PM';
 
 test('manages workspace runner tokens from settings', async ({page, auth, workspaces}) => {
   await page.clock.setFixedTime(VISUAL_TEST_NOW);
@@ -40,6 +43,19 @@ test('manages workspace runner tokens from settings', async ({page, auth, worksp
     element.textContent = token;
   }, VISUAL_TEST_RUNNER_TOKEN);
   await expect(createTokenDialog.getByText(VISUAL_TEST_RUNNER_TOKEN)).toBeVisible();
+
+  const runnerTokenRow = page.locator('tr', {hasText: 'E2E runner'});
+  await expect(runnerTokenRow).toBeVisible();
+  const runnerTokenCells = runnerTokenRow.locator('td');
+  await runnerTokenCells.nth(1).evaluate((element: Element, prefix) => {
+    element.textContent = prefix;
+  }, VISUAL_TEST_RUNNER_TOKEN_PREFIX);
+  await runnerTokenCells.nth(2).evaluate((element: Element, expiresAt) => {
+    element.textContent = expiresAt;
+  }, VISUAL_TEST_EXPIRES_AT);
+  await runnerTokenCells.nth(3).evaluate((element: Element, createdAt) => {
+    element.textContent = createdAt;
+  }, VISUAL_TEST_CREATED_AT);
   await argosScreenshot(page, 'runners/settings-runners-create-token-success');
 
   await page.keyboard.press('Escape');
