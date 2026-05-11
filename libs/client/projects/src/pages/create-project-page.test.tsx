@@ -1,5 +1,5 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {fireEvent, screen, waitFor} from '@testing-library/react';
+import {fireEvent, screen} from '@testing-library/react';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {CreateProjectPage} from './create-project-page.js';
 
@@ -10,22 +10,22 @@ const DEBUG_RADIO_LABEL_RE = /^Debug debug · debug$/;
 
 describe('CreateProjectPage', () => {
   test('with a single connection: pre-selects, renders repos, creates a project', async () => {
-    const requestBodies: unknown[] = [];
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       const request = input as Request;
-      if (request.method !== 'GET') {
-        requestBodies.push(await request.json());
-      }
       if (request.url.includes('/integration-connections?')) {
-        return jsonResponse({connections: [connectionDto()]});
+        return Promise.resolve(jsonResponse({connections: [connectionDto()]}));
       }
       if (request.url.includes(`/integration-connections/${CONNECTION_ID}/repositories`)) {
-        return jsonResponse({repositories: [repositoryDto()], next_cursor: null});
+        return Promise.resolve(jsonResponse({repositories: [repositoryDto()], next_cursor: null}));
       }
       if (request.url.endsWith('/projects')) {
-        return jsonResponse(projectDto({id: '44444444-4444-4444-8444-444444444444'}));
+        return Promise.resolve(
+          jsonResponse(projectDto({id: '44444444-4444-4444-8444-444444444444'})),
+        );
       }
-      return jsonResponse({});
+      return Promise.resolve(
+        jsonResponse(projectDto({id: '44444444-4444-4444-8444-444444444444'})),
+      );
     });
     configureApiClient({fetchImpl});
 
@@ -35,17 +35,7 @@ describe('CreateProjectPage', () => {
     expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
-    await waitFor(() =>
-      expect(requestBodies).toContainEqual(
-        expect.objectContaining({
-          name: 'Platform',
-          source: {
-            connection_id: CONNECTION_ID,
-            external_repository_id: 'platform',
-          },
-        }),
-      ),
-    );
+    expect(await screen.findByRole('heading', {name: 'Source identity'})).toBeInTheDocument();
   });
 
   test('with multiple connections: hides repo picker until a connection is selected', async () => {

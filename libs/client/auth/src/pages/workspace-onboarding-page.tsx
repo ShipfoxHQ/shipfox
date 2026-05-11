@@ -1,4 +1,3 @@
-import {createWorkspaceBodySchema} from '@shipfox/api-workspaces-dto';
 import {
   Alert,
   Button,
@@ -18,7 +17,8 @@ import {useSetAtom} from 'jotai';
 import {type FormEvent, useState} from 'react';
 import {useCreateWorkspaceAuth} from '#hooks/api/workspace-auth.js';
 import {lastWorkspaceIdAtom} from '#state/last-workspace.js';
-import {authErrorMessage, type FieldErrors, fieldErrorsFromZod} from './form-utils.js';
+import {authErrorMessage, type FieldErrors} from './form-utils.js';
+import {parseWorkspaceOnboardingForm} from './workspace-onboarding-form.js';
 
 type WorkspaceField = 'name';
 
@@ -50,15 +50,15 @@ export function WorkspaceOnboardingPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(undefined);
-    const parsed = createWorkspaceBodySchema.safeParse({name: name.trim()});
-    if (!parsed.success) {
-      setFieldErrors(fieldErrorsFromZod<WorkspaceField>(parsed.error));
+    const parsed = parseWorkspaceOnboardingForm({name});
+    if (!parsed.ok) {
+      setFieldErrors(parsed.fieldErrors);
       return;
     }
 
     setFieldErrors({});
     try {
-      const created = await createWorkspace.mutateAsync(parsed.data);
+      const created = await createWorkspace.mutateAsync(parsed.body);
       toast.success('Workspace created.');
       // Pin the new workspace as the last-active one so a page refresh and
       // future visits to `/` land on it. Going through `/` directly would

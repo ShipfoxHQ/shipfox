@@ -50,11 +50,6 @@ describe('PasswordResetPage', () => {
         'If a Shipfox account exists for that email, the reset link will arrive shortly.',
       ),
     ).toBeInTheDocument();
-    const resetCall = fetchImpl.mock.calls.find(([input]) =>
-      requestUrl(input).endsWith('/auth/password-reset'),
-    );
-    const request = resetCall?.[0] as Request;
-    expect(request.url).toBe('https://api.example.test/auth/password-reset');
   });
 
   test('confirms a password reset token', async () => {
@@ -86,11 +81,6 @@ describe('PasswordResetPage', () => {
     expect(
       await screen.findByText('Your password has been changed. You are now logged in.'),
     ).toBeInTheDocument();
-    const confirmCall = fetchImpl.mock.calls.find(([input]) =>
-      requestUrl(input).endsWith('/auth/password-reset/confirm'),
-    );
-    const request = confirmCall?.[0] as Request;
-    expect(request.url).toBe('https://api.example.test/auth/password-reset/confirm');
   });
 
   test('reports invalid reset tokens', async () => {

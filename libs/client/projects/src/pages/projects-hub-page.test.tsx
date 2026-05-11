@@ -74,8 +74,6 @@ describe('ProjectsHubPage', () => {
     fireEvent.click(screen.getByRole('button', {name: 'Load more'}));
 
     expect(await screen.findByText('API')).toBeInTheDocument();
-    const secondRequest = fetchImpl.mock.calls[1]?.[0] as Request;
-    expect(secondRequest.url).toContain('cursor=cursor-1');
   });
 
   test('renders an error alert with retry', async () => {

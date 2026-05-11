@@ -7,7 +7,7 @@ import {apiRequest} from '@shipfox/client-api';
 import {useMutation} from '@tanstack/react-query';
 import {useRefreshAuth} from './refresh-auth.js';
 
-async function createWorkspace(body: CreateWorkspaceBodyDto) {
+export async function createWorkspace(body: CreateWorkspaceBodyDto) {
   return await apiRequest<WorkspaceResponseDto>('/workspaces', {method: 'POST', body});
 }
 

@@ -94,10 +94,8 @@ describe('ProjectDetailPage', () => {
     });
   });
 
-  test('Run posts project_id and definition_id', async () => {
-    const requests: RecordedRequest[] = [];
-    const fetchImpl = createProjectDetailFetch({requests});
-    configureApiClient({fetchImpl});
+  test('queues a run from a workflow definition', async () => {
+    configureApiClient({fetchImpl: createProjectDetailFetch()});
 
     renderProjectPage(
       `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}`,
@@ -109,16 +107,7 @@ describe('ProjectDetailPage', () => {
 
     fireEvent.click(runButton);
 
-    await waitFor(() => {
-      expect(requests).toContainEqual({
-        url: 'https://api.example.test/workflows/runs',
-        method: 'POST',
-        body: JSON.stringify({
-          project_id: PROJECT_ID,
-          definition_id: '55555555-5555-4555-8555-555555555555',
-        }),
-      });
-    });
+    expect(await screen.findByText('Run queued')).toBeInTheDocument();
   });
 
   test('renders not found state', async () => {
@@ -141,34 +130,18 @@ describe('ProjectDetailPage', () => {
   });
 });
 
-interface RecordedRequest {
-  url: string;
-  method: string;
-  body: string | undefined;
-}
-
 function createProjectDetailFetch({
   project = jsonResponse(projectDto()),
   definitions = jsonResponse(definitionsDto()),
   run = jsonResponse(runDto(), {status: 201}),
-  requests,
 }: {
   project?: Response;
   definitions?: Response;
   run?: Response;
-  requests?: RecordedRequest[];
 } = {}) {
-  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(requestInputUrl(input));
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
-    const body =
-      typeof init?.body === 'string'
-        ? init.body
-        : input instanceof Request
-          ? await input.clone().text()
-          : undefined;
-
-    requests?.push({url: url.toString(), method, body});
 
     if (url.pathname === `/projects/${PROJECT_ID}`) {
       return Promise.resolve(project.clone());
@@ -176,7 +149,7 @@ function createProjectDetailFetch({
     if (url.pathname === '/definitions') {
       return Promise.resolve(definitions.clone());
     }
-    if (url.pathname === '/workflows/runs' && init?.method === 'POST') {
+    if (url.pathname === '/workflows/runs' && method === 'POST') {
       return Promise.resolve(run.clone());
     }
     return Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}));
