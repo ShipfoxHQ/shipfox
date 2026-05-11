@@ -1,34 +1,31 @@
-import {AUTH_API_KEY, getApiKeyContext} from '@shipfox/api-auth-context';
 import {revokeRunnerTokenResponseSchema} from '@shipfox/api-runners-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {revokeRunnerToken} from '#db/runner-tokens.js';
+import {RunnerTokenNotFoundError, revokeWorkspaceRunnerToken} from '#core/index.js';
 import {toRunnerTokenDto} from '#presentation/dto/index.js';
+import {requireRunnerTokenWorkspaceMembership} from './workspace-membership.js';
 
 export const revokeRunnerTokenRoute = defineRoute({
   method: 'POST',
   path: '/:tokenId/revoke',
   description: 'Stop a runner token from being used to connect to your account',
-  auth: AUTH_API_KEY,
   schema: {
-    params: z.object({tokenId: z.string().uuid()}),
+    params: z.object({workspaceId: z.string().uuid(), tokenId: z.string().uuid()}),
     response: {
       200: revokeRunnerTokenResponseSchema,
     },
   },
-  handler: async (request) => {
-    const apiKeyContext = getApiKeyContext(request);
-    if (!apiKeyContext) {
-      throw new ClientError('API key context is missing', 'unauthorized', {status: 401});
-    }
-
-    const revoked = await revokeRunnerToken({
-      tokenId: request.params.tokenId,
-      workspaceId: apiKeyContext.workspaceId,
-    });
-    if (!revoked) {
+  errorHandler: (error) => {
+    if (error instanceof RunnerTokenNotFoundError) {
       throw new ClientError('Runner token not found', 'not-found', {status: 404});
     }
+    throw error;
+  },
+  handler: async (request) => {
+    const {workspaceId, tokenId} = request.params;
+    await requireRunnerTokenWorkspaceMembership({request, workspaceId});
+
+    const revoked = await revokeWorkspaceRunnerToken({tokenId, workspaceId});
 
     return toRunnerTokenDto(revoked);
   },

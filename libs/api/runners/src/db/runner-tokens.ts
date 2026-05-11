@@ -1,4 +1,4 @@
-import {and, eq} from 'drizzle-orm';
+import {and, desc, eq, gt, isNull, or} from 'drizzle-orm';
 import type {RunnerToken} from '#core/entities/runner-token.js';
 import {db} from './db.js';
 import {runnerTokens, toRunnerToken} from './schema/runner-tokens.js';
@@ -40,6 +40,25 @@ export async function resolveRunnerTokenByHash(
   const row = rows[0];
   if (!row) return undefined;
   return toRunnerToken(row);
+}
+
+export async function listUsableRunnerTokensByWorkspaceId(
+  workspaceId: string,
+): Promise<RunnerToken[]> {
+  const now = new Date();
+  const rows = await db()
+    .select()
+    .from(runnerTokens)
+    .where(
+      and(
+        eq(runnerTokens.workspaceId, workspaceId),
+        isNull(runnerTokens.revokedAt),
+        or(isNull(runnerTokens.expiresAt), gt(runnerTokens.expiresAt, now)),
+      ),
+    )
+    .orderBy(desc(runnerTokens.createdAt), desc(runnerTokens.id));
+
+  return rows.map(toRunnerToken);
 }
 
 export async function revokeRunnerToken(params: {

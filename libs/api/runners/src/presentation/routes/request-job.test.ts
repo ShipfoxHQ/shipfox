@@ -1,4 +1,4 @@
-import {AUTH_API_KEY} from '@shipfox/api-auth-context';
+import {AUTH_API_KEY, AUTH_USER} from '@shipfox/api-auth-context';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {sql} from 'drizzle-orm';
@@ -14,6 +14,11 @@ const fakeApiKeyAuth: AuthMethod = {
   authenticate: () => Promise.resolve(),
 };
 
+const fakeUserAuth: AuthMethod = {
+  name: AUTH_USER,
+  authenticate: () => Promise.resolve(),
+};
+
 describe('POST /runners/jobs/request', () => {
   let app: FastifyInstance;
   let rawToken: string;
@@ -21,7 +26,7 @@ describe('POST /runners/jobs/request', () => {
 
   beforeAll(async () => {
     app = await createApp({
-      auth: [fakeApiKeyAuth, createRunnerTokenAuthMethod()],
+      auth: [fakeApiKeyAuth, fakeUserAuth, createRunnerTokenAuthMethod()],
       routes: runnerRoutes,
       swagger: false,
     });

@@ -1,39 +1,32 @@
-import {AUTH_API_KEY, getApiKeyContext} from '@shipfox/api-auth-context';
 import {
   createRunnerTokenBodySchema,
   createRunnerTokenResponseSchema,
 } from '@shipfox/api-runners-dto';
-import {ClientError, defineRoute} from '@shipfox/node-fastify';
-import {extractDisplayPrefix, generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
-import {createRunnerToken} from '#db/runner-tokens.js';
+import {defineRoute} from '@shipfox/node-fastify';
+import {z} from 'zod';
+import {createWorkspaceRunnerToken} from '#core/index.js';
+import {requireRunnerTokenWorkspaceMembership} from './workspace-membership.js';
 
 export const createRunnerTokenRoute = defineRoute({
   method: 'POST',
   path: '/',
   description: 'Create a token that lets a runner connect to your account',
-  auth: AUTH_API_KEY,
   schema: {
+    params: z.object({workspaceId: z.string().uuid()}),
     body: createRunnerTokenBodySchema,
     response: {
       201: createRunnerTokenResponseSchema,
     },
   },
   handler: async (request, reply) => {
-    const apiKeyContext = getApiKeyContext(request);
-    if (!apiKeyContext) {
-      throw new ClientError('API key context is missing', 'unauthorized', {status: 401});
-    }
-
+    const {workspaceId} = request.params;
+    await requireRunnerTokenWorkspaceMembership({request, workspaceId});
     const {name, ttl_seconds} = request.body;
-    const rawToken = generateOpaqueToken('runnerToken');
-    const expiresAt = ttl_seconds ? new Date(Date.now() + ttl_seconds * 1000) : undefined;
 
-    const token = await createRunnerToken({
-      workspaceId: apiKeyContext.workspaceId,
-      hashedToken: hashOpaqueToken(rawToken),
-      prefix: extractDisplayPrefix(rawToken),
+    const {token, rawToken} = await createWorkspaceRunnerToken({
+      workspaceId,
       name,
-      expiresAt,
+      ttlSeconds: ttl_seconds,
     });
 
     reply.code(201);

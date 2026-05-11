@@ -20,7 +20,9 @@ import { Route as WorkspacesWidLayoutRouteImport } from './routes/workspaces/$wi
 import { Route as IntegrationsGithubCallbackRouteImport } from './routes/integrations/github/callback'
 import { Route as WorkspacesWidLayoutIndexRouteImport } from './routes/workspaces/$wid/_layout/index'
 import { Route as SetupLayoutWorkspacesNewRouteImport } from './routes/setup/_layout/workspaces/new'
+import { Route as WorkspacesWidLayoutSettingsIndexRouteImport } from './routes/workspaces/$wid/_layout/settings/index'
 import { Route as WorkspacesWidLayoutIntegrationsIndexRouteImport } from './routes/workspaces/$wid/_layout/integrations/index'
+import { Route as WorkspacesWidLayoutSettingsRunnersRouteImport } from './routes/workspaces/$wid/_layout/settings/runners'
 import { Route as WorkspacesWidLayoutProjectsNewRouteImport } from './routes/workspaces/$wid/_layout/projects/new'
 import { Route as WorkspacesWidLayoutProjectsPidRouteImport } from './routes/workspaces/$wid/_layout/projects/$pid'
 import { Route as WorkspacesWidLayoutIntegrationsGithubRouteImport } from './routes/workspaces/$wid/_layout/integrations/github'
@@ -84,10 +86,22 @@ const SetupLayoutWorkspacesNewRoute =
     path: '/workspaces/new',
     getParentRoute: () => SetupLayoutRoute,
   } as any)
+const WorkspacesWidLayoutSettingsIndexRoute =
+  WorkspacesWidLayoutSettingsIndexRouteImport.update({
+    id: '/settings/',
+    path: '/settings/',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
 const WorkspacesWidLayoutIntegrationsIndexRoute =
   WorkspacesWidLayoutIntegrationsIndexRouteImport.update({
     id: '/integrations/',
     path: '/integrations/',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
+const WorkspacesWidLayoutSettingsRunnersRoute =
+  WorkspacesWidLayoutSettingsRunnersRouteImport.update({
+    id: '/settings/runners',
+    path: '/settings/runners',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
 const WorkspacesWidLayoutProjectsNewRoute =
@@ -131,7 +145,9 @@ export interface FileRoutesByFullPath {
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
+  '/workspaces/$wid/settings/': typeof WorkspacesWidLayoutSettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -148,7 +164,9 @@ export interface FileRoutesByTo {
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/integrations': typeof WorkspacesWidLayoutIntegrationsIndexRoute
+  '/workspaces/$wid/settings': typeof WorkspacesWidLayoutSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -167,7 +185,9 @@ export interface FileRoutesById {
   '/workspaces/$wid/_layout/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/_layout/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
   '/workspaces/$wid/_layout/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/_layout/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/_layout/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
+  '/workspaces/$wid/_layout/settings/': typeof WorkspacesWidLayoutSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -187,7 +207,9 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/projects/$pid'
     | '/workspaces/$wid/projects/new'
+    | '/workspaces/$wid/settings/runners'
     | '/workspaces/$wid/integrations/'
+    | '/workspaces/$wid/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -204,7 +226,9 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/projects/$pid'
     | '/workspaces/$wid/projects/new'
+    | '/workspaces/$wid/settings/runners'
     | '/workspaces/$wid/integrations'
+    | '/workspaces/$wid/settings'
   id:
     | '__root__'
     | '/'
@@ -222,7 +246,9 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/_layout/integrations/github'
     | '/workspaces/$wid/_layout/projects/$pid'
     | '/workspaces/$wid/_layout/projects/new'
+    | '/workspaces/$wid/_layout/settings/runners'
     | '/workspaces/$wid/_layout/integrations/'
+    | '/workspaces/$wid/_layout/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -316,11 +342,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupLayoutWorkspacesNewRouteImport
       parentRoute: typeof SetupLayoutRoute
     }
+    '/workspaces/$wid/_layout/settings/': {
+      id: '/workspaces/$wid/_layout/settings/'
+      path: '/settings'
+      fullPath: '/workspaces/$wid/settings/'
+      preLoaderRoute: typeof WorkspacesWidLayoutSettingsIndexRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
     '/workspaces/$wid/_layout/integrations/': {
       id: '/workspaces/$wid/_layout/integrations/'
       path: '/integrations'
       fullPath: '/workspaces/$wid/integrations/'
       preLoaderRoute: typeof WorkspacesWidLayoutIntegrationsIndexRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
+    '/workspaces/$wid/_layout/settings/runners': {
+      id: '/workspaces/$wid/_layout/settings/runners'
+      path: '/settings/runners'
+      fullPath: '/workspaces/$wid/settings/runners'
+      preLoaderRoute: typeof WorkspacesWidLayoutSettingsRunnersRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
     '/workspaces/$wid/_layout/projects/new': {
@@ -372,7 +412,9 @@ interface WorkspacesWidLayoutRouteChildren {
   WorkspacesWidLayoutIntegrationsGithubRoute: typeof WorkspacesWidLayoutIntegrationsGithubRoute
   WorkspacesWidLayoutProjectsPidRoute: typeof WorkspacesWidLayoutProjectsPidRoute
   WorkspacesWidLayoutProjectsNewRoute: typeof WorkspacesWidLayoutProjectsNewRoute
+  WorkspacesWidLayoutSettingsRunnersRoute: typeof WorkspacesWidLayoutSettingsRunnersRoute
   WorkspacesWidLayoutIntegrationsIndexRoute: typeof WorkspacesWidLayoutIntegrationsIndexRoute
+  WorkspacesWidLayoutSettingsIndexRoute: typeof WorkspacesWidLayoutSettingsIndexRoute
 }
 
 const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
@@ -383,8 +425,11 @@ const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
     WorkspacesWidLayoutIntegrationsGithubRoute,
   WorkspacesWidLayoutProjectsPidRoute: WorkspacesWidLayoutProjectsPidRoute,
   WorkspacesWidLayoutProjectsNewRoute: WorkspacesWidLayoutProjectsNewRoute,
+  WorkspacesWidLayoutSettingsRunnersRoute:
+    WorkspacesWidLayoutSettingsRunnersRoute,
   WorkspacesWidLayoutIntegrationsIndexRoute:
     WorkspacesWidLayoutIntegrationsIndexRoute,
+  WorkspacesWidLayoutSettingsIndexRoute: WorkspacesWidLayoutSettingsIndexRoute,
 }
 
 const WorkspacesWidLayoutRouteWithChildren =

@@ -30,6 +30,7 @@
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/client-integrations": "workspace:*",
     "@shipfox/client-projects": "workspace:*",
+    "@shipfox/client-workspace-settings": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",
     "@tanstack/react-router": "^1.168.25",

@@ -5,7 +5,12 @@ export {closeDb, db, schema} from './db.js';
 export type {ClaimedJob, EnqueueJobParams, FinalizeRunningJobParams} from './jobs.js';
 export {claimJob, enqueueJob, finalizeRunningJob, findStuckJobs, recordHeartbeat} from './jobs.js';
 export type {CreateRunnerTokenParams} from './runner-tokens.js';
-export {createRunnerToken, resolveRunnerTokenByHash, revokeRunnerToken} from './runner-tokens.js';
+export {
+  createRunnerToken,
+  listUsableRunnerTokensByWorkspaceId,
+  resolveRunnerTokenByHash,
+  revokeRunnerToken,
+} from './runner-tokens.js';
 export {runnersOutbox} from './schema/outbox.js';
 
 export const migrationsPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../drizzle');

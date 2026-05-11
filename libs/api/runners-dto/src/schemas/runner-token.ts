@@ -32,6 +32,12 @@ export const runnerTokenDtoSchema = z.object({
 
 export type RunnerTokenDto = z.infer<typeof runnerTokenDtoSchema>;
 
+export const listRunnerTokensResponseSchema = z.object({
+  tokens: z.array(runnerTokenDtoSchema),
+});
+
+export type ListRunnerTokensResponseDto = z.infer<typeof listRunnerTokensResponseSchema>;
+
 export const revokeRunnerTokenResponseSchema = runnerTokenDtoSchema;
 
 export type RevokeRunnerTokenResponseDto = z.infer<typeof revokeRunnerTokenResponseSchema>;
