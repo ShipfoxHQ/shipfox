@@ -2,6 +2,10 @@ import {createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
 import {authE2eRoutes} from './index.js';
 
+vi.mock('@shipfox/api-workspaces', () => ({
+  listMembershipsByUser: vi.fn(() => Promise.resolve([])),
+}));
+
 describe('auth E2E routes', () => {
   let app: FastifyInstance;
 
