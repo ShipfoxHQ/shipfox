@@ -66,6 +66,25 @@ describe('auth form model', () => {
     });
   });
 
+  test('preserves signup invitation tokens', () => {
+    const result = parseSignupForm({
+      email: 'new@example.com',
+      password: 'long secure password',
+      name: 'New User',
+      invitationToken: 'inv-token',
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      body: {
+        email: 'new@example.com',
+        password: 'long secure password',
+        name: 'New User',
+        invitation_token: 'inv-token',
+      },
+    });
+  });
+
   test('normalizes password reset request emails', () => {
     const result = parsePasswordResetRequestForm({email: 'Reset@Example.com'});
 

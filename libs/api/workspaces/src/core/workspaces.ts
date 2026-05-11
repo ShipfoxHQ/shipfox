@@ -16,6 +16,7 @@ import type {Workspace} from './entities/workspace.js';
 import {
   MembershipNotFoundError,
   MembershipRequiredError,
+  SelfRemovalNotAllowedError,
   WorkspaceInactiveError,
   WorkspaceNotFoundError,
 } from './errors.js';
@@ -111,6 +112,10 @@ export async function removeWorkspaceMember(params: {
     userId: params.requesterUserId,
     memberships: params.requesterMemberships,
   });
+
+  if (params.userId === params.requesterUserId) {
+    throw new SelfRemovalNotAllowedError();
+  }
 
   const target = await findMembership({userId: params.userId, workspaceId: params.workspaceId});
   if (!target) {

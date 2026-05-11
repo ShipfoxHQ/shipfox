@@ -1,5 +1,13 @@
 import {EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS} from '@shipfox/api-auth-dto';
-import {listMembershipsByUser} from '@shipfox/api-workspaces';
+import {
+  acceptWorkspaceInvitation,
+  findInvitationByToken,
+  InvitationEmailMismatchError,
+  listMembershipsByUser,
+  TokenAlreadyUsedError,
+  TokenExpiredError,
+  TokenInvalidError as WorkspacesTokenInvalidError,
+} from '@shipfox/api-workspaces';
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {config, mailer} from '#config.js';
 import {
@@ -60,6 +68,7 @@ async function signAccessToken(user: User): Promise<string> {
   return await signUserToken({
     userId: user.id,
     email: user.email,
+    name: user.name,
     memberships: memberships.map((m) => ({workspaceId: m.workspaceId, role: 'admin' as const})),
     secret: config.AUTH_JWT_SECRET,
     expiresIn: config.AUTH_JWT_EXPIRES_IN,
@@ -119,6 +128,100 @@ export async function signup(params: SignupParams): Promise<User> {
   await createAndSendEmailVerification(user);
 
   return user;
+}
+
+export interface SignupWithInvitationParams extends SignupParams {
+  invitationToken: string;
+}
+
+export interface SignupWithInvitationResult extends LoginResult {
+  membership: {id: string; userId: string; workspaceId: string} | null;
+  acceptError?: {code: string; message: string};
+}
+
+export async function signupWithInvitation(
+  params: SignupWithInvitationParams,
+): Promise<SignupWithInvitationResult> {
+  // Step 1: Pre-validate the invitation BEFORE any user write so an invalid
+  // token never produces an orphan user. Re-validation happens again inside
+  // acceptWorkspaceInvitation (race-safe) after the user is created.
+  const invitation = await findInvitationByToken({
+    hashedToken: hashOpaqueToken(params.invitationToken),
+  });
+  if (!invitation) {
+    throw new WorkspacesTokenInvalidError('Invitation token is invalid');
+  }
+  if (invitation.acceptedAt !== null) {
+    throw new TokenAlreadyUsedError();
+  }
+  if (invitation.expiresAt.getTime() <= Date.now()) {
+    throw new TokenExpiredError();
+  }
+  if (invitation.email !== params.email) {
+    throw new InvitationEmailMismatchError();
+  }
+
+  // Step 2: Create the user, verified (invitation email is proof of ownership).
+  const existing = await findUserByEmail({email: params.email});
+  if (existing) {
+    throw new EmailTakenError(params.email);
+  }
+  const hashedPassword = await hashPassword({password: params.password});
+  const created = await createDbUser({
+    email: params.email,
+    hashedPassword,
+    name: params.name ?? null,
+  });
+  const user = await markEmailVerified({userId: created.id});
+  if (!user) {
+    throw new UserNotFoundError(created.id);
+  }
+
+  // Step 3: Accept the invitation. Failures here do NOT roll back the user —
+  // the user is verified and can retry via the canonical AUTH_USER accept
+  // route (plan §2 / D7 keep-and-retry).
+  let membership: SignupWithInvitationResult['membership'] = null;
+  let acceptError: SignupWithInvitationResult['acceptError'];
+  try {
+    const result = await acceptWorkspaceInvitation({
+      token: params.invitationToken,
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+    });
+    membership = {
+      id: result.membership.id,
+      userId: result.membership.userId,
+      workspaceId: result.membership.workspaceId,
+    };
+  } catch (error) {
+    if (
+      error instanceof WorkspacesTokenInvalidError ||
+      error instanceof TokenAlreadyUsedError ||
+      error instanceof TokenExpiredError ||
+      error instanceof InvitationEmailMismatchError
+    ) {
+      acceptError = {code: error.name, message: error.message};
+    } else {
+      // Unknown error — leave the user logged in so they can retry; surface
+      // a generic code instead of bubbling, since the user creation already
+      // succeeded and rolling it back would be worse UX.
+      acceptError = {
+        code: 'AcceptFailed',
+        message: 'Could not accept the invitation; please retry from the invite link.',
+      };
+    }
+  }
+
+  // Step 4: Issue session. signAccessToken re-reads listMembershipsByUser so
+  // the new membership (if accept succeeded) is already in the JWT (Codex F2).
+  const token = await signAccessToken(user);
+  const refreshToken = await createRefreshSession(user);
+
+  if (acceptError) {
+    return {token, refreshToken, user, membership, acceptError};
+  }
+  return {token, refreshToken, user, membership};
 }
 
 export interface CreateUserParams extends SignupParams {

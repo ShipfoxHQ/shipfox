@@ -1,0 +1,33 @@
+import {toast} from '@shipfox/react-ui';
+import type {NavigateOptions} from '@tanstack/react-router';
+
+/**
+ * Final step of every successful invitation accept path (existing-user match,
+ * signup-with-invitation success, login-then-accept). Refreshes the auth
+ * session so the JWT carries the new membership before navigating, then
+ * routes the user into the workspace home.
+ *
+ * `refreshAuth` is passed in so this helper stays a plain function (no hook).
+ * Call sites construct it via `useRefreshAuth()` from `@shipfox/client-auth`.
+ */
+export async function completeInvitationAcceptance(params: {
+  workspaceId: string;
+  workspaceName: string;
+  refreshAuth: () => Promise<unknown>;
+  navigate: (opts: NavigateOptions) => Promise<void> | void;
+}): Promise<void> {
+  // Codex F2: signAccessToken embeds memberships at issue time. Refresh first
+  // so the next render's AuthGuard sees the new workspace.
+  try {
+    await params.refreshAuth();
+  } catch {
+    // Even if refresh fails the membership is real in the DB; surface the
+    // success toast and let the user re-auth if their session has fully
+    // expired. The next API call will redirect to login as usual.
+  }
+  toast.success(`You joined ${params.workspaceName}.`);
+  await params.navigate({
+    to: '/workspaces/$wid',
+    params: {wid: params.workspaceId},
+  });
+}

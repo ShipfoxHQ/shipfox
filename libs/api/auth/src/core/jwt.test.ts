@@ -19,6 +19,7 @@ describe('jwt', () => {
     const token = await signUserToken({
       userId,
       email,
+      name: 'Token User',
       memberships,
       secret: SECRET,
       expiresIn: '7d',
@@ -27,6 +28,7 @@ describe('jwt', () => {
 
     expect(claims.sub).toBe(userId);
     expect(claims.email).toBe(email);
+    expect(claims.name).toBe('Token User');
     expect(claims.memberships).toEqual(memberships);
     expect(claims.iat).toBeTypeOf('number');
     expect(claims.exp).toBeGreaterThan(claims.iat);
@@ -46,6 +48,23 @@ describe('jwt', () => {
     const claims = await verifyUserToken({token, secret: SECRET});
 
     expect(claims.memberships).toEqual([]);
+  });
+
+  test('verifies legacy tokens without a name claim', async () => {
+    const userId = crypto.randomUUID();
+    const email = `jwt-${crypto.randomUUID()}@example.com`;
+    const token = await new SignJWT({email, memberships: []})
+      .setProtectedHeader({alg: 'HS256'})
+      .setSubject(userId)
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(encodeSecret(SECRET));
+
+    const claims = await verifyUserToken({token, secret: SECRET});
+
+    expect(claims.sub).toBe(userId);
+    expect(claims.email).toBe(email);
+    expect(claims.name).toBeUndefined();
   });
 
   test('rejects expired token', async () => {

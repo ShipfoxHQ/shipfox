@@ -9,8 +9,12 @@ export {
   revokeApiKeyResponseSchema,
 } from './api-key.js';
 export {
+  type E2eCreateInvitationBodyDto,
+  type E2eCreateInvitationResponseDto,
   type E2eCreateWorkspaceBodyDto,
   type E2eCreateWorkspaceResponseDto,
+  e2eCreateInvitationBodySchema,
+  e2eCreateInvitationResponseSchema,
   e2eCreateWorkspaceBodySchema,
   e2eCreateWorkspaceResponseSchema,
 } from './e2e.js';
@@ -25,6 +29,11 @@ export {
   invitationDtoSchema,
   type ListInvitationsResponseDto,
   listInvitationsResponseSchema,
+  type PreviewInvitationPendingDto,
+  type PreviewInvitationQueryDto,
+  type PreviewInvitationResponseDto,
+  previewInvitationQuerySchema,
+  previewInvitationResponseSchema,
 } from './invitation.js';
 export {
   type ListMembersResponseDto,

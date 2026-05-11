@@ -102,6 +102,29 @@ test('persists the active workspace across reload and via /', async ({page, auth
   expect(page.url()).not.toMatch(workspaceUrlRe(wsA.id));
 });
 
+test('routes workspace settings to members by default', async ({page, auth, workspaces}) => {
+  const user = await auth.createUser();
+  const workspace = await workspaces.create({userId: user.user.id, name: 'Settings Workspace'});
+  await auth.loginAs(page, user);
+
+  await page.goto(`/workspaces/${workspace.id}/settings`);
+
+  await expect(page).toHaveURL(new RegExp(`/workspaces/${workspace.id}/settings/members/?$`, 'u'));
+  await expect(page.getByRole('heading', {name: 'Members'})).toBeVisible();
+});
+
+test('settings tab opens members settings', async ({page, auth, workspaces}) => {
+  const user = await auth.createUser();
+  const workspace = await workspaces.create({userId: user.user.id, name: 'Settings Tab Workspace'});
+  await auth.loginAs(page, user);
+
+  await page.goto(`/workspaces/${workspace.id}`);
+  await page.getByRole('tab', {name: 'Settings'}).click();
+
+  await expect(page).toHaveURL(new RegExp(`/workspaces/${workspace.id}/settings/members/?$`, 'u'));
+  await expect(page.getByRole('heading', {name: 'Members'})).toBeVisible();
+});
+
 test('creates a second workspace from the switcher mid-session', async ({
   page,
   auth,

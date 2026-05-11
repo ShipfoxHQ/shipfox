@@ -7,6 +7,7 @@ CREATE TABLE "workspaces_invitations" (
 	"accepted_at" timestamp with time zone,
 	"accepted_by_user_id" uuid,
 	"invited_by_user_id" uuid NOT NULL,
+	"invited_by_display" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );

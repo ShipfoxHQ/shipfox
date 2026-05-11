@@ -1,0 +1,55 @@
+import {toast} from '@shipfox/react-ui';
+import {beforeEach, describe, expect, it, vi} from '@shipfox/vitest/vi';
+
+import {completeInvitationAcceptance} from './complete-acceptance.js';
+
+describe('completeInvitationAcceptance', () => {
+  beforeEach(() => {
+    vi.spyOn(toast, 'success').mockImplementation(() => 'toast-id');
+  });
+
+  it('refreshes auth before navigating to the joined workspace', async () => {
+    const calls: string[] = [];
+    const refreshAuth = vi.fn(() => {
+      calls.push('refreshAuth');
+      return Promise.resolve();
+    });
+    const navigate = vi.fn(() => {
+      calls.push('navigate');
+      return Promise.resolve();
+    });
+
+    await completeInvitationAcceptance({
+      navigate,
+      refreshAuth,
+      workspaceId: 'workspace-1',
+      workspaceName: 'Acme',
+    });
+
+    expect(refreshAuth).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalledWith('You joined Acme.');
+    expect(navigate).toHaveBeenCalledWith({
+      params: {wid: 'workspace-1'},
+      to: '/workspaces/$wid',
+    });
+    expect(calls).toEqual(['refreshAuth', 'navigate']);
+  });
+
+  it('still navigates when auth refresh fails', async () => {
+    const refreshAuth = vi.fn(() => Promise.reject(new Error('refresh failed')));
+    const navigate = vi.fn();
+
+    await completeInvitationAcceptance({
+      navigate,
+      refreshAuth,
+      workspaceId: 'workspace-1',
+      workspaceName: 'Acme',
+    });
+
+    expect(toast.success).toHaveBeenCalledWith('You joined Acme.');
+    expect(navigate).toHaveBeenCalledWith({
+      params: {wid: 'workspace-1'},
+      to: '/workspaces/$wid',
+    });
+  });
+});

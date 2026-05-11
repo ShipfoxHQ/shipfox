@@ -62,7 +62,7 @@ const fakeUserAuth: AuthMethod = {
       return;
     }
 
-    const [userId, email] = raw?.startsWith('user:') ? raw.slice(5).split(':') : [];
+    const [userId, email, encodedName] = raw?.startsWith('user:') ? raw.slice(5).split(':') : [];
     if (!userId || !email) throw new Error('Invalid test user token');
     const memberships = await listMembershipsByUser({userId});
     setUserContext(
@@ -70,6 +70,7 @@ const fakeUserAuth: AuthMethod = {
       buildUserContext({
         userId,
         email,
+        name: encodedName ? decodeURIComponent(encodedName) : null,
         memberships: memberships.map((m) => ({workspaceId: m.workspaceId, role: 'admin' as const})),
       }),
     );

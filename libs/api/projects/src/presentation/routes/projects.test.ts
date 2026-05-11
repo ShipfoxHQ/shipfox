@@ -31,6 +31,7 @@ const fakeUserAuth: AuthMethod = {
     setUserContext(request, {
       userId: 'user-1',
       email: 'user@example.com',
+      name: 'User One',
       memberships: [],
       canAccess: () => true,
       hasRole: () => true,

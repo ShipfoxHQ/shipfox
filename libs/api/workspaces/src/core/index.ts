@@ -16,6 +16,7 @@ export {
   MembershipNotFoundError,
   MembershipRequiredError,
   OpenInvitationExistsError,
+  SelfRemovalNotAllowedError,
   TokenAlreadyUsedError,
   TokenExpiredError,
   WorkspaceNotFoundError,
@@ -24,6 +25,8 @@ export {
   acceptWorkspaceInvitation,
   createWorkspaceInvitation,
   listWorkspaceInvitations,
+  type PreviewInvitationResult,
+  previewInvitation,
   revokeWorkspaceInvitation,
 } from './invitations.js';
 export {

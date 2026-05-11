@@ -432,6 +432,7 @@ describe('auth core', () => {
     const result = await login({email: user.email, password: user.plainPassword});
 
     const claims = await verifyUserToken({token: result.token, secret: 'auth-core-test-secret'});
+    expect(claims.name).toBe(user.name);
     expect(claims.memberships).toEqual([
       {workspaceId: workspaceA, role: 'admin'},
       {workspaceId: workspaceB, role: 'admin'},

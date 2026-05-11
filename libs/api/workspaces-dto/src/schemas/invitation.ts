@@ -9,6 +9,7 @@ export const invitationDtoSchema = z.object({
   expires_at: z.string(),
   accepted_at: z.string().nullable(),
   invited_by_user_id: z.string().uuid(),
+  invited_by_display: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -43,3 +44,43 @@ export const acceptInvitationResponseSchema = z.object({
 });
 
 export type AcceptInvitationResponseDto = z.infer<typeof acceptInvitationResponseSchema>;
+
+export const previewInvitationQuerySchema = z.object({
+  token: z.string().min(1),
+});
+
+export type PreviewInvitationQueryDto = z.infer<typeof previewInvitationQuerySchema>;
+
+const pendingPreviewSchema = z.object({
+  status: z.literal('pending'),
+  workspace_id: z.string().uuid(),
+  workspace_name: z.string(),
+  email: z.string(),
+  invited_by_display: z.string().nullable(),
+  expires_at: z.string(),
+});
+
+const expiredPreviewSchema = z.object({
+  status: z.literal('expired'),
+  workspace_name: z.string(),
+  expires_at: z.string(),
+});
+
+const alreadyUsedPreviewSchema = z.object({
+  status: z.literal('already_used'),
+  workspace_name: z.string(),
+});
+
+const invalidPreviewSchema = z.object({
+  status: z.literal('invalid'),
+});
+
+export const previewInvitationResponseSchema = z.discriminatedUnion('status', [
+  pendingPreviewSchema,
+  expiredPreviewSchema,
+  alreadyUsedPreviewSchema,
+  invalidPreviewSchema,
+]);
+
+export type PreviewInvitationResponseDto = z.infer<typeof previewInvitationResponseSchema>;
+export type PreviewInvitationPendingDto = z.infer<typeof pendingPreviewSchema>;

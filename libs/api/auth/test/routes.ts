@@ -27,6 +27,46 @@ const testConfig = vi.hoisted(
   },
 );
 
+const workspaceTestDoubles = vi.hoisted(() => {
+  class InvitationEmailMismatchError extends Error {
+    constructor(message = 'Invitation email does not match') {
+      super(message);
+      this.name = 'InvitationEmailMismatchError';
+    }
+  }
+
+  class TokenAlreadyUsedError extends Error {
+    constructor(message = 'Invitation token has already been used') {
+      super(message);
+      this.name = 'TokenAlreadyUsedError';
+    }
+  }
+
+  class TokenExpiredError extends Error {
+    constructor(message = 'Invitation token has expired') {
+      super(message);
+      this.name = 'TokenExpiredError';
+    }
+  }
+
+  class TokenInvalidError extends Error {
+    constructor(message = 'Invitation token is invalid') {
+      super(message);
+      this.name = 'TokenInvalidError';
+    }
+  }
+
+  return {
+    acceptWorkspaceInvitation: vi.fn(),
+    findInvitationByToken: vi.fn(),
+    listMembershipsByUser: vi.fn(() => Promise.resolve([])),
+    InvitationEmailMismatchError,
+    TokenAlreadyUsedError,
+    TokenExpiredError,
+    TokenInvalidError,
+  };
+});
+
 vi.mock('#config.js', () => ({
   config: {
     AUTH_JWT_SECRET: testConfig.secret,
@@ -39,18 +79,37 @@ vi.mock('#config.js', () => ({
 }));
 
 vi.mock('@shipfox/api-workspaces', () => ({
-  listMembershipsByUser: vi.fn(() => Promise.resolve([])),
+  acceptWorkspaceInvitation: workspaceTestDoubles.acceptWorkspaceInvitation,
+  findInvitationByToken: workspaceTestDoubles.findInvitationByToken,
+  InvitationEmailMismatchError: workspaceTestDoubles.InvitationEmailMismatchError,
+  listMembershipsByUser: workspaceTestDoubles.listMembershipsByUser,
+  TokenAlreadyUsedError: workspaceTestDoubles.TokenAlreadyUsedError,
+  TokenExpiredError: workspaceTestDoubles.TokenExpiredError,
+  TokenInvalidError: workspaceTestDoubles.TokenInvalidError,
 }));
 
-const {listMembershipsByUser} = await import('@shipfox/api-workspaces');
+const {acceptWorkspaceInvitation, findInvitationByToken, listMembershipsByUser} = await import(
+  '@shipfox/api-workspaces'
+);
 
 const TOKEN_RE = /token=([\w\-_=]+)/;
 
 export const ROUTE_TEST_SECRET = testConfig.secret;
+export const acceptWorkspaceInvitationMock = vi.mocked(acceptWorkspaceInvitation);
+export const findInvitationByTokenMock = vi.mocked(findInvitationByToken);
 export const listMembershipsByUserMock = vi.mocked(listMembershipsByUser);
+export const workspaceErrors = {
+  InvitationEmailMismatchError: workspaceTestDoubles.InvitationEmailMismatchError,
+  TokenAlreadyUsedError: workspaceTestDoubles.TokenAlreadyUsedError,
+  TokenExpiredError: workspaceTestDoubles.TokenExpiredError,
+  TokenInvalidError: workspaceTestDoubles.TokenInvalidError,
+};
 
 export function resetCapturedMail(): void {
   testConfig.captured.length = 0;
+  acceptWorkspaceInvitationMock.mockReset();
+  findInvitationByTokenMock.mockReset();
+  listMembershipsByUserMock.mockReset();
   listMembershipsByUserMock.mockResolvedValue([]);
 }
 

@@ -1,8 +1,9 @@
-import {Alert, Button, ButtonLink, Input, Label, Text, toast} from '@shipfox/react-ui';
-import {Link} from '@tanstack/react-router';
+import {Alert, Button, ButtonLink, Icon, Input, Label, Text, toast} from '@shipfox/react-ui';
+import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
 import {type FormEvent, useEffect, useState} from 'react';
 import {AuthShell} from '#/components/auth-shell.js';
+import {useRefreshAuth} from '#hooks/api/refresh-auth.js';
 import {useSignupAuth} from '#hooks/api/signup-auth.js';
 import {useResendEmailVerificationAuth} from '#hooks/api/verify-email-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
@@ -13,12 +14,20 @@ import {
   parseNextResendAvailableAt,
 } from './email-verification-resend-model.js';
 import {authErrorMessage, type FieldErrors} from './form-utils.js';
+import {extractInvitationToken, useInvitationContext} from './invitation-context.js';
 
 type SignupField = 'email' | 'password' | 'name';
 
 export function SignupPage() {
   const signup = useSignupAuth();
   const resendEmailVerification = useResendEmailVerificationAuth();
+  const refreshAuth = useRefreshAuth();
+  const navigate = useNavigate();
+  const search = useSearch({strict: false}) as {redirect?: unknown};
+  const invitationToken = extractInvitationToken(search.redirect);
+  const invitationPreview = useInvitationContext(invitationToken);
+  const invitationPending =
+    invitationPreview.data?.status === 'pending' ? invitationPreview.data : undefined;
   const [authFormDraft, setAuthFormDraft] = useAtom(authFormDraftAtom);
   const [name, setName] = useState('');
   const [submittedEmail, setSubmittedEmail] = useState<string | undefined>();
@@ -58,10 +67,24 @@ export function SignupPage() {
     setNextResendAvailableAt(getLocalResendAvailableAt(current));
   }
 
+  // When arriving from an invitation link, prefill the email and lock it to
+  // the invitee's email. The signup body must match the invitation email or
+  // the backend throws InvitationEmailMismatchError.
+  useEffect(() => {
+    if (invitationPending && email !== invitationPending.email) {
+      setAuthFormDraft((current) => ({...current, email: invitationPending.email}));
+    }
+  }, [email, invitationPending, setAuthFormDraft]);
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(undefined);
-    const parsed = parseSignupForm({email, password, name});
+    const parsed = parseSignupForm({
+      email,
+      password,
+      name,
+      ...(invitationToken ? {invitationToken} : {}),
+    });
     if (!parsed.ok) {
       setFieldErrors(parsed.fieldErrors);
       return;
@@ -71,6 +94,36 @@ export function SignupPage() {
     try {
       const result = await signup.mutateAsync(parsed.body);
       setAuthFormDraft(initialAuthFormDraft);
+
+      if (invitationToken && result.membership && invitationPending) {
+        // signup-with-invitation success: skip the "check your email" screen,
+        // toast + navigate into the workspace.
+        try {
+          await refreshAuth();
+        } catch {
+          // Refresh failures don't block the success message — the next API
+          // call's 401 handling will re-route the user.
+        }
+        toast.success(`You joined ${invitationPending.workspace_name}.`);
+        await navigate({
+          to: '/workspaces/$wid',
+          params: {wid: result.membership.workspace_id},
+        });
+        return;
+      }
+
+      if (invitationToken && result.accept_error) {
+        // D7 partial-success: user is logged in but accept failed. Bounce
+        // back to the canonical invite page; the AUTH_USER accept route will
+        // resolve from there.
+        toast.error(result.accept_error.message);
+        await navigate({
+          to: '/invitations/accept',
+          search: {token: invitationToken},
+        });
+        return;
+      }
+
       setSubmittedEmail(result.user.email);
       setResendError(undefined);
       restartLocalCooldown();
@@ -145,11 +198,19 @@ export function SignupPage() {
     );
   }
 
+  const headerTitle = invitationPending
+    ? `Join ${invitationPending.workspace_name}`
+    : 'Create your Shipfox account';
+  const headerDescription = invitationPending
+    ? `Create an account to accept your invitation.`
+    : 'Start with your email and a password.';
+  const isInvitationEmailLocked = Boolean(invitationPending);
+  const invitationRedirect = invitationToken
+    ? `/invitations/accept?token=${encodeURIComponent(invitationToken)}`
+    : undefined;
+
   return (
-    <AuthShell
-      title="Create your Shipfox account"
-      description="Start with your email and a password."
-    >
+    <AuthShell title={headerTitle} description={headerDescription}>
       <form className="flex flex-col gap-18" onSubmit={onSubmit} noValidate>
         {formError ? <Alert variant="error">{formError}</Alert> : null}
         <div className="flex flex-col gap-8">
@@ -181,8 +242,18 @@ export function SignupPage() {
             onChange={(event) =>
               setAuthFormDraft((current) => ({...current, email: event.target.value}))
             }
+            readOnly={isInvitationEmailLocked}
             type="email"
             value={email}
+            iconRight={
+              isInvitationEmailLocked ? (
+                <Icon
+                  aria-hidden="true"
+                  className="size-16 text-foreground-neutral-disabled"
+                  name="lockLine"
+                />
+              ) : undefined
+            }
           />
           {fieldErrors.email ? (
             <Text as="p" size="xs" className="text-tag-error-text" id="email-error">
@@ -217,7 +288,12 @@ export function SignupPage() {
       <Text size="sm" className="text-center text-foreground-neutral-subtle">
         Already have an account?{' '}
         <ButtonLink asChild variant="interactive" underline>
-          <Link to="/auth/login">Log in</Link>
+          <Link
+            to="/auth/login"
+            search={invitationRedirect ? {redirect: invitationRedirect} : undefined}
+          >
+            Log in
+          </Link>
         </ButtonLink>
       </Text>
     </AuthShell>

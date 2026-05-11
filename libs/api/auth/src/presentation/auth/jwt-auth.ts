@@ -45,6 +45,7 @@ export function createJwtAuthMethod(): AuthMethod {
       const clientContext: ClientContext = buildUserContext({
         userId: claims.sub,
         email: claims.email,
+        name: claims.name ?? null,
         memberships: claims.memberships,
       });
 

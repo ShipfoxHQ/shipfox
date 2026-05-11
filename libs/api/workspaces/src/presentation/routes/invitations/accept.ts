@@ -54,6 +54,7 @@ export const acceptInvitationRoute = defineRoute({
       token,
       userId: client.userId,
       email: client.email,
+      name: client.name,
     });
 
     reply.code(result.alreadyMember ? 200 : 201);

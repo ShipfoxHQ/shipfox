@@ -65,8 +65,8 @@ describe('DELETE /workspaces/:workspaceId/members/:userId', () => {
     expect(res.json().code).toBe('not-found');
   });
 
-  test('transforms removing the last member into 409', async () => {
-    const owner = await signupVerifyLogin(app, 'members-remove-last');
+  test('transforms removing yourself into 409 self-removal-not-allowed', async () => {
+    const owner = await signupVerifyLogin(app, 'members-remove-self');
     const workspaceId = await createWorkspace(app, owner.token);
 
     const res = await app.inject({
@@ -76,7 +76,7 @@ describe('DELETE /workspaces/:workspaceId/members/:userId', () => {
     });
 
     expect(res.statusCode).toBe(409);
-    expect(res.json().code).toBe('last-member');
+    expect(res.json().code).toBe('self-removal-not-allowed');
   });
 
   test('transforms missing membership into 403', async () => {
@@ -87,6 +87,21 @@ describe('DELETE /workspaces/:workspaceId/members/:userId', () => {
     const res = await app.inject({
       method: 'DELETE',
       url: `/workspaces/${workspaceId}/members/${owner.userId}`,
+      headers: {authorization: `Bearer ${outsider.token}`},
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('forbidden');
+  });
+
+  test('checks workspace membership before self-removal', async () => {
+    const owner = await signupVerifyLogin(app, 'members-remove-self-owner');
+    const outsider = await signupVerifyLogin(app, 'members-remove-self-outsider');
+    const workspaceId = await createWorkspace(app, owner.token);
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/workspaces/${workspaceId}/members/${outsider.userId}`,
       headers: {authorization: `Bearer ${outsider.token}`},
     });
 

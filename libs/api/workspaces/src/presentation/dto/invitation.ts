@@ -9,6 +9,7 @@ export function toInvitationDto(invitation: Invitation): InvitationDto {
     expires_at: invitation.expiresAt.toISOString(),
     accepted_at: invitation.acceptedAt ? invitation.acceptedAt.toISOString() : null,
     invited_by_user_id: invitation.invitedByUserId,
+    invited_by_display: invitation.invitedByDisplay,
     created_at: invitation.createdAt.toISOString(),
     updated_at: invitation.updatedAt.toISOString(),
   };
