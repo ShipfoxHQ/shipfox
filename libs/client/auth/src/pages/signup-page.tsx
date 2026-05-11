@@ -108,31 +108,33 @@ export function SignupPage() {
         <Alert variant="success">
           Click the verification link to activate your account, then come back to log in.
         </Alert>
-        <Button
-          aria-disabled={isResendCoolingDown ? true : undefined}
-          className="w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-70"
-          variant="secondary"
-          type="button"
-          isLoading={resendEmailVerification.isPending}
-          onClick={onResendVerificationEmail}
-        >
-          {resendEmailVerification.isPending
-            ? 'Sending email...'
-            : isResendCoolingDown
-              ? `Resend in ${resendRemainingSeconds}s`
-              : 'Resend verification email'}
-        </Button>
-        <Button
-          className="w-full"
-          variant="transparent"
-          type="button"
-          onClick={() => {
-            setSubmittedEmail(undefined);
-            setResendError(undefined);
-          }}
-        >
-          Use another email
-        </Button>
+        <div className="flex flex-col gap-8">
+          <Button
+            aria-disabled={isResendCoolingDown ? true : undefined}
+            className="w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-70"
+            variant="secondary"
+            type="button"
+            isLoading={resendEmailVerification.isPending}
+            onClick={onResendVerificationEmail}
+          >
+            {resendEmailVerification.isPending
+              ? 'Sending email...'
+              : isResendCoolingDown
+                ? `Resend in ${resendRemainingSeconds}s`
+                : 'Resend verification email'}
+          </Button>
+          <Button
+            className="w-full"
+            variant="transparent"
+            type="button"
+            onClick={() => {
+              setSubmittedEmail(undefined);
+              setResendError(undefined);
+            }}
+          >
+            Use another email
+          </Button>
+        </div>
         <Text size="sm" className="text-center text-foreground-neutral-subtle">
           Already verified?{' '}
           <ButtonLink asChild variant="interactive" underline>
