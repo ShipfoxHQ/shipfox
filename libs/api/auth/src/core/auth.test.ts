@@ -1,3 +1,4 @@
+import {EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS} from '@shipfox/api-auth-dto';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {eq} from 'drizzle-orm';
@@ -24,6 +25,7 @@ import {
 import {verifyUserToken} from '#core/jwt.js';
 import {db} from '#db/db.js';
 import {findActiveRefreshTokenByHash} from '#db/refresh-tokens.js';
+import {emailVerifications} from '#db/schema/email-verifications.js';
 import {users} from '#db/schema/users.js';
 import {findUserByEmail, findUserById} from '#db/users.js';
 import {userFactory} from '#test/index.js';
@@ -187,13 +189,70 @@ describe('auth core', () => {
   test('resendEmailVerification only sends for active unverified users', async () => {
     const unverified = await userFactory.create();
     const verified = await userFactory.create({emailVerifiedAt: new Date()});
+    const inactive = await userFactory.create();
+    await db().update(users).set({status: 'suspended'}).where(eq(users.id, inactive.id));
 
-    await resendEmailVerification({email: unverified.email});
-    await resendEmailVerification({email: verified.email});
-    await resendEmailVerification({email: `missing-${crypto.randomUUID()}@example.com`});
+    const sent = await resendEmailVerification({email: unverified.email});
+    const verifiedResult = await resendEmailVerification({email: verified.email});
+    const inactiveResult = await resendEmailVerification({email: inactive.email});
+    const missingResult = await resendEmailVerification({
+      email: `missing-${crypto.randomUUID()}@example.com`,
+    });
 
     expect(captured).toHaveLength(1);
     expect(captured[0]?.to).toBe(unverified.email);
+    expect(sent.nextResendAvailableAt).toBeInstanceOf(Date);
+    expect(verifiedResult.nextResendAvailableAt).toBeInstanceOf(Date);
+    expect(inactiveResult.nextResendAvailableAt).toBeInstanceOf(Date);
+    expect(missingResult.nextResendAvailableAt).toBeInstanceOf(Date);
+  });
+
+  test('resendEmailVerification respects cooldown without invalidating the current token', async () => {
+    const user = await signup({
+      email: `resend-cooldown-${crypto.randomUUID()}@example.com`,
+      password: 'correct horse battery staple',
+    });
+    const token = extractToken(captured[0]);
+
+    const result = await resendEmailVerification({email: user.email});
+    const verified = await confirmEmailVerification({token});
+
+    expect(result.nextResendAvailableAt).toBeInstanceOf(Date);
+    expect(captured).toHaveLength(1);
+    expect(verified.user.id).toBe(user.id);
+  });
+
+  test('resendEmailVerification sends again after cooldown', async () => {
+    const user = await signup({
+      email: `resend-after-cooldown-${crypto.randomUUID()}@example.com`,
+      password: 'correct horse battery staple',
+    });
+    const staleCreatedAt = new Date(
+      Date.now() - (EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS + 1) * 1000,
+    );
+    await db()
+      .update(emailVerifications)
+      .set({createdAt: staleCreatedAt})
+      .where(eq(emailVerifications.userId, user.id));
+
+    const result = await resendEmailVerification({email: user.email});
+
+    expect(result.nextResendAvailableAt).toBeInstanceOf(Date);
+    expect(captured).toHaveLength(2);
+    expect(captured[1]?.to).toBe(user.email);
+  });
+
+  test('resendEmailVerification serializes duplicate requests for one user', async () => {
+    const user = await userFactory.create();
+
+    const results = await Promise.all([
+      resendEmailVerification({email: user.email}),
+      resendEmailVerification({email: user.email}),
+    ]);
+
+    expect(results).toHaveLength(2);
+    expect(captured).toHaveLength(1);
+    expect(captured[0]?.to).toBe(user.email);
   });
 
   test('password reset request and confirm update the password and invalidate the token', async () => {

@@ -1,9 +1,11 @@
-import {Alert, Button, ButtonLink, Input, Label, Text} from '@shipfox/react-ui';
+import {EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS} from '@shipfox/api-auth-dto';
+import {Alert, Button, ButtonLink, Input, Label, Text, toast} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
-import {type FormEvent, useState} from 'react';
+import {type FormEvent, useEffect, useState} from 'react';
 import {AuthShell} from '#/components/auth-shell.js';
 import {useSignupAuth} from '#hooks/api/signup-auth.js';
+import {useResendEmailVerificationAuth} from '#hooks/api/verify-email-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
 import {parseSignupForm} from './auth-form-model.js';
 import {authErrorMessage, type FieldErrors} from './form-utils.js';
@@ -12,12 +14,47 @@ type SignupField = 'email' | 'password' | 'name';
 
 export function SignupPage() {
   const signup = useSignupAuth();
+  const resendEmailVerification = useResendEmailVerificationAuth();
   const [authFormDraft, setAuthFormDraft] = useAtom(authFormDraftAtom);
   const [name, setName] = useState('');
   const [submittedEmail, setSubmittedEmail] = useState<string | undefined>();
+  const [now, setNow] = useState(() => Date.now());
+  const [nextResendAvailableAt, setNextResendAvailableAt] = useState<number | undefined>();
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<SignupField>>({});
   const [formError, setFormError] = useState<string | undefined>();
+  const [resendError, setResendError] = useState<string | undefined>();
   const {email, password} = authFormDraft;
+  const resendRemainingSeconds = nextResendAvailableAt
+    ? Math.max(0, Math.ceil((nextResendAvailableAt - now) / 1000))
+    : 0;
+  const isResendCoolingDown = resendRemainingSeconds > 0;
+
+  useEffect(() => {
+    if (!submittedEmail || !nextResendAvailableAt) {
+      return;
+    }
+
+    const current = Date.now();
+    setNow(current);
+    if (nextResendAvailableAt <= current) {
+      return;
+    }
+
+    const handle = window.setInterval(() => {
+      const tickNow = Date.now();
+      setNow(tickNow);
+      if (nextResendAvailableAt <= tickNow) {
+        window.clearInterval(handle);
+      }
+    }, 1000);
+    return () => window.clearInterval(handle);
+  }, [nextResendAvailableAt, submittedEmail]);
+
+  function restartLocalCooldown() {
+    const nextAvailableAt = Date.now() + EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS * 1000;
+    setNow(Date.now());
+    setNextResendAvailableAt(nextAvailableAt);
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -33,8 +70,29 @@ export function SignupPage() {
       const result = await signup.mutateAsync(parsed.body);
       setAuthFormDraft(initialAuthFormDraft);
       setSubmittedEmail(result.user.email);
+      setResendError(undefined);
+      restartLocalCooldown();
     } catch (error) {
       setFormError(authErrorMessage(error));
+    }
+  }
+
+  async function onResendVerificationEmail() {
+    if (!submittedEmail || isResendCoolingDown || resendEmailVerification.isPending) return;
+
+    setResendError(undefined);
+    try {
+      const result = await resendEmailVerification.mutateAsync({email: submittedEmail});
+      const nextAvailableAt = Date.parse(result.next_resend_available_at);
+      setNow(Date.now());
+      if (Number.isFinite(nextAvailableAt)) {
+        setNextResendAvailableAt(nextAvailableAt);
+      } else {
+        restartLocalCooldown();
+      }
+      toast.success('If another verification email can be sent, it will arrive shortly.');
+    } catch (error) {
+      setResendError(authErrorMessage(error));
     }
   }
 
@@ -44,14 +102,32 @@ export function SignupPage() {
         title="Check your email"
         description={`We sent a verification link to ${submittedEmail}.`}
       >
+        {resendError ? <Alert variant="error">{resendError}</Alert> : null}
         <Alert variant="success">
           Click the verification link to activate your account, then come back to log in.
         </Alert>
         <Button
-          className="w-full"
+          aria-disabled={isResendCoolingDown ? true : undefined}
+          className="w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-70"
           variant="secondary"
           type="button"
-          onClick={() => setSubmittedEmail(undefined)}
+          isLoading={resendEmailVerification.isPending}
+          onClick={onResendVerificationEmail}
+        >
+          {resendEmailVerification.isPending
+            ? 'Sending email...'
+            : isResendCoolingDown
+              ? `Resend in ${resendRemainingSeconds}s`
+              : 'Resend verification email'}
+        </Button>
+        <Button
+          className="w-full"
+          variant="transparent"
+          type="button"
+          onClick={() => {
+            setSubmittedEmail(undefined);
+            setResendError(undefined);
+          }}
         >
           Use another email
         </Button>

@@ -1,7 +1,12 @@
+import {EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS} from '@shipfox/api-auth-dto';
 import {listMembershipsByUser} from '@shipfox/api-workspaces';
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {config, mailer} from '#config.js';
-import {consumeEmailVerification, createEmailVerification} from '#db/email-verifications.js';
+import {
+  consumeEmailVerification,
+  createEmailVerification,
+  createResendEmailVerification,
+} from '#db/email-verifications.js';
 import {consumePasswordReset, createPasswordReset} from '#db/password-resets.js';
 import {
   createRefreshToken,
@@ -249,6 +254,10 @@ export interface ConfirmEmailVerificationResult {
   user: User;
 }
 
+export interface ResendEmailVerificationResult {
+  nextResendAvailableAt: Date;
+}
+
 export async function confirmEmailVerification(params: {
   token: string;
 }): Promise<ConfirmEmailVerificationResult> {
@@ -268,13 +277,22 @@ export async function confirmEmailVerification(params: {
   return {token, refreshToken, user};
 }
 
-export async function resendEmailVerification(params: {email: string}): Promise<void> {
-  const user = await findUserByEmail({email: params.email});
-  if (!user || user.status !== 'active' || user.emailVerifiedAt !== null) {
-    return;
+export async function resendEmailVerification(params: {
+  email: string;
+}): Promise<ResendEmailVerificationResult> {
+  const rawToken = generateOpaqueToken('emailVerification');
+  const result = await createResendEmailVerification({
+    email: params.email,
+    hashedToken: hashOpaqueToken(rawToken),
+    expiresAt: hoursFromNow(VERIFICATION_TTL_HOURS),
+    cooldownSeconds: EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
+  });
+
+  if (result.user && result.verification) {
+    await sendVerificationEmail(result.user, rawToken);
   }
 
-  await createAndSendEmailVerification(user);
+  return {nextResendAvailableAt: result.nextResendAvailableAt};
 }
 
 export async function requestPasswordReset(params: {email: string}): Promise<void> {

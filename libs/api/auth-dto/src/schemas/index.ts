@@ -1,6 +1,7 @@
 export {
   type ChangePasswordBodyDto,
   changePasswordBodySchema,
+  EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
   emailSchema,
   type LoginBodyDto,
   type LoginResponseDto,
@@ -26,9 +27,11 @@ export {
   type VerifyEmailConfirmBodyDto,
   type VerifyEmailConfirmResponseDto,
   type VerifyEmailResendBodyDto,
+  type VerifyEmailResendResponseDto,
   verifyEmailConfirmBodySchema,
   verifyEmailConfirmResponseSchema,
   verifyEmailResendBodySchema,
+  verifyEmailResendResponseSchema,
 } from './auth.js';
 export {
   type E2eCreateSessionBodyDto,
