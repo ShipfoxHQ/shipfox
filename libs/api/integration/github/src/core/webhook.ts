@@ -3,6 +3,7 @@ import {
   type IntegrationConnection,
   type IntegrationRepositoryPushedEvent,
 } from '@shipfox/api-integration-core-dto';
+import type {GithubPushPayloadDto} from '@shipfox/api-integration-github-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {getGithubInstallationByInstallationId} from '#db/installations.js';
 
@@ -31,15 +32,7 @@ export type GetIntegrationConnectionByIdFn = (
   options?: {tx?: Tx},
 ) => Promise<IntegrationConnection | undefined>;
 
-export interface GithubPushPayload {
-  ref: string;
-  after: string;
-  repository: {
-    id: number;
-    default_branch: string;
-  };
-  installation?: {id: number} | undefined;
-}
+export type GithubPushPayload = GithubPushPayloadDto;
 
 export interface HandleGithubPushParams {
   tx: Tx;

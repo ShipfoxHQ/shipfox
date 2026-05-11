@@ -247,7 +247,7 @@ describe('definition sync activities', () => {
         sourceExternalRepositoryId: 'debug:platform',
       });
 
-      await activities.markDefinitionSyncFailed({
+      const result = activities.markDefinitionSyncFailed({
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
@@ -256,6 +256,7 @@ describe('definition sync activities', () => {
         code: 'invalid-definition',
         message: 'Invalid workflow at .shipfox/workflows/bad.yml',
       });
+      await result;
 
       const rows = await db()
         .select()
@@ -270,7 +271,7 @@ describe('definition sync activities', () => {
     it('persists failures with the unresolved sentinel ref when no ref was produced', async () => {
       const activities = createDefinitionSyncActivities(sourceControl());
 
-      await activities.markDefinitionSyncFailed({
+      const result = activities.markDefinitionSyncFailed({
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
@@ -279,6 +280,7 @@ describe('definition sync activities', () => {
         code: 'connection-unavailable',
         message: 'connection disabled before resolving repository',
       });
+      await result;
 
       const rows = await db()
         .select()
@@ -311,13 +313,14 @@ describe('definition sync activities', () => {
         message: 'something',
       });
 
-      await activities.markDefinitionSyncSucceeded({
+      const result = activities.markDefinitionSyncSucceeded({
         projectId,
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
         sourceExternalRepositoryId: 'debug:platform',
         sourceRef: 'main',
       });
+      await result;
 
       const rows = await db()
         .select()

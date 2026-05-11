@@ -65,7 +65,8 @@ describe('onIntegrationRepositoryPushed', () => {
       externalRepositoryId,
     });
 
-    await onIntegrationRepositoryPushed(buildEvent(payload));
+    const result = onIntegrationRepositoryPushed(buildEvent(payload));
+    await result;
 
     const rows = await listCommitObservedEvents(externalRepositoryId);
     expect(rows).toHaveLength(1);
@@ -97,7 +98,8 @@ describe('onIntegrationRepositoryPushed', () => {
       isDefaultBranch: false,
     });
 
-    await onIntegrationRepositoryPushed(buildEvent(payload));
+    const result = onIntegrationRepositoryPushed(buildEvent(payload));
+    await result;
 
     const rows = await listCommitObservedEvents(externalRepositoryId);
     expect(rows).toHaveLength(0);
@@ -107,7 +109,8 @@ describe('onIntegrationRepositoryPushed', () => {
     const externalRepositoryId = `github:${crypto.randomUUID()}`;
     const payload = buildPayload({externalRepositoryId});
 
-    await onIntegrationRepositoryPushed(buildEvent(payload));
+    const result = onIntegrationRepositoryPushed(buildEvent(payload));
+    await result;
 
     const rows = await listCommitObservedEvents(externalRepositoryId);
     expect(rows).toHaveLength(0);
@@ -129,8 +132,10 @@ describe('onIntegrationRepositoryPushed', () => {
     });
     const event = buildEvent(payload);
 
-    await onIntegrationRepositoryPushed(event);
-    await onIntegrationRepositoryPushed(event);
+    const firstResult = onIntegrationRepositoryPushed(event);
+    await firstResult;
+    const secondResult = onIntegrationRepositoryPushed(event);
+    await secondResult;
 
     const rows = await listCommitObservedEvents(externalRepositoryId);
     expect(rows).toHaveLength(1);

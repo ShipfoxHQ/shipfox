@@ -41,7 +41,8 @@ describe('onProjectSourceBound', () => {
   it('starts a definition sync workflow keyed on project + bind', async () => {
     const payload = buildPayload();
 
-    await onProjectSourceBound(buildEvent(payload));
+    const result = onProjectSourceBound(buildEvent(payload));
+    await result;
 
     expect(startMock).toHaveBeenCalledTimes(1);
     expect(startMock).toHaveBeenCalledWith('definitionSyncWorkflow', {

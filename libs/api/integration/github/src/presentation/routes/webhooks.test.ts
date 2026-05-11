@@ -74,9 +74,9 @@ describe('GitHub webhook route', () => {
 
     const hooks = new Webhooks({secret: WEBHOOK_SECRET});
     const expected = await hooks.sign(body);
-    const ours = `sha256=${createHmac('sha256', WEBHOOK_SECRET).update(body).digest('hex')}`;
+    const result = `sha256=${createHmac('sha256', WEBHOOK_SECRET).update(body).digest('hex')}`;
 
-    expect(ours).toBe(expected);
+    expect(result).toBe(expected);
   });
 
   it('accepts a valid push and writes outbox + delivery rows atomically', async () => {
@@ -149,8 +149,10 @@ describe('GitHub webhook route', () => {
 
     expect(first.statusCode).toBe(204);
     expect(second.statusCode).toBe(204);
-    expect(await readIntegrationsOutbox()).toHaveLength(1);
-    expect(await readWebhookDeliveries()).toHaveLength(1);
+    const outboxRows = await readIntegrationsOutbox();
+    const deliveryRows = await readWebhookDeliveries();
+    expect(outboxRows).toHaveLength(1);
+    expect(deliveryRows).toHaveLength(1);
   });
 
   it('rejects an invalid signature with 401 and writes no rows', async () => {
@@ -180,8 +182,10 @@ describe('GitHub webhook route', () => {
     });
 
     expect(res.statusCode).toBe(401);
-    expect(await readIntegrationsOutbox()).toHaveLength(0);
-    expect(await readWebhookDeliveries()).toHaveLength(0);
+    const outboxRows = await readIntegrationsOutbox();
+    const deliveryRows = await readWebhookDeliveries();
+    expect(outboxRows).toHaveLength(0);
+    expect(deliveryRows).toHaveLength(0);
   });
 
   it('publishes with isDefaultBranch=false when ref is not the default branch', async () => {
@@ -230,8 +234,10 @@ describe('GitHub webhook route', () => {
     });
 
     expect(res.statusCode).toBe(204);
-    expect(await readIntegrationsOutbox()).toHaveLength(0);
-    expect(await readWebhookDeliveries()).toHaveLength(1);
+    const outboxRows = await readIntegrationsOutbox();
+    const deliveryRows = await readWebhookDeliveries();
+    expect(outboxRows).toHaveLength(0);
+    expect(deliveryRows).toHaveLength(1);
   });
 
   it('drops pushes from unknown installations (dedup recorded, no outbox row)', async () => {
@@ -255,7 +261,97 @@ describe('GitHub webhook route', () => {
     });
 
     expect(res.statusCode).toBe(204);
+    const outboxRows = await readIntegrationsOutbox();
+    const deliveryRows = await readWebhookDeliveries();
+    expect(outboxRows).toHaveLength(0);
+    expect(deliveryRows).toHaveLength(1);
+  });
+
+  it('drops pushes whose payload has no installation id (no outbox or delivery row)', async () => {
+    const app = await createTestApp();
+    const deliveryId = randomUUID();
+    const body = JSON.stringify({
+      ref: 'refs/heads/main',
+      after: 'abc',
+      repository: {id: 42, default_branch: 'main'},
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/github',
+      headers: signedHeaders(body, 'push', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    const outboxRows = await readIntegrationsOutbox();
+    const deliveryRows = await readWebhookDeliveries();
+    expect(outboxRows).toHaveLength(0);
+    expect(deliveryRows).toHaveLength(0);
+  });
+
+  it('rejects malformed signature headers (verify throws) with 401 and writes no rows', async () => {
+    const installationId = 7782;
+    await seedInstallationConnection(installationId);
+    const app = await createTestApp();
+    const body = JSON.stringify(
+      pushPayload({
+        installationId,
+        repositoryId: 101,
+        ref: 'refs/heads/main',
+        defaultBranch: 'main',
+        sha: 'aaa',
+      }),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/github',
+      headers: {
+        'content-type': 'application/json',
+        'x-hub-signature-256': 'not-a-real-signature-format',
+        'x-github-event': 'push',
+        'x-github-delivery': randomUUID(),
+      },
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(401);
     expect(await readIntegrationsOutbox()).toHaveLength(0);
-    expect(await readWebhookDeliveries()).toHaveLength(1);
+    expect(await readWebhookDeliveries()).toHaveLength(0);
+  });
+
+  it('rejects malformed JSON after a valid signature with 400 and writes no rows', async () => {
+    const app = await createTestApp();
+    const body = '{not valid json';
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/github',
+      headers: signedHeaders(body, 'push', randomUUID()),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({error: 'malformed JSON'});
+    expect(await readIntegrationsOutbox()).toHaveLength(0);
+    expect(await readWebhookDeliveries()).toHaveLength(0);
+  });
+
+  it('rejects push payloads that fail schema validation with 400 and writes no rows', async () => {
+    const app = await createTestApp();
+    const body = JSON.stringify({ref: 'refs/heads/main'});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/github',
+      headers: signedHeaders(body, 'push', randomUUID()),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({error: 'malformed push payload'});
+    expect(await readIntegrationsOutbox()).toHaveLength(0);
+    expect(await readWebhookDeliveries()).toHaveLength(0);
   });
 });

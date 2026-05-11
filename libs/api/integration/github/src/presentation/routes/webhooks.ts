@@ -1,5 +1,6 @@
 import {Buffer} from 'node:buffer';
 import {Webhooks} from '@octokit/webhooks';
+import {githubPushPayloadSchema} from '@shipfox/api-integration-github-dto';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
@@ -8,7 +9,6 @@ import fp from 'fastify-plugin';
 import {config} from '#config.js';
 import {
   type GetIntegrationConnectionByIdFn,
-  type GithubPushPayload,
   handleGithubPush,
   type PublishRepositoryPushedFn,
   type RecordDeliveryOnlyFn,
@@ -98,20 +98,30 @@ export function createGithubWebhookRoutes(options: CreateGithubWebhookRoutesOpti
         return null;
       }
 
-      let payload: GithubPushPayload;
+      let parsedJson: unknown;
       try {
-        payload = JSON.parse(rawBody) as GithubPushPayload;
+        parsedJson = JSON.parse(rawBody);
       } catch (error) {
         logger().warn({deliveryId, err: error}, 'github webhook payload JSON parse failed');
         reply.code(400);
         return {error: 'malformed JSON'};
       }
 
+      const validated = githubPushPayloadSchema.safeParse(parsedJson);
+      if (!validated.success) {
+        logger().warn(
+          {deliveryId, issues: validated.error.issues},
+          'github webhook push payload failed schema validation',
+        );
+        reply.code(400);
+        return {error: 'malformed push payload'};
+      }
+
       await options.coreDb().transaction(async (tx) => {
         await handleGithubPush({
           tx,
           deliveryId,
-          payload,
+          payload: validated.data,
           publishRepositoryPushed: options.publishRepositoryPushed,
           recordDeliveryOnly: options.recordDeliveryOnly,
           getIntegrationConnectionById: options.getIntegrationConnectionById,

@@ -2,7 +2,10 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 export {closeDb, db, schema} from './db.js';
-export {recordIntegrationEventForProject} from './integration-event-dedup.js';
+export {
+  pruneIntegrationEventDedup,
+  recordIntegrationEventForProject,
+} from './integration-event-dedup.js';
 export type {
   CreateProjectParams,
   GetProjectBySourceParams,

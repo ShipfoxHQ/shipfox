@@ -42,7 +42,8 @@ describe('onProjectSourceCommitObserved', () => {
   it('starts a definition sync workflow keyed on project + source commit sha', async () => {
     const payload = buildPayload();
 
-    await onProjectSourceCommitObserved(buildEvent(payload));
+    const result = onProjectSourceCommitObserved(buildEvent(payload));
+    await result;
 
     expect(startMock).toHaveBeenCalledTimes(1);
     expect(startMock).toHaveBeenCalledWith('definitionSyncWorkflow', {
