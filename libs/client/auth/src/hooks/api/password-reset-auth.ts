@@ -10,11 +10,11 @@ import {authStateAtom, toAuthenticatedState} from '#state/auth.js';
 import {authRefreshQueryKey} from './refresh-auth.js';
 import {listUserWorkspaces, userWorkspacesQueryKey} from './workspace-auth.js';
 
-async function requestPasswordReset(body: PasswordResetRequestBodyDto) {
+export async function requestPasswordReset(body: PasswordResetRequestBodyDto) {
   await apiRequest<void>('/auth/password-reset', {method: 'POST', body});
 }
 
-async function confirmPasswordReset(body: PasswordResetConfirmBodyDto) {
+export async function confirmPasswordReset(body: PasswordResetConfirmBodyDto) {
   return await apiRequest<PasswordResetConfirmResponseDto>('/auth/password-reset/confirm', {
     method: 'POST',
     body,

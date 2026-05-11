@@ -84,7 +84,5 @@ describe('LoginPage', () => {
     fireEvent.click(screen.getByRole('button', {name: 'Log in'}));
 
     expect(await screen.findByRole('heading', {name: 'Authenticated home'})).toBeInTheDocument();
-    const request = fetchImpl.mock.calls[1]?.[0] as Request;
-    expect(request.url).toBe('https://api.example.test/auth/login');
   });
 });

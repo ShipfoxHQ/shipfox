@@ -6,7 +6,7 @@ import {authStateAtom, toAuthenticatedState} from '#state/auth.js';
 import {authRefreshQueryKey} from './refresh-auth.js';
 import {listUserWorkspaces, userWorkspacesQueryKey} from './workspace-auth.js';
 
-async function loginAuth(body: LoginBodyDto) {
+export async function loginAuth(body: LoginBodyDto) {
   return await apiRequest<LoginResponseDto>('/auth/login', {method: 'POST', body});
 }
 
