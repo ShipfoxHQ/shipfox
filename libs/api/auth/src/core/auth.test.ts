@@ -221,11 +221,14 @@ describe('auth core', () => {
       .set({createdAt: existingCreatedAt})
       .where(eq(emailVerifications.userId, user.id));
 
+    const beforeCall = Date.now();
     const result = await resendEmailVerification({email: user.email});
     const verified = await confirmEmailVerification({token});
 
-    expect(result.nextResendAvailableAt.getTime()).toBeGreaterThan(
-      existingCreatedAt.getTime() + EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS * 1000,
+    // The cooldown branch must return the generic `now + cooldown` estimate, not
+    // `latest.createdAt + cooldown`, so the response cannot leak prior timing.
+    expect(result.nextResendAvailableAt.getTime()).toBeGreaterThanOrEqual(
+      beforeCall + EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS * 1000,
     );
     expect(captured).toHaveLength(1);
     expect(verified.user.id).toBe(user.id);
