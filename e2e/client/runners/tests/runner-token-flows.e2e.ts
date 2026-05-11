@@ -32,12 +32,14 @@ test('manages workspace runner tokens from settings', async ({page, auth, worksp
   await page.getByRole('button', {name: 'Create token'}).last().click();
 
   await expect(page.getByText('Token created')).toBeVisible();
-  const rawToken = page.getByText(RUNNER_TOKEN_PREFIX_RE).first();
+  const rawToken = createTokenDialog
+    .locator('p.font-code')
+    .filter({hasText: RUNNER_TOKEN_PREFIX_RE});
   await expect(rawToken).toBeVisible();
   await rawToken.evaluate((element: Element, token) => {
     element.textContent = token;
-    element.setAttribute('data-visual-test', 'blackout');
   }, VISUAL_TEST_RUNNER_TOKEN);
+  await expect(createTokenDialog.getByText(VISUAL_TEST_RUNNER_TOKEN)).toBeVisible();
   await argosScreenshot(page, 'runners/settings-runners-create-token-success');
 
   await page.keyboard.press('Escape');
