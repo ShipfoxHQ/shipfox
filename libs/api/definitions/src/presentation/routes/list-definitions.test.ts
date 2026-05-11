@@ -1,4 +1,5 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {encodeStringIdCursor} from '@shipfox/node-drizzle';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
@@ -88,6 +89,7 @@ describe('GET /api/definitions', () => {
     expect(body.definitions).toHaveLength(2);
     expect(body.definitions[0].name).toBe('Alpha');
     expect(body.definitions[1].name).toBe('Bravo');
+    expect(body.next_cursor).toBeNull();
     expect(body.sync).toEqual({
       ref: 'main',
       status: 'succeeded',
@@ -108,6 +110,7 @@ describe('GET /api/definitions', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().definitions).toEqual([]);
     expect(res.json().sync).toBeNull();
+    expect(res.json().next_cursor).toBeNull();
   });
 
   test('returns failed sync summary', async () => {
@@ -146,5 +149,47 @@ describe('GET /api/definitions', () => {
     });
 
     expect(res.statusCode).toBe(400);
+  });
+
+  test('paginates alphabetically with name and id cursor', async () => {
+    const bravo = await definitionFactory.create({projectId, name: 'Bravo', configPath: 'b.yml'});
+    const charlie = await definitionFactory.create({
+      projectId,
+      name: 'Charlie',
+      configPath: 'c.yml',
+    });
+    await definitionFactory.create({projectId, name: 'Alpha', configPath: 'a.yml'});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/definitions?project_id=${projectId}&limit=2`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.definitions.map((definition: {name: string}) => definition.name)).toEqual([
+      'Alpha',
+      'Bravo',
+    ]);
+    expect(body.next_cursor).toBe(encodeStringIdCursor({value: bravo.name, id: bravo.id}));
+
+    const next = await app.inject({
+      method: 'GET',
+      url: `/api/definitions?project_id=${projectId}&limit=2&cursor=${body.next_cursor}`,
+    });
+    expect(next.statusCode).toBe(200);
+    expect(next.json().definitions.map((definition: {id: string}) => definition.id)).toEqual([
+      charlie.id,
+    ]);
+  });
+
+  test('invalid cursor returns stable client error', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/definitions?project_id=${projectId}&cursor=not-a-cursor`,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('invalid-cursor');
   });
 });

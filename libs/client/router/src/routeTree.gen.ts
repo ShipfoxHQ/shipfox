@@ -26,9 +26,12 @@ import { Route as WorkspacesWidLayoutIntegrationsIndexRouteImport } from './rout
 import { Route as WorkspacesWidLayoutSettingsRunnersRouteImport } from './routes/workspaces/$wid/_layout/settings/runners'
 import { Route as WorkspacesWidLayoutSettingsMembersRouteImport } from './routes/workspaces/$wid/_layout/settings/members'
 import { Route as WorkspacesWidLayoutProjectsNewRouteImport } from './routes/workspaces/$wid/_layout/projects/new'
-import { Route as WorkspacesWidLayoutProjectsPidRouteImport } from './routes/workspaces/$wid/_layout/projects/$pid'
 import { Route as WorkspacesWidLayoutIntegrationsGithubRouteImport } from './routes/workspaces/$wid/_layout/integrations/github'
 import { Route as WorkspacesWidLayoutIntegrationsDebugRouteImport } from './routes/workspaces/$wid/_layout/integrations/debug'
+import { Route as WorkspacesWidLayoutProjectsPidLayoutRouteImport } from './routes/workspaces/$wid/_layout/projects/$pid/_layout'
+import { Route as WorkspacesWidLayoutProjectsPidLayoutIndexRouteImport } from './routes/workspaces/$wid/_layout/projects/$pid/_layout/index'
+import { Route as WorkspacesWidLayoutProjectsPidLayoutWorkflowsRouteImport } from './routes/workspaces/$wid/_layout/projects/$pid/_layout/workflows'
+import { Route as WorkspacesWidLayoutProjectsPidLayoutRunsRouteImport } from './routes/workspaces/$wid/_layout/projects/$pid/_layout/runs'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -123,12 +126,6 @@ const WorkspacesWidLayoutProjectsNewRoute =
     path: '/projects/new',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
-const WorkspacesWidLayoutProjectsPidRoute =
-  WorkspacesWidLayoutProjectsPidRouteImport.update({
-    id: '/projects/$pid',
-    path: '/projects/$pid',
-    getParentRoute: () => WorkspacesWidLayoutRoute,
-  } as any)
 const WorkspacesWidLayoutIntegrationsGithubRoute =
   WorkspacesWidLayoutIntegrationsGithubRouteImport.update({
     id: '/integrations/github',
@@ -140,6 +137,30 @@ const WorkspacesWidLayoutIntegrationsDebugRoute =
     id: '/integrations/debug',
     path: '/integrations/debug',
     getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
+const WorkspacesWidLayoutProjectsPidLayoutRoute =
+  WorkspacesWidLayoutProjectsPidLayoutRouteImport.update({
+    id: '/projects/$pid/_layout',
+    path: '/projects/$pid',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
+const WorkspacesWidLayoutProjectsPidLayoutIndexRoute =
+  WorkspacesWidLayoutProjectsPidLayoutIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => WorkspacesWidLayoutProjectsPidLayoutRoute,
+  } as any)
+const WorkspacesWidLayoutProjectsPidLayoutWorkflowsRoute =
+  WorkspacesWidLayoutProjectsPidLayoutWorkflowsRouteImport.update({
+    id: '/workflows',
+    path: '/workflows',
+    getParentRoute: () => WorkspacesWidLayoutProjectsPidLayoutRoute,
+  } as any)
+const WorkspacesWidLayoutProjectsPidLayoutRunsRoute =
+  WorkspacesWidLayoutProjectsPidLayoutRunsRouteImport.update({
+    id: '/runs',
+    path: '/runs',
+    getParentRoute: () => WorkspacesWidLayoutProjectsPidLayoutRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -157,12 +178,15 @@ export interface FileRoutesByFullPath {
   '/workspaces/$wid/': typeof WorkspacesWidLayoutIndexRoute
   '/workspaces/$wid/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
-  '/workspaces/$wid/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/settings/': typeof WorkspacesWidLayoutSettingsIndexRoute
+  '/workspaces/$wid/projects/$pid': typeof WorkspacesWidLayoutProjectsPidLayoutRouteWithChildren
+  '/workspaces/$wid/projects/$pid/runs': typeof WorkspacesWidLayoutProjectsPidLayoutRunsRoute
+  '/workspaces/$wid/projects/$pid/workflows': typeof WorkspacesWidLayoutProjectsPidLayoutWorkflowsRoute
+  '/workspaces/$wid/projects/$pid/': typeof WorkspacesWidLayoutProjectsPidLayoutIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -178,12 +202,14 @@ export interface FileRoutesByTo {
   '/workspaces/$wid': typeof WorkspacesWidLayoutIndexRoute
   '/workspaces/$wid/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
-  '/workspaces/$wid/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/integrations': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/settings': typeof WorkspacesWidLayoutSettingsIndexRoute
+  '/workspaces/$wid/projects/$pid/runs': typeof WorkspacesWidLayoutProjectsPidLayoutRunsRoute
+  '/workspaces/$wid/projects/$pid/workflows': typeof WorkspacesWidLayoutProjectsPidLayoutWorkflowsRoute
+  '/workspaces/$wid/projects/$pid': typeof WorkspacesWidLayoutProjectsPidLayoutIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -201,12 +227,15 @@ export interface FileRoutesById {
   '/workspaces/$wid/_layout/': typeof WorkspacesWidLayoutIndexRoute
   '/workspaces/$wid/_layout/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
   '/workspaces/$wid/_layout/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
-  '/workspaces/$wid/_layout/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
   '/workspaces/$wid/_layout/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
   '/workspaces/$wid/_layout/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/_layout/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/_layout/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/_layout/settings/': typeof WorkspacesWidLayoutSettingsIndexRoute
+  '/workspaces/$wid/_layout/projects/$pid/_layout': typeof WorkspacesWidLayoutProjectsPidLayoutRouteWithChildren
+  '/workspaces/$wid/_layout/projects/$pid/_layout/runs': typeof WorkspacesWidLayoutProjectsPidLayoutRunsRoute
+  '/workspaces/$wid/_layout/projects/$pid/_layout/workflows': typeof WorkspacesWidLayoutProjectsPidLayoutWorkflowsRoute
+  '/workspaces/$wid/_layout/projects/$pid/_layout/': typeof WorkspacesWidLayoutProjectsPidLayoutIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -225,12 +254,15 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/'
     | '/workspaces/$wid/integrations/debug'
     | '/workspaces/$wid/integrations/github'
-    | '/workspaces/$wid/projects/$pid'
     | '/workspaces/$wid/projects/new'
     | '/workspaces/$wid/settings/members'
     | '/workspaces/$wid/settings/runners'
     | '/workspaces/$wid/integrations/'
     | '/workspaces/$wid/settings/'
+    | '/workspaces/$wid/projects/$pid'
+    | '/workspaces/$wid/projects/$pid/runs'
+    | '/workspaces/$wid/projects/$pid/workflows'
+    | '/workspaces/$wid/projects/$pid/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -246,12 +278,14 @@ export interface FileRouteTypes {
     | '/workspaces/$wid'
     | '/workspaces/$wid/integrations/debug'
     | '/workspaces/$wid/integrations/github'
-    | '/workspaces/$wid/projects/$pid'
     | '/workspaces/$wid/projects/new'
     | '/workspaces/$wid/settings/members'
     | '/workspaces/$wid/settings/runners'
     | '/workspaces/$wid/integrations'
     | '/workspaces/$wid/settings'
+    | '/workspaces/$wid/projects/$pid/runs'
+    | '/workspaces/$wid/projects/$pid/workflows'
+    | '/workspaces/$wid/projects/$pid'
   id:
     | '__root__'
     | '/'
@@ -268,12 +302,15 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/_layout/'
     | '/workspaces/$wid/_layout/integrations/debug'
     | '/workspaces/$wid/_layout/integrations/github'
-    | '/workspaces/$wid/_layout/projects/$pid'
     | '/workspaces/$wid/_layout/projects/new'
     | '/workspaces/$wid/_layout/settings/members'
     | '/workspaces/$wid/_layout/settings/runners'
     | '/workspaces/$wid/_layout/integrations/'
     | '/workspaces/$wid/_layout/settings/'
+    | '/workspaces/$wid/_layout/projects/$pid/_layout'
+    | '/workspaces/$wid/_layout/projects/$pid/_layout/runs'
+    | '/workspaces/$wid/_layout/projects/$pid/_layout/workflows'
+    | '/workspaces/$wid/_layout/projects/$pid/_layout/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -410,13 +447,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWidLayoutProjectsNewRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
-    '/workspaces/$wid/_layout/projects/$pid': {
-      id: '/workspaces/$wid/_layout/projects/$pid'
-      path: '/projects/$pid'
-      fullPath: '/workspaces/$wid/projects/$pid'
-      preLoaderRoute: typeof WorkspacesWidLayoutProjectsPidRouteImport
-      parentRoute: typeof WorkspacesWidLayoutRoute
-    }
     '/workspaces/$wid/_layout/integrations/github': {
       id: '/workspaces/$wid/_layout/integrations/github'
       path: '/integrations/github'
@@ -430,6 +460,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/workspaces/$wid/integrations/debug'
       preLoaderRoute: typeof WorkspacesWidLayoutIntegrationsDebugRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
+    }
+    '/workspaces/$wid/_layout/projects/$pid/_layout': {
+      id: '/workspaces/$wid/_layout/projects/$pid/_layout'
+      path: '/projects/$pid'
+      fullPath: '/workspaces/$wid/projects/$pid'
+      preLoaderRoute: typeof WorkspacesWidLayoutProjectsPidLayoutRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
+    '/workspaces/$wid/_layout/projects/$pid/_layout/': {
+      id: '/workspaces/$wid/_layout/projects/$pid/_layout/'
+      path: '/'
+      fullPath: '/workspaces/$wid/projects/$pid/'
+      preLoaderRoute: typeof WorkspacesWidLayoutProjectsPidLayoutIndexRouteImport
+      parentRoute: typeof WorkspacesWidLayoutProjectsPidLayoutRoute
+    }
+    '/workspaces/$wid/_layout/projects/$pid/_layout/workflows': {
+      id: '/workspaces/$wid/_layout/projects/$pid/_layout/workflows'
+      path: '/workflows'
+      fullPath: '/workspaces/$wid/projects/$pid/workflows'
+      preLoaderRoute: typeof WorkspacesWidLayoutProjectsPidLayoutWorkflowsRouteImport
+      parentRoute: typeof WorkspacesWidLayoutProjectsPidLayoutRoute
+    }
+    '/workspaces/$wid/_layout/projects/$pid/_layout/runs': {
+      id: '/workspaces/$wid/_layout/projects/$pid/_layout/runs'
+      path: '/runs'
+      fullPath: '/workspaces/$wid/projects/$pid/runs'
+      preLoaderRoute: typeof WorkspacesWidLayoutProjectsPidLayoutRunsRouteImport
+      parentRoute: typeof WorkspacesWidLayoutProjectsPidLayoutRoute
     }
   }
 }
@@ -446,16 +504,37 @@ const SetupLayoutRouteWithChildren = SetupLayoutRoute._addFileChildren(
   SetupLayoutRouteChildren,
 )
 
+interface WorkspacesWidLayoutProjectsPidLayoutRouteChildren {
+  WorkspacesWidLayoutProjectsPidLayoutRunsRoute: typeof WorkspacesWidLayoutProjectsPidLayoutRunsRoute
+  WorkspacesWidLayoutProjectsPidLayoutWorkflowsRoute: typeof WorkspacesWidLayoutProjectsPidLayoutWorkflowsRoute
+  WorkspacesWidLayoutProjectsPidLayoutIndexRoute: typeof WorkspacesWidLayoutProjectsPidLayoutIndexRoute
+}
+
+const WorkspacesWidLayoutProjectsPidLayoutRouteChildren: WorkspacesWidLayoutProjectsPidLayoutRouteChildren =
+  {
+    WorkspacesWidLayoutProjectsPidLayoutRunsRoute:
+      WorkspacesWidLayoutProjectsPidLayoutRunsRoute,
+    WorkspacesWidLayoutProjectsPidLayoutWorkflowsRoute:
+      WorkspacesWidLayoutProjectsPidLayoutWorkflowsRoute,
+    WorkspacesWidLayoutProjectsPidLayoutIndexRoute:
+      WorkspacesWidLayoutProjectsPidLayoutIndexRoute,
+  }
+
+const WorkspacesWidLayoutProjectsPidLayoutRouteWithChildren =
+  WorkspacesWidLayoutProjectsPidLayoutRoute._addFileChildren(
+    WorkspacesWidLayoutProjectsPidLayoutRouteChildren,
+  )
+
 interface WorkspacesWidLayoutRouteChildren {
   WorkspacesWidLayoutIndexRoute: typeof WorkspacesWidLayoutIndexRoute
   WorkspacesWidLayoutIntegrationsDebugRoute: typeof WorkspacesWidLayoutIntegrationsDebugRoute
   WorkspacesWidLayoutIntegrationsGithubRoute: typeof WorkspacesWidLayoutIntegrationsGithubRoute
-  WorkspacesWidLayoutProjectsPidRoute: typeof WorkspacesWidLayoutProjectsPidRoute
   WorkspacesWidLayoutProjectsNewRoute: typeof WorkspacesWidLayoutProjectsNewRoute
   WorkspacesWidLayoutSettingsMembersRoute: typeof WorkspacesWidLayoutSettingsMembersRoute
   WorkspacesWidLayoutSettingsRunnersRoute: typeof WorkspacesWidLayoutSettingsRunnersRoute
   WorkspacesWidLayoutIntegrationsIndexRoute: typeof WorkspacesWidLayoutIntegrationsIndexRoute
   WorkspacesWidLayoutSettingsIndexRoute: typeof WorkspacesWidLayoutSettingsIndexRoute
+  WorkspacesWidLayoutProjectsPidLayoutRoute: typeof WorkspacesWidLayoutProjectsPidLayoutRouteWithChildren
 }
 
 const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
@@ -464,7 +543,6 @@ const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
     WorkspacesWidLayoutIntegrationsDebugRoute,
   WorkspacesWidLayoutIntegrationsGithubRoute:
     WorkspacesWidLayoutIntegrationsGithubRoute,
-  WorkspacesWidLayoutProjectsPidRoute: WorkspacesWidLayoutProjectsPidRoute,
   WorkspacesWidLayoutProjectsNewRoute: WorkspacesWidLayoutProjectsNewRoute,
   WorkspacesWidLayoutSettingsMembersRoute:
     WorkspacesWidLayoutSettingsMembersRoute,
@@ -473,6 +551,8 @@ const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
   WorkspacesWidLayoutIntegrationsIndexRoute:
     WorkspacesWidLayoutIntegrationsIndexRoute,
   WorkspacesWidLayoutSettingsIndexRoute: WorkspacesWidLayoutSettingsIndexRoute,
+  WorkspacesWidLayoutProjectsPidLayoutRoute:
+    WorkspacesWidLayoutProjectsPidLayoutRouteWithChildren,
 }
 
 const WorkspacesWidLayoutRouteWithChildren =

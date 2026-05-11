@@ -15,7 +15,8 @@ import {type RenderResult, render} from '@testing-library/react';
 import {Provider as JotaiProvider, useSetAtom} from 'jotai';
 import {type ReactElement, useEffect} from 'react';
 import {CreateProjectPage} from '#pages/create-project-page.js';
-import {ProjectDetailPage} from '#pages/project-detail-page.js';
+import {ProjectRunsPage} from '#pages/project-runs-page.js';
+import {ProjectWorkflowsPage} from '#pages/project-workflows-page.js';
 import {ProjectsHubPage} from '#pages/projects-hub-page.js';
 
 // All test renders that exercise pages requiring `useActiveWorkspace()` mount
@@ -84,7 +85,31 @@ function createTestRouter(path: string, element: ReactElement) {
         return element;
       }
 
-      return <ProjectDetailPage projectId={params.pid ?? 'p-1'} />;
+      return <ProjectWorkflowsPage projectId={params.pid ?? 'p-1'} />;
+    },
+  });
+  const projectRunsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/projects/$pid/runs',
+    component: () => {
+      const params = useParams({strict: false}) as {pid?: string};
+      if (initialPath === `/workspaces/${PROJECT_TEST_WID}/projects/${params.pid}/runs`) {
+        return element;
+      }
+
+      return <ProjectRunsPage projectId={params.pid ?? 'p-1'} />;
+    },
+  });
+  const projectWorkflowsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/projects/$pid/workflows',
+    component: () => {
+      const params = useParams({strict: false}) as {pid?: string};
+      if (initialPath === `/workspaces/${PROJECT_TEST_WID}/projects/${params.pid}/workflows`) {
+        return element;
+      }
+
+      return <ProjectWorkflowsPage projectId={params.pid ?? 'p-1'} />;
     },
   });
 
@@ -96,6 +121,8 @@ function createTestRouter(path: string, element: ReactElement) {
       workspaceNewProjectRoute,
       integrationsRoute,
       projectDetailRoute,
+      projectRunsRoute,
+      projectWorkflowsRoute,
     ]),
   });
 }

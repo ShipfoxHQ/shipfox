@@ -1,19 +1,17 @@
 import {ProjectNotFoundError, requireProjectAccess} from '@shipfox/api-projects';
-import {runListQuerySchema, runListResponseSchema} from '@shipfox/api-workflows-dto';
-import {decodeTimestampIdCursor, encodeTimestampIdCursor} from '@shipfox/node-drizzle';
+import {runAggregatesQuerySchema, runAggregatesResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
-import {listWorkflowRuns} from '#db/index.js';
-import {toRunDto} from '#presentation/dto/index.js';
+import {getWorkflowRunAggregates} from '#db/index.js';
 
-export const listRunsRoute = defineRoute({
+export const getRunAggregatesRoute = defineRoute({
   method: 'GET',
-  path: '/',
-  description: 'List workflow runs for a project',
+  path: '/aggregates',
+  description: 'Get faceted workflow run counts for a project',
   schema: {
-    querystring: runListQuerySchema,
+    querystring: runAggregatesQuerySchema,
     response: {
-      200: runListResponseSchema,
+      200: runAggregatesResponseSchema,
     },
   },
   errorHandler: (error) => {
@@ -26,21 +24,14 @@ export const listRunsRoute = defineRoute({
     const startedAt = performance.now();
     const {
       project_id: projectId,
-      limit,
-      cursor,
       status,
       definition_id: definitionId,
       trigger_source: triggerSource,
       created_from: createdFrom,
       created_to: createdTo,
     } = request.query;
-    const decodedCursor = decodeTimestampIdCursor(cursor);
-    if (cursor && !decodedCursor) {
-      throw new ClientError('Invalid cursor', 'invalid-cursor', {status: 400});
-    }
 
     const {project} = await requireProjectAccess({request, projectId});
-
     const filters = {
       status,
       definitionId,
@@ -48,12 +39,7 @@ export const listRunsRoute = defineRoute({
       createdFrom: createdFrom ? new Date(createdFrom) : undefined,
       createdTo: createdTo ? new Date(createdTo) : undefined,
     };
-    const result = await listWorkflowRuns({
-      projectId: project.id,
-      limit,
-      cursor: decodedCursor,
-      filters,
-    });
+    const aggregates = await getWorkflowRunAggregates({projectId: project.id, filters});
 
     logger().info(
       {
@@ -61,19 +47,20 @@ export const listRunsRoute = defineRoute({
         filterKeys: Object.entries(filters)
           .filter(([, value]) => value !== undefined)
           .map(([key]) => key),
-        limit,
-        cursorPresent: Boolean(cursor),
-        resultCount: result.runs.length,
-        nextCursorPresent: Boolean(result.nextCursor),
+        aggregateBucketSizes: {
+          status: aggregates.status.length,
+          triggerSource: aggregates.triggerSource.length,
+          workflow: aggregates.workflow.length,
+        },
         durationMs: Math.round(performance.now() - startedAt),
       },
-      'Listed workflow runs',
+      'Aggregated workflow runs',
     );
 
     return {
-      runs: result.runs.map(toRunDto),
-      next_cursor: result.nextCursor ? encodeTimestampIdCursor(result.nextCursor) : null,
-      filtered_total_count: result.filteredTotalCount,
+      status: aggregates.status,
+      trigger_source: aggregates.triggerSource,
+      workflow: aggregates.workflow,
     };
   },
 });

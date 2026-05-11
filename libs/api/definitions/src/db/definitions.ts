@@ -1,6 +1,6 @@
 import {DEFINITION_RESOLVED, type DefinitionsEventMap} from '@shipfox/api-definitions-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {and, asc, eq, isNull, notInArray, sql} from 'drizzle-orm';
+import {and, asc, eq, gt, isNull, notInArray, or, type SQL, sql} from 'drizzle-orm';
 import type {WorkflowDefinition, WorkflowSpec} from '#core/entities/definition.js';
 import {db} from './db.js';
 import {toDefinition, workflowDefinitions} from './schema/definitions.js';
@@ -118,14 +118,60 @@ export async function getDefinitionById(id: string): Promise<WorkflowDefinition 
   return toDefinition(row);
 }
 
-export async function listDefinitionsByProject(projectId: string): Promise<WorkflowDefinition[]> {
+export interface DefinitionCursor {
+  value: string;
+  id: string;
+}
+
+export interface ListDefinitionsParams {
+  projectId: string;
+  limit: number;
+  cursor?: DefinitionCursor | undefined;
+}
+
+export interface ListDefinitionsResult {
+  definitions: WorkflowDefinition[];
+  nextCursor: DefinitionCursor | null;
+}
+
+function cursorWhere(cursor: DefinitionCursor | undefined): SQL | undefined {
+  if (!cursor) return undefined;
+  return or(
+    gt(workflowDefinitions.name, cursor.value),
+    and(eq(workflowDefinitions.name, cursor.value), gt(workflowDefinitions.id, cursor.id)),
+  );
+}
+
+export async function listDefinitions(
+  params: ListDefinitionsParams,
+): Promise<ListDefinitionsResult> {
+  const conditions = [
+    eq(workflowDefinitions.projectId, params.projectId),
+    isNull(workflowDefinitions.deletedAt),
+  ];
+  const cursorCondition = cursorWhere(params.cursor);
+  if (cursorCondition) conditions.push(cursorCondition);
+
   const rows = await db()
     .select()
     .from(workflowDefinitions)
-    .where(and(eq(workflowDefinitions.projectId, projectId), isNull(workflowDefinitions.deletedAt)))
-    .orderBy(asc(workflowDefinitions.name));
+    .where(and(...conditions))
+    .orderBy(asc(workflowDefinitions.name), asc(workflowDefinitions.id))
+    .limit(params.limit + 1);
 
-  return rows.map(toDefinition);
+  const hasMore = rows.length > params.limit;
+  const pageRows = hasMore ? rows.slice(0, params.limit) : rows;
+  const last = pageRows.at(-1);
+
+  return {
+    definitions: pageRows.map(toDefinition),
+    nextCursor: hasMore && last ? {value: last.name, id: last.id} : null,
+  };
+}
+
+export async function listDefinitionsByProject(projectId: string): Promise<WorkflowDefinition[]> {
+  const result = await listDefinitions({projectId, limit: 100});
+  return result.definitions;
 }
 
 export interface SoftDeleteVcsDefinitionsParams {

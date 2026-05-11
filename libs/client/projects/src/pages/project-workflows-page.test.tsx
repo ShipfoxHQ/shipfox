@@ -1,17 +1,17 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
-import {ProjectDetailPage} from './project-detail-page.js';
+import {ProjectWorkflowsPage} from './project-workflows-page.js';
 
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 
-describe('ProjectDetailPage', () => {
+describe('ProjectWorkflowsPage', () => {
   test('renders workflow definitions and source metadata', async () => {
     configureApiClient({fetchImpl: createProjectDetailFetch()});
 
     renderProjectPage(
       `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}`,
-      <ProjectDetailPage projectId={PROJECT_ID} />,
+      <ProjectWorkflowsPage projectId={PROJECT_ID} />,
     );
 
     expect(await screen.findByRole('heading', {name: 'Workflows'})).toBeInTheDocument();
@@ -31,7 +31,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectPage(
       `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}`,
-      <ProjectDetailPage projectId={PROJECT_ID} />,
+      <ProjectWorkflowsPage projectId={PROJECT_ID} />,
     );
 
     expect(await screen.findByText('Workflows unavailable')).toBeInTheDocument();
@@ -62,7 +62,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectPage(
       `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}`,
-      <ProjectDetailPage projectId={PROJECT_ID} />,
+      <ProjectWorkflowsPage projectId={PROJECT_ID} />,
     );
 
     expect(
@@ -76,7 +76,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectPage(
       `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}`,
-      <ProjectDetailPage projectId={PROJECT_ID} />,
+      <ProjectWorkflowsPage projectId={PROJECT_ID} />,
     );
 
     const [detailsButton] = await screen.findAllByRole('button', {name: 'Details'});
@@ -99,7 +99,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectPage(
       `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}`,
-      <ProjectDetailPage projectId={PROJECT_ID} />,
+      <ProjectWorkflowsPage projectId={PROJECT_ID} />,
     );
 
     const [runButton] = await screen.findAllByRole('button', {name: 'Run'});
@@ -123,7 +123,7 @@ describe('ProjectDetailPage', () => {
 
     renderProjectPage(
       `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}`,
-      <ProjectDetailPage projectId={PROJECT_ID} />,
+      <ProjectWorkflowsPage projectId={PROJECT_ID} />,
     );
 
     expect(await screen.findByText('This project was not found.')).toBeInTheDocument();
@@ -199,6 +199,7 @@ function baseDefinitionsDto() {
         updated_at: '2026-05-07T01:00:00.000Z',
       },
     ],
+    next_cursor: null,
     sync: {
       ref: 'main',
       status: 'succeeded',
@@ -217,7 +218,9 @@ function runDto() {
     project_id: PROJECT_ID,
     definition_id: '55555555-5555-4555-8555-555555555555',
     status: 'pending',
-    trigger_context: {type: 'manual'},
+    name: 'Deploy production',
+    trigger_source: 'manual',
+    trigger_context: {},
     inputs: null,
     created_at: '2026-05-07T01:01:00.000Z',
     updated_at: '2026-05-07T01:01:00.000Z',

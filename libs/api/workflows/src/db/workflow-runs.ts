@@ -5,10 +5,15 @@ import {
   type WorkflowsEventMap,
 } from '@shipfox/api-workflows-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {and, asc, desc, eq, inArray, sql} from 'drizzle-orm';
+import {and, asc, count, desc, eq, gte, inArray, lt, lte, or, type SQL, sql} from 'drizzle-orm';
 import type {Job, JobStatus} from '#core/entities/job.js';
 import type {Step, StepStatus} from '#core/entities/step.js';
-import type {TriggerContext, WorkflowRun, WorkflowRunStatus} from '#core/entities/workflow-run.js';
+import type {
+  TriggerContext,
+  TriggerSource,
+  WorkflowRun,
+  WorkflowRunStatus,
+} from '#core/entities/workflow-run.js';
 import {db} from './db.js';
 import {jobs, toJob} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
@@ -19,7 +24,9 @@ export interface CreateWorkflowRunParams {
   workspaceId: string;
   projectId: string;
   definitionId: string;
+  name?: string | undefined;
   definition: WorkflowSpec;
+  triggerSource?: TriggerSource | undefined;
   triggerContext: TriggerContext;
   inputs?: Record<string, unknown> | undefined;
 }
@@ -42,7 +49,9 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         workspaceId: params.workspaceId,
         projectId: params.projectId,
         definitionId: params.definitionId,
+        name: params.name ?? params.definition.name,
         status: 'pending',
+        triggerSource: params.triggerSource ?? 'manual',
         triggerContext: params.triggerContext,
         inputs: params.inputs ?? null,
       })
@@ -109,13 +118,161 @@ export async function getWorkflowRunById(id: string): Promise<WorkflowRun | unde
   return toWorkflowRun(row);
 }
 
-export async function listWorkflowRunsByProject(projectId: string): Promise<WorkflowRun[]> {
+export interface WorkflowRunCursor {
+  createdAt: Date;
+  id: string;
+}
+
+export interface WorkflowRunFilters {
+  status?: WorkflowRunStatus | undefined;
+  definitionId?: string | undefined;
+  triggerSource?: TriggerSource | undefined;
+  createdFrom?: Date | undefined;
+  createdTo?: Date | undefined;
+}
+
+export interface ListWorkflowRunsParams {
+  projectId: string;
+  limit: number;
+  cursor?: WorkflowRunCursor | undefined;
+  filters?: WorkflowRunFilters | undefined;
+}
+
+export interface ListWorkflowRunsResult {
+  runs: WorkflowRun[];
+  nextCursor: WorkflowRunCursor | null;
+  filteredTotalCount: number;
+}
+
+function cursorWhere(cursor: WorkflowRunCursor | undefined): SQL | undefined {
+  if (!cursor) return undefined;
+  return or(
+    lt(workflowRuns.createdAt, cursor.createdAt),
+    and(eq(workflowRuns.createdAt, cursor.createdAt), lt(workflowRuns.id, cursor.id)),
+  );
+}
+
+export function buildWorkflowRunListConditions(params: {
+  projectId: string;
+  filters?: WorkflowRunFilters | undefined;
+  cursor?: WorkflowRunCursor | undefined;
+  omit?: 'status' | 'definitionId' | 'triggerSource' | undefined;
+}): SQL[] {
+  const filters = params.filters;
+  const conditions: SQL[] = [eq(workflowRuns.projectId, params.projectId)];
+  const cursorCondition = cursorWhere(params.cursor);
+  if (cursorCondition) conditions.push(cursorCondition);
+  if (filters?.status && params.omit !== 'status') {
+    conditions.push(eq(workflowRuns.status, filters.status));
+  }
+  if (filters?.definitionId && params.omit !== 'definitionId') {
+    conditions.push(eq(workflowRuns.definitionId, filters.definitionId));
+  }
+  if (filters?.triggerSource && params.omit !== 'triggerSource') {
+    conditions.push(eq(workflowRuns.triggerSource, filters.triggerSource));
+  }
+  if (filters?.createdFrom) {
+    conditions.push(gte(workflowRuns.createdAt, filters.createdFrom));
+  }
+  if (filters?.createdTo) {
+    conditions.push(lte(workflowRuns.createdAt, filters.createdTo));
+  }
+  return conditions;
+}
+
+export async function listWorkflowRuns(
+  params: ListWorkflowRunsParams,
+): Promise<ListWorkflowRunsResult> {
+  const conditions = buildWorkflowRunListConditions(params);
   const rows = await db()
     .select()
     .from(workflowRuns)
-    .where(eq(workflowRuns.projectId, projectId))
-    .orderBy(desc(workflowRuns.createdAt));
-  return rows.map(toWorkflowRun);
+    .where(and(...conditions))
+    .orderBy(desc(workflowRuns.createdAt), desc(workflowRuns.id))
+    .limit(params.limit + 1);
+
+  const [{value: totalCount} = {value: 0}] = await db()
+    .select({value: count()})
+    .from(workflowRuns)
+    .where(
+      and(
+        ...buildWorkflowRunListConditions({projectId: params.projectId, filters: params.filters}),
+      ),
+    );
+
+  const hasMore = rows.length > params.limit;
+  const pageRows = hasMore ? rows.slice(0, params.limit) : rows;
+  const last = pageRows.at(-1);
+
+  return {
+    runs: pageRows.map(toWorkflowRun),
+    nextCursor: hasMore && last ? {createdAt: last.createdAt, id: last.id} : null,
+    filteredTotalCount: totalCount,
+  };
+}
+
+export async function listWorkflowRunsByProject(projectId: string): Promise<WorkflowRun[]> {
+  const result = await listWorkflowRuns({projectId, limit: 100});
+  return result.runs;
+}
+
+export interface WorkflowRunAggregates {
+  status: Array<{value: WorkflowRunStatus; count: number}>;
+  triggerSource: Array<{value: TriggerSource; count: number}>;
+  workflow: Array<{value: string; count: number}>;
+}
+
+export async function getWorkflowRunAggregates(params: {
+  projectId: string;
+  filters?: WorkflowRunFilters | undefined;
+}): Promise<WorkflowRunAggregates> {
+  const [statusRows, triggerRows, workflowRows] = await Promise.all([
+    db()
+      .select({value: workflowRuns.status, count: count()})
+      .from(workflowRuns)
+      .where(
+        and(
+          ...buildWorkflowRunListConditions({
+            projectId: params.projectId,
+            filters: params.filters,
+            omit: 'status',
+          }),
+        ),
+      )
+      .groupBy(workflowRuns.status),
+    db()
+      .select({value: workflowRuns.triggerSource, count: count()})
+      .from(workflowRuns)
+      .where(
+        and(
+          ...buildWorkflowRunListConditions({
+            projectId: params.projectId,
+            filters: params.filters,
+            omit: 'triggerSource',
+          }),
+        ),
+      )
+      .groupBy(workflowRuns.triggerSource),
+    db()
+      .select({value: workflowRuns.definitionId, count: count()})
+      .from(workflowRuns)
+      .where(
+        and(
+          ...buildWorkflowRunListConditions({
+            projectId: params.projectId,
+            filters: params.filters,
+            omit: 'definitionId',
+          }),
+        ),
+      )
+      .groupBy(workflowRuns.definitionId),
+  ]);
+
+  return {
+    status: statusRows,
+    triggerSource: triggerRows,
+    workflow: workflowRows,
+  };
 }
 
 export async function getJobsByRunId(runId: string): Promise<Job[]> {

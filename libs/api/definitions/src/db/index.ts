@@ -5,6 +5,8 @@ export {closeDb, db, schema} from './db.js';
 export type {
   ApplyVcsDefinitionsBatchParams,
   ApplyVcsDefinitionsBatchResult,
+  ListDefinitionsParams,
+  ListDefinitionsResult,
   SoftDeleteVcsDefinitionsParams,
   UpsertDefinitionParams,
 } from './definitions.js';
@@ -12,6 +14,7 @@ export {
   applyVcsDefinitionsBatch,
   getDefinitionById,
   invalidateCache,
+  listDefinitions,
   listDefinitionsByProject,
   softDeleteVcsDefinitionsNotIn,
   upsertDefinition,

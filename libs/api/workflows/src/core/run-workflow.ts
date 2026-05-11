@@ -22,8 +22,10 @@ export async function runWorkflow(params: RunWorkflowParams): Promise<WorkflowRu
     workspaceId: params.workspaceId,
     projectId: params.projectId,
     definitionId: definition.id,
+    name: definition.name,
     definition: definition.definition,
-    triggerContext: {type: 'manual'},
+    triggerSource: 'manual',
+    triggerContext: {},
     inputs: params.inputs,
   });
 }

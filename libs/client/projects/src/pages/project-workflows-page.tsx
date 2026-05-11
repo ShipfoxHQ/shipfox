@@ -27,18 +27,21 @@ import {
   toast,
 } from '@shipfox/react-ui';
 import {useState} from 'react';
-import {useDefinitionsQuery} from '#hooks/api/definitions.js';
+import {useDefinitionsInfiniteQuery} from '#hooks/api/definitions.js';
 import {useProjectQuery} from '#hooks/api/projects.js';
 import {useCreateWorkflowRunMutation} from '#hooks/api/workflow-runs.js';
+import {formatTimestamp} from '#lib/format.js';
 import {projectErrorCopy} from '#project-error.js';
 
-export function ProjectDetailPage({projectId}: {projectId: string}) {
+export function ProjectWorkflowsPage({projectId}: {projectId: string}) {
   const projectQuery = useProjectQuery(projectId);
-  const definitionsQuery = useDefinitionsQuery(projectId);
+  const definitionsQuery = useDefinitionsInfiniteQuery(projectId);
   const createRun = useCreateWorkflowRunMutation();
   const [selectedDefinition, setSelectedDefinition] = useState<DefinitionDto | null>(null);
   const [runError, setRunError] = useState<{definitionId: string; message: string} | null>(null);
   const errorCopy = projectQuery.error ? projectErrorCopy(projectQuery.error) : undefined;
+  const definitions = definitionsQuery.data?.pages.flatMap((page) => page.definitions) ?? [];
+  const sync = definitionsQuery.data?.pages[0]?.sync;
 
   async function handleRun(definition: DefinitionDto) {
     setRunError(null);
@@ -91,20 +94,21 @@ export function ProjectDetailPage({projectId}: {projectId: string}) {
                   Synced workflow definitions for this project source.
                 </CardDescription>
               </CardHeader>
-              <SyncBadge
-                sync={definitionsQuery.data?.sync}
-                isPending={definitionsQuery.isPending}
-              />
+              <SyncBadge sync={sync} isPending={definitionsQuery.isPending} />
             </div>
             <CardContent className="flex flex-col gap-14">
-              <WorkflowSyncAlert sync={definitionsQuery.data?.sync} />
+              <WorkflowSyncAlert sync={sync} />
               <WorkflowDefinitionsList
-                definitions={definitionsQuery.data?.definitions ?? []}
+                definitions={definitions}
                 isPending={definitionsQuery.isPending}
                 isError={definitionsQuery.isError}
-                sync={definitionsQuery.data?.sync ?? null}
+                sync={sync ?? null}
                 runError={runError}
+                hasNextPage={definitionsQuery.hasNextPage}
+                isFetchingNextPage={definitionsQuery.isFetchingNextPage}
+                isFetchNextPageError={definitionsQuery.isFetchNextPageError}
                 onRetry={() => definitionsQuery.refetch()}
+                onLoadMore={() => definitionsQuery.fetchNextPage()}
                 onOpenDefinition={setSelectedDefinition}
                 onRun={(definition) => {
                   void handleRun(definition);
@@ -158,7 +162,11 @@ function WorkflowDefinitionsList({
   isError,
   sync,
   runError,
+  hasNextPage,
+  isFetchingNextPage,
+  isFetchNextPageError,
   onRetry,
+  onLoadMore,
   onOpenDefinition,
   onRun,
 }: {
@@ -167,7 +175,11 @@ function WorkflowDefinitionsList({
   isError: boolean;
   sync: DefinitionSyncSummaryDto | null;
   runError: {definitionId: string; message: string} | null;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  isFetchNextPageError: boolean;
   onRetry: () => void;
+  onLoadMore: () => void;
   onOpenDefinition: (definition: DefinitionDto) => void;
   onRun: (definition: DefinitionDto) => void;
 }) {
@@ -181,7 +193,7 @@ function WorkflowDefinitionsList({
     );
   }
 
-  if (isError) {
+  if (isError && definitions.length === 0) {
     return (
       <Alert variant="error" animated={false}>
         <div className="flex flex-col gap-8">
@@ -327,6 +339,25 @@ function WorkflowDefinitionsList({
           );
         })}
       </div>
+
+      {isFetchNextPageError ? (
+        <Alert variant="error" animated={false}>
+          <div className="flex items-center justify-between gap-12">
+            <Text size="sm">Could not load more workflows.</Text>
+            <Button size="sm" variant="secondary" onClick={onLoadMore}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      ) : null}
+
+      {hasNextPage ? (
+        <div className="flex justify-center">
+          <Button size="sm" variant="secondary" isLoading={isFetchingNextPage} onClick={onLoadMore}>
+            Load more
+          </Button>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -447,13 +478,6 @@ function DefinitionSheet({
       </SheetContent>
     </Sheet>
   );
-}
-
-function formatTimestamp(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
 }
 
 function errorMessage(error: unknown, fallback: string) {

@@ -1,0 +1,102 @@
+import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import type {FastifyInstance} from 'fastify';
+import Fastify from 'fastify';
+import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
+import {createWorkflowRun, updateWorkflowRunStatus} from '#db/workflow-runs.js';
+import {getRunAggregatesRoute} from './get-run-aggregates.js';
+
+const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
+
+vi.mock('@shipfox/api-projects', () => ({
+  ProjectNotFoundError: class ProjectNotFoundError extends Error {},
+  requireProjectAccess: vi.fn(({projectId}) =>
+    Promise.resolve({
+      project: {id: projectId, workspaceId: projectAccessState.workspaceId},
+      workspaceId: projectAccessState.workspaceId,
+    }),
+  ),
+}));
+
+describe('GET /api/workflows/runs/aggregates', () => {
+  let app: FastifyInstance;
+  let workspaceId: string;
+  let projectId: string;
+
+  beforeAll(async () => {
+    app = Fastify();
+    app.setValidatorCompiler(validatorCompiler);
+    app.setSerializerCompiler(serializerCompiler);
+    app.addHook('onRequest', (request, _reply, done) => {
+      setUserContext(
+        request,
+        buildUserContext({
+          userId: crypto.randomUUID(),
+          email: 'user@example.com',
+          memberships: [{workspaceId, role: 'admin'}],
+        }),
+      );
+      done();
+    });
+    app.get('/api/workflows/runs/aggregates', getRunAggregatesRoute);
+    await app.ready();
+  });
+
+  beforeEach(() => {
+    workspaceId = crypto.randomUUID();
+    projectId = crypto.randomUUID();
+    projectAccessState.workspaceId = workspaceId;
+  });
+
+  test('returns faceted counts that ignore only their own selected filter', async () => {
+    const deployDefinitionId = crypto.randomUUID();
+    const nightlyDefinitionId = crypto.randomUUID();
+    const succeeded = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId: deployDefinitionId,
+      name: 'Deploy',
+      definition: {name: 'Deploy', jobs: {build: {steps: [{run: 'echo'}]}}},
+      triggerSource: 'manual',
+      triggerContext: {},
+    });
+    await updateWorkflowRunStatus({
+      runId: succeeded.id,
+      status: 'succeeded',
+      expectedVersion: succeeded.version,
+    });
+    await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId: deployDefinitionId,
+      name: 'Deploy',
+      definition: {name: 'Deploy', jobs: {build: {steps: [{run: 'echo'}]}}},
+      triggerSource: 'manual',
+      triggerContext: {},
+    });
+    await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId: nightlyDefinitionId,
+      name: 'Nightly',
+      definition: {name: 'Nightly', jobs: {build: {steps: [{run: 'echo'}]}}},
+      triggerSource: 'schedule',
+      triggerContext: {},
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/aggregates?project_id=${projectId}&status=succeeded&trigger_source=manual`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.status).toEqual(
+      expect.arrayContaining([
+        {value: 'pending', count: 1},
+        {value: 'succeeded', count: 1},
+      ]),
+    );
+    expect(body.trigger_source).toEqual([{value: 'manual', count: 1}]);
+    expect(body.workflow).toEqual([{value: deployDefinitionId, count: 1}]);
+  });
+});
