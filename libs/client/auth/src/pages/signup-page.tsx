@@ -1,4 +1,3 @@
-import {EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS} from '@shipfox/api-auth-dto';
 import {Alert, Button, ButtonLink, Input, Label, Text, toast} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
@@ -8,6 +7,11 @@ import {useSignupAuth} from '#hooks/api/signup-auth.js';
 import {useResendEmailVerificationAuth} from '#hooks/api/verify-email-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
 import {parseSignupForm} from './auth-form-model.js';
+import {
+  getLocalResendAvailableAt,
+  getResendRemainingSeconds,
+  parseNextResendAvailableAt,
+} from './email-verification-resend-model.js';
 import {authErrorMessage, type FieldErrors} from './form-utils.js';
 
 type SignupField = 'email' | 'password' | 'name';
@@ -24,9 +28,7 @@ export function SignupPage() {
   const [formError, setFormError] = useState<string | undefined>();
   const [resendError, setResendError] = useState<string | undefined>();
   const {email, password} = authFormDraft;
-  const resendRemainingSeconds = nextResendAvailableAt
-    ? Math.max(0, Math.ceil((nextResendAvailableAt - now) / 1000))
-    : 0;
+  const resendRemainingSeconds = getResendRemainingSeconds({nextResendAvailableAt, now});
   const isResendCoolingDown = resendRemainingSeconds > 0;
 
   useEffect(() => {
@@ -51,9 +53,9 @@ export function SignupPage() {
   }, [nextResendAvailableAt, submittedEmail]);
 
   function restartLocalCooldown() {
-    const nextAvailableAt = Date.now() + EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS * 1000;
-    setNow(Date.now());
-    setNextResendAvailableAt(nextAvailableAt);
+    const current = Date.now();
+    setNow(current);
+    setNextResendAvailableAt(getLocalResendAvailableAt(current));
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -83,9 +85,9 @@ export function SignupPage() {
     setResendError(undefined);
     try {
       const result = await resendEmailVerification.mutateAsync({email: submittedEmail});
-      const nextAvailableAt = Date.parse(result.next_resend_available_at);
+      const nextAvailableAt = parseNextResendAvailableAt(result.next_resend_available_at);
       setNow(Date.now());
-      if (Number.isFinite(nextAvailableAt)) {
+      if (nextAvailableAt !== undefined) {
         setNextResendAvailableAt(nextAvailableAt);
       } else {
         restartLocalCooldown();

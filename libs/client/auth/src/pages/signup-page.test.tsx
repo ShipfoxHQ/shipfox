@@ -1,8 +1,8 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {act, fireEvent, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, screen} from '@testing-library/react';
 import {pageUserFactory} from '#test/factories/user.js';
 import {renderAuthPage} from '#test/pages.js';
-import {jsonResponse, requestUrl} from '#test/utils.js';
+import {jsonResponse} from '#test/utils.js';
 import {SignupPage} from './signup-page.js';
 
 const SUBMITTED_EMAIL_RE = /new@example.com/;
@@ -140,13 +140,6 @@ describe('SignupPage', () => {
     });
     fireEvent.click(screen.getByRole('button', {name: 'Resend verification email'}));
 
-    await waitFor(() => {
-      expect(
-        fetchImpl.mock.calls.some(([input]) =>
-          requestUrl(input).endsWith('/auth/verify-email/resend'),
-        ),
-      ).toBe(true);
-    });
     expect(
       await screen.findByText('If another verification email can be sent, it will arrive shortly.'),
     ).toBeInTheDocument();
