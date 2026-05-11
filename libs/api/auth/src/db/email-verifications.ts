@@ -84,6 +84,8 @@ export async function createResendEmailVerification(
       .limit(1);
     const latest = latestRows[0] ? toEmailVerification(latestRows[0]) : undefined;
     if (latest && secondsAfter(latest.createdAt, params.cooldownSeconds) > now) {
+      // Return the same public retry estimate as no-op cases so the endpoint does
+      // not expose existing account state or prior verification timing.
       return {user, nextResendAvailableAt: genericNextResendAvailableAt};
     }
 

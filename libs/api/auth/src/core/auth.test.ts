@@ -213,11 +213,20 @@ describe('auth core', () => {
       password: 'correct horse battery staple',
     });
     const token = extractToken(captured[0]);
+    const existingCreatedAt = new Date(
+      Date.now() - (EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS / 2) * 1000,
+    );
+    await db()
+      .update(emailVerifications)
+      .set({createdAt: existingCreatedAt})
+      .where(eq(emailVerifications.userId, user.id));
 
     const result = await resendEmailVerification({email: user.email});
     const verified = await confirmEmailVerification({token});
 
-    expect(result.nextResendAvailableAt).toBeInstanceOf(Date);
+    expect(result.nextResendAvailableAt.getTime()).toBeGreaterThan(
+      existingCreatedAt.getTime() + EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS * 1000,
+    );
     expect(captured).toHaveLength(1);
     expect(verified.user.id).toBe(user.id);
   });
