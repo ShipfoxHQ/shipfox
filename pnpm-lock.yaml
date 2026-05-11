@@ -734,6 +734,9 @@ importers:
       '@shipfox/node-module':
         specifier: workspace:*
         version: link:../../../shared/node/module
+      '@shipfox/node-outbox':
+        specifier: workspace:*
+        version: link:../../../shared/node/outbox
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../../shared/node/postgres
@@ -879,6 +882,9 @@ importers:
 
   libs/api/integration/github:
     dependencies:
+      '@octokit/webhooks':
+        specifier: ^14.2.0
+        version: 14.2.0
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../../auth-context
@@ -900,12 +906,18 @@ importers:
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../../shared/node/fastify
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../../shared/node/opentelemetry
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../../shared/node/postgres
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.20.0)
+      fastify-plugin:
+        specifier: ^5.1.0
+        version: 5.1.0
       ky:
         specifier: ^1.14.3
         version: 1.14.3
@@ -980,6 +992,9 @@ importers:
       '@shipfox/api-integration-core':
         specifier: workspace:*
         version: link:../integration/core
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../integration/core-dto
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
@@ -995,6 +1010,9 @@ importers:
       '@shipfox/node-module':
         specifier: workspace:*
         version: link:../../shared/node/module
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../shared/node/opentelemetry
       '@shipfox/node-outbox':
         specifier: workspace:*
         version: link:../../shared/node/outbox

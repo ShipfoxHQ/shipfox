@@ -1,7 +1,9 @@
 import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
+import {INTEGRATION_REPOSITORY_PUSHED} from '@shipfox/api-integration-core-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath, projectsOutbox} from '#db/index.js';
 import {createProjectRoutes} from '#presentation/index.js';
+import {onIntegrationRepositoryPushed} from '#presentation/subscribers/index.js';
 
 export type {Project} from '#core/index.js';
 export {
@@ -31,5 +33,6 @@ export function createProjectsModule({sourceControl}: CreateProjectsModuleOption
     database: {db, migrationsPath},
     routes: createProjectRoutes(sourceControl),
     publishers: [{name: 'projects', table: projectsOutbox, db}],
+    subscribers: [{event: INTEGRATION_REPOSITORY_PUSHED, handler: onIntegrationRepositoryPushed}],
   };
 }

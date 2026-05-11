@@ -122,7 +122,7 @@ describe('GithubSourceControlProvider', () => {
       limit: 50,
     });
 
-    expect(result.repositories[0]?.externalRepositoryId).toBe('github:shipfox/platform');
+    expect(result.repositories[0]?.externalRepositoryId).toBe('github:42');
     expect(result.repositories[0]?.visibility).toBe('private');
     expect(result.nextCursor).toBe('2');
     expect(github.listInstallationRepositories).toHaveBeenCalledWith({
@@ -139,14 +139,13 @@ describe('GithubSourceControlProvider', () => {
 
     const result = await provider.resolveRepository({
       connection: connection(),
-      externalRepositoryId: 'github:shipfox/platform',
+      externalRepositoryId: 'github:42',
     });
 
     expect(result.fullName).toBe('shipfox/platform');
     expect(github.getRepository).toHaveBeenCalledWith({
       installationId,
-      owner: 'shipfox',
-      repo: 'platform',
+      repositoryId: 42,
     });
     expect(github.listInstallationRepositories).not.toHaveBeenCalled();
   });
@@ -179,7 +178,7 @@ describe('GithubSourceControlProvider', () => {
 
     const result = await provider.listFiles({
       connection: connection(),
-      externalRepositoryId: 'github:shipfox/platform',
+      externalRepositoryId: 'github:42',
       ref: 'main',
       prefix: '.shipfox/workflows/',
       limit: 100,
@@ -188,8 +187,7 @@ describe('GithubSourceControlProvider', () => {
     expect(result.files[0]?.path).toBe('.shipfox/workflows/ci.yml');
     expect(github.listRepositoryFiles).toHaveBeenCalledWith({
       installationId,
-      owner: 'shipfox',
-      repo: 'platform',
+      repositoryId: 42,
       ref: 'main',
       prefix: '.shipfox/workflows/',
       limit: 100,
@@ -204,7 +202,7 @@ describe('GithubSourceControlProvider', () => {
 
     const result = await provider.fetchFile({
       connection: connection(),
-      externalRepositoryId: 'github:shipfox/platform',
+      externalRepositoryId: 'github:42',
       ref: 'main',
       path: '.shipfox/workflows/ci.yml',
     });
@@ -212,8 +210,7 @@ describe('GithubSourceControlProvider', () => {
     expect(result.content).toContain('name: CI');
     expect(github.fetchRepositoryFile).toHaveBeenCalledWith({
       installationId,
-      owner: 'shipfox',
-      repo: 'platform',
+      repositoryId: 42,
       ref: 'main',
       path: '.shipfox/workflows/ci.yml',
     });
@@ -223,8 +220,12 @@ describe('GithubSourceControlProvider', () => {
     'shipfox/platform',
     'github:',
     'github:foo',
-    'github:foo/bar/baz',
-    'debug:foo/bar',
+    'github:foo/bar',
+    'github:42abc',
+    'github:-1',
+    'github:0',
+    'github:42.5',
+    'debug:42',
     '',
   ])('rejects malformed external repository id %s', async (externalRepositoryId) => {
     await createConnectionWithInstallation();
@@ -255,7 +256,7 @@ describe('GithubSourceControlProvider', () => {
 
     const result = provider.fetchFile({
       connection: connection(),
-      externalRepositoryId: 'github:shipfox/platform',
+      externalRepositoryId: 'github:42',
       ref: 'main',
       path: '.shipfox/workflows/huge.yml',
     });

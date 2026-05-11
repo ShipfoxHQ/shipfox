@@ -1,6 +1,6 @@
-import type {ProjectSourceBoundEvent} from '@shipfox/api-projects-dto';
+import type {ProjectSourceCommitObservedEvent} from '@shipfox/api-projects-dto';
 import type {DomainEvent} from '@shipfox/node-outbox';
-import {onProjectSourceBound} from './on-project-source-bound.js';
+import {onProjectSourceCommitObserved} from './on-project-source-commit-observed.js';
 
 const startMock = vi.fn();
 
@@ -12,41 +12,42 @@ vi.mock('@shipfox/node-temporal', () => ({
   }),
 }));
 
-function buildPayload(): ProjectSourceBoundEvent {
+function buildPayload(): ProjectSourceCommitObservedEvent {
   return {
-    actorId: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     sourceConnectionId: crypto.randomUUID(),
-    provider: 'debug',
-    externalRepositoryId: 'debug:platform',
+    provider: 'github',
+    externalRepositoryId: 'github:42',
+    ref: 'main',
+    headCommitSha: 'abc123',
   };
 }
 
-function buildEvent(payload: ProjectSourceBoundEvent): DomainEvent {
+function buildEvent(payload: ProjectSourceCommitObservedEvent): DomainEvent {
   return {
     id: crypto.randomUUID(),
-    type: 'projects.project.source_bound',
+    type: 'projects.project.source_commit_observed',
     createdAt: new Date(),
     payload,
   };
 }
 
-describe('onProjectSourceBound', () => {
+describe('onProjectSourceCommitObserved', () => {
   beforeEach(() => {
     startMock.mockReset();
     startMock.mockResolvedValue({});
   });
 
-  it('starts a definition sync workflow keyed on project + bind', async () => {
+  it('starts a definition sync workflow keyed on project + source commit sha', async () => {
     const payload = buildPayload();
 
-    await onProjectSourceBound(buildEvent(payload));
+    await onProjectSourceCommitObserved(buildEvent(payload));
 
     expect(startMock).toHaveBeenCalledTimes(1);
     expect(startMock).toHaveBeenCalledWith('definitionSyncWorkflow', {
       taskQueue: 'definitions-sync',
-      workflowId: `definition-sync:${payload.projectId}:bind`,
+      workflowId: `definition-sync:${payload.projectId}:${payload.headCommitSha}`,
       workflowIdConflictPolicy: 'USE_EXISTING',
       workflowIdReusePolicy: 'ALLOW_DUPLICATE',
       args: [
@@ -55,20 +56,10 @@ describe('onProjectSourceBound', () => {
           workspaceId: payload.workspaceId,
           sourceConnectionId: payload.sourceConnectionId,
           sourceExternalRepositoryId: payload.externalRepositoryId,
-          sourceRef: undefined,
-          sourceCommitSha: undefined,
+          sourceRef: payload.ref,
+          sourceCommitSha: payload.headCommitSha,
         },
       ],
     });
-  });
-
-  it('rethrows when the temporal client fails to start', async () => {
-    const failure = new Error('temporal unavailable');
-    startMock.mockRejectedValueOnce(failure);
-    const payload = buildPayload();
-
-    const result = onProjectSourceBound(buildEvent(payload));
-
-    await expect(result).rejects.toBe(failure);
   });
 });

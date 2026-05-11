@@ -9,5 +9,22 @@ CREATE TABLE "integrations_connections" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "integrations_outbox" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"event_type" text NOT NULL,
+	"payload" jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"dispatched_at" timestamp with time zone
+);
+--> statement-breakpoint
+CREATE TABLE "integrations_webhook_deliveries" (
+	"provider" text NOT NULL,
+	"delivery_id" text NOT NULL,
+	"received_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "integrations_webhook_deliveries_provider_delivery_id_pk" PRIMARY KEY("provider","delivery_id")
+);
+--> statement-breakpoint
 CREATE UNIQUE INDEX "integrations_connections_workspace_external_unique" ON "integrations_connections" USING btree ("workspace_id","provider","external_account_id");--> statement-breakpoint
-CREATE INDEX "integrations_connections_workspace_id_idx" ON "integrations_connections" USING btree ("workspace_id");
+CREATE INDEX "integrations_connections_workspace_id_idx" ON "integrations_connections" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX "integrations_outbox_pending_idx" ON "integrations_outbox" USING btree ("created_at") WHERE "dispatched_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "integrations_webhook_deliveries_received_at_idx" ON "integrations_webhook_deliveries" USING btree ("received_at");

@@ -16,6 +16,14 @@ CREATE TABLE "projects_outbox" (
 	"dispatched_at" timestamp with time zone
 );
 --> statement-breakpoint
+CREATE TABLE "projects_integration_event_dedup" (
+	"integration_event_id" uuid NOT NULL,
+	"project_id" uuid NOT NULL,
+	"received_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "projects_integration_event_dedup_integration_event_id_project_id_pk" PRIMARY KEY ("integration_event_id","project_id")
+);
+--> statement-breakpoint
 CREATE UNIQUE INDEX "projects_source_unique" ON "projects_projects" USING btree ("source_connection_id","source_external_repository_id");--> statement-breakpoint
 CREATE INDEX "projects_workspace_created_id_idx" ON "projects_projects" USING btree ("workspace_id","created_at","id");--> statement-breakpoint
-CREATE INDEX "projects_outbox_pending_idx" ON "projects_outbox" USING btree ("created_at") WHERE "dispatched_at" IS NULL;
+CREATE INDEX "projects_outbox_pending_idx" ON "projects_outbox" USING btree ("created_at") WHERE "dispatched_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "projects_integration_event_dedup_received_at_idx" ON "projects_integration_event_dedup" USING btree ("received_at");

@@ -5,6 +5,7 @@ import {
 import {ApplicationFailure} from '@temporalio/common';
 import {sql} from 'drizzle-orm';
 import {db, definitionSyncStates} from '#db/index.js';
+import {workflowDefinitions} from '#db/schema/definitions.js';
 import {createDefinitionSyncActivities} from './sync-activities.js';
 
 vi.mock('@temporalio/activity', () => ({
@@ -84,13 +85,35 @@ describe('definition sync activities', () => {
         sourceExternalRepositoryId: 'debug:platform',
       });
 
-      expect(result).toEqual({ref: 'main'});
+      expect(result).toEqual({sourceRef: 'main', sourceCommitSha: undefined});
       const rows = await db()
         .select()
         .from(definitionSyncStates)
         .where(sql`${definitionSyncStates.projectId} = ${projectId}`);
       expect(rows).toHaveLength(1);
       expect(rows[0]?.status).toBe('syncing');
+      expect(rows[0]?.ref).toBe('main');
+    });
+
+    it('keeps source ref and source commit sha separate for commit-triggered sync', async () => {
+      const source = sourceControl();
+      const activities = createDefinitionSyncActivities(source);
+
+      const result = await activities.prepareDefinitionSync({
+        projectId,
+        workspaceId: crypto.randomUUID(),
+        sourceConnectionId,
+        sourceExternalRepositoryId: 'debug:platform',
+        sourceRef: 'main',
+        sourceCommitSha: 'abc123',
+      });
+
+      expect(result).toEqual({sourceRef: 'main', sourceCommitSha: 'abc123'});
+      expect(source.resolveRepository).not.toHaveBeenCalled();
+      const rows = await db()
+        .select()
+        .from(definitionSyncStates)
+        .where(sql`${definitionSyncStates.projectId} = ${projectId}`);
       expect(rows[0]?.ref).toBe('main');
     });
 
@@ -153,7 +176,7 @@ describe('definition sync activities', () => {
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
         sourceExternalRepositoryId: 'debug:platform',
-        ref: 'main',
+        sourceRef: 'main',
         paths: ['.shipfox/workflows/ci.yml'],
       });
 
@@ -179,12 +202,38 @@ describe('definition sync activities', () => {
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
         sourceExternalRepositoryId: 'debug:platform',
-        ref: 'main',
-        paths: ['.shipfox/workflows/bad.yml'],
+        sourceRef: 'main',
+        sourceCommitSha: 'abc123',
+        paths: ['.shipfox/workflows/ci.yml'],
       });
 
       await expect(result).rejects.toBeInstanceOf(ApplicationFailure);
       await expect(result).rejects.toMatchObject({nonRetryable: true, type: 'invalid-definition'});
+    });
+
+    it('fetches from source commit sha while persisting under source ref', async () => {
+      const source = sourceControl();
+      const activities = createDefinitionSyncActivities(source);
+
+      const result = await activities.fetchAndApplyDefinitionWorkflows({
+        projectId,
+        workspaceId: crypto.randomUUID(),
+        sourceConnectionId,
+        sourceExternalRepositoryId: 'debug:platform',
+        sourceRef: 'main',
+        sourceCommitSha: 'abc123',
+        paths: ['.shipfox/workflows/ci.yml'],
+      });
+
+      const rows = await db()
+        .select()
+        .from(workflowDefinitions)
+        .where(sql`${workflowDefinitions.projectId} = ${projectId}`);
+      expect(result.appliedCount).toBe(1);
+      expect(source.fetchFile).toHaveBeenCalledWith(
+        expect.objectContaining({ref: 'abc123', path: '.shipfox/workflows/ci.yml'}),
+      );
+      expect(rows[0]?.ref).toBe('main');
     });
   });
 
@@ -203,7 +252,7 @@ describe('definition sync activities', () => {
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
         sourceExternalRepositoryId: 'debug:platform',
-        ref: 'main',
+        sourceRef: 'main',
         code: 'invalid-definition',
         message: 'Invalid workflow at .shipfox/workflows/bad.yml',
       });
@@ -226,7 +275,7 @@ describe('definition sync activities', () => {
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
         sourceExternalRepositoryId: 'debug:platform',
-        ref: null,
+        sourceRef: null,
         code: 'connection-unavailable',
         message: 'connection disabled before resolving repository',
       });
@@ -257,7 +306,7 @@ describe('definition sync activities', () => {
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
         sourceExternalRepositoryId: 'debug:platform',
-        ref: 'main',
+        sourceRef: 'main',
         code: 'invalid-definition',
         message: 'something',
       });
@@ -267,7 +316,7 @@ describe('definition sync activities', () => {
         workspaceId: crypto.randomUUID(),
         sourceConnectionId,
         sourceExternalRepositoryId: 'debug:platform',
-        ref: 'main',
+        sourceRef: 'main',
       });
 
       const rows = await db()

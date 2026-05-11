@@ -88,6 +88,32 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
   return toProject(row);
 }
 
+export interface GetProjectBySourceParams {
+  workspaceId: string;
+  sourceConnectionId: string;
+  sourceExternalRepositoryId: string;
+}
+
+export async function getProjectBySource(
+  params: GetProjectBySourceParams,
+): Promise<Project | undefined> {
+  const rows = await db()
+    .select()
+    .from(projects)
+    .where(
+      and(
+        eq(projects.workspaceId, params.workspaceId),
+        eq(projects.sourceConnectionId, params.sourceConnectionId),
+        eq(projects.sourceExternalRepositoryId, params.sourceExternalRepositoryId),
+      ),
+    )
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return undefined;
+  return toProject(row);
+}
+
 export async function requireProjectForWorkspace(params: {
   projectId: string;
   workspaceId: string;

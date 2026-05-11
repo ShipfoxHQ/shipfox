@@ -1,0 +1,132 @@
+import {Buffer} from 'node:buffer';
+import {Webhooks} from '@octokit/webhooks';
+import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
+import {logger} from '@shipfox/node-opentelemetry';
+import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
+import type {FastifyInstance, FastifyPluginAsync} from 'fastify';
+import fp from 'fastify-plugin';
+import {config} from '#config.js';
+import {
+  type GetIntegrationConnectionByIdFn,
+  type GithubPushPayload,
+  handleGithubPush,
+  type PublishRepositoryPushedFn,
+  type RecordDeliveryOnlyFn,
+} from '#core/webhook.js';
+
+const SIGNATURE_HEADER = 'x-hub-signature-256';
+const EVENT_HEADER = 'x-github-event';
+const DELIVERY_HEADER = 'x-github-delivery';
+const WEBHOOK_BODY_LIMIT = 25 * 1024 * 1024;
+const GITHUB_PROVIDER = 'github';
+
+export interface CreateGithubWebhookRoutesOptions {
+  coreDb: () => NodePgDatabase<Record<string, unknown>>;
+  publishRepositoryPushed: PublishRepositoryPushedFn;
+  recordDeliveryOnly: RecordDeliveryOnlyFn;
+  getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+}
+
+export function createGithubWebhookRoutes(options: CreateGithubWebhookRoutesOptions): RouteGroup {
+  const webhooks = new Webhooks({secret: config.GITHUB_APP_WEBHOOK_SECRET});
+
+  const rawBodyPluginFn: FastifyPluginAsync = (scope: FastifyInstance) => {
+    scope.removeAllContentTypeParsers();
+    scope.addContentTypeParser(
+      'application/json',
+      {parseAs: 'buffer'},
+      (_request, body: Buffer, done: (err: Error | null, body?: Buffer) => void) => {
+        done(null, body);
+      },
+    );
+    return Promise.resolve();
+  };
+  const rawBodyPlugin = fp(rawBodyPluginFn);
+
+  const pushRoute = defineRoute({
+    method: 'POST',
+    path: '/',
+    auth: [],
+    description: 'GitHub App webhook receiver.',
+    options: {bodyLimit: WEBHOOK_BODY_LIMIT},
+    handler: async (request, reply) => {
+      const deliveryId = request.headers[DELIVERY_HEADER];
+      const signature = request.headers[SIGNATURE_HEADER];
+      const event = request.headers[EVENT_HEADER];
+
+      if (typeof deliveryId !== 'string' || !deliveryId) {
+        reply.code(400);
+        return {error: 'missing X-GitHub-Delivery header'};
+      }
+      if (typeof signature !== 'string' || !signature) {
+        reply.code(401);
+        return {error: 'missing X-Hub-Signature-256 header'};
+      }
+      if (typeof event !== 'string' || !event) {
+        reply.code(400);
+        return {error: 'missing X-GitHub-Event header'};
+      }
+
+      const body = request.body;
+      if (!Buffer.isBuffer(body)) {
+        reply.code(400);
+        return {error: 'expected raw JSON body'};
+      }
+      const rawBody = body.toString('utf8');
+
+      let verified: boolean;
+      try {
+        verified = await webhooks.verify(rawBody, signature);
+      } catch (error) {
+        logger().warn({deliveryId, err: error}, 'github webhook signature verification threw');
+        verified = false;
+      }
+      if (!verified) {
+        reply.code(401);
+        return {error: 'invalid signature'};
+      }
+
+      if (event !== 'push') {
+        await options.coreDb().transaction(async (tx) => {
+          await options.recordDeliveryOnly({
+            tx,
+            provider: GITHUB_PROVIDER,
+            deliveryId,
+          });
+        });
+        reply.code(204);
+        return null;
+      }
+
+      let payload: GithubPushPayload;
+      try {
+        payload = JSON.parse(rawBody) as GithubPushPayload;
+      } catch (error) {
+        logger().warn({deliveryId, err: error}, 'github webhook payload JSON parse failed');
+        reply.code(400);
+        return {error: 'malformed JSON'};
+      }
+
+      await options.coreDb().transaction(async (tx) => {
+        await handleGithubPush({
+          tx,
+          deliveryId,
+          payload,
+          publishRepositoryPushed: options.publishRepositoryPushed,
+          recordDeliveryOnly: options.recordDeliveryOnly,
+          getIntegrationConnectionById: options.getIntegrationConnectionById,
+        });
+      });
+
+      reply.code(204);
+      return null;
+    },
+  });
+
+  return {
+    prefix: '/webhooks/integrations/github',
+    auth: [],
+    plugins: [rawBodyPlugin],
+    routes: [pushRoute],
+  };
+}

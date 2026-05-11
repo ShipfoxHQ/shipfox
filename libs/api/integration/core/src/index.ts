@@ -14,6 +14,8 @@ import {
 import {getIntegrationConnectionById, upsertIntegrationConnection} from '#db/connections.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
+import {integrationsOutbox} from '#db/schema/outbox.js';
+import {publishRepositoryPushed, recordDeliveryOnly} from '#db/webhook-deliveries.js';
 import {createIntegrationRoutes} from '#presentation/routes/index.js';
 import {config} from './config.js';
 
@@ -58,6 +60,15 @@ export type {
 } from '#core/providers/source-control.js';
 export type {IntegrationSourceControlService} from '#core/source-control-service.js';
 export {createSourceControlIntegrationService} from '#core/source-control-service.js';
+export type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
+export type {
+  PublishRepositoryPushedFn,
+  PublishRepositoryPushedParams,
+  PublishRepositoryPushedResult,
+  RecordDeliveryOnlyFn,
+  RecordDeliveryOnlyParams,
+} from '#db/webhook-deliveries.js';
+export {pruneWebhookDeliveries} from '#db/webhook-deliveries.js';
 
 export interface CreateIntegrationsModuleOptions {
   providers?: IntegrationProvider[] | undefined;
@@ -127,6 +138,10 @@ async function loadGithubModuleParts(): Promise<GithubModuleParts> {
     provider: createGithubIntegrationProvider({
       getExistingGithubConnection,
       connectGithubInstallation,
+      publishRepositoryPushed,
+      recordDeliveryOnly,
+      getIntegrationConnectionById,
+      coreDb: db,
     }),
     database: {db: githubDb, migrationsPath: githubMigrationsPath},
   };
@@ -175,6 +190,7 @@ export async function createIntegrationsContext(
     name: 'integrations',
     database: github ? [{db, migrationsPath}, github.database] : {db, migrationsPath},
     routes: createIntegrationRoutes(registry, sourceControl),
+    publishers: [{name: 'integrations', table: integrationsOutbox, db}],
   };
 
   return {module, registry, capabilities: {sourceControl}, sourceControl};

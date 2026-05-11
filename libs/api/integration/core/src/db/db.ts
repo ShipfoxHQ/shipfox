@@ -1,9 +1,13 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
 import {integrationConnections} from './schema/connections.js';
+import {integrationsOutbox} from './schema/outbox.js';
+import {integrationsWebhookDeliveries} from './schema/webhook-deliveries.js';
 
 export const schema = {
   integrationConnections,
+  integrationsOutbox,
+  integrationsWebhookDeliveries,
 };
 
 let _db: NodePgDatabase<typeof schema> | undefined;
