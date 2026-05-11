@@ -24,12 +24,6 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-function delayedJsonResponse(body: unknown): Promise<Response> {
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(jsonResponse(body)), 5);
-  });
-}
-
 function StatusProbe() {
   const auth = useAuthState();
   const logout = useLogoutAuth();
@@ -125,7 +119,7 @@ describe('AuthProvider', () => {
   test('deduplicates concurrent refresh calls', async () => {
     const fetchImpl = vi
       .fn()
-      .mockImplementation(() => delayedJsonResponse({token: 'access-token', user}));
+      .mockImplementation(() => Promise.resolve(jsonResponse({token: 'access-token', user})));
     configureApiClient({fetchImpl});
     const onDone = vi.fn();
 

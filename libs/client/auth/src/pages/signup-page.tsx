@@ -1,4 +1,3 @@
-import {signupBodySchema} from '@shipfox/api-auth-dto';
 import {Alert, Button, ButtonLink, Input, Label, Text} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
@@ -6,7 +5,8 @@ import {type FormEvent, useState} from 'react';
 import {AuthShell} from '#/components/auth-shell.js';
 import {useSignupAuth} from '#hooks/api/signup-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
-import {authErrorMessage, type FieldErrors, fieldErrorsFromZod} from './form-utils.js';
+import {parseSignupForm} from './auth-form-model.js';
+import {authErrorMessage, type FieldErrors} from './form-utils.js';
 
 type SignupField = 'email' | 'password' | 'name';
 
@@ -22,19 +22,15 @@ export function SignupPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(undefined);
-    const parsed = signupBodySchema.safeParse({
-      email,
-      password,
-      name: name.trim() ? name.trim() : undefined,
-    });
-    if (!parsed.success) {
-      setFieldErrors(fieldErrorsFromZod<SignupField>(parsed.error));
+    const parsed = parseSignupForm({email, password, name});
+    if (!parsed.ok) {
+      setFieldErrors(parsed.fieldErrors);
       return;
     }
 
     setFieldErrors({});
     try {
-      const result = await signup.mutateAsync(parsed.data);
+      const result = await signup.mutateAsync(parsed.body);
       setAuthFormDraft(initialAuthFormDraft);
       setSubmittedEmail(result.user.email);
     } catch (error) {

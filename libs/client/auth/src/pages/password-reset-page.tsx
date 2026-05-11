@@ -1,7 +1,3 @@
-import {
-  passwordResetConfirmBodySchema,
-  passwordResetRequestBodySchema,
-} from '@shipfox/api-auth-dto';
 import {Alert, Button, ButtonLink, Input, Label, Text, toast} from '@shipfox/react-ui';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
@@ -13,7 +9,8 @@ import {
 } from '#hooks/api/password-reset-auth.js';
 import {useRefreshAuth} from '#hooks/api/refresh-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
-import {authErrorMessage, type FieldErrors, fieldErrorsFromZod} from './form-utils.js';
+import {parsePasswordResetConfirmForm, parsePasswordResetRequestForm} from './auth-form-model.js';
+import {authErrorMessage, type FieldErrors} from './form-utils.js';
 
 type RequestField = 'email';
 type ConfirmField = 'new_password';
@@ -40,16 +37,16 @@ function PasswordResetRequest() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(undefined);
-    const parsed = passwordResetRequestBodySchema.safeParse({email});
-    if (!parsed.success) {
-      setFieldErrors(fieldErrorsFromZod<RequestField>(parsed.error));
+    const parsed = parsePasswordResetRequestForm({email});
+    if (!parsed.ok) {
+      setFieldErrors(parsed.fieldErrors);
       return;
     }
 
     setFieldErrors({});
     try {
-      await requestPasswordReset.mutateAsync(parsed.data);
-      setSubmittedEmail(parsed.data.email);
+      await requestPasswordReset.mutateAsync(parsed.body);
+      setSubmittedEmail(parsed.body.email);
     } catch (error) {
       setFormError(authErrorMessage(error));
     }
@@ -132,15 +129,15 @@ function PasswordResetConfirm({token}: {token: string}) {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(undefined);
-    const parsed = passwordResetConfirmBodySchema.safeParse({token, new_password: newPassword});
-    if (!parsed.success) {
-      setFieldErrors(fieldErrorsFromZod<ConfirmField>(parsed.error));
+    const parsed = parsePasswordResetConfirmForm({token, newPassword});
+    if (!parsed.ok) {
+      setFieldErrors(parsed.fieldErrors);
       return;
     }
 
     setFieldErrors({});
     try {
-      await confirmPasswordReset.mutateAsync(parsed.data);
+      await confirmPasswordReset.mutateAsync(parsed.body);
       await refreshAuth();
       setAuthFormDraft(initialAuthFormDraft);
       toast.success('Your password has been changed. You are now logged in.');

@@ -111,6 +111,13 @@ Each E2E package must also declare an explicit workspace dependency on the packa
 it verifies, such as `@shipfox/client-auth` for `@shipfox/e2e-client-auth`, so
 Turbo includes the referenced package in the task DAG.
 
+## Unit Testing Strategy (Client Apps)
+
+The detailed client testing strategy lives in
+[CONTRIBUTING.md](CONTRIBUTING.md#unit-testing-strategy-client-apps). In short:
+keep pure behavior in Vitest `node` tests, reserve React Testing Library for
+rendered React behavior, and move full user journeys to Playwright E2E.
+
 ## Unit Testing Strategy (Node Apps)
 
 Tests use **Vitest** and run against a real PostgreSQL database, not mocks. The philosophy is to test against real infrastructure where possible and only mock external dependencies (feature flags, cloud provider APIs, etc.).

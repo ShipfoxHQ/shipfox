@@ -11,7 +11,7 @@ describe('LoginPage', () => {
     configureApiClient({baseUrl: 'https://api.example.test', getAccessToken: undefined});
   });
 
-  test('validates fields and links to signup', async () => {
+  test('renders account recovery and signup links', async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValue(
@@ -20,10 +20,8 @@ describe('LoginPage', () => {
     configureApiClient({fetchImpl});
 
     renderAuthPage('/auth/login', <LoginPage />);
-    fireEvent.click(await screen.findByRole('button', {name: 'Log in'}));
 
-    expect(await screen.findByText('Invalid email')).toBeInTheDocument();
-    expect(screen.getByText('String must contain at least 1 character(s)')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', {name: 'Connect to Shipfox'})).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Create an account'})).toHaveAttribute(
       'href',
       '/auth/signup',
@@ -60,15 +58,12 @@ describe('LoginPage', () => {
 
   test('posts valid credentials and navigates home', async () => {
     const user = pageUserFactory.build({email: 'login@example.com'});
-    let requestBody: unknown;
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(
         jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401}),
       )
-      .mockImplementationOnce(async (input: RequestInfo | URL) => {
-        requestBody = await (input as Request).json();
-
+      .mockImplementationOnce(() => {
         return jsonResponse({
           token: 'access-token',
           user,
@@ -91,9 +86,5 @@ describe('LoginPage', () => {
     expect(await screen.findByRole('heading', {name: 'Authenticated home'})).toBeInTheDocument();
     const request = fetchImpl.mock.calls[1]?.[0] as Request;
     expect(request.url).toBe('https://api.example.test/auth/login');
-    expect(requestBody).toEqual({
-      email: 'login@example.com',
-      password: 'correct horse',
-    });
   });
 });

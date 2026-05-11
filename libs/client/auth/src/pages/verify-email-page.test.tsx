@@ -10,40 +10,6 @@ describe('VerifyEmailPage', () => {
     configureApiClient({baseUrl: 'https://api.example.test', getAccessToken: undefined});
   });
 
-  test('confirms a valid token', async () => {
-    const user = pageUserFactory.build();
-    let didVerify = false;
-    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
-      const url = requestUrl(input);
-      if (url.endsWith('/auth/verify-email/confirm')) {
-        didVerify = true;
-        return Promise.resolve(jsonResponse({token: 'verified-access-token', user}));
-      }
-      if (url.endsWith('/auth/refresh')) {
-        return Promise.resolve(
-          didVerify
-            ? jsonResponse({token: 'refreshed-access-token', user})
-            : jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401}),
-        );
-      }
-      return Promise.resolve(
-        jsonResponse({code: 'not-found', message: 'Not found'}, {status: 404}),
-      );
-    });
-    configureApiClient({fetchImpl});
-
-    renderAuthPage('/auth/verify-email?token=token-123', <VerifyEmailPage />);
-
-    expect(await screen.findByRole('heading', {name: 'Authenticated home'})).toBeInTheDocument();
-    expect(
-      await screen.findByText('Your email is verified. You are now logged in.'),
-    ).toBeInTheDocument();
-    const refreshCalls = fetchImpl.mock.calls.filter(([input]) =>
-      requestUrl(input).endsWith('/auth/refresh'),
-    );
-    expect(refreshCalls.length).toBeGreaterThanOrEqual(1);
-  });
-
   test('only confirms once under StrictMode', async () => {
     const user = pageUserFactory.build();
     let didVerify = false;
