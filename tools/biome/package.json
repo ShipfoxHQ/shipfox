@@ -18,7 +18,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@biomejs/biome": "2.4.10",
+    "@biomejs/biome": "2.4.15",
     "@biomejs/cli-darwin-arm64": "2.4.10",
     "@biomejs/cli-darwin-x64": "2.4.10",
     "@biomejs/cli-linux-arm64": "2.4.10",
