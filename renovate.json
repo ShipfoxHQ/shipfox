@@ -1,6 +1,64 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "group:recommended",
+    "monorepo:turbo",
+    "monorepo:vitest",
+    "monorepo:react",
+    "packages:react",
+    "packages:vite",
+    "packages:unitTest",
+    "helpers:pinGitHubActionDigests",
+    "customManagers:biomeVersions",
+    "customManagers:dockerfileVersions",
+    "replacements:all",
+    "security:openssf-scorecard",
+    "abandonments:recommended",
+    ":configMigration",
+    ":gitSignOff",
+    "schedule:daily"
+  ],
+  "prHourlyLimit": 5,
+  "packageRules": [
+    {
+      "description": "Group all GitHub Actions updates into one PR",
+      "groupName": "GitHub Actions",
+      "groupSlug": "github-actions",
+      "matchManagers": ["github-actions"]
+    },
+    {
+      "description": "Group all Docker image updates into one PR",
+      "groupName": "Docker images",
+      "groupSlug": "docker-images",
+      "matchDatasources": ["docker"]
+    },
+    {
+      "description": "Group NPM patch and minor updates into one PR",
+      "groupName": "NPM patch and minor",
+      "groupSlug": "npm-patch-minor",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["patch", "minor"]
+    },
+    {
+      "description": "Keep shipfox internal packages in their own group",
+      "groupName": "shipfox packages",
+      "groupSlug": "shipfox",
+      "matchPackageNames": ["@shipfox/**"]
+    },
+    {
+      "description": "TanStack Query: group related packages together and bump ranges to keep deps and peerDeps in sync across the monorepo",
+      "groupName": "tanstack-query",
+      "groupSlug": "tanstack-query",
+      "matchPackageNames": ["@tanstack/react-query", "@tanstack/query-core", "@tanstack/react-query-devtools"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "description": "TanStack Router: group runtime and plugin packages together and bump ranges to avoid route typegen/runtime drift",
+      "groupName": "tanstack-router",
+      "groupSlug": "tanstack-router",
+      "matchPackageNames": ["@tanstack/react-router", "@tanstack/router-plugin"],
+      "rangeStrategy": "bump"
+    }
   ]
 }
