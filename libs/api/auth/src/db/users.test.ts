@@ -1,4 +1,5 @@
 import {hashOpaqueToken} from '@shipfox/node-tokens';
+import {EmailTakenError} from '#core/errors.js';
 import {
   createUser,
   findUserByEmail,
@@ -26,11 +27,30 @@ describe('users db', () => {
     expect(byId?.id).toBe(user.id);
   });
 
+  test('creates a user with email_verified_at set when provided', async () => {
+    const emailVerifiedAt = new Date('2026-01-01T00:00:00.000Z');
+
+    const user = await createUser({
+      email: emailFor('verified-insert'),
+      hashedPassword: 'h',
+      emailVerifiedAt,
+    });
+
+    expect(user.emailVerifiedAt).toEqual(emailVerifiedAt);
+  });
+
   test('rejects duplicate email', async () => {
     const email = emailFor('dup');
     await createUser({email, hashedPassword: 'h'});
 
     await expect(createUser({email, hashedPassword: 'h2'})).rejects.toThrow();
+  });
+
+  test('remaps email unique violation to EmailTakenError', async () => {
+    const email = emailFor('race');
+    await createUser({email, hashedPassword: 'h'});
+
+    await expect(createUser({email, hashedPassword: 'h2'})).rejects.toBeInstanceOf(EmailTakenError);
   });
 
   test('updateUserPassword updates the hashed password', async () => {

@@ -1,5 +1,13 @@
 import {EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS} from '@shipfox/api-auth-dto';
-import {listMembershipsByUser} from '@shipfox/api-workspaces';
+import {
+  acceptWorkspaceInvitation,
+  InvitationEmailMismatchError,
+  listMembershipsByUser,
+  peekInvitationByRawToken,
+  TokenAlreadyUsedError,
+  TokenExpiredError,
+  TokenInvalidError as WorkspacesTokenInvalidError,
+} from '@shipfox/api-workspaces';
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {config, mailer} from '#config.js';
 import {
@@ -60,6 +68,7 @@ async function signAccessToken(user: User): Promise<string> {
   return await signUserToken({
     userId: user.id,
     email: user.email,
+    name: user.name,
     memberships: memberships.map((m) => ({workspaceId: m.workspaceId, role: 'admin' as const})),
     secret: config.AUTH_JWT_SECRET,
     expiresIn: config.AUTH_JWT_EXPIRES_IN,
@@ -121,6 +130,94 @@ export async function signup(params: SignupParams): Promise<User> {
   return user;
 }
 
+export interface SignupWithInvitationParams extends SignupParams {
+  invitationToken: string;
+}
+
+export interface SignupWithInvitationResult extends LoginResult {
+  membership: {id: string; userId: string; workspaceId: string} | null;
+  acceptError?: {code: string; message: string};
+}
+
+export async function signupWithInvitation(
+  params: SignupWithInvitationParams,
+): Promise<SignupWithInvitationResult> {
+  // Step 1: Pre-validate the invitation BEFORE any user write so an invalid
+  // token never produces an orphan user. Re-validation happens again inside
+  // acceptWorkspaceInvitation (race-safe) after the user is created.
+  const invitation = await peekInvitationByRawToken({token: params.invitationToken});
+  if (!invitation) {
+    throw new WorkspacesTokenInvalidError('Invitation token is invalid');
+  }
+  if (invitation.acceptedAt !== null) {
+    throw new TokenAlreadyUsedError();
+  }
+  if (invitation.expiresAt.getTime() <= Date.now()) {
+    throw new TokenExpiredError();
+  }
+  if (invitation.email !== params.email) {
+    throw new InvitationEmailMismatchError();
+  }
+
+  // Step 2: Create the user as verified. The invitation email is the proof of
+  // ownership, and this avoids a second auth-table write just to mark verified.
+  const existing = await findUserByEmail({email: params.email});
+  if (existing) {
+    throw new EmailTakenError(params.email);
+  }
+  const hashedPassword = await hashPassword({password: params.password});
+  const user = await createDbUser({
+    email: params.email,
+    hashedPassword,
+    name: params.name ?? null,
+    emailVerifiedAt: new Date(),
+  });
+
+  // Step 3: Accept the invitation through the workspaces module boundary.
+  // This is intentionally not one database transaction with auth; treat it like
+  // calling another service. If it fails after user creation, return a verified
+  // signed-in user and an explicit retryable accept error.
+  let membership: SignupWithInvitationResult['membership'] = null;
+  let acceptError: SignupWithInvitationResult['acceptError'];
+  try {
+    const result = await acceptWorkspaceInvitation({
+      token: params.invitationToken,
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+    });
+    membership = {
+      id: result.membership.id,
+      userId: result.membership.userId,
+      workspaceId: result.membership.workspaceId,
+    };
+  } catch (error) {
+    if (
+      error instanceof WorkspacesTokenInvalidError ||
+      error instanceof TokenAlreadyUsedError ||
+      error instanceof TokenExpiredError ||
+      error instanceof InvitationEmailMismatchError
+    ) {
+      acceptError = {code: error.name, message: error.message};
+    } else {
+      acceptError = {
+        code: 'AcceptFailed',
+        message: 'Could not accept the invitation; please retry from the invite link.',
+      };
+    }
+  }
+
+  // Step 4: Issue session. signAccessToken reads memberships through the
+  // workspaces module API, so a successful accept is reflected in the JWT.
+  const token = await signAccessToken(user);
+  const refreshToken = await createRefreshSession(user);
+
+  if (acceptError) {
+    return {token, refreshToken, user, membership, acceptError};
+  }
+  return {token, refreshToken, user, membership};
+}
+
 export interface CreateUserParams extends SignupParams {
   verified: boolean;
 }
@@ -136,16 +233,10 @@ export async function createUser(params: CreateUserParams): Promise<User> {
     email: params.email,
     hashedPassword,
     name: params.name ?? null,
+    emailVerifiedAt: params.verified ? new Date() : null,
   });
 
-  if (!params.verified) return user;
-
-  const verified = await markEmailVerified({userId: user.id});
-  if (!verified) {
-    throw new UserNotFoundError(user.id);
-  }
-
-  return verified;
+  return user;
 }
 
 export interface LoginParams {

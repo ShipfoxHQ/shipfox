@@ -103,6 +103,13 @@ export class LastMemberError extends Error {
   }
 }
 
+export class SelfRemovalNotAllowedError extends Error {
+  constructor() {
+    super('Cannot remove yourself from a workspace');
+    this.name = 'SelfRemovalNotAllowedError';
+  }
+}
+
 export class InvitationEmailMismatchError extends Error {
   constructor() {
     super('Invitation email does not match authenticated user');

@@ -20,6 +20,8 @@ export const createE2eWorkspaceRoute = defineRoute({
     const workspace = await createWorkspaceForUser({
       name: request.body.name,
       userId: request.body.user_id,
+      userEmail: request.body.user_email,
+      userName: request.body.user_name,
     });
 
     reply.code(201);

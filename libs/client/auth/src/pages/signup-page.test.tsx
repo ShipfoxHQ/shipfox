@@ -2,7 +2,7 @@ import {configureApiClient} from '@shipfox/client-api';
 import {act, fireEvent, screen} from '@testing-library/react';
 import {pageUserFactory} from '#test/factories/user.js';
 import {renderAuthPage} from '#test/pages.js';
-import {jsonResponse} from '#test/utils.js';
+import {jsonResponse, requestUrl} from '#test/utils.js';
 import {SignupPage} from './signup-page.js';
 
 const SUBMITTED_EMAIL_RE = /new@example.com/;
@@ -60,6 +60,41 @@ describe('SignupPage', () => {
     expect(await screen.findByRole('heading', {name: 'Connect to Shipfox'})).toBeInTheDocument();
     expect(screen.getByLabelText('Email')).toHaveValue('existing@example.com');
     expect(screen.getByLabelText('Password')).toHaveValue('long secure password');
+  });
+
+  test('preserves invitation state when switching to login', async () => {
+    const invitationToken = 'invite-token';
+    const redirect = `/invitations/accept?token=${encodeURIComponent(invitationToken)}`;
+    const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url === 'https://api.example.test/auth/me') {
+        return Promise.resolve(
+          jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401}),
+        );
+      }
+      if (url.includes('/invitations/preview?')) {
+        return Promise.resolve(
+          jsonResponse({
+            status: 'pending',
+            workspace_id: 'workspace-1',
+            workspace_name: 'Invite Workspace',
+            email: 'invitee@example.com',
+            invited_by_display: 'owner@example.com',
+            expires_at: '2026-05-18T00:00:00.000Z',
+          }),
+        );
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    configureApiClient({fetchImpl});
+
+    renderAuthPage(`/auth/signup?redirect=${encodeURIComponent(redirect)}`, <SignupPage />);
+    await screen.findByRole('heading', {name: 'Join Invite Workspace'});
+
+    expect(screen.getByRole('link', {name: 'Log in'})).toHaveAttribute(
+      'href',
+      `/auth/login?redirect=${encodeURIComponent(redirect)}`,
+    );
   });
 
   test('surfaces duplicate-email errors', async () => {

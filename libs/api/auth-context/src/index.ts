@@ -14,6 +14,7 @@ export interface UserContextMembership {
 export interface UserContext {
   userId: string;
   email: string;
+  name: string | null;
   memberships: ReadonlyArray<UserContextMembership>;
   canAccess(workspaceId: string): boolean;
   hasRole(workspaceId: string, role: WorkspaceRole): boolean;
@@ -22,6 +23,7 @@ export interface UserContext {
 export interface BuildUserContextParams {
   userId: string;
   email: string;
+  name?: string | null | undefined;
   memberships?: ReadonlyArray<UserContextMembership> | undefined;
 }
 
@@ -30,6 +32,7 @@ export function buildUserContext(params: BuildUserContextParams): UserContext {
   return {
     userId: params.userId,
     email: params.email,
+    name: params.name ?? null,
     memberships,
     canAccess: (workspaceId) => memberships.some((m) => m.workspaceId === workspaceId),
     hasRole: (workspaceId, role) =>

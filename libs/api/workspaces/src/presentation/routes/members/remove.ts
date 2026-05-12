@@ -5,6 +5,7 @@ import {
   LastMemberError,
   MembershipNotFoundError,
   MembershipRequiredError,
+  SelfRemovalNotAllowedError,
   WorkspaceInactiveError,
   WorkspaceNotFoundError,
 } from '#core/errors.js';
@@ -36,6 +37,9 @@ export const removeMemberRoute = defineRoute({
     }
     if (error instanceof LastMemberError) {
       throw new ClientError(error.message, 'last-member', {status: 409});
+    }
+    if (error instanceof SelfRemovalNotAllowedError) {
+      throw new ClientError(error.message, 'self-removal-not-allowed', {status: 409});
     }
     if (error instanceof WorkspaceInactiveError) {
       throw new ClientError('Workspace is not active', 'workspace-inactive', {status: 403});

@@ -44,6 +44,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             'hover:bg-background-field-hover',
             'selection:bg-background-accent-neutral-soft selection:text-foreground-neutral-on-inverted',
             'file:text-foreground-neutral-base file:inline-flex file:font-medium',
+            'read-only:cursor-not-allowed read-only:bg-background-neutral-disabled read-only:shadow-none read-only:text-foreground-neutral-disabled read-only:hover:bg-background-neutral-disabled',
             'disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-background-neutral-disabled disabled:shadow-none disabled:text-foreground-neutral-disabled',
             'focus-visible:shadow-border-interactive-with-active',
             'aria-invalid:shadow-border-error',

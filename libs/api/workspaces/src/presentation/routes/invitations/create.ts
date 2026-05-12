@@ -50,6 +50,7 @@ export const createInvitationRoute = defineRoute({
       workspaceId,
       email,
       invitedByUserId: client.userId,
+      invitedByDisplay: client.name ?? 'A workspace admin',
       invitedByMemberships: client.memberships,
     });
 

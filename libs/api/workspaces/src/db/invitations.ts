@@ -12,6 +12,7 @@ export interface CreateInvitationParams {
   hashedToken: string;
   expiresAt: Date;
   invitedByUserId: string;
+  invitedByDisplay?: string | null;
 }
 
 export async function createInvitation(params: CreateInvitationParams): Promise<Invitation> {
@@ -51,6 +52,7 @@ export async function createInvitation(params: CreateInvitationParams): Promise<
         hashedToken: params.hashedToken,
         expiresAt: params.expiresAt,
         invitedByUserId: params.invitedByUserId,
+        invitedByDisplay: params.invitedByDisplay ?? null,
       })
       .returning();
 
@@ -88,7 +90,13 @@ export async function listOpenInvitationsByWorkspace(params: {
   const rows = await db()
     .select()
     .from(invitations)
-    .where(and(eq(invitations.workspaceId, params.workspaceId), isNull(invitations.acceptedAt)));
+    .where(
+      and(
+        eq(invitations.workspaceId, params.workspaceId),
+        isNull(invitations.acceptedAt),
+        gt(invitations.expiresAt, sql`now()`),
+      ),
+    );
 
   return rows.map(toInvitation);
 }

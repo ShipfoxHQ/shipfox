@@ -26,14 +26,21 @@ describe('POST /invitations/accept', () => {
   test('returns 201 and creates a membership for a new member', async () => {
     const owner = await signupVerifyLogin(app, 'accept-owner');
     const guest = await signupVerifyLogin(app, 'accept-guest');
+    const guestName = 'Accepted Guest';
+    const guestToken = `user:${guest.userId}:${guest.email}:${encodeURIComponent(guestName)}`;
     const workspaceId = await createWorkspace(app, owner.token);
     const invite = await createInvite(app, {token: owner.token, workspaceId, email: guest.email});
 
     const res = await app.inject({
       method: 'POST',
       url: '/invitations/accept',
-      headers: {authorization: `Bearer ${guest.token}`},
+      headers: {authorization: `Bearer ${guestToken}`},
       payload: {token: invite.rawToken},
+    });
+    const members = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/members`,
+      headers: {authorization: `Bearer ${owner.token}`},
     });
 
     expect(res.statusCode).toBe(201);
@@ -42,6 +49,15 @@ describe('POST /invitations/accept', () => {
       user_id: guest.userId,
       workspace_id: workspaceId,
     });
+    expect(members.statusCode).toBe(200);
+    expect(members.json().members).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          user_email: guest.email,
+          user_name: guestName,
+        }),
+      ]),
+    );
   });
 
   test('returns 200 when the invitee is already a member', async () => {

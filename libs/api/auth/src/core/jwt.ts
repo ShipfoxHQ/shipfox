@@ -12,6 +12,7 @@ export type TokenMembership = z.infer<typeof tokenMembershipSchema>;
 export const userTokenClaimsSchema = z.object({
   sub: z.string().uuid(),
   email: z.string().email(),
+  name: z.string().nullable().optional(),
   memberships: z.array(tokenMembershipSchema),
   iat: z.number().int(),
   exp: z.number().int(),
@@ -22,6 +23,7 @@ export type UserTokenClaims = z.infer<typeof userTokenClaimsSchema>;
 export interface SignUserTokenParams {
   userId: string;
   email: string;
+  name?: string | null | undefined;
   memberships: TokenMembership[];
   secret: string;
   expiresIn: string;
@@ -37,7 +39,11 @@ function encodeSecret(secret: string): Uint8Array {
 }
 
 export async function signUserToken(params: SignUserTokenParams): Promise<string> {
-  return await new SignJWT({email: params.email, memberships: params.memberships})
+  return await new SignJWT({
+    email: params.email,
+    name: params.name ?? null,
+    memberships: params.memberships,
+  })
     .setProtectedHeader({alg: 'HS256'})
     .setSubject(params.userId)
     .setIssuedAt()

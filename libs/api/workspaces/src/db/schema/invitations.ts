@@ -17,6 +17,7 @@ export const invitations = pgTable(
     acceptedAt: timestamp('accepted_at', {withTimezone: true}),
     acceptedByUserId: uuid('accepted_by_user_id'),
     invitedByUserId: uuid('invited_by_user_id').notNull(),
+    invitedByDisplay: text('invited_by_display'),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
@@ -39,6 +40,7 @@ export function toInvitation(row: InvitationDb): Invitation {
     acceptedAt: row.acceptedAt,
     acceptedByUserId: row.acceptedByUserId,
     invitedByUserId: row.invitedByUserId,
+    invitedByDisplay: row.invitedByDisplay,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

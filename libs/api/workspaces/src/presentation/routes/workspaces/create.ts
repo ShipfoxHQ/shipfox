@@ -27,6 +27,7 @@ export const createWorkspaceRoute = defineRoute({
       name,
       userId: client.userId,
       userEmail: client.email,
+      userName: client.name,
     });
 
     reply.code(201);

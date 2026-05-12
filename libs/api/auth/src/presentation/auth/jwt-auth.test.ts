@@ -35,6 +35,7 @@ describe('jwt-auth', () => {
     const token = await signUserToken({
       userId: user.id,
       email: user.email,
+      name: 'JWT User',
       memberships: [],
       secret: SECRET,
       expiresIn: '7d',
@@ -49,6 +50,7 @@ describe('jwt-auth', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().client.userId).toBe(user.id);
     expect(res.json().client.email).toBe(user.email);
+    expect(res.json().client.name).toBe('JWT User');
   });
 
   test('401 on missing Authorization header', async () => {

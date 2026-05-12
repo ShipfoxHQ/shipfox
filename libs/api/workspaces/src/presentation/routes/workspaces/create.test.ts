@@ -25,7 +25,12 @@ describe('POST /workspaces', () => {
     app.addHook('onRequest', (request, _reply, done) => {
       setUserContext(
         request,
-        buildUserContext({userId, email: 'caller@example.com', memberships: []}),
+        buildUserContext({
+          userId,
+          email: 'caller@example.com',
+          name: 'Caller Person',
+          memberships: [],
+        }),
       );
       done();
     });
@@ -53,6 +58,7 @@ describe('POST /workspaces', () => {
 
     const membership = await findMembership({userId, workspaceId: body.id});
     expect(membership).toBeDefined();
+    expect(membership?.userName).toBe('Caller Person');
   });
 
   test('missing name returns 400', async () => {

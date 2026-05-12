@@ -30,11 +30,13 @@ export function parseSignupForm(input: {
   email: string;
   password: string;
   name: string;
+  invitationToken?: string;
 }): FormResult<SignupBodyDto, 'email' | 'password' | 'name'> {
   const parsed = signupBodySchema.safeParse({
     email: input.email,
     password: input.password,
     name: input.name.trim() ? input.name.trim() : undefined,
+    ...(input.invitationToken ? {invitation_token: input.invitationToken} : {}),
   });
   if (!parsed.success) {
     return {ok: false, fieldErrors: fieldErrorsFromZod(parsed.error)};

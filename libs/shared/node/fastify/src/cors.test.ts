@@ -55,6 +55,33 @@ describe('global browser CORS', () => {
     expect(res.headers['access-control-allow-credentials']).toBe('true');
   });
 
+  test('allows mutating browser methods used by client APIs', async () => {
+    const app = await createApp({
+      routes: [
+        defineRoute({
+          method: 'DELETE',
+          path: '/workspaces/:workspaceId/invitations/:invitationId',
+          description: 'Test delete route',
+          handler: () => undefined,
+        }),
+      ],
+      swagger: false,
+    });
+
+    const res = await app.inject({
+      method: 'OPTIONS',
+      url: '/workspaces/workspace-1/invitations/invitation-1',
+      headers: {
+        origin: testConfig.clientBaseUrl,
+        'access-control-request-method': 'DELETE',
+      },
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(res.headers['access-control-allow-origin']).toBe(testConfig.clientBaseUrl);
+    expect(res.headers['access-control-allow-methods']).toContain('DELETE');
+  });
+
   test('normalizes configured origins and applies CORS headers on error responses', async () => {
     testConfig.allowedOrigin = 'http://localhost:5173/, http://127.0.0.1:5173';
     const app = await createApp({

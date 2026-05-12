@@ -10,6 +10,7 @@ import {
   listOpenInvitationsByWorkspace,
   revokeInvitation,
 } from '#db/invitations.js';
+import {getWorkspaceById} from '#db/workspaces.js';
 import type {Invitation} from './entities/invitation.js';
 import {
   InvitationEmailMismatchError,
@@ -31,6 +32,7 @@ export async function createWorkspaceInvitation(params: {
   workspaceId: string;
   email: string;
   invitedByUserId: string;
+  invitedByDisplay?: string | null;
   invitedByMemberships: ReadonlyArray<UserContextMembership>;
 }): Promise<Invitation> {
   await requireWorkspaceMembership({
@@ -46,6 +48,7 @@ export async function createWorkspaceInvitation(params: {
     hashedToken: hashOpaqueToken(rawToken),
     expiresAt: daysFromNow(INVITATION_TTL_DAYS),
     invitedByUserId: params.invitedByUserId,
+    invitedByDisplay: params.invitedByDisplay ?? null,
   });
 
   const link = `${config.CLIENT_BASE_URL}/invitations/accept?token=${rawToken}`;
@@ -59,13 +62,66 @@ export async function createWorkspaceInvitation(params: {
   return invitation;
 }
 
+export async function peekInvitationByRawToken(params: {
+  token: string;
+}): Promise<Invitation | undefined> {
+  return await findInvitationByToken({hashedToken: hashOpaqueToken(params.token)});
+}
+
+export type PreviewInvitationResult =
+  | {
+      status: 'pending';
+      workspaceId: string;
+      workspaceName: string;
+      email: string;
+      invitedByDisplay: string | null;
+      expiresAt: Date;
+    }
+  | {status: 'expired'; workspaceName: string; expiresAt: Date}
+  | {status: 'already_used'; workspaceName: string}
+  | {status: 'invalid'};
+
+export async function previewInvitation(params: {token: string}): Promise<PreviewInvitationResult> {
+  const invitation = await peekInvitationByRawToken({token: params.token});
+  if (!invitation) {
+    return {status: 'invalid'};
+  }
+
+  const workspace = await getWorkspaceById(invitation.workspaceId);
+  if (!workspace) {
+    // Workspace cascade-deleted — the invitation row is orphaned. Treat as invalid.
+    return {status: 'invalid'};
+  }
+
+  if (invitation.acceptedAt !== null) {
+    return {status: 'already_used', workspaceName: workspace.name};
+  }
+
+  if (invitation.expiresAt.getTime() <= Date.now()) {
+    return {
+      status: 'expired',
+      workspaceName: workspace.name,
+      expiresAt: invitation.expiresAt,
+    };
+  }
+
+  return {
+    status: 'pending',
+    workspaceId: workspace.id,
+    workspaceName: workspace.name,
+    email: invitation.email,
+    invitedByDisplay: invitation.invitedByDisplay,
+    expiresAt: invitation.expiresAt,
+  };
+}
+
 export async function acceptWorkspaceInvitation(params: {
   token: string;
   userId: string;
   email: string;
   name?: string | null | undefined;
 }): Promise<AcceptInvitationResult> {
-  const invitation = await findInvitationByToken({hashedToken: hashOpaqueToken(params.token)});
+  const invitation = await peekInvitationByRawToken({token: params.token});
   if (!invitation) {
     throw new TokenInvalidError('Invitation token is invalid');
   }

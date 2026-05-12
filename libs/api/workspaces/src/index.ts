@@ -8,6 +8,13 @@ export type {ApiKey} from '#core/entities/api-key.js';
 export type {Invitation} from '#core/entities/invitation.js';
 export type {Membership} from '#core/entities/membership.js';
 export type {Workspace, WorkspaceStatus} from '#core/entities/workspace.js';
+export {
+  InvitationEmailMismatchError,
+  TokenAlreadyUsedError,
+  TokenExpiredError,
+  TokenInvalidError,
+} from '#core/errors.js';
+export {acceptWorkspaceInvitation, peekInvitationByRawToken} from '#core/invitations.js';
 export {requireWorkspaceMembership} from '#core/workspaces.js';
 export {db, migrationsPath} from '#db/index.js';
 export {listMembershipsByUser} from '#db/memberships.js';

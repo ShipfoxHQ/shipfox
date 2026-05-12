@@ -44,9 +44,10 @@ export function ProjectTabs() {
             Projects
           </Link>
           <Link
-            to="/workspaces/$wid/settings/runners"
+            to="/workspaces/$wid/settings"
             params={{wid: params.wid}}
             role="tab"
+            activeOptions={{exact: false}}
             activeProps={activeProps}
             inactiveProps={inactiveProps}
             className={tabClassName}

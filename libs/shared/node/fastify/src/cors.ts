@@ -23,6 +23,7 @@ export async function registerCors(app: FastifyInstance): Promise<void> {
 
   await app.register(cors, {
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     origin: (
       origin: string | undefined,
       callback: (error: Error | null, allow: boolean) => void,

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SetupLayoutRouteImport } from './routes/setup/_layout'
+import { Route as InvitationsAcceptRouteImport } from './routes/invitations/accept'
 import { Route as AuthVerifyEmailRouteImport } from './routes/auth/verify-email'
 import { Route as AuthSignupRouteImport } from './routes/auth/signup'
 import { Route as AuthResetRouteImport } from './routes/auth/reset'
@@ -23,6 +24,7 @@ import { Route as SetupLayoutWorkspacesNewRouteImport } from './routes/setup/_la
 import { Route as WorkspacesWidLayoutSettingsIndexRouteImport } from './routes/workspaces/$wid/_layout/settings/index'
 import { Route as WorkspacesWidLayoutIntegrationsIndexRouteImport } from './routes/workspaces/$wid/_layout/integrations/index'
 import { Route as WorkspacesWidLayoutSettingsRunnersRouteImport } from './routes/workspaces/$wid/_layout/settings/runners'
+import { Route as WorkspacesWidLayoutSettingsMembersRouteImport } from './routes/workspaces/$wid/_layout/settings/members'
 import { Route as WorkspacesWidLayoutProjectsNewRouteImport } from './routes/workspaces/$wid/_layout/projects/new'
 import { Route as WorkspacesWidLayoutProjectsPidRouteImport } from './routes/workspaces/$wid/_layout/projects/$pid'
 import { Route as WorkspacesWidLayoutIntegrationsGithubRouteImport } from './routes/workspaces/$wid/_layout/integrations/github'
@@ -36,6 +38,11 @@ const IndexRoute = IndexRouteImport.update({
 const SetupLayoutRoute = SetupLayoutRouteImport.update({
   id: '/setup/_layout',
   path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
+  id: '/invitations/accept',
+  path: '/invitations/accept',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthVerifyEmailRoute = AuthVerifyEmailRouteImport.update({
@@ -104,6 +111,12 @@ const WorkspacesWidLayoutSettingsRunnersRoute =
     path: '/settings/runners',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
+const WorkspacesWidLayoutSettingsMembersRoute =
+  WorkspacesWidLayoutSettingsMembersRouteImport.update({
+    id: '/settings/members',
+    path: '/settings/members',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
 const WorkspacesWidLayoutProjectsNewRoute =
   WorkspacesWidLayoutProjectsNewRouteImport.update({
     id: '/projects/new',
@@ -136,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/auth/reset': typeof AuthResetRoute
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
+  '/invitations/accept': typeof InvitationsAcceptRoute
   '/setup': typeof SetupLayoutRouteWithChildren
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
   '/workspaces/$wid': typeof WorkspacesWidLayoutRouteWithChildren
@@ -145,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/settings/': typeof WorkspacesWidLayoutSettingsIndexRoute
@@ -156,6 +171,7 @@ export interface FileRoutesByTo {
   '/auth/reset': typeof AuthResetRoute
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
+  '/invitations/accept': typeof InvitationsAcceptRoute
   '/setup': typeof SetupLayoutRouteWithChildren
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
   '/setup/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
@@ -164,6 +180,7 @@ export interface FileRoutesByTo {
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/integrations': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/settings': typeof WorkspacesWidLayoutSettingsIndexRoute
@@ -176,6 +193,7 @@ export interface FileRoutesById {
   '/auth/reset': typeof AuthResetRoute
   '/auth/signup': typeof AuthSignupRoute
   '/auth/verify-email': typeof AuthVerifyEmailRoute
+  '/invitations/accept': typeof InvitationsAcceptRoute
   '/setup/_layout': typeof SetupLayoutRouteWithChildren
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
   '/workspaces/$wid/_layout': typeof WorkspacesWidLayoutRouteWithChildren
@@ -185,6 +203,7 @@ export interface FileRoutesById {
   '/workspaces/$wid/_layout/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/_layout/projects/$pid': typeof WorkspacesWidLayoutProjectsPidRoute
   '/workspaces/$wid/_layout/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/_layout/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/_layout/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/_layout/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
   '/workspaces/$wid/_layout/settings/': typeof WorkspacesWidLayoutSettingsIndexRoute
@@ -198,6 +217,7 @@ export interface FileRouteTypes {
     | '/auth/reset'
     | '/auth/signup'
     | '/auth/verify-email'
+    | '/invitations/accept'
     | '/setup'
     | '/integrations/github/callback'
     | '/workspaces/$wid'
@@ -207,6 +227,7 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/projects/$pid'
     | '/workspaces/$wid/projects/new'
+    | '/workspaces/$wid/settings/members'
     | '/workspaces/$wid/settings/runners'
     | '/workspaces/$wid/integrations/'
     | '/workspaces/$wid/settings/'
@@ -218,6 +239,7 @@ export interface FileRouteTypes {
     | '/auth/reset'
     | '/auth/signup'
     | '/auth/verify-email'
+    | '/invitations/accept'
     | '/setup'
     | '/integrations/github/callback'
     | '/setup/workspaces/new'
@@ -226,6 +248,7 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/projects/$pid'
     | '/workspaces/$wid/projects/new'
+    | '/workspaces/$wid/settings/members'
     | '/workspaces/$wid/settings/runners'
     | '/workspaces/$wid/integrations'
     | '/workspaces/$wid/settings'
@@ -237,6 +260,7 @@ export interface FileRouteTypes {
     | '/auth/reset'
     | '/auth/signup'
     | '/auth/verify-email'
+    | '/invitations/accept'
     | '/setup/_layout'
     | '/integrations/github/callback'
     | '/workspaces/$wid/_layout'
@@ -246,6 +270,7 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/_layout/integrations/github'
     | '/workspaces/$wid/_layout/projects/$pid'
     | '/workspaces/$wid/_layout/projects/new'
+    | '/workspaces/$wid/_layout/settings/members'
     | '/workspaces/$wid/_layout/settings/runners'
     | '/workspaces/$wid/_layout/integrations/'
     | '/workspaces/$wid/_layout/settings/'
@@ -258,6 +283,7 @@ export interface RootRouteChildren {
   AuthResetRoute: typeof AuthResetRoute
   AuthSignupRoute: typeof AuthSignupRoute
   AuthVerifyEmailRoute: typeof AuthVerifyEmailRoute
+  InvitationsAcceptRoute: typeof InvitationsAcceptRoute
   SetupLayoutRoute: typeof SetupLayoutRouteWithChildren
   IntegrationsGithubCallbackRoute: typeof IntegrationsGithubCallbackRoute
   WorkspacesWidLayoutRoute: typeof WorkspacesWidLayoutRouteWithChildren
@@ -277,6 +303,13 @@ declare module '@tanstack/react-router' {
       path: '/setup'
       fullPath: '/setup'
       preLoaderRoute: typeof SetupLayoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invitations/accept': {
+      id: '/invitations/accept'
+      path: '/invitations/accept'
+      fullPath: '/invitations/accept'
+      preLoaderRoute: typeof InvitationsAcceptRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/verify-email': {
@@ -363,6 +396,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWidLayoutSettingsRunnersRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
+    '/workspaces/$wid/_layout/settings/members': {
+      id: '/workspaces/$wid/_layout/settings/members'
+      path: '/settings/members'
+      fullPath: '/workspaces/$wid/settings/members'
+      preLoaderRoute: typeof WorkspacesWidLayoutSettingsMembersRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
     '/workspaces/$wid/_layout/projects/new': {
       id: '/workspaces/$wid/_layout/projects/new'
       path: '/projects/new'
@@ -412,6 +452,7 @@ interface WorkspacesWidLayoutRouteChildren {
   WorkspacesWidLayoutIntegrationsGithubRoute: typeof WorkspacesWidLayoutIntegrationsGithubRoute
   WorkspacesWidLayoutProjectsPidRoute: typeof WorkspacesWidLayoutProjectsPidRoute
   WorkspacesWidLayoutProjectsNewRoute: typeof WorkspacesWidLayoutProjectsNewRoute
+  WorkspacesWidLayoutSettingsMembersRoute: typeof WorkspacesWidLayoutSettingsMembersRoute
   WorkspacesWidLayoutSettingsRunnersRoute: typeof WorkspacesWidLayoutSettingsRunnersRoute
   WorkspacesWidLayoutIntegrationsIndexRoute: typeof WorkspacesWidLayoutIntegrationsIndexRoute
   WorkspacesWidLayoutSettingsIndexRoute: typeof WorkspacesWidLayoutSettingsIndexRoute
@@ -425,6 +466,8 @@ const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
     WorkspacesWidLayoutIntegrationsGithubRoute,
   WorkspacesWidLayoutProjectsPidRoute: WorkspacesWidLayoutProjectsPidRoute,
   WorkspacesWidLayoutProjectsNewRoute: WorkspacesWidLayoutProjectsNewRoute,
+  WorkspacesWidLayoutSettingsMembersRoute:
+    WorkspacesWidLayoutSettingsMembersRoute,
   WorkspacesWidLayoutSettingsRunnersRoute:
     WorkspacesWidLayoutSettingsRunnersRoute,
   WorkspacesWidLayoutIntegrationsIndexRoute:
@@ -442,6 +485,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthResetRoute: AuthResetRoute,
   AuthSignupRoute: AuthSignupRoute,
   AuthVerifyEmailRoute: AuthVerifyEmailRoute,
+  InvitationsAcceptRoute: InvitationsAcceptRoute,
   SetupLayoutRoute: SetupLayoutRouteWithChildren,
   IntegrationsGithubCallbackRoute: IntegrationsGithubCallbackRoute,
   WorkspacesWidLayoutRoute: WorkspacesWidLayoutRouteWithChildren,

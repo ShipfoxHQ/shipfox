@@ -62,7 +62,7 @@ const fakeUserAuth: AuthMethod = {
       return;
     }
 
-    const [userId, email] = raw?.startsWith('user:') ? raw.slice(5).split(':') : [];
+    const [userId, email, encodedName] = raw?.startsWith('user:') ? raw.slice(5).split(':') : [];
     if (!userId || !email) throw new Error('Invalid test user token');
     const memberships = await listMembershipsByUser({userId});
     setUserContext(
@@ -70,6 +70,7 @@ const fakeUserAuth: AuthMethod = {
       buildUserContext({
         userId,
         email,
+        name: encodedName ? decodeURIComponent(encodedName) : null,
         memberships: memberships.map((m) => ({workspaceId: m.workspaceId, role: 'admin' as const})),
       }),
     );
@@ -152,8 +153,10 @@ export async function login(app: FastifyInstance, params: {email: string; passwo
 export async function signupVerifyLogin(
   app: FastifyInstance,
   prefix: string,
+  options: {name?: string} = {},
 ): Promise<{
   email: string;
+  name: string | null;
   password: string;
   refreshCookie: string;
   token: string;
@@ -164,11 +167,14 @@ export async function signupVerifyLogin(
   const password = 'correct horse battery staple';
   void app;
   const userId = crypto.randomUUID();
+  const name = options.name ?? null;
+  const tokenName = name ? `:${encodeURIComponent(name)}` : '';
   return {
     email,
+    name,
     password,
     refreshCookie: 'shipfox_refresh_token=test; Path=/auth',
-    token: `user:${userId}:${email}`,
+    token: `user:${userId}:${email}${tokenName}`,
     userId,
   };
 }
