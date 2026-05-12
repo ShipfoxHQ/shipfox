@@ -85,7 +85,7 @@ function createTestRouter(path: string, element: ReactElement) {
         return element;
       }
 
-      return <ProjectWorkflowsPage projectId={params.pid ?? 'p-1'} />;
+      return <ProjectRunsPage projectId={params.pid ?? 'p-1'} />;
     },
   });
   const projectRunsRoute = createRoute({

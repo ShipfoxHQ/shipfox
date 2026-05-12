@@ -35,7 +35,7 @@ describe('CreateProjectPage', () => {
     expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
-    expect(await screen.findByRole('heading', {name: 'Source identity'})).toBeInTheDocument();
+    expect(await screen.findByRole('heading', {name: 'Runs'})).toBeInTheDocument();
   });
 
   test('with multiple connections: hides repo picker until a connection is selected', async () => {
@@ -118,8 +118,8 @@ describe('CreateProjectPage', () => {
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
     // After duplicate recovery, navigation lands on the workspace-scoped project
-    // URL. The workflows page uses section H2s instead of a project-name H1.
-    expect(await screen.findByRole('heading', {name: 'Source identity'})).toBeInTheDocument();
+    // URL. Production redirects that URL to the Runs tab.
+    expect(await screen.findByRole('heading', {name: 'Runs'})).toBeInTheDocument();
   });
 
   test('shows provider-specific submit errors', async () => {
