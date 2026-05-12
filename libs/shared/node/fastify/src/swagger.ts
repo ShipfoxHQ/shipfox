@@ -5,7 +5,11 @@ import {jsonSchemaTransform} from 'fastify-type-provider-zod';
 export type SwaggerOptions = FastifyDynamicSwaggerOptions;
 
 export const registerSwagger = async (app: FastifyInstance, options: SwaggerOptions) => {
-  await app.register(swagger, {transform: jsonSchemaTransform, ...options});
+  await app.register(swagger, {
+    openapi: {info: {title: 'API', version: '1.0.0'}},
+    transform: jsonSchemaTransform,
+    ...options,
+  });
 
   app.get('/openapi.json', {schema: {hide: true}}, (_request, reply) => {
     reply.send(app.swagger());

@@ -4,7 +4,7 @@ export const jobPayloadStepSchema = z.object({
   id: z.string().uuid(),
   name: z.string().nullable(),
   type: z.string(),
-  config: z.record(z.unknown()),
+  config: z.record(z.string(), z.unknown()),
   position: z.number(),
 });
 

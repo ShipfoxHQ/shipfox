@@ -12,8 +12,8 @@ export const runDtoSchema = z.object({
   project_id: z.string().uuid(),
   definition_id: z.string().uuid(),
   status: z.string(),
-  trigger_context: z.record(z.unknown()),
-  inputs: z.record(z.unknown()).nullable(),
+  trigger_context: z.record(z.string(), z.unknown()),
+  inputs: z.record(z.string(), z.unknown()).nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });

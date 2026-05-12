@@ -14,7 +14,7 @@ const validationErrorSchema = z.object({
 const validationResultSchema = z.union([
   z.object({
     valid: z.literal(true),
-    spec: z.record(z.unknown()),
+    spec: z.record(z.string(), z.unknown()),
   }),
   z.object({
     valid: z.literal(false),

@@ -12,7 +12,7 @@ export const workspaceDtoSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   status: workspaceStatusSchema,
-  settings: z.record(z.unknown()),
+  settings: z.record(z.string(), z.unknown()),
   created_at: z.string(),
   updated_at: z.string(),
 });

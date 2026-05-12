@@ -450,8 +450,8 @@ importers:
         specifier: ^5.9.6
         version: 5.10.0
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -478,8 +478,8 @@ importers:
         specifier: ^5.3.3
         version: 5.8.5
       fastify-type-provider-zod:
-        specifier: ^4.0.2
-        version: 4.0.2(fastify@5.8.5)(zod@3.25.76)
+        specifier: ^6.0.0
+        version: 6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3)
       fishery:
         specifier: ^2.2.2
         version: 2.4.0
@@ -506,8 +506,8 @@ importers:
   libs/api/auth-dto:
     dependencies:
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -579,8 +579,8 @@ importers:
         specifier: ^4.1.0
         version: 4.1.1
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -619,8 +619,8 @@ importers:
         specifier: ^5.3.3
         version: 5.8.5
       fastify-type-provider-zod:
-        specifier: ^4.0.2
-        version: 4.0.2(fastify@5.8.5)(zod@3.25.76)
+        specifier: ^6.0.0
+        version: 6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3)
       fishery:
         specifier: ^2.2.2
         version: 2.4.0
@@ -628,8 +628,8 @@ importers:
   libs/api/definitions-dto:
     dependencies:
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -747,8 +747,8 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.20.0)
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -793,8 +793,8 @@ importers:
         specifier: ^5.3.3
         version: 5.8.5
       fastify-type-provider-zod:
-        specifier: ^4.0.2
-        version: 4.0.2(fastify@5.8.5)(zod@3.25.76)
+        specifier: ^6.0.0
+        version: 6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3)
       fishery:
         specifier: ^2.2.2
         version: 2.4.0
@@ -802,8 +802,8 @@ importers:
   libs/api/integration/core-dto:
     dependencies:
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -842,8 +842,8 @@ importers:
         specifier: workspace:*
         version: link:../../../shared/node/fastify
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -873,14 +873,14 @@ importers:
         specifier: ^5.3.3
         version: 5.8.5
       fastify-type-provider-zod:
-        specifier: ^4.0.2
-        version: 4.0.2(fastify@5.8.5)(zod@3.25.76)
+        specifier: ^6.0.0
+        version: 6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3)
 
   libs/api/integration/debug-dto:
     dependencies:
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -946,8 +946,8 @@ importers:
         specifier: ^5.0.3
         version: 5.0.5
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -974,8 +974,8 @@ importers:
         specifier: ^5.3.3
         version: 5.8.5
       fastify-type-provider-zod:
-        specifier: ^4.0.2
-        version: 4.0.2(fastify@5.8.5)(zod@3.25.76)
+        specifier: ^6.0.0
+        version: 6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3)
 
   libs/api/integration/github-dto:
     dependencies:
@@ -983,8 +983,8 @@ importers:
         specifier: workspace:*
         version: link:../core-dto
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -1047,8 +1047,8 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.20.0)
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -1093,8 +1093,8 @@ importers:
         specifier: ^5.3.3
         version: 5.8.5
       fastify-type-provider-zod:
-        specifier: ^4.0.2
-        version: 4.0.2(fastify@5.8.5)(zod@3.25.76)
+        specifier: ^6.0.0
+        version: 6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3)
       fishery:
         specifier: ^2.2.2
         version: 2.4.0
@@ -1102,8 +1102,8 @@ importers:
   libs/api/projects-dto:
     dependencies:
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -1166,8 +1166,8 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.20.0)
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -1212,8 +1212,8 @@ importers:
         specifier: ^5.3.3
         version: 5.8.5
       fastify-type-provider-zod:
-        specifier: ^4.0.2
-        version: 4.0.2(fastify@5.8.5)(zod@3.25.76)
+        specifier: ^6.0.0
+        version: 6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3)
       fishery:
         specifier: ^2.2.2
         version: 2.4.0
@@ -1221,8 +1221,8 @@ importers:
   libs/api/runners-dto:
     dependencies:
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -1285,8 +1285,8 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.20.0)
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -1331,8 +1331,8 @@ importers:
         specifier: ^5.3.3
         version: 5.8.5
       fastify-type-provider-zod:
-        specifier: ^4.0.2
-        version: 4.0.2(fastify@5.8.5)(zod@3.25.76)
+        specifier: ^6.0.0
+        version: 6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3)
       fishery:
         specifier: ^2.2.2
         version: 2.4.0
@@ -1340,8 +1340,8 @@ importers:
   libs/api/workflows-dto:
     dependencies:
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -1392,8 +1392,8 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.20.0)
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -1420,8 +1420,8 @@ importers:
         specifier: ^5.3.3
         version: 5.8.5
       fastify-type-provider-zod:
-        specifier: ^4.0.2
-        version: 4.0.2(fastify@5.8.5)(zod@3.25.76)
+        specifier: ^6.0.0
+        version: 6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3)
       fishery:
         specifier: ^2.2.2
         version: 2.4.0
@@ -1429,8 +1429,8 @@ importers:
   libs/api/workspaces-dto:
     dependencies:
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -2117,11 +2117,11 @@ importers:
         specifier: ^5.3.3
         version: 5.8.5
       fastify-type-provider-zod:
-        specifier: ^4.0.2
-        version: 4.0.2(fastify@5.8.5)(zod@3.25.76)
+        specifier: ^6.0.0
+        version: 6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3)
       zod:
-        specifier: ^3.25.67
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -6757,11 +6757,13 @@ packages:
   fastify-plugin@5.1.0:
     resolution: {integrity: sha512-FAIDA8eovSt5qcDgcBvDuX/v0Cjz0ohGhENZ/wpc3y+oZCY2afZ9Baqql3g/lC+OHRnciQol4ww7tuthOb9idw==}
 
-  fastify-type-provider-zod@4.0.2:
-    resolution: {integrity: sha512-FDRzSL3ZuoZ+4YDevR1YOinmDKkxOdy3QB9dDR845sK+bQvDroPKhHAXLEAOObDxL7SMA0OZN/A4osrNBTdDTQ==}
+  fastify-type-provider-zod@6.1.0:
+    resolution: {integrity: sha512-Sl19VZFSX4W/+AFl3hkL5YgWk3eDXZ4XYOdrq94HunK+o7GQBCAqgk7+3gPXoWkF0bNxOiIgfnFGJJ3i9a2BtQ==}
     peerDependencies:
-      fastify: ^5.0.0
-      zod: ^3.14.2
+      '@fastify/swagger': '>=9.5.1'
+      fastify: ^5.5.0
+      openapi-types: ^12.1.3
+      zod: '>=4.1.5'
 
   fastify@5.8.5:
     resolution: {integrity: sha512-Yqptv59pQzPgQUSIm87hMqHJmdkb1+GPxdE6vW6FRyVE9G86mt7rOghitiU4JHRaTyDUk9pfeKmDeu70lAwM4Q==}
@@ -8584,16 +8586,14 @@ packages:
     resolution: {integrity: sha512-CzhO+pFNo8ajLM2d2IW/R93ipy99LWjtwblvC1RsoSUMZgyLbYFr221TnSNT7GjGdYui6P459mw9JH/g/zW2ug==}
     engines: {node: '>=18'}
 
-  zod-to-json-schema@3.25.2:
-    resolution: {integrity: sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA==}
-    peerDependencies:
-      zod: ^3.25.28 || ^4
-
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
   zod@4.3.6:
     resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
 snapshots:
 
@@ -12695,12 +12695,13 @@ snapshots:
 
   fastify-plugin@5.1.0: {}
 
-  fastify-type-provider-zod@4.0.2(fastify@5.8.5)(zod@3.25.76):
+  fastify-type-provider-zod@6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3):
     dependencies:
       '@fastify/error': 4.2.0
+      '@fastify/swagger': 9.7.0
       fastify: 5.8.5
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.2(zod@3.25.76)
+      openapi-types: 12.1.3
+      zod: 4.4.3
 
   fastify@5.8.5:
     dependencies:
@@ -14450,10 +14451,8 @@ snapshots:
 
   yoctocolors@2.1.2: {}
 
-  zod-to-json-schema@3.25.2(zod@3.25.76):
-    dependencies:
-      zod: 3.25.76
-
   zod@3.25.76: {}
 
   zod@4.3.6: {}
+
+  zod@4.4.3: {}

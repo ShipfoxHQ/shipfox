@@ -16,7 +16,7 @@ describe('parseWorkspaceOnboardingForm', () => {
     expect(result).toEqual({
       ok: false,
       fieldErrors: {
-        name: 'String must contain at least 1 character(s)',
+        name: 'Too small: expected string to have >=1 characters',
       },
     });
   });

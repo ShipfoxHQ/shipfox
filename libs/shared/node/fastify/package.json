@@ -38,8 +38,8 @@
     "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "fastify": "^5.3.3",
-    "fastify-type-provider-zod": "^4.0.2",
-    "zod": "^3.25.67"
+    "fastify-type-provider-zod": "^6.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

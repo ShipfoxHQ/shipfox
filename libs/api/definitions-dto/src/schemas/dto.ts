@@ -12,7 +12,7 @@ export const createDefinitionBodySchema = z
   .superRefine((value, ctx) => {
     if (value.source === 'vcs' && !value.config_path) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message: 'config_path is required for VCS definitions',
         path: ['config_path'],
       });
@@ -29,7 +29,7 @@ export const definitionDtoSchema = z.object({
   sha: z.string().nullable(),
   ref: z.string().nullable(),
   name: z.string(),
-  definition: z.record(z.unknown()),
+  definition: z.record(z.string(), z.unknown()),
   fetched_at: z.string(),
   created_at: z.string(),
   updated_at: z.string(),

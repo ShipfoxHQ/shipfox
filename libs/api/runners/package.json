@@ -44,7 +44,7 @@
     "@shipfox/node-temporal": "workspace:*",
     "@shipfox/node-tokens": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "zod": "^3.25.67"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -61,7 +61,7 @@
     "@types/pg": "^8.15.5",
     "drizzle-kit": "^0.31.10",
     "fastify": "^5.3.3",
-    "fastify-type-provider-zod": "^4.0.2",
+    "fastify-type-provider-zod": "^6.0.0",
     "fishery": "^2.2.2"
   }
 }
