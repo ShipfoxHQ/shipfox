@@ -1,22 +1,5 @@
 import {ApiError} from '@shipfox/client-api';
 
-export type FieldErrors<T extends string> = Partial<Record<T, string>>;
-
-interface ZodLikeError {
-  issues: Array<{path: Array<PropertyKey>; message: string}>;
-}
-
-export function fieldErrorsFromZod<T extends string>(error: ZodLikeError): FieldErrors<T> {
-  const errors: FieldErrors<T> = {};
-  for (const issue of error.issues) {
-    const key = issue.path[0];
-    if (typeof key === 'string' && !errors[key as T]) {
-      errors[key as T] = issue.message;
-    }
-  }
-  return errors;
-}
-
 export function authErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
 

@@ -1,23 +1,5 @@
 import {ApiError} from '@shipfox/client-api';
-import {authErrorMessage, fieldErrorsFromZod} from './form-utils.js';
-
-describe('fieldErrorsFromZod', () => {
-  test('keeps the first message for each field', () => {
-    const result = fieldErrorsFromZod<'email' | 'password'>({
-      issues: [
-        {path: ['email'], message: 'Invalid email'},
-        {path: ['email'], message: 'Email required'},
-        {path: ['password'], message: 'Password required'},
-        {path: [0], message: 'Ignored'},
-      ],
-    });
-
-    expect(result).toEqual({
-      email: 'Invalid email',
-      password: 'Password required',
-    });
-  });
-});
+import {authErrorMessage} from './form-utils.js';
 
 describe('authErrorMessage', () => {
   test.each([
