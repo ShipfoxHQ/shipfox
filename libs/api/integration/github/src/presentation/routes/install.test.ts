@@ -94,6 +94,11 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
         updatedAt: new Date(),
       }),
     ),
+    // Webhook receiver dependencies — install/OAuth tests don't exercise them.
+    coreDb: vi.fn() as never,
+    publishRepositoryPushed: vi.fn(() => Promise.resolve({published: false})),
+    recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+    getIntegrationConnectionById: vi.fn(() => Promise.resolve(undefined)),
   });
   const app = await createApp({
     auth: [fakeUserAuth],

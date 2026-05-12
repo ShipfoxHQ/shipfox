@@ -53,8 +53,10 @@ export async function upsertIntegrationConnection(
 
 export async function getIntegrationConnectionById(
   id: string,
+  options: {tx?: IntegrationDb | IntegrationTx | undefined} = {},
 ): Promise<IntegrationConnection | undefined> {
-  const rows = await db()
+  const executor = options.tx ?? db();
+  const rows = await executor
     .select()
     .from(integrationConnections)
     .where(eq(integrationConnections.id, id))
@@ -63,6 +65,8 @@ export async function getIntegrationConnectionById(
   if (!row) return undefined;
   return toIntegrationConnection(row);
 }
+
+export type GetIntegrationConnectionByIdFn = typeof getIntegrationConnectionById;
 
 export interface ListIntegrationConnectionsParams {
   workspaceId: string;

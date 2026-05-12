@@ -1,7 +1,16 @@
+import {dirname, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
+import {INTEGRATION_REPOSITORY_PUSHED} from '@shipfox/api-integration-core-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath, projectsOutbox} from '#db/index.js';
 import {createProjectRoutes} from '#presentation/index.js';
+import {onIntegrationRepositoryPushed} from '#presentation/subscribers/index.js';
+import {createProjectsMaintenanceActivities} from '#temporal/activities/index.js';
+import {PROJECTS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
+
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const maintenanceWorkflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
 export type {Project} from '#core/index.js';
 export {
@@ -31,5 +40,20 @@ export function createProjectsModule({sourceControl}: CreateProjectsModuleOption
     database: {db, migrationsPath},
     routes: createProjectRoutes(sourceControl),
     publishers: [{name: 'projects', table: projectsOutbox, db}],
+    subscribers: [{event: INTEGRATION_REPOSITORY_PUSHED, handler: onIntegrationRepositoryPushed}],
+    workers: [
+      {
+        taskQueue: PROJECTS_MAINTENANCE_TASK_QUEUE,
+        workflowsPath: maintenanceWorkflowsPath,
+        activities: createProjectsMaintenanceActivities,
+        workflows: [
+          {
+            name: 'pruneIntegrationEventDedupCron',
+            id: 'projects-prune-integration-event-dedup',
+            cronSchedule: '0 3 * * *',
+          },
+        ],
+      },
+    ],
   };
 }

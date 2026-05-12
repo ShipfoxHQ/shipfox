@@ -10,10 +10,12 @@ export interface DefinitionSyncWorkflowInput {
   workspaceId: string;
   sourceConnectionId: string;
   sourceExternalRepositoryId: string;
+  sourceRef?: string | undefined;
+  sourceCommitSha?: string | undefined;
 }
 
 export interface DefinitionSyncWorkflowResult {
-  ref: string;
+  sourceRef: string;
   appliedCount: number;
   deletedCount: number;
 }
@@ -49,26 +51,31 @@ const {markDefinitionSyncSucceeded, markDefinitionSyncFailed} = proxyActivities<
 export async function definitionSyncWorkflow(
   input: DefinitionSyncWorkflowInput,
 ): Promise<DefinitionSyncWorkflowResult> {
-  let ref: string | null = null;
+  let sourceRef: string | null = null;
 
   try {
     const prepared = await prepareDefinitionSync(input);
-    ref = prepared.ref;
+    sourceRef = prepared.sourceRef;
 
-    const {paths} = await discoverDefinitionWorkflows({...input, ref});
-    const applied = await fetchAndApplyDefinitionWorkflows({...input, ref, paths});
+    const source = {
+      ...input,
+      sourceRef: prepared.sourceRef,
+      sourceCommitSha: prepared.sourceCommitSha,
+    };
+    const {paths} = await discoverDefinitionWorkflows(source);
+    const applied = await fetchAndApplyDefinitionWorkflows({...source, paths});
 
-    await markDefinitionSyncSucceeded({...input, ref});
+    await markDefinitionSyncSucceeded(source);
 
     return {
-      ref,
+      sourceRef,
       appliedCount: applied.appliedCount,
       deletedCount: applied.deletedCount,
     };
   } catch (error) {
     const {code, message} = classifyWorkflowError(error);
     try {
-      await markDefinitionSyncFailed({...input, ref, code, message});
+      await markDefinitionSyncFailed({...input, sourceRef, code, message});
     } catch (markFailedError) {
       const failureOptions = {
         message: `Definition sync failed with ${code}: ${message}; additionally failed to persist failure state: ${formatWorkflowError(markFailedError)}`,

@@ -2,12 +2,15 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {DEFINITION_RESOLVED} from '@shipfox/api-definitions-dto';
 import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
-import {PROJECT_SOURCE_BOUND} from '@shipfox/api-projects-dto';
+import {PROJECT_SOURCE_BOUND, PROJECT_SOURCE_COMMIT_OBSERVED} from '@shipfox/api-projects-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {db, definitionsOutbox, migrationsPath} from '#db/index.js';
 import {routes} from '#presentation/index.js';
-import {onProjectSourceBound} from '#presentation/subscribers/index.js';
+import {
+  onProjectSourceBound,
+  onProjectSourceCommitObserved,
+} from '#presentation/subscribers/index.js';
 import {createDefinitionSyncActivities, DEFINITIONS_TASK_QUEUE} from '#temporal/index.js';
 
 export type {Job, RunStep, Trigger, WorkflowDefinition, WorkflowSpec} from '#core/index.js';
@@ -38,6 +41,7 @@ export function createDefinitionsModule({
         },
       },
       {event: PROJECT_SOURCE_BOUND, handler: onProjectSourceBound},
+      {event: PROJECT_SOURCE_COMMIT_OBSERVED, handler: onProjectSourceCommitObserved},
     ],
     workers: [
       {

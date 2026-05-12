@@ -86,8 +86,10 @@ export async function getGithubInstallationByConnectionId(
 
 export async function getGithubInstallationByInstallationId(
   installationId: string,
+  options: {tx?: unknown} = {},
 ): Promise<GithubInstallation | undefined> {
-  const rows = await db()
+  const executor = (options.tx ?? db()) as GithubDb | GithubTx;
+  const rows = await executor
     .select()
     .from(githubInstallations)
     .where(eq(githubInstallations.installationId, installationId))

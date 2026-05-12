@@ -73,15 +73,10 @@ export interface GithubApiClient {
     limit: number;
     cursor?: string | undefined;
   }): Promise<GithubRepositoryPage>;
-  getRepository(input: {
-    installationId: number;
-    owner: string;
-    repo: string;
-  }): Promise<GithubRepository>;
+  getRepository(input: {installationId: number; repositoryId: number}): Promise<GithubRepository>;
   listRepositoryFiles(input: {
     installationId: number;
-    owner: string;
-    repo: string;
+    repositoryId: number;
     ref: string;
     prefix: string;
     limit: number;
@@ -89,8 +84,7 @@ export interface GithubApiClient {
   }): Promise<GithubFilePage>;
   fetchRepositoryFile(input: {
     installationId: number;
-    owner: string;
-    repo: string;
+    repositoryId: number;
     ref: string;
     path: string;
   }): Promise<GithubFileContent>;
@@ -195,14 +189,12 @@ class OctokitGithubApiClient implements GithubApiClient {
 
   async getRepository(input: {
     installationId: number;
-    owner: string;
-    repo: string;
+    repositoryId: number;
   }): Promise<GithubRepository> {
     const octokit = await this.getApp().getInstallationOctokit(input.installationId);
     const response = await mapGithubError(() =>
-      octokit.rest.repos.get({
-        owner: input.owner,
-        repo: input.repo,
+      octokit.request('GET /repositories/{repository_id}', {
+        repository_id: input.repositoryId,
       }),
     );
 
@@ -211,14 +203,19 @@ class OctokitGithubApiClient implements GithubApiClient {
 
   async listRepositoryFiles(input: {
     installationId: number;
-    owner: string;
-    repo: string;
+    repositoryId: number;
     ref: string;
     prefix: string;
     limit: number;
     cursor?: string | undefined;
   }): Promise<GithubFilePage> {
     const octokit = await this.getApp().getInstallationOctokit(input.installationId);
+    const repository = await this.getRepository({
+      installationId: input.installationId,
+      repositoryId: input.repositoryId,
+    });
+    const owner = repository.ownerLogin;
+    const repo = repository.name;
     const startPath = input.prefix.replace(TRAILING_SLASHES_RE, '');
     const offset = input.cursor ? Number.parseInt(input.cursor, 10) : 0;
     const start = Number.isNaN(offset) || offset < 0 ? 0 : offset;
@@ -236,8 +233,8 @@ class OctokitGithubApiClient implements GithubApiClient {
         const response = await mapGithubError(
           () =>
             octokit.rest.repos.getContent({
-              owner: input.owner,
-              repo: input.repo,
+              owner,
+              repo,
               path,
               ref: input.ref,
             }),
@@ -288,17 +285,20 @@ class OctokitGithubApiClient implements GithubApiClient {
 
   async fetchRepositoryFile(input: {
     installationId: number;
-    owner: string;
-    repo: string;
+    repositoryId: number;
     ref: string;
     path: string;
   }): Promise<GithubFileContent> {
     const octokit = await this.getApp().getInstallationOctokit(input.installationId);
+    const repository = await this.getRepository({
+      installationId: input.installationId,
+      repositoryId: input.repositoryId,
+    });
     const response = await mapGithubError(
       () =>
         octokit.rest.repos.getContent({
-          owner: input.owner,
-          repo: input.repo,
+          owner: repository.ownerLogin,
+          repo: repository.name,
           path: input.path,
           ref: input.ref,
         }),

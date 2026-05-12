@@ -85,11 +85,10 @@ export class GithubSourceControlProvider
     input: ResolveRepositoryInput<GithubIntegrationConnection>,
   ): Promise<RepositorySnapshot> {
     const installationId = await this.installationId(input.connection.id);
-    const locator = parseGithubRepositoryLocator(input.externalRepositoryId);
+    const {repositoryId} = parseGithubRepositoryLocator(input.externalRepositoryId);
     const repository = await this.github.getRepository({
       installationId,
-      owner: locator.owner,
-      repo: locator.repo,
+      repositoryId,
     });
 
     return toRepositorySnapshot(repository);
@@ -97,11 +96,10 @@ export class GithubSourceControlProvider
 
   async listFiles(input: ListFilesInput<GithubIntegrationConnection>): Promise<FilePage> {
     const installationId = await this.installationId(input.connection.id);
-    const locator = parseGithubRepositoryLocator(input.externalRepositoryId);
+    const {repositoryId} = parseGithubRepositoryLocator(input.externalRepositoryId);
     const page = await this.github.listRepositoryFiles({
       installationId,
-      owner: locator.owner,
-      repo: locator.repo,
+      repositoryId,
       ref: input.ref,
       prefix: input.prefix,
       limit: input.limit,
@@ -116,11 +114,10 @@ export class GithubSourceControlProvider
 
   async fetchFile(input: FetchFileInput<GithubIntegrationConnection>): Promise<FileSnapshot> {
     const installationId = await this.installationId(input.connection.id);
-    const locator = parseGithubRepositoryLocator(input.externalRepositoryId);
+    const {repositoryId} = parseGithubRepositoryLocator(input.externalRepositoryId);
     const file = await this.github.fetchRepositoryFile({
       installationId,
-      owner: locator.owner,
-      repo: locator.repo,
+      repositoryId,
       ref: input.ref,
       path: input.path,
     });
@@ -157,7 +154,7 @@ export class GithubSourceControlProvider
 
 function toRepositorySnapshot(repository: GithubRepository): RepositorySnapshot {
   return {
-    externalRepositoryId: buildProviderRepositoryId(GITHUB_PROVIDER, repository.fullName),
+    externalRepositoryId: buildProviderRepositoryId(GITHUB_PROVIDER, String(repository.id)),
     owner: repository.ownerLogin,
     name: repository.name,
     fullName: repository.fullName,
@@ -169,19 +166,18 @@ function toRepositorySnapshot(repository: GithubRepository): RepositorySnapshot 
 }
 
 function parseGithubRepositoryLocator(externalRepositoryId: string): {
-  owner: string;
-  repo: string;
+  repositoryId: number;
 } {
   const value = parseProviderRepositoryId(externalRepositoryId, GITHUB_PROVIDER);
-  const [owner, repo, ...rest] = value.split('/');
-  if (!owner || !repo || rest.length > 0) {
+  const repositoryId = Number.parseInt(value, 10);
+  if (!Number.isInteger(repositoryId) || repositoryId <= 0 || String(repositoryId) !== value) {
     throw new GithubIntegrationProviderError(
       'repository-not-found',
-      `GitHub repository id ${externalRepositoryId} must follow the form ${GITHUB_PROVIDER}:owner/repo`,
+      `GitHub repository id ${externalRepositoryId} must follow the form ${GITHUB_PROVIDER}:<numeric-id>`,
     );
   }
 
-  return {owner, repo};
+  return {repositoryId};
 }
 
 function toRepositoryVisibility(repository: GithubRepository): RepositoryVisibility {

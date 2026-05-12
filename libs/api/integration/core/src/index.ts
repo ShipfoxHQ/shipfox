@@ -1,3 +1,5 @@
+import {dirname, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {createDebugIntegrationProvider} from '@shipfox/api-integration-debug';
 import type {ConnectGithubInstallationInput} from '@shipfox/api-integration-github';
@@ -14,8 +16,15 @@ import {
 import {getIntegrationConnectionById, upsertIntegrationConnection} from '#db/connections.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
+import {integrationsOutbox} from '#db/schema/outbox.js';
+import {publishRepositoryPushed, recordDeliveryOnly} from '#db/webhook-deliveries.js';
 import {createIntegrationRoutes} from '#presentation/routes/index.js';
+import {createIntegrationsMaintenanceActivities} from '#temporal/activities/index.js';
+import {INTEGRATIONS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 import {config} from './config.js';
+
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const maintenanceWorkflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
 export {
   buildProviderRepositoryId,
@@ -58,6 +67,15 @@ export type {
 } from '#core/providers/source-control.js';
 export type {IntegrationSourceControlService} from '#core/source-control-service.js';
 export {createSourceControlIntegrationService} from '#core/source-control-service.js';
+export type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
+export type {
+  PublishRepositoryPushedFn,
+  PublishRepositoryPushedParams,
+  PublishRepositoryPushedResult,
+  RecordDeliveryOnlyFn,
+  RecordDeliveryOnlyParams,
+} from '#db/webhook-deliveries.js';
+export {pruneWebhookDeliveries} from '#db/webhook-deliveries.js';
 
 export interface CreateIntegrationsModuleOptions {
   providers?: IntegrationProvider[] | undefined;
@@ -127,6 +145,10 @@ async function loadGithubModuleParts(): Promise<GithubModuleParts> {
     provider: createGithubIntegrationProvider({
       getExistingGithubConnection,
       connectGithubInstallation,
+      publishRepositoryPushed,
+      recordDeliveryOnly,
+      getIntegrationConnectionById,
+      coreDb: db,
     }),
     database: {db: githubDb, migrationsPath: githubMigrationsPath},
   };
@@ -175,6 +197,21 @@ export async function createIntegrationsContext(
     name: 'integrations',
     database: github ? [{db, migrationsPath}, github.database] : {db, migrationsPath},
     routes: createIntegrationRoutes(registry, sourceControl),
+    publishers: [{name: 'integrations', table: integrationsOutbox, db}],
+    workers: [
+      {
+        taskQueue: INTEGRATIONS_MAINTENANCE_TASK_QUEUE,
+        workflowsPath: maintenanceWorkflowsPath,
+        activities: createIntegrationsMaintenanceActivities,
+        workflows: [
+          {
+            name: 'pruneWebhookDeliveriesCron',
+            id: 'integrations-prune-webhook-deliveries',
+            cronSchedule: '0 3 * * *',
+          },
+        ],
+      },
+    ],
   };
 
   return {module, registry, capabilities: {sourceControl}, sourceControl};

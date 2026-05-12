@@ -16,24 +16,27 @@ export interface SyncWorkflowInput {
   workspaceId: string;
   sourceConnectionId: string;
   sourceExternalRepositoryId: string;
+  sourceRef?: string | undefined;
+  sourceCommitSha?: string | undefined;
 }
 
 export interface SyncRefScopedInput extends SyncWorkflowInput {
-  ref: string;
+  sourceRef: string;
 }
 
 export interface FetchAndApplyActivityInput extends SyncRefScopedInput {
   paths: string[];
 }
 
-export interface MarkSyncFailedActivityInput extends SyncWorkflowInput {
-  ref: string | null;
+export interface MarkSyncFailedActivityInput extends Omit<SyncWorkflowInput, 'sourceRef'> {
+  sourceRef: string | null;
   code: DefinitionSyncErrorCode;
   message: string;
 }
 
 export interface PrepareSyncResult {
-  ref: string;
+  sourceRef: string;
+  sourceCommitSha?: string | undefined;
 }
 
 export interface DiscoverWorkflowsActivityResult {
@@ -60,13 +63,13 @@ function createPrepareDefinitionSyncActivity(sourceControl: IntegrationSourceCon
     input: SyncWorkflowInput,
   ): Promise<PrepareSyncResult> {
     return await runWithPermanentTranslation(async () => {
-      const {ref} = await resolveSyncSource({...input, sourceControl});
+      const sourceRef = input.sourceRef ?? (await resolveSyncSource({...input, sourceControl})).ref;
 
       await markDefinitionSyncState({
         projectId: input.projectId,
         sourceConnectionId: input.sourceConnectionId,
         sourceExternalRepositoryId: input.sourceExternalRepositoryId,
-        ref,
+        ref: sourceRef,
         status: 'syncing',
         lastErrorCode: null,
         lastErrorMessage: null,
@@ -74,7 +77,7 @@ function createPrepareDefinitionSyncActivity(sourceControl: IntegrationSourceCon
         finishedAt: null,
       });
 
-      return {ref};
+      return {sourceRef, sourceCommitSha: input.sourceCommitSha};
     });
   };
 }
@@ -84,7 +87,11 @@ function createDiscoverDefinitionWorkflowsActivity(sourceControl: IntegrationSou
     input: SyncRefScopedInput,
   ): Promise<DiscoverWorkflowsActivityResult> {
     return await runWithPermanentTranslation(async () => {
-      return await discoverWorkflowFiles({...input, sourceControl});
+      return await discoverWorkflowFiles({
+        ...input,
+        ref: input.sourceCommitSha ?? input.sourceRef,
+        sourceControl,
+      });
     });
   };
 }
@@ -96,13 +103,14 @@ function createFetchAndApplyActivity(sourceControl: IntegrationSourceControlServ
     return await runWithPermanentTranslation(async () => {
       const definitions = await fetchAndParseWorkflows({
         ...input,
+        ref: input.sourceCommitSha ?? input.sourceRef,
         sourceControl,
         onProgress: (path) => Context.current().heartbeat({path}),
       });
 
       return await applyVcsDefinitionsBatch({
         projectId: input.projectId,
-        ref: input.ref,
+        ref: input.sourceRef,
         upserts: definitions.map((entry) => ({
           configPath: entry.path,
           name: entry.name,
@@ -120,7 +128,7 @@ function createMarkSyncSucceededActivity() {
       projectId: input.projectId,
       sourceConnectionId: input.sourceConnectionId,
       sourceExternalRepositoryId: input.sourceExternalRepositoryId,
-      ref: input.ref,
+      ref: input.sourceRef,
       status: 'succeeded',
       lastErrorCode: null,
       lastErrorMessage: null,
@@ -137,7 +145,7 @@ function createMarkSyncFailedActivity() {
       projectId: input.projectId,
       sourceConnectionId: input.sourceConnectionId,
       sourceExternalRepositoryId: input.sourceExternalRepositoryId,
-      ref: input.ref ?? UNRESOLVED_SYNC_REF,
+      ref: input.sourceRef ?? UNRESOLVED_SYNC_REF,
       status: 'failed',
       lastErrorCode: input.code,
       lastErrorMessage: input.message,
