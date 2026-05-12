@@ -36,7 +36,7 @@
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-workspaces": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
-    "zod": "^3.25.67"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

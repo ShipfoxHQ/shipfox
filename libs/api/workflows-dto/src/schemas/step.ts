@@ -16,7 +16,7 @@ export const stepDtoSchema = z.object({
   name: z.string().nullable(),
   status: z.string(),
   type: z.string(),
-  config: z.record(z.unknown()),
+  config: z.record(z.string(), z.unknown()),
   error: stepErrorDtoSchema,
   position: z.number(),
   created_at: z.string(),

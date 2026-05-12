@@ -42,7 +42,7 @@
     "drizzle-orm": "^0.45.2",
     "ky": "^1.14.3",
     "octokit": "^5.0.3",
-    "zod": "^3.25.67"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

@@ -27,8 +27,8 @@ describe('auth form model', () => {
     expect(result).toEqual({
       ok: false,
       fieldErrors: {
-        email: 'Invalid email',
-        password: 'String must contain at least 1 character(s)',
+        email: 'Invalid email address',
+        password: 'Too small: expected string to have >=1 characters',
       },
     });
   });
@@ -84,7 +84,7 @@ describe('auth form model', () => {
     expect(result).toEqual({
       ok: false,
       fieldErrors: {
-        new_password: 'String must contain at least 12 character(s)',
+        new_password: 'Too small: expected string to have >=12 characters',
       },
     });
   });
