@@ -88,7 +88,6 @@ describe('project runs search helpers', () => {
       triggerSource: 'manual',
       definitionId: DEFINITION_ID,
       createdFrom: '2026-05-06T12:00:00.000Z',
-      createdTo: '2026-05-07T12:00:00.000Z',
     });
   });
 });

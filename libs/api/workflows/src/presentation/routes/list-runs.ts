@@ -53,6 +53,7 @@ export const listRunsRoute = defineRoute({
       limit,
       cursor: decodedCursor,
       filters,
+      includeTotal: !decodedCursor,
     });
 
     logger().info(

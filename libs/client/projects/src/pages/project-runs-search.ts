@@ -55,7 +55,6 @@ export function sameSearch(current: Record<string, unknown>, normalized: Record<
 }
 
 export function toWorkflowRunFilters(search: RunsSearchState): WorkflowRunFilters {
-  const now = Date.now();
   const windowMsByPreset: Partial<Record<DatePreset, number>> = {
     '24h': 24 * 60 * 60 * 1000,
     '7d': 7 * 24 * 60 * 60 * 1000,
@@ -66,8 +65,7 @@ export function toWorkflowRunFilters(search: RunsSearchState): WorkflowRunFilter
     status: search.status,
     definitionId: search.definitionId,
     triggerSource: search.triggerSource,
-    createdFrom: windowMs ? new Date(now - windowMs).toISOString() : undefined,
-    createdTo: windowMs ? new Date(now).toISOString() : undefined,
+    createdFrom: windowMs ? new Date(Date.now() - windowMs).toISOString() : undefined,
   };
 }
 

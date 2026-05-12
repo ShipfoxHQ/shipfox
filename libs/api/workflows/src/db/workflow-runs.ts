@@ -136,12 +136,13 @@ export interface ListWorkflowRunsParams {
   limit: number;
   cursor?: WorkflowRunCursor | undefined;
   filters?: WorkflowRunFilters | undefined;
+  includeTotal?: boolean | undefined;
 }
 
 export interface ListWorkflowRunsResult {
   runs: WorkflowRun[];
   nextCursor: WorkflowRunCursor | null;
-  filteredTotalCount: number;
+  filteredTotalCount: number | null;
 }
 
 function cursorWhere(cursor: WorkflowRunCursor | undefined): SQL | undefined {
@@ -191,14 +192,18 @@ export async function listWorkflowRuns(
     .orderBy(desc(workflowRuns.createdAt), desc(workflowRuns.id))
     .limit(params.limit + 1);
 
-  const [{value: totalCount} = {value: 0}] = await db()
-    .select({value: count()})
-    .from(workflowRuns)
-    .where(
-      and(
-        ...buildWorkflowRunListConditions({projectId: params.projectId, filters: params.filters}),
-      ),
-    );
+  let totalCount: number | null = null;
+  if (params.includeTotal) {
+    const [{value} = {value: 0}] = await db()
+      .select({value: count()})
+      .from(workflowRuns)
+      .where(
+        and(
+          ...buildWorkflowRunListConditions({projectId: params.projectId, filters: params.filters}),
+        ),
+      );
+    totalCount = value;
+  }
 
   const hasMore = rows.length > params.limit;
   const pageRows = hasMore ? rows.slice(0, params.limit) : rows;

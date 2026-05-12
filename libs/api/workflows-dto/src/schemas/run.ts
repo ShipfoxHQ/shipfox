@@ -85,7 +85,7 @@ export type RunResponseDto = z.infer<typeof runResponseSchema>;
 export const runListResponseSchema = z.object({
   runs: z.array(runResponseSchema),
   next_cursor: z.string().nullable(),
-  filtered_total_count: z.number().int().nonnegative(),
+  filtered_total_count: z.number().int().nonnegative().nullable(),
 });
 
 export type RunListResponseDto = z.infer<typeof runListResponseSchema>;

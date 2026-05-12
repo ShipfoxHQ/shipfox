@@ -58,23 +58,33 @@ export function ProjectRunsPage({projectId}: {projectId: string}) {
   const queryClient = useQueryClient();
   const [refreshError, setRefreshError] = useState(false);
   const [isPageRefreshing, setIsPageRefreshing] = useState(false);
+  const [isTabHidden, setIsTabHidden] = useState(
+    typeof document !== 'undefined' && document.visibilityState === 'hidden',
+  );
   const definitions = definitionsQuery.data?.pages.flatMap((page) => page.definitions) ?? [];
   const runs = runsQuery.data?.pages.flatMap((page) => page.runs) ?? [];
   const totalCount = runsQuery.data?.pages[0]?.filtered_total_count ?? 0;
   const activeRuns = runs.filter((run) => !TERMINAL_STATUSES.has(run.status));
-  const refreshState =
-    document.visibilityState === 'hidden'
-      ? 'paused-hidden'
-      : refreshError
-        ? 'backoff-error'
-        : isPageRefreshing
-          ? 'refreshing'
-          : activeRuns.length > 0
-            ? 'watching'
-            : 'idle-terminal';
+  const refreshState = isTabHidden
+    ? 'paused-hidden'
+    : refreshError
+      ? 'backoff-error'
+      : isPageRefreshing
+        ? 'refreshing'
+        : activeRuns.length > 0
+          ? 'watching'
+          : 'idle-terminal';
 
   useEffect(() => {
-    if (activeRuns.length === 0 || document.visibilityState === 'hidden' || refreshError) return;
+    function onVisibilityChange() {
+      setIsTabHidden(document.visibilityState === 'hidden');
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
+
+  useEffect(() => {
+    if (activeRuns.length === 0 || isTabHidden || refreshError) return;
     const interval = window.setInterval(() => {
       void refreshLoadedActivePages({
         projectId,
@@ -86,7 +96,7 @@ export function ProjectRunsPage({projectId}: {projectId: string}) {
       });
     }, 5000);
     return () => window.clearInterval(interval);
-  }, [activeRuns.length, filters, projectId, queryClient, refreshError]);
+  }, [activeRuns.length, filters, projectId, queryClient, refreshError, isTabHidden]);
 
   function updateFilters(next: Partial<RunsSearchState>) {
     setSearchState({...searchState, ...next});
@@ -506,7 +516,11 @@ async function refreshLoadedActivePages({
 }) {
   const data =
     queryClient.getQueryData<
-      InfiniteData<{runs: RunDto[]; next_cursor: string | null; filtered_total_count: number}>
+      InfiniteData<{
+        runs: RunDto[];
+        next_cursor: string | null;
+        filtered_total_count: number | null;
+      }>
     >(queryKey);
   if (!data) return;
   const pagesToRefresh = data.pages
@@ -527,7 +541,11 @@ async function refreshLoadedActivePages({
       ),
     );
     queryClient.setQueryData<
-      InfiniteData<{runs: RunDto[]; next_cursor: string | null; filtered_total_count: number}>
+      InfiniteData<{
+        runs: RunDto[];
+        next_cursor: string | null;
+        filtered_total_count: number | null;
+      }>
     >(queryKey, (current) => {
       if (!current) return current;
       const nextPages = [...current.pages];
@@ -540,7 +558,8 @@ async function refreshLoadedActivePages({
         nextPages[index] = {
           ...currentPage,
           runs: currentPage.runs.map((run) => byId.get(run.id) ?? run),
-          filtered_total_count: refreshedPage.filtered_total_count,
+          filtered_total_count:
+            refreshedPage.filtered_total_count ?? currentPage.filtered_total_count,
         };
       }
       return {...current, pages: nextPages};
