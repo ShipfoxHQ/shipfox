@@ -218,13 +218,14 @@ function WorkflowDefinitionsList({
               const isRunning = runningDefinitionId === definition.id;
 
               return (
-                <TableRow
-                  // The `group` class lets the Run button reveal on row hover
-                  // OR keyboard focus-within (a11y).
-                  key={definition.id}
-                  className="group cursor-pointer"
-                  onClick={() => onOpenDefinition(definition)}
-                >
+                // The workflow-name cell holds a `<button>` so the row is
+                // keyboard-reachable (Tab focuses, Enter/Space activates
+                // via native button semantics). The TableRow itself is no
+                // longer clickable — a row-level onClick would be invisible
+                // to keyboard users and require custom keydown handling.
+                // The `group` class on the row still drives the Run button
+                // reveal on hover or focus-within.
+                <TableRow key={definition.id} className="group">
                   <TableCell>
                     <Icon
                       name={sourceIcon(definition.source)}
@@ -234,12 +235,18 @@ function WorkflowDefinitionsList({
                   </TableCell>
                   <TableCell className="max-w-260">
                     <div className="flex min-w-0 flex-col gap-2">
-                      <Text size="sm" bold className="truncate">
-                        {definition.name}
-                      </Text>
-                      <Code className="truncate text-foreground-neutral-muted">
-                        {definition.config_path ?? 'Manual definition'}
-                      </Code>
+                      <button
+                        type="button"
+                        onClick={() => onOpenDefinition(definition)}
+                        className="flex min-w-0 flex-col gap-2 text-left outline-none focus-visible:shadow-border-interactive-with-active rounded-4"
+                      >
+                        <Text size="sm" bold className="truncate">
+                          {definition.name}
+                        </Text>
+                        <Code className="truncate text-foreground-neutral-muted">
+                          {definition.config_path ?? 'Manual definition'}
+                        </Code>
+                      </button>
                       {runErrorMessage ? (
                         <Text size="xs" className="text-tag-error-text">
                           {runErrorMessage}
@@ -252,14 +259,7 @@ function WorkflowDefinitionsList({
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                      <Button
-                        size="xs"
-                        isLoading={isRunning}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onRun(definition);
-                        }}
-                      >
+                      <Button size="xs" isLoading={isRunning} onClick={() => onRun(definition)}>
                         Run
                       </Button>
                     </div>

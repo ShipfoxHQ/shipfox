@@ -41,7 +41,6 @@ const TRIGGER_SOURCES: TriggerSourceDto[] = ['manual', 'webhook', 'schedule'];
 const TERMINAL_STATUSES = new Set<RunStatusDto>(['succeeded', 'failed', 'cancelled']);
 
 const ACTIVE_POLL_MS = 4_000;
-const IDLE_POLL_MS = 30_000;
 const ERROR_TOAST_THRESHOLD = 3;
 
 export function ProjectRunsPage({projectId}: {projectId: string}) {
@@ -68,14 +67,7 @@ function ProjectRunsPageInner({projectId}: {projectId: string}) {
   const definitions = definitionsQuery.data?.pages.flatMap((page) => page.definitions) ?? [];
   const runs = runsQuery.data?.pages.flatMap((page) => page.runs) ?? [];
   const totalCount = runsQuery.data?.pages[0]?.filtered_total_count ?? 0;
-  const activeRunCount = runs.reduce(
-    (acc, run) => acc + (TERMINAL_STATUSES.has(run.status) ? 0 : 1),
-    0,
-  );
-  const cadenceMs = useMemo(
-    () => (activeRunCount > 0 ? ACTIVE_POLL_MS : IDLE_POLL_MS),
-    [activeRunCount],
-  );
+  const hasActiveRuns = runs.some((run) => !TERMINAL_STATUSES.has(run.status));
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -84,13 +76,16 @@ function ProjectRunsPageInner({projectId}: {projectId: string}) {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, []);
 
-  // Adaptive poller. The effect depends on `cadenceMs`, not on
-  // `activeRunCount` directly: pending→running transitions inside the
-  // active band keep the same interval running (no teardown churn).
-  // Polling runs silently; errors surface as a toast after a threshold
-  // so the operator finds out when the page can no longer self-refresh.
+  // Active poller. Runs only while at least one non-terminal run is
+  // visible — there is nothing useful to refresh otherwise (page rows
+  // would either stay identical or, worse, drift the page-0 cursor if
+  // we prepended new external rows). Terminal state changes and
+  // brand-new external runs arrive via react-query's
+  // `refetchOnWindowFocus` on tab return or via filter changes.
+  // Errors surface as a toast after a threshold so the operator finds
+  // out when the page can no longer self-refresh.
   useEffect(() => {
-    if (isTabHidden) return;
+    if (isTabHidden || !hasActiveRuns) return;
     const interval = window.setInterval(() => {
       void refreshLoadedActivePages({
         projectId,
@@ -109,9 +104,9 @@ function ProjectRunsPageInner({projectId}: {projectId: string}) {
           }
         },
       });
-    }, cadenceMs);
+    }, ACTIVE_POLL_MS);
     return () => window.clearInterval(interval);
-  }, [cadenceMs, filters, projectId, queryClient, isTabHidden]);
+  }, [hasActiveRuns, filters, projectId, queryClient, isTabHidden]);
 
   function updateFilters(next: Partial<RunsSearchState>) {
     setSearchState({...searchState, ...next});
@@ -426,16 +421,17 @@ async function refreshLoadedActivePages({
   // Refresh up to the first 3 pages that contain active runs. The page-merge
   // strategy avoids row reshuffling that a full refetch would cause with
   // cursor-paginated lists.
+  //
+  // We intentionally do NOT prepend brand-new runs the server reports here:
+  // doing so would grow page 0 past the server's page size and break the
+  // cursor that page 1 was originally paginated against. New rows from the
+  // user's own actions arrive via `useCreateWorkflowRunMutation.onMutate`
+  // (optimistic) + `onSuccess` invalidate; new rows from external sources
+  // arrive on the next full refetch (e.g. window focus, filter change).
   const pagesToRefresh = data.pages
     .map((page, index) => ({page, index}))
     .filter(({page}) => page.runs.some((run) => !TERMINAL_STATUSES.has(run.status)))
     .slice(0, 3);
-  // Even when no active runs exist, refresh the first page so a brand-new
-  // run created elsewhere appears. This keeps the idle (30s) cadence useful.
-  const firstPage = data.pages[0];
-  if (pagesToRefresh.length === 0 && firstPage) {
-    pagesToRefresh.push({page: firstPage, index: 0});
-  }
   if (pagesToRefresh.length === 0) return;
 
   try {
@@ -463,21 +459,12 @@ async function refreshLoadedActivePages({
         const byId = new Map(refreshedPage.runs.map((run) => [run.id, run]));
         const currentPage = current.pages[index];
         if (!currentPage) continue;
-        // Replace rows that exist in both (covers status transitions). For
-        // page 0, also prepend any new rows the server returned that we
-        // didn't have — that's how brand-new runs land on idle polls.
-        const merged =
-          index === 0
-            ? [
-                ...refreshedPage.runs.filter(
-                  (run) => !currentPage.runs.some((existing) => existing.id === run.id),
-                ),
-                ...currentPage.runs.map((run) => byId.get(run.id) ?? run),
-              ]
-            : currentPage.runs.map((run) => byId.get(run.id) ?? run);
+        // In-place id-merge: replace rows that exist in both pages with the
+        // refreshed copy (covers `pending → running → succeeded` transitions)
+        // and leave everything else as-is. Page geometry stays stable.
         nextPages[index] = {
           ...currentPage,
-          runs: merged,
+          runs: currentPage.runs.map((run) => byId.get(run.id) ?? run),
           filtered_total_count:
             refreshedPage.filtered_total_count ?? currentPage.filtered_total_count,
         };
