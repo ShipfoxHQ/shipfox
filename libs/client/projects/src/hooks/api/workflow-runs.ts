@@ -94,14 +94,27 @@ export async function createWorkflowRun(body: CreateRunBodyDto) {
   return await apiRequest<RunResponseDto>('/workflows/runs', {method: 'POST', body});
 }
 
+const TERMINAL_RUN_STATUSES = new Set<RunStatusDto>(['succeeded', 'failed', 'cancelled']);
+const ACTIVE_POLL_MS = 4_000;
+const IDLE_POLL_MS = 30_000;
+
 export function useWorkflowRunsInfiniteQuery(
   projectId: string | undefined,
   filters: WorkflowRunFilters,
   limit = 50,
 ) {
-  // staleTime of 2s deduplicates with the page-local 4s active poller;
-  // refetchOnWindowFocus keeps the list current after tab switches without
-  // a global QueryClient change (AuthProvider already focus-refreshes auth).
+  // Polling is owned by react-query, not the page. Polling fast (4s) while
+  // any non-terminal run is visible covers state transitions; polling slow
+  // (30s) when idle covers brand-new external runs (webhook/schedule
+  // triggers) without leaving the list stale.
+  //
+  // We disable polling once the user has loaded more than one page. With
+  // cursor pagination the cursor that bounds page 1 was computed from
+  // page 0's last row; if a refetch shifts that boundary, a small range
+  // of rows can drop into a between-pages gap. Users who scrolled into
+  // history opted into "reading mode" — pause until they refocus, filter,
+  // or scroll back. Tab-hidden polling is paused by react-query natively
+  // via refetchIntervalInBackground: false.
   return useInfiniteQuery({
     queryKey: projectId
       ? workflowRunsQueryKeys.list(projectId, filters)
@@ -114,6 +127,15 @@ export function useWorkflowRunsInfiniteQuery(
     placeholderData: keepPreviousData,
     staleTime: 2_000,
     refetchOnWindowFocus: true,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data || data.pages.length > 1) return false;
+      const hasActive = data.pages.some((page) =>
+        page.runs.some((run) => !TERMINAL_RUN_STATUSES.has(run.status)),
+      );
+      return hasActive ? ACTIVE_POLL_MS : IDLE_POLL_MS;
+    },
+    refetchIntervalInBackground: false,
   });
 }
 

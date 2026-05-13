@@ -11,21 +11,15 @@ import {
   SelectValue,
   Skeleton,
   Text,
-  toast,
 } from '@shipfox/react-ui';
-import type {InfiniteData} from '@tanstack/react-query';
-import {useQueryClient} from '@tanstack/react-query';
 import {Link, useNavigate, useParams, useSearch} from '@tanstack/react-router';
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useEffect, useMemo} from 'react';
 import {RunRow} from '#components/run-row.js';
 import {RunStatusFilter} from '#components/run-status-filter.js';
 import {useDefinitionsInfiniteQuery} from '#hooks/api/definitions.js';
 import {
-  listWorkflowRuns,
   useWorkflowRunAggregatesQuery,
   useWorkflowRunsInfiniteQuery,
-  type WorkflowRunFilters,
-  workflowRunsQueryKeys,
 } from '#hooks/api/workflow-runs.js';
 import {RelativeTimeProvider} from '#lib/relative-time.js';
 import {
@@ -38,10 +32,6 @@ import {
 } from './project-runs-search.js';
 
 const TRIGGER_SOURCES: TriggerSourceDto[] = ['manual', 'webhook', 'schedule'];
-const TERMINAL_STATUSES = new Set<RunStatusDto>(['succeeded', 'failed', 'cancelled']);
-
-const ACTIVE_POLL_MS = 4_000;
-const ERROR_TOAST_THRESHOLD = 3;
 
 export function ProjectRunsPage({projectId}: {projectId: string}) {
   return (
@@ -53,60 +43,17 @@ export function ProjectRunsPage({projectId}: {projectId: string}) {
 
 function ProjectRunsPageInner({projectId}: {projectId: string}) {
   const {filters, searchState, setSearchState, hasActiveFilters} = useRunsSearchFilters();
+  // Polling cadence and visibility-pause are owned by the query hook
+  // itself (see useWorkflowRunsInfiniteQuery). The page just consumes
+  // data and renders.
   const runsQuery = useWorkflowRunsInfiniteQuery(projectId, filters);
   const params = useParams({strict: false}) as {wid?: string};
   const aggregatesQuery = useWorkflowRunAggregatesQuery(projectId, filters);
   const definitionsQuery = useDefinitionsInfiniteQuery(projectId);
-  const queryClient = useQueryClient();
-  const [isTabHidden, setIsTabHidden] = useState(
-    typeof document !== 'undefined' && document.visibilityState === 'hidden',
-  );
-  const consecutiveErrors = useRef(0);
-  const errorToastFired = useRef(false);
 
   const definitions = definitionsQuery.data?.pages.flatMap((page) => page.definitions) ?? [];
   const runs = runsQuery.data?.pages.flatMap((page) => page.runs) ?? [];
   const totalCount = runsQuery.data?.pages[0]?.filtered_total_count ?? 0;
-  const hasActiveRuns = runs.some((run) => !TERMINAL_STATUSES.has(run.status));
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const onVisibilityChange = () => setIsTabHidden(document.visibilityState === 'hidden');
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-  }, []);
-
-  // Active poller. Runs only while at least one non-terminal run is
-  // visible — there is nothing useful to refresh otherwise (page rows
-  // would either stay identical or, worse, drift the page-0 cursor if
-  // we prepended new external rows). Terminal state changes and
-  // brand-new external runs arrive via react-query's
-  // `refetchOnWindowFocus` on tab return or via filter changes.
-  // Errors surface as a toast after a threshold so the operator finds
-  // out when the page can no longer self-refresh.
-  useEffect(() => {
-    if (isTabHidden || !hasActiveRuns) return;
-    const interval = window.setInterval(() => {
-      void refreshLoadedActivePages({
-        projectId,
-        filters,
-        queryKey: workflowRunsQueryKeys.list(projectId, filters),
-        queryClient,
-        onSuccess: () => {
-          consecutiveErrors.current = 0;
-          errorToastFired.current = false;
-        },
-        onError: () => {
-          consecutiveErrors.current += 1;
-          if (consecutiveErrors.current >= ERROR_TOAST_THRESHOLD && !errorToastFired.current) {
-            errorToastFired.current = true;
-            toast.error('Run updates paused — could not reach the server.');
-          }
-        },
-      });
-    }, ACTIVE_POLL_MS);
-    return () => window.clearInterval(interval);
-  }, [hasActiveRuns, filters, projectId, queryClient, isTabHidden]);
 
   function updateFilters(next: Partial<RunsSearchState>) {
     setSearchState({...searchState, ...next});
@@ -392,87 +339,4 @@ function RunsList({runs}: {runs: RunDto[]}) {
       ))}
     </div>
   );
-}
-
-async function refreshLoadedActivePages({
-  projectId,
-  filters,
-  queryKey,
-  queryClient,
-  onSuccess,
-  onError,
-}: {
-  projectId: string;
-  filters: WorkflowRunFilters;
-  queryKey: readonly unknown[];
-  queryClient: ReturnType<typeof useQueryClient>;
-  onSuccess: () => void;
-  onError: () => void;
-}) {
-  const data =
-    queryClient.getQueryData<
-      InfiniteData<{
-        runs: RunDto[];
-        next_cursor: string | null;
-        filtered_total_count: number | null;
-      }>
-    >(queryKey);
-  if (!data) return;
-  // Refresh up to the first 3 pages that contain active runs. The page-merge
-  // strategy avoids row reshuffling that a full refetch would cause with
-  // cursor-paginated lists.
-  //
-  // We intentionally do NOT prepend brand-new runs the server reports here:
-  // doing so would grow page 0 past the server's page size and break the
-  // cursor that page 1 was originally paginated against. New rows from the
-  // user's own actions arrive via `useCreateWorkflowRunMutation.onMutate`
-  // (optimistic) + `onSuccess` invalidate; new rows from external sources
-  // arrive on the next full refetch (e.g. window focus, filter change).
-  const pagesToRefresh = data.pages
-    .map((page, index) => ({page, index}))
-    .filter(({page}) => page.runs.some((run) => !TERMINAL_STATUSES.has(run.status)))
-    .slice(0, 3);
-  if (pagesToRefresh.length === 0) return;
-
-  try {
-    const refreshed = await Promise.all(
-      pagesToRefresh.map(({index}) =>
-        listWorkflowRuns({
-          projectId,
-          filters,
-          cursor: data.pageParams[index] as string | undefined,
-        }),
-      ),
-    );
-    queryClient.setQueryData<
-      InfiniteData<{
-        runs: RunDto[];
-        next_cursor: string | null;
-        filtered_total_count: number | null;
-      }>
-    >(queryKey, (current) => {
-      if (!current) return current;
-      const nextPages = [...current.pages];
-      for (const [refreshIndex, {index}] of pagesToRefresh.entries()) {
-        const refreshedPage = refreshed[refreshIndex];
-        if (!refreshedPage) continue;
-        const byId = new Map(refreshedPage.runs.map((run) => [run.id, run]));
-        const currentPage = current.pages[index];
-        if (!currentPage) continue;
-        // In-place id-merge: replace rows that exist in both pages with the
-        // refreshed copy (covers `pending → running → succeeded` transitions)
-        // and leave everything else as-is. Page geometry stays stable.
-        nextPages[index] = {
-          ...currentPage,
-          runs: currentPage.runs.map((run) => byId.get(run.id) ?? run),
-          filtered_total_count:
-            refreshedPage.filtered_total_count ?? currentPage.filtered_total_count,
-        };
-      }
-      return {...current, pages: nextPages};
-    });
-    onSuccess();
-  } catch {
-    onError();
-  }
 }
