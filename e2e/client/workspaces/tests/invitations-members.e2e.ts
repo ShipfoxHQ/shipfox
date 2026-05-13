@@ -7,6 +7,8 @@ const PENDING_INVITATION_RE = /open invitation already exists/u;
 const VISUAL_OWNER_EMAIL = 'owner@example.test';
 const VISUAL_INVITEE_EMAIL = 'invitee@example.test';
 const VISUAL_PENDING_EMAIL = 'pending-invitee@example.test';
+const VISUAL_JOINED_DATE = 'May 1, 2026';
+const VISUAL_EXPIRES_DATE = 'May 20, 2026';
 
 function workspaceUrlRe(wid: string): RegExp {
   return new RegExp(`/workspaces/${wid}(/|$)`, 'u');
@@ -154,9 +156,17 @@ test('accepts an invitation from the public landing page via login', async ({
   await expect(page.getByText(owner.email)).toBeVisible();
   await expect(page.getByText(invitee.email)).toBeVisible();
   await expect(page.getByText('No pending invitations.')).toBeVisible();
+  const memberJoinedText = (
+    await page
+      .getByRole('row', {name: textRe(invitee.email)})
+      .getByRole('cell')
+      .nth(2)
+      .innerText()
+  ).trim();
   await stableArgosScreenshot(page, 'members/populated-with-empty-invitations', [
     [owner.email, VISUAL_OWNER_EMAIL],
     [invitee.email, VISUAL_INVITEE_EMAIL],
+    [memberJoinedText, VISUAL_JOINED_DATE],
   ]);
 });
 
@@ -235,28 +245,31 @@ test('creates, rejects duplicate, and revokes a pending invitation from members 
   await expect(page.getByText(`Invitation sent to ${pendingEmail}.`)).toBeVisible();
   const pendingInvitationRow = page.getByRole('row', {name: textRe(pendingEmail)});
   await expect(pendingInvitationRow).toBeVisible();
-  await stableArgosScreenshot(page, 'members/pending-invitations-populated', [
+  const pendingExpiresText = (
+    await pendingInvitationRow.getByRole('cell').nth(2).innerText()
+  ).trim();
+  const pendingRowReplacements = [
     [owner.email, VISUAL_OWNER_EMAIL],
     [pendingEmail, VISUAL_PENDING_EMAIL],
-  ]);
+    [pendingExpiresText, VISUAL_EXPIRES_DATE],
+  ] as const;
+  await stableArgosScreenshot(
+    page,
+    'members/pending-invitations-populated',
+    pendingRowReplacements,
+  );
 
   await page.getByRole('button', {name: 'Invite member'}).click();
   await page.getByLabel('Email').fill(pendingEmail);
   await page.getByRole('button', {name: 'Send invitation'}).click();
   await expect(page.getByText(PENDING_INVITATION_RE)).toBeVisible();
-  await stableArgosScreenshot(page, 'members/invite-member-modal-conflict', [
-    [owner.email, VISUAL_OWNER_EMAIL],
-    [pendingEmail, VISUAL_PENDING_EMAIL],
-  ]);
+  await stableArgosScreenshot(page, 'members/invite-member-modal-conflict', pendingRowReplacements);
   await page.keyboard.press('Escape');
 
   await pendingInvitationRow.hover();
   await page.getByRole('button', {name: 'Revoke invitation'}).click();
   await expect(page.getByText(`Revoke invitation to ${pendingEmail}?`)).toBeVisible();
-  await stableArgosScreenshot(page, 'members/revoke-invitation-confirm', [
-    [owner.email, VISUAL_OWNER_EMAIL],
-    [pendingEmail, VISUAL_PENDING_EMAIL],
-  ]);
+  await stableArgosScreenshot(page, 'members/revoke-invitation-confirm', pendingRowReplacements);
   await page.getByRole('button', {name: 'Revoke'}).click();
 
   await expect(page.getByText(`Invitation to ${pendingEmail} revoked.`)).toBeVisible();
