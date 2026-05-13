@@ -6,10 +6,10 @@ import {
   Badge,
   Button,
   Code,
+  FormField,
+  FormFieldInput,
   Header,
   Icon,
-  Input,
-  Label,
   Modal,
   ModalBody,
   ModalContent,
@@ -27,12 +27,14 @@ import {
   Text,
   toast,
 } from '@shipfox/react-ui';
-import {type FormEvent, useState} from 'react';
+import {useForm} from '@tanstack/react-form';
+import {useState} from 'react';
 import {useCreateInvitation} from '#hooks/api/create-invitation.js';
 import {useListInvitations} from '#hooks/api/list-invitations.js';
 import {useListMembers} from '#hooks/api/list-members.js';
 import {useRemoveMember} from '#hooks/api/remove-member.js';
 import {useRevokeInvitation} from '#hooks/api/revoke-invitation.js';
+import {invitationErrorToFormError} from './form-errors.js';
 
 const EXPIRES_SOON_MS = 24 * 60 * 60 * 1000;
 
@@ -348,49 +350,40 @@ function InviteMemberModal({
   workspaceId: string;
   workspaceName: string;
 }) {
-  const [email, setEmail] = useState('');
-  const [fieldError, setFieldError] = useState<string | undefined>();
-  const [serverError, setServerError] = useState<string | undefined>();
-  const [conflict, setConflict] = useState<string | undefined>();
   const create = useCreateInvitation(workspaceId);
+  const [formError, setFormError] = useState<string | undefined>();
 
-  function reset() {
-    setEmail('');
-    setFieldError(undefined);
-    setServerError(undefined);
-    setConflict(undefined);
-    create.reset();
-  }
+  const form = useForm({
+    defaultValues: {email: ''},
+    onSubmit: async ({value}) => {
+      setFormError(undefined);
+      try {
+        const result = await create.mutateAsync({email: value.email});
+        toast.success(`Invitation sent to ${result.email}.`);
+        // Go through handleOpenChange so form.reset() fires and reopening the
+        // modal does not show stale form state.
+        handleOpenChange(false);
+      } catch (error) {
+        const mapped = invitationErrorToFormError(error);
+        if (mapped.kind === 'field') {
+          form.setFieldMeta(mapped.field, (prev) => ({
+            ...prev,
+            errorMap: {...prev.errorMap, onServer: mapped.message},
+          }));
+        } else {
+          setFormError(mapped.message);
+        }
+      }
+    },
+  });
 
   function handleOpenChange(nextOpen: boolean) {
-    if (!nextOpen) reset();
+    if (!nextOpen) {
+      form.reset();
+      setFormError(undefined);
+      create.reset();
+    }
     onOpenChange(nextOpen);
-  }
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setServerError(undefined);
-    setConflict(undefined);
-
-    const parsed = createInvitationBodySchema.safeParse({email});
-    if (!parsed.success) {
-      const issue = parsed.error.issues.find((i) => i.path[0] === 'email');
-      setFieldError(issue?.message ?? 'Enter a valid email address.');
-      return;
-    }
-    setFieldError(undefined);
-
-    try {
-      const result = await create.mutateAsync(parsed.data);
-      toast.success(`Invitation sent to ${result.email}.`);
-      handleOpenChange(false);
-    } catch (error) {
-      if (error instanceof ApiError && error.code === 'open-invitation-exists') {
-        setConflict('An open invitation already exists for this email.');
-        return;
-      }
-      setServerError(error instanceof Error ? error.message : 'Could not send invitation.');
-    }
   }
 
   return (
@@ -406,31 +399,43 @@ function InviteMemberModal({
           <Text size="lg">Invite a member</Text>
         </ModalHeader>
         <ModalBody className="gap-16">
-          {conflict ? <Alert variant="warning">{conflict}</Alert> : null}
-          {serverError ? <Alert variant="error">{serverError}</Alert> : null}
-          <form id="invite-member-form" className="flex flex-col gap-16" onSubmit={handleSubmit}>
-            <div className="flex flex-col gap-8">
-              <Label htmlFor="invite-email">Email</Label>
-              <Input
-                aria-invalid={fieldError ? true : undefined}
-                autoComplete="email"
-                autoFocus
-                id="invite-email"
-                name="email"
-                onChange={(event) => setEmail(event.target.value)}
-                type="email"
-                value={email}
-              />
-              {fieldError ? (
-                <Text as="p" size="xs" className="text-tag-error-text">
-                  {fieldError}
-                </Text>
-              ) : (
-                <Text size="xs" className="text-foreground-neutral-muted">
-                  They'll receive an email with a link to join {workspaceName}.
-                </Text>
+          {formError ? <Alert variant="error">{formError}</Alert> : null}
+          <form
+            id="invite-member-form"
+            className="flex flex-col gap-16"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void form.handleSubmit();
+            }}
+          >
+            <form.Field
+              name="email"
+              validators={{
+                onBlur: createInvitationBodySchema.shape.email,
+                onSubmit: createInvitationBodySchema.shape.email,
+              }}
+            >
+              {(field) => (
+                <FormField
+                  label="Email"
+                  id="invite-email"
+                  error={fieldError(field)}
+                  description={`They'll receive an email with a link to join ${workspaceName}.`}
+                >
+                  <FormFieldInput
+                    autoComplete="email"
+                    autoFocus
+                    name="email"
+                    type="email"
+                    value={field.state.value}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    onBlur={field.handleBlur}
+                  />
+                </FormField>
               )}
-            </div>
+            </form.Field>
           </form>
         </ModalBody>
         <ModalFooter>
@@ -444,6 +449,21 @@ function InviteMemberModal({
       </ModalContent>
     </Modal>
   );
+}
+
+interface FieldLike {
+  state: {meta: {errors: Array<unknown>; isBlurred: boolean}};
+}
+
+function fieldError(field: FieldLike): string | undefined {
+  if (!field.state.meta.isBlurred && field.state.meta.errors.length === 0) return undefined;
+  const first = field.state.meta.errors[0];
+  if (!first) return undefined;
+  if (typeof first === 'string') return first;
+  if (typeof first === 'object' && first !== null && 'message' in first) {
+    return String((first as {message: unknown}).message);
+  }
+  return undefined;
 }
 
 function EmptyInvitations() {

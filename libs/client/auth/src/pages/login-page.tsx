@@ -1,18 +1,27 @@
+import {loginBodySchema} from '@shipfox/api-auth-dto';
 import type {AcceptInvitationResponseDto} from '@shipfox/api-workspaces-dto';
 import {apiRequest} from '@shipfox/client-api';
-import {Alert, Button, ButtonLink, Icon, Input, Label, Text, toast} from '@shipfox/react-ui';
+import {
+  Alert,
+  Button,
+  ButtonLink,
+  FormField,
+  FormFieldInput,
+  Icon,
+  Text,
+  toast,
+} from '@shipfox/react-ui';
+import {useForm} from '@tanstack/react-form';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
-import {type FormEvent, useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {AuthShell} from '#/components/auth-shell.js';
 import {useLoginAuth} from '#hooks/api/login-auth.js';
 import {useRefreshAuth} from '#hooks/api/refresh-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
-import {parseLoginForm} from './auth-form-model.js';
-import {authErrorMessage, type FieldErrors} from './form-utils.js';
+import {loginErrorToFormError} from './form-errors.js';
+import {authErrorMessage} from './form-utils.js';
 import {extractInvitationToken, useInvitationContext} from './invitation-context.js';
-
-type LoginField = 'email' | 'password';
 
 export function LoginPage() {
   const login = useLoginAuth();
@@ -24,129 +33,159 @@ export function LoginPage() {
   const invitationPending =
     invitationPreview.data?.status === 'pending' ? invitationPreview.data : undefined;
   const [authFormDraft, setAuthFormDraft] = useAtom(authFormDraftAtom);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors<LoginField>>({});
   const [formError, setFormError] = useState<string | undefined>();
-  const {email, password} = authFormDraft;
+  const draftRef = useRef(authFormDraft);
+  draftRef.current = authFormDraft;
+  // Set just before clearing the draft on success so the unmount cleanup
+  // below does not repersist the just-submitted credentials.
+  const skipDraftPersistRef = useRef(false);
+
+  const form = useForm({
+    defaultValues: {email: authFormDraft.email, password: authFormDraft.password},
+    onSubmit: async ({value}) => {
+      setFormError(undefined);
+      try {
+        const session = await login.mutateAsync(value);
+        skipDraftPersistRef.current = true;
+        setAuthFormDraft(initialAuthFormDraft);
+
+        if (invitationToken && invitationPending) {
+          try {
+            const result = await apiRequest<AcceptInvitationResponseDto>('/invitations/accept', {
+              method: 'POST',
+              body: {token: invitationToken},
+              headers: {authorization: `Bearer ${session.token}`},
+            });
+            await refreshAuth();
+            toast.success(`You joined ${invitationPending.workspace_name}.`);
+            await navigate({
+              to: '/workspaces/$wid',
+              params: {wid: result.membership.workspace_id},
+            });
+          } catch (error) {
+            toast.error(authErrorMessage(error));
+            await navigate({to: '/invitations/accept', search: {token: invitationToken}});
+          }
+        }
+        // The route's GuestGuard redirects authenticated users to `/` from the
+        // auth-state-driven re-render — explicit navigate would race the render.
+      } catch (error) {
+        const mapped = loginErrorToFormError(error);
+        if (mapped.kind === 'field') {
+          form.setFieldMeta(mapped.field, (prev) => ({
+            ...prev,
+            errorMap: {...prev.errorMap, onServer: mapped.message},
+          }));
+        } else {
+          setFormError(mapped.message);
+        }
+      }
+    },
+  });
 
   // Lock the email field when arriving from an invitation link so the user
   // can't log in as a different account than the one the invitation targets.
   useEffect(() => {
-    if (invitationPending && email !== invitationPending.email) {
+    if (invitationPending && form.state.values.email !== invitationPending.email) {
+      form.setFieldValue('email', invitationPending.email);
       setAuthFormDraft((current) => ({...current, email: invitationPending.email}));
     }
-  }, [email, invitationPending, setAuthFormDraft]);
+  }, [invitationPending, form, setAuthFormDraft]);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFormError(undefined);
-    const parsed = parseLoginForm({email, password});
-    if (!parsed.ok) {
-      setFieldErrors(parsed.fieldErrors);
-      return;
-    }
-
-    setFieldErrors({});
-    try {
-      const session = await login.mutateAsync(parsed.body);
-      setAuthFormDraft(initialAuthFormDraft);
-
-      if (invitationToken && invitationPending) {
-        // Post-login invitation acceptance: call /invitations/accept with the
-        // fresh token, then completeInvitationAcceptance navigates into the
-        // workspace.
-        try {
-          const result = await apiRequest<AcceptInvitationResponseDto>('/invitations/accept', {
-            method: 'POST',
-            body: {token: invitationToken},
-            headers: {authorization: `Bearer ${session.token}`},
-          });
-          await refreshAuth();
-          toast.success(`You joined ${invitationPending.workspace_name}.`);
-          await navigate({
-            to: '/workspaces/$wid',
-            params: {wid: result.membership.workspace_id},
-          });
-        } catch (error) {
-          toast.error(authErrorMessage(error));
-          await navigate({to: '/invitations/accept', search: {token: invitationToken}});
-        }
-        return;
+  // Sync TanStack Form values back into the Jotai draft on unmount so a
+  // navigation to /signup or /reset preserves what the user typed. Skipped
+  // after a successful login because we just intentionally cleared the draft.
+  useEffect(() => {
+    return () => {
+      if (skipDraftPersistRef.current) return;
+      const {email, password} = form.state.values;
+      if (email !== draftRef.current.email || password !== draftRef.current.password) {
+        setAuthFormDraft({email, password});
       }
+    };
+  }, [form, setAuthFormDraft]);
 
-      // The route's GuestGuard redirects authenticated users to `/`. Letting
-      // the guard fire from the auth-state-driven re-render guarantees the
-      // router sees the freshly-hydrated workspace memberships before `/`
-      // evaluates its redirect — explicit navigate races the React render.
-    } catch (error) {
-      setFormError(authErrorMessage(error));
-    }
-  }
-
+  const isInvitationEmailLocked = Boolean(invitationPending);
+  const invitationRedirect = invitationToken
+    ? `/invitations/accept?token=${encodeURIComponent(invitationToken)}`
+    : undefined;
   const headerTitle = invitationPending
     ? `Join ${invitationPending.workspace_name}`
     : 'Connect to Shipfox';
   const headerDescription = invitationPending
     ? 'Log in to accept your invitation.'
     : 'Log in to access Shipfox.';
-  const isInvitationEmailLocked = Boolean(invitationPending);
-  const invitationRedirect = invitationToken
-    ? `/invitations/accept?token=${encodeURIComponent(invitationToken)}`
-    : undefined;
+
+  function persistDraft() {
+    const {email, password} = form.state.values;
+    setAuthFormDraft({email, password});
+  }
 
   return (
     <AuthShell title={headerTitle} description={headerDescription}>
-      <form className="flex flex-col gap-18" onSubmit={onSubmit} noValidate>
+      <form
+        className="flex flex-col gap-18"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void form.handleSubmit();
+        }}
+      >
         {formError ? <Alert variant="error">{formError}</Alert> : null}
-        <div className="flex flex-col gap-8">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            aria-describedby={fieldErrors.email ? 'email-error' : undefined}
-            aria-invalid={fieldErrors.email ? true : undefined}
-            autoComplete="email"
-            id="email"
-            name="email"
-            onChange={(event) =>
-              setAuthFormDraft((current) => ({...current, email: event.target.value}))
-            }
-            readOnly={isInvitationEmailLocked}
-            type="email"
-            value={email}
-            iconRight={
-              isInvitationEmailLocked ? (
-                <Icon
-                  aria-hidden="true"
-                  className="size-16 text-foreground-neutral-disabled"
-                  name="lockLine"
-                />
-              ) : undefined
-            }
-          />
-          {fieldErrors.email ? (
-            <Text as="p" size="xs" className="text-tag-error-text" id="email-error">
-              {fieldErrors.email}
-            </Text>
-          ) : null}
-        </div>
-        <div className="flex flex-col gap-8">
-          <Label htmlFor="password">Password</Label>
-          <Input
-            aria-describedby={fieldErrors.password ? 'password-error' : undefined}
-            aria-invalid={fieldErrors.password ? true : undefined}
-            autoComplete="current-password"
-            id="password"
-            name="password"
-            onChange={(event) =>
-              setAuthFormDraft((current) => ({...current, password: event.target.value}))
-            }
-            type="password"
-            value={password}
-          />
-          {fieldErrors.password ? (
-            <Text as="p" size="xs" className="text-tag-error-text" id="password-error">
-              {fieldErrors.password}
-            </Text>
-          ) : null}
-        </div>
+        <form.Field
+          name="email"
+          validators={{onBlur: loginBodySchema.shape.email, onSubmit: loginBodySchema.shape.email}}
+        >
+          {(field) => (
+            <FormField label="Email" id="email" error={fieldError(field)}>
+              <FormFieldInput
+                autoComplete="email"
+                name="email"
+                type="email"
+                value={field.state.value}
+                onChange={(event) => field.handleChange(event.target.value)}
+                onBlur={() => {
+                  field.handleBlur();
+                  persistDraft();
+                }}
+                readOnly={isInvitationEmailLocked}
+                iconRight={
+                  isInvitationEmailLocked ? (
+                    <Icon
+                      aria-hidden="true"
+                      className="size-16 text-foreground-neutral-disabled"
+                      name="lockLine"
+                    />
+                  ) : undefined
+                }
+              />
+            </FormField>
+          )}
+        </form.Field>
+        <form.Field
+          name="password"
+          validators={{
+            onBlur: loginBodySchema.shape.password,
+            onSubmit: loginBodySchema.shape.password,
+          }}
+        >
+          {(field) => (
+            <FormField label="Password" id="password" error={fieldError(field)}>
+              <FormFieldInput
+                autoComplete="current-password"
+                name="password"
+                type="password"
+                value={field.state.value}
+                onChange={(event) => field.handleChange(event.target.value)}
+                onBlur={() => {
+                  field.handleBlur();
+                  persistDraft();
+                }}
+              />
+            </FormField>
+          )}
+        </form.Field>
         <ButtonLink asChild variant="subtle" className="-mt-8 self-end">
           <Link to="/auth/reset">Forgot password?</Link>
         </ButtonLink>
@@ -167,4 +206,19 @@ export function LoginPage() {
       </Text>
     </AuthShell>
   );
+}
+
+interface FieldLike {
+  state: {meta: {errors: Array<unknown>; isBlurred: boolean}};
+}
+
+function fieldError(field: FieldLike): string | undefined {
+  if (!field.state.meta.isBlurred && field.state.meta.errors.length === 0) return undefined;
+  const first = field.state.meta.errors[0];
+  if (!first) return undefined;
+  if (typeof first === 'string') return first;
+  if (typeof first === 'object' && first !== null && 'message' in first) {
+    return String((first as {message: unknown}).message);
+  }
+  return undefined;
 }

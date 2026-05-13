@@ -1,7 +1,12 @@
-import {Alert, Button, ButtonLink, Input, Label, Text, toast} from '@shipfox/react-ui';
+import {
+  passwordResetConfirmBodySchema,
+  passwordResetRequestBodySchema,
+} from '@shipfox/api-auth-dto';
+import {Alert, Button, ButtonLink, FormField, FormFieldInput, Text, toast} from '@shipfox/react-ui';
+import {useForm} from '@tanstack/react-form';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
-import {type FormEvent, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {AuthShell} from '#/components/auth-shell.js';
 import {
   useConfirmPasswordResetAuth,
@@ -9,11 +14,10 @@ import {
 } from '#hooks/api/password-reset-auth.js';
 import {useRefreshAuth} from '#hooks/api/refresh-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
-import {parsePasswordResetConfirmForm, parsePasswordResetRequestForm} from './auth-form-model.js';
-import {authErrorMessage, type FieldErrors} from './form-utils.js';
-
-type RequestField = 'email';
-type ConfirmField = 'new_password';
+import {
+  passwordResetConfirmErrorToFormError,
+  passwordResetRequestErrorToFormError,
+} from './form-errors.js';
 
 export function PasswordResetPage() {
   const search = useSearch({strict: false});
@@ -30,27 +34,33 @@ function PasswordResetRequest() {
   const requestPasswordReset = useRequestPasswordResetAuth();
   const [authFormDraft, setAuthFormDraft] = useAtom(authFormDraftAtom);
   const [submittedEmail, setSubmittedEmail] = useState<string | undefined>();
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors<RequestField>>({});
   const [formError, setFormError] = useState<string | undefined>();
-  const {email} = authFormDraft;
+  const draftRef = useRef(authFormDraft);
+  draftRef.current = authFormDraft;
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFormError(undefined);
-    const parsed = parsePasswordResetRequestForm({email});
-    if (!parsed.ok) {
-      setFieldErrors(parsed.fieldErrors);
-      return;
-    }
+  const form = useForm({
+    defaultValues: {email: authFormDraft.email},
+    onSubmit: async ({value}) => {
+      setFormError(undefined);
+      try {
+        const parsed = passwordResetRequestBodySchema.parse(value);
+        await requestPasswordReset.mutateAsync(parsed);
+        setSubmittedEmail(parsed.email);
+      } catch (error) {
+        const mapped = passwordResetRequestErrorToFormError(error);
+        setFormError(mapped.message);
+      }
+    },
+  });
 
-    setFieldErrors({});
-    try {
-      await requestPasswordReset.mutateAsync(parsed.body);
-      setSubmittedEmail(parsed.body.email);
-    } catch (error) {
-      setFormError(authErrorMessage(error));
-    }
-  }
+  useEffect(() => {
+    return () => {
+      const {email} = form.state.values;
+      if (email !== draftRef.current.email) {
+        setAuthFormDraft((current) => ({...current, email}));
+      }
+    };
+  }, [form, setAuthFormDraft]);
 
   if (submittedEmail) {
     return (
@@ -81,28 +91,39 @@ function PasswordResetRequest() {
 
   return (
     <AuthShell title="Reset your password" description="Enter your email to get a reset link.">
-      <form className="flex flex-col gap-18" onSubmit={onSubmit} noValidate>
+      <form
+        className="flex flex-col gap-18"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void form.handleSubmit();
+        }}
+      >
         {formError ? <Alert variant="error">{formError}</Alert> : null}
-        <div className="flex flex-col gap-8">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            aria-describedby={fieldErrors.email ? 'email-error' : undefined}
-            aria-invalid={fieldErrors.email ? true : undefined}
-            autoComplete="email"
-            id="email"
-            name="email"
-            onChange={(event) =>
-              setAuthFormDraft((current) => ({...current, email: event.target.value}))
-            }
-            type="email"
-            value={email}
-          />
-          {fieldErrors.email ? (
-            <Text as="p" size="xs" className="text-tag-error-text" id="email-error">
-              {fieldErrors.email}
-            </Text>
-          ) : null}
-        </div>
+        <form.Field
+          name="email"
+          validators={{
+            onBlur: passwordResetRequestBodySchema.shape.email,
+            onSubmit: passwordResetRequestBodySchema.shape.email,
+          }}
+        >
+          {(field) => (
+            <FormField label="Email" id="email" error={fieldError(field)}>
+              <FormFieldInput
+                autoComplete="email"
+                name="email"
+                type="email"
+                value={field.state.value}
+                onChange={(event) => field.handleChange(event.target.value)}
+                onBlur={() => {
+                  field.handleBlur();
+                  setAuthFormDraft((current) => ({...current, email: field.state.value}));
+                }}
+              />
+            </FormField>
+          )}
+        </form.Field>
         <Button className="w-full" isLoading={requestPasswordReset.isPending} type="submit">
           {requestPasswordReset.isPending ? 'Sending link...' : 'Send reset link'}
         </Button>
@@ -122,53 +143,61 @@ function PasswordResetConfirm({token}: {token: string}) {
   const refreshAuth = useRefreshAuth();
   const navigate = useNavigate();
   const [, setAuthFormDraft] = useAtom(authFormDraftAtom);
-  const [newPassword, setNewPassword] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors<ConfirmField>>({});
   const [formError, setFormError] = useState<string | undefined>();
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFormError(undefined);
-    const parsed = parsePasswordResetConfirmForm({token, newPassword});
-    if (!parsed.ok) {
-      setFieldErrors(parsed.fieldErrors);
-      return;
-    }
-
-    setFieldErrors({});
-    try {
-      await confirmPasswordReset.mutateAsync(parsed.body);
-      await refreshAuth();
-      setAuthFormDraft(initialAuthFormDraft);
-      toast.success('Your password has been changed. You are now logged in.');
-      await navigate({to: '/', replace: true});
-    } catch (error) {
-      setFormError(authErrorMessage(error));
-    }
-  }
+  const form = useForm({
+    defaultValues: {new_password: ''},
+    onSubmit: async ({value}) => {
+      setFormError(undefined);
+      try {
+        const body = passwordResetConfirmBodySchema.parse({
+          token,
+          new_password: value.new_password,
+        });
+        await confirmPasswordReset.mutateAsync(body);
+        await refreshAuth();
+        setAuthFormDraft(initialAuthFormDraft);
+        toast.success('Your password has been changed. You are now logged in.');
+        await navigate({to: '/', replace: true});
+      } catch (error) {
+        const mapped = passwordResetConfirmErrorToFormError(error);
+        setFormError(mapped.message);
+      }
+    },
+  });
 
   return (
     <AuthShell title="Set a new password" description="Choose a password for your Shipfox account.">
-      <form className="flex flex-col gap-18" onSubmit={onSubmit} noValidate>
+      <form
+        className="flex flex-col gap-18"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void form.handleSubmit();
+        }}
+      >
         {formError ? <Alert variant="error">{formError}</Alert> : null}
-        <div className="flex flex-col gap-8">
-          <Label htmlFor="new-password">New password</Label>
-          <Input
-            aria-describedby={fieldErrors.new_password ? 'new-password-error' : undefined}
-            aria-invalid={fieldErrors.new_password ? true : undefined}
-            autoComplete="new-password"
-            id="new-password"
-            name="new_password"
-            onChange={(event) => setNewPassword(event.target.value)}
-            type="password"
-            value={newPassword}
-          />
-          {fieldErrors.new_password ? (
-            <Text as="p" size="xs" className="text-tag-error-text" id="new-password-error">
-              {fieldErrors.new_password}
-            </Text>
-          ) : null}
-        </div>
+        <form.Field
+          name="new_password"
+          validators={{
+            onBlur: passwordResetConfirmBodySchema.shape.new_password,
+            onSubmit: passwordResetConfirmBodySchema.shape.new_password,
+          }}
+        >
+          {(field) => (
+            <FormField label="New password" id="new-password" error={fieldError(field)}>
+              <FormFieldInput
+                autoComplete="new-password"
+                name="new_password"
+                type="password"
+                value={field.state.value}
+                onChange={(event) => field.handleChange(event.target.value)}
+                onBlur={field.handleBlur}
+              />
+            </FormField>
+          )}
+        </form.Field>
         <Button className="w-full" isLoading={confirmPasswordReset.isPending} type="submit">
           {confirmPasswordReset.isPending ? 'Updating password...' : 'Update password'}
         </Button>
@@ -178,4 +207,19 @@ function PasswordResetConfirm({token}: {token: string}) {
       </ButtonLink>
     </AuthShell>
   );
+}
+
+interface FieldLike {
+  state: {meta: {errors: Array<unknown>; isBlurred: boolean}};
+}
+
+function fieldError(field: FieldLike): string | undefined {
+  if (!field.state.meta.isBlurred && field.state.meta.errors.length === 0) return undefined;
+  const first = field.state.meta.errors[0];
+  if (!first) return undefined;
+  if (typeof first === 'string') return first;
+  if (typeof first === 'object' && first !== null && 'message' in first) {
+    return String((first as {message: unknown}).message);
+  }
+  return undefined;
 }
