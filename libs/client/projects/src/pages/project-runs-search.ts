@@ -2,17 +2,21 @@ import type {RunStatusDto} from '@shipfox/api-workflows-dto';
 import type {WorkflowRunFilters} from '#hooks/api/workflow-runs.js';
 
 const RUN_STATUSES: RunStatusDto[] = ['pending', 'running', 'succeeded', 'failed', 'cancelled'];
-const TRIGGER_SOURCES = ['manual', 'github', 'cron'] as const;
-type TriggerSourceFilter = (typeof TRIGGER_SOURCES)[number];
 const DATE_PRESETS = ['all', '24h', '7d', '30d'] as const;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Trigger source is open-ended text on the API side (any registered
+// integration source can land in workflow_runs.trigger_source). The URL
+// is sanitized to a single non-empty string; the picker offers values
+// observed in the aggregates response.
+const TRIGGER_SOURCE_MAX_LENGTH = 64;
+const TRIGGER_SOURCE_RE = /^[a-z0-9][a-z0-9_-]*$/i;
 
 export type DatePreset = (typeof DATE_PRESETS)[number];
 
 export interface RunsSearchState {
   status?: RunStatusDto | undefined;
   definitionId?: string | undefined;
-  triggerSource?: TriggerSourceFilter | undefined;
+  triggerSource?: string | undefined;
   date: DatePreset;
 }
 
@@ -26,9 +30,8 @@ export function sanitizeRunsSearch(search: Record<string, unknown>): RunsSearchS
       ? search.definition_id
       : undefined;
   const triggerSource =
-    typeof search.trigger_source === 'string' &&
-    TRIGGER_SOURCES.includes(search.trigger_source as TriggerSourceFilter)
-      ? (search.trigger_source as TriggerSourceFilter)
+    typeof search.trigger_source === 'string' && isTriggerSource(search.trigger_source)
+      ? search.trigger_source
       : undefined;
   const date =
     typeof search.date === 'string' && DATE_PRESETS.includes(search.date as DatePreset)
@@ -72,4 +75,10 @@ export function toWorkflowRunFilters(search: RunsSearchState): WorkflowRunFilter
 
 function isUuid(value: string) {
   return UUID_RE.test(value);
+}
+
+function isTriggerSource(value: string) {
+  return (
+    value.length > 0 && value.length <= TRIGGER_SOURCE_MAX_LENGTH && TRIGGER_SOURCE_RE.test(value)
+  );
 }

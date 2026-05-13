@@ -35,13 +35,29 @@ describe('project runs search helpers', () => {
     const search = {
       status: 'finished',
       definition_id: 'not-a-uuid',
-      trigger_source: 'api',
+      trigger_source: 'has spaces',
       date: 'forever',
     };
 
     const result = sanitizeRunsSearch(search);
 
     expect(result).toEqual({date: 'all'});
+  });
+
+  test('accepts unknown but well-formed trigger sources', () => {
+    const search = {trigger_source: 'gitlab', date: 'all'};
+
+    const result = sanitizeRunsSearch(search);
+
+    expect(result.triggerSource).toBe('gitlab');
+  });
+
+  test('drops empty or oversized trigger_source values', () => {
+    const empty = sanitizeRunsSearch({trigger_source: '', date: 'all'});
+    const huge = sanitizeRunsSearch({trigger_source: 'x'.repeat(200), date: 'all'});
+
+    expect(empty.triggerSource).toBeUndefined();
+    expect(huge.triggerSource).toBeUndefined();
   });
 
   test('serializes only active filters', () => {

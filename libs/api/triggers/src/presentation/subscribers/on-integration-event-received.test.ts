@@ -110,4 +110,42 @@ describe('onIntegrationEventReceived (triggers)', () => {
 
     expect(runWorkflow).not.toHaveBeenCalled();
   });
+
+  test('forwards subscription.config.with as inputs to runWorkflow', async () => {
+    const workspaceId = crypto.randomUUID();
+    const project = {id: crypto.randomUUID(), workspaceId};
+    getProjectBySource.mockResolvedValue(project);
+
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      projectId: project.id,
+      source: 'github',
+      event: 'push',
+      config: {with: {env: 'staging'}},
+    });
+    const envelope = buildEnvelope({workspaceId}, {ref: 'main'});
+
+    await onIntegrationEventReceived(buildEvent(envelope));
+
+    expect(runWorkflow).toHaveBeenCalledWith(expect.objectContaining({inputs: {env: 'staging'}}));
+  });
+
+  test('treats a malformed config.on as "match any ref"', async () => {
+    const workspaceId = crypto.randomUUID();
+    const project = {id: crypto.randomUUID(), workspaceId};
+    getProjectBySource.mockResolvedValue(project);
+
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      projectId: project.id,
+      source: 'github',
+      event: 'push',
+      config: {on: {branch: 'main'}},
+    });
+    const envelope = buildEnvelope({workspaceId}, {ref: 'anything'});
+
+    await onIntegrationEventReceived(buildEvent(envelope));
+
+    expect(runWorkflow).toHaveBeenCalledTimes(1);
+  });
 });

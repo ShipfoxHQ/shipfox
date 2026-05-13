@@ -1,3 +1,4 @@
+export {readConfigInputs, readConfigOn} from './config.js';
 export type {TriggerSubscription} from './entities/subscription.js';
 export {
   ManualTriggerNotFoundError,

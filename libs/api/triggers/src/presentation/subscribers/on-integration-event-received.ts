@@ -6,6 +6,7 @@ import {getProjectBySource} from '@shipfox/api-projects';
 import {runWorkflow} from '@shipfox/api-workflows';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {DomainEvent} from '@shipfox/node-outbox';
+import {readConfigInputs, readConfigOn} from '#core/config.js';
 import {matchPushBranch} from '#core/match/match-push.js';
 import {findMatchingSubscriptions} from '#db/subscriptions.js';
 
@@ -45,8 +46,7 @@ export async function onIntegrationEventReceived(event: DomainEvent): Promise<vo
   });
 
   for (const subscription of subscriptions) {
-    const on = subscription.config.on as string | string[] | undefined;
-    if (!matchPushBranch(pushPayload.ref, on)) continue;
+    if (!matchPushBranch(pushPayload.ref, readConfigOn(subscription))) continue;
 
     await runWorkflow({
       workspaceId: project.workspaceId,
@@ -63,6 +63,7 @@ export async function onIntegrationEventReceived(event: DomainEvent): Promise<vo
         isDefaultBranch: pushPayload.isDefaultBranch,
         externalRepositoryId: pushPayload.externalRepositoryId,
       },
+      inputs: readConfigInputs(subscription),
       triggerIdempotencyKey: `${subscription.id}:${event.id}`,
     });
   }
