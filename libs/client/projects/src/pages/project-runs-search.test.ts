@@ -60,6 +60,14 @@ describe('project runs search helpers', () => {
     expect(huge.triggerSource).toBeUndefined();
   });
 
+  // Guards the Select sentinel in project-runs-page.tsx: any leading-underscore
+  // value must be rejected so ANY_TRIGGER_SOURCE cannot collide with a real source.
+  test('rejects leading-underscore trigger_source values', () => {
+    const result = sanitizeRunsSearch({trigger_source: '__any__', date: 'all'});
+
+    expect(result.triggerSource).toBeUndefined();
+  });
+
   test('serializes only active filters', () => {
     const search: RunsSearchState = {
       status: 'failed',

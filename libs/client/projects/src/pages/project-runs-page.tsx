@@ -31,6 +31,9 @@ import {
   toWorkflowRunFilters,
 } from './project-runs-search.js';
 
+// Leading underscore is rejected by isTriggerSource, so this sentinel cannot collide with a real source value.
+const ANY_TRIGGER_SOURCE = '__any__';
+
 export function ProjectRunsPage({projectId}: {projectId: string}) {
   return (
     <RelativeTimeProvider>
@@ -227,14 +230,16 @@ function RunsFilterBar({
       </div>
       <div className="md:flex-1">
         <Select
-          value={searchState.triggerSource ?? 'all'}
-          onValueChange={(value) => onChange({triggerSource: value === 'all' ? undefined : value})}
+          value={searchState.triggerSource ?? ANY_TRIGGER_SOURCE}
+          onValueChange={(value) =>
+            onChange({triggerSource: value === ANY_TRIGGER_SOURCE ? undefined : value})
+          }
         >
           <SelectTrigger size="small" aria-label="Trigger filter">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Any trigger</SelectItem>
+            <SelectItem value={ANY_TRIGGER_SOURCE}>Any trigger</SelectItem>
             {triggerSources.map((source) => (
               <SelectItem key={source} value={source}>
                 {source}
