@@ -1,6 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
-import {jsonb, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {index, jsonb, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {WorkflowDefinition, WorkflowSpec} from '#core/entities/definition.js';
 import {pgTable} from './common.js';
 
@@ -33,6 +33,9 @@ export const workflowDefinitions = pgTable(
     uniqueIndex('definitions_wd_ref_lookup')
       .on(table.projectId, table.ref, table.configPath)
       .where(sql`"ref" IS NOT NULL`),
+    index('definitions_wd_project_name_id_idx')
+      .on(table.projectId, table.name, table.id)
+      .where(sql`"deleted_at" IS NULL`),
   ],
 );
 

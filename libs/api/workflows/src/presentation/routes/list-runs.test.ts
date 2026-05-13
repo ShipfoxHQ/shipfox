@@ -1,8 +1,12 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {encodeTimestampIdCursor} from '@shipfox/node-drizzle';
+import {eq} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
-import {createWorkflowRun} from '#db/workflow-runs.js';
+import {db} from '#db/db.js';
+import {workflowRuns} from '#db/schema/workflow-runs.js';
+import {createWorkflowRun, updateWorkflowRunStatus} from '#db/workflow-runs.js';
 import {listRunsRoute} from './list-runs.js';
 
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
@@ -52,14 +56,18 @@ describe('GET /api/workflows/runs', () => {
       workspaceId,
       projectId,
       definitionId: crypto.randomUUID(),
+      name: 'Test',
       definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
+      triggerSource: 'manual',
       triggerContext: {type: 'manual'},
     });
     await createWorkflowRun({
       workspaceId,
       projectId,
       definitionId: crypto.randomUUID(),
+      name: 'Test 2',
       definition: {name: 'Test 2', jobs: {build: {steps: [{run: 'echo'}]}}},
+      triggerSource: 'manual',
       triggerContext: {type: 'manual'},
     });
 
@@ -72,6 +80,10 @@ describe('GET /api/workflows/runs', () => {
     const body = res.json();
     expect(body.runs).toHaveLength(2);
     expect(body.runs[0].project_id).toBe(projectId);
+    expect(body.runs[0].name).toBeDefined();
+    expect(body.runs[0].trigger_source).toBe('manual');
+    expect(body.next_cursor).toBeNull();
+    expect(body.filtered_total_count).toBe(2);
   });
 
   test('returns empty array for project with no runs', async () => {
@@ -82,5 +94,133 @@ describe('GET /api/workflows/runs', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().runs).toEqual([]);
+    expect(res.json().next_cursor).toBeNull();
+    expect(res.json().filtered_total_count).toBe(0);
+  });
+
+  test('filters runs and returns filtered total count', async () => {
+    const succeeded = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId: crypto.randomUUID(),
+      name: 'Deploy',
+      definition: {name: 'Deploy', jobs: {build: {steps: [{run: 'echo'}]}}},
+      triggerSource: 'manual',
+      triggerContext: {},
+    });
+    await updateWorkflowRunStatus({
+      runId: succeeded.id,
+      status: 'succeeded',
+      expectedVersion: succeeded.version,
+    });
+    await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId: crypto.randomUUID(),
+      name: 'Nightly',
+      definition: {name: 'Nightly', jobs: {build: {steps: [{run: 'echo'}]}}},
+      triggerSource: 'schedule',
+      triggerContext: {scheduleId: 'nightly'},
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs?project_id=${projectId}&status=succeeded&trigger_source=manual`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.runs).toHaveLength(1);
+    expect(body.runs[0].id).toBe(succeeded.id);
+    expect(body.filtered_total_count).toBe(1);
+  });
+
+  test('paginates with created_at and id cursor', async () => {
+    const first = await createRunAt({
+      workspaceId,
+      projectId,
+      name: 'First',
+      createdAt: new Date('2026-05-07T00:00:00.000Z'),
+    });
+    const second = await createRunAt({
+      workspaceId,
+      projectId,
+      name: 'Second',
+      createdAt: new Date('2026-05-07T01:00:00.000Z'),
+    });
+    await createRunAt({
+      workspaceId,
+      projectId,
+      name: 'Other',
+      createdAt: new Date('2026-05-07T02:00:00.000Z'),
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs?project_id=${projectId}&limit=2`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.runs.map((run: {name: string}) => run.name)).toEqual(['Other', 'Second']);
+    expect(body.next_cursor).toBe(
+      encodeTimestampIdCursor({createdAt: second.createdAt, id: second.id}),
+    );
+
+    const next = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs?project_id=${projectId}&limit=2&cursor=${body.next_cursor}`,
+    });
+
+    expect(next.statusCode).toBe(200);
+    expect(next.json().runs.map((run: {id: string}) => run.id)).toEqual([first.id]);
+  });
+
+  test('invalid cursor returns stable client error', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs?project_id=${projectId}&cursor=not-a-cursor`,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('invalid-cursor');
+  });
+
+  test('invalid date window returns 400', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs?project_id=${projectId}&created_from=2026-05-08T00:00:00.000Z&created_to=2026-05-07T00:00:00.000Z`,
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 });
+
+async function createRunAt({
+  workspaceId,
+  projectId,
+  name,
+  createdAt,
+}: {
+  workspaceId: string;
+  projectId: string;
+  name: string;
+  createdAt: Date;
+}) {
+  const run = await createWorkflowRun({
+    workspaceId,
+    projectId,
+    definitionId: crypto.randomUUID(),
+    name,
+    definition: {name, jobs: {build: {steps: [{run: 'echo'}]}}},
+    triggerSource: 'manual',
+    triggerContext: {},
+  });
+
+  await db()
+    .update(workflowRuns)
+    .set({createdAt, updatedAt: createdAt})
+    .where(eq(workflowRuns.id, run.id));
+
+  return {...run, createdAt, updatedAt: createdAt};
+}

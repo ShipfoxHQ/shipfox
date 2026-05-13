@@ -41,6 +41,14 @@ export const definitionResponseSchema = definitionDtoSchema;
 
 export type DefinitionResponseDto = z.infer<typeof definitionResponseSchema>;
 
+export const definitionListQuerySchema = z.object({
+  project_id: z.string().uuid(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z.string().optional(),
+});
+
+export type DefinitionListQueryDto = z.infer<typeof definitionListQuerySchema>;
+
 export const definitionSyncSummarySchema = z.object({
   ref: z.string().nullable(),
   status: z.enum(['pending', 'syncing', 'succeeded', 'failed']),
@@ -72,6 +80,7 @@ export type DefinitionSyncSummaryDto = z.infer<typeof definitionSyncSummarySchem
 export const definitionListResponseSchema = z.object({
   definitions: z.array(definitionResponseSchema),
   sync: definitionSyncSummarySchema.nullable(),
+  next_cursor: z.string().nullable(),
 });
 
 export type DefinitionListResponseDto = z.infer<typeof definitionListResponseSchema>;

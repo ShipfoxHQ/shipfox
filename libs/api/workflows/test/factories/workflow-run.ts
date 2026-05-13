@@ -12,6 +12,7 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
       workspaceId: run.workspaceId,
       projectId: run.projectId,
       definitionId: run.definitionId,
+      name: run.name,
       definition: {
         name: 'Test Workflow',
         jobs: {
@@ -20,7 +21,8 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
           },
         },
       },
-      triggerContext: {type: 'manual'},
+      triggerSource: run.triggerSource,
+      triggerContext: run.triggerContext,
       inputs: run.inputs ?? undefined,
     });
   });
@@ -30,8 +32,10 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
     workspaceId,
     projectId,
     definitionId,
+    name: 'Test Workflow',
     status: 'pending',
-    triggerContext: {type: 'manual'},
+    triggerSource: 'manual',
+    triggerContext: {},
     inputs: null,
     version: 1,
     createdAt: new Date(),

@@ -91,8 +91,10 @@ describe('POST /api/workflows/runs', () => {
     expect(body.id).toBeDefined();
     expect(body.project_id).toBe(projectId);
     expect(body.definition_id).toBe(definition.id);
+    expect(body.name).toBe(definition.name);
     expect(body.status).toBe('pending');
-    expect(body.trigger_context).toEqual({type: 'manual'});
+    expect(body.trigger_source).toBe('manual');
+    expect(body.trigger_context).toEqual({});
     expect(body.inputs).toBeNull();
     expect(body.created_at).toBeDefined();
     expect(body.updated_at).toBeDefined();

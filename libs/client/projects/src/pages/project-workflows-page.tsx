@@ -3,12 +3,10 @@ import {ApiError} from '@shipfox/client-api';
 import {
   Alert,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Code,
+  Header,
+  Icon,
+  type IconName,
   Sheet,
   SheetBody,
   SheetContent,
@@ -16,7 +14,6 @@ import {
   SheetHeader,
   SheetTitle,
   Skeleton,
-  StatusBadge,
   Table,
   TableBody,
   TableCell,
@@ -27,18 +24,30 @@ import {
   toast,
 } from '@shipfox/react-ui';
 import {useState} from 'react';
-import {useDefinitionsQuery} from '#hooks/api/definitions.js';
+import {SourceStrip} from '#components/source-strip.js';
+import {useDefinitionsInfiniteQuery} from '#hooks/api/definitions.js';
 import {useProjectQuery} from '#hooks/api/projects.js';
 import {useCreateWorkflowRunMutation} from '#hooks/api/workflow-runs.js';
+import {RelativeTime, RelativeTimeProvider} from '#lib/relative-time.js';
 import {projectErrorCopy} from '#project-error.js';
 
-export function ProjectDetailPage({projectId}: {projectId: string}) {
+export function ProjectWorkflowsPage({projectId}: {projectId: string}) {
+  return (
+    <RelativeTimeProvider>
+      <ProjectWorkflowsPageInner projectId={projectId} />
+    </RelativeTimeProvider>
+  );
+}
+
+function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
   const projectQuery = useProjectQuery(projectId);
-  const definitionsQuery = useDefinitionsQuery(projectId);
+  const definitionsQuery = useDefinitionsInfiniteQuery(projectId);
   const createRun = useCreateWorkflowRunMutation();
   const [selectedDefinition, setSelectedDefinition] = useState<DefinitionDto | null>(null);
   const [runError, setRunError] = useState<{definitionId: string; message: string} | null>(null);
   const errorCopy = projectQuery.error ? projectErrorCopy(projectQuery.error) : undefined;
+  const definitions = definitionsQuery.data?.pages.flatMap((page) => page.definitions) ?? [];
+  const sync = definitionsQuery.data?.pages[0]?.sync;
 
   async function handleRun(definition: DefinitionDto) {
     setRunError(null);
@@ -55,10 +64,10 @@ export function ProjectDetailPage({projectId}: {projectId: string}) {
   return (
     <div className="flex w-full flex-col gap-24">
       {projectQuery.isPending ? (
-        <Card className="p-24">
+        <div className="flex flex-col gap-12">
           <Skeleton className="h-28 w-1/3" />
           <Skeleton className="h-18 w-1/2" />
-        </Card>
+        </div>
       ) : null}
 
       {projectQuery.isError ? (
@@ -82,51 +91,43 @@ export function ProjectDetailPage({projectId}: {projectId: string}) {
       ) : null}
 
       {projectQuery.data ? (
-        <section className="grid gap-18 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <Card className="p-20">
-            <div className="flex flex-col gap-14 sm:flex-row sm:items-start sm:justify-between">
-              <CardHeader>
-                <CardTitle variant="h2">Workflows</CardTitle>
-                <CardDescription>
-                  Synced workflow definitions for this project source.
-                </CardDescription>
-              </CardHeader>
-              <SyncBadge
-                sync={definitionsQuery.data?.sync}
-                isPending={definitionsQuery.isPending}
-              />
-            </div>
-            <CardContent className="flex flex-col gap-14">
-              <WorkflowSyncAlert sync={definitionsQuery.data?.sync} />
-              <WorkflowDefinitionsList
-                definitions={definitionsQuery.data?.definitions ?? []}
-                isPending={definitionsQuery.isPending}
-                isError={definitionsQuery.isError}
-                sync={definitionsQuery.data?.sync ?? null}
-                runError={runError}
-                onRetry={() => definitionsQuery.refetch()}
-                onOpenDefinition={setSelectedDefinition}
-                onRun={(definition) => {
-                  void handleRun(definition);
-                }}
-              />
-            </CardContent>
-          </Card>
+        <>
+          <header className="flex flex-col gap-4">
+            <Header variant="h2">Workflows</Header>
+            <Text size="sm" className="text-foreground-neutral-muted">
+              Synced workflow definitions for this project source.
+            </Text>
+          </header>
 
-          <Card className="p-20">
-            <CardHeader>
-              <CardTitle variant="h3">Source identity</CardTitle>
-              <CardDescription>Source-control binding for this project.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col divide-y divide-border-neutral-base">
-              <Metadata label="Connection id" value={projectQuery.data.source.connection_id} />
-              <Metadata
-                label="External repository id"
-                value={projectQuery.data.source.external_repository_id}
-              />
-            </CardContent>
-          </Card>
-        </section>
+          <SourceStrip
+            connectionId={projectQuery.data.source.connection_id}
+            externalRepositoryId={projectQuery.data.source.external_repository_id}
+            sync={sync}
+            isPending={definitionsQuery.isPending}
+          />
+
+          <WorkflowSyncAlert sync={sync} />
+
+          <WorkflowDefinitionsList
+            definitions={definitions}
+            isPending={definitionsQuery.isPending}
+            isError={definitionsQuery.isError}
+            sync={sync ?? null}
+            runError={runError}
+            runningDefinitionId={
+              createRun.isPending && createRun.variables ? createRun.variables.definition_id : null
+            }
+            hasNextPage={definitionsQuery.hasNextPage}
+            isFetchingNextPage={definitionsQuery.isFetchingNextPage}
+            isFetchNextPageError={definitionsQuery.isFetchNextPageError}
+            onRetry={() => definitionsQuery.refetch()}
+            onLoadMore={() => definitionsQuery.fetchNextPage()}
+            onOpenDefinition={setSelectedDefinition}
+            onRun={(definition) => {
+              void handleRun(definition);
+            }}
+          />
+        </>
       ) : null}
 
       <DefinitionSheet
@@ -139,26 +140,18 @@ export function ProjectDetailPage({projectId}: {projectId: string}) {
   );
 }
 
-function Metadata({label, value}: {label: string; value: string}) {
-  return (
-    <div className="min-w-0 py-12 first:pt-0 last:pb-0">
-      <Text size="xs" className="text-foreground-neutral-muted">
-        {label}
-      </Text>
-      <Text size="sm" className="break-words">
-        {value}
-      </Text>
-    </div>
-  );
-}
-
 function WorkflowDefinitionsList({
   definitions,
   isPending,
   isError,
   sync,
   runError,
+  runningDefinitionId,
+  hasNextPage,
+  isFetchingNextPage,
+  isFetchNextPageError,
   onRetry,
+  onLoadMore,
   onOpenDefinition,
   onRun,
 }: {
@@ -167,7 +160,12 @@ function WorkflowDefinitionsList({
   isError: boolean;
   sync: DefinitionSyncSummaryDto | null;
   runError: {definitionId: string; message: string} | null;
+  runningDefinitionId: string | null;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  isFetchNextPageError: boolean;
   onRetry: () => void;
+  onLoadMore: () => void;
   onOpenDefinition: (definition: DefinitionDto) => void;
   onRun: (definition: DefinitionDto) => void;
 }) {
@@ -181,7 +179,7 @@ function WorkflowDefinitionsList({
     );
   }
 
-  if (isError) {
+  if (isError && definitions.length === 0) {
     return (
       <Alert variant="error" animated={false}>
         <div className="flex flex-col gap-8">
@@ -207,29 +205,48 @@ function WorkflowDefinitionsList({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-40"></TableHead>
               <TableHead>Workflow</TableHead>
-              <TableHead>Path</TableHead>
-              <TableHead>Source</TableHead>
               <TableHead className="w-180">Updated</TableHead>
-              <TableHead className="w-144 text-right">Actions</TableHead>
+              <TableHead className="w-80 text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {definitions.map((definition) => {
               const runErrorMessage =
                 runError?.definitionId === definition.id ? runError.message : null;
+              const isRunning = runningDefinitionId === definition.id;
 
               return (
-                <TableRow
-                  key={definition.id}
-                  className="cursor-pointer"
-                  onClick={() => onOpenDefinition(definition)}
-                >
+                // The workflow-name cell holds a `<button>` so the row is
+                // keyboard-reachable (Tab focuses, Enter/Space activates
+                // via native button semantics). The TableRow itself is no
+                // longer clickable — a row-level onClick would be invisible
+                // to keyboard users and require custom keydown handling.
+                // The `group` class on the row still drives the Run button
+                // reveal on hover or focus-within.
+                <TableRow key={definition.id} className="group">
+                  <TableCell>
+                    <Icon
+                      name={sourceIcon(definition.source)}
+                      className="size-16 text-foreground-neutral-muted"
+                      aria-hidden="true"
+                    />
+                  </TableCell>
                   <TableCell className="max-w-260">
                     <div className="flex min-w-0 flex-col gap-2">
-                      <Text size="sm" bold className="truncate">
-                        {definition.name}
-                      </Text>
+                      <button
+                        type="button"
+                        onClick={() => onOpenDefinition(definition)}
+                        className="flex min-w-0 flex-col gap-2 text-left outline-none focus-visible:shadow-border-interactive-with-active rounded-4"
+                      >
+                        <Text size="sm" bold className="truncate">
+                          {definition.name}
+                        </Text>
+                        <Code className="truncate text-foreground-neutral-muted">
+                          {definition.config_path ?? 'Manual definition'}
+                        </Code>
+                      </button>
                       {runErrorMessage ? (
                         <Text size="xs" className="text-tag-error-text">
                           {runErrorMessage}
@@ -237,38 +254,12 @@ function WorkflowDefinitionsList({
                       ) : null}
                     </div>
                   </TableCell>
-                  <TableCell className="max-w-320">
-                    <Code className="truncate text-foreground-neutral-muted">
-                      {definition.config_path ?? 'Manual definition'}
-                    </Code>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge variant={definition.source === 'vcs' ? 'info' : 'neutral'}>
-                      {definition.source}
-                    </StatusBadge>
-                  </TableCell>
                   <TableCell className="text-foreground-neutral-muted">
-                    {formatTimestamp(definition.updated_at)}
+                    <RelativeTime value={definition.updated_at} />
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-6">
-                      <Button
-                        size="xs"
-                        variant="secondary"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onOpenDefinition(definition);
-                        }}
-                      >
-                        Details
-                      </Button>
-                      <Button
-                        size="xs"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onRun(definition);
-                        }}
-                      >
+                    <div className="flex justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                      <Button size="xs" isLoading={isRunning} onClick={() => onRun(definition)}>
                         Run
                       </Button>
                     </div>
@@ -284,6 +275,7 @@ function WorkflowDefinitionsList({
         {definitions.map((definition) => {
           const runErrorMessage =
             runError?.definitionId === definition.id ? runError.message : null;
+          const isRunning = runningDefinitionId === definition.id;
 
           return (
             <div
@@ -292,43 +284,65 @@ function WorkflowDefinitionsList({
             >
               <button
                 type="button"
-                className="flex min-w-0 flex-col gap-4 text-left"
+                className="flex min-w-0 items-start gap-10 text-left"
                 onClick={() => onOpenDefinition(definition)}
               >
-                <Text size="sm" bold className="break-words">
-                  {definition.name}
-                </Text>
-                <Code className="break-words text-foreground-neutral-muted">
-                  {definition.config_path ?? 'Manual definition'}
-                </Code>
+                <Icon
+                  name={sourceIcon(definition.source)}
+                  className="size-16 shrink-0 text-foreground-neutral-muted"
+                  aria-hidden="true"
+                />
+                <div className="flex min-w-0 flex-col gap-4">
+                  <Text size="sm" bold className="break-words">
+                    {definition.name}
+                  </Text>
+                  <Code className="break-words text-foreground-neutral-muted">
+                    {definition.config_path ?? 'Manual definition'}
+                  </Code>
+                </div>
               </button>
-              <div className="flex flex-wrap items-center gap-8">
-                <StatusBadge variant={definition.source === 'vcs' ? 'info' : 'neutral'}>
-                  {definition.source}
-                </StatusBadge>
+              <div className="flex items-center justify-between gap-8">
                 <Text size="xs" className="text-foreground-neutral-muted">
-                  Updated {formatTimestamp(definition.updated_at)}
+                  Updated <RelativeTime value={definition.updated_at} />
                 </Text>
+                <Button size="sm" isLoading={isRunning} onClick={() => onRun(definition)}>
+                  Run
+                </Button>
               </div>
               {runErrorMessage ? (
                 <Text size="xs" className="text-tag-error-text">
                   {runErrorMessage}
                 </Text>
               ) : null}
-              <div className="flex gap-8">
-                <Button size="sm" variant="secondary" onClick={() => onOpenDefinition(definition)}>
-                  Details
-                </Button>
-                <Button size="sm" onClick={() => onRun(definition)}>
-                  Run
-                </Button>
-              </div>
             </div>
           );
         })}
       </div>
+
+      {isFetchNextPageError ? (
+        <Alert variant="error" animated={false}>
+          <div className="flex items-center justify-between gap-12">
+            <Text size="sm">Could not load more workflows.</Text>
+            <Button size="sm" variant="secondary" onClick={onLoadMore}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      ) : null}
+
+      {hasNextPage ? (
+        <div className="flex justify-center">
+          <Button size="sm" variant="secondary" isLoading={isFetchingNextPage} onClick={onLoadMore}>
+            Load more
+          </Button>
+        </div>
+      ) : null}
     </>
   );
+}
+
+function sourceIcon(source: 'manual' | 'vcs'): IconName {
+  return source === 'vcs' ? ('gitBranchLine' as IconName) : ('terminalLine' as IconName);
 }
 
 function WorkflowEmptyState({sync}: {sync: DefinitionSyncSummaryDto | null}) {
@@ -372,37 +386,6 @@ function WorkflowSyncAlert({sync}: {sync: DefinitionSyncSummaryDto | null | unde
   );
 }
 
-function SyncBadge({
-  sync,
-  isPending,
-}: {
-  sync: DefinitionSyncSummaryDto | null | undefined;
-  isPending: boolean;
-}) {
-  if (isPending) {
-    return <StatusBadge variant="neutral">Loading</StatusBadge>;
-  }
-  if (sync === undefined) {
-    return <StatusBadge variant="neutral">Unavailable</StatusBadge>;
-  }
-  if (sync === null) {
-    return <StatusBadge variant="neutral">No sync</StatusBadge>;
-  }
-
-  const variantByStatus = {
-    pending: 'neutral',
-    syncing: 'info',
-    succeeded: 'success',
-    failed: 'error',
-  } as const;
-
-  return (
-    <StatusBadge variant={variantByStatus[sync.status as keyof typeof variantByStatus]}>
-      {sync.status}
-    </StatusBadge>
-  );
-}
-
 function DefinitionSheet({
   definition,
   onOpenChange,
@@ -429,7 +412,6 @@ function DefinitionSheet({
                 <Metadata label="Source" value={definition.source} />
                 <Metadata label="Ref" value={definition.ref ?? 'Not set'} />
                 <Metadata label="SHA" value={definition.sha ?? 'Not set'} />
-                <Metadata label="Fetched at" value={formatTimestamp(definition.fetched_at)} />
               </div>
               <div className="flex w-full flex-col gap-8">
                 <Text size="sm" bold>
@@ -449,11 +431,17 @@ function DefinitionSheet({
   );
 }
 
-function formatTimestamp(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+function Metadata({label, value}: {label: string; value: string}) {
+  return (
+    <div className="min-w-0 py-12 first:pt-0 last:pb-0">
+      <Text size="xs" className="text-foreground-neutral-muted">
+        {label}
+      </Text>
+      <Text size="sm" className="break-words">
+        {value}
+      </Text>
+    </div>
+  );
 }
 
 function errorMessage(error: unknown, fallback: string) {

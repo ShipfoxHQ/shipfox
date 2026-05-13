@@ -57,17 +57,28 @@ export function ProjectTabs() {
         </>
       ) : null}
       {inProject && params.wid && params.pid ? (
-        <Link
-          to="/workspaces/$wid/projects/$pid"
-          params={{wid: params.wid, pid: params.pid}}
-          role="tab"
-          activeOptions={{exact: true}}
-          activeProps={activeProps}
-          inactiveProps={inactiveProps}
-          className={tabClassName}
-        >
-          Overview
-        </Link>
+        <>
+          <Link
+            to="/workspaces/$wid/projects/$pid/runs"
+            params={{wid: params.wid, pid: params.pid}}
+            role="tab"
+            activeProps={activeProps}
+            inactiveProps={inactiveProps}
+            className={tabClassName}
+          >
+            Runs
+          </Link>
+          <Link
+            to="/workspaces/$wid/projects/$pid/workflows"
+            params={{wid: params.wid, pid: params.pid}}
+            role="tab"
+            activeProps={activeProps}
+            inactiveProps={inactiveProps}
+            className={tabClassName}
+          >
+            Workflows
+          </Link>
+        </>
       ) : null}
     </div>
   );

@@ -1,6 +1,7 @@
 CREATE TYPE "public"."workflows_job_status" AS ENUM('pending', 'waiting_for_dependencies', 'ready', 'running', 'succeeded', 'failed', 'cancelled', 'awaiting_manual');--> statement-breakpoint
 CREATE TYPE "public"."workflows_step_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."workflows_run_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."workflows_run_trigger_source" AS ENUM('manual', 'webhook', 'schedule');--> statement-breakpoint
 CREATE TABLE "workflows_jobs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"run_id" uuid NOT NULL,
@@ -43,7 +44,9 @@ CREATE TABLE "workflows_workflow_runs" (
 	"workspace_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"definition_id" uuid NOT NULL,
+	"name" text NOT NULL,
 	"status" "workflows_run_status" DEFAULT 'pending' NOT NULL,
+	"trigger_source" "workflows_run_trigger_source" NOT NULL,
 	"trigger_context" jsonb NOT NULL,
 	"inputs" jsonb,
 	"version" integer DEFAULT 1 NOT NULL,
@@ -56,4 +59,7 @@ ALTER TABLE "workflows_steps" ADD CONSTRAINT "workflows_steps_job_id_workflows_j
 CREATE INDEX "workflows_jobs_run_id_idx" ON "workflows_jobs" USING btree ("run_id");--> statement-breakpoint
 CREATE INDEX "workflows_outbox_pending_idx" ON "workflows_outbox" USING btree ("created_at") WHERE "dispatched_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "workflows_steps_job_id_idx" ON "workflows_steps" USING btree ("job_id");--> statement-breakpoint
-CREATE INDEX "workflows_wr_project_status_idx" ON "workflows_workflow_runs" USING btree ("project_id","status");
+CREATE INDEX "workflows_wr_project_created_id_idx" ON "workflows_workflow_runs" USING btree ("project_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "workflows_wr_project_status_created_id_idx" ON "workflows_workflow_runs" USING btree ("project_id","status","created_at","id");--> statement-breakpoint
+CREATE INDEX "workflows_wr_project_definition_created_id_idx" ON "workflows_workflow_runs" USING btree ("project_id","definition_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "workflows_wr_project_trigger_created_id_idx" ON "workflows_workflow_runs" USING btree ("project_id","trigger_source","created_at","id");

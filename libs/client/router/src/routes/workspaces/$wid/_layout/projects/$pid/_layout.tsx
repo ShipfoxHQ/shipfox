@@ -1,12 +1,12 @@
-import {ProjectDetailPage, useProjectQuery} from '@shipfox/client-projects';
-import {createFileRoute, useNavigate} from '@tanstack/react-router';
+import {useProjectQuery} from '@shipfox/client-projects';
+import {createFileRoute, Outlet, useNavigate} from '@tanstack/react-router';
 import {useEffect} from 'react';
 
-export const Route = createFileRoute('/workspaces/$wid/_layout/projects/$pid')({
-  component: ProjectDetailRoute,
+export const Route = createFileRoute('/workspaces/$wid/_layout/projects/$pid/_layout')({
+  component: ProjectLayoutRoute,
 });
 
-function ProjectDetailRoute() {
+function ProjectLayoutRoute() {
   const {wid, pid} = Route.useParams();
   const navigate = useNavigate();
   const projectQuery = useProjectQuery(pid);
@@ -23,5 +23,5 @@ function ProjectDetailRoute() {
 
   if (project && project.workspace_id !== wid) return null;
 
-  return <ProjectDetailPage projectId={pid} />;
+  return <Outlet />;
 }

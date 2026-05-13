@@ -8,9 +8,13 @@ export type {
   BulkUpdateStepStatusesParams,
   CreateWorkflowRunParams,
   FailJobAsTimedOutParams,
+  ListWorkflowRunsParams,
+  ListWorkflowRunsResult,
   ReportedStepResult,
   UpdateJobStatusParams,
   UpdateWorkflowRunStatusParams,
+  WorkflowRunAggregates,
+  WorkflowRunFilters,
 } from './workflow-runs.js';
 export {
   applyStepResults,
@@ -20,7 +24,9 @@ export {
   getJobsByRunId,
   getStepsByJobId,
   getStepsByJobIds,
+  getWorkflowRunAggregates,
   getWorkflowRunById,
+  listWorkflowRuns,
   listWorkflowRunsByProject,
   StepResultsContractViolationError,
   updateJobStatus,

@@ -46,6 +46,8 @@ CREATE UNIQUE INDEX "definitions_wd_sha_lookup" ON "definitions_workflow_definit
 --> statement-breakpoint
 CREATE UNIQUE INDEX "definitions_wd_ref_lookup" ON "definitions_workflow_definitions" USING btree ("project_id","ref","config_path") WHERE "ref" IS NOT NULL;
 --> statement-breakpoint
+CREATE INDEX "definitions_wd_project_name_id_idx" ON "definitions_workflow_definitions" USING btree ("project_id","name","id") WHERE "deleted_at" IS NULL;
+--> statement-breakpoint
 CREATE UNIQUE INDEX "definitions_sync_states_source_unique" ON "definitions_sync_states" USING btree ("project_id","source_connection_id","source_external_repository_id","ref");
 --> statement-breakpoint
 CREATE INDEX "definitions_sync_states_failed_idx" ON "definitions_sync_states" USING btree ("updated_at") WHERE "status" = 'failed';

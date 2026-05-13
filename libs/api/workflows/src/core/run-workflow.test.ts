@@ -56,8 +56,10 @@ describe('runWorkflow', () => {
     expect(run.id).toBeDefined();
     expect(run.projectId).toBe(projectId);
     expect(run.definitionId).toBe(definition.id);
+    expect(run.name).toBe(definition.name);
     expect(run.status).toBe('pending');
-    expect(run.triggerContext).toEqual({type: 'manual'});
+    expect(run.triggerSource).toBe('manual');
+    expect(run.triggerContext).toEqual({});
   });
 
   test('throws DefinitionNotFoundError for unknown definition', async () => {
@@ -65,9 +67,9 @@ describe('runWorkflow', () => {
 
     const unknownId = crypto.randomUUID();
 
-    await expect(runWorkflow({workspaceId, projectId, definitionId: unknownId})).rejects.toThrow(
-      DefinitionNotFoundError,
-    );
+    const result = runWorkflow({workspaceId, projectId, definitionId: unknownId});
+
+    await expect(result).rejects.toThrow(DefinitionNotFoundError);
   });
 
   test('throws ProjectMismatchError when definition.projectId does not match', async () => {
@@ -75,9 +77,9 @@ describe('runWorkflow', () => {
     const definition = buildDefinition({projectId: otherProjectId});
     mockGetDefinitionById.mockResolvedValue(definition);
 
-    await expect(
-      runWorkflow({workspaceId, projectId, definitionId: definition.id}),
-    ).rejects.toThrow(ProjectMismatchError);
+    const result = runWorkflow({workspaceId, projectId, definitionId: definition.id});
+
+    await expect(result).rejects.toThrow(ProjectMismatchError);
   });
 
   test('passes inputs through to the run', async () => {

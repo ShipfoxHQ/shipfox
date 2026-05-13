@@ -18,6 +18,20 @@
 
 - [ ] **Commit-pinned and alternate-branch definition sync** — Design immutable commit-SHA-pinned workflow definition snapshots for reproducible runs, plus an explicit user/test path to sync definitions from a non-default branch before merge. PR #4 intentionally syncs only the repository default branch using `ref`; this follow-up needs schema/index retention rules and workflow-run source-version semantics.
 
+## Workflows
+
+### Workflow run detail page
+
+**What:** Add a deep-linkable workflow run detail route with run metadata, jobs, steps, failure context, and the first useful log/output surfaces.
+
+**Why:** After the Runs tab shows a failed or active run, the user's next question is "what failed?" A stub route would create a dead end, so the detail page should ship only when it can answer that question.
+
+**Context:** Deferred during the project detail tabbed redesign CEO review on `noe-charmet/project-tabs-runs-workflows`. The v1 Runs tab should list, filter, paginate, and auto-refresh runs, but row click-through remains out of scope until a real inspection surface exists. Start from `GET /workflows/runs/:id` and extend toward jobs, steps, logs, and failure summaries as the backend contracts allow.
+
+**Effort:** L
+**Priority:** P2
+**Depends on:** Runs tab v1, stable run/job/step DTO contracts
+
 ## Add cursor-based pagination to list endpoints
 
 **What:** Add cursor-based pagination to `listWorkflowRunsByProject`, `listDefinitionsByProject`, and future list queries.
