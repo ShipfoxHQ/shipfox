@@ -1,5 +1,5 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {fireEvent, screen} from '@testing-library/react';
+import {act, fireEvent, screen} from '@testing-library/react';
 import {GuestGuard} from '#components/auth-guard.js';
 import {pageUserFactory} from '#test/factories/user.js';
 import {renderAuthPage} from '#test/pages.js';
@@ -103,6 +103,9 @@ describe('LoginPage', () => {
           token: 'access-token',
           user,
         });
+      })
+      .mockImplementationOnce(() => {
+        return jsonResponse({memberships: []});
       });
     configureApiClient({fetchImpl});
 
@@ -116,6 +119,8 @@ describe('LoginPage', () => {
       target: {value: 'login@example.com'},
     });
     fireEvent.change(screen.getByLabelText('Password'), {target: {value: 'correct horse'}});
+    // Let TanStack Form publish field changes before submit validation reads them.
+    await act(() => Promise.resolve());
     fireEvent.click(screen.getByRole('button', {name: 'Log in'}));
 
     expect(await screen.findByRole('heading', {name: 'Authenticated home'})).toBeInTheDocument();
