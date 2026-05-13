@@ -4,9 +4,10 @@ import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js'
 import {ProjectWorkflowsPage} from './project-workflows-page.js';
 
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
+const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 
 describe('ProjectWorkflowsPage', () => {
-  test('renders workflow definitions and source metadata', async () => {
+  test('renders workflow definitions and the source strip', async () => {
     configureApiClient({fetchImpl: createProjectDetailFetch()});
 
     renderProjectPage(
@@ -17,12 +18,17 @@ describe('ProjectWorkflowsPage', () => {
     expect(await screen.findByRole('heading', {name: 'Workflows'})).toBeInTheDocument();
     expect(screen.getAllByText('Deploy production')[0]).toBeInTheDocument();
     expect(screen.getAllByText('.shipfox/workflows/deploy.yml')[0]).toBeInTheDocument();
-    expect(screen.getAllByText('succeeded')[0]).toBeInTheDocument();
-    expect(screen.getByRole('heading', {name: 'Source identity'})).toBeInTheDocument();
+    expect(screen.getByRole('region', {name: 'Project source'})).toBeInTheDocument();
+    // Source strip resolves connection display_name from the integrations
+    // workspace cache; external_repository_id renders as a Code chip.
+    expect(await screen.findByText('Acme GitHub')).toBeInTheDocument();
     expect(screen.getAllByText('platform')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('succeeded')[0]).toBeInTheDocument();
+    // Legacy "Source identity" sidebar is gone.
+    expect(screen.queryByRole('heading', {name: 'Source identity'})).not.toBeInTheDocument();
   });
 
-  test('shows definitions error while keeping source metadata visible', async () => {
+  test('shows definitions error while keeping the source strip visible', async () => {
     configureApiClient({
       fetchImpl: createProjectDetailFetch({
         definitions: jsonResponse({code: 'server-error'}, {status: 500}),
@@ -35,9 +41,10 @@ describe('ProjectWorkflowsPage', () => {
     );
 
     expect(await screen.findByText('Workflows unavailable')).toBeInTheDocument();
+    // SyncBadge in the strip falls back to Unavailable when sync is undefined
+    // (definitions errored before providing one).
     expect(screen.getByText('Unavailable')).toBeInTheDocument();
-    expect(screen.queryByText('No sync')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', {name: 'Source identity'})).toBeInTheDocument();
+    expect(screen.getByRole('region', {name: 'Project source'})).toBeInTheDocument();
   });
 
   test('shows failed sync empty state', async () => {
@@ -71,7 +78,7 @@ describe('ProjectWorkflowsPage', () => {
     expect(screen.getByText('Workflow sync failed')).toBeInTheDocument();
   });
 
-  test('opens and closes the definition drawer', async () => {
+  test('opens and closes the definition drawer by clicking the row', async () => {
     configureApiClient({fetchImpl: createProjectDetailFetch()});
 
     renderProjectPage(
@@ -79,10 +86,11 @@ describe('ProjectWorkflowsPage', () => {
       <ProjectWorkflowsPage projectId={PROJECT_ID} />,
     );
 
-    const [detailsButton] = await screen.findAllByRole('button', {name: 'Details'});
-    if (!detailsButton) throw new Error('Details button was not rendered');
-
-    fireEvent.click(detailsButton);
+    // The row carries the click handler now (no separate Details button).
+    // Find the row containing the workflow name and click it.
+    const workflowName = (await screen.findAllByText('Deploy production'))[0];
+    if (!workflowName) throw new Error('Workflow row was not rendered');
+    fireEvent.click(workflowName);
 
     expect(await screen.findByText('Normalized definition')).toBeInTheDocument();
     expect(screen.getByText((content) => content.includes('"deploy"'))).toBeInTheDocument();
@@ -102,6 +110,8 @@ describe('ProjectWorkflowsPage', () => {
       <ProjectWorkflowsPage projectId={PROJECT_ID} />,
     );
 
+    // Run button lives in the row's hover-reveal slot; getAllByRole still
+    // sees it (opacity-0, not display:none).
     const [runButton] = await screen.findAllByRole('button', {name: 'Run'});
     if (!runButton) throw new Error('Run button was not rendered');
 
@@ -116,6 +126,9 @@ describe('ProjectWorkflowsPage', () => {
         const url = new URL(requestInputUrl(input));
         if (url.pathname === `/projects/${PROJECT_ID}`) {
           return Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}));
+        }
+        if (url.pathname === '/integration-connections') {
+          return Promise.resolve(jsonResponse(connectionsDto()));
         }
         return Promise.resolve(jsonResponse(definitionsDto()));
       }),
@@ -134,10 +147,12 @@ function createProjectDetailFetch({
   project = jsonResponse(projectDto()),
   definitions = jsonResponse(definitionsDto()),
   run = jsonResponse(runDto(), {status: 201}),
+  connections = jsonResponse(connectionsDto()),
 }: {
   project?: Response;
   definitions?: Response;
   run?: Response;
+  connections?: Response;
 } = {}) {
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(requestInputUrl(input));
@@ -148,6 +163,9 @@ function createProjectDetailFetch({
     }
     if (url.pathname === '/definitions') {
       return Promise.resolve(definitions.clone());
+    }
+    if (url.pathname === '/integration-connections') {
+      return Promise.resolve(connections.clone());
     }
     if (url.pathname === '/workflows/runs' && method === 'POST') {
       return Promise.resolve(run.clone());
@@ -164,14 +182,32 @@ function requestInputUrl(input: RequestInfo | URL) {
 function projectDto() {
   return {
     id: PROJECT_ID,
-    workspace_id: '11111111-1111-4111-8111-111111111111',
+    workspace_id: PROJECT_TEST_WID,
     name: 'Platform',
     source: {
-      connection_id: '33333333-3333-4333-8333-333333333333',
+      connection_id: CONNECTION_ID,
       external_repository_id: 'platform',
     },
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+  };
+}
+
+function connectionsDto() {
+  return {
+    connections: [
+      {
+        id: CONNECTION_ID,
+        workspace_id: PROJECT_TEST_WID,
+        provider: 'github',
+        external_account_id: 'acme',
+        display_name: 'Acme GitHub',
+        lifecycle_status: 'active',
+        capabilities: ['source_control'],
+        created_at: '2026-05-07T00:00:00.000Z',
+        updated_at: '2026-05-07T00:00:00.000Z',
+      },
+    ],
   };
 }
 

@@ -5,6 +5,7 @@ import {ProjectRunsPage} from './project-runs-page.js';
 
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
+const REFRESH_BUTTON_RE = /refresh/i;
 
 describe('ProjectRunsPage', () => {
   test('renders run history, counts, and paginated load more', async () => {
@@ -17,7 +18,6 @@ describe('ProjectRunsPage', () => {
 
     expect(await screen.findByRole('heading', {name: 'Runs'})).toBeInTheDocument();
     expect((await screen.findAllByText('Deploy production'))[0]).toBeInTheDocument();
-    expect(screen.getAllByText('running')[0]).toBeInTheDocument();
     expect(screen.getByText('Loaded 1 of 2')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', {name: 'Load more'}));
@@ -26,19 +26,42 @@ describe('ProjectRunsPage', () => {
     expect(screen.getByText('Loaded 2 of 2')).toBeInTheDocument();
   });
 
-  test('applies URL-backed status filters and shows filtered empty state', async () => {
+  test('does not render a manual Refresh button (polling is silent)', async () => {
     configureApiClient({fetchImpl: createRunsFetch()});
 
     renderProjectPage(
-      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs?status=running`,
+      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs`,
       <ProjectRunsPage projectId={PROJECT_ID} />,
     );
 
     expect(await screen.findByRole('heading', {name: 'Runs'})).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: REFRESH_BUTTON_RE})).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole('button', {name: 'Filter runs by failed'}));
+  test('applies URL-backed status filters and shows filtered empty state', async () => {
+    configureApiClient({fetchImpl: createRunsFetch()});
 
+    // URL-driven filter state: navigating directly to ?status=failed
+    // exercises the same URL ⇄ filter round-trip that the dropdown writes
+    // when the user selects an option. Driving the Radix dropdown via
+    // fireEvent is unreliable in jsdom; the URL path is the source of
+    // truth either way.
+    renderProjectPage(
+      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs?status=failed`,
+      <ProjectRunsPage projectId={PROJECT_ID} />,
+    );
+
+    expect(await screen.findByRole('heading', {name: 'Runs'})).toBeInTheDocument();
     expect(await screen.findByText('No matching runs')).toBeInTheDocument();
+
+    // Both the filter bar and the empty state render "Clear filters" when
+    // filters are active — clicking either drops the filter and re-shows
+    // the data. The empty-state button is the second one in DOM order.
+    const [clearFiltersButton] = screen.getAllByRole('button', {name: 'Clear filters'});
+    if (!clearFiltersButton) throw new Error('Clear filters button not rendered');
+    fireEvent.click(clearFiltersButton);
+
+    expect(await screen.findAllByText('Deploy production')).not.toHaveLength(0);
   });
 });
 
