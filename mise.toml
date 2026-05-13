@@ -1,7 +1,7 @@
 [tools]
 gh = "2.92.0"
 "node"      = "24.15.0"
-"npm:pnpm"  = "10.33.0"
+"npm:pnpm"  = "10.33.4"
 "npm:turbo" = "2.9.12"
 
 [env]
