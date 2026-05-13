@@ -260,6 +260,8 @@ test('creates, rejects duplicate, and revokes a pending invitation from members 
   );
 
   await page.getByRole('button', {name: 'Invite member'}).click();
+  await expect(page.getByRole('heading', {name: 'Invite a member'})).toBeVisible();
+  await expect(page.getByLabel('Email')).toBeFocused();
   await page.getByLabel('Email').fill(pendingEmail);
   await page.getByRole('button', {name: 'Send invitation'}).click();
   await expect(page.getByText(PENDING_INVITATION_RE)).toBeVisible();
