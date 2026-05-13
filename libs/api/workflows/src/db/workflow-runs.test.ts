@@ -320,6 +320,81 @@ describe('workflow run queries', () => {
 
       expect(run.inputs).toEqual({env: 'staging', verbose: true});
     });
+
+    test('duplicate triggerIdempotencyKey returns the existing run without writing jobs/steps/outbox a second time', async () => {
+      const subscriptionId = crypto.randomUUID();
+      const eventId = crypto.randomUUID();
+      const idempotencyKey = `${subscriptionId}:${eventId}`;
+
+      const first = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        definition: spec(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId,
+          userId: crypto.randomUUID(),
+        },
+        triggerIdempotencyKey: idempotencyKey,
+      });
+      const second = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        definition: spec(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId,
+          userId: crypto.randomUUID(),
+        },
+        triggerIdempotencyKey: idempotencyKey,
+      });
+
+      expect(second.id).toBe(first.id);
+      expect(second.triggerIdempotencyKey).toBe(idempotencyKey);
+
+      const allJobs = await getJobsByRunId(first.id);
+      expect(allJobs).toHaveLength(1);
+      const outboxRows = await db()
+        .select()
+        .from(workflowsOutbox)
+        .where(sql`${workflowsOutbox.payload}->>'runId' = ${first.id}`);
+      expect(outboxRows).toHaveLength(1);
+    });
+
+    test('null triggerIdempotencyKey allows independent inserts', async () => {
+      const a = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        definition: spec(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const b = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        definition: spec(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      expect(b.id).not.toBe(a.id);
+      expect(a.triggerIdempotencyKey).toBeNull();
+      expect(b.triggerIdempotencyKey).toBeNull();
+    });
   });
 
   describe('getWorkflowRunById', () => {

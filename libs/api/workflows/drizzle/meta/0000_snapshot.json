@@ -1,5 +1,5 @@
 {
-  "id": "f5d6cc5f-d87a-425e-9f0f-90049d89a53d",
+  "id": "301aaed3-fce2-4b05-886e-3ed924bc1b75",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -361,6 +361,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "trigger_idempotency_key": {
+          "name": "trigger_idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "version": {
           "name": "version",
           "type": "integer",
@@ -384,6 +390,21 @@
         }
       },
       "indexes": {
+        "workflows_wr_trigger_idempotency_key_unique": {
+          "name": "workflows_wr_trigger_idempotency_key_unique",
+          "columns": [
+            {
+              "expression": "trigger_idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "workflows_wr_project_created_id_idx": {
           "name": "workflows_wr_project_created_id_idx",
           "columns": [

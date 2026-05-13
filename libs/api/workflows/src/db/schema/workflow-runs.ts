@@ -1,5 +1,14 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {index, integer, jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
+import {
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import type {TriggerPayload, WorkflowRun} from '#core/entities/workflow-run.js';
 import {pgTable} from './common.js';
 
@@ -24,11 +33,19 @@ export const workflowRuns = pgTable(
     triggerEvent: text('trigger_event').notNull(),
     triggerPayload: jsonb('trigger_payload').notNull().$type<TriggerPayload>(),
     inputs: jsonb('inputs').$type<Record<string, unknown>>(),
+    // The outbox dispatcher only marks a row dispatched after every
+    // subscriber succeeds, so a sibling failure or a crash before
+    // `markDispatched` replays the event. Callers pass a stable token
+    // (e.g. `${subscriptionId}:${integrationEventId}`); the unique index
+    // makes the second insert a no-op. Postgres allows many NULLs in a
+    // UNIQUE index, so paths that pass no token are unconstrained.
+    triggerIdempotencyKey: text('trigger_idempotency_key'),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
+    uniqueIndex('workflows_wr_trigger_idempotency_key_unique').on(table.triggerIdempotencyKey),
     index('workflows_wr_project_created_id_idx').on(table.projectId, table.createdAt, table.id),
     index('workflows_wr_project_status_created_id_idx').on(
       table.projectId,
@@ -66,6 +83,7 @@ export function toWorkflowRun(row: WorkflowRunDb): WorkflowRun {
     triggerEvent: row.triggerEvent,
     triggerPayload: row.triggerPayload as TriggerPayload,
     inputs: row.inputs ?? null,
+    triggerIdempotencyKey: row.triggerIdempotencyKey,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

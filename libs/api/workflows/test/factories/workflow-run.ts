@@ -42,6 +42,7 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
       userId: crypto.randomUUID(),
     },
     inputs: null,
+    triggerIdempotencyKey: null,
     version: 1,
     createdAt: new Date(),
     updatedAt: new Date(),

@@ -9,6 +9,7 @@ export interface RunWorkflowParams {
   definitionId: string;
   triggerPayload: TriggerPayload;
   inputs?: Record<string, unknown> | undefined;
+  triggerIdempotencyKey?: string | undefined;
 }
 
 export async function runWorkflow(params: RunWorkflowParams): Promise<WorkflowRun> {
@@ -27,5 +28,6 @@ export async function runWorkflow(params: RunWorkflowParams): Promise<WorkflowRu
     definition: definition.definition,
     triggerPayload: params.triggerPayload,
     inputs: params.inputs,
+    triggerIdempotencyKey: params.triggerIdempotencyKey,
   });
 }

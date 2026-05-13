@@ -23,6 +23,7 @@ export interface CreateWorkflowRunParams {
   definition: WorkflowSpec;
   triggerPayload: TriggerPayload;
   inputs?: Record<string, unknown> | undefined;
+  triggerIdempotencyKey?: string | undefined;
 }
 
 function normalizeDependencies(needs: string | string[] | undefined): string[] {
@@ -37,7 +38,7 @@ function normalizeRunner(runner: string | string[] | undefined): string[] | null
 
 export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
   return await db().transaction(async (tx) => {
-    const [runRow] = await tx
+    const insertResult = await tx
       .insert(workflowRuns)
       .values({
         workspaceId: params.workspaceId,
@@ -49,9 +50,33 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         triggerEvent: params.triggerPayload.event,
         triggerPayload: params.triggerPayload,
         inputs: params.inputs ?? null,
+        triggerIdempotencyKey: params.triggerIdempotencyKey ?? null,
       })
+      .onConflictDoNothing({target: workflowRuns.triggerIdempotencyKey})
       .returning();
-    if (!runRow) throw new Error('Insert returned no rows');
+
+    const runRow = insertResult[0];
+    if (!runRow) {
+      // ON CONFLICT DO NOTHING returns nothing on conflict, so a missing
+      // row only happens when an idempotency key was provided and matched
+      // an existing run. Re-fetch and short-circuit without re-emitting
+      // jobs/steps/outbox; the original write owns those side effects.
+      if (!params.triggerIdempotencyKey) {
+        throw new Error('Insert returned no rows');
+      }
+      const existing = await tx
+        .select()
+        .from(workflowRuns)
+        .where(eq(workflowRuns.triggerIdempotencyKey, params.triggerIdempotencyKey))
+        .limit(1);
+      const existingRow = existing[0];
+      if (!existingRow) {
+        throw new Error(
+          `Idempotency conflict but existing run missing for key ${params.triggerIdempotencyKey}`,
+        );
+      }
+      return toWorkflowRun(existingRow);
+    }
 
     const jobEntries = Object.entries(params.definition.jobs);
     let jobRows: (typeof jobs.$inferSelect)[] = [];

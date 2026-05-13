@@ -63,6 +63,7 @@ export async function onIntegrationEventReceived(event: DomainEvent): Promise<vo
         isDefaultBranch: pushPayload.isDefaultBranch,
         externalRepositoryId: pushPayload.externalRepositoryId,
       },
+      triggerIdempotencyKey: `${subscription.id}:${event.id}`,
     });
   }
 }

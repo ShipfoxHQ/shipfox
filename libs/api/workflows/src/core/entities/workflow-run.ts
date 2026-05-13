@@ -35,6 +35,7 @@ export interface WorkflowRun {
   triggerEvent: string;
   triggerPayload: TriggerPayload;
   inputs: Record<string, unknown> | null;
+  triggerIdempotencyKey: string | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;
