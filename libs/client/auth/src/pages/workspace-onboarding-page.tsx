@@ -1,3 +1,4 @@
+import {createWorkspaceBodySchema} from '@shipfox/api-workspaces-dto';
 import {
   Alert,
   Button,
@@ -6,21 +7,19 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  FormField,
+  FormFieldInput,
   Icon,
-  Input,
-  Label,
   Text,
   toast,
 } from '@shipfox/react-ui';
+import {useForm} from '@tanstack/react-form';
 import {useNavigate} from '@tanstack/react-router';
 import {useSetAtom} from 'jotai';
-import {type FormEvent, useState} from 'react';
+import {useState} from 'react';
 import {useCreateWorkspaceAuth} from '#hooks/api/workspace-auth.js';
 import {lastWorkspaceIdAtom} from '#state/last-workspace.js';
-import {authErrorMessage, type FieldErrors} from './form-utils.js';
-import {parseWorkspaceOnboardingForm} from './workspace-onboarding-form.js';
-
-type WorkspaceField = 'name';
+import {workspaceOnboardingErrorToFormError} from './form-errors.js';
 
 const previewMetrics = [
   {label: 'Runs', value: '--'},
@@ -43,38 +42,30 @@ export function WorkspaceOnboardingPage() {
   const createWorkspace = useCreateWorkspaceAuth();
   const navigate = useNavigate();
   const setLastWorkspaceId = useSetAtom(lastWorkspaceIdAtom);
-  const [name, setName] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors<WorkspaceField>>({});
   const [formError, setFormError] = useState<string | undefined>();
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFormError(undefined);
-    const parsed = parseWorkspaceOnboardingForm({name});
-    if (!parsed.ok) {
-      setFieldErrors(parsed.fieldErrors);
-      return;
-    }
-
-    setFieldErrors({});
-    try {
-      const created = await createWorkspace.mutateAsync(parsed.body);
-      toast.success('Workspace created.');
-      // Pin the new workspace as the last-active one so a page refresh and
-      // future visits to `/` land on it. Going through `/` directly would
-      // honor a stale `lastWorkspaceIdAtom` and send the user back to a
-      // previously selected workspace.
+  const form = useForm({
+    defaultValues: {name: ''},
+    onSubmit: async ({value}) => {
+      setFormError(undefined);
       try {
-        setLastWorkspaceId(created.id);
-      } catch {
-        // localStorage may throw in private browsing or quota-exceeded;
-        // navigation still proceeds with the new id passed below.
+        const body = createWorkspaceBodySchema.parse({name: value.name.trim()});
+        const created = await createWorkspace.mutateAsync(body);
+        toast.success('Workspace created.');
+        // Pin the new workspace as the last-active one so a page refresh and
+        // future visits to `/` land on it.
+        try {
+          setLastWorkspaceId(created.id);
+        } catch {
+          // localStorage may throw in private browsing or quota-exceeded.
+        }
+        await navigate({to: '/workspaces/$wid', params: {wid: created.id}});
+      } catch (error) {
+        const mapped = workspaceOnboardingErrorToFormError(error);
+        setFormError(mapped.message);
       }
-      await navigate({to: '/workspaces/$wid', params: {wid: created.id}});
-    } catch (error) {
-      setFormError(authErrorMessage(error));
-    }
-  }
+    },
+  });
 
   return (
     <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
@@ -93,9 +84,13 @@ export function WorkspaceOnboardingPage() {
         <section className="grid flex-1 items-center gap-32 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
           <form
             className="relative z-10 w-full"
-            onSubmit={onSubmit}
             noValidate
             aria-labelledby="workspace-onboarding-title"
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void form.handleSubmit();
+            }}
           >
             <Card className="gap-20 p-24 shadow-button-neutral">
               <CardHeader className="gap-8">
@@ -108,23 +103,27 @@ export function WorkspaceOnboardingPage() {
               {formError ? <Alert variant="error">{formError}</Alert> : null}
 
               <CardContent className="flex flex-col gap-8">
-                <Label htmlFor="workspace-name">Workspace name</Label>
-                <Input
-                  aria-describedby={fieldErrors.name ? 'workspace-name-error' : undefined}
-                  aria-invalid={fieldErrors.name ? true : undefined}
-                  autoComplete="organization"
-                  id="workspace-name"
+                <form.Field
                   name="name"
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Acme"
-                  type="text"
-                  value={name}
-                />
-                {fieldErrors.name ? (
-                  <Text as="p" size="xs" className="text-tag-error-text" id="workspace-name-error">
-                    {fieldErrors.name}
-                  </Text>
-                ) : null}
+                  validators={{
+                    onBlur: createWorkspaceBodySchema.shape.name,
+                    onSubmit: createWorkspaceBodySchema.shape.name,
+                  }}
+                >
+                  {(field) => (
+                    <FormField label="Workspace name" id="workspace-name" error={fieldError(field)}>
+                      <FormFieldInput
+                        autoComplete="organization"
+                        name="name"
+                        placeholder="Acme"
+                        type="text"
+                        value={field.state.value}
+                        onChange={(event) => field.handleChange(event.target.value)}
+                        onBlur={field.handleBlur}
+                      />
+                    </FormField>
+                  )}
+                </form.Field>
               </CardContent>
 
               <Button
@@ -203,4 +202,19 @@ function PreviewPanel({title, bars = false}: {title: string; bars?: boolean}) {
       </div>
     </div>
   );
+}
+
+interface FieldLike {
+  state: {meta: {errors: Array<unknown>; isBlurred: boolean}};
+}
+
+function fieldError(field: FieldLike): string | undefined {
+  if (!field.state.meta.isBlurred && field.state.meta.errors.length === 0) return undefined;
+  const first = field.state.meta.errors[0];
+  if (!first) return undefined;
+  if (typeof first === 'string') return first;
+  if (typeof first === 'object' && first !== null && 'message' in first) {
+    return String((first as {message: unknown}).message);
+  }
+  return undefined;
 }

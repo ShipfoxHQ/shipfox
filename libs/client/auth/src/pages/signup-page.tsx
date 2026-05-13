@@ -1,22 +1,31 @@
-import {Alert, Button, ButtonLink, Icon, Input, Label, Text, toast} from '@shipfox/react-ui';
+import {signupBodySchema} from '@shipfox/api-auth-dto';
+import {
+  Alert,
+  Button,
+  ButtonLink,
+  FormField,
+  FormFieldInput,
+  Icon,
+  Text,
+  toast,
+} from '@shipfox/react-ui';
+import {useForm} from '@tanstack/react-form';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
-import {type FormEvent, useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {AuthShell} from '#/components/auth-shell.js';
 import {useRefreshAuth} from '#hooks/api/refresh-auth.js';
 import {useSignupAuth} from '#hooks/api/signup-auth.js';
 import {useResendEmailVerificationAuth} from '#hooks/api/verify-email-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
-import {parseSignupForm} from './auth-form-model.js';
 import {
   getLocalResendAvailableAt,
   getResendRemainingSeconds,
   parseNextResendAvailableAt,
 } from './email-verification-resend-model.js';
-import {authErrorMessage, type FieldErrors} from './form-utils.js';
+import {signupErrorToFormError} from './form-errors.js';
+import {authErrorMessage} from './form-utils.js';
 import {extractInvitationToken, useInvitationContext} from './invitation-context.js';
-
-type SignupField = 'email' | 'password' | 'name';
 
 export function SignupPage() {
   const signup = useSignupAuth();
@@ -29,16 +38,76 @@ export function SignupPage() {
   const invitationPending =
     invitationPreview.data?.status === 'pending' ? invitationPreview.data : undefined;
   const [authFormDraft, setAuthFormDraft] = useAtom(authFormDraftAtom);
-  const [name, setName] = useState('');
   const [submittedEmail, setSubmittedEmail] = useState<string | undefined>();
   const [now, setNow] = useState(() => Date.now());
   const [nextResendAvailableAt, setNextResendAvailableAt] = useState<number | undefined>();
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors<SignupField>>({});
   const [formError, setFormError] = useState<string | undefined>();
   const [resendError, setResendError] = useState<string | undefined>();
-  const {email, password} = authFormDraft;
+  const draftRef = useRef(authFormDraft);
+  draftRef.current = authFormDraft;
+  // Set just before clearing the draft on success so the unmount cleanup
+  // below does not repersist the just-submitted credentials.
+  const skipDraftPersistRef = useRef(false);
   const resendRemainingSeconds = getResendRemainingSeconds({nextResendAvailableAt, now});
   const isResendCoolingDown = resendRemainingSeconds > 0;
+
+  const form = useForm({
+    defaultValues: {email: authFormDraft.email, password: authFormDraft.password, name: ''},
+    onSubmit: async ({value}) => {
+      setFormError(undefined);
+      const trimmedName = value.name.trim();
+      const body = {
+        email: value.email,
+        password: value.password,
+        ...(trimmedName ? {name: trimmedName} : {}),
+        ...(invitationToken ? {invitation_token: invitationToken} : {}),
+      };
+
+      try {
+        const result = await signup.mutateAsync(body);
+        skipDraftPersistRef.current = true;
+        setAuthFormDraft(initialAuthFormDraft);
+
+        if (invitationToken && result.membership && invitationPending) {
+          try {
+            await refreshAuth();
+          } catch {
+            // Refresh failures don't block the success message — the next API
+            // call's 401 handling will re-route the user.
+          }
+          toast.success(`You joined ${invitationPending.workspace_name}.`);
+          await navigate({
+            to: '/workspaces/$wid',
+            params: {wid: result.membership.workspace_id},
+          });
+          return;
+        }
+
+        if (invitationToken && result.accept_error) {
+          toast.error(result.accept_error.message);
+          await navigate({
+            to: '/invitations/accept',
+            search: {token: invitationToken},
+          });
+          return;
+        }
+
+        setSubmittedEmail(result.user.email);
+        setResendError(undefined);
+        restartLocalCooldown();
+      } catch (error) {
+        const mapped = signupErrorToFormError(error);
+        if (mapped.kind === 'field') {
+          form.setFieldMeta(mapped.field, (prev) => ({
+            ...prev,
+            errorMap: {...prev.errorMap, onServer: mapped.message},
+          }));
+        } else {
+          setFormError(mapped.message);
+        }
+      }
+    },
+  });
 
   useEffect(() => {
     if (!submittedEmail || !nextResendAvailableAt) {
@@ -67,70 +136,26 @@ export function SignupPage() {
     setNextResendAvailableAt(getLocalResendAvailableAt(current));
   }
 
-  // When arriving from an invitation link, prefill the email and lock it to
-  // the invitee's email. The signup body must match the invitation email or
-  // the backend throws InvitationEmailMismatchError.
+  // When arriving from an invitation link, prefill the email and lock it.
   useEffect(() => {
-    if (invitationPending && email !== invitationPending.email) {
+    if (invitationPending && form.state.values.email !== invitationPending.email) {
+      form.setFieldValue('email', invitationPending.email);
       setAuthFormDraft((current) => ({...current, email: invitationPending.email}));
     }
-  }, [email, invitationPending, setAuthFormDraft]);
+  }, [invitationPending, form, setAuthFormDraft]);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFormError(undefined);
-    const parsed = parseSignupForm({
-      email,
-      password,
-      name,
-      ...(invitationToken ? {invitationToken} : {}),
-    });
-    if (!parsed.ok) {
-      setFieldErrors(parsed.fieldErrors);
-      return;
-    }
-
-    setFieldErrors({});
-    try {
-      const result = await signup.mutateAsync(parsed.body);
-      setAuthFormDraft(initialAuthFormDraft);
-
-      if (invitationToken && result.membership && invitationPending) {
-        // signup-with-invitation success: skip the "check your email" screen,
-        // toast + navigate into the workspace.
-        try {
-          await refreshAuth();
-        } catch {
-          // Refresh failures don't block the success message — the next API
-          // call's 401 handling will re-route the user.
-        }
-        toast.success(`You joined ${invitationPending.workspace_name}.`);
-        await navigate({
-          to: '/workspaces/$wid',
-          params: {wid: result.membership.workspace_id},
-        });
-        return;
+  // Sync form values back to the Jotai draft on unmount (only email + password
+  // — name is intentionally not persisted across navigation). Skipped after a
+  // successful signup because we just intentionally cleared the draft.
+  useEffect(() => {
+    return () => {
+      if (skipDraftPersistRef.current) return;
+      const {email, password} = form.state.values;
+      if (email !== draftRef.current.email || password !== draftRef.current.password) {
+        setAuthFormDraft({email, password});
       }
-
-      if (invitationToken && result.accept_error) {
-        // D7 partial-success: user is logged in but accept failed. Bounce
-        // back to the canonical invite page; the AUTH_USER accept route will
-        // resolve from there.
-        toast.error(result.accept_error.message);
-        await navigate({
-          to: '/invitations/accept',
-          search: {token: invitationToken},
-        });
-        return;
-      }
-
-      setSubmittedEmail(result.user.email);
-      setResendError(undefined);
-      restartLocalCooldown();
-    } catch (error) {
-      setFormError(authErrorMessage(error));
-    }
-  }
+    };
+  }, [form, setAuthFormDraft]);
 
   async function onResendVerificationEmail() {
     if (!submittedEmail || isResendCoolingDown || resendEmailVerification.isPending) return;
@@ -209,78 +234,99 @@ export function SignupPage() {
     ? `/invitations/accept?token=${encodeURIComponent(invitationToken)}`
     : undefined;
 
+  function persistDraft() {
+    const {email, password} = form.state.values;
+    setAuthFormDraft({email, password});
+  }
+
   return (
     <AuthShell title={headerTitle} description={headerDescription}>
-      <form className="flex flex-col gap-18" onSubmit={onSubmit} noValidate>
+      <form
+        className="flex flex-col gap-18"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void form.handleSubmit();
+        }}
+      >
         {formError ? <Alert variant="error">{formError}</Alert> : null}
-        <div className="flex flex-col gap-8">
-          <Label htmlFor="name">Name</Label>
-          <Input
-            aria-describedby={fieldErrors.name ? 'name-error' : undefined}
-            aria-invalid={fieldErrors.name ? true : undefined}
-            autoComplete="name"
-            id="name"
-            name="name"
-            onChange={(event) => setName(event.target.value)}
-            type="text"
-            value={name}
-          />
-          {fieldErrors.name ? (
-            <Text as="p" size="xs" className="text-tag-error-text" id="name-error">
-              {fieldErrors.name}
-            </Text>
-          ) : null}
-        </div>
-        <div className="flex flex-col gap-8">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            aria-describedby={fieldErrors.email ? 'email-error' : undefined}
-            aria-invalid={fieldErrors.email ? true : undefined}
-            autoComplete="email"
-            id="email"
-            name="email"
-            onChange={(event) =>
-              setAuthFormDraft((current) => ({...current, email: event.target.value}))
-            }
-            readOnly={isInvitationEmailLocked}
-            type="email"
-            value={email}
-            iconRight={
-              isInvitationEmailLocked ? (
-                <Icon
-                  aria-hidden="true"
-                  className="size-16 text-foreground-neutral-disabled"
-                  name="lockLine"
-                />
-              ) : undefined
-            }
-          />
-          {fieldErrors.email ? (
-            <Text as="p" size="xs" className="text-tag-error-text" id="email-error">
-              {fieldErrors.email}
-            </Text>
-          ) : null}
-        </div>
-        <div className="flex flex-col gap-8">
-          <Label htmlFor="password">Password</Label>
-          <Input
-            aria-describedby={fieldErrors.password ? 'password-error' : undefined}
-            aria-invalid={fieldErrors.password ? true : undefined}
-            autoComplete="new-password"
-            id="password"
-            name="password"
-            onChange={(event) =>
-              setAuthFormDraft((current) => ({...current, password: event.target.value}))
-            }
-            type="password"
-            value={password}
-          />
-          {fieldErrors.password ? (
-            <Text as="p" size="xs" className="text-tag-error-text" id="password-error">
-              {fieldErrors.password}
-            </Text>
-          ) : null}
-        </div>
+        <form.Field
+          name="name"
+          validators={{
+            onBlur: ({value}) =>
+              value.trim().length === 0 || value.length <= 255 ? undefined : 'Name is too long.',
+          }}
+        >
+          {(field) => (
+            <FormField label="Name" id="name" error={fieldError(field)}>
+              <FormFieldInput
+                autoComplete="name"
+                name="name"
+                type="text"
+                value={field.state.value}
+                onChange={(event) => field.handleChange(event.target.value)}
+                onBlur={field.handleBlur}
+              />
+            </FormField>
+          )}
+        </form.Field>
+        <form.Field
+          name="email"
+          validators={{
+            onBlur: signupBodySchema.shape.email,
+            onSubmit: signupBodySchema.shape.email,
+          }}
+        >
+          {(field) => (
+            <FormField label="Email" id="email" error={fieldError(field)}>
+              <FormFieldInput
+                autoComplete="email"
+                name="email"
+                type="email"
+                value={field.state.value}
+                onChange={(event) => field.handleChange(event.target.value)}
+                onBlur={() => {
+                  field.handleBlur();
+                  persistDraft();
+                }}
+                readOnly={isInvitationEmailLocked}
+                iconRight={
+                  isInvitationEmailLocked ? (
+                    <Icon
+                      aria-hidden="true"
+                      className="size-16 text-foreground-neutral-disabled"
+                      name="lockLine"
+                    />
+                  ) : undefined
+                }
+              />
+            </FormField>
+          )}
+        </form.Field>
+        <form.Field
+          name="password"
+          validators={{
+            onBlur: signupBodySchema.shape.password,
+            onSubmit: signupBodySchema.shape.password,
+          }}
+        >
+          {(field) => (
+            <FormField label="Password" id="password" error={fieldError(field)}>
+              <FormFieldInput
+                autoComplete="new-password"
+                name="password"
+                type="password"
+                value={field.state.value}
+                onChange={(event) => field.handleChange(event.target.value)}
+                onBlur={() => {
+                  field.handleBlur();
+                  persistDraft();
+                }}
+              />
+            </FormField>
+          )}
+        </form.Field>
         <Button className="w-full" isLoading={signup.isPending} type="submit">
           {signup.isPending ? 'Creating account...' : 'Create account'}
         </Button>
@@ -298,4 +344,19 @@ export function SignupPage() {
       </Text>
     </AuthShell>
   );
+}
+
+interface FieldLike {
+  state: {meta: {errors: Array<unknown>; isBlurred: boolean}};
+}
+
+function fieldError(field: FieldLike): string | undefined {
+  if (!field.state.meta.isBlurred && field.state.meta.errors.length === 0) return undefined;
+  const first = field.state.meta.errors[0];
+  if (!first) return undefined;
+  if (typeof first === 'string') return first;
+  if (typeof first === 'object' && first !== null && 'message' in first) {
+    return String((first as {message: unknown}).message);
+  }
+  return undefined;
 }
