@@ -22,11 +22,7 @@ export async function fireManualSubscription(
   if (subscription.source !== 'manual') {
     throw new TriggerSubscriptionNotManualError(params.subscriptionId, subscription.source);
   }
-  // The HTTP route already enforces `userContext.canAccess(subscription.workspaceId)`
-  // and passes the subscription's workspace id back in, so this branch is
-  // unreachable from the route. Kept for direct callers (tests, future
-  // internal callers); removing it would make the function trust its
-  // arguments more than it should.
+  // Defence in depth: unreachable from the HTTP route, but required for any direct caller.
   if (subscription.workspaceId !== params.callerWorkspaceId) {
     throw new TriggerWorkspaceMismatchError(
       params.subscriptionId,
@@ -45,9 +41,6 @@ export async function fireManualSubscription(
       subscriptionId: subscription.id,
       userId: params.userId,
     },
-    // Caller-supplied inputs win; the trigger's configured `with` is the
-    // fallback so YAML defaults still apply when the user fires the
-    // trigger with no body.
     inputs: params.inputs ?? readConfigInputs(subscription),
   });
 }

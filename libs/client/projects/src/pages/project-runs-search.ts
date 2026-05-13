@@ -4,10 +4,7 @@ import type {WorkflowRunFilters} from '#hooks/api/workflow-runs.js';
 const RUN_STATUSES: RunStatusDto[] = ['pending', 'running', 'succeeded', 'failed', 'cancelled'];
 const DATE_PRESETS = ['all', '24h', '7d', '30d'] as const;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-// Trigger source is open-ended text on the API side (any registered
-// integration source can land in workflow_runs.trigger_source). The URL
-// is sanitized to a single non-empty string; the picker offers values
-// observed in the aggregates response.
+// trigger_source is open-ended on the API; the URL sanitiser just keeps it well-formed.
 const TRIGGER_SOURCE_MAX_LENGTH = 64;
 const TRIGGER_SOURCE_RE = /^[a-z0-9][a-z0-9_-]*$/i;
 

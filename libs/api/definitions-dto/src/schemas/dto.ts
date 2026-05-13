@@ -30,12 +30,6 @@ export const definitionDtoSchema = z.object({
   ref: z.string().nullable(),
   name: z.string(),
   definition: z.record(z.string(), z.unknown()),
-  /**
-   * Present when the workflow declares a `source: manual` trigger. Carries
-   * the YAML map key so the UI can label the action (today the Run button,
-   * tomorrow a "Run with payload" dialog). At most one is allowed per
-   * workflow; see workflowSpecSchema.
-   */
   manual_trigger: z
     .object({
       name: z.string(),

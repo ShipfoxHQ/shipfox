@@ -201,10 +201,7 @@ function RunsFilterBar({
   onChange: (next: Partial<RunsSearchState>) => void;
   onRetryCounts: () => void;
 }) {
-  // The user's current selection has to remain selectable even when it
-  // is no longer in the aggregates bucket (e.g. the only run with that
-  // source fell outside the date window). Union the option set with the
-  // selected value so the picker can render it.
+  // Union with the current selection so a value filtered out of the aggregates window stays selectable.
   const triggerSources = Array.from(
     new Set([
       ...triggerSourceOptions.map((bucket) => bucket.value),

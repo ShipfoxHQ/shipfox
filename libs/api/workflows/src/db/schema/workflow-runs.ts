@@ -33,12 +33,7 @@ export const workflowRuns = pgTable(
     triggerEvent: text('trigger_event').notNull(),
     triggerPayload: jsonb('trigger_payload').notNull().$type<TriggerPayload>(),
     inputs: jsonb('inputs').$type<Record<string, unknown>>(),
-    // The outbox dispatcher only marks a row dispatched after every
-    // subscriber succeeds, so a sibling failure or a crash before
-    // `markDispatched` replays the event. Callers pass a stable token
-    // (e.g. `${subscriptionId}:${integrationEventId}`); the unique index
-    // makes the second insert a no-op. Postgres allows many NULLs in a
-    // UNIQUE index, so paths that pass no token are unconstrained.
+    // Idempotency token for at-least-once outbox replays. Unique when set; NULL is unconstrained (Postgres default).
     triggerIdempotencyKey: text('trigger_idempotency_key'),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),

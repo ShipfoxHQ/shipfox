@@ -108,17 +108,10 @@ export async function getTriggerSubscriptionById(
   return toTriggerSubscription(row);
 }
 
-/**
- * Find the manual trigger subscription for a workflow definition. Returns
- * undefined when the workflow has no manual trigger declared.
- *
- * The parser enforces "at most one manual trigger per definition", so this
- * lookup is point-in-time unambiguous. `limit(2)` is kept to fail loud if
- * that invariant is ever violated by a future migration or direct insert.
- */
 export async function getManualSubscriptionByDefinitionId(
   workflowDefinitionId: string,
 ): Promise<TriggerSubscription | undefined> {
+  // limit(2) catches a broken parser invariant (>1 manual per definition) loudly instead of silently picking one.
   const rows = await db()
     .select()
     .from(triggerSubscriptions)

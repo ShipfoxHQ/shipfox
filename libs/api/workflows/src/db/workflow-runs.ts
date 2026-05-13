@@ -57,10 +57,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
 
     const runRow = insertResult[0];
     if (!runRow) {
-      // ON CONFLICT DO NOTHING returns nothing on conflict, so a missing
-      // row only happens when an idempotency key was provided and matched
-      // an existing run. Re-fetch and short-circuit without re-emitting
-      // jobs/steps/outbox; the original write owns those side effects.
+      // Conflict path: skip jobs/steps/outbox so the first insert keeps ownership of side effects.
       if (!params.triggerIdempotencyKey) {
         throw new Error('Insert returned no rows');
       }

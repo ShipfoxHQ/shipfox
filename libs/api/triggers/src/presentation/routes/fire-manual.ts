@@ -9,19 +9,6 @@ import {ManualTriggerNotFoundError} from '#core/errors.js';
 import {fireManualSubscription} from '#core/fire-manual.js';
 import {getManualSubscriptionByDefinitionId} from '#db/subscriptions.js';
 
-/**
- * Fire the manual trigger declared by a workflow definition.
- *
- * The route is keyed by workflow definition id (not subscription id) so
- * the client can call it with the definition it already has on hand. The
- * parser enforces "at most one manual trigger per workflow", which makes
- * this lookup unambiguous.
- *
- * Returns 404 when the workspace cannot access the workflow *or* when the
- * workflow declares no manual trigger. The two cases are conflated on
- * purpose: leaking "workflow exists but you can't reach it" via the
- * payload-shaped error would be a small access-control leak.
- */
 export const fireManualTriggerRoute = defineRoute({
   method: 'POST',
   path: '/:definitionId/fire-manual',
@@ -46,6 +33,7 @@ export const fireManualTriggerRoute = defineRoute({
     const userContext = requireUserContext(request);
 
     const subscription = await getManualSubscriptionByDefinitionId(definitionId);
+    // 404 covers both "no such manual trigger" and "not your workspace" to avoid leaking existence.
     if (!subscription || !userContext.canAccess(subscription.workspaceId)) {
       throw new ManualTriggerNotFoundError(definitionId);
     }

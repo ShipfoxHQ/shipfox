@@ -2,13 +2,8 @@ import {z} from 'zod';
 import {jobSchema} from './job.js';
 import {triggerSchema} from './trigger.js';
 
-/**
- * A workflow may declare at most one `source: manual` trigger. The product
- * exposes "Run" as a single affordance per workflow; multiple manual
- * triggers would force the UI to disambiguate and have no behavioural
- * upside today. The invariant is enforced at parse time so the projection
- * never needs to handle the ambiguous case.
- */
+// At most one manual trigger: the UI renders a single Run affordance per
+// workflow and `getManualSubscriptionByDefinitionId` relies on uniqueness.
 export const workflowSpecSchema = z
   .object({
     name: z.string().min(1),
