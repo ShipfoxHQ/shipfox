@@ -1,6 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {index, integer, jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
-import type {TriggerContext, TriggerSource, WorkflowRun} from '#core/entities/workflow-run.js';
+import type {TriggerPayload, WorkflowRun} from '#core/entities/workflow-run.js';
 import {pgTable} from './common.js';
 
 export const workflowRunStatusEnum = pgEnum('workflows_run_status', [
@@ -9,12 +9,6 @@ export const workflowRunStatusEnum = pgEnum('workflows_run_status', [
   'succeeded',
   'failed',
   'cancelled',
-]);
-
-export const workflowRunTriggerSourceEnum = pgEnum('workflows_run_trigger_source', [
-  'manual',
-  'webhook',
-  'schedule',
 ]);
 
 export const workflowRuns = pgTable(
@@ -26,8 +20,9 @@ export const workflowRuns = pgTable(
     definitionId: uuid('definition_id').notNull(),
     name: text('name').notNull(),
     status: workflowRunStatusEnum('status').notNull().default('pending'),
-    triggerSource: workflowRunTriggerSourceEnum('trigger_source').notNull(),
-    triggerContext: jsonb('trigger_context').notNull().$type<TriggerContext>(),
+    triggerSource: text('trigger_source').notNull(),
+    triggerEvent: text('trigger_event').notNull(),
+    triggerPayload: jsonb('trigger_payload').notNull().$type<TriggerPayload>(),
     inputs: jsonb('inputs').$type<Record<string, unknown>>(),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
@@ -67,8 +62,9 @@ export function toWorkflowRun(row: WorkflowRunDb): WorkflowRun {
     definitionId: row.definitionId,
     name: row.name,
     status: row.status,
-    triggerSource: row.triggerSource as TriggerSource,
-    triggerContext: row.triggerContext as TriggerContext,
+    triggerSource: row.triggerSource,
+    triggerEvent: row.triggerEvent,
+    triggerPayload: row.triggerPayload as TriggerPayload,
     inputs: row.inputs ?? null,
     version: row.version,
     createdAt: row.createdAt,

@@ -49,14 +49,19 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec(),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       expect(run.id).toBeDefined();
       expect(run.projectId).toBe(projectId);
       expect(run.definitionId).toBe(definitionId);
       expect(run.status).toBe('pending');
-      expect(run.triggerContext).toEqual({type: 'manual'});
+      expect(run.triggerPayload).toMatchObject({source: 'manual', event: 'fire'});
       expect(run.inputs).toBeNull();
       expect(run.version).toBe(1);
       expect(run.createdAt).toBeInstanceOf(Date);
@@ -77,7 +82,12 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec(),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       const outboxRows = await db()
@@ -133,7 +143,12 @@ describe('workflow run queries', () => {
             test: {needs: 'build', steps: [{run: 'echo test'}]},
           },
         }),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       const runJobs = await getJobsByRunId(run.id);
@@ -148,7 +163,12 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec(),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       const runJobs = await getJobsByRunId(run.id);
@@ -168,7 +188,12 @@ describe('workflow run queries', () => {
             test: {needs: ['lint', 'build'], steps: [{run: 'echo test'}]},
           },
         }),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       const runJobs = await getJobsByRunId(run.id);
@@ -185,7 +210,12 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec({jobs: {}}),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       expect(run.id).toBeDefined();
@@ -205,7 +235,12 @@ describe('workflow run queries', () => {
             empty: {steps: []},
           },
         }),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       const runJobs = await getJobsByRunId(run.id);
@@ -228,7 +263,12 @@ describe('workflow run queries', () => {
             },
           },
         }),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       const runJobs = await getJobsByRunId(run.id);
@@ -248,7 +288,12 @@ describe('workflow run queries', () => {
             build: {steps: [{run: 'make build'}]},
           },
         }),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       const runJobs = await getJobsByRunId(run.id);
@@ -264,7 +309,12 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec(),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
         inputs: {env: 'staging', verbose: true},
       });
 
@@ -279,7 +329,12 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec(),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       const found = await getWorkflowRunById(created.id);
@@ -303,14 +358,24 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec({name: 'First'}),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
       await createWorkflowRun({
         workspaceId,
         projectId,
         definitionId,
         definition: spec({name: 'Second'}),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       const runs = await listWorkflowRunsByProject(projectId);
@@ -340,7 +405,12 @@ describe('workflow run queries', () => {
             build: {steps: [{run: 'build'}]},
           },
         }),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       const runJobs = await getJobsByRunId(run.id);
@@ -364,7 +434,12 @@ describe('workflow run queries', () => {
             },
           },
         }),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       const runJobs = await getJobsByRunId(run.id);
@@ -384,7 +459,12 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec(),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       const updated = await updateWorkflowRunStatus({
@@ -403,7 +483,12 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec(),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
 
       await expect(
@@ -429,7 +514,12 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec(),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
       const runJobs = await getJobsByRunId(run.id);
       const job = runJobs[0];
@@ -451,7 +541,12 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec(),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
       const runJobs = await getJobsByRunId(run.id);
 
@@ -476,7 +571,12 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec(),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
       const runJobs = await getJobsByRunId(run.id);
       const job = runJobs[0];
@@ -503,7 +603,12 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec(),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
       const runJobs = await getJobsByRunId(run.id);
       const job = runJobs[0];
@@ -532,7 +637,12 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec(),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
       const runJobs = await getJobsByRunId(run.id);
       const job = runJobs[0];
@@ -564,7 +674,12 @@ describe('workflow run queries', () => {
             build: {steps: [{run: 'step1'}, {run: 'step2'}, {run: 'step3'}]},
           },
         }),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
       const runJobs = await getJobsByRunId(run.id);
 
@@ -584,7 +699,12 @@ describe('workflow run queries', () => {
         projectId,
         definitionId,
         definition: spec({jobs: {build: {steps: [{run: 'a'}, {run: 'b'}]}}}),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
       const runJobs = await getJobsByRunId(run.id);
       const jobId = runJobs[0]?.id ?? '';
@@ -616,7 +736,12 @@ describe('workflow run queries', () => {
             },
           },
         }),
-        triggerContext: {type: 'manual'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
       });
       const runJobs = await getJobsByRunId(run.id);
       const jobId = runJobs[0]?.id ?? '';

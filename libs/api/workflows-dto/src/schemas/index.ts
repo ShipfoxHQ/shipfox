@@ -16,8 +16,6 @@ export {
   runListResponseSchema,
   runResponseSchema,
   runStatusSchema,
-  type TriggerSourceDto,
-  triggerSourceSchema,
 } from './run.js';
 export {
   type StepDto,

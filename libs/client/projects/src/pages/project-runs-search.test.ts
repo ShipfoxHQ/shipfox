@@ -48,7 +48,7 @@ describe('project runs search helpers', () => {
     const search: RunsSearchState = {
       status: 'failed',
       definitionId: DEFINITION_ID,
-      triggerSource: 'schedule',
+      triggerSource: 'cron',
       date: '24h',
     };
 
@@ -57,7 +57,7 @@ describe('project runs search helpers', () => {
     expect(result).toEqual({
       status: 'failed',
       definition_id: DEFINITION_ID,
-      trigger_source: 'schedule',
+      trigger_source: 'cron',
       date: '24h',
     });
   });

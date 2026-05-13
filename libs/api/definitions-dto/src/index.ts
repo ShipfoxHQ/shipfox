@@ -21,8 +21,10 @@ export {
   workflowSpecSchema,
 } from '#schemas/index.js';
 export {
+  DEFINITION_DELETED,
   DEFINITION_INVALID,
   DEFINITION_RESOLVED,
+  type DefinitionDeletedEvent,
   type DefinitionInvalidEvent,
   type DefinitionResolvedEvent,
   type DefinitionsEventMap,

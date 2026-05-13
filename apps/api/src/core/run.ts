@@ -4,6 +4,7 @@ import {dispatcherModule} from '@shipfox/api-dispatcher';
 import {createIntegrationsContext} from '@shipfox/api-integration-core';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {runnersModule} from '@shipfox/api-runners';
+import {triggersModule} from '@shipfox/api-triggers';
 import {workflowsModule} from '@shipfox/api-workflows';
 import {workspacesModule} from '@shipfox/api-workspaces';
 import {createApp, listen} from '@shipfox/node-fastify';
@@ -39,6 +40,7 @@ export async function run(): Promise<void> {
       definitionsModule,
       workflowsModule,
       runnersModule,
+      triggersModule,
       dispatcherModule,
     ],
   });

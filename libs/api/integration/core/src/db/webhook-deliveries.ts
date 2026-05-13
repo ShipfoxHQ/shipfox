@@ -1,6 +1,6 @@
 import {
-  INTEGRATION_REPOSITORY_PUSHED,
-  type IntegrationRepositoryPushedEvent,
+  INTEGRATION_EVENT_RECEIVED,
+  type IntegrationEventReceivedEvent,
 } from '@shipfox/api-integration-core-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {lt} from 'drizzle-orm';
@@ -12,22 +12,22 @@ type IntegrationDb = ReturnType<typeof db>;
 type IntegrationTx = Parameters<Parameters<IntegrationDb['transaction']>[0]>[0];
 type Executor = IntegrationDb | IntegrationTx;
 
-export interface PublishRepositoryPushedParams {
+export interface PublishIntegrationEventReceivedParams {
   tx: Executor;
-  event: IntegrationRepositoryPushedEvent;
+  event: IntegrationEventReceivedEvent;
 }
 
-export interface PublishRepositoryPushedResult {
+export interface PublishIntegrationEventReceivedResult {
   published: boolean;
 }
 
-export async function publishRepositoryPushed(
-  params: PublishRepositoryPushedParams,
-): Promise<PublishRepositoryPushedResult> {
+export async function publishIntegrationEventReceived(
+  params: PublishIntegrationEventReceivedParams,
+): Promise<PublishIntegrationEventReceivedResult> {
   const inserted = await params.tx
     .insert(integrationsWebhookDeliveries)
     .values({
-      provider: params.event.provider,
+      provider: params.event.source,
       deliveryId: params.event.deliveryId,
     })
     .onConflictDoNothing({
@@ -38,7 +38,7 @@ export async function publishRepositoryPushed(
   if (inserted.length === 0) return {published: false};
 
   await writeOutboxEvent(params.tx, integrationsOutbox, {
-    type: INTEGRATION_REPOSITORY_PUSHED,
+    type: INTEGRATION_EVENT_RECEIVED,
     payload: params.event,
   });
 
@@ -76,5 +76,5 @@ export async function pruneWebhookDeliveries(
   return {deleted: result.rowCount ?? 0};
 }
 
-export type PublishRepositoryPushedFn = typeof publishRepositoryPushed;
+export type PublishIntegrationEventReceivedFn = typeof publishIntegrationEventReceived;
 export type RecordDeliveryOnlyFn = typeof recordDeliveryOnly;

@@ -17,7 +17,10 @@ describe('parseDefinition', () => {
     const spec = parseDefinition(yaml);
 
     expect(spec.name).toBe('Simple build');
-    expect(spec.triggers?.on_push?.type).toBe('github.push');
+    expect(spec.triggers?.on_push?.source).toBe('github');
+    expect(spec.triggers?.on_push?.event).toBe('push');
+    expect(spec.triggers?.on_demand?.source).toBe('manual');
+    expect(spec.triggers?.on_demand?.event).toBe('fire');
     expect(spec.jobs.build?.steps).toHaveLength(2);
     expect(spec.jobs.build?.steps?.[0]?.run).toBe('npm install');
   });

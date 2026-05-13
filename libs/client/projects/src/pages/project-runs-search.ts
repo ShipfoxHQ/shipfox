@@ -1,8 +1,9 @@
-import type {RunStatusDto, TriggerSourceDto} from '@shipfox/api-workflows-dto';
+import type {RunStatusDto} from '@shipfox/api-workflows-dto';
 import type {WorkflowRunFilters} from '#hooks/api/workflow-runs.js';
 
 const RUN_STATUSES: RunStatusDto[] = ['pending', 'running', 'succeeded', 'failed', 'cancelled'];
-const TRIGGER_SOURCES: TriggerSourceDto[] = ['manual', 'webhook', 'schedule'];
+const TRIGGER_SOURCES = ['manual', 'github', 'cron'] as const;
+type TriggerSourceFilter = (typeof TRIGGER_SOURCES)[number];
 const DATE_PRESETS = ['all', '24h', '7d', '30d'] as const;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -11,7 +12,7 @@ export type DatePreset = (typeof DATE_PRESETS)[number];
 export interface RunsSearchState {
   status?: RunStatusDto | undefined;
   definitionId?: string | undefined;
-  triggerSource?: TriggerSourceDto | undefined;
+  triggerSource?: TriggerSourceFilter | undefined;
   date: DatePreset;
 }
 
@@ -26,8 +27,8 @@ export function sanitizeRunsSearch(search: Record<string, unknown>): RunsSearchS
       : undefined;
   const triggerSource =
     typeof search.trigger_source === 'string' &&
-    TRIGGER_SOURCES.includes(search.trigger_source as TriggerSourceDto)
-      ? (search.trigger_source as TriggerSourceDto)
+    TRIGGER_SOURCES.includes(search.trigger_source as TriggerSourceFilter)
+      ? (search.trigger_source as TriggerSourceFilter)
       : undefined;
   const date =
     typeof search.date === 'string' && DATE_PRESETS.includes(search.date as DatePreset)

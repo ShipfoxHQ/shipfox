@@ -24,7 +24,7 @@ describe('createWorkflowRun', () => {
           project_id: '44444444-4444-4444-8444-444444444444',
           definition_id: '55555555-5555-4555-8555-555555555555',
           status: 'pending',
-          trigger_context: {type: 'manual'},
+          trigger_payload: {source: 'manual', event: 'fire'},
           inputs: null,
           created_at: '2026-05-07T01:01:00.000Z',
           updated_at: '2026-05-07T01:01:00.000Z',

@@ -17,7 +17,7 @@ import {getIntegrationConnectionById, upsertIntegrationConnection} from '#db/con
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
-import {publishRepositoryPushed, recordDeliveryOnly} from '#db/webhook-deliveries.js';
+import {publishIntegrationEventReceived, recordDeliveryOnly} from '#db/webhook-deliveries.js';
 import {createIntegrationRoutes} from '#presentation/routes/index.js';
 import {createIntegrationsMaintenanceActivities} from '#temporal/activities/index.js';
 import {INTEGRATIONS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
@@ -69,9 +69,9 @@ export type {IntegrationSourceControlService} from '#core/source-control-service
 export {createSourceControlIntegrationService} from '#core/source-control-service.js';
 export type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
 export type {
-  PublishRepositoryPushedFn,
-  PublishRepositoryPushedParams,
-  PublishRepositoryPushedResult,
+  PublishIntegrationEventReceivedFn,
+  PublishIntegrationEventReceivedParams,
+  PublishIntegrationEventReceivedResult,
   RecordDeliveryOnlyFn,
   RecordDeliveryOnlyParams,
 } from '#db/webhook-deliveries.js';
@@ -145,7 +145,7 @@ async function loadGithubModuleParts(): Promise<GithubModuleParts> {
     provider: createGithubIntegrationProvider({
       getExistingGithubConnection,
       connectGithubInstallation,
-      publishRepositoryPushed,
+      publishIntegrationEventReceived,
       recordDeliveryOnly,
       getIntegrationConnectionById,
       coreDb: db,

@@ -8,12 +8,7 @@ import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, asc, count, desc, eq, gte, inArray, lt, lte, or, type SQL, sql} from 'drizzle-orm';
 import type {Job, JobStatus} from '#core/entities/job.js';
 import type {Step, StepStatus} from '#core/entities/step.js';
-import type {
-  TriggerContext,
-  TriggerSource,
-  WorkflowRun,
-  WorkflowRunStatus,
-} from '#core/entities/workflow-run.js';
+import type {TriggerPayload, WorkflowRun, WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {db} from './db.js';
 import {jobs, toJob} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
@@ -26,8 +21,7 @@ export interface CreateWorkflowRunParams {
   definitionId: string;
   name?: string | undefined;
   definition: WorkflowSpec;
-  triggerSource?: TriggerSource | undefined;
-  triggerContext: TriggerContext;
+  triggerPayload: TriggerPayload;
   inputs?: Record<string, unknown> | undefined;
 }
 
@@ -51,8 +45,9 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         definitionId: params.definitionId,
         name: params.name ?? params.definition.name,
         status: 'pending',
-        triggerSource: params.triggerSource ?? 'manual',
-        triggerContext: params.triggerContext,
+        triggerSource: params.triggerPayload.source,
+        triggerEvent: params.triggerPayload.event,
+        triggerPayload: params.triggerPayload,
         inputs: params.inputs ?? null,
       })
       .returning();
@@ -126,7 +121,7 @@ export interface WorkflowRunCursor {
 export interface WorkflowRunFilters {
   status?: WorkflowRunStatus | undefined;
   definitionId?: string | undefined;
-  triggerSource?: TriggerSource | undefined;
+  triggerSource?: string | undefined;
   createdFrom?: Date | undefined;
   createdTo?: Date | undefined;
 }
@@ -223,7 +218,7 @@ export async function listWorkflowRunsByProject(projectId: string): Promise<Work
 
 export interface WorkflowRunAggregates {
   status: Array<{value: WorkflowRunStatus; count: number}>;
-  triggerSource: Array<{value: TriggerSource; count: number}>;
+  triggerSource: Array<{value: string; count: number}>;
   workflow: Array<{value: string; count: number}>;
 }
 

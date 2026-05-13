@@ -81,7 +81,12 @@ describe('GET /api/workflows/runs/:id', () => {
           build: {steps: [{name: 'Install', run: 'npm install'}, {run: 'npm build'}]},
         },
       },
-      triggerContext: {type: 'manual'},
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
     });
 
     const res = await app.inject({
@@ -111,7 +116,12 @@ describe('GET /api/workflows/runs/:id', () => {
         name: 'Test',
         jobs: {build: {steps: [{run: 'a'}, {run: 'b'}, {run: 'c'}]}},
       },
-      triggerContext: {type: 'manual'},
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
     });
 
     const runJobs = await getJobsByRunId(run.id);
@@ -169,7 +179,12 @@ describe('GET /api/workflows/runs/:id', () => {
       projectId: crypto.randomUUID(),
       definitionId: crypto.randomUUID(),
       definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
-      triggerContext: {type: 'manual'},
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
     });
     mockRequireProjectAccess.mockRejectedValueOnce(
       new ClientError('Not a member of this workspace', 'forbidden', {status: 403}),
@@ -190,7 +205,12 @@ describe('GET /api/workflows/runs/:id', () => {
       projectId: crypto.randomUUID(),
       definitionId: crypto.randomUUID(),
       definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
-      triggerContext: {type: 'manual'},
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
     });
     mockRequireProjectAccess.mockRejectedValueOnce(new Error('database connection lost'));
 

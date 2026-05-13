@@ -110,6 +110,7 @@ function createFetchAndApplyActivity(sourceControl: IntegrationSourceControlServ
 
       return await applyVcsDefinitionsBatch({
         projectId: input.projectId,
+        workspaceId: input.workspaceId,
         ref: input.sourceRef,
         upserts: definitions.map((entry) => ({
           configPath: entry.path,

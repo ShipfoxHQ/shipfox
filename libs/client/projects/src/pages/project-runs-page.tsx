@@ -1,4 +1,4 @@
-import type {RunDto, RunStatusDto, TriggerSourceDto} from '@shipfox/api-workflows-dto';
+import type {RunDto, RunStatusDto} from '@shipfox/api-workflows-dto';
 import {
   Alert,
   Button,
@@ -31,7 +31,7 @@ import {
   toWorkflowRunFilters,
 } from './project-runs-search.js';
 
-const TRIGGER_SOURCES: TriggerSourceDto[] = ['manual', 'webhook', 'schedule'];
+const TRIGGER_SOURCES: ('manual' | 'github' | 'cron')[] = ['manual', 'github', 'cron'];
 
 export function ProjectRunsPage({projectId}: {projectId: string}) {
   return (
@@ -221,7 +221,9 @@ function RunsFilterBar({
         <Select
           value={searchState.triggerSource ?? 'all'}
           onValueChange={(value) =>
-            onChange({triggerSource: value === 'all' ? undefined : (value as TriggerSourceDto)})
+            onChange({
+              triggerSource: value === 'all' ? undefined : (value as 'manual' | 'github' | 'cron'),
+            })
           }
         >
           <SelectTrigger size="small" aria-label="Trigger filter">

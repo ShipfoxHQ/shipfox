@@ -5,7 +5,6 @@ import type {
   RunListResponseDto,
   RunResponseDto,
   RunStatusDto,
-  TriggerSourceDto,
 } from '@shipfox/api-workflows-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {
@@ -20,7 +19,7 @@ import {
 export interface WorkflowRunFilters {
   status?: RunStatusDto | undefined;
   definitionId?: string | undefined;
-  triggerSource?: TriggerSourceDto | undefined;
+  triggerSource?: string | undefined;
   createdFrom?: string | undefined;
   createdTo?: string | undefined;
 }
@@ -208,7 +207,8 @@ function buildTempRun({
     name,
     status: 'pending',
     trigger_source: 'manual',
-    trigger_context: {},
+    trigger_event: 'fire',
+    trigger_payload: {source: 'manual', event: 'fire'},
     inputs: null,
     created_at: createdAt,
     updated_at: createdAt,
@@ -299,7 +299,7 @@ function readFiltersFromKey(queryKey: readonly unknown[]): WorkflowRunFilters | 
   return {
     status: (obj.status as RunStatusDto | null) ?? undefined,
     definitionId: (obj.definitionId as string | null) ?? undefined,
-    triggerSource: (obj.triggerSource as TriggerSourceDto | null) ?? undefined,
+    triggerSource: (obj.triggerSource as string | null) ?? undefined,
     createdFrom: (obj.createdFrom as string | null) ?? undefined,
     createdTo: (obj.createdTo as string | null) ?? undefined,
   };

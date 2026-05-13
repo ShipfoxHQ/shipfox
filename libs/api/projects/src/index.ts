@@ -1,11 +1,11 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
-import {INTEGRATION_REPOSITORY_PUSHED} from '@shipfox/api-integration-core-dto';
+import {INTEGRATION_EVENT_RECEIVED} from '@shipfox/api-integration-core-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath, projectsOutbox} from '#db/index.js';
 import {createProjectRoutes} from '#presentation/index.js';
-import {onIntegrationRepositoryPushed} from '#presentation/subscribers/index.js';
+import {onIntegrationEventReceived} from '#presentation/subscribers/index.js';
 import {createProjectsMaintenanceActivities} from '#temporal/activities/index.js';
 import {PROJECTS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 
@@ -19,10 +19,12 @@ export {
   ProjectAlreadyExistsError,
   ProjectNotFoundError,
 } from '#core/index.js';
+export type {GetProjectBySourceParams} from '#db/index.js';
 export {
   createProject,
   db,
   getProjectById,
+  getProjectBySource,
   listProjects,
   migrationsPath,
   projectsOutbox,
@@ -40,7 +42,7 @@ export function createProjectsModule({sourceControl}: CreateProjectsModuleOption
     database: {db, migrationsPath},
     routes: createProjectRoutes(sourceControl),
     publishers: [{name: 'projects', table: projectsOutbox, db}],
-    subscribers: [{event: INTEGRATION_REPOSITORY_PUSHED, handler: onIntegrationRepositoryPushed}],
+    subscribers: [{event: INTEGRATION_EVENT_RECEIVED, handler: onIntegrationEventReceived}],
     workers: [
       {
         taskQueue: PROJECTS_MAINTENANCE_TASK_QUEUE,

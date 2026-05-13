@@ -1,7 +1,6 @@
 CREATE TYPE "public"."workflows_job_status" AS ENUM('pending', 'waiting_for_dependencies', 'ready', 'running', 'succeeded', 'failed', 'cancelled', 'awaiting_manual');--> statement-breakpoint
 CREATE TYPE "public"."workflows_step_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."workflows_run_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."workflows_run_trigger_source" AS ENUM('manual', 'webhook', 'schedule');--> statement-breakpoint
 CREATE TABLE "workflows_jobs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"run_id" uuid NOT NULL,
@@ -46,8 +45,9 @@ CREATE TABLE "workflows_workflow_runs" (
 	"definition_id" uuid NOT NULL,
 	"name" text NOT NULL,
 	"status" "workflows_run_status" DEFAULT 'pending' NOT NULL,
-	"trigger_source" "workflows_run_trigger_source" NOT NULL,
-	"trigger_context" jsonb NOT NULL,
+	"trigger_source" text NOT NULL,
+	"trigger_event" text NOT NULL,
+	"trigger_payload" jsonb NOT NULL,
 	"inputs" jsonb,
 	"version" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,

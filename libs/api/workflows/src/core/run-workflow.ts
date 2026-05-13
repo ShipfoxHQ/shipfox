@@ -1,12 +1,13 @@
 import {getDefinitionById} from '@shipfox/api-definitions';
 import {createWorkflowRun} from '#db/workflow-runs.js';
-import type {WorkflowRun} from './entities/workflow-run.js';
+import type {TriggerPayload, WorkflowRun} from './entities/workflow-run.js';
 import {DefinitionNotFoundError, ProjectMismatchError} from './errors.js';
 
 export interface RunWorkflowParams {
   workspaceId: string;
   projectId: string;
   definitionId: string;
+  triggerPayload: TriggerPayload;
   inputs?: Record<string, unknown> | undefined;
 }
 
@@ -24,8 +25,7 @@ export async function runWorkflow(params: RunWorkflowParams): Promise<WorkflowRu
     definitionId: definition.id,
     name: definition.name,
     definition: definition.definition,
-    triggerSource: 'manual',
-    triggerContext: {},
+    triggerPayload: params.triggerPayload,
     inputs: params.inputs,
   });
 }

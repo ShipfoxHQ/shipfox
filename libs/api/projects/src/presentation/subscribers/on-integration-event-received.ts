@@ -1,4 +1,7 @@
-import type {IntegrationRepositoryPushedEvent} from '@shipfox/api-integration-core-dto';
+import type {
+  GithubPushPayload,
+  IntegrationEventReceivedEvent,
+} from '@shipfox/api-integration-core-dto';
 import {PROJECT_SOURCE_COMMIT_OBSERVED} from '@shipfox/api-projects-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {type DomainEvent, writeOutboxEvent} from '@shipfox/node-outbox';
@@ -7,26 +10,34 @@ import {recordIntegrationEventForProject} from '#db/integration-event-dedup.js';
 import {getProjectBySource} from '#db/projects.js';
 import {projectsOutbox} from '#db/schema/outbox.js';
 
-export async function onIntegrationRepositoryPushed(event: DomainEvent): Promise<void> {
-  const payload = event.payload as IntegrationRepositoryPushedEvent;
+const GITHUB_SOURCE = 'github';
+const PUSH_EVENT = 'push';
 
-  if (!payload.isDefaultBranch) {
+export async function onIntegrationEventReceived(event: DomainEvent): Promise<void> {
+  const envelope = event.payload as IntegrationEventReceivedEvent;
+
+  if (envelope.source !== GITHUB_SOURCE || envelope.event !== PUSH_EVENT) {
+    return;
+  }
+
+  const pushPayload = envelope.payload as GithubPushPayload;
+  if (!pushPayload.isDefaultBranch) {
     return;
   }
 
   const project = await getProjectBySource({
-    workspaceId: payload.workspaceId,
-    sourceConnectionId: payload.connectionId,
-    sourceExternalRepositoryId: payload.externalRepositoryId,
+    workspaceId: envelope.workspaceId,
+    sourceConnectionId: envelope.connectionId,
+    sourceExternalRepositoryId: pushPayload.externalRepositoryId,
   });
   if (!project) {
     logger().info(
       {
         eventId: event.id,
-        connectionId: payload.connectionId,
-        externalRepositoryId: payload.externalRepositoryId,
+        connectionId: envelope.connectionId,
+        externalRepositoryId: pushPayload.externalRepositoryId,
       },
-      'integration push: no project bound to source, dropping',
+      'integration event received: no project bound to source, dropping',
     );
     return;
   }
@@ -45,10 +56,10 @@ export async function onIntegrationRepositoryPushed(event: DomainEvent): Promise
         workspaceId: project.workspaceId,
         projectId: project.id,
         sourceConnectionId: project.sourceConnectionId,
-        provider: payload.provider,
-        externalRepositoryId: payload.externalRepositoryId,
-        ref: payload.ref,
-        headCommitSha: payload.headCommitSha,
+        provider: envelope.source,
+        externalRepositoryId: pushPayload.externalRepositoryId,
+        ref: pushPayload.ref,
+        headCommitSha: pushPayload.headCommitSha,
       },
     });
   });

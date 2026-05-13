@@ -21,8 +21,6 @@ export {
   type StepErrorDtoShape,
   stepDtoSchema,
   stepErrorDtoSchema,
-  type TriggerSourceDto,
-  triggerSourceSchema,
 } from '#schemas/index.js';
 export {
   WORKFLOW_RUN_CREATED,

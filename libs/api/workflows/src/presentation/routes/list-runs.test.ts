@@ -58,8 +58,12 @@ describe('GET /api/workflows/runs', () => {
       definitionId: crypto.randomUUID(),
       name: 'Test',
       definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
-      triggerSource: 'manual',
-      triggerContext: {type: 'manual'},
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
     });
     await createWorkflowRun({
       workspaceId,
@@ -67,8 +71,12 @@ describe('GET /api/workflows/runs', () => {
       definitionId: crypto.randomUUID(),
       name: 'Test 2',
       definition: {name: 'Test 2', jobs: {build: {steps: [{run: 'echo'}]}}},
-      triggerSource: 'manual',
-      triggerContext: {type: 'manual'},
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
     });
 
     const res = await app.inject({
@@ -105,8 +113,12 @@ describe('GET /api/workflows/runs', () => {
       definitionId: crypto.randomUUID(),
       name: 'Deploy',
       definition: {name: 'Deploy', jobs: {build: {steps: [{run: 'echo'}]}}},
-      triggerSource: 'manual',
-      triggerContext: {},
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
     });
     await updateWorkflowRunStatus({
       runId: succeeded.id,
@@ -119,8 +131,7 @@ describe('GET /api/workflows/runs', () => {
       definitionId: crypto.randomUUID(),
       name: 'Nightly',
       definition: {name: 'Nightly', jobs: {build: {steps: [{run: 'echo'}]}}},
-      triggerSource: 'schedule',
-      triggerContext: {scheduleId: 'nightly'},
+      triggerPayload: {source: 'cron', event: 'tick', scheduleId: 'nightly'},
     });
 
     const res = await app.inject({
@@ -213,8 +224,12 @@ async function createRunAt({
     definitionId: crypto.randomUUID(),
     name,
     definition: {name, jobs: {build: {steps: [{run: 'echo'}]}}},
-    triggerSource: 'manual',
-    triggerContext: {},
+    triggerPayload: {
+      source: 'manual',
+      event: 'fire',
+      subscriptionId: crypto.randomUUID(),
+      userId: crypto.randomUUID(),
+    },
   });
 
   await db()
