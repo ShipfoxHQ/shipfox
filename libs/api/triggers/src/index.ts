@@ -12,6 +12,7 @@ import {
 export type {TriggerSubscription} from '#core/entities/subscription.js';
 export {
   fireManualSubscription,
+  ManualTriggerNotFoundError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
   TriggerWorkspaceMismatchError,
@@ -19,6 +20,7 @@ export {
 export {
   db,
   findMatchingSubscriptions,
+  getManualSubscriptionByDefinitionId,
   getTriggerSubscriptionById,
   listSubscriptionsByWorkflowDefinitionIds,
   migrationsPath,

@@ -26,7 +26,7 @@ await listen();
 This adds:
 
 - triggers database migrations from `libs/api/triggers/drizzle`
-- the `POST /trigger-subscriptions/:id/fire` route
+- the `POST /workflow-definitions/:definitionId/fire-manual` route
 - subscribers for `DEFINITION_RESOLVED`, `DEFINITION_DELETED`, and
   `INTEGRATION_EVENT_RECEIVED`
 - the `triggers` outbox publisher
@@ -37,7 +37,6 @@ A workflow YAML opts into triggers like this:
 triggers:
   on_demand:
     source: manual
-    event: fire
   on_push:
     source: github
     event: push
@@ -45,7 +44,10 @@ triggers:
 ```
 
 Each map key is the trigger's `name`. A workflow may declare any number of
-triggers. Firing any of them creates one workflow run.
+integration triggers and at most one `source: manual` trigger; the manual
+invariant is enforced at parse time so the fire route stays unambiguous.
+The `event` field is optional when `source: manual` and defaults to
+`fire`.
 
 ## Setup
 
@@ -69,15 +71,18 @@ on the API database connection from `@shipfox/node-postgres`.
 
 ## Routes
 
-The route is mounted by the host app under the `/trigger-subscriptions`
+The route is mounted by the host app under the `/workflow-definitions`
 prefix.
 
 | Method | Path | Auth | Result |
 | --- | --- | --- | --- |
-| `POST` | `/:id/fire` | bearer token | Fires a manual subscription and returns the new `run_id`. |
+| `POST` | `/:definitionId/fire-manual` | bearer token | Fires the workflow's manual trigger and returns the new `run_id`. Optional `inputs` in the body are forwarded to the run. |
 
-The route only accepts subscriptions whose `source` is `manual`. Other
-sources fire through the event bus, not HTTP.
+The route is keyed by workflow definition id, not subscription id. The
+server resolves the manual subscription for the workflow internally; the
+"at most one manual trigger per workflow" invariant from the parser keeps
+that lookup unambiguous. Integration sources (github, etc.) fire through
+the event bus and have no HTTP entry point.
 
 ## Vocabulary
 
@@ -128,7 +133,7 @@ table is the immutable history.
                 └──────────────────────────┬──────────────────────────┘
                                            │
 INTEGRATION_EVENT_RECEIVED → match on (workspace, project, source, event)
-or POST /trigger-subscriptions/:id/fire → look up subscription
+or POST /workflow-definitions/:definitionId/fire-manual → look up manual subscription
                                            │
                                            ▼
                 ┌─────────────────────────────────────────────────────┐
@@ -189,8 +194,13 @@ It also exports lower-level pieces for tests and advanced wiring:
   `TriggerSubscriptionNotFoundError`,
   `TriggerSubscriptionNotManualError`, or
   `TriggerWorkspaceMismatchError`.
+- `ManualTriggerNotFoundError`: thrown by the route handler when the
+  caller's workspace cannot reach the workflow, or the workflow declares
+  no manual trigger. Surfaced as `404 manual-trigger-not-found`.
 - `findMatchingSubscriptions()`: hot-path lookup by
   `(workspace_id, project_id, source, event)`.
+- `getManualSubscriptionByDefinitionId()`: resolves the single manual
+  subscription for a workflow definition (or `undefined` if none).
 - `getTriggerSubscriptionById()` and
   `listSubscriptionsByWorkflowDefinitionIds()`: read helpers.
 - `db`, `migrationsPath`, and `triggersOutbox`: the Drizzle handle,

@@ -1,7 +1,5 @@
 export {type JobDto, jobDtoSchema} from './job.js';
 export {
-  type CreateRunBodyDto,
-  createRunBodySchema,
   type RunAggregatesQueryDto,
   type RunAggregatesResponseDto,
   type RunDto,

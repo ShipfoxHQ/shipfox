@@ -4,6 +4,7 @@ import {triggerSubscriptions} from './schema/subscriptions.js';
 import {
   deleteSubscriptionsForDefinition,
   findMatchingSubscriptions,
+  getManualSubscriptionByDefinitionId,
   getTriggerSubscriptionById,
   projectDefinitionTriggers,
 } from './subscriptions.js';
@@ -239,6 +240,46 @@ describe('getTriggerSubscriptionById', () => {
 
   test('returns undefined when not found', async () => {
     const found = await getTriggerSubscriptionById(crypto.randomUUID());
+
+    expect(found).toBeUndefined();
+  });
+});
+
+describe('getManualSubscriptionByDefinitionId', () => {
+  test('returns the manual subscription declared by a definition', async () => {
+    const workflowDefinitionId = crypto.randomUUID();
+    await projectDefinitionTriggers({
+      workspaceId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      workflowDefinitionId,
+      triggers: {
+        on_demand: {source: 'manual', event: 'fire'},
+        on_push: {source: 'github', event: 'push'},
+      },
+    });
+
+    const found = await getManualSubscriptionByDefinitionId(workflowDefinitionId);
+
+    expect(found?.source).toBe('manual');
+    expect(found?.name).toBe('on_demand');
+  });
+
+  test('returns undefined when the definition has no manual trigger', async () => {
+    const workflowDefinitionId = crypto.randomUUID();
+    await projectDefinitionTriggers({
+      workspaceId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      workflowDefinitionId,
+      triggers: {on_push: {source: 'github', event: 'push'}},
+    });
+
+    const found = await getManualSubscriptionByDefinitionId(workflowDefinitionId);
+
+    expect(found).toBeUndefined();
+  });
+
+  test('returns undefined when no rows exist for the definition', async () => {
+    const found = await getManualSubscriptionByDefinitionId(crypto.randomUUID());
 
     expect(found).toBeUndefined();
   });

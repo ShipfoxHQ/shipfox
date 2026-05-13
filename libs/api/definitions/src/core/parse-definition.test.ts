@@ -70,4 +70,36 @@ describe('parseDefinition', () => {
 
     expect(() => parseDefinition(yaml)).toThrow(DefinitionParseError);
   });
+
+  test('manual trigger defaults event to "fire" when omitted', () => {
+    const yaml = `name: Manual only
+triggers:
+  on_demand:
+    source: manual
+jobs:
+  run:
+    steps:
+      - run: echo hello
+`;
+
+    const spec = parseDefinition(yaml);
+
+    expect(spec.triggers?.on_demand?.event).toBe('fire');
+  });
+
+  test('declaring more than one manual trigger throws DefinitionParseError', () => {
+    const yaml = `name: Multi manual
+triggers:
+  deploy:
+    source: manual
+  rollback:
+    source: manual
+jobs:
+  run:
+    steps:
+      - run: echo hello
+`;
+
+    expect(() => parseDefinition(yaml)).toThrow(DefinitionParseError);
+  });
 });

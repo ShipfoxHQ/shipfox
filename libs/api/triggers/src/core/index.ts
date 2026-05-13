@@ -1,5 +1,6 @@
 export type {TriggerSubscription} from './entities/subscription.js';
 export {
+  ManualTriggerNotFoundError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
   TriggerWorkspaceMismatchError,

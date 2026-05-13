@@ -108,6 +108,37 @@ export async function getTriggerSubscriptionById(
   return toTriggerSubscription(row);
 }
 
+/**
+ * Find the manual trigger subscription for a workflow definition. Returns
+ * undefined when the workflow has no manual trigger declared.
+ *
+ * The parser enforces "at most one manual trigger per definition", so this
+ * lookup is point-in-time unambiguous. `limit(2)` is kept to fail loud if
+ * that invariant is ever violated by a future migration or direct insert.
+ */
+export async function getManualSubscriptionByDefinitionId(
+  workflowDefinitionId: string,
+): Promise<TriggerSubscription | undefined> {
+  const rows = await db()
+    .select()
+    .from(triggerSubscriptions)
+    .where(
+      and(
+        eq(triggerSubscriptions.workflowDefinitionId, workflowDefinitionId),
+        eq(triggerSubscriptions.source, 'manual'),
+      ),
+    )
+    .limit(2);
+  if (rows.length > 1) {
+    throw new Error(
+      `Workflow definition ${workflowDefinitionId} has ${rows.length} manual triggers; expected at most 1`,
+    );
+  }
+  const row = rows[0];
+  if (!row) return undefined;
+  return toTriggerSubscription(row);
+}
+
 export interface FindMatchingSubscriptionsParams {
   workspaceId: string;
   projectId: string;

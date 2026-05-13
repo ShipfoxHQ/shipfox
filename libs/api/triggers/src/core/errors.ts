@@ -8,6 +8,16 @@ export class TriggerSubscriptionNotFoundError extends Error {
   }
 }
 
+export class ManualTriggerNotFoundError extends Error {
+  readonly workflowDefinitionId: string;
+
+  constructor(workflowDefinitionId: string) {
+    super(`Workflow definition ${workflowDefinitionId} has no manual trigger`);
+    this.name = 'ManualTriggerNotFoundError';
+    this.workflowDefinitionId = workflowDefinitionId;
+  }
+}
+
 export class TriggerSubscriptionNotManualError extends Error {
   readonly subscriptionId: string;
   readonly source: string;

@@ -4,13 +4,6 @@ export const runStatusSchema = z.enum(['pending', 'running', 'succeeded', 'faile
 
 export type RunStatusDto = z.infer<typeof runStatusSchema>;
 
-export const createRunBodySchema = z.object({
-  project_id: z.string().uuid(),
-  definition_id: z.string().uuid(),
-});
-
-export type CreateRunBodyDto = z.infer<typeof createRunBodySchema>;
-
 const isoDateTimeSchema = z.string().datetime();
 const runListQueryBaseSchema = z.object({
   project_id: z.string().uuid(),

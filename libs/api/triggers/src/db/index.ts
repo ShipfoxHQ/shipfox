@@ -7,6 +7,7 @@ export {triggerSubscriptions} from './schema/subscriptions.js';
 export {
   deleteSubscriptionsForDefinition,
   findMatchingSubscriptions,
+  getManualSubscriptionByDefinitionId,
   getTriggerSubscriptionById,
   listSubscriptionsByWorkflowDefinitionIds,
   projectDefinitionTriggers,
