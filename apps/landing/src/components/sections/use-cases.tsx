@@ -220,7 +220,7 @@ export function UseCasesSection() {
   return (
     <section
       id="use-cases"
-      className="border-alpha-white-6 relative border-b pb-[48px] pt-[110px]"
+      className="border-alpha-white-6 relative border-b pb-[32px] pt-[60px] md:pb-[48px] md:pt-[110px]"
     >
       <div className="wrap">
         <SectionHead
@@ -231,7 +231,7 @@ export function UseCasesSection() {
 
         <div
           role="tablist"
-          className="border-alpha-white-8 mb-22 flex flex-wrap gap-8 border-b"
+          className="border-alpha-white-8 mb-22 flex flex-nowrap md:flex-wrap gap-8 border-b overflow-x-auto md:overflow-visible"
         >
           {PANELS.map((p, i) => (
             <button
@@ -301,10 +301,9 @@ export function UseCasesSection() {
 function UseCaseCard({panel}: {panel: Panel}) {
   return (
     <div
-      className="bg-background-neutral-base border-alpha-white-8 grid overflow-hidden rounded-14 border"
-      style={{gridTemplateColumns: '1fr 1.2fr'}}
+      className="bg-background-neutral-base border-alpha-white-8 grid grid-cols-1 md:grid-cols-[1fr_1.2fr] overflow-hidden rounded-14 border"
     >
-      <div className="flex flex-col justify-center gap-14 px-36 py-32">
+      <div className="flex flex-col justify-center gap-14 px-20 py-24 md:px-36 md:py-32">
         <div className="flex items-center gap-10">
           <span className="text-primary-400 font-code flex size-24 items-center justify-center rounded-6 bg-[rgba(255,75,0,.14)] text-[11px] font-semibold leading-none">
             {panel.num}
@@ -331,7 +330,7 @@ function UseCaseCard({panel}: {panel: Panel}) {
           ))}
         </div>
       </div>
-      <div className="bg-background-subtle-base border-alpha-white-6 relative min-h-[380px] border-l">
+      <div className="bg-background-subtle-base border-alpha-white-6 relative min-h-[380px] border-t md:border-t-0 md:border-l">
         <div className="flex h-full flex-col">
           <div className="border-alpha-white-6 text-foreground-neutral-muted font-code flex h-32 items-center gap-8 border-b bg-[rgba(255,255,255,.02)] px-14 text-[11px] leading-none">
             <span className="bg-neutral-700 size-9 rounded-full" />

@@ -7,7 +7,7 @@ import {SectionHead} from '../shared/section-head';
 
 export function PricingSection() {
   return (
-    <section id="pricing" className="border-alpha-white-6 relative border-b py-[110px]">
+    <section id="pricing" className="border-alpha-white-6 relative border-b py-[60px] md:py-[110px]">
       <div className="wrap">
         <SectionHead
           kicker="/deployment"
@@ -15,7 +15,7 @@ export function PricingSection() {
           description="The same engine, same YAML, same agents. Start free on your own infra, move to managed cloud when you stop wanting to wake up at 3am, or keep it all in your VPC."
         />
 
-        <div className="grid grid-cols-3 gap-18">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-18">
           <Plan
             tag="/open-source"
             title="Open source"

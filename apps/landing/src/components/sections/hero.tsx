@@ -9,7 +9,7 @@ export function Hero() {
   return (
     <section
       id="hero"
-      className="border-alpha-white-6 relative overflow-hidden border-b px-0 pb-100 pt-[110px]"
+      className="border-alpha-white-6 relative overflow-hidden border-b px-0 pb-[60px] pt-[60px] md:pb-100 md:pt-[110px]"
     >
       <div
         aria-hidden
@@ -25,7 +25,7 @@ export function Hero() {
       <div className="wrap relative">
         <Eyebrow>Shipfox: continuous shipping platform</Eyebrow>
 
-        <h1 className="font-display text-foreground-neutral-base mt-18 max-w-[880px] text-[76px] font-medium leading-[82px] tracking-[-0.035em]">
+        <h1 className="font-display text-foreground-neutral-base mt-18 max-w-[880px] text-[40px] leading-[44px] md:text-[76px] md:leading-[82px] font-medium tracking-[-0.035em]">
           Your <em className="text-primary-400 not-italic">software factory.</em>
         </h1>
 
@@ -54,7 +54,9 @@ export function Hero() {
           <MetaItem>Full GitOps</MetaItem>
         </div>
 
-        <DagFigure />
+        <div className="hidden md:block">
+          <DagFigure />
+        </div>
       </div>
     </section>
   );

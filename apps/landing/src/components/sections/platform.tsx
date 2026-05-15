@@ -6,7 +6,7 @@ import {SectionHead} from '../shared/section-head';
 
 export function PlatformSection() {
   return (
-    <section id="platform" className="border-alpha-white-6 relative border-b py-[110px]">
+    <section id="platform" className="border-alpha-white-6 relative border-b py-[60px] md:py-[110px]">
       <div className="wrap">
         <SectionHead
           kicker="/platform"
@@ -14,7 +14,7 @@ export function PlatformSection() {
           description="The control plane teams need to operate this safely at scale: every run logged, every model swappable, every dollar accounted for."
         />
 
-        <div className="grid grid-cols-3 gap-18">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-18">
           <PillarCol
             iconColor="text-blue-400"
             icon="pulseLine"

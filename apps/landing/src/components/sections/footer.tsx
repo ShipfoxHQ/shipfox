@@ -27,7 +27,7 @@ export function Footer() {
   return (
     <>
       <footer className="bg-neutral-1000 px-0 pb-24 pt-56">
-        <div className="wrap grid gap-32" style={{gridTemplateColumns: '1.6fr 1fr 1fr 1fr 1fr'}}>
+        <div className="wrap grid grid-cols-2 sm:grid-cols-3 md:grid-cols-[1.6fr_1fr_1fr_1fr_1fr] gap-24 md:gap-32">
           <div>
             <Icon name="shipfox" className="mb-14 h-22 w-22" />
             <p className="font-display text-foreground-neutral-muted m-0 max-w-[280px] text-sm font-normal leading-[20px]">
@@ -60,10 +60,10 @@ export function Footer() {
         </div>
       </footer>
       <div className="border-alpha-white-6 text-foreground-neutral-muted font-code border-t py-18 text-xs leading-none">
-        <div className="wrap flex items-center">
+        <div className="wrap flex flex-wrap items-center gap-y-8">
           <span className="text-primary-400">/shipfox · 2026</span>
-          <span className="mx-12 opacity-40">·</span>
-          <span>region eu-west-1 · all systems operational</span>
+          <span className="mx-12 opacity-40 hidden md:inline">·</span>
+          <span className="hidden md:inline">region eu-west-1 · all systems operational</span>
           <div className="ml-auto flex gap-18">
             <a href="/status" className="text-foreground-neutral-muted no-underline">
               Status ↗

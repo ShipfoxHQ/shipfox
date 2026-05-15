@@ -27,7 +27,7 @@ export function SelfImprovementSection() {
   return (
     <section
       id="self-improvement"
-      className="border-alpha-white-6 relative border-b pb-[110px] pt-[48px]"
+      className="border-alpha-white-6 relative border-b pb-[60px] pt-[32px] md:pb-[110px] md:pt-[48px]"
     >
       <div className="wrap">
         <SectionHead
@@ -36,7 +36,7 @@ export function SelfImprovementSection() {
           description="Workflows aren't write-once. After every execution, Shipfox reflects on what happened, drafts changes, and accumulates a project memory that all your agents share."
         />
 
-        <div className="grid items-center gap-56" style={{gridTemplateColumns: '1fr 460px'}}>
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_460px] items-center gap-32 md:gap-56">
           <div className="flex flex-col gap-16">
             {STEPS.map((s) => (
               <div
@@ -62,7 +62,9 @@ export function SelfImprovementSection() {
             ))}
           </div>
 
-          <FlowSvg />
+          <div className="hidden md:block">
+            <FlowSvg />
+          </div>
         </div>
       </div>
     </section>

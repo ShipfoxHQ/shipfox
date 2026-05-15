@@ -61,7 +61,7 @@ const PILLARS: Pillar[] = [
 
 export function WhatSection() {
   return (
-    <section id="what" className="border-alpha-white-6 relative border-b py-[110px]">
+    <section id="what" className="border-alpha-white-6 relative border-b py-[60px] md:py-[110px]">
       <div className="wrap">
         <SectionHead
           kicker="/how-it-works"
@@ -77,8 +77,8 @@ export function WhatSection() {
           }
         />
 
-        <div className="grid gap-x-56 items-start" style={{gridTemplateColumns: '1.1fr 1fr'}}>
-          <div className="grid grid-cols-2 gap-16">
+        <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] gap-y-32 md:gap-x-56 items-start">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-16">
             {PILLARS.map((p) => (
               <PillarCard key={p.num} {...p} />
             ))}

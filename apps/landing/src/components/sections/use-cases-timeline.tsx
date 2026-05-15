@@ -148,10 +148,13 @@ export function UseCaseTimeline() {
                 {lane.events.map((ev) => (
                   <span
                     key={ev.id}
-                    className="bg-background-neutral-base border-alpha-white-8 text-foreground-neutral-subtle font-code inline-flex w-max max-w-full items-center gap-8 rounded-6 border px-10 py-6 text-xs leading-[16px]"
+                    className="bg-background-neutral-base border-alpha-white-8 text-foreground-neutral-subtle font-code inline-flex max-w-full items-start gap-8 rounded-6 border px-10 py-6 text-xs leading-[16px]"
                   >
-                    <Icon name={ev.icon} className={['size-13', ev.iconColor].join(' ')} />
-                    {ev.content}
+                    <Icon
+                      name={ev.icon}
+                      className={['size-13 shrink-0', ev.iconColor].join(' ')}
+                    />
+                    <span className="min-w-0 break-words">{ev.content}</span>
                   </span>
                 ))}
               </div>

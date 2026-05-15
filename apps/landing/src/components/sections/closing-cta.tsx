@@ -15,7 +15,7 @@ export function ClosingCta() {
   return (
     <section
       id="footer-cta"
-      className="bg-neutral-1000 relative overflow-hidden border-b-0 px-0 pb-[120px] pt-[140px]"
+      className="bg-neutral-1000 relative overflow-hidden border-b-0 px-0 pb-[72px] pt-[80px] md:pb-[120px] md:pt-[140px]"
       style={{
         backgroundImage:
           'radial-gradient(800px 360px at 50% 0%, rgba(255,75,0,.18), transparent 70%)',
@@ -23,7 +23,7 @@ export function ClosingCta() {
     >
       <div aria-hidden className="bg-grid-dots pointer-events-none absolute inset-0" />
       <div className="wrap relative text-center">
-        <h2 className="font-display text-foreground-neutral-base mx-auto m-0 text-[56px] font-medium leading-[62px] tracking-[-0.03em] whitespace-nowrap">
+        <h2 className="font-display text-foreground-neutral-base mx-auto m-0 text-[32px] leading-[38px] md:text-[56px] md:leading-[62px] font-medium tracking-[-0.03em] md:whitespace-nowrap">
           Your software factory,{' '}
           <em className="text-primary-400 not-italic">in your repo.</em>
         </h2>

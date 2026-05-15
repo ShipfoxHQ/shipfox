@@ -11,12 +11,12 @@ export function SectionHead({
   description: ReactNode;
 }) {
   return (
-    <div className="mb-56 max-w-[760px]">
+    <div className="mb-32 md:mb-56 max-w-[760px]">
       <Kicker>{kicker}</Kicker>
-      <h2 className="font-display text-foreground-neutral-base mt-14 text-[44px] leading-[52px] font-medium tracking-[-0.025em]">
+      <h2 className="font-display text-foreground-neutral-base mt-14 text-[28px] leading-[34px] md:text-[44px] md:leading-[52px] font-medium tracking-[-0.025em]">
         {title}
       </h2>
-      <p className="font-display text-foreground-neutral-subtle mt-18 max-w-[660px] text-[17px] leading-[28px] font-normal">
+      <p className="font-display text-foreground-neutral-subtle mt-18 max-w-[660px] text-base leading-[24px] md:text-[17px] md:leading-[28px] font-normal">
         {description}
       </p>
     </div>

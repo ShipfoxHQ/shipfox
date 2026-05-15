@@ -95,7 +95,7 @@ export function IntegrationsSection() {
   return (
     <section
       id="integrations"
-      className="border-alpha-white-6 relative border-b py-[110px]"
+      className="border-alpha-white-6 relative border-b py-[60px] md:py-[110px]"
     >
       <div className="wrap">
         <SectionHead
@@ -105,8 +105,7 @@ export function IntegrationsSection() {
         />
 
         <div
-          className="mt-32 grid items-stretch gap-24"
-          style={{gridTemplateColumns: '1fr 280px 1fr'}}
+          className="mt-32 grid grid-cols-1 md:grid-cols-[1fr_280px_1fr] items-stretch gap-24"
         >
           <div className="flex flex-col gap-14">
             {IN_GROUPS.map((g) => (
