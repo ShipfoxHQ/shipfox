@@ -238,15 +238,17 @@ html.dark {
 .yaml-hover[data-tip]::after {
   content: attr(data-tip);
   position: absolute;
-  left: calc(100% + 14px);
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: calc(100% + 10px);
+  left: 0;
   background: var(--color-neutral-800);
   color: var(--color-neutral-100);
   padding: 8px 12px;
   border-radius: 6px;
   font: 400 11px / 16px var(--font-display);
-  width: 240px;
+  width: max-content;
+  max-width: 320px;
+  white-space: normal;
+  word-wrap: break-word;
   pointer-events: none;
   opacity: 0;
   transition: opacity 120ms;
@@ -257,13 +259,13 @@ html.dark {
 .yaml-hover[data-tip]::before {
   content: "";
   position: absolute;
-  left: calc(100% + 8px);
-  top: 50%;
-  transform: translateY(-50%) rotate(45deg);
+  bottom: calc(100% + 6px);
+  left: 14px;
+  transform: rotate(45deg);
   width: 8px;
   height: 8px;
   background: var(--color-neutral-800);
-  border-left: 1px solid var(--color-alpha-white-10);
+  border-right: 1px solid var(--color-alpha-white-10);
   border-bottom: 1px solid var(--color-alpha-white-10);
   opacity: 0;
   transition: opacity 120ms;

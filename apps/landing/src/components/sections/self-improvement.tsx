@@ -27,7 +27,7 @@ export function SelfImprovementSection() {
   return (
     <section
       id="self-improvement"
-      className="border-alpha-white-6 relative border-b py-[110px]"
+      className="border-alpha-white-6 relative border-b pb-[110px] pt-[48px]"
     >
       <div className="wrap">
         <SectionHead

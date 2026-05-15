@@ -17,7 +17,6 @@ type Panel = {
   chips: Chip[];
   yaml: ReactNode;
   yamlFile: string;
-  extra?: ReactNode;
 };
 
 const PANELS: Panel[] = [
@@ -133,6 +132,9 @@ const PANELS: Panel[] = [
       {icon: 'calendarLine', iconColor: 'text-purple-400', label: 'runs over days'},
     ],
     yamlFile: 'plan-and-build.yml',
+    // Note: timeline (was: extra: <UseCaseTimeline />) is now rendered below
+    // the carousel, conditional on this panel being active, so panels 1/2/4
+    // aren't forced taller to match.
     yaml: (
       <pre className="font-code text-foreground-neutral-base m-0 flex-1 overflow-auto px-20 py-18 text-[12.5px] leading-[22px]">
         <Tk>jobs</Tk>:{'\n  '}
@@ -164,7 +166,6 @@ const PANELS: Panel[] = [
         </Hover>
       </pre>
     ),
-    extra: <UseCaseTimeline />,
   },
   {
     num: '04',
@@ -217,7 +218,10 @@ export function UseCasesSection() {
   const [active, setActive] = useState(0);
 
   return (
-    <section id="use-cases" className="border-alpha-white-6 relative border-b py-[110px]">
+    <section
+      id="use-cases"
+      className="border-alpha-white-6 relative border-b pb-[48px] pt-[110px]"
+    >
       <div className="wrap">
         <SectionHead
           kicker="/use-cases"
@@ -275,13 +279,18 @@ export function UseCasesSection() {
             {PANELS.map((p) => (
               <div key={p.num} role="tabpanel" className="min-w-0 shrink-0 grow-0 basis-full">
                 <UseCaseCard panel={p} />
-                {p.extra}
               </div>
             ))}
           </div>
         </div>
 
-        <div className="mt-32 flex justify-center">
+        {active === 2 && (
+          <div className="mt-14">
+            <UseCaseTimeline />
+          </div>
+        )}
+
+        <div className="mt-64 flex justify-center">
           <CtaButton size="xl">Get started</CtaButton>
         </div>
       </div>

@@ -111,29 +111,22 @@ function PillarCol({
 }
 
 function ObservabilityMini() {
-  const rows: {name: string; pct: number; dur: string; barColor: string}[] = [
-    {name: 'triage-sentry', pct: 38, dur: '12.4s', barColor: 'bg-primary-400'},
-    {name: 'review-pr', pct: 64, dur: '2m 04s', barColor: 'bg-purple-400'},
-    {name: 'plan-and-build', pct: 88, dur: '6d 02h', barColor: 'bg-blue-400'},
-    {name: 'best-of-n', pct: 52, dur: '48.1s', barColor: 'bg-green-400'},
+  const rows: {name: string; dur: string}[] = [
+    {name: 'triage-sentry', dur: '12.4s'},
+    {name: 'review-pr', dur: '2m 04s'},
+    {name: 'plan-and-build', dur: '6d 02h'},
+    {name: 'best-of-n', dur: '48.1s'},
   ];
   return (
     <div className="bg-background-subtle-base border-alpha-white-8 flex flex-col gap-6 rounded-8 border p-12">
       {rows.map((r) => (
         <div
           key={r.name}
-          className="font-code grid items-center gap-8 text-[11px] leading-[16px]"
-          style={{gridTemplateColumns: '1fr 60px 50px'}}
+          className="font-code flex items-center justify-between gap-8 text-[11px] leading-[16px]"
         >
-          <span className="text-foreground-neutral-subtle">{r.name}</span>
-          <span className="bg-alpha-white-8 h-6 overflow-hidden rounded-3">
-            <span
-              className={['block h-full rounded-3', r.barColor].join(' ')}
-              style={{width: `${r.pct}%`}}
-            />
-          </span>
+          <span className="text-foreground-neutral-subtle whitespace-nowrap">{r.name}</span>
           <span
-            className="text-foreground-neutral-muted text-right"
+            className="text-foreground-neutral-muted whitespace-nowrap"
             style={{fontFeatureSettings: '"tnum"'}}
           >
             {r.dur}
@@ -174,7 +167,7 @@ function ModelCell({
       className="bg-background-neutral-base text-foreground-neutral-subtle font-code flex items-center gap-6 rounded-5 px-10 py-8 text-[11px] font-medium leading-[14px]"
       style={span > 1 ? {gridColumn: `span ${span}`} : undefined}
     >
-      <span className="size-6 rounded-full" style={{background: color}} aria-hidden />
+      <span className="size-6 shrink-0 rounded-full" style={{background: color}} aria-hidden />
       {children}
     </span>
   );
