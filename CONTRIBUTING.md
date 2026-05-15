@@ -19,6 +19,25 @@ By participating, you are expected to uphold this code.
 mise install
 ```
 
+If this is your first time using mise, activate it in your shell so the installed tools are
+on your `PATH`. Add the matching line to your shell's rc file and reload:
+
+```sh
+# zsh
+echo 'eval "$(mise activate zsh)"' >> ~/.zshrc
+source ~/.zshrc
+
+# bash
+echo 'eval "$(mise activate bash)"' >> ~/.bashrc
+source ~/.bashrc
+
+# fish
+echo 'mise activate fish | source' >> ~/.config/fish/config.fish
+```
+
+After activation, `which pnpm` should resolve to a mise shim (e.g. `~/.local/share/mise/shims/pnpm`)
+and `pnpm --version` should print the version pinned in `mise.toml`.
+
 ### Start local services
 
 ```sh

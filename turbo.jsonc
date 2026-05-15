@@ -8,6 +8,11 @@
       "outputs": ["dist/**/*", "!dist/**/*.d.ts", "!dist/**/*.d.ts.map", ".vercel/**/*"],
       "dependsOn": ["^build"]
     },
+    "@shipfox/landing#build": {
+      "cache": true,
+      "outputs": ["dist/**/*", "!dist/**/*.d.ts", "!dist/**/*.d.ts.map", ".vercel/**/*"],
+      "dependsOn": ["^build", "^type:emit"]
+    },
     "check": {
       "cache": true,
       "dependsOn": ["@shipfox/biome#build"]
@@ -24,6 +29,15 @@
     "test": {
       "cache": true,
       "dependsOn": ["^build"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "start": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["build"]
     },
     "test:e2e": {
       "cache": false,

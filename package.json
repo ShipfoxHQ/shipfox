@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.33.0",
   "type": "module",
   "devDependencies": {
-    "@types/node": "^24.1.0"
+    "@types/node": "^24.1.0",
+    "turbo": "2.9.6"
   }
 }
