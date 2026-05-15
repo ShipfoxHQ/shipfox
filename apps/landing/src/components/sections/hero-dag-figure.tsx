@@ -32,7 +32,7 @@ export function DagFigure() {
   return (
     <div
       id="heroDag"
-      className="bg-background-neutral-base border-color-alpha-white-10 relative mt-56 overflow-hidden rounded-14 border px-40 pb-36 pt-28 shadow-[0_30px_80px_rgba(0,0,0,.55)]"
+      className="bg-background-neutral-base border-alpha-white-10 relative mt-56 overflow-hidden rounded-14 border px-40 pb-36 pt-28 shadow-[0_30px_80px_rgba(0,0,0,.55)]"
     >
       <div
         aria-hidden
@@ -40,7 +40,7 @@ export function DagFigure() {
       />
 
       {/* Head */}
-      <div className="border-b-color-alpha-white-6 text-foreground-neutral-muted font-code relative z-[1] mb-18 flex items-center gap-14 border-b pb-18 text-xs leading-none">
+      <div className="border-alpha-white-6 text-foreground-neutral-muted font-code relative z-[1] mb-18 flex items-center gap-14 border-b pb-18 text-xs leading-none">
         <span className="text-foreground-neutral-base font-medium">workflow.triage-sentry</span>
         <span className="opacity-40">·</span>
         <span>run #4,128</span>
@@ -50,9 +50,9 @@ export function DagFigure() {
           acme/payments-api
         </span>
         <span className="ml-auto inline-flex items-center gap-14">
-          <span className="text-color-green-400 inline-flex items-center gap-6">
+          <span className="text-green-400 inline-flex items-center gap-6">
             <span
-              className="bg-color-green-400 size-6 rounded-full shadow-[0_0_0_3px_rgba(52,211,153,.18)]"
+              className="bg-green-400 size-6 rounded-full shadow-[0_0_0_3px_rgba(52,211,153,.18)]"
               style={{animation: 'pulse-soft 1.6s ease-in-out infinite'}}
             />
             Live
@@ -72,8 +72,8 @@ export function DagFigure() {
       <DagGrid />
 
       {/* Footer strip */}
-      <div className="border-t-color-alpha-white-6 text-foreground-neutral-muted font-code relative z-[1] mt-22 flex flex-wrap items-center gap-14 border-t pt-16 text-xs leading-none">
-        <span className="text-color-primary-400 inline-flex items-center gap-6 rounded-4 border border-[rgba(255,75,0,.25)] bg-[rgba(255,75,0,.10)] px-8 py-3 font-medium uppercase tracking-[.06em]">
+      <div className="border-alpha-white-6 text-foreground-neutral-muted font-code relative z-[1] mt-22 flex flex-wrap items-center gap-14 border-t pt-16 text-xs leading-none">
+        <span className="text-primary-400 inline-flex items-center gap-6 rounded-4 border border-[rgba(255,75,0,.25)] bg-[rgba(255,75,0,.10)] px-8 py-3 font-medium uppercase tracking-[.06em]">
           running
         </span>
         <span className="inline-flex items-center gap-4">
@@ -304,8 +304,8 @@ function DagNode({
     status === 'done'
       ? 'border-[rgba(52,211,153,.35)]'
       : status === 'run'
-        ? 'border-color-primary-400 shadow-[0_0_0_4px_rgba(255,75,0,.14),0_8px_24px_rgba(255,75,0,.18)]'
-        : 'border-color-alpha-white-10';
+        ? 'border-primary-400 shadow-[0_0_0_4px_rgba(255,75,0,.14),0_8px_24px_rgba(255,75,0,.18)]'
+        : 'border-alpha-white-10';
   const opacity =
     status === 'queue' ? 'opacity-55' : status === 'skip' ? 'opacity-35 border-dashed' : '';
   const variantBg =
@@ -317,9 +317,9 @@ function DagNode({
 
   const statColor =
     status === 'done' || variant === 'output'
-      ? 'text-color-green-400'
+      ? 'text-green-400'
       : status === 'run'
-        ? 'text-color-primary-400'
+        ? 'text-primary-400'
         : 'text-foreground-neutral-muted';
 
   const titleColor =
@@ -327,9 +327,9 @@ function DagNode({
 
   const iconColor =
     variant === 'trigger'
-      ? 'text-color-purple-400'
+      ? 'text-purple-400'
       : variant === 'output'
-        ? 'text-color-green-400'
+        ? 'text-green-400'
         : '';
 
   return (
@@ -355,8 +355,8 @@ function DagNode({
           className={[
             'font-code inline-flex w-max items-center gap-4 rounded-4 px-6 py-2 text-[10px] font-medium leading-[12px]',
             agentTag.tone === 'blue'
-              ? 'text-color-blue-400 bg-[rgba(96,165,250,.12)]'
-              : 'text-color-purple-400 bg-[rgba(167,139,250,.12)]',
+              ? 'text-blue-400 bg-[rgba(96,165,250,.12)]'
+              : 'text-purple-400 bg-[rgba(167,139,250,.12)]',
           ].join(' ')}
         >
           <Icon name="cpuLine" className="size-10" />
@@ -365,7 +365,7 @@ function DagNode({
       )}
 
       {branchTag && (
-        <span className="text-color-primary-400 font-code inline-flex w-max items-center gap-4 rounded-4 bg-[rgba(255,75,0,.12)] px-6 py-2 text-[10px] font-medium leading-[12px]">
+        <span className="text-primary-400 font-code inline-flex w-max items-center gap-4 rounded-4 bg-[rgba(255,75,0,.12)] px-6 py-2 text-[10px] font-medium leading-[12px]">
           {branchTag}
         </span>
       )}

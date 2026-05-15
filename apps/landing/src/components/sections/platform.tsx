@@ -6,7 +6,7 @@ import {SectionHead} from '../shared/section-head';
 
 export function PlatformSection() {
   return (
-    <section id="platform" className="border-b-color-alpha-white-6 relative border-b py-[110px]">
+    <section id="platform" className="border-alpha-white-6 relative border-b py-[110px]">
       <div className="wrap">
         <SectionHead
           kicker="/platform"
@@ -16,7 +16,7 @@ export function PlatformSection() {
 
         <div className="grid grid-cols-3 gap-18">
           <PillarCol
-            iconColor="text-color-blue-400"
+            iconColor="text-blue-400"
             icon="pulseLine"
             title="Workflow observability"
             body="Every run logged end-to-end: trigger source, agent sessions, tool calls, outputs, duration, cost. Full audit trail across your entire fleet. No black boxes."
@@ -29,7 +29,7 @@ export function PlatformSection() {
             ]}
           />
           <PillarCol
-            iconColor="text-color-purple-400"
+            iconColor="text-purple-400"
             icon="stackLine"
             title="Use any model"
             body="Not locked into one provider. Use Anthropic, OpenAI, Google, Mistral, Qwen, DeepSeek, or any open-weight model. Plug in your own inference APIs or API keys. Mix models within a single workflow. Switch without rewriting."
@@ -42,7 +42,7 @@ export function PlatformSection() {
             ]}
           />
           <PillarCol
-            iconColor="text-color-green-400"
+            iconColor="text-green-400"
             icon="coinLine"
             title="Cost control"
             body="Set budgets per workflow, per team, or per model. Hard caps and soft alerts. Real-time spend dashboard. No surprise bills from a runaway agent loop."
@@ -76,10 +76,10 @@ function PillarCol({
   bullets: string[];
 }) {
   return (
-    <div className="bg-background-neutral-base border-color-alpha-white-8 flex min-h-[380px] flex-col gap-14 rounded-12 border p-24">
+    <div className="bg-background-neutral-base border-alpha-white-8 flex min-h-[380px] flex-col gap-14 rounded-12 border p-24">
       <div
         className={[
-          'bg-background-subtle-base border-color-alpha-white-8 flex size-36 items-center justify-center rounded-8 border text-lg',
+          'bg-background-subtle-base border-alpha-white-8 flex size-36 items-center justify-center rounded-8 border text-lg',
           iconColor,
         ].join(' ')}
       >
@@ -100,7 +100,7 @@ function PillarCol({
           >
             <Icon
               name="checkboxCircleFill"
-              className="text-color-primary-400 mt-3 size-13 shrink-0"
+              className="text-primary-400 mt-3 size-13 shrink-0"
             />
             {b}
           </li>
@@ -112,13 +112,13 @@ function PillarCol({
 
 function ObservabilityMini() {
   const rows: {name: string; pct: number; dur: string; barColor: string}[] = [
-    {name: 'triage-sentry', pct: 38, dur: '12.4s', barColor: 'bg-color-primary-400'},
-    {name: 'review-pr', pct: 64, dur: '2m 04s', barColor: 'bg-color-purple-400'},
-    {name: 'plan-and-build', pct: 88, dur: '6d 02h', barColor: 'bg-color-blue-400'},
-    {name: 'best-of-n', pct: 52, dur: '48.1s', barColor: 'bg-color-green-400'},
+    {name: 'triage-sentry', pct: 38, dur: '12.4s', barColor: 'bg-primary-400'},
+    {name: 'review-pr', pct: 64, dur: '2m 04s', barColor: 'bg-purple-400'},
+    {name: 'plan-and-build', pct: 88, dur: '6d 02h', barColor: 'bg-blue-400'},
+    {name: 'best-of-n', pct: 52, dur: '48.1s', barColor: 'bg-green-400'},
   ];
   return (
-    <div className="bg-background-subtle-base border-color-alpha-white-8 flex flex-col gap-6 rounded-8 border p-12">
+    <div className="bg-background-subtle-base border-alpha-white-8 flex flex-col gap-6 rounded-8 border p-12">
       {rows.map((r) => (
         <div
           key={r.name}
@@ -126,7 +126,7 @@ function ObservabilityMini() {
           style={{gridTemplateColumns: '1fr 60px 50px'}}
         >
           <span className="text-foreground-neutral-subtle">{r.name}</span>
-          <span className="bg-color-alpha-white-8 h-6 overflow-hidden rounded-3">
+          <span className="bg-alpha-white-8 h-6 overflow-hidden rounded-3">
             <span
               className={['block h-full rounded-3', r.barColor].join(' ')}
               style={{width: `${r.pct}%`}}
@@ -146,7 +146,7 @@ function ObservabilityMini() {
 
 function ModelsMini() {
   return (
-    <div className="bg-background-subtle-base border-color-alpha-white-8 grid grid-cols-3 gap-6 rounded-8 border p-4">
+    <div className="bg-background-subtle-base border-alpha-white-8 grid grid-cols-3 gap-6 rounded-8 border p-4">
       <ModelCell color="#fb923c">Anthropic</ModelCell>
       <ModelCell color="#34d399">OpenAI</ModelCell>
       <ModelCell color="#60a5fa">Google</ModelCell>
@@ -182,7 +182,7 @@ function ModelCell({
 
 function CostMeter() {
   return (
-    <div className="bg-background-subtle-base border-color-alpha-white-8 flex flex-col gap-10 rounded-8 border p-14">
+    <div className="bg-background-subtle-base border-alpha-white-8 flex flex-col gap-10 rounded-8 border p-14">
       <div className="text-foreground-neutral-muted font-code flex justify-between text-[11px] leading-[14px]">
         <span>this month · platform-team</span>
         <span>
@@ -195,7 +195,7 @@ function CostMeter() {
           / $6,000
         </span>
       </div>
-      <div className="bg-color-alpha-white-8 relative h-8 overflow-hidden rounded-4">
+      <div className="bg-alpha-white-8 relative h-8 overflow-hidden rounded-4">
         <span
           className="block h-full rounded-4"
           style={{
@@ -210,7 +210,7 @@ function CostMeter() {
         />
       </div>
       <div className="text-foreground-neutral-muted font-code mt-1 flex justify-between text-[11px] leading-[14px]">
-        <span className="text-color-orange-400">⚠ alert at 80 %</span>
+        <span className="text-orange-400">⚠ alert at 80 %</span>
         <span>hard cap at 90 %</span>
       </div>
     </div>

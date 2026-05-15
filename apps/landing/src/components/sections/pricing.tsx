@@ -7,7 +7,7 @@ import {SectionHead} from '../shared/section-head';
 
 export function PricingSection() {
   return (
-    <section id="pricing" className="border-b-color-alpha-white-6 relative border-b py-[110px]">
+    <section id="pricing" className="border-alpha-white-6 relative border-b py-[110px]">
       <div className="wrap">
         <SectionHead
           kicker="/deployment"
@@ -54,21 +54,21 @@ export function PricingSection() {
             title="Cloud"
             description="Managed control plane, runners, and inference. A predictable per-seat baseline that covers most teams, pay for overage only when usage spikes."
             customPrice={
-              <div className="bg-background-subtle-base border-color-alpha-white-8 flex flex-col gap-8 rounded-8 border p-12">
+              <div className="bg-background-subtle-base border-alpha-white-8 flex flex-col gap-8 rounded-8 border p-12">
                 <Submodel
                   icon="userLine"
-                  iconColor="text-color-primary-400"
+                  iconColor="text-primary-400"
                   title="Per developer · baseline"
                   badge={{label: 'included'}}
                   body="Each seat includes a monthly compute allocation and a pool of token-inference credits. Most teams stay within the baseline."
                 />
                 <Submodel
                   icon="arrowUpLine"
-                  iconColor="text-color-blue-400"
+                  iconColor="text-blue-400"
                   title="Above baseline · usage"
                   badge={{
                     label: 'overage',
-                    className: 'text-color-blue-400 bg-[rgba(96,165,250,.14)]',
+                    className: 'text-blue-400 bg-[rgba(96,165,250,.14)]',
                   }}
                   body="Heavy compute or inference workloads are billed by the minute and by the token. Set hard caps in the dashboard so spend can't surprise you."
                 />
@@ -145,11 +145,11 @@ function Plan({
         'relative flex flex-col gap-18 rounded-14 border p-28',
         featured
           ? 'bg-background-neutral-base border-[rgba(255,75,0,.4)] shadow-[0_0_0_4px_rgba(255,75,0,.06),0_30px_60px_rgba(255,75,0,.08)]'
-          : 'bg-background-neutral-base border-color-alpha-white-8',
+          : 'bg-background-neutral-base border-alpha-white-8',
       ].join(' ')}
     >
       {featured && (
-        <span className="bg-color-primary-400 text-color-neutral-1000 font-code absolute -top-10 right-24 rounded-4 px-8 py-5 text-[10px] font-semibold uppercase leading-none tracking-[.06em]">
+        <span className="bg-primary-400 text-neutral-1000 font-code absolute -top-10 right-24 rounded-4 px-8 py-5 text-[10px] font-semibold uppercase leading-none tracking-[.06em]">
           Most teams
         </span>
       )}
@@ -174,7 +174,7 @@ function Plan({
           >
             <Icon
               name="checkboxCircleFill"
-              className="text-color-primary-400 mt-3 size-13 shrink-0"
+              className="text-primary-400 mt-3 size-13 shrink-0"
             />
             {f}
           </li>
@@ -218,7 +218,7 @@ function Submodel({
   body: string;
 }) {
   return (
-    <div className="border-t-color-alpha-white-8 first:border-t-0 first:pt-0 flex flex-col gap-4 border-t border-dashed py-8">
+    <div className="border-alpha-white-8 first:border-t-0 first:pt-0 flex flex-col gap-4 border-t border-dashed py-8">
       <div className="font-display text-foreground-neutral-base flex items-center justify-between text-xs font-medium leading-[16px]">
         <span className="inline-flex items-center gap-6">
           <Icon name={icon} className={['size-13', iconColor].join(' ')} />
@@ -226,7 +226,7 @@ function Submodel({
         </span>
         <span
           className={[
-            'font-code text-color-primary-400 rounded-3 bg-[rgba(255,75,0,.12)] px-6 py-2 text-[10px] font-medium leading-none',
+            'font-code text-primary-400 rounded-3 bg-[rgba(255,75,0,.12)] px-6 py-2 text-[10px] font-medium leading-none',
             badge.className,
           ]
             .filter(Boolean)

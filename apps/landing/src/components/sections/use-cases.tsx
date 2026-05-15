@@ -28,8 +28,8 @@ const PANELS: Panel[] = [
     title: 'Sentry alert → triage → fix or escalate.',
     body: 'A Sentry issue fires the workflow. A diagnostician agent analyzes the error and decides: auto-fixable or needs a human? The fix path writes a patch, runs tests, and opens a PR. The escalate path pages oncall with full context.',
     chips: [
-      {icon: 'timeLine', iconColor: 'text-color-primary-400', label: '~12s end-to-end'},
-      {icon: 'flowChart', iconColor: 'text-color-purple-400', label: 'branch on agent output'},
+      {icon: 'timeLine', iconColor: 'text-primary-400', label: '~12s end-to-end'},
+      {icon: 'flowChart', iconColor: 'text-purple-400', label: 'branch on agent output'},
     ],
     yamlFile: 'triage-sentry.yml',
     yaml: (
@@ -73,8 +73,8 @@ const PANELS: Panel[] = [
     title: 'Coder vs. reviewer. Until approved.',
     body: 'A producer agent writes a fix. Ordered gates verify it: first tests, then a reviewer agent. If anything fails, the producer gets the feedback and tries again. Sessions persist across rounds so the reviewer remembers what it already flagged.',
     chips: [
-      {icon: 'loopLeftLine', iconColor: 'text-color-primary-400', label: 'max 3 rounds'},
-      {icon: 'historyLine', iconColor: 'text-color-purple-400', label: 'persistent sessions'},
+      {icon: 'loopLeftLine', iconColor: 'text-primary-400', label: 'max 3 rounds'},
+      {icon: 'historyLine', iconColor: 'text-purple-400', label: 'persistent sessions'},
     ],
     yamlFile: 'review-pr.yml',
     yaml: (
@@ -121,16 +121,16 @@ const PANELS: Panel[] = [
     body: (
       <>
         A Linear ticket assigned to{' '}
-        <code className="text-color-primary-400 font-code">@shipfox</code> triggers a planner agent
+        <code className="text-primary-400 font-code">@shipfox</code> triggers a planner agent
         that posts a proposed plan as a GitHub issue. The workflow then sleeps, releasing its
         runner. When a human comments, it wakes, revises the plan, and sleeps again. When the
-        reviewer comments <code className="text-color-green-400 font-code">/approve</code>,
+        reviewer comments <code className="text-green-400 font-code">/approve</code>,
         implementation begins with full context. A pipeline that runs over days, not minutes.
       </>
     ),
     chips: [
-      {icon: 'pauseCircleLine', iconColor: 'text-color-primary-400', label: 'wakes on comments'},
-      {icon: 'calendarLine', iconColor: 'text-color-purple-400', label: 'runs over days'},
+      {icon: 'pauseCircleLine', iconColor: 'text-primary-400', label: 'wakes on comments'},
+      {icon: 'calendarLine', iconColor: 'text-purple-400', label: 'runs over days'},
     ],
     yamlFile: 'plan-and-build.yml',
     yaml: (
@@ -173,8 +173,8 @@ const PANELS: Panel[] = [
     title: '3 models. 3 patches. 1 winner.',
     body: 'The same bug sent to three different LLMs in parallel. Each gets its own copy-on-write worktree, so there are no conflicts. A reviewer agent compares all patches and picks the best one.',
     chips: [
-      {icon: 'gridLine', iconColor: 'text-color-primary-400', label: 'matrix execution'},
-      {icon: 'gitBranchLine', iconColor: 'text-color-purple-400', label: 'COW worktrees'},
+      {icon: 'gridLine', iconColor: 'text-primary-400', label: 'matrix execution'},
+      {icon: 'gitBranchLine', iconColor: 'text-purple-400', label: 'COW worktrees'},
     ],
     yamlFile: 'best-of-n.yml',
     yaml: (
@@ -217,7 +217,7 @@ export function UseCasesSection() {
   const [active, setActive] = useState(0);
 
   return (
-    <section id="use-cases" className="border-b-color-alpha-white-6 relative border-b py-[110px]">
+    <section id="use-cases" className="border-alpha-white-6 relative border-b py-[110px]">
       <div className="wrap">
         <SectionHead
           kicker="/use-cases"
@@ -227,7 +227,7 @@ export function UseCasesSection() {
 
         <div
           role="tablist"
-          className="border-b-color-alpha-white-8 mb-22 flex flex-wrap gap-8 border-b"
+          className="border-alpha-white-8 mb-22 flex flex-wrap gap-8 border-b"
         >
           {PANELS.map((p, i) => (
             <button
@@ -239,21 +239,21 @@ export function UseCasesSection() {
               className={[
                 'font-display relative -mb-px inline-flex cursor-pointer items-center gap-10 rounded-t-8 border border-transparent border-b-0 px-18 pb-14 pt-12 text-sm font-medium leading-none transition-colors',
                 active === i
-                  ? 'bg-background-neutral-base border-color-alpha-white-8 text-foreground-neutral-base'
-                  : 'text-foreground-neutral-muted hover:bg-color-alpha-white-2 hover:text-foreground-neutral-subtle',
+                  ? 'bg-background-neutral-base border-alpha-white-8 text-foreground-neutral-base'
+                  : 'text-foreground-neutral-muted hover:bg-alpha-white-2 hover:text-foreground-neutral-subtle',
               ].join(' ')}
               style={active === i ? {borderBottomColor: 'var(--color-neutral-900)'} : undefined}
             >
               {active === i && (
                 <span
                   aria-hidden
-                  className="bg-color-primary-400 absolute inset-x-0 top-0 h-[2px] rounded-t-2"
+                  className="bg-primary-400 absolute inset-x-0 top-0 h-[2px] rounded-t-2"
                 />
               )}
               <span
                 className={[
                   'font-code text-[11px] font-medium leading-none',
-                  active === i ? 'text-color-primary-400' : 'text-foreground-neutral-muted',
+                  active === i ? 'text-primary-400' : 'text-foreground-neutral-muted',
                 ].join(' ')}
               >
                 {p.num}
@@ -282,7 +282,7 @@ export function UseCasesSection() {
         </div>
 
         <div className="mt-32 flex justify-center">
-          <CtaButton size="lg">Get started</CtaButton>
+          <CtaButton size="xl">Get started</CtaButton>
         </div>
       </div>
     </section>
@@ -292,15 +292,15 @@ export function UseCasesSection() {
 function UseCaseCard({panel}: {panel: Panel}) {
   return (
     <div
-      className="bg-background-neutral-base border-color-alpha-white-8 grid overflow-hidden rounded-14 border"
+      className="bg-background-neutral-base border-alpha-white-8 grid overflow-hidden rounded-14 border"
       style={{gridTemplateColumns: '1fr 1.2fr'}}
     >
       <div className="flex flex-col justify-center gap-14 px-36 py-32">
         <div className="flex items-center gap-10">
-          <span className="text-color-primary-400 font-code flex size-24 items-center justify-center rounded-6 bg-[rgba(255,75,0,.14)] text-[11px] font-semibold leading-none">
+          <span className="text-primary-400 font-code flex size-24 items-center justify-center rounded-6 bg-[rgba(255,75,0,.14)] text-[11px] font-semibold leading-none">
             {panel.num}
           </span>
-          <span className="text-color-primary-400 font-code text-xs font-medium uppercase leading-none tracking-[.08em]">
+          <span className="text-primary-400 font-code text-xs font-medium uppercase leading-none tracking-[.08em]">
             {panel.kicker}
           </span>
         </div>
@@ -314,7 +314,7 @@ function UseCaseCard({panel}: {panel: Panel}) {
           {panel.chips.map((c) => (
             <span
               key={c.label}
-              className="bg-background-subtle-base border-color-alpha-white-8 text-foreground-neutral-base font-code inline-flex items-center gap-6 rounded-6 border px-10 py-5 text-xs font-medium leading-none"
+              className="bg-background-subtle-base border-alpha-white-8 text-foreground-neutral-base font-code inline-flex items-center gap-6 rounded-6 border px-10 py-5 text-xs font-medium leading-none"
             >
               <Icon name={c.icon} className={['size-13', c.iconColor].join(' ')} />
               {c.label}
@@ -322,11 +322,11 @@ function UseCaseCard({panel}: {panel: Panel}) {
           ))}
         </div>
       </div>
-      <div className="bg-background-subtle-base border-l-color-alpha-white-6 relative min-h-[380px] border-l">
+      <div className="bg-background-subtle-base border-alpha-white-6 relative min-h-[380px] border-l">
         <div className="flex h-full flex-col">
-          <div className="border-b-color-alpha-white-6 text-foreground-neutral-muted font-code flex h-32 items-center gap-8 border-b bg-[rgba(255,255,255,.02)] px-14 text-[11px] leading-none">
-            <span className="bg-color-neutral-700 size-9 rounded-full" />
-            <Icon name="fileTextLine" className="text-color-primary-400 size-13" />
+          <div className="border-alpha-white-6 text-foreground-neutral-muted font-code flex h-32 items-center gap-8 border-b bg-[rgba(255,255,255,.02)] px-14 text-[11px] leading-none">
+            <span className="bg-neutral-700 size-9 rounded-full" />
+            <Icon name="fileTextLine" className="text-primary-400 size-13" />
             {panel.yamlFile}
             <span className="text-foreground-neutral-muted ml-auto inline-flex items-center gap-4">
               <Icon name="eyeLine" className="size-13" />

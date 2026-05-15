@@ -27,7 +27,7 @@ export function SelfImprovementSection() {
   return (
     <section
       id="self-improvement"
-      className="border-b-color-alpha-white-6 relative border-b py-[110px]"
+      className="border-alpha-white-6 relative border-b py-[110px]"
     >
       <div className="wrap">
         <SectionHead
@@ -41,16 +41,16 @@ export function SelfImprovementSection() {
             {STEPS.map((s) => (
               <div
                 key={s.num}
-                className="bg-background-neutral-base border-color-alpha-white-8 hover:border-[rgba(255,75,0,.3)] grid gap-16 rounded-12 border px-22 py-18 transition-colors"
+                className="bg-background-neutral-base border-alpha-white-8 hover:border-[rgba(255,75,0,.3)] grid gap-16 rounded-12 border px-22 py-18 transition-colors"
                 style={{gridTemplateColumns: '36px 1fr'}}
               >
-                <div className="text-color-primary-400 font-code flex size-36 items-center justify-center rounded-8 border border-[rgba(255,75,0,.28)] bg-[rgba(255,75,0,.12)] text-md font-medium leading-none">
+                <div className="text-primary-400 font-code flex size-36 items-center justify-center rounded-8 border border-[rgba(255,75,0,.28)] bg-[rgba(255,75,0,.12)] text-md font-medium leading-none">
                   {s.num}
                 </div>
                 <div>
                   <h3 className="font-display text-foreground-neutral-base m-0 flex items-center gap-10 text-lg font-medium leading-[22px]">
                     {s.title}
-                    <span className="bg-background-subtle-base border-color-alpha-white-8 text-foreground-neutral-muted font-code rounded-4 border px-6 py-3 text-[10px] font-medium uppercase leading-none tracking-[.06em]">
+                    <span className="bg-background-subtle-base border-alpha-white-8 text-foreground-neutral-muted font-code rounded-4 border px-6 py-3 text-[10px] font-medium uppercase leading-none tracking-[.06em]">
                       {s.badge}
                     </span>
                   </h3>
@@ -70,6 +70,14 @@ export function SelfImprovementSection() {
 }
 
 function FlowSvg() {
+  // Shared trajectory for the arc dashes and the traveler dot — clockwise
+  // from the top, matching the node order Run → Review → Suggest → Remember.
+  // Using a single path string for both the arcs and the dot guarantees they
+  // share the same start point and direction, so the dot always sits at the
+  // leading edge of an arc dash.
+  const orbitPath =
+    'M 230 80 A 150 150 0 0 1 380 230 A 150 150 0 0 1 230 380 A 150 150 0 0 1 80 230 A 150 150 0 0 1 230 80 Z';
+
   return (
     <svg className="flow-svg block h-auto w-full" viewBox="0 0 460 460" aria-hidden="true">
       <defs>
@@ -89,11 +97,11 @@ function FlowSvg() {
         stroke="rgba(255,255,255,.05)"
         strokeDasharray="1 5"
       />
-      <circle className="arc-track" cx="230" cy="230" r="150" />
-      <circle className="arc-fg s1" cx="230" cy="230" r="150" pathLength={286} />
-      <circle className="arc-fg s2" cx="230" cy="230" r="150" pathLength={286} />
-      <circle className="arc-fg s3" cx="230" cy="230" r="150" pathLength={286} />
-      <circle className="arc-fg s4" cx="230" cy="230" r="150" pathLength={286} />
+      <path className="arc-track" d={orbitPath} />
+      <path className="arc-fg s1" d={orbitPath} pathLength={286} />
+      <path className="arc-fg s2" d={orbitPath} pathLength={286} />
+      <path className="arc-fg s3" d={orbitPath} pathLength={286} />
+      <path className="arc-fg s4" d={orbitPath} pathLength={286} />
 
       <g className="mem-bubble">
         <circle
@@ -142,11 +150,18 @@ function FlowSvg() {
 
       <g>
         <circle className="traveler" r="4">
+          {/*
+            begin="-0.189s" advances the dot by ~6 normalized path-units, which
+            equals the dash length in stroke-dasharray="6 280". That puts the dot
+            exactly at the dash's leading edge, so the arc reads as a tail
+            trailing behind a comet head.
+          */}
           <animateMotion
             dur="9s"
+            begin="-0.189s"
             repeatCount="indefinite"
             rotate="auto"
-            path="M 230 80 A 150 150 0 0 1 380 230 A 150 150 0 0 1 230 380 A 150 150 0 0 1 80 230 A 150 150 0 0 1 230 80 Z"
+            path={orbitPath}
           />
         </circle>
       </g>

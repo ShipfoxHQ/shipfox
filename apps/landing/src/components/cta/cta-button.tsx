@@ -11,7 +11,7 @@ type CtaButtonProps = Omit<ComponentProps<typeof Button>, 'onClick' | 'variant'>
 export function CtaButton({variant = 'accent', className, ...props}: CtaButtonProps) {
   const {open} = useCta();
   const accentClasses =
-    'bg-color-primary-400 text-color-neutral-1000 shipfox-shadow-cta hover:bg-color-primary-300 active:bg-color-primary-500 font-medium';
+    'bg-primary-400 text-neutral-1000 shipfox-shadow-cta hover:bg-primary-300 active:bg-primary-500 font-medium';
   return (
     <Button
       variant="secondary"

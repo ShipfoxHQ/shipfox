@@ -35,7 +35,7 @@ export function WaitlistModal() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="waitlist-title"
-      className="bg-color-alpha-black-88 fixed inset-0 z-[100] flex items-center justify-center p-32 backdrop-blur-md"
+      className="bg-alpha-black-88 fixed inset-0 z-[100] flex items-center justify-center p-32 backdrop-blur-md"
       style={{animation: 'fade-in 200ms cubic-bezier(.2,0,0,1)'}}
     >
       <button
@@ -44,7 +44,7 @@ export function WaitlistModal() {
         onClick={close}
         className="absolute inset-0 cursor-default bg-transparent"
       />
-      <div className="bg-background-neutral-base border-color-alpha-white-10 relative w-full max-w-[460px] rounded-14 border p-28 shadow-[0_40px_100px_rgba(0,0,0,.6),0_0_0_1px_rgba(255,255,255,.04)]">
+      <div className="bg-background-neutral-base border-alpha-white-10 relative w-full max-w-[460px] rounded-14 border p-28 shadow-[0_40px_100px_rgba(0,0,0,.6),0_0_0_1px_rgba(255,255,255,.04)]">
         <button
           type="button"
           aria-label="Close"
@@ -54,11 +54,11 @@ export function WaitlistModal() {
           <Icon name="closeLine" className="size-18" />
         </button>
 
-        <Icon name="shipfoxLogo" className="mb-18 h-28 w-auto" />
+        <Icon name="shipfox" className="mb-18 h-28 w-28" />
 
         {submitted ? (
           <div className="flex flex-col items-center gap-8 py-20 text-center">
-            <Icon name="checkboxCircleFill" className="text-color-green-400 size-36" />
+            <Icon name="checkboxCircleFill" className="text-green-400 size-36" />
             <Text className="text-foreground-neutral-base text-lg font-medium leading-[22px]">
               You're on the list.
             </Text>
@@ -95,7 +95,7 @@ export function WaitlistModal() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@company.com"
-                className="bg-background-subtle-base border-color-alpha-white-10 text-foreground-neutral-base focus:border-color-primary-400 h-40 w-full rounded-6 border px-12 text-md outline-none focus:shadow-[0_0_0_4px_rgba(255,75,0,.18)]"
+                className="bg-background-subtle-base border-alpha-white-10 text-foreground-neutral-base focus:border-primary-400 h-40 w-full rounded-6 border px-12 text-md outline-none focus:shadow-[0_0_0_4px_rgba(255,75,0,.18)]"
               />
 
               <div className="mt-18 flex gap-10">
@@ -111,7 +111,7 @@ export function WaitlistModal() {
                   type="submit"
                   variant="secondary"
                   iconLeft="mailAddLine"
-                  className="bg-color-primary-400 text-color-neutral-1000 shipfox-shadow-cta hover:bg-color-primary-300 flex-1 justify-center"
+                  className="bg-primary-400 text-neutral-1000 shipfox-shadow-cta hover:bg-primary-300 flex-1 justify-center"
                 >
                   Join waitlist
                 </Button>

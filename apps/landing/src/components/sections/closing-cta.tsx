@@ -15,7 +15,7 @@ export function ClosingCta() {
   return (
     <section
       id="footer-cta"
-      className="bg-color-neutral-1000 relative overflow-hidden border-b-0 px-0 pb-[120px] pt-[140px]"
+      className="bg-neutral-1000 relative overflow-hidden border-b-0 px-0 pb-[120px] pt-[140px]"
       style={{
         backgroundImage:
           'radial-gradient(800px 360px at 50% 0%, rgba(255,75,0,.18), transparent 70%)',
@@ -23,9 +23,9 @@ export function ClosingCta() {
     >
       <div aria-hidden className="bg-grid-dots pointer-events-none absolute inset-0" />
       <div className="wrap relative text-center">
-        <h2 className="font-display text-foreground-neutral-base mx-auto m-0 max-w-[780px] text-[56px] font-medium leading-[62px] tracking-[-0.03em]">
+        <h2 className="font-display text-foreground-neutral-base mx-auto m-0 text-[56px] font-medium leading-[62px] tracking-[-0.03em] whitespace-nowrap">
           Your software factory,{' '}
-          <em className="text-color-primary-400 not-italic">in your repo.</em>
+          <em className="text-primary-400 not-italic">in your repo.</em>
         </h2>
         <p className="font-display text-foreground-neutral-subtle mx-auto mt-18 max-w-[580px] text-[17px] font-normal leading-[28px]">
           One versioned system for the way engineering teams actually ship: tickets, alerts,
@@ -34,7 +34,7 @@ export function ClosingCta() {
 
         {submitted ? (
           <div className="mx-auto mt-40 flex max-w-[480px] flex-col items-center gap-8 py-20 text-center">
-            <Icon name="checkboxCircleFill" className="text-color-green-400 size-36" />
+            <Icon name="checkboxCircleFill" className="text-green-400 size-36" />
             <div className="font-display text-foreground-neutral-base text-lg font-medium leading-[22px]">
               You're on the list.
             </div>
@@ -48,7 +48,7 @@ export function ClosingCta() {
           <form
             onSubmit={onSubmit}
             autoComplete="off"
-            className="bg-background-neutral-base border-color-alpha-white-10 mx-auto mt-40 flex max-w-[480px] items-center gap-8 rounded-12 border p-6 shadow-[0_20px_60px_rgba(0,0,0,.4)]"
+            className="bg-background-neutral-base border-alpha-white-10 mx-auto mt-40 flex max-w-[480px] items-center gap-8 rounded-12 border p-6 shadow-[0_20px_60px_rgba(0,0,0,.4)]"
           >
             <input
               type="email"
@@ -63,7 +63,7 @@ export function ClosingCta() {
               type="submit"
               variant="secondary"
               iconLeft="flashlightFill"
-              className="bg-color-primary-400 text-color-neutral-1000 shipfox-shadow-cta hover:bg-color-primary-300 h-40"
+              className="bg-primary-400 text-neutral-1000 shipfox-shadow-cta hover:bg-primary-300 h-40"
             >
               Get started
             </Button>

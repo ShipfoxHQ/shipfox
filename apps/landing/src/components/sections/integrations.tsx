@@ -12,8 +12,8 @@ const IN_GROUPS: Group[] = [
     label: 'Source control',
     chips: [
       {label: 'GitHub', icon: 'githubFill'},
-      {label: 'GitLab', icon: 'gitlabFill', iconColor: 'text-color-orange-400'},
-      {label: 'Bitbucket', icon: 'bitCoinLine', iconColor: 'text-color-blue-400'},
+      {label: 'GitLab', icon: 'gitlabFill', iconColor: 'text-orange-400'},
+      {label: 'Bitbucket', icon: 'bitCoinLine', iconColor: 'text-blue-400'},
     ],
   },
   {
@@ -37,9 +37,9 @@ const IN_GROUPS: Group[] = [
   {
     label: 'Comms',
     chips: [
-      {label: 'Slack', icon: 'slackFill', iconColor: 'text-color-purple-400'},
-      {label: 'Teams', icon: 'microsoftLine', iconColor: 'text-color-blue-400'},
-      {label: 'Discord', icon: 'discordFill', iconColor: 'text-color-blue-400'},
+      {label: 'Slack', icon: 'slackFill', iconColor: 'text-purple-400'},
+      {label: 'Teams', icon: 'microsoftLine', iconColor: 'text-blue-400'},
+      {label: 'Discord', icon: 'discordFill', iconColor: 'text-blue-400'},
     ],
   },
   {
@@ -95,7 +95,7 @@ export function IntegrationsSection() {
   return (
     <section
       id="integrations"
-      className="border-b-color-alpha-white-6 relative border-b py-[110px]"
+      className="border-alpha-white-6 relative border-b py-[110px]"
     >
       <div className="wrap">
         <SectionHead
@@ -110,7 +110,7 @@ export function IntegrationsSection() {
         >
           <div className="flex flex-col gap-14">
             {IN_GROUPS.map((g) => (
-              <IntegGroup key={g.label} label={g.label} arrowColor="text-color-primary-400">
+              <IntegGroup key={g.label} label={g.label} arrowColor="text-primary-400">
                 {g.chips.map((c) => (
                   <ChipIn key={c.label} chip={c} />
                 ))}
@@ -125,9 +125,9 @@ export function IntegrationsSection() {
               <IntegGroup
                 key={g.label}
                 label={g.label}
-                arrowColor="text-color-green-400"
+                arrowColor="text-green-400"
                 borderColor="border-[rgba(52,211,153,.2)]"
-                labelColor="text-color-green-400"
+                labelColor="text-green-400"
               >
                 {g.chips.map((c) => (
                   <ChipOut key={c.label} icon={c.icon} label={c.label} />
@@ -145,7 +145,7 @@ function IntegGroup({
   label,
   arrowColor,
   labelColor = 'text-foreground-neutral-muted',
-  borderColor = 'border-color-alpha-white-8',
+  borderColor = 'border-alpha-white-8',
   children,
 }: {
   label: string;
@@ -176,7 +176,7 @@ function IntegGroup({
 
 function ChipIn({chip}: {chip: Chip}) {
   return (
-    <span className="bg-background-subtle-base border-color-alpha-white-8 text-foreground-neutral-base font-code inline-flex items-center gap-6 rounded-6 border px-10 py-5 text-xs font-medium leading-none">
+    <span className="bg-background-subtle-base border-alpha-white-8 text-foreground-neutral-base font-code inline-flex items-center gap-6 rounded-6 border px-10 py-5 text-xs font-medium leading-none">
       {chip.icon && <Icon name={chip.icon} className={['size-13', chip.iconColor].join(' ')} />}
       {chip.swatch && (
         <span className="size-8 rounded-2" style={{background: chip.swatch}} aria-hidden />
@@ -189,7 +189,7 @@ function ChipIn({chip}: {chip: Chip}) {
 function ChipOut({icon, label}: {icon: IconName; label: string}) {
   return (
     <span className="border-[rgba(52,211,153,.2)] text-foreground-neutral-base font-code inline-flex items-center gap-6 rounded-6 border bg-[rgba(52,211,153,.06)] px-10 py-5 text-xs font-medium leading-none">
-      <Icon name={icon} className="text-color-green-400 size-13" />
+      <Icon name={icon} className="text-green-400 size-13" />
       {label}
     </span>
   );
@@ -198,7 +198,7 @@ function ChipOut({icon, label}: {icon: IconName; label: string}) {
 function Engine() {
   return (
     <div className="relative flex flex-col items-center justify-center rounded-14 border border-[rgba(255,75,0,.4)] bg-gradient-to-b from-[rgba(255,75,0,.14)] to-[rgba(255,75,0,.04)] px-24 py-32 text-center shadow-[0_0_0_1px_rgba(255,75,0,.1),0_30px_80px_rgba(255,75,0,.08)]">
-      <Icon name="shipfoxLogo" className="size-56" />
+      <Icon name="shipfox" className="size-56" />
       <h4 className="font-display text-foreground-neutral-base mb-1 mt-14 text-lg font-medium leading-[24px] tracking-[-0.01em]">
         Shipfox engine
       </h4>

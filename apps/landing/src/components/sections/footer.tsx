@@ -26,10 +26,10 @@ const PRODUCT_HASHES = ['#what', '#integrations', '#use-cases', '#platform', '#p
 export function Footer() {
   return (
     <>
-      <footer className="bg-color-neutral-1000 px-0 pb-24 pt-56">
+      <footer className="bg-neutral-1000 px-0 pb-24 pt-56">
         <div className="wrap grid gap-32" style={{gridTemplateColumns: '1.6fr 1fr 1fr 1fr 1fr'}}>
           <div>
-            <Icon name="shipfoxLogo" className="mb-14 h-22 w-auto" />
+            <Icon name="shipfox" className="mb-14 h-22 w-22" />
             <p className="font-display text-foreground-neutral-muted m-0 max-w-[280px] text-sm font-normal leading-[20px]">
               Continuous shipping for engineering teams. Open source, managed cloud, or fully
               self-hosted.
@@ -59,9 +59,9 @@ export function Footer() {
           ))}
         </div>
       </footer>
-      <div className="border-t-color-alpha-white-6 text-foreground-neutral-muted font-code border-t py-18 text-xs leading-none">
+      <div className="border-alpha-white-6 text-foreground-neutral-muted font-code border-t py-18 text-xs leading-none">
         <div className="wrap flex items-center">
-          <span className="text-color-primary-400">/shipfox · 2026</span>
+          <span className="text-primary-400">/shipfox · 2026</span>
           <span className="mx-12 opacity-40">·</span>
           <span>region eu-west-1 · all systems operational</span>
           <div className="ml-auto flex gap-18">

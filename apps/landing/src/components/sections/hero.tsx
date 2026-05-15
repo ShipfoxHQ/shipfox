@@ -9,7 +9,7 @@ export function Hero() {
   return (
     <section
       id="hero"
-      className="border-b-color-alpha-white-6 relative overflow-hidden border-b px-0 pb-100 pt-[110px]"
+      className="border-alpha-white-6 relative overflow-hidden border-b px-0 pb-100 pt-[110px]"
     >
       <div
         aria-hidden
@@ -26,7 +26,7 @@ export function Hero() {
         <Eyebrow>Shipfox: continuous shipping platform</Eyebrow>
 
         <h1 className="font-display text-foreground-neutral-base mt-18 max-w-[880px] text-[76px] font-medium leading-[82px] tracking-[-0.035em]">
-          Your <em className="text-color-primary-400 not-italic">software factory.</em>
+          Your <em className="text-primary-400 not-italic">software factory.</em>
         </h1>
 
         <p className="font-display text-foreground-neutral-subtle mt-24 max-w-[600px] text-lg font-normal leading-[30px]">
@@ -35,8 +35,8 @@ export function Hero() {
         </p>
 
         <div className="mt-36 flex flex-wrap items-center gap-14">
-          <CtaButton size="lg">Get started</CtaButton>
-          <Button variant="secondary" size="lg" iconLeft="githubFill">
+          <CtaButton size="xl">Get started</CtaButton>
+          <Button variant="secondary" size="xl" iconLeft="githubFill">
             Star on GitHub
             <span className="text-foreground-neutral-muted font-code ml-6 text-xs font-normal">
               8.4k
@@ -63,7 +63,7 @@ export function Hero() {
 function MetaItem({children}: {children: React.ReactNode}) {
   return (
     <span className="inline-flex items-center gap-6">
-      <Icon name="checkboxCircleFill" className="text-color-green-400 size-14" />
+      <Icon name="checkboxCircleFill" className="text-green-400 size-14" />
       {children}
     </span>
   );
