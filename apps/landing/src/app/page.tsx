@@ -1,3 +1,4 @@
+import {Banner} from '#components/sections/banner';
 import {ClosingCta} from '#components/sections/closing-cta';
 import {Footer} from '#components/sections/footer';
 import {Hero} from '#components/sections/hero';
@@ -12,6 +13,7 @@ import {WhatSection} from '#components/sections/what';
 export default function HomePage() {
   return (
     <>
+      <Banner />
       <Nav />
       <Hero />
       <WhatSection />
