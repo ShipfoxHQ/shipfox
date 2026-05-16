@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+# Maintains a single "Version Packages" PR that aggregates pending changesets.
+# Merging that PR causes this workflow to run again and publish to npm.
+#
+# To enable publishing:
+#   1. Provision an npm token for the @shipfox scope and add it as the
+#      `NPM_TOKEN` secret on the repository.
+#   2. Remove the `if: false` guard on the publish job below.
+#   3. Confirm that the packages you want to release have `"private": false`
+#      in their package.json. Everything else is skipped by Changesets.
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: false # flip to `true` once NPM_TOKEN is configured
+    name: Version + publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up mise
+        uses: jdx/mise-action@v2
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build publishable packages
+        run: turbo build --filter='./libs/**' --filter='./tools/**'
+
+      - name: Create release PR or publish
+        uses: changesets/action@v1
+        with:
+          publish: pnpm release
+          version: pnpm version-packages
+          title: "chore(release): version packages"
+          commit: "chore(release): version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
