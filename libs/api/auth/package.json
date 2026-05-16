@@ -45,7 +45,7 @@
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/node-tokens": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "jose": "^5.9.6",
+    "jose": "^6.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
