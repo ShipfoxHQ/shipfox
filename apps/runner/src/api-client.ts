@@ -12,7 +12,7 @@ import ky, {HTTPError} from 'ky';
 import {config} from '#config.js';
 
 const api = ky.create({
-  prefixUrl: config.SHIPFOX_API_URL,
+  baseUrl: config.SHIPFOX_API_URL,
   headers: {
     Authorization: `Bearer ${config.SHIPFOX_RUNNER_TOKEN}`,
   },
