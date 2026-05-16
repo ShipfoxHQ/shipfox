@@ -25,7 +25,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@argos-ci/playwright": "^6.6.4",
+    "@argos-ci/playwright": "^7.0.0",
     "@playwright/test": "^1.57.0"
   },
   "devDependencies": {
