@@ -2630,8 +2630,8 @@ importers:
   tools/playwright:
     dependencies:
       '@argos-ci/playwright':
-        specifier: ^6.6.4
-        version: 6.6.4
+        specifier: ^7.0.0
+        version: 7.0.0
       '@playwright/test':
         specifier: ^1.57.0
         version: 1.59.1
@@ -2759,6 +2759,10 @@ packages:
     resolution: {integrity: sha512-2acfqcb7A2VNqm43bBk90PleBV+qCwO68FNmoGn28zs3d10G3W3/ZkqtoYUY3ycWclWQ/KYxH8SdHQfz4iB3ow==}
     engines: {node: '>=20.0.0'}
 
+  '@argos-ci/browser@6.0.0':
+    resolution: {integrity: sha512-OFu6i80F9zLY4yEThPCb+p2q7Yfl+j0XTltaGDTvUTTAvQFEauV/Ng8q1JoVcRCr4/i+eBT8WK/tWrDGZh5LPw==}
+    engines: {node: '>=22.0.0'}
+
   '@argos-ci/cli@5.0.0':
     resolution: {integrity: sha512-HmOJpwFI6QopqzoZSGcwnfyIGpje+9zDHV5vZnIugIot0dw/T1cp5J9mVr5XFkERcJc+KzI3g6sFNM1PJAeSOg==}
     engines: {node: '>=22.0.0'}
@@ -2775,6 +2779,10 @@ packages:
   '@argos-ci/playwright@6.6.4':
     resolution: {integrity: sha512-8ewmYSZabfRYLIKbIOOJAZm4GOM7o+VIdNjcEW6B4rF+u7l+IkySUt/zPFsiyl1dPC2xAV7eH+0SnaZX0svBpw==}
     engines: {node: '>=20.0.0'}
+
+  '@argos-ci/playwright@7.0.0':
+    resolution: {integrity: sha512-RzncGQOW7pm7CZiMN2Twta7ZesR6JbGZlgLEpXU27gaPSP6x54QIlia/pc+NHnCEf7n6UezFs9sSxacVJ+WjOw==}
+    engines: {node: '>=22.0.0'}
 
   '@argos-ci/storybook@5.3.4':
     resolution: {integrity: sha512-53uiPVlS5CChCbw3VzMxVrjaFoQrQop44/WNzaYwYNNSHvnNsUyJDg04K+x0aZZ1o9NtXn9k5taBbFtS1NzthA==}
@@ -8675,6 +8683,8 @@ snapshots:
 
   '@argos-ci/browser@5.1.3': {}
 
+  '@argos-ci/browser@6.0.0': {}
+
   '@argos-ci/cli@5.0.0':
     dependencies:
       '@argos-ci/api-client': 0.20.0
@@ -8717,6 +8727,16 @@ snapshots:
       '@argos-ci/browser': 5.1.3
       '@argos-ci/core': 5.3.1
       '@argos-ci/util': 3.4.0
+      chalk: 5.6.2
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
+  '@argos-ci/playwright@7.0.0':
+    dependencies:
+      '@argos-ci/browser': 6.0.0
+      '@argos-ci/core': 6.0.0
+      '@argos-ci/util': 4.0.0
       chalk: 5.6.2
       debug: 4.4.3
     transitivePeerDependencies:
