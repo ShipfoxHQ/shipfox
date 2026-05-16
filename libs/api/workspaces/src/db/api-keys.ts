@@ -1,4 +1,4 @@
-import {asc, eq} from 'drizzle-orm';
+import {asc, eq, sql} from 'drizzle-orm';
 import type {ApiKey} from '#core/entities/api-key.js';
 import {db} from './db.js';
 import {apiKeys, toApiKey} from './schema/api-keys.js';
@@ -31,7 +31,7 @@ export async function createApiKey(params: CreateApiKeyParams): Promise<ApiKey> 
 export async function revokeApiKey(id: string): Promise<ApiKey | undefined> {
   const rows = await db()
     .update(apiKeys)
-    .set({revokedAt: new Date(), updatedAt: new Date()})
+    .set({revokedAt: sql`now()`, updatedAt: sql`now()`})
     .where(eq(apiKeys.id, id))
     .returning();
 
