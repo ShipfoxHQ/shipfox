@@ -50,10 +50,21 @@
       "matchPackageNames": ["@shipfox/**"]
     },
     {
+      "description": "Group all @argos-ci NPM updates into one PR",
+      "groupName": "argos-ci",
+      "groupSlug": "argos-ci",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["@argos-ci/**"]
+    },
+    {
       "description": "TanStack Query: group related packages together and bump ranges to keep deps and peerDeps in sync across the monorepo",
       "groupName": "tanstack-query",
       "groupSlug": "tanstack-query",
-      "matchPackageNames": ["@tanstack/react-query", "@tanstack/query-core", "@tanstack/react-query-devtools"],
+      "matchPackageNames": [
+        "@tanstack/react-query",
+        "@tanstack/query-core",
+        "@tanstack/react-query-devtools"
+      ],
       "rangeStrategy": "bump"
     },
     {
