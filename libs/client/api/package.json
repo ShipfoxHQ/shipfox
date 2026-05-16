@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@swc/helpers": "^0.5.17",
-    "ky": "^1.8.1"
+    "ky": "^2.0.0"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
