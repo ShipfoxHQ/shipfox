@@ -1,4 +1,16 @@
 export {
+  type E2eCreateIntegrationConnectionBodyDto,
+  type E2eCreateIntegrationConnectionResponseDto,
+  type E2eIntegrationOutboxEventDto,
+  type E2eListIntegrationEventsQueryDto,
+  type E2eListIntegrationEventsResponseDto,
+  e2eCreateIntegrationConnectionBodySchema,
+  e2eCreateIntegrationConnectionResponseSchema,
+  e2eIntegrationOutboxEventSchema,
+  e2eListIntegrationEventsQuerySchema,
+  e2eListIntegrationEventsResponseSchema,
+} from './e2e.js';
+export {
   type IntegrationCapabilityDto,
   type IntegrationConnectionDto,
   type IntegrationConnectionLifecycleStatusDto,

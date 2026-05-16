@@ -116,6 +116,7 @@ export interface IntegrationProvider<
   displayName: string;
   adapters?: IntegrationProviderAdapters<Connection> | undefined;
   routes?: Route[] | undefined;
+  e2eRoutes?: Route[] | undefined;
 }
 
 export interface RegisteredIntegrationProvider<

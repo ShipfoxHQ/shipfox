@@ -8,6 +8,7 @@ import type {
 } from '#core/webhook.js';
 import {closeDb, db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
+import {githubE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {
   type CreateGithubIntegrationRoutesOptions,
   createGithubIntegrationRoutes,
@@ -60,5 +61,6 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
         getIntegrationConnectionById: options.getIntegrationConnectionById,
       }),
     ],
+    e2eRoutes: [githubE2eRoutes],
   };
 }

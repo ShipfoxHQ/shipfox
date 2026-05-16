@@ -18,6 +18,7 @@ import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
 import {publishRepositoryPushed, recordDeliveryOnly} from '#db/webhook-deliveries.js';
+import {createIntegrationE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {createIntegrationRoutes} from '#presentation/routes/index.js';
 import {createIntegrationsMaintenanceActivities} from '#temporal/activities/index.js';
 import {INTEGRATIONS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
@@ -193,10 +194,13 @@ export async function createIntegrationsContext(
     getIntegrationConnectionById,
   });
 
+  const providerE2eRoutes = registry.list().flatMap((provider) => provider.e2eRoutes ?? []);
+
   const module: ShipfoxModule = {
     name: 'integrations',
     database: github ? [{db, migrationsPath}, github.database] : {db, migrationsPath},
     routes: createIntegrationRoutes(registry, sourceControl),
+    e2eRoutes: [createIntegrationE2eRoutes(providerE2eRoutes)],
     publishers: [{name: 'integrations', table: integrationsOutbox, db}],
     workers: [
       {
