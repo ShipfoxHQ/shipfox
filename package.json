@@ -3,7 +3,7 @@
   "license": "MIT",
   "scripts": {},
   "private": true,
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@11.1.1",
   "type": "module",
   "devDependencies": {
     "@types/node": "^24.1.0"
