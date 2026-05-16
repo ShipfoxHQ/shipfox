@@ -73,6 +73,12 @@
       "groupSlug": "tanstack-router",
       "matchPackageNames": ["@tanstack/react-router", "@tanstack/router-plugin"],
       "rangeStrategy": "bump"
+    },
+    {
+      "description": "Group pnpm updates across managers (packageManager field + npm:pnpm) into one PR",
+      "groupName": "pnpm",
+      "groupSlug": "pnpm",
+      "matchPackageNames": ["pnpm"]
     }
   ]
 }

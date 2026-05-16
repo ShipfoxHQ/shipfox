@@ -51,7 +51,7 @@
   "dependencies": {
     "@shipfox/config": "workspace:*",
     "@shipfox/playwright": "workspace:*",
-    "ky": "^1.8.1"
+    "ky": "^2.0.0"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

@@ -152,8 +152,8 @@ importers:
         specifier: workspace:*
         version: link:../../libs/shared/node/opentelemetry
       ky:
-        specifier: ^1.8.1
-        version: 1.14.3
+        specifier: ^2.0.0
+        version: 2.0.2
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -330,8 +330,8 @@ importers:
         specifier: workspace:*
         version: link:../../tools/playwright
       ky:
-        specifier: ^1.8.1
-        version: 1.14.3
+        specifier: ^2.0.0
+        version: 2.0.2
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -937,8 +937,8 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0
       ky:
-        specifier: ^1.14.3
-        version: 1.14.3
+        specifier: ^2.0.0
+        version: 2.0.2
       octokit:
         specifier: ^5.0.3
         version: 5.0.5
@@ -1451,8 +1451,8 @@ importers:
         specifier: ^0.5.17
         version: 0.5.21
       ky:
-        specifier: ^1.8.1
-        version: 1.14.3
+        specifier: ^2.0.0
+        version: 2.0.2
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -7332,6 +7332,10 @@ packages:
   ky@1.14.3:
     resolution: {integrity: sha512-9zy9lkjac+TR1c2tG+mkNSVlyOpInnWdSMiue4F+kq8TwJSgv6o8jhLRg8Ho6SnZ9wOYUq/yozts9qQCfk7bIw==}
     engines: {node: '>=18'}
+
+  ky@2.0.2:
+    resolution: {integrity: sha512-/GmXpo9F9W+f8n4Ivr2iH+7h7wL7jLbLKWkMlpflcCRb6kGjBfTlASEXaZ9qUgNTn4VgS0P2pwxxzQ4EM6Ulgg==}
+    engines: {node: '>=22'}
 
   latest-version@9.0.0:
     resolution: {integrity: sha512-7W0vV3rqv5tokqkBAFV1LbR7HPOWzXQDpDgEuib/aJ1jsZZx6x3c2mBI+TJhJzOhkGeaLbCKEHXEXLfirtG2JA==}
@@ -13460,6 +13464,8 @@ snapshots:
   kleur@3.0.3: {}
 
   ky@1.14.3: {}
+
+  ky@2.0.2: {}
 
   latest-version@9.0.0:
     dependencies:
