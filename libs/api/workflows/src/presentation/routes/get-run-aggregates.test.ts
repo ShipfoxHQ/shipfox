@@ -56,8 +56,12 @@ describe('GET /api/workflows/runs/aggregates', () => {
       definitionId: deployDefinitionId,
       name: 'Deploy',
       definition: {name: 'Deploy', jobs: {build: {steps: [{run: 'echo'}]}}},
-      triggerSource: 'manual',
-      triggerContext: {},
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
     });
     await updateWorkflowRunStatus({
       runId: succeeded.id,
@@ -70,8 +74,12 @@ describe('GET /api/workflows/runs/aggregates', () => {
       definitionId: deployDefinitionId,
       name: 'Deploy',
       definition: {name: 'Deploy', jobs: {build: {steps: [{run: 'echo'}]}}},
-      triggerSource: 'manual',
-      triggerContext: {},
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
     });
     await createWorkflowRun({
       workspaceId,
@@ -79,8 +87,11 @@ describe('GET /api/workflows/runs/aggregates', () => {
       definitionId: nightlyDefinitionId,
       name: 'Nightly',
       definition: {name: 'Nightly', jobs: {build: {steps: [{run: 'echo'}]}}},
-      triggerSource: 'schedule',
-      triggerContext: {},
+      triggerPayload: {
+        source: 'cron',
+        event: 'tick',
+        scheduleId: crypto.randomUUID(),
+      },
     });
 
     const res = await app.inject({

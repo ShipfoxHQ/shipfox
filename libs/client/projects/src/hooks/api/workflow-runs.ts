@@ -1,11 +1,8 @@
 import type {
-  CreateRunBodyDto,
   RunAggregatesResponseDto,
   RunDto,
   RunListResponseDto,
-  RunResponseDto,
   RunStatusDto,
-  TriggerSourceDto,
 } from '@shipfox/api-workflows-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {
@@ -20,7 +17,7 @@ import {
 export interface WorkflowRunFilters {
   status?: RunStatusDto | undefined;
   definitionId?: string | undefined;
-  triggerSource?: TriggerSourceDto | undefined;
+  triggerSource?: string | undefined;
   createdFrom?: string | undefined;
   createdTo?: string | undefined;
 }
@@ -90,8 +87,25 @@ export async function getWorkflowRunAggregates({
   );
 }
 
-export async function createWorkflowRun(body: CreateRunBodyDto) {
-  return await apiRequest<RunResponseDto>('/workflows/runs', {method: 'POST', body});
+/**
+ * Fire the manual trigger of a workflow definition.
+ *
+ * The server resolves the manual subscription by definition id (workflows
+ * may declare at most one manual trigger). `inputs` are forwarded to the
+ * run; the Run button passes none today, but the same call shape will
+ * carry a user-supplied payload when the input dialog ships.
+ */
+export async function fireManualWorkflow({
+  definitionId,
+  inputs,
+}: {
+  definitionId: string;
+  inputs?: Record<string, unknown>;
+}) {
+  return await apiRequest<{run_id: string}>(`/workflow-definitions/${definitionId}/fire-manual`, {
+    method: 'POST',
+    body: inputs ? {inputs} : {},
+  });
 }
 
 const TERMINAL_RUN_STATUSES = new Set<RunStatusDto>(['succeeded', 'failed', 'cancelled']);
@@ -208,7 +222,8 @@ function buildTempRun({
     name,
     status: 'pending',
     trigger_source: 'manual',
-    trigger_context: {},
+    trigger_event: 'fire',
+    trigger_payload: {source: 'manual', event: 'fire'},
     inputs: null,
     created_at: createdAt,
     updated_at: createdAt,
@@ -222,24 +237,39 @@ function cryptoRandomId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function useCreateWorkflowRunMutation() {
+export interface FireManualWorkflowVariables {
+  projectId: string;
+  definitionId: string;
+  inputs?: Record<string, unknown>;
+}
+
+export function useFireManualWorkflowMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: createWorkflowRun,
-    onMutate: (body) => {
+    mutationFn: (variables: FireManualWorkflowVariables) =>
+      fireManualWorkflow(
+        variables.inputs
+          ? {definitionId: variables.definitionId, inputs: variables.inputs}
+          : {definitionId: variables.definitionId},
+      ),
+    onMutate: (variables) => {
       // Resolve the display name from the definitions cache if we have it.
       // Falling back to "New run" is honest — the canonical row arrives via
       // the post-success invalidate within the second.
-      const definitionName = lookupDefinitionName(queryClient, body.project_id, body.definition_id);
+      const definitionName = lookupDefinitionName(
+        queryClient,
+        variables.projectId,
+        variables.definitionId,
+      );
       const createdAt = new Date().toISOString();
       const tempRun = buildTempRun({
-        projectId: body.project_id,
-        definitionId: body.definition_id,
+        projectId: variables.projectId,
+        definitionId: variables.definitionId,
         name: definitionName ?? 'New run',
         createdAt,
       });
 
-      const listsKey = workflowRunsQueryKeys.lists(body.project_id);
+      const listsKey = workflowRunsQueryKeys.lists(variables.projectId);
       const snapshots: Array<[readonly unknown[], RunListInfinite | undefined]> = [];
 
       const entries = queryClient.getQueriesData<RunListInfinite>({queryKey: listsKey});
@@ -247,7 +277,7 @@ export function useCreateWorkflowRunMutation() {
       for (const [queryKey, data] of entries) {
         const filters = readFiltersFromKey(queryKey);
         if (!filters) continue;
-        if (!filtersAcceptManualPendingRun(filters, body.definition_id, now)) continue;
+        if (!filtersAcceptManualPendingRun(filters, variables.definitionId, now)) continue;
 
         snapshots.push([queryKey, data]);
         queryClient.setQueryData<RunListInfinite>(queryKey, (current) => {
@@ -266,19 +296,19 @@ export function useCreateWorkflowRunMutation() {
 
       return {snapshots};
     },
-    onError: (_error, _body, context) => {
+    onError: (_error, _variables, context) => {
       // Roll back every list we touched.
       if (!context) return;
       for (const [queryKey, previous] of context.snapshots) {
         queryClient.setQueryData(queryKey, previous);
       }
     },
-    onSuccess: (_data, body) => {
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({
-        queryKey: workflowRunsQueryKeys.lists(body.project_id),
+        queryKey: workflowRunsQueryKeys.lists(variables.projectId),
       });
       void queryClient.invalidateQueries({
-        queryKey: [...workflowRunsQueryKeys.all, 'aggregates', body.project_id],
+        queryKey: [...workflowRunsQueryKeys.all, 'aggregates', variables.projectId],
       });
     },
   });
@@ -299,7 +329,7 @@ function readFiltersFromKey(queryKey: readonly unknown[]): WorkflowRunFilters | 
   return {
     status: (obj.status as RunStatusDto | null) ?? undefined,
     definitionId: (obj.definitionId as string | null) ?? undefined,
-    triggerSource: (obj.triggerSource as TriggerSourceDto | null) ?? undefined,
+    triggerSource: (obj.triggerSource as string | null) ?? undefined,
     createdFrom: (obj.createdFrom as string | null) ?? undefined,
     createdTo: (obj.createdTo as string | null) ?? undefined,
   };

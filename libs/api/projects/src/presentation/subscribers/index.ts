@@ -1,1 +1,1 @@
-export {onIntegrationRepositoryPushed} from './on-integration-repository-pushed.js';
+export {onIntegrationEventReceived} from './on-integration-event-received.js';

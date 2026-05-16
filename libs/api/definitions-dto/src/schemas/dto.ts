@@ -30,6 +30,11 @@ export const definitionDtoSchema = z.object({
   ref: z.string().nullable(),
   name: z.string(),
   definition: z.record(z.string(), z.unknown()),
+  manual_trigger: z
+    .object({
+      name: z.string(),
+    })
+    .nullable(),
   fetched_at: z.string(),
   created_at: z.string(),
   updated_at: z.string(),

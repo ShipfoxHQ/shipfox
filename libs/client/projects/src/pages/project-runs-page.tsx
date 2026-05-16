@@ -1,4 +1,4 @@
-import type {RunDto, RunStatusDto, TriggerSourceDto} from '@shipfox/api-workflows-dto';
+import type {RunDto, RunStatusDto} from '@shipfox/api-workflows-dto';
 import {
   Alert,
   Button,
@@ -31,7 +31,8 @@ import {
   toWorkflowRunFilters,
 } from './project-runs-search.js';
 
-const TRIGGER_SOURCES: TriggerSourceDto[] = ['manual', 'webhook', 'schedule'];
+// Leading underscore is rejected by isTriggerSource, so this sentinel cannot collide with a real source value.
+const ANY_TRIGGER_SOURCE = '__any__';
 
 export function ProjectRunsPage({projectId}: {projectId: string}) {
   return (
@@ -87,6 +88,7 @@ function ProjectRunsPageInner({projectId}: {projectId: string}) {
         searchState={searchState}
         definitions={definitions}
         statusCounts={aggregatesQuery.data?.status ?? []}
+        triggerSourceOptions={aggregatesQuery.data?.trigger_source ?? []}
         countsUnavailable={aggregatesQuery.isError}
         onChange={updateFilters}
         onRetryCounts={() => aggregatesQuery.refetch()}
@@ -189,6 +191,7 @@ function RunsFilterBar({
   searchState,
   definitions,
   statusCounts,
+  triggerSourceOptions,
   countsUnavailable,
   onChange,
   onRetryCounts,
@@ -196,10 +199,18 @@ function RunsFilterBar({
   searchState: RunsSearchState;
   definitions: Array<{id: string; name: string}>;
   statusCounts: Array<{value: RunStatusDto; count: number}>;
+  triggerSourceOptions: Array<{value: string; count: number}>;
   countsUnavailable: boolean;
   onChange: (next: Partial<RunsSearchState>) => void;
   onRetryCounts: () => void;
 }) {
+  // Union with the current selection so a value filtered out of the aggregates window stays selectable.
+  const triggerSources = Array.from(
+    new Set([
+      ...triggerSourceOptions.map((bucket) => bucket.value),
+      ...(searchState.triggerSource ? [searchState.triggerSource] : []),
+    ]),
+  ).sort();
   return (
     <div className="sticky top-96 z-10 flex flex-col gap-8 rounded-8 border border-border-neutral-base bg-background-neutral-base px-10 py-8 backdrop-blur-sm md:flex-row md:items-center">
       <div className="md:flex-1">
@@ -219,17 +230,17 @@ function RunsFilterBar({
       </div>
       <div className="md:flex-1">
         <Select
-          value={searchState.triggerSource ?? 'all'}
+          value={searchState.triggerSource ?? ANY_TRIGGER_SOURCE}
           onValueChange={(value) =>
-            onChange({triggerSource: value === 'all' ? undefined : (value as TriggerSourceDto)})
+            onChange({triggerSource: value === ANY_TRIGGER_SOURCE ? undefined : value})
           }
         >
           <SelectTrigger size="small" aria-label="Trigger filter">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Any trigger</SelectItem>
-            {TRIGGER_SOURCES.map((source) => (
+            <SelectItem value={ANY_TRIGGER_SOURCE}>Any trigger</SelectItem>
+            {triggerSources.map((source) => (
               <SelectItem key={source} value={source}>
                 {source}
               </SelectItem>

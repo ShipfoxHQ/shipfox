@@ -4,17 +4,6 @@ export const runStatusSchema = z.enum(['pending', 'running', 'succeeded', 'faile
 
 export type RunStatusDto = z.infer<typeof runStatusSchema>;
 
-export const triggerSourceSchema = z.enum(['manual', 'webhook', 'schedule']);
-
-export type TriggerSourceDto = z.infer<typeof triggerSourceSchema>;
-
-export const createRunBodySchema = z.object({
-  project_id: z.string().uuid(),
-  definition_id: z.string().uuid(),
-});
-
-export type CreateRunBodyDto = z.infer<typeof createRunBodySchema>;
-
 const isoDateTimeSchema = z.string().datetime();
 const runListQueryBaseSchema = z.object({
   project_id: z.string().uuid(),
@@ -22,7 +11,7 @@ const runListQueryBaseSchema = z.object({
   cursor: z.string().optional(),
   status: runStatusSchema.optional(),
   definition_id: z.string().uuid().optional(),
-  trigger_source: triggerSourceSchema.optional(),
+  trigger_source: z.string().optional(),
   created_from: isoDateTimeSchema.optional(),
   created_to: isoDateTimeSchema.optional(),
 });
@@ -69,8 +58,9 @@ export const runDtoSchema = z.object({
   definition_id: z.string().uuid(),
   name: z.string(),
   status: runStatusSchema,
-  trigger_source: triggerSourceSchema,
-  trigger_context: z.record(z.string(), z.unknown()),
+  trigger_source: z.string(),
+  trigger_event: z.string(),
+  trigger_payload: z.record(z.string(), z.unknown()),
   inputs: z.record(z.string(), z.unknown()).nullable(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -97,9 +87,7 @@ const aggregateBucketSchema = z.object({
 
 export const runAggregatesResponseSchema = z.object({
   status: z.array(z.object({value: runStatusSchema, count: z.number().int().nonnegative()})),
-  trigger_source: z.array(
-    z.object({value: triggerSourceSchema, count: z.number().int().nonnegative()}),
-  ),
+  trigger_source: z.array(aggregateBucketSchema),
   workflow: z.array(aggregateBucketSchema),
 });
 

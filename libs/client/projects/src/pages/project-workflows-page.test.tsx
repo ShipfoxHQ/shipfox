@@ -167,7 +167,11 @@ function createProjectDetailFetch({
     if (url.pathname === '/integration-connections') {
       return Promise.resolve(connections.clone());
     }
-    if (url.pathname === '/workflows/runs' && method === 'POST') {
+    if (
+      url.pathname.startsWith('/workflow-definitions/') &&
+      url.pathname.endsWith('/fire-manual') &&
+      method === 'POST'
+    ) {
       return Promise.resolve(run.clone());
     }
     return Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}));
@@ -228,8 +232,10 @@ function baseDefinitionsDto() {
         name: 'Deploy production',
         definition: {
           name: 'Deploy production',
+          triggers: {on_demand: {source: 'manual', event: 'fire'}},
           jobs: {deploy: {steps: [{run: './deploy.sh'}]}},
         },
+        manual_trigger: {name: 'on_demand'},
         fetched_at: '2026-05-07T01:00:00.000Z',
         created_at: '2026-05-07T01:00:00.000Z',
         updated_at: '2026-05-07T01:00:00.000Z',
@@ -249,16 +255,5 @@ function baseDefinitionsDto() {
 }
 
 function runDto() {
-  return {
-    id: '66666666-6666-4666-8666-666666666666',
-    project_id: PROJECT_ID,
-    definition_id: '55555555-5555-4555-8555-555555555555',
-    status: 'pending',
-    name: 'Deploy production',
-    trigger_source: 'manual',
-    trigger_context: {},
-    inputs: null,
-    created_at: '2026-05-07T01:01:00.000Z',
-    updated_at: '2026-05-07T01:01:00.000Z',
-  };
+  return {run_id: '66666666-6666-4666-8666-666666666666'};
 }

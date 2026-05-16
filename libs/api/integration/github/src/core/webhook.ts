@@ -1,24 +1,23 @@
 import {
   buildProviderRepositoryId,
+  type GithubPushPayload,
   type IntegrationConnection,
-  type IntegrationRepositoryPushedEvent,
+  type IntegrationEventReceivedEvent,
 } from '@shipfox/api-integration-core-dto';
 import type {GithubPushPayloadDto} from '@shipfox/api-integration-github-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {getGithubInstallationByInstallationId} from '#db/installations.js';
 
 const REFS_HEADS_PREFIX = 'refs/heads/';
-const GITHUB_PROVIDER = 'github';
+const GITHUB_SOURCE = 'github';
+const PUSH_EVENT = 'push';
 
-// `Tx` is loose to avoid a static dependency on @shipfox/api-integration-core,
-// which already depends on this package. The route handler receives the tx
-// from `coreDb().transaction(...)` and only passes it through.
 // biome-ignore lint/suspicious/noExplicitAny: cross-package tx without cyclic dep
 type Tx = any;
 
-export type PublishRepositoryPushedFn = (params: {
+export type PublishIntegrationEventReceivedFn = (params: {
   tx: Tx;
-  event: IntegrationRepositoryPushedEvent;
+  event: IntegrationEventReceivedEvent;
 }) => Promise<{published: boolean}>;
 
 export type RecordDeliveryOnlyFn = (params: {
@@ -32,13 +31,11 @@ export type GetIntegrationConnectionByIdFn = (
   options?: {tx?: Tx},
 ) => Promise<IntegrationConnection | undefined>;
 
-export type GithubPushPayload = GithubPushPayloadDto;
-
 export interface HandleGithubPushParams {
   tx: Tx;
   deliveryId: string;
-  payload: GithubPushPayload;
-  publishRepositoryPushed: PublishRepositoryPushedFn;
+  payload: GithubPushPayloadDto;
+  publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
 }
@@ -67,7 +64,7 @@ export async function handleGithubPush(
     );
     await params.recordDeliveryOnly({
       tx: params.tx,
-      provider: GITHUB_PROVIDER,
+      provider: GITHUB_SOURCE,
       deliveryId: params.deliveryId,
     });
     return {outcome: 'unknown-installation'};
@@ -83,7 +80,7 @@ export async function handleGithubPush(
     );
     await params.recordDeliveryOnly({
       tx: params.tx,
-      provider: GITHUB_PROVIDER,
+      provider: GITHUB_SOURCE,
       deliveryId: params.deliveryId,
     });
     return {outcome: 'unknown-installation'};
@@ -91,22 +88,26 @@ export async function handleGithubPush(
 
   const ref = stripRefsHeads(params.payload.ref);
   const defaultBranch = params.payload.repository.default_branch;
-  const result = await params.publishRepositoryPushed({
+  const pushPayload: GithubPushPayload = {
+    externalRepositoryId: buildProviderRepositoryId(
+      GITHUB_SOURCE,
+      String(params.payload.repository.id),
+    ),
+    ref,
+    headCommitSha: params.payload.after,
+    defaultBranch,
+    isDefaultBranch: ref === defaultBranch,
+  };
+  const result = await params.publishIntegrationEventReceived({
     tx: params.tx,
     event: {
-      provider: GITHUB_PROVIDER,
-      connectionId: connection.id,
+      source: GITHUB_SOURCE,
+      event: PUSH_EVENT,
       workspaceId: connection.workspaceId,
-      externalRepositoryId: buildProviderRepositoryId(
-        GITHUB_PROVIDER,
-        String(params.payload.repository.id),
-      ),
-      ref,
-      headCommitSha: params.payload.after,
-      defaultBranch,
-      isDefaultBranch: ref === defaultBranch,
+      connectionId: connection.id,
       deliveryId: params.deliveryId,
       receivedAt: new Date().toISOString(),
+      payload: pushPayload,
     },
   });
 

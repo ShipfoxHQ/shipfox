@@ -43,15 +43,18 @@ function eventsForProject(events: DrainedEvent[], projectId: string) {
 
 describe('definition queries', () => {
   let projectId: string;
+  let workspaceId: string;
 
   beforeEach(() => {
     projectId = crypto.randomUUID();
+    workspaceId = crypto.randomUUID();
   });
 
   describe('upsertDefinition', () => {
     test('inserts a new definition and returns entity with id and timestamps', async () => {
       const definition = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: '.shipfox/workflows/test.yml',
         name: 'Test',
         definition: spec(),
@@ -72,6 +75,7 @@ describe('definition queries', () => {
     test('updates existing definition on conflict (same project_id + config_path)', async () => {
       const first = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: '.shipfox/workflows/deploy.yml',
         name: 'Deploy v1',
         definition: spec('Deploy v1'),
@@ -79,6 +83,7 @@ describe('definition queries', () => {
 
       const second = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: '.shipfox/workflows/deploy.yml',
         name: 'Deploy v2',
         definition: spec('Deploy v2'),
@@ -94,6 +99,7 @@ describe('definition queries', () => {
     test('with sha inserts SHA-pinned definition', async () => {
       const definition = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'ci.yml',
         name: 'CI',
         definition: spec('CI'),
@@ -107,6 +113,7 @@ describe('definition queries', () => {
     test('with sha updates on conflict (same projectId + sha + configPath)', async () => {
       const first = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'ci.yml',
         name: 'CI v1',
         definition: spec('CI v1'),
@@ -115,6 +122,7 @@ describe('definition queries', () => {
 
       const second = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'ci.yml',
         name: 'CI v2',
         definition: spec('CI v2'),
@@ -128,6 +136,7 @@ describe('definition queries', () => {
     test('with ref inserts ref-based definition', async () => {
       const definition = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'ci.yml',
         name: 'CI',
         definition: spec('CI'),
@@ -141,6 +150,7 @@ describe('definition queries', () => {
     test('with ref updates on conflict (same projectId + ref + configPath)', async () => {
       const first = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'ci.yml',
         name: 'CI v1',
         definition: spec('CI v1'),
@@ -149,6 +159,7 @@ describe('definition queries', () => {
 
       const second = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'ci.yml',
         name: 'CI v2',
         definition: spec('CI v2'),
@@ -162,6 +173,7 @@ describe('definition queries', () => {
     test('with neither sha nor ref uses base constraint', async () => {
       const first = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'ci.yml',
         name: 'CI v1',
         definition: spec('CI v1'),
@@ -169,6 +181,7 @@ describe('definition queries', () => {
 
       const second = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'ci.yml',
         name: 'CI v2',
         definition: spec('CI v2'),
@@ -181,6 +194,7 @@ describe('definition queries', () => {
     test('sets fetchedAt on insert', async () => {
       const definition = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'ci.yml',
         name: 'CI',
         definition: spec('CI'),
@@ -192,6 +206,7 @@ describe('definition queries', () => {
     test('updates fetchedAt on conflict update', async () => {
       const first = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'ci.yml',
         name: 'CI v1',
         definition: spec('CI v1'),
@@ -199,6 +214,7 @@ describe('definition queries', () => {
 
       const second = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'ci.yml',
         name: 'CI v2',
         definition: spec('CI v2'),
@@ -212,6 +228,7 @@ describe('definition queries', () => {
     test('returns the definition when found', async () => {
       const created = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: '.shipfox/workflows/ci.yml',
         name: 'CI',
         definition: spec('CI'),
@@ -235,18 +252,21 @@ describe('definition queries', () => {
     test('returns definitions ordered by name', async () => {
       await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'z.yml',
         name: 'Zulu',
         definition: spec('Zulu'),
       });
       await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'a.yml',
         name: 'Alpha',
         definition: spec('Alpha'),
       });
       await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'm.yml',
         name: 'Mike',
         definition: spec('Mike'),
@@ -271,6 +291,7 @@ describe('definition queries', () => {
     test('soft-deletes VCS definitions for a ref that are not in the keep set', async () => {
       const stale = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'old.yml',
         name: 'Old',
         definition: spec('Old'),
@@ -279,6 +300,7 @@ describe('definition queries', () => {
       });
       const kept = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'kept.yml',
         name: 'Kept',
         definition: spec('Kept'),
@@ -288,6 +310,7 @@ describe('definition queries', () => {
 
       const deletedCount = await softDeleteVcsDefinitionsNotIn({
         projectId,
+        workspaceId,
         ref: 'main',
         keepConfigPaths: ['kept.yml'],
       });
@@ -305,6 +328,7 @@ describe('definition queries', () => {
     test('reactivates a previously soft-deleted definition by clearing deleted_at on next upsert', async () => {
       const original = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'recovered.yml',
         name: 'Recovered v1',
         definition: spec('Recovered v1'),
@@ -313,12 +337,14 @@ describe('definition queries', () => {
       });
       await softDeleteVcsDefinitionsNotIn({
         projectId,
+        workspaceId,
         ref: 'main',
         keepConfigPaths: [],
       });
 
       const restored = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'recovered.yml',
         name: 'Recovered v2',
         definition: spec('Recovered v2'),
@@ -336,6 +362,7 @@ describe('definition queries', () => {
     test('applyVcsDefinitionsBatch upserts and soft-deletes in a single transaction', async () => {
       await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'orphaned.yml',
         name: 'Orphan',
         definition: spec('Orphan'),
@@ -345,6 +372,7 @@ describe('definition queries', () => {
 
       const result = await applyVcsDefinitionsBatch({
         projectId,
+        workspaceId,
         ref: 'main',
         upserts: [
           {configPath: 'kept.yml', name: 'Kept', definition: spec('Kept'), contentHash: 'h-kept'},
@@ -365,6 +393,7 @@ describe('definition queries', () => {
 
       const first = await applyVcsDefinitionsBatch({
         projectId,
+        workspaceId,
         ref: 'main',
         upserts: [
           {configPath: 'a.yml', name: 'A', definition: spec('A'), contentHash: 'h-a-v1'},
@@ -377,6 +406,7 @@ describe('definition queries', () => {
 
       const second = await applyVcsDefinitionsBatch({
         projectId,
+        workspaceId,
         ref: 'main',
         upserts: [
           {configPath: 'a.yml', name: 'A', definition: spec('A'), contentHash: 'h-a-v1'},
@@ -387,12 +417,45 @@ describe('definition queries', () => {
       expect(second.appliedCount).toBe(1);
       expect(await listOutboxRowsForProject(projectId)).toHaveLength(3);
     });
+
+    test('softDeleteVcsDefinitionsNotIn writes a DEFINITION_DELETED event per pruned row', async () => {
+      await db().execute(sql`TRUNCATE definitions_outbox CASCADE`);
+      const pruned = await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'orphan.yml',
+        name: 'Orphan',
+        definition: spec('Orphan'),
+        ref: 'main',
+        source: 'vcs',
+      });
+
+      const deletedCount = await softDeleteVcsDefinitionsNotIn({
+        projectId,
+        workspaceId,
+        ref: 'main',
+        keepConfigPaths: [],
+      });
+
+      expect(deletedCount).toBe(1);
+      const outboxRows = await listOutboxRowsForProject(projectId);
+      const deletedEvents = outboxRows.filter(
+        (row) => row.eventType === 'definitions.definition.deleted',
+      );
+      expect(deletedEvents).toHaveLength(1);
+      expect(deletedEvents[0]?.payload).toEqual({
+        definitionId: pruned.id,
+        projectId,
+        workspaceId,
+      });
+    });
   });
 
   describe('invalidateCache', () => {
     test('deletes ref-based entries for matching project and ref', async () => {
       const definition = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'ci.yml',
         name: 'CI',
         definition: spec('CI'),
@@ -408,6 +471,7 @@ describe('definition queries', () => {
     test('does not delete SHA-pinned entries', async () => {
       const definition = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'ci.yml',
         name: 'CI',
         definition: spec('CI'),
@@ -433,6 +497,7 @@ describe('definition queries', () => {
     test('writes a definitions.definition.resolved event to the outbox', async () => {
       const definition = await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: '.shipfox/workflows/test.yml',
         name: 'Test',
         definition: spec(),
@@ -445,7 +510,9 @@ describe('definition queries', () => {
       expect(outboxRows[0]?.payload).toEqual({
         definitionId: definition.id,
         projectId: definition.projectId,
+        workspaceId,
         configPath: definition.configPath,
+        triggers: {},
       });
       expect(outboxRows[0]?.dispatchedAt).toBeNull();
     });
@@ -453,6 +520,7 @@ describe('definition queries', () => {
     test('writes one outbox event per upsert call', async () => {
       await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: '.shipfox/workflows/test.yml',
         name: 'Test v1',
         definition: spec('v1'),
@@ -460,6 +528,7 @@ describe('definition queries', () => {
 
       await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: '.shipfox/workflows/test.yml',
         name: 'Test v2',
         definition: spec('v2'),
@@ -507,6 +576,7 @@ describe('definition queries', () => {
     test('drainAll returns undispatched outbox events', async () => {
       await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'test.yml',
         name: 'Test',
         definition: spec(),
@@ -523,6 +593,7 @@ describe('definition queries', () => {
     test('markDispatched sets dispatchedAt for a single event', async () => {
       await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'test.yml',
         name: 'Test',
         definition: spec(),
@@ -540,12 +611,14 @@ describe('definition queries', () => {
     test('markDispatched sets dispatchedAt for multiple events', async () => {
       await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'a.yml',
         name: 'A',
         definition: spec('A'),
       });
       await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'b.yml',
         name: 'B',
         definition: spec('B'),
@@ -563,6 +636,7 @@ describe('definition queries', () => {
     test('drainAll skips already-dispatched events', async () => {
       await upsertDefinition({
         projectId,
+        workspaceId,
         configPath: 'test.yml',
         name: 'Test',
         definition: spec(),

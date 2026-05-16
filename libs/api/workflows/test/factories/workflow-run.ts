@@ -21,8 +21,7 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
           },
         },
       },
-      triggerSource: run.triggerSource,
-      triggerContext: run.triggerContext,
+      triggerPayload: run.triggerPayload,
       inputs: run.inputs ?? undefined,
     });
   });
@@ -35,8 +34,15 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
     name: 'Test Workflow',
     status: 'pending',
     triggerSource: 'manual',
-    triggerContext: {},
+    triggerEvent: 'fire',
+    triggerPayload: {
+      source: 'manual',
+      event: 'fire',
+      subscriptionId: crypto.randomUUID(),
+      userId: crypto.randomUUID(),
+    },
     inputs: null,
+    triggerIdempotencyKey: null,
     version: 1,
     createdAt: new Date(),
     updatedAt: new Date(),

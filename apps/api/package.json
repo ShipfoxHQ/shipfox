@@ -23,6 +23,7 @@
     "@shipfox/api-integration-core": "workspace:*",
     "@shipfox/api-projects": "workspace:*",
     "@shipfox/api-runners": "workspace:*",
+    "@shipfox/api-triggers": "workspace:*",
     "@shipfox/api-workspaces": "workspace:*",
     "@shipfox/api-workflows": "workspace:*",
     "@shipfox/config": "workspace:*",

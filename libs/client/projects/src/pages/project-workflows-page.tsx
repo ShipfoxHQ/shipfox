@@ -27,7 +27,7 @@ import {useState} from 'react';
 import {SourceStrip} from '#components/source-strip.js';
 import {useDefinitionsInfiniteQuery} from '#hooks/api/definitions.js';
 import {useProjectQuery} from '#hooks/api/projects.js';
-import {useCreateWorkflowRunMutation} from '#hooks/api/workflow-runs.js';
+import {useFireManualWorkflowMutation} from '#hooks/api/workflow-runs.js';
 import {RelativeTime, RelativeTimeProvider} from '#lib/relative-time.js';
 import {projectErrorCopy} from '#project-error.js';
 
@@ -42,7 +42,7 @@ export function ProjectWorkflowsPage({projectId}: {projectId: string}) {
 function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
   const projectQuery = useProjectQuery(projectId);
   const definitionsQuery = useDefinitionsInfiniteQuery(projectId);
-  const createRun = useCreateWorkflowRunMutation();
+  const fireManual = useFireManualWorkflowMutation();
   const [selectedDefinition, setSelectedDefinition] = useState<DefinitionDto | null>(null);
   const [runError, setRunError] = useState<{definitionId: string; message: string} | null>(null);
   const errorCopy = projectQuery.error ? projectErrorCopy(projectQuery.error) : undefined;
@@ -51,8 +51,9 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
 
   async function handleRun(definition: DefinitionDto) {
     setRunError(null);
+    if (!definition.manual_trigger) return;
     try {
-      await createRun.mutateAsync({project_id: projectId, definition_id: definition.id});
+      await fireManual.mutateAsync({projectId, definitionId: definition.id});
       toast.success('Run queued');
     } catch (error) {
       const message = errorMessage(error, 'Could not queue run.');
@@ -115,7 +116,9 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
             sync={sync ?? null}
             runError={runError}
             runningDefinitionId={
-              createRun.isPending && createRun.variables ? createRun.variables.definition_id : null
+              fireManual.isPending && fireManual.variables
+                ? fireManual.variables.definitionId
+                : null
             }
             hasNextPage={definitionsQuery.hasNextPage}
             isFetchingNextPage={definitionsQuery.isFetchingNextPage}
@@ -258,11 +261,13 @@ function WorkflowDefinitionsList({
                     <RelativeTime value={definition.updated_at} />
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                      <Button size="xs" isLoading={isRunning} onClick={() => onRun(definition)}>
-                        Run
-                      </Button>
-                    </div>
+                    {definition.manual_trigger ? (
+                      <div className="flex justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                        <Button size="xs" isLoading={isRunning} onClick={() => onRun(definition)}>
+                          Run
+                        </Button>
+                      </div>
+                    ) : null}
                   </TableCell>
                 </TableRow>
               );
@@ -305,9 +310,11 @@ function WorkflowDefinitionsList({
                 <Text size="xs" className="text-foreground-neutral-muted">
                   Updated <RelativeTime value={definition.updated_at} />
                 </Text>
-                <Button size="sm" isLoading={isRunning} onClick={() => onRun(definition)}>
-                  Run
-                </Button>
+                {definition.manual_trigger ? (
+                  <Button size="sm" isLoading={isRunning} onClick={() => onRun(definition)}>
+                    Run
+                  </Button>
+                ) : null}
               </div>
               {runErrorMessage ? (
                 <Text size="xs" className="text-tag-error-text">

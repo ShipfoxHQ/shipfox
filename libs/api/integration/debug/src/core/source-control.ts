@@ -60,6 +60,9 @@ const DEBUG_FILES = new Map<string, Record<string, string>>([
     {
       '.shipfox/workflows/ci.yml': `
 name: CI
+triggers:
+  on_demand:
+    source: manual
 jobs:
   build:
     steps:
@@ -67,6 +70,13 @@ jobs:
 `,
       '.shipfox/workflows/deploy.yaml': `
 name: Deploy
+triggers:
+  on_demand:
+    source: manual
+  on_push:
+    source: github
+    event: push
+    on: main
 jobs:
   deploy:
     steps:
@@ -80,6 +90,9 @@ jobs:
     {
       '.shipfox/workflows/api.yml': `
 name: API
+triggers:
+  on_demand:
+    source: manual
 jobs:
   test:
     steps:

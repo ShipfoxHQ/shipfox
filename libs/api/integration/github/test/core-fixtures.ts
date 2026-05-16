@@ -93,28 +93,33 @@ export async function getIntegrationConnectionById(
   return rows[0];
 }
 
-export interface IntegrationRepositoryPushedEvent {
-  provider: string;
-  connectionId: string;
-  workspaceId: string;
+export interface GithubPushPayload {
   externalRepositoryId: string;
   ref: string;
   headCommitSha: string;
   defaultBranch: string;
   isDefaultBranch: boolean;
-  deliveryId: string;
-  receivedAt: string;
 }
 
-export async function publishRepositoryPushed(params: {
+export interface IntegrationEventReceivedEvent {
+  source: string;
+  event: string;
+  workspaceId: string;
+  connectionId: string;
+  deliveryId: string;
+  receivedAt: string;
+  payload: unknown;
+}
+
+export async function publishIntegrationEventReceived(params: {
   tx: unknown;
-  event: IntegrationRepositoryPushedEvent;
+  event: IntegrationEventReceivedEvent;
 }): Promise<{published: boolean}> {
   // biome-ignore lint/suspicious/noExplicitAny: tx is loose by design
   const tx = params.tx as any;
   const insert = await tx.execute(sql`
     INSERT INTO integrations_webhook_deliveries (provider, delivery_id)
-    VALUES (${params.event.provider}, ${params.event.deliveryId})
+    VALUES (${params.event.source}, ${params.event.deliveryId})
     ON CONFLICT DO NOTHING
     RETURNING delivery_id
   `);
@@ -124,7 +129,7 @@ export async function publishRepositoryPushed(params: {
   await tx.execute(sql`
     INSERT INTO integrations_outbox (event_type, payload)
     VALUES (
-      'integrations.repository.pushed',
+      'integrations.event.received',
       ${JSON.stringify(params.event)}::jsonb
     )
   `);
@@ -148,7 +153,7 @@ export async function recordDeliveryOnly(params: {
 export interface OutboxRow {
   id: string;
   eventType: string;
-  payload: IntegrationRepositoryPushedEvent;
+  payload: IntegrationEventReceivedEvent;
 }
 
 export async function readIntegrationsOutbox(): Promise<OutboxRow[]> {

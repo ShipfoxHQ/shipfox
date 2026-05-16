@@ -1,5 +1,6 @@
 export interface Trigger {
-  type: string;
+  source: string;
+  event: string;
   on?: string | string[];
   with?: Record<string, unknown>;
   filter?: string;

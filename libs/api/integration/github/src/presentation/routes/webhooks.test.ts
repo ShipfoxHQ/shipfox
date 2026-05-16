@@ -7,7 +7,7 @@ import {
   getIntegrationConnectionById,
   insertConnection,
   insertGithubInstallation,
-  publishRepositoryPushed,
+  publishIntegrationEventReceived,
   readIntegrationsOutbox,
   readWebhookDeliveries,
   recordDeliveryOnly,
@@ -20,7 +20,7 @@ const WEBHOOK_SECRET = 'test-webhook-secret';
 async function createTestApp(): Promise<FastifyInstance> {
   const routes = createGithubWebhookRoutes({
     coreDb,
-    publishRepositoryPushed,
+    publishIntegrationEventReceived,
     recordDeliveryOnly,
     getIntegrationConnectionById,
   });
@@ -107,14 +107,17 @@ describe('GitHub webhook route', () => {
     expect(deliveryRows).toHaveLength(1);
     expect(deliveryRows[0]?.deliveryId).toBe(deliveryId);
     expect(outboxRows).toHaveLength(1);
-    expect(outboxRows[0]?.eventType).toBe('integrations.repository.pushed');
+    expect(outboxRows[0]?.eventType).toBe('integrations.event.received');
     expect(outboxRows[0]?.payload).toMatchObject({
-      provider: 'github',
-      externalRepositoryId: 'github:42',
-      ref: 'main',
-      headCommitSha: 'abc123',
-      isDefaultBranch: true,
+      source: 'github',
+      event: 'push',
       deliveryId,
+      payload: {
+        externalRepositoryId: 'github:42',
+        ref: 'main',
+        headCommitSha: 'abc123',
+        isDefaultBranch: true,
+      },
     });
   });
 
@@ -214,8 +217,12 @@ describe('GitHub webhook route', () => {
     const outboxRows = await readIntegrationsOutbox();
     expect(outboxRows).toHaveLength(1);
     expect(outboxRows[0]?.payload).toMatchObject({
-      ref: 'feature/x',
-      isDefaultBranch: false,
+      source: 'github',
+      event: 'push',
+      payload: {
+        ref: 'feature/x',
+        isDefaultBranch: false,
+      },
     });
   });
 

@@ -3,7 +3,7 @@ import {createGithubApiClient, type GithubApiClient} from '#api/client.js';
 import {GithubSourceControlProvider} from '#core/source-control.js';
 import type {
   GetIntegrationConnectionByIdFn,
-  PublishRepositoryPushedFn,
+  PublishIntegrationEventReceivedFn,
   RecordDeliveryOnlyFn,
 } from '#core/webhook.js';
 import {closeDb, db} from '#db/db.js';
@@ -19,7 +19,7 @@ export {GithubIntegrationProviderError} from '#core/errors.js';
 export type {ConnectGithubInstallationInput} from '#core/install.js';
 export {handleGithubCallback} from '#core/install.js';
 export {signGithubInstallState, verifyGithubInstallState} from '#core/state.js';
-export type {GithubPushPayload, HandleGithubPushOutcome} from '#core/webhook.js';
+export type {HandleGithubPushOutcome} from '#core/webhook.js';
 export {handleGithubPush} from '#core/webhook.js';
 export type {GithubInstallation, UpsertGithubInstallationParams} from '#db/installations.js';
 export {
@@ -33,7 +33,7 @@ export interface CreateGithubIntegrationProviderOptions
   extends Omit<CreateGithubIntegrationRoutesOptions, 'github'> {
   github?: GithubApiClient | undefined;
   coreDb: () => NodePgDatabase<Record<string, unknown>>;
-  publishRepositoryPushed: PublishRepositoryPushedFn;
+  publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
 }
@@ -55,7 +55,7 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
       }),
       createGithubWebhookRoutes({
         coreDb: options.coreDb,
-        publishRepositoryPushed: options.publishRepositoryPushed,
+        publishIntegrationEventReceived: options.publishIntegrationEventReceived,
         recordDeliveryOnly: options.recordDeliveryOnly,
         getIntegrationConnectionById: options.getIntegrationConnectionById,
       }),

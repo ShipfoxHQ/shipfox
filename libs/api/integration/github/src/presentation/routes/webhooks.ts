@@ -10,7 +10,7 @@ import {config} from '#config.js';
 import {
   type GetIntegrationConnectionByIdFn,
   handleGithubPush,
-  type PublishRepositoryPushedFn,
+  type PublishIntegrationEventReceivedFn,
   type RecordDeliveryOnlyFn,
 } from '#core/webhook.js';
 
@@ -22,7 +22,7 @@ const GITHUB_PROVIDER = 'github';
 
 export interface CreateGithubWebhookRoutesOptions {
   coreDb: () => NodePgDatabase<Record<string, unknown>>;
-  publishRepositoryPushed: PublishRepositoryPushedFn;
+  publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
 }
@@ -122,7 +122,7 @@ export function createGithubWebhookRoutes(options: CreateGithubWebhookRoutesOpti
           tx,
           deliveryId,
           payload: validated.data,
-          publishRepositoryPushed: options.publishRepositoryPushed,
+          publishIntegrationEventReceived: options.publishIntegrationEventReceived,
           recordDeliveryOnly: options.recordDeliveryOnly,
           getIntegrationConnectionById: options.getIntegrationConnectionById,
         });

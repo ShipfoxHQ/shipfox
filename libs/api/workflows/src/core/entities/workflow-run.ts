@@ -1,9 +1,28 @@
 export type WorkflowRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
-export type TriggerSource = 'manual' | 'webhook' | 'schedule';
 
-export interface TriggerContext {
-  [key: string]: unknown;
-}
+export type TriggerPayload =
+  | {
+      source: 'manual';
+      event: 'fire';
+      subscriptionId: string;
+      userId: string;
+    }
+  | {
+      source: 'github';
+      event: 'push';
+      subscriptionId: string;
+      deliveryId: string;
+      ref: string;
+      headCommitSha: string;
+      defaultBranch: string;
+      isDefaultBranch: boolean;
+      externalRepositoryId: string;
+    }
+  | {
+      source: 'cron';
+      event: 'tick';
+      scheduleId: string;
+    };
 
 export interface WorkflowRun {
   id: string;
@@ -12,9 +31,11 @@ export interface WorkflowRun {
   definitionId: string;
   name: string;
   status: WorkflowRunStatus;
-  triggerSource: TriggerSource;
-  triggerContext: TriggerContext;
+  triggerSource: string;
+  triggerEvent: string;
+  triggerPayload: TriggerPayload;
   inputs: Record<string, unknown> | null;
+  triggerIdempotencyKey: string | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;

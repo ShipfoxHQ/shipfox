@@ -1,15 +1,24 @@
-import {DEFINITION_RESOLVED, type DefinitionsEventMap} from '@shipfox/api-definitions-dto';
+import {
+  DEFINITION_DELETED,
+  DEFINITION_RESOLVED,
+  type DefinitionsEventMap,
+} from '@shipfox/api-definitions-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, asc, eq, gt, isNull, notInArray, or, type SQL, sql} from 'drizzle-orm';
-import type {WorkflowDefinition, WorkflowSpec} from '#core/entities/definition.js';
+import type {Trigger, WorkflowDefinition, WorkflowSpec} from '#core/entities/definition.js';
 import {db} from './db.js';
 import {toDefinition, workflowDefinitions} from './schema/definitions.js';
 import {definitionsOutbox} from './schema/outbox.js';
 
 type Tx = Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0];
 
+function triggersFor(spec: WorkflowSpec): Record<string, Trigger> {
+  return spec.triggers ?? {};
+}
+
 export interface UpsertDefinitionParams {
   projectId: string;
+  workspaceId: string;
   configPath?: string | null | undefined;
   source?: 'manual' | 'vcs' | undefined;
   name: string;
@@ -99,7 +108,13 @@ export async function upsertDefinition(
 
     await writeOutboxEvent<DefinitionsEventMap>(tx, definitionsOutbox, {
       type: DEFINITION_RESOLVED,
-      payload: {definitionId: row.id, projectId: row.projectId, configPath: row.configPath},
+      payload: {
+        definitionId: row.id,
+        projectId: row.projectId,
+        workspaceId: params.workspaceId,
+        configPath: row.configPath,
+        triggers: triggersFor(row.definition as WorkflowSpec),
+      },
     });
 
     return toDefinition(row);
@@ -176,6 +191,7 @@ export async function listDefinitionsByProject(projectId: string): Promise<Workf
 
 export interface SoftDeleteVcsDefinitionsParams {
   projectId: string;
+  workspaceId: string;
   ref: string;
   keepConfigPaths: string[];
 }
@@ -202,6 +218,17 @@ async function softDeleteVcsDefinitionsNotInTx(
     .where(where)
     .returning({id: workflowDefinitions.id});
 
+  for (const row of rows) {
+    await writeOutboxEvent<DefinitionsEventMap>(tx, definitionsOutbox, {
+      type: DEFINITION_DELETED,
+      payload: {
+        definitionId: row.id,
+        projectId: params.projectId,
+        workspaceId: params.workspaceId,
+      },
+    });
+  }
+
   return rows.length;
 }
 
@@ -213,6 +240,7 @@ export async function softDeleteVcsDefinitionsNotIn(
 
 export interface ApplyVcsDefinitionsBatchParams {
   projectId: string;
+  workspaceId: string;
   ref: string;
   upserts: Array<{
     configPath: string;
@@ -256,6 +284,7 @@ export async function applyVcsDefinitionsBatch(
 
       const rows = await buildUpsertQuery(tx, {
         projectId: params.projectId,
+        workspaceId: params.workspaceId,
         configPath: item.configPath,
         source: 'vcs',
         ref: params.ref,
@@ -269,7 +298,13 @@ export async function applyVcsDefinitionsBatch(
       if (!unchanged) {
         await writeOutboxEvent<DefinitionsEventMap>(tx, definitionsOutbox, {
           type: DEFINITION_RESOLVED,
-          payload: {definitionId: row.id, projectId: row.projectId, configPath: row.configPath},
+          payload: {
+            definitionId: row.id,
+            projectId: row.projectId,
+            workspaceId: params.workspaceId,
+            configPath: row.configPath,
+            triggers: triggersFor(row.definition as WorkflowSpec),
+          },
         });
         appliedCount += 1;
       }
@@ -278,6 +313,7 @@ export async function applyVcsDefinitionsBatch(
     const keepConfigPaths = params.upserts.map((upsert) => upsert.configPath);
     const deletedCount = await softDeleteVcsDefinitionsNotInTx(tx, {
       projectId: params.projectId,
+      workspaceId: params.workspaceId,
       ref: params.ref,
       keepConfigPaths,
     });

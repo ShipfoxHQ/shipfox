@@ -1,4 +1,5 @@
 import type {WorkflowDefinition} from '@shipfox/api-definitions';
+import type {TriggerPayload} from './entities/workflow-run.js';
 import {DefinitionNotFoundError, ProjectMismatchError} from './errors.js';
 import {runWorkflow} from './run-workflow.js';
 
@@ -34,6 +35,15 @@ function buildDefinition(overrides?: Partial<WorkflowDefinition>): WorkflowDefin
   };
 }
 
+function manualPayload(): TriggerPayload {
+  return {
+    source: 'manual',
+    event: 'fire',
+    subscriptionId: crypto.randomUUID(),
+    userId: crypto.randomUUID(),
+  };
+}
+
 describe('runWorkflow', () => {
   let workspaceId: string;
   let projectId: string;
@@ -43,14 +53,16 @@ describe('runWorkflow', () => {
     projectId = crypto.randomUUID();
   });
 
-  test('creates a run from a valid definition', async () => {
+  test('creates a run from a valid definition with the provided manual trigger payload', async () => {
     const definition = buildDefinition({projectId});
     mockGetDefinitionById.mockResolvedValue(definition);
+    const triggerPayload = manualPayload();
 
     const run = await runWorkflow({
       workspaceId,
       projectId,
       definitionId: definition.id,
+      triggerPayload,
     });
 
     expect(run.id).toBeDefined();
@@ -59,7 +71,35 @@ describe('runWorkflow', () => {
     expect(run.name).toBe(definition.name);
     expect(run.status).toBe('pending');
     expect(run.triggerSource).toBe('manual');
-    expect(run.triggerContext).toEqual({});
+    expect(run.triggerEvent).toBe('fire');
+    expect(run.triggerPayload).toEqual(triggerPayload);
+  });
+
+  test('persists an integration trigger payload intact', async () => {
+    const definition = buildDefinition({projectId});
+    mockGetDefinitionById.mockResolvedValue(definition);
+    const triggerPayload: TriggerPayload = {
+      source: 'github',
+      event: 'push',
+      subscriptionId: crypto.randomUUID(),
+      deliveryId: crypto.randomUUID(),
+      ref: 'main',
+      headCommitSha: 'abc',
+      defaultBranch: 'main',
+      isDefaultBranch: true,
+      externalRepositoryId: 'github:1',
+    };
+
+    const run = await runWorkflow({
+      workspaceId,
+      projectId,
+      definitionId: definition.id,
+      triggerPayload,
+    });
+
+    expect(run.triggerSource).toBe('github');
+    expect(run.triggerEvent).toBe('push');
+    expect(run.triggerPayload).toEqual(triggerPayload);
   });
 
   test('throws DefinitionNotFoundError for unknown definition', async () => {
@@ -67,9 +107,14 @@ describe('runWorkflow', () => {
 
     const unknownId = crypto.randomUUID();
 
-    const result = runWorkflow({workspaceId, projectId, definitionId: unknownId});
-
-    await expect(result).rejects.toThrow(DefinitionNotFoundError);
+    await expect(
+      runWorkflow({
+        workspaceId,
+        projectId,
+        definitionId: unknownId,
+        triggerPayload: manualPayload(),
+      }),
+    ).rejects.toThrow(DefinitionNotFoundError);
   });
 
   test('throws ProjectMismatchError when definition.projectId does not match', async () => {
@@ -77,9 +122,14 @@ describe('runWorkflow', () => {
     const definition = buildDefinition({projectId: otherProjectId});
     mockGetDefinitionById.mockResolvedValue(definition);
 
-    const result = runWorkflow({workspaceId, projectId, definitionId: definition.id});
-
-    await expect(result).rejects.toThrow(ProjectMismatchError);
+    await expect(
+      runWorkflow({
+        workspaceId,
+        projectId,
+        definitionId: definition.id,
+        triggerPayload: manualPayload(),
+      }),
+    ).rejects.toThrow(ProjectMismatchError);
   });
 
   test('passes inputs through to the run', async () => {
@@ -90,6 +140,7 @@ describe('runWorkflow', () => {
       workspaceId,
       projectId,
       definitionId: definition.id,
+      triggerPayload: manualPayload(),
       inputs: {env: 'staging'},
     });
 

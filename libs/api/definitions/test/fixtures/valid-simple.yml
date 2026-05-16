@@ -1,11 +1,13 @@
 name: Simple build
 
 triggers:
+  on_demand:
+    source: manual
+    event: fire
   on_push:
-    type: github.push
-    on: push
-    with:
-      branch: main
+    source: github
+    event: push
+    on: main
     filter: event.ref == "refs/heads/main"
 
 jobs:
