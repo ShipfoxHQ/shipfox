@@ -1,11 +1,11 @@
-
 strictPeerDependencies: true
 dedupePeerDependents: true
 nodeLinker: isolated
-onlyBuiltDependencies:
-  - "@swc/core"
-  - "esbuild"
-  - "protobufjs"
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
+  protobufjs: true
+  sharp: true
 
 packages:
   - "apps/*"
