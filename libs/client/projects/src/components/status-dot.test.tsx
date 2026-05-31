@@ -10,11 +10,11 @@ describe('StatusDot', () => {
   });
 
   test.each([
-    ['neutral', 'bg-tag-neutral-text'],
-    ['info', 'bg-tag-blue-text'],
-    ['success', 'bg-tag-success-text'],
-    ['warning', 'bg-tag-warning-text'],
-    ['error', 'bg-tag-error-text'],
+    ['neutral', 'bg-tag-neutral-icon'],
+    ['info', 'bg-tag-blue-icon'],
+    ['success', 'bg-tag-success-icon'],
+    ['warning', 'bg-tag-warning-icon'],
+    ['error', 'bg-tag-error-icon'],
   ] as const)('variant=%s applies %s token class', (variant, bgClass) => {
     const {container} = render(<StatusDot variant={variant} />);
 

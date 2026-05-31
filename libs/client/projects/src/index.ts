@@ -1,10 +1,12 @@
 export {ProjectCrumb, type ProjectCrumbProps} from './components/project-crumb.js';
 export {ProjectSwitcher, type ProjectSwitcherProps} from './components/project-switcher.js';
 export * from './hooks/api/definitions.js';
+export * from './hooks/api/local-workflows.js';
 export * from './hooks/api/projects.js';
 export * from './hooks/api/workflow-runs.js';
 export * from './pages/create-project-page.js';
 export * from './pages/home-router.js';
+export * from './pages/project-run-detail-page.js';
 export * from './pages/project-runs-page.js';
 export * from './pages/project-workflows-page.js';
 export * from './pages/projects-hub-page.js';

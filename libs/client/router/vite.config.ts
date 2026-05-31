@@ -23,6 +23,7 @@ export default defineConfig({
         '@shipfox/client-app-shell',
         '@shipfox/client-auth',
         '@shipfox/client-integrations',
+        '@shipfox/client-invitations',
         '@shipfox/client-projects',
         '@shipfox/client-workspace-settings',
         '@shipfox/react-ui',
