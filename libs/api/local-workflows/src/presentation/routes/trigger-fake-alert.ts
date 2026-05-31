@@ -23,7 +23,7 @@ export function triggerFakeAlertRoute(service: LocalWorkflowsService) {
     errorHandler: localWorkflowsErrorHandler,
     handler: async (request) => {
       await requireProjectAccess({request, projectId: request.params.projectId});
-      return await service.triggerFakeAlert(request.body);
+      return await service.triggerFakeAlert(request.body, request.params.projectId);
     },
   });
 }

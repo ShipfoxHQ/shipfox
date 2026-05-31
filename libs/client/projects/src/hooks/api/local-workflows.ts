@@ -35,6 +35,13 @@ export function isTerminalLocalWorkflowRunStatus(status: string | undefined): bo
   );
 }
 
+export function localWorkflowRunsRefetchInterval(
+  data: LocalWorkflowRunListDto | undefined,
+): number {
+  if (!data) return 4_000;
+  return data.runs.some((run) => !isTerminalLocalWorkflowRunStatus(run.status)) ? 4_000 : 30_000;
+}
+
 export async function getLocalWorkflowStatus({
   projectId,
   signal,
@@ -153,7 +160,7 @@ export function useLocalWorkflowRunsQuery(projectId: string | undefined) {
       : [...localWorkflowsQueryKeys.all, 'runs'],
     enabled: Boolean(projectId),
     queryFn: ({signal}) => listLocalWorkflowRuns({projectId: projectId ?? '', signal}),
-    refetchInterval: 4_000,
+    refetchInterval: (query) => localWorkflowRunsRefetchInterval(query.state.data),
     refetchIntervalInBackground: false,
     staleTime: 1_000,
   });

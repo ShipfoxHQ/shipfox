@@ -121,7 +121,7 @@ describe('local workflow routes', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().runs[0].run_id).toBe('run-001');
-    expect(service.listRuns).toHaveBeenCalled();
+    expect(service.listRuns).toHaveBeenCalledWith(projectId);
   });
 
   test('forwards fake alerts through the platform route', async () => {
@@ -138,11 +138,14 @@ describe('local workflow routes', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().run_id).toBe('run-001');
-    expect(service.triggerFakeAlert).toHaveBeenCalledWith({
-      id: 'alert-001',
-      severity: 'critical',
-      message: 'checkout conversion degraded',
-    });
+    expect(service.triggerFakeAlert).toHaveBeenCalledWith(
+      {
+        id: 'alert-001',
+        severity: 'critical',
+        message: 'checkout conversion degraded',
+      },
+      projectId,
+    );
   });
 
   test('maps local-service adapter errors to client errors', async () => {

@@ -75,7 +75,9 @@ describe('local workflows DTO schemas', () => {
     });
     const detail = foxlangWorkflowDetailResponseSchema.parse({
       preparation_id: 'prep-1',
-      workflow: {},
+      workflow: {
+        workflow_id: 'restore_checkout_exec.fox::workflow:restore_checkout',
+      },
       module: {},
       triggers: [],
       required_services: [],
@@ -115,5 +117,19 @@ describe('local workflows DTO schemas', () => {
 
     expect(runs.runs[0]?.run_id).toBe('fake-monitoring-alert-001');
     expect(response.result.status).toBe('input_rejected');
+  });
+
+  test('rejects run records with unknown statuses', () => {
+    const result = foxlangRunListResponseSchema.safeParse({
+      runs: [
+        {
+          run_id: 'fake-monitoring-alert-001',
+          workflow_name: 'restore_checkout',
+          status: 'running',
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
   });
 });

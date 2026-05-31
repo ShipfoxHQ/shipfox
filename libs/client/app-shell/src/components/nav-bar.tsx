@@ -17,6 +17,15 @@ export function NavBar() {
   const runQuery = useLocalWorkflowRunQuery(project?.id, params.runId);
   const run = runQuery.data?.run?.run;
   const statusQuery = useLocalWorkflowStatusQuery(params.runId ? project?.id : undefined);
+  const serviceReachable = statusQuery.data?.reachable;
+  const serviceStatusVariant =
+    serviceReachable === false ? 'error' : serviceReachable === true ? 'success' : 'neutral';
+  const serviceStatusLabel =
+    serviceReachable === false
+      ? 'service unavailable'
+      : serviceReachable === true
+        ? 'service ready'
+        : 'checking service';
 
   if (params.runId) {
     return (
@@ -44,9 +53,7 @@ export function NavBar() {
           <Code className="min-w-0 truncate text-foreground-neutral-muted">{params.runId}</Code>
         </div>
         <div className="flex-1" />
-        <StatusBadge variant={statusQuery.data?.reachable === false ? 'error' : 'success'}>
-          {statusQuery.data?.reachable === false ? 'service unavailable' : 'service ready'}
-        </StatusBadge>
+        <StatusBadge variant={serviceStatusVariant}>{serviceStatusLabel}</StatusBadge>
       </header>
     );
   }

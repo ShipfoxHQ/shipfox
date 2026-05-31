@@ -115,6 +115,20 @@ export function ProjectRunDetailPage({projectId, runId}: {projectId: string; run
         </Alert>
       ) : null}
 
+      {detail && (!graph || !run) ? (
+        <Alert variant="error" animated={false}>
+          <div className="flex flex-col gap-8">
+            <Text size="sm" bold>
+              Run detail incomplete
+            </Text>
+            <Text size="sm">The local service returned this run without an execution graph.</Text>
+            <Button size="sm" variant="secondary" onClick={() => runQuery.refetch()}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      ) : null}
+
       {detail && graph && run ? (
         <>
           <RunSummary detail={detail} graph={graph} />
@@ -728,7 +742,7 @@ function LogsTab({
   }
 
   return (
-    <section className="grid gap-16 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <section className="grid gap-16">
       <div className="overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base">
         <div className="flex min-h-76 flex-wrap items-center justify-between gap-16 border-b border-border-neutral-base px-18 py-16">
           <div className="min-w-0">

@@ -25,7 +25,14 @@ export function ProjectTabs() {
     'aria-selected': 'false' as const,
   };
 
-  if (inRunDetail) return null;
+  if (inRunDetail) {
+    return (
+      <div
+        aria-hidden="true"
+        className="sticky top-56 z-20 h-40 border-b border-border-neutral-base bg-background-subtle-base"
+      />
+    );
+  }
 
   return (
     <div

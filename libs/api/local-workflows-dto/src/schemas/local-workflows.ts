@@ -1,8 +1,7 @@
 import {z} from 'zod';
 
-const passThroughObjectSchema = z.object({}).passthrough();
-
 export const foxlangRunStatusSchema = z.enum([
+  'received',
   'completed',
   'source_invalid',
   'input_rejected',
@@ -44,6 +43,86 @@ export const foxlangBridgeValueSchema: z.ZodType<FoxlangBridgeValueDto> = z.lazy
   ]),
 );
 
+const foxlangDiagnosticSchema = z
+  .object({
+    kind: z.string().optional(),
+    message: z.string().optional(),
+    severity: z.string().optional(),
+  })
+  .passthrough();
+
+const foxlangFailureSchema = z
+  .object({
+    kind: z.string().optional(),
+    message: z.string().optional(),
+  })
+  .passthrough();
+
+const foxlangModuleSchema = z
+  .object({
+    module_id: z.string().optional(),
+    name: z.string().optional(),
+  })
+  .passthrough();
+
+const foxlangWorkflowSchema = z
+  .object({
+    workflow_id: z.string(),
+    module_id: z.string().optional(),
+    name: z.string().optional(),
+    workflow_name: z.string().optional(),
+    return_type: z.string().optional(),
+  })
+  .passthrough();
+
+const foxlangTriggerSchema = z
+  .object({
+    trigger_id: z.string(),
+    module_id: z.string().optional(),
+    name: z.string().optional(),
+    payload_type: z.string().optional(),
+    source_event: z.string().optional(),
+    source_service_alias: z.string().optional(),
+    started_workflow_id: z.string().optional(),
+  })
+  .passthrough();
+
+const foxlangActionRequirementSchema = z
+  .object({
+    action_requirement_id: z.string(),
+    workflow_id: z.string().optional(),
+    action_kind: z.string().optional(),
+    argv_policy_summary: z.string().optional(),
+    service_alias: z.string().optional(),
+    service_method: z.string().optional(),
+  })
+  .passthrough();
+
+const foxlangTriggerEvidenceSchema = z
+  .object({
+    evidence_id: z.string().optional(),
+    payload_type: z.string().optional(),
+    source_alias: z.string().optional(),
+    source_event: z.string().optional(),
+    trigger_id: z.string().optional(),
+    value: foxlangBridgeValueSchema.optional(),
+  })
+  .passthrough();
+
+const foxlangWorkflowInvocationSchema = z
+  .object({
+    workflow_id: z.string().optional(),
+    workflow_name: z.string().optional(),
+    arguments: z.array(foxlangBridgeValueSchema).optional(),
+  })
+  .passthrough();
+
+const foxlangWorkflowReturnClaimSchema = z
+  .object({
+    value: foxlangBridgeValueSchema.optional(),
+  })
+  .passthrough();
+
 export const foxlangRunRecordSchema = z
   .object({
     run_id: z.string(),
@@ -54,7 +133,7 @@ export const foxlangRunRecordSchema = z
     workflow_id: z.string().optional(),
     workflow_name: z.string().optional(),
     provider_event_id: z.string().optional(),
-    status: z.string(),
+    status: foxlangRunStatusSchema,
   })
   .passthrough();
 export type FoxlangRunRecordDto = z.infer<typeof foxlangRunRecordSchema>;
@@ -74,11 +153,11 @@ export type FoxlangActionRecordDto = z.infer<typeof foxlangActionRecordSchema>;
 export const foxlangRunGraphSchema = z
   .object({
     run: foxlangRunRecordSchema,
-    trigger_evidence: passThroughObjectSchema.optional(),
-    workflow_invocation: passThroughObjectSchema.optional(),
+    trigger_evidence: foxlangTriggerEvidenceSchema.optional(),
+    workflow_invocation: foxlangWorkflowInvocationSchema.optional(),
     actions: z.array(foxlangActionRecordSchema).default([]),
-    workflow_return_claim: passThroughObjectSchema.optional(),
-    events: z.array(passThroughObjectSchema).default([]),
+    workflow_return_claim: foxlangWorkflowReturnClaimSchema.optional(),
+    events: z.array(foxlangDiagnosticSchema).default([]),
   })
   .passthrough();
 export type FoxlangRunGraphDto = z.infer<typeof foxlangRunGraphSchema>;
@@ -87,9 +166,9 @@ export const foxlangExecutionResponseSchema = z
   .object({
     status: foxlangRunStatusSchema,
     run: foxlangRunGraphSchema.optional(),
-    input_error: passThroughObjectSchema.optional(),
-    diagnostics: z.array(passThroughObjectSchema).optional(),
-    failure: passThroughObjectSchema.optional(),
+    input_error: foxlangDiagnosticSchema.optional(),
+    diagnostics: z.array(foxlangDiagnosticSchema).optional(),
+    failure: foxlangFailureSchema.optional(),
   })
   .passthrough();
 export type FoxlangExecutionResponseDto = z.infer<typeof foxlangExecutionResponseSchema>;
@@ -98,9 +177,9 @@ export const foxlangWorkflowListItemSchema = z
   .object({
     preparation_id: z.string(),
     registered_at: z.string().optional(),
-    workflow: passThroughObjectSchema,
-    triggers: z.array(passThroughObjectSchema).default([]),
-    action_requirements: z.array(passThroughObjectSchema).default([]),
+    workflow: foxlangWorkflowSchema,
+    triggers: z.array(foxlangTriggerSchema).default([]),
+    action_requirements: z.array(foxlangActionRequirementSchema).default([]),
   })
   .passthrough();
 
@@ -115,11 +194,11 @@ export const foxlangWorkflowDetailResponseSchema = z
   .object({
     preparation_id: z.string(),
     registered_at: z.string().optional(),
-    workflow: passThroughObjectSchema,
-    module: passThroughObjectSchema.optional(),
-    triggers: z.array(passThroughObjectSchema).default([]),
-    required_services: z.array(passThroughObjectSchema).default([]),
-    action_requirements: z.array(passThroughObjectSchema).default([]),
+    workflow: foxlangWorkflowSchema,
+    module: foxlangModuleSchema.optional(),
+    triggers: z.array(foxlangTriggerSchema).default([]),
+    required_services: z.array(foxlangModuleSchema).default([]),
+    action_requirements: z.array(foxlangActionRequirementSchema).default([]),
     source: z
       .object({
         source_name: z.string().optional(),

@@ -40,10 +40,11 @@ export interface LocalWorkflowsService {
   getStatus(): Promise<LocalWorkflowsStatus>;
   listWorkflows(): Promise<FoxlangWorkflowListResponseDto>;
   getWorkflow(workflowId: string): Promise<FoxlangWorkflowDetailResponseDto>;
-  listRuns(): Promise<FoxlangRunListResponseDto>;
-  getRun(runId: string): Promise<FoxlangRunDetailResponseDto>;
+  listRuns(projectId?: string): Promise<FoxlangRunListResponseDto>;
+  getRun(runId: string, projectId?: string): Promise<FoxlangRunDetailResponseDto>;
   triggerFakeAlert(
     alert: Omit<FoxlangFakeMonitoringAlertRequestDto, 'run_id'>,
+    projectId?: string,
   ): Promise<{run_id: string; result: FoxlangExecutionResponseDto}>;
 }
 
@@ -90,7 +91,7 @@ export function createLocalWorkflowsService(
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let response: Response;
     try {
-      response = await fetchImpl(new URL(path, baseUrl), {
+      response = await fetchImpl(resolveLocalServiceUrl(baseUrl, path), {
         ...init,
         headers: {
           ...(init.body ? {'content-type': 'application/json'} : {}),
@@ -171,13 +172,26 @@ export function createLocalWorkflowsService(
         foxlangWorkflowDetailResponseSchema,
       );
     },
-    listRuns: () => request('/v0/foxlang/runs', foxlangRunListResponseSchema),
-    async getRun(runId) {
+    async listRuns(projectId) {
+      const result = await request('/v0/foxlang/runs', foxlangRunListResponseSchema);
+      if (!projectId) return result;
+      const prefix = projectRunIdPrefix(projectId);
+      return {runs: result.runs.filter((run) => run.run_id.startsWith(prefix))};
+    },
+    async getRun(runId, projectId) {
       assertSafeOpaqueId(runId, 'run id');
+      if (projectId && !runId.startsWith(projectRunIdPrefix(projectId))) {
+        throw new LocalWorkflowsError({
+          message: 'Local workflows run does not belong to the requested project',
+          code: 'local-service-error',
+          status: 404,
+          details: {projectId},
+        });
+      }
       return await request(`/v0/foxlang/runs/${runId}`, foxlangRunDetailResponseSchema);
     },
-    async triggerFakeAlert(alert) {
-      const runId = runIdFactory();
+    async triggerFakeAlert(alert, projectId) {
+      const runId = createRunId(runIdFactory(), projectId);
       const result = await request(
         '/v0/integrations/fake-monitoring/alerts',
         foxlangExecutionResponseSchema,
@@ -200,11 +214,32 @@ export function createLocalWorkflowsService(
   };
 }
 
+function resolveLocalServiceUrl(baseUrl: string, path: string): URL {
+  const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
+  return new URL(normalizedPath, normalizedBaseUrl);
+}
+
+function createRunId(generatedId: string, projectId: string | undefined): string {
+  if (!projectId) return generatedId;
+  const generatedSuffix = generatedId.startsWith('local-workflows-')
+    ? generatedId.slice('local-workflows-'.length)
+    : generatedId;
+  return `${projectRunIdPrefix(projectId)}${generatedSuffix}`;
+}
+
+function projectRunIdPrefix(projectId: string): string {
+  assertSafeOpaqueId(projectId, 'project id');
+  return `local-workflows-${projectId}-`;
+}
+
 function assertSafeOpaqueId(value: string, label: string): void {
   if (
     value.includes('..') ||
     value.includes('/') ||
     value.includes('\\') ||
+    value.includes('?') ||
+    value.includes('#') ||
     hasControlChar(value)
   ) {
     throw new LocalWorkflowsError({

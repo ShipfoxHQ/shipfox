@@ -19,7 +19,7 @@ export function listRunsRoute(service: LocalWorkflowsService) {
     errorHandler: localWorkflowsErrorHandler,
     handler: async (request) => {
       await requireProjectAccess({request, projectId: request.params.projectId});
-      return await service.listRuns();
+      return await service.listRuns(request.params.projectId);
     },
   });
 }
