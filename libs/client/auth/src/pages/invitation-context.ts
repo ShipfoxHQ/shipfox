@@ -1,4 +1,7 @@
-import type {PreviewInvitationResponseDto} from '@shipfox/api-workspaces-dto';
+import type {
+  PreviewInvitationPendingDto,
+  PreviewInvitationResponseDto,
+} from '@shipfox/api-workspaces-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {useQuery} from '@tanstack/react-query';
 
@@ -30,6 +33,12 @@ async function fetchPreview(token: string): Promise<PreviewInvitationResponseDto
   return await apiRequest<PreviewInvitationResponseDto>(
     `/invitations/preview?${params.toString()}`,
   );
+}
+
+export function pendingInvitation(
+  data: PreviewInvitationResponseDto | undefined,
+): PreviewInvitationPendingDto | undefined {
+  return data?.status === 'pending' ? data : undefined;
 }
 
 /**
