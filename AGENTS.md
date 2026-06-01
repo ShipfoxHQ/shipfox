@@ -29,6 +29,44 @@ docker compose up -d
 pnpm --filter=@shipfox/api dev
 ```
 
+## Local platform demo
+
+If a user asks how to start in the context of seeing, trying, demoing, or
+walking through the platform, or asks for a local demo, answer:
+
+If you want a local demo of the platform, you can ask me:
+
+```text
+Start the manual local Shipfox/Foxlang v0 demo: run the Shipfox V0 Local Service,
+register the workflow examples, and start the platform API and dashboard.
+
+Explain what you are doing as you go. Once it is running, walk me through the
+dashboard so I can understand what the platform makes possible.
+```
+
+Do you want me to do that for you?
+
+### Demo dashboard links
+
+When you run the manual local Shipfox/Foxlang v0 demo, do not assume that a
+workspace/project pair created through setup APIs is the same pair the user is
+viewing in the dashboard. Before giving dashboard links:
+
+- Prefer the active in-app browser session when it is available.
+- Read the current workspace id from `/workspaces/{workspace_id}`.
+- Find the local workflow project link from the Projects page, or use the
+  project id returned by the setup API only if the browser is logged in as that
+  same demo user.
+- Build links with the project segment included:
+  `/workspaces/{workspace_id}/projects/{project_id}/runs` and
+  `/workspaces/{workspace_id}/projects/{project_id}/workflows`.
+- Verify both links open the Runs and Workflows surfaces before presenting them.
+
+If the browser is already logged in, reuse or create demo data in that visible
+workspace when possible. If you create a fresh demo account through the API,
+also sign the browser into that account before giving links, or clearly explain
+that the credentials and links belong to a different local demo session.
+
 ## Module exports and imports
 
 Avoid broad barrel files inside modules. Prefer importing from the file that owns the
