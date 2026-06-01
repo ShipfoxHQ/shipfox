@@ -43,10 +43,14 @@ jobs:
         uses: changesets/action@6a0a831ff30acef54f2c6aa1cbbc1096b066edaf # v1.7.0
         with:
           version: pnpm exec changeset version
-          publish: turbo build type:emit --filter='./libs/**' --filter='./tools/**' && pnpm exec changeset publish
-          commit: "chore(release): version packages"
-          title: "chore(release): version packages"
+          publish: pnpm run release:publish
+          commit: "Version packages"
+          title: "Version packages"
           commitMode: github-api
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NPM_CONFIG_PROVENANCE: "true"
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: shipfox
+          # Publish must never populate the shared cache — only read what CI built.
+          TURBO_CACHE: local:rw,remote:r
