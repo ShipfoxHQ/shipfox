@@ -3,12 +3,6 @@ name: Publish packages
 on:
   push:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      package_name:
-        description: Name of a single package to republish from current main (escape hatch)
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -22,7 +16,6 @@ concurrency:
 jobs:
   release:
     name: Open release PR or publish
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -56,31 +49,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NPM_CONFIG_PROVENANCE: "true"
-
-  publish-single:
-    name: Publish ${{ inputs.package_name }}
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          fetch-depth: 0
-
-      - name: Set up mise
-        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
-      - name: Build target package
-        env:
-          PACKAGE_NAME: ${{ inputs.package_name }}
-        run: turbo build type:emit --filter "$PACKAGE_NAME"
-
-      - name: Publish package
-        env:
-          PACKAGE_NAME: ${{ inputs.package_name }}
-        run: pnpm publish --access public --no-git-checks --provenance --filter "$PACKAGE_NAME"
