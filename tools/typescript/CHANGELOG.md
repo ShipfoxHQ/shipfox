@@ -1,13 +1,5 @@
 # @shipfox/typescript
 
-## 1.1.5
-
-### Patch Changes
-
-- 0e29fc1: Moves the @shipfox tools packages to a dedicated repository — future versions will be published from there.
-- Updated dependencies [0e29fc1]
-  - @shipfox/tool-utils@1.1.3
-
 ## 1.1.4
 
 ### Patch Changes
