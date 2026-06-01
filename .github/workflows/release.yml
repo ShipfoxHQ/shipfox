@@ -9,32 +9,10 @@ on:
         type: string
         default: ""
 
-# Manual release flow:
-#   1. Consume pending changesets — bumps versions and rewrites CHANGELOGs in
-#      the working tree.
-#   2. Build the publishable packages.
-#   3. Publish to npm via trusted publishing (OIDC, no token).
-#   4. Open a release PR carrying the version bump commits, signed by GitHub
-#      via the API (no GPG key in secrets).
-#
-# External setup required before first run:
-#   - For every `@shipfox/*` package, configure a trusted publisher on
-#     npmjs.com pointing at `ShipfoxHQ/platform` + `release.yml`. For brand
-#     new packages, use npm's pre-publish trusted publisher option or do
-#     the first publish manually with a token, then switch.
-#   - Create a GitHub App in the `ShipfoxHQ` org (Settings → Developer
-#     settings → GitHub Apps → New). Permissions: `Contents: read & write`
-#     and `Pull requests: read & write`. Install it on `ShipfoxHQ/platform`
-#     only. Then add to this repo:
-#       * Variable `RELEASE_BOT_APP_ID` = the App ID
-#       * Secret   `RELEASE_BOT_APP_PRIVATE_KEY` = full `.pem` contents
-#     The App token is minted per-run (~1 hour lifetime, scoped to one repo
-#     and two permissions) — far smaller blast radius than a PAT.
-
 permissions:
   contents: write
   pull-requests: write
-  id-token: write # required for npm trusted publishing
+  id-token: write
 
 concurrency:
   group: release-${{ github.ref }}
