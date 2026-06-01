@@ -1,7 +1,7 @@
 {
   "name": "@shipfox/client-app-shell",
   "license": "MIT",
-  "private": true,
+  "private": false,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

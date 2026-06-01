@@ -1,24 +1,40 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: Name of the package to publish (leave empty to publish all eligible packages)
+        required: false
+        type: string
+        default: ""
 
-# Maintains a single "Version Packages" PR that aggregates pending changesets.
-# Merging that PR causes this workflow to run again and publish to npm.
+# Manual release flow:
+#   1. Consume pending changesets — bumps versions and rewrites CHANGELOGs in
+#      the working tree.
+#   2. Build the publishable packages.
+#   3. Publish to npm via trusted publishing (OIDC, no token).
+#   4. Open a release PR carrying the version bump commits, signed by GitHub
+#      via the API (no GPG key in secrets).
 #
-# To enable publishing:
-#   1. Provision an npm token for the @shipfox scope and add it as the
-#      `NPM_TOKEN` secret on the repository.
-#   2. Remove the `if: false` guard on the publish job below.
-#   3. Confirm that the packages you want to release have `"private": false`
-#      in their package.json. Everything else is skipped by Changesets.
+# External setup required before first run:
+#   - For every `@shipfox/*` package, configure a trusted publisher on
+#     npmjs.com pointing at `ShipfoxHQ/platform` + `release.yml`. For brand
+#     new packages, use npm's pre-publish trusted publisher option or do
+#     the first publish manually with a token, then switch.
+#   - Create a GitHub App in the `ShipfoxHQ` org (Settings → Developer
+#     settings → GitHub Apps → New). Permissions: `Contents: read & write`
+#     and `Pull requests: read & write`. Install it on `ShipfoxHQ/platform`
+#     only. Then add to this repo:
+#       * Variable `RELEASE_BOT_APP_ID` = the App ID
+#       * Secret   `RELEASE_BOT_APP_PRIVATE_KEY` = full `.pem` contents
+#     The App token is minted per-run (~1 hour lifetime, scoped to one repo
+#     and two permissions) — far smaller blast radius than a PAT.
 
 permissions:
   contents: write
   pull-requests: write
-  id-token: write
+  id-token: write # required for npm trusted publishing
 
 concurrency:
   group: release-${{ github.ref }}
@@ -26,34 +42,53 @@ concurrency:
 
 jobs:
   release:
-    if: false # flip to `true` once NPM_TOKEN is configured
     name: Version + publish
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
 
       - name: Set up mise
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Bump versions and update changelogs
+        run: pnpm exec changeset version
 
       - name: Build publishable packages
-        run: turbo build --filter='./libs/**' --filter='./tools/**'
+        run: turbo build type:emit --filter='./libs/**' --filter='./tools/**'
 
-      - name: Create release PR or publish
-        uses: changesets/action@v1
+      - name: Publish a specific package
+        if: inputs.package_name != ''
+        run: pnpm publish --access public --no-git-checks --provenance --filter ${{ inputs.package_name }}
+
+      - name: Publish all packages
+        if: inputs.package_name == ''
+        run: pnpm publish --recursive --access public --no-git-checks --provenance
+
+      - name: Mint App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          publish: pnpm release
-          version: pnpm version-packages
+          app-id: ${{ vars.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
+
+      - name: Open release PR
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          sign-commits: true
+          commit-message: "chore(release): version packages"
           title: "chore(release): version packages"
-          commit: "chore(release): version packages"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: "true"
+          body: |
+            Version bumps and changelog updates from the most recent `Release` workflow run.
+
+            Packages have already been published to npm with provenance via trusted publishing.
+          branch: release
+          branch-suffix: short-commit-hash

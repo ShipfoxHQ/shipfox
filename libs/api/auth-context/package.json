@@ -1,7 +1,7 @@
 {
   "name": "@shipfox/api-auth-context",
   "license": "MIT",
-  "private": true,
+  "private": false,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

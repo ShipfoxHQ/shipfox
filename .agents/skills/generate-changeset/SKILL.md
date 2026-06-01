@@ -1,77 +1,121 @@
 ---
 name: generate-changeset
-description: Generate a changeset file for the current changes following the changesets pattern used in the project. Use when the user asks to add a changelog entry, document a change for release, bump the version, or says "add a changeset" or "I need a changeset". Also trigger when preparing changes for a PR in a project that uses changesets.
+description: "Generate a changeset file for the current branch following Shipfox's changeset rules. Trigger when the user asks to add a changeset, document a change for release, bump versions, or when preparing a PR that touches libs/ or tools/."
+allowed-tools: Read, Write, Bash, Glob, Grep
 ---
 
-# Rule: Generating a Changeset
+# Generate Changeset (Agent Path)
 
-## Goal
+Agents cannot drive the interactive `pnpm exec changeset` prompt. This skill is
+the non-interactive equivalent: it writes a properly-formatted
+`.changeset/*.md` file directly.
 
-To guide an AI assistant in creating a changeset file that follows the [@changesets/cli](https://github.com/changesets/changesets) format. Changesets are markdown files with YAML frontmatter that describe what changed and will be used to generate changelogs and version bumps.
+See [CONTRIBUTING.md#releases--changesets](../../../CONTRIBUTING.md#releases--changesets)
+for the canonical rule on **when** a changeset is required and which bump
+level to pick. The skill below covers **how** to author the file.
 
 ## Process
 
-1.  **Check for existing changesets:** Look for a `.changeset` directory in the project to confirm the project uses changesets. If it doesn't exist, inform the user that the project doesn't appear to use changesets.
+### Step 1: Confirm a changeset is needed
 
-2.  **Analyze existing changesets:** Read 1-2 existing changeset files in `.changeset/` to understand the project's changeset pattern and style.
+```bash
+git diff origin/main...HEAD --name-only
+```
 
-3.  **Determine packages to include:**
+If the diff only touches `apps/`, `e2e/`, the workspace root, docs, or repo
+config, stop and report that no changeset is needed. Otherwise continue.
 
-    - In a monorepo: Identify which package(s) were modified by checking `git status` or analyzing the changes
-    - In a single-package repo: Use the package name from `package.json`
+### Step 2: Identify the affected packages
 
-4.  **Generate changeset content:**
+For each modified path under `libs/` or `tools/`, walk up to the nearest
+`package.json` and read its `name` field. Build the list of unique package
+names touched in the diff.
 
-    - Create a markdown file with YAML frontmatter
-    - **IMPORTANT:** AI tools should ONLY generate `patch` bump types, never `minor` or `major`
-    - Write a single, clear sentence summary of the changes following the project's existing changeset style
+```bash
+git diff origin/main...HEAD --name-only -- 'libs/**' 'tools/**' \
+  | xargs -n1 dirname 2>/dev/null \
+  | sort -u
+```
 
-5.  **Save the changeset:**
-    - Generate a unique filename using the pattern: `[random-adjective]-[random-noun]-[random-verb].md` (e.g., `happy-lions-jump.md`)
-    - Save to `.changeset/` directory
-    - Inform the user that the changeset has been created and should be committed with their changes
+Then for each directory, find the closest `package.json` and read its `name`.
 
-## Changeset File Format
+Skip any package whose `package.json` has `"private": true` — changesets for
+private packages are silently dropped at release time. In this repo, all
+`libs/*` and `tools/*` packages are public, but verify rather than assume.
+
+### Step 3: Choose the bump level
+
+Pick based on what was implemented in the diff:
+
+- `patch` — bug fixes, internal refactors, dependency bumps, performance work
+- `minor` — new features, additive public API, new exported symbols
+- `major` — breaking changes to public API, removed exports, renamed types
+
+When in doubt between `patch` and `minor`, default to `patch`. Never silently
+pick `major` — flag breaking changes to the user before writing the file.
+
+### Step 4: Write the changeset file
+
+Filename: `.changeset/<adjective>-<noun>-<verb>.md` (e.g.
+`happy-lions-jump.md`). Generate three random words; do not reuse an existing
+filename.
+
+Content format (single package):
 
 ```markdown
 ---
-"package-name": patch
+"@shipfox/api-runners": minor
 ---
 
-Brief summary of the change in present tense
+Adds per-organization runner concurrency limits to prevent shared-pool starvation.
 ```
 
-For monorepos with multiple packages:
+Multiple packages:
 
 ```markdown
 ---
-"@scope/package-one": patch
-"@scope/package-two": patch
+"@shipfox/api-runners": minor
+"@shipfox/api-runners-dto": patch
 ---
 
-Brief summary of the change
+Adds per-organization runner concurrency limits to prevent shared-pool starvation.
 ```
 
-## Rules
+### Step 5: Report
 
-1. **ALWAYS use `patch` for bump type** - Never generate `minor` or `major` changesets
-2. **Follow existing style** - Match the tone and format of existing changesets in the project
-3. **Maximum context, minimum words** - One simple sentence that packs in as much useful context as possible. You may lead with the area of the product being changed (e.g., "Checkout page now..."). Every word should earn its place. No text in brackets, parentheses, or any other delimiters, and no second paragraph or trailing notes.
-4. **Use present tense** - Write summaries in present tense (e.g., "Fixes bug" not "Fixed bug")
-5. **One changeset per logical change** - If there are multiple unrelated changes, create multiple changesets
+Tell the user the filename, the packages and bumps included, and the summary.
+Remind them to commit it alongside the code change (the skill writes the file
+but does not commit).
 
-## Example Changeset
+## Style rules
+
+1. **Present tense**: "Adds runner label validation", not "Added".
+2. **One sentence, packed**: lead with the area of the product when it helps
+   readability. Every word earns its place. No bracketed asides, no trailing
+   notes, no second paragraph.
+3. **One changeset per logical change**: if the diff bundles two unrelated
+   changes, write two changesets.
+
+## Worked example
+
+Diff:
+
+- Modified `libs/api/runners/src/core/limit.ts` to add a new public
+  `enforceOrgLimit()` export
+- Modified `libs/api/runners-dto/src/limit-dto.ts` to add the matching Zod
+  schema
+- Modified `apps/api/src/routes/runners.ts` to wire the route
+
+Output (`.changeset/keen-otters-soar.md`):
 
 ```markdown
 ---
-"@myapp/ui": patch
+"@shipfox/api-runners": minor
+"@shipfox/api-runners-dto": minor
 ---
 
-Fixes button hover state in dark mode.
+Adds per-organization runner concurrency limits with a matching DTO schema for the new admin endpoint.
 ```
 
-## Output
-
-- **Format:** Markdown with YAML frontmatter
-- **Location:** `.changeset/`
-- **Filename:** `[random-adjective]-[random-noun]-[random-verb].md`
+The `apps/api` change is not listed — apps are private and the release flow
+ignores them.
