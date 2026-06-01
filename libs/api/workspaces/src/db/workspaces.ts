@@ -1,4 +1,4 @@
-import {eq} from 'drizzle-orm';
+import {eq, sql} from 'drizzle-orm';
 import type {Workspace, WorkspaceStatus} from '#core/entities/workspace.js';
 import {db} from './db.js';
 import {toWorkspace, workspaces} from './schema/workspaces.js';
@@ -30,7 +30,7 @@ export interface UpdateWorkspaceParams {
 export async function updateWorkspace(
   params: UpdateWorkspaceParams,
 ): Promise<Workspace | undefined> {
-  const set: Record<string, unknown> = {updatedAt: new Date()};
+  const set: Record<string, unknown> = {updatedAt: sql`NOW()`};
   if (params.name !== undefined) set.name = params.name;
   if (params.status !== undefined) set.status = params.status;
   if (params.settings !== undefined) set.settings = params.settings;
