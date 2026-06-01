@@ -1,26 +1,13 @@
 import {loginBodySchema} from '@shipfox/api-auth-dto';
-import type {AcceptInvitationResponseDto} from '@shipfox/api-workspaces-dto';
-import {apiRequest} from '@shipfox/client-api';
-import {
-  Alert,
-  Button,
-  ButtonLink,
-  FormField,
-  FormFieldInput,
-  Icon,
-  Text,
-  toast,
-} from '@shipfox/react-ui';
+import {Alert, Button, ButtonLink, FormField, FormFieldInput, Icon, Text} from '@shipfox/react-ui';
 import {useForm} from '@tanstack/react-form';
-import {Link, useNavigate, useSearch} from '@tanstack/react-router';
+import {Link, useSearch} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
 import {useEffect, useRef, useState} from 'react';
 import {AuthShell} from '#/components/auth-shell.js';
 import {useLoginAuth} from '#hooks/api/login-auth.js';
-import {useRefreshAuth} from '#hooks/api/refresh-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
 import {loginErrorToFormError} from './form-errors.js';
-import {authErrorMessage} from './form-utils.js';
 import {
   extractInvitationToken,
   pendingInvitation,
@@ -29,8 +16,6 @@ import {
 
 export function LoginPage() {
   const login = useLoginAuth();
-  const refreshAuth = useRefreshAuth();
-  const navigate = useNavigate();
   const search = useSearch({strict: false}) as {redirect?: unknown};
   const invitationToken = extractInvitationToken(search.redirect);
   const invitationPreview = useInvitationContext(invitationToken);
@@ -48,30 +33,9 @@ export function LoginPage() {
     onSubmit: async ({value}) => {
       setFormError(undefined);
       try {
-        const session = await login.mutateAsync(value);
+        await login.mutateAsync(value);
         skipDraftPersistRef.current = true;
         setAuthFormDraft(initialAuthFormDraft);
-
-        if (invitationToken && invitationPending) {
-          try {
-            const result = await apiRequest<AcceptInvitationResponseDto>('/invitations/accept', {
-              method: 'POST',
-              body: {token: invitationToken},
-              headers: {authorization: `Bearer ${session.token}`},
-            });
-            await refreshAuth();
-            toast.success(`You joined ${invitationPending.workspace_name}.`);
-            await navigate({
-              to: '/workspaces/$wid',
-              params: {wid: result.membership.workspace_id},
-            });
-          } catch (error) {
-            toast.error(authErrorMessage(error));
-            await navigate({to: '/invitations/accept', search: {token: invitationToken}});
-          }
-        }
-        // The route's GuestGuard redirects authenticated users to `/` from the
-        // auth-state-driven re-render — explicit navigate would race the render.
       } catch (error) {
         const mapped = loginErrorToFormError(error);
         if (mapped.kind === 'field') {
