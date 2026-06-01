@@ -79,6 +79,12 @@
       "groupName": "pnpm",
       "groupSlug": "pnpm",
       "matchPackageNames": ["pnpm"]
+    },
+    {
+      "description": "Hold changesets/action at v1.7.x: v1.8.0 regressed commitMode:github-api so it closes the release PR without reopening it (changesets/action#615). Drop this rule once a fixed v1.8.x ships.",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["changesets/action"],
+      "allowedVersions": "<1.8.0"
     }
   ]
 }
