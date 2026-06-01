@@ -1,5 +1,11 @@
 # @shipfox/ts-config
 
+## 1.3.7
+
+### Patch Changes
+
+- 804c5d2: Publishes the referenced tsconfig files so `@shipfox/ts-config/node` and `/react` resolve from the npm tarball.
+
 ## 1.3.6
 
 ### Patch Changes
