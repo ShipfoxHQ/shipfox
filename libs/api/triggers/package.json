@@ -1,6 +1,7 @@
 {
   "name": "@shipfox/api-triggers",
   "license": "MIT",
+  "version": "0.0.0",
   "private": false,
   "type": "module",
   "main": "dist/index.js",

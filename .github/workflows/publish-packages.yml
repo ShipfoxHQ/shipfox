@@ -37,6 +37,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Bump versions and update changelogs
+        if: inputs.package_name == ''
         run: pnpm exec changeset version
 
       - name: Build publishable packages
@@ -44,13 +45,16 @@ jobs:
 
       - name: Publish a specific package
         if: inputs.package_name != ''
-        run: pnpm publish --access public --no-git-checks --provenance --filter ${{ inputs.package_name }}
+        env:
+          PACKAGE_NAME: ${{ inputs.package_name }}
+        run: pnpm publish --access public --no-git-checks --provenance --filter "$PACKAGE_NAME"
 
-      - name: Publish all packages
+      - name: Publish bumped packages
         if: inputs.package_name == ''
-        run: pnpm publish --recursive --access public --no-git-checks --provenance
+        run: pnpm exec changeset publish
 
       - name: Mint App installation token
+        if: inputs.package_name == ''
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
@@ -58,6 +62,7 @@ jobs:
           private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
 
       - name: Open version-bump PR
+        if: inputs.package_name == ''
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8
         with:
           token: ${{ steps.app-token.outputs.token }}
