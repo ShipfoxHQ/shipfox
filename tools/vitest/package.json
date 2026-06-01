@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@shipfox/tool-utils": "workspace:*",
-    "vitest": "^4.0.8"
+    "vitest": "^4.1.5"
   },
   "devDependencies": {
     "@shipfox/swc": "workspace:*",
