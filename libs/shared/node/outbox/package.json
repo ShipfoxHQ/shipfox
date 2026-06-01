@@ -2,7 +2,7 @@
   "name": "@shipfox/node-outbox",
   "license": "MIT",
   "version": "0.0.0",
-  "private": false,
+  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
