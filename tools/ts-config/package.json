@@ -9,9 +9,11 @@
   "license": "MIT",
   "private": false,
   "files": [
-    "tsconfig.json"
+    "tsconfig.base.json",
+    "tsconfig.node.json",
+    "tsconfig.react.json"
   ],
-  "main": "tsconfig.json",
+  "main": "tsconfig.base.json",
   "exports": {
     ".": "./tsconfig.base.json",
     "./node": "./tsconfig.node.json",
