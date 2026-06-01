@@ -57,7 +57,24 @@ git diff origin/main...HEAD
 
 Understand the scope and purpose of all changes before writing the description.
 
-### Step 3: Write the PR Description
+### Step 3: Add a Changeset If Required
+
+If the diff includes non-trivial changes to any package under `libs/` or
+`tools/`, the PR must include a changeset under `.changeset/*.md`. See
+[CONTRIBUTING.md#publishing--changesets](../../../CONTRIBUTING.md#publishing--changesets)
+for the rule and bump-level guidance.
+
+Check whether a changeset is already in the branch:
+
+```bash
+git diff origin/main...HEAD --name-only -- '.changeset/*.md'
+```
+
+To add one, invoke the `generate-changeset` skill (Claude/Codex) or run
+`pnpm exec changeset` interactively. Commit the changeset before opening the
+PR.
+
+### Step 4: Write the PR Description
 
 Use this structure:
 
@@ -83,7 +100,7 @@ Use this structure:
 - Checkbox lists of testing steps
 - Redundant summaries of the diff
 
-### Step 4: Create the PR
+### Step 5: Create the PR
 
 ```bash
 gh pr create --base main --title "<title>" --body "$(cat <<'EOF'

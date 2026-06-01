@@ -1,7 +1,8 @@
 {
   "name": "@shipfox/api-workspaces",
   "license": "MIT",
-  "private": true,
+  "version": "0.0.0",
+  "private": false,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

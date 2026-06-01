@@ -71,6 +71,25 @@ Available in most packages via `pnpm <script>`:
 | `test`       | Run tests once                                  |
 | `test:watch` | Run tests in watch mode                         |
 
+## Publishing & Changesets
+
+`libs/` and `tools/` packages publish to npm under `@shipfox/*`. `apps/`,
+`e2e/`, and the workspace root stay private.
+
+Every non-trivial PR touching `libs/` or `tools/` needs a changeset. Pure
+formatting or comment-only edits can skip it.
+
+```sh
+pnpm exec changeset          # humans
+# agents: invoke the `generate-changeset` skill
+```
+
+Pick the bump: `patch` for fixes/refactors, `minor` for additive API, `major`
+for breaking changes. Commit `.changeset/*.md` alongside the code.
+
+Trigger `.github/workflows/publish-packages.yml` from the Actions tab to
+publish.
+
 ## Turbo Tasks
 
 [Turbo](https://turbo.build/) orchestrates tasks across the monorepo with caching and dependency ordering. Tasks are defined in `turbo.jsonc`:

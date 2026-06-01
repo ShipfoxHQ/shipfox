@@ -1,0 +1,77 @@
+name: Publish packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: Name of the package to publish (leave empty to publish all eligible packages)
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: publish-packages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Version + publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Bump versions and update changelogs
+        if: inputs.package_name == ''
+        run: pnpm exec changeset version
+
+      - name: Build publishable packages
+        run: turbo build type:emit --filter='./libs/**' --filter='./tools/**'
+
+      - name: Publish a specific package
+        if: inputs.package_name != ''
+        env:
+          PACKAGE_NAME: ${{ inputs.package_name }}
+        run: pnpm publish --access public --no-git-checks --provenance --filter "$PACKAGE_NAME"
+
+      - name: Publish bumped packages
+        if: inputs.package_name == ''
+        run: pnpm exec changeset publish
+
+      - name: Mint App installation token
+        if: inputs.package_name == ''
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
+
+      - name: Open version-bump PR
+        if: inputs.package_name == ''
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          sign-commits: true
+          commit-message: "chore(publish): version packages"
+          title: "chore(publish): version packages"
+          body: |
+            Version bumps and changelog updates from the most recent `Publish packages` workflow run.
+
+            Packages have already been published to npm with provenance via trusted publishing.
+          branch: publish-packages
+          branch-suffix: short-commit-hash

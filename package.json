@@ -1,11 +1,6 @@
 {
   "name": "@shipfox/workspace",
   "license": "MIT",
-  "scripts": {
-    "changeset": "changeset",
-    "version-packages": "changeset version",
-    "release": "turbo build --filter='./libs/**' --filter='./tools/**' && changeset publish"
-  },
   "private": true,
   "packageManager": "pnpm@11.5.0",
   "type": "module",
