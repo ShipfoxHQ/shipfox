@@ -40,12 +40,13 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Open release PR or publish
-        uses: changesets/action@v1
+        uses: changesets/action@63a615b9cd06ba9a3e6d13796c7fbcb080a60a0b # v1.8.0
         with:
           version: pnpm exec changeset version
           publish: turbo build type:emit --filter='./libs/**' --filter='./tools/**' && pnpm exec changeset publish
           commit: "chore(release): version packages"
           title: "chore(release): version packages"
+          commitMode: github-api
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NPM_CONFIG_PROVENANCE: "true"
