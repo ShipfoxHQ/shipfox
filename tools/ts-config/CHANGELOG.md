@@ -1,5 +1,11 @@
 # @shipfox/ts-config
 
+## 1.3.6
+
+### Patch Changes
+
+- 0e29fc1: Moves the @shipfox tools packages to a dedicated repository — future versions will be published from there.
+
 ## 1.3.5
 
 ### Patch Changes
