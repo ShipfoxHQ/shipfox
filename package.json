@@ -7,7 +7,7 @@
     "release": "turbo build --filter='./libs/**' --filter='./tools/**' && changeset publish"
   },
   "private": true,
-  "packageManager": "pnpm@11.1.1",
+  "packageManager": "pnpm@11.5.0",
   "type": "module",
   "devDependencies": {
     "@changesets/cli": "^2.27.10",
