@@ -1,6 +1,11 @@
 {
   "name": "@shipfox/tool-utils",
   "version": "1.1.2",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "tools/utils"
+  },
   "license": "MIT",
   "private": false,
   "main": "src/index.js",

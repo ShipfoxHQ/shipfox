@@ -1,5 +1,9 @@
 {
   "name": "@shipfox/workspace",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git"
+  },
   "license": "MIT",
   "private": true,
   "packageManager": "pnpm@11.5.0",

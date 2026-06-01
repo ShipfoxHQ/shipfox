@@ -1,6 +1,11 @@
 {
   "name": "@shipfox/biome",
   "version": "1.8.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "tools/biome"
+  },
   "license": "MIT",
   "private": false,
   "type": "module",

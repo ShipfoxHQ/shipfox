@@ -1,5 +1,10 @@
 {
   "name": "@shipfox/runner",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "apps/runner"
+  },
   "license": "MIT",
   "private": true,
   "type": "module",

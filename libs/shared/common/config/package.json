@@ -3,6 +3,11 @@
   "license": "MIT",
   "private": false,
   "version": "1.2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "libs/shared/common/config"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

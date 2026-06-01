@@ -1,5 +1,10 @@
 {
   "name": "@shipfox/e2e-client-integrations",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "e2e/client/integrations"
+  },
   "license": "MIT",
   "private": true,
   "type": "module",

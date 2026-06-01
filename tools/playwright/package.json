@@ -1,6 +1,11 @@
 {
   "name": "@shipfox/playwright",
   "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "tools/playwright"
+  },
   "license": "MIT",
   "private": false,
   "type": "module",
