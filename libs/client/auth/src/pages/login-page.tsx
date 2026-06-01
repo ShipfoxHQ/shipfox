@@ -21,7 +21,11 @@ import {useRefreshAuth} from '#hooks/api/refresh-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
 import {loginErrorToFormError} from './form-errors.js';
 import {authErrorMessage} from './form-utils.js';
-import {extractInvitationToken, useInvitationContext} from './invitation-context.js';
+import {
+  extractInvitationToken,
+  pendingInvitation,
+  useInvitationContext,
+} from './invitation-context.js';
 
 export function LoginPage() {
   const login = useLoginAuth();
@@ -30,8 +34,7 @@ export function LoginPage() {
   const search = useSearch({strict: false}) as {redirect?: unknown};
   const invitationToken = extractInvitationToken(search.redirect);
   const invitationPreview = useInvitationContext(invitationToken);
-  const invitationPending =
-    invitationPreview.data?.status === 'pending' ? invitationPreview.data : undefined;
+  const invitationPending = pendingInvitation(invitationPreview.data);
   const [authFormDraft, setAuthFormDraft] = useAtom(authFormDraftAtom);
   const [formError, setFormError] = useState<string | undefined>();
   const draftRef = useRef(authFormDraft);

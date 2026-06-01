@@ -25,7 +25,11 @@ import {
 } from './email-verification-resend-model.js';
 import {signupErrorToFormError} from './form-errors.js';
 import {authErrorMessage} from './form-utils.js';
-import {extractInvitationToken, useInvitationContext} from './invitation-context.js';
+import {
+  extractInvitationToken,
+  pendingInvitation,
+  useInvitationContext,
+} from './invitation-context.js';
 
 export function SignupPage() {
   const signup = useSignupAuth();
@@ -35,8 +39,7 @@ export function SignupPage() {
   const search = useSearch({strict: false}) as {redirect?: unknown};
   const invitationToken = extractInvitationToken(search.redirect);
   const invitationPreview = useInvitationContext(invitationToken);
-  const invitationPending =
-    invitationPreview.data?.status === 'pending' ? invitationPreview.data : undefined;
+  const invitationPending = pendingInvitation(invitationPreview.data);
   const [authFormDraft, setAuthFormDraft] = useAtom(authFormDraftAtom);
   const [submittedEmail, setSubmittedEmail] = useState<string | undefined>();
   const [now, setNow] = useState(() => Date.now());
