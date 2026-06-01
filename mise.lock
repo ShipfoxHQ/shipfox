@@ -76,5 +76,5 @@ version = "11.1.1"
 backend = "npm:pnpm"
 
 [[tools."npm:turbo"]]
-version = "2.9.12"
+version = "2.9.16"
 backend = "npm:turbo"
