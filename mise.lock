@@ -72,9 +72,9 @@ checksum = "sha256:cc5149eabd53779ce1e7bdc5401643622d0c7e6800ade18928a767e940bb0
 url = "https://nodejs.org/dist/v24.15.0/node-v24.15.0-win-x64.zip"
 
 [[tools."npm:pnpm"]]
-version = "11.1.1"
+version = "11.5.0"
 backend = "npm:pnpm"
 
 [[tools."npm:turbo"]]
-version = "2.9.12"
+version = "2.9.16"
 backend = "npm:turbo"

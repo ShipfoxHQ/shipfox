@@ -229,16 +229,23 @@ test('creates, rejects duplicate, and revokes a pending invitation from members 
   await page.goto(`/workspaces/${workspace.id}/settings/members`);
   await expect(page.getByRole('heading', {name: 'Pending invitations'})).toBeVisible();
   await expect(page.getByText('No pending invitations.')).toBeVisible();
-  await stableArgosScreenshot(page, 'members/pending-invitations-empty', [
+  const ownerJoinedText = (
+    await page
+      .getByRole('row', {name: textRe(owner.email)})
+      .getByRole('cell')
+      .nth(2)
+      .innerText()
+  ).trim();
+  const ownerRowReplacements = [
     [owner.email, VISUAL_OWNER_EMAIL],
-  ]);
+    [ownerJoinedText, VISUAL_JOINED_DATE],
+  ] as const;
+  await stableArgosScreenshot(page, 'members/pending-invitations-empty', ownerRowReplacements);
 
   await page.getByRole('button', {name: 'Invite member'}).click();
   await expect(page.getByRole('heading', {name: 'Invite a member'})).toBeVisible();
   await expect(page.getByLabel('Email')).toBeFocused();
-  await stableArgosScreenshot(page, 'members/invite-member-modal-idle', [
-    [owner.email, VISUAL_OWNER_EMAIL],
-  ]);
+  await stableArgosScreenshot(page, 'members/invite-member-modal-idle', ownerRowReplacements);
 
   await page.getByLabel('Email').fill(pendingEmail);
   await page.getByRole('button', {name: 'Send invitation'}).click();
@@ -251,6 +258,7 @@ test('creates, rejects duplicate, and revokes a pending invitation from members 
   const pendingRowReplacements = [
     [owner.email, VISUAL_OWNER_EMAIL],
     [pendingEmail, VISUAL_PENDING_EMAIL],
+    [ownerJoinedText, VISUAL_JOINED_DATE],
     [pendingExpiresText, VISUAL_EXPIRES_DATE],
   ] as const;
   await stableArgosScreenshot(
