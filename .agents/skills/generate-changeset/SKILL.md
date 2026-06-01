@@ -10,7 +10,7 @@ Agents cannot drive the interactive `pnpm exec changeset` prompt. This skill is
 the non-interactive equivalent: it writes a properly-formatted
 `.changeset/*.md` file directly.
 
-See [CONTRIBUTING.md#releases--changesets](../../../CONTRIBUTING.md#releases--changesets)
+See [CONTRIBUTING.md#publishing--changesets](../../../CONTRIBUTING.md#publishing--changesets)
 for the canonical rule on **when** a changeset is required and which bump
 level to pick. The skill below covers **how** to author the file.
 

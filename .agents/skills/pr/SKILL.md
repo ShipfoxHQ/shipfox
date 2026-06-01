@@ -61,7 +61,7 @@ Understand the scope and purpose of all changes before writing the description.
 
 If the diff includes non-trivial changes to any package under `libs/` or
 `tools/`, the PR must include a changeset under `.changeset/*.md`. See
-[CONTRIBUTING.md#releases--changesets](../../../CONTRIBUTING.md#releases--changesets)
+[CONTRIBUTING.md#publishing--changesets](../../../CONTRIBUTING.md#publishing--changesets)
 for the rule and bump-level guidance.
 
 Check whether a changeset is already in the branch:

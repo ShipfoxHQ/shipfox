@@ -71,7 +71,7 @@ Available in most packages via `pnpm <script>`:
 | `test`       | Run tests once                                  |
 | `test:watch` | Run tests in watch mode                         |
 
-## Releases & Changesets
+## Publishing & Changesets
 
 `libs/` and `tools/` packages publish to npm under `@shipfox/*`. `apps/`,
 `e2e/`, and the workspace root stay private.
@@ -87,7 +87,8 @@ pnpm exec changeset          # humans
 Pick the bump: `patch` for fixes/refactors, `minor` for additive API, `major`
 for breaking changes. Commit `.changeset/*.md` alongside the code.
 
-Trigger `.github/workflows/release.yml` from the Actions tab to cut a release.
+Trigger `.github/workflows/publish-packages.yml` from the Actions tab to
+publish.
 
 ## Turbo Tasks
 
