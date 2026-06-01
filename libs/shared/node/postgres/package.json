@@ -3,6 +3,11 @@
   "license": "MIT",
   "private": false,
   "version": "0.3.1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "libs/shared/node/postgres"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

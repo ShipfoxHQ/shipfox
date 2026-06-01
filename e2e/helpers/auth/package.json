@@ -1,5 +1,10 @@
 {
   "name": "@shipfox/e2e-helper-auth",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "e2e/helpers/auth"
+  },
   "license": "MIT",
   "private": true,
   "type": "module",

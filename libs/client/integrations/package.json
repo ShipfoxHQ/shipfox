@@ -2,6 +2,11 @@
   "name": "@shipfox/client-integrations",
   "license": "MIT",
   "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "libs/client/integrations"
+  },
   "private": true,
   "type": "module",
   "main": "dist/index.js",

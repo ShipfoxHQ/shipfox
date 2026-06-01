@@ -1,6 +1,11 @@
 {
   "name": "@shipfox/swc",
   "version": "1.2.4",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "tools/swc"
+  },
   "license": "MIT",
   "private": false,
   "type": "module",

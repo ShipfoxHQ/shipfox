@@ -1,5 +1,10 @@
 {
   "name": "@shipfox/client",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "apps/client"
+  },
   "license": "MIT",
   "private": true,
   "type": "module",

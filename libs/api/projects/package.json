@@ -2,6 +2,11 @@
   "name": "@shipfox/api-projects",
   "license": "MIT",
   "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "libs/api/projects"
+  },
   "private": true,
   "type": "module",
   "main": "dist/index.js",

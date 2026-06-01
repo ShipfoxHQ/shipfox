@@ -1,5 +1,10 @@
 {
   "name": "@shipfox/e2e-core",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "e2e/core"
+  },
   "license": "MIT",
   "private": true,
   "type": "module",
