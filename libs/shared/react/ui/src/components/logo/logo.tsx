@@ -1,3 +1,5 @@
+'use client';
+
 import type {ComponentProps} from 'react';
 import {useResolvedTheme} from '#hooks/useResolvedTheme.js';
 import {cn} from '#utils/cn.js';

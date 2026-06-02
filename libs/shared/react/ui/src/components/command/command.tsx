@@ -1,3 +1,5 @@
+'use client';
+
 import {cva, type VariantProps} from 'class-variance-authority';
 import {Command as CommandPrimitive} from 'cmdk';
 import {type ComponentProps, forwardRef, useCallback, useState} from 'react';
