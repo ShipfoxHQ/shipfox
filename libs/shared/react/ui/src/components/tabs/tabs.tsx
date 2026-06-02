@@ -1,3 +1,5 @@
+'use client';
+
 import {type HTMLMotionProps, motion, type Transition} from 'framer-motion';
 import {
   Children,

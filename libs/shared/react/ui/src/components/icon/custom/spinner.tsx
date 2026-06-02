@@ -1,3 +1,5 @@
+'use client';
+
 import type {RemixiconComponentType} from '@remixicon/react';
 import {motion, type SVGMotionProps, type Variants} from 'framer-motion';
 import type {ComponentProps} from 'react';

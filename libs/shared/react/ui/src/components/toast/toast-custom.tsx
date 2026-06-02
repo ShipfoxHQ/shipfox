@@ -1,3 +1,5 @@
+'use client';
+
 import {cva, type VariantProps} from 'class-variance-authority';
 import type {ReactNode} from 'react';
 import {Icon} from '#components/icon/icon.js';
