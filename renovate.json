@@ -19,7 +19,7 @@
     ":gitSignOff",
     "schedule:daily"
   ],
-  "minimumReleaseAge": "48 hours",
+  "minimumReleaseAge": "7 days",
   "prCreation": "not-pending",
   "internalChecksFilter": "strict",
   "prHourlyLimit": 5,
