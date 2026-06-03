@@ -1,6 +1,7 @@
 strictPeerDependencies: true
 dedupePeerDependents: true
 nodeLinker: isolated
+minimumReleaseAge: 2880
 allowBuilds:
   '@swc/core': true
   esbuild: true
