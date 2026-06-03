@@ -11,4 +11,4 @@ _.path = ['{{config_root}}/node_modules/.bin']
 
 [settings]
 lockfile       = true
-install_before = "48h"
+minimum_release_age = "48h"
