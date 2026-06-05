@@ -545,6 +545,9 @@ importers:
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
+      '@shipfox/api-workflow-language':
+        specifier: workspace:*
+        version: link:../workflow-language
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -578,9 +581,6 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
-      js-yaml:
-        specifier: ^4.1.0
-        version: 4.1.1
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -609,9 +609,6 @@ importers:
       '@temporalio/worker':
         specifier: ^1.16.1
         version: 1.17.2(@swc/helpers@0.5.23)(tslib@2.8.1)
-      '@types/js-yaml':
-        specifier: ^4.0.9
-        version: 4.0.9
       '@types/pg':
         specifier: ^8.15.5
         version: 8.20.0
@@ -630,6 +627,9 @@ importers:
 
   libs/api/definitions-dto:
     dependencies:
+      '@shipfox/api-workflow-language':
+        specifier: workspace:*
+        version: link:../workflow-language
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -1342,6 +1342,13 @@ importers:
         version: link:../../../tools/typescript
 
   libs/api/workflow-language:
+    dependencies:
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.1.1
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -1361,6 +1368,9 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../tools/vitest
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
       tsx:
         specifier: ^4.21.0
         version: 4.22.3

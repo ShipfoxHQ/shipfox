@@ -1,7 +1,7 @@
 # 002 CUE Schema
 
 Status: draft
-Source of truth: docs/formalizing-shipfox-runtime/002-cue-schema.md
+Source of truth: libs/api/workflow-language/src/core/surface/surface-workflow-document-cue.ts
 
 ## Purpose
 
@@ -22,6 +22,39 @@ PR1 does not accept CUE files as workflow authoring input.
 - CUE authoring input support: deferred.
 
 - CUE schema execution in CI: deferred unless the PR adds the `cue` CLI deliberately.
+
+```cue
+// SurfaceWorkflowDocument formalizes the object produced by YAML parsing.
+// This is a PR1 formalization artifact, not an accepted authoring input.
+
+#StringOrStringList: string | [...string]
+
+#RunStep: {
+	run:  string
+	name?: string
+}
+
+#Job: {
+	needs?:  #StringOrStringList
+	runner?: #StringOrStringList
+	steps: [#RunStep, ...#RunStep]
+}
+
+#Trigger: {
+	source: string
+	event?: string
+	on?:    #StringOrStringList
+	with?:  {...}
+	filter?: string
+}
+
+#SurfaceWorkflowDocument: {
+	name: string & != ""
+	triggers?: [string]: #Trigger
+	runner?: #StringOrStringList
+	jobs: [string]: #Job
+}
+```
 <!-- generated:end -->
 
 ## Examples

@@ -1,28 +1,14 @@
-export interface Trigger {
-  source: string;
-  event: string;
-  on?: string | string[];
-  with?: Record<string, unknown>;
-  filter?: string;
-}
+import type {
+  SurfaceJob,
+  SurfaceRunStep,
+  SurfaceTrigger,
+  SurfaceWorkflowDocument,
+} from '@shipfox/api-workflow-language';
 
-export interface RunStep {
-  run: string;
-  name?: string;
-}
-
-export interface Job {
-  needs?: string | string[];
-  runner?: string | string[];
-  steps: RunStep[];
-}
-
-export interface SurfaceWorkflowDocument {
-  name: string;
-  triggers?: Record<string, Trigger>;
-  runner?: string | string[];
-  jobs: Record<string, Job>;
-}
+export type Trigger = SurfaceTrigger;
+export type RunStep = SurfaceRunStep;
+export type Job = SurfaceJob;
+export type {SurfaceWorkflowDocument};
 
 export interface WorkflowDefinition {
   id: string;

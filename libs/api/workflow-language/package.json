@@ -38,6 +38,10 @@
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "zod": "^4.4.3"
+  },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
     "@shipfox/depcruise": "workspace:*",
@@ -45,6 +49,7 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
+    "@types/js-yaml": "^4.0.9",
     "tsx": "^4.21.0"
   }
 }

@@ -1,13 +1,13 @@
 # 001 YAML Surface
 
 Status: draft
-Source of truth: libs/api/definitions-dto/src/schemas/workflow.ts
+Source of truth: libs/api/workflow-language/src/core/surface/surface-workflow-document.ts
 
 ## Purpose
 
 Describe the author-facing YAML document accepted by PR1.
 
-This document tracks compatibility constraints before the surface schema moves into workflow-language.
+This document tracks compatibility constraints for the surface schema owned by workflow-language.
 
 ## Normative Model
 
@@ -24,6 +24,8 @@ This document tracks compatibility constraints before the surface schema moves i
 - Canonical DTO surface schema: `surfaceWorkflowDocumentSchema`.
 
 - Canonical DTO surface type: `SurfaceWorkflowDocumentDto`.
+
+- Canonical YAML parser: `parseYamlSurfaceWorkflowDocument`.
 
 - Surface compatibility mode: required workflow name, trigger map, HTTP `definition` field, SQL `definition` column.
 

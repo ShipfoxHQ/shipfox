@@ -11,7 +11,7 @@ module.exports = {
         // pnpm workspace deps resolve as relative paths (../sibling/).
         // Match any workspace sibling that is not a *-dto package.
         path: '^\\.\\./[^./][^/]*/(?:src|dist)/',
-        pathNot: '^\\.\\./[^/]+-dto/',
+        pathNot: '^\\.\\./(?:[^/]+-dto|workflow-language)/',
       },
     },
     {

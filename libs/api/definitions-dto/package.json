@@ -36,6 +36,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-workflow-language": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

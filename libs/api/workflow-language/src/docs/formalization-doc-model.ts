@@ -1,3 +1,5 @@
+import {surfaceWorkflowDocumentCueSchema} from '#core/surface/surface-workflow-document-cue.js';
+
 export type FormalizationDocStatus = 'draft' | 'generated' | 'normative' | 'deferred';
 
 export type FormalizationDocSection = {
@@ -62,10 +64,10 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
     fileName: '001-yaml-surface.md',
     title: '001 YAML Surface',
     status: 'draft',
-    sourceOfTruth: 'libs/api/definitions-dto/src/schemas/workflow.ts',
+    sourceOfTruth: 'libs/api/workflow-language/src/core/surface/surface-workflow-document.ts',
     purpose: [
       'Describe the author-facing YAML document accepted by PR1.',
-      'This document tracks compatibility constraints before the surface schema moves into workflow-language.',
+      'This document tracks compatibility constraints for the surface schema owned by workflow-language.',
     ],
     normativeModel: [
       '- A workflow document has a required non-empty `name`.',
@@ -76,6 +78,7 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
     generatedLines: [
       '- Canonical DTO surface schema: `surfaceWorkflowDocumentSchema`.',
       '- Canonical DTO surface type: `SurfaceWorkflowDocumentDto`.',
+      '- Canonical YAML parser: `parseYamlSurfaceWorkflowDocument`.',
       '- Surface compatibility mode: required workflow name, trigger map, HTTP `definition` field, SQL `definition` column.',
       '- Validate-route compatibility mode: response field `spec` and error code `invalid-definition-spec` remain stable.',
     ],
@@ -93,7 +96,7 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
     fileName: '002-cue-schema.md',
     title: '002 CUE Schema',
     status: 'draft',
-    sourceOfTruth: 'docs/formalizing-shipfox-runtime/002-cue-schema.md',
+    sourceOfTruth: 'libs/api/workflow-language/src/core/surface/surface-workflow-document-cue.ts',
     purpose: [
       'Define how PR1 uses CUE as a formalization artifact for the YAML-produced surface document shape.',
       'PR1 does not accept CUE files as workflow authoring input.',
@@ -106,6 +109,7 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
     generatedLines: [
       '- CUE authoring input support: deferred.',
       '- CUE schema execution in CI: deferred unless the PR adds the `cue` CLI deliberately.',
+      `\`\`\`cue\n${surfaceWorkflowDocumentCueSchema.trim()}\n\`\`\``,
     ],
     examples: [
       'Use CUE snippets in this document to explain shape constraints, not as accepted input examples.',
