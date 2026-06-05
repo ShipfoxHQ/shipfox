@@ -1392,6 +1392,9 @@ importers:
       '@shipfox/api-runners-dto':
         specifier: workspace:*
         version: link:../runners-dto
+      '@shipfox/api-workflow-language':
+        specifier: workspace:*
+        version: link:../workflow-language
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../workflows-dto

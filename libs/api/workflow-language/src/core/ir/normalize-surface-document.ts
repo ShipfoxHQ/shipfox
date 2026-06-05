@@ -24,6 +24,9 @@ export function normalizeSurfaceDocumentToWorkflowIR(
   const steps: StepIR[] = [];
   const dependencies: JobDependencyIR[] = [];
 
+  const jobPositions = new Map(
+    Object.keys(document.jobs).map((jobName, index) => [jobName, index]),
+  );
   const jobs: JobIR[] = [...jobNameToId.entries()].map(([jobName, jobId]) => {
     const job = document.jobs[jobName];
     if (!job) {
@@ -33,8 +36,7 @@ export function normalizeSurfaceDocumentToWorkflowIR(
     const jobDependencies = normalizeDependencyList(job.needs)
       // Preserve unresolved surface references for static semantics instead of
       // slugging them into phantom or accidentally real job IDs.
-      .map((dependencyName) => jobNameToId.get(dependencyName) ?? dependencyName)
-      .sort(compareIds);
+      .map((dependencyName) => jobNameToId.get(dependencyName) ?? dependencyName);
 
     for (const dependencyId of jobDependencies) {
       dependencies.push({from: dependencyId, to: jobId});
@@ -62,6 +64,7 @@ export function normalizeSurfaceDocumentToWorkflowIR(
     return {
       id: jobId,
       sourceName: jobName,
+      position: jobPositions.get(jobName) ?? 0,
       dependencies: jobDependencies,
       runner: normalizeRunnerSelector(job.runner),
       steps: stepIds,

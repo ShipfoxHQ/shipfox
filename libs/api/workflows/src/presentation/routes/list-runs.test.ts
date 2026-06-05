@@ -1,4 +1,9 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {
+  normalizeSurfaceDocumentToWorkflowIR,
+  type SurfaceWorkflowDocument,
+  type WorkflowIR,
+} from '@shipfox/api-workflow-language';
 import {encodeTimestampIdCursor} from '@shipfox/node-drizzle';
 import {eq} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
@@ -20,6 +25,10 @@ vi.mock('@shipfox/api-projects', () => ({
     }),
   ),
 }));
+
+function workflowIR(document: SurfaceWorkflowDocument): WorkflowIR {
+  return normalizeSurfaceDocumentToWorkflowIR(document);
+}
 
 describe('GET /api/workflows/runs', () => {
   let app: FastifyInstance;
@@ -57,7 +66,7 @@ describe('GET /api/workflows/runs', () => {
       projectId,
       definitionId: crypto.randomUUID(),
       name: 'Test',
-      definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
+      workflow: workflowIR({name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}}),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -70,7 +79,7 @@ describe('GET /api/workflows/runs', () => {
       projectId,
       definitionId: crypto.randomUUID(),
       name: 'Test 2',
-      definition: {name: 'Test 2', jobs: {build: {steps: [{run: 'echo'}]}}},
+      workflow: workflowIR({name: 'Test 2', jobs: {build: {steps: [{run: 'echo'}]}}}),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -112,7 +121,7 @@ describe('GET /api/workflows/runs', () => {
       projectId,
       definitionId: crypto.randomUUID(),
       name: 'Deploy',
-      definition: {name: 'Deploy', jobs: {build: {steps: [{run: 'echo'}]}}},
+      workflow: workflowIR({name: 'Deploy', jobs: {build: {steps: [{run: 'echo'}]}}}),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -130,7 +139,7 @@ describe('GET /api/workflows/runs', () => {
       projectId,
       definitionId: crypto.randomUUID(),
       name: 'Nightly',
-      definition: {name: 'Nightly', jobs: {build: {steps: [{run: 'echo'}]}}},
+      workflow: workflowIR({name: 'Nightly', jobs: {build: {steps: [{run: 'echo'}]}}}),
       triggerPayload: {source: 'cron', event: 'tick', scheduleId: 'nightly'},
     });
 
@@ -223,7 +232,7 @@ async function createRunAt({
     projectId,
     definitionId: crypto.randomUUID(),
     name,
-    definition: {name, jobs: {build: {steps: [{run: 'echo'}]}}},
+    workflow: workflowIR({name, jobs: {build: {steps: [{run: 'echo'}]}}}),
     triggerPayload: {
       source: 'manual',
       event: 'fire',

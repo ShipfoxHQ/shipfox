@@ -1,4 +1,8 @@
-import type {SurfaceWorkflowDocument} from '@shipfox/api-definitions';
+import {
+  normalizeSurfaceDocumentToWorkflowIR,
+  type SurfaceWorkflowDocument,
+  type WorkflowIR,
+} from '@shipfox/api-workflow-language';
 import {WORKFLOW_RUN_CREATED, WORKFLOWS_JOB_TIMED_OUT} from '@shipfox/api-workflows-dto';
 import {eq, sql} from 'drizzle-orm';
 import {db} from './db.js';
@@ -31,6 +35,10 @@ function surfaceDocument(overrides?: Partial<SurfaceWorkflowDocument>): SurfaceW
   };
 }
 
+function workflowIR(overrides?: Partial<SurfaceWorkflowDocument>): WorkflowIR {
+  return normalizeSurfaceDocumentToWorkflowIR(surfaceDocument(overrides));
+}
+
 describe('workflow run queries', () => {
   let workspaceId: string;
   let projectId: string;
@@ -48,7 +56,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -81,7 +89,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -137,7 +145,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument({
+        workflow: workflowIR({
           jobs: {
             build: {steps: [{run: 'echo build'}]},
             test: {needs: 'build', steps: [{run: 'echo test'}]},
@@ -157,12 +165,38 @@ describe('workflow run queries', () => {
       expect(testJob?.dependencies).toEqual(['build']);
     });
 
+    test('stores IR-derived jobs and dependencies in the surface job-name space', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        workflow: workflowIR({
+          jobs: {
+            'build main': {steps: [{run: 'echo build'}]},
+            deploy: {needs: 'build main', steps: [{run: 'echo deploy'}]},
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByRunId(run.id);
+      const deployJob = runJobs.find((job) => job.name === 'deploy');
+
+      expect(runJobs.map((job) => job.name)).toEqual(['build main', 'deploy']);
+      expect(deployJob?.dependencies).toEqual(['build main']);
+    });
+
     test('normalizes needs undefined to empty array', async () => {
       const run = await createWorkflowRun({
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -181,7 +215,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument({
+        workflow: workflowIR({
           jobs: {
             lint: {steps: [{run: 'echo lint'}]},
             build: {steps: [{run: 'echo build'}]},
@@ -197,11 +231,13 @@ describe('workflow run queries', () => {
       });
 
       const runJobs = await getJobsByRunId(run.id);
+      const testJob = runJobs.find((job) => job.name === 'test');
 
       expect(runJobs).toHaveLength(3);
       expect(runJobs[0]?.position).toBe(0);
       expect(runJobs[1]?.position).toBe(1);
       expect(runJobs[2]?.position).toBe(2);
+      expect(testJob?.dependencies).toEqual(['lint', 'build']);
     });
 
     test('handles definition with empty jobs object', async () => {
@@ -209,7 +245,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument({jobs: {}}),
+        workflow: workflowIR({jobs: {}}),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -230,7 +266,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument({
+        workflow: workflowIR({
           jobs: {
             empty: {steps: []},
           },
@@ -256,7 +292,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument({
+        workflow: workflowIR({
           jobs: {
             build: {
               steps: [{name: 'Install deps', run: 'npm install'}, {run: 'npm build'}],
@@ -283,7 +319,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument({
+        workflow: workflowIR({
           jobs: {
             build: {steps: [{run: 'make build'}]},
           },
@@ -308,7 +344,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -330,7 +366,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -343,7 +379,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -370,7 +406,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -382,7 +418,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -403,7 +439,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -432,7 +468,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument({name: 'First'}),
+        workflow: workflowIR({name: 'First'}),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -444,7 +480,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument({name: 'Second'}),
+        workflow: workflowIR({name: 'Second'}),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -474,7 +510,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument({
+        workflow: workflowIR({
           jobs: {
             lint: {steps: [{run: 'lint'}]},
             build: {steps: [{run: 'build'}]},
@@ -502,7 +538,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument({
+        workflow: workflowIR({
           jobs: {
             build: {
               steps: [{run: 'step1'}, {run: 'step2'}, {run: 'step3'}],
@@ -533,7 +569,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -557,7 +593,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -588,7 +624,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -615,7 +651,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -645,7 +681,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -677,7 +713,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -711,7 +747,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument(),
+        workflow: workflowIR(),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -744,7 +780,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument({
+        workflow: workflowIR({
           jobs: {
             build: {steps: [{run: 'step1'}, {run: 'step2'}, {run: 'step3'}]},
           },
@@ -773,7 +809,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument({jobs: {build: {steps: [{run: 'a'}, {run: 'b'}]}}}),
+        workflow: workflowIR({jobs: {build: {steps: [{run: 'a'}, {run: 'b'}]}}}),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -804,7 +840,7 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        definition: surfaceDocument({
+        workflow: workflowIR({
           jobs: {
             build: {
               steps: Array.from({length: stepCount}, (_, i) => ({run: `step${i + 1}`})),

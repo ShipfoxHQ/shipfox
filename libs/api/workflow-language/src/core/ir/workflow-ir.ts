@@ -29,6 +29,7 @@ export type TriggerIR = Readonly<{
 export type JobIR = Readonly<{
   id: JobId;
   sourceName: string;
+  position: number;
   dependencies: readonly JobId[];
   runner: RunnerSelectorIR | null;
   steps: readonly StepId[];

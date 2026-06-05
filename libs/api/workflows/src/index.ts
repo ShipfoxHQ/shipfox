@@ -8,7 +8,12 @@ import {onRunnerJobCompleted, onWorkflowRunCreated, routes} from '#presentation/
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
 
 export type {Job, RunWorkflowParams, Step, TriggerPayload, WorkflowRun} from '#core/index.js';
-export {DefinitionNotFoundError, ProjectMismatchError, runWorkflow} from '#core/index.js';
+export {
+  DefinitionNotFoundError,
+  InvalidWorkflowDefinitionError,
+  ProjectMismatchError,
+  runWorkflow,
+} from '#core/index.js';
 export {db, migrationsPath, workflowsOutbox} from '#db/index.js';
 export {routes} from '#presentation/index.js';
 

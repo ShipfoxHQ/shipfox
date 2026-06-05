@@ -9,7 +9,7 @@ Describe the normalized semantic model that workflow execution consumes.
 
 ## Normative Model
 
-- WorkflowIR will be derived at run creation when the workflows integration lands.
+- WorkflowIR is derived at run creation by `@shipfox/api-workflows`.
 
 - PR1 does not cache WorkflowIR in Postgres.
 
@@ -31,9 +31,11 @@ Describe the normalized semantic model that workflow execution consumes.
 
 - Trigger maps are sorted by trigger name and normalized to `TriggerIR[]`.
 
-- Job maps are sorted by job name and normalized to `JobIR[]`.
+- Job maps are sorted by job name and normalized to `JobIR[]` for deterministic IDs.
 
 - `JobIR.sourceName` preserves the surface map key for author-facing diagnostics.
+
+- `JobIR.position` preserves the authored job order for persistence and UI ordering.
 
 - Job and trigger IDs are slugified from surface map keys with numeric suffixes for collisions.
 

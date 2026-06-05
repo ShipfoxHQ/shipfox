@@ -145,7 +145,7 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
     sourceOfTruth: 'libs/api/workflow-language/src/core/ir/workflow-ir.ts',
     purpose: ['Describe the normalized semantic model that workflow execution consumes.'],
     normativeModel: [
-      '- WorkflowIR will be derived at run creation when the workflows integration lands.',
+      '- WorkflowIR is derived at run creation by `@shipfox/api-workflows`.',
       '- PR1 does not cache WorkflowIR in Postgres.',
       '- Trigger maps normalize to ordered IR trigger lists.',
       '- Job dependencies normalize to explicit dependency edges.',
@@ -157,8 +157,9 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
       '- ID helper owner: `libs/api/workflow-language/src/core/ir/ids.ts`.',
       '- Expression/default-gate owner: `libs/api/workflow-language/src/core/ir/expression-ir.ts`.',
       '- Trigger maps are sorted by trigger name and normalized to `TriggerIR[]`.',
-      '- Job maps are sorted by job name and normalized to `JobIR[]`.',
+      '- Job maps are sorted by job name and normalized to `JobIR[]` for deterministic IDs.',
       '- `JobIR.sourceName` preserves the surface map key for author-facing diagnostics.',
+      '- `JobIR.position` preserves the authored job order for persistence and UI ordering.',
       '- Job and trigger IDs are slugified from surface map keys with numeric suffixes for collisions.',
       '- Step IDs use `<job-id>.<slugified step name or run command>` with numeric suffixes for collisions.',
       '- The only PR1 acceptance policy in IR is `default_run_exit_code` with a typed `exit_code == 0` expression.',
@@ -185,7 +186,7 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
     normativeModel: [
       '- Static diagnostics use stable IDs.',
       '- Definitions parse-time validation uses shared WorkflowIR static checks.',
-      '- Run creation should use the same static checks when it starts consuming WorkflowIR.',
+      '- Run creation uses the same static checks before persisting jobs and steps.',
     ],
     generatedLines: [
       '- Diagnostic registry owner: `libs/api/workflow-language/src/core/static-semantics/diagnostic.ts`.',

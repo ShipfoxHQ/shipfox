@@ -115,6 +115,6 @@ function workflowIR(overrides: Partial<WorkflowIR> = {}): WorkflowIR {
   };
 }
 
-function job(id: string, dependencies: readonly string[]) {
-  return {id, sourceName: id, dependencies, runner: null, steps: []};
+function job(id: string, dependencies: readonly string[], position = 0) {
+  return {id, sourceName: id, position, dependencies, runner: null, steps: []};
 }
