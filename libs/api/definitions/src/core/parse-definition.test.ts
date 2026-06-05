@@ -11,27 +11,27 @@ function readFixture(name: string): string {
 }
 
 describe('parseDefinition', () => {
-  test('valid simple workflow returns typed WorkflowSpec', () => {
+  test('valid simple workflow returns typed SurfaceWorkflowDocument', () => {
     const yaml = readFixture('valid-simple.yml');
 
-    const spec = parseDefinition(yaml);
+    const document = parseDefinition(yaml);
 
-    expect(spec.name).toBe('Simple build');
-    expect(spec.triggers?.on_push?.source).toBe('github');
-    expect(spec.triggers?.on_push?.event).toBe('push');
-    expect(spec.triggers?.on_demand?.source).toBe('manual');
-    expect(spec.triggers?.on_demand?.event).toBe('fire');
-    expect(spec.jobs.build?.steps).toHaveLength(2);
-    expect(spec.jobs.build?.steps?.[0]?.run).toBe('npm install');
+    expect(document.name).toBe('Simple build');
+    expect(document.triggers?.on_push?.source).toBe('github');
+    expect(document.triggers?.on_push?.event).toBe('push');
+    expect(document.triggers?.on_demand?.source).toBe('manual');
+    expect(document.triggers?.on_demand?.event).toBe('fire');
+    expect(document.jobs.build?.steps).toHaveLength(2);
+    expect(document.jobs.build?.steps?.[0]?.run).toBe('npm install');
   });
 
   test('valid DAG workflow parses successfully', () => {
     const yaml = readFixture('valid-dag.yml');
 
-    const spec = parseDefinition(yaml);
+    const document = parseDefinition(yaml);
 
-    expect(spec.name).toBe('Multi-job pipeline');
-    expect(Object.keys(spec.jobs)).toHaveLength(4);
+    expect(document.name).toBe('Multi-job pipeline');
+    expect(Object.keys(document.jobs)).toHaveLength(4);
   });
 
   test('invalid YAML syntax throws DefinitionParseError', () => {
@@ -52,7 +52,7 @@ describe('parseDefinition', () => {
     expect(() => parseDefinition('- item1\n- item2')).toThrow(DefinitionParseError);
   });
 
-  test('valid YAML with invalid spec throws DefinitionParseError with details', () => {
+  test('valid YAML with invalid document throws DefinitionParseError with details', () => {
     const yaml = readFixture('invalid-missing-name.yml');
 
     try {
@@ -65,7 +65,7 @@ describe('parseDefinition', () => {
     }
   });
 
-  test('valid spec with cyclic DAG throws DefinitionParseError', () => {
+  test('valid document with cyclic DAG throws DefinitionParseError', () => {
     const yaml = readFixture('invalid-cycle.yml');
 
     expect(() => parseDefinition(yaml)).toThrow(DefinitionParseError);
@@ -82,9 +82,9 @@ jobs:
       - run: echo hello
 `;
 
-    const spec = parseDefinition(yaml);
+    const document = parseDefinition(yaml);
 
-    expect(spec.triggers?.on_demand?.event).toBe('fire');
+    expect(document.triggers?.on_demand?.event).toBe('fire');
   });
 
   test('declaring more than one manual trigger throws DefinitionParseError', () => {

@@ -15,10 +15,10 @@ export {
   jobSchema,
   type RunStepDto,
   runStepSchema,
+  type SurfaceWorkflowDocumentDto,
+  surfaceWorkflowDocumentSchema,
   type TriggerDto,
   triggerSchema,
-  type WorkflowSpecDto,
-  workflowSpecSchema,
 } from '#schemas/index.js';
 export {
   DEFINITION_DELETED,

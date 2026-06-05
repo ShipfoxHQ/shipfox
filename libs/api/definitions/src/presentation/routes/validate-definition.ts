@@ -39,7 +39,7 @@ export const validateDefinitionRoute = defineRoute({
     if (result.valid) {
       return {
         valid: true as const,
-        spec: result.spec as unknown as Record<string, unknown>,
+        spec: result.document as unknown as Record<string, unknown>,
       };
     }
 

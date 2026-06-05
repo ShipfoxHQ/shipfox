@@ -74,7 +74,10 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
       '- `runner`, job `runner`, and job `needs` accept either a string or a string array.',
     ],
     generatedLines: [
+      '- Canonical DTO surface schema: `surfaceWorkflowDocumentSchema`.',
+      '- Canonical DTO surface type: `SurfaceWorkflowDocumentDto`.',
       '- Surface compatibility mode: required workflow name, trigger map, HTTP `definition` field, SQL `definition` column.',
+      '- Validate-route compatibility mode: response field `spec` and error code `invalid-definition-spec` remain stable.',
     ],
     examples: ['A minimal document declares `name` and one job with at least one `run` step.'],
     addingOrChanging: [

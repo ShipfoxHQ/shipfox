@@ -32,15 +32,15 @@ export const createDefinitionRoute = defineRoute({
     const {project_id: projectId, config_path, source, yaml: yamlString, sha, ref} = request.body;
     const {project} = await requireProjectAccess({request, projectId});
 
-    const spec = parseDefinition(yamlString);
+    const document = parseDefinition(yamlString);
 
     const definition = await upsertDefinition({
       projectId,
       workspaceId: project.workspaceId,
       configPath: config_path,
       source,
-      name: spec.name,
-      definition: spec,
+      name: document.name,
+      definition: document,
       sha,
       ref,
     });

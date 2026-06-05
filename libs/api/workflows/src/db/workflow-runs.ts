@@ -1,4 +1,4 @@
-import type {WorkflowSpec} from '@shipfox/api-definitions';
+import type {SurfaceWorkflowDocument} from '@shipfox/api-definitions';
 import {
   WORKFLOW_RUN_CREATED,
   WORKFLOWS_JOB_TIMED_OUT,
@@ -20,7 +20,7 @@ export interface CreateWorkflowRunParams {
   projectId: string;
   definitionId: string;
   name?: string | undefined;
-  definition: WorkflowSpec;
+  definition: SurfaceWorkflowDocument;
   triggerPayload: TriggerPayload;
   inputs?: Record<string, unknown> | undefined;
   triggerIdempotencyKey?: string | undefined;

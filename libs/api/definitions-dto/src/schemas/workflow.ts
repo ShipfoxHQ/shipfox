@@ -4,7 +4,7 @@ import {triggerSchema} from './trigger.js';
 
 // At most one manual trigger: the UI renders a single Run affordance per
 // workflow and `getManualSubscriptionByDefinitionId` relies on uniqueness.
-export const workflowSpecSchema = z
+export const surfaceWorkflowDocumentSchema = z
   .object({
     name: z.string().min(1),
     triggers: z.record(z.string(), triggerSchema).optional(),
@@ -25,4 +25,4 @@ export const workflowSpecSchema = z
     }
   });
 
-export type WorkflowSpecDto = z.infer<typeof workflowSpecSchema>;
+export type SurfaceWorkflowDocumentDto = z.infer<typeof surfaceWorkflowDocumentSchema>;

@@ -17,7 +17,7 @@ export interface Job {
   steps: RunStep[];
 }
 
-export interface WorkflowSpec {
+export interface SurfaceWorkflowDocument {
   name: string;
   triggers?: Record<string, Trigger>;
   runner?: string | string[];
@@ -32,7 +32,7 @@ export interface WorkflowDefinition {
   sha: string | null;
   ref: string | null;
   name: string;
-  definition: WorkflowSpec;
+  definition: SurfaceWorkflowDocument;
   contentHash: string | null;
   fetchedAt: Date;
   createdAt: Date;

@@ -1,8 +1,8 @@
-import type {WorkflowSpec} from './entities/definition.js';
+import type {SurfaceWorkflowDocument} from './entities/definition.js';
 import {DefinitionParseError} from './errors.js';
 import {validateDefinition} from './validate-definition.js';
 
-export function parseDefinition(yamlString: string): WorkflowSpec {
+export function parseDefinition(yamlString: string): SurfaceWorkflowDocument {
   const result = validateDefinition(yamlString);
 
   if (!result.valid) {
@@ -12,5 +12,5 @@ export function parseDefinition(yamlString: string): WorkflowSpec {
     );
   }
 
-  return result.spec;
+  return result.document;
 }

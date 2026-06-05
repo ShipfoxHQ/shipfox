@@ -1,7 +1,7 @@
 import {validateDefinition} from './validate-definition.js';
 
 describe('validateDefinition', () => {
-  test('valid YAML returns { valid: true, spec }', () => {
+  test('valid YAML returns { valid: true, document }', () => {
     const yaml = `
 name: Test
 jobs:
@@ -14,8 +14,8 @@ jobs:
 
     expect(result.valid).toBe(true);
     if (result.valid) {
-      expect(result.spec.name).toBe('Test');
-      expect(result.spec.jobs.build?.steps).toHaveLength(1);
+      expect(result.document.name).toBe('Test');
+      expect(result.document.jobs.build?.steps).toHaveLength(1);
     }
   });
 
@@ -40,7 +40,7 @@ jobs:
     expect(arrayResult.valid).toBe(false);
   });
 
-  test('invalid spec returns { valid: false, errors with details }', () => {
+  test('invalid document returns { valid: false, errors with details }', () => {
     const yaml = `
 jobs:
   build:

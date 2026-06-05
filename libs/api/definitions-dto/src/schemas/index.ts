@@ -15,4 +15,4 @@ export {
 export {type JobDto, jobSchema} from './job.js';
 export {type RunStepDto, runStepSchema} from './step.js';
 export {type TriggerDto, triggerSchema} from './trigger.js';
-export {type WorkflowSpecDto, workflowSpecSchema} from './workflow.js';
+export {type SurfaceWorkflowDocumentDto, surfaceWorkflowDocumentSchema} from './workflow.js';

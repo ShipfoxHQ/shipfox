@@ -1,12 +1,12 @@
-import {workflowSpecSchema} from '@shipfox/api-definitions-dto';
+import {surfaceWorkflowDocumentSchema} from '@shipfox/api-definitions-dto';
 import yaml from 'js-yaml';
-import type {WorkflowSpec} from './entities/definition.js';
+import type {SurfaceWorkflowDocument} from './entities/definition.js';
 import {DagValidationError, validateDag} from './validate-dag.js';
 
 export type ValidationError = {message: string; path?: string | undefined};
 
 export type ValidationResult =
-  | {valid: true; spec: WorkflowSpec}
+  | {valid: true; document: SurfaceWorkflowDocument}
   | {valid: false; errors: ValidationError[]};
 
 export function validateDefinition(yamlContent: string): ValidationResult {
@@ -34,7 +34,7 @@ export function validateDefinition(yamlContent: string): ValidationResult {
     };
   }
 
-  const result = workflowSpecSchema.safeParse(parsed);
+  const result = surfaceWorkflowDocumentSchema.safeParse(parsed);
   if (!result.success) {
     return {
       valid: false,
@@ -45,10 +45,10 @@ export function validateDefinition(yamlContent: string): ValidationResult {
     };
   }
 
-  const spec = result.data as WorkflowSpec;
+  const document = result.data as SurfaceWorkflowDocument;
 
   try {
-    validateDag(spec.jobs);
+    validateDag(document.jobs);
   } catch (error) {
     if (error instanceof DagValidationError) {
       return {
@@ -59,5 +59,5 @@ export function validateDefinition(yamlContent: string): ValidationResult {
     throw error;
   }
 
-  return {valid: true, spec};
+  return {valid: true, document};
 }
