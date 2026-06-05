@@ -39,6 +39,25 @@ describe('validateWorkflowIRStaticSemantics', () => {
     }
   });
 
+  test('reports unknown dependent jobs with stable diagnostic ID', () => {
+    const ir = workflowIR({
+      jobs: [job('build', [])],
+      dependencies: [{from: 'build', to: 'missing'}],
+    });
+
+    const result = validateWorkflowIRStaticSemantics(ir);
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.diagnostics[0]).toEqual({
+        id: staticDiagnosticIds.unknownDependentJob,
+        severity: 'error',
+        message: 'Dependency edge targets unknown job "missing"',
+        path: ['dependencies', 0, 'to'],
+      });
+    }
+  });
+
   test('reports normalized surface diagnostics with author-facing job names', () => {
     const document: SurfaceWorkflowDocument = {
       name: 'Test workflow',

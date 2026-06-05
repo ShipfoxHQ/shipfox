@@ -232,11 +232,13 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
       '- `SS001_UNKNOWN_JOB_DEPENDENCY`: dependency edge references a missing job.',
       '- `SS002_SELF_JOB_DEPENDENCY`: dependency edge points from a job to itself.',
       '- `SS003_CYCLIC_JOB_DEPENDENCY`: dependency graph contains a cycle.',
+      '- `SS004_UNKNOWN_DEPENDENT_JOB`: dependency edge targets a missing job.',
       '- Reference diagnostics are reported before cycle diagnostics because cycle analysis requires resolvable edge endpoints.',
       '- Static diagnostics use `JobIR.sourceName` when reporting author-facing job names and paths.',
     ],
     examples: [
       'A surface `needs: ghost` entry normalizes to an unresolved IR edge and returns `SS001_UNKNOWN_JOB_DEPENDENCY`.',
+      'A malformed IR edge targeting a missing job returns `SS004_UNKNOWN_DEPENDENT_JOB`.',
       'A cycle such as `a -> b -> c -> a` returns `SS003_CYCLIC_JOB_DEPENDENCY`.',
     ],
     addingOrChanging: [

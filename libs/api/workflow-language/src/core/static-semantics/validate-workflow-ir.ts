@@ -10,10 +10,14 @@ export function validateWorkflowIRStaticSemantics(ir: WorkflowIR): StaticSemanti
   const jobsById = new Map(ir.jobs.map((job) => [job.id, job] as const));
   const jobIds = new Set(jobsById.keys());
 
-  for (const edge of ir.dependencies) {
+  for (const [index, edge] of ir.dependencies.entries()) {
     if (!jobIds.has(edge.from)) {
       diagnostics.push(unknownJobDependency(edge, jobsById.get(edge.to)?.sourceName ?? edge.to));
-    } else if (edge.from === edge.to) {
+    }
+    if (!jobIds.has(edge.to)) {
+      diagnostics.push(unknownDependentJob(edge, index));
+    }
+    if (jobIds.has(edge.from) && jobIds.has(edge.to) && edge.from === edge.to) {
       diagnostics.push(selfJobDependency(jobsById.get(edge.to)?.sourceName ?? edge.to));
     }
   }
@@ -36,6 +40,15 @@ function unknownJobDependency(edge: JobDependencyIR, dependentJobName: string): 
     severity: 'error',
     message: `Job "${dependentJobName}" depends on unknown job "${edge.from}"`,
     path: ['jobs', dependentJobName, 'needs'],
+  };
+}
+
+function unknownDependentJob(edge: JobDependencyIR, index: number): StaticDiagnostic {
+  return {
+    id: staticDiagnosticIds.unknownDependentJob,
+    severity: 'error',
+    message: `Dependency edge targets unknown job "${edge.to}"`,
+    path: ['dependencies', index, 'to'],
   };
 }
 
