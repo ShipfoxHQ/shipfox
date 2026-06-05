@@ -33,6 +33,8 @@ Describe the normalized semantic model that workflow execution consumes.
 
 - Job maps are sorted by job name and normalized to `JobIR[]`.
 
+- `JobIR.sourceName` preserves the surface map key for author-facing diagnostics.
+
 - Job and trigger IDs are slugified from surface map keys with numeric suffixes for collisions.
 
 - Step IDs use `<job-id>.<slugified step name or run command>` with numeric suffixes for collisions.

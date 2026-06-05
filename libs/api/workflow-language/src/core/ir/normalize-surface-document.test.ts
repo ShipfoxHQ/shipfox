@@ -41,9 +41,20 @@ describe('normalizeSurfaceDocumentToWorkflowIR', () => {
         },
       ],
       jobs: [
-        {id: 'build', dependencies: [], runner: null, steps: ['build.build']},
-        {id: 'deploy', dependencies: ['build', 'test'], runner: ['linux', 'deploy']},
-        {id: 'test', dependencies: ['build'], runner: null, steps: ['test.test']},
+        {id: 'build', sourceName: 'build', dependencies: [], runner: null, steps: ['build.build']},
+        {
+          id: 'deploy',
+          sourceName: 'deploy',
+          dependencies: ['build', 'test'],
+          runner: ['linux', 'deploy'],
+        },
+        {
+          id: 'test',
+          sourceName: 'test',
+          dependencies: ['build'],
+          runner: null,
+          steps: ['test.test'],
+        },
       ],
       dependencies: [
         {from: 'build', to: 'deploy'},
@@ -95,7 +106,10 @@ describe('normalizeSurfaceDocumentToWorkflowIR', () => {
     const ir = normalizeSurfaceDocumentToWorkflowIR(document);
 
     expect(ir.triggers.map((trigger) => trigger.id)).toEqual(['on-push', 'on-push-2']);
-    expect(ir.jobs.map((job) => job.id)).toEqual(['build-main', 'build-main-2']);
+    expect(ir.jobs.map((job) => ({id: job.id, sourceName: job.sourceName}))).toEqual([
+      {id: 'build-main', sourceName: 'build main'},
+      {id: 'build-main-2', sourceName: 'build_main'},
+    ]);
     expect(ir.dependencies).toEqual([{from: 'build-main', to: 'build-main-2'}]);
   });
 

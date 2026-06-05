@@ -61,6 +61,7 @@ export function normalizeSurfaceDocumentToWorkflowIR(
 
     return {
       id: jobId,
+      sourceName: jobName,
       dependencies: jobDependencies,
       runner: normalizeRunnerSelector(job.runner),
       steps: stepIds,

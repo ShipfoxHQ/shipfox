@@ -20,6 +20,14 @@ export {
   type WorkflowId,
   type WorkflowIR,
 } from '#core/ir/index.js';
+export {
+  type StaticDiagnostic,
+  type StaticDiagnosticId,
+  type StaticDiagnosticSeverity,
+  type StaticSemanticsResult,
+  staticDiagnosticIds,
+  validateWorkflowIRStaticSemantics,
+} from '#core/static-semantics/index.js';
 export {parseYamlSurfaceWorkflowDocument} from '#core/surface/parse-yaml-surface-workflow-document.js';
 export {
   type SurfaceJob,

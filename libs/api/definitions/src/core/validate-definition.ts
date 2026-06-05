@@ -1,9 +1,11 @@
 import {
+  normalizeSurfaceDocumentToWorkflowIR,
   parseYamlSurfaceWorkflowDocument,
+  type StaticDiagnostic,
   type SurfaceWorkflowDocument,
   type SurfaceWorkflowDocumentValidationError,
+  validateWorkflowIRStaticSemantics,
 } from '@shipfox/api-workflow-language';
-import {DagValidationError, validateDag} from './validate-dag.js';
 
 export type ValidationError = SurfaceWorkflowDocumentValidationError;
 
@@ -17,17 +19,21 @@ export function validateDefinition(yamlContent: string): ValidationResult {
 
   const {document} = result;
 
-  try {
-    validateDag(document.jobs);
-  } catch (error) {
-    if (error instanceof DagValidationError) {
-      return {
-        valid: false,
-        errors: [{message: error.message, path: error.cycle?.join(' -> ')}],
-      };
-    }
-    throw error;
+  const ir = normalizeSurfaceDocumentToWorkflowIR(document);
+  const staticResult = validateWorkflowIRStaticSemantics(ir);
+  if (!staticResult.valid) {
+    return {
+      valid: false,
+      errors: staticResult.diagnostics.map(toValidationError),
+    };
   }
 
   return {valid: true, document};
+}
+
+function toValidationError(diagnostic: StaticDiagnostic): ValidationError {
+  return {
+    message: diagnostic.message,
+    path: diagnostic.path.join('.'),
+  };
 }
