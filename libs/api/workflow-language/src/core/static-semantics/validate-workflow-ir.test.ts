@@ -119,6 +119,25 @@ describe('validateWorkflowIRStaticSemantics', () => {
       expect(result.diagnostics[0]?.path).toEqual(['jobs']);
     }
   });
+
+  test('reports only the cyclic strongly connected component', () => {
+    const ir = workflowIR({
+      jobs: [job('a', ['b']), job('b', ['a']), job('c', ['b'])],
+      dependencies: [
+        {from: 'a', to: 'b'},
+        {from: 'b', to: 'a'},
+        {from: 'b', to: 'c'},
+      ],
+    });
+
+    const result = validateWorkflowIRStaticSemantics(ir);
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.diagnostics[0]?.id).toBe(staticDiagnosticIds.cyclicJobDependency);
+      expect(result.diagnostics[0]?.message).toBe('Circular dependency detected among jobs: a, b');
+    }
+  });
 });
 
 function workflowIR(overrides: Partial<WorkflowIR> = {}): WorkflowIR {

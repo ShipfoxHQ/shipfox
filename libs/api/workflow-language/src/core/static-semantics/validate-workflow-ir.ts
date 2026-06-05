@@ -74,35 +74,81 @@ function findCycle(ir: WorkflowIR, jobIds: ReadonlySet<string>): string[] {
   if (jobIds.size === 0) return [];
 
   const adjacency = new Map<string, string[]>();
-  const inDegree = new Map<string, number>();
 
   for (const id of jobIds) {
     adjacency.set(id, []);
-    inDegree.set(id, 0);
   }
 
   for (const edge of ir.dependencies) {
     const neighbors = adjacency.get(edge.from);
     if (neighbors) neighbors.push(edge.to);
-    inDegree.set(edge.to, (inDegree.get(edge.to) ?? 0) + 1);
   }
 
-  const queue = [...inDegree.entries()].filter(([, degree]) => degree === 0).map(([id]) => id);
-  const sorted: string[] = [];
+  const components = findStronglyConnectedComponents([...jobIds], adjacency);
+  const cyclicJobIds = new Set(
+    components
+      .filter(
+        (component) =>
+          component.length > 1 ||
+          component.some((jobId) => adjacency.get(jobId)?.includes(jobId) ?? false),
+      )
+      .flat(),
+  );
 
-  while (queue.length > 0) {
-    const node = queue.shift() as string;
-    sorted.push(node);
+  return [...jobIds].filter((id) => cyclicJobIds.has(id));
+}
 
-    for (const neighbor of adjacency.get(node) ?? []) {
-      const nextDegree = (inDegree.get(neighbor) ?? 0) - 1;
-      inDegree.set(neighbor, nextDegree);
-      if (nextDegree === 0) {
-        queue.push(neighbor);
+function findStronglyConnectedComponents(
+  jobIds: readonly string[],
+  adjacency: ReadonlyMap<string, readonly string[]>,
+): string[][] {
+  const indexById = new Map<string, number>();
+  const lowLinkById = new Map<string, number>();
+  const stack: string[] = [];
+  const onStack = new Set<string>();
+  const components: string[][] = [];
+  let nextIndex = 0;
+
+  function connect(jobId: string): void {
+    indexById.set(jobId, nextIndex);
+    lowLinkById.set(jobId, nextIndex);
+    nextIndex += 1;
+    stack.push(jobId);
+    onStack.add(jobId);
+
+    for (const neighbor of adjacency.get(jobId) ?? []) {
+      if (!indexById.has(neighbor)) {
+        connect(neighbor);
+        lowLinkById.set(
+          jobId,
+          Math.min(lowLinkById.get(jobId) as number, lowLinkById.get(neighbor) as number),
+        );
+      } else if (onStack.has(neighbor)) {
+        lowLinkById.set(
+          jobId,
+          Math.min(lowLinkById.get(jobId) as number, indexById.get(neighbor) as number),
+        );
       }
+    }
+
+    if (lowLinkById.get(jobId) !== indexById.get(jobId)) return;
+
+    const component: string[] = [];
+    let current: string | undefined;
+    do {
+      current = stack.pop();
+      if (current === undefined) break;
+      onStack.delete(current);
+      component.push(current);
+    } while (current !== jobId);
+    components.push(component);
+  }
+
+  for (const jobId of jobIds) {
+    if (!indexById.has(jobId)) {
+      connect(jobId);
     }
   }
 
-  if (sorted.length === jobIds.size) return [];
-  return [...jobIds].filter((id) => !sorted.includes(id));
+  return components;
 }
