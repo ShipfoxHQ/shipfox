@@ -187,7 +187,7 @@ describe('transitionRuntimeState', () => {
     expect(result.state).toEqual(terminal);
   });
 
-  test('keeps a malformed cyclic state pending because runtime input must be validated', () => {
+  test('cancels pending jobs and fails the run when no progress is possible', () => {
     const state = createInitialRuntimeState({
       jobs: [
         {id: 'j1', name: 'build', dependencies: ['test']},
@@ -197,11 +197,30 @@ describe('transitionRuntimeState', () => {
 
     const result = transitionRuntimeState(state, {type: 'run_started'});
 
-    expect(result.commands).toEqual([]);
-    expect(result.state.run.status).toBe('running');
-    expect(result.state.jobs.map((job) => [job.id, job.status])).toEqual([
-      ['j1', 'pending'],
-      ['j2', 'pending'],
+    expect(result.commands).toEqual([
+      {type: 'cancel_job', jobId: 'j1'},
+      {type: 'cancel_job', jobId: 'j2'},
+      {type: 'complete_run', status: 'failed'},
     ]);
+    expect(result.state.run.status).toBe('failed');
+    expect(result.state.jobs.map((job) => [job.id, job.status])).toEqual([
+      ['j1', 'cancelled'],
+      ['j2', 'cancelled'],
+    ]);
+  });
+
+  test('cancels pending jobs with missing dependencies when no progress is possible', () => {
+    const state = createInitialRuntimeState({
+      jobs: [{id: 'j1', name: 'deploy', dependencies: ['missing']}],
+    });
+
+    const result = transitionRuntimeState(state, {type: 'run_started'});
+
+    expect(result.commands).toEqual([
+      {type: 'cancel_job', jobId: 'j1'},
+      {type: 'complete_run', status: 'failed'},
+    ]);
+    expect(result.state.run.status).toBe('failed');
+    expect(result.state.jobs.map((job) => [job.id, job.status])).toEqual([['j1', 'cancelled']]);
   });
 });

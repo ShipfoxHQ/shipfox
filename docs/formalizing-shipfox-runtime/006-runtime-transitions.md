@@ -35,6 +35,8 @@ Document the pure job-level runtime transition system.
 
 - Events that cannot advance a replay, such as duplicate completions or terminal-run events, are no-ops.
 
+- If no pending job can start and no job is running, the kernel cancels pending jobs and fails the run.
+
 - Wall-clock timeout remains a Temporal durable-shell concern.
 <!-- generated:end -->
 

@@ -37,7 +37,8 @@ function reconcileRuntimeState(state: RuntimeState): RuntimeTransitionResult {
   const commands: RuntimeCommand[] = [];
 
   // The kernel receives normalized IR that already passed static semantics, so
-  // dependency names are expected to be closed and acyclic.
+  // dependency names are expected to be closed and acyclic. The no-progress
+  // guard below still fails malformed states instead of leaving them stuck.
   let cancelledJob = findBlockedPendingJob(state);
   while (cancelledJob) {
     cancelledJob.status = 'cancelled';
@@ -45,10 +46,21 @@ function reconcileRuntimeState(state: RuntimeState): RuntimeTransitionResult {
     cancelledJob = findBlockedPendingJob(state);
   }
 
+  let startedJob = false;
   for (const job of state.jobs) {
     if (isReadyPendingJob(state, job)) {
       job.status = 'running';
+      startedJob = true;
       commands.push({type: 'start_job', jobId: job.id});
+    }
+  }
+
+  if (!startedJob && state.jobs.some(isPendingJob) && !state.jobs.some(isRunning)) {
+    for (const job of state.jobs) {
+      if (isPendingJob(job)) {
+        job.status = 'cancelled';
+        commands.push({type: 'cancel_job', jobId: job.id});
+      }
     }
   }
 
@@ -84,6 +96,10 @@ function isReadyPendingJob(state: RuntimeState, job: RuntimeJobState): boolean {
 
 function isRunning(job: RuntimeJobState): boolean {
   return job.status === 'running';
+}
+
+function isPendingJob(job: RuntimeJobState): boolean {
+  return job.status === 'pending';
 }
 
 function isTerminalJob(job: RuntimeJobState): boolean {

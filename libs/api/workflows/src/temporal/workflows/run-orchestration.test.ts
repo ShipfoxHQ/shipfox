@@ -140,10 +140,30 @@ describe('runOrchestration', () => {
     expect(jobStatuses).toContainEqual({id: 'j4', status: 'cancelled'});
   });
 
+  test('malformed DAG with no ready jobs fails the run', async () => {
+    const jobs = [dagJob('j1', 'A', ['B']), dagJob('j2', 'B', ['A'])];
+    setCfg({dag: makeDag(jobs, 'r7'), jobResults: new Map()});
+
+    await executeRun();
+
+    const runStatuses = setRunStatusCalls().map((c) => c.params.status);
+    expect(runStatuses).toEqual(['running', 'failed']);
+    expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
+
+    const jobStatuses = setJobStatusCalls().map((c) => ({
+      id: c.params.jobId,
+      status: c.params.status,
+    }));
+    expect(jobStatuses).toEqual([
+      {id: 'j1', status: 'cancelled'},
+      {id: 'j2', status: 'cancelled'},
+    ]);
+  });
+
   test('child workflow crash propagates to parent', async () => {
     const jobs = [dagJob('j1', 'build')];
     setCfg({
-      dag: makeDag(jobs, 'r7'),
+      dag: makeDag(jobs, 'r8'),
       jobResults: new Map(),
       enqueueError: 'Runner service unavailable',
     });
