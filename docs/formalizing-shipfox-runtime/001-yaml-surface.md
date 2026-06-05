@@ -47,3 +47,5 @@ Update the Zod schema, CUE formalization artifact, examples, compatibility tests
 - Trigger list authoring shape.
 
 - Additional surface languages.
+
+- Public wire rename from `definition` to `document`.

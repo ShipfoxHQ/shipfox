@@ -45,3 +45,5 @@ Update shell adapters and tests only when persistence, Temporal, outbox, runner,
 ## Deferred Work
 
 - Runtime state snapshots.
+
+- Pipelined child workflow scheduling across sibling branches.
