@@ -14,6 +14,18 @@ module.exports = {
         pathNot: '^\\.\\./[^/]+-dto/',
       },
     },
+    {
+      name: 'workflow-language-no-feature-runtime-dependencies',
+      comment:
+        '@shipfox/api-workflow-language is a lower-level language package and must not import feature, runtime, adapter, or app packages.',
+      severity: 'error',
+      from: {
+        path: '^(src|test|scripts)/',
+      },
+      to: {
+        path: '^\\.\\./(?:definitions|workflows|triggers|runners)(?:-dto)?/(?:src|dist)/|^(?:\\.\\./)+client/|^(?:\\.\\./)+apps/|^(?:\\.\\./)+shared/node/(?:drizzle|fastify|temporal)/(?:src|dist)/|^node_modules/(?:drizzle-orm|fastify|@temporalio/)',
+      },
+    },
   ],
   options: {
     doNotFollow: {
