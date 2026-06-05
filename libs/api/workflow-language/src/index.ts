@@ -1,3 +1,25 @@
+export {
+  type AcceptancePolicyIR,
+  type BinaryExprIR,
+  createDefaultRunExitCodeAcceptancePolicy,
+  type DefaultRunExitCodeAcceptancePolicyIR,
+  type ExprIR,
+  type IntLiteralExprIR,
+  type JobDependencyIR,
+  type JobId,
+  type JobIR,
+  normalizeSurfaceDocumentToWorkflowIR,
+  type RefExprIR,
+  type RunCommandIR,
+  type RunnerSelectorIR,
+  type RunStepIR,
+  type StepId,
+  type StepIR,
+  type TriggerId,
+  type TriggerIR,
+  type WorkflowId,
+  type WorkflowIR,
+} from '#core/ir/index.js';
 export {parseYamlSurfaceWorkflowDocument} from '#core/surface/parse-yaml-surface-workflow-document.js';
 export {
   type SurfaceJob,
