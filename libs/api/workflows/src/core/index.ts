@@ -10,3 +10,21 @@ export {
 } from './errors.js';
 export type {RunWorkflowParams} from './run-workflow.js';
 export {runWorkflow} from './run-workflow.js';
+export type {RuntimeCommand} from './runtime/runtime-command.js';
+export type {
+  JobCompletedEvent,
+  RunStartedEvent,
+  RuntimeEvent,
+} from './runtime/runtime-event.js';
+export {
+  createInitialRuntimeState,
+  type RuntimeJobState,
+  type RuntimeJobStatus,
+  type RuntimeRunState,
+  type RuntimeRunStatus,
+  type RuntimeState,
+} from './runtime/runtime-state.js';
+export {
+  type RuntimeTransitionResult,
+  transitionRuntimeState,
+} from './runtime/transition.js';
