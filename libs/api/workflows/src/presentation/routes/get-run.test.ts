@@ -1,5 +1,10 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import {requireProjectAccess} from '@shipfox/api-projects';
+import {
+  normalizeSurfaceDocumentToWorkflowIR,
+  type SurfaceWorkflowDocument,
+  type WorkflowIR,
+} from '@shipfox/api-workflow-language';
 import {ClientError} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
@@ -24,6 +29,10 @@ vi.mock('@shipfox/api-projects', () => ({
 }));
 
 const mockRequireProjectAccess = vi.mocked(requireProjectAccess);
+
+function workflowIR(document: SurfaceWorkflowDocument): WorkflowIR {
+  return normalizeSurfaceDocumentToWorkflowIR(document);
+}
 
 describe('GET /api/workflows/runs/:id', () => {
   let app: FastifyInstance;
@@ -75,12 +84,12 @@ describe('GET /api/workflows/runs/:id', () => {
       workspaceId,
       projectId,
       definitionId,
-      definition: {
+      workflow: workflowIR({
         name: 'Test',
         jobs: {
           build: {steps: [{name: 'Install', run: 'npm install'}, {run: 'npm build'}]},
         },
-      },
+      }),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -112,10 +121,10 @@ describe('GET /api/workflows/runs/:id', () => {
       workspaceId,
       projectId,
       definitionId,
-      definition: {
+      workflow: workflowIR({
         name: 'Test',
         jobs: {build: {steps: [{run: 'a'}, {run: 'b'}, {run: 'c'}]}},
-      },
+      }),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -178,7 +187,7 @@ describe('GET /api/workflows/runs/:id', () => {
       workspaceId,
       projectId: crypto.randomUUID(),
       definitionId: crypto.randomUUID(),
-      definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
+      workflow: workflowIR({name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}}),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -204,7 +213,7 @@ describe('GET /api/workflows/runs/:id', () => {
       workspaceId,
       projectId: crypto.randomUUID(),
       definitionId: crypto.randomUUID(),
-      definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
+      workflow: workflowIR({name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}}),
       triggerPayload: {
         source: 'manual',
         event: 'fire',

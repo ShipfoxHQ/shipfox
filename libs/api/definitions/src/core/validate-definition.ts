@@ -1,63 +1,39 @@
-import {workflowSpecSchema} from '@shipfox/api-definitions-dto';
-import yaml from 'js-yaml';
-import type {WorkflowSpec} from './entities/definition.js';
-import {DagValidationError, validateDag} from './validate-dag.js';
+import {
+  normalizeSurfaceDocumentToWorkflowIR,
+  parseYamlSurfaceWorkflowDocument,
+  type StaticDiagnostic,
+  type SurfaceWorkflowDocument,
+  type SurfaceWorkflowDocumentValidationError,
+  validateWorkflowIRStaticSemantics,
+} from '@shipfox/api-workflow-language';
 
-export type ValidationError = {message: string; path?: string | undefined};
+export type ValidationError = SurfaceWorkflowDocumentValidationError;
 
 export type ValidationResult =
-  | {valid: true; spec: WorkflowSpec}
+  | {valid: true; document: SurfaceWorkflowDocument}
   | {valid: false; errors: ValidationError[]};
 
 export function validateDefinition(yamlContent: string): ValidationResult {
-  let parsed: unknown;
-  try {
-    parsed = yaml.load(yamlContent);
-  } catch (error) {
+  const result = parseYamlSurfaceWorkflowDocument(yamlContent);
+  if (!result.valid) return result;
+
+  const {document} = result;
+
+  const ir = normalizeSurfaceDocumentToWorkflowIR(document);
+  const staticResult = validateWorkflowIRStaticSemantics(ir);
+  if (!staticResult.valid) {
     return {
       valid: false,
-      errors: [
-        {message: `Invalid YAML syntax: ${error instanceof Error ? error.message : String(error)}`},
-      ],
+      errors: staticResult.diagnostics.map(toValidationError),
     };
   }
 
-  if (
-    parsed === null ||
-    parsed === undefined ||
-    typeof parsed !== 'object' ||
-    Array.isArray(parsed)
-  ) {
-    return {
-      valid: false,
-      errors: [{message: 'Workflow definition must be a YAML object'}],
-    };
-  }
+  return {valid: true, document};
+}
 
-  const result = workflowSpecSchema.safeParse(parsed);
-  if (!result.success) {
-    return {
-      valid: false,
-      errors: result.error.issues.map((issue) => ({
-        message: issue.message,
-        path: issue.path.join('.'),
-      })),
-    };
-  }
-
-  const spec = result.data as WorkflowSpec;
-
-  try {
-    validateDag(spec.jobs);
-  } catch (error) {
-    if (error instanceof DagValidationError) {
-      return {
-        valid: false,
-        errors: [{message: error.message, path: error.cycle?.join(' -> ')}],
-      };
-    }
-    throw error;
-  }
-
-  return {valid: true, spec};
+function toValidationError(diagnostic: StaticDiagnostic): ValidationError {
+  return {
+    message: diagnostic.message,
+    path: diagnostic.path.join('.'),
+  };
 }

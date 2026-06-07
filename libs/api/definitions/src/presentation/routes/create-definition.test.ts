@@ -88,7 +88,7 @@ jobs:
     expect(res.statusCode).toBe(400);
   });
 
-  test('valid YAML with invalid spec returns 400 with error code', async () => {
+  test('valid YAML with invalid document returns 400 with error code', async () => {
     const yamlMissingName = `
 jobs:
   build:

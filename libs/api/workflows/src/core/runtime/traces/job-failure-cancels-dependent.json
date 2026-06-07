@@ -1,0 +1,30 @@
+{
+  "name": "job failure cancels dependent",
+  "initialState": {
+    "run": { "status": "pending" },
+    "jobs": [
+      { "id": "j1", "name": "build", "dependencies": [], "status": "pending" },
+      { "id": "j2", "name": "test", "dependencies": ["build"], "status": "pending" }
+    ]
+  },
+  "steps": [
+    {
+      "event": { "type": "run_started" },
+      "commands": [{ "type": "start_job", "jobId": "j1" }]
+    },
+    {
+      "event": { "type": "job_completed", "jobId": "j1", "status": "failed" },
+      "commands": [
+        { "type": "cancel_job", "jobId": "j2" },
+        { "type": "complete_run", "status": "failed" }
+      ]
+    }
+  ],
+  "finalState": {
+    "run": { "status": "failed" },
+    "jobs": [
+      { "id": "j1", "name": "build", "dependencies": [], "status": "failed" },
+      { "id": "j2", "name": "test", "dependencies": ["build"], "status": "cancelled" }
+    ]
+  }
+}

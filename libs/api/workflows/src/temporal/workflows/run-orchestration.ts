@@ -1,7 +1,9 @@
 import {executeChild, proxyActivities} from '@temporalio/workflow';
 
 import type {CompletionStatus} from '#core/dag.js';
-import {findBlockedNodes, findReadyNodes} from '#core/dag.js';
+import type {RuntimeCommand} from '#core/runtime/runtime-command.js';
+import {createInitialRuntimeState, type RuntimeState} from '#core/runtime/runtime-state.js';
+import {transitionRuntimeState} from '#core/runtime/transition.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
 import type {DagJob} from '../activities/orchestration-activities.js';
@@ -22,6 +24,21 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
   const dag = await loadRunDag(input.runId);
 
   let runVersion = dag.runVersion;
+  const jobVersions = new Map<string, number>();
+  const jobsById = new Map<string, DagJob>();
+  for (const job of dag.jobs) {
+    jobVersions.set(job.id, job.version);
+    jobsById.set(job.id, job);
+  }
+
+  let runtimeState = createInitialRuntimeState({
+    jobs: dag.jobs.map((job) => ({
+      id: job.id,
+      name: job.name,
+      dependencies: job.dependencies,
+    })),
+  });
+
   const {newVersion} = await setRunStatus({
     runId: input.runId,
     status: 'running',
@@ -29,68 +46,87 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
   });
   runVersion = newVersion;
 
-  const completed = new Map<string, CompletionStatus>();
-  const jobVersions = new Map<string, number>();
-  for (const job of dag.jobs) {
-    jobVersions.set(job.id, job.version);
-  }
-
-  let runFailed = false;
-
-  while (completed.size < dag.jobs.length) {
-    runFailed = (await cancelBlockedJobs(dag.jobs, completed, jobVersions)) || runFailed;
-
-    const ready = findReadyNodes(dag.jobs, completed);
-
-    if (ready.length === 0) {
-      await cancelRemainingJobs(dag.jobs, completed, jobVersions);
-      runFailed = true;
-      break;
-    }
-
-    const results = await launchJobs(ready, input, jobVersions);
-
-    for (const [job, result] of ready.map((j, i) => [j, results[i]] as const)) {
-      if (!result) continue;
-      completed.set(job.name, result.status);
-      jobVersions.set(job.id, result.jobVersion);
-      if (result.status === 'failed') runFailed = true;
-    }
-  }
-
-  await setRunStatus({
-    runId: input.runId,
-    status: runFailed ? 'failed' : 'succeeded',
-    version: runVersion,
+  const started = transitionRuntimeState(runtimeState, {type: 'run_started'});
+  runtimeState = started.state;
+  await applyRuntimeCommands(started.commands, {
+    input,
+    jobsById,
+    jobVersions,
+    getRuntimeState: () => runtimeState,
+    setRuntimeState: (state) => {
+      runtimeState = state;
+    },
+    getRunVersion: () => runVersion,
+    setRunVersion: (version) => {
+      runVersion = version;
+    },
   });
 }
 
-async function cancelBlockedJobs(
-  jobs: DagJob[],
-  completed: Map<string, CompletionStatus>,
-  jobVersions: Map<string, number>,
-): Promise<boolean> {
-  const blocked = findBlockedNodes(jobs, completed);
-  for (const job of blocked) {
-    const version = jobVersions.get(job.id) ?? job.version;
-    const {newVersion: v} = await setJobStatus({jobId: job.id, status: 'cancelled', version});
-    jobVersions.set(job.id, v);
-    completed.set(job.name, 'failed');
-  }
-  return blocked.length > 0;
+interface RuntimeCommandContext {
+  input: RunOrchestrationInput;
+  jobsById: ReadonlyMap<string, DagJob>;
+  jobVersions: Map<string, number>;
+  getRuntimeState: () => RuntimeState;
+  setRuntimeState: (state: RuntimeState) => void;
+  getRunVersion: () => number;
+  setRunVersion: (version: number) => void;
 }
 
-async function cancelRemainingJobs(
-  jobs: DagJob[],
-  completed: Map<string, CompletionStatus>,
-  jobVersions: Map<string, number>,
+type StartJobCommand = Extract<RuntimeCommand, {type: 'start_job'}>;
+
+async function applyRuntimeCommands(
+  commands: RuntimeCommand[],
+  context: RuntimeCommandContext,
 ): Promise<void> {
-  for (const job of jobs) {
-    if (!completed.has(job.name)) {
-      const version = jobVersions.get(job.id) ?? job.version;
-      await setJobStatus({jobId: job.id, status: 'cancelled', version});
-      completed.set(job.name, 'failed');
+  const startCommands: StartJobCommand[] = [];
+
+  for (const command of commands) {
+    switch (command.type) {
+      case 'cancel_job': {
+        const job = getDagJob(command.jobId, context.jobsById);
+        const version = context.jobVersions.get(job.id) ?? job.version;
+        const {newVersion} = await setJobStatus({
+          jobId: job.id,
+          status: 'cancelled',
+          version,
+        });
+        context.jobVersions.set(job.id, newVersion);
+        break;
+      }
+      case 'start_job':
+        startCommands.push(command);
+        break;
+      case 'complete_run': {
+        const {newVersion} = await setRunStatus({
+          runId: context.input.runId,
+          status: command.status,
+          version: context.getRunVersion(),
+        });
+        context.setRunVersion(newVersion);
+        break;
+      }
     }
+  }
+
+  if (startCommands.length === 0) return;
+
+  const jobs = startCommands.map((command) => getDagJob(command.jobId, context.jobsById));
+  const results = await launchJobs(jobs, context.input, context.jobVersions);
+
+  for (const [job, result] of jobs.map(
+    (candidate, index) => [candidate, results[index]] as const,
+  )) {
+    if (!result) continue;
+    context.jobVersions.set(job.id, result.jobVersion);
+
+    const next = transitionRuntimeState(context.getRuntimeState(), {
+      type: 'job_completed',
+      jobId: job.id,
+      status: result.status,
+    });
+    context.setRuntimeState(next.state);
+    await applyRuntimeCommands(next.commands, context);
   }
 }
 
@@ -122,4 +158,12 @@ function launchJobs(
       return {status: result.status, jobVersion: result.jobVersion};
     }),
   );
+}
+
+function getDagJob(jobId: string, jobsById: ReadonlyMap<string, DagJob>): DagJob {
+  const job = jobsById.get(jobId);
+  if (!job) {
+    throw new Error(`Runtime command referenced unknown job: ${jobId}`);
+  }
+  return job;
 }

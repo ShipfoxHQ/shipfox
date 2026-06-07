@@ -46,6 +46,9 @@
     "depcruise": {
       "cache": true,
       "dependsOn": ["@shipfox/depcruise#build"]
+    },
+    "generate:docs": {
+      "cache": false
     }
   }
 }

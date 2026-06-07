@@ -1,0 +1,45 @@
+export {
+  type AcceptancePolicyIR,
+  type BinaryExprIR,
+  createDefaultRunExitCodeAcceptancePolicy,
+  type DefaultRunExitCodeAcceptancePolicyIR,
+  type ExprIR,
+  type IntLiteralExprIR,
+  type JobDependencyIR,
+  type JobId,
+  type JobIR,
+  normalizeSurfaceDocumentToWorkflowIR,
+  type RefExprIR,
+  type RunCommandIR,
+  type RunnerSelectorIR,
+  type RunStepIR,
+  type StepId,
+  type StepIR,
+  type TriggerId,
+  type TriggerIR,
+  type WorkflowId,
+  type WorkflowIR,
+} from '#core/ir/index.js';
+export {
+  type StaticDiagnostic,
+  type StaticDiagnosticId,
+  type StaticDiagnosticSeverity,
+  type StaticSemanticsResult,
+  staticDiagnosticIds,
+  validateWorkflowIRStaticSemantics,
+} from '#core/static-semantics/index.js';
+export {parseYamlSurfaceWorkflowDocument} from '#core/surface/parse-yaml-surface-workflow-document.js';
+export {
+  type SurfaceJob,
+  type SurfaceRunStep,
+  type SurfaceTrigger,
+  type SurfaceWorkflowDocument,
+  type SurfaceWorkflowDocumentValidationError,
+  type SurfaceWorkflowDocumentValidationResult,
+  surfaceJobSchema,
+  surfaceRunStepSchema,
+  surfaceTriggerSchema,
+  surfaceWorkflowDocumentSchema,
+  validateSurfaceWorkflowDocument,
+} from '#core/surface/surface-workflow-document.js';
+export {surfaceWorkflowDocumentCueSchema} from '#core/surface/surface-workflow-document-cue.js';

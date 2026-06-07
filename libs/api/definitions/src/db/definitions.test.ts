@@ -7,7 +7,7 @@ import {
   resetPublishers,
 } from '@shipfox/node-module';
 import {sql} from 'drizzle-orm';
-import type {WorkflowSpec} from '#core/entities/definition.js';
+import type {SurfaceWorkflowDocument} from '#core/entities/definition.js';
 import {db} from './db.js';
 import {
   applyVcsDefinitionsBatch,
@@ -20,7 +20,7 @@ import {
 import {workflowDefinitions} from './schema/definitions.js';
 import {definitionsOutbox} from './schema/outbox.js';
 
-function spec(name = 'Test Workflow'): WorkflowSpec {
+function surfaceDocument(name = 'Test Workflow'): SurfaceWorkflowDocument {
   return {
     name,
     jobs: {build: {steps: [{run: 'echo hello'}]}},
@@ -57,14 +57,14 @@ describe('definition queries', () => {
         workspaceId,
         configPath: '.shipfox/workflows/test.yml',
         name: 'Test',
-        definition: spec(),
+        definition: surfaceDocument(),
       });
 
       expect(definition.id).toBeDefined();
       expect(definition.projectId).toBe(projectId);
       expect(definition.configPath).toBe('.shipfox/workflows/test.yml');
       expect(definition.name).toBe('Test');
-      expect(definition.definition).toEqual(spec());
+      expect(definition.definition).toEqual(surfaceDocument());
       expect(definition.sha).toBeNull();
       expect(definition.ref).toBeNull();
       expect(definition.fetchedAt).toBeInstanceOf(Date);
@@ -78,7 +78,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: '.shipfox/workflows/deploy.yml',
         name: 'Deploy v1',
-        definition: spec('Deploy v1'),
+        definition: surfaceDocument('Deploy v1'),
       });
 
       const second = await upsertDefinition({
@@ -86,7 +86,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: '.shipfox/workflows/deploy.yml',
         name: 'Deploy v2',
-        definition: spec('Deploy v2'),
+        definition: surfaceDocument('Deploy v2'),
       });
 
       expect(second.id).toBe(first.id);
@@ -102,7 +102,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'ci.yml',
         name: 'CI',
-        definition: spec('CI'),
+        definition: surfaceDocument('CI'),
         sha: 'abc123',
       });
 
@@ -116,7 +116,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'ci.yml',
         name: 'CI v1',
-        definition: spec('CI v1'),
+        definition: surfaceDocument('CI v1'),
         sha: 'abc123',
       });
 
@@ -125,7 +125,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'ci.yml',
         name: 'CI v2',
-        definition: spec('CI v2'),
+        definition: surfaceDocument('CI v2'),
         sha: 'abc123',
       });
 
@@ -139,7 +139,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'ci.yml',
         name: 'CI',
-        definition: spec('CI'),
+        definition: surfaceDocument('CI'),
         ref: 'main',
       });
 
@@ -153,7 +153,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'ci.yml',
         name: 'CI v1',
-        definition: spec('CI v1'),
+        definition: surfaceDocument('CI v1'),
         ref: 'main',
       });
 
@@ -162,7 +162,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'ci.yml',
         name: 'CI v2',
-        definition: spec('CI v2'),
+        definition: surfaceDocument('CI v2'),
         ref: 'main',
       });
 
@@ -176,7 +176,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'ci.yml',
         name: 'CI v1',
-        definition: spec('CI v1'),
+        definition: surfaceDocument('CI v1'),
       });
 
       const second = await upsertDefinition({
@@ -184,7 +184,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'ci.yml',
         name: 'CI v2',
-        definition: spec('CI v2'),
+        definition: surfaceDocument('CI v2'),
       });
 
       expect(second.id).toBe(first.id);
@@ -197,7 +197,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'ci.yml',
         name: 'CI',
-        definition: spec('CI'),
+        definition: surfaceDocument('CI'),
       });
 
       expect(definition.fetchedAt).toBeInstanceOf(Date);
@@ -209,7 +209,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'ci.yml',
         name: 'CI v1',
-        definition: spec('CI v1'),
+        definition: surfaceDocument('CI v1'),
       });
 
       const second = await upsertDefinition({
@@ -217,7 +217,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'ci.yml',
         name: 'CI v2',
-        definition: spec('CI v2'),
+        definition: surfaceDocument('CI v2'),
       });
 
       expect(second.fetchedAt.getTime()).toBeGreaterThanOrEqual(first.fetchedAt.getTime());
@@ -231,7 +231,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: '.shipfox/workflows/ci.yml',
         name: 'CI',
-        definition: spec('CI'),
+        definition: surfaceDocument('CI'),
       });
 
       const found = await getDefinitionById(created.id);
@@ -255,21 +255,21 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'z.yml',
         name: 'Zulu',
-        definition: spec('Zulu'),
+        definition: surfaceDocument('Zulu'),
       });
       await upsertDefinition({
         projectId,
         workspaceId,
         configPath: 'a.yml',
         name: 'Alpha',
-        definition: spec('Alpha'),
+        definition: surfaceDocument('Alpha'),
       });
       await upsertDefinition({
         projectId,
         workspaceId,
         configPath: 'm.yml',
         name: 'Mike',
-        definition: spec('Mike'),
+        definition: surfaceDocument('Mike'),
       });
 
       const definitions = await listDefinitionsByProject(projectId);
@@ -294,7 +294,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'old.yml',
         name: 'Old',
-        definition: spec('Old'),
+        definition: surfaceDocument('Old'),
         ref: 'main',
         source: 'vcs',
       });
@@ -303,7 +303,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'kept.yml',
         name: 'Kept',
-        definition: spec('Kept'),
+        definition: surfaceDocument('Kept'),
         ref: 'main',
         source: 'vcs',
       });
@@ -331,7 +331,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'recovered.yml',
         name: 'Recovered v1',
-        definition: spec('Recovered v1'),
+        definition: surfaceDocument('Recovered v1'),
         ref: 'main',
         source: 'vcs',
       });
@@ -347,7 +347,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'recovered.yml',
         name: 'Recovered v2',
-        definition: spec('Recovered v2'),
+        definition: surfaceDocument('Recovered v2'),
         ref: 'main',
         source: 'vcs',
       });
@@ -365,7 +365,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'orphaned.yml',
         name: 'Orphan',
-        definition: spec('Orphan'),
+        definition: surfaceDocument('Orphan'),
         ref: 'main',
         source: 'vcs',
       });
@@ -375,8 +375,18 @@ describe('definition queries', () => {
         workspaceId,
         ref: 'main',
         upserts: [
-          {configPath: 'kept.yml', name: 'Kept', definition: spec('Kept'), contentHash: 'h-kept'},
-          {configPath: 'new.yml', name: 'New', definition: spec('New'), contentHash: 'h-new'},
+          {
+            configPath: 'kept.yml',
+            name: 'Kept',
+            definition: surfaceDocument('Kept'),
+            contentHash: 'h-kept',
+          },
+          {
+            configPath: 'new.yml',
+            name: 'New',
+            definition: surfaceDocument('New'),
+            contentHash: 'h-new',
+          },
         ],
       });
 
@@ -396,8 +406,8 @@ describe('definition queries', () => {
         workspaceId,
         ref: 'main',
         upserts: [
-          {configPath: 'a.yml', name: 'A', definition: spec('A'), contentHash: 'h-a-v1'},
-          {configPath: 'b.yml', name: 'B', definition: spec('B'), contentHash: 'h-b-v1'},
+          {configPath: 'a.yml', name: 'A', definition: surfaceDocument('A'), contentHash: 'h-a-v1'},
+          {configPath: 'b.yml', name: 'B', definition: surfaceDocument('B'), contentHash: 'h-b-v1'},
         ],
       });
 
@@ -409,8 +419,13 @@ describe('definition queries', () => {
         workspaceId,
         ref: 'main',
         upserts: [
-          {configPath: 'a.yml', name: 'A', definition: spec('A'), contentHash: 'h-a-v1'},
-          {configPath: 'b.yml', name: 'B v2', definition: spec('B v2'), contentHash: 'h-b-v2'},
+          {configPath: 'a.yml', name: 'A', definition: surfaceDocument('A'), contentHash: 'h-a-v1'},
+          {
+            configPath: 'b.yml',
+            name: 'B v2',
+            definition: surfaceDocument('B v2'),
+            contentHash: 'h-b-v2',
+          },
         ],
       });
 
@@ -425,7 +440,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'orphan.yml',
         name: 'Orphan',
-        definition: spec('Orphan'),
+        definition: surfaceDocument('Orphan'),
         ref: 'main',
         source: 'vcs',
       });
@@ -458,7 +473,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'ci.yml',
         name: 'CI',
-        definition: spec('CI'),
+        definition: surfaceDocument('CI'),
         ref: 'main',
       });
 
@@ -474,7 +489,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'ci.yml',
         name: 'CI',
-        definition: spec('CI'),
+        definition: surfaceDocument('CI'),
         sha: 'abc123',
       });
 
@@ -500,7 +515,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: '.shipfox/workflows/test.yml',
         name: 'Test',
-        definition: spec(),
+        definition: surfaceDocument(),
       });
 
       const outboxRows = await listOutboxRowsForProject(projectId);
@@ -523,7 +538,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: '.shipfox/workflows/test.yml',
         name: 'Test v1',
-        definition: spec('v1'),
+        definition: surfaceDocument('v1'),
       });
 
       await upsertDefinition({
@@ -531,7 +546,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: '.shipfox/workflows/test.yml',
         name: 'Test v2',
-        definition: spec('v2'),
+        definition: surfaceDocument('v2'),
       });
 
       const outboxRows = await listOutboxRowsForProject(projectId);
@@ -579,7 +594,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'test.yml',
         name: 'Test',
-        definition: spec(),
+        definition: surfaceDocument(),
       });
 
       const events = await drainAll();
@@ -596,7 +611,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'test.yml',
         name: 'Test',
-        definition: spec(),
+        definition: surfaceDocument(),
       });
       const events = eventsForProject(await drainAll(), projectId);
 
@@ -614,14 +629,14 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'a.yml',
         name: 'A',
-        definition: spec('A'),
+        definition: surfaceDocument('A'),
       });
       await upsertDefinition({
         projectId,
         workspaceId,
         configPath: 'b.yml',
         name: 'B',
-        definition: spec('B'),
+        definition: surfaceDocument('B'),
       });
       const events = eventsForProject(await drainAll(), projectId);
       const ids = events.map((e) => e.id);
@@ -639,7 +654,7 @@ describe('definition queries', () => {
         workspaceId,
         configPath: 'test.yml',
         name: 'Test',
-        definition: spec(),
+        definition: surfaceDocument(),
       });
       const events = eventsForProject(await drainAll(), projectId);
       await markDispatched('definitions', [events[0]?.id as string]);

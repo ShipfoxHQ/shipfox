@@ -13,3 +13,13 @@ export class ProjectMismatchError extends Error {
     this.name = 'ProjectMismatchError';
   }
 }
+
+export class InvalidWorkflowDefinitionError extends Error {
+  constructor(
+    readonly definitionId: string,
+    readonly diagnostics: readonly string[],
+  ) {
+    super(`Workflow definition ${definitionId} failed static validation`);
+    this.name = 'InvalidWorkflowDefinitionError';
+  }
+}

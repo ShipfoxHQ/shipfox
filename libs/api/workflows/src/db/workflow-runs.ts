@@ -1,4 +1,4 @@
-import type {WorkflowSpec} from '@shipfox/api-definitions';
+import type {JobIR, RunStepIR, WorkflowIR} from '@shipfox/api-workflow-language';
 import {
   WORKFLOW_RUN_CREATED,
   WORKFLOWS_JOB_TIMED_OUT,
@@ -20,20 +20,10 @@ export interface CreateWorkflowRunParams {
   projectId: string;
   definitionId: string;
   name?: string | undefined;
-  definition: WorkflowSpec;
+  workflow: WorkflowIR;
   triggerPayload: TriggerPayload;
   inputs?: Record<string, unknown> | undefined;
   triggerIdempotencyKey?: string | undefined;
-}
-
-function normalizeDependencies(needs: string | string[] | undefined): string[] {
-  if (!needs) return [];
-  return Array.isArray(needs) ? needs : [needs];
-}
-
-function normalizeRunner(runner: string | string[] | undefined): string[] | null {
-  if (!runner) return null;
-  return Array.isArray(runner) ? runner : [runner];
 }
 
 export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
@@ -44,7 +34,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         workspaceId: params.workspaceId,
         projectId: params.projectId,
         definitionId: params.definitionId,
-        name: params.name ?? params.definition.name,
+        name: params.name ?? params.workflow.name,
         status: 'pending',
         triggerSource: params.triggerPayload.source,
         triggerEvent: params.triggerPayload.event,
@@ -75,36 +65,37 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       return toWorkflowRun(existingRow);
     }
 
-    const jobEntries = Object.entries(params.definition.jobs);
+    const jobInputs = workflowJobsForPersistence(params.workflow);
     let jobRows: (typeof jobs.$inferSelect)[] = [];
 
-    if (jobEntries.length > 0) {
+    if (jobInputs.length > 0) {
       jobRows = await tx
         .insert(jobs)
         .values(
-          jobEntries.map(([jobName, jobSpec], index) => ({
+          jobInputs.map((job) => ({
             runId: runRow.id,
-            name: jobName,
+            name: job.sourceName,
             status: 'pending' as const,
-            dependencies: normalizeDependencies(jobSpec.needs),
-            runner: normalizeRunner(jobSpec.runner),
-            position: index,
+            dependencies: job.sourceDependencies,
+            runner: job.runner,
+            position: job.position,
           })),
         )
         .returning();
     }
 
+    const jobInputBySourceName = new Map(jobInputs.map((job) => [job.sourceName, job]));
     const stepValues: (typeof steps.$inferInsert)[] = [];
     for (const jobRow of jobRows) {
-      const jobSpec = params.definition.jobs[jobRow.name];
-      if (!jobSpec) continue;
-      for (const [stepIndex, stepSpec] of jobSpec.steps.entries()) {
+      const jobInput = jobInputBySourceName.get(jobRow.name);
+      if (!jobInput) continue;
+      for (const [stepIndex, stepSpec] of jobInput.steps.entries()) {
         stepValues.push({
           jobId: jobRow.id,
-          name: stepSpec.name ?? null,
+          name: stepSpec.name,
           status: 'pending',
           type: 'run',
-          config: {run: stepSpec.run},
+          config: {run: stepSpec.command.value},
           position: stepIndex,
         });
       }
@@ -126,6 +117,49 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
 
     return toWorkflowRun(runRow);
   });
+}
+
+interface WorkflowJobPersistenceInput {
+  sourceName: string;
+  sourceDependencies: string[];
+  runner: string[] | null;
+  position: number;
+  steps: RunStepIR[];
+}
+
+function workflowJobsForPersistence(workflow: WorkflowIR): WorkflowJobPersistenceInput[] {
+  const jobById = new Map(workflow.jobs.map((job) => [job.id, job]));
+  const stepById = new Map(workflow.steps.map((step) => [step.id, step]));
+
+  return [...workflow.jobs]
+    .sort((left, right) => left.position - right.position)
+    .map((job) => ({
+      sourceName: job.sourceName,
+      sourceDependencies: job.dependencies.map((dependencyId) =>
+        sourceNameForDependency({job, dependencyId, jobById}),
+      ),
+      runner: job.runner ? [...job.runner] : null,
+      position: job.position,
+      steps: job.steps.map((stepId) => {
+        const step = stepById.get(stepId);
+        if (!step) throw new Error(`WorkflowIR references missing step ${stepId}`);
+        return step;
+      }),
+    }));
+}
+
+function sourceNameForDependency(params: {
+  job: JobIR;
+  dependencyId: string;
+  jobById: ReadonlyMap<string, JobIR>;
+}): string {
+  const dependency = params.jobById.get(params.dependencyId);
+  if (!dependency) {
+    throw new Error(
+      `WorkflowIR job ${params.job.id} references missing dependency ${params.dependencyId}`,
+    );
+  }
+  return dependency.sourceName;
 }
 
 export async function getWorkflowRunById(id: string): Promise<WorkflowRun | undefined> {

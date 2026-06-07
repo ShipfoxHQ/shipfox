@@ -1,3 +1,4 @@
+import {normalizeSurfaceDocumentToWorkflowIR} from '@shipfox/api-workflow-language';
 import {Factory} from 'fishery';
 import type {WorkflowRun} from '#core/entities/workflow-run.js';
 import {createWorkflowRun} from '#db/workflow-runs.js';
@@ -13,14 +14,14 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
       projectId: run.projectId,
       definitionId: run.definitionId,
       name: run.name,
-      definition: {
+      workflow: normalizeSurfaceDocumentToWorkflowIR({
         name: 'Test Workflow',
         jobs: {
           build: {
             steps: [{run: 'echo hello'}],
           },
         },
-      },
+      }),
       triggerPayload: run.triggerPayload,
       inputs: run.inputs ?? undefined,
     });

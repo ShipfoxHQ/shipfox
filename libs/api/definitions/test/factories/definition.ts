@@ -1,8 +1,8 @@
 import {Factory} from 'fishery';
-import type {WorkflowDefinition, WorkflowSpec} from '#core/entities/definition.js';
+import type {SurfaceWorkflowDocument, WorkflowDefinition} from '#core/entities/definition.js';
 import {upsertDefinition} from '#db/definitions.js';
 
-function defaultSpec(): WorkflowSpec {
+function defaultSurfaceDocument(): SurfaceWorkflowDocument {
   return {
     name: 'Test Workflow',
     jobs: {
@@ -43,7 +43,7 @@ export const definitionFactory = Factory.define<WorkflowDefinition, DefinitionTr
       sha: null,
       ref: null,
       name: `Test Workflow ${sequence}`,
-      definition: defaultSpec(),
+      definition: defaultSurfaceDocument(),
       contentHash: null,
       fetchedAt: new Date(),
       createdAt: new Date(),

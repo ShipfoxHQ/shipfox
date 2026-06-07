@@ -7,7 +7,7 @@ import {
   type IntegrationSourceControlService,
   MAX_REPOSITORY_FILE_BYTES,
 } from '@shipfox/api-integration-core';
-import type {WorkflowSpec} from './entities/definition.js';
+import type {SurfaceWorkflowDocument} from './entities/definition.js';
 import type {DefinitionSyncErrorCode} from './entities/sync-state.js';
 import {DefinitionParseError, DefinitionSyncPermanentError} from './errors.js';
 import {parseDefinition} from './parse-definition.js';
@@ -75,7 +75,7 @@ export async function discoverWorkflowFiles(
 export interface ParsedWorkflow {
   path: string;
   name: string;
-  definition: WorkflowSpec;
+  definition: SurfaceWorkflowDocument;
   contentHash: string;
 }
 

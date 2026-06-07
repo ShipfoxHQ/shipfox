@@ -1,6 +1,10 @@
 import type {WorkflowDefinition} from '@shipfox/api-definitions';
 import type {TriggerPayload} from './entities/workflow-run.js';
-import {DefinitionNotFoundError, ProjectMismatchError} from './errors.js';
+import {
+  DefinitionNotFoundError,
+  InvalidWorkflowDefinitionError,
+  ProjectMismatchError,
+} from './errors.js';
 import {runWorkflow} from './run-workflow.js';
 
 vi.mock('@shipfox/api-definitions', () => ({
@@ -130,6 +134,33 @@ describe('runWorkflow', () => {
         triggerPayload: manualPayload(),
       }),
     ).rejects.toThrow(ProjectMismatchError);
+  });
+
+  test('throws InvalidWorkflowDefinitionError for static validation failures', async () => {
+    const definition = buildDefinition({
+      projectId,
+      definition: {
+        name: 'Test Workflow',
+        jobs: {
+          deploy: {needs: 'missing', steps: [{run: 'echo deploy'}]},
+        },
+      },
+    });
+    mockGetDefinitionById.mockResolvedValue(definition);
+
+    const result = runWorkflow({
+      workspaceId,
+      projectId,
+      definitionId: definition.id,
+      triggerPayload: manualPayload(),
+    });
+
+    await expect(result).rejects.toMatchObject({
+      name: 'InvalidWorkflowDefinitionError',
+      definitionId: definition.id,
+      diagnostics: ['Job "deploy" depends on unknown job "missing"'],
+    });
+    await expect(result).rejects.toThrow(InvalidWorkflowDefinitionError);
   });
 
   test('passes inputs through to the run', async () => {

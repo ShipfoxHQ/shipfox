@@ -1,6 +1,7 @@
 import {resolve} from 'node:path';
 import {TestWorkflowEnvironment} from '@temporalio/testing';
 import {Worker} from '@temporalio/worker';
+import type {RunDag} from '../activities/orchestration-activities.js';
 
 const TASK_QUEUE = 'test-orchestration-timeout';
 const WORKFLOWS_PATH = resolve(import.meta.dirname, '../../../dist/temporal/workflows/index.js');
@@ -17,6 +18,7 @@ let workerRunPromise: Promise<void> | undefined;
 let calls: ActivityCall[] = [];
 let versionSeq = 0;
 let failJobAsTimedOutShouldThrow = false;
+let runDag: RunDag;
 
 function nextVersion(): number {
   return ++versionSeq;
@@ -36,7 +38,10 @@ beforeAll(async () => {
     taskQueue: TASK_QUEUE,
     workflowsPath: WORKFLOWS_PATH,
     activities: {
-      loadRunDag: () => ({runId: 'run-1', workspaceId: 'workspace-1', runVersion: 1, jobs: []}),
+      loadRunDag: (runId: string) => {
+        calls.push({name: 'loadRunDag', params: runId});
+        return runDag;
+      },
       setRunStatus: (params: unknown) => {
         calls.push({name: 'setRunStatus', params});
         return {newVersion: nextVersion()};
@@ -82,6 +87,7 @@ beforeEach(() => {
   calls = [];
   versionSeq = 0;
   failJobAsTimedOutShouldThrow = false;
+  runDag = makeRunDag([]);
 });
 
 const defaultJobInput = {
@@ -99,6 +105,34 @@ function executeJob(input: typeof defaultJobInput): Promise<{status: string; job
     workflowId: `job:${input.jobId}-${Math.random()}`,
     args: [input],
   });
+}
+
+function executeRun(runId: string, workspaceId: string): Promise<void> {
+  return testEnv.client.workflow.execute('runOrchestration', {
+    taskQueue: TASK_QUEUE,
+    workflowId: `run:${runId}-${Math.random()}`,
+    args: [{runId, workspaceId}],
+  });
+}
+
+function makeRunDag(jobs: RunDag['jobs'], runId = 'run-1'): RunDag {
+  return {runId, workspaceId: 'workspace-1', runVersion: 1, jobs};
+}
+
+function dagJob(
+  id: string,
+  name: string,
+  deps: string[] = [],
+  version = 1,
+): RunDag['jobs'][number] {
+  return {
+    id,
+    name,
+    status: 'pending',
+    dependencies: deps,
+    version,
+    steps: [{id: `${id}-step`, name: null, type: 'run', config: {cmd: 'echo'}, position: 0}],
+  };
 }
 
 describe('jobOrchestration timeout path', () => {
@@ -130,5 +164,34 @@ describe('jobOrchestration timeout path', () => {
       (c) => (c.params as {status: string}).status,
     );
     expect(setJobStatuses).toEqual(['running']);
+  }, 60_000);
+});
+
+describe('runOrchestration timeout path', () => {
+  test('timed-out child failure cancels dependents and fails the run', async () => {
+    const runId = 'run-timeout';
+    const workspaceId = 'workspace-1';
+    runDag = makeRunDag(
+      [dagJob('job-timeout-root', 'build', [], 1), dagJob('job-dependent', 'deploy', ['build'], 7)],
+      runId,
+    );
+
+    await executeRun(runId, workspaceId);
+
+    const runStatuses = callsNamed('setRunStatus').map(
+      (call) => (call.params as {status: string}).status,
+    );
+    expect(runStatuses).toEqual(['running', 'failed']);
+    expect(callsNamed('enqueueJobForRunner')).toHaveLength(1);
+    expect(callsNamed('failJobAsTimedOutActivity')).toHaveLength(1);
+
+    const cancelCall = callsNamed('setJobStatus').find(
+      (call) => (call.params as {jobId: string; status: string}).status === 'cancelled',
+    );
+    expect(cancelCall?.params).toEqual({
+      jobId: 'job-dependent',
+      status: 'cancelled',
+      version: 7,
+    });
   }, 60_000);
 });

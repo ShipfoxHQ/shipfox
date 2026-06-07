@@ -5,15 +5,19 @@ import {
 } from '@shipfox/api-definitions-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, asc, eq, gt, isNull, notInArray, or, type SQL, sql} from 'drizzle-orm';
-import type {Trigger, WorkflowDefinition, WorkflowSpec} from '#core/entities/definition.js';
+import type {
+  SurfaceWorkflowDocument,
+  Trigger,
+  WorkflowDefinition,
+} from '#core/entities/definition.js';
 import {db} from './db.js';
 import {toDefinition, workflowDefinitions} from './schema/definitions.js';
 import {definitionsOutbox} from './schema/outbox.js';
 
 type Tx = Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0];
 
-function triggersFor(spec: WorkflowSpec): Record<string, Trigger> {
-  return spec.triggers ?? {};
+function triggersFor(document: SurfaceWorkflowDocument): Record<string, Trigger> {
+  return document.triggers ?? {};
 }
 
 export interface UpsertDefinitionParams {
@@ -22,7 +26,7 @@ export interface UpsertDefinitionParams {
   configPath?: string | null | undefined;
   source?: 'manual' | 'vcs' | undefined;
   name: string;
-  definition: WorkflowSpec;
+  definition: SurfaceWorkflowDocument;
   contentHash?: string | null | undefined;
   sha?: string | undefined;
   ref?: string | undefined;
@@ -113,7 +117,7 @@ export async function upsertDefinition(
         projectId: row.projectId,
         workspaceId: params.workspaceId,
         configPath: row.configPath,
-        triggers: triggersFor(row.definition as WorkflowSpec),
+        triggers: triggersFor(row.definition as SurfaceWorkflowDocument),
       },
     });
 
@@ -245,7 +249,7 @@ export interface ApplyVcsDefinitionsBatchParams {
   upserts: Array<{
     configPath: string;
     name: string;
-    definition: WorkflowSpec;
+    definition: SurfaceWorkflowDocument;
     contentHash: string;
   }>;
 }
@@ -303,7 +307,7 @@ export async function applyVcsDefinitionsBatch(
             projectId: row.projectId,
             workspaceId: params.workspaceId,
             configPath: row.configPath,
-            triggers: triggersFor(row.definition as WorkflowSpec),
+            triggers: triggersFor(row.definition as SurfaceWorkflowDocument),
           },
         });
         appliedCount += 1;

@@ -13,7 +13,13 @@ import {
 } from '#presentation/subscribers/index.js';
 import {createDefinitionSyncActivities, DEFINITIONS_TASK_QUEUE} from '#temporal/index.js';
 
-export type {Job, RunStep, Trigger, WorkflowDefinition, WorkflowSpec} from '#core/index.js';
+export type {
+  Job,
+  RunStep,
+  SurfaceWorkflowDocument,
+  Trigger,
+  WorkflowDefinition,
+} from '#core/index.js';
 export {db, definitionsOutbox, getDefinitionById, migrationsPath} from '#db/index.js';
 export {routes} from '#presentation/index.js';
 

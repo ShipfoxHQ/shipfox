@@ -1,0 +1,21 @@
+{
+  "name": "minimal success",
+  "initialState": {
+    "run": { "status": "pending" },
+    "jobs": [{ "id": "j1", "name": "build", "dependencies": [], "status": "pending" }]
+  },
+  "steps": [
+    {
+      "event": { "type": "run_started" },
+      "commands": [{ "type": "start_job", "jobId": "j1" }]
+    },
+    {
+      "event": { "type": "job_completed", "jobId": "j1", "status": "succeeded" },
+      "commands": [{ "type": "complete_run", "status": "succeeded" }]
+    }
+  ],
+  "finalState": {
+    "run": { "status": "succeeded" },
+    "jobs": [{ "id": "j1", "name": "build", "dependencies": [], "status": "succeeded" }]
+  }
+}
