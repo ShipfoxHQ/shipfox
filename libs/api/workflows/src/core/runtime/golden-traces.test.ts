@@ -1,25 +1,14 @@
-import {readFileSync} from 'node:fs';
+import {readdirSync} from 'node:fs';
 import type {RuntimeCommand} from './runtime-command.js';
-import type {RuntimeEvent} from './runtime-event.js';
-import type {RuntimeState} from './runtime-state.js';
+import {
+  readRuntimeGoldenTrace,
+  runtimeGoldenTraceReferences,
+} from './runtime-golden-trace-reference.js';
 import {transitionRuntimeState} from './transition.js';
 
-interface RuntimeGoldenTrace {
-  name: string;
-  initialState: RuntimeState;
-  steps: Array<{
-    event: RuntimeEvent;
-    commands: RuntimeCommand[];
-  }>;
-  finalState: RuntimeState;
-}
-
-describe.each([
-  'minimal-success.json',
-  'job-failure-cancels-dependent.json',
-] satisfies string[])('runtime golden trace %s', (fileName) => {
+describe.each(runtimeGoldenTraceReferences)('runtime golden trace $fileName', ({fileName}) => {
   test('replays deterministically', () => {
-    const trace = readTrace(fileName);
+    const trace = readRuntimeGoldenTrace(fileName);
     let state = trace.initialState;
     const commands: RuntimeCommand[][] = [];
 
@@ -34,8 +23,15 @@ describe.each([
   });
 });
 
-function readTrace(fileName: string): RuntimeGoldenTrace {
-  return JSON.parse(
-    readFileSync(new URL(`./traces/${fileName}`, import.meta.url), 'utf8'),
-  ) as RuntimeGoldenTrace;
-}
+describe('runtimeGoldenTraceReferences', () => {
+  test('registers every committed runtime trace', () => {
+    const traceFiles = readdirSync(new URL('./traces/', import.meta.url))
+      .filter((fileName) => fileName.endsWith('.json'))
+      .sort();
+    const registeredTraceFiles = runtimeGoldenTraceReferences
+      .map((reference) => reference.fileName)
+      .sort();
+
+    expect(registeredTraceFiles).toEqual(traceFiles);
+  });
+});

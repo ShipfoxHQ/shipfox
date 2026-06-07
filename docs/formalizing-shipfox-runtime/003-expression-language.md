@@ -21,9 +21,65 @@ Document expression-language scope and intentionally unsupported behavior for PR
 <!-- generated:start -->
 - Expression parser implementation: deferred in PR1.
 
-- PR1 IR acceptance policy: typed `default_run_exit_code` with expression kind `output.exit_code == 0`.
+- PR1 IR acceptance policy: typed `default_run_exit_code` with expression `output.exit_code == 0`.
 
 - PR1 runtime evaluation: job completion status is reported by the runner/job orchestration path, not by a custom expression evaluator.
+
+### Generated Expression IR Type Reference
+
+#### ExprIR
+
+Alias: `BinaryExprIR | RefExprIR | IntLiteralExprIR`.
+
+#### BinaryExprIR
+
+| Field | Type |
+| --- | --- |
+| `kind` | `'binary'` |
+| `op` | `'=='` |
+| `left` | `ExprIR` |
+| `right` | `ExprIR` |
+
+#### RefExprIR
+
+| Field | Type |
+| --- | --- |
+| `kind` | `'ref'` |
+| `path` | `readonly string[]` |
+
+#### IntLiteralExprIR
+
+| Field | Type |
+| --- | --- |
+| `kind` | `'int'` |
+| `value` | `number` |
+
+#### DefaultRunExitCodeAcceptancePolicyIR
+
+| Field | Type |
+| --- | --- |
+| `kind` | `'default_run_exit_code'` |
+| `successIf` | `ExprIR` |
+
+#### AcceptancePolicyIR
+
+Alias: `DefaultRunExitCodeAcceptancePolicyIR`.
+
+### Generated Default Acceptance Expression
+
+| Policy Kind | Expression | Expression Tree | Notes |
+| --- | --- | --- | --- |
+| `default_run_exit_code` | `output.exit_code == 0` | `{"kind":"binary","op":"==","left":{"kind":"ref","path":["output","exit_code"]},"right":{"kind":"int","value":0}}` | PR1 names this built-in policy in IR instead of accepting an author-provided expression string. |
+
+### Generated Expression Support Matrix
+
+| Concept | PR1 Status | Owner | PR1 Behavior | Next Required Work |
+| --- | --- | --- | --- | --- |
+| Default run-step success policy | included | `libs/api/workflow-language/src/core/ir/expression-ir.ts` | `createDefaultRunExitCodeAcceptancePolicy()` produces a typed `output.exit_code == 0` expression tree. | Keep generated docs and normalizer tests aligned when the built-in policy changes. |
+| Custom expression parser | deferred | `deferred` | No author-provided expression string is accepted or parsed. | Add grammar, parser, AST tests, parse diagnostics, and generated docs. |
+| Expression typechecking | deferred | `deferred` | No expression type environment exists for runner facts. | Define runner fact schemas and static diagnostics before accepting custom expressions. |
+| Runtime expression evaluator | deferred | `deferred` | Runtime status is reported by job orchestration and runner completion paths. | Add a deterministic evaluator over typed runner facts and golden runtime traces. |
+| Structured runner command facts | deferred | `deferred` | The runner contract does not provide typed command facts for expression evaluation. | Extend runner DTOs and persistence before evaluating expressions against command output. |
 <!-- generated:end -->
 
 ## Examples
@@ -49,3 +105,15 @@ Update runtime traces only after the evaluator can consume runner facts determin
 - Runtime expression evaluator.
 
 - Runner DTOs for structured command facts.
+
+## Future Predicate And Premise Logic
+
+A later expression-language slice should introduce a full formal logic layer for predicates and premises. That layer is intentionally outside the current PR1 scope.
+
+In that future model, predicates are typed expressions over available facts, such as runner exit codes, structured command output, trigger payloads, job states, step states, and integration payloads.
+
+Premises describe when a semantic rule may apply. For example, a future runtime rule might require premises such as all prerequisite jobs have succeeded, the current step output is present, and the predicate evaluates to true.
+
+That logic must not be added as raw strings in `WorkflowIR`. It needs a grammar, parser, typed AST, static diagnostics, fact model, evaluator, generated docs, and golden traces before runtime rules depend on it.
+
+The current runtime transition notation remains useful without that full logic layer: job-level transitions can be formalized over `WorkflowIR` and `RuntimeState` while richer predicate and premise evaluation remains deferred.

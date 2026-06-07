@@ -1,6 +1,41 @@
-import {surfaceWorkflowDocumentCueSchema} from '#core/surface/surface-workflow-document-cue.js';
+import {readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {
+  defaultAcceptanceExpressionReference,
+  expressionSupportReference,
+} from '#core/ir/expression-language-reference.js';
+import {irIdRuleReference, irNormalizationRuleReference} from '#core/ir/normalization-reference.js';
+import {staticDiagnosticReference} from '#core/static-semantics/static-diagnostic-reference.js';
+import {
+  surfaceSchemaReference,
+  surfaceValidationRuleReference,
+} from '#core/surface/surface-schema-reference.js';
+import {
+  surfaceWorkflowDocumentCueBoundaryReference,
+  surfaceWorkflowDocumentCueSchema,
+} from '#core/surface/surface-workflow-document-cue.js';
+import {
+  conceptChangeChecklistReference,
+  docGenerationCapabilityReference,
+  requirementStatusReference,
+} from './formalization-process-reference.js';
+import {
+  renderConceptChangeChecklistReference,
+  renderDefaultAcceptanceExpressionReference,
+  renderDocGenerationCapabilityReference,
+  renderExpressionSupportReference,
+  renderIrIdRuleReference,
+  renderIrNormalizationRuleReference,
+  renderRequirementStatusReference,
+  renderStaticDiagnosticReference,
+  renderSurfaceCueBoundaryReference,
+  renderSurfaceCueFieldMap,
+  renderSurfaceSchemaReferenceSections,
+  renderSurfaceValidationRuleReference,
+} from './markdown-reference.js';
+import {renderTypeReferenceSections} from './typescript-type-reference.js';
 
-export type FormalizationDocStatus = 'draft' | 'generated' | 'normative' | 'deferred';
+export type FormalizationDocStatus = 'normative' | 'deferred';
 
 export type FormalizationDocSection = {
   readonly title: string;
@@ -11,6 +46,7 @@ export type FormalizationDoc = {
   readonly fileName: string;
   readonly title: string;
   readonly status: FormalizationDocStatus;
+  readonly generatorOwner: '@shipfox/api-workflow-language' | '@shipfox/api-workflows';
   readonly sourceOfTruth: string;
   readonly purpose: readonly string[];
   readonly normativeModel: readonly string[];
@@ -27,11 +63,21 @@ export const generatedSectionMarker =
 export const generatedSectionStart = '<!-- generated:start -->';
 export const generatedSectionEnd = '<!-- generated:end -->';
 
+const workflowIrSource = readFileSync(
+  resolve(import.meta.dirname, '../core/ir/workflow-ir.ts'),
+  'utf8',
+);
+const expressionIrSource = readFileSync(
+  resolve(import.meta.dirname, '../core/ir/expression-ir.ts'),
+  'utf8',
+);
+
 export const formalizationDocs: readonly FormalizationDoc[] = [
   {
     fileName: '000-requirements-ledger.md',
     title: '000 Requirements Ledger',
     status: 'normative',
+    generatorOwner: '@shipfox/api-workflow-language',
     sourceOfTruth: 'docs/formalizing-shipfox-runtime/000-requirements-ledger.md',
     purpose: [
       'Track the PR1 runtime-formalization requirements, whether each one is implemented, and where the implementation or deferral is documented.',
@@ -48,6 +94,7 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
       '- `@shipfox/api-workflow-language` owns formalization helpers and generated documentation sections.',
       '- PR1 documentation is written under `docs/formalizing-shipfox-runtime/`.',
       '- Generated docs are checked by `libs/api/workflow-language/src/docs/formalization-doc-model.test.ts`.',
+      renderRequirementStatusReference(requirementStatusReference),
     ],
     examples: [
       'A requirement can be marked included when the matching code, tests, and generated docs are committed in the same slice.',
@@ -58,27 +105,9 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
     deferredWork: ['- See the PR1 Requirement Status table for included and deferred work.'],
     extraSections: [
       {
-        title: 'PR1 Requirement Status',
+        title: 'Related Exploratory Docs',
         body: [
-          '| Requirement | PR1 status | Primary docs | Primary code |',
-          '| --- | --- | --- | --- |',
-          '| Preserve current YAML surface and public wire names | Included | `001-yaml-surface.md` | `libs/api/definitions-dto`, `libs/api/definitions` |',
-          '| Rename TypeScript surface concepts away from `WorkflowSpec` | Included | `001-yaml-surface.md` | `libs/api/workflow-language/src/core/surface/` |',
-          '| Provide a CUE formalization artifact without accepting CUE input | Included | `002-cue-schema.md` | `libs/api/workflow-language/src/core/surface/surface-workflow-document-cue.ts` |',
-          '| Normalize YAML surface documents into `WorkflowIR` | Included | `004-core-ir.md` | `libs/api/workflow-language/src/core/ir/` |',
-          '| Reuse static semantics for validation and run creation | Included | `005-static-semantics.md` | `libs/api/workflow-language/src/core/static-semantics/`, `libs/api/definitions`, `libs/api/workflows` |',
-          '| Create workflow runs from normalized IR | Included | `004-core-ir.md`, `005-static-semantics.md` | `libs/api/workflows/src/core/run-workflow.ts`, `libs/api/workflows/src/db/workflow-runs.ts` |',
-          '| Formalize job-level runtime transitions with golden traces | Included | `006-runtime-transitions.md` | `libs/api/workflows/src/core/runtime/` |',
-          '| Delegate Temporal scheduling decisions to the runtime kernel | Included | `007-durable-shell.md` | `libs/api/workflows/src/temporal/workflows/run-orchestration.ts` |',
-          '| Define process for new formalized concepts | Included | `008-adding-new-concepts.md` | `libs/api/workflow-language/src/docs/formalization-doc-model.ts` |',
-          '| Document generated-doc workflow | Included | `009-doc-generation.md` | `libs/api/workflow-language/scripts/generate-formalization-docs.ts` |',
-          '| Public wire rename from `definition` to `document` | Deferred | `001-yaml-surface.md` | deferred |',
-          '| CUE as an accepted authoring surface | Deferred | `002-cue-schema.md` | deferred |',
-          '| Custom expression parser and `gate.success_if` evaluation | Deferred | `003-expression-language.md` | deferred |',
-          '| Cached WorkflowIR persistence | Deferred | `004-core-ir.md` | deferred |',
-          '| Runtime state snapshots | Deferred | `006-runtime-transitions.md`, `007-durable-shell.md` | deferred |',
-          '| Step-level runtime transitions | Deferred | `006-runtime-transitions.md` | deferred |',
-          '| Pipelined child workflow scheduling across sibling branches | Deferred | `007-durable-shell.md` | deferred |',
+          '- `010-future-platform-use-cases.md` captures future platform examples. Its YAML snippets are non-normative and do not define accepted PR1 syntax.',
         ],
       },
     ],
@@ -86,7 +115,8 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
   {
     fileName: '001-yaml-surface.md',
     title: '001 YAML Surface',
-    status: 'draft',
+    status: 'normative',
+    generatorOwner: '@shipfox/api-workflow-language',
     sourceOfTruth: 'libs/api/workflow-language/src/core/surface/surface-workflow-document.ts',
     purpose: [
       'Describe the author-facing YAML document accepted by PR1.',
@@ -104,6 +134,9 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
       '- Canonical YAML parser: `parseYamlSurfaceWorkflowDocument`.',
       '- Surface compatibility mode: required workflow name, trigger map, HTTP `definition` field, SQL `definition` column.',
       '- Validate-route compatibility mode: response field `spec` and error code `invalid-definition-spec` remain stable.',
+      '### Generated Surface Schema Reference',
+      ...renderSurfaceSchemaReferenceSections(surfaceSchemaReference),
+      renderSurfaceValidationRuleReference(surfaceValidationRuleReference),
     ],
     examples: ['A minimal document declares `name` and one job with at least one `run` step.'],
     addingOrChanging: [
@@ -119,7 +152,8 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
   {
     fileName: '002-cue-schema.md',
     title: '002 CUE Schema',
-    status: 'draft',
+    status: 'normative',
+    generatorOwner: '@shipfox/api-workflow-language',
     sourceOfTruth: 'libs/api/workflow-language/src/core/surface/surface-workflow-document-cue.ts',
     purpose: [
       'Define how PR1 uses CUE as a formalization artifact for the YAML-produced surface document shape.',
@@ -133,6 +167,8 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
     generatedLines: [
       '- CUE authoring input support: deferred.',
       '- CUE schema execution in CI: deferred unless the PR adds the `cue` CLI deliberately.',
+      renderSurfaceCueBoundaryReference(surfaceWorkflowDocumentCueBoundaryReference),
+      renderSurfaceCueFieldMap(surfaceSchemaReference),
       `\`\`\`cue\n${surfaceWorkflowDocumentCueSchema.trim()}\n\`\`\``,
     ],
     examples: [
@@ -147,6 +183,7 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
     fileName: '003-expression-language.md',
     title: '003 Expression Language',
     status: 'deferred',
+    generatorOwner: '@shipfox/api-workflow-language',
     sourceOfTruth: 'libs/api/workflow-language/src/core/ir/expression-ir.ts',
     purpose: ['Document expression-language scope and intentionally unsupported behavior for PR1.'],
     normativeModel: [
@@ -157,8 +194,19 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
     ],
     generatedLines: [
       '- Expression parser implementation: deferred in PR1.',
-      '- PR1 IR acceptance policy: typed `default_run_exit_code` with expression kind `output.exit_code == 0`.',
+      `- PR1 IR acceptance policy: typed \`${defaultAcceptanceExpressionReference.policyKind}\` with expression \`${defaultAcceptanceExpressionReference.expression}\`.`,
       '- PR1 runtime evaluation: job completion status is reported by the runner/job orchestration path, not by a custom expression evaluator.',
+      '### Generated Expression IR Type Reference',
+      ...renderTypeReferenceSections(expressionIrSource, [
+        'ExprIR',
+        'BinaryExprIR',
+        'RefExprIR',
+        'IntLiteralExprIR',
+        'DefaultRunExitCodeAcceptancePolicyIR',
+        'AcceptancePolicyIR',
+      ]),
+      renderDefaultAcceptanceExpressionReference(defaultAcceptanceExpressionReference),
+      renderExpressionSupportReference(expressionSupportReference),
     ],
     examples: [
       'A default success policy can be named as a built-in rather than represented by a raw string.',
@@ -175,11 +223,24 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
       '- Runtime expression evaluator.',
       '- Runner DTOs for structured command facts.',
     ],
+    extraSections: [
+      {
+        title: 'Future Predicate And Premise Logic',
+        body: [
+          'A later expression-language slice should introduce a full formal logic layer for predicates and premises. That layer is intentionally outside the current PR1 scope.',
+          'In that future model, predicates are typed expressions over available facts, such as runner exit codes, structured command output, trigger payloads, job states, step states, and integration payloads.',
+          'Premises describe when a semantic rule may apply. For example, a future runtime rule might require premises such as all prerequisite jobs have succeeded, the current step output is present, and the predicate evaluates to true.',
+          'That logic must not be added as raw strings in `WorkflowIR`. It needs a grammar, parser, typed AST, static diagnostics, fact model, evaluator, generated docs, and golden traces before runtime rules depend on it.',
+          'The current runtime transition notation remains useful without that full logic layer: job-level transitions can be formalized over `WorkflowIR` and `RuntimeState` while richer predicate and premise evaluation remains deferred.',
+        ],
+      },
+    ],
   },
   {
     fileName: '004-core-ir.md',
     title: '004 Core IR',
-    status: 'draft',
+    status: 'normative',
+    generatorOwner: '@shipfox/api-workflow-language',
     sourceOfTruth: 'libs/api/workflow-language/src/core/ir/workflow-ir.ts',
     purpose: ['Describe the normalized semantic model that workflow execution consumes.'],
     normativeModel: [
@@ -194,13 +255,25 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
       '- Normalizer owner: `libs/api/workflow-language/src/core/ir/normalize-surface-document.ts`.',
       '- ID helper owner: `libs/api/workflow-language/src/core/ir/ids.ts`.',
       '- Expression/default-gate owner: `libs/api/workflow-language/src/core/ir/expression-ir.ts`.',
-      '- Trigger maps are sorted by trigger name and normalized to `TriggerIR[]`.',
-      '- Job maps are sorted by job name and normalized to `JobIR[]` for deterministic IDs.',
-      '- `JobIR.sourceName` preserves the surface map key for author-facing diagnostics.',
-      '- `JobIR.position` preserves the authored job order for persistence and UI ordering.',
-      '- Job and trigger IDs are slugified from surface map keys with numeric suffixes for collisions.',
-      '- Step IDs use `<job-id>.<slugified step name or run command>` with numeric suffixes for collisions.',
+      '- Expression IR type references are generated in `003-expression-language.md`.',
+      renderIrNormalizationRuleReference(irNormalizationRuleReference),
+      renderIrIdRuleReference(irIdRuleReference),
       '- The only PR1 acceptance policy in IR is `default_run_exit_code` with a typed `exit_code == 0` expression.',
+      '### Generated IR Type Reference',
+      ...renderTypeReferenceSections(workflowIrSource, [
+        'WorkflowId',
+        'TriggerId',
+        'JobId',
+        'StepId',
+        'RunnerSelectorIR',
+        'WorkflowIR',
+        'TriggerIR',
+        'JobIR',
+        'JobDependencyIR',
+        'StepIR',
+        'RunStepIR',
+        'RunCommandIR',
+      ]),
     ],
     examples: [
       'A job dependency map such as `deploy.needs: [build, test]` becomes explicit edges `build -> deploy` and `test -> deploy`.',
@@ -218,7 +291,8 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
   {
     fileName: '005-static-semantics.md',
     title: '005 Static Semantics',
-    status: 'draft',
+    status: 'normative',
+    generatorOwner: '@shipfox/api-workflow-language',
     sourceOfTruth: 'libs/api/workflow-language/src/core/static-semantics/diagnostic.ts',
     purpose: ['Document reusable validation rules over WorkflowIR.'],
     normativeModel: [
@@ -229,12 +303,10 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
     generatedLines: [
       '- Diagnostic registry owner: `libs/api/workflow-language/src/core/static-semantics/diagnostic.ts`.',
       '- Static check owner: `libs/api/workflow-language/src/core/static-semantics/validate-workflow-ir.ts`.',
-      '- `SS001_UNKNOWN_JOB_DEPENDENCY`: dependency edge references a missing job.',
-      '- `SS002_SELF_JOB_DEPENDENCY`: dependency edge points from a job to itself.',
-      '- `SS003_CYCLIC_JOB_DEPENDENCY`: dependency graph contains a cycle.',
-      '- `SS004_UNKNOWN_DEPENDENT_JOB`: dependency edge targets a missing job.',
+      '- Dependency edges point prerequisite -> dependent: `from` is the needed job, and `to` is the job that declared `needs`.',
+      renderStaticDiagnosticReference(staticDiagnosticReference),
       '- Reference diagnostics are reported before cycle diagnostics because cycle analysis requires resolvable edge endpoints.',
-      '- Static diagnostics use `JobIR.sourceName` when reporting author-facing job names and paths.',
+      '- Diagnostics with a resolved author-facing job use `JobIR.sourceName`; `SS004_UNKNOWN_DEPENDENT_JOB` reports by dependency edge index because its target job is absent.',
     ],
     examples: [
       'A surface `needs: ghost` entry normalizes to an unresolved IR edge and returns `SS001_UNKNOWN_JOB_DEPENDENCY`.',
@@ -249,86 +321,45 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
   {
     fileName: '006-runtime-transitions.md',
     title: '006 Runtime Transitions',
-    status: 'draft',
-    sourceOfTruth: 'libs/api/workflows/src/core/runtime/',
-    purpose: ['Document the pure job-level runtime transition system.'],
-    normativeModel: [
-      '- PR1 runtime formalization is job-level.',
-      '- Runtime transition logic should be pure and replayable.',
-      '- Temporal remains the durable shell around semantic decisions.',
-      '- Runtime input is expected to be normalized and statically validated before transition replay.',
+    status: 'normative',
+    generatorOwner: '@shipfox/api-workflows',
+    sourceOfTruth: 'libs/api/workflows/src/docs/runtime-formalization-doc-model.ts',
+    purpose: [
+      'Catalog-only entry. The generated document body is owned by `@shipfox/api-workflows`.',
     ],
-    generatedLines: [
-      '- Runtime state owner: `libs/api/workflows/src/core/runtime/runtime-state.ts`.',
-      '- Runtime event owner: `libs/api/workflows/src/core/runtime/runtime-event.ts`.',
-      '- Runtime command owner: `libs/api/workflows/src/core/runtime/runtime-command.ts`.',
-      '- Runtime transition owner: `libs/api/workflows/src/core/runtime/transition.ts`.',
-      '- Golden traces live under `libs/api/workflows/src/core/runtime/traces/`.',
-      '- Initial PR1 runtime events: `run_started`, `job_completed`.',
-      '- Initial PR1 runtime commands: `start_job`, `cancel_job`, `complete_run`.',
-      '- Events that cannot advance a replay, such as duplicate completions or terminal-run events, are no-ops.',
-      '- If no pending job can start and no job is running, the kernel cancels pending jobs and fails the run.',
-      '- Wall-clock timeout remains a Temporal durable-shell concern.',
-    ],
-    examples: ['A failed job cancels dependent jobs according to job-level dependency rules.'],
-    addingOrChanging: [
-      'Add transition metadata, golden traces, durable-shell updates, and docs in the same commit sequence.',
-    ],
-    deferredWork: ['- Step-level runtime transitions.', '- Runtime state snapshots.'],
+    normativeModel: [],
+    generatedLines: [],
+    examples: [],
+    addingOrChanging: [],
+    deferredWork: [],
   },
   {
-    fileName: '007-durable-shell.md',
-    title: '007 Durable Shell',
-    status: 'draft',
-    sourceOfTruth: 'libs/api/workflows/src/temporal/',
+    fileName: '007-durable-execution-host.md',
+    title: '007 Durable Execution Host',
+    status: 'normative',
+    generatorOwner: '@shipfox/api-workflows',
+    sourceOfTruth: 'libs/api/workflows/src/docs/runtime-formalization-doc-model.ts',
     purpose: [
-      'Describe how Temporal and persistence adapt pure runtime commands to durable execution.',
+      'Catalog-only entry. The generated document body is owned by `@shipfox/api-workflows`.',
     ],
-    normativeModel: [
-      '- Temporal is responsible for durability, timers, activities, and signal interpretation.',
-      '- Runtime semantics belong in the pure kernel.',
-      '- Temporal interprets runtime commands through child workflows and activities.',
-    ],
-    generatedLines: [
-      '- Durable shell owner: `libs/api/workflows/src/temporal/workflows/run-orchestration.ts`.',
-      '- Job execution shell owner: `libs/api/workflows/src/temporal/workflows/job-orchestration.ts`.',
-      '- Activity adapter owner: `libs/api/workflows/src/temporal/activities/orchestration-activities.ts`.',
-      '- `start_job` maps to a child `jobOrchestration` workflow.',
-      '- `cancel_job` maps to durable job status cancellation.',
-      '- `complete_run` maps to durable workflow-run status completion.',
-      '- Job timeout remains in `jobOrchestration` and timeout activities.',
-      '- Current run orchestration awaits each emitted `start_job` batch as a batch before processing downstream commands.',
-    ],
-    examples: [
-      'Temporal can keep timeout handling while delegating readiness decisions to the kernel.',
-    ],
-    addingOrChanging: [
-      'Update shell adapters and tests only when persistence, Temporal, outbox, runner, or trigger behavior changes.',
-    ],
-    deferredWork: [
-      '- Runtime state snapshots.',
-      '- Pipelined child workflow scheduling across sibling branches.',
-    ],
+    normativeModel: [],
+    generatedLines: [],
+    examples: [],
+    addingOrChanging: [],
+    deferredWork: [],
   },
   {
     fileName: '008-adding-new-concepts.md',
     title: '008 Adding New Concepts',
     status: 'normative',
+    generatorOwner: '@shipfox/api-workflow-language',
     sourceOfTruth: 'docs/formalizing-shipfox-runtime/008-adding-new-concepts.md',
     purpose: ['Define the process for adding or changing formalized workflow concepts.'],
     normativeModel: [
-      '1. Add or update the requirement in `000-requirements-ledger.md`.',
-      '2. Classify the concept as surface-only, semantic/static, runtime-stateful, or adapter-only.',
-      '3. Update the YAML surface schema if the authoring shape changes.',
-      '4. Update the CUE formalization artifact if the surface document shape changes.',
-      '5. Update expression language grammar/docs if the concept introduces expression strings or new expression scope.',
-      '6. Normalize the concept into WorkflowIR, or document why it normalizes away.',
-      '7. Add or update static semantic checks.',
-      '8. Add runtime transition rules only if runtime behavior changes.',
-      '9. Update durable shell adapters only if persistence, Temporal, outbox, runner, or triggers behavior changes.',
-      '10. Add generated docs and examples.',
-      '11. Add tests at the right layer.',
-      '12. Track intentionally deferred follow-up work.',
+      '- The generated concept-change checklist is the authoritative process for adding or changing formalized concepts.',
+      '- Every concept starts with a requirement ledger row and an explicit classification.',
+      '- Surface, expression, IR, static-semantics, runtime, and durable execution host work are conditional on that classification.',
+      '- Generated docs, tests, and deferred-work notes must be updated with the affected layer.',
     ],
     examples: [
       'A new authoring field starts in the ledger, then updates surface validation, CUE, IR normalization, diagnostics, docs, and tests as needed.',
@@ -339,49 +370,41 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
     generatedLines: [
       '- Formalized concept process version: PR1 job-level runtime formalization.',
       '- New docs should be added to `formalizationDocs` so generation and committed-output tests cover them.',
-      '- Runtime-changing concepts require golden traces before durable-shell wiring.',
+      '- Runtime-changing concepts require golden traces before durable execution host wiring.',
+      renderConceptChangeChecklistReference(conceptChangeChecklistReference),
     ],
     deferredWork: [
       '- Repo-local deferred task index if per-document deferred sections become too fragmented after PR1.',
-    ],
-    extraSections: [
-      {
-        title: 'Concept Change Template',
-        body: [
-          'Use this condensed view of the model above when adding a new workflow concept:',
-          '1. Requirement: add or update a row in `000-requirements-ledger.md`.',
-          '2. Classification: choose surface-only, semantic/static, runtime-stateful, adapter-only, or a combination.',
-          '3. Surface: update Zod schemas, YAML parser tests, examples, and CUE artifact when authoring shape changes.',
-          '4. IR: normalize the concept into `WorkflowIR`, or document why it is intentionally surface-only.',
-          '5. Static semantics: add diagnostic IDs and tests for invalid cross-field or graph states.',
-          '6. Runtime: add events, commands, state fields, transition tests, and golden traces when behavior changes.',
-          '7. Durable shell: update Temporal, persistence, outbox, runner, or trigger adapters only for side effects the pure model cannot own.',
-          '8. Docs: update `formalization-doc-model.ts`, regenerate docs, and commit generated Markdown.',
-          '9. Tests: run the smallest affected package graph first, then broader affected checks before commit.',
-          '10. Deferrals: document deliberately postponed work in the relevant document deferred section.',
-        ],
-      },
     ],
   },
   {
     fileName: '009-doc-generation.md',
     title: '009 Doc Generation',
     status: 'normative',
-    sourceOfTruth: 'libs/api/workflow-language/scripts/generate-formalization-docs.ts',
+    generatorOwner: '@shipfox/api-workflow-language',
+    sourceOfTruth:
+      'libs/api/workflow-language/scripts/generate-formalization-docs.ts and libs/api/workflows/scripts/generate-formalization-docs.ts',
     purpose: ['Explain how generated formalization documentation is produced and reviewed.'],
     normativeModel: [
       '- Generated sections are delimited by generated markers.',
+      '- Generated facts are owned by the package that owns the source code they describe.',
       '- The generator must be deterministic.',
       '- Generated docs are committed with the code that changes them.',
       '- Do not include wall-clock timestamps in generated output.',
     ],
     generatedLines: [
-      '- Package generator command: `pnpm --filter=@shipfox/api-workflow-language generate:docs`.',
-      '- Turbo generator command: `turbo generate:docs --filter=@shipfox/api-workflow-language`.',
+      '- Workflow-language generator command: `pnpm --filter=@shipfox/api-workflow-language generate:docs`.',
+      '- Workflows generator command: `pnpm --filter=@shipfox/api-workflows generate:docs`.',
+      '- Combined Turbo generator command: `turbo generate:docs --filter=@shipfox/api-workflow-language --filter=@shipfox/api-workflows`.',
       '- Generator script owner: `libs/api/workflow-language/scripts/generate-formalization-docs.ts`.',
+      '- Runtime generator script owner: `libs/api/workflows/scripts/generate-formalization-docs.ts`.',
       '- Generated content model owner: `libs/api/workflow-language/src/docs/formalization-doc-model.ts`.',
+      '- Type reference extractor owner: `libs/api/workflow-language/src/docs/typescript-type-reference.ts`.',
+      '- `004-core-ir.md` renders exported IR type aliases from `workflow-ir.ts` and `expression-ir.ts`.',
       '- Committed-output test owner: `libs/api/workflow-language/src/docs/formalization-doc-model.test.ts`.',
+      '- Runtime committed-output test owner: `libs/api/workflows/src/docs/runtime-formalization-doc-model.test.ts`.',
       '- Generated section marker is exported as `generatedSectionMarker`.',
+      renderDocGenerationCapabilityReference(docGenerationCapabilityReference),
     ],
     examples: [
       'Run the generator twice without code changes; the second run should produce no diff.',
@@ -398,15 +421,28 @@ export const formalizationDocs: readonly FormalizationDoc[] = [
       {
         title: 'Review Checklist',
         body: [
-          '- Run `turbo generate:docs --filter=@shipfox/api-workflow-language` after changing the doc model or generated facts.',
-          '- Run `turbo test --filter=@shipfox/api-workflow-language...` so the committed-output test verifies generated docs.',
+          '- Run `turbo generate:docs --filter=@shipfox/api-workflow-language --filter=@shipfox/api-workflows` after changing the doc model or generated facts.',
+          '- Run package tests so committed-output tests verify generated docs: `turbo test --filter=@shipfox/api-workflow-language... --filter=@shipfox/api-workflows...`.',
           '- Confirm a second generator run produces no diff.',
           '- Keep generated output free of timestamps, random ordering, environment-specific paths, and temporary planning references.',
+        ],
+      },
+      {
+        title: 'Runtime Docs Ownership',
+        body: [
+          '- `@shipfox/api-workflow-language` owns docs for the YAML surface, CUE formalization artifact, expression IR, core IR, static semantics, extension process, README catalog, and this generation process.',
+          '- `@shipfox/api-workflows` owns generated facts for `006-runtime-transitions.md` and `007-durable-execution-host.md` because those facts describe runtime state, events, commands, Temporal workflows, activities, and persistence adapters in the workflows package.',
+          '- Runtime docs must not be generated by importing `@shipfox/api-workflows` into `@shipfox/api-workflow-language`; that would invert the package dependency direction.',
+          '- Use Turbo to run both package-owned generators when a change may affect multiple generated docs.',
         ],
       },
     ],
   },
 ];
+
+export const workflowLanguageFormalizationDocs = formalizationDocs.filter(
+  (doc) => doc.generatorOwner === '@shipfox/api-workflow-language',
+);
 
 function renderBlock(lines: readonly string[]): string {
   return lines.length === 0 ? 'None.' : lines.join('\n\n');
@@ -430,7 +466,7 @@ export function renderFormalizationDoc(doc: FormalizationDoc): string {
 }
 
 export function renderFormalizationDocs(
-  docs: readonly FormalizationDoc[] = formalizationDocs,
+  docs: readonly FormalizationDoc[] = workflowLanguageFormalizationDocs,
 ): ReadonlyMap<string, string> {
   return new Map(docs.map((doc) => [doc.fileName, renderFormalizationDoc(doc)]));
 }

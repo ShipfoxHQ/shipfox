@@ -1,6 +1,6 @@
 # 005 Static Semantics
 
-Status: draft
+Status: normative
 Source of truth: libs/api/workflow-language/src/core/static-semantics/diagnostic.ts
 
 ## Purpose
@@ -21,17 +21,20 @@ Document reusable validation rules over WorkflowIR.
 
 - Static check owner: `libs/api/workflow-language/src/core/static-semantics/validate-workflow-ir.ts`.
 
-- `SS001_UNKNOWN_JOB_DEPENDENCY`: dependency edge references a missing job.
+- Dependency edges point prerequisite -> dependent: `from` is the needed job, and `to` is the job that declared `needs`.
 
-- `SS002_SELF_JOB_DEPENDENCY`: dependency edge points from a job to itself.
+### Generated Static Diagnostic Reference
 
-- `SS003_CYCLIC_JOB_DEPENDENCY`: dependency graph contains a cycle.
-
-- `SS004_UNKNOWN_DEPENDENT_JOB`: dependency edge targets a missing job.
+| ID | Severity | Condition | Path Shape | Message Example | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `SS001_UNKNOWN_JOB_DEPENDENCY` | error | A dependency edge `from` prerequisite is not present in `WorkflowIR.jobs`. | `["jobs", <dependent sourceName>, "needs"]` | Job "build" depends on unknown job "missing" | Produced for authoring references such as `needs: missing` after surface normalization. |
+| `SS002_SELF_JOB_DEPENDENCY` | error | A dependency edge starts and ends at the same existing job ID. | `["jobs", <job sourceName>, "needs"]` | Job "build" depends on itself | Reported before cycle analysis because self-dependencies are direct reference errors. |
+| `SS003_CYCLIC_JOB_DEPENDENCY` | error | All dependency endpoints resolve, no self-dependencies are present, and the job graph contains a cycle. | `["jobs"]` | Circular dependency detected among jobs: a, b, c | Reported only after reference diagnostics are absent so cycle analysis uses resolvable edges. |
+| `SS004_UNKNOWN_DEPENDENT_JOB` | error | A dependency edge `to` dependent is not present in `WorkflowIR.jobs`. | `["dependencies", <edge index>, "to"]` | Dependency edge targets unknown job "missing" | Primarily protects hand-built or future cached IR because YAML normalization creates target jobs from the job map. |
 
 - Reference diagnostics are reported before cycle diagnostics because cycle analysis requires resolvable edge endpoints.
 
-- Static diagnostics use `JobIR.sourceName` when reporting author-facing job names and paths.
+- Diagnostics with a resolved author-facing job use `JobIR.sourceName`; `SS004_UNKNOWN_DEPENDENT_JOB` reports by dependency edge index because its target job is absent.
 <!-- generated:end -->
 
 ## Examples

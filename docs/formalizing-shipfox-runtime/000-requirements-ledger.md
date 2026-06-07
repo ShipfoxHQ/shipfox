@@ -28,6 +28,28 @@ This document is the repo-owned ledger for reviewers. It does not depend on temp
 - PR1 documentation is written under `docs/formalizing-shipfox-runtime/`.
 
 - Generated docs are checked by `libs/api/workflow-language/src/docs/formalization-doc-model.test.ts`.
+
+### Generated PR1 Requirement Status
+
+| Requirement | PR1 Status | Primary Docs | Primary Code |
+| --- | --- | --- | --- |
+| Preserve current YAML surface and public wire names | Included | `001-yaml-surface.md` | `libs/api/definitions-dto`, `libs/api/definitions` |
+| Rename TypeScript surface concepts away from `WorkflowSpec` | Included | `001-yaml-surface.md` | `libs/api/workflow-language/src/core/surface` |
+| Provide a CUE formalization artifact without accepting CUE input | Included | `002-cue-schema.md` | `libs/api/workflow-language/src/core/surface/surface-workflow-document-cue.ts` |
+| Normalize YAML surface documents into `WorkflowIR` | Included | `004-core-ir.md` | `libs/api/workflow-language/src/core/ir` |
+| Reuse static semantics for validation and run creation | Included | `005-static-semantics.md` | `libs/api/workflow-language/src/core/static-semantics`, `libs/api/definitions`, `libs/api/workflows` |
+| Create workflow runs from normalized IR | Included | `004-core-ir.md`, `005-static-semantics.md` | `libs/api/workflows/src/core/run-workflow.ts`, `libs/api/workflows/src/db/workflow-runs.ts` |
+| Formalize job-level runtime transitions with golden traces | Included | `006-runtime-transitions.md` | `libs/api/workflows/src/core/runtime` |
+| Delegate Temporal scheduling decisions to the runtime kernel | Included | `007-durable-execution-host.md` | `libs/api/workflows/src/temporal/workflows/run-orchestration.ts` |
+| Define process for new formalized concepts | Included | `008-adding-new-concepts.md` | `libs/api/workflow-language/src/docs/formalization-process-reference.ts` |
+| Document generated-doc workflow | Included | `009-doc-generation.md` | `libs/api/workflow-language/scripts/generate-formalization-docs.ts` |
+| Public wire rename from `definition` to `document` | Deferred | `001-yaml-surface.md` | deferred |
+| CUE as an accepted authoring surface | Deferred | `002-cue-schema.md` | deferred |
+| Custom expression parser and `gate.success_if` evaluation | Deferred | `003-expression-language.md` | deferred |
+| Cached WorkflowIR persistence | Deferred | `004-core-ir.md` | deferred |
+| Runtime state snapshots | Deferred | `006-runtime-transitions.md`, `007-durable-execution-host.md` | deferred |
+| Step-level runtime transitions | Deferred | `006-runtime-transitions.md` | deferred |
+| Pipelined child workflow scheduling across sibling branches | Deferred | `007-durable-execution-host.md` | deferred |
 <!-- generated:end -->
 
 ## Examples
@@ -42,42 +64,6 @@ Add a requirement row before implementing a new formalized concept, then update 
 
 - See the PR1 Requirement Status table for included and deferred work.
 
-## PR1 Requirement Status
+## Related Exploratory Docs
 
-| Requirement | PR1 status | Primary docs | Primary code |
-
-| --- | --- | --- | --- |
-
-| Preserve current YAML surface and public wire names | Included | `001-yaml-surface.md` | `libs/api/definitions-dto`, `libs/api/definitions` |
-
-| Rename TypeScript surface concepts away from `WorkflowSpec` | Included | `001-yaml-surface.md` | `libs/api/workflow-language/src/core/surface/` |
-
-| Provide a CUE formalization artifact without accepting CUE input | Included | `002-cue-schema.md` | `libs/api/workflow-language/src/core/surface/surface-workflow-document-cue.ts` |
-
-| Normalize YAML surface documents into `WorkflowIR` | Included | `004-core-ir.md` | `libs/api/workflow-language/src/core/ir/` |
-
-| Reuse static semantics for validation and run creation | Included | `005-static-semantics.md` | `libs/api/workflow-language/src/core/static-semantics/`, `libs/api/definitions`, `libs/api/workflows` |
-
-| Create workflow runs from normalized IR | Included | `004-core-ir.md`, `005-static-semantics.md` | `libs/api/workflows/src/core/run-workflow.ts`, `libs/api/workflows/src/db/workflow-runs.ts` |
-
-| Formalize job-level runtime transitions with golden traces | Included | `006-runtime-transitions.md` | `libs/api/workflows/src/core/runtime/` |
-
-| Delegate Temporal scheduling decisions to the runtime kernel | Included | `007-durable-shell.md` | `libs/api/workflows/src/temporal/workflows/run-orchestration.ts` |
-
-| Define process for new formalized concepts | Included | `008-adding-new-concepts.md` | `libs/api/workflow-language/src/docs/formalization-doc-model.ts` |
-
-| Document generated-doc workflow | Included | `009-doc-generation.md` | `libs/api/workflow-language/scripts/generate-formalization-docs.ts` |
-
-| Public wire rename from `definition` to `document` | Deferred | `001-yaml-surface.md` | deferred |
-
-| CUE as an accepted authoring surface | Deferred | `002-cue-schema.md` | deferred |
-
-| Custom expression parser and `gate.success_if` evaluation | Deferred | `003-expression-language.md` | deferred |
-
-| Cached WorkflowIR persistence | Deferred | `004-core-ir.md` | deferred |
-
-| Runtime state snapshots | Deferred | `006-runtime-transitions.md`, `007-durable-shell.md` | deferred |
-
-| Step-level runtime transitions | Deferred | `006-runtime-transitions.md` | deferred |
-
-| Pipelined child workflow scheduling across sibling branches | Deferred | `007-durable-shell.md` | deferred |
+- `010-future-platform-use-cases.md` captures future platform examples. Its YAML snippets are non-normative and do not define accepted PR1 syntax.

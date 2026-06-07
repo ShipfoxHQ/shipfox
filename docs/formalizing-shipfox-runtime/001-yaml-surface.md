@@ -1,6 +1,6 @@
 # 001 YAML Surface
 
-Status: draft
+Status: normative
 Source of truth: libs/api/workflow-language/src/core/surface/surface-workflow-document.ts
 
 ## Purpose
@@ -30,6 +30,54 @@ This document tracks compatibility constraints for the surface schema owned by w
 - Surface compatibility mode: required workflow name, trigger map, HTTP `definition` field, SQL `definition` column.
 
 - Validate-route compatibility mode: response field `spec` and error code `invalid-definition-spec` remain stable.
+
+### Generated Surface Schema Reference
+
+#### SurfaceWorkflowDocument
+
+| Field | Presence | Type | Notes |
+| --- | --- | --- | --- |
+| `name` | required | `non-empty string` | Workflow display name and workflow ID source. |
+| `triggers` | optional | `map<string, SurfaceTrigger>` | Map keyed by trigger name. PR1 does not accept trigger-list authoring. |
+| `runner` | optional | `string \| string[]` | Workflow-level runner selector normalized to `RunnerSelectorIR \| null`. |
+| `jobs` | required | `map<string, SurfaceJob>` | Map keyed by job name. Job keys become source names for diagnostics. |
+
+#### SurfaceTrigger
+
+| Field | Presence | Type | Notes |
+| --- | --- | --- | --- |
+| `source` | required | `string` | Trigger provider or source name. |
+| `event` | optional | `string` | `manual` triggers default this to `fire`; other sources must provide it. |
+| `on` | optional | `string \| string[]` | Provider-specific event target filter, normalized to a string list or `null`. |
+| `with` | optional | `record<string, unknown>` | Provider-specific payload forwarded into trigger IR as structured data. |
+| `filter` | optional | `string` | PR1 preserves the filter string; expression parsing remains deferred. |
+
+#### SurfaceJob
+
+| Field | Presence | Type | Notes |
+| --- | --- | --- | --- |
+| `needs` | optional | `string \| string[]` | Job dependency references by authored job name. |
+| `runner` | optional | `string \| string[]` | Job-level runner selector normalized to `RunnerSelectorIR \| null`. |
+| `steps` | required | `SurfaceRunStep[] with at least one item` | PR1 accepts only run steps. |
+
+#### SurfaceRunStep
+
+| Field | Presence | Type | Notes |
+| --- | --- | --- | --- |
+| `run` | required | `string` | Shell command executed by the runner. |
+| `name` | optional | `string` | Optional author-facing step name used when deriving stable step IDs. |
+
+### Generated Surface Validation Rules
+
+| Rule | Scope | Source | Behavior |
+| --- | --- | --- | --- |
+| `surface-root-object` | YAML parse result | `validateSurfaceWorkflowDocument` | The parsed workflow definition must be a YAML object, not `null`, an array, or a scalar. |
+| `surface-name-required` | SurfaceWorkflowDocument.name | `surfaceWorkflowDocumentSchema` | `name` must be a non-empty string. |
+| `surface-jobs-map` | SurfaceWorkflowDocument.jobs | `surfaceWorkflowDocumentSchema` | `jobs` must be a map keyed by authored job name. |
+| `surface-job-steps-required` | SurfaceJob.steps | `surfaceJobSchema` | Each job must contain at least one run step. |
+| `surface-trigger-event-required` | SurfaceTrigger.event | `surfaceTriggerSchema` | Trigger `event` is required unless `source` is `manual`, which defaults to `fire`. |
+| `surface-single-manual-trigger` | SurfaceWorkflowDocument.triggers | `surfaceWorkflowDocumentSchema` | A workflow may declare at most one manual trigger. |
+| `surface-yaml-syntax` | YAML parser | `parseYamlSurfaceWorkflowDocument` | Invalid YAML syntax is returned as a validation error instead of throwing. |
 <!-- generated:end -->
 
 ## Examples

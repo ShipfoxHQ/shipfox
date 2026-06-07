@@ -1,6 +1,6 @@
 # 004 Core IR
 
-Status: draft
+Status: normative
 Source of truth: libs/api/workflow-language/src/core/ir/workflow-ir.ts
 
 ## Purpose
@@ -29,19 +29,119 @@ Describe the normalized semantic model that workflow execution consumes.
 
 - Expression/default-gate owner: `libs/api/workflow-language/src/core/ir/expression-ir.ts`.
 
-- Trigger maps are sorted by trigger name and normalized to `TriggerIR[]`.
+- Expression IR type references are generated in `003-expression-language.md`.
 
-- Job maps are sorted by job name and normalized to `JobIR[]` for deterministic IDs.
+### Generated IR Normalization Rule Reference
 
-- `JobIR.sourceName` preserves the surface map key for author-facing diagnostics.
+| Concept | Surface Input | IR Behavior | Owner |
+| --- | --- | --- | --- |
+| Workflow identity | `name` | `WorkflowIR.id` is slugified from the workflow name; `WorkflowIR.name` preserves the original name. | `libs/api/workflow-language/src/core/ir/normalize-surface-document.ts` |
+| Trigger map ordering | `triggers` map keys | Trigger names are sorted before assigning collision-safe IDs and emitting `TriggerIR[]`. | `libs/api/workflow-language/src/core/ir/normalize-surface-document.ts` |
+| Job map ordering | `jobs` map keys | Job names are sorted before assigning collision-safe IDs and emitting deterministic `JobIR[]`. | `libs/api/workflow-language/src/core/ir/normalize-surface-document.ts` |
+| Authored job order | `jobs` map key insertion order | `JobIR.position` preserves authored order while `JobIR.sourceName` preserves the authored key. | `libs/api/workflow-language/src/core/ir/normalize-surface-document.ts` |
+| Dependency edges | job `needs` | Dependencies emit prerequisite-to-dependent edges as `{from, to}` and sort by `from` then `to`. | `libs/api/workflow-language/src/core/ir/normalize-surface-document.ts` |
+| Unresolved dependencies | job `needs` entry with no matching job key | The unresolved surface reference is preserved for static semantics instead of being slugified. | `libs/api/workflow-language/src/core/ir/normalize-surface-document.ts` |
+| Runner selector | workflow or job `runner` string or string array | Strings normalize to a single-item selector, arrays pass through, and omitted selectors become `null`. | `libs/api/workflow-language/src/core/ir/normalize-surface-document.ts` |
+| Run steps | job `steps[].run` | Run steps flatten into workflow-level `StepIR[]` and job-local `StepId[]` references. | `libs/api/workflow-language/src/core/ir/normalize-surface-document.ts` |
+| Default acceptance | run step without custom gate expression | Each run step receives the typed `default_run_exit_code` acceptance policy from `libs/api/workflow-language/src/core/ir/expression-ir.ts`. | `libs/api/workflow-language/src/core/ir/normalize-surface-document.ts` |
 
-- `JobIR.position` preserves the authored job order for persistence and UI ordering.
+### Generated IR ID Rule Reference
 
-- Job and trigger IDs are slugified from surface map keys with numeric suffixes for collisions.
-
-- Step IDs use `<job-id>.<slugified step name or run command>` with numeric suffixes for collisions.
+| Rule | Input | Generated ID | Owner | Notes |
+| --- | --- | --- | --- | --- |
+| Trim and lowercase ID parts | `" Build Main "` | `build-main` | `libs/api/workflow-language/src/core/ir/ids.ts` | Used for workflow, trigger, job, and step ID parts. |
+| Replace non-alphanumeric runs with one hyphen | `"build_main/main"` | `build-main-main` | `libs/api/workflow-language/src/core/ir/ids.ts` | Underscores, spaces, slashes, and other punctuation are separators. |
+| Strip edge hyphens and fall back to `item` | `"!!!"` | `item` | `libs/api/workflow-language/src/core/ir/ids.ts` | The fallback keeps every IR entity addressable after slugification. |
+| Append numeric suffixes for collisions | `base = "build-main"`, used IDs contain `build-main` | `build-main-2` | `libs/api/workflow-language/src/core/ir/ids.ts` | Suffixes start at `-2` and advance until the ID is unused. |
+| Prefer explicit step names over run commands | `jobId = "build"`, `name = "Install deps"`, `run = "pnpm install"` | `build.install-deps` | `libs/api/workflow-language/src/core/ir/ids.ts` | A named step keeps a stable semantic ID even if its command changes. |
+| Use run commands for anonymous step IDs | `jobId = "build"`, `run = "pnpm install"` | `build.pnpm-install` | `libs/api/workflow-language/src/core/ir/ids.ts` | Anonymous steps are still collision-safe within the workflow. |
 
 - The only PR1 acceptance policy in IR is `default_run_exit_code` with a typed `exit_code == 0` expression.
+
+### Generated IR Type Reference
+
+#### WorkflowId
+
+Alias: `string`.
+
+#### TriggerId
+
+Alias: `string`.
+
+#### JobId
+
+Alias: `string`.
+
+#### StepId
+
+Alias: `string`.
+
+#### RunnerSelectorIR
+
+Alias: `readonly string[]`.
+
+#### WorkflowIR
+
+| Field | Type |
+| --- | --- |
+| `id` | `WorkflowId` |
+| `name` | `string` |
+| `triggers` | `readonly TriggerIR[]` |
+| `runner` | `RunnerSelectorIR \| null` |
+| `jobs` | `readonly JobIR[]` |
+| `steps` | `readonly StepIR[]` |
+| `dependencies` | `readonly JobDependencyIR[]` |
+
+#### TriggerIR
+
+| Field | Type |
+| --- | --- |
+| `id` | `TriggerId` |
+| `source` | `string` |
+| `event` | `string` |
+| `on` | `readonly string[] \| null` |
+| `with` | `Readonly<Record<string, unknown>> \| null` |
+| `filter` | `string \| null` |
+
+#### JobIR
+
+| Field | Type |
+| --- | --- |
+| `id` | `JobId` |
+| `sourceName` | `string` |
+| `position` | `number` |
+| `dependencies` | `readonly JobId[]` |
+| `runner` | `RunnerSelectorIR \| null` |
+| `steps` | `readonly StepId[]` |
+
+#### JobDependencyIR
+
+| Field | Type |
+| --- | --- |
+| `from` | `JobId` |
+| `to` | `JobId` |
+
+#### StepIR
+
+Alias: `RunStepIR`.
+
+#### RunStepIR
+
+| Field | Type |
+| --- | --- |
+| `kind` | `'run'` |
+| `id` | `StepId` |
+| `jobId` | `JobId` |
+| `name` | `string \| null` |
+| `command` | `RunCommandIR` |
+| `acceptance` | `AcceptancePolicyIR` |
+
+#### RunCommandIR
+
+| Field | Type |
+| --- | --- |
+| `kind` | `'shell'` |
+| `value` | `string` |
 <!-- generated:end -->
 
 ## Examples

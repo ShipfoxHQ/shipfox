@@ -1,6 +1,6 @@
 # 002 CUE Schema
 
-Status: draft
+Status: normative
 Source of truth: libs/api/workflow-language/src/core/surface/surface-workflow-document-cue.ts
 
 ## Purpose
@@ -22,6 +22,33 @@ PR1 does not accept CUE files as workflow authoring input.
 - CUE authoring input support: deferred.
 
 - CUE schema execution in CI: deferred unless the PR adds the `cue` CLI deliberately.
+
+### Generated PR1 CUE Boundary
+
+| Capability | PR1 Status | Behavior | Next Required Work |
+| --- | --- | --- | --- |
+| CUE formalization artifact | included | The committed CUE string formalizes the object shape produced by YAML parsing. | Keep the artifact and the generated Zod-to-CUE field map aligned. |
+| CUE authoring input | deferred | Workflow definitions are still authored through the current YAML ingestion path. | Add a dedicated parser, validation path, DTO tests, and UI/API acceptance rules. |
+| CUE CLI validation | deferred | CI does not execute the `cue` CLI for PR1. | Add the toolchain deliberately before treating CUE execution as a required check. |
+
+### Generated Zod To CUE Field Map
+
+| Surface Object | CUE Definition | Field | Presence | Surface Type | CUE Type |
+| --- | --- | --- | --- | --- | --- |
+| SurfaceWorkflowDocument | `#SurfaceWorkflowDocument` | `name` | required | `non-empty string` | `string & != ""` |
+| SurfaceWorkflowDocument | `#SurfaceWorkflowDocument` | `triggers` | optional | `map<string, SurfaceTrigger>` | `[string]: #Trigger` |
+| SurfaceWorkflowDocument | `#SurfaceWorkflowDocument` | `runner` | optional | `string \| string[]` | `#StringOrStringList` |
+| SurfaceWorkflowDocument | `#SurfaceWorkflowDocument` | `jobs` | required | `map<string, SurfaceJob>` | `[string]: #Job` |
+| SurfaceTrigger | `#Trigger` | `source` | required | `string` | `string` |
+| SurfaceTrigger | `#Trigger` | `event` | optional | `string` | `string` |
+| SurfaceTrigger | `#Trigger` | `on` | optional | `string \| string[]` | `#StringOrStringList` |
+| SurfaceTrigger | `#Trigger` | `with` | optional | `record<string, unknown>` | `{...}` |
+| SurfaceTrigger | `#Trigger` | `filter` | optional | `string` | `string` |
+| SurfaceJob | `#Job` | `needs` | optional | `string \| string[]` | `#StringOrStringList` |
+| SurfaceJob | `#Job` | `runner` | optional | `string \| string[]` | `#StringOrStringList` |
+| SurfaceJob | `#Job` | `steps` | required | `SurfaceRunStep[] with at least one item` | `[#RunStep, ...#RunStep]` |
+| SurfaceRunStep | `#RunStep` | `run` | required | `string` | `string` |
+| SurfaceRunStep | `#RunStep` | `name` | optional | `string` | `string` |
 
 ```cue
 // SurfaceWorkflowDocument formalizes the object produced by YAML parsing.

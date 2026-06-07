@@ -15,38 +15,39 @@ export const surfaceJobSchema = z.object({
 
 export type SurfaceJob = z.infer<typeof surfaceJobSchema>;
 
-export const surfaceTriggerSchema = z
-  .object({
-    source: z.string(),
-    event: z.string().optional(),
-    on: z.union([z.string(), z.array(z.string())]).optional(),
-    with: z.record(z.string(), z.unknown()).optional(),
-    filter: z.string().optional(),
-  })
-  .transform((value, ctx) => {
-    const event = value.event ?? (value.source === 'manual' ? 'fire' : undefined);
-    if (!event) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `event is required for source '${value.source}'`,
-        path: ['event'],
-      });
-      return z.NEVER;
-    }
+// Keep the pre-transform object schema named so docs/tests can verify the authoring shape.
+export const surfaceTriggerInputSchema = z.object({
+  source: z.string(),
+  event: z.string().optional(),
+  on: z.union([z.string(), z.array(z.string())]).optional(),
+  with: z.record(z.string(), z.unknown()).optional(),
+  filter: z.string().optional(),
+});
 
-    // Omit undefined properties so exactOptionalPropertyTypes matches the domain type.
-    const result: {
-      source: string;
-      event: string;
-      on?: string | string[];
-      with?: Record<string, unknown>;
-      filter?: string;
-    } = {source: value.source, event};
-    if (value.on !== undefined) result.on = value.on;
-    if (value.with !== undefined) result.with = value.with;
-    if (value.filter !== undefined) result.filter = value.filter;
-    return result;
-  });
+export const surfaceTriggerSchema = surfaceTriggerInputSchema.transform((value, ctx) => {
+  const event = value.event ?? (value.source === 'manual' ? 'fire' : undefined);
+  if (!event) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `event is required for source '${value.source}'`,
+      path: ['event'],
+    });
+    return z.NEVER;
+  }
+
+  // Omit undefined properties so exactOptionalPropertyTypes matches the domain type.
+  const result: {
+    source: string;
+    event: string;
+    on?: string | string[];
+    with?: Record<string, unknown>;
+    filter?: string;
+  } = {source: value.source, event};
+  if (value.on !== undefined) result.on = value.on;
+  if (value.with !== undefined) result.with = value.with;
+  if (value.filter !== undefined) result.filter = value.filter;
+  return result;
+});
 
 export type SurfaceTrigger = z.infer<typeof surfaceTriggerSchema>;
 

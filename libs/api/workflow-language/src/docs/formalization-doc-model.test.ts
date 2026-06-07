@@ -1,12 +1,16 @@
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {
-  formalizationDocs,
   generatedSectionEnd,
   generatedSectionMarker,
   generatedSectionStart,
   renderFormalizationDocs,
+  workflowLanguageFormalizationDocs,
 } from './formalization-doc-model.js';
+import {
+  formalizationReadmeFileName,
+  renderFormalizationReadme,
+} from './formalization-readme-model.js';
 
 const repoRoot = resolve(import.meta.dirname, '../../../../..');
 const docsDir = resolve(repoRoot, 'docs/formalizing-shipfox-runtime');
@@ -17,7 +21,9 @@ describe('renderFormalizationDocs', () => {
     const secondRender = renderFormalizationDocs();
 
     expect([...firstRender.entries()]).toEqual([...secondRender.entries()]);
-    expect([...firstRender.keys()]).toEqual(formalizationDocs.map((doc) => doc.fileName));
+    expect([...firstRender.keys()]).toEqual(
+      workflowLanguageFormalizationDocs.map((doc) => doc.fileName),
+    );
   });
 
   it('delimits generated sections in every document', () => {
@@ -37,5 +43,11 @@ describe('renderFormalizationDocs', () => {
       const committedContent = await readFile(resolve(docsDir, fileName), 'utf8');
       expect(committedContent).toBe(content);
     }
+  });
+
+  it('matches the committed formalization README', async () => {
+    const committedContent = await readFile(resolve(docsDir, formalizationReadmeFileName), 'utf8');
+
+    expect(committedContent).toBe(renderFormalizationReadme());
   });
 });
