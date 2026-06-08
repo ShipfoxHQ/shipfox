@@ -22,6 +22,7 @@ export type RuntimeFormalizationDoc = Readonly<{
   examples: readonly string[];
   addingOrChanging: readonly string[];
   deferredWork: readonly string[];
+  extraSections?: readonly RuntimeFormalizationDocSection[];
 }>;
 
 export const runtimeGeneratedSectionMarker =
@@ -34,6 +35,11 @@ type RuntimeTransitionRuleReference = Readonly<{
   rule: string;
   input: string;
   output: string;
+}>;
+
+type RuntimeFormalizationDocSection = Readonly<{
+  title: string;
+  body: readonly string[];
 }>;
 
 const runtimeStateSource = readFileSync(
@@ -134,6 +140,35 @@ export const runtimeFormalizationDocs: readonly RuntimeFormalizationDoc[] = [
       'Add transition metadata, golden traces, durable execution host updates, and docs in the same commit sequence.',
     ],
     deferredWork: ['- Step-level runtime transitions.', '- Runtime state snapshots.'],
+    extraSections: [
+      {
+        title: 'Architecture Role',
+        body: [
+          'The pure runtime kernel is the semantic decision layer for workflow execution. It receives normalized runtime state and a runtime event, then returns the next state plus commands for the durable execution host to interpret.',
+          'The kernel must stay independent from Temporal, PostgreSQL, runners, agents, GitHub, shell commands, clocks, queues, and network APIs. That boundary makes runtime behavior deterministic, replayable, and testable through unit tests and golden traces.',
+          'PR1 keeps the kernel job-level: it decides when jobs start, when blocked jobs are cancelled, and when the run reaches a terminal status. Step-level execution, command execution, and external side effects remain outside this kernel.',
+        ],
+      },
+      {
+        title: 'Kernel Data Flow',
+        body: [
+          '```mermaid\nflowchart LR\n  ir["WorkflowIR"]\n  persisted["Persisted run, jobs, and dependencies"]\n  state["RuntimeState"]\n  event["RuntimeEvent"]\n  kernel["advanceRuntimeState<br/>pure transition kernel"]\n  next["Next RuntimeState"]\n  commands["RuntimeCommand[]"]\n  host["Durable execution host"]\n\n  ir --> persisted\n  persisted --> state\n  event --> kernel\n  state --> kernel\n  kernel --> next\n  kernel --> commands\n  commands --> host\n  host -. completion signals .-> event\n```',
+        ],
+      },
+      {
+        title: 'Kernel Responsibilities',
+        body: [
+          [
+            '| Responsibility | Current PR1 Scope | Outside The Kernel |',
+            '| --- | --- | --- |',
+            '| Readiness | Start a pending job when all declared dependencies succeeded. | Selecting a physical runner or executing job steps. |',
+            '| Blocking | Cancel pending jobs whose dependencies failed or were cancelled. | Force-stopping active runner work. |',
+            '| Completion | Complete the run once every job is terminal. | Persisting the completion row or publishing events. |',
+            '| Replayability | Produce deterministic commands from state and event. | Timers, retries, backoff, wall-clock reads, database writes, and network calls. |',
+          ].join('\n'),
+        ],
+      },
+    ],
   },
   {
     fileName: '007-durable-execution-host.md',
@@ -168,6 +203,36 @@ export const runtimeFormalizationDocs: readonly RuntimeFormalizationDoc[] = [
     deferredWork: [
       '- Runtime state snapshots.',
       '- Pipelined child workflow scheduling across sibling branches.',
+    ],
+    extraSections: [
+      {
+        title: 'Architecture Role',
+        body: [
+          'The durable execution host runs the pure runtime semantics in a reliable operational environment. It owns Temporal workflows, activities, persistence adapters, child workflow scheduling, timers, and future side-effect adapters.',
+          'The host does not decide workflow semantics directly. It loads durable state, converts external signals into runtime events, invokes the pure kernel, persists the resulting state changes, and adapts emitted commands into Temporal or activity work.',
+          'Runners sit behind this host boundary. A runner executes job work and reports completion; the durable host translates that completion into the next runtime event so the kernel can make the next semantic decision.',
+        ],
+      },
+      {
+        title: 'Execution Host Flow',
+        body: [
+          '```mermaid\nsequenceDiagram\n  participant Trigger as Trigger or API\n  participant Host as Durable execution host<br/>Temporal run orchestration\n  participant DB as PostgreSQL\n  participant Kernel as Pure runtime kernel\n  participant Job as Job orchestration\n  participant Runner as Runner or external system\n\n  Trigger->>Host: Start or signal workflow run\n  Host->>DB: Load persisted run state\n  Host->>Kernel: RuntimeState + RuntimeEvent\n  Kernel-->>Host: next state + RuntimeCommand[]\n  Host->>DB: Persist state transition\n  Host->>Job: Start child workflow for start_job\n  Job->>Runner: Execute job work\n  Runner-->>Job: Job completion\n  Job-->>Host: Completion signal\n  Host->>Kernel: job_completed event\n```',
+        ],
+      },
+      {
+        title: 'Main Components',
+        body: [
+          [
+            '| Component | Role | Owned In |',
+            '| --- | --- | --- |',
+            '| Run orchestration workflow | Hosts the run loop, interprets runtime commands, starts child job workflows, and applies durable status updates. | `libs/api/workflows/src/temporal/workflows/run-orchestration.ts` |',
+            '| Job orchestration workflow | Owns durable job execution, timeout handling, and job completion signaling. | `libs/api/workflows/src/temporal/workflows/job-orchestration.ts` |',
+            '| Orchestration activities | Perform database reads and writes that the pure kernel cannot perform. | `libs/api/workflows/src/temporal/activities/orchestration-activities.ts` |',
+            '| PostgreSQL workflow-run tables | Store normalized runs, jobs, dependencies, statuses, and versions derived from WorkflowIR. | `libs/api/workflows/src/db/` |',
+            '| Runner boundary | Executes concrete job work and eventually reports completion or failure back through orchestration. | `apps/runner`, `libs/api/runners` |',
+          ].join('\n'),
+        ],
+      },
     ],
   },
 ];
@@ -274,6 +339,9 @@ export function renderRuntimeFormalizationDoc(doc: RuntimeFormalizationDoc): str
     `Status: ${doc.status}\nSource of truth: ${doc.sourceOfTruth}`,
     `## Purpose\n\n${renderBlock(doc.purpose)}`,
     `## Normative Model\n\n${renderBlock(doc.normativeModel)}\n\n${runtimeGeneratedSectionMarker}\n${runtimeGeneratedSectionStart}\n${renderBlock(doc.generatedLines)}\n${runtimeGeneratedSectionEnd}`,
+    ...(doc.extraSections ?? []).map(
+      (section) => `## ${section.title}\n\n${renderBlock(section.body)}`,
+    ),
     `## Examples\n\n${renderBlock(doc.examples)}`,
     `## Adding Or Changing This Concept\n\n${renderBlock(doc.addingOrChanging)}`,
     `## Deferred Work\n\n${renderBlock(doc.deferredWork)}`,

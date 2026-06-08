@@ -132,6 +132,46 @@ Alias: `StartJobCommand | CancelJobCommand | CompleteRunCommand`.
 - Wall-clock timeout remains a Temporal durable execution host concern and is intentionally absent from the pure transition kernel.
 <!-- generated:end -->
 
+## Architecture Role
+
+The pure runtime kernel is the semantic decision layer for workflow execution. It receives normalized runtime state and a runtime event, then returns the next state plus commands for the durable execution host to interpret.
+
+The kernel must stay independent from Temporal, PostgreSQL, runners, agents, GitHub, shell commands, clocks, queues, and network APIs. That boundary makes runtime behavior deterministic, replayable, and testable through unit tests and golden traces.
+
+PR1 keeps the kernel job-level: it decides when jobs start, when blocked jobs are cancelled, and when the run reaches a terminal status. Step-level execution, command execution, and external side effects remain outside this kernel.
+
+## Kernel Data Flow
+
+```mermaid
+flowchart LR
+  ir["WorkflowIR"]
+  persisted["Persisted run, jobs, and dependencies"]
+  state["RuntimeState"]
+  event["RuntimeEvent"]
+  kernel["advanceRuntimeState<br/>pure transition kernel"]
+  next["Next RuntimeState"]
+  commands["RuntimeCommand[]"]
+  host["Durable execution host"]
+
+  ir --> persisted
+  persisted --> state
+  event --> kernel
+  state --> kernel
+  kernel --> next
+  kernel --> commands
+  commands --> host
+  host -. completion signals .-> event
+```
+
+## Kernel Responsibilities
+
+| Responsibility | Current PR1 Scope | Outside The Kernel |
+| --- | --- | --- |
+| Readiness | Start a pending job when all declared dependencies succeeded. | Selecting a physical runner or executing job steps. |
+| Blocking | Cancel pending jobs whose dependencies failed or were cancelled. | Force-stopping active runner work. |
+| Completion | Complete the run once every job is terminal. | Persisting the completion row or publishing events. |
+| Replayability | Produce deterministic commands from state and event. | Timers, retries, backoff, wall-clock reads, database writes, and network calls. |
+
 ## Examples
 
 A failed job cancels dependent jobs according to job-level dependency rules.

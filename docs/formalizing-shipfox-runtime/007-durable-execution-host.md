@@ -57,6 +57,47 @@ Describe how Temporal and persistence adapt pure runtime commands to durable exe
 - Current run orchestration awaits each emitted `start_job` batch as a batch before processing downstream commands.
 <!-- generated:end -->
 
+## Architecture Role
+
+The durable execution host runs the pure runtime semantics in a reliable operational environment. It owns Temporal workflows, activities, persistence adapters, child workflow scheduling, timers, and future side-effect adapters.
+
+The host does not decide workflow semantics directly. It loads durable state, converts external signals into runtime events, invokes the pure kernel, persists the resulting state changes, and adapts emitted commands into Temporal or activity work.
+
+Runners sit behind this host boundary. A runner executes job work and reports completion; the durable host translates that completion into the next runtime event so the kernel can make the next semantic decision.
+
+## Execution Host Flow
+
+```mermaid
+sequenceDiagram
+  participant Trigger as Trigger or API
+  participant Host as Durable execution host<br/>Temporal run orchestration
+  participant DB as PostgreSQL
+  participant Kernel as Pure runtime kernel
+  participant Job as Job orchestration
+  participant Runner as Runner or external system
+
+  Trigger->>Host: Start or signal workflow run
+  Host->>DB: Load persisted run state
+  Host->>Kernel: RuntimeState + RuntimeEvent
+  Kernel-->>Host: next state + RuntimeCommand[]
+  Host->>DB: Persist state transition
+  Host->>Job: Start child workflow for start_job
+  Job->>Runner: Execute job work
+  Runner-->>Job: Job completion
+  Job-->>Host: Completion signal
+  Host->>Kernel: job_completed event
+```
+
+## Main Components
+
+| Component | Role | Owned In |
+| --- | --- | --- |
+| Run orchestration workflow | Hosts the run loop, interprets runtime commands, starts child job workflows, and applies durable status updates. | `libs/api/workflows/src/temporal/workflows/run-orchestration.ts` |
+| Job orchestration workflow | Owns durable job execution, timeout handling, and job completion signaling. | `libs/api/workflows/src/temporal/workflows/job-orchestration.ts` |
+| Orchestration activities | Perform database reads and writes that the pure kernel cannot perform. | `libs/api/workflows/src/temporal/activities/orchestration-activities.ts` |
+| PostgreSQL workflow-run tables | Store normalized runs, jobs, dependencies, statuses, and versions derived from WorkflowIR. | `libs/api/workflows/src/db/` |
+| Runner boundary | Executes concrete job work and eventually reports completion or failure back through orchestration. | `apps/runner`, `libs/api/runners` |
+
 ## Examples
 
 Temporal can keep timeout handling while delegating readiness decisions to the kernel.

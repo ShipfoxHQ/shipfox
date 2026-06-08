@@ -39,6 +39,30 @@ See `008-adding-new-concepts.md` for the detailed rules, examples, and review ch
 
 The formalization separates authoring, validation, semantic decisions, and durable effects so each layer has a small responsibility and a clear owner.
 
+```mermaid
+flowchart TD
+  yaml["YAML source"]
+  surface["SurfaceWorkflowDocument<br/>authoring-compatible shape"]
+  cue["CUE formalization artifact<br/>schema and constraints reference"]
+  ir["WorkflowIR<br/>normalized semantic model"]
+  static["Static semantics<br/>stable diagnostics"]
+  run["Workflow run storage<br/>jobs and dependencies from IR"]
+  kernel["Pure runtime kernel<br/>events + state -> commands + state"]
+  host["Durable execution host<br/>Temporal workflows and activities"]
+  runner["Runners and external systems<br/>commands, agents, APIs, approvals"]
+
+  yaml --> surface
+  surface -. formalized by .-> cue
+  surface --> ir
+  ir --> static
+  static --> run
+  run --> kernel
+  kernel --> host
+  host --> runner
+  runner -. signals and completions .-> host
+  host -. runtime events .-> kernel
+```
+
 | Layer | Purpose | Owner |
 | --- | --- | --- |
 | YAML surface | Accept the current author-facing workflow syntax and preserve PR1 wire compatibility. | `@shipfox/api-workflow-language` |
