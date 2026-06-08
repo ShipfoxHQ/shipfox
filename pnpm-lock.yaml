@@ -2694,6 +2694,24 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/vitest
 
+  libs/shared/workflow/model:
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+
   libs/shared/workflow/yaml:
     dependencies:
       '@shipfox/workflow-document':
