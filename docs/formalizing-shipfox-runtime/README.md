@@ -19,6 +19,14 @@ YAML source
 
 This documentation set is the repo-owned version of that foundation. Future concepts, including a richer expression language, interpolation, and predicate/premise logic, should enter through the process in `008-adding-new-concepts.md` instead of being added directly to runtime code.
 
+## Surface Language Portability
+
+YAML is the only PR1 authoring surface, but the formalization must keep workflow concepts portable to future surfaces such as CUE, TypeScript SDKs, Python SDKs, generated workflows, and UI builders.
+
+Surface-specific parsers should accept syntax and produce Shipfox workflow concepts. They should not define unique runtime semantics. Defaults, inheritance, expression meaning, validation rules, and runtime behavior must be owned by normalization, IR, static semantics, and runtime semantics so equivalent workflows from different surfaces converge before execution.
+
+See `008-adding-new-concepts.md` for the detailed rules, examples, and review checklist.
+
 ## Architecture Overview
 
 The formalization separates authoring, validation, semantic decisions, and durable effects so each layer has a small responsibility and a clear owner.
