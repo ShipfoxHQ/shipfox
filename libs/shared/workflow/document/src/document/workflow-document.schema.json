@@ -29,78 +29,30 @@
         "minLength": 1
       },
       "additionalProperties": {
-        "anyOf": [
-          {
-            "type": "object",
-            "properties": {
-              "source": {
-                "type": "string",
-                "minLength": 1
-              },
-              "with": {
-                "type": "object",
-                "propertyNames": {
-                  "type": "string"
-                },
-                "additionalProperties": {}
-              },
-              "filter": {
-                "type": "string",
-                "minLength": 1
-              },
-              "event": {
-                "type": "string",
-                "minLength": 1
-              },
-              "on": {
-                "not": {}
-              }
-            },
-            "required": ["source", "event"],
-            "additionalProperties": false
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1
           },
-          {
+          "with": {
             "type": "object",
-            "properties": {
-              "source": {
-                "type": "string",
-                "minLength": 1
-              },
-              "with": {
-                "type": "object",
-                "propertyNames": {
-                  "type": "string"
-                },
-                "additionalProperties": {}
-              },
-              "filter": {
-                "type": "string",
-                "minLength": 1
-              },
-              "on": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  {
-                    "minItems": 1,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  }
-                ]
-              },
-              "event": {
-                "not": {}
-              }
+            "propertyNames": {
+              "type": "string"
             },
-            "required": ["source", "on"],
-            "additionalProperties": false
+            "additionalProperties": {}
+          },
+          "filter": {
+            "type": "string",
+            "minLength": 1
+          },
+          "event": {
+            "type": "string",
+            "minLength": 1
           }
-        ]
+        },
+        "required": ["source", "event"],
+        "additionalProperties": false
       },
       "minProperties": 1
     },

@@ -54,7 +54,7 @@ describe('workflowDocumentJsonSchema', () => {
       {name: 'simple build', triggers: {}, jobs: {build: {steps: [{run: 'npm test'}]}}},
     ],
     [
-      'trigger missing event and on',
+      'trigger missing event',
       {
         name: 'simple build',
         triggers: {github: {source: 'github'}},
@@ -62,7 +62,15 @@ describe('workflowDocumentJsonSchema', () => {
       },
     ],
     [
-      'trigger with both event and on',
+      'trigger with unsupported on',
+      {
+        name: 'simple build',
+        triggers: {github: {source: 'github', on: 'push'}},
+        jobs: {build: {steps: [{run: 'npm test'}]}},
+      },
+    ],
+    [
+      'trigger with unsupported on and event',
       {
         name: 'simple build',
         triggers: {github: {source: 'github', event: 'push', on: 'pull_request'}},

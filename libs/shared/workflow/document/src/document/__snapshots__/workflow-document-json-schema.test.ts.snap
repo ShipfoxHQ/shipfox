@@ -99,84 +99,33 @@ exports[`workflowDocumentJsonSchema > keeps the generated schema snapshot stable
     },
     "triggers": {
       "additionalProperties": {
-        "anyOf": [
-          {
-            "additionalProperties": false,
-            "properties": {
-              "event": {
-                "minLength": 1,
-                "type": "string",
-              },
-              "filter": {
-                "minLength": 1,
-                "type": "string",
-              },
-              "on": {
-                "not": {},
-              },
-              "source": {
-                "minLength": 1,
-                "type": "string",
-              },
-              "with": {
-                "additionalProperties": {},
-                "propertyNames": {
-                  "type": "string",
-                },
-                "type": "object",
-              },
+        "additionalProperties": false,
+        "properties": {
+          "event": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "filter": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "source": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "with": {
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string",
             },
-            "required": [
-              "source",
-              "event",
-            ],
             "type": "object",
           },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "event": {
-                "not": {},
-              },
-              "filter": {
-                "minLength": 1,
-                "type": "string",
-              },
-              "on": {
-                "anyOf": [
-                  {
-                    "minLength": 1,
-                    "type": "string",
-                  },
-                  {
-                    "items": {
-                      "minLength": 1,
-                      "type": "string",
-                    },
-                    "minItems": 1,
-                    "type": "array",
-                  },
-                ],
-              },
-              "source": {
-                "minLength": 1,
-                "type": "string",
-              },
-              "with": {
-                "additionalProperties": {},
-                "propertyNames": {
-                  "type": "string",
-                },
-                "type": "object",
-              },
-            },
-            "required": [
-              "source",
-              "on",
-            ],
-            "type": "object",
-          },
+        },
+        "required": [
+          "source",
+          "event",
         ],
+        "type": "object",
       },
       "minProperties": 1,
       "propertyNames": {

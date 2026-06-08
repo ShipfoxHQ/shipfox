@@ -14,18 +14,10 @@ const workflowDocumentTriggerBaseSchema = {
   filter: z.string().min(1).optional(),
 } satisfies z.ZodRawShape;
 
-export const workflowDocumentTriggerSchema = z.union([
-  z.strictObject({
-    ...workflowDocumentTriggerBaseSchema,
-    event: z.string().min(1),
-    on: z.never().optional(),
-  }),
-  z.strictObject({
-    ...workflowDocumentTriggerBaseSchema,
-    on: stringOrStringArraySchema,
-    event: z.never().optional(),
-  }),
-]);
+export const workflowDocumentTriggerSchema = z.strictObject({
+  ...workflowDocumentTriggerBaseSchema,
+  event: z.string().min(1),
+});
 
 export const workflowDocumentRunStepSchema = z.strictObject({
   name: z.string().min(1).optional(),

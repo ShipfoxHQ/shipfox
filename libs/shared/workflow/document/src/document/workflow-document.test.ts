@@ -95,14 +95,10 @@ describe('workflowDocumentSchema', () => {
     expect(result.triggers?.main_push?.filter).toBe('event.ref == "refs/heads/main"');
   });
 
-  it.each([
-    ['a trigger event string', {source: 'github', event: 'push'}],
-    ['a trigger on string', {source: 'github', on: 'push'}],
-    ['a trigger on array', {source: 'github', on: ['push', 'pull_request']}],
-  ])('accepts %s', (_label, trigger) => {
+  it('accepts a trigger event string', () => {
     const workflowDocument = {
       name: 'simple build',
-      triggers: {github: trigger},
+      triggers: {github: {source: 'github', event: 'push'}},
       jobs: {
         build: {
           steps: [{run: 'npm run build'}],
@@ -210,8 +206,10 @@ describe('workflowDocumentSchema', () => {
   });
 
   it.each([
-    ['missing event and on', {source: 'github'}],
-    ['both event and on', {source: 'github', event: 'push', on: 'pull_request'}],
+    ['a missing event', {source: 'github'}],
+    ['an unsupported on string', {source: 'github', on: 'push'}],
+    ['an unsupported on array', {source: 'github', on: ['push', 'pull_request']}],
+    ['an unsupported on field with event', {source: 'github', event: 'push', on: 'pull_request'}],
   ])('rejects a trigger with %s', (_label, trigger) => {
     const workflowDocument = {
       name: 'simple build',
