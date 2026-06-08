@@ -1,11 +1,13 @@
-import type {CompletionStatus, DagNode} from './dag.js';
-import {findBlockedNodes, findReadyNodes} from './dag.js';
+import type {RuntimeCompletionStatus, RuntimeDagNode} from './runtime-dag.js';
+import {findBlockedNodes, findReadyNodes} from './runtime-dag.js';
 
-function node(name: string, dependencies: string[] = []): DagNode {
+function node(name: string, dependencies: string[] = []): RuntimeDagNode {
   return {name, dependencies};
 }
 
-function completed(entries: Record<string, CompletionStatus>): Map<string, CompletionStatus> {
+function completed(
+  entries: Record<string, RuntimeCompletionStatus>,
+): Map<string, RuntimeCompletionStatus> {
   return new Map(Object.entries(entries));
 }
 
@@ -48,6 +50,30 @@ describe('findReadyNodes', () => {
     expect(ready).toEqual([]);
   });
 
+  test('does not return an already-failed node', () => {
+    const nodes = [node('a')];
+
+    const ready = findReadyNodes(nodes, completed({a: 'failed'}));
+
+    expect(ready).toEqual([]);
+  });
+
+  test('does not return nodes with dangling dependencies', () => {
+    const nodes = [node('a', ['missing'])];
+
+    const ready = findReadyNodes(nodes, completed({}));
+
+    expect(ready).toEqual([]);
+  });
+
+  test('preserves node-specific fields in ready results', () => {
+    const nodes = [{name: 'a', dependencies: [], id: 'job-a'}];
+
+    const ready = findReadyNodes(nodes, completed({}));
+
+    expect(ready).toEqual([{name: 'a', dependencies: [], id: 'job-a'}]);
+  });
+
   test('returns multiple independent nodes in parallel', () => {
     const nodes = [node('a'), node('b'), node('c', ['a', 'b'])];
 
@@ -74,6 +100,14 @@ describe('findBlockedNodes', () => {
 
   test('returns empty when no dependencies have failed', () => {
     const nodes = [node('a'), node('b', ['a'])];
+
+    const blocked = findBlockedNodes(nodes, completed({}));
+
+    expect(blocked).toEqual([]);
+  });
+
+  test('does not return nodes with dangling dependencies', () => {
+    const nodes = [node('a', ['missing'])];
 
     const blocked = findBlockedNodes(nodes, completed({}));
 
