@@ -1,6 +1,8 @@
 export {
   type ParseWorkflowYamlResult,
+  type ParseWorkflowYamlSourceResult,
   parseWorkflowYaml,
+  parseWorkflowYamlSource,
   type WorkflowYamlDiagnostic,
   type WorkflowYamlDiagnosticCode,
   type WorkflowYamlDiagnosticPathSegment,

@@ -1,7 +1,7 @@
 import {readFile} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {parseWorkflowYaml} from './parse-workflow-yaml.js';
+import {parseWorkflowYaml, parseWorkflowYamlSource} from './parse-workflow-yaml.js';
 
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), '../../test/fixtures');
 
@@ -97,5 +97,42 @@ jobs:
         path: ['jobs', 'build', 'steps', 0, 'run'],
       },
     ]);
+  });
+});
+
+describe('parseWorkflowYamlSource', () => {
+  it('parses YAML objects without applying workflow document validation', () => {
+    const result = parseWorkflowYamlSource(`
+name: legacy trigger
+triggers:
+  main:
+    source: github
+    event: push
+    on: main
+jobs:
+  build:
+    steps:
+      - run: npm test
+`);
+
+    expect(result).toEqual({
+      valid: true,
+      value: {
+        name: 'legacy trigger',
+        triggers: {
+          main: {
+            source: 'github',
+            event: 'push',
+            on: 'main',
+          },
+        },
+        jobs: {
+          build: {
+            steps: [{run: 'npm test'}],
+          },
+        },
+      },
+      diagnostics: [],
+    });
   });
 });

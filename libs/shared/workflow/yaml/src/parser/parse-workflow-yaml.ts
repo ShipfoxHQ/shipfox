@@ -29,7 +29,32 @@ export type ParseWorkflowYamlResult =
       diagnostics: readonly WorkflowYamlDiagnostic[];
     };
 
+export type ParseWorkflowYamlSourceResult =
+  | {
+      valid: true;
+      value: Record<string, unknown>;
+      diagnostics: readonly [];
+    }
+  | {
+      valid: false;
+      diagnostics: readonly WorkflowYamlDiagnostic[];
+    };
+
 export function parseWorkflowYaml(source: string): ParseWorkflowYamlResult {
+  const sourceResult = parseWorkflowYamlSource(source);
+  if (!sourceResult.valid) return sourceResult;
+
+  const documentResult = validateWorkflowDocument(sourceResult.value);
+  if (documentResult.valid) return documentResult;
+
+  const diagnostics: readonly WorkflowYamlDiagnostic[] = documentResult.diagnostics;
+  return {
+    valid: false,
+    diagnostics,
+  };
+}
+
+export function parseWorkflowYamlSource(source: string): ParseWorkflowYamlSourceResult {
   let parsed: unknown;
   try {
     parsed = yaml.load(source);
@@ -56,14 +81,7 @@ export function parseWorkflowYaml(source: string): ParseWorkflowYamlResult {
     };
   }
 
-  const documentResult = validateWorkflowDocument(parsed);
-  if (documentResult.valid) return documentResult;
-
-  const diagnostics: readonly WorkflowYamlDiagnostic[] = documentResult.diagnostics;
-  return {
-    valid: false,
-    diagnostics,
-  };
+  return {valid: true, value: parsed, diagnostics: []};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
