@@ -16,6 +16,8 @@ Callers can show the errors to a user or stop before the next step.
   codes.
 - **Document diagnostics**: Reuses `@shipfox/workflow-document` diagnostics for
   parsed objects with the wrong shape.
+- **Gate YAML**: Carries `gate.success_if` and `gate.on_failure` through as
+  document fields.
 
 ## Installation / Setup
 

@@ -48,10 +48,10 @@ export function evaluateWorkflowPredicate(
 }
 
 function readRef(
-  path: readonly ['event', ...string[]],
+  path: readonly ['event' | 'step', ...string[]],
   context: WorkflowExpressionEvaluationContext,
 ): WorkflowExpressionValue {
-  let current: unknown = context.event;
+  let current: unknown = path[0] === 'event' ? context.event : context.step;
   for (const segment of path.slice(1)) {
     if (current === null || typeof current !== 'object') return undefined;
     current = (current as Record<string, unknown>)[segment];

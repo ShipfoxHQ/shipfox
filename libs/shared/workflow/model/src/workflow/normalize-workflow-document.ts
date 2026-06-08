@@ -1,8 +1,14 @@
-import type {WorkflowDocument, WorkflowDocumentJob} from '@shipfox/workflow-document';
+import type {
+  WorkflowDocument,
+  WorkflowDocumentJob,
+  WorkflowDocumentStep,
+} from '@shipfox/workflow-document';
 import {parseWorkflowExpression} from '../expression/parse-workflow-expression.js';
+import type {WorkflowExpression} from '../expression/workflow-expression.js';
 import type {
   NormalizeWorkflowDocumentResult,
   WorkflowIRDependency,
+  WorkflowIRGate,
   WorkflowIRJob,
   WorkflowIRStep,
   WorkflowIRTrigger,
@@ -115,6 +121,18 @@ function normalizeTriggers(
       return [];
     }
 
+    if (parsedFilter !== undefined && expressionUsesRoot(parsedFilter.expression, 'step')) {
+      diagnostics.push(
+        diagnostic({
+          code: 'WFM201',
+          message: `Trigger "${sourceName}" has an invalid filter expression.`,
+          path: ['triggers', sourceName, 'filter'],
+          details: {unsupportedRoot: 'step', allowedRoots: ['event']},
+        }),
+      );
+      return [];
+    }
+
     return [
       {
         id,
@@ -166,12 +184,35 @@ function normalizeJobs(
         usedStepIds.set(stepId, index);
       }
 
+      const gate = normalizeGate({
+        jobSourceName: sourceName,
+        step,
+        stepId,
+        stepIndex: index,
+        priorSteps: job.steps.slice(0, index),
+        diagnostics,
+      });
+
+      if ('agent' in step) {
+        return {
+          id: stepId,
+          ...(stepSourceName === undefined ? {} : {sourceName: stepSourceName}),
+          kind: 'agent',
+          agent: step.agent,
+          prompt: step.prompt,
+          ...(step.output_schema === undefined ? {} : {outputSchema: step.output_schema}),
+          ...(step.session === undefined ? {} : {session: step.session}),
+          ...(gate === undefined ? {} : {gate}),
+        };
+      }
+
       return {
         id: stepId,
         ...(stepSourceName === undefined ? {} : {sourceName: stepSourceName}),
         kind: 'run',
         command: {kind: 'shell', value: step.run},
         acceptance: {kind: 'default_run_exit_code'},
+        ...(gate === undefined ? {} : {gate}),
       };
     });
 
@@ -185,6 +226,115 @@ function normalizeJobs(
       },
     ];
   });
+}
+
+function normalizeGate(params: {
+  jobSourceName: string;
+  step: WorkflowDocumentStep;
+  stepId: string;
+  stepIndex: number;
+  priorSteps: readonly WorkflowDocumentStep[];
+  diagnostics: WorkflowModelDiagnostic[];
+}): WorkflowIRGate | undefined {
+  const gate = params.step.gate;
+  if (gate === undefined) return undefined;
+
+  const irGate: WorkflowIRGate = {};
+
+  if (gate.success_if !== undefined) {
+    const parsed = parseWorkflowExpression(gate.success_if);
+    if (!parsed.valid) {
+      params.diagnostics.push(
+        diagnostic({
+          code: 'WFM402',
+          message: `Step "${params.stepId}" has an invalid gate success_if expression.`,
+          path: ['jobs', params.jobSourceName, 'steps', params.stepIndex, 'gate', 'success_if'],
+          details: {expressionDiagnostics: parsed.diagnostics},
+        }),
+      );
+    } else {
+      if (expressionUsesPath(parsed.expression, ['step', 'output'])) {
+        if ('run' in params.step) {
+          params.diagnostics.push(
+            diagnostic({
+              code: 'WFM403',
+              message: `Step "${params.stepId}" cannot use step.output in gate success_if because run steps do not declare output_schema.`,
+              path: ['jobs', params.jobSourceName, 'steps', params.stepIndex, 'gate', 'success_if'],
+              details: {stepId: params.stepId},
+            }),
+          );
+        }
+
+        if ('agent' in params.step && params.step.output_schema === undefined) {
+          params.diagnostics.push(
+            diagnostic({
+              code: 'WFM404',
+              message: `Step "${params.stepId}" must declare output_schema before gate success_if can read step.output.`,
+              path: ['jobs', params.jobSourceName, 'steps', params.stepIndex, 'output_schema'],
+              details: {stepId: params.stepId},
+            }),
+          );
+        }
+      }
+
+      irGate.successIf = {source: parsed.source, expression: parsed.expression};
+    }
+  }
+
+  if (gate.on_failure !== undefined) {
+    const restartFrom = gate.on_failure.restart_from;
+    const allowedRestartTargets = params.priorSteps.flatMap((step) =>
+      step.name === undefined ? [] : [step.name],
+    );
+
+    if (!allowedRestartTargets.includes(restartFrom)) {
+      params.diagnostics.push(
+        diagnostic({
+          code: 'WFM401',
+          message: `Step "${params.stepId}" gate.on_failure.restart_from must reference a named previous step in the same job.`,
+          path: [
+            'jobs',
+            params.jobSourceName,
+            'steps',
+            params.stepIndex,
+            'gate',
+            'on_failure',
+            'restart_from',
+          ],
+          details: {restartFrom, allowedRestartTargets},
+        }),
+      );
+    }
+
+    irGate.onFailure = {
+      restartFrom,
+      ...(gate.on_failure.output === undefined ? {} : {output: gate.on_failure.output}),
+    };
+  }
+
+  return Object.keys(irGate).length === 0 ? undefined : irGate;
+}
+
+function expressionUsesRoot(expression: WorkflowExpression, root: 'event' | 'step'): boolean {
+  if (expression.kind === 'ref') return expression.path[0] === root;
+  if (expression.kind === 'unary') return expressionUsesRoot(expression.argument, root);
+  if (expression.kind === 'binary') {
+    return expressionUsesRoot(expression.left, root) || expressionUsesRoot(expression.right, root);
+  }
+  return false;
+}
+
+function expressionUsesPath(expression: WorkflowExpression, path: readonly string[]): boolean {
+  if (expression.kind === 'ref') {
+    return path.every((segment, index) => expression.path[index] === segment);
+  }
+
+  if (expression.kind === 'unary') return expressionUsesPath(expression.argument, path);
+  if (expression.kind === 'binary') {
+    return expressionUsesPath(expression.left, path) || expressionUsesPath(expression.right, path);
+  }
+
+  return false;
 }
 
 function normalizeDependencies(

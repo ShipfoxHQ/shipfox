@@ -1,5 +1,10 @@
 import type {z} from 'zod';
-import {type WorkflowDocument, workflowDocumentSchema} from './workflow-document.js';
+import {
+  type WorkflowDocument,
+  workflowDocumentAgentStepSchema,
+  workflowDocumentRunStepSchema,
+  workflowDocumentSchema,
+} from './workflow-document.js';
 
 export type WorkflowDocumentDiagnosticCode =
   | 'WFD001'
@@ -73,6 +78,19 @@ function toWorkflowDocumentDiagnostics(
       diagnostic({
         code: 'WFD005',
         message: `${formatDiagnosticPath(path)} must contain at least one entry.`,
+        path,
+      }),
+    ];
+  }
+
+  if (issue.code === 'invalid_union' && isStepPath(path)) {
+    const branchDiagnostics = stepBranchDiagnostics(input, path);
+    if (branchDiagnostics.length > 0) return branchDiagnostics;
+
+    return [
+      diagnostic({
+        code: 'WFD301',
+        message: `${formatDiagnosticPath(path)} must define run or agent.`,
         path,
       }),
     ];
@@ -194,20 +212,61 @@ function isStepRunPath(path: readonly WorkflowDocumentDiagnosticPathSegment[]): 
   );
 }
 
+function isStepPath(path: readonly WorkflowDocumentDiagnosticPathSegment[]): boolean {
+  return (
+    path.length === 4 && path[0] === 'jobs' && path[2] === 'steps' && typeof path[3] === 'number'
+  );
+}
+
 function pathExists(input: unknown, path: readonly WorkflowDocumentDiagnosticPathSegment[]) {
+  return valueAtPath(input, path).exists;
+}
+
+function valueAtPath(
+  input: unknown,
+  path: readonly WorkflowDocumentDiagnosticPathSegment[],
+): {exists: true; value: unknown} | {exists: false} {
   let current = input;
   for (const segment of path) {
     if (typeof segment === 'number') {
-      if (!Array.isArray(current) || !(segment in current)) return false;
+      if (!Array.isArray(current) || !(segment in current)) return {exists: false};
       current = current[segment];
       continue;
     }
 
-    if (current === null || typeof current !== 'object' || !(segment in current)) return false;
+    if (current === null || typeof current !== 'object' || !(segment in current)) {
+      return {exists: false};
+    }
     current = (current as Record<string, unknown>)[segment];
   }
 
-  return true;
+  return {exists: true, value: current};
+}
+
+function stepBranchDiagnostics(
+  input: unknown,
+  path: readonly WorkflowDocumentDiagnosticPathSegment[],
+): readonly WorkflowDocumentDiagnostic[] {
+  const step = valueAtPath(input, path);
+  if (!step.exists || step.value === null || typeof step.value !== 'object') return [];
+
+  const stepRecord = step.value as Record<string, unknown>;
+  const hasRun = 'run' in stepRecord;
+  const hasAgent = 'agent' in stepRecord;
+  if (hasRun === hasAgent) return [];
+
+  const branchResult = (
+    hasRun ? workflowDocumentRunStepSchema : workflowDocumentAgentStepSchema
+  ).safeParse(step.value);
+  if (branchResult.success) return [];
+
+  return branchResult.error.issues.flatMap((branchIssue) =>
+    toWorkflowDocumentDiagnostics(
+      {...branchIssue, path: [...path, ...toDiagnosticPath(branchIssue.path)]} as ZodIssue,
+      branchResult.error.issues,
+      input,
+    ),
+  );
 }
 
 function samePath(left: ZodIssuePath, right: ZodIssuePath): boolean {

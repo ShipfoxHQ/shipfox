@@ -19,6 +19,15 @@ describe('parseWorkflowYaml', () => {
     expect(result).toEqual({valid: true, document: expected, diagnostics: []});
   });
 
+  it('parses reviewer gate YAML into a workflow document', async () => {
+    const source = await readFixture('valid/reviewer-gate.yaml');
+    const expected = JSON.parse(await readFixture('valid/reviewer-gate.document.json')) as unknown;
+
+    const result = parseWorkflowYaml(source);
+
+    expect(result).toEqual({valid: true, document: expected, diagnostics: []});
+  });
+
   it('reports YAML syntax diagnostics', async () => {
     const source = await readFixture('invalid/invalid-yaml-syntax.yaml');
 
@@ -93,8 +102,8 @@ jobs:
       {
         code: 'WFD301',
         severity: 'error',
-        message: 'jobs.build.steps[0].run is required.',
-        path: ['jobs', 'build', 'steps', 0, 'run'],
+        message: 'jobs.build.steps[0] must define run or agent.',
+        path: ['jobs', 'build', 'steps', 0],
       },
     ]);
   });

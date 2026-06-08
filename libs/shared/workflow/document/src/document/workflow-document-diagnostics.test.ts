@@ -85,8 +85,8 @@ describe('validateWorkflowDocument', () => {
       {name: 'simple build', jobs: {build: {steps: [{name: 'build'}]}}},
       {
         code: 'WFD301',
-        message: 'jobs.build.steps[0].run is required.',
-        path: ['jobs', 'build', 'steps', 0, 'run'],
+        message: 'jobs.build.steps[0] must define run or agent.',
+        path: ['jobs', 'build', 'steps', 0],
       },
     ],
   ])('returns a stable diagnostic for %s', (_label, workflowDocument, diagnostic) => {
@@ -159,6 +159,83 @@ describe('validateWorkflowDocument', () => {
           code: 'WFD101',
           path: ['triggers', 'github', 'on'],
         }),
+      ],
+    });
+  });
+
+  it('returns the missing prompt diagnostic for an agent step', () => {
+    const workflowDocument = {
+      name: 'review',
+      jobs: {
+        review: {
+          steps: [{agent: 'reviewer'}],
+        },
+      },
+    };
+
+    const result = validateWorkflowDocument(workflowDocument);
+
+    expect(result).toEqual({
+      valid: false,
+      diagnostics: [
+        {
+          code: 'WFD002',
+          severity: 'error',
+          message: 'jobs.review.steps[0].prompt is required.',
+          path: ['jobs', 'review', 'steps', 0, 'prompt'],
+        },
+      ],
+    });
+  });
+
+  it('returns the nested gate diagnostic for an agent step', () => {
+    const workflowDocument = {
+      name: 'review',
+      jobs: {
+        review: {
+          steps: [{agent: 'reviewer', prompt: '/review', gate: {success_if: 123}}],
+        },
+      },
+    };
+
+    const result = validateWorkflowDocument(workflowDocument);
+
+    expect(result).toEqual({
+      valid: false,
+      diagnostics: [
+        {
+          code: 'WFD302',
+          severity: 'error',
+          message: 'Invalid input: expected string, received number',
+          path: ['jobs', 'review', 'steps', 0, 'gate', 'success_if'],
+          details: {zodCode: 'invalid_type'},
+        },
+      ],
+    });
+  });
+
+  it('returns the unknown field diagnostic for run-only steps', () => {
+    const workflowDocument = {
+      name: 'build',
+      jobs: {
+        build: {
+          steps: [{run: 'npm test', output_schema: {pass: 'boolean'}}],
+        },
+      },
+    };
+
+    const result = validateWorkflowDocument(workflowDocument);
+
+    expect(result).toEqual({
+      valid: false,
+      diagnostics: [
+        {
+          code: 'WFD003',
+          severity: 'error',
+          message: 'jobs.build.steps[0].output_schema is not supported.',
+          path: ['jobs', 'build', 'steps', 0, 'output_schema'],
+          details: {field: 'output_schema'},
+        },
       ],
     });
   });

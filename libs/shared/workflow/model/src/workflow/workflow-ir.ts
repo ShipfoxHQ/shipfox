@@ -30,17 +30,45 @@ export interface WorkflowIRJob {
   steps: readonly WorkflowIRStep[];
 }
 
-export interface WorkflowIRStep {
+export type WorkflowIRStep = WorkflowIRRunStep | WorkflowIRAgentStep;
+
+export interface WorkflowIRStepBase {
   id: string;
   sourceName?: string;
+  gate?: WorkflowIRGate;
+}
+
+export interface WorkflowIRRunStep extends WorkflowIRStepBase {
   kind: 'run';
   command: WorkflowIRRunCommand;
   acceptance: WorkflowIRStepAcceptance;
 }
 
+export interface WorkflowIRAgentStep extends WorkflowIRStepBase {
+  kind: 'agent';
+  agent: string;
+  prompt: string;
+  outputSchema?: Readonly<Record<string, string>>;
+  session?: WorkflowIRAgentSession;
+}
+
+export interface WorkflowIRAgentSession {
+  persistent?: boolean | undefined;
+}
+
 export interface WorkflowIRRunCommand {
   kind: 'shell';
   value: string;
+}
+
+export interface WorkflowIRGate {
+  successIf?: WorkflowIRExpression;
+  onFailure?: WorkflowIRGateOnFailure;
+}
+
+export interface WorkflowIRGateOnFailure {
+  restartFrom: string;
+  output?: string;
 }
 
 export interface WorkflowIRStepAcceptance {
@@ -60,7 +88,11 @@ export type WorkflowModelDiagnosticCode =
   | 'WFM105'
   | 'WFM106'
   | 'WFM201'
-  | 'WFM301';
+  | 'WFM301'
+  | 'WFM401'
+  | 'WFM402'
+  | 'WFM403'
+  | 'WFM404';
 
 export type WorkflowModelDiagnosticSeverity = 'error';
 export type WorkflowModelDiagnosticPathSegment = string | number;

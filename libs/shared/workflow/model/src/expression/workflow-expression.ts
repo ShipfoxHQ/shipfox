@@ -39,7 +39,7 @@ export interface WorkflowExpressionBinary {
   right: WorkflowExpression;
 }
 
-export type WorkflowExpressionRoot = 'event';
+export type WorkflowExpressionRoot = 'event' | 'step';
 export type WorkflowExpressionUnaryOperator = '!';
 export type WorkflowExpressionBinaryOperator = '==' | '!=' | '<' | '<=' | '>' | '>=' | '&&' | '||';
 
@@ -79,4 +79,7 @@ export type WorkflowExpressionValue = string | number | boolean | undefined;
 
 export interface WorkflowExpressionEvaluationContext {
   event: Readonly<Record<string, unknown>>;
+  step?: {
+    output?: Readonly<Record<string, unknown>>;
+  };
 }

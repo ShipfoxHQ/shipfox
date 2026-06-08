@@ -82,6 +82,41 @@ describe('workflowDocumentSchema', () => {
     expect(result.triggers?.main_push?.filter).toBe('event.ref == "refs/heads/main"');
   });
 
+  it('accepts agent steps with gates', () => {
+    const workflowDocument = {
+      name: 'review',
+      jobs: {
+        review: {
+          steps: [
+            {name: 'producer', run: 'npm run build'},
+            {
+              agent: 'reviewer',
+              prompt: '/review',
+              output_schema: {
+                review: 'string',
+                pass: 'boolean',
+              },
+              gate: {
+                success_if: 'step.output.pass == true',
+                on_failure: {
+                  restart_from: 'producer',
+                  output: `Agent rejected the PR \${{ step.output.review }}`,
+                },
+              },
+              session: {
+                persistent: false,
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const result = workflowDocumentSchema.safeParse(workflowDocument);
+
+    expect(result.success).toBe(true);
+  });
+
   it.each([
     ['missing required top-level fields', {}],
     ['empty jobs map', {name: 'simple build', jobs: {}}],

@@ -1,11 +1,19 @@
 export {
   type WorkflowDocument,
+  type WorkflowDocumentAgentStep,
+  type WorkflowDocumentGate,
+  type WorkflowDocumentGateOnFailure,
   type WorkflowDocumentJob,
   type WorkflowDocumentRunStep,
+  type WorkflowDocumentStep,
   type WorkflowDocumentTrigger,
+  workflowDocumentAgentStepSchema,
+  workflowDocumentGateOnFailureSchema,
+  workflowDocumentGateSchema,
   workflowDocumentJobSchema,
   workflowDocumentRunStepSchema,
   workflowDocumentSchema,
+  workflowDocumentStepSchema,
   workflowDocumentTriggerSchema,
 } from './workflow-document.js';
 export {

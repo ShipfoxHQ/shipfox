@@ -156,6 +156,72 @@ describe('normalizeWorkflowDocument', () => {
     expect(result.ir.dependencies).toEqual([{from: 'build', to: 'test'}]);
   });
 
+  it('normalizes agent gate expressions and failure policy into WorkflowIR', () => {
+    const document: WorkflowDocument = {
+      name: 'review',
+      jobs: {
+        review: {
+          steps: [
+            {name: 'producer', run: 'npm run build'},
+            {
+              name: 'reviewer',
+              agent: 'reviewer',
+              prompt: '/review',
+              output_schema: {
+                review: 'string',
+                pass: 'boolean',
+              },
+              gate: {
+                success_if: 'step.output.pass == true',
+                on_failure: {
+                  restart_from: 'producer',
+                  output: `Agent rejected the PR \${{ step.output.review }}`,
+                },
+              },
+              session: {
+                persistent: false,
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const result = normalizeWorkflowDocument(document);
+
+    expect(result.valid).toBe(true);
+    if (!result.valid) return;
+    expect(result.ir.jobs[0]?.steps[1]).toEqual({
+      id: 'review-reviewer',
+      sourceName: 'reviewer',
+      kind: 'agent',
+      agent: 'reviewer',
+      prompt: '/review',
+      outputSchema: {
+        review: 'string',
+        pass: 'boolean',
+      },
+      session: {
+        persistent: false,
+      },
+      gate: {
+        successIf: {
+          source: 'step.output.pass == true',
+          expression: {
+            kind: 'binary',
+            op: '==',
+            left: {kind: 'ref', path: ['step', 'output', 'pass']},
+            right: {kind: 'boolean', value: true},
+          },
+        },
+        onFailure: {
+          restartFrom: 'producer',
+          output: `Agent rejected the PR \${{ step.output.review }}`,
+        },
+      },
+    });
+  });
+
   it('reports unknown dependencies', () => {
     const document: WorkflowDocument = {
       name: 'unknown dependency',
@@ -356,16 +422,164 @@ describe('normalizeWorkflowDocument', () => {
           message: 'Trigger "main" has an invalid filter expression.',
           path: ['triggers', 'main', 'filter'],
           details: {
+            unsupportedRoot: 'step',
+            allowedRoots: ['event'],
+          },
+        },
+      ],
+    });
+  });
+
+  it('reports invalid gate success_if expressions', () => {
+    const document: WorkflowDocument = {
+      name: 'bad gate expression',
+      jobs: {
+        review: {
+          steps: [
+            {
+              name: 'reviewer',
+              agent: 'reviewer',
+              prompt: '/review',
+              output_schema: {pass: 'boolean'},
+              gate: {
+                success_if: 'step.output.pass ==',
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const result = normalizeWorkflowDocument(document);
+
+    expect(result).toEqual({
+      valid: false,
+      diagnostics: [
+        {
+          code: 'WFM402',
+          severity: 'error',
+          message: 'Step "review-reviewer" has an invalid gate success_if expression.',
+          path: ['jobs', 'review', 'steps', 0, 'gate', 'success_if'],
+          details: {
             expressionDiagnostics: [
               {
-                code: 'WFE003',
+                code: 'WFE006',
                 severity: 'error',
-                message: 'Reference root "step" is not supported in this expression.',
-                position: 0,
-                details: {root: 'step', allowedRoots: ['event']},
+                message: 'Expected expression.',
+                position: 19,
+                details: {token: ''},
               },
             ],
           },
+        },
+      ],
+    });
+  });
+
+  it('reports restart_from targets that are not previous named steps', () => {
+    const document: WorkflowDocument = {
+      name: 'bad restart target',
+      jobs: {
+        review: {
+          steps: [
+            {
+              name: 'reviewer',
+              agent: 'reviewer',
+              prompt: '/review',
+              output_schema: {pass: 'boolean'},
+              gate: {
+                success_if: 'step.output.pass == true',
+                on_failure: {restart_from: 'future'},
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const result = normalizeWorkflowDocument(document);
+
+    expect(result).toEqual({
+      valid: false,
+      diagnostics: [
+        {
+          code: 'WFM401',
+          severity: 'error',
+          message:
+            'Step "review-reviewer" gate.on_failure.restart_from must reference a named previous step in the same job.',
+          path: ['jobs', 'review', 'steps', 0, 'gate', 'on_failure', 'restart_from'],
+          details: {restartFrom: 'future', allowedRestartTargets: []},
+        },
+      ],
+    });
+  });
+
+  it('reports step.output gate references on run steps', () => {
+    const document: WorkflowDocument = {
+      name: 'run output gate',
+      jobs: {
+        build: {
+          steps: [
+            {
+              name: 'build',
+              run: 'npm run build',
+              gate: {
+                success_if: 'step.output.pass == true',
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const result = normalizeWorkflowDocument(document);
+
+    expect(result).toEqual({
+      valid: false,
+      diagnostics: [
+        {
+          code: 'WFM403',
+          severity: 'error',
+          message:
+            'Step "build-build" cannot use step.output in gate success_if because run steps do not declare output_schema.',
+          path: ['jobs', 'build', 'steps', 0, 'gate', 'success_if'],
+          details: {stepId: 'build-build'},
+        },
+      ],
+    });
+  });
+
+  it('reports agent step.output gate references without output_schema', () => {
+    const document: WorkflowDocument = {
+      name: 'agent output gate',
+      jobs: {
+        review: {
+          steps: [
+            {
+              name: 'reviewer',
+              agent: 'reviewer',
+              prompt: '/review',
+              gate: {
+                success_if: 'step.output.pass == true',
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const result = normalizeWorkflowDocument(document);
+
+    expect(result).toEqual({
+      valid: false,
+      diagnostics: [
+        {
+          code: 'WFM404',
+          severity: 'error',
+          message:
+            'Step "review-reviewer" must declare output_schema before gate success_if can read step.output.',
+          path: ['jobs', 'review', 'steps', 0, 'output_schema'],
+          details: {stepId: 'review-reviewer'},
         },
       ],
     });

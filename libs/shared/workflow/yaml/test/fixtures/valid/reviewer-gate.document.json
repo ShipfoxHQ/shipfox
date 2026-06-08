@@ -1,0 +1,32 @@
+{
+  "name": "reviewer gate",
+  "jobs": {
+    "review": {
+      "steps": [
+        {
+          "name": "producer",
+          "run": "npm run build"
+        },
+        {
+          "name": "reviewer",
+          "agent": "reviewer",
+          "prompt": "/review",
+          "output_schema": {
+            "review": "string",
+            "pass": "boolean"
+          },
+          "gate": {
+            "success_if": "step.output.pass == true",
+            "on_failure": {
+              "restart_from": "producer",
+              "output": "Agent rejected the PR ${{ step.output.review }}"
+            }
+          },
+          "session": {
+            "persistent": false
+          }
+        }
+      ]
+    }
+  }
+}

@@ -7,6 +7,8 @@ External workflow document schemas for Shipfox authoring tools.
 - **`workflowDocumentSchema`**: Checks the external workflow object with Zod.
 - **`validateWorkflowDocument`**: Returns a parsed document or stable `WFD` diagnostics.
 - **`WorkflowDocument`**: Gives TypeScript code the matching input type.
+- **Step schemas**: Describe `run` steps, `agent` steps, and optional `gate`
+  blocks.
 - **`WorkflowDocumentDiagnostic`**: Describes a document-shape error with a stable code, path, and message.
 - **`simpleBuildWorkflowDocument`**: Provides a small valid workflow example for tests and docs.
 
@@ -59,6 +61,8 @@ result.document.jobs.build.steps[0]?.run; // "npm run build"
 - Treat this package as an edge guard. It says whether input has the right form before another module gives that input meaning.
 - Diagnostic codes from this package use the `WFD` prefix. Other workflow modules should use their own prefixes.
 - Keep the public shape, examples, and tests in step.
+- `gate.success_if` stays a string here. `@shipfox/workflow-model` parses it
+  and decides what it means.
 
 Keep rules here small. If a check needs project state, put that check in the module that owns that state. This package does not choose a runner, start a job, save data, or call another service.
 

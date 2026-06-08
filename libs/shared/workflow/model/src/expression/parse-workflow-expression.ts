@@ -150,7 +150,7 @@ class Parser {
         severity: 'error',
         message: `Reference root "${token.value}" is not supported in this expression.`,
         position: token.position,
-        details: {root: token.value, allowedRoots: ['event']},
+        details: {root: token.value, allowedRoots: ['event', 'step']},
       });
       return undefined;
     }
@@ -175,7 +175,7 @@ class Parser {
       this.diagnostics.push({
         code: 'WFE005',
         severity: 'error',
-        message: 'Expected reference path segment after root "event".',
+        message: `Expected reference path segment after root "${token.value}".`,
         position: token.position,
         details: {root: token.value},
       });
@@ -348,7 +348,7 @@ class Tokenizer {
 }
 
 function isAllowedRoot(value: string): value is WorkflowExpressionRoot {
-  return value === 'event';
+  return value === 'event' || value === 'step';
 }
 
 function isIdentifierStart(value: string | undefined): value is string {

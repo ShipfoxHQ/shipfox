@@ -92,19 +92,35 @@ describe('parseWorkflowExpression', () => {
     });
   });
 
-  it('rejects unsupported reference roots before gates define step references', () => {
+  it('parses step output references for gate expressions', () => {
     const result = parseWorkflowExpression('step.output.pass == true');
 
     expect(result).toEqual({
-      valid: false,
+      valid: true,
       source: 'step.output.pass == true',
+      expression: {
+        kind: 'binary',
+        op: '==',
+        left: {kind: 'ref', path: ['step', 'output', 'pass']},
+        right: {kind: 'boolean', value: true},
+      },
+      diagnostics: [],
+    });
+  });
+
+  it('rejects unsupported reference roots', () => {
+    const result = parseWorkflowExpression('job.output.pass == true');
+
+    expect(result).toEqual({
+      valid: false,
+      source: 'job.output.pass == true',
       diagnostics: [
         {
           code: 'WFE003',
           severity: 'error',
-          message: 'Reference root "step" is not supported in this expression.',
+          message: 'Reference root "job" is not supported in this expression.',
           position: 0,
-          details: {root: 'step', allowedRoots: ['event']},
+          details: {root: 'job', allowedRoots: ['event', 'step']},
         },
       ],
     });
@@ -293,6 +309,19 @@ describe('evaluateWorkflowExpression', () => {
 
     const value = evaluateWorkflowExpression(result.expression, {
       event: {pull_request: {draft: false}},
+    });
+
+    expect(value).toBe(true);
+  });
+
+  it('evaluates step output paths', () => {
+    const result = parseWorkflowExpression('step.output.pass == true');
+    expect(result.valid).toBe(true);
+    if (!result.valid) return;
+
+    const value = evaluateWorkflowExpression(result.expression, {
+      event: {},
+      step: {output: {pass: true}},
     });
 
     expect(value).toBe(true);
