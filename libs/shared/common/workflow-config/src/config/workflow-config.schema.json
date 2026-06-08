@@ -29,46 +29,80 @@
         "minLength": 1
       },
       "additionalProperties": {
-        "type": "object",
-        "properties": {
-          "source": {
-            "type": "string",
-            "minLength": 1
-          },
-          "event": {
-            "type": "string",
-            "minLength": 1
-          },
-          "on": {
-            "anyOf": [
-              {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "source": {
                 "type": "string",
                 "minLength": 1
               },
-              {
-                "minItems": 1,
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "minLength": 1
-                }
+              "with": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "filter": {
+                "type": "string",
+                "minLength": 1
+              },
+              "event": {
+                "type": "string",
+                "minLength": 1
+              },
+              "on": {
+                "not": {}
               }
-            ]
-          },
-          "with": {
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
             },
-            "additionalProperties": {}
+            "required": ["source", "event"],
+            "additionalProperties": false
           },
-          "filter": {
-            "type": "string",
-            "minLength": 1
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "with": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "filter": {
+                "type": "string",
+                "minLength": 1
+              },
+              "on": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                ]
+              },
+              "event": {
+                "not": {}
+              }
+            },
+            "required": ["source", "on"],
+            "additionalProperties": false
           }
-        },
-        "required": ["source"]
-      }
+        ]
+      },
+      "minProperties": 1
     },
     "jobs": {
       "type": "object",
@@ -126,15 +160,19 @@
                   "minLength": 1
                 }
               },
-              "required": ["run"]
+              "required": ["run"],
+              "additionalProperties": false
             }
           }
         },
-        "required": ["steps"]
-      }
+        "required": ["steps"],
+        "additionalProperties": false
+      },
+      "minProperties": 1
     }
   },
   "required": ["name", "jobs"],
+  "additionalProperties": false,
   "$id": "https://schemas.shipfox.dev/workflow-config.schema.json",
   "title": "Shipfox Workflow Config",
   "description": "External Shipfox workflow configuration accepted by YAML authoring surfaces."

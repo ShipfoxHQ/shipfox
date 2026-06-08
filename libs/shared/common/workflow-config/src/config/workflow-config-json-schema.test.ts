@@ -46,4 +46,43 @@ describe('workflowConfigJsonSchema', () => {
 
     expect(result).toBe(false);
   });
+
+  it.each([
+    ['empty jobs map', {name: 'empty workflow', jobs: {}}],
+    [
+      'empty triggers map',
+      {name: 'simple build', triggers: {}, jobs: {build: {steps: [{run: 'npm test'}]}}},
+    ],
+    [
+      'trigger missing event and on',
+      {
+        name: 'simple build',
+        triggers: {github: {source: 'github'}},
+        jobs: {build: {steps: [{run: 'npm test'}]}},
+      },
+    ],
+    [
+      'trigger with both event and on',
+      {
+        name: 'simple build',
+        triggers: {github: {source: 'github', event: 'push', on: 'pull_request'}},
+        jobs: {build: {steps: [{run: 'npm test'}]}},
+      },
+    ],
+    [
+      'unknown top-level key',
+      {name: 'simple build', jobz: {}, jobs: {build: {steps: [{run: 'npm test'}]}}},
+    ],
+    [
+      'unknown step key',
+      {name: 'simple build', jobs: {build: {steps: [{run: 'npm test', shell: 'bash'}]}}},
+    ],
+  ])('rejects %s with a JSON Schema validator', (_label, config) => {
+    const ajv = new Ajv2020({strict: false});
+    const validate = ajv.compile(workflowConfigJsonSchema);
+
+    const result = validate(config);
+
+    expect(result).toBe(false);
+  });
 });

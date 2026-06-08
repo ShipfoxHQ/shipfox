@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/shared/common/workflow-config"
   },
   "type": "module",
@@ -14,6 +14,10 @@
   "imports": {
     "#*": "./src/*"
   },
+  "files": [
+    "dist",
+    "src/config/workflow-config.schema.json"
+  ],
   "exports": {
     ".": {
       "development": {
@@ -24,7 +28,9 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
-    }
+    },
+    "./schema": "./src/config/workflow-config.schema.json",
+    "./schema.json": "./src/config/workflow-config.schema.json"
   },
   "scripts": {
     "build": "shipfox-swc",

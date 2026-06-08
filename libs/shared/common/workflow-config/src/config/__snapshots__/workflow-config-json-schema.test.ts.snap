@@ -4,10 +4,12 @@ exports[`workflowConfigJsonSchema > keeps the generated schema snapshot stable 1
 {
   "$id": "https://schemas.shipfox.dev/workflow-config.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
   "description": "External Shipfox workflow configuration accepted by YAML authoring surfaces.",
   "properties": {
     "jobs": {
       "additionalProperties": {
+        "additionalProperties": false,
         "properties": {
           "needs": {
             "anyOf": [
@@ -43,6 +45,7 @@ exports[`workflowConfigJsonSchema > keeps the generated schema snapshot stable 1
           },
           "steps": {
             "items": {
+              "additionalProperties": false,
               "properties": {
                 "name": {
                   "minLength": 1,
@@ -67,6 +70,7 @@ exports[`workflowConfigJsonSchema > keeps the generated schema snapshot stable 1
         ],
         "type": "object",
       },
+      "minProperties": 1,
       "propertyNames": {
         "minLength": 1,
         "type": "string",
@@ -95,48 +99,86 @@ exports[`workflowConfigJsonSchema > keeps the generated schema snapshot stable 1
     },
     "triggers": {
       "additionalProperties": {
-        "properties": {
-          "event": {
-            "minLength": 1,
-            "type": "string",
-          },
-          "filter": {
-            "minLength": 1,
-            "type": "string",
-          },
-          "on": {
-            "anyOf": [
-              {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "event": {
                 "minLength": 1,
                 "type": "string",
               },
-              {
-                "items": {
-                  "minLength": 1,
+              "filter": {
+                "minLength": 1,
+                "type": "string",
+              },
+              "on": {
+                "not": {},
+              },
+              "source": {
+                "minLength": 1,
+                "type": "string",
+              },
+              "with": {
+                "additionalProperties": {},
+                "propertyNames": {
                   "type": "string",
                 },
-                "minItems": 1,
-                "type": "array",
+                "type": "object",
               },
-            ],
-          },
-          "source": {
-            "minLength": 1,
-            "type": "string",
-          },
-          "with": {
-            "additionalProperties": {},
-            "propertyNames": {
-              "type": "string",
             },
+            "required": [
+              "source",
+              "event",
+            ],
             "type": "object",
           },
-        },
-        "required": [
-          "source",
+          {
+            "additionalProperties": false,
+            "properties": {
+              "event": {
+                "not": {},
+              },
+              "filter": {
+                "minLength": 1,
+                "type": "string",
+              },
+              "on": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  {
+                    "items": {
+                      "minLength": 1,
+                      "type": "string",
+                    },
+                    "minItems": 1,
+                    "type": "array",
+                  },
+                ],
+              },
+              "source": {
+                "minLength": 1,
+                "type": "string",
+              },
+              "with": {
+                "additionalProperties": {},
+                "propertyNames": {
+                  "type": "string",
+                },
+                "type": "object",
+              },
+            },
+            "required": [
+              "source",
+              "on",
+            ],
+            "type": "object",
+          },
         ],
-        "type": "object",
       },
+      "minProperties": 1,
       "propertyNames": {
         "minLength": 1,
         "type": "string",

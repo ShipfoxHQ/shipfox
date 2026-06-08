@@ -96,14 +96,10 @@ describe('workflowConfigSchema', () => {
   });
 
   it.each([
-    ['a trigger event string', 'push'],
-    ['a trigger on string', 'push'],
-    ['a trigger on array', ['push', 'pull_request']],
-  ])('accepts %s', (_label, eventOrOn) => {
-    const trigger =
-      typeof eventOrOn === 'string'
-        ? {source: 'github', event: eventOrOn}
-        : {source: 'github', on: eventOrOn};
+    ['a trigger event string', {source: 'github', event: 'push'}],
+    ['a trigger on string', {source: 'github', on: 'push'}],
+    ['a trigger on array', {source: 'github', on: ['push', 'pull_request']}],
+  ])('accepts %s', (_label, trigger) => {
     const config = {
       name: 'simple build',
       triggers: {github: trigger},
@@ -136,6 +132,33 @@ describe('workflowConfigSchema', () => {
   it('rejects a workflow config without jobs', () => {
     const config = {
       name: 'simple build',
+    };
+
+    const result = workflowConfigSchema.safeParse(config);
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an empty jobs map', () => {
+    const config = {
+      name: 'simple build',
+      jobs: {},
+    };
+
+    const result = workflowConfigSchema.safeParse(config);
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an empty triggers map when triggers are present', () => {
+    const config = {
+      name: 'simple build',
+      triggers: {},
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
     };
 
     const result = workflowConfigSchema.safeParse(config);
@@ -181,6 +204,52 @@ describe('workflowConfigSchema', () => {
       },
     };
 
+    const result = workflowConfigSchema.safeParse(config);
+
+    expect(result.success).toBe(false);
+  });
+
+  it.each([
+    ['missing event and on', {source: 'github'}],
+    ['both event and on', {source: 'github', event: 'push', on: 'pull_request'}],
+  ])('rejects a trigger with %s', (_label, trigger) => {
+    const config = {
+      name: 'simple build',
+      triggers: {github: trigger},
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const result = workflowConfigSchema.safeParse(config);
+
+    expect(result.success).toBe(false);
+  });
+
+  it.each([
+    [
+      'an unknown top-level key',
+      {name: 'simple build', jobz: {}, jobs: {build: {steps: [{run: 'npm test'}]}}},
+    ],
+    [
+      'an unknown trigger key',
+      {
+        name: 'simple build',
+        triggers: {github: {source: 'github', event: 'push', typo: true}},
+        jobs: {build: {steps: [{run: 'npm test'}]}},
+      },
+    ],
+    [
+      'an unknown job key',
+      {name: 'simple build', jobs: {build: {timeout: 10, steps: [{run: 'npm test'}]}}},
+    ],
+    [
+      'an unknown step key',
+      {name: 'simple build', jobs: {build: {steps: [{run: 'npm test', shell: 'bash'}]}}},
+    ],
+  ])('rejects %s', (_label, config) => {
     const result = workflowConfigSchema.safeParse(config);
 
     expect(result.success).toBe(false);
