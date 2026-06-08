@@ -161,3 +161,102 @@ Update IR types, normalizer tests, static semantics, runtime docs, and generated
 - Cached WorkflowIR persistence.
 
 - Custom `gate.success_if` parsing and runtime evaluation.
+
+## Why WorkflowIR Exists
+
+WorkflowIR is the boundary between authoring syntax and workflow semantics.
+
+Even when YAML is the only accepted surface, YAML is still not the right shape for every downstream concern. The runtime does not want to reason about YAML map keys, string-or-array shorthands, optional fields, or authoring-order quirks. It needs a stable graph of triggers, jobs, steps, dependencies, commands, and acceptance policies.
+
+WorkflowIR gives Shipfox one place to make those meanings explicit. The result is useful immediately: definitions and run creation share the same static checks, persistence receives normalized jobs and steps, generated docs can quote the code-owned type model, and runtime tests can exercise execution semantics without re-parsing YAML.
+
+## Example: Stable Graph Dependencies
+
+YAML uses job names and `needs` strings:
+
+```yaml
+jobs:
+  build app:
+    steps:
+      - run: npm run build
+
+  test:
+    needs: build app
+    steps:
+      - run: npm test
+```
+
+WorkflowIR turns that authoring shape into explicit IDs and edges:
+
+```json
+{
+  "jobs": [
+    {"id": "build-app", "sourceName": "build app"},
+    {"id": "test", "dependencies": ["build-app"]}
+  ],
+  "dependencies": [
+    {"from": "build-app", "to": "test"}
+  ]
+}
+```
+
+Static semantics can then validate unknown dependencies, malformed edges, and cycles over one graph model instead of repeatedly interpreting YAML fields.
+
+## Example: Shorthand And Defaults
+
+YAML allows ergonomic shorthand and defaults:
+
+```yaml
+runner: ubuntu-latest
+jobs:
+  build:
+    steps:
+      - run: npm test
+```
+
+WorkflowIR should contain the effective semantic value after normalization:
+
+```json
+{
+  "jobs": [
+    {
+      "sourceName": "build",
+      "runner": ["ubuntu-latest"]
+    }
+  ]
+}
+```
+
+Downstream code should not need to know whether the runner came from a workflow default, a job override, or a future builder API. The normalizer owns that decision before persistence or runtime scheduling.
+
+## Example: Runtime Commands
+
+YAML run steps are compact:
+
+```yaml
+steps:
+  - run: npm test
+```
+
+WorkflowIR makes the command and acceptance policy explicit:
+
+```json
+{
+  "kind": "run",
+  "command": {
+    "kind": "shell",
+    "value": "npm test"
+  },
+  "acceptance": {
+    "kind": "default_run_exit_code"
+  }
+}
+```
+
+This lets runtime code, generated docs, and tests talk about command kinds and acceptance semantics without depending on the YAML spelling.
+
+## Example: Stable Diagnostics
+
+Because static semantics runs over WorkflowIR, diagnostics can be stable even when the authoring syntax has shorthand forms.
+
+For example, an unknown dependency is a semantic error in the job graph. The diagnostic should not depend on the fact that YAML expressed it as a string in `needs`; it should be tied to the normalized dependency edge and the source job that declared it.

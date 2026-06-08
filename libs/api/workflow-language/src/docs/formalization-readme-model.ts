@@ -35,6 +35,14 @@ YAML source
 
 This documentation set is the repo-owned version of that foundation. Future concepts, including a richer expression language, interpolation, and predicate/premise logic, should enter through the process in \`008-adding-new-concepts.md\` instead of being added directly to runtime code.
 
+## Why WorkflowIR Exists
+
+WorkflowIR is not only preparation for future surface languages. It is useful today even with YAML as the only authoring surface.
+
+YAML is an authoring format: it has maps, shorthand fields, optional defaults, source names, and user-facing strings. WorkflowIR is the semantic model Shipfox validates, persists into runs, documents, and executes. It gives static semantics and runtime code one stable shape that does not depend on YAML parsing details.
+
+That separation lets Shipfox normalize defaults and shorthand once, assign stable IDs, validate the job graph consistently, produce stable diagnostics, generate reference docs from code, and test runtime semantics against a compact execution model.
+
 ## Surface Language Portability
 
 YAML is the only PR1 authoring surface, but the formalization must keep workflow concepts portable to future surfaces such as CUE, TypeScript SDKs, Python SDKs, generated workflows, and UI builders.
