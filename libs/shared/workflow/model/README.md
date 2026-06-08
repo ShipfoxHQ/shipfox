@@ -2,8 +2,8 @@
 
 Workflow meaning for Shipfox workflow tools.
 
-Use this package when code needs meaning, not file syntax. This first slice owns
-expression parsing and checks. `WorkflowIR` will live here in the next slice.
+Use this package when code needs meaning, not file syntax. It owns expression
+parsing and `WorkflowIR`.
 
 ## What it does
 
@@ -15,6 +15,12 @@ expression parsing and checks. `WorkflowIR` will live here in the next slice.
   as a yes or no predicate.
 - **Expression diagnostics**: Reports parser errors with stable codes and text
   positions.
+- **`normalizeWorkflowDocument(document)`**: Converts a checked
+  `WorkflowDocument` into `WorkflowIR`.
+- **`WorkflowIR`**: Stores the effective workflow graph, trigger filters, jobs,
+  steps, and run commands.
+- **Model diagnostics**: Reports semantic errors. Examples are unknown
+  dependencies, cycles, id collisions, and invalid filters.
 
 ## Installation / Setup
 
@@ -52,11 +58,19 @@ database rows.
 This package only accepts `event.*` references for now. Step output references
 will be added with gate semantics.
 
-The evaluator is small by design. It reads primitive event values and applies
+The evaluator is small by design. It reads primitive event values. It applies
 boolean and comparison operators. It does not call external systems.
 
 Predicate evaluation only treats `true` as a match. A string, number,
 `undefined`, or a missing field comparison does not match.
+
+`WorkflowIR` is the shape for workflow meaning. It applies workflow defaults.
+It expands `needs`, assigns stable ids, and stores dependency edges once. It
+does not include platform fields. Project ids, authors, database rows, and
+definition hashes stay outside this package.
+
+Trigger `with` values become IR `inputs`. That keeps the YAML field name out of
+later workflow layers.
 
 ## Development
 

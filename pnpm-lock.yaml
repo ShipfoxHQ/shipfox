@@ -2695,6 +2695,10 @@ importers:
         version: link:../../../../tools/vitest
 
   libs/shared/workflow/model:
+    dependencies:
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../document
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
