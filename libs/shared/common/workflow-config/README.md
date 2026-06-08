@@ -1,30 +1,16 @@
 # Shipfox Workflow Config
 
-Schemas and examples for Shipfox workflow files.
+External workflow file schemas for Shipfox authoring tools.
 
 ## What it does
 
-- **`workflowConfigSchema`**: Checks a workflow object with Zod.
-- **`WorkflowConfig`**: Gives TypeScript code the matching type.
-- **`workflowConfigJsonSchema`**: Exposes the public contract as JSON Schema.
-- **`workflow-config.schema.json`**: Gives tools a checked-in JSON file to read.
-- **`simpleBuildWorkflowConfig`**: Shows a small workflow that passes the checks.
+- **`workflowConfigSchema`**: Checks the external workflow object with Zod.
+- **`WorkflowConfig`**: Gives TypeScript code the matching input type.
+- **`workflowConfigJsonSchema`**: Exposes the same contract as a JSON Schema object.
+- **`@shipfox/workflow-config/schema`**: Exports the checked-in JSON Schema file for tools.
+- **`simpleBuildWorkflowConfig`**: Provides a small valid workflow example for tests and docs.
 
-Use this package before any app stores or runs a workflow. It says which keys may appear and which values must be present.
-
-This package owns syntax only. Definitions, defaults, deeper checks, database rows, and runtime behavior stay in their owning modules.
-
-Think of it as a small guard at the edge. An app, tool, or test can use it before work moves to the API. It does not pick a runner, start a job, save data, or call another service. Those steps happen later, in the module that owns them.
-
-The goal is to fail early, near the place where a file is read. Later code can start from a known shape. If a rule needs more state, keep that rule out of this package and put it in the module that has that state.
-
-This makes each next step easier to test. A bad input stops at the door. Good input can move on with less risk.
-
-It also helps new people see where work should go and where it should not go.
-
-Keep it small.
-
-Do less here.
+Use this package at the edge, before a file is saved or sent to the API. Good input can move on with less risk. Bad input stops early.
 
 ## Installation
 
@@ -54,8 +40,8 @@ const config = workflowConfigSchema.parse({
   },
 });
 
-workflowConfigJsonSchema.title; // "Shipfox Workflow Config"
 config.jobs.build.steps[0]?.run; // "npm run build"
+workflowConfigJsonSchema.title; // "Shipfox Workflow Config"
 ```
 
 The JSON Schema file is also exported for tools that read JSON directly:
@@ -66,12 +52,23 @@ import workflowConfigSchemaJson from '@shipfox/workflow-config/schema' with {typ
 
 ## Behavior Notes
 
-- Workflow objects are strict. Unknown keys are rejected.
-- `jobs` must contain at least one job.
-- A trigger must use either `event` or `on`, not both.
-- Empty runner, needs, trigger, and step arrays are rejected.
-- Expression fields such as trigger `filter` stay as strings in this package.
-- Gate fields such as `gate.success_if` and `gate.on_failure` are planned for a later change.
+- This package owns the external shape only. Definitions, defaults, semantic checks, database rows, and runtime behavior stay in their owning modules.
+- Treat this package as an edge guard. It says whether input has the right form before another module gives that input meaning.
+- Keep the public shape and the JSON Schema file in step. A schema change should update examples and tests in the same change.
+
+Keep rules here small. If a check needs project state, put that check in the module that owns that state. This package does not choose a runner, start a job, save data, or call another service.
+
+This split keeps the first step easy to test. A reader can tell when a value is not shaped like a workflow. Later code can still apply rules that need a project, a user, a runner, or data from the store. Each module stays clear about the work it owns.
+
+When a new concept is added here, start with the public type, then the example, then the tests. Keep the change small so review can focus on one part. Do not add rules that need live data.
+
+Small changes are better here. They make review faster and safer for the team.
+
+If in doubt, keep the rule out until the right owner is clear.
+
+Ask first before more work.
+
+This package should stay easy to read. Good input can move to the next step. Bad input should stop near the place where it was read. The next module can then do its own work with less guesswork.
 
 ## Development
 
