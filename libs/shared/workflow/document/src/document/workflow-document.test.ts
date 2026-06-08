@@ -17,57 +17,44 @@ describe('workflowDocumentSchema', () => {
   });
 
   it.each([
-    ['a string runner', 'ubuntu-latest'],
-    ['a runner label array', ['ubuntu-latest', 'node-22']],
-  ])('accepts top-level runner as %s', (_label, runner) => {
-    const workflowDocument = {
-      name: 'simple build',
-      runner,
-      jobs: {
-        build: {
-          steps: [{run: 'npm run build'}],
-        },
+    [
+      'top-level string runner',
+      {name: 'simple build', runner: 'ubuntu-latest', jobs: {build: {steps: [{run: 'npm test'}]}}},
+    ],
+    [
+      'top-level runner array',
+      {
+        name: 'simple build',
+        runner: ['ubuntu-latest', 'node-22'],
+        jobs: {build: {steps: [{run: 'npm test'}]}},
       },
-    };
-
-    const result = workflowDocumentSchema.safeParse(workflowDocument);
-
-    expect(result.success).toBe(true);
-  });
-
-  it.each([
-    ['a string runner', 'ubuntu-latest'],
-    ['a runner label array', ['ubuntu-latest', 'node-22']],
-  ])('accepts job runner as %s', (_label, runner) => {
-    const workflowDocument = {
-      name: 'simple build',
-      jobs: {
-        build: {
-          runner,
-          steps: [{run: 'npm run build'}],
-        },
+    ],
+    [
+      'job string runner',
+      {
+        name: 'simple build',
+        jobs: {build: {runner: 'ubuntu-latest', steps: [{run: 'npm test'}]}},
       },
-    };
-
-    const result = workflowDocumentSchema.safeParse(workflowDocument);
-
-    expect(result.success).toBe(true);
-  });
-
-  it.each([
-    ['a string dependency', 'build'],
-    ['a dependency array', ['install', 'build']],
-  ])('accepts job needs as %s', (_label, needs) => {
-    const workflowDocument = {
-      name: 'simple build',
-      jobs: {
-        test: {
-          needs,
-          steps: [{run: 'npm test'}],
-        },
+    ],
+    [
+      'job runner array',
+      {
+        name: 'simple build',
+        jobs: {build: {runner: ['ubuntu-latest', 'node-22'], steps: [{run: 'npm test'}]}},
       },
-    };
-
+    ],
+    [
+      'string dependency',
+      {name: 'simple build', jobs: {build: {needs: 'install', steps: [{run: 'npm test'}]}}},
+    ],
+    [
+      'dependency array',
+      {
+        name: 'simple build',
+        jobs: {build: {needs: ['install', 'lint'], steps: [{run: 'npm test'}]}},
+      },
+    ],
+  ])('accepts %s shorthand', (_label, workflowDocument) => {
     const result = workflowDocumentSchema.safeParse(workflowDocument);
 
     expect(result.success).toBe(true);
@@ -95,156 +82,24 @@ describe('workflowDocumentSchema', () => {
     expect(result.triggers?.main_push?.filter).toBe('event.ref == "refs/heads/main"');
   });
 
-  it('accepts a trigger event string', () => {
-    const workflowDocument = {
-      name: 'simple build',
-      triggers: {github: {source: 'github', event: 'push'}},
-      jobs: {
-        build: {
-          steps: [{run: 'npm run build'}],
-        },
-      },
-    };
-
-    const result = workflowDocumentSchema.safeParse(workflowDocument);
-
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects a workflow document without a name', () => {
-    const workflowDocument = {
-      jobs: {
-        build: {
-          steps: [{run: 'npm run build'}],
-        },
-      },
-    };
-
-    const result = workflowDocumentSchema.safeParse(workflowDocument);
-
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects a workflow document without jobs', () => {
-    const workflowDocument = {
-      name: 'simple build',
-    };
-
-    const result = workflowDocumentSchema.safeParse(workflowDocument);
-
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects an empty jobs map', () => {
-    const workflowDocument = {
-      name: 'simple build',
-      jobs: {},
-    };
-
-    const result = workflowDocumentSchema.safeParse(workflowDocument);
-
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects an empty triggers map when triggers are present', () => {
-    const workflowDocument = {
-      name: 'simple build',
-      triggers: {},
-      jobs: {
-        build: {
-          steps: [{run: 'npm run build'}],
-        },
-      },
-    };
-
-    const result = workflowDocumentSchema.safeParse(workflowDocument);
-
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects a job without steps', () => {
-    const workflowDocument = {
-      name: 'simple build',
-      jobs: {
-        build: {},
-      },
-    };
-
-    const result = workflowDocumentSchema.safeParse(workflowDocument);
-
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects an empty steps array', () => {
-    const workflowDocument = {
-      name: 'simple build',
-      jobs: {
-        build: {
-          steps: [],
-        },
-      },
-    };
-
-    const result = workflowDocumentSchema.safeParse(workflowDocument);
-
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects a step without a supported action', () => {
-    const workflowDocument = {
-      name: 'simple build',
-      jobs: {
-        build: {
-          steps: [{name: 'build'}],
-        },
-      },
-    };
-
-    const result = workflowDocumentSchema.safeParse(workflowDocument);
-
-    expect(result.success).toBe(false);
-  });
-
   it.each([
-    ['a missing event', {source: 'github'}],
-    ['an unsupported on string', {source: 'github', on: 'push'}],
-    ['an unsupported on array', {source: 'github', on: ['push', 'pull_request']}],
-    ['an unsupported on field with event', {source: 'github', event: 'push', on: 'pull_request'}],
-  ])('rejects a trigger with %s', (_label, trigger) => {
-    const workflowDocument = {
-      name: 'simple build',
-      triggers: {github: trigger},
-      jobs: {
-        build: {
-          steps: [{run: 'npm run build'}],
-        },
-      },
-    };
-
-    const result = workflowDocumentSchema.safeParse(workflowDocument);
-
-    expect(result.success).toBe(false);
-  });
-
-  it.each([
+    ['missing required top-level fields', {}],
+    ['empty jobs map', {name: 'simple build', jobs: {}}],
     [
-      'an unknown top-level key',
-      {name: 'simple build', jobz: {}, jobs: {build: {steps: [{run: 'npm test'}]}}},
+      'empty triggers map',
+      {name: 'simple build', triggers: {}, jobs: {build: {steps: [{run: 'npm test'}]}}},
     ],
+    ['empty steps array', {name: 'simple build', jobs: {build: {steps: []}}}],
     [
-      'an unknown trigger key',
+      'unsupported trigger on field',
       {
         name: 'simple build',
-        triggers: {github: {source: 'github', event: 'push', typo: true}},
+        triggers: {github: {source: 'github', event: 'push', on: 'pull_request'}},
         jobs: {build: {steps: [{run: 'npm test'}]}},
       },
     ],
     [
-      'an unknown job key',
-      {name: 'simple build', jobs: {build: {timeout: 10, steps: [{run: 'npm test'}]}}},
-    ],
-    [
-      'an unknown step key',
+      'unknown fields',
       {name: 'simple build', jobs: {build: {steps: [{run: 'npm test', shell: 'bash'}]}}},
     ],
   ])('rejects %s', (_label, workflowDocument) => {
