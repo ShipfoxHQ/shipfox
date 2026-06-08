@@ -12,6 +12,8 @@ Runtime scheduling helpers for Shipfox workflows.
   all dependencies succeeded.
 - **`findBlockedNodes(nodes, completed)`**: Returns nodes that cannot start
   because at least one dependency failed.
+- **`planRunSchedulingCommands(state)`**: Plans the next pure scheduling
+  commands for a materialized runtime DAG.
 
 ## Installation / Setup
 
@@ -53,6 +55,20 @@ deterministic and free of runtime dependencies.
 
 Node identity is the `name` field. Names must be unique in a run. Dependencies
 must point to existing names before this package receives them.
+
+`planRunSchedulingCommands` is a boundary spike. It returns commands for the
+durable execution host to apply later. It does not replace the current Temporal
+workflow orchestration.
+
+### Command Model
+
+The command planner is step based. The durable execution host applies the
+returned commands, updates stored runtime state, and calls the planner again
+until it receives `complete_run`.
+
+`cancel_jobs` includes a reason. `dependency_failed` means a needed job failed.
+`unsatisfiable_dependencies` means no pending job can become ready from the
+current graph state.
 
 ## Development
 
