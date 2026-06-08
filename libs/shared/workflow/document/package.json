@@ -15,8 +15,7 @@
     "#*": "./src/*"
   },
   "files": [
-    "dist",
-    "src/document/workflow-document.schema.json"
+    "dist"
   ],
   "exports": {
     ".": {
@@ -28,9 +27,7 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
-    },
-    "./schema": "./src/document/workflow-document.schema.json",
-    "./schema.json": "./src/document/workflow-document.schema.json"
+    }
   },
   "scripts": {
     "build": "shipfox-swc",
@@ -48,7 +45,6 @@
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vitest": "workspace:*",
-    "ajv": "^8.20.0"
+    "@shipfox/vitest": "workspace:*"
   }
 }

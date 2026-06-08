@@ -2183,9 +2183,6 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../../tools/vitest
-      ajv:
-        specifier: ^8.20.0
-        version: 8.20.0
 
   libs/shared/node/drizzle:
     dependencies:

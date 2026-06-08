@@ -8,8 +8,6 @@ External workflow document schemas for Shipfox authoring tools.
 - **`validateWorkflowDocument`**: Returns a parsed document or stable `WFD` diagnostics.
 - **`WorkflowDocument`**: Gives TypeScript code the matching input type.
 - **`WorkflowDocumentDiagnostic`**: Describes a document-shape error with a stable code, path, and message.
-- **`workflowDocumentJsonSchema`**: Exposes the same contract as a JSON Schema object.
-- **`@shipfox/workflow-document/schema`**: Exports the checked-in JSON Schema file for tools.
 - **`simpleBuildWorkflowDocument`**: Provides a small valid workflow example for tests and docs.
 
 Use this package at the edge, before a file is saved or sent to the API. Good input can move on with less risk. Bad input stops early.
@@ -27,7 +25,7 @@ pnpm add @shipfox/workflow-document
 ## Usage
 
 ```ts
-import {validateWorkflowDocument, workflowDocumentJsonSchema} from '@shipfox/workflow-document';
+import {validateWorkflowDocument} from '@shipfox/workflow-document';
 
 const result = validateWorkflowDocument({
   name: 'simple build',
@@ -53,13 +51,6 @@ if (!result.valid) {
 }
 
 result.document.jobs.build.steps[0]?.run; // "npm run build"
-workflowDocumentJsonSchema.title; // "Shipfox Workflow Document"
-```
-
-The JSON Schema file is also exported for tools that read JSON directly:
-
-```ts
-import workflowDocumentSchemaJson from '@shipfox/workflow-document/schema' with {type: 'json'};
 ```
 
 ## Behavior Notes
@@ -67,7 +58,7 @@ import workflowDocumentSchemaJson from '@shipfox/workflow-document/schema' with 
 - This package owns the external shape only. Definitions, defaults, semantic checks, database rows, and runtime behavior stay in their owning modules.
 - Treat this package as an edge guard. It says whether input has the right form before another module gives that input meaning.
 - Diagnostic codes from this package use the `WFD` prefix. Other workflow modules should use their own prefixes.
-- Keep the public shape and the JSON Schema file in step. A schema change should update examples and tests in the same change.
+- Keep the public shape, examples, and tests in step.
 
 Keep rules here small. If a check needs project state, put that check in the module that owns that state. This package does not choose a runner, start a job, save data, or call another service.
 

@@ -1,6 +1,4 @@
 export {
-  type JsonObject,
-  type JsonValue,
   validateWorkflowDocument,
   type WorkflowDocument,
   type WorkflowDocumentDiagnostic,
@@ -12,7 +10,6 @@ export {
   type WorkflowDocumentTrigger,
   type WorkflowDocumentValidationResult,
   workflowDocumentJobSchema,
-  workflowDocumentJsonSchema,
   workflowDocumentRunStepSchema,
   workflowDocumentSchema,
   workflowDocumentTriggerSchema,

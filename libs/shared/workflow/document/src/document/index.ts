@@ -16,8 +16,3 @@ export {
   type WorkflowDocumentDiagnosticSeverity,
   type WorkflowDocumentValidationResult,
 } from './workflow-document-diagnostics.js';
-export {
-  type JsonObject,
-  type JsonValue,
-  workflowDocumentJsonSchema,
-} from './workflow-document-json-schema.js';
