@@ -11,16 +11,7 @@ export const simpleBuildWorkflowConfig = {
   },
   jobs: {
     build: {
-      steps: [
-        {run: 'npm install'},
-        {
-          id: 'build',
-          run: 'npm run build',
-          gate: {
-            success_if: 'exit_code == 0',
-          },
-        },
-      ],
+      steps: [{run: 'npm install'}, {name: 'build', run: 'npm run build'}],
     },
   },
 } satisfies WorkflowConfig;

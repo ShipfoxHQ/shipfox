@@ -1,0 +1,154 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`workflowConfigJsonSchema > keeps the generated schema snapshot stable 1`] = `
+{
+  "$id": "https://schemas.shipfox.dev/workflow-config.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "External Shipfox workflow configuration accepted by YAML authoring surfaces.",
+  "properties": {
+    "jobs": {
+      "additionalProperties": {
+        "properties": {
+          "needs": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string",
+              },
+              {
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "minItems": 1,
+                "type": "array",
+              },
+            ],
+          },
+          "runner": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string",
+              },
+              {
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "minItems": 1,
+                "type": "array",
+              },
+            ],
+          },
+          "steps": {
+            "items": {
+              "properties": {
+                "name": {
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "run": {
+                  "minLength": 1,
+                  "type": "string",
+                },
+              },
+              "required": [
+                "run",
+              ],
+              "type": "object",
+            },
+            "minItems": 1,
+            "type": "array",
+          },
+        },
+        "required": [
+          "steps",
+        ],
+        "type": "object",
+      },
+      "propertyNames": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "type": "object",
+    },
+    "name": {
+      "minLength": 1,
+      "type": "string",
+    },
+    "runner": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string",
+        },
+        {
+          "items": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "minItems": 1,
+          "type": "array",
+        },
+      ],
+    },
+    "triggers": {
+      "additionalProperties": {
+        "properties": {
+          "event": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "filter": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "on": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string",
+              },
+              {
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "minItems": 1,
+                "type": "array",
+              },
+            ],
+          },
+          "source": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "with": {
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string",
+            },
+            "type": "object",
+          },
+        },
+        "required": [
+          "source",
+        ],
+        "type": "object",
+      },
+      "propertyNames": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "type": "object",
+    },
+  },
+  "required": [
+    "name",
+    "jobs",
+  ],
+  "title": "Shipfox Workflow Config",
+  "type": "object",
+}
+`;

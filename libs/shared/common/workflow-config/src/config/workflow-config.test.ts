@@ -95,26 +95,6 @@ describe('workflowConfigSchema', () => {
     expect(result.triggers?.main_push?.filter).toBe('event.ref == "refs/heads/main"');
   });
 
-  it('keeps gate success_if as a string', () => {
-    const config = {
-      name: 'simple build',
-      jobs: {
-        build: {
-          steps: [
-            {
-              run: 'npm run build',
-              gate: {success_if: 'exit_code == 0'},
-            },
-          ],
-        },
-      },
-    };
-
-    const result = workflowConfigSchema.parse(config);
-
-    expect(result.jobs.build?.steps[0]?.gate?.success_if).toBe('exit_code == 0');
-  });
-
   it.each([
     ['a trigger event string', 'push'],
     ['a trigger on string', 'push'],
@@ -130,25 +110,6 @@ describe('workflowConfigSchema', () => {
       jobs: {
         build: {
           steps: [{run: 'npm run build'}],
-        },
-      },
-    };
-
-    const result = workflowConfigSchema.safeParse(config);
-
-    expect(result.success).toBe(true);
-  });
-
-  it.each([
-    ['restart_from', {restart_from: 'build'}],
-    ['output', {output: 'Build failed'}],
-    ['restart_from and output', {restart_from: 'build', output: 'Build failed'}],
-  ])('accepts gate on_failure with %s', (_label, onFailure) => {
-    const config = {
-      name: 'simple build',
-      jobs: {
-        build: {
-          steps: [{run: 'npm run build', gate: {on_failure: onFailure}}],
         },
       },
     };
@@ -215,37 +176,7 @@ describe('workflowConfigSchema', () => {
       name: 'simple build',
       jobs: {
         build: {
-          steps: [{id: 'build'}],
-        },
-      },
-    };
-
-    const result = workflowConfigSchema.safeParse(config);
-
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects an empty gate', () => {
-    const config = {
-      name: 'simple build',
-      jobs: {
-        build: {
-          steps: [{run: 'npm run build', gate: {}}],
-        },
-      },
-    };
-
-    const result = workflowConfigSchema.safeParse(config);
-
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects an empty gate on_failure block', () => {
-    const config = {
-      name: 'simple build',
-      jobs: {
-        build: {
-          steps: [{run: 'npm run build', gate: {on_failure: {}}}],
+          steps: [{name: 'build'}],
         },
       },
     };

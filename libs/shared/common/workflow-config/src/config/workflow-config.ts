@@ -12,33 +12,9 @@ export const workflowConfigTriggerSchema = z.object({
   filter: z.string().min(1).optional(),
 });
 
-export const workflowConfigStepGateOnFailureSchema = z.union([
-  z.object({
-    restart_from: z.string().min(1),
-    output: z.string().min(1).optional(),
-  }),
-  z.object({
-    restart_from: z.string().min(1).optional(),
-    output: z.string().min(1),
-  }),
-]);
-
-export const workflowConfigStepGateSchema = z.union([
-  z.object({
-    success_if: z.string().min(1),
-    on_failure: workflowConfigStepGateOnFailureSchema.optional(),
-  }),
-  z.object({
-    success_if: z.string().min(1).optional(),
-    on_failure: workflowConfigStepGateOnFailureSchema,
-  }),
-]);
-
 export const workflowConfigRunStepSchema = z.object({
-  id: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
   run: z.string().min(1),
-  gate: workflowConfigStepGateSchema.optional(),
 });
 
 export const workflowConfigJobSchema = z.object({
@@ -57,6 +33,4 @@ export const workflowConfigSchema = z.object({
 export type WorkflowConfig = z.infer<typeof workflowConfigSchema>;
 export type WorkflowConfigJob = z.infer<typeof workflowConfigJobSchema>;
 export type WorkflowConfigRunStep = z.infer<typeof workflowConfigRunStepSchema>;
-export type WorkflowConfigStepGate = z.infer<typeof workflowConfigStepGateSchema>;
-export type WorkflowConfigStepGateOnFailure = z.infer<typeof workflowConfigStepGateOnFailureSchema>;
 export type WorkflowConfigTrigger = z.infer<typeof workflowConfigTriggerSchema>;
