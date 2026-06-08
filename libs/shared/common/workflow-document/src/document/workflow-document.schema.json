@@ -173,7 +173,7 @@
   },
   "required": ["name", "jobs"],
   "additionalProperties": false,
-  "$id": "https://schemas.shipfox.dev/workflow-config.schema.json",
-  "title": "Shipfox Workflow Config",
-  "description": "External Shipfox workflow configuration accepted by YAML authoring surfaces."
+  "$id": "https://schemas.shipfox.dev/workflow-document.schema.json",
+  "title": "Shipfox Workflow Document",
+  "description": "External Shipfox workflow document accepted by YAML authoring surfaces."
 }

@@ -1,11 +1,11 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`workflowConfigJsonSchema > keeps the generated schema snapshot stable 1`] = `
+exports[`workflowDocumentJsonSchema > keeps the generated schema snapshot stable 1`] = `
 {
-  "$id": "https://schemas.shipfox.dev/workflow-config.schema.json",
+  "$id": "https://schemas.shipfox.dev/workflow-document.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "External Shipfox workflow configuration accepted by YAML authoring surfaces.",
+  "description": "External Shipfox workflow document accepted by YAML authoring surfaces.",
   "properties": {
     "jobs": {
       "additionalProperties": {
@@ -190,7 +190,7 @@ exports[`workflowConfigJsonSchema > keeps the generated schema snapshot stable 1
     "name",
     "jobs",
   ],
-  "title": "Shipfox Workflow Config",
+  "title": "Shipfox Workflow Document",
   "type": "object",
 }
 `;

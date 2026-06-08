@@ -6,46 +6,46 @@ const nonEmptyRecordSchema = <ValueSchema extends z.ZodType>(valueSchema: ValueS
     .record(z.string().min(1), valueSchema)
     .refine((value) => Object.keys(value).length > 0, {message: 'Expected at least one entry'});
 
-// This package owns the syntactic external config shape. Definitions-layer
+// This package owns the syntactic external document shape. Definitions-layer
 // semantic rules, defaults, and internal representations stay in definitions.
-const workflowConfigTriggerBaseSchema = {
+const workflowDocumentTriggerBaseSchema = {
   source: z.string().min(1),
   with: z.record(z.string(), z.unknown()).optional(),
   filter: z.string().min(1).optional(),
 } satisfies z.ZodRawShape;
 
-export const workflowConfigTriggerSchema = z.union([
+export const workflowDocumentTriggerSchema = z.union([
   z.strictObject({
-    ...workflowConfigTriggerBaseSchema,
+    ...workflowDocumentTriggerBaseSchema,
     event: z.string().min(1),
     on: z.never().optional(),
   }),
   z.strictObject({
-    ...workflowConfigTriggerBaseSchema,
+    ...workflowDocumentTriggerBaseSchema,
     on: stringOrStringArraySchema,
     event: z.never().optional(),
   }),
 ]);
 
-export const workflowConfigRunStepSchema = z.strictObject({
+export const workflowDocumentRunStepSchema = z.strictObject({
   name: z.string().min(1).optional(),
   run: z.string().min(1),
 });
 
-export const workflowConfigJobSchema = z.strictObject({
+export const workflowDocumentJobSchema = z.strictObject({
   needs: stringOrStringArraySchema.optional(),
   runner: stringOrStringArraySchema.optional(),
-  steps: z.array(workflowConfigRunStepSchema).min(1),
+  steps: z.array(workflowDocumentRunStepSchema).min(1),
 });
 
-export const workflowConfigSchema = z.strictObject({
+export const workflowDocumentSchema = z.strictObject({
   name: z.string().min(1),
   runner: stringOrStringArraySchema.optional(),
-  triggers: nonEmptyRecordSchema(workflowConfigTriggerSchema).optional(),
-  jobs: nonEmptyRecordSchema(workflowConfigJobSchema),
+  triggers: nonEmptyRecordSchema(workflowDocumentTriggerSchema).optional(),
+  jobs: nonEmptyRecordSchema(workflowDocumentJobSchema),
 });
 
-export type WorkflowConfig = z.infer<typeof workflowConfigSchema>;
-export type WorkflowConfigJob = z.infer<typeof workflowConfigJobSchema>;
-export type WorkflowConfigRunStep = z.infer<typeof workflowConfigRunStepSchema>;
-export type WorkflowConfigTrigger = z.infer<typeof workflowConfigTriggerSchema>;
+export type WorkflowDocument = z.infer<typeof workflowDocumentSchema>;
+export type WorkflowDocumentJob = z.infer<typeof workflowDocumentJobSchema>;
+export type WorkflowDocumentRunStep = z.infer<typeof workflowDocumentRunStepSchema>;
+export type WorkflowDocumentTrigger = z.infer<typeof workflowDocumentTriggerSchema>;

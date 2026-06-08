@@ -2162,7 +2162,7 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/vitest
 
-  libs/shared/common/workflow-config:
+  libs/shared/common/workflow-document:
     dependencies:
       zod:
         specifier: ^4.4.3

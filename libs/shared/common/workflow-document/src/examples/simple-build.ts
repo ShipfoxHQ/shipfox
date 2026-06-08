@@ -1,6 +1,6 @@
-import type {WorkflowConfig} from '#config/workflow-config.js';
+import type {WorkflowDocument} from '#document/workflow-document.js';
 
-export const simpleBuildWorkflowConfig = {
+export const simpleBuildWorkflowDocument = {
   name: 'simple build',
   triggers: {
     main_push: {
@@ -14,4 +14,4 @@ export const simpleBuildWorkflowConfig = {
       steps: [{run: 'npm install'}, {name: 'build', run: 'npm run build'}],
     },
   },
-} satisfies WorkflowConfig;
+} satisfies WorkflowDocument;
