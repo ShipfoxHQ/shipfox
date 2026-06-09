@@ -17,3 +17,11 @@ export function db() {
 export function closeDb(): void {
   _db = undefined;
 }
+
+export type Tx = Parameters<Parameters<NodePgDatabase<typeof schema>['transaction']>[0]>[0];
+
+// Lets callers express a unit of work to run atomically without depending on the
+// db() singleton or drizzle's transaction API directly.
+export function withTransaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return db().transaction(fn);
+}
