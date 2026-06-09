@@ -1,0 +1,6 @@
+name: invalid syntax
+jobs:
+  build:
+    steps:
+      - run npm test
+broken

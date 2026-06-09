@@ -572,6 +572,9 @@ importers:
       '@shipfox/node-temporal':
         specifier: workspace:*
         version: link:../../shared/node/temporal
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../../shared/workflow/document
       '@temporalio/activity':
         specifier: ^1.16.1
         version: 1.17.2
