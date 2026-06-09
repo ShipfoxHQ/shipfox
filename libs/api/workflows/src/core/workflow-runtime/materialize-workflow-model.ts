@@ -51,5 +51,29 @@ function dependencySourceNames(
 }
 
 function stepConfig(step: WorkflowModelStep): Record<string, unknown> {
-  return {run: step.command.value};
+  return {
+    run: step.command.value,
+    ...(step.gate === undefined ? {} : {gate: stepGateConfig(step.gate)}),
+  };
+}
+
+function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<string, unknown> {
+  return {
+    ...(gate.successIf === undefined
+      ? {}
+      : {
+          success_if: {
+            language: gate.successIf.language,
+            source: gate.successIf.source,
+          },
+        }),
+    ...(gate.onFailure === undefined
+      ? {}
+      : {
+          on_failure: {
+            restart_from: gate.onFailure.restartFrom,
+            ...(gate.onFailure.output === undefined ? {} : {output: gate.onFailure.output}),
+          },
+        }),
+  };
 }

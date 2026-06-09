@@ -2,13 +2,30 @@ import type {WorkflowModel} from '@shipfox/api-definitions';
 import {workflowModel} from '#test/index.js';
 import {materializeWorkflowModel} from './materialize-workflow-model.js';
 
+type TestWorkflowExpression = NonNullable<
+  NonNullable<WorkflowModel['jobs'][number]['steps'][number]['gate']>['successIf']
+>;
+
+function expression(source: string): TestWorkflowExpression {
+  return {language: 'cel', source: source as TestWorkflowExpression['source']};
+}
+
 describe('materializeWorkflowModel', () => {
   it('converts workflow model jobs and steps to runtime rows', () => {
     const model = workflowModel({
       runner: 'ubuntu-latest',
       jobs: {
         build: {
-          steps: [{name: 'install', run: 'npm install'}, {run: 'npm run build'}],
+          steps: [
+            {name: 'install', run: 'npm install'},
+            {
+              run: 'npm run build',
+              gate: {
+                successIf: expression('exit_code == 0'),
+                onFailure: {restartFrom: 'install', output: 'Build failed'},
+              },
+            },
+          ],
         },
         test: {
           needs: 'build',
@@ -38,7 +55,13 @@ describe('materializeWorkflowModel', () => {
             sourceName: null,
             status: 'pending',
             type: 'run',
-            config: {run: 'npm run build'},
+            config: {
+              run: 'npm run build',
+              gate: {
+                success_if: {language: 'cel', source: 'exit_code == 0'},
+                on_failure: {restart_from: 'install', output: 'Build failed'},
+              },
+            },
             position: 1,
           },
         ],

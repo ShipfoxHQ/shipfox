@@ -1,3 +1,5 @@
+import type {WorkflowExpression} from '@shipfox/expression-language';
+
 export interface WorkflowModel {
   readonly kind: 'workflow';
   readonly name: string;
@@ -28,11 +30,22 @@ export interface WorkflowModelStep {
   readonly sourceName?: string;
   readonly kind: 'run';
   readonly command: WorkflowModelRunCommand;
+  readonly gate?: WorkflowModelStepGate;
 }
 
 export interface WorkflowModelRunCommand {
   readonly kind: 'shell';
   readonly value: string;
+}
+
+export interface WorkflowModelStepGate {
+  readonly successIf?: WorkflowExpression;
+  readonly onFailure?: WorkflowModelStepFailureAction;
+}
+
+export interface WorkflowModelStepFailureAction {
+  readonly restartFrom: string;
+  readonly output?: string;
 }
 
 export interface WorkflowModelDependency {

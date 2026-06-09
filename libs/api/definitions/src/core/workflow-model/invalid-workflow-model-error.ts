@@ -4,6 +4,8 @@ export type WorkflowModelValidationIssueCode =
   | 'duplicate-job-id'
   | 'duplicate-step-id'
   | 'duplicate-trigger-id'
+  | 'invalid-step-gate-restart-from'
+  | 'invalid-step-gate-success-if'
   | 'job-dependency-cycle'
   | 'multiple-manual-triggers'
   | 'self-job-dependency'

@@ -8,6 +8,9 @@ Code that turns a checked workflow document into the model used by definitions.
   parsing.
 - **`normalizeWorkflowDocument(document)`**: Applies defaults, expands
   shorthand fields, assigns stable ids, and builds graph edges.
+- **Step gates**: Parse run-step `gate.success_if` as CEL with `exit_code` in
+  scope and check `gate.on_failure.restart_from` against earlier named steps in
+  the same job.
 - **`InvalidWorkflowModelError`**: Reports semantic workflow errors found during
   normalization.
 
@@ -67,12 +70,31 @@ file paths. Those fields belong to `WorkflowDefinition`.
 Trigger filters stay as source strings in this module for now. A later change
 will type-check them when event schemas define the expression context.
 
+Run-step gate expressions are different. They have a small local result context,
+so this module can parse and type-check `success_if` now. The accepted model
+stores a `WorkflowExpression` with `language: 'cel'` and the original source
+string.
+
+For now, run-step gates can use `exit_code`. Fields such as `step.output.pass`
+need a declared output schema, so they belong to later agent-step work.
+
+`on_failure.restart_from` must name an earlier step in the same job. The runtime
+host does not execute restart semantics yet. This module only records the
+accepted meaning in the model.
+
 If a rule needs project data or database state, put that rule in another layer.
 This module should stay pure and easy to test.
 
 If a rule can be checked from the document alone, it can live here. If a rule
-needs a project, a user, a commit, or a row from the database, it should live
-with that data.
+needs a project, a user, a commit, or a database row, it should live with that
+data.
+
+Run this step before saving a new definition. That way bad links, bad ids, and
+bad gate rules stop early, while the caller still knows which file field caused
+the problem.
+
+This also makes the next step simpler. The next step can read one clear shape
+instead of checking many short forms again.
 
 ## Development
 

@@ -2,6 +2,7 @@ export {
   type WorkflowDocument,
   type WorkflowDocumentJob,
   type WorkflowDocumentRunStep,
+  type WorkflowDocumentRunStepGate,
   type WorkflowDocumentTrigger,
   workflowDocumentJobSchema,
   workflowDocumentRunStepSchema,
