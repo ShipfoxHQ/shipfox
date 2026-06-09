@@ -60,12 +60,22 @@ src/
   presentation/  Fastify routes, auth adapters, and DTO conversion
 ```
 
-### HTTP routes and errors
+### Errors
 
 Domain and persistence code should throw typed domain errors. Translate those
 errors to `ClientError` only at the Fastify route edge with stable client-facing
 error codes and HTTP statuses. Unexpected errors should be allowed to reach the
 shared error handler.
+
+Domain error classes should extend `Error` and stay useful to JavaScript callers
+through `instanceof`, `name`, `message`, and `cause`. Add readable kebab-case
+`code` strings only when an error is expected to reach a serialized or
+presentation boundary, such as HTTP or worker messages. Avoid numeric error codes
+and avoid wrapping schema
+errors into a parallel diagnostic catalog unless a presentation boundary
+explicitly needs that shape.
+
+### HTTP routes
 
 Define HTTP endpoints with `defineRoute`, Zod schemas, and named auth methods
 from `@shipfox/node-fastify` / `@shipfox/api-auth-context`. Prefer route groups
