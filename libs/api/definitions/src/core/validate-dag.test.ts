@@ -1,4 +1,4 @@
-import type {Job} from './entities/definition.js';
+import type {Job} from './entities/workflow-definition.js';
 import {DagValidationError, validateDag} from './validate-dag.js';
 
 function job(overrides?: Partial<Job>): Job {

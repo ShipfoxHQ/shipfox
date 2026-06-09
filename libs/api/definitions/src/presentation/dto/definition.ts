@@ -1,6 +1,6 @@
 import type {DefinitionDto, DefinitionSyncSummaryDto} from '@shipfox/api-definitions-dto';
-import type {WorkflowDefinition} from '#core/entities/definition.js';
 import type {DefinitionSyncState} from '#core/entities/sync-state.js';
+import type {WorkflowDefinition} from '#core/entities/workflow-definition.js';
 import {UNRESOLVED_SYNC_REF} from '#core/sync-definitions.js';
 
 export function toDefinitionDto(definition: WorkflowDefinition): DefinitionDto {

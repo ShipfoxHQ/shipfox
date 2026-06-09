@@ -1,6 +1,6 @@
 import {workflowSpecSchema} from '@shipfox/api-definitions-dto';
 import yaml from 'js-yaml';
-import type {WorkflowSpec} from './entities/definition.js';
+import type {WorkflowSpec} from './entities/workflow-definition.js';
 import {DagValidationError, validateDag} from './validate-dag.js';
 
 export type ValidationError = {message: string; path?: string | undefined};

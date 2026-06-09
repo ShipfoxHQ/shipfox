@@ -5,7 +5,11 @@ import {
 } from '@shipfox/api-definitions-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, asc, eq, gt, isNull, notInArray, or, type SQL, sql} from 'drizzle-orm';
-import type {Trigger, WorkflowDefinition, WorkflowSpec} from '#core/entities/definition.js';
+import type {
+  Trigger,
+  WorkflowDefinition,
+  WorkflowSpec,
+} from '#core/entities/workflow-definition.js';
 import {db} from './db.js';
 import {toDefinition, workflowDefinitions} from './schema/definitions.js';
 import {definitionsOutbox} from './schema/outbox.js';

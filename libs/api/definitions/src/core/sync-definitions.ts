@@ -7,8 +7,8 @@ import {
   type IntegrationSourceControlService,
   MAX_REPOSITORY_FILE_BYTES,
 } from '@shipfox/api-integration-core';
-import type {WorkflowSpec} from './entities/definition.js';
 import type {DefinitionSyncErrorCode} from './entities/sync-state.js';
+import type {WorkflowSpec} from './entities/workflow-definition.js';
 import {DefinitionParseError, DefinitionSyncPermanentError} from './errors.js';
 import {parseDefinition} from './parse-definition.js';
 
