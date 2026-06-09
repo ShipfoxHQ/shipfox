@@ -4,6 +4,7 @@ export {
   type DefinitionDto,
   type DefinitionListQueryDto,
   type DefinitionListResponseDto,
+  type DefinitionPayloadDto,
   type DefinitionResponseDto,
   type DefinitionSyncSummaryDto,
   definitionDtoSchema,

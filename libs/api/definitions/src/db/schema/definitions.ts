@@ -1,7 +1,10 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {index, jsonb, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
-import type {WorkflowDefinition, WorkflowSpec} from '#core/entities/workflow-definition.js';
+import type {
+  WorkflowDefinition,
+  WorkflowDefinitionPayload,
+} from '#core/entities/workflow-definition.js';
 import {pgTable} from './common.js';
 
 export const definitionSourceEnum = pgEnum('definitions_source', ['manual', 'vcs']);
@@ -16,7 +19,7 @@ export const workflowDefinitions = pgTable(
     sha: text('sha'),
     ref: text('ref'),
     name: text('name').notNull(),
-    definition: jsonb('definition').notNull().$type<WorkflowSpec>(),
+    definition: jsonb('definition').notNull().$type<WorkflowDefinitionPayload>(),
     contentHash: text('content_hash'),
     fetchedAt: timestamp('fetched_at', {withTimezone: true}).notNull().defaultNow(),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
@@ -52,7 +55,8 @@ export function toDefinition(row: DefinitionDb): WorkflowDefinition {
     sha: row.sha,
     ref: row.ref,
     name: row.name,
-    definition: row.definition as WorkflowSpec,
+    document: row.definition.document,
+    model: row.definition.model,
     contentHash: row.contentHash,
     fetchedAt: row.fetchedAt,
     createdAt: row.createdAt,

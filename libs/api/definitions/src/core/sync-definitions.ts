@@ -8,7 +8,7 @@ import {
   MAX_REPOSITORY_FILE_BYTES,
 } from '@shipfox/api-integration-core';
 import type {DefinitionSyncErrorCode} from './entities/sync-state.js';
-import type {WorkflowSpec} from './entities/workflow-definition.js';
+import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
 import {DefinitionParseError, DefinitionSyncPermanentError} from './errors.js';
 import {parseDefinition} from './parse-definition.js';
 
@@ -75,7 +75,7 @@ export async function discoverWorkflowFiles(
 export interface ParsedWorkflow {
   path: string;
   name: string;
-  definition: WorkflowSpec;
+  definition: WorkflowDefinitionPayload;
   contentHash: string;
 }
 
@@ -109,7 +109,7 @@ export async function fetchAndParseWorkflows(
     try {
       const definition = parseDefinition(snapshot.content);
       const contentHash = sha256Hex(snapshot.content);
-      return {path: snapshot.path, name: definition.name, definition, contentHash};
+      return {path: snapshot.path, name: definition.document.name, definition, contentHash};
     } catch (error) {
       if (error instanceof DefinitionParseError) {
         throw new DefinitionSyncPermanentError(

@@ -4,7 +4,6 @@ export const triggerSchema = z
   .object({
     source: z.string(),
     event: z.string().optional(),
-    on: z.union([z.string(), z.array(z.string())]).optional(),
     with: z.record(z.string(), z.unknown()).optional(),
     filter: z.string().optional(),
   })
@@ -22,11 +21,9 @@ export const triggerSchema = z
     const result: {
       source: string;
       event: string;
-      on?: string | string[];
       with?: Record<string, unknown>;
       filter?: string;
     } = {source: value.source, event};
-    if (value.on !== undefined) result.on = value.on;
     if (value.with !== undefined) result.with = value.with;
     if (value.filter !== undefined) result.filter = value.filter;
     return result;

@@ -1,63 +1,56 @@
-import {workflowSpecSchema} from '@shipfox/api-definitions-dto';
-import yaml from 'js-yaml';
-import type {WorkflowSpec} from './entities/workflow-definition.js';
-import {DagValidationError, validateDag} from './validate-dag.js';
+import {InvalidWorkflowDocumentError} from '@shipfox/workflow-document';
+import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
+import {InvalidWorkflowModelError, normalizeWorkflowDocument} from './workflow-model/index.js';
+import {InvalidWorkflowYamlError, parseWorkflowYaml} from './workflow-yaml/index.js';
 
 export type ValidationError = {message: string; path?: string | undefined};
 
 export type ValidationResult =
-  | {valid: true; spec: WorkflowSpec}
+  | {valid: true; definition: WorkflowDefinitionPayload}
   | {valid: false; errors: ValidationError[]};
 
 export function validateDefinition(yamlContent: string): ValidationResult {
-  let parsed: unknown;
   try {
-    parsed = yaml.load(yamlContent);
+    const document = parseWorkflowYaml(yamlContent);
+    const model = normalizeWorkflowDocument(document);
+    return {valid: true, definition: {document, model}};
   } catch (error) {
-    return {
-      valid: false,
-      errors: [
-        {message: `Invalid YAML syntax: ${error instanceof Error ? error.message : String(error)}`},
-      ],
-    };
+    return {valid: false, errors: validationErrorsFor(error)};
+  }
+}
+
+function validationErrorsFor(error: unknown): ValidationError[] {
+  if (error instanceof InvalidWorkflowYamlError) {
+    return [
+      validationError({
+        message: error.message,
+        path:
+          error.location === undefined
+            ? undefined
+            : `${error.location.line}:${error.location.column}`,
+      }),
+    ];
   }
 
-  if (
-    parsed === null ||
-    parsed === undefined ||
-    typeof parsed !== 'object' ||
-    Array.isArray(parsed)
-  ) {
-    return {
-      valid: false,
-      errors: [{message: 'Workflow definition must be a YAML object'}],
-    };
-  }
-
-  const result = workflowSpecSchema.safeParse(parsed);
-  if (!result.success) {
-    return {
-      valid: false,
-      errors: result.error.issues.map((issue) => ({
+  if (error instanceof InvalidWorkflowDocumentError) {
+    return error.validationError.issues.map((issue) =>
+      validationError({
         message: issue.message,
-        path: issue.path.join('.'),
-      })),
-    };
+        path: issue.path.join('.') || undefined,
+      }),
+    );
   }
 
-  const spec = result.data as WorkflowSpec;
-
-  try {
-    validateDag(spec.jobs);
-  } catch (error) {
-    if (error instanceof DagValidationError) {
-      return {
-        valid: false,
-        errors: [{message: error.message, path: error.cycle?.join(' -> ')}],
-      };
-    }
-    throw error;
+  if (error instanceof InvalidWorkflowModelError) {
+    return error.issues.map((issue) =>
+      validationError({message: issue.message, path: issue.path.join('.')}),
+    );
   }
 
-  return {valid: true, spec};
+  throw error;
+}
+
+function validationError(params: {message: string; path?: string | undefined}): ValidationError {
+  if (params.path === undefined) return {message: params.message};
+  return {message: params.message, path: params.path};
 }

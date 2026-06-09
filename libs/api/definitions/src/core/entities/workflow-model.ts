@@ -12,6 +12,7 @@ export interface WorkflowModelTrigger {
   readonly source: string;
   readonly event: string;
   readonly inputs?: Readonly<Record<string, unknown>>;
+  // Trigger filters stay as source strings until event-schema-backed CEL validation exists.
   readonly filter?: string;
 }
 

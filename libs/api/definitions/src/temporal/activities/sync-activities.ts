@@ -115,7 +115,8 @@ function createFetchAndApplyActivity(sourceControl: IntegrationSourceControlServ
         upserts: definitions.map((entry) => ({
           configPath: entry.path,
           name: entry.name,
-          definition: entry.definition,
+          document: entry.definition.document,
+          model: entry.definition.model,
           contentHash: entry.contentHash,
         })),
       });

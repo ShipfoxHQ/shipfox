@@ -68,7 +68,8 @@ jobs:
     expect(body.config_path).toBe('.shipfox/workflows/test.yml');
     expect(body.source).toBe('manual');
     expect(body.name).toBe('Test Workflow');
-    expect(body.definition).toBeDefined();
+    expect(body.definition.document.name).toBe('Test Workflow');
+    expect(body.definition.model.kind).toBe('workflow');
     expect(body.sha).toBeNull();
     expect(body.ref).toBeNull();
     expect(body.fetched_at).toBeDefined();
@@ -88,7 +89,7 @@ jobs:
     expect(res.statusCode).toBe(400);
   });
 
-  test('valid YAML with invalid spec returns 400 with error code', async () => {
+  test('valid YAML with invalid definition returns 400 with error code', async () => {
     const yamlMissingName = `
 jobs:
   build:
@@ -102,7 +103,7 @@ jobs:
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.json().code).toBe('invalid-definition-spec');
+    expect(res.json().code).toBe('invalid-workflow-definition');
   });
 
   test('cyclic DAG returns 400 with dag error code', async () => {
@@ -125,7 +126,7 @@ jobs:
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.json().code).toBe('invalid-definition-spec');
+    expect(res.json().code).toBe('invalid-workflow-definition');
   });
 
   test('upsert same config_path updates the definition', async () => {

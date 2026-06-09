@@ -29,7 +29,10 @@ export const definitionDtoSchema = z.object({
   sha: z.string().nullable(),
   ref: z.string().nullable(),
   name: z.string(),
-  definition: z.record(z.string(), z.unknown()),
+  definition: z.object({
+    document: z.unknown(),
+    model: z.unknown(),
+  }),
   manual_trigger: z
     .object({
       name: z.string(),
@@ -41,6 +44,8 @@ export const definitionDtoSchema = z.object({
 });
 
 export type DefinitionDto = z.infer<typeof definitionDtoSchema>;
+
+export type DefinitionPayloadDto = DefinitionDto['definition'];
 
 export const definitionResponseSchema = definitionDtoSchema;
 

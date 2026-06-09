@@ -4,21 +4,19 @@ import {
   type DefinitionsEventMap,
 } from '@shipfox/api-definitions-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
+import type {WorkflowDocument} from '@shipfox/workflow-document';
 import {and, asc, eq, gt, isNull, notInArray, or, type SQL, sql} from 'drizzle-orm';
 import type {
-  Trigger,
   WorkflowDefinition,
-  WorkflowSpec,
+  WorkflowDefinitionPayload,
 } from '#core/entities/workflow-definition.js';
+import type {WorkflowModel} from '#core/entities/workflow-model.js';
 import {db} from './db.js';
+import {definitionTriggersFor} from './definition-triggers.js';
 import {toDefinition, workflowDefinitions} from './schema/definitions.js';
 import {definitionsOutbox} from './schema/outbox.js';
 
 type Tx = Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0];
-
-function triggersFor(spec: WorkflowSpec): Record<string, Trigger> {
-  return spec.triggers ?? {};
-}
 
 export interface UpsertDefinitionParams {
   projectId: string;
@@ -26,7 +24,8 @@ export interface UpsertDefinitionParams {
   configPath?: string | null | undefined;
   source?: 'manual' | 'vcs' | undefined;
   name: string;
-  definition: WorkflowSpec;
+  document: WorkflowDocument;
+  model: WorkflowModel;
   contentHash?: string | null | undefined;
   sha?: string | undefined;
   ref?: string | undefined;
@@ -38,10 +37,15 @@ function buildUpsertQuery(tx: Tx, params: UpsertDefinitionParams) {
     throw new Error('configPath is required for VCS definitions');
   }
 
+  const definition: WorkflowDefinitionPayload = {
+    document: params.document,
+    model: params.model,
+  };
+
   const set = {
     name: params.name,
     source,
-    definition: params.definition,
+    definition,
     contentHash: params.contentHash ?? null,
     fetchedAt: sql`now()`,
     updatedAt: sql`now()`,
@@ -55,7 +59,7 @@ function buildUpsertQuery(tx: Tx, params: UpsertDefinitionParams) {
     sha: params.sha ?? null,
     ref: params.ref ?? null,
     name: params.name,
-    definition: params.definition,
+    definition,
     contentHash: params.contentHash ?? null,
   };
 
@@ -117,7 +121,7 @@ export async function upsertDefinition(
         projectId: row.projectId,
         workspaceId: params.workspaceId,
         configPath: row.configPath,
-        triggers: triggersFor(row.definition as WorkflowSpec),
+        triggers: definitionTriggersFor(row.definition.document),
       },
     });
 
@@ -249,7 +253,8 @@ export interface ApplyVcsDefinitionsBatchParams {
   upserts: Array<{
     configPath: string;
     name: string;
-    definition: WorkflowSpec;
+    document: WorkflowDocument;
+    model: WorkflowModel;
     contentHash: string;
   }>;
 }
@@ -293,7 +298,8 @@ export async function applyVcsDefinitionsBatch(
         source: 'vcs',
         ref: params.ref,
         name: item.name,
-        definition: item.definition,
+        document: item.document,
+        model: item.model,
         contentHash: item.contentHash,
       });
       const row = rows[0];
@@ -307,7 +313,7 @@ export async function applyVcsDefinitionsBatch(
             projectId: row.projectId,
             workspaceId: params.workspaceId,
             configPath: row.configPath,
-            triggers: triggersFor(row.definition as WorkflowSpec),
+            triggers: definitionTriggersFor(row.definition.document),
           },
         });
         appliedCount += 1;

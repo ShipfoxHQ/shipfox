@@ -1,7 +1,7 @@
 import {validateDefinition} from './validate-definition.js';
 
 describe('validateDefinition', () => {
-  test('valid YAML returns { valid: true, spec }', () => {
+  test('valid YAML returns { valid: true, definition }', () => {
     const yaml = `
 name: Test
 jobs:
@@ -14,8 +14,9 @@ jobs:
 
     expect(result.valid).toBe(true);
     if (result.valid) {
-      expect(result.spec.name).toBe('Test');
-      expect(result.spec.jobs.build?.steps).toHaveLength(1);
+      expect(result.definition.document.name).toBe('Test');
+      expect(result.definition.document.jobs.build?.steps).toHaveLength(1);
+      expect(result.definition.model.jobs[0]?.id).toBe('build');
     }
   });
 
@@ -25,7 +26,7 @@ jobs:
     expect(result.valid).toBe(false);
     if (!result.valid) {
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]?.message).toContain('Invalid YAML syntax');
+      expect(result.errors[0]?.message).toContain('Invalid workflow YAML syntax');
     }
   });
 
@@ -40,7 +41,7 @@ jobs:
     expect(arrayResult.valid).toBe(false);
   });
 
-  test('invalid spec returns { valid: false, errors with details }', () => {
+  test('invalid document returns { valid: false, errors with details }', () => {
     const yaml = `
 jobs:
   build:
