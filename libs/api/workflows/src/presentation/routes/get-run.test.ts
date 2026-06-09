@@ -10,6 +10,7 @@ import {
   getJobsByRunId,
   getStepsByJobId,
 } from '#db/workflow-runs.js';
+import {workflowModel} from '#test/index.js';
 import {getRunRoute} from './get-run.js';
 
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
@@ -75,12 +76,12 @@ describe('GET /api/workflows/runs/:id', () => {
       workspaceId,
       projectId,
       definitionId,
-      definition: {
+      model: workflowModel({
         name: 'Test',
         jobs: {
           build: {steps: [{name: 'Install', run: 'npm install'}, {run: 'npm build'}]},
         },
-      },
+      }),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -112,10 +113,10 @@ describe('GET /api/workflows/runs/:id', () => {
       workspaceId,
       projectId,
       definitionId,
-      definition: {
+      model: workflowModel({
         name: 'Test',
         jobs: {build: {steps: [{run: 'a'}, {run: 'b'}, {run: 'c'}]}},
-      },
+      }),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -178,7 +179,7 @@ describe('GET /api/workflows/runs/:id', () => {
       workspaceId,
       projectId: crypto.randomUUID(),
       definitionId: crypto.randomUUID(),
-      definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
+      model: workflowModel({name: 'Test'}),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -204,7 +205,7 @@ describe('GET /api/workflows/runs/:id', () => {
       workspaceId,
       projectId: crypto.randomUUID(),
       definitionId: crypto.randomUUID(),
-      definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
+      model: workflowModel({name: 'Test'}),
       triggerPayload: {
         source: 'manual',
         event: 'fire',

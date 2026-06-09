@@ -1,7 +1,7 @@
 import {executeChild, proxyActivities} from '@temporalio/workflow';
 
-import type {CompletionStatus} from '#core/dag.js';
-import {findBlockedNodes, findReadyNodes} from '#core/dag.js';
+import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
+import {scheduleRuntimeDag} from '#core/workflow-runtime/index.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
 import type {DagJob} from '../activities/orchestration-activities.js';
@@ -29,73 +29,55 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
   });
   runVersion = newVersion;
 
-  const completed = new Map<string, CompletionStatus>();
+  const completed = new Map<string, RuntimeCompletionStatus>();
   const jobVersions = new Map<string, number>();
   for (const job of dag.jobs) {
     jobVersions.set(job.id, job.version);
   }
 
-  let runFailed = false;
+  while (true) {
+    const commands = scheduleRuntimeDag({jobs: dag.jobs, completed});
+    const completeRun = commands.find((command) => command.kind === 'complete-run');
 
-  while (completed.size < dag.jobs.length) {
-    runFailed = (await cancelBlockedJobs(dag.jobs, completed, jobVersions)) || runFailed;
-
-    const ready = findReadyNodes(dag.jobs, completed);
-
-    if (ready.length === 0) {
-      await cancelRemainingJobs(dag.jobs, completed, jobVersions);
-      runFailed = true;
-      break;
+    for (const command of commands) {
+      if (command.kind !== 'cancel-job') continue;
+      await cancelJob(command.job, completed, jobVersions);
     }
 
-    const results = await launchJobs(ready, input, jobVersions);
-
-    for (const [job, result] of ready.map((j, i) => [j, results[i]] as const)) {
+    const jobsToStart = commands.flatMap((command) =>
+      command.kind === 'start-job' ? [command.job] : [],
+    );
+    const results = await launchJobs(jobsToStart, input, jobVersions);
+    for (const [job, result] of jobsToStart.map((j, i) => [j, results[i]] as const)) {
       if (!result) continue;
       completed.set(job.name, result.status);
       jobVersions.set(job.id, result.jobVersion);
-      if (result.status === 'failed') runFailed = true;
+    }
+
+    if (completeRun) {
+      await setRunStatus({
+        runId: input.runId,
+        status: completeRun.status,
+        version: runVersion,
+      });
+      return;
     }
   }
-
-  await setRunStatus({
-    runId: input.runId,
-    status: runFailed ? 'failed' : 'succeeded',
-    version: runVersion,
-  });
 }
 
-async function cancelBlockedJobs(
-  jobs: DagJob[],
-  completed: Map<string, CompletionStatus>,
-  jobVersions: Map<string, number>,
-): Promise<boolean> {
-  const blocked = findBlockedNodes(jobs, completed);
-  for (const job of blocked) {
-    const version = jobVersions.get(job.id) ?? job.version;
-    const {newVersion: v} = await setJobStatus({jobId: job.id, status: 'cancelled', version});
-    jobVersions.set(job.id, v);
-    completed.set(job.name, 'failed');
-  }
-  return blocked.length > 0;
-}
-
-async function cancelRemainingJobs(
-  jobs: DagJob[],
-  completed: Map<string, CompletionStatus>,
+async function cancelJob(
+  job: DagJob,
+  completed: Map<string, RuntimeCompletionStatus>,
   jobVersions: Map<string, number>,
 ): Promise<void> {
-  for (const job of jobs) {
-    if (!completed.has(job.name)) {
-      const version = jobVersions.get(job.id) ?? job.version;
-      await setJobStatus({jobId: job.id, status: 'cancelled', version});
-      completed.set(job.name, 'failed');
-    }
-  }
+  const version = jobVersions.get(job.id) ?? job.version;
+  const {newVersion} = await setJobStatus({jobId: job.id, status: 'cancelled', version});
+  jobVersions.set(job.id, newVersion);
+  completed.set(job.name, 'failed');
 }
 
 interface LaunchResult {
-  status: CompletionStatus;
+  status: RuntimeCompletionStatus;
   jobVersion: number;
 }
 

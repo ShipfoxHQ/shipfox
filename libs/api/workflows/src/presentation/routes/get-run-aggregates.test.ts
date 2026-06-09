@@ -3,6 +3,7 @@ import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {createWorkflowRun, updateWorkflowRunStatus} from '#db/workflow-runs.js';
+import {workflowModel} from '#test/index.js';
 import {getRunAggregatesRoute} from './get-run-aggregates.js';
 
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
@@ -55,7 +56,7 @@ describe('GET /api/workflows/runs/aggregates', () => {
       projectId,
       definitionId: deployDefinitionId,
       name: 'Deploy',
-      definition: {name: 'Deploy', jobs: {build: {steps: [{run: 'echo'}]}}},
+      model: workflowModel({name: 'Deploy'}),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -73,7 +74,7 @@ describe('GET /api/workflows/runs/aggregates', () => {
       projectId,
       definitionId: deployDefinitionId,
       name: 'Deploy',
-      definition: {name: 'Deploy', jobs: {build: {steps: [{run: 'echo'}]}}},
+      model: workflowModel({name: 'Deploy'}),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -86,7 +87,7 @@ describe('GET /api/workflows/runs/aggregates', () => {
       projectId,
       definitionId: nightlyDefinitionId,
       name: 'Nightly',
-      definition: {name: 'Nightly', jobs: {build: {steps: [{run: 'echo'}]}}},
+      model: workflowModel({name: 'Nightly'}),
       triggerPayload: {
         source: 'cron',
         event: 'tick',

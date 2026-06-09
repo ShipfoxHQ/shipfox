@@ -7,6 +7,7 @@ import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {db} from '#db/db.js';
 import {workflowRuns} from '#db/schema/workflow-runs.js';
 import {createWorkflowRun, updateWorkflowRunStatus} from '#db/workflow-runs.js';
+import {workflowModel} from '#test/index.js';
 import {listRunsRoute} from './list-runs.js';
 
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
@@ -57,7 +58,7 @@ describe('GET /api/workflows/runs', () => {
       projectId,
       definitionId: crypto.randomUUID(),
       name: 'Test',
-      definition: {name: 'Test', jobs: {build: {steps: [{run: 'echo'}]}}},
+      model: workflowModel({name: 'Test'}),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -70,7 +71,7 @@ describe('GET /api/workflows/runs', () => {
       projectId,
       definitionId: crypto.randomUUID(),
       name: 'Test 2',
-      definition: {name: 'Test 2', jobs: {build: {steps: [{run: 'echo'}]}}},
+      model: workflowModel({name: 'Test 2'}),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -112,7 +113,7 @@ describe('GET /api/workflows/runs', () => {
       projectId,
       definitionId: crypto.randomUUID(),
       name: 'Deploy',
-      definition: {name: 'Deploy', jobs: {build: {steps: [{run: 'echo'}]}}},
+      model: workflowModel({name: 'Deploy'}),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -130,7 +131,7 @@ describe('GET /api/workflows/runs', () => {
       projectId,
       definitionId: crypto.randomUUID(),
       name: 'Nightly',
-      definition: {name: 'Nightly', jobs: {build: {steps: [{run: 'echo'}]}}},
+      model: workflowModel({name: 'Nightly'}),
       triggerPayload: {source: 'cron', event: 'tick', scheduleId: 'nightly'},
     });
 
@@ -223,7 +224,7 @@ async function createRunAt({
     projectId,
     definitionId: crypto.randomUUID(),
     name,
-    definition: {name, jobs: {build: {steps: [{run: 'echo'}]}}},
+    model: workflowModel({name}),
     triggerPayload: {
       source: 'manual',
       event: 'fire',

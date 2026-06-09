@@ -1,4 +1,5 @@
 import type {WorkflowDefinition} from '@shipfox/api-definitions';
+import {workflowModel} from '#test/index.js';
 import type {TriggerPayload} from './entities/workflow-run.js';
 import {DefinitionNotFoundError, ProjectMismatchError} from './errors.js';
 import {runWorkflow} from './run-workflow.js';
@@ -12,8 +13,9 @@ import {getDefinitionById} from '@shipfox/api-definitions';
 const mockGetDefinitionById = vi.mocked(getDefinitionById);
 
 function buildDefinition(overrides?: Partial<WorkflowDefinition>): WorkflowDefinition {
+  const model = workflowModel();
   const document = {
-    name: 'Test Workflow',
+    name: model.name,
     jobs: {
       build: {steps: [{run: 'echo hello'}]},
     },
@@ -28,27 +30,7 @@ function buildDefinition(overrides?: Partial<WorkflowDefinition>): WorkflowDefin
     name: 'Test Workflow',
     definition: document,
     document,
-    model: {
-      kind: 'workflow',
-      name: 'Test Workflow',
-      triggers: [],
-      jobs: [
-        {
-          id: 'build',
-          sourceName: 'build',
-          runner: [],
-          dependencies: [],
-          steps: [
-            {
-              id: 'build-step-1',
-              kind: 'run',
-              command: {kind: 'shell', value: 'echo hello'},
-            },
-          ],
-        },
-      ],
-      dependencies: [],
-    },
+    model,
     contentHash: null,
     fetchedAt: new Date(),
     createdAt: new Date(),

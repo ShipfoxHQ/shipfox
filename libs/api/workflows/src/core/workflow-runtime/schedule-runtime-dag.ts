@@ -1,0 +1,74 @@
+import type {RuntimeCompletionStatus, RuntimeDagJob} from '../entities/runtime-dag.js';
+import type {RuntimeSchedulingCommand} from '../entities/runtime-scheduling-command.js';
+
+export interface ScheduleRuntimeDagInput<Job extends RuntimeDagJob = RuntimeDagJob> {
+  readonly jobs: readonly Job[];
+  readonly completed: ReadonlyMap<string, RuntimeCompletionStatus>;
+  readonly running?: ReadonlySet<string> | undefined;
+}
+
+export function scheduleRuntimeDag<Job extends RuntimeDagJob>(
+  input: ScheduleRuntimeDagInput<Job>,
+): readonly RuntimeSchedulingCommand<Job>[] {
+  const completed = new Map(input.completed);
+  const commands: RuntimeSchedulingCommand<Job>[] = [];
+
+  for (const job of findBlockedJobs(input.jobs, completed)) {
+    commands.push({kind: 'cancel-job', job});
+    completed.set(job.name, 'failed');
+  }
+
+  const ready = findReadyJobs(input.jobs, completed, input.running ?? new Set());
+  if (ready.length > 0) {
+    commands.push(...ready.map((job): RuntimeSchedulingCommand<Job> => ({kind: 'start-job', job})));
+    return commands;
+  }
+
+  const running = input.running ?? new Set();
+  if (input.jobs.some((job) => running.has(job.name) && !completed.has(job.name))) {
+    return commands;
+  }
+
+  const remaining = input.jobs.filter((job) => !completed.has(job.name));
+  if (remaining.length > 0) {
+    commands.push(
+      ...remaining.map((job): RuntimeSchedulingCommand<Job> => ({kind: 'cancel-job', job})),
+    );
+    commands.push({kind: 'complete-run', status: 'failed'});
+    return commands;
+  }
+
+  commands.push({
+    kind: 'complete-run',
+    status: hasFailure(completed) ? 'failed' : 'succeeded',
+  });
+  return commands;
+}
+
+function findReadyJobs<Job extends RuntimeDagJob>(
+  jobs: readonly Job[],
+  completed: ReadonlyMap<string, RuntimeCompletionStatus>,
+  running: ReadonlySet<string>,
+): readonly Job[] {
+  return jobs.filter(
+    (job) =>
+      !completed.has(job.name) &&
+      !running.has(job.name) &&
+      job.dependencies.every((dependency) => completed.get(dependency) === 'succeeded'),
+  );
+}
+
+function findBlockedJobs<Job extends RuntimeDagJob>(
+  jobs: readonly Job[],
+  completed: ReadonlyMap<string, RuntimeCompletionStatus>,
+): readonly Job[] {
+  return jobs.filter(
+    (job) =>
+      !completed.has(job.name) &&
+      job.dependencies.some((dependency) => completed.get(dependency) === 'failed'),
+  );
+}
+
+function hasFailure(completed: ReadonlyMap<string, RuntimeCompletionStatus>): boolean {
+  return Array.from(completed.values()).some((status) => status === 'failed');
+}

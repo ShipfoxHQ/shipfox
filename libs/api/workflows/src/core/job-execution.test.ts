@@ -1,4 +1,3 @@
-import type {WorkflowSpec} from '@shipfox/api-definitions';
 import type {Step} from '#core/entities/step.js';
 import {
   bulkUpdateStepStatuses,
@@ -6,6 +5,7 @@ import {
   getJobsByRunId,
   getStepsByJobId,
 } from '#db/workflow-runs.js';
+import {workflowModel} from '#test/index.js';
 import {JobNotFoundError, StepNotFoundError, StepNotRunningError} from './errors.js';
 import {nextStepForJob, recordStepResult} from './job-execution.js';
 
@@ -13,18 +13,18 @@ import {nextStepForJob, recordStepResult} from './job-execution.js';
 // no step/job factory), so arrange a single `build` job with `stepCount` steps
 // and read back its persisted, position-ordered steps.
 async function arrangeJobWithSteps(stepCount: number): Promise<{jobId: string; steps: Step[]}> {
-  const definition: WorkflowSpec = {
+  const model = workflowModel({
     name: 'Test Workflow',
     jobs: {
       build: {steps: Array.from({length: stepCount}, (_, i) => ({run: `echo step-${i}`}))},
     },
-  };
+  });
 
   const run = await createWorkflowRun({
     workspaceId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     definitionId: crypto.randomUUID(),
-    definition,
+    model,
     triggerPayload: {
       source: 'manual',
       event: 'fire',

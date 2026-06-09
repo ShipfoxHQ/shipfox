@@ -1,7 +1,7 @@
 import type {StepResultDto} from '@shipfox/api-runners-dto';
 import {condition, defineSignal, proxyActivities, setHandler} from '@temporalio/workflow';
 
-import type {CompletionStatus} from '#core/dag.js';
+import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
 
@@ -37,7 +37,7 @@ const {
 const JOB_MAX_DURATION = '60 minutes';
 
 export const jobCompletedSignal =
-  defineSignal<[{status: CompletionStatus; steps: StepResultDto[]}]>('job-completed');
+  defineSignal<[{status: RuntimeCompletionStatus; steps: StepResultDto[]}]>('job-completed');
 
 export interface JobOrchestrationInput {
   workspaceId: string;
@@ -55,7 +55,7 @@ export interface JobOrchestrationInput {
 }
 
 export interface JobOrchestrationResult {
-  status: CompletionStatus;
+  status: RuntimeCompletionStatus;
   jobVersion: number;
 }
 
@@ -76,7 +76,7 @@ export async function jobOrchestration(
     steps: input.steps,
   });
 
-  let signalPayload: {status: CompletionStatus; steps: StepResultDto[]} | undefined;
+  let signalPayload: {status: RuntimeCompletionStatus; steps: StepResultDto[]} | undefined;
 
   setHandler(jobCompletedSignal, (r) => {
     if (!signalPayload) {

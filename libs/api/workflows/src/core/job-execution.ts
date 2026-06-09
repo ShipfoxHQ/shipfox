@@ -5,11 +5,13 @@ import {
   getStepsByJobIdForUpdate,
   markStepRunning,
 } from '#db/workflow-runs.js';
-import type {CompletionStatus} from './dag.js';
+import type {RuntimeCompletionStatus} from './entities/runtime-dag.js';
 import type {Step, StepStatus} from './entities/step.js';
 import {JobNotFoundError, StepNotFoundError, StepNotRunningError} from './errors.js';
 
 const TERMINAL_STATUSES: ReadonlySet<StepStatus> = new Set(['succeeded', 'failed', 'cancelled']);
+
+type CompletionStatus = RuntimeCompletionStatus;
 
 function isTerminal(status: StepStatus): boolean {
   return TERMINAL_STATUSES.has(status);
