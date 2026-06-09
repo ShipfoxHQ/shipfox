@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@gresb/cel-javascript@0.1.1': 25633d62641014489f723fad0b7e3a3e0e43505f3c7d0562a5988d3c77b63d19
+
 importers:
 
   .:
@@ -2174,11 +2177,36 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/vitest
 
-  libs/shared/workflow/document:
+  libs/shared/expression/evaluator:
     dependencies:
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
+      '@gresb/cel-javascript':
+        specifier: 0.1.1
+        version: 0.1.1(patch_hash=25633d62641014489f723fad0b7e3a3e0e43505f3c7d0562a5988d3c77b63d19)
+      '@shipfox/expression-language':
+        specifier: workspace:*
+        version: link:../language
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+
+  libs/shared/expression/language:
+    dependencies:
+      '@gresb/cel-javascript':
+        specifier: 0.1.1
+        version: 0.1.1(patch_hash=25633d62641014489f723fad0b7e3a3e0e43505f3c7d0562a5988d3c77b63d19)
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -2730,6 +2758,28 @@ importers:
       vitest:
         specifier: ^4.1.5
         version: 4.1.7(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(@vitest/browser-playwright@4.1.7)(jsdom@29.1.1)(vite@8.0.15(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.8.3))
+
+  libs/shared/workflow/document:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
 
   tools/biome:
     dependencies:
@@ -3883,6 +3933,9 @@ packages:
 
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
+
+  '@gresb/cel-javascript@0.1.1':
+    resolution: {integrity: sha512-jknjyuWYH5wls2Nvae5xG7nIlpECS+2Dtqj2+lnatQ5gchKUBfdgnMLup7z2C2Zxzl3UvlKjP+2lGrs/epRIaw==}
 
   '@grpc/grpc-js@1.14.4':
     resolution: {integrity: sha512-k9Dj3DV/itK9D06Y8f190Qgop7/Ui+D0njFV3LHMPwPT75DpXLQohE9Wmz0QElrJnzsjB7KPWiKJbOl7IPDArQ==}
@@ -6764,6 +6817,10 @@ packages:
   ansis@4.2.0:
     resolution: {integrity: sha512-HqZ5rWlFjGiV0tDm3UxxgNRqsOTniqoKZu0pIAfh7TZQMGuZK+hH0drySty0si0QXj1ieop4+SkSfPZBPPkHig==}
     engines: {node: '>=14'}
+
+  antlr4@4.13.2:
+    resolution: {integrity: sha512-QiVbZhyy4xAZ17UPEuG3YTOt8ZaoeOR1CvEAqrEsDBsOqINslaB147i9xqljZqoyf5S+EUlGStaj+t22LT9MOg==}
+    engines: {node: '>=16'}
 
   arch@3.0.0:
     resolution: {integrity: sha512-AmIAC+Wtm2AU8lGfTtHsw0Y9Qtftx2YXEEtiBP10xFUtMOA+sHHx6OAddyL52mUKh1vsXQ6/w1mVDptZCyUt4Q==}
@@ -10255,6 +10312,10 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
+  '@gresb/cel-javascript@0.1.1(patch_hash=25633d62641014489f723fad0b7e3a3e0e43505f3c7d0562a5988d3c77b63d19)':
+    dependencies:
+      antlr4: 4.13.2
+
   '@grpc/grpc-js@1.14.4':
     dependencies:
       '@grpc/proto-loader': 0.8.1
@@ -13291,6 +13352,8 @@ snapshots:
   ansi-styles@6.2.3: {}
 
   ansis@4.2.0: {}
+
+  antlr4@4.13.2: {}
 
   arch@3.0.0: {}
 

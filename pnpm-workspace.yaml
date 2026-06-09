@@ -17,3 +17,6 @@ packages:
   - "turbo/**"
   - "!**/vite/types/**"
   - "!**/node_modules/**"
+
+patchedDependencies:
+  '@gresb/cel-javascript@0.1.1': patches/@gresb__cel-javascript@0.1.1.patch
