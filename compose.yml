@@ -20,7 +20,7 @@ services:
 
   temporal:
     container_name: temporal
-    image: temporalio/temporal:1.7.0
+    image: temporalio/temporal:1.7.1
     ports:
       - 127.0.0.1:7233:7233
       - 127.0.0.1:8233:8233
