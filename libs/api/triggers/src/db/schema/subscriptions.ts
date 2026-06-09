@@ -22,12 +22,7 @@ export const triggerSubscriptions = pgTable(
       table.workflowDefinitionId,
       table.name,
     ),
-    index('triggers_subscriptions_match_idx').on(
-      table.workspaceId,
-      table.projectId,
-      table.source,
-      table.event,
-    ),
+    index('triggers_subscriptions_match_idx').on(table.workspaceId, table.source, table.event),
     index('triggers_subscriptions_definition_idx').on(table.workflowDefinitionId),
   ],
 );

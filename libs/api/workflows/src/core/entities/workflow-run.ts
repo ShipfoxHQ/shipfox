@@ -8,20 +8,18 @@ export type TriggerPayload =
       userId: string;
     }
   | {
-      source: 'github';
-      event: 'push';
-      subscriptionId: string;
-      deliveryId: string;
-      ref: string;
-      headCommitSha: string;
-      defaultBranch: string;
-      isDefaultBranch: boolean;
-      externalRepositoryId: string;
-    }
-  | {
       source: 'cron';
       event: 'tick';
       scheduleId: string;
+    }
+  // Integration sources (github, gitlab, sentry, …) flow through opaquely: the
+  // run records what fired it and carries the raw event payload, without the
+  // triggers module having to know each source's shape.
+  | {
+      source: string;
+      event: string;
+      deliveryId: string;
+      data: unknown;
     };
 
 export interface WorkflowRun {

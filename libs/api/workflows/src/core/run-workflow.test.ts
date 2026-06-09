@@ -81,13 +81,8 @@ describe('runWorkflow', () => {
     const triggerPayload: TriggerPayload = {
       source: 'github',
       event: 'push',
-      subscriptionId: crypto.randomUUID(),
       deliveryId: crypto.randomUUID(),
-      ref: 'main',
-      headCommitSha: 'abc',
-      defaultBranch: 'main',
-      isDefaultBranch: true,
-      externalRepositoryId: 'github:1',
+      data: {ref: 'main', headCommitSha: 'abc', externalRepositoryId: 'github:1'},
     };
 
     const run = await runWorkflow({

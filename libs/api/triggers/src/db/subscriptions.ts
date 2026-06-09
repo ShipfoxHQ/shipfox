@@ -134,11 +134,13 @@ export async function getManualSubscriptionByDefinitionId(
 
 export interface FindMatchingSubscriptionsParams {
   workspaceId: string;
-  projectId: string;
   source: string;
   event: string;
 }
 
+// Matches at workspace scope: an inbound integration event is a workspace-level
+// fact, not addressed to a project. Narrowing to a repo/project/branch is left to
+// user-defined per-workflow filters, not inferred here.
 export async function findMatchingSubscriptions(
   params: FindMatchingSubscriptionsParams,
 ): Promise<TriggerSubscription[]> {
@@ -148,7 +150,6 @@ export async function findMatchingSubscriptions(
     .where(
       and(
         eq(triggerSubscriptions.workspaceId, params.workspaceId),
-        eq(triggerSubscriptions.projectId, params.projectId),
         eq(triggerSubscriptions.source, params.source),
         eq(triggerSubscriptions.event, params.event),
       ),

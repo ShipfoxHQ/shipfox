@@ -1,4 +1,4 @@
-import {readConfigInputs, readConfigOn} from './config.js';
+import {readConfigInputs} from './config.js';
 import type {TriggerSubscription} from './entities/subscription.js';
 
 function subscriptionWithConfig(config: Record<string, unknown>): TriggerSubscription {
@@ -45,37 +45,5 @@ describe('readConfigInputs', () => {
     const inputs = readConfigInputs(subscriptionWithConfig({with: 'staging'}));
 
     expect(inputs).toBeUndefined();
-  });
-});
-
-describe('readConfigOn', () => {
-  test('passes through a string', () => {
-    const on = readConfigOn(subscriptionWithConfig({on: 'main'}));
-
-    expect(on).toBe('main');
-  });
-
-  test('passes through a string array', () => {
-    const on = readConfigOn(subscriptionWithConfig({on: ['main', 'develop']}));
-
-    expect(on).toEqual(['main', 'develop']);
-  });
-
-  test('returns undefined when missing', () => {
-    const on = readConfigOn(subscriptionWithConfig({}));
-
-    expect(on).toBeUndefined();
-  });
-
-  test('returns undefined when array contains a non-string', () => {
-    const on = readConfigOn(subscriptionWithConfig({on: ['main', 42]}));
-
-    expect(on).toBeUndefined();
-  });
-
-  test('returns undefined when not a string or array', () => {
-    const on = readConfigOn(subscriptionWithConfig({on: {branch: 'main'}}));
-
-    expect(on).toBeUndefined();
   });
 });

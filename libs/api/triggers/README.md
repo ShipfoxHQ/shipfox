@@ -49,6 +49,12 @@ invariant is enforced at parse time so the fire route stays unambiguous.
 The `event` field is optional when `source: manual` and defaults to
 `fire`.
 
+The `on` field (and any other per-event filter) is stored on the
+subscription but **not yet evaluated** — an integration event currently
+fires every subscription that matches its `(source, event)` in the
+workspace. Narrowing by branch, repository, or payload contents is left to
+user-defined filters, applied in a later iteration.
+
 ## Setup
 
 This package is private to the workspace. Add it to another workspace
@@ -92,7 +98,7 @@ Three words, used the same way at every layer.
 | --- | --- | --- |
 | **source** | Where the trigger came from. | `github`, `gitlab`, `sentry`, `manual`, `cron` |
 | **event** | The specific thing that happened, scoped to a source. | `push`, `issue_comment`, `alert_triggered`, `fire`, `tick` |
-| **payload** | The data carried by the event. Shape is set by `(source, event)`. | `{ref, headCommitSha, ...}` for `(github, push)` |
+| **payload** | The data carried by the event, set by the producing integration. Triggers passes it through opaquely. | `{ref, headCommitSha, ...}` for `(github, push)` |
 
 The `name` field on a subscription is the YAML map key (for example
 `on_push`). It identifies the trigger inside a workflow definition and is
@@ -132,14 +138,14 @@ table is the immutable history.
                 │   source, event, config)                            │
                 └──────────────────────────┬──────────────────────────┘
                                            │
-INTEGRATION_EVENT_RECEIVED → match on (workspace, project, source, event)
+INTEGRATION_EVENT_RECEIVED → match on (workspace, source, event)
 or POST /workflow-definitions/:definitionId/fire-manual → look up manual subscription
                                            │
                                            ▼
                 ┌─────────────────────────────────────────────────────┐
                 │  workflow_runs                                      │
                 │  trigger_source, trigger_event (indexed text)       │
-                │  trigger_payload (jsonb, discriminated on the pair) │
+                │  trigger_payload (jsonb)                            │
                 └─────────────────────────────────────────────────────┘
 ```
 
@@ -158,19 +164,20 @@ definitions table — the event is the contract.
 Indexes:
 
 - `(workflow_definition_id, name)` — unique. One row per YAML trigger.
-- `(workspace_id, project_id, source, event)` — the hot path for matching
-  incoming integration events.
+- `(workspace_id, source, event)` — the hot path for matching incoming
+  integration events at workspace scope.
 - `(workflow_definition_id)` — used to clean up the projection on
   `DEFINITION_DELETED`.
 
 ### Layer 3 — run history (immutable)
 
 `workflow_runs.trigger_source` and `trigger_event` are indexed text
-columns. `trigger_payload` is a JSONB column whose shape is set at compile
-time by the discriminated union `TriggerPayload`. The `triggerSource` value
-on a row always equals `triggerPayload.source`. The duplication is
-deliberate: the indexed column is for filtering, the payload is for
-inspection.
+columns. `trigger_payload` is a JSONB column typed by `TriggerPayload`:
+`manual`/`cron` carry their own typed shapes, while integration events use
+a generic `{source, event, deliveryId, data}` shape that forwards the raw
+event payload as `data`. The `triggerSource` value on a row always equals
+`triggerPayload.source`. The duplication is deliberate: the indexed column
+is for filtering, the payload is for inspection.
 
 ## Events
 
@@ -198,7 +205,7 @@ It also exports lower-level pieces for tests and advanced wiring:
   caller's workspace cannot reach the workflow, or the workflow declares
   no manual trigger. Surfaced as `404 manual-trigger-not-found`.
 - `findMatchingSubscriptions()`: hot-path lookup by
-  `(workspace_id, project_id, source, event)`.
+  `(workspace_id, source, event)`.
 - `getManualSubscriptionByDefinitionId()`: resolves the single manual
   subscription for a workflow definition (or `undefined` if none).
 - `getTriggerSubscriptionById()` and
@@ -216,15 +223,13 @@ To wire a new integration source (for example GitLab):
 2. In the new `integration/<source>` package, receive webhooks and publish
    `INTEGRATION_EVENT_RECEIVED` with `source: '<name>'`,
    `event: '<type>'`, and the payload.
-3. Extend `TriggerPayload` in `@shipfox/api-workflows` with the new
-   `(source, event)` arms so the run table keeps its typing.
-4. Update the triggers module's `on-integration-event-received` subscriber
-   so it can resolve the project for the new source (for example
-   `getProjectBySource` for repository-backed sources) and evaluate the
-   YAML `on` field for that event.
 
-No changes are needed to the projection schema, the manual fire route, or
-the run table. The columns are open-ended strings.
+That is the whole list. The triggers subscriber is source-agnostic: it
+matches subscriptions on `(workspace, source, event)` and forwards the raw
+payload through the generic `TriggerPayload` shape, so no change to the
+triggers module, the projection schema, the run table, or `TriggerPayload`
+is needed for a new source. Author workflows that subscribe to the new
+`(source, event)` and narrow `triggerPayload.data` themselves.
 
 ## Development
 
