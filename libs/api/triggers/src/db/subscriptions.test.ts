@@ -166,7 +166,7 @@ describe('findMatchingSubscriptions', () => {
     projectId = crypto.randomUUID();
   });
 
-  test('returns subscriptions matching workspace, project, source, event', async () => {
+  test('returns subscriptions matching workspace, source, event', async () => {
     const workflowDefinitionId = crypto.randomUUID();
     await projectDefinitionTriggers({
       workspaceId,
@@ -180,7 +180,6 @@ describe('findMatchingSubscriptions', () => {
 
     const matches = await findMatchingSubscriptions({
       workspaceId,
-      projectId,
       source: 'github',
       event: 'push',
     });
@@ -189,7 +188,30 @@ describe('findMatchingSubscriptions', () => {
     expect(matches[0]?.name).toBe('on_push');
   });
 
-  test('does not return rows from other workspaces or projects', async () => {
+  test('matches across projects within the workspace, without project scoping', async () => {
+    await projectDefinitionTriggers({
+      workspaceId,
+      projectId,
+      workflowDefinitionId: crypto.randomUUID(),
+      triggers: {on_push: {source: 'github', event: 'push'}},
+    });
+    await projectDefinitionTriggers({
+      workspaceId,
+      projectId: crypto.randomUUID(),
+      workflowDefinitionId: crypto.randomUUID(),
+      triggers: {on_push: {source: 'github', event: 'push'}},
+    });
+
+    const matches = await findMatchingSubscriptions({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+    });
+
+    expect(matches).toHaveLength(2);
+  });
+
+  test('does not return rows from other workspaces', async () => {
     await projectDefinitionTriggers({
       workspaceId,
       projectId,
@@ -199,19 +221,11 @@ describe('findMatchingSubscriptions', () => {
 
     const otherWorkspace = await findMatchingSubscriptions({
       workspaceId: crypto.randomUUID(),
-      projectId,
-      source: 'github',
-      event: 'push',
-    });
-    const otherProject = await findMatchingSubscriptions({
-      workspaceId,
-      projectId: crypto.randomUUID(),
       source: 'github',
       event: 'push',
     });
 
     expect(otherWorkspace).toHaveLength(0);
-    expect(otherProject).toHaveLength(0);
   });
 });
 

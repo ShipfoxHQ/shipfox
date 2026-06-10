@@ -21,5 +21,5 @@ CREATE TABLE "triggers_subscriptions" (
 --> statement-breakpoint
 CREATE INDEX "triggers_outbox_pending_idx" ON "triggers_outbox" USING btree ("created_at") WHERE "dispatched_at" IS NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "triggers_subscriptions_definition_name_unique" ON "triggers_subscriptions" USING btree ("workflow_definition_id","name");--> statement-breakpoint
-CREATE INDEX "triggers_subscriptions_match_idx" ON "triggers_subscriptions" USING btree ("workspace_id","project_id","source","event");--> statement-breakpoint
+CREATE INDEX "triggers_subscriptions_match_idx" ON "triggers_subscriptions" USING btree ("workspace_id","source","event");--> statement-breakpoint
 CREATE INDEX "triggers_subscriptions_definition_idx" ON "triggers_subscriptions" USING btree ("workflow_definition_id");

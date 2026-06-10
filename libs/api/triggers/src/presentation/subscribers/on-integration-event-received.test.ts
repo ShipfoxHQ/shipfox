@@ -1,16 +1,8 @@
-import type {
-  GithubPushPayload,
-  IntegrationEventReceivedEvent,
-} from '@shipfox/api-integration-core-dto';
+import type {IntegrationEventReceivedEvent} from '@shipfox/api-integration-core-dto';
 import type {DomainEvent} from '@shipfox/node-outbox';
 import {triggerSubscriptionFactory} from '#test/index.js';
 
-const getProjectBySource = vi.fn();
 const runWorkflow = vi.fn();
-
-vi.mock('@shipfox/api-projects', () => ({
-  getProjectBySource: (...args: unknown[]) => getProjectBySource(...args),
-}));
 
 vi.mock('@shipfox/api-workflows', () => ({
   runWorkflow: (...args: unknown[]) => runWorkflow(...args),
@@ -19,29 +11,17 @@ vi.mock('@shipfox/api-workflows', () => ({
 // Import after mocks so the subscriber sees the spies.
 const {onIntegrationEventReceived} = await import('./on-integration-event-received.js');
 
-function buildPushPayload(overrides: Partial<GithubPushPayload> = {}): GithubPushPayload {
-  return {
-    externalRepositoryId: 'github:42',
-    ref: 'main',
-    headCommitSha: 'abc123',
-    defaultBranch: 'main',
-    isDefaultBranch: true,
-    ...overrides,
-  };
-}
-
 function buildEnvelope(
   overrides: Partial<IntegrationEventReceivedEvent> = {},
-  pushOverrides: Partial<GithubPushPayload> = {},
 ): IntegrationEventReceivedEvent {
   return {
     source: 'github',
     event: 'push',
-    workspaceId: overrides.workspaceId ?? crypto.randomUUID(),
-    connectionId: overrides.connectionId ?? crypto.randomUUID(),
-    deliveryId: overrides.deliveryId ?? crypto.randomUUID(),
+    workspaceId: crypto.randomUUID(),
+    connectionId: crypto.randomUUID(),
+    deliveryId: crypto.randomUUID(),
     receivedAt: new Date().toISOString(),
-    payload: buildPushPayload(pushOverrides),
+    payload: {ref: 'main', headCommitSha: 'abc123'},
     ...overrides,
   };
 }
@@ -57,95 +37,118 @@ function buildEvent(payload: IntegrationEventReceivedEvent, id = crypto.randomUU
 
 describe('onIntegrationEventReceived (triggers)', () => {
   beforeEach(() => {
-    getProjectBySource.mockReset();
     runWorkflow.mockReset();
   });
 
-  test('passes triggerIdempotencyKey = subscription.id:event.id to runWorkflow', async () => {
+  test('fires the workflow for each matching workspace subscription, regardless of project', async () => {
     const workspaceId = crypto.randomUUID();
-    const connectionId = crypto.randomUUID();
-    const externalRepositoryId = `github:${crypto.randomUUID()}`;
-    const project = {id: crypto.randomUUID(), workspaceId};
-    getProjectBySource.mockResolvedValue(project);
-
-    const subscription = await triggerSubscriptionFactory.create({
+    const subA = await triggerSubscriptionFactory.create({
       workspaceId,
-      projectId: project.id,
+      projectId: crypto.randomUUID(),
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    const subB = await triggerSubscriptionFactory.create({
+      workspaceId,
+      projectId: crypto.randomUUID(),
       source: 'github',
       event: 'push',
       config: {},
     });
 
-    const envelope = buildEnvelope(
-      {workspaceId, connectionId},
-      {externalRepositoryId, ref: 'main'},
-    );
-    const eventId = crypto.randomUUID();
+    await onIntegrationEventReceived(buildEvent(buildEnvelope({workspaceId})));
 
-    await onIntegrationEventReceived(buildEvent(envelope, eventId));
+    expect(runWorkflow).toHaveBeenCalledTimes(2);
+    const firedProjects = runWorkflow.mock.calls.map(([params]) => params.projectId);
+    expect(firedProjects).toEqual(expect.arrayContaining([subA.projectId, subB.projectId]));
+  });
 
-    expect(runWorkflow).toHaveBeenCalledTimes(1);
+  test('passes the source, event, deliveryId and raw payload through as the trigger payload', async () => {
+    const workspaceId = crypto.randomUUID();
+    const deliveryId = crypto.randomUUID();
+    const payload = {ref: 'refs/heads/feature', headCommitSha: 'deadbeef'};
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+
+    await onIntegrationEventReceived(buildEvent(buildEnvelope({workspaceId, deliveryId, payload})));
+
     expect(runWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({
-        triggerIdempotencyKey: `${subscription.id}:${eventId}`,
+        triggerPayload: {source: 'github', event: 'push', deliveryId, data: payload},
       }),
     );
   });
 
-  test('skips runWorkflow when the push ref does not match the subscription config', async () => {
+  test('dispatches an arbitrary non-github source without any source-specific handling', async () => {
     const workspaceId = crypto.randomUUID();
-    const project = {id: crypto.randomUUID(), workspaceId};
-    getProjectBySource.mockResolvedValue(project);
-
     await triggerSubscriptionFactory.create({
       workspaceId,
-      projectId: project.id,
+      source: 'sentry',
+      event: 'alert_triggered',
+      config: {},
+    });
+
+    await onIntegrationEventReceived(
+      buildEvent(buildEnvelope({workspaceId, source: 'sentry', event: 'alert_triggered'})),
+    );
+
+    expect(runWorkflow).toHaveBeenCalledTimes(1);
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerPayload: expect.objectContaining({source: 'sentry', event: 'alert_triggered'}),
+      }),
+    );
+  });
+
+  test('passes triggerIdempotencyKey = subscription.id:event.id to runWorkflow', async () => {
+    const workspaceId = crypto.randomUUID();
+    const subscription = await triggerSubscriptionFactory.create({
+      workspaceId,
       source: 'github',
       event: 'push',
-      config: {on: 'main'},
+      config: {},
     });
-    const envelope = buildEnvelope({workspaceId}, {ref: 'feature/x'});
+    const eventId = crypto.randomUUID();
 
-    await onIntegrationEventReceived(buildEvent(envelope));
+    await onIntegrationEventReceived(buildEvent(buildEnvelope({workspaceId}), eventId));
 
-    expect(runWorkflow).not.toHaveBeenCalled();
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({triggerIdempotencyKey: `${subscription.id}:${eventId}`}),
+    );
   });
 
   test('forwards subscription.config.with as inputs to runWorkflow', async () => {
     const workspaceId = crypto.randomUUID();
-    const project = {id: crypto.randomUUID(), workspaceId};
-    getProjectBySource.mockResolvedValue(project);
-
     await triggerSubscriptionFactory.create({
       workspaceId,
-      projectId: project.id,
       source: 'github',
       event: 'push',
       config: {with: {env: 'staging'}},
     });
-    const envelope = buildEnvelope({workspaceId}, {ref: 'main'});
 
-    await onIntegrationEventReceived(buildEvent(envelope));
+    await onIntegrationEventReceived(buildEvent(buildEnvelope({workspaceId})));
 
     expect(runWorkflow).toHaveBeenCalledWith(expect.objectContaining({inputs: {env: 'staging'}}));
   });
 
-  test('treats a malformed config.on as "match any ref"', async () => {
+  test('does not fire when no subscription matches the workspace, source and event', async () => {
     const workspaceId = crypto.randomUUID();
-    const project = {id: crypto.randomUUID(), workspaceId};
-    getProjectBySource.mockResolvedValue(project);
-
     await triggerSubscriptionFactory.create({
       workspaceId,
-      projectId: project.id,
       source: 'github',
       event: 'push',
-      config: {on: {branch: 'main'}},
+      config: {},
     });
-    const envelope = buildEnvelope({workspaceId}, {ref: 'anything'});
 
-    await onIntegrationEventReceived(buildEvent(envelope));
+    await onIntegrationEventReceived(
+      buildEvent(buildEnvelope({workspaceId, event: 'pull_request'})),
+    );
 
-    expect(runWorkflow).toHaveBeenCalledTimes(1);
+    expect(runWorkflow).not.toHaveBeenCalled();
   });
 });

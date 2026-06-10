@@ -1,5 +1,5 @@
 {
-  "id": "4a875f88-1ddb-497f-9735-36fbfecad790",
+  "id": "9ccc9e91-738b-4c9b-86ca-3d212cad605a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -161,12 +161,6 @@
           "columns": [
             {
               "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "project_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
