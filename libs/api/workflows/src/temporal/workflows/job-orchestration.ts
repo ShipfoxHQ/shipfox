@@ -8,11 +8,12 @@ import type {createOrchestrationActivities} from '../activities/index.js';
 /**
  * Two terminal paths:
  *
- *   ┌─ runner POST /complete arrives ──► signal payload set
- *   │                                     ▼
- *   │                                  setJobStatus(status from signal)
- *   │                                  applyStepResultsActivity(reportedSteps)
- *   │                                  return {status}
+ *   ┌─ job-completed signal arrives ──► signal payload set
+ *   │   (enqueued by the per-step report      ▼
+ *   │    that made the job terminal)       setJobStatus(status from signal)
+ *   │                                      return {status}
+ *   │   Per-step results are already persisted by recordStepResult, so the
+ *   │   workflow only flips the job status — it does not re-apply step results.
  *   │
  *   └─ JOB_MAX_DURATION elapses with no signal ──► condition() returns false
  *                                                  ▼
@@ -24,15 +25,10 @@ import type {createOrchestrationActivities} from '../activities/index.js';
  *                                              return {status:'failed'}
  */
 
-const {
-  setJobStatus,
-  enqueueJobForRunner,
-  bulkSetStepStatuses,
-  applyStepResultsActivity,
-  failJobAsTimedOutActivity,
-} = proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
-  startToCloseTimeout: '30s',
-});
+const {setJobStatus, enqueueJobForRunner, bulkSetStepStatuses, failJobAsTimedOutActivity} =
+  proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
+    startToCloseTimeout: '30s',
+  });
 
 const JOB_MAX_DURATION = '60 minutes';
 
@@ -80,18 +76,11 @@ export async function jobOrchestration(
     if (!signalPayload) {
       throw new Error('Unreachable: condition() returned true so signalPayload is set');
     }
-    const {status, steps} = signalPayload;
+    const {status} = signalPayload;
 
-    // Apply step results FIRST: the activity validates strict consistency for
-    // succeeded jobs (no bogus/missing/duplicate stepIds) and throws on
-    // violation. Only mark the job final if the per-step state is consistent;
-    // otherwise the job stays running and the timeout path will catch it.
-    await applyStepResultsActivity({
-      jobId: input.jobId,
-      completionStatus: status,
-      reportedSteps: steps,
-    });
-
+    // Per-step execution already persisted every step result via
+    // recordStepResult (the same transaction that enqueued this signal), so the
+    // DB projection is authoritative. The workflow only flips the job status.
     const {newVersion: finalVersion} = await setJobStatus({
       jobId: input.jobId,
       status,

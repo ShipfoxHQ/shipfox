@@ -27,7 +27,9 @@ export const nextStepRoute = defineRoute({
     const next = await nextStepForJob(leasedJob.jobId);
 
     if (next.kind === 'step') {
-      return {kind: 'step' as const, step: toStepDto(next.step)};
+      // Always attempt 1 until per-step attempts land (PR B wires the real
+      // current_attempt through nextStepForJob).
+      return {kind: 'step' as const, step: toStepDto(next.step), attempt: 1};
     }
     return {kind: 'done' as const, status: next.status};
   },

@@ -1,117 +1,112 @@
-import type {JobPayloadDto} from '@shipfox/api-runners-dto';
+import type {NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 
-vi.mock('#run-step.js', () => ({
-  executeRunStep: vi.fn(),
-}));
+vi.mock('#api-client.js', () => ({nextStep: vi.fn(), reportStep: vi.fn()}));
+vi.mock('#run-step.js', () => ({executeRunStep: vi.fn()}));
 
+import {nextStep, reportStep} from '#api-client.js';
 import {executeJob} from '#executor.js';
 import {executeRunStep} from '#run-step.js';
 
+const mockNextStep = vi.mocked(nextStep);
+const mockReportStep = vi.mocked(reportStep);
 const mockExecuteRunStep = vi.mocked(executeRunStep);
+
+const LEASE = 'lease-token';
+
+function stepDto(id: string, position: number): StepDto {
+  return {
+    id,
+    job_id: '00000000-0000-0000-0000-0000000000aa',
+    name: `step-${position}`,
+    status: 'running',
+    type: 'run',
+    config: {run: 'echo test'},
+    error: null,
+    position,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  };
+}
+
+function stepResponse(id: string, position: number, attempt = 1): NextStepResponseDto {
+  return {kind: 'step', step: stepDto(id, position), attempt};
+}
 
 describe('executeJob', () => {
   beforeEach(() => {
+    mockNextStep.mockReset();
+    mockReportStep.mockReset();
     mockExecuteRunStep.mockReset();
+    mockReportStep.mockResolvedValue({ok: true, cancel: false});
   });
 
-  it('executes steps in position order', async () => {
-    const callOrder: number[] = [];
-    mockExecuteRunStep.mockImplementation((step) => {
-      callOrder.push(step.position);
-      return Promise.resolve({success: true, output: '', error: null});
-    });
+  it('pulls, runs, and reports each step until the job is done', async () => {
+    mockNextStep
+      .mockResolvedValueOnce(stepResponse('s0', 0))
+      .mockResolvedValueOnce(stepResponse('s1', 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    mockExecuteRunStep.mockResolvedValue({success: true, output: '', exit_code: 0, error: null});
 
-    const job = buildJob([
-      {position: 2, name: 'second'},
-      {position: 0, name: 'first'},
-      {position: 1, name: 'middle'},
-    ]);
+    const result = await executeJob({leaseToken: LEASE});
 
-    await executeJob(job);
-
-    expect(callOrder).toEqual([0, 1, 2]);
-  });
-
-  it('returns succeeded with one entry per step when all pass', async () => {
-    mockExecuteRunStep.mockResolvedValue({success: true, output: 'ok\n', error: null});
-
-    const job = buildJob([{position: 0}, {position: 1}]);
-
-    const result = await executeJob(job);
-
-    expect(result.status).toBe('succeeded');
-    expect(result.steps).toHaveLength(2);
-    expect(result.steps[0]).toEqual({step_id: job.steps[0]?.id, status: 'succeeded', error: null});
-    expect(result.steps[1]).toEqual({step_id: job.steps[1]?.id, status: 'succeeded', error: null});
-  });
-
-  it('stops on first failure and only reports up to the failed step', async () => {
-    mockExecuteRunStep
-      .mockResolvedValueOnce({success: true, output: 'step1\n', error: null})
-      .mockResolvedValueOnce({
-        success: false,
-        output: 'step2-err\n',
-        error: {message: 'Command exited with code 1', exit_code: 1},
-      })
-      .mockResolvedValueOnce({success: true, output: 'step3\n', error: null});
-
-    const job = buildJob([{position: 0}, {position: 1}, {position: 2}]);
-
-    const result = await executeJob(job);
-
-    expect(result.status).toBe('failed');
-    expect(result.steps).toHaveLength(2);
-    expect(result.steps[0]?.status).toBe('succeeded');
-    expect(result.steps[1]).toEqual({
-      step_id: job.steps[1]?.id,
-      status: 'failed',
-      error: {message: 'Command exited with code 1', exit_code: 1},
-    });
+    expect(result).toEqual({status: 'succeeded'});
     expect(mockExecuteRunStep).toHaveBeenCalledTimes(2);
+    expect(mockReportStep).toHaveBeenNthCalledWith(1, LEASE, 's0', {
+      status: 'succeeded',
+      attempt: 1,
+      exit_code: 0,
+    });
+    expect(mockReportStep).toHaveBeenNthCalledWith(2, LEASE, 's1', {
+      status: 'succeeded',
+      attempt: 1,
+      exit_code: 0,
+    });
   });
 
-  it('propagates signal-kill error shape from a failed step', async () => {
-    mockExecuteRunStep.mockResolvedValueOnce({
+  it('returns the done status immediately when there is nothing to run', async () => {
+    mockNextStep.mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+
+    const result = await executeJob({leaseToken: LEASE});
+
+    expect(result).toEqual({status: 'succeeded'});
+    expect(mockExecuteRunStep).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed step with its exit_code and error, then stops on cancel', async () => {
+    mockNextStep.mockResolvedValueOnce(stepResponse('s0', 0));
+    mockExecuteRunStep.mockResolvedValue({
       success: false,
       output: '',
-      error: {message: 'Killed by signal SIGKILL', exit_code: null, signal: 'SIGKILL'},
+      exit_code: 1,
+      error: {message: 'Command exited with code 1', exit_code: 1},
     });
+    mockReportStep.mockResolvedValue({ok: true, cancel: true});
 
-    const job = buildJob([{position: 0}]);
+    const result = await executeJob({leaseToken: LEASE});
 
-    const result = await executeJob(job);
-
-    expect(result.status).toBe('failed');
-    expect(result.steps[0]?.error).toEqual({
-      message: 'Killed by signal SIGKILL',
-      exit_code: null,
-      signal: 'SIGKILL',
+    expect(result).toEqual({status: 'failed'});
+    expect(mockReportStep).toHaveBeenCalledWith(LEASE, 's0', {
+      status: 'failed',
+      attempt: 1,
+      exit_code: 1,
+      error: {message: 'Command exited with code 1', exit_code: 1},
     });
+    // The host said the job is over; the runner must not pull again.
+    expect(mockNextStep).toHaveBeenCalledTimes(1);
   });
 
-  it('handles a single step job', async () => {
-    mockExecuteRunStep.mockResolvedValue({success: true, output: 'done\n', error: null});
+  it('echoes the dispatched attempt number on the report', async () => {
+    mockNextStep
+      .mockResolvedValueOnce(stepResponse('s0', 0, 2))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    mockExecuteRunStep.mockResolvedValue({success: true, output: '', exit_code: 0, error: null});
 
-    const job = buildJob([{position: 0}]);
+    await executeJob({leaseToken: LEASE});
 
-    const result = await executeJob(job);
-
-    expect(result.status).toBe('succeeded');
-    expect(result.steps).toHaveLength(1);
+    expect(mockReportStep).toHaveBeenCalledWith(LEASE, 's0', {
+      status: 'succeeded',
+      attempt: 2,
+      exit_code: 0,
+    });
   });
 });
-
-function buildJob(steps: Array<{position: number; name?: string}>): JobPayloadDto {
-  return {
-    job_id: '00000000-0000-0000-0000-000000000001',
-    run_id: '00000000-0000-0000-0000-000000000002',
-    job_name: 'test-job',
-    steps: steps.map((s, i) => ({
-      id: `00000000-0000-0000-0000-00000000000${i}`,
-      name: s.name ?? null,
-      type: 'run',
-      config: {run: 'echo test'},
-      position: s.position,
-    })),
-  };
-}

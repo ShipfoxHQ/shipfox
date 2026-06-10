@@ -1,12 +1,16 @@
 import {
-  type CompleteJobBodyDto,
-  type CompleteJobResponseDto,
-  completeJobResponseSchema,
+  type ClaimedJobResponseDto,
+  claimedJobResponseSchema,
   type HeartbeatResponseDto,
   heartbeatResponseSchema,
-  type JobPayloadResponseDto,
-  jobPayloadResponseSchema,
 } from '@shipfox/api-runners-dto';
+import {
+  type NextStepResponseDto,
+  nextStepResponseSchema,
+  type ReportStepBodyDto,
+  type ReportStepResponseDto,
+  reportStepResponseSchema,
+} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import ky, {HTTPError} from 'ky';
 import {config} from '#config.js';
@@ -20,7 +24,9 @@ const api = ky.create({
   },
 });
 
-export async function requestJob(): Promise<JobPayloadResponseDto | null> {
+// Claim the next job with the long-lived runner token. The response carries a
+// short-lived, job-scoped lease token the runner then uses to pull/report steps.
+export async function requestJob(): Promise<ClaimedJobResponseDto | null> {
   logger().debug('Polling for job');
 
   const response = await api.post('runners/jobs/request');
@@ -29,21 +35,29 @@ export async function requestJob(): Promise<JobPayloadResponseDto | null> {
     return null;
   }
 
-  return jobPayloadResponseSchema.parse(await response.json());
+  return claimedJobResponseSchema.parse(await response.json());
 }
 
-export async function completeJob(
-  params: CompleteJobBodyDto & {jobId: string},
-): Promise<CompleteJobResponseDto> {
-  logger().info({jobId: params.jobId, status: params.status}, 'Reporting job completion');
-
-  const response = await api.post(`runners/jobs/${params.jobId}/complete`, {
-    json: {
-      status: params.status,
-      steps: params.steps,
-    } satisfies CompleteJobBodyDto,
+// Pull the next step to run on the leased job. The job is named by the lease
+// token, so a retried pull returns the same in-flight step (idempotent).
+export async function nextStep(leaseToken: string): Promise<NextStepResponseDto> {
+  const response = await api.post('runs/jobs/current/steps/next', {
+    headers: {Authorization: `Bearer ${leaseToken}`},
   });
-  return completeJobResponseSchema.parse(await response.json());
+  return nextStepResponseSchema.parse(await response.json());
+}
+
+// Report a step result on the leased job. Reporting the same step again is safe.
+export async function reportStep(
+  leaseToken: string,
+  stepId: string,
+  body: ReportStepBodyDto,
+): Promise<ReportStepResponseDto> {
+  const response = await api.post(`runs/jobs/current/steps/${stepId}/report`, {
+    headers: {Authorization: `Bearer ${leaseToken}`},
+    json: body,
+  });
+  return reportStepResponseSchema.parse(await response.json());
 }
 
 export async function heartbeat(

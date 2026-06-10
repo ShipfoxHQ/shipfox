@@ -39,11 +39,8 @@ function executeJob(input: typeof defaultJobInput): Promise<{status: string; job
 }
 
 describe('jobOrchestration', () => {
-  test('signal succeeded — workflow forwards reported steps to applyStepResultsActivity', async () => {
-    setCfg({
-      dag: makeDag([dagJob('job-1', 'build')]),
-      jobResults: new Map([['job-1', 'succeeded']]),
-    });
+  test('signal succeeded — workflow flips the job status without re-applying step results', async () => {
+    setCfg({dag: makeDag([]), jobResults: new Map([['job-1', 'succeeded']])});
 
     const result = await executeJob(defaultJobInput);
 
@@ -53,17 +50,15 @@ describe('jobOrchestration', () => {
     const statuses = setJobStatusCalls().map((c) => c.params.status);
     expect(statuses).toEqual(['running', 'succeeded']);
 
-    const applyCalls = callsNamed('applyStepResultsActivity') as Array<{
-      params: {jobId: string; reportedSteps: Array<{status: string}>};
-    }>;
-    expect(applyCalls).toHaveLength(1);
-    expect(applyCalls[0]?.params.reportedSteps[0]?.status).toBe('succeeded');
-    // Completion path must NOT use the bulk activity.
+    // Per-step execution already persisted every step result (the same
+    // transaction that enqueued the completion signal), so the completion path
+    // only flips the job status — it neither re-applies nor bulk-writes steps.
+    expect(callsNamed('applyStepResultsActivity')).toHaveLength(0);
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
   });
 
-  test('signal failed — workflow forwards the failed step to applyStepResultsActivity', async () => {
-    setCfg({dag: makeDag([dagJob('job-2', 'build')]), jobResults: new Map([['job-2', 'failed']])});
+  test('signal failed — workflow flips the job status without re-applying step results', async () => {
+    setCfg({dag: makeDag([]), jobResults: new Map([['job-2', 'failed']])});
 
     const result = await executeJob({...defaultJobInput, jobId: 'job-2'});
 
@@ -72,11 +67,7 @@ describe('jobOrchestration', () => {
     const statuses = setJobStatusCalls().map((c) => c.params.status);
     expect(statuses).toEqual(['running', 'failed']);
 
-    const applyCalls = callsNamed('applyStepResultsActivity') as Array<{
-      params: {reportedSteps: Array<{status: string}>};
-    }>;
-    expect(applyCalls).toHaveLength(1);
-    expect(applyCalls[0]?.params.reportedSteps[0]?.status).toBe('failed');
+    expect(callsNamed('applyStepResultsActivity')).toHaveLength(0);
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
   });
 
@@ -89,7 +80,7 @@ describe('jobOrchestration', () => {
 
     const result = await executeJob({...defaultJobInput, jobId: 'job-3'});
 
-    // First signal wins
+    // First signal wins.
     expect(result.status).toBe('succeeded');
 
     const finalStatuses = setJobStatusCalls()
@@ -107,13 +98,13 @@ describe('jobOrchestration', () => {
       args: [{...defaultJobInput, jobId: 'job-stuck'}],
     });
 
-    // Give the workflow time to reach condition()
+    // Give the workflow time to reach condition().
     await new Promise((r) => setTimeout(r, 2000));
 
     const description = await handle.describe();
     expect(description.status.name).toBe('RUNNING');
 
-    // Clean up: signal it so it completes and doesn't leak
+    // Clean up: signal it so it completes and does not leak.
     setCfg({dag: makeDag([]), jobResults: new Map()});
     await handle.signal('job-completed', {status: 'failed', steps: []});
     await handle.result();

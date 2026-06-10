@@ -1,7 +1,24 @@
+import {WORKFLOWS_JOB_COMPLETED} from '@shipfox/api-workflows-dto';
+import {and, eq, sql} from 'drizzle-orm';
+import {db} from '#db/db.js';
+import {workflowsOutbox} from '#db/schema/outbox.js';
 import {bulkUpdateStepStatuses, getStepsByJobId} from '#db/workflow-runs.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {JobNotFoundError, StepNotFoundError, StepNotRunningError} from './errors.js';
 import {nextStepForJob, recordStepResult} from './job-execution.js';
+
+async function jobCompletedEvents(jobId: string): Promise<Array<{status: string}>> {
+  const rows = await db()
+    .select({payload: workflowsOutbox.payload})
+    .from(workflowsOutbox)
+    .where(
+      and(
+        eq(workflowsOutbox.eventType, WORKFLOWS_JOB_COMPLETED),
+        sql`${workflowsOutbox.payload}->>'jobId' = ${jobId}`,
+      ),
+    );
+  return rows.map((row) => row.payload as {status: string});
+}
 
 describe('nextStepForJob', () => {
   test('returns the lowest-position pending step and marks it running', async () => {
@@ -214,5 +231,68 @@ describe('nextStepForJob concurrency', () => {
     expect(idA).toBe(idB);
     const running = (await getStepsByJobId(jobId)).filter((s) => s.status === 'running');
     expect(running).toHaveLength(1);
+  });
+});
+
+describe('recordStepResult job-completion event', () => {
+  test('enqueues exactly one job-completed event when the final step finishes the job', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    await nextStepForJob(jobId);
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId: steps[0]?.id as string,
+      status: 'succeeded',
+    });
+
+    expect(outcome).toEqual({jobFinished: true, status: 'succeeded'});
+    const events = await jobCompletedEvents(jobId);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.status).toBe('succeeded');
+  });
+
+  test('does not enqueue a completion event while steps remain', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    await nextStepForJob(jobId);
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId: steps[0]?.id as string,
+      status: 'succeeded',
+    });
+
+    expect(outcome).toEqual({jobFinished: false});
+    expect(await jobCompletedEvents(jobId)).toHaveLength(0);
+  });
+
+  test('a failed final step enqueues one completion event with status failed', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    await nextStepForJob(jobId);
+
+    await recordStepResult({
+      jobId,
+      stepId: steps[0]?.id as string,
+      status: 'failed',
+      error: {message: 'boom'},
+    });
+
+    const events = await jobCompletedEvents(jobId);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.status).toBe('failed');
+  });
+
+  test('a duplicate final report does not enqueue a second completion event', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    await nextStepForJob(jobId);
+    await recordStepResult({jobId, stepId: steps[0]?.id as string, status: 'succeeded'});
+
+    const duplicate = await recordStepResult({
+      jobId,
+      stepId: steps[0]?.id as string,
+      status: 'succeeded',
+    });
+
+    expect(duplicate).toEqual({jobFinished: true, status: 'succeeded'});
+    expect(await jobCompletedEvents(jobId)).toHaveLength(1);
   });
 });

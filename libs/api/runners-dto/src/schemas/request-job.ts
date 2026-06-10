@@ -19,5 +19,10 @@ export const jobPayloadSchema = z.object({
 
 export type JobPayloadDto = z.infer<typeof jobPayloadSchema>;
 
-export const jobPayloadResponseSchema = jobPayloadSchema;
+// The claim response adds a short-lived, job-scoped lease token. The runner
+// authenticates the per-step pull/report calls with it (the job is named by the
+// token's claims), while the long-lived runner token stays for claim/heartbeat.
+export const jobPayloadResponseSchema = jobPayloadSchema.extend({
+  lease_token: z.string(),
+});
 export type JobPayloadResponseDto = z.infer<typeof jobPayloadResponseSchema>;

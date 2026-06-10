@@ -1,8 +1,8 @@
 import {setTimeout as setTimeoutPromise} from 'node:timers/promises';
 import {logger} from '@shipfox/node-opentelemetry';
-import {completeJob, HTTPError, requestJob} from '#api-client.js';
+import {requestJob} from '#api-client.js';
 import {config} from '#config.js';
-import {type ExecuteJobResult, executeJob} from '#executor.js';
+import {executeJob} from '#executor.js';
 import {startHeartbeatLoop} from '#heartbeat-loop.js';
 
 let running = true;
@@ -33,10 +33,7 @@ export async function startRunner(): Promise<void> {
       }
 
       currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
-      logger().info(
-        {jobId: job.job_id, jobName: job.job_name, steps: job.steps.length},
-        'Job received',
-      );
+      logger().info({jobId: job.job_id}, 'Job received');
 
       await runJob(job);
     } catch (pollError) {
@@ -58,34 +55,17 @@ async function runJob(job: Awaited<ReturnType<typeof requestJob>> & object): Pro
     maxStaleMs: config.SHIPFOX_HEARTBEAT_MAX_STALE_MS,
   });
 
-  let result: ExecuteJobResult;
   try {
-    result = await executeJob(job, {signal: ac.signal});
+    const result = await executeJob({leaseToken: job.lease_token}, {signal: ac.signal});
     logger().info({jobId: job.job_id, status: result.status}, 'Job execution finished');
   } catch (execError) {
+    // A pull/report failed (e.g. network) or the job was aborted mid-step.
+    // Per-step results already persisted are authoritative, and a job the runner
+    // abandons is reclaimed by the server-side job timeout — nothing to report.
     logger().error({err: execError, jobId: job.job_id}, 'Job execution failed');
-    // Empty steps[] tells the API "we don't know which step crashed"; the
-    // workflow falls back to bulk-failing every step.
-    result = {status: 'failed', steps: []};
   } finally {
     heartbeatLoop.stop();
     if (currentJobAbortController === ac) currentJobAbortController = undefined;
-  }
-
-  // 404 here is the expected signal that the backend already finalized this
-  // job; do not retry, do not fall through to the outer catch (would re-attempt).
-  try {
-    await completeJob({jobId: job.job_id, status: result.status, steps: result.steps});
-    logger().info({jobId: job.job_id, status: result.status}, 'Job completed');
-  } catch (reportError) {
-    if (reportError instanceof HTTPError && reportError.response.status === 404) {
-      logger().info(
-        {jobId: job.job_id},
-        'Backend already finalized this job; skipping completion report',
-      );
-    } else {
-      logger().error({err: reportError, jobId: job.job_id}, 'Failed to report job completion');
-    }
   }
 }
 
