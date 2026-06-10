@@ -46,10 +46,6 @@
 
 **Depends on:** Nothing. Can be done as a standalone PR.
 
-## Capability-scoped / registration runner tokens
-
-Runner-token auth already guards the runner protocol endpoints. Future hardening: a `POST /api/runners/register` registration flow issuing runner-scoped tokens with workspace and capability restrictions.
-
 ## Single-statement `applyStepResults` for many-step jobs
 
 **What:** Collapse the N-update + 1-cancellation-sweep pattern in `applyStepResults` (`libs/api/workflows/src/db/workflow-runs.ts`) into a single `UPDATE steps SET status = CASE id WHEN ... END, error = CASE id WHEN ... END WHERE job_id = ?` for jobs with many reported steps.
