@@ -60,12 +60,7 @@ src/
   presentation/  Fastify routes, auth adapters, and DTO conversion
 ```
 
-### HTTP routes and errors
-
-Domain and persistence code should throw typed domain errors. Translate those
-errors to `ClientError` only at the Fastify route edge with stable client-facing
-error codes and HTTP statuses. Unexpected errors should be allowed to reach the
-shared error handler.
+### HTTP routes
 
 Define HTTP endpoints with `defineRoute`, Zod schemas, and named auth methods
 from `@shipfox/node-fastify` / `@shipfox/api-auth-context`. Prefer route groups
@@ -168,6 +163,89 @@ E2E data through direct database access.
 Each E2E package must also declare an explicit workspace dependency on the package
 it verifies, such as `@shipfox/client-auth` for `@shipfox/e2e-client-auth`, so
 Turbo includes the referenced package in the task DAG.
+
+## Error handling
+
+Error handling is a cross-layer concern, not an HTTP detail. The guiding
+principle is **let errors bubble up and translate them only when crossing a
+boundary**. Each layer owns one job, and the error changes shape only at the
+edges:
+
+```
+external system  →  api/core: typed error  →  presentation: ClientError  →  global handler  →  HTTP response
+```
+
+Never swallow or wrap an error unless you add meaning. If you can re-throw
+as-is, do. Do not catch errors just to log them — let unknowns reach the global
+handler.
+
+### Domain errors (`core` / `db`)
+
+Throw typed domain errors from domain and persistence code. Define them in
+`core/errors.ts` as plain `Error` subclasses with a human-readable message, a
+`name`, and any context as public readonly fields. They carry **no HTTP
+concerns** (no status, no client-facing code) — that keeps them reusable by
+workers, subscribers, and jobs, not just routes:
+
+```ts
+export class WorkspaceNotFoundError extends Error {
+  constructor(workspaceId: string) {
+    super(`Workspace not found: ${workspaceId}`);
+    this.name = 'WorkspaceNotFoundError';
+  }
+}
+```
+
+### External and infrastructure errors (`api` / `core`)
+
+Catch errors from external systems (GitHub, GCP, etc.) at the layer that talks
+to them and re-throw them as a typed error carrying a `reason` enum (e.g.
+`IntegrationProviderError`) rather than letting raw SDK errors leak upward.
+Callers then branch on `reason` without depending on the SDK's error shapes.
+Pass `retryAfterSeconds` for backpressure reasons like `rate-limited`:
+
+```ts
+throw new IntegrationProviderError('rate-limited', message, retryAfterSeconds);
+```
+
+### Translating to HTTP responses (`presentation`)
+
+The presentation/request boundary is the only place that turns errors into
+client responses. Route `errorHandler`s are the default place to translate
+known domain errors to `ClientError`; re-throw anything you don't recognize so
+it reaches the global handler:
+
+```ts
+errorHandler: (error) => {
+  if (error instanceof WorkspaceNotFoundError)
+    throw new ClientError('Workspace not found', 'not-found', {status: 404});
+  if (error instanceof LastMemberError)
+    throw new ClientError(error.message, 'last-member', {status: 409});
+  throw error; // unrecognized → global handler
+},
+```
+
+`ClientError(message, code, params)` is the only error that produces a
+structured client response. `code` is a stable kebab-case string (`not-found`,
+`last-member`, `project-already-exists`). `params`:
+
+- `status` — HTTP status, **defaults to 400**; set it for any other 4xx.
+- `details` — structured data **returned to the client** (snake_case keys).
+- `data` — context **logged only**, never sent to the client.
+- `cause` — pass the original error when wrapping, so it stays in the chain for
+  logs and diagnostics. Sentry sees unknown errors that reach the global handler;
+  handled cases must capture explicitly if they need Sentry reporting.
+
+For external errors, map the `reason` enum to a status and client code here
+(e.g. `rate-limited` → 429).
+
+### The global handler
+
+The shared handler in `@shipfox/node-fastify` is the last resort. It sends
+`ClientError` as `{code, details?}` with its status, maps Fastify
+validation/known errors to 4xx codes, and logs + reports unknown errors to
+Sentry as a 500 `server-error`. Anything that reaches it untyped becomes an
+opaque 500 — so translate errors you can describe before they get here.
 
 ## Unit Testing Strategy (Client Apps)
 
