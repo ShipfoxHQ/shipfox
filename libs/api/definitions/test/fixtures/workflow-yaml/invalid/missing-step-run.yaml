@@ -1,0 +1,5 @@
+name: missing step run
+jobs:
+  build:
+    steps:
+      - name: test
