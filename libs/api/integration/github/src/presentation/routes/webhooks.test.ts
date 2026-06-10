@@ -1,52 +1,61 @@
 import {createHmac, randomUUID} from 'node:crypto';
 import {Webhooks} from '@octokit/webhooks';
+import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
-import {
-  db as coreDb,
-  getIntegrationConnectionById,
-  insertConnection,
-  insertGithubInstallation,
-  publishIntegrationEventReceived,
-  readIntegrationsOutbox,
-  readWebhookDeliveries,
-  recordDeliveryOnly,
-  truncateIntegrationsState,
-} from '#test/core-fixtures.js';
+import {db} from '#db/db.js';
+import {githubInstallations} from '#db/schema/installations.js';
+import {githubInstallationFactory, githubPushPayload} from '#test/index.js';
 import {createGithubWebhookRoutes} from './webhooks.js';
 
 const WEBHOOK_SECRET = 'test-webhook-secret';
 
-async function createTestApp(): Promise<FastifyInstance> {
+// The route persists through injected core functions (publishIntegrationEventReceived,
+// recordDeliveryOnly, getIntegrationConnectionById) that @shipfox/api-integration-core
+// owns and wires in production. github only orchestrates them, so here we fake that
+// interface with spies and assert the route's own behavior: signature/payload
+// validation and which core function it calls with what arguments. The persistence
+// itself (outbox + delivery rows, dedup) is tested in core, against core's own tables.
+function fakeConnection(overrides: Partial<IntegrationConnection> = {}): IntegrationConnection {
+  return {
+    id: randomUUID(),
+    workspaceId: randomUUID(),
+    provider: 'github',
+    externalAccountId: '123',
+    displayName: 'GitHub shipfox',
+    lifecycleStatus: 'active',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+interface TestApp {
+  app: FastifyInstance;
+  publishIntegrationEventReceived: ReturnType<typeof vi.fn>;
+  recordDeliveryOnly: ReturnType<typeof vi.fn>;
+  getIntegrationConnectionById: ReturnType<typeof vi.fn>;
+}
+
+async function createTestApp(options: {connection?: IntegrationConnection} = {}): Promise<TestApp> {
+  const publishIntegrationEventReceived = vi.fn(() => Promise.resolve({published: true}));
+  const recordDeliveryOnly = vi.fn(() => Promise.resolve());
+  const getIntegrationConnectionById = vi.fn(() =>
+    Promise.resolve(options.connection ?? fakeConnection()),
+  );
   const routes = createGithubWebhookRoutes({
-    coreDb,
+    coreDb: db,
     publishIntegrationEventReceived,
     recordDeliveryOnly,
     getIntegrationConnectionById,
   });
   const app = await createApp({routes: [routes], swagger: false});
   await app.ready();
-  return app;
+  return {app, publishIntegrationEventReceived, recordDeliveryOnly, getIntegrationConnectionById};
 }
 
-async function seedInstallationConnection(installationId: number): Promise<void> {
-  const connection = await insertConnection({externalAccountId: String(installationId)});
-  await insertGithubInstallation({connectionId: connection.id, installationId});
-}
-
-function pushPayload(opts: {
-  installationId: number;
-  repositoryId: number;
-  ref: string;
-  defaultBranch: string;
-  sha: string;
-}) {
-  return {
-    ref: opts.ref,
-    after: opts.sha,
-    repository: {id: opts.repositoryId, default_branch: opts.defaultBranch},
-    installation: {id: opts.installationId},
-  };
+async function seedInstallation(installationId: number): Promise<void> {
+  await githubInstallationFactory.create({installationId: String(installationId)});
 }
 
 function signedHeaders(rawBody: string, event: string, deliveryId: string) {
@@ -62,7 +71,7 @@ function signedHeaders(rawBody: string, event: string, deliveryId: string) {
 describe('GitHub webhook route', () => {
   beforeEach(async () => {
     await closeApp();
-    await truncateIntegrationsState();
+    await db().delete(githubInstallations);
   });
 
   afterEach(async () => {
@@ -79,13 +88,16 @@ describe('GitHub webhook route', () => {
     expect(result).toBe(expected);
   });
 
-  it('accepts a valid push and writes outbox + delivery rows atomically', async () => {
+  it('publishes a mapped event for a valid push from a known installation', async () => {
     const installationId = 7777;
-    await seedInstallationConnection(installationId);
-    const app = await createTestApp();
+    await seedInstallation(installationId);
+    const connection = fakeConnection();
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp({
+      connection,
+    });
     const deliveryId = randomUUID();
     const body = JSON.stringify(
-      pushPayload({
+      githubPushPayload({
         installationId,
         repositoryId: 42,
         ref: 'refs/heads/main',
@@ -102,16 +114,16 @@ describe('GitHub webhook route', () => {
     });
 
     expect(res.statusCode).toBe(204);
-    const outboxRows = await readIntegrationsOutbox();
-    const deliveryRows = await readWebhookDeliveries();
-    expect(deliveryRows).toHaveLength(1);
-    expect(deliveryRows[0]?.deliveryId).toBe(deliveryId);
-    expect(outboxRows).toHaveLength(1);
-    expect(outboxRows[0]?.eventType).toBe('integrations.event.received');
-    expect(outboxRows[0]?.payload).toMatchObject({
+    expect(recordDeliveryOnly).not.toHaveBeenCalled();
+    expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
+    const call = publishIntegrationEventReceived.mock.calls[0]?.[0];
+    expect(call.tx).toBeDefined();
+    expect(call.event).toMatchObject({
       source: 'github',
       event: 'push',
       deliveryId,
+      workspaceId: connection.workspaceId,
+      connectionId: connection.id,
       payload: {
         externalRepositoryId: 'github:42',
         ref: 'main',
@@ -121,50 +133,108 @@ describe('GitHub webhook route', () => {
     });
   });
 
-  it('short-circuits duplicate deliveries on the same X-GitHub-Delivery', async () => {
-    const installationId = 7778;
-    await seedInstallationConnection(installationId);
-    const app = await createTestApp();
+  it('publishes with isDefaultBranch=false when ref is not the default branch', async () => {
+    const installationId = 7780;
+    await seedInstallation(installationId);
+    const {app, publishIntegrationEventReceived} = await createTestApp();
     const deliveryId = randomUUID();
     const body = JSON.stringify(
-      pushPayload({
+      githubPushPayload({
         installationId,
-        repositoryId: 99,
-        ref: 'refs/heads/main',
+        repositoryId: 200,
+        ref: 'refs/heads/feature/x',
         defaultBranch: 'main',
-        sha: 'def456',
+        sha: 'feat1',
       }),
     );
-    const headers = signedHeaders(body, 'push', deliveryId);
 
-    const first = await app.inject({
+    const res = await app.inject({
       method: 'POST',
       url: '/webhooks/integrations/github',
-      headers,
-      payload: body,
-    });
-    const second = await app.inject({
-      method: 'POST',
-      url: '/webhooks/integrations/github',
-      headers,
+      headers: signedHeaders(body, 'push', deliveryId),
       payload: body,
     });
 
-    expect(first.statusCode).toBe(204);
-    expect(second.statusCode).toBe(204);
-    const outboxRows = await readIntegrationsOutbox();
-    const deliveryRows = await readWebhookDeliveries();
-    expect(outboxRows).toHaveLength(1);
-    expect(deliveryRows).toHaveLength(1);
+    expect(res.statusCode).toBe(204);
+    expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
+    expect(publishIntegrationEventReceived.mock.calls[0]?.[0].event.payload).toMatchObject({
+      ref: 'feature/x',
+      isDefaultBranch: false,
+    });
   });
 
-  it('rejects an invalid signature with 401 and writes no rows', async () => {
-    const installationId = 7779;
-    await seedInstallationConnection(installationId);
-    const app = await createTestApp();
+  it('records the delivery only for non-push events', async () => {
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
+    const deliveryId = randomUUID();
+    const body = JSON.stringify({zen: 'Practicality beats purity.'});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/github',
+      headers: signedHeaders(body, 'ping', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
+    expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'github', deliveryId});
+  });
+
+  it('records the delivery only for pushes from unknown installations', async () => {
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly, getIntegrationConnectionById} =
+      await createTestApp();
+    const deliveryId = randomUUID();
     const body = JSON.stringify(
-      pushPayload({
-        installationId,
+      githubPushPayload({
+        installationId: 999999,
+        repositoryId: 300,
+        ref: 'refs/heads/main',
+        defaultBranch: 'main',
+        sha: 'orphan',
+      }),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/github',
+      headers: signedHeaders(body, 'push', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(getIntegrationConnectionById).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
+    expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'github', deliveryId});
+  });
+
+  it('ignores pushes whose payload has no installation id', async () => {
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
+    const deliveryId = randomUUID();
+    const body = JSON.stringify({
+      ref: 'refs/heads/main',
+      after: 'abc',
+      repository: {id: 42, default_branch: 'main'},
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/github',
+      headers: signedHeaders(body, 'push', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid signature with 401 and persists nothing', async () => {
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
+    const body = JSON.stringify(
+      githubPushPayload({
+        installationId: 7779,
         repositoryId: 100,
         ref: 'refs/heads/main',
         defaultBranch: 'main',
@@ -185,125 +255,15 @@ describe('GitHub webhook route', () => {
     });
 
     expect(res.statusCode).toBe(401);
-    const outboxRows = await readIntegrationsOutbox();
-    const deliveryRows = await readWebhookDeliveries();
-    expect(outboxRows).toHaveLength(0);
-    expect(deliveryRows).toHaveLength(0);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).not.toHaveBeenCalled();
   });
 
-  it('publishes with isDefaultBranch=false when ref is not the default branch', async () => {
-    const installationId = 7780;
-    await seedInstallationConnection(installationId);
-    const app = await createTestApp();
-    const deliveryId = randomUUID();
+  it('rejects malformed signature headers (verify throws) with 401', async () => {
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
     const body = JSON.stringify(
-      pushPayload({
-        installationId,
-        repositoryId: 200,
-        ref: 'refs/heads/feature/x',
-        defaultBranch: 'main',
-        sha: 'feat1',
-      }),
-    );
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/webhooks/integrations/github',
-      headers: signedHeaders(body, 'push', deliveryId),
-      payload: body,
-    });
-
-    expect(res.statusCode).toBe(204);
-    const outboxRows = await readIntegrationsOutbox();
-    expect(outboxRows).toHaveLength(1);
-    expect(outboxRows[0]?.payload).toMatchObject({
-      source: 'github',
-      event: 'push',
-      payload: {
-        ref: 'feature/x',
-        isDefaultBranch: false,
-      },
-    });
-  });
-
-  it('drops non-push events with a delivery row but no outbox row', async () => {
-    const installationId = 7781;
-    await seedInstallationConnection(installationId);
-    const app = await createTestApp();
-    const deliveryId = randomUUID();
-    const body = JSON.stringify({zen: 'Practicality beats purity.'});
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/webhooks/integrations/github',
-      headers: signedHeaders(body, 'ping', deliveryId),
-      payload: body,
-    });
-
-    expect(res.statusCode).toBe(204);
-    const outboxRows = await readIntegrationsOutbox();
-    const deliveryRows = await readWebhookDeliveries();
-    expect(outboxRows).toHaveLength(0);
-    expect(deliveryRows).toHaveLength(1);
-  });
-
-  it('drops pushes from unknown installations (dedup recorded, no outbox row)', async () => {
-    const app = await createTestApp();
-    const deliveryId = randomUUID();
-    const body = JSON.stringify(
-      pushPayload({
-        installationId: 999999,
-        repositoryId: 300,
-        ref: 'refs/heads/main',
-        defaultBranch: 'main',
-        sha: 'orphan',
-      }),
-    );
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/webhooks/integrations/github',
-      headers: signedHeaders(body, 'push', deliveryId),
-      payload: body,
-    });
-
-    expect(res.statusCode).toBe(204);
-    const outboxRows = await readIntegrationsOutbox();
-    const deliveryRows = await readWebhookDeliveries();
-    expect(outboxRows).toHaveLength(0);
-    expect(deliveryRows).toHaveLength(1);
-  });
-
-  it('drops pushes whose payload has no installation id (no outbox or delivery row)', async () => {
-    const app = await createTestApp();
-    const deliveryId = randomUUID();
-    const body = JSON.stringify({
-      ref: 'refs/heads/main',
-      after: 'abc',
-      repository: {id: 42, default_branch: 'main'},
-    });
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/webhooks/integrations/github',
-      headers: signedHeaders(body, 'push', deliveryId),
-      payload: body,
-    });
-
-    expect(res.statusCode).toBe(204);
-    const outboxRows = await readIntegrationsOutbox();
-    const deliveryRows = await readWebhookDeliveries();
-    expect(outboxRows).toHaveLength(0);
-    expect(deliveryRows).toHaveLength(0);
-  });
-
-  it('rejects malformed signature headers (verify throws) with 401 and writes no rows', async () => {
-    const installationId = 7782;
-    await seedInstallationConnection(installationId);
-    const app = await createTestApp();
-    const body = JSON.stringify(
-      pushPayload({
-        installationId,
+      githubPushPayload({
+        installationId: 7782,
         repositoryId: 101,
         ref: 'refs/heads/main',
         defaultBranch: 'main',
@@ -324,12 +284,12 @@ describe('GitHub webhook route', () => {
     });
 
     expect(res.statusCode).toBe(401);
-    expect(await readIntegrationsOutbox()).toHaveLength(0);
-    expect(await readWebhookDeliveries()).toHaveLength(0);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).not.toHaveBeenCalled();
   });
 
-  it('rejects malformed JSON after a valid signature with 400 and writes no rows', async () => {
-    const app = await createTestApp();
+  it('rejects malformed JSON after a valid signature with 400', async () => {
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
     const body = '{not valid json';
 
     const res = await app.inject({
@@ -341,12 +301,12 @@ describe('GitHub webhook route', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.json()).toMatchObject({error: 'malformed JSON'});
-    expect(await readIntegrationsOutbox()).toHaveLength(0);
-    expect(await readWebhookDeliveries()).toHaveLength(0);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).not.toHaveBeenCalled();
   });
 
-  it('rejects push payloads that fail schema validation with 400 and writes no rows', async () => {
-    const app = await createTestApp();
+  it('rejects push payloads that fail schema validation with 400', async () => {
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
     const body = JSON.stringify({ref: 'refs/heads/main'});
 
     const res = await app.inject({
@@ -358,7 +318,7 @@ describe('GitHub webhook route', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.json()).toMatchObject({error: 'malformed push payload'});
-    expect(await readIntegrationsOutbox()).toHaveLength(0);
-    expect(await readWebhookDeliveries()).toHaveLength(0);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).not.toHaveBeenCalled();
   });
 });

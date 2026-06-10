@@ -62,6 +62,7 @@
     "@types/pg": "^8.15.5",
     "drizzle-kit": "^0.31.10",
     "fastify": "^5.3.3",
-    "fastify-type-provider-zod": "^6.0.0"
+    "fastify-type-provider-zod": "^6.0.0",
+    "fishery": "^2.2.2"
   }
 }

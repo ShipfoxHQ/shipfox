@@ -1,7 +1,5 @@
-import {sql} from 'drizzle-orm';
 import type {GithubApiClient} from '#api/client.js';
-import {db} from '#db/db.js';
-import {upsertGithubInstallation} from '#db/installations.js';
+import {githubInstallationFactory} from '#test/index.js';
 import {GithubIntegrationProviderError} from './errors.js';
 import {GithubSourceControlProvider} from './source-control.js';
 
@@ -69,31 +67,10 @@ describe('GithubSourceControlProvider', () => {
     installationId = Math.floor(Math.random() * 1_000_000) + 1;
   });
 
-  async function createConnectionWithInstallation(): Promise<void> {
-    await db().execute(sql`
-      INSERT INTO integrations_connections (
-        id,
-        workspace_id,
-        provider,
-        external_account_id,
-        display_name,
-        lifecycle_status
-      )
-      VALUES (
-        ${connectionId},
-        ${crypto.randomUUID()},
-        'github',
-        ${String(installationId)},
-        'GitHub shipfox',
-        'active'
-      )
-    `);
-    await upsertGithubInstallation({
+  async function createInstallation(): Promise<void> {
+    await githubInstallationFactory.create({
       connectionId,
       installationId: String(installationId),
-      accountLogin: 'shipfox',
-      accountType: 'Organization',
-      repositorySelection: 'all',
       latestEvent: {id: 123},
     });
   }
@@ -113,7 +90,7 @@ describe('GithubSourceControlProvider', () => {
   }
 
   it('lists repositories using installation auth metadata', async () => {
-    await createConnectionWithInstallation();
+    await createInstallation();
     const github = githubClient();
     const provider = new GithubSourceControlProvider(github);
 
@@ -133,7 +110,7 @@ describe('GithubSourceControlProvider', () => {
   });
 
   it('resolves repositories directly from the provider-owned repository id', async () => {
-    await createConnectionWithInstallation();
+    await createInstallation();
     const github = githubClient();
     const provider = new GithubSourceControlProvider(github);
 
@@ -172,7 +149,7 @@ describe('GithubSourceControlProvider', () => {
   });
 
   it('lists repository files using the provider-owned repository id', async () => {
-    await createConnectionWithInstallation();
+    await createInstallation();
     const github = githubClient();
     const provider = new GithubSourceControlProvider(github);
 
@@ -196,7 +173,7 @@ describe('GithubSourceControlProvider', () => {
   });
 
   it('fetches repository file contents using the provider-owned repository id', async () => {
-    await createConnectionWithInstallation();
+    await createInstallation();
     const github = githubClient();
     const provider = new GithubSourceControlProvider(github);
 
@@ -228,7 +205,7 @@ describe('GithubSourceControlProvider', () => {
     'debug:42',
     '',
   ])('rejects malformed external repository id %s', async (externalRepositoryId) => {
-    await createConnectionWithInstallation();
+    await createInstallation();
     const github = githubClient();
     const provider = new GithubSourceControlProvider(github);
 
@@ -242,7 +219,7 @@ describe('GithubSourceControlProvider', () => {
   });
 
   it('rejects oversized repository file contents', async () => {
-    await createConnectionWithInstallation();
+    await createInstallation();
     const github = githubClient({
       fetchRepositoryFile: vi.fn(() =>
         Promise.resolve({
