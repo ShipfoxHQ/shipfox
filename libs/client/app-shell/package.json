@@ -44,7 +44,7 @@
     "framer-motion": "^12.23.24"
   },
   "peerDependencies": {
-    "@tanstack/react-router": "^1.170.10",
+    "@tanstack/react-router": "^1.170.11",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -54,7 +54,7 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@tanstack/react-router": "^1.170.10",
+    "@tanstack/react-router": "^1.170.11",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@types/react": "^19.1.11",
