@@ -64,6 +64,7 @@ function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<st
       : {
           success_if: {
             language: gate.successIf.language,
+            check: gate.successIf.check,
             source: gate.successIf.source,
           },
         }),

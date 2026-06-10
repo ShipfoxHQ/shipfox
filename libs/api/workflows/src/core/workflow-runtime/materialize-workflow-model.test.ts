@@ -7,7 +7,7 @@ type TestWorkflowExpression = NonNullable<
 >;
 
 function expression(source: string): TestWorkflowExpression {
-  return {language: 'cel', source: source as TestWorkflowExpression['source']};
+  return {language: 'cel', check: 'typed', source: source as TestWorkflowExpression['source']};
 }
 
 describe('materializeWorkflowModel', () => {
@@ -58,7 +58,7 @@ describe('materializeWorkflowModel', () => {
             config: {
               run: 'npm run build',
               gate: {
-                success_if: {language: 'cel', source: 'exit_code == 0'},
+                success_if: {language: 'cel', check: 'typed', source: 'exit_code == 0'},
                 on_failure: {restart_from: 'install', output: 'Build failed'},
               },
             },
