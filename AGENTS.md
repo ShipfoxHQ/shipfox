@@ -60,17 +60,70 @@ src/
   presentation/  Fastify routes, auth adapters, and DTO conversion
 ```
 
-### HTTP routes and errors
-
-Domain and persistence code should throw typed domain errors. Translate those
-errors to `ClientError` only at the Fastify route edge with stable client-facing
-error codes and HTTP statuses. Unexpected errors should be allowed to reach the
-shared error handler.
+### HTTP routes
 
 Define HTTP endpoints with `defineRoute`, Zod schemas, and named auth methods
 from `@shipfox/node-fastify` / `@shipfox/api-auth-context`. Prefer route groups
 for shared prefixes, plugins, and inherited auth instead of repeating those
 concerns in each route.
+
+### Error handling
+
+The guiding principle is **let errors bubble up and translate them only at the
+route edge**. Each layer has one job:
+
+```
+db / api (external)  →  core domain error  →  route errorHandler  →  global handler  →  HTTP response
+```
+
+- **`core/` and `db/`** throw typed domain errors. Define them in
+  `core/errors.ts` as plain `Error` subclasses with a human-readable message,
+  a `name`, and any context as public readonly fields. They carry **no HTTP
+  concerns** (no status, no client code):
+
+  ```ts
+  export class WorkspaceNotFoundError extends Error {
+    constructor(workspaceId: string) {
+      super(`Workspace not found: ${workspaceId}`);
+      this.name = 'WorkspaceNotFoundError';
+    }
+  }
+  ```
+
+- **`presentation/` routes** translate domain errors to `ClientError` in the
+  route's `errorHandler`, then re-throw anything they don't recognize so it
+  reaches the global handler:
+
+  ```ts
+  errorHandler: (error) => {
+    if (error instanceof WorkspaceNotFoundError)
+      throw new ClientError('Workspace not found', 'not-found', {status: 404});
+    if (error instanceof LastMemberError)
+      throw new ClientError(error.message, 'last-member', {status: 409});
+    throw error; // unrecognized → global handler
+  },
+  ```
+
+- **`ClientError(message, code, params)`** is the only error that produces a
+  structured client response. `code` is a stable kebab-case string
+  (`not-found`, `last-member`, `project-already-exists`). `params`:
+  - `status` — HTTP status, **defaults to 400**; set it for any other 4xx.
+  - `details` — structured data **returned to the client** (snake_case keys).
+  - `data` — context **logged only**, never sent to the client.
+  - `cause` — pass the original error when wrapping, so it stays in the chain
+    for Sentry.
+
+- **External errors** (GitHub, GCP, etc.) are caught in the `api/`/`core` layer
+  and re-thrown as a typed error carrying a `reason` enum (e.g.
+  `IntegrationProviderError`); the route maps `reason` → status + client code.
+
+- The **global handler** (`@shipfox/node-fastify`) sends `ClientError` as
+  `{code, details?}` with its status, maps Fastify validation/known errors to
+  4xx codes, and logs + reports unknown errors to Sentry as a 500
+  `server-error`. Do not catch errors just to log them — let unknowns reach it.
+
+Never swallow or wrap an error unless you add meaning. If you can re-throw
+as-is, do.
 
 ### DTOs and API contracts
 
