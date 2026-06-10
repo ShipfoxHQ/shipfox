@@ -135,6 +135,92 @@ E2E setup APIs are module-owned routes under `/__e2e/<module>`. They are mounted
 when both `E2E_ENABLED=true` and `E2E_ADMIN_API_KEY` are set. Tests must create data
 through these HTTP APIs, not through direct database access.
 
+### Foxlang V0 Local Workflow E2E
+
+The local workflow dashboard depends on the external Foxlang V0 Local Service.
+That service lives in the `shipfox-lab` repository, not in this repo.
+For the v0 loop, the platform API proxies fake alerts and read requests to that
+service; workflow registration is a local-service setup step.
+
+The expected end-to-end path is:
+
+```text
+platform fake alert route
+  -> V0 Local Service fake monitoring endpoint
+  -> registered restore_checkout workflow
+  -> local exec.run action
+  -> SQLite run store
+  -> platform run list/detail routes
+  -> dashboard Runs / Workflows UI
+```
+
+Use separate terminals for the long-running commands below.
+
+Set the reference-lab integration path once. This should point to the
+`reference-lab/integration` directory in your local Foxlang V0 / `shipfox-lab`
+checkout:
+
+```sh
+export FOXLANG_V0_INTEGRATION_ROOT=/path/to/shipfox-lab/foxlang-explo/reference-lab/integration
+test -d "$FOXLANG_V0_INTEGRATION_ROOT/haskell"
+```
+
+Start the V0 Local Service:
+
+```sh
+cd "$FOXLANG_V0_INTEGRATION_ROOT/haskell"
+mise exec -- cabal run foxlang-v0-local-service -- ../.. 8765 /tmp/foxlang-v0-local-service-platform.sqlite
+```
+
+Register the example workflow directory after the service is running. Repeat
+this registration whenever the local-service process restarts; prepared workflow
+state is process-local.
+
+```sh
+cd "$FOXLANG_V0_INTEGRATION_ROOT/haskell"
+mise exec -- cabal run foxlang-v0-register-workflows -- \
+  "$FOXLANG_V0_INTEGRATION_ROOT/examples/restore-checkout"
+```
+
+Start the platform stack:
+
+```sh
+docker compose up -d
+```
+
+Start the API with E2E setup routes enabled and with the local workflow service
+URL pinned to the v0 service:
+
+```sh
+PORT=16101 \
+CLIENT_BASE_URL=http://localhost:5173 \
+BROWSER_ALLOWED_ORIGIN=http://localhost:5173 \
+E2E_ENABLED=true \
+E2E_ADMIN_API_KEY=e2e-admin-api-key \
+LOCAL_WORKFLOWS_SERVICE_URL=http://127.0.0.1:8765 \
+pnpm --filter=@shipfox/api dev
+```
+
+Start the dashboard:
+
+```sh
+pnpm --filter=@shipfox/client dev
+```
+
+Manual dashboard check:
+
+1. Create or reuse a local workspace and a project backed by the debug
+   integration.
+2. Open the project Workflows tab and confirm `restore_checkout` is listed. If
+   the page reports no workflows, rerun `foxlang-v0-register-workflows`.
+3. Open the project Runs tab and click `Fake alert`.
+4. Confirm a new run appears with `completed` status.
+5. Click the run and verify the detail view:
+   - Overview shows the trigger/action graph;
+   - Logs can be collapsed and expanded;
+   - Source code shows the registered `.fox` source;
+   - the action stdout is `hello`.
+
 ## Unit Testing Strategy (Client Apps)
 
 Client tests should default to the cheapest environment that can prove the

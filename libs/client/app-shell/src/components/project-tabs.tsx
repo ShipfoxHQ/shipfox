@@ -7,8 +7,9 @@ import {useReducedMotion} from 'framer-motion';
  * cause a layout jump.
  */
 export function ProjectTabs() {
-  const params = useParams({strict: false}) as {wid?: string; pid?: string};
+  const params = useParams({strict: false}) as {wid?: string; pid?: string; runId?: string};
   const reduced = useReducedMotion();
+  const inRunDetail = Boolean(params.runId);
   const inProject = Boolean(params.wid && params.pid);
   const inWorkspace = Boolean(params.wid && !params.pid);
 
@@ -23,6 +24,15 @@ export function ProjectTabs() {
     className: 'border-b-2 border-transparent text-foreground-neutral-muted',
     'aria-selected': 'false' as const,
   };
+
+  if (inRunDetail) {
+    return (
+      <div
+        aria-hidden="true"
+        className="sticky top-56 z-20 h-40 border-b border-border-neutral-base bg-background-subtle-base"
+      />
+    );
+  }
 
   return (
     <div

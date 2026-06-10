@@ -1,8 +1,8 @@
 /**
  * 8px status dot, the dense-row form factor for state (DESIGN.md §10).
  *
- * Variants map to the `--tag-*-text` token family, so the dot color matches
- * the status pill text it stands in for. When `pulse` is set, a `ping`
+ * Variants map to the `--tag-*-icon` token family, so the dot color matches
+ * the status indicator used by shared badges. When `pulse` is set, a `ping`
  * halo renders behind the dot — gated on `prefers-reduced-motion:
  * no-preference` so users who opt out see a static dot only.
  */
@@ -10,11 +10,11 @@
 type StatusDotVariant = 'neutral' | 'info' | 'success' | 'warning' | 'error';
 
 const bgByVariant: Record<StatusDotVariant, string> = {
-  neutral: 'bg-tag-neutral-text',
-  info: 'bg-tag-blue-text',
-  success: 'bg-tag-success-text',
-  warning: 'bg-tag-warning-text',
-  error: 'bg-tag-error-text',
+  neutral: 'bg-tag-neutral-icon',
+  info: 'bg-tag-blue-icon',
+  success: 'bg-tag-success-icon',
+  warning: 'bg-tag-warning-icon',
+  error: 'bg-tag-error-icon',
 };
 
 export function StatusDot({
