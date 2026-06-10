@@ -4,7 +4,7 @@ import {closeApp, createApp} from '@shipfox/node-fastify';
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import {db} from '#db/db.js';
-import {claimJob, requestJobCancellation} from '#db/jobs.js';
+import {claimPendingJob, requestJobCancellation} from '#db/jobs.js';
 import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';
 import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
@@ -59,7 +59,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
 
   it('returns 200 + cancel:false on a fresh row', async () => {
     const pending = await pendingJobFactory.create({workspaceId});
-    await claimJob({workspaceId, runnerTokenId});
+    await claimPendingJob({workspaceId, runnerTokenId});
 
     const res = await app.inject({
       method: 'POST',
@@ -73,7 +73,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
 
   it('returns 200 + cancel:true after requestJobCancellation', async () => {
     const pending = await pendingJobFactory.create({workspaceId});
-    await claimJob({workspaceId, runnerTokenId});
+    await claimPendingJob({workspaceId, runnerTokenId});
     await requestJobCancellation({jobId: pending.jobId});
 
     const res = await app.inject({
@@ -101,7 +101,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     const pending = await pendingJobFactory.create({workspaceId});
     const otherRawToken = `sf_r_${crypto.randomUUID()}`;
     await runnerTokenFactory.create({workspaceId}, {transient: {rawToken: otherRawToken}});
-    await claimJob({workspaceId, runnerTokenId});
+    await claimPendingJob({workspaceId, runnerTokenId});
 
     const res = await app.inject({
       method: 'POST',

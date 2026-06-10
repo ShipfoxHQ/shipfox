@@ -46,19 +46,9 @@
 
 **Depends on:** Nothing. Can be done as a standalone PR.
 
-## Add runner authentication
+## Capability-scoped / registration runner tokens
 
-**What:** Add authentication to runner protocol endpoints (`POST /runners/jobs/request` and `POST /runners/jobs/:id/complete`).
-
-**Why:** Runner protocol is a public API surface. Without auth, anyone can claim and complete jobs. Required before any non-local deployment.
-
-**Pros:** Security baseline for runner protocol.
-
-**Cons:** Requires runner registration flow, token management.
-
-**Context:** The system design spec describes a `POST /api/runners/register` endpoint that issues `RunnerCredentials` via a registration token. Runner protocol endpoints should validate these credentials. For production, consider runner-scoped tokens with workspace and capability restrictions.
-
-**Depends on:** Nothing. Can be built independently.
+Runner-token auth already guards the runner protocol endpoints. Future hardening: a `POST /api/runners/register` registration flow issuing runner-scoped tokens with workspace and capability restrictions.
 
 ## Single-statement `applyStepResults` for many-step jobs
 
@@ -102,10 +92,10 @@
 
 - [ ] **Per-job-type configurable timeout** — `jobOrchestration` currently hardcodes `JOB_MAX_DURATION = '60 minutes'`. Add a `timeout` field on the step/job spec parsed by Definitions, persisted on the `jobs` row, and read by `jobOrchestration` via input. Default to 60min when unset. Necessary for mixed quick/long-running jobs (notify steps don't need 60min; nightly ETL steps need more). Schema-additive on `jobs`.
 
-- [ ] **Bulk DELETE…RETURNING + bulk outbox in `detectAndFailStuckJobs`** — Today the function is N+1: SELECT stuck rows, then per-row `finalizeRunningJob` (atomic `DELETE … WHERE last_heartbeat_at < cutoff RETURNING run_id` + 1-row outbox insert). Total ~1 SELECT + N DELETEs per cron tick. Acceptable at handful-of-runners scale; revisit with a single transaction `DELETE FROM running_jobs WHERE last_heartbeat_at < $threshold RETURNING job_id, run_id` plus a multi-row outbox insert when concurrent-job counts demand it. Likely depends on a `writeOutboxEvents` (plural) helper in `@shipfox/node-outbox`.
+- [ ] **Bulk DELETE…RETURNING + bulk outbox in `detectAndExpireStuckJobs`** — Today the function is N+1: SELECT stuck rows, then per-row `expireStuckJob` (atomic `DELETE … WHERE last_heartbeat_at < cutoff RETURNING run_id` + 1-row `runners.job.lease_expired` outbox insert). Total ~1 SELECT + N DELETEs per cron tick. Acceptable at handful-of-runners scale; revisit with a single transaction `DELETE FROM running_jobs WHERE last_heartbeat_at < $threshold RETURNING job_id, run_id` plus a multi-row outbox insert when concurrent-job counts demand it. Likely depends on a `writeOutboxEvents` (plural) helper in `@shipfox/node-outbox`.
 
 - [ ] **`cancelRun(runId)` + DAG-wide cancellation propagation** — The heartbeat-cancel plumbing is wired (cancellation_requested_at column + heartbeat response field) but only consumed by `jobOrchestration`'s timeout. Add a `cancelRun` command in Workflows that walks the DAG, calls `requestJobCancellation` for each running job in the run, and signals `WorkflowRunOrchestration`/child `JobOrchestration`s to abort. Spec context: `.claude/research/system-design.md:341`. Closes the user-facing "stop this run" UX gap without protocol change on the runner side.
 
-- [ ] **Calibrate stuck-job threshold + failure observability** — The detector uses a 180s threshold (≈18× the 10s heartbeat interval). Under a 3-minute Postgres or network blip, healthy long-running jobs whose heartbeats are silently failing will be killed. Two follow-ups: (1) emit a Prometheus/OpenTelemetry counter for "jobs failed by detector" so we can detect calibration mismatches in production; (2) consider raising the default to 300s (or making it configurable per-tenant) once we have load data. Couple this with a runner-side warning log when consecutive heartbeat failures exceed `intervalMs * N` so disconnects are visible before the detector fires.
+- [ ] **Calibrate stuck-job threshold + failure observability** — The detector uses a 180s threshold (≈18× the 10s heartbeat interval). Under a 3-minute Postgres or network blip, healthy long-running jobs whose heartbeats are silently failing will be killed. Two follow-ups: (1) emit a Prometheus/OpenTelemetry counter for "job leases expired by detector" so we can detect calibration mismatches in production; (2) consider raising the default to 300s (or making it configurable per-tenant) once we have load data. Couple this with a runner-side warning log when consecutive heartbeat failures exceed `intervalMs * N` so disconnects are visible before the detector fires.
 
 - [ ] **Worker-boot failures should fail the app, not log a warning** — `startModuleWorkers` at `libs/shared/node/module/src/initialize.ts:103-138` catches per-worker creation/start errors and only logs a warning. `apps/api/src/core/run.ts:54` calls it without `await`. A typo in `workflowsPath`, a missing dist file, or a Temporal connection issue at startup means a registered worker silently fails to start — and we lose the safety net (e.g. the `runners-maintenance` cron that fails stuck jobs). Two-line fix: re-throw in `startModuleWorkers`, `await` in `run.ts`. Defer because it touches an app-boot critical path that should be tested carefully (which other modules depend on this catch-and-warn behavior?). Surfaced by codex on the workflows↔runners decoupling PR.

@@ -2,8 +2,15 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 export {closeDb, db, schema} from './db.js';
-export type {ClaimedJob, EnqueueJobParams, FinalizeRunningJobParams} from './jobs.js';
-export {claimJob, enqueueJob, finalizeRunningJob, findStuckJobs, recordHeartbeat} from './jobs.js';
+export type {ClaimedJob, FinalizeRunningJobParams, ScheduleJobParams} from './jobs.js';
+export {
+  claimPendingJob,
+  expireStuckJob,
+  finalizeRunningJob,
+  findStuckJobs,
+  recordHeartbeat,
+  scheduleJob,
+} from './jobs.js';
 export type {CreateRunnerTokenParams} from './runner-tokens.js';
 export {
   createRunnerToken,

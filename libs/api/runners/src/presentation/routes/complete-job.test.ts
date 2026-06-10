@@ -5,7 +5,7 @@ import {closeApp, createApp} from '@shipfox/node-fastify';
 import {eq, sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import {db} from '#db/db.js';
-import {claimJob} from '#db/jobs.js';
+import {claimPendingJob} from '#db/jobs.js';
 import {revokeRunnerToken} from '#db/runner-tokens.js';
 import {runnersOutbox} from '#db/schema/outbox.js';
 import {runningJobs} from '#db/schema/running-jobs.js';
@@ -82,8 +82,8 @@ describe('POST /runners/jobs/:jobId/complete', () => {
 
   it('returns 200 on successful completion and outbox event carries steps', async () => {
     const pending = await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerTokenId});
-    const stepId = pending.payload.steps[0]?.id ?? crypto.randomUUID();
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+    const stepId = crypto.randomUUID();
 
     const res = await app.inject({
       method: 'POST',
@@ -106,9 +106,9 @@ describe('POST /runners/jobs/:jobId/complete', () => {
 
   it('allows a revoked token to complete a job it already owns', async () => {
     const pending = await pendingJobFactory.create({workspaceId});
-    await claimJob({workspaceId, runnerTokenId});
+    await claimPendingJob({workspaceId, runnerTokenId});
     await revokeRunnerToken({tokenId: runnerTokenId, workspaceId});
-    const stepId = pending.payload.steps[0]?.id ?? crypto.randomUUID();
+    const stepId = crypto.randomUUID();
 
     const res = await app.inject({
       method: 'POST',
@@ -124,8 +124,8 @@ describe('POST /runners/jobs/:jobId/complete', () => {
     const pending = await pendingJobFactory.create({workspaceId});
     const otherRawToken = `sf_r_${crypto.randomUUID()}`;
     await runnerTokenFactory.create({workspaceId}, {transient: {rawToken: otherRawToken}});
-    await claimJob({workspaceId, runnerTokenId});
-    const stepId = pending.payload.steps[0]?.id ?? crypto.randomUUID();
+    await claimPendingJob({workspaceId, runnerTokenId});
+    const stepId = crypto.randomUUID();
 
     const res = await app.inject({
       method: 'POST',
@@ -188,7 +188,7 @@ describe('POST /runners/jobs/:jobId/complete', () => {
 
   it('accepts status=failed with empty steps[] (executor-throws / stuck path)', async () => {
     const pending = await pendingJobFactory.create({workspaceId});
-    await claimJob({workspaceId, runnerTokenId});
+    await claimPendingJob({workspaceId, runnerTokenId});
 
     const res = await app.inject({
       method: 'POST',
@@ -202,8 +202,8 @@ describe('POST /runners/jobs/:jobId/complete', () => {
 
   it('accepts status=failed with mixed step statuses (mid-job failure)', async () => {
     const pending = await pendingJobFactory.create({workspaceId});
-    await claimJob({workspaceId, runnerTokenId});
-    const stepId = pending.payload.steps[0]?.id ?? crypto.randomUUID();
+    await claimPendingJob({workspaceId, runnerTokenId});
+    const stepId = crypto.randomUUID();
 
     const res = await app.inject({
       method: 'POST',

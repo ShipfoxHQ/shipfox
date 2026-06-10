@@ -2,7 +2,7 @@ import {WORKFLOWS_JOB_TIMED_OUT} from '@shipfox/api-workflows-dto';
 import type {DomainEvent} from '@shipfox/node-outbox';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
-import {claimJob} from '#db/jobs.js';
+import {claimPendingJob} from '#db/jobs.js';
 import {runningJobs} from '#db/schema/running-jobs.js';
 import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
 import {onWorkflowsJobTimedOut} from './on-workflows-job-timed-out.js';
@@ -28,7 +28,7 @@ describe('onWorkflowsJobTimedOut', () => {
 
   it('sets cancellation_requested_at on the matching running_jobs row', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
     expect(claimed).not.toBeNull();
 
     await onWorkflowsJobTimedOut(buildEvent(claimed?.jobId as string, claimed?.runId as string));
@@ -42,7 +42,7 @@ describe('onWorkflowsJobTimedOut', () => {
 
   it('idempotent under double delivery: second call preserves the first timestamp', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
 
     await onWorkflowsJobTimedOut(buildEvent(claimed?.jobId as string, claimed?.runId as string));
     const after1 = await db()

@@ -9,7 +9,7 @@ import {RUNNERS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 
 export type {JobLeaseTokenClaims} from '@shipfox/api-runners-dto';
 export {verifyJobLeaseToken} from '#core/job-lease-token.js';
-export {enqueueJob} from '#db/index.js';
+export {type ScheduleJobParams, scheduleJob} from '#db/index.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');

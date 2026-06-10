@@ -1,7 +1,7 @@
-import {detectAndFailStuckJobs} from '#core/jobs.js';
+import {detectAndExpireStuckJobs} from '#core/jobs.js';
 
-export async function detectAndFailStuckJobsActivity(params: {
+export async function detectAndExpireStuckJobsActivity(params: {
   thresholdSeconds: number;
-}): Promise<{failed: number}> {
-  return await detectAndFailStuckJobs(params);
+}): Promise<{expired: number}> {
+  return await detectAndExpireStuckJobs(params);
 }
