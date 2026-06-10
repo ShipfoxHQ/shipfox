@@ -210,9 +210,10 @@ throw new IntegrationProviderError('rate-limited', message, retryAfterSeconds);
 
 ### Translating to HTTP responses (`presentation`)
 
-Routes are the only place that turns errors into client responses. Translate
-known errors to `ClientError` in the route's `errorHandler`, and re-throw
-anything you don't recognize so it reaches the global handler:
+The presentation/request boundary is the only place that turns errors into
+client responses. Route `errorHandler`s are the default place to translate
+known domain errors to `ClientError`; re-throw anything you don't recognize so
+it reaches the global handler:
 
 ```ts
 errorHandler: (error) => {
@@ -232,7 +233,8 @@ structured client response. `code` is a stable kebab-case string (`not-found`,
 - `details` — structured data **returned to the client** (snake_case keys).
 - `data` — context **logged only**, never sent to the client.
 - `cause` — pass the original error when wrapping, so it stays in the chain for
-  Sentry.
+  logs and diagnostics. Sentry sees unknown errors that reach the global handler;
+  handled cases must capture explicitly if they need Sentry reporting.
 
 For external errors, map the `reason` enum to a status and client code here
 (e.g. `rate-limited` → 429).
