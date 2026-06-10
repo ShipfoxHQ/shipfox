@@ -37,6 +37,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-auth": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-definitions": "workspace:*",
     "@shipfox/api-projects": "workspace:*",
@@ -54,7 +55,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/biome": "workspace:*",
+    "@shipfox/node-jwt": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",

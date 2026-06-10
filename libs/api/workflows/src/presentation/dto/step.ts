@@ -16,6 +16,21 @@ function toStepErrorDto(error: Record<string, unknown> | null): StepErrorDtoShap
   };
 }
 
+// Inverse of toStepErrorDto: reported wire errors land on the domain row in
+// camelCase so the read path renders them back without a special case.
+export function fromStepErrorDto(
+  error: StepErrorDtoShape | undefined,
+): Record<string, unknown> | null {
+  if (!error) return null;
+  return {
+    message: error.message,
+    ...(error.exit_code === null || typeof error.exit_code === 'number'
+      ? {exitCode: error.exit_code}
+      : {}),
+    ...(error.signal ? {signal: error.signal} : {}),
+  };
+}
+
 export function toStepDto(step: Step): StepDto {
   return {
     id: step.id,

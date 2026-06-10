@@ -1,5 +1,13 @@
 export {type JobDto, jobDtoSchema} from './job.js';
 export {
+  type NextStepResponseDto,
+  nextStepResponseSchema,
+  type ReportStepBodyDto,
+  type ReportStepResponseDto,
+  reportStepBodySchema,
+  reportStepResponseSchema,
+} from './job-execution.js';
+export {
   type RunAggregatesQueryDto,
   type RunAggregatesResponseDto,
   type RunDto,

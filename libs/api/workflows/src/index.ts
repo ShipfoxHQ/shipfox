@@ -4,7 +4,12 @@ import {RUNNER_JOB_COMPLETED} from '@shipfox/api-runners-dto';
 import {WORKFLOW_RUN_CREATED} from '@shipfox/api-workflows-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath, workflowsOutbox} from '#db/index.js';
-import {onRunnerJobCompleted, onWorkflowRunCreated, routes} from '#presentation/index.js';
+import {
+  createLeaseTokenAuthMethod,
+  onRunnerJobCompleted,
+  onWorkflowRunCreated,
+  routes,
+} from '#presentation/index.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
 
 export type {Job, RunWorkflowParams, Step, TriggerPayload, WorkflowRun} from '#core/index.js';
@@ -18,6 +23,7 @@ const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 export const workflowsModule: ShipfoxModule = {
   name: 'workflows',
   database: {db, migrationsPath},
+  auth: [createLeaseTokenAuthMethod()],
   routes,
   publishers: [{name: 'workflows', table: workflowsOutbox, db}],
   subscribers: [

@@ -1,6 +1,7 @@
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
+import {createLeaseTokenAuthMethod, LEASE_TOKEN_AUTH} from '#presentation/auth/lease-token-auth.js';
 import {workflowRoutes} from './index.js';
 
 const fakeUserAuth: AuthMethod = {
@@ -28,11 +29,35 @@ describe('workflow route auth', () => {
   });
 
   test('rejects API-key-only requests', async () => {
-    const app = await createApp({auth: [fakeUserAuth], routes: workflowRoutes, swagger: false});
+    const app = await createApp({
+      auth: [fakeUserAuth, createLeaseTokenAuthMethod()],
+      routes: workflowRoutes,
+      swagger: false,
+    });
     const res = await app.inject({
       method: 'GET',
       url: `/workflows/runs?project_id=${crypto.randomUUID()}`,
       headers: {authorization: 'Bearer api-key'},
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().code).toBe('unauthorized');
+  });
+
+  test('step routes use lease-token auth', () => {
+    expect(workflowRoutes[1]?.prefix).toBe('/runs/jobs/current');
+    expect(workflowRoutes[1]?.auth).toBe(LEASE_TOKEN_AUTH);
+  });
+
+  test('step routes reject requests without a lease token', async () => {
+    const app = await createApp({
+      auth: [fakeUserAuth, createLeaseTokenAuthMethod()],
+      routes: workflowRoutes,
+      swagger: false,
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/runs/jobs/current/steps/next',
     });
 
     expect(res.statusCode).toBe(401);
