@@ -37,9 +37,11 @@ export {
   WORKFLOW_RUN_FINISHED,
   WORKFLOWS_JOB_COMPLETED,
   WORKFLOWS_JOB_TIMED_OUT,
+  WORKFLOWS_STEP_RESTART_ENQUEUED,
   type WorkflowRunCreatedEvent,
   type WorkflowRunFinishedEvent,
   type WorkflowsEventMap,
   type WorkflowsJobCompletedEvent,
   type WorkflowsJobTimedOutEvent,
+  type WorkflowsStepRestartEnqueuedEvent,
 } from './events.js';

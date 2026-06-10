@@ -79,7 +79,6 @@ describe('decideStepTransition', () => {
       kind: 'fail-job',
       failedStepId: 's1',
       attempt: 1,
-      cancelFromPosition: 1,
       failureError: {message: 'boom'},
     });
   });
@@ -117,7 +116,50 @@ describe('decideStepTransition', () => {
     });
   });
 
-  test('a failing gate with restart_from fails closed (restart_unsupported) until PR E', () => {
+  test('a failing gate with restart_from rewinds from the named earlier step', () => {
+    const restartTarget = step({id: 's0', name: 'producer', position: 0, status: 'succeeded'});
+    const target = step({id: 's1', position: 1, status: 'running'});
+
+    const decision = decideStepTransition({
+      steps: [restartTarget, target],
+      target,
+      reportedAttempt: 1,
+      result: {status: 'failed', exitCode: 1},
+      gateOutcome: {kind: 'failed', source: 'exit_code == 0'},
+      gateOnFailure: {restartFrom: 'producer'},
+    });
+
+    expect(decision).toMatchObject({
+      kind: 'restart-job-from-step',
+      failedStepId: 's1',
+      restartFromStepId: 's0',
+      restartFromPosition: 0,
+      attempt: 1,
+    });
+  });
+
+  test('restart is refused (exhausted) once the gating step hits the attempt cap', () => {
+    const restartTarget = step({id: 's0', name: 'producer', position: 0, status: 'succeeded'});
+    const target = step({id: 's1', position: 1, status: 'running'});
+
+    const decision = decideStepTransition({
+      steps: [restartTarget, target],
+      target,
+      reportedAttempt: 3,
+      maxAttempts: 3,
+      result: {status: 'failed', exitCode: 1},
+      gateOutcome: {kind: 'failed', source: 'exit_code == 0'},
+      gateOnFailure: {restartFrom: 'producer'},
+    });
+
+    expect(decision).toMatchObject({
+      kind: 'fail-job-restart-exhausted',
+      maxAttempts: 3,
+      failureError: {kind: 'restart_exhausted'},
+    });
+  });
+
+  test('restart_from that resolves to no earlier named step fails closed (unresolved)', () => {
     const target = step({id: 's1', position: 1, status: 'running'});
 
     const decision = decideStepTransition({
@@ -126,12 +168,12 @@ describe('decideStepTransition', () => {
       reportedAttempt: 1,
       result: {status: 'failed', exitCode: 1},
       gateOutcome: {kind: 'failed', source: 'exit_code == 0'},
-      gateOnFailure: {restartFrom: 's0'},
+      gateOnFailure: {restartFrom: 'does-not-exist'},
     });
 
     expect(decision).toMatchObject({
       kind: 'fail-job',
-      failureError: {kind: 'restart_unsupported', restart_from: 's0'},
+      failureError: {kind: 'restart_unresolved', restart_from: 'does-not-exist'},
     });
   });
 
@@ -178,22 +220,20 @@ describe('decideStepTransition', () => {
     expect(decision).toMatchObject({kind: 'fail-job', failureError: {kind: 'gate_failed'}});
   });
 
-  test('a raw failure with on_failure but no success_if fails closed (restart_unsupported)', () => {
+  test('a raw failure with on_failure but no success_if still restarts', () => {
+    const restartTarget = step({id: 's0', name: 'producer', position: 0, status: 'succeeded'});
     const target = step({id: 's1', position: 1, status: 'running'});
 
     const decision = decideStepTransition({
-      steps: [step({id: 's0', position: 0, status: 'succeeded'}), target],
+      steps: [restartTarget, target],
       target,
       reportedAttempt: 1,
       result: {status: 'failed', exitCode: 1},
       // No gateOutcome (no success_if) but a restart policy is configured.
-      gateOnFailure: {restartFrom: 's0'},
+      gateOnFailure: {restartFrom: 'producer'},
     });
 
-    expect(decision).toMatchObject({
-      kind: 'fail-job',
-      failureError: {kind: 'restart_unsupported', restart_from: 's0'},
-    });
+    expect(decision).toMatchObject({kind: 'restart-job-from-step', restartFromStepId: 's0'});
   });
 });
 
