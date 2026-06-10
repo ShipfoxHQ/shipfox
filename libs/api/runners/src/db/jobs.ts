@@ -5,7 +5,7 @@ import {
   type StepResultDto,
 } from '@shipfox/api-runners-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {and, eq, lt, sql} from 'drizzle-orm';
+import {and, asc, eq, lt, sql} from 'drizzle-orm';
 import {RunningJobNotFoundError} from '#core/errors.js';
 import {db} from './db.js';
 import {runnersOutbox} from './schema/outbox.js';
@@ -39,33 +39,28 @@ export async function claimJob(params: {
   runnerTokenId: string;
 }): Promise<ClaimedJob | null> {
   return await db().transaction(async (tx) => {
-    const rows = await tx.execute(
-      sql`SELECT id, workspace_id, job_id, run_id, payload
-          FROM runners_pending_jobs
-          WHERE workspace_id = ${params.workspaceId}
-          ORDER BY created_at ASC
-          LIMIT 1
-          FOR UPDATE SKIP LOCKED`,
-    );
-
-    const row = rows.rows[0] as
-      | {id: string; workspace_id: string; job_id: string; run_id: string; payload: unknown}
-      | undefined;
+    const [row] = await tx
+      .select()
+      .from(pendingJobs)
+      .where(eq(pendingJobs.workspaceId, params.workspaceId))
+      .orderBy(asc(pendingJobs.createdAt))
+      .limit(1)
+      .for('update', {skipLocked: true});
 
     if (!row) return null;
 
     await tx.delete(pendingJobs).where(eq(pendingJobs.id, row.id));
 
     await tx.insert(runningJobs).values({
-      workspaceId: row.workspace_id,
-      jobId: row.job_id,
-      runId: row.run_id,
+      workspaceId: row.workspaceId,
+      jobId: row.jobId,
+      runId: row.runId,
       runnerTokenId: params.runnerTokenId,
     });
 
     return {
-      jobId: row.job_id,
-      runId: row.run_id,
+      jobId: row.jobId,
+      runId: row.runId,
       payload: row.payload as JobPayloadDto,
     };
   });
