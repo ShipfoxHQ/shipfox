@@ -1,15 +1,7 @@
 import {type ApiKeyContext, AUTH_API_KEY, setApiKeyContext} from '@shipfox/api-auth-context';
-import type {AuthMethod} from '@shipfox/node-fastify';
-import {ClientError} from '@shipfox/node-fastify';
+import {type AuthMethod, ClientError, extractBearerToken} from '@shipfox/node-fastify';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {resolveApiKeyWithWorkspace} from '#db/resolve-api-key.js';
-
-function extractBearerToken(authHeader: string | undefined): string | undefined {
-  if (!authHeader) return undefined;
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0]?.toLowerCase() !== 'bearer') return undefined;
-  return parts[1];
-}
 
 export function createApiKeyAuthMethod(): AuthMethod {
   return {

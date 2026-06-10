@@ -84,7 +84,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'failed'},
+      payload: {status: 'failed', error: {message: 'boom'}},
     });
 
     expect(res.statusCode).toBe(200);
@@ -110,6 +110,38 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     expect(res.statusCode).toBe(200);
     const after = await getStepsByJobId(jobId);
     expect(after[0]?.error).toEqual({message: 'boom', exitCode: 1, signal: 'SIGKILL'});
+  });
+
+  test('rejects a failed report without an error', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const token = await mintLeaseToken({jobId});
+    await nextStepForJob(jobId);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: reportUrl(steps[0]?.id as string),
+      headers: {authorization: `Bearer ${token}`},
+      payload: {status: 'failed'},
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('validation-error');
+  });
+
+  test('rejects a succeeded report with an error', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const token = await mintLeaseToken({jobId});
+    await nextStepForJob(jobId);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: reportUrl(steps[0]?.id as string),
+      headers: {authorization: `Bearer ${token}`},
+      payload: {status: 'succeeded', error: {message: 'should not be here'}},
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('validation-error');
   });
 
   test('a duplicate succeeded report is a no-op with the same response', async () => {
@@ -146,7 +178,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'failed'},
+      payload: {status: 'failed', error: {message: 'boom'}},
     });
 
     const res = await app.inject({

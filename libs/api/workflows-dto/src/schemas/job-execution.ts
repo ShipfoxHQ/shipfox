@@ -19,10 +19,14 @@ export const nextStepResponseSchema = z.discriminatedUnion('kind', [
 
 export type NextStepResponseDto = z.infer<typeof nextStepResponseSchema>;
 
-export const reportStepBodySchema = z.object({
-  status: z.enum(['succeeded', 'failed']),
-  error: stepErrorDtoSchema.optional(),
-});
+export const reportStepBodySchema = z
+  .object({
+    status: z.enum(['succeeded', 'failed']),
+    error: stepErrorDtoSchema.optional(),
+  })
+  .refine((body) => (body.status === 'succeeded' ? body.error == null : body.error != null), {
+    message: 'succeeded steps must not include an error and failed steps must include one',
+  });
 
 export type ReportStepBodyDto = z.infer<typeof reportStepBodySchema>;
 
