@@ -67,64 +67,6 @@ from `@shipfox/node-fastify` / `@shipfox/api-auth-context`. Prefer route groups
 for shared prefixes, plugins, and inherited auth instead of repeating those
 concerns in each route.
 
-### Error handling
-
-The guiding principle is **let errors bubble up and translate them only at the
-route edge**. Each layer has one job:
-
-```
-db / api (external)  →  core domain error  →  route errorHandler  →  global handler  →  HTTP response
-```
-
-- **`core/` and `db/`** throw typed domain errors. Define them in
-  `core/errors.ts` as plain `Error` subclasses with a human-readable message,
-  a `name`, and any context as public readonly fields. They carry **no HTTP
-  concerns** (no status, no client code):
-
-  ```ts
-  export class WorkspaceNotFoundError extends Error {
-    constructor(workspaceId: string) {
-      super(`Workspace not found: ${workspaceId}`);
-      this.name = 'WorkspaceNotFoundError';
-    }
-  }
-  ```
-
-- **`presentation/` routes** translate domain errors to `ClientError` in the
-  route's `errorHandler`, then re-throw anything they don't recognize so it
-  reaches the global handler:
-
-  ```ts
-  errorHandler: (error) => {
-    if (error instanceof WorkspaceNotFoundError)
-      throw new ClientError('Workspace not found', 'not-found', {status: 404});
-    if (error instanceof LastMemberError)
-      throw new ClientError(error.message, 'last-member', {status: 409});
-    throw error; // unrecognized → global handler
-  },
-  ```
-
-- **`ClientError(message, code, params)`** is the only error that produces a
-  structured client response. `code` is a stable kebab-case string
-  (`not-found`, `last-member`, `project-already-exists`). `params`:
-  - `status` — HTTP status, **defaults to 400**; set it for any other 4xx.
-  - `details` — structured data **returned to the client** (snake_case keys).
-  - `data` — context **logged only**, never sent to the client.
-  - `cause` — pass the original error when wrapping, so it stays in the chain
-    for Sentry.
-
-- **External errors** (GitHub, GCP, etc.) are caught in the `api/`/`core` layer
-  and re-thrown as a typed error carrying a `reason` enum (e.g.
-  `IntegrationProviderError`); the route maps `reason` → status + client code.
-
-- The **global handler** (`@shipfox/node-fastify`) sends `ClientError` as
-  `{code, details?}` with its status, maps Fastify validation/known errors to
-  4xx codes, and logs + reports unknown errors to Sentry as a 500
-  `server-error`. Do not catch errors just to log them — let unknowns reach it.
-
-Never swallow or wrap an error unless you add meaning. If you can re-throw
-as-is, do.
-
 ### DTOs and API contracts
 
 Public HTTP contracts live in sibling `*-dto` packages. Put Zod request/response
@@ -221,6 +163,86 @@ E2E data through direct database access.
 Each E2E package must also declare an explicit workspace dependency on the package
 it verifies, such as `@shipfox/client-auth` for `@shipfox/e2e-client-auth`, so
 Turbo includes the referenced package in the task DAG.
+
+## Error handling
+
+Error handling is a cross-layer concern, not an HTTP detail. The guiding
+principle is **let errors bubble up and translate them only when crossing a
+boundary**. Each layer owns one job, and the error changes shape only at the
+edges:
+
+```
+external system  →  api/core: typed error  →  presentation: ClientError  →  global handler  →  HTTP response
+```
+
+Never swallow or wrap an error unless you add meaning. If you can re-throw
+as-is, do. Do not catch errors just to log them — let unknowns reach the global
+handler.
+
+### Domain errors (`core` / `db`)
+
+Throw typed domain errors from domain and persistence code. Define them in
+`core/errors.ts` as plain `Error` subclasses with a human-readable message, a
+`name`, and any context as public readonly fields. They carry **no HTTP
+concerns** (no status, no client-facing code) — that keeps them reusable by
+workers, subscribers, and jobs, not just routes:
+
+```ts
+export class WorkspaceNotFoundError extends Error {
+  constructor(workspaceId: string) {
+    super(`Workspace not found: ${workspaceId}`);
+    this.name = 'WorkspaceNotFoundError';
+  }
+}
+```
+
+### External and infrastructure errors (`api` / `core`)
+
+Catch errors from external systems (GitHub, GCP, etc.) at the layer that talks
+to them and re-throw them as a typed error carrying a `reason` enum (e.g.
+`IntegrationProviderError`) rather than letting raw SDK errors leak upward.
+Pass `cause` so the original error stays in the chain:
+
+```ts
+throw new IntegrationProviderError('rate-limited', message, {cause: error});
+```
+
+### Translating to HTTP responses (`presentation`)
+
+Routes are the only place that turns errors into client responses. Translate
+known errors to `ClientError` in the route's `errorHandler`, and re-throw
+anything you don't recognize so it reaches the global handler:
+
+```ts
+errorHandler: (error) => {
+  if (error instanceof WorkspaceNotFoundError)
+    throw new ClientError('Workspace not found', 'not-found', {status: 404});
+  if (error instanceof LastMemberError)
+    throw new ClientError(error.message, 'last-member', {status: 409});
+  throw error; // unrecognized → global handler
+},
+```
+
+`ClientError(message, code, params)` is the only error that produces a
+structured client response. `code` is a stable kebab-case string (`not-found`,
+`last-member`, `project-already-exists`). `params`:
+
+- `status` — HTTP status, **defaults to 400**; set it for any other 4xx.
+- `details` — structured data **returned to the client** (snake_case keys).
+- `data` — context **logged only**, never sent to the client.
+- `cause` — pass the original error when wrapping, so it stays in the chain for
+  Sentry.
+
+For external errors, map the `reason` enum to a status and client code here
+(e.g. `rate-limited` → 429).
+
+### The global handler
+
+The shared handler in `@shipfox/node-fastify` is the last resort. It sends
+`ClientError` as `{code, details?}` with its status, maps Fastify
+validation/known errors to 4xx codes, and logs + reports unknown errors to
+Sentry as a 500 `server-error`. Anything that reaches it untyped becomes an
+opaque 500 — so translate errors you can describe before they get here.
 
 ## Unit Testing Strategy (Client Apps)
 
