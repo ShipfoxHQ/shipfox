@@ -6,8 +6,6 @@ const nonEmptyRecordSchema = <ValueSchema extends z.ZodType>(valueSchema: ValueS
     .record(z.string().min(1), valueSchema)
     .refine((value) => Object.keys(value).length > 0, {message: 'Expected at least one entry'});
 
-// This package owns the syntactic external document shape. Definitions-layer
-// semantic rules, defaults, and internal representations stay in definitions.
 const workflowDocumentTriggerBaseSchema = {
   source: z.string().min(1),
   with: z.record(z.string(), z.unknown()).optional(),
