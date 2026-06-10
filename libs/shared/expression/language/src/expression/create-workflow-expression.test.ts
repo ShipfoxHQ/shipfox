@@ -58,7 +58,6 @@ describe('createWorkflowExpression', () => {
   it.each([
     ['string', 'event.value == "success"'],
     ['int', 'event.value >= 1'],
-    ['uint', 'event.value >= 1'],
     ['double', 'event.value >= 1.5'],
     ['bool', 'event.value == true'],
     ['null', 'event.value == null'],

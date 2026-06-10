@@ -10,7 +10,6 @@ export function evaluateWorkflowExpression(
   context: WorkflowExpressionEvaluationContext,
 ): WorkflowExpressionEvaluationValue {
   try {
-    // The CEL engine validates against the supplied runtime values during evaluation.
     return new Runtime(expression.source).evaluate(context);
   } catch (error) {
     throw new WorkflowExpressionEvaluationError(error);

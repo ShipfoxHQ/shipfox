@@ -5,14 +5,7 @@ export interface WorkflowExpression {
   source: ValidCelExpression;
 }
 
-export type ExpressionScalarType =
-  | 'string'
-  | 'int'
-  | 'uint'
-  | 'double'
-  | 'bool'
-  | 'null'
-  | 'timestamp';
+export type ExpressionScalarType = 'string' | 'int' | 'double' | 'bool' | 'null' | 'timestamp';
 
 export type ExpressionType =
   | ExpressionScalarType

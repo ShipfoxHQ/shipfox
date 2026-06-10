@@ -12,7 +12,6 @@ import type {
 const scalarTypeToCelType = {
   string: 'string',
   int: 'int',
-  uint: 'int',
   double: 'float',
   bool: 'bool',
   null: 'null',
