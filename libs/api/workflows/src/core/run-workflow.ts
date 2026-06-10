@@ -25,7 +25,7 @@ export async function runWorkflow(params: RunWorkflowParams): Promise<WorkflowRu
     projectId: params.projectId,
     definitionId: definition.id,
     name: definition.name,
-    definition: definition.definition,
+    model: definition.model,
     triggerPayload: params.triggerPayload,
     inputs: params.inputs,
     triggerIdempotencyKey: params.triggerIdempotencyKey,

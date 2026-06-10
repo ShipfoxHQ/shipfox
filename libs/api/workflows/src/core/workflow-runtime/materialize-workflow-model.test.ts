@@ -1,0 +1,83 @@
+import type {WorkflowModel} from '@shipfox/api-definitions';
+import {workflowModel} from '#test/index.js';
+import {materializeWorkflowModel} from './materialize-workflow-model.js';
+
+describe('materializeWorkflowModel', () => {
+  it('converts workflow model jobs and steps to runtime rows', () => {
+    const model = workflowModel({
+      runner: 'ubuntu-latest',
+      jobs: {
+        build: {
+          steps: [{name: 'install', run: 'npm install'}, {run: 'npm run build'}],
+        },
+        test: {
+          needs: 'build',
+          runner: ['ubuntu-latest', 'node-22'],
+          steps: [{run: 'npm test'}],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel(model);
+
+    expect(rows).toEqual([
+      {
+        sourceName: 'build',
+        dependencies: [],
+        runner: ['ubuntu-latest'],
+        position: 0,
+        steps: [
+          {
+            sourceName: 'install',
+            status: 'pending',
+            type: 'run',
+            config: {run: 'npm install'},
+            position: 0,
+          },
+          {
+            sourceName: null,
+            status: 'pending',
+            type: 'run',
+            config: {run: 'npm run build'},
+            position: 1,
+          },
+        ],
+      },
+      {
+        sourceName: 'test',
+        dependencies: ['build'],
+        runner: ['ubuntu-latest', 'node-22'],
+        position: 1,
+        steps: [
+          {
+            sourceName: null,
+            status: 'pending',
+            type: 'run',
+            config: {run: 'npm test'},
+            position: 0,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('fails fast when the model contains an unresolved dependency id', () => {
+    const model: WorkflowModel = {
+      ...workflowModel(),
+      jobs: [
+        {
+          id: 'test',
+          sourceName: 'test',
+          runner: [],
+          dependencies: ['missing'],
+          steps: [],
+        },
+      ],
+      dependencies: [{from: 'missing', to: 'test'}],
+    };
+
+    expect(() => materializeWorkflowModel(model)).toThrow(
+      'Unresolved workflow model dependency "missing" for job "test"',
+    );
+  });
+});

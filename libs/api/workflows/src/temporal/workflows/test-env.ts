@@ -1,7 +1,7 @@
 import {resolve} from 'node:path';
 import {TestWorkflowEnvironment} from '@temporalio/testing';
 import {Worker} from '@temporalio/worker';
-import type {CompletionStatus} from '#core/dag.js';
+import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {RunDag} from '../activities/orchestration-activities.js';
 
 const TASK_QUEUE = 'test-orchestration';
@@ -17,7 +17,7 @@ export {TASK_QUEUE};
 export interface TestConfig {
   dag: RunDag;
   /** Map of jobId → status the mock runner should signal back */
-  jobResults: Map<string, CompletionStatus>;
+  jobResults: Map<string, RuntimeCompletionStatus>;
   /** If set, enqueueJobForRunner will throw with this message instead of signaling */
   enqueueError?: string;
   /** If true, enqueueJobForRunner sends two signals (for dedup testing) */

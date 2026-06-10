@@ -1,4 +1,4 @@
-import type {WorkflowSpec} from '@shipfox/api-definitions';
+import type {WorkflowModel} from '@shipfox/api-definitions';
 import {
   WORKFLOW_RUN_CREATED,
   WORKFLOWS_JOB_TIMED_OUT,
@@ -9,6 +9,7 @@ import {and, asc, count, desc, eq, gte, inArray, lt, lte, or, type SQL, sql} fro
 import type {Job, JobStatus} from '#core/entities/job.js';
 import type {Step, StepStatus} from '#core/entities/step.js';
 import type {TriggerPayload, WorkflowRun, WorkflowRunStatus} from '#core/entities/workflow-run.js';
+import {materializeWorkflowModel} from '#core/workflow-runtime/index.js';
 import {db, type Tx} from './db.js';
 import {jobs, toJob} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
@@ -20,23 +21,15 @@ export interface CreateWorkflowRunParams {
   projectId: string;
   definitionId: string;
   name?: string | undefined;
-  definition: WorkflowSpec;
+  model: WorkflowModel;
   triggerPayload: TriggerPayload;
   inputs?: Record<string, unknown> | undefined;
   triggerIdempotencyKey?: string | undefined;
 }
 
-function normalizeDependencies(needs: string | string[] | undefined): string[] {
-  if (!needs) return [];
-  return Array.isArray(needs) ? needs : [needs];
-}
-
-function normalizeRunner(runner: string | string[] | undefined): string[] | null {
-  if (!runner) return null;
-  return Array.isArray(runner) ? runner : [runner];
-}
-
 export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
+  const materializedJobs = materializeWorkflowModel(params.model);
+
   return await db().transaction(async (tx) => {
     const insertResult = await tx
       .insert(workflowRuns)
@@ -44,7 +37,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         workspaceId: params.workspaceId,
         projectId: params.projectId,
         definitionId: params.definitionId,
-        name: params.name ?? params.definition.name,
+        name: params.name ?? params.model.name,
         status: 'pending',
         triggerSource: params.triggerPayload.source,
         triggerEvent: params.triggerPayload.event,
@@ -75,37 +68,36 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       return toWorkflowRun(existingRow);
     }
 
-    const jobEntries = Object.entries(params.definition.jobs);
     let jobRows: (typeof jobs.$inferSelect)[] = [];
 
-    if (jobEntries.length > 0) {
+    if (materializedJobs.length > 0) {
       jobRows = await tx
         .insert(jobs)
         .values(
-          jobEntries.map(([jobName, jobSpec], index) => ({
+          materializedJobs.map((job) => ({
             runId: runRow.id,
-            name: jobName,
+            name: job.sourceName,
             status: 'pending' as const,
-            dependencies: normalizeDependencies(jobSpec.needs),
-            runner: normalizeRunner(jobSpec.runner),
-            position: index,
+            dependencies: [...job.dependencies],
+            runner: job.runner.length === 0 ? null : [...job.runner],
+            position: job.position,
           })),
         )
         .returning();
     }
 
     const stepValues: (typeof steps.$inferInsert)[] = [];
-    for (const jobRow of jobRows) {
-      const jobSpec = params.definition.jobs[jobRow.name];
-      if (!jobSpec) continue;
-      for (const [stepIndex, stepSpec] of jobSpec.steps.entries()) {
+    for (const [jobIndex, jobRow] of jobRows.entries()) {
+      const job = materializedJobs[jobIndex];
+      if (!job) continue;
+      for (const step of job.steps) {
         stepValues.push({
           jobId: jobRow.id,
-          name: stepSpec.name ?? null,
-          status: 'pending',
-          type: 'run',
-          config: {run: stepSpec.run},
-          position: stepIndex,
+          name: step.sourceName,
+          status: step.status,
+          type: step.type,
+          config: step.config,
+          position: step.position,
         });
       }
     }

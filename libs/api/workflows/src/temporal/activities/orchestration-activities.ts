@@ -1,6 +1,7 @@
 import {enqueueJob} from '@shipfox/api-runners';
 import type {JobPayloadDto, StepResultDto} from '@shipfox/api-runners-dto';
 import type {JobStatus} from '#core/entities/job.js';
+import type {RuntimeDagJob} from '#core/entities/runtime-dag.js';
 import type {StepStatus} from '#core/entities/step.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {
@@ -14,7 +15,7 @@ import {
   updateWorkflowRunStatus,
 } from '#db/index.js';
 
-export interface DagJob {
+export interface DagJob extends RuntimeDagJob {
   id: string;
   name: string;
   status: string;
