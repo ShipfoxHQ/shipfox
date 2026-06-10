@@ -54,8 +54,11 @@ async function createTestApp(options: {connection?: IntegrationConnection} = {})
   return {app, publishIntegrationEventReceived, recordDeliveryOnly, getIntegrationConnectionById};
 }
 
-async function seedInstallation(installationId: number): Promise<void> {
-  await githubInstallationFactory.create({installationId: String(installationId)});
+async function seedInstallation(installationId: number, connectionId?: string): Promise<void> {
+  await githubInstallationFactory.create({
+    installationId: String(installationId),
+    ...(connectionId !== undefined && {connectionId}),
+  });
 }
 
 function signedHeaders(rawBody: string, event: string, deliveryId: string) {
@@ -90,11 +93,10 @@ describe('GitHub webhook route', () => {
 
   it('publishes a mapped event for a valid push from a known installation', async () => {
     const installationId = 7777;
-    await seedInstallation(installationId);
     const connection = fakeConnection();
-    const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp({
-      connection,
-    });
+    await seedInstallation(installationId, connection.id);
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly, getIntegrationConnectionById} =
+      await createTestApp({connection});
     const deliveryId = randomUUID();
     const body = JSON.stringify(
       githubPushPayload({
@@ -115,6 +117,11 @@ describe('GitHub webhook route', () => {
 
     expect(res.statusCode).toBe(204);
     expect(recordDeliveryOnly).not.toHaveBeenCalled();
+    expect(getIntegrationConnectionById).toHaveBeenCalledTimes(1);
+    expect(getIntegrationConnectionById).toHaveBeenCalledWith(
+      connection.id,
+      expect.objectContaining({tx: expect.anything()}),
+    );
     expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
     const call = publishIntegrationEventReceived.mock.calls[0]?.[0];
     expect(call.tx).toBeDefined();
@@ -205,6 +212,37 @@ describe('GitHub webhook route', () => {
     expect(res.statusCode).toBe(204);
     expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
     expect(getIntegrationConnectionById).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
+    expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'github', deliveryId});
+  });
+
+  it('records the delivery only when the installation has no connection', async () => {
+    const installationId = 7781;
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly, getIntegrationConnectionById} =
+      await createTestApp();
+    getIntegrationConnectionById.mockResolvedValue(undefined);
+    await seedInstallation(installationId);
+    const deliveryId = randomUUID();
+    const body = JSON.stringify(
+      githubPushPayload({
+        installationId,
+        repositoryId: 301,
+        ref: 'refs/heads/main',
+        defaultBranch: 'main',
+        sha: 'dangling',
+      }),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/github',
+      headers: signedHeaders(body, 'push', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(getIntegrationConnectionById).toHaveBeenCalledTimes(1);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
     expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
     expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'github', deliveryId});
   });
