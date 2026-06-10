@@ -1,29 +1,15 @@
-import {type JobLeaseTokenClaims, verifyJobLeaseToken} from '@shipfox/api-auth';
+import {verifyJobLeaseToken} from '@shipfox/api-auth';
+import {AUTH_LEASED_JOB, setLeasedJobContext} from '@shipfox/api-auth-context';
 import {type AuthMethod, ClientError, extractBearerToken} from '@shipfox/node-fastify';
-import type {FastifyRequest} from 'fastify';
-
-const JOB_LEASE_CONTEXT_KEY = 'jobLease';
-
-export const LEASE_TOKEN_AUTH = 'lease-token';
 
 /**
  * Trust boundary: the signed token is the sole authority — `claims.jobId` scopes
  * every step route to exactly one job. `runId`/`workspaceId` are carried for
  * consumers but are NOT verified against the database here.
  */
-export function getLeaseTokenClaims(request: FastifyRequest): JobLeaseTokenClaims {
-  const claims = (request as unknown as Record<string, unknown>)[JOB_LEASE_CONTEXT_KEY] as
-    | JobLeaseTokenClaims
-    | undefined;
-  if (!claims) {
-    throw new Error('Job lease claims are not available on this request');
-  }
-  return claims;
-}
-
 export function createLeaseTokenAuthMethod(): AuthMethod {
   return {
-    name: LEASE_TOKEN_AUTH,
+    name: AUTH_LEASED_JOB,
     authenticate: async (request) => {
       const token = extractBearerToken(request.headers.authorization);
       if (!token) {
@@ -37,7 +23,7 @@ export function createLeaseTokenAuthMethod(): AuthMethod {
         throw new ClientError('Invalid or expired job lease token', 'unauthorized', {status: 401});
       }
 
-      (request as unknown as Record<string, unknown>)[JOB_LEASE_CONTEXT_KEY] = claims;
+      setLeasedJobContext(request, claims);
     },
   };
 }

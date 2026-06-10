@@ -1,7 +1,12 @@
-import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {
+  AUTH_LEASED_JOB,
+  AUTH_USER,
+  buildUserContext,
+  setUserContext,
+} from '@shipfox/api-auth-context';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
-import {createLeaseTokenAuthMethod, LEASE_TOKEN_AUTH} from '#presentation/auth/lease-token-auth.js';
+import {createLeaseTokenAuthMethod} from '#presentation/auth/lease-token-auth.js';
 import {workflowRoutes} from './index.js';
 
 const fakeUserAuth: AuthMethod = {
@@ -46,7 +51,7 @@ describe('workflow route auth', () => {
 
   test('step routes use lease-token auth', () => {
     expect(workflowRoutes[1]?.prefix).toBe('/runs/jobs/current');
-    expect(workflowRoutes[1]?.auth).toBe(LEASE_TOKEN_AUTH);
+    expect(workflowRoutes[1]?.auth).toBe(AUTH_LEASED_JOB);
   });
 
   test('step routes reject requests without a lease token', async () => {

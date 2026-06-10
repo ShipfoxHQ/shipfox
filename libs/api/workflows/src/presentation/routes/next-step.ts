@@ -1,8 +1,8 @@
+import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {nextStepResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {JobNotFoundError} from '#core/errors.js';
 import {nextStepForJob} from '#core/job-execution.js';
-import {getLeaseTokenClaims} from '#presentation/auth/lease-token-auth.js';
 import {toStepDto} from '#presentation/dto/step.js';
 
 export const nextStepRoute = defineRoute({
@@ -22,9 +22,9 @@ export const nextStepRoute = defineRoute({
     throw error;
   },
   handler: async (request) => {
-    const claims = getLeaseTokenClaims(request);
+    const leasedJob = requireLeasedJobContext(request);
 
-    const next = await nextStepForJob(claims.jobId);
+    const next = await nextStepForJob(leasedJob.jobId);
 
     if (next.kind === 'step') {
       return {kind: 'step' as const, step: toStepDto(next.step)};

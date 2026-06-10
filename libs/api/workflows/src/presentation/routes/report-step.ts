@@ -1,9 +1,9 @@
+import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {reportStepBodySchema, reportStepResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {StepNotFoundError, StepNotRunningError} from '#core/errors.js';
 import {recordStepResult} from '#core/job-execution.js';
-import {getLeaseTokenClaims} from '#presentation/auth/lease-token-auth.js';
 import {fromStepErrorDto} from '#presentation/dto/step.js';
 
 export const reportStepRoute = defineRoute({
@@ -29,10 +29,10 @@ export const reportStepRoute = defineRoute({
   },
   handler: async (request) => {
     const {stepId} = request.params;
-    const claims = getLeaseTokenClaims(request);
+    const leasedJob = requireLeasedJobContext(request);
 
     const outcome = await recordStepResult({
-      jobId: claims.jobId,
+      jobId: leasedJob.jobId,
       stepId,
       status: request.body.status,
       error: fromStepErrorDto(request.body.error),

@@ -1,8 +1,10 @@
+import type {JobLeaseTokenClaims} from '@shipfox/api-auth-dto';
 import type {WorkspaceRole} from '@shipfox/api-workspaces-dto';
 
 export const AUTH_USER = 'user';
 export const AUTH_API_KEY = 'api-key';
 export const AUTH_RUNNER_TOKEN = 'runner-token';
+export const AUTH_LEASED_JOB = 'leased-job';
 
 export type WorkspaceStatus = 'active' | 'suspended' | 'deleted';
 
@@ -47,10 +49,13 @@ export interface ApiKeyContext {
   scopes: string[];
 }
 
+export type LeasedJobContext = JobLeaseTokenClaims;
+
 type RequestWithContext = object;
 
 const USER_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/user');
 const API_KEY_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/api-key');
+const LEASED_JOB_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/leased-job');
 
 export function setUserContext(request: RequestWithContext, context: UserContext): void {
   (request as Record<symbol, unknown>)[USER_CONTEXT_KEY] = context;
@@ -84,6 +89,26 @@ export function requireApiKeyContext(request: RequestWithContext): ApiKeyContext
   const context = getApiKeyContext(request);
   if (!context) {
     throw new Error('API key context is not available on this request');
+  }
+  return context;
+}
+
+export function setLeasedJobContext(request: RequestWithContext, context: LeasedJobContext): void {
+  (request as Record<symbol, unknown>)[LEASED_JOB_CONTEXT_KEY] = context;
+}
+
+export function getLeasedJobContext(request: RequestWithContext): LeasedJobContext | null {
+  return (
+    ((request as Record<symbol, unknown>)[LEASED_JOB_CONTEXT_KEY] as
+      | LeasedJobContext
+      | undefined) ?? null
+  );
+}
+
+export function requireLeasedJobContext(request: RequestWithContext): LeasedJobContext {
+  const context = getLeasedJobContext(request);
+  if (!context) {
+    throw new Error('Leased job context is not available on this request');
   }
   return context;
 }

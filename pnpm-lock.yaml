@@ -495,6 +495,9 @@ importers:
 
   libs/api/auth-context:
     dependencies:
+      '@shipfox/api-auth-dto':
+        specifier: workspace:*
+        version: link:../auth-dto
       '@shipfox/api-workspaces-dto':
         specifier: workspace:*
         version: link:../workspaces-dto
