@@ -1,5 +1,6 @@
 import {
   callsNamed,
+  dagJob,
   makeDag,
   resetCalls,
   setCfg,
@@ -26,9 +27,7 @@ const defaultJobInput = {
   workspaceId: 'workspace-1',
   jobId: 'job-1',
   runId: 'run-1',
-  jobName: 'build',
   jobVersion: 1,
-  steps: [{id: 'step-1', name: null, type: 'run', config: {cmd: 'echo hi'}, position: 0}],
 };
 
 function executeJob(input: typeof defaultJobInput): Promise<{status: string; jobVersion: number}> {
@@ -41,7 +40,10 @@ function executeJob(input: typeof defaultJobInput): Promise<{status: string; job
 
 describe('jobOrchestration', () => {
   test('signal succeeded — workflow forwards reported steps to applyStepResultsActivity', async () => {
-    setCfg({dag: makeDag([]), jobResults: new Map([['job-1', 'succeeded']])});
+    setCfg({
+      dag: makeDag([dagJob('job-1', 'build')]),
+      jobResults: new Map([['job-1', 'succeeded']]),
+    });
 
     const result = await executeJob(defaultJobInput);
 
@@ -61,7 +63,7 @@ describe('jobOrchestration', () => {
   });
 
   test('signal failed — workflow forwards the failed step to applyStepResultsActivity', async () => {
-    setCfg({dag: makeDag([]), jobResults: new Map([['job-2', 'failed']])});
+    setCfg({dag: makeDag([dagJob('job-2', 'build')]), jobResults: new Map([['job-2', 'failed']])});
 
     const result = await executeJob({...defaultJobInput, jobId: 'job-2'});
 
@@ -80,7 +82,7 @@ describe('jobOrchestration', () => {
 
   test('duplicate signal is ignored', async () => {
     setCfg({
-      dag: makeDag([]),
+      dag: makeDag([dagJob('job-3', 'build')]),
       jobResults: new Map([['job-3', 'succeeded']]),
       duplicateSignal: true,
     });

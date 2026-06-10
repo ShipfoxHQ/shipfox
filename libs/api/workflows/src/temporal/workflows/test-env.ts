@@ -150,13 +150,7 @@ function createMockActivities() {
       calls.push({name: 'applyStepResultsActivity', params});
     },
 
-    enqueueJobForRunner: async (params: {
-      workspaceId: string;
-      jobId: string;
-      runId: string;
-      jobName: string;
-      steps: Array<{id: string}>;
-    }) => {
+    enqueueJobForRunner: async (params: {workspaceId: string; jobId: string; runId: string}) => {
       calls.push({name: 'enqueueJobForRunner', params});
 
       if (cfg.enqueueError) {
@@ -167,17 +161,18 @@ function createMockActivities() {
       if (cfg.skipSignal) return;
 
       const status = cfg.jobResults.get(params.jobId) ?? 'succeeded';
-      // Mirror what the runner reports: per-step entries for every step in the
-      // payload, all marked succeeded for status='succeeded'; for failures, the
-      // first step is failed and the rest are omitted (the activity cancels
-      // them).
+      // Scheduling is step-less, so the runner reports steps it resolves on its
+      // own. Mirror that here by reading the job's steps from the DAG: per-step
+      // entries for every step when status='succeeded'; for failures, the first
+      // step is failed and the rest are omitted (the activity cancels them).
+      const jobSteps = cfg.dag.jobs.find((job) => job.id === params.jobId)?.steps ?? [];
       const steps =
         status === 'succeeded'
-          ? params.steps.map((s) => ({step_id: s.id, status: 'succeeded' as const, error: null}))
-          : params.steps[0]
+          ? jobSteps.map((s) => ({step_id: s.id, status: 'succeeded' as const, error: null}))
+          : jobSteps[0]
             ? [
                 {
-                  step_id: params.steps[0].id,
+                  step_id: jobSteps[0].id,
                   status: 'failed' as const,
                   error: {message: 'mock failure', exit_code: 1},
                 },

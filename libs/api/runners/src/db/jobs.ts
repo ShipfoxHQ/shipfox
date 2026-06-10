@@ -18,9 +18,12 @@ export interface ScheduleJobParams {
   runId: string;
 }
 
-// Idempotent: a duplicate jobId means the job is already scheduled. Temporal
-// retries the enqueue activity at-least-once, so a unique-violation throw on a
-// retry-after-lost-result would permanently fail a healthy job's workflow.
+// Idempotent while the job is still pending: a duplicate jobId already in
+// `runners_pending_jobs` is a no-op. Temporal retries the enqueue activity
+// at-least-once, so a unique-violation throw on a retry-after-lost-result
+// would permanently fail a healthy job's workflow. This does not cover a retry
+// after the job has been claimed and moved to `runners_running_jobs`; that
+// window is owned by ENG-400.
 export async function scheduleJob(params: ScheduleJobParams): Promise<void> {
   await db()
     .insert(pendingJobs)

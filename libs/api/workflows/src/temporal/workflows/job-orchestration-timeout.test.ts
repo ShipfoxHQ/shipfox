@@ -88,9 +88,7 @@ const defaultJobInput = {
   workspaceId: 'workspace-1',
   jobId: 'job-timeout',
   runId: 'run-1',
-  jobName: 'build',
   jobVersion: 1,
-  steps: [{id: 'step-1', name: null, type: 'run', config: {cmd: 'echo hi'}, position: 0}],
 };
 
 function executeJob(input: typeof defaultJobInput): Promise<{status: string; jobVersion: number}> {

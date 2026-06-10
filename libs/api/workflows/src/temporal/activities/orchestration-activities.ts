@@ -135,14 +135,6 @@ export async function enqueueJobForRunner(params: {
   workspaceId: string;
   jobId: string;
   runId: string;
-  jobName: string;
-  steps: Array<{
-    id: string;
-    name: string | null;
-    type: string;
-    config: Record<string, unknown>;
-    position: number;
-  }>;
 }): Promise<void> {
   await scheduleJob({
     workspaceId: params.workspaceId,

@@ -113,9 +113,7 @@ function launchJobs(
             workspaceId: input.workspaceId,
             jobId: job.id,
             runId: input.runId,
-            jobName: job.name,
             jobVersion: jobVersions.get(job.id) ?? job.version,
-            steps: job.steps,
           },
         ],
       });

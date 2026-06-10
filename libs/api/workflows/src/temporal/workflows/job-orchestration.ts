@@ -43,15 +43,7 @@ export interface JobOrchestrationInput {
   workspaceId: string;
   jobId: string;
   runId: string;
-  jobName: string;
   jobVersion: number;
-  steps: Array<{
-    id: string;
-    name: string | null;
-    type: string;
-    config: Record<string, unknown>;
-    position: number;
-  }>;
 }
 
 export interface JobOrchestrationResult {
@@ -72,8 +64,6 @@ export async function jobOrchestration(
     workspaceId: input.workspaceId,
     jobId: input.jobId,
     runId: input.runId,
-    jobName: input.jobName,
-    steps: input.steps,
   });
 
   let signalPayload: {status: CompletionStatus; steps: StepResultDto[]} | undefined;
