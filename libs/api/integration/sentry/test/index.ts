@@ -1,7 +1,9 @@
 export {sentryInstallationFactory} from './factories/sentry-installation.js';
 export {
-  type SentryInstallationWebhookOptions,
-  type SentryIssueWebhookOptions,
-  sentryInstallationWebhook,
-  sentryIssueWebhook,
-} from './fixtures/sentry-webhook.js';
+  type SentryInstallationWebhookPayload,
+  sentryInstallationWebhookFactory,
+} from './factories/sentry-installation-webhook.js';
+export {
+  type SentryIssueWebhookPayload,
+  sentryIssueWebhookFactory,
+} from './factories/sentry-issue-webhook.js';

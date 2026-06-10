@@ -8,8 +8,8 @@ import {db} from '#db/db.js';
 import {sentryInstallations} from '#db/schema/installations.js';
 import {
   sentryInstallationFactory,
-  sentryInstallationWebhook,
-  sentryIssueWebhook,
+  sentryInstallationWebhookFactory,
+  sentryIssueWebhookFactory,
 } from '#test/index.js';
 import {createSentryWebhookRoutes} from './webhooks.js';
 
@@ -127,7 +127,9 @@ describe('Sentry webhook route', () => {
     const {app, publishIntegrationEventReceived, recordDeliveryOnly, getIntegrationConnectionById} =
       await createTestApp({connection});
     const deliveryId = randomUUID();
-    const body = JSON.stringify(sentryIssueWebhook({action: 'created', installationUuid}));
+    const body = JSON.stringify(
+      sentryIssueWebhookFactory.build({action: 'created', installation: {uuid: installationUuid}}),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -169,7 +171,9 @@ describe('Sentry webhook route', () => {
       await seedInstallation(installationUuid);
       const {app, publishIntegrationEventReceived} = await createTestApp();
       const deliveryId = randomUUID();
-      const body = JSON.stringify(sentryIssueWebhook({action, installationUuid}));
+      const body = JSON.stringify(
+        sentryIssueWebhookFactory.build({action, installation: {uuid: installationUuid}}),
+      );
 
       const res = await app.inject({
         method: 'POST',
@@ -191,7 +195,9 @@ describe('Sentry webhook route', () => {
     await seedInstallation(installationUuid);
     const {app, publishIntegrationEventReceived} = await createTestApp();
     const deliveryId = randomUUID();
-    const body = JSON.stringify(sentryIssueWebhook({action: 'ignored', installationUuid}));
+    const body = JSON.stringify(
+      sentryIssueWebhookFactory.build({action: 'ignored', installation: {uuid: installationUuid}}),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -244,7 +250,9 @@ describe('Sentry webhook route', () => {
     await seedInstallation(installationUuid);
     const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
     const deliveryId = randomUUID();
-    const body = JSON.stringify(sentryIssueWebhook({action: 'created', installationUuid}));
+    const body = JSON.stringify(
+      sentryIssueWebhookFactory.build({action: 'created', installation: {uuid: installationUuid}}),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -265,7 +273,9 @@ describe('Sentry webhook route', () => {
 
   test('rejects a garbage/short signature with 401 (not 500) and persists nothing', async () => {
     const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
-    const body = JSON.stringify(sentryIssueWebhook({action: 'created', installationUuid: 'x'}));
+    const body = JSON.stringify(
+      sentryIssueWebhookFactory.build({action: 'created', installation: {uuid: 'x'}}),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -286,7 +296,9 @@ describe('Sentry webhook route', () => {
 
   test('returns 400 when Request-ID header is missing', async () => {
     const {app} = await createTestApp();
-    const body = JSON.stringify(sentryIssueWebhook({action: 'created', installationUuid: 'x'}));
+    const body = JSON.stringify(
+      sentryIssueWebhookFactory.build({action: 'created', installation: {uuid: 'x'}}),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -304,7 +316,9 @@ describe('Sentry webhook route', () => {
 
   test('returns 400 when Sentry-Hook-Resource header is missing', async () => {
     const {app} = await createTestApp();
-    const body = JSON.stringify(sentryIssueWebhook({action: 'created', installationUuid: 'x'}));
+    const body = JSON.stringify(
+      sentryIssueWebhookFactory.build({action: 'created', installation: {uuid: 'x'}}),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -322,7 +336,9 @@ describe('Sentry webhook route', () => {
 
   test('returns 401 when both signature headers are missing', async () => {
     const {app} = await createTestApp();
-    const body = JSON.stringify(sentryIssueWebhook({action: 'created', installationUuid: 'x'}));
+    const body = JSON.stringify(
+      sentryIssueWebhookFactory.build({action: 'created', installation: {uuid: 'x'}}),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -343,7 +359,9 @@ describe('Sentry webhook route', () => {
     await seedInstallation(installationUuid);
     const {app, publishIntegrationEventReceived} = await createTestApp();
     const deliveryId = randomUUID();
-    const body = JSON.stringify(sentryIssueWebhook({action: 'created', installationUuid}));
+    const body = JSON.stringify(
+      sentryIssueWebhookFactory.build({action: 'created', installation: {uuid: installationUuid}}),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -361,7 +379,9 @@ describe('Sentry webhook route', () => {
     await seedInstallation(installationUuid);
     const {app, publishIntegrationEventReceived} = await createTestApp();
     const deliveryId = randomUUID();
-    const body = JSON.stringify(sentryIssueWebhook({action: 'created', installationUuid}));
+    const body = JSON.stringify(
+      sentryIssueWebhookFactory.build({action: 'created', installation: {uuid: installationUuid}}),
+    );
     const headers = signedHeaders(body, 'issue', deliveryId);
     publishIntegrationEventReceived
       .mockResolvedValueOnce({published: true})
@@ -382,7 +402,7 @@ describe('Sentry webhook route', () => {
       await createTestApp();
     const deliveryId = randomUUID();
     const body = JSON.stringify(
-      sentryIssueWebhook({action: 'created', installationUuid: 'unknown-uuid'}),
+      sentryIssueWebhookFactory.build({action: 'created', installation: {uuid: 'unknown-uuid'}}),
     );
 
     const res = await app.inject({
@@ -405,7 +425,9 @@ describe('Sentry webhook route', () => {
     const {app, publishIntegrationEventReceived, recordDeliveryOnly, getIntegrationConnectionById} =
       await createTestApp();
     const deliveryId = randomUUID();
-    const body = JSON.stringify(sentryIssueWebhook({action: 'created', installationUuid}));
+    const body = JSON.stringify(
+      sentryIssueWebhookFactory.build({action: 'created', installation: {uuid: installationUuid}}),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -427,7 +449,9 @@ describe('Sentry webhook route', () => {
       await createTestApp();
     getIntegrationConnectionById.mockResolvedValue(undefined);
     const deliveryId = randomUUID();
-    const body = JSON.stringify(sentryIssueWebhook({action: 'created', installationUuid}));
+    const body = JSON.stringify(
+      sentryIssueWebhookFactory.build({action: 'created', installation: {uuid: installationUuid}}),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -465,7 +489,12 @@ describe('Sentry webhook route', () => {
     await seedInstallation(installationUuid);
     const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
     const deliveryId = randomUUID();
-    const body = JSON.stringify(sentryIssueWebhook({action: 'frobnicated', installationUuid}));
+    const body = JSON.stringify(
+      sentryIssueWebhookFactory.build({
+        action: 'frobnicated',
+        installation: {uuid: installationUuid},
+      }),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -519,7 +548,12 @@ describe('Sentry webhook route', () => {
     await seedInstallation(installationUuid, {connectionId});
     const {app, recordDeliveryOnly, updateConnectionLifecycleStatus} = await createTestApp();
     const deliveryId = randomUUID();
-    const body = JSON.stringify(sentryInstallationWebhook({action: 'deleted', installationUuid}));
+    const body = JSON.stringify(
+      sentryInstallationWebhookFactory.build({
+        action: 'deleted',
+        installation: {uuid: installationUuid},
+      }),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -542,7 +576,10 @@ describe('Sentry webhook route', () => {
     const {app, recordDeliveryOnly, updateConnectionLifecycleStatus} = await createTestApp();
     const deliveryId = randomUUID();
     const body = JSON.stringify(
-      sentryInstallationWebhook({action: 'deleted', installationUuid: 'never-installed'}),
+      sentryInstallationWebhookFactory.build({
+        action: 'deleted',
+        installation: {uuid: 'never-installed'},
+      }),
     );
 
     const res = await app.inject({
@@ -561,7 +598,10 @@ describe('Sentry webhook route', () => {
     const {app, recordDeliveryOnly, updateConnectionLifecycleStatus} = await createTestApp();
     const deliveryId = randomUUID();
     const body = JSON.stringify(
-      sentryInstallationWebhook({action: 'created', installationUuid: 'install-pending'}),
+      sentryInstallationWebhookFactory.build({
+        action: 'created',
+        installation: {uuid: 'install-pending'},
+      }),
     );
 
     const res = await app.inject({
@@ -581,7 +621,7 @@ describe('Sentry webhook route', () => {
     const {app, recordDeliveryOnly} = await createTestApp();
     const deliveryId = randomUUID();
     const body = JSON.stringify(
-      sentryInstallationWebhook({action: 'suspended', installationUuid: 'x'}),
+      sentryInstallationWebhookFactory.build({action: 'suspended', installation: {uuid: 'x'}}),
     );
 
     const res = await app.inject({
