@@ -5,6 +5,15 @@ import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 export interface ModuleDatabase {
   db: () => NodePgDatabase<Record<string, unknown>>;
   migrationsPath: string;
+  /**
+   * Stable name for this database's drizzle migration-tracking table. When
+   * omitted, the name is derived from the module name and the database's
+   * position in the module's `database` array. Set this for modules that
+   * compose databases conditionally (e.g. feature-flagged providers), where a
+   * positional name would shift if another database is added or removed and
+   * silently re-run migrations against existing tables.
+   */
+  migrationsTableName?: string;
 }
 
 export interface ModulePublisher {

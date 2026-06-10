@@ -1,5 +1,10 @@
 import {upsertGithubInstallation} from '@shipfox/api-integration-github';
-import {listIntegrationConnections, upsertIntegrationConnection} from './connections.js';
+import {
+  getIntegrationConnectionById,
+  listIntegrationConnections,
+  updateIntegrationConnectionLifecycleStatus,
+  upsertIntegrationConnection,
+} from './connections.js';
 import {db} from './db.js';
 
 describe('integration connection queries', () => {
@@ -71,6 +76,33 @@ describe('integration connection queries', () => {
     const result = await listIntegrationConnections({workspaceId});
 
     expect(result.map((connection) => connection.provider)).toEqual(['debug', 'github']);
+  });
+
+  it('updates a connection lifecycle status and returns the mapped connection', async () => {
+    const connection = await upsertIntegrationConnection({
+      workspaceId,
+      provider: 'sentry',
+      externalAccountId: 'install-uuid',
+      displayName: 'Sentry acme',
+    });
+
+    const updated = await updateIntegrationConnectionLifecycleStatus({
+      id: connection.id,
+      lifecycleStatus: 'disabled',
+    });
+
+    expect(updated?.lifecycleStatus).toBe('disabled');
+    const reloaded = await getIntegrationConnectionById(connection.id);
+    expect(reloaded?.lifecycleStatus).toBe('disabled');
+  });
+
+  it('returns undefined when updating the lifecycle status of an unknown connection', async () => {
+    const result = await updateIntegrationConnectionLifecycleStatus({
+      id: crypto.randomUUID(),
+      lifecycleStatus: 'disabled',
+    });
+
+    expect(result).toBeUndefined();
   });
 
   it('rolls back a connection when provider-specific installation persistence fails', async () => {

@@ -1,11 +1,14 @@
 import {Buffer} from 'node:buffer';
 import {Webhooks} from '@octokit/webhooks';
 import {githubPushPayloadSchema} from '@shipfox/api-integration-github-dto';
-import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
+import {
+  defineRoute,
+  type RouteGroup,
+  rawBodyPlugin,
+  WEBHOOK_BODY_LIMIT,
+} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
-import type {FastifyInstance, FastifyPluginAsync} from 'fastify';
-import fp from 'fastify-plugin';
 import {config} from '#config.js';
 import {
   type GetIntegrationConnectionByIdFn,
@@ -17,7 +20,6 @@ import {
 const SIGNATURE_HEADER = 'x-hub-signature-256';
 const EVENT_HEADER = 'x-github-event';
 const DELIVERY_HEADER = 'x-github-delivery';
-const WEBHOOK_BODY_LIMIT = 25 * 1024 * 1024;
 const GITHUB_PROVIDER = 'github';
 
 export interface CreateGithubWebhookRoutesOptions {
@@ -29,19 +31,6 @@ export interface CreateGithubWebhookRoutesOptions {
 
 export function createGithubWebhookRoutes(options: CreateGithubWebhookRoutesOptions): RouteGroup {
   const webhooks = new Webhooks({secret: config.GITHUB_APP_WEBHOOK_SECRET});
-
-  const rawBodyPluginFn: FastifyPluginAsync = (scope: FastifyInstance) => {
-    scope.removeAllContentTypeParsers();
-    scope.addContentTypeParser(
-      'application/json',
-      {parseAs: 'buffer'},
-      (_request, body: Buffer, done: (err: Error | null, body?: Buffer) => void) => {
-        done(null, body);
-      },
-    );
-    return Promise.resolve();
-  };
-  const rawBodyPlugin = fp(rawBodyPluginFn);
 
   const pushRoute = defineRoute({
     method: 'POST',

@@ -68,6 +68,28 @@ export async function getIntegrationConnectionById(
 
 export type GetIntegrationConnectionByIdFn = typeof getIntegrationConnectionById;
 
+export interface UpdateIntegrationConnectionLifecycleStatusParams {
+  id: string;
+  lifecycleStatus: IntegrationConnectionLifecycleStatus;
+}
+
+export async function updateIntegrationConnectionLifecycleStatus(
+  params: UpdateIntegrationConnectionLifecycleStatusParams,
+  options: {tx?: IntegrationDb | IntegrationTx | undefined} = {},
+): Promise<IntegrationConnection | undefined> {
+  const executor = options.tx ?? db();
+  const [row] = await executor
+    .update(integrationConnections)
+    .set({lifecycleStatus: params.lifecycleStatus, updatedAt: new Date()})
+    .where(eq(integrationConnections.id, params.id))
+    .returning();
+  if (!row) return undefined;
+  return toIntegrationConnection(row);
+}
+
+export type UpdateIntegrationConnectionLifecycleStatusFn =
+  typeof updateIntegrationConnectionLifecycleStatus;
+
 export interface ListIntegrationConnectionsParams {
   workspaceId: string;
 }
