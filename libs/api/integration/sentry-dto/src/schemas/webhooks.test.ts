@@ -45,6 +45,32 @@ describe('sentryIssueWebhookSchema', () => {
     expect(parsed.data.issue.id).toBe('456');
   });
 
+  test('accepts explicit nulls on optional issue fields instead of dropping the delivery', () => {
+    const body = {
+      action: 'created',
+      installation: {uuid: 'install-uuid-1'},
+      data: {
+        issue: {
+          id: 'issue-123',
+          shortId: null,
+          culprit: null,
+          level: null,
+          status: null,
+          platform: null,
+          web_url: null,
+          url: null,
+          project_url: null,
+          firstSeen: null,
+          lastSeen: null,
+        },
+      },
+    };
+
+    const result = sentryIssueWebhookSchema.safeParse(body);
+
+    expect(result.success).toBe(true);
+  });
+
   test('rejects a payload missing installation.uuid', () => {
     const body = {
       action: 'created',

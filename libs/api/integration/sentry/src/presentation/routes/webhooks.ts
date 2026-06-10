@@ -12,6 +12,7 @@ import {
 } from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
+import type {FastifyReply} from 'fastify';
 import {config} from '#config.js';
 import {
   type GetIntegrationConnectionByIdFn,
@@ -117,8 +118,7 @@ export function createSentryWebhookRoutes(options: CreateSentryWebhookRoutesOpti
 
 async function handleIssueResource(args: {
   options: CreateSentryWebhookRoutesOptions;
-  // biome-ignore lint/suspicious/noExplicitAny: fastify reply
-  reply: any;
+  reply: FastifyReply;
   deliveryId: string;
   rawBody: string;
 }): Promise<null> {
@@ -167,8 +167,7 @@ async function handleIssueResource(args: {
 
 async function handleInstallationResource(args: {
   options: CreateSentryWebhookRoutesOptions;
-  // biome-ignore lint/suspicious/noExplicitAny: fastify reply
-  reply: any;
+  reply: FastifyReply;
   deliveryId: string;
   rawBody: string;
 }): Promise<null> {
