@@ -27,8 +27,10 @@ export {
   runListResponseSchema,
   runResponseSchema,
   runStatusSchema,
+  type StepAttemptDto,
   type StepDto,
   type StepErrorDtoShape,
+  stepAttemptDtoSchema,
   stepDtoSchema,
   stepErrorDtoSchema,
 } from '#schemas/index.js';

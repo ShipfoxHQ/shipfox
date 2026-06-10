@@ -1,5 +1,5 @@
-import type {StepDto, StepErrorDtoShape} from '@shipfox/api-workflows-dto';
-import type {Step} from '#core/entities/step.js';
+import type {StepAttemptDto, StepDto, StepErrorDtoShape} from '@shipfox/api-workflows-dto';
+import type {Step, StepAttempt} from '#core/entities/step.js';
 
 // Domain `error` is loosely typed (jsonb), so narrow it to the fixed runner
 // contract rather than trusting whatever shape the row happens to hold.
@@ -40,7 +40,25 @@ export function toStepDto(step: Step): StepDto {
     config: step.config,
     error: toStepErrorDto(step.error),
     position: step.position,
+    current_attempt: step.currentAttempt,
     created_at: step.createdAt.toISOString(),
     updated_at: step.updatedAt.toISOString(),
+  };
+}
+
+export function toStepAttemptDto(attempt: StepAttempt): StepAttemptDto {
+  return {
+    id: attempt.id,
+    step_id: attempt.stepId,
+    job_id: attempt.jobId,
+    attempt: attempt.attempt,
+    status: attempt.status,
+    exit_code: attempt.exitCode,
+    output: attempt.output,
+    error: attempt.error,
+    gate_result: attempt.gateResult,
+    restart_reason: attempt.restartReason,
+    started_at: attempt.startedAt.toISOString(),
+    finished_at: attempt.finishedAt ? attempt.finishedAt.toISOString() : null,
   };
 }

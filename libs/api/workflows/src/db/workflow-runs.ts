@@ -807,6 +807,16 @@ export async function getStepAttempts(jobId: string): Promise<StepAttempt[]> {
   return rows.map(toStepAttempt);
 }
 
+export async function getStepAttemptsByJobIds(jobIds: string[]): Promise<StepAttempt[]> {
+  if (jobIds.length === 0) return [];
+  const rows = await db()
+    .select()
+    .from(stepAttempts)
+    .where(inArray(stepAttempts.jobId, jobIds))
+    .orderBy(asc(stepAttempts.stepId), asc(stepAttempts.attempt));
+  return rows.map(toStepAttempt);
+}
+
 export interface ApplyStepResultParams {
   jobId: string;
   stepId: string;

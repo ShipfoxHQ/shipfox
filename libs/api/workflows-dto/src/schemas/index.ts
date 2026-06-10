@@ -31,8 +31,10 @@ export {
   runStatusSchema,
 } from './run.js';
 export {
+  type StepAttemptDto,
   type StepDto,
   type StepErrorDtoShape,
+  stepAttemptDtoSchema,
   stepDtoSchema,
   stepErrorDtoSchema,
 } from './step.js';
