@@ -161,10 +161,9 @@ function createMockActivities() {
       if (cfg.skipSignal) return;
 
       const status = cfg.jobResults.get(params.jobId) ?? 'succeeded';
-      // Scheduling is step-less, so the runner reports steps it resolves on its
-      // own. Mirror that here by reading the job's steps from the DAG: per-step
-      // entries for every step when status='succeeded'; for failures, the first
-      // step is failed and the rest are omitted (the activity cancels them).
+      // Scheduling is step-less, so a real runner resolves its own steps and
+      // reports them back. The schedule call no longer carries them, so source
+      // them from the DAG to reproduce that report shape.
       const jobSteps = cfg.dag.jobs.find((job) => job.id === params.jobId)?.steps ?? [];
       const steps =
         status === 'succeeded'

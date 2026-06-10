@@ -21,9 +21,10 @@ export interface ScheduleJobParams {
 // Idempotent while the job is still pending: a duplicate jobId already in
 // `runners_pending_jobs` is a no-op. Temporal retries the enqueue activity
 // at-least-once, so a unique-violation throw on a retry-after-lost-result
-// would permanently fail a healthy job's workflow. This does not cover a retry
-// after the job has been claimed and moved to `runners_running_jobs`; that
-// window is owned by ENG-400.
+// would permanently fail a healthy job's workflow. The guard does not extend
+// past the claim: once the job has moved to `runners_running_jobs`, a retry
+// can reinsert a pending row that a later claim then rejects on the
+// running-job unique constraint.
 export async function scheduleJob(params: ScheduleJobParams): Promise<void> {
   await db()
     .insert(pendingJobs)
@@ -126,8 +127,9 @@ export async function finalizeRunningJob(
  * written in the same transaction only when a row was deleted, so a heartbeat
  * landing between an outer `findStuckJobs` read and this call leaves the live
  * job untouched, and overlapping detector runs cannot double-emit. `runId`
- * comes from `RETURNING`. (Duplicates `finalizeRunningJob`'s shape on purpose;
- * `finalizeRunningJob` is removed in ENG-400.)
+ * comes from `RETURNING`. Intentionally not shared with `finalizeRunningJob`:
+ * the two guard on different predicates and emit different events, so the
+ * resemblance is shallow.
  */
 export async function expireStuckJob(params: {
   jobId: string;
