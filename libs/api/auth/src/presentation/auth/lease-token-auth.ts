@@ -1,6 +1,6 @@
-import {verifyJobLeaseToken} from '@shipfox/api-auth';
 import {AUTH_LEASED_JOB, setLeasedJobContext} from '@shipfox/api-auth-context';
 import {type AuthMethod, ClientError, extractBearerToken} from '@shipfox/node-fastify';
+import {verifyJobLeaseToken} from '#core/job-lease-token.js';
 
 /**
  * Trust boundary: the signed token is the sole authority — `claims.jobId` scopes

@@ -1,9 +1,9 @@
-import {issueJobLeaseToken} from '@shipfox/api-auth';
 import {getLeasedJobContext} from '@shipfox/api-auth-context';
 import {JOB_LEASE_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
+import {issueJobLeaseToken} from '#core/job-lease-token.js';
 import {createLeaseTokenAuthMethod} from './lease-token-auth.js';
 
 describe('lease-token-auth', () => {

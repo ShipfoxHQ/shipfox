@@ -6,16 +6,18 @@ import {listRunsRoute} from './list-runs.js';
 import {nextStepRoute} from './next-step.js';
 import {reportStepRoute} from './report-step.js';
 
+export const leaseTokenRouteGroup: RouteGroup = {
+  // The lease token names the job, so the path carries no job id ("current").
+  prefix: '/runs/jobs/current',
+  auth: AUTH_LEASED_JOB,
+  routes: [nextStepRoute, reportStepRoute],
+};
+
 export const workflowRoutes: RouteGroup[] = [
   {
     prefix: '/workflows/runs',
     auth: AUTH_USER,
     routes: [listRunsRoute, getRunAggregatesRoute, getRunRoute],
   },
-  {
-    // The lease token names the job, so the path carries no job id ("current").
-    prefix: '/runs/jobs/current',
-    auth: AUTH_LEASED_JOB,
-    routes: [nextStepRoute, reportStepRoute],
-  },
+  leaseTokenRouteGroup,
 ];

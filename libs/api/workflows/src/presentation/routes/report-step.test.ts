@@ -1,15 +1,10 @@
-import {AUTH_USER} from '@shipfox/api-auth-context';
-import {type AuthMethod, closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
+import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
+import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {nextStepForJob} from '#core/job-execution.js';
 import {getStepsByJobId} from '#db/workflow-runs.js';
-import {createLeaseTokenAuthMethod} from '#presentation/auth/lease-token-auth.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
-import {workflowRoutes} from './index.js';
-
-// The user-auth group rides along in workflowRoutes; a pass-through stub keeps
-// createApp's auth-name validation satisfied without involving user auth.
-const stubUserAuth: AuthMethod = {name: AUTH_USER, authenticate: () => Promise.resolve()};
+import {leaseTokenRouteGroup} from './index.js';
 
 function reportUrl(stepId: string): string {
   return `/runs/jobs/current/steps/${stepId}/report`;
@@ -20,8 +15,8 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   beforeAll(async () => {
     app = await createApp({
-      auth: [stubUserAuth, createLeaseTokenAuthMethod()],
-      routes: workflowRoutes,
+      auth: [createLeaseTokenAuthMethod()],
+      routes: [leaseTokenRouteGroup],
       swagger: false,
     });
     await app.ready();

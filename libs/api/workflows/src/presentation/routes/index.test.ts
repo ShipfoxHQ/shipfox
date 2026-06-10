@@ -1,3 +1,4 @@
+import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import {
   AUTH_LEASED_JOB,
   AUTH_USER,
@@ -6,7 +7,6 @@ import {
 } from '@shipfox/api-auth-context';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
-import {createLeaseTokenAuthMethod} from '#presentation/auth/lease-token-auth.js';
 import {workflowRoutes} from './index.js';
 
 const fakeUserAuth: AuthMethod = {
