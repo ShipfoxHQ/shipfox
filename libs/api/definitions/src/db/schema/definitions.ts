@@ -1,7 +1,7 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {index, jsonb, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
-import type {WorkflowDefinition, WorkflowSpec} from '#core/entities/definition.js';
+import type {WorkflowDefinition, WorkflowSpec} from '#core/entities/workflow-definition.js';
 import {pgTable} from './common.js';
 
 export const definitionSourceEnum = pgEnum('definitions_source', ['manual', 'vcs']);

@@ -1,4 +1,4 @@
-import type {WorkflowSpec} from './entities/definition.js';
+import type {WorkflowSpec} from './entities/workflow-definition.js';
 import {DefinitionParseError} from './errors.js';
 import {validateDefinition} from './validate-definition.js';
 

@@ -1,4 +1,4 @@
-import type {Job} from './entities/definition.js';
+import type {Job} from './entities/workflow-definition.js';
 
 export class DagValidationError extends Error {
   constructor(

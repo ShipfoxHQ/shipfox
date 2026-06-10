@@ -1,5 +1,5 @@
 import {Factory} from 'fishery';
-import type {WorkflowDefinition, WorkflowSpec} from '#core/entities/definition.js';
+import type {WorkflowDefinition, WorkflowSpec} from '#core/entities/workflow-definition.js';
 import {upsertDefinition} from '#db/definitions.js';
 
 function defaultSpec(): WorkflowSpec {

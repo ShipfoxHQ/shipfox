@@ -7,7 +7,7 @@ import {
   resetPublishers,
 } from '@shipfox/node-module';
 import {sql} from 'drizzle-orm';
-import type {WorkflowSpec} from '#core/entities/definition.js';
+import type {WorkflowSpec} from '#core/entities/workflow-definition.js';
 import {db} from './db.js';
 import {
   applyVcsDefinitionsBatch,
