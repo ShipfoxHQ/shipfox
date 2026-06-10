@@ -1,6 +1,6 @@
+import {verifyJobLeaseToken} from '@shipfox/api-auth';
 import {RUNNER_JOB_COMPLETED, RUNNER_JOB_LEASE_EXPIRED} from '@shipfox/api-runners-dto';
 import {eq, sql} from 'drizzle-orm';
-import {verifyJobLeaseToken} from '#core/job-lease-token.js';
 import {claimJob, completeJob, detectAndExpireStuckJobs} from '#core/jobs.js';
 import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
 import {db} from './db.js';

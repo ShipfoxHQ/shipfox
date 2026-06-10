@@ -5,7 +5,9 @@ import {createJwtAuthMethod} from '#presentation/auth/jwt-auth.js';
 import {authE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {authRoutes} from '#presentation/routes/index.js';
 
+export type {JobLeaseTokenClaims} from '@shipfox/api-auth-dto';
 export type {User, UserStatus} from '#core/entities/user.js';
+export {issueJobLeaseToken, verifyJobLeaseToken} from '#core/job-lease-token.js';
 
 export const authModule: ShipfoxModule = {
   name: 'auth',

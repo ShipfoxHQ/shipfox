@@ -1,9 +1,9 @@
+import {verifyJobLeaseToken} from '@shipfox/api-auth';
 import {AUTH_API_KEY, AUTH_USER} from '@shipfox/api-auth-context';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
-import {verifyJobLeaseToken} from '#core/job-lease-token.js';
 import {db} from '#db/db.js';
 import {revokeRunnerToken} from '#db/runner-tokens.js';
 import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';

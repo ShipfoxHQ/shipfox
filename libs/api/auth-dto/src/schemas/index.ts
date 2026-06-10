@@ -48,4 +48,9 @@ export {
   e2eCreateUserBodySchema,
   e2eCreateUserResponseSchema,
 } from './e2e.js';
+export {
+  JOB_LEASE_TOKEN_AUDIENCE,
+  type JobLeaseTokenClaims,
+  jobLeaseTokenClaimsSchema,
+} from './job-lease-token.js';
 export {type UserDto, userDtoSchema, userStatusSchema} from './user.js';
