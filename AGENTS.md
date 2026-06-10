@@ -201,10 +201,11 @@ export class WorkspaceNotFoundError extends Error {
 Catch errors from external systems (GitHub, GCP, etc.) at the layer that talks
 to them and re-throw them as a typed error carrying a `reason` enum (e.g.
 `IntegrationProviderError`) rather than letting raw SDK errors leak upward.
-Pass `cause` so the original error stays in the chain:
+Callers then branch on `reason` without depending on the SDK's error shapes.
+Pass `retryAfterSeconds` for backpressure reasons like `rate-limited`:
 
 ```ts
-throw new IntegrationProviderError('rate-limited', message, {cause: error});
+throw new IntegrationProviderError('rate-limited', message, retryAfterSeconds);
 ```
 
 ### Translating to HTTP responses (`presentation`)
