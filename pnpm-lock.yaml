@@ -1477,6 +1477,9 @@ importers:
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../workflows-dto
+      '@shipfox/expression':
+        specifier: workspace:*
+        version: link:../../shared/expression
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle

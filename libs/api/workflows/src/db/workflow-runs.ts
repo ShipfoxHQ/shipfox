@@ -480,6 +480,20 @@ export async function bulkUpdateStepStatuses(
         sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
       ),
     );
+
+  // Finalize any open attempt rows for the steps just terminalized, so a
+  // dispatched-then-timed-out/cancelled step never leaves a `running` audit row
+  // stranded (it would otherwise read as phantom in-flight work to gate/restart
+  // logic). The just-failed step on the normal report path is already terminal,
+  // so this only catches the bulk timeout/cancel sweeps.
+  // Only ever called with a terminal sweep status (cancelled on the failed-sibling
+  // path, failed on timeout).
+  if (params.status === 'failed' || params.status === 'cancelled') {
+    await executor
+      .update(stepAttempts)
+      .set({status: params.status, finishedAt: new Date()})
+      .where(and(eq(stepAttempts.jobId, params.jobId), eq(stepAttempts.status, 'running')));
+  }
 }
 
 export interface ReportedStepResult {

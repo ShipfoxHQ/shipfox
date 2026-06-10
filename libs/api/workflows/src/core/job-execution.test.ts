@@ -522,3 +522,114 @@ describe('step attempts', () => {
     expect(await jobCompletedEvents(jobId)).toHaveLength(1);
   });
 });
+
+describe('gate evaluation', () => {
+  async function attachGate(stepId: string, gate: Record<string, unknown>): Promise<void> {
+    await db()
+      .update(stepsTable)
+      .set({config: {run: 'echo hi', gate}})
+      .where(eq(stepsTable.id, stepId));
+  }
+
+  test('a passing gate succeeds a step despite a non-zero command exit', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await attachGate(stepId, {
+      success_if: {language: 'cel', check: 'syntax', source: 'exit_code == 1'},
+    });
+    await nextStepForJob(jobId);
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId,
+      status: 'failed',
+      error: {message: 'exit 1'},
+      exitCode: 1,
+    });
+
+    expect(outcome).toEqual({jobFinished: true, status: 'succeeded'});
+    expect((await getStepsByJobId(jobId))[0]?.status).toBe('succeeded');
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt?.gateResult).toMatchObject({passed: true});
+  });
+
+  test('a failing gate with restart_from fails closed with a restart_unsupported error', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await attachGate(stepId, {
+      success_if: {language: 'cel', check: 'syntax', source: 'exit_code == 0'},
+      on_failure: {restart_from: 'producer'},
+    });
+    await nextStepForJob(jobId);
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId,
+      status: 'failed',
+      error: {message: 'exit 1'},
+      exitCode: 1,
+    });
+
+    expect(outcome).toEqual({jobFinished: true, status: 'failed'});
+    const after = await getStepsByJobId(jobId);
+    expect(after[0]?.status).toBe('failed');
+    expect(after[0]?.error).toMatchObject({kind: 'restart_unsupported', restart_from: 'producer'});
+  });
+
+  test('a failing gate without on_failure fails the job with a gate_failed error', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await attachGate(stepId, {
+      success_if: {language: 'cel', check: 'syntax', source: 'exit_code == 0'},
+    });
+    await nextStepForJob(jobId);
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId,
+      status: 'failed',
+      error: {message: 'exit 1'},
+      exitCode: 1,
+    });
+
+    expect(outcome).toEqual({jobFinished: true, status: 'failed'});
+    expect((await getStepsByJobId(jobId))[0]?.error).toMatchObject({kind: 'gate_failed'});
+  });
+
+  test('a signal-killed step (no exit code) is a plain failure, gate not evaluated', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await attachGate(stepId, {
+      success_if: {language: 'cel', check: 'syntax', source: 'exit_code == 0'},
+      on_failure: {restart_from: 'producer'},
+    });
+    await nextStepForJob(jobId);
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId,
+      status: 'failed',
+      error: {message: 'Killed by signal SIGKILL'},
+      exitCode: null,
+    });
+
+    expect(outcome).toEqual({jobFinished: true, status: 'failed'});
+    // Uncheckable → plain command failure, NOT restart_unsupported.
+    expect((await getStepsByJobId(jobId))[0]?.error).toMatchObject({
+      message: 'Killed by signal SIGKILL',
+    });
+  });
+});
+
+describe('bulkUpdateStepStatuses attempt finalization', () => {
+  test('finalizes a dispatched step’s running attempt when the job is swept', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    await nextStepForJob(jobId); // opens a running attempt for step 0
+
+    await bulkUpdateStepStatuses({jobId, status: 'cancelled'});
+
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({stepId: steps[0]?.id, status: 'cancelled'});
+    expect(attempt?.finishedAt).not.toBeNull();
+  });
+});
