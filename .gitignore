@@ -145,3 +145,6 @@ playwright-report/
 
 # Argos visual regression artifacts
 screenshots/
+
+# macOS
+.DS_Store
