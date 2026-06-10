@@ -1,14 +1,12 @@
 import {readFile} from 'node:fs/promises';
-import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {InvalidWorkflowDocumentError} from '@shipfox/workflow-document';
 import {InvalidWorkflowYamlError} from './invalid-workflow-yaml-error.js';
 import {parseWorkflowYaml} from './parse-workflow-yaml.js';
 
-const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), 'test/fixtures');
-
 async function readFixture(path: string): Promise<string> {
-  return await readFile(join(fixtureDir, path), 'utf8');
+  const fixtureUrl = import.meta.resolve(`#test/fixtures/workflow-yaml/${path}`);
+  return await readFile(fileURLToPath(fixtureUrl), 'utf8');
 }
 
 describe('parseWorkflowYaml', () => {
