@@ -1,6 +1,9 @@
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
+import {eq} from 'drizzle-orm';
 import {recordStepResult} from '#core/job-execution.js';
+import {db} from '#db/db.js';
+import {steps as stepsTable} from '#db/schema/steps.js';
 import {getStepsByJobId} from '#db/workflow-runs.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
@@ -199,5 +202,24 @@ describe('POST /runs/jobs/current/steps/next', () => {
     expect(new Set(ids).size).toBe(1);
     const running = (await getStepsByJobId(jobId)).filter((s) => s.status === 'running');
     expect(running).toHaveLength(1);
+  });
+
+  test("returns the step's current attempt so the runner can echo it", async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    // Simulate a durable restart having bumped the first step's current attempt.
+    await db()
+      .update(stepsTable)
+      .set({currentAttempt: 2})
+      .where(eq(stepsTable.id, steps[0]?.id as string));
+    const token = await mintLeaseToken({jobId});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: URL,
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().attempt).toBe(2);
   });
 });

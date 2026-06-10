@@ -8,12 +8,13 @@ import {
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, asc, count, desc, eq, gte, inArray, lt, lte, or, type SQL, sql} from 'drizzle-orm';
 import type {Job, JobStatus} from '#core/entities/job.js';
-import type {Step, StepStatus} from '#core/entities/step.js';
+import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
 import type {TriggerPayload, WorkflowRun, WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {materializeWorkflowModel} from '#core/workflow-runtime/index.js';
 import {db, type Tx} from './db.js';
 import {jobs, toJob} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
+import {stepAttempts, toStepAttempt} from './schema/step-attempts.js';
 import {steps, toStep} from './schema/steps.js';
 import {toWorkflowRun, workflowRuns} from './schema/workflow-runs.js';
 
@@ -639,7 +640,77 @@ export async function markStepRunning(params: MarkStepRunningParams, tx: Tx): Pr
     )
     .returning();
   const row = rows[0];
-  return row ? toStep(row) : null;
+  if (!row) return null;
+  const step = toStep(row);
+  // Open the attempt this dispatch runs. onConflictDoNothing makes a racing
+  // re-dispatch a no-op against the unique (step_id, attempt) anchor; normal
+  // re-delivery returns the already-running step without calling this.
+  await insertRunningStepAttempt(
+    {jobId: step.jobId, stepId: step.id, attempt: step.currentAttempt},
+    tx,
+  );
+  return step;
+}
+
+export interface InsertRunningStepAttemptParams {
+  jobId: string;
+  stepId: string;
+  attempt: number;
+}
+
+export async function insertRunningStepAttempt(
+  params: InsertRunningStepAttemptParams,
+  tx: Tx,
+): Promise<void> {
+  await tx
+    .insert(stepAttempts)
+    .values({
+      jobId: params.jobId,
+      stepId: params.stepId,
+      attempt: params.attempt,
+      status: 'running',
+    })
+    .onConflictDoNothing();
+}
+
+export interface FinishStepAttemptParams {
+  stepId: string;
+  attempt: number;
+  status: StepAttemptStatus;
+  error?: Record<string, unknown> | null;
+  exitCode?: number | null;
+  gateResult?: Record<string, unknown> | null;
+}
+
+// Finalize the running attempt to a terminal state. The `status='running'` guard
+// makes this idempotent: a duplicate report finds the attempt already terminal
+// and updates nothing (never-downgrade for the audit row).
+export async function finishStepAttempt(params: FinishStepAttemptParams, tx: Tx): Promise<void> {
+  await tx
+    .update(stepAttempts)
+    .set({
+      status: params.status,
+      error: params.error ?? null,
+      exitCode: params.exitCode ?? null,
+      gateResult: params.gateResult ?? null,
+      finishedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(stepAttempts.stepId, params.stepId),
+        eq(stepAttempts.attempt, params.attempt),
+        eq(stepAttempts.status, 'running'),
+      ),
+    );
+}
+
+export async function getStepAttempts(jobId: string): Promise<StepAttempt[]> {
+  const rows = await db()
+    .select()
+    .from(stepAttempts)
+    .where(eq(stepAttempts.jobId, jobId))
+    .orderBy(asc(stepAttempts.stepId), asc(stepAttempts.attempt));
+  return rows.map(toStepAttempt);
 }
 
 export interface ApplyStepResultParams {

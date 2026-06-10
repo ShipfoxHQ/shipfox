@@ -2,7 +2,7 @@ import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {reportStepBodySchema, reportStepResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {StepNotFoundError, StepNotRunningError} from '#core/errors.js';
+import {StepAttemptAheadError, StepNotFoundError, StepNotRunningError} from '#core/errors.js';
 import {recordStepResult} from '#core/job-execution.js';
 import {fromStepErrorDto} from '#presentation/dto/step.js';
 
@@ -25,6 +25,9 @@ export const reportStepRoute = defineRoute({
     if (error instanceof StepNotRunningError) {
       throw new ClientError(error.message, 'step-not-running', {status: 409});
     }
+    if (error instanceof StepAttemptAheadError) {
+      throw new ClientError(error.message, 'step-attempt-ahead', {status: 409});
+    }
     throw error;
   },
   handler: async (request) => {
@@ -36,6 +39,8 @@ export const reportStepRoute = defineRoute({
       stepId,
       status: request.body.status,
       error: fromStepErrorDto(request.body.error),
+      exitCode: request.body.exit_code ?? null,
+      ...(request.body.attempt !== undefined ? {attempt: request.body.attempt} : {}),
     });
 
     return {ok: true, cancel: outcome.jobFinished && outcome.status === 'failed'};

@@ -27,6 +27,9 @@ export const steps = pgTable(
     error: jsonb('error').$type<Record<string, unknown>>(),
     position: integer('position').notNull(),
     version: integer('version').notNull().default(1),
+    // Execution-attempt identity (which attempt the projection reflects), NOT the
+    // optimistic `version` counter. Starts at 1; bumped only on rewind (PR E).
+    currentAttempt: integer('current_attempt').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
@@ -48,6 +51,7 @@ export function toStep(row: StepDb): Step {
     error: (row.error as Record<string, unknown>) ?? null,
     position: row.position,
     version: row.version,
+    currentAttempt: row.currentAttempt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

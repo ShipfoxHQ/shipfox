@@ -261,4 +261,20 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     expect(after[0]?.status).toBe('succeeded');
     expect(after[1]?.status).toBe('pending');
   });
+
+  test('a report whose attempt is ahead of the current attempt → 409 step-attempt-ahead', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const token = await mintLeaseToken({jobId});
+    await nextStepForJob(jobId);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: reportUrl(steps[0]?.id as string),
+      headers: {authorization: `Bearer ${token}`},
+      payload: {status: 'succeeded', attempt: 2},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('step-attempt-ahead');
+  });
 });

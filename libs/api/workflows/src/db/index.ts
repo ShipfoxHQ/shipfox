@@ -22,6 +22,7 @@ export {
   createWorkflowRun,
   failJobAsTimedOut,
   getJobsByRunId,
+  getStepAttempts,
   getStepsByJobId,
   getStepsByJobIds,
   getWorkflowRunAggregates,

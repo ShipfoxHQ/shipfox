@@ -2,13 +2,19 @@ import {withTransaction} from '#db/db.js';
 import {
   applyStepResult,
   cancelRemainingSteps,
+  finishStepAttempt,
   getStepsByJobIdForUpdate,
   markStepRunning,
   writeJobCompletedOutbox,
 } from '#db/workflow-runs.js';
 import type {RuntimeCompletionStatus} from './entities/runtime-dag.js';
 import type {Step, StepStatus} from './entities/step.js';
-import {JobNotFoundError, StepNotFoundError, StepNotRunningError} from './errors.js';
+import {
+  JobNotFoundError,
+  StepAttemptAheadError,
+  StepNotFoundError,
+  StepNotRunningError,
+} from './errors.js';
 
 const TERMINAL_STATUSES: ReadonlySet<StepStatus> = new Set(['succeeded', 'failed', 'cancelled']);
 
@@ -55,11 +61,22 @@ export interface RecordStepResultParams {
   stepId: string;
   status: 'succeeded' | 'failed';
   error?: Record<string, unknown> | null;
+  // Process exit code reported by the runner (PR B persists it on the attempt).
+  exitCode?: number | null;
+  // The attempt the runner was dispatched. Omitted = "the step's current
+  // attempt" (back-compat for callers that don't track attempts yet).
+  attempt?: number;
 }
 
 export type RecordStepResultOutcome =
   | {jobFinished: false}
   | {jobFinished: true; status: CompletionStatus};
+
+function outcomeFromSteps(steps: Step[]): RecordStepResultOutcome {
+  return steps.every((step) => isTerminal(step.status))
+    ? {jobFinished: true, status: deriveCompletion(steps)}
+    : {jobFinished: false};
+}
 
 export function recordStepResult(params: RecordStepResultParams): Promise<RecordStepResultOutcome> {
   // The failed result and its sibling cancellations are two writes; one
@@ -71,12 +88,37 @@ export function recordStepResult(params: RecordStepResultParams): Promise<Record
 
     if (!target) throw new StepNotFoundError(params.stepId, params.jobId);
 
+    // Attempt-aware idempotency, evaluated before the running/terminal checks and
+    // anchored on the step's current attempt (the step_attempts unique constraint
+    // is the race backstop).
+    const current = target.currentAttempt;
+    const reported = params.attempt ?? current;
+    if (reported > current) {
+      // The host allocates attempts; a runner cannot report one ahead of dispatch.
+      throw new StepAttemptAheadError(params.stepId, params.jobId, reported, current);
+    }
+    if (reported < current) {
+      // A stale report from a superseded attempt (e.g. after a rewind bumped the
+      // current attempt). No-op: leave the projection untouched.
+      return outcomeFromSteps(steps);
+    }
+
     let applied = false;
     if (!isTerminal(target.status)) {
       // A result may only land on a step that was actually handed out.
       if (target.status === 'pending') {
         throw new StepNotRunningError(params.stepId, params.jobId);
       }
+      await finishStepAttempt(
+        {
+          stepId: params.stepId,
+          attempt: current,
+          status: params.status,
+          error: params.error ?? null,
+          exitCode: params.exitCode ?? null,
+        },
+        tx,
+      );
       await applyStepResult(
         {
           jobId: params.jobId,
