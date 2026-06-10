@@ -2,9 +2,8 @@ import type {Step} from '#core/entities/step.js';
 import {createWorkflowRun, getJobsByRunId, getStepsByJobId} from '#db/workflow-runs.js';
 import {workflowModel} from '#test/index.js';
 
-// Jobs/steps are materialized from a WorkflowModel by createWorkflowRun (there is
-// no step/job factory), so arrange a single `build` job with `stepCount` steps
-// and read back its persisted, position-ordered steps.
+// Jobs and steps have no standalone factory — they only exist as children
+// materialized from a WorkflowModel by createWorkflowRun.
 export async function arrangeJobWithSteps(
   stepCount: number,
 ): Promise<{jobId: string; steps: Step[]}> {

@@ -2,9 +2,8 @@ import {z} from 'zod';
 import {stepDtoSchema, stepErrorDtoSchema} from './step.js';
 
 /**
- * Response of the runner-facing step pull. The job to progress is identified by
- * the caller's lease-token claims, never by the request itself. `done` reports
- * the job's terminal completion; an unknown job is a 404, not a `done`.
+ * The job to progress is identified by the caller's lease-token claims, never by
+ * the request. An unknown job is a 404, not a `done`.
  */
 export const nextStepResponseSchema = z.discriminatedUnion('kind', [
   z.object({

@@ -11,7 +11,6 @@ export interface MintLeaseTokenParams {
   audience?: string;
 }
 
-/** Signs a job lease token the way Scheduling will, with overridable knobs for negative cases. */
 export function mintLeaseToken(params: MintLeaseTokenParams): Promise<string> {
   return signHs256({
     payload: {

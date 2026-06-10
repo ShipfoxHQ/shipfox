@@ -4,7 +4,6 @@ import {isRouteGroup} from './types.js';
 
 const authMethods = new Map<string, AuthMethod>();
 
-/** Extracts the token from an `Authorization: Bearer <token>` header, or undefined. */
 export function extractBearerToken(authHeader: string | undefined): string | undefined {
   if (!authHeader) return undefined;
   const parts = authHeader.split(' ');
