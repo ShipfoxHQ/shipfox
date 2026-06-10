@@ -1,4 +1,4 @@
-import {type AuthMethod, ClientError} from '@shipfox/node-fastify';
+import {type AuthMethod, ClientError, extractBearerToken} from '@shipfox/node-fastify';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import type {FastifyRequest} from 'fastify';
 import {resolveRunnerTokenByHash} from '#db/runner-tokens.js';
@@ -9,13 +9,6 @@ export interface RunnerAuthContext {
   runnerTokenId: string;
   workspaceId: string;
   revokedAt: Date | null;
-}
-
-function extractBearerToken(authHeader: string | undefined): string | undefined {
-  if (!authHeader) return undefined;
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0]?.toLowerCase() !== 'bearer') return undefined;
-  return parts[1];
 }
 
 export function getRunnerContext(request: FastifyRequest): RunnerAuthContext {

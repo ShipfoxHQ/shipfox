@@ -1,4 +1,4 @@
-import {closeApp, createApp} from './index.js';
+import {closeApp, createApp, extractBearerToken} from './index.js';
 import type {AuthMethod} from './types.js';
 
 afterEach(async () => {
@@ -151,5 +151,37 @@ describe('auth', () => {
         ],
       }),
     ).rejects.toThrow("Unknown auth method: 'leaked'");
+  });
+});
+
+describe('extractBearerToken', () => {
+  test('extracts the token from a Bearer header', () => {
+    const token = extractBearerToken('Bearer abc.def.ghi');
+
+    expect(token).toBe('abc.def.ghi');
+  });
+
+  test('accepts any casing of the bearer scheme', () => {
+    const token = extractBearerToken('bEaReR my-token');
+
+    expect(token).toBe('my-token');
+  });
+
+  test('returns undefined for a missing header', () => {
+    const token = extractBearerToken(undefined);
+
+    expect(token).toBeUndefined();
+  });
+
+  test.each([
+    '',
+    'Bearer',
+    'Token abc',
+    'Bearer a b',
+    'abc',
+  ])('returns undefined for malformed header %j', (header) => {
+    const token = extractBearerToken(header);
+
+    expect(token).toBeUndefined();
   });
 });
