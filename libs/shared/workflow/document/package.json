@@ -12,7 +12,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
-    "#*": "./src/*"
+    "#*": "./src/*",
+    "#test/*": "./test/*"
   },
   "files": [
     "dist"

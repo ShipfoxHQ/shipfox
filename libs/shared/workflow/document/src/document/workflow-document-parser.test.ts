@@ -1,4 +1,5 @@
 import {ZodError} from 'zod';
+import simpleBuildWorkflowDocument from '#test/data/simple-build.json' with {type: 'json'};
 import {
   InvalidWorkflowDocumentError,
   invalidWorkflowDocumentErrorCode,
@@ -6,6 +7,12 @@ import {
 } from './workflow-document-parser.js';
 
 describe('parseWorkflowDocument', () => {
+  it('parses the simple build fixture', () => {
+    const result = parseWorkflowDocument(simpleBuildWorkflowDocument);
+
+    expect(result).toEqual(simpleBuildWorkflowDocument);
+  });
+
   it('returns the parsed document when valid', () => {
     const workflowDocument = {
       name: 'simple build',

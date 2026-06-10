@@ -7,7 +7,6 @@ Workflow document input shape for Shipfox tools.
 - `workflowDocumentSchema` defines the accepted Zod shape for a workflow document.
 - `parseWorkflowDocument` parses unknown input into a typed `WorkflowDocument`.
 - `InvalidWorkflowDocumentError` reports invalid input with the original Zod error as `cause`.
-- `simpleBuildWorkflowDocument` provides a small valid example for tests and callers.
 
 Use this package where Shipfox accepts a workflow object from a file, tool, or API call. It checks the shape only. It does not add defaults, pick runners, check job links, save data, or run jobs.
 

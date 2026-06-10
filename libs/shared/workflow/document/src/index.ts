@@ -8,4 +8,3 @@ export {
   type WorkflowDocumentTrigger,
   workflowDocumentSchema,
 } from '#document/index.js';
-export {simpleBuildWorkflowDocument} from '#examples/simple-build.js';

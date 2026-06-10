@@ -3,6 +3,12 @@
   "compilerOptions": {
     "rootDir": "."
   },
-  "include": ["src", "test", "vitest.config.ts", "node_modules/@shipfox/vitest/globals.d.ts"],
+  "include": [
+    "src",
+    "test",
+    "test/**/*.json",
+    "vitest.config.ts",
+    "node_modules/@shipfox/vitest/globals.d.ts"
+  ],
   "exclude": []
 }
