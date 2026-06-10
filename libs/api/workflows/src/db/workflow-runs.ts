@@ -9,7 +9,7 @@ import {and, asc, count, desc, eq, gte, inArray, lt, lte, or, type SQL, sql} fro
 import type {Job, JobStatus} from '#core/entities/job.js';
 import type {Step, StepStatus} from '#core/entities/step.js';
 import type {TriggerPayload, WorkflowRun, WorkflowRunStatus} from '#core/entities/workflow-run.js';
-import {db} from './db.js';
+import {db, type Tx} from './db.js';
 import {jobs, toJob} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
 import {steps, toStep} from './schema/steps.js';
@@ -352,8 +352,6 @@ export async function updateWorkflowRunStatus(
   return toWorkflowRun(row);
 }
 
-type Tx = Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0];
-
 export interface UpdateJobStatusAtVersionParams {
   jobId: string;
   status: JobStatus;
@@ -446,8 +444,12 @@ export interface BulkUpdateStepStatusesParams {
   status: StepStatus;
 }
 
-export async function bulkUpdateStepStatuses(params: BulkUpdateStepStatusesParams): Promise<void> {
-  await db()
+export async function bulkUpdateStepStatuses(
+  params: BulkUpdateStepStatusesParams,
+  tx?: Tx,
+): Promise<void> {
+  const executor = tx ?? db();
+  await executor
     .update(steps)
     .set({
       status: params.status,
@@ -582,4 +584,75 @@ export async function applyStepResults(params: ApplyStepResultsParams): Promise<
         );
     }
   });
+}
+
+// Per-step progression primitives. They take a mandatory `tx` because they only
+// run inside the job-execution service's transaction, and every write guards on
+// the never-downgrade predicate so a late or duplicate write cannot overwrite an
+// already-terminal row.
+
+// Locking in position order gives both entry points one lock order, so they
+// never deadlock and the failed-report apply+cancel pair commits atomically.
+export async function getStepsByJobIdForUpdate(jobId: string, tx: Tx): Promise<Step[]> {
+  const rows = await tx
+    .select()
+    .from(steps)
+    .where(eq(steps.jobId, jobId))
+    .orderBy(asc(steps.position))
+    .for('update');
+  return rows.map(toStep);
+}
+
+export interface MarkStepRunningParams {
+  jobId: string;
+  stepId: string;
+}
+
+export async function markStepRunning(params: MarkStepRunningParams, tx: Tx): Promise<Step | null> {
+  const rows = await tx
+    .update(steps)
+    .set({status: 'running', updatedAt: new Date()})
+    .where(
+      and(
+        eq(steps.id, params.stepId),
+        eq(steps.jobId, params.jobId),
+        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+      ),
+    )
+    .returning();
+  const row = rows[0];
+  return row ? toStep(row) : null;
+}
+
+export interface ApplyStepResultParams {
+  jobId: string;
+  stepId: string;
+  status: 'succeeded' | 'failed';
+  error: Record<string, unknown> | null;
+}
+
+export async function applyStepResult(params: ApplyStepResultParams, tx: Tx): Promise<void> {
+  await tx
+    .update(steps)
+    .set({status: params.status, error: params.error ?? null, updatedAt: new Date()})
+    .where(
+      and(
+        eq(steps.id, params.stepId),
+        eq(steps.jobId, params.jobId),
+        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+      ),
+    );
+}
+
+export interface CancelRemainingStepsParams {
+  jobId: string;
+}
+
+// The just-failed step is already terminal, so the shared guarded sweep leaves
+// it alone and only the still-pending siblings are cancelled.
+export async function cancelRemainingSteps(
+  params: CancelRemainingStepsParams,
+  tx: Tx,
+): Promise<void> {
+  await bulkUpdateStepStatuses({jobId: params.jobId, status: 'cancelled'}, tx);
 }

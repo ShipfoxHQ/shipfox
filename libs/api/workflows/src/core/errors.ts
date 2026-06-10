@@ -13,3 +13,24 @@ export class ProjectMismatchError extends Error {
     this.name = 'ProjectMismatchError';
   }
 }
+
+export class JobNotFoundError extends Error {
+  constructor(jobId: string) {
+    super(`Job not found or has no steps: ${jobId}`);
+    this.name = 'JobNotFoundError';
+  }
+}
+
+export class StepNotFoundError extends Error {
+  constructor(stepId: string, jobId: string) {
+    super(`Step ${stepId} not found in job ${jobId}`);
+    this.name = 'StepNotFoundError';
+  }
+}
+
+export class StepNotRunningError extends Error {
+  constructor(stepId: string, jobId: string) {
+    super(`Step ${stepId} in job ${jobId} is not running and cannot accept a result`);
+    this.name = 'StepNotRunningError';
+  }
+}
