@@ -37,29 +37,36 @@ export function createWorkflowExpression(
     });
   }
 
-  const typeCheckResult = Runtime.typeCheck(
-    source,
-    {},
-    toCelTypeEnvironment(params.typeEnvironment ?? {}),
-  );
-  if (!typeCheckResult.success) {
-    throw new InvalidWorkflowExpressionError({
+  if (params.check.mode === 'typed') {
+    const typeCheckResult = Runtime.typeCheck(
       source,
-      reason: typeCheckResult.error ?? 'Expression source did not type-check.',
-    });
+      {},
+      toCelTypeEnvironment(params.check.typeEnvironment ?? {}),
+    );
+    if (!typeCheckResult.success) {
+      throw new InvalidWorkflowExpressionError({
+        source,
+        reason: typeCheckResult.error ?? 'Expression source did not type-check.',
+      });
+    }
   }
 
   return {
     language: 'cel',
     source: source as ValidCelExpression,
+    check: params.check.mode,
   };
 }
 
-export function unsafeWorkflowExpressionFromSource(source: string): WorkflowExpression {
+export function unsafeWorkflowExpressionFromSource(params: {
+  source: string;
+  check: WorkflowExpression['check'];
+}): WorkflowExpression {
   // Use only when rehydrating a source that was already validated before storage.
   return {
     language: 'cel',
-    source: source as ValidCelExpression,
+    source: params.source as ValidCelExpression,
+    check: params.check,
   };
 }
 

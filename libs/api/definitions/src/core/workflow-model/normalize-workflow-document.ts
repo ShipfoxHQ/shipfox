@@ -257,8 +257,11 @@ function normalizeGateSuccessIf(params: {
   try {
     return createWorkflowExpression({
       source: params.source,
-      typeEnvironment: {
-        exit_code: 'int',
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          exit_code: 'int',
+        },
       },
     });
   } catch (error) {

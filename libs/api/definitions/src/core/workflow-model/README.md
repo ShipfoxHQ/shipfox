@@ -72,8 +72,8 @@ will type-check them when event schemas define the expression context.
 
 Run-step gate expressions are different. They have a small local result context,
 so this module can parse and type-check `success_if` now. The accepted model
-stores a `WorkflowExpression` with `language: 'cel'` and the original source
-string.
+stores a typed `WorkflowExpression` with `language: 'cel'`, the original source
+string, and `check: 'typed'`.
 
 For now, run-step gates can use `exit_code`. Fields such as `step.output.pass`
 need a declared output schema, so they belong to later agent-step work.

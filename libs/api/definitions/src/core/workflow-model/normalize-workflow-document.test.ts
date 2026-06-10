@@ -196,6 +196,7 @@ describe('normalizeWorkflowDocument', () => {
         successIf: {
           language: 'cel',
           source: 'exit_code == 0',
+          check: 'typed',
         },
         onFailure: {
           restartFrom: 'producer',
@@ -220,6 +221,7 @@ describe('normalizeWorkflowDocument', () => {
     expect(model.jobs[0]?.steps[0]?.gate?.successIf).toEqual({
       language: 'cel',
       source: 'exit_code == 0',
+      check: 'typed',
     });
   });
 

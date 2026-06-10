@@ -26,8 +26,11 @@ import {evaluateWorkflowPredicate} from '@shipfox/expression-evaluator';
 
 const expression = createWorkflowExpression({
   source: 'event.conclusion == "success"',
-  typeEnvironment: {
-    event: {kind: 'object', fields: {conclusion: 'string'}},
+  check: {
+    mode: 'typed',
+    typeEnvironment: {
+      event: {kind: 'object', fields: {conclusion: 'string'}},
+    },
   },
 });
 

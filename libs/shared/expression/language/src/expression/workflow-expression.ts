@@ -3,7 +3,10 @@ export type ValidCelExpression = string & {readonly __validCelExpression: unique
 export interface WorkflowExpression {
   language: 'cel';
   source: ValidCelExpression;
+  check: WorkflowExpressionCheck;
 }
+
+export type WorkflowExpressionCheck = 'syntax' | 'typed';
 
 export type ExpressionScalarType = 'string' | 'int' | 'double' | 'bool' | 'null' | 'timestamp';
 
@@ -20,7 +23,16 @@ export type ExpressionType =
 
 export type ExpressionTypeEnvironment = Readonly<Record<string, ExpressionType>>;
 
+export type WorkflowExpressionCheckOptions =
+  | {
+      mode: 'syntax';
+    }
+  | {
+      mode: 'typed';
+      typeEnvironment?: ExpressionTypeEnvironment;
+    };
+
 export interface CreateWorkflowExpressionParams {
   source: string;
-  typeEnvironment?: ExpressionTypeEnvironment;
+  check: WorkflowExpressionCheckOptions;
 }
