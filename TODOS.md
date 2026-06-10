@@ -46,6 +46,20 @@
 
 **Depends on:** Nothing. Can be done as a standalone PR.
 
+## Production runner registration & token issuance UX
+
+**What:** Design the production flow for provisioning runner tokens (self-serve registration, rotation, capability restrictions) on top of the shipped auth primitives.
+
+**Why:** The runner protocol surfaces are authenticated today — `/runners/jobs/*` by workspace-scoped runner tokens (`runner-token` auth) and the per-step `/runs/jobs/current/*` endpoints by job-scoped lease tokens (`lease-token` auth, ENG-397). What remains is the operator-facing lifecycle: how tokens are issued, rotated, and constrained at fleet scale.
+
+**Pros:** Completes the runner security story for production fleets.
+
+**Cons:** Needs product decisions (registration UX, token scoping model) before implementation.
+
+**Context:** Runner tokens are minted via `/workspaces/:workspaceId/runners/tokens` (user auth); lease tokens are signed by the codec in `api-auth` (`issueJobLeaseToken`) and verified in-process. See the per-step runner protocol Linear project (ENG-395..401) for the trust-boundary write-up, especially ENG-401.
+
+**Depends on:** ENG-398 (claim-time lease granting) for the final token flow shape.
+
 ## Single-statement `applyStepResults` for many-step jobs
 
 **What:** Collapse the N-update + 1-cancellation-sweep pattern in `applyStepResults` (`libs/api/workflows/src/db/workflow-runs.ts`) into a single `UPDATE steps SET status = CASE id WHEN ... END, error = CASE id WHEN ... END WHERE job_id = ?` for jobs with many reported steps.
