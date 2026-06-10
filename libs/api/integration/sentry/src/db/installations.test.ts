@@ -1,35 +1,36 @@
 import {randomUUID} from 'node:crypto';
-import {insertConnection, truncateIntegrationsState} from '#test/fixtures/core-fixtures.js';
+import {db} from './db.js';
 import {
   getSentryInstallationByInstallationUuid,
   markSentryInstallationDeleted,
   upsertSentryInstallation,
 } from './installations.js';
+import {sentryInstallations} from './schema/installations.js';
 
 describe('sentry installations persistence', () => {
   beforeEach(async () => {
-    await truncateIntegrationsState();
+    await db().delete(sentryInstallations);
   });
 
   test('upsert inserts then updates on conflicting installation_uuid without duplicating', async () => {
     const installationUuid = randomUUID();
-    const first = await insertConnection({externalAccountId: installationUuid});
-    const second = await insertConnection({externalAccountId: `${installationUuid}-2`});
+    const firstConnectionId = randomUUID();
+    const secondConnectionId = randomUUID();
 
     await upsertSentryInstallation({
-      connectionId: first.id,
+      connectionId: firstConnectionId,
       installationUuid,
       orgSlug: 'acme',
       status: 'installed',
     });
     const updated = await upsertSentryInstallation({
-      connectionId: second.id,
+      connectionId: secondConnectionId,
       installationUuid,
       orgSlug: 'acme-renamed',
       status: 'installed',
     });
 
-    expect(updated.connectionId).toBe(second.id);
+    expect(updated.connectionId).toBe(secondConnectionId);
     expect(updated.orgSlug).toBe('acme-renamed');
     const fetched = await getSentryInstallationByInstallationUuid(installationUuid);
     expect(fetched?.orgSlug).toBe('acme-renamed');
@@ -37,9 +38,9 @@ describe('sentry installations persistence', () => {
 
   test('markSentryInstallationDeleted sets status and returns the updated row', async () => {
     const installationUuid = randomUUID();
-    const connection = await insertConnection({externalAccountId: installationUuid});
+    const connectionId = randomUUID();
     await upsertSentryInstallation({
-      connectionId: connection.id,
+      connectionId,
       installationUuid,
       orgSlug: 'acme',
       status: 'installed',
@@ -48,7 +49,7 @@ describe('sentry installations persistence', () => {
     const deleted = await markSentryInstallationDeleted({installationUuid});
 
     expect(deleted?.status).toBe('deleted');
-    expect(deleted?.connectionId).toBe(connection.id);
+    expect(deleted?.connectionId).toBe(connectionId);
   });
 
   test('markSentryInstallationDeleted returns undefined when no row matches', async () => {
