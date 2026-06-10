@@ -1,11 +1,13 @@
 import type {IntegrationConnection} from './entities/connection.js';
 import {
+  IntegrationCheckoutUnsupportedError,
   IntegrationConnectionInactiveError,
   IntegrationConnectionNotFoundError,
   IntegrationConnectionWorkspaceMismatchError,
 } from './errors.js';
 import type {IntegrationProviderRegistry} from './providers/registry.js';
 import type {
+  CheckoutSpec,
   FilePage,
   FileSnapshot,
   RepositoryPage,
@@ -18,6 +20,7 @@ export interface IntegrationSourceControlService {
   resolveRepository(input: ResolveSourceRepositoryInput): Promise<ResolvedSourceRepository>;
   listFiles(input: ListSourceFilesInput): Promise<FilePage>;
   fetchFile(input: FetchSourceFileInput): Promise<FileSnapshot>;
+  createCheckoutSpec(input: CreateSourceCheckoutSpecInput): Promise<CheckoutSpec>;
 }
 
 export interface ListSourceRepositoriesInput {
@@ -43,6 +46,10 @@ export interface ListSourceFilesInput extends ResolveSourceRepositoryInput {
 export interface FetchSourceFileInput extends ResolveSourceRepositoryInput {
   ref: string;
   path: string;
+}
+
+export interface CreateSourceCheckoutSpecInput extends ResolveSourceRepositoryInput {
+  ref?: string | undefined;
 }
 
 export interface ResolvedSourceRepository {
@@ -128,6 +135,23 @@ export function createSourceControlIntegrationService({
         externalRepositoryId,
         ref,
         path,
+      });
+    },
+
+    async createCheckoutSpec({workspaceId, connectionId, externalRepositoryId, ref}) {
+      const connection = await getConnection(connectionId);
+      if (connection.workspaceId !== workspaceId) {
+        throw new IntegrationConnectionWorkspaceMismatchError(connectionId);
+      }
+      const sourceControl = registry.getAdapter(connection.provider, 'source_control');
+      if (!sourceControl.createCheckoutSpec) {
+        throw new IntegrationCheckoutUnsupportedError(connection.provider);
+      }
+
+      return await sourceControl.createCheckoutSpec({
+        connection,
+        externalRepositoryId,
+        ref,
       });
     },
   };

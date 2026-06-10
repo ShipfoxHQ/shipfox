@@ -54,6 +54,12 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
         size: 58,
       }),
     ),
+    createInstallationAccessToken: vi.fn(() =>
+      Promise.resolve({
+        token: 'ghs_installationtoken',
+        expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+      }),
+    ),
     ...overrides,
   };
 }
@@ -239,5 +245,77 @@ describe('GithubSourceControlProvider', () => {
     });
 
     await expect(result).rejects.toMatchObject({reason: 'content-too-large'});
+  });
+
+  it('creates a checkout spec with a clean url and short-lived credentials', async () => {
+    await createInstallation();
+    const github = githubClient();
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = await provider.createCheckoutSpec({
+      connection: connection(),
+      externalRepositoryId: 'github:42',
+      ref: 'feature/x',
+    });
+
+    expect(result).toEqual({
+      repositoryUrl: 'https://github.com/shipfox/platform.git',
+      ref: 'feature/x',
+      credentials: {
+        username: 'x-access-token',
+        token: 'ghs_installationtoken',
+        expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+      },
+    });
+    expect(result.repositoryUrl).not.toContain('ghs_installationtoken');
+    expect(github.createInstallationAccessToken).toHaveBeenCalledWith({
+      installationId,
+      repositoryId: 42,
+    });
+  });
+
+  it('defaults the checkout ref to the repository default branch', async () => {
+    await createInstallation();
+    const github = githubClient();
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = await provider.createCheckoutSpec({
+      connection: connection(),
+      externalRepositoryId: 'github:42',
+    });
+
+    expect(result.ref).toBe('main');
+  });
+
+  it('propagates provider errors raised while minting the checkout token', async () => {
+    await createInstallation();
+    const github = githubClient({
+      createInstallationAccessToken: vi.fn(() =>
+        Promise.reject(new GithubIntegrationProviderError('access-denied', 'token denied')),
+      ),
+    });
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = provider.createCheckoutSpec({
+      connection: connection(),
+      externalRepositoryId: 'github:42',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'access-denied'});
+  });
+
+  it('rejects a malformed external repository id before any api call', async () => {
+    await createInstallation();
+    const github = githubClient();
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = provider.createCheckoutSpec({
+      connection: connection(),
+      externalRepositoryId: 'github:not-a-number',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'repository-not-found'});
+    expect(github.getRepository).not.toHaveBeenCalled();
+    expect(github.createInstallationAccessToken).not.toHaveBeenCalled();
   });
 });

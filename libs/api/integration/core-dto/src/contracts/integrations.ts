@@ -80,15 +80,22 @@ export interface FetchFileInput<Connection extends IntegrationConnection = Integ
   path: string;
 }
 
+export interface CheckoutCredentials {
+  username: string;
+  token: string;
+  expiresAt: Date;
+}
+
 export interface CheckoutSpec {
   repositoryUrl: string;
   ref: string;
+  credentials?: CheckoutCredentials | undefined;
 }
 
 export interface CreateCheckoutSpecInput<
   Connection extends IntegrationConnection = IntegrationConnection,
 > extends ResolveRepositoryInput<Connection> {
-  ref: string;
+  ref?: string | undefined;
 }
 
 export interface SourceControlProvider<
@@ -150,6 +157,16 @@ export class IntegrationProviderError extends Error {
 }
 
 export const MAX_REPOSITORY_FILE_BYTES = 1_000_000;
+
+const REDACTED_TOKEN = '***';
+
+export function redactCheckoutSpec(spec: CheckoutSpec): CheckoutSpec {
+  if (!spec.credentials) return spec;
+  return {
+    ...spec,
+    credentials: {...spec.credentials, token: REDACTED_TOKEN},
+  };
+}
 
 export function buildProviderRepositoryId(
   provider: IntegrationProviderKind,

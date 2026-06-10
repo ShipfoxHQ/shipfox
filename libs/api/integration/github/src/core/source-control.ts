@@ -1,6 +1,8 @@
 import {Buffer} from 'node:buffer';
 import {
   buildProviderRepositoryId,
+  type CheckoutSpec,
+  type CreateCheckoutSpecInput,
   type FetchFileInput,
   type FilePage,
   type FileSnapshot,
@@ -136,6 +138,25 @@ export class GithubSourceControlProvider
       path: file.path,
       ref: input.ref,
       content: file.content,
+    };
+  }
+
+  async createCheckoutSpec(
+    input: CreateCheckoutSpecInput<GithubIntegrationConnection>,
+  ): Promise<CheckoutSpec> {
+    const installationId = await this.installationId(input.connection.id);
+    const {repositoryId} = parseGithubRepositoryLocator(input.externalRepositoryId);
+    const repository = await this.github.getRepository({installationId, repositoryId});
+    const ref = input.ref?.trim() || repository.defaultBranch;
+    const {token, expiresAt} = await this.github.createInstallationAccessToken({
+      installationId,
+      repositoryId,
+    });
+
+    return {
+      repositoryUrl: repository.cloneUrl,
+      ref,
+      credentials: {username: 'x-access-token', token, expiresAt},
     };
   }
 

@@ -1,4 +1,4 @@
-import {IntegrationProviderError} from './errors.js';
+import {IntegrationCheckoutUnsupportedError, IntegrationProviderError} from './errors.js';
 import {createIntegrationProviderRegistry} from './providers/registry.js';
 import type {RepositorySnapshot, SourceControlProvider} from './providers/source-control.js';
 import {createSourceControlIntegrationService} from './source-control-service.js';
@@ -27,7 +27,10 @@ describe('integration source-control service', () => {
     updatedAt: new Date(),
   };
 
-  function createService(overrides: Partial<SourceControlProvider> = {}) {
+  function createService(
+    overrides: Partial<SourceControlProvider> = {},
+    options: {omitCheckoutSpec?: boolean} = {},
+  ) {
     const sourceControl: SourceControlProvider = {
       listRepositories: async () => {
         await Promise.resolve();
@@ -48,8 +51,15 @@ describe('integration source-control service', () => {
         await Promise.resolve();
         return {path: '.shipfox/workflows/ci.yml', ref: 'main', content: 'name: CI'};
       },
+      createCheckoutSpec: async (input) => {
+        await Promise.resolve();
+        return {repositoryUrl: repository.cloneUrl, ref: input.ref ?? repository.defaultBranch};
+      },
       ...overrides,
     };
+    if (options.omitCheckoutSpec) {
+      delete sourceControl.createCheckoutSpec;
+    }
     return createSourceControlIntegrationService({
       registry: createIntegrationProviderRegistry([
         {
@@ -148,5 +158,62 @@ describe('integration source-control service', () => {
     });
 
     expect(result.content).toBe('name: CI');
+  });
+
+  it('creates a checkout spec through an active source-control connection', async () => {
+    const service = createService();
+
+    const result = await service.createCheckoutSpec({
+      workspaceId,
+      connectionId: connection.id,
+      externalRepositoryId: 'debug:platform',
+      ref: 'feature/x',
+    });
+
+    expect(result).toEqual({
+      repositoryUrl: 'https://debug.local/debug-owner/platform.git',
+      ref: 'feature/x',
+    });
+  });
+
+  it('rejects a checkout spec for a connection in another workspace', async () => {
+    const service = createService();
+
+    const result = service.createCheckoutSpec({
+      workspaceId: crypto.randomUUID(),
+      connectionId: connection.id,
+      externalRepositoryId: 'debug:platform',
+    });
+
+    await expect(result).rejects.toThrow('requested workspace');
+  });
+
+  it('surfaces provider checkout failures', async () => {
+    const service = createService({
+      createCheckoutSpec: async () => {
+        await Promise.resolve();
+        throw new IntegrationProviderError('access-denied', 'Checkout not permitted');
+      },
+    });
+
+    const result = service.createCheckoutSpec({
+      workspaceId,
+      connectionId: connection.id,
+      externalRepositoryId: 'debug:platform',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'access-denied'});
+  });
+
+  it('rejects when the provider does not support creating a checkout spec', async () => {
+    const service = createService({}, {omitCheckoutSpec: true});
+
+    const result = service.createCheckoutSpec({
+      workspaceId,
+      connectionId: connection.id,
+      externalRepositoryId: 'debug:platform',
+    });
+
+    await expect(result).rejects.toBeInstanceOf(IntegrationCheckoutUnsupportedError);
   });
 });

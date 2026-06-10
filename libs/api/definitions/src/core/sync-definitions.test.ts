@@ -62,6 +62,7 @@ function sourceControl(
     fetchFile: vi.fn(() =>
       Promise.resolve({path: '.shipfox/workflows/ci.yml', ref: 'main', content: validYaml}),
     ),
+    createCheckoutSpec: vi.fn(),
     ...overrides,
   };
 }

@@ -28,6 +28,12 @@ export class IntegrationCapabilityUnavailableError extends Error {
   }
 }
 
+export class IntegrationCheckoutUnsupportedError extends Error {
+  constructor(public readonly provider: IntegrationProviderKind) {
+    super(`Integration provider ${provider} cannot create a checkout spec`);
+  }
+}
+
 export class IntegrationProviderUnavailableError extends Error {
   constructor(provider: IntegrationProviderKind) {
     super(`No integration provider registered for ${provider}`);

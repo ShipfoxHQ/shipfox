@@ -88,6 +88,15 @@ export interface GithubApiClient {
     ref: string;
     path: string;
   }): Promise<GithubFileContent>;
+  createInstallationAccessToken(input: {
+    installationId: number;
+    repositoryId: number;
+  }): Promise<GithubInstallationAccessToken>;
+}
+
+export interface GithubInstallationAccessToken {
+  token: string;
+  expiresAt: Date;
 }
 
 export function createGithubApiClient(): GithubApiClient {
@@ -326,6 +335,31 @@ class OctokitGithubApiClient implements GithubApiClient {
       path: data.path,
       size: data.size,
       content: Buffer.from(data.content, 'base64').toString('utf8'),
+    };
+  }
+
+  async createInstallationAccessToken(input: {
+    installationId: number;
+    repositoryId: number;
+  }): Promise<GithubInstallationAccessToken> {
+    const response = await mapGithubError(() =>
+      this.getApp().octokit.rest.apps.createInstallationAccessToken({
+        installation_id: input.installationId,
+        repository_ids: [input.repositoryId],
+        permissions: {contents: 'read'},
+      }),
+    );
+
+    if (typeof response.data.token !== 'string') {
+      throw new GithubIntegrationProviderError(
+        'malformed-provider-response',
+        'GitHub installation access token response did not include a token',
+      );
+    }
+
+    return {
+      token: response.data.token,
+      expiresAt: new Date(response.data.expires_at),
     };
   }
 

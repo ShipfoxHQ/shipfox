@@ -1,5 +1,7 @@
 import {
   buildProviderRepositoryId,
+  type CheckoutSpec,
+  type CreateCheckoutSpecInput,
   type FetchFileInput,
   type FilePage,
   type FileSnapshot,
@@ -162,6 +164,14 @@ export class DebugSourceControlProvider implements SourceControlProvider {
       path: input.path,
       ref: input.ref,
       content,
+    };
+  }
+
+  async createCheckoutSpec(input: CreateCheckoutSpecInput): Promise<CheckoutSpec> {
+    const repository = await this.resolveRepository(input);
+    return {
+      repositoryUrl: repository.cloneUrl,
+      ref: input.ref?.trim() || repository.defaultBranch,
     };
   }
 }

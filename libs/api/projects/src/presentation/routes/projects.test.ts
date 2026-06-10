@@ -81,6 +81,7 @@ describe('project routes', () => {
       }),
       listFiles: vi.fn(),
       fetchFile: vi.fn(),
+      createCheckoutSpec: vi.fn(),
     };
     app = await createApp({
       auth: [fakeUserAuth],

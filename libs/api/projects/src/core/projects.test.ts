@@ -46,6 +46,7 @@ describe('createProjectFromSource', () => {
       }),
       listFiles: vi.fn(),
       fetchFile: vi.fn(),
+      createCheckoutSpec: vi.fn(),
     };
   });
 

@@ -1,4 +1,5 @@
 export type {
+  CheckoutCredentials,
   CheckoutSpec,
   CreateCheckoutSpecInput,
   FetchFileInput,
@@ -26,4 +27,5 @@ export {
   IntegrationProviderError,
   MAX_REPOSITORY_FILE_BYTES,
   parseProviderRepositoryId,
+  redactCheckoutSpec,
 } from './integrations.js';
