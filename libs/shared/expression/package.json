@@ -1,12 +1,12 @@
 {
-  "name": "@shipfox/expression-language",
+  "name": "@shipfox/expression",
   "license": "MIT",
   "private": false,
   "version": "1.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "libs/shared/expression/language"
+    "directory": "libs/shared/expression"
   },
   "type": "module",
   "main": "dist/index.js",
