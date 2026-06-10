@@ -26,11 +26,13 @@ export const reportStepBodySchema = z
   .object({
     status: z.enum(['succeeded', 'failed']),
     error: stepErrorDtoSchema.optional(),
-    // The attempt the runner was dispatched (echoed from next-step). Optional
-    // until the runner sends it (PR A.2); enforced for idempotency in PR B.
+    // The attempt the runner was dispatched, echoed from next-step. Optional on
+    // the wire for now; idempotency enforcement against it lands in PR B.
     attempt: z.number().int().positive().optional(),
-    // Process exit code on success AND failure. Optional until the runner sends
-    // it (PR A.2); consumed by gate evaluation (success_if: exit_code == 0) in PR D.
+    // Process exit code on success and failure. The runner sends it, but it is
+    // not persisted yet: PR B stores it per attempt and PR D consumes it for
+    // gates (success_if: exit_code == 0). On failure it is also carried under
+    // `error.exit_code`.
     exit_code: z.number().int().nullable().optional(),
   })
   .refine((body) => (body.status === 'succeeded' ? body.error == null : body.error != null), {

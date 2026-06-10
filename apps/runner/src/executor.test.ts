@@ -4,7 +4,7 @@ vi.mock('#api-client.js', () => ({nextStep: vi.fn(), reportStep: vi.fn()}));
 vi.mock('#run-step.js', () => ({executeRunStep: vi.fn()}));
 
 import {nextStep, reportStep} from '#api-client.js';
-import {executeJob} from '#executor.js';
+import {executeJob, JobAbortedError} from '#executor.js';
 import {executeRunStep} from '#run-step.js';
 
 const mockNextStep = vi.mocked(nextStep);
@@ -93,6 +93,35 @@ describe('executeJob', () => {
     });
     // The host said the job is over; the runner must not pull again.
     expect(mockNextStep).toHaveBeenCalledTimes(1);
+  });
+
+  it('abandons the job without reporting when the step is killed by an abort', async () => {
+    const ac = new AbortController();
+    mockNextStep.mockResolvedValueOnce(stepResponse('s0', 0));
+    // The abort SIGKILLs the step, which resolves as a failure.
+    mockExecuteRunStep.mockImplementation(() => {
+      ac.abort();
+      return Promise.resolve({
+        success: false,
+        output: '',
+        exit_code: null,
+        error: {message: 'Killed by signal SIGKILL', exit_code: null, signal: 'SIGKILL'},
+      });
+    });
+
+    await expect(executeJob({leaseToken: LEASE}, {signal: ac.signal})).rejects.toBeInstanceOf(
+      JobAbortedError,
+    );
+    // An infra cancel must NOT be recorded as a genuine step failure.
+    expect(mockReportStep).not.toHaveBeenCalled();
+  });
+
+  it('propagates a pull error so the runner abandons the job to the server timeout', async () => {
+    mockNextStep.mockRejectedValueOnce(new Error('network down'));
+
+    await expect(executeJob({leaseToken: LEASE})).rejects.toThrow('network down');
+    expect(mockExecuteRunStep).not.toHaveBeenCalled();
+    expect(mockReportStep).not.toHaveBeenCalled();
   });
 
   it('echoes the dispatched attempt number on the report', async () => {

@@ -9,11 +9,13 @@ import type {createOrchestrationActivities} from '../activities/index.js';
  * Two terminal paths:
  *
  *   ┌─ job-completed signal arrives ──► signal payload set
- *   │   (enqueued by the per-step report      ▼
- *   │    that made the job terminal)       setJobStatus(status from signal)
- *   │                                      return {status}
- *   │   Per-step results are already persisted by recordStepResult, so the
- *   │   workflow only flips the job status — it does not re-apply step results.
+ *   │                                     ▼
+ *   │   Per-step runner: the report that made the job terminal already
+ *   │   persisted every step result and signals with no steps, so we only
+ *   │   setJobStatus(status). Legacy job-atomic runner: /complete signals with
+ *   │   the reported steps, which we still applyStepResultsActivity(steps) here
+ *   │   so a mixed-version rollout cannot leave the projection behind the
+ *   │   job status. Then setJobStatus(status); return {status}.
  *   │
  *   └─ JOB_MAX_DURATION elapses with no signal ──► condition() returns false
  *                                                  ▼
@@ -25,10 +27,15 @@ import type {createOrchestrationActivities} from '../activities/index.js';
  *                                              return {status:'failed'}
  */
 
-const {setJobStatus, enqueueJobForRunner, bulkSetStepStatuses, failJobAsTimedOutActivity} =
-  proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
-    startToCloseTimeout: '30s',
-  });
+const {
+  setJobStatus,
+  enqueueJobForRunner,
+  bulkSetStepStatuses,
+  applyStepResultsActivity,
+  failJobAsTimedOutActivity,
+} = proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
+  startToCloseTimeout: '30s',
+});
 
 const JOB_MAX_DURATION = '60 minutes';
 
@@ -76,11 +83,22 @@ export async function jobOrchestration(
     if (!signalPayload) {
       throw new Error('Unreachable: condition() returned true so signalPayload is set');
     }
-    const {status} = signalPayload;
+    const {status, steps} = signalPayload;
 
-    // Per-step execution already persisted every step result via
-    // recordStepResult (the same transaction that enqueued this signal), so the
-    // DB projection is authoritative. The workflow only flips the job status.
+    // Per-step execution persists each result as it is reported (the same
+    // transaction that enqueued this signal) and signals with no steps, so the
+    // projection is already authoritative. A legacy job-atomic runner reports
+    // everything at once via /complete and the signal carries the steps; persist
+    // those here so a mixed-version rollout cannot leave step rows behind the
+    // (now authoritative) job status.
+    if (steps.length > 0) {
+      await applyStepResultsActivity({
+        jobId: input.jobId,
+        completionStatus: status,
+        reportedSteps: steps,
+      });
+    }
+
     const {newVersion: finalVersion} = await setJobStatus({
       jobId: input.jobId,
       status,

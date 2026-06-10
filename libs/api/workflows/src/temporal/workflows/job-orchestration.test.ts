@@ -39,7 +39,11 @@ function executeJob(input: typeof defaultJobInput): Promise<{status: string; job
 }
 
 describe('jobOrchestration', () => {
-  test('signal succeeded — workflow flips the job status without re-applying step results', async () => {
+  // Legacy job-atomic runner: /complete signals with the reported steps, which
+  // the workflow still persists via applyStepResultsActivity so a mixed-version
+  // rollout cannot leave step rows behind the job status. The mock enqueue
+  // simulates this by signalling with per-step entries.
+  test('signal succeeded with reported steps — workflow persists them via applyStepResultsActivity', async () => {
     setCfg({dag: makeDag([]), jobResults: new Map([['job-1', 'succeeded']])});
 
     const result = await executeJob(defaultJobInput);
@@ -50,14 +54,15 @@ describe('jobOrchestration', () => {
     const statuses = setJobStatusCalls().map((c) => c.params.status);
     expect(statuses).toEqual(['running', 'succeeded']);
 
-    // Per-step execution already persisted every step result (the same
-    // transaction that enqueued the completion signal), so the completion path
-    // only flips the job status — it neither re-applies nor bulk-writes steps.
-    expect(callsNamed('applyStepResultsActivity')).toHaveLength(0);
+    const applyCalls = callsNamed('applyStepResultsActivity') as Array<{
+      params: {jobId: string; reportedSteps: Array<{status: string}>};
+    }>;
+    expect(applyCalls).toHaveLength(1);
+    expect(applyCalls[0]?.params.reportedSteps[0]?.status).toBe('succeeded');
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
   });
 
-  test('signal failed — workflow flips the job status without re-applying step results', async () => {
+  test('signal failed with reported steps — workflow persists them via applyStepResultsActivity', async () => {
     setCfg({dag: makeDag([]), jobResults: new Map([['job-2', 'failed']])});
 
     const result = await executeJob({...defaultJobInput, jobId: 'job-2'});
@@ -67,9 +72,32 @@ describe('jobOrchestration', () => {
     const statuses = setJobStatusCalls().map((c) => c.params.status);
     expect(statuses).toEqual(['running', 'failed']);
 
-    expect(callsNamed('applyStepResultsActivity')).toHaveLength(0);
+    const applyCalls = callsNamed('applyStepResultsActivity') as Array<{
+      params: {reportedSteps: Array<{status: string}>};
+    }>;
+    expect(applyCalls).toHaveLength(1);
+    expect(applyCalls[0]?.params.reportedSteps[0]?.status).toBe('failed');
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
   });
+
+  // Per-step runner: results are already persisted as they are reported, so the
+  // completion signal carries no steps and the workflow only flips the status.
+  test('per-step completion signal (no steps) flips status without re-applying results', async () => {
+    setCfg({dag: makeDag([]), jobResults: new Map(), skipSignal: true});
+
+    const handle = await testEnv.client.workflow.start('jobOrchestration', {
+      taskQueue: TASK_QUEUE,
+      workflowId: 'job:job-perstep',
+      args: [{...defaultJobInput, jobId: 'job-perstep'}],
+    });
+    await new Promise((r) => setTimeout(r, 500));
+    await handle.signal('job-completed', {status: 'succeeded', steps: []});
+    const result = await handle.result();
+
+    expect(result.status).toBe('succeeded');
+    expect(callsNamed('applyStepResultsActivity')).toHaveLength(0);
+    expect(setJobStatusCalls().map((c) => c.params.status)).toEqual(['running', 'succeeded']);
+  }, 15_000);
 
   test('duplicate signal is ignored', async () => {
     setCfg({

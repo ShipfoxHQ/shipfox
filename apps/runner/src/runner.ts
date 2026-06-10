@@ -2,7 +2,7 @@ import {setTimeout as setTimeoutPromise} from 'node:timers/promises';
 import {logger} from '@shipfox/node-opentelemetry';
 import {requestJob} from '#api-client.js';
 import {config} from '#config.js';
-import {executeJob} from '#executor.js';
+import {executeJob, JobAbortedError} from '#executor.js';
 import {startHeartbeatLoop} from '#heartbeat-loop.js';
 
 let running = true;
@@ -59,10 +59,15 @@ async function runJob(job: Awaited<ReturnType<typeof requestJob>> & object): Pro
     const result = await executeJob({leaseToken: job.lease_token}, {signal: ac.signal});
     logger().info({jobId: job.job_id, status: result.status}, 'Job execution finished');
   } catch (execError) {
-    // A pull/report failed (e.g. network) or the job was aborted mid-step.
-    // Per-step results already persisted are authoritative, and a job the runner
-    // abandons is reclaimed by the server-side job timeout — nothing to report.
-    logger().error({err: execError, jobId: job.job_id}, 'Job execution failed');
+    if (execError instanceof JobAbortedError) {
+      // Graceful shutdown or stale-heartbeat cancel: the job is intentionally
+      // abandoned without reporting. The server-side job timeout reclaims it.
+      logger().info({jobId: job.job_id}, 'Job abandoned (aborted); leaving for server timeout');
+    } else {
+      // A pull/report failed (e.g. network). Per-step results already persisted
+      // are authoritative; the abandoned job is reclaimed by the server timeout.
+      logger().error({err: execError, jobId: job.job_id}, 'Job execution failed');
+    }
   } finally {
     heartbeatLoop.stop();
     if (currentJobAbortController === ac) currentJobAbortController = undefined;
