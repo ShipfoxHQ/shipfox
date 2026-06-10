@@ -1,10 +1,9 @@
-import {Buffer} from 'node:buffer';
-import {createHmac, timingSafeEqual} from 'node:crypto';
 import {
   sentryInstallationWebhookSchema,
   sentryIssueWebhookSchema,
 } from '@shipfox/api-integration-sentry-dto';
 import {
+  ClientError,
   defineRoute,
   type RouteGroup,
   rawBodyPlugin,
@@ -13,21 +12,20 @@ import {
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import type {FastifyReply} from 'fastify';
+import type {z} from 'zod';
 import {config} from '#config.js';
+import {verifySentrySignature} from '#core/signature.js';
 import {
   type GetIntegrationConnectionByIdFn,
   handleSentryInstallationLifecycle,
   handleSentryIssueEvent,
+  normalizeSentryIssueAction,
   type PublishIntegrationEventReceivedFn,
   type RecordDeliveryOnlyFn,
   type UpdateConnectionLifecycleStatusFn,
 } from '#core/webhook.js';
+import {parseSentryWebhookRequest} from './webhook-request.js';
 
-const REQUEST_ID_HEADER = 'request-id';
-const RESOURCE_HEADER = 'sentry-hook-resource';
-const SIGNATURE_HEADER = 'sentry-hook-signature';
-// Sentry has used both header names; accepting both keeps older deliveries verifiable.
-const LEGACY_SIGNATURE_HEADER = 'sentry-app-signature';
 const SENTRY_PROVIDER = 'sentry';
 const ISSUE_RESOURCE = 'issue';
 const INSTALLATION_RESOURCE = 'installation';
@@ -47,64 +45,27 @@ export function createSentryWebhookRoutes(options: CreateSentryWebhookRoutesOpti
     auth: [],
     description: 'Sentry integration webhook receiver.',
     options: {bodyLimit: WEBHOOK_BODY_LIMIT},
-    handler: async (request, reply) => {
-      const deliveryId = request.headers[REQUEST_ID_HEADER];
-      const resource = request.headers[RESOURCE_HEADER];
-      const signatureHeader = request.headers[SIGNATURE_HEADER];
-      const legacySignatureHeader = request.headers[LEGACY_SIGNATURE_HEADER];
+    handler: (request, reply) => {
+      const {deliveryId, resource, signature, signatureHeaderName, rawBody} =
+        parseSentryWebhookRequest(request);
 
-      if (typeof deliveryId !== 'string' || !deliveryId) {
-        reply.code(400);
-        return {error: 'missing Request-ID header'};
-      }
-      if (typeof resource !== 'string' || !resource) {
-        reply.code(400);
-        return {error: 'missing Sentry-Hook-Resource header'};
-      }
-
-      const signature =
-        typeof signatureHeader === 'string' && signatureHeader
-          ? signatureHeader
-          : typeof legacySignatureHeader === 'string' && legacySignatureHeader
-            ? legacySignatureHeader
-            : undefined;
-      if (!signature) {
-        reply.code(401);
-        return {error: 'missing Sentry-Hook-Signature header'};
-      }
-
-      const body = request.body;
-      if (!Buffer.isBuffer(body)) {
-        reply.code(400);
-        return {error: 'expected raw JSON body'};
-      }
-      const rawBody = body.toString('utf8');
-
-      if (!verifySignature(rawBody, signature)) {
-        reply.code(401);
-        return {error: 'invalid signature'};
+      if (!verifySentrySignature({rawBody, signature, secret: config.SENTRY_APP_CLIENT_SECRET})) {
+        throw new ClientError('invalid signature', 'invalid-signature', {status: 401});
       }
       logger().debug(
-        {
-          deliveryId,
-          signatureHeader:
-            typeof signatureHeader === 'string' ? SIGNATURE_HEADER : LEGACY_SIGNATURE_HEADER,
-        },
+        {deliveryId, signatureHeader: signatureHeaderName},
         'sentry webhook: signature verified',
       );
 
       if (resource === ISSUE_RESOURCE) {
         return handleIssueResource({options, reply, deliveryId, rawBody});
       }
-
       if (resource === INSTALLATION_RESOURCE) {
         return handleInstallationResource({options, reply, deliveryId, rawBody});
       }
 
       // Unsupported resources are acknowledged so Sentry does not retry or disable the app.
-      await recordOnly(options, deliveryId);
-      reply.code(204);
-      return null;
+      return recordAndDrop({options, reply, deliveryId});
     },
   });
 
@@ -124,37 +85,21 @@ async function handleIssueResource(args: {
 }): Promise<null> {
   const {options, reply, deliveryId, rawBody} = args;
 
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(rawBody);
-  } catch (error) {
-    // Deliberate deviation from GitHub's 400: a sustained non-2xx can degrade or
-    // disable the webhook on Sentry's side, so malformed input is recorded-and-dropped.
-    logger().warn(
-      {deliveryId, err: error},
-      'sentry webhook: issue payload JSON parse failed, dropping',
-    );
-    await recordOnly(options, deliveryId);
-    reply.code(204);
-    return null;
-  }
-
-  const validated = sentryIssueWebhookSchema.safeParse(normalizeIssueAction(parsedJson));
-  if (!validated.success) {
-    logger().warn(
-      {deliveryId, issues: validated.error.issues},
-      'sentry webhook: issue payload failed validation (or unknown action), dropping',
-    );
-    await recordOnly(options, deliveryId);
-    reply.code(204);
-    return null;
-  }
+  const payload = await parseAndValidateOrDrop({
+    schema: sentryIssueWebhookSchema,
+    normalize: normalizeSentryIssueAction,
+    rawBody,
+    deliveryId,
+    options,
+    reply,
+  });
+  if (!payload) return null;
 
   await options.coreDb().transaction(async (tx) => {
     await handleSentryIssueEvent({
       tx,
       deliveryId,
-      payload: validated.data,
+      payload,
       publishIntegrationEventReceived: options.publishIntegrationEventReceived,
       recordDeliveryOnly: options.recordDeliveryOnly,
       getIntegrationConnectionById: options.getIntegrationConnectionById,
@@ -173,37 +118,21 @@ async function handleInstallationResource(args: {
 }): Promise<null> {
   const {options, reply, deliveryId, rawBody} = args;
 
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(rawBody);
-  } catch (error) {
-    logger().warn(
-      {deliveryId, err: error},
-      'sentry webhook: installation payload JSON parse failed, dropping',
-    );
-    await recordOnly(options, deliveryId);
-    reply.code(204);
-    return null;
-  }
-
-  const validated = sentryInstallationWebhookSchema.safeParse(parsedJson);
-  if (!validated.success) {
-    // Future installation actions should not make Sentry retry a delivery we cannot use.
-    logger().warn(
-      {deliveryId, issues: validated.error.issues},
-      'sentry webhook: installation payload failed validation (or unknown action), dropping',
-    );
-    await recordOnly(options, deliveryId);
-    reply.code(204);
-    return null;
-  }
+  const payload = await parseAndValidateOrDrop({
+    schema: sentryInstallationWebhookSchema,
+    rawBody,
+    deliveryId,
+    options,
+    reply,
+  });
+  if (!payload) return null;
 
   await options.coreDb().transaction(async (tx) => {
     await handleSentryInstallationLifecycle({
       tx,
       deliveryId,
-      action: validated.data.action,
-      installationUuid: validated.data.installation.uuid,
+      action: payload.action,
+      installationUuid: payload.installation.uuid,
       recordDeliveryOnly: options.recordDeliveryOnly,
       updateConnectionLifecycleStatus: options.updateConnectionLifecycleStatus,
     });
@@ -213,35 +142,53 @@ async function handleInstallationResource(args: {
   return null;
 }
 
-function verifySignature(rawBody: string, signature: string): boolean {
-  const expected = createHmac('sha256', config.SENTRY_APP_CLIENT_SECRET)
-    .update(rawBody)
-    .digest('hex');
-  const expectedBuf = Buffer.from(expected, 'utf8');
-  const providedBuf = Buffer.from(signature, 'utf8');
-  // timingSafeEqual throws on length mismatch — guard so a garbage signature is a
-  // clean 401, not a 500.
-  if (expectedBuf.length !== providedBuf.length) return false;
+// Parses and validates a delivery body, recording-and-dropping it (HTTP 204) when
+// the JSON is malformed or fails the schema (an unknown action falls here too).
+// Returns the validated payload, or null when the delivery was dropped.
+async function parseAndValidateOrDrop<TSchema extends z.ZodType>(args: {
+  schema: TSchema;
+  rawBody: string;
+  deliveryId: string;
+  options: CreateSentryWebhookRoutesOptions;
+  reply: FastifyReply;
+  normalize?: (parsedJson: unknown) => unknown;
+}): Promise<z.infer<TSchema> | null> {
+  const {schema, rawBody, deliveryId, options, reply, normalize} = args;
+
+  let parsedJson: unknown;
   try {
-    return timingSafeEqual(expectedBuf, providedBuf);
-  } catch {
-    return false;
+    parsedJson = JSON.parse(rawBody);
+  } catch (error) {
+    logger().warn({deliveryId, err: error}, 'sentry webhook: payload JSON parse failed, dropping');
+    await recordAndDrop({options, reply, deliveryId});
+    return null;
   }
+
+  const validated = schema.safeParse(normalize ? normalize(parsedJson) : parsedJson);
+  if (!validated.success) {
+    logger().warn(
+      {deliveryId, issues: validated.error.issues},
+      'sentry webhook: payload failed validation (or unknown action), dropping',
+    );
+    await recordAndDrop({options, reply, deliveryId});
+    return null;
+  }
+
+  return validated.data;
 }
 
-// A raw Sentry `ignored` action is normalized to `archived` before validation,
-// so legacy ignore events still fire `issue.archived` workflows.
-function normalizeIssueAction(parsedJson: unknown): unknown {
-  if (typeof parsedJson !== 'object' || parsedJson === null) return parsedJson;
-  const obj = parsedJson as {action?: unknown};
-  if (obj.action === 'ignored') {
-    return {...obj, action: 'archived'};
-  }
-  return parsedJson;
-}
-
-function recordOnly(options: CreateSentryWebhookRoutesOptions, deliveryId: string): Promise<void> {
-  return options.coreDb().transaction(async (tx) => {
+// Records the delivery for dedup and replies 204 without acting on it. A sustained
+// non-2xx can degrade or disable the webhook on Sentry's side (a deliberate
+// deviation from GitHub's 400), so deliveries we cannot use are acknowledged.
+async function recordAndDrop(args: {
+  options: CreateSentryWebhookRoutesOptions;
+  reply: FastifyReply;
+  deliveryId: string;
+}): Promise<null> {
+  const {options, reply, deliveryId} = args;
+  await options.coreDb().transaction(async (tx) => {
     await options.recordDeliveryOnly({tx, provider: SENTRY_PROVIDER, deliveryId});
   });
+  reply.code(204);
+  return null;
 }

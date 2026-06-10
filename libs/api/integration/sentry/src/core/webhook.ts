@@ -151,6 +151,17 @@ export async function handleSentryInstallationLifecycle(
   return {outcome: 'recorded'};
 }
 
+// A raw Sentry `ignored` action is normalized to `archived` before validation,
+// so legacy ignore events still fire `issue.archived` workflows.
+export function normalizeSentryIssueAction(parsedJson: unknown): unknown {
+  if (typeof parsedJson !== 'object' || parsedJson === null) return parsedJson;
+  const obj = parsedJson as {action?: unknown};
+  if (obj.action === 'ignored') {
+    return {...obj, action: 'archived'};
+  }
+  return parsedJson;
+}
+
 function normalizeIssuePayload(payload: SentryIssueWebhookDto): SentryIssuePayload {
   const issue = payload.data.issue;
   return {
