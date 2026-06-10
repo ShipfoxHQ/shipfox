@@ -11,18 +11,6 @@ import {
   markSentryInstallationDeleted,
 } from '#db/installations.js';
 
-// Sentry issue webhook → normalized event:
-//
-//   uuid → installation row ─┬─ missing ......... record-only (unknown-installation)
-//                            ├─ status=deleted .. record-only (installation-deleted)
-//                            └─ ok → connection ─┬─ missing ... record-only
-//                                                └─ ok → publish issue.<action>
-//
-// installation lifecycle:
-//   created → record-only
-//   deleted → mark row deleted (RETURNING) → disable its connection → record-only
-//             (no row → record-only, no throw — the pre-connect-flow reality)
-
 const SENTRY_SOURCE = 'sentry';
 const DEFAULT_ISSUE_TITLE = 'Sentry issue';
 const DELETED_STATUS = 'deleted';
@@ -153,8 +141,8 @@ export async function handleSentryInstallationLifecycle(
     }
   }
 
-  // `created`, or `deleted` with no matching row (the pre-connect-flow reality):
-  // the connect flow (PR2) owns row creation, so just record the delivery.
+  // The connect flow owns row creation; early lifecycle webhooks should not create
+  // partial installations from an unauthenticated provider callback.
   await params.recordDeliveryOnly({
     tx: params.tx,
     provider: SENTRY_SOURCE,

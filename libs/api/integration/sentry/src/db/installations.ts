@@ -72,11 +72,6 @@ export async function getSentryInstallationByInstallationUuid(
   return toSentryInstallation(row);
 }
 
-/**
- * Marks an installation deleted and returns the updated row (or `undefined`
- * when no row matches). The caller needs `connectionId` from the returned row
- * to disable the matching integration connection.
- */
 export async function markSentryInstallationDeleted(
   params: {installationUuid: string},
   options: {tx?: unknown} = {},

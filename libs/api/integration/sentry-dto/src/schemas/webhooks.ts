@@ -1,9 +1,6 @@
 import {z} from 'zod';
 
-// The accepted (normalized) issue actions. A raw Sentry `ignored` action is
-// mapped to `archived` at the route edge before validation; any still-unknown
-// action is record-and-dropped by the route (never a 400) since Sentry may add
-// actions over time.
+// Sentry may add actions without notice; unknown actions are acknowledged and dropped.
 export const sentryIssueActionSchema = z.enum([
   'created',
   'resolved',
@@ -13,8 +10,8 @@ export const sentryIssueActionSchema = z.enum([
 ]);
 export type SentryIssueAction = z.infer<typeof sentryIssueActionSchema>;
 
-// Tolerant schema validating only the fields we read. Zod strips unknown keys,
-// so extra Sentry fields pass through harmlessly.
+// Sentry sends large webhook envelopes; validating only consumed fields avoids
+// coupling ingestion to unrelated provider payload changes.
 export const sentryIssueWebhookSchema = z.object({
   action: sentryIssueActionSchema,
   installation: z.object({uuid: z.string().min(1)}),
@@ -37,7 +34,6 @@ export const sentryIssueWebhookSchema = z.object({
 });
 export type SentryIssueWebhookDto = z.infer<typeof sentryIssueWebhookSchema>;
 
-// Minimal envelope for the `installation` resource (created/deleted).
 export const sentryInstallationWebhookSchema = z.object({
   action: z.enum(['created', 'deleted']),
   installation: z.object({uuid: z.string().min(1)}),

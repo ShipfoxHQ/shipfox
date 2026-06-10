@@ -231,18 +231,8 @@ triggers module, the projection schema, the run table, or `TriggerPayload`
 is needed for a new source. Author workflows that subscribe to the new
 `(source, event)` and narrow `triggerPayload.data` themselves.
 
-### Sentry events
-
-The `sentry` source (`@shipfox/api-integration-sentry`) emits these events
-from the issue webhook, carrying a `SentryIssuePayload` in `triggerPayload.data`:
-
-| event | Sentry issue action |
-| --- | --- |
-| `issue.created` | `created` |
-| `issue.resolved` | `resolved` |
-| `issue.assigned` | `assigned` |
-| `issue.archived` | `archived` (a raw `ignored` action is normalized to `archived`) |
-| `issue.unresolved` | `unresolved` |
+For Sentry's supported `(source, event)` values, see
+[`@shipfox/api-integration-sentry`](../integration/sentry).
 
 ## Development
 

@@ -25,8 +25,7 @@ import {
 const REQUEST_ID_HEADER = 'request-id';
 const RESOURCE_HEADER = 'sentry-hook-resource';
 const SIGNATURE_HEADER = 'sentry-hook-signature';
-// Older Sentry deliveries / docs used this header name. Accept it as a fallback;
-// we log which header carried the signature to confirm on first staging delivery.
+// Sentry has used both header names; accepting both keeps older deliveries verifiable.
 const LEGACY_SIGNATURE_HEADER = 'sentry-app-signature';
 const SENTRY_PROVIDER = 'sentry';
 const ISSUE_RESOURCE = 'issue';
@@ -101,8 +100,7 @@ export function createSentryWebhookRoutes(options: CreateSentryWebhookRoutesOpti
         return handleInstallationResource({options, reply, deliveryId, rawBody});
       }
 
-      // Any other resource (event_alert, metric_alert, error, comment, …):
-      // record the delivery for dedup and acknowledge.
+      // Unsupported resources are acknowledged so Sentry does not retry or disable the app.
       await recordOnly(options, deliveryId);
       reply.code(204);
       return null;
@@ -130,7 +128,7 @@ async function handleIssueResource(args: {
   try {
     parsedJson = JSON.parse(rawBody);
   } catch (error) {
-    // Deliberate deviation from github's 400: a sustained non-2xx can degrade or
+    // Deliberate deviation from GitHub's 400: a sustained non-2xx can degrade or
     // disable the webhook on Sentry's side, so malformed input is recorded-and-dropped.
     logger().warn(
       {deliveryId, err: error},
@@ -191,7 +189,7 @@ async function handleInstallationResource(args: {
 
   const validated = sentryInstallationWebhookSchema.safeParse(parsedJson);
   if (!validated.success) {
-    // Unknown/ future installation actions (e.g. suspended) fall here → record-and-drop.
+    // Future installation actions should not make Sentry retry a delivery we cannot use.
     logger().warn(
       {deliveryId, issues: validated.error.issues},
       'sentry webhook: installation payload failed validation (or unknown action), dropping',

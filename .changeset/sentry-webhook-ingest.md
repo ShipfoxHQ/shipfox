@@ -8,7 +8,7 @@
 "@shipfox/api-integration-github": patch
 ---
 
-Add a Sentry integration provider that ingests issue webhooks (PR1 of 2).
+Add a Sentry integration provider that ingests issue webhooks.
 
 - New `@shipfox/api-integration-sentry` + `-sentry-dto` packages: a webhook
   receiver that verifies the HMAC-SHA256 signature (keyed with the app client
