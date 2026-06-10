@@ -230,11 +230,12 @@ function baseDefinitionsDto() {
         sha: 'abc123',
         ref: 'main',
         name: 'Deploy production',
-        definition: {
+        workflow_document: {
           name: 'Deploy production',
           triggers: {on_demand: {source: 'manual', event: 'fire'}},
           jobs: {deploy: {steps: [{run: './deploy.sh'}]}},
         },
+        workflow_model: {kind: 'workflow', name: 'Deploy production'},
         manual_trigger: {name: 'on_demand'},
         fetched_at: '2026-05-07T01:00:00.000Z',
         created_at: '2026-05-07T01:00:00.000Z',

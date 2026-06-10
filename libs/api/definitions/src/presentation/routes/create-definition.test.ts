@@ -68,8 +68,8 @@ jobs:
     expect(body.config_path).toBe('.shipfox/workflows/test.yml');
     expect(body.source).toBe('manual');
     expect(body.name).toBe('Test Workflow');
-    expect(body.definition.document.name).toBe('Test Workflow');
-    expect(body.definition.model.kind).toBe('workflow');
+    expect(body.workflow_document.name).toBe('Test Workflow');
+    expect(body.workflow_model.kind).toBe('workflow');
     expect(body.sha).toBeNull();
     expect(body.ref).toBeNull();
     expect(body.fetched_at).toBeDefined();

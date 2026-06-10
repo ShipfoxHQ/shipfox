@@ -1,8 +1,4 @@
-import type {
-  DefinitionDto,
-  DefinitionPayloadDto,
-  DefinitionSyncSummaryDto,
-} from '@shipfox/api-definitions-dto';
+import type {DefinitionDto, DefinitionSyncSummaryDto} from '@shipfox/api-definitions-dto';
 import type {DefinitionSyncState} from '#core/entities/sync-state.js';
 import type {WorkflowDefinition} from '#core/entities/workflow-definition.js';
 import {UNRESOLVED_SYNC_REF} from '#core/sync-definitions.js';
@@ -19,18 +15,12 @@ export function toDefinitionDto(definition: WorkflowDefinition): DefinitionDto {
     sha: definition.sha,
     ref: definition.ref,
     name: definition.name,
-    definition: toDefinitionPayloadDto(definition),
+    workflow_document: definition.document,
+    workflow_model: definition.model,
     manual_trigger: manualEntry ? {name: manualEntry[0]} : null,
     fetched_at: definition.fetchedAt.toISOString(),
     created_at: definition.createdAt.toISOString(),
     updated_at: definition.updatedAt.toISOString(),
-  };
-}
-
-function toDefinitionPayloadDto(definition: WorkflowDefinition): DefinitionPayloadDto {
-  return {
-    document: definition.document,
-    model: definition.model,
   };
 }
 

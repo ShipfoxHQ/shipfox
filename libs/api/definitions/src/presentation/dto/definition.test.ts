@@ -45,10 +45,8 @@ describe('toDefinitionDto', () => {
       sha: null,
       ref: null,
       name: document.name,
-      definition: {
-        document,
-        model: definition.model,
-      },
+      workflow_document: document,
+      workflow_model: definition.model,
       manual_trigger: {name: 'run_now'},
       fetched_at: '2026-06-09T10:00:00.000Z',
       created_at: '2026-06-09T10:00:01.000Z',

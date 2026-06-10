@@ -400,7 +400,16 @@ function DefinitionSheet({
   definition: DefinitionDto | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const normalizedJson = definition ? JSON.stringify(definition.definition, null, 2) : '';
+  const normalizedJson = definition
+    ? JSON.stringify(
+        {
+          workflow_document: definition.workflow_document,
+          workflow_model: definition.workflow_model,
+        },
+        null,
+        2,
+      )
+    : '';
 
   return (
     <Sheet open={Boolean(definition)} onOpenChange={onOpenChange}>

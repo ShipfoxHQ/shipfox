@@ -15,7 +15,8 @@ const validationErrorSchema = z.object({
 const validationResultSchema = z.union([
   z.object({
     valid: z.literal(true),
-    definition: definitionDtoSchema.shape.definition,
+    workflow_document: definitionDtoSchema.shape.workflow_document,
+    workflow_model: definitionDtoSchema.shape.workflow_model,
   }),
   z.object({
     valid: z.literal(false),
@@ -40,7 +41,8 @@ export const validateDefinitionRoute = defineRoute({
     if (result.valid) {
       return {
         valid: true as const,
-        definition: result.definition,
+        workflow_document: result.definition.document,
+        workflow_model: result.definition.model,
       };
     }
 

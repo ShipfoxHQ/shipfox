@@ -32,8 +32,8 @@ jobs:
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.valid).toBe(true);
-    expect(body.definition.document.name).toBe('Test');
-    expect(body.definition.model.kind).toBe('workflow');
+    expect(body.workflow_document.name).toBe('Test');
+    expect(body.workflow_model.kind).toBe('workflow');
   });
 
   test('invalid YAML returns 200 with { valid: false, errors }', async () => {
