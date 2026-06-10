@@ -12,6 +12,12 @@ import {getDefinitionById} from '@shipfox/api-definitions';
 const mockGetDefinitionById = vi.mocked(getDefinitionById);
 
 function buildDefinition(overrides?: Partial<WorkflowDefinition>): WorkflowDefinition {
+  const document = {
+    name: 'Test Workflow',
+    jobs: {
+      build: {steps: [{run: 'echo hello'}]},
+    },
+  };
   return {
     id: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
@@ -20,11 +26,28 @@ function buildDefinition(overrides?: Partial<WorkflowDefinition>): WorkflowDefin
     sha: null,
     ref: null,
     name: 'Test Workflow',
-    definition: {
+    definition: document,
+    document,
+    model: {
+      kind: 'workflow',
       name: 'Test Workflow',
-      jobs: {
-        build: {steps: [{run: 'echo hello'}]},
-      },
+      triggers: [],
+      jobs: [
+        {
+          id: 'build',
+          sourceName: 'build',
+          runner: [],
+          dependencies: [],
+          steps: [
+            {
+              id: 'build-step-1',
+              kind: 'run',
+              command: {kind: 'shell', value: 'echo hello'},
+            },
+          ],
+        },
+      ],
+      dependencies: [],
     },
     contentHash: null,
     fetchedAt: new Date(),

@@ -18,7 +18,7 @@ export const createDefinitionRoute = defineRoute({
   },
   errorHandler: (error, _request, _reply) => {
     if (error instanceof DefinitionParseError) {
-      throw new ClientError(error.message, 'invalid-definition-spec', {
+      throw new ClientError(error.message, 'invalid-workflow-definition', {
         data: error.details,
         status: 400,
       });
@@ -32,15 +32,16 @@ export const createDefinitionRoute = defineRoute({
     const {project_id: projectId, config_path, source, yaml: yamlString, sha, ref} = request.body;
     const {project} = await requireProjectAccess({request, projectId});
 
-    const spec = parseDefinition(yamlString);
+    const parsed = parseDefinition(yamlString);
 
     const definition = await upsertDefinition({
       projectId,
       workspaceId: project.workspaceId,
       configPath: config_path,
       source,
-      name: spec.name,
-      definition: spec,
+      name: parsed.document.name,
+      document: parsed.document,
+      model: parsed.model,
       sha,
       ref,
     });

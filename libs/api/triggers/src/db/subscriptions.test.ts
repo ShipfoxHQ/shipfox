@@ -27,7 +27,12 @@ describe('projectDefinitionTriggers', () => {
       workflowDefinitionId,
       triggers: {
         on_demand: {source: 'manual', event: 'fire'},
-        on_push: {source: 'github', event: 'push', on: 'main'},
+        on_push: {
+          source: 'github',
+          event: 'push',
+          with: {branch: 'main'},
+          filter: 'event.ref == "refs/heads/main"',
+        },
       },
     });
 
@@ -44,7 +49,10 @@ describe('projectDefinitionTriggers', () => {
     const push = rows.find((r) => r.name === 'on_push');
     expect(push?.source).toBe('github');
     expect(push?.event).toBe('push');
-    expect(push?.config).toEqual({on: 'main'});
+    expect(push?.config).toEqual({
+      with: {branch: 'main'},
+      filter: 'event.ref == "refs/heads/main"',
+    });
   });
 
   test('removes rows whose trigger name is no longer in the map', async () => {
@@ -81,7 +89,7 @@ describe('projectDefinitionTriggers', () => {
       projectId,
       workflowDefinitionId,
       triggers: {
-        on_push: {source: 'github', event: 'push', on: 'main'},
+        on_push: {source: 'github', event: 'push', with: {branch: 'main'}},
       },
     });
     const before = await db()
@@ -95,7 +103,7 @@ describe('projectDefinitionTriggers', () => {
       projectId,
       workflowDefinitionId,
       triggers: {
-        on_push: {source: 'github', event: 'push', on: ['main', 'develop']},
+        on_push: {source: 'github', event: 'push', with: {branch: 'develop'}},
       },
     });
 
@@ -105,7 +113,7 @@ describe('projectDefinitionTriggers', () => {
       .where(eq(triggerSubscriptions.workflowDefinitionId, workflowDefinitionId));
     expect(after).toHaveLength(1);
     expect(after[0]?.id).toBe(originalId);
-    expect(after[0]?.config).toEqual({on: ['main', 'develop']});
+    expect(after[0]?.config).toEqual({with: {branch: 'develop'}});
   });
 
   test('empty triggers map removes all rows for the definition', async () => {

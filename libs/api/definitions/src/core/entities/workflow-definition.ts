@@ -1,27 +1,11 @@
-export interface Trigger {
-  source: string;
-  event: string;
-  on?: string | string[];
-  with?: Record<string, unknown>;
-  filter?: string;
-}
+import type {WorkflowDocument} from '@shipfox/workflow-document';
+import type {WorkflowModel} from './workflow-model.js';
 
-export interface RunStep {
-  run: string;
-  name?: string;
-}
+export type WorkflowSpec = WorkflowDocument;
 
-export interface Job {
-  needs?: string | string[];
-  runner?: string | string[];
-  steps: RunStep[];
-}
-
-export interface WorkflowSpec {
-  name: string;
-  triggers?: Record<string, Trigger>;
-  runner?: string | string[];
-  jobs: Record<string, Job>;
+export interface WorkflowDefinitionPayload {
+  document: WorkflowDocument;
+  model: WorkflowModel;
 }
 
 export interface WorkflowDefinition {
@@ -32,7 +16,13 @@ export interface WorkflowDefinition {
   sha: string | null;
   ref: string | null;
   name: string;
+  /**
+   * Compatibility alias for packages that still consume the authoring document
+   * before they migrate to `document`/`model`.
+   */
   definition: WorkflowSpec;
+  document: WorkflowDocument;
+  model: WorkflowModel;
   contentHash: string | null;
   fetchedAt: Date;
   createdAt: Date;

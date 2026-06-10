@@ -1,9 +1,13 @@
 import {Factory} from 'fishery';
-import type {WorkflowDefinition, WorkflowSpec} from '#core/entities/workflow-definition.js';
+import type {
+  WorkflowDefinition,
+  WorkflowDefinitionPayload,
+} from '#core/entities/workflow-definition.js';
+import {normalizeWorkflowDocument} from '#core/workflow-model/index.js';
 import {upsertDefinition} from '#db/definitions.js';
 
-function defaultSpec(): WorkflowSpec {
-  return {
+function defaultDefinition(): WorkflowDefinitionPayload {
+  const document = {
     name: 'Test Workflow',
     jobs: {
       build: {
@@ -11,6 +15,7 @@ function defaultSpec(): WorkflowSpec {
       },
     },
   };
+  return {document, model: normalizeWorkflowDocument(document)};
 }
 
 interface DefinitionTransients {
@@ -28,12 +33,15 @@ export const definitionFactory = Factory.define<WorkflowDefinition, DefinitionTr
         configPath: definition.configPath,
         source: definition.source,
         name: definition.name,
-        definition: definition.definition,
+        document: definition.document,
+        model: definition.model,
         contentHash: definition.contentHash ?? undefined,
         sha: definition.sha ?? undefined,
         ref: definition.ref ?? undefined,
       });
     });
+
+    const definition = defaultDefinition();
 
     return {
       id: crypto.randomUUID(),
@@ -43,7 +51,8 @@ export const definitionFactory = Factory.define<WorkflowDefinition, DefinitionTr
       sha: null,
       ref: null,
       name: `Test Workflow ${sequence}`,
-      definition: defaultSpec(),
+      definition: definition.document,
+      ...definition,
       contentHash: null,
       fetchedAt: new Date(),
       createdAt: new Date(),

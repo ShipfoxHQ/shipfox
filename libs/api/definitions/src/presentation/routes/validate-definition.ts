@@ -1,3 +1,4 @@
+import {definitionDtoSchema} from '@shipfox/api-definitions-dto';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {validateDefinition} from '#core/validate-definition.js';
@@ -14,7 +15,8 @@ const validationErrorSchema = z.object({
 const validationResultSchema = z.union([
   z.object({
     valid: z.literal(true),
-    spec: z.record(z.string(), z.unknown()),
+    workflow_document: definitionDtoSchema.shape.workflow_document,
+    workflow_model: definitionDtoSchema.shape.workflow_model,
   }),
   z.object({
     valid: z.literal(false),
@@ -39,7 +41,8 @@ export const validateDefinitionRoute = defineRoute({
     if (result.valid) {
       return {
         valid: true as const,
-        spec: result.spec as unknown as Record<string, unknown>,
+        workflow_document: result.definition.document,
+        workflow_model: result.definition.model,
       };
     }
 

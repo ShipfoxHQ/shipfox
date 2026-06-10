@@ -11,27 +11,37 @@ function readFixture(name: string): string {
 }
 
 describe('parseDefinition', () => {
-  test('valid simple workflow returns typed WorkflowSpec', () => {
+  test('valid simple workflow returns document and model', () => {
     const yaml = readFixture('valid-simple.yml');
 
-    const spec = parseDefinition(yaml);
+    const definition = parseDefinition(yaml);
 
-    expect(spec.name).toBe('Simple build');
-    expect(spec.triggers?.on_push?.source).toBe('github');
-    expect(spec.triggers?.on_push?.event).toBe('push');
-    expect(spec.triggers?.on_demand?.source).toBe('manual');
-    expect(spec.triggers?.on_demand?.event).toBe('fire');
-    expect(spec.jobs.build?.steps).toHaveLength(2);
-    expect(spec.jobs.build?.steps?.[0]?.run).toBe('npm install');
+    expect(definition.document.name).toBe('Simple build');
+    expect(definition.document.triggers?.on_push?.source).toBe('github');
+    expect(definition.document.triggers?.on_push?.event).toBe('push');
+    expect(definition.document.triggers?.on_demand?.source).toBe('manual');
+    expect(definition.document.triggers?.on_demand?.event).toBe('fire');
+    expect(definition.document.jobs.build?.steps).toHaveLength(2);
+    expect(definition.document.jobs.build?.steps?.[0]?.run).toBe('npm install');
+    expect(definition.model.jobs.find((job) => job.id === 'build')?.steps[0]?.command).toEqual({
+      kind: 'shell',
+      value: 'npm install',
+    });
   });
 
   test('valid DAG workflow parses successfully', () => {
     const yaml = readFixture('valid-dag.yml');
 
-    const spec = parseDefinition(yaml);
+    const definition = parseDefinition(yaml);
 
-    expect(spec.name).toBe('Multi-job pipeline');
-    expect(Object.keys(spec.jobs)).toHaveLength(4);
+    expect(definition.document.name).toBe('Multi-job pipeline');
+    expect(Object.keys(definition.document.jobs)).toHaveLength(4);
+    expect(definition.model.dependencies).toEqual([
+      {from: 'build', to: 'test-unit'},
+      {from: 'build', to: 'test-integration'},
+      {from: 'test-unit', to: 'deploy'},
+      {from: 'test-integration', to: 'deploy'},
+    ]);
   });
 
   test('invalid YAML syntax throws DefinitionParseError', () => {
@@ -52,7 +62,7 @@ describe('parseDefinition', () => {
     expect(() => parseDefinition('- item1\n- item2')).toThrow(DefinitionParseError);
   });
 
-  test('valid YAML with invalid spec throws DefinitionParseError with details', () => {
+  test('valid YAML with invalid document throws DefinitionParseError with details', () => {
     const yaml = readFixture('invalid-missing-name.yml');
 
     try {
@@ -65,13 +75,13 @@ describe('parseDefinition', () => {
     }
   });
 
-  test('valid spec with cyclic DAG throws DefinitionParseError', () => {
+  test('valid document with cyclic job dependencies throws DefinitionParseError', () => {
     const yaml = readFixture('invalid-cycle.yml');
 
     expect(() => parseDefinition(yaml)).toThrow(DefinitionParseError);
   });
 
-  test('manual trigger defaults event to "fire" when omitted', () => {
+  test('manual trigger requires an explicit event', () => {
     const yaml = `name: Manual only
 triggers:
   on_demand:
@@ -82,9 +92,7 @@ jobs:
       - run: echo hello
 `;
 
-    const spec = parseDefinition(yaml);
-
-    expect(spec.triggers?.on_demand?.event).toBe('fire');
+    expect(() => parseDefinition(yaml)).toThrow(DefinitionParseError);
   });
 
   test('declaring more than one manual trigger throws DefinitionParseError', () => {

@@ -7,7 +7,6 @@ triggers:
   on_push:
     source: github
     event: push
-    on: main
     filter: event.ref == "refs/heads/main"
 
 jobs:

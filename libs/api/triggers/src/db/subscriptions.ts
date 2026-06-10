@@ -40,7 +40,6 @@ export async function projectDefinitionTriggers(
 
     for (const [name, trigger] of entries) {
       const config: Record<string, unknown> = {};
-      if (trigger.on !== undefined) config.on = trigger.on;
       if (trigger.with !== undefined) config.with = trigger.with;
       if (trigger.filter !== undefined) config.filter = trigger.filter;
 

@@ -4,7 +4,7 @@ import type {WorkflowDefinition} from '#core/entities/workflow-definition.js';
 import {UNRESOLVED_SYNC_REF} from '#core/sync-definitions.js';
 
 export function toDefinitionDto(definition: WorkflowDefinition): DefinitionDto {
-  const manualEntry = Object.entries(definition.definition.triggers ?? {}).find(
+  const manualEntry = Object.entries(definition.document.triggers ?? {}).find(
     ([, trigger]) => trigger.source === 'manual',
   );
   return {
@@ -15,7 +15,8 @@ export function toDefinitionDto(definition: WorkflowDefinition): DefinitionDto {
     sha: definition.sha,
     ref: definition.ref,
     name: definition.name,
-    definition: definition.definition as unknown as Record<string, unknown>,
+    workflow_document: definition.document,
+    workflow_model: definition.model,
     manual_trigger: manualEntry ? {name: manualEntry[0]} : null,
     fetched_at: definition.fetchedAt.toISOString(),
     created_at: definition.createdAt.toISOString(),
