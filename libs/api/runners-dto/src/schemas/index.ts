@@ -10,6 +10,11 @@ export {
 } from './complete-job.js';
 export {type HeartbeatResponseDto, heartbeatResponseSchema} from './heartbeat.js';
 export {
+  JOB_LEASE_TOKEN_AUDIENCE,
+  type JobLeaseTokenClaims,
+  jobLeaseTokenClaimsSchema,
+} from './job-lease-token.js';
+export {
   type JobPayloadDto,
   type JobPayloadResponseDto,
   type JobPayloadStepDto,

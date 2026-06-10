@@ -1,5 +1,5 @@
 import {workspaceRoleSchema} from '@shipfox/api-workspaces-dto';
-import {jwtVerify, SignJWT} from 'jose';
+import {signHs256, verifyHs256} from '@shipfox/node-jwt';
 import {z} from 'zod';
 
 export const tokenMembershipSchema = z.object({
@@ -34,27 +34,23 @@ export interface VerifyUserTokenParams {
   secret: string;
 }
 
-function encodeSecret(secret: string): Uint8Array {
-  return new TextEncoder().encode(secret);
-}
-
 export async function signUserToken(params: SignUserTokenParams): Promise<string> {
-  return await new SignJWT({
-    email: params.email,
-    name: params.name ?? null,
-    memberships: params.memberships,
-  })
-    .setProtectedHeader({alg: 'HS256'})
-    .setSubject(params.userId)
-    .setIssuedAt()
-    .setExpirationTime(params.expiresIn)
-    .sign(encodeSecret(params.secret));
+  return await signHs256({
+    payload: {
+      email: params.email,
+      name: params.name ?? null,
+      memberships: params.memberships,
+    },
+    secret: params.secret,
+    expiresIn: params.expiresIn,
+    subject: params.userId,
+  });
 }
 
 export async function verifyUserToken(params: VerifyUserTokenParams): Promise<UserTokenClaims> {
-  const {payload} = await jwtVerify(params.token, encodeSecret(params.secret), {
-    algorithms: ['HS256'],
+  return await verifyHs256({
+    token: params.token,
+    secret: params.secret,
+    schema: userTokenClaimsSchema,
   });
-
-  return userTokenClaimsSchema.parse(payload);
 }
