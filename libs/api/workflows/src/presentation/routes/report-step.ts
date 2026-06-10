@@ -10,7 +10,7 @@ export const reportStepRoute = defineRoute({
   method: 'POST',
   path: '/steps/:stepId/report',
   description:
-    'Report the result of a step of the job named by the lease token. Idempotent: a duplicate report for an already-terminal step is a no-op.',
+    'Reports whether a step succeeded or failed. The job is identified by the access token. Reporting the same step more than once is safe: once a step has finished, later reports for it are ignored.',
   schema: {
     params: z.object({stepId: z.string().uuid()}),
     body: reportStepBodySchema,

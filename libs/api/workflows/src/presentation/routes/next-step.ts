@@ -9,7 +9,7 @@ export const nextStepRoute = defineRoute({
   method: 'POST',
   path: '/steps/next',
   description:
-    'Get the next step of the job named by the lease token. Re-delivers the in-flight step on retry; reports the terminal completion once the job is done.',
+    'Returns the next step for the runner to run on its job. The job is identified by the access token, so no job ID is needed. Calling this again before reporting the current step returns that same step, so retries are safe. When no steps remain, the response signals that the job has finished and whether it succeeded or failed.',
   schema: {
     response: {
       200: nextStepResponseSchema,
