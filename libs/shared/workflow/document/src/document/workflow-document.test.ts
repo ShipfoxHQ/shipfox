@@ -82,6 +82,34 @@ describe('workflowDocumentSchema', () => {
     expect(result.triggers?.main_push?.filter).toBe('event.ref == "refs/heads/main"');
   });
 
+  it('accepts a step gate with success_if and on_failure', () => {
+    const workflowDocument = {
+      name: 'review loop',
+      jobs: {
+        review: {
+          steps: [
+            {name: 'producer', run: 'npm run build'},
+            {
+              name: 'reviewer',
+              run: 'npm run review',
+              gate: {
+                success_if: 'step.output.pass == true',
+                on_failure: {
+                  restart_from: 'producer',
+                  output: 'Review failed',
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const result = workflowDocumentSchema.safeParse(workflowDocument);
+
+    expect(result.success).toBe(true);
+  });
+
   it.each([
     ['missing required top-level fields', {}],
     ['empty jobs map', {name: 'simple build', jobs: {}}],
@@ -113,6 +141,21 @@ describe('workflowDocumentSchema', () => {
     [
       'unknown fields',
       {name: 'simple build', jobs: {build: {steps: [{run: 'npm test', shell: 'bash'}]}}},
+    ],
+    ['empty gate', {name: 'simple build', jobs: {build: {steps: [{run: 'npm test', gate: {}}]}}}],
+    [
+      'gate unknown field',
+      {
+        name: 'simple build',
+        jobs: {build: {steps: [{run: 'npm test', gate: {if: 'exit_code == 0'}}]}},
+      },
+    ],
+    [
+      'gate on_failure without restart_from',
+      {
+        name: 'simple build',
+        jobs: {build: {steps: [{run: 'npm test', gate: {on_failure: {}}}]}},
+      },
     ],
   ])('rejects %s', (_label, workflowDocument) => {
     const result = workflowDocumentSchema.safeParse(workflowDocument);

@@ -20,6 +20,20 @@ export const workflowDocumentTriggerSchema = z.strictObject({
 export const workflowDocumentRunStepSchema = z.strictObject({
   name: z.string().min(1).optional(),
   run: z.string().min(1),
+  gate: z
+    .strictObject({
+      success_if: z.string().min(1).optional(),
+      on_failure: z
+        .strictObject({
+          restart_from: z.string().min(1),
+          output: z.string().min(1).optional(),
+        })
+        .optional(),
+    })
+    .refine((value) => value.success_if !== undefined || value.on_failure !== undefined, {
+      message: 'Expected success_if or on_failure',
+    })
+    .optional(),
 });
 
 export const workflowDocumentJobSchema = z.strictObject({
@@ -37,5 +51,8 @@ export const workflowDocumentSchema = z.strictObject({
 
 export type WorkflowDocument = z.infer<typeof workflowDocumentSchema>;
 export type WorkflowDocumentJob = z.infer<typeof workflowDocumentJobSchema>;
+export type WorkflowDocumentRunStepGate = NonNullable<
+  z.infer<typeof workflowDocumentRunStepSchema>['gate']
+>;
 export type WorkflowDocumentRunStep = z.infer<typeof workflowDocumentRunStepSchema>;
 export type WorkflowDocumentTrigger = z.infer<typeof workflowDocumentTriggerSchema>;

@@ -10,4 +10,6 @@ export type {
   ExpressionTypeEnvironment,
   ValidCelExpression,
   WorkflowExpression,
+  WorkflowExpressionCheck,
+  WorkflowExpressionCheckOptions,
 } from './workflow-expression.js';

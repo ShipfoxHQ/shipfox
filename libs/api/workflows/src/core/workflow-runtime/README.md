@@ -36,6 +36,11 @@ For example, a run can have one build job and one test job. If the build job has
 
 The scheduler also accepts a `running` set. Jobs in that set have already been started by the host but have not completed yet. The scheduler will not start them again, and it will return no command when it must wait for a running job before more jobs can be scheduled.
 
+`materializeWorkflowModel` also serializes step gates into step config. It keeps
+the accepted `success_if` expression and `on_failure` action with the step that
+will run. It does not evaluate the expression or restart jobs. That work belongs
+to a later host change.
+
 ## Development
 
 ```sh

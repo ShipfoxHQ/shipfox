@@ -1,19 +1,21 @@
 # Expression Language
 
-Shared CEL parsing and type checks for Shipfox expressions.
+Shared CEL parsing and type checks for Shipfox workflow expressions.
 
 ## What it does
 
-- `createWorkflowExpression` checks CEL source with a type environment.
-- `WorkflowExpression` stores `{language: 'cel', source}` with a branded source string.
-- `InvalidWorkflowExpressionError` reports parse and type errors.
-- `ExpressionTypeEnvironment` describes the names and field types visible to an expression.
+- **`createWorkflowExpression`**: Checks CEL source in either `syntax` or
+  `typed` mode and returns a stored Shipfox expression.
+- **`WorkflowExpression`**: Stores the CEL language tag, the checked source, and
+  the check level that was applied.
+- **`ExpressionTypeEnvironment`**: Describes the names and field types visible to
+  a typed expression.
+- **`InvalidWorkflowExpressionError`**: Reports parse and type-check failures.
 
-Use this package before raw expression text enters a workflow model. It keeps CEL behind a Shipfox API so the rest of the code does not depend on a vendor package.
+Use this package before raw expression text enters a workflow model. It keeps
+CEL behind a Shipfox API, so other packages do not depend on a vendor parser.
 
-Think of this as a check at the edge. A user or tool gives some text. This part says if the text can be used in the place where it was found. If the text is good, later code can keep it. If the text is bad, stop and show the reason near the field.
-
-## Installation
+## Installation / Setup
 
 ```sh
 pnpm add @shipfox/expression-language
@@ -24,52 +26,69 @@ pnpm add @shipfox/expression-language
 ```ts
 import {createWorkflowExpression} from '@shipfox/expression-language';
 
-const expression = createWorkflowExpression({
-  source: 'event.conclusion == "success"',
-  typeEnvironment: {
-    event: {
-      kind: 'object',
-      fields: {
-        conclusion: 'string',
-      },
+const triggerFilter = createWorkflowExpression({
+  source: 'event.ref == "refs/heads/main"',
+  check: {mode: 'syntax'},
+});
+
+const stepGate = createWorkflowExpression({
+  source: 'exit_code == 0',
+  check: {
+    mode: 'typed',
+    typeEnvironment: {
+      exit_code: 'int',
     },
   },
 });
 
-expression; // {language: "cel", source: "event.conclusion == \"success\""}
+console.log(triggerFilter.check); // "syntax"
+console.log(stepGate.check); // "typed"
 ```
-
-## Context
-
-CEL is the selected expression language. The accepted stored shape is only the language tag and source string. Do not store vendor ASTs, checked data, protobuf bytes, or compiled objects.
-
-Expression contexts are lexical. The caller builds the type environment from the place where the expression appears in the workflow tree.
-
-Root bindings can include `trigger`, `inputs`, `env`, and `run`. Event-triggered filters can add `event`. Step, job, loop, and parallel bindings are available only when they are in scope and upstream. Secrets are not expression bindings.
-
-Type environments come from event schemas, workflow inputs, step output schemas, loop and parallel types, and run metadata. This package checks the source against that environment. It does not know about projects, users, the database, or the runtime.
-
-The place in the tree matters. A name that is in scope in one place may be out of scope in another place. Build the list of names first, then call this package. Keep that rule simple so a reader can tell why a name is allowed.
 
 ## Behavior Notes
 
+- Use `syntax` when CEL syntax should be checked but fields are not known yet.
+- Use `typed` when the caller knows the names and field types in scope.
 - The parser trims source before storing it.
 - Bad source throws `InvalidWorkflowExpressionError`.
 - The package uses `@gresb/cel-javascript` internally.
-- The CEL dependency is patched for ESM packaging; re-check the patch when upgrading it.
-- Raw strings become branded only after this package accepts them.
+- The CEL dependency is patched for ESM packaging; re-check the patch when
+  upgrading it.
 
-Do not pass user text around as if it were safe. Make it safe here first. That keeps later code small and makes tests easier to read.
+Trigger filters can use `syntax` while integration event payloads are still
+open. Gate expressions can use `typed` because their local fields are known.
 
-When you add a new place that can use this text, start by asking what names should be visible there. Add those names to the type map, add a test for a good field, and add a test for a bad field.
+Choose the mode from the place where the text appears. If the caller does not
+know the event shape yet, use `syntax`. This checks that the text is valid CEL
+and saves it with that mark. It does not check names or fields.
 
-This keeps the rule clear for both the next person and the next test.
+If the caller knows the names that are in scope, use `typed`. Pass those names
+and their field types in `typeEnvironment`. This lets the package catch a bad
+field name before the workflow is saved.
 
-Keep it easy to follow.
+Most call sites need one simple choice. If data can come from many outside
+services, and the code cannot know every part of it, use `syntax`. If the data
+shape is set by our code and can be put in a small map, use `typed`. A bad value
+at run time can still fail later. This package checks the text before save time.
 
-Keep it small.
+Tests should stay close to the rule that owns the text. Give the function a good
+case and a bad case. The same input should give the same result each time. This
+code should not read files, call the network, or load data from a store.
 
-This helps the team find the right place to make a change.
+When a new area needs this feature, start with the user text and the values that
+can be seen from that place. Pick the mode first. Add only the values that are
+known there. Then add a test that proves a wrong path is caught or left open on
+purpose.
+
+This keeps the first save fast and clear. It also lets later code show a clear
+message near the part that a person wrote.
+
+Keep the call small. Put the rule near the place that owns it, and make the test
+read like the case a user would send. Keep it clear.
+
+The stored expression does not include vendor ASTs, checked data, protobuf bytes,
+or compiled objects. It stores only the CEL language tag, checked source, and the
+check level.
 
 ## Development
 

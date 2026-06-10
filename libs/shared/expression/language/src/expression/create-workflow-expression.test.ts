@@ -3,29 +3,49 @@ import {
   unsafeWorkflowExpressionFromSource,
 } from './create-workflow-expression.js';
 import {InvalidWorkflowExpressionError} from './errors.js';
-import type {ExpressionScalarType} from './workflow-expression.js';
+import type {CreateWorkflowExpressionParams, ExpressionScalarType} from './workflow-expression.js';
 
 describe('createWorkflowExpression', () => {
-  it('returns a CEL workflow expression when the source parses and type-checks', () => {
+  it('returns a typed CEL workflow expression when the source parses and type-checks', () => {
     const expression = createWorkflowExpression({
       source: 'event.conclusion == "success"',
-      typeEnvironment: {
-        event: {kind: 'object', fields: {conclusion: 'string'}},
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          event: {kind: 'object', fields: {conclusion: 'string'}},
+        },
       },
     });
 
     expect(expression).toEqual({
       language: 'cel',
       source: 'event.conclusion == "success"',
+      check: 'typed',
     });
   });
 
-  it('rejects misspelled fields from the typed context', () => {
+  it('returns a syntax CEL workflow expression when unknown fields parse', () => {
+    const expression = createWorkflowExpression({
+      source: 'event.ref == "refs/heads/main"',
+      check: {mode: 'syntax'},
+    });
+
+    expect(expression).toEqual({
+      language: 'cel',
+      source: 'event.ref == "refs/heads/main"',
+      check: 'syntax',
+    });
+  });
+
+  it('rejects misspelled fields from the typed environment', () => {
     const act = () =>
       createWorkflowExpression({
         source: 'event.conclsion == "success"',
-        typeEnvironment: {
-          event: {kind: 'object', fields: {conclusion: 'string'}},
+        check: {
+          mode: 'typed',
+          typeEnvironment: {
+            event: {kind: 'object', fields: {conclusion: 'string'}},
+          },
         },
       });
 
@@ -33,13 +53,26 @@ describe('createWorkflowExpression', () => {
     expect(act).toThrow('Invalid workflow expression');
   });
 
+  it('rejects unknown variables from an empty typed environment', () => {
+    const act = () =>
+      createWorkflowExpression({
+        source: 'event.ref == "refs/heads/main"',
+        check: {mode: 'typed'},
+      });
+
+    expect(act).toThrow(InvalidWorkflowExpressionError);
+  });
+
   it('exposes the source and type-check reason on invalid expression errors', () => {
     let error: unknown;
     try {
       createWorkflowExpression({
         source: 'event.conclsion == "success"',
-        typeEnvironment: {
-          event: {kind: 'object', fields: {conclusion: 'string'}},
+        check: {
+          mode: 'typed',
+          typeEnvironment: {
+            event: {kind: 'object', fields: {conclusion: 'string'}},
+          },
         },
       });
     } catch (caught) {
@@ -68,14 +101,18 @@ describe('createWorkflowExpression', () => {
   ][])('type-checks %s fields', (scalarType, source) => {
     const expression = createWorkflowExpression({
       source,
-      typeEnvironment: {
-        event: {kind: 'object', fields: {value: scalarType}},
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          event: {kind: 'object', fields: {value: scalarType}},
+        },
       },
     });
 
     expect(expression).toEqual({
       language: 'cel',
       source,
+      check: 'typed',
     });
   });
 
@@ -83,48 +120,97 @@ describe('createWorkflowExpression', () => {
     const act = () =>
       createWorkflowExpression({
         source: 'event.conclusion ==',
-        typeEnvironment: {
-          event: {kind: 'object', fields: {conclusion: 'string'}},
+        check: {
+          mode: 'typed',
+          typeEnvironment: {
+            event: {kind: 'object', fields: {conclusion: 'string'}},
+          },
         },
       });
 
     expect(act).toThrow(InvalidWorkflowExpressionError);
   });
 
-  it('rejects blank sources', () => {
-    const act = () => createWorkflowExpression({source: '   '});
+  it('rejects parse errors in syntax mode', () => {
+    const act = () =>
+      createWorkflowExpression({
+        source: 'event.conclusion ==',
+        check: {mode: 'syntax'},
+      });
 
     expect(act).toThrow(InvalidWorkflowExpressionError);
   });
 
-  it('trims accepted sources before storing them', () => {
+  it('rejects blank sources in syntax mode', () => {
+    const act = () => createWorkflowExpression({source: '   ', check: {mode: 'syntax'}});
+
+    expect(act).toThrow(InvalidWorkflowExpressionError);
+  });
+
+  it('trims accepted syntax sources before storing them', () => {
+    const expression = createWorkflowExpression({
+      source: '  event.ref == "refs/heads/main"  ',
+      check: {mode: 'syntax'},
+    });
+
+    expect(expression.source).toBe('event.ref == "refs/heads/main"');
+    expect(expression.check).toBe('syntax');
+  });
+
+  it('trims accepted typed sources before storing them', () => {
     const expression = createWorkflowExpression({
       source: '  event.conclusion == "success"  ',
-      typeEnvironment: {
-        event: {kind: 'object', fields: {conclusion: 'string'}},
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          event: {kind: 'object', fields: {conclusion: 'string'}},
+        },
       },
     });
 
     expect(expression.source).toBe('event.conclusion == "success"');
+    expect(expression.check).toBe('typed');
   });
 
   it('does not expose vendor ASTs or checked metadata', () => {
     const expression = createWorkflowExpression({
       source: 'event.conclusion == "success"',
-      typeEnvironment: {
-        event: {kind: 'object', fields: {conclusion: 'string'}},
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          event: {kind: 'object', fields: {conclusion: 'string'}},
+        },
       },
     });
 
-    expect(Object.keys(expression)).toEqual(['language', 'source']);
+    expect(Object.keys(expression)).toEqual(['language', 'source', 'check']);
   });
 
-  it('rehydrates already-validated sources without calling the CEL parser', () => {
-    const expression = unsafeWorkflowExpressionFromSource('event.conclusion == "success"');
+  it('requires typed environments to be attached to typed checks', () => {
+    const params = {
+      source: 'event.conclusion == "success"',
+      check: {
+        mode: 'syntax',
+        // @ts-expect-error typeEnvironment is only valid for typed checks.
+        typeEnvironment: {
+          event: {kind: 'object', fields: {conclusion: 'string'}},
+        },
+      },
+    } satisfies CreateWorkflowExpressionParams;
+
+    expect(params.check.mode).toBe('syntax');
+  });
+
+  it('rehydrates already-validated sources with their persisted check level', () => {
+    const expression = unsafeWorkflowExpressionFromSource({
+      source: 'event.conclusion == "success"',
+      check: 'typed',
+    });
 
     expect(expression).toEqual({
       language: 'cel',
       source: 'event.conclusion == "success"',
+      check: 'typed',
     });
   });
 });

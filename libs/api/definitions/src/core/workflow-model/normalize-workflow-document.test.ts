@@ -163,6 +163,194 @@ describe('normalizeWorkflowDocument', () => {
     expect(model.dependencies).toEqual([{from: 'build', to: 'test'}]);
   });
 
+  it('normalizes step gates with success conditions and failure actions', () => {
+    const reviewOutput = 'Agent rejected the PR $' + '{{ step.output.review }}';
+    const document: WorkflowDocument = {
+      name: 'review loop',
+      jobs: {
+        review: {
+          steps: [
+            {name: 'producer', run: 'npm run build'},
+            {
+              name: 'reviewer',
+              run: 'npm run review',
+              gate: {
+                success_if: 'exit_code == 0',
+                on_failure: {
+                  restart_from: 'producer',
+                  output: reviewOutput,
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[1]).toMatchObject({
+      id: 'review-reviewer',
+      sourceName: 'reviewer',
+      gate: {
+        successIf: {
+          language: 'cel',
+          source: 'exit_code == 0',
+          check: 'typed',
+        },
+        onFailure: {
+          restartFrom: 'producer',
+          output: reviewOutput,
+        },
+      },
+    });
+  });
+
+  it('normalizes run step exit-code gates', () => {
+    const document: WorkflowDocument = {
+      name: 'simple build',
+      jobs: {
+        build: {
+          steps: [{name: 'build', run: 'npm run build', gate: {success_if: 'exit_code == 0'}}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]?.gate?.successIf).toEqual({
+      language: 'cel',
+      source: 'exit_code == 0',
+      check: 'typed',
+    });
+  });
+
+  it('normalizes on_failure-only gates', () => {
+    const document: WorkflowDocument = {
+      name: 'retry build',
+      jobs: {
+        build: {
+          steps: [
+            {name: 'install', run: 'npm install'},
+            {name: 'build', run: 'npm run build', gate: {on_failure: {restart_from: 'install'}}},
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[1]?.gate).toEqual({
+      onFailure: {restartFrom: 'install'},
+    });
+  });
+
+  it('reports invalid gate success_if expressions', () => {
+    const document: WorkflowDocument = {
+      name: 'invalid gate',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', gate: {success_if: 'step.output.pass == true'}}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-step-gate-success-if',
+        path: ['jobs', 'build', 'steps', 0, 'gate', 'success_if'],
+        details: expect.objectContaining({source: 'step.output.pass == true'}),
+      }),
+    ]);
+  });
+
+  it('reports gate restart_from references to unknown steps', () => {
+    const document: WorkflowDocument = {
+      name: 'invalid gate',
+      jobs: {
+        build: {
+          steps: [
+            {
+              name: 'review',
+              run: 'npm run review',
+              gate: {on_failure: {restart_from: 'producer'}},
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-step-gate-restart-from',
+        message: 'Step "build-review" must restart from an earlier named step; found "producer".',
+        path: ['jobs', 'build', 'steps', 0, 'gate', 'on_failure'],
+        details: {stepId: 'build-review', restartFrom: 'producer'},
+      },
+    ]);
+  });
+
+  it('reports gate restart_from references to the same step', () => {
+    const document: WorkflowDocument = {
+      name: 'invalid gate',
+      jobs: {
+        build: {
+          steps: [
+            {
+              name: 'review',
+              run: 'npm run review',
+              gate: {on_failure: {restart_from: 'review'}},
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-step-gate-restart-from',
+        message: 'Step "build-review" must restart from an earlier named step; found "review".',
+        path: ['jobs', 'build', 'steps', 0, 'gate', 'on_failure'],
+        details: {stepId: 'build-review', restartFrom: 'review'},
+      },
+    ]);
+  });
+
+  it('reports gate restart_from references to later steps', () => {
+    const document: WorkflowDocument = {
+      name: 'invalid gate',
+      jobs: {
+        build: {
+          steps: [
+            {
+              name: 'review',
+              run: 'npm run review',
+              gate: {on_failure: {restart_from: 'producer'}},
+            },
+            {name: 'producer', run: 'npm run build'},
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-step-gate-restart-from',
+        message: 'Step "build-review" must restart from an earlier named step; found "producer".',
+        path: ['jobs', 'build', 'steps', 0, 'gate', 'on_failure'],
+        details: {stepId: 'build-review', restartFrom: 'producer'},
+      },
+    ]);
+  });
+
   it('reports unknown dependencies', () => {
     const document: WorkflowDocument = {
       name: 'unknown dependency',

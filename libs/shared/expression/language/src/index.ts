@@ -9,4 +9,6 @@ export {
   unsafeWorkflowExpressionFromSource,
   type ValidCelExpression,
   type WorkflowExpression,
+  type WorkflowExpressionCheck,
+  type WorkflowExpressionCheckOptions,
 } from './expression/index.js';

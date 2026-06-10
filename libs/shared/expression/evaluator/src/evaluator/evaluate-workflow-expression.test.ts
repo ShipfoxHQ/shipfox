@@ -9,8 +9,11 @@ describe('evaluateWorkflowExpression', () => {
   it('evaluates a validated CEL expression against caller-provided values', () => {
     const expression = createWorkflowExpression({
       source: 'event.conclusion == "success"',
-      typeEnvironment: {
-        event: {kind: 'object', fields: {conclusion: 'string'}},
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          event: {kind: 'object', fields: {conclusion: 'string'}},
+        },
       },
     });
 
@@ -24,8 +27,11 @@ describe('evaluateWorkflowExpression', () => {
   it('treats only the boolean true value as a passing predicate', () => {
     const expression = createWorkflowExpression({
       source: 'event.conclusion',
-      typeEnvironment: {
-        event: {kind: 'object', fields: {conclusion: 'string'}},
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          event: {kind: 'object', fields: {conclusion: 'string'}},
+        },
       },
     });
 
@@ -39,8 +45,11 @@ describe('evaluateWorkflowExpression', () => {
   it('returns true for predicates that evaluate to the boolean true value', () => {
     const expression = createWorkflowExpression({
       source: 'event.conclusion == "success"',
-      typeEnvironment: {
-        event: {kind: 'object', fields: {conclusion: 'string'}},
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          event: {kind: 'object', fields: {conclusion: 'string'}},
+        },
       },
     });
 
@@ -54,8 +63,11 @@ describe('evaluateWorkflowExpression', () => {
   it('wraps evaluation errors when supplied values do not match the checked context', () => {
     const expression = createWorkflowExpression({
       source: 'event.conclusion == "success"',
-      typeEnvironment: {
-        event: {kind: 'object', fields: {conclusion: 'string'}},
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          event: {kind: 'object', fields: {conclusion: 'string'}},
+        },
       },
     });
 
