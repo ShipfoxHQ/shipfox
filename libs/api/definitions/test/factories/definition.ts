@@ -41,6 +41,8 @@ export const definitionFactory = Factory.define<WorkflowDefinition, DefinitionTr
       });
     });
 
+    const definition = defaultDefinition();
+
     return {
       id: crypto.randomUUID(),
       projectId,
@@ -49,7 +51,8 @@ export const definitionFactory = Factory.define<WorkflowDefinition, DefinitionTr
       sha: null,
       ref: null,
       name: `Test Workflow ${sequence}`,
-      ...defaultDefinition(),
+      definition: definition.document,
+      ...definition,
       contentHash: null,
       fetchedAt: new Date(),
       createdAt: new Date(),

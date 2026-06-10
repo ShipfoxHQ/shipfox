@@ -55,6 +55,7 @@ export function toDefinition(row: DefinitionDb): WorkflowDefinition {
     sha: row.sha,
     ref: row.ref,
     name: row.name,
+    definition: row.definition.document,
     document: row.definition.document,
     model: row.definition.model,
     contentHash: row.contentHash,

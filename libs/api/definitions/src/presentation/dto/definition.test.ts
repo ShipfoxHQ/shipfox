@@ -26,6 +26,7 @@ describe('toDefinitionDto', () => {
       sha: null,
       ref: null,
       name: document.name,
+      definition: document,
       document,
       model: normalizeWorkflowDocument(document),
       contentHash: null,

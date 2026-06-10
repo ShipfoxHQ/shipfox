@@ -1,6 +1,8 @@
 import type {WorkflowDocument} from '@shipfox/workflow-document';
 import type {WorkflowModel} from './workflow-model.js';
 
+export type WorkflowSpec = WorkflowDocument;
+
 export interface WorkflowDefinitionPayload {
   document: WorkflowDocument;
   model: WorkflowModel;
@@ -14,6 +16,11 @@ export interface WorkflowDefinition {
   sha: string | null;
   ref: string | null;
   name: string;
+  /**
+   * Compatibility alias for packages that still consume the authoring document
+   * before they migrate to `document`/`model`.
+   */
+  definition: WorkflowSpec;
   document: WorkflowDocument;
   model: WorkflowModel;
   contentHash: string | null;
