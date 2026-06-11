@@ -1,9 +1,3 @@
-export {
-  type CheckoutTokenAuthDto,
-  type CheckoutTokenResponseDto,
-  checkoutTokenAuthSchema,
-  checkoutTokenResponseSchema,
-} from './checkout-token.js';
 export {type ClaimedJobResponseDto, claimedJobResponseSchema} from './claim-job.js';
 export {
   type CompleteJobBodyDto,
@@ -17,8 +11,6 @@ export {
 } from './complete-job.js';
 export {type HeartbeatResponseDto, heartbeatResponseSchema} from './heartbeat.js';
 export {
-  type CheckoutIntentDto,
-  checkoutIntentSchema,
   type JobPayloadDto,
   type JobPayloadResponseDto,
   type JobPayloadStepDto,

@@ -1,48 +1,47 @@
-import {checkoutIntentSchema} from './request-job.js';
+import {jobPayloadSchema} from './request-job.js';
 
-const validCheckout = {
-  repository_url: 'https://github.com/acme/repo.git',
-  ref: 'main',
-  provider: 'github',
-  source_connection_id: '22222222-2222-4222-8222-222222222222',
-  external_repository_id: 'acme/repo',
+const validStep = {
+  id: '11111111-1111-4111-8111-111111111111',
+  name: 'build',
+  type: 'shell',
+  config: {run: 'echo hi'},
+  position: 0,
 };
 
-describe('checkoutIntentSchema', () => {
-  it('round-trips a valid credential-free intent unchanged', () => {
-    const result = checkoutIntentSchema.parse(validCheckout);
+const validPayload = {
+  job_id: '33333333-3333-4333-8333-333333333333',
+  run_id: '44444444-4444-4444-8444-444444444444',
+  job_name: 'ci',
+  steps: [validStep],
+};
 
-    expect(result).toEqual(validCheckout);
+describe('jobPayloadSchema', () => {
+  it('round-trips a valid job payload unchanged', () => {
+    const result = jobPayloadSchema.parse(validPayload);
+
+    expect(result).toEqual(validPayload);
   });
 
-  it('rejects an intent missing a required field', () => {
-    const {provider: _provider, ...checkoutWithoutProvider} = validCheckout;
+  it('accepts a step with a null name', () => {
+    const input = {...validPayload, steps: [{...validStep, name: null}]};
 
-    const parse = () => checkoutIntentSchema.parse(checkoutWithoutProvider);
+    const result = jobPayloadSchema.parse(input);
+
+    expect(result.steps[0]?.name).toBeNull();
+  });
+
+  it('rejects an empty steps array', () => {
+    const input = {...validPayload, steps: []};
+
+    const parse = () => jobPayloadSchema.parse(input);
 
     expect(parse).toThrow();
   });
 
-  it('rejects a non-UUID source_connection_id', () => {
-    const input = {...validCheckout, source_connection_id: 'not-a-uuid'};
+  it('rejects a non-UUID job_id', () => {
+    const input = {...validPayload, job_id: 'not-a-uuid'};
 
-    const parse = () => checkoutIntentSchema.parse(input);
-
-    expect(parse).toThrow();
-  });
-
-  it('rejects an empty repository_url', () => {
-    const input = {...validCheckout, repository_url: ''};
-
-    const parse = () => checkoutIntentSchema.parse(input);
-
-    expect(parse).toThrow();
-  });
-
-  it('rejects an empty provider', () => {
-    const input = {...validCheckout, provider: ''};
-
-    const parse = () => checkoutIntentSchema.parse(input);
+    const parse = () => jobPayloadSchema.parse(input);
 
     expect(parse).toThrow();
   });
