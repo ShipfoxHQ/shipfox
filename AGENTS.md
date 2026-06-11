@@ -164,6 +164,79 @@ Each E2E package must also declare an explicit workspace dependency on the packa
 it verifies, such as `@shipfox/client-auth` for `@shipfox/e2e-client-auth`, so
 Turbo includes the referenced package in the task DAG.
 
+## Code comments
+
+Default to fewer comments. Well-named functions, types, and variables carry the
+intent; the reader knows the language and the codebase, so a comment that
+restates the code is pure overhead: it adds nothing to read and silently rots
+when the code changes. The bar for a comment is: **would a competent reader be
+surprised or stuck without it?** If not, delete it.
+
+### Explain *why*, never *what*
+
+A comment earns its place by capturing intent the code cannot express: a
+non-obvious constraint, a workaround, a deliberate trade-off, or a subtlety that
+would otherwise read as a mistake. The good comments already in this codebase all
+answer "why":
+
+```ts
+// Algorithm-confusion guard: nothing outside the HS256 allowlist may verify.
+
+// Drizzle creates its migrations schema/table outside its own migration transaction.
+// Serialize migrators so parallel package tests do not race on that shared setup.
+
+// `request.routeOptions.url` is the route template (e.g. /public/cache/:id/chunk)
+// but can leak a query string in some Fastify edge cases. Strip it.
+```
+
+Delete comments that narrate the next line. These say nothing the code doesn't:
+
+```ts
+// bad: restates the code
+// Set test environment variable
+process.env.FOO = "bar";
+
+// bad: restates the function name
+// Helper function to create properly typed configs
+export function createConfig(...) {}
+```
+
+### Prefer self-documenting code over a comment
+
+When you feel the urge to explain a block, first try to make the explanation
+unnecessary: extract a named function, rename a variable, or reach for an
+idiomatic construct (`value ?? fallback`, early return, a typed enum). A good
+name beats a comment because it travels with every call site and can't drift out
+of sync. Only when the *why* genuinely can't live in the code does it become a
+comment, and if that why needs a paragraph, the awkwardness is usually the code;
+refactor first.
+
+### Use JSDoc for documentation, not narration
+
+Reserve `/** ... */` for the public API of shared packages (exported functions,
+types, and config that other packages consume), where editor hover-docs add real
+value. Document parameters and behaviour that the signature can't convey; do not
+restate the type or the name:
+
+```ts
+/**
+ * Verifies an HS256-signed token and validates its payload against `schema`.
+ * Rejects any token whose `alg` header is outside the HS256 allowlist.
+ *
+ * @param audience - When set, jose rejects an `aud` mismatch before the schema runs.
+ */
+```
+
+Skip JSDoc entirely on internal, app-local, or self-evident functions; a
+docstring that only echoes `getRunner(id): Runner` is noise.
+
+### Keep planning and process out of the source
+
+No `// TODO`, `// v1 only`, `// added in follow-up PR`, or references to
+planning-doc decisions (`/plan-eng-review A1`) in module or function headers.
+Speculation about future work ("today X, tomorrow Y") and tracked tasks belong in
+`TODOS.md`, the issue tracker, or the design doc, not in code that outlives them.
+
 ## Error handling
 
 Error handling is a cross-layer concern, not an HTTP detail. The guiding
