@@ -495,6 +495,9 @@ importers:
 
   libs/api/auth-context:
     dependencies:
+      '@shipfox/api-auth-dto':
+        specifier: workspace:*
+        version: link:../auth-dto
       '@shipfox/api-workspaces-dto':
         specifier: workspace:*
         version: link:../workspaces-dto
@@ -1144,6 +1147,9 @@ importers:
 
   libs/api/runners:
     dependencies:
+      '@shipfox/api-auth':
+        specifier: workspace:*
+        version: link:../auth
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context
@@ -1156,18 +1162,12 @@ importers:
       '@shipfox/api-workspaces':
         specifier: workspace:*
         version: link:../workspaces
-      '@shipfox/config':
-        specifier: workspace:*
-        version: link:../../shared/common/config
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../shared/node/fastify
-      '@shipfox/node-jwt':
-        specifier: workspace:*
-        version: link:../../shared/node/jwt
       '@shipfox/node-module':
         specifier: workspace:*
         version: link:../../shared/node/module
@@ -1364,6 +1364,9 @@ importers:
 
   libs/api/workflows:
     dependencies:
+      '@shipfox/api-auth':
+        specifier: workspace:*
+        version: link:../auth
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context
@@ -1410,9 +1413,15 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@shipfox/api-auth-dto':
+        specifier: workspace:*
+        version: link:../auth-dto
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/node-jwt':
+        specifier: workspace:*
+        version: link:../../shared/node/jwt
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc

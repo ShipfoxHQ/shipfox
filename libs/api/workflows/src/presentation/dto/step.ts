@@ -1,9 +1,8 @@
 import type {StepDto, StepErrorDtoShape} from '@shipfox/api-workflows-dto';
 import type {Step} from '#core/entities/step.js';
 
-// Domain `error` is loosely typed (jsonb), but the runner contract writes
-// {message, exitCode?, signal?}. Map known camelCase fields to snake_case for
-// the wire DTO; pass everything else through unchanged.
+// Domain `error` is loosely typed (jsonb), so narrow it to the fixed runner
+// contract rather than trusting whatever shape the row happens to hold.
 function toStepErrorDto(error: Record<string, unknown> | null): StepErrorDtoShape {
   if (error === null) return null;
   const message = typeof error.message === 'string' ? error.message : '';
@@ -12,7 +11,22 @@ function toStepErrorDto(error: Record<string, unknown> | null): StepErrorDtoShap
   return {
     message,
     ...(exitCode === null || typeof exitCode === 'number' ? {exit_code: exitCode} : {}),
-    ...(signal ? {signal} : {}),
+    ...(signal === undefined ? {} : {signal}),
+  };
+}
+
+// Inverse of toStepErrorDto: reported wire errors land on the domain row in
+// camelCase so the read path renders them back without a special case.
+export function fromStepErrorDto(
+  error: StepErrorDtoShape | undefined,
+): Record<string, unknown> | null {
+  if (!error) return null;
+  return {
+    message: error.message,
+    ...(error.exit_code === null || typeof error.exit_code === 'number'
+      ? {exitCode: error.exit_code}
+      : {}),
+    ...(typeof error.signal === 'string' ? {signal: error.signal} : {}),
   };
 }
 

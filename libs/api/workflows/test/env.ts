@@ -4,5 +4,6 @@ process.env.POSTGRES_USERNAME = 'shipfox';
 process.env.POSTGRES_PASSWORD = 'password';
 process.env.POSTGRES_DATABASE = 'api_test';
 process.env.POSTGRES_MAX_CONNECTIONS = '5';
-process.env.RUNNERS_JOB_LEASE_TOKEN_SECRET = 'test-lease-secret';
+process.env.AUTH_JWT_SECRET = 'test-secret';
+process.env.AUTH_JOB_LEASE_TOKEN_SECRET = 'test-lease-secret';
 process.env.TZ = 'UTC';

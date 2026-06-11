@@ -2,7 +2,7 @@ import {
   JOB_LEASE_TOKEN_AUDIENCE,
   type JobLeaseTokenClaims,
   jobLeaseTokenClaimsSchema,
-} from '@shipfox/api-runners-dto';
+} from '@shipfox/api-auth-dto';
 import {signHs256, verifyHs256} from '@shipfox/node-jwt';
 import {config} from '#config.js';
 
@@ -17,8 +17,8 @@ export async function issueJobLeaseToken(claims: IssueJobLeaseTokenParams): Prom
       workspaceId: claims.workspaceId,
       runnerTokenId: claims.runnerTokenId,
     },
-    secret: config.RUNNERS_JOB_LEASE_TOKEN_SECRET,
-    expiresIn: config.RUNNERS_JOB_LEASE_TOKEN_EXPIRES_IN,
+    secret: config.AUTH_JOB_LEASE_TOKEN_SECRET,
+    expiresIn: config.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN,
     audience: JOB_LEASE_TOKEN_AUDIENCE,
   });
 }
@@ -28,7 +28,7 @@ export async function verifyJobLeaseToken(token: string): Promise<JobLeaseTokenC
   try {
     return await verifyHs256({
       token,
-      secret: config.RUNNERS_JOB_LEASE_TOKEN_SECRET,
+      secret: config.AUTH_JOB_LEASE_TOKEN_SECRET,
       schema: jobLeaseTokenClaimsSchema,
       audience: JOB_LEASE_TOKEN_AUDIENCE,
     });

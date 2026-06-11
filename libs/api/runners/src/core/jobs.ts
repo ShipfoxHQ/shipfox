@@ -1,5 +1,5 @@
+import {issueJobLeaseToken} from '@shipfox/api-auth';
 import type {StepResultDto} from '@shipfox/api-runners-dto';
-import {issueJobLeaseToken} from '#core/job-lease-token.js';
 import {claimPendingJob, expireStuckJob, finalizeRunningJob, findStuckJobs} from '#db/jobs.js';
 
 export async function completeJob(

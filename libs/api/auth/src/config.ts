@@ -4,6 +4,10 @@ import {createConsoleMailer, createSmtpMailer, type Mailer} from '@shipfox/node-
 export const config = createConfig({
   AUTH_JWT_SECRET: str(),
   AUTH_JWT_EXPIRES_IN: str({default: '15m'}),
+  // Mirrors AUTH_JWT_SECRET handling: required, no default — fail fast on misconfig.
+  AUTH_JOB_LEASE_TOKEN_SECRET: str(),
+  // TTL must outlast a job (JOB_MAX_DURATION is 60 minutes) plus margin.
+  AUTH_JOB_LEASE_TOKEN_EXPIRES_IN: str({default: '90m'}),
   AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS: num({default: 14}),
   AUTH_REFRESH_COOKIE_NAME: str({default: 'shipfox_refresh_token'}),
   CLIENT_BASE_URL: str({default: 'http://localhost:3000'}),

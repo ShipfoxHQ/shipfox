@@ -4,6 +4,13 @@ import {isRouteGroup} from './types.js';
 
 const authMethods = new Map<string, AuthMethod>();
 
+export function extractBearerToken(authHeader: string | undefined): string | undefined {
+  if (!authHeader) return undefined;
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2 || parts[0]?.toLowerCase() !== 'bearer') return undefined;
+  return parts[1];
+}
+
 export function clearAuthMethods(): void {
   authMethods.clear();
 }
