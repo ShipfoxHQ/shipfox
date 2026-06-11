@@ -50,14 +50,22 @@ export interface Workspace {
   cleanup(): Promise<void>;
 }
 
+// The job id is the only input to the per-job path; assert it is the UUID the
+// API contract guarantees rather than munging it, so a malformed id fails the
+// job loudly instead of silently reshaping the directory name.
+const JOB_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Pre-cleans the per-job directory before creating it, so a directory left by a
- * previous crash is never reused. The name derives only from the
- * (server-assigned) job id, so no user-controlled fragment reaches the path.
+ * previous crash is never reused. Throws when the job id is not the UUID the
+ * API contract guarantees, since it is the only input to the directory path.
  */
 export async function prepareWorkspace(job: {job_id: string}, root: string): Promise<Workspace> {
-  const segment = job.job_id.replace(/[^A-Za-z0-9-]/g, '');
-  const cwd = join(root, `shipfox-job-${segment}`);
+  if (!JOB_ID_PATTERN.test(job.job_id)) {
+    throw new Error(`Cannot prepare workspace: invalid job id ${job.job_id}`);
+  }
+
+  const cwd = join(root, `job-${job.job_id}`);
 
   // Pre-clean the per-job directory only — never the configured root.
   await rm(cwd, {recursive: true, force: true});

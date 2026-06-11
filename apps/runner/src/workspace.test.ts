@@ -72,10 +72,18 @@ describe('prepareWorkspace', () => {
     await expect(readStale()).rejects.toThrow();
   });
 
-  it('derives the directory name only from safe characters', async () => {
-    const workspace = await prepareWorkspace({job_id: '../../etc/passwd'}, root);
+  it('names the directory after the job id', async () => {
+    const jobId = '44444444-4444-4444-8444-444444444444';
 
-    expect(workspace.cwd).toBe(join(root, 'shipfox-job-etcpasswd'));
+    const workspace = await prepareWorkspace({job_id: jobId}, root);
+
+    expect(workspace.cwd).toBe(join(root, `job-${jobId}`));
+  });
+
+  it('rejects a job id that is not a UUID', async () => {
+    const prepare = () => prepareWorkspace({job_id: '../../etc/passwd'}, root);
+
+    await expect(prepare()).rejects.toThrow();
   });
 
   it('cleanup() removes the directory', async () => {
