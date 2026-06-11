@@ -357,9 +357,17 @@ class OctokitGithubApiClient implements GithubApiClient {
       );
     }
 
+    const expiresAt = new Date(response.data.expires_at);
+    if (Number.isNaN(expiresAt.getTime())) {
+      throw new GithubIntegrationProviderError(
+        'malformed-provider-response',
+        'GitHub installation access token response did not include a valid expiry',
+      );
+    }
+
     return {
       token: response.data.token,
-      expiresAt: new Date(response.data.expires_at),
+      expiresAt,
     };
   }
 

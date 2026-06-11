@@ -87,6 +87,12 @@ export interface CheckoutCredentials {
 }
 
 export interface CheckoutSpec {
+  /**
+   * Clone URL that must never embed authentication material. Credentials live
+   * only in `credentials` so `redactCheckoutSpec()` can mask them; a provider
+   * that embeds a token in this URL would bypass redaction and leak it into
+   * logs, `git remote -v`, and persisted job rows.
+   */
   repositoryUrl: string;
   ref: string;
   credentials?: CheckoutCredentials | undefined;
