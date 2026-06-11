@@ -167,11 +167,31 @@ export const MAX_REPOSITORY_FILE_BYTES = 1_000_000;
 const REDACTED_TOKEN = '***';
 
 export function redactCheckoutSpec(spec: CheckoutSpec): CheckoutSpec {
-  if (!spec.credentials) return spec;
+  const repositoryUrl = stripUrlCredentials(spec.repositoryUrl);
+  if (!spec.credentials) {
+    return repositoryUrl === spec.repositoryUrl ? spec : {...spec, repositoryUrl};
+  }
   return {
     ...spec,
+    repositoryUrl,
     credentials: {...spec.credentials, token: REDACTED_TOKEN},
   };
+}
+
+// Defense in depth: providers must keep `repositoryUrl` credential-free, but a
+// helper whose job is to make a spec safe to log must also strip any userinfo
+// (e.g. `https://x-access-token:<token>@host/...`) so a provider mistake cannot
+// leak a token through the URL.
+function stripUrlCredentials(repositoryUrl: string): string {
+  try {
+    const url = new URL(repositoryUrl);
+    if (!url.username && !url.password) return repositoryUrl;
+    url.username = '';
+    url.password = '';
+    return url.toString();
+  } catch {
+    return repositoryUrl;
+  }
 }
 
 export function buildProviderRepositoryId(
