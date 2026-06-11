@@ -1,15 +1,15 @@
-import {jobPayloadResponseSchema} from '@shipfox/api-runners-dto';
+import {claimedJobResponseSchema} from '@shipfox/api-runners-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
-import {claimJob} from '#db/jobs.js';
+import {claimJob} from '#core/jobs.js';
 import {getRunnerContext} from '#presentation/auth/index.js';
 
 export const requestJobRoute = defineRoute({
   method: 'POST',
   path: '/request',
-  description: 'Get the next available job for the runner to run',
+  description: 'Claim the next available job and receive its lease token',
   schema: {
     response: {
-      200: jobPayloadResponseSchema,
+      200: claimedJobResponseSchema,
     },
   },
   handler: async (_request, reply) => {
@@ -33,8 +33,7 @@ export const requestJobRoute = defineRoute({
     return {
       job_id: job.jobId,
       run_id: job.runId,
-      job_name: job.payload.job_name,
-      steps: job.payload.steps,
+      lease_token: job.leaseToken,
     };
   },
 });

@@ -2,7 +2,7 @@ import {log, proxyActivities} from '@temporalio/workflow';
 
 import type {createRunnersMaintenanceActivities} from '../activities/index.js';
 
-const {detectAndFailStuckJobsActivity} = proxyActivities<
+const {detectAndExpireStuckJobsActivity} = proxyActivities<
   ReturnType<typeof createRunnersMaintenanceActivities>
 >({
   startToCloseTimeout: '60s',
@@ -11,12 +11,12 @@ const {detectAndFailStuckJobsActivity} = proxyActivities<
 const STUCK_JOB_THRESHOLD_SECONDS = 180;
 
 export async function stuckJobDetector(): Promise<void> {
-  const {failed} = await detectAndFailStuckJobsActivity({
+  const {expired} = await detectAndExpireStuckJobsActivity({
     thresholdSeconds: STUCK_JOB_THRESHOLD_SECONDS,
   });
-  if (failed > 0) {
-    log.info('Stuck-job detector failed jobs', {
-      failed,
+  if (expired > 0) {
+    log.info('Stuck-job detector expired job leases', {
+      expired,
       thresholdSeconds: STUCK_JOB_THRESHOLD_SECONDS,
     });
   }

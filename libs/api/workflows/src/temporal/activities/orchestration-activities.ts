@@ -1,5 +1,5 @@
-import {enqueueJob} from '@shipfox/api-runners';
-import type {JobPayloadDto, StepResultDto} from '@shipfox/api-runners-dto';
+import {scheduleJob} from '@shipfox/api-runners';
+import type {StepResultDto} from '@shipfox/api-runners-dto';
 import type {JobStatus} from '#core/entities/job.js';
 import type {RuntimeDagJob} from '#core/entities/runtime-dag.js';
 import type {StepStatus} from '#core/entities/step.js';
@@ -136,27 +136,11 @@ export async function enqueueJobForRunner(params: {
   workspaceId: string;
   jobId: string;
   runId: string;
-  jobName: string;
-  steps: Array<{
-    id: string;
-    name: string | null;
-    type: string;
-    config: Record<string, unknown>;
-    position: number;
-  }>;
 }): Promise<void> {
-  const payload: JobPayloadDto = {
-    job_id: params.jobId,
-    run_id: params.runId,
-    job_name: params.jobName,
-    steps: params.steps,
-  };
-
-  await enqueueJob({
+  await scheduleJob({
     workspaceId: params.workspaceId,
     jobId: params.jobId,
     runId: params.runId,
-    payload,
   });
 }
 

@@ -1,7 +1,7 @@
-import {detectAndFailStuckJobsActivity} from './maintenance-activities.js';
+import {detectAndExpireStuckJobsActivity} from './maintenance-activities.js';
 
 export function createRunnersMaintenanceActivities() {
   return {
-    detectAndFailStuckJobsActivity,
+    detectAndExpireStuckJobsActivity,
   };
 }

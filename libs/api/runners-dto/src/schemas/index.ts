@@ -1,3 +1,4 @@
+export {type ClaimedJobResponseDto, claimedJobResponseSchema} from './claim-job.js';
 export {
   type CompleteJobBodyDto,
   type CompleteJobResponseDto,

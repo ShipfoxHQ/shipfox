@@ -1,57 +1,123 @@
-import {RUNNER_JOB_COMPLETED} from '@shipfox/api-runners-dto';
+import {RUNNER_JOB_COMPLETED, RUNNER_JOB_LEASE_EXPIRED} from '@shipfox/api-runners-dto';
 import {eq, sql} from 'drizzle-orm';
-import {completeJob, detectAndFailStuckJobs} from '#core/jobs.js';
+import {verifyJobLeaseToken} from '#core/job-lease-token.js';
+import {claimJob, completeJob, detectAndExpireStuckJobs} from '#core/jobs.js';
 import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
 import {db} from './db.js';
-import {claimJob, enqueueJob, recordHeartbeat, requestJobCancellation} from './jobs.js';
+import {
+  claimPendingJob,
+  expireStuckJob,
+  recordHeartbeat,
+  requestJobCancellation,
+  scheduleJob,
+} from './jobs.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobs} from './schema/pending-jobs.js';
 import {runningJobs} from './schema/running-jobs.js';
 
-describe('enqueueJob', () => {
+describe('scheduleJob', () => {
   beforeEach(async () => {
     await db().execute(
       sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_outbox CASCADE`,
     );
   });
 
-  it('inserts a row into pending_jobs with correct payload', async () => {
+  it('stores a pending assignment row', async () => {
     const jobId = crypto.randomUUID();
     const runId = crypto.randomUUID();
     const workspaceId = crypto.randomUUID();
-    const payload = {
-      job_id: jobId,
-      run_id: runId,
-      job_name: 'build',
-      steps: [
-        {
-          id: crypto.randomUUID(),
-          name: 'hello',
-          type: 'run',
-          config: {run: 'echo hello'},
-          position: 0,
-        },
-      ],
-    };
 
-    await enqueueJob({workspaceId, jobId, runId, payload});
+    await scheduleJob({workspaceId, jobId, runId});
 
     const rows = await db().select().from(pendingJobs);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.jobId).toBe(jobId);
     expect(rows[0]?.runId).toBe(runId);
     expect(rows[0]?.workspaceId).toBe(workspaceId);
-    expect(rows[0]?.payload).toEqual(payload);
+    expect(rows[0]).not.toHaveProperty('payload');
   });
 
-  it('throws on duplicate job_id', async () => {
+  it('is idempotent: scheduling the same jobId twice is a no-op', async () => {
     const jobId = crypto.randomUUID();
-    const attrs = {workspaceId: crypto.randomUUID(), runId: crypto.randomUUID(), jobId};
-    const payload = {job_id: jobId, run_id: attrs.runId, job_name: 'build', steps: []};
+    const params = {workspaceId: crypto.randomUUID(), runId: crypto.randomUUID(), jobId};
 
-    await enqueueJob({...attrs, payload});
+    await scheduleJob(params);
+    await expect(scheduleJob(params)).resolves.toBeUndefined();
 
-    await expect(enqueueJob({...attrs, payload})).rejects.toThrow();
+    const rows = await db().select().from(pendingJobs);
+    expect(rows).toHaveLength(1);
+  });
+});
+
+describe('claimPendingJob', () => {
+  let workspaceId: string;
+  let runnerTokenId: string;
+
+  beforeEach(async () => {
+    await db().execute(
+      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_tokens CASCADE`,
+    );
+    workspaceId = crypto.randomUUID();
+    const runnerToken = await runnerTokenFactory.create({workspaceId});
+    runnerTokenId = runnerToken.id;
+  });
+
+  it('returns the job ids when a job is available', async () => {
+    const created = await pendingJobFactory.create({workspaceId});
+
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+
+    expect(claimed).not.toBeNull();
+    expect(claimed?.jobId).toBe(created.jobId);
+    expect(claimed?.runId).toBe(created.runId);
+  });
+
+  it('returns null when no jobs are pending', async () => {
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+
+    expect(claimed).toBeNull();
+  });
+
+  it('only one caller wins when two claim concurrently', async () => {
+    const otherRunnerToken = await runnerTokenFactory.create({workspaceId});
+    await pendingJobFactory.create({workspaceId});
+
+    const [claim1, claim2] = await Promise.all([
+      claimPendingJob({workspaceId, runnerTokenId}),
+      claimPendingJob({workspaceId, runnerTokenId: otherRunnerToken.id}),
+    ]);
+
+    const claimed = [claim1, claim2].filter(Boolean);
+    expect(claimed).toHaveLength(1);
+  });
+
+  it('claims the oldest job first', async () => {
+    const older = await pendingJobFactory.create({workspaceId});
+    await pendingJobFactory.create({workspaceId});
+
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+
+    expect(claimed?.jobId).toBe(older.jobId);
+  });
+
+  it('moves the job from pending to running', async () => {
+    await pendingJobFactory.create({workspaceId});
+
+    await claimPendingJob({workspaceId, runnerTokenId});
+
+    const pending = await db().select().from(pendingJobs);
+    const running = await db().select().from(runningJobs);
+    expect(pending).toHaveLength(0);
+    expect(running).toHaveLength(1);
+    expect(running[0]?.runnerTokenId).toBe(runnerTokenId);
+  });
+
+  it('does not claim jobs from another workspace', async () => {
+    await pendingJobFactory.create({workspaceId: crypto.randomUUID()});
+
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+
+    expect(claimed).toBeNull();
   });
 });
 
@@ -68,7 +134,7 @@ describe('claimJob', () => {
     runnerTokenId = runnerToken.id;
   });
 
-  it('returns the job payload when a job is available', async () => {
+  it('mints a lease token whose claims match the claimed job', async () => {
     const created = await pendingJobFactory.create({workspaceId});
 
     const claimed = await claimJob({workspaceId, runnerTokenId});
@@ -76,52 +142,18 @@ describe('claimJob', () => {
     expect(claimed).not.toBeNull();
     expect(claimed?.jobId).toBe(created.jobId);
     expect(claimed?.runId).toBe(created.runId);
-    expect(claimed?.payload.job_name).toBe(created.payload.job_name);
+    expect(claimed).not.toHaveProperty('steps');
+
+    const claims = await verifyJobLeaseToken(claimed?.leaseToken as string);
+    expect(claims).toMatchObject({
+      jobId: created.jobId,
+      runId: created.runId,
+      workspaceId,
+      runnerTokenId,
+    });
   });
 
-  it('returns null when no jobs are pending', async () => {
-    const claimed = await claimJob({workspaceId, runnerTokenId});
-
-    expect(claimed).toBeNull();
-  });
-
-  it('only one caller wins when two claim concurrently', async () => {
-    const otherRunnerToken = await runnerTokenFactory.create({workspaceId});
-    await pendingJobFactory.create({workspaceId});
-
-    const [claim1, claim2] = await Promise.all([
-      claimJob({workspaceId, runnerTokenId}),
-      claimJob({workspaceId, runnerTokenId: otherRunnerToken.id}),
-    ]);
-
-    const claimed = [claim1, claim2].filter(Boolean);
-    expect(claimed).toHaveLength(1);
-  });
-
-  it('claims the oldest job first', async () => {
-    const older = await pendingJobFactory.create({workspaceId});
-    await pendingJobFactory.create({workspaceId});
-
-    const claimed = await claimJob({workspaceId, runnerTokenId});
-
-    expect(claimed?.jobId).toBe(older.jobId);
-  });
-
-  it('moves the job from pending to running', async () => {
-    await pendingJobFactory.create({workspaceId});
-
-    await claimJob({workspaceId, runnerTokenId});
-
-    const pending = await db().select().from(pendingJobs);
-    const running = await db().select().from(runningJobs);
-    expect(pending).toHaveLength(0);
-    expect(running).toHaveLength(1);
-    expect(running[0]?.runnerTokenId).toBe(runnerTokenId);
-  });
-
-  it('does not claim jobs from another workspace', async () => {
-    await pendingJobFactory.create({workspaceId: crypto.randomUUID()});
-
+  it('returns null and mints no token when the queue is empty', async () => {
     const claimed = await claimJob({workspaceId, runnerTokenId});
 
     expect(claimed).toBeNull();
@@ -149,13 +181,12 @@ describe('completeJob', () => {
   }
 
   it('deletes the running job and writes an outbox event', async () => {
-    const pending = await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerTokenId});
-    const stepId = pending.payload.steps[0]?.id ?? crypto.randomUUID();
+    await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
 
     const result = await completeJob(
       {jobId: claimed?.jobId as string, runnerTokenId},
-      succeededResult(stepId),
+      succeededResult(crypto.randomUUID()),
     );
 
     expect(result.runId).toBe(claimed?.runId as string);
@@ -184,14 +215,13 @@ describe('completeJob', () => {
 
   it('does not complete a job owned by another runner token', async () => {
     const otherRunnerToken = await runnerTokenFactory.create({workspaceId});
-    const pending = await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerTokenId});
-    const stepId = pending.payload.steps[0]?.id ?? crypto.randomUUID();
+    await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
 
     await expect(
       completeJob(
         {jobId: claimed?.jobId as string, runnerTokenId: otherRunnerToken.id},
-        succeededResult(stepId),
+        succeededResult(crypto.randomUUID()),
       ),
     ).rejects.toThrow('Running job not found');
 
@@ -214,7 +244,7 @@ describe('recordHeartbeat', () => {
 
   it('returns cancel:false on a fresh row and bumps last_heartbeat_at', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
 
     const before = await db()
       .select()
@@ -244,7 +274,7 @@ describe('recordHeartbeat', () => {
 
   it('returns cancel:true after requestJobCancellation', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
 
     await requestJobCancellation({jobId: claimed?.jobId as string});
 
@@ -265,7 +295,7 @@ describe('recordHeartbeat', () => {
   it('throws when jobId belongs to a different runner token', async () => {
     const otherRunnerToken = await runnerTokenFactory.create({workspaceId});
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
 
     await expect(
       recordHeartbeat({
@@ -288,7 +318,7 @@ describe('requestJobCancellation', () => {
 
   it('sets cancellation_requested_at on a fresh row', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
 
     await requestJobCancellation({jobId: claimed?.jobId as string});
 
@@ -301,7 +331,7 @@ describe('requestJobCancellation', () => {
 
   it('is idempotent: second call preserves the first timestamp', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
 
     await requestJobCancellation({jobId: claimed?.jobId as string});
     const after1 = await db()
@@ -325,7 +355,7 @@ describe('requestJobCancellation', () => {
   });
 });
 
-describe('detectAndFailStuckJobs', () => {
+describe('detectAndExpireStuckJobs', () => {
   let workspaceId: string;
   let runnerTokenId: string;
 
@@ -337,7 +367,7 @@ describe('detectAndFailStuckJobs', () => {
 
   async function makeStaleJob(staleSeconds: number): Promise<{jobId: string; runId: string}> {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
     await db()
       .update(runningJobs)
       .set({
@@ -359,42 +389,40 @@ describe('detectAndFailStuckJobs', () => {
     });
   }
 
-  it('fails a stuck job and writes a runners.job.completed event with empty steps[]', async () => {
+  it('expires a stuck job and writes a runners.job.lease_expired event', async () => {
     const {jobId, runId} = await makeStaleJob(600);
 
-    const result = await detectAndFailStuckJobs({thresholdSeconds: 180});
+    const result = await detectAndExpireStuckJobs({thresholdSeconds: 180});
 
-    expect(result.failed).toBeGreaterThanOrEqual(1);
+    expect(result.expired).toBeGreaterThanOrEqual(1);
     expect(await runningJobsForTest()).toHaveLength(0);
 
     const outbox = await outboxForJobs([jobId]);
     expect(outbox).toHaveLength(1);
-    expect(outbox[0]?.eventType).toBe(RUNNER_JOB_COMPLETED);
+    expect(outbox[0]?.eventType).toBe(RUNNER_JOB_LEASE_EXPIRED);
     const payload = outbox[0]?.payload as Record<string, unknown>;
     expect(payload.jobId).toBe(jobId);
     expect(payload.runId).toBe(runId);
-    expect(payload.status).toBe('failed');
-    // Stuck-job detection has no per-step detail; the workflow falls back to
-    // bulk-failing every step via the empty-steps path.
-    expect(payload.steps).toEqual([]);
-    expect(payload.output).toBeUndefined();
+    // The lease-expired event carries only the assignment identifiers.
+    expect(payload.status).toBeUndefined();
+    expect(payload.steps).toBeUndefined();
   });
 
-  it('does not fail a job whose heartbeat is still inside the threshold window', async () => {
+  it('does not expire a job whose heartbeat is still inside the threshold window', async () => {
     const {jobId} = await makeStaleJob(60);
 
-    await detectAndFailStuckJobs({thresholdSeconds: 180});
+    await detectAndExpireStuckJobs({thresholdSeconds: 180});
 
     expect(await runningJobsForTest()).toHaveLength(1);
     expect(await outboxForJobs([jobId])).toHaveLength(0);
   });
 
-  it('only fails the stuck rows in a mixed batch', async () => {
+  it('only expires the stuck rows in a mixed batch', async () => {
     const stuck1 = await makeStaleJob(600);
     const stuck2 = await makeStaleJob(600);
     const fresh = await makeStaleJob(30);
 
-    await detectAndFailStuckJobs({thresholdSeconds: 180});
+    await detectAndExpireStuckJobs({thresholdSeconds: 180});
 
     const remaining = await runningJobsForTest();
     expect(remaining.map((r) => r.jobId)).toEqual([fresh.jobId]);
@@ -402,8 +430,8 @@ describe('detectAndFailStuckJobs', () => {
   });
 
   it('returns zero when there are no stuck jobs', async () => {
-    const result = await detectAndFailStuckJobs({thresholdSeconds: 180});
-    expect(result.failed).toBe(0);
+    const result = await detectAndExpireStuckJobs({thresholdSeconds: 180});
+    expect(result.expired).toBe(0);
   });
 
   it('skips a row whose heartbeat refreshed before the atomic DELETE re-evaluates the predicate', async () => {
@@ -415,9 +443,20 @@ describe('detectAndFailStuckJobs', () => {
       .set({lastHeartbeatAt: sql`now()`})
       .where(eq(runningJobs.jobId, jobId));
 
-    await detectAndFailStuckJobs({thresholdSeconds: 180});
+    await detectAndExpireStuckJobs({thresholdSeconds: 180});
 
     expect(await runningJobsForTest()).toHaveLength(1);
     expect(await outboxForJobs([jobId])).toHaveLength(0);
+  });
+
+  it('double-expiring the same stuck job emits exactly one event', async () => {
+    const {jobId} = await makeStaleJob(600);
+
+    const first = await expireStuckJob({jobId, staleBeforeMs: 180_000});
+    const second = await expireStuckJob({jobId, staleBeforeMs: 180_000});
+
+    expect(first).toBeDefined();
+    expect(second).toBeUndefined();
+    expect(await outboxForJobs([jobId])).toHaveLength(1);
   });
 });

@@ -1,8 +1,10 @@
 export {
+  type ClaimedJobResponseDto,
   type CompleteJobBodyDto,
   type CompleteJobResponseDto,
   type CreateRunnerTokenBodyDto,
   type CreateRunnerTokenResponseDto,
+  claimedJobResponseSchema,
   completeJobBodySchema,
   completeJobResponseSchema,
   createRunnerTokenBodySchema,
@@ -31,6 +33,8 @@ export {
 } from '#schemas/index.js';
 export {
   RUNNER_JOB_COMPLETED,
+  RUNNER_JOB_LEASE_EXPIRED,
   type RunnerJobCompletedEvent,
+  type RunnerJobLeaseExpiredEvent,
   type RunnersEventMap,
 } from './events.js';

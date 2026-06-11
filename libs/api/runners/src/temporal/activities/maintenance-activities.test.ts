@@ -1,13 +1,13 @@
-import {RUNNER_JOB_COMPLETED} from '@shipfox/api-runners-dto';
+import {RUNNER_JOB_LEASE_EXPIRED} from '@shipfox/api-runners-dto';
 import {eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
-import {claimJob} from '#db/jobs.js';
+import {claimPendingJob} from '#db/jobs.js';
 import {runnersOutbox} from '#db/schema/outbox.js';
 import {runningJobs} from '#db/schema/running-jobs.js';
 import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
-import {detectAndFailStuckJobsActivity} from './maintenance-activities.js';
+import {detectAndExpireStuckJobsActivity} from './maintenance-activities.js';
 
-describe('detectAndFailStuckJobsActivity', () => {
+describe('detectAndExpireStuckJobsActivity', () => {
   let workspaceId: string;
   let runnerTokenId: string;
 
@@ -17,17 +17,17 @@ describe('detectAndFailStuckJobsActivity', () => {
     runnerTokenId = runnerToken.id;
   });
 
-  it('delegates to detectAndFailStuckJobs and returns the failed count', async () => {
+  it('delegates to detectAndExpireStuckJobs and returns the expired count', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
     await db()
       .update(runningJobs)
       .set({lastHeartbeatAt: sql`now() - interval '10 minutes'`})
       .where(eq(runningJobs.jobId, claimed?.jobId as string));
 
-    const result = await detectAndFailStuckJobsActivity({thresholdSeconds: 180});
+    const result = await detectAndExpireStuckJobsActivity({thresholdSeconds: 180});
 
-    expect(result.failed).toBeGreaterThanOrEqual(1);
+    expect(result.expired).toBeGreaterThanOrEqual(1);
 
     const stillRunning = await db()
       .select()
@@ -38,12 +38,14 @@ describe('detectAndFailStuckJobsActivity', () => {
     const outbox = await db()
       .select()
       .from(runnersOutbox)
-      .where(eq(runnersOutbox.eventType, RUNNER_JOB_COMPLETED));
+      .where(eq(runnersOutbox.eventType, RUNNER_JOB_LEASE_EXPIRED));
     const matching = outbox.filter(
       (row) => (row.payload as Record<string, unknown>).jobId === claimed?.jobId,
     );
     expect(matching).toHaveLength(1);
-    expect((matching[0]?.payload as Record<string, unknown>).steps).toEqual([]);
-    expect((matching[0]?.payload as Record<string, unknown>).output).toBeUndefined();
+    const payload = matching[0]?.payload as Record<string, unknown>;
+    expect(payload.runId).toBe(claimed?.runId);
+    expect(payload.steps).toBeUndefined();
+    expect(payload.status).toBeUndefined();
   });
 });

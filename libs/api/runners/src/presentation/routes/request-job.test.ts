@@ -3,6 +3,7 @@ import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
+import {verifyJobLeaseToken} from '#core/job-lease-token.js';
 import {db} from '#db/db.js';
 import {revokeRunnerToken} from '#db/runner-tokens.js';
 import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';
@@ -23,6 +24,7 @@ describe('POST /runners/jobs/request', () => {
   let app: FastifyInstance;
   let rawToken: string;
   let workspaceId: string;
+  let runnerTokenId: string;
 
   beforeAll(async () => {
     app = await createApp({
@@ -43,7 +45,8 @@ describe('POST /runners/jobs/request', () => {
     );
     rawToken = `sf_r_${crypto.randomUUID()}`;
     workspaceId = crypto.randomUUID();
-    await runnerTokenFactory.create({workspaceId}, {transient: {rawToken}});
+    const token = await runnerTokenFactory.create({workspaceId}, {transient: {rawToken}});
+    runnerTokenId = token.id;
   });
 
   it('returns 401 without authorization', async () => {
@@ -65,8 +68,8 @@ describe('POST /runners/jobs/request', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('returns 200 with a workspace-scoped job payload when a job is available', async () => {
-    await pendingJobFactory.create({workspaceId});
+  it('returns 200 with the job ids and a verifiable lease token when a job is available', async () => {
+    const created = await pendingJobFactory.create({workspaceId});
 
     const res = await app.inject({
       method: 'POST',
@@ -76,10 +79,19 @@ describe('POST /runners/jobs/request', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.job_id).toBeDefined();
-    expect(body.run_id).toBeDefined();
-    expect(body.job_name).toBeDefined();
-    expect(Array.isArray(body.steps)).toBe(true);
+    expect(body.job_id).toBe(created.jobId);
+    expect(body.run_id).toBe(created.runId);
+    expect(typeof body.lease_token).toBe('string');
+    expect(body.job_name).toBeUndefined();
+    expect(body.steps).toBeUndefined();
+
+    const claims = await verifyJobLeaseToken(body.lease_token);
+    expect(claims).toMatchObject({
+      jobId: created.jobId,
+      runId: created.runId,
+      workspaceId,
+      runnerTokenId,
+    });
   });
 
   it('returns 204 when no jobs are available for the token workspace', async () => {
