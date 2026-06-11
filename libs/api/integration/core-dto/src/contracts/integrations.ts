@@ -80,15 +80,28 @@ export interface FetchFileInput<Connection extends IntegrationConnection = Integ
   path: string;
 }
 
+export interface CheckoutCredentials {
+  username: string;
+  token: string;
+  expiresAt: Date;
+}
+
 export interface CheckoutSpec {
+  /**
+   * Clone URL that must never embed authentication material. Credentials live
+   * only in `credentials` so `redactCheckoutSpec()` can mask them; a provider
+   * that embeds a token in this URL would bypass redaction and leak it into
+   * logs, `git remote -v`, and persisted job rows.
+   */
   repositoryUrl: string;
   ref: string;
+  credentials?: CheckoutCredentials | undefined;
 }
 
 export interface CreateCheckoutSpecInput<
   Connection extends IntegrationConnection = IntegrationConnection,
 > extends ResolveRepositoryInput<Connection> {
-  ref: string;
+  ref?: string | undefined;
 }
 
 export interface SourceControlProvider<
@@ -150,6 +163,36 @@ export class IntegrationProviderError extends Error {
 }
 
 export const MAX_REPOSITORY_FILE_BYTES = 1_000_000;
+
+const REDACTED_TOKEN = '***';
+
+export function redactCheckoutSpec(spec: CheckoutSpec): CheckoutSpec {
+  const repositoryUrl = stripUrlCredentials(spec.repositoryUrl);
+  if (!spec.credentials) {
+    return repositoryUrl === spec.repositoryUrl ? spec : {...spec, repositoryUrl};
+  }
+  return {
+    ...spec,
+    repositoryUrl,
+    credentials: {...spec.credentials, token: REDACTED_TOKEN},
+  };
+}
+
+// Defense in depth: providers must keep `repositoryUrl` credential-free, but a
+// helper whose job is to make a spec safe to log must also strip any userinfo
+// (e.g. `https://x-access-token:<token>@host/...`) so a provider mistake cannot
+// leak a token through the URL.
+function stripUrlCredentials(repositoryUrl: string): string {
+  try {
+    const url = new URL(repositoryUrl);
+    if (!url.username && !url.password) return repositoryUrl;
+    url.username = '';
+    url.password = '';
+    return url.toString();
+  } catch {
+    return repositoryUrl;
+  }
+}
 
 export function buildProviderRepositoryId(
   provider: IntegrationProviderKind,

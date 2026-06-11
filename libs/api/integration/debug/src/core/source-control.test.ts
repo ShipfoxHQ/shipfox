@@ -86,4 +86,31 @@ describe('DebugSourceControlProvider', () => {
 
     expect(result.content).toContain('name: CI');
   });
+
+  it('creates a credential-free checkout spec for the requested ref', async () => {
+    const provider = new DebugSourceControlProvider();
+
+    const result = await provider.createCheckoutSpec({
+      connection,
+      externalRepositoryId: 'debug:platform',
+      ref: 'feature/x',
+    });
+
+    expect(result).toEqual({
+      repositoryUrl: 'https://debug.local/debug-owner/platform.git',
+      ref: 'feature/x',
+    });
+    expect(result.credentials).toBeUndefined();
+  });
+
+  it('defaults the checkout ref to the repository default branch', async () => {
+    const provider = new DebugSourceControlProvider();
+
+    const result = await provider.createCheckoutSpec({
+      connection,
+      externalRepositoryId: 'debug:platform',
+    });
+
+    expect(result.ref).toBe('main');
+  });
 });

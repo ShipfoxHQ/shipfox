@@ -45,6 +45,7 @@ export type {
 export type {IntegrationProviderErrorReason} from '#core/errors.js';
 export {
   IntegrationCapabilityUnavailableError,
+  IntegrationCheckoutUnsupportedError,
   IntegrationConnectionInactiveError,
   IntegrationConnectionNotFoundError,
   IntegrationConnectionWorkspaceMismatchError,
@@ -53,6 +54,9 @@ export {
 } from '#core/errors.js';
 export type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 export type {
+  CheckoutCredentials,
+  CheckoutSpec,
+  CreateCheckoutSpecInput,
   FetchFileInput,
   FileEntry,
   FilePage,
@@ -65,6 +69,7 @@ export type {
   ResolveRepositoryInput,
   SourceControlProvider,
 } from '#core/providers/source-control.js';
+export {redactCheckoutSpec} from '#core/providers/source-control.js';
 export type {IntegrationSourceControlService} from '#core/source-control-service.js';
 export {createSourceControlIntegrationService} from '#core/source-control-service.js';
 export type {GetIntegrationConnectionByIdFn} from '#db/connections.js';

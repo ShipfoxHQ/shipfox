@@ -1,4 +1,5 @@
 export type {
+  CheckoutCredentials,
   CheckoutSpec,
   CreateCheckoutSpecInput,
   FetchFileInput,
@@ -13,3 +14,4 @@ export type {
   ResolveRepositoryInput,
   SourceControlProvider,
 } from '@shipfox/api-integration-core-dto';
+export {redactCheckoutSpec} from '@shipfox/api-integration-core-dto';
