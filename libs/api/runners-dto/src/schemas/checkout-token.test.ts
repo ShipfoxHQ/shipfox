@@ -58,4 +58,42 @@ describe('checkoutTokenResponseSchema', () => {
 
     expect(parse).toThrow();
   });
+
+  it('accepts the toISOString() Z wire format for expires_at', () => {
+    const input = {
+      ...bearerResponse,
+      auth: {...bearerResponse.auth, expires_at: '2026-06-10T12:00:00.000Z'},
+    };
+
+    const result = checkoutTokenResponseSchema.parse(input);
+
+    expect(result.auth.expires_at).toBe('2026-06-10T12:00:00.000Z');
+  });
+
+  it('accepts an offset (non-Z) expires_at', () => {
+    const input = {
+      ...bearerResponse,
+      auth: {...bearerResponse.auth, expires_at: '2026-06-10T12:00:00+02:00'},
+    };
+
+    const result = checkoutTokenResponseSchema.parse(input);
+
+    expect(result.auth.expires_at).toBe('2026-06-10T12:00:00+02:00');
+  });
+
+  it('rejects an empty token', () => {
+    const input = {...bearerResponse, auth: {...bearerResponse.auth, token: ''}};
+
+    const parse = () => checkoutTokenResponseSchema.parse(input);
+
+    expect(parse).toThrow();
+  });
+
+  it('rejects an empty repository_url', () => {
+    const input = {...bearerResponse, repository_url: ''};
+
+    const parse = () => checkoutTokenResponseSchema.parse(input);
+
+    expect(parse).toThrow();
+  });
 });

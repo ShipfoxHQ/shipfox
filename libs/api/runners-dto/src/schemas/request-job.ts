@@ -11,11 +11,11 @@ export const jobPayloadStepSchema = z.object({
 export type JobPayloadStepDto = z.infer<typeof jobPayloadStepSchema>;
 
 export const checkoutIntentSchema = z.object({
-  repository_url: z.string(),
-  ref: z.string(),
-  provider: z.string(),
+  repository_url: z.string().min(1),
+  ref: z.string().min(1),
+  provider: z.string().min(1),
   source_connection_id: z.string().uuid(),
-  external_repository_id: z.string(),
+  external_repository_id: z.string().min(1),
 });
 
 export type CheckoutIntentDto = z.infer<typeof checkoutIntentSchema>;
@@ -25,7 +25,6 @@ export const jobPayloadSchema = z.object({
   run_id: z.string().uuid(),
   job_name: z.string(),
   steps: z.array(jobPayloadStepSchema).min(1),
-  checkout: checkoutIntentSchema.nullish(),
 });
 
 export type JobPayloadDto = z.infer<typeof jobPayloadSchema>;

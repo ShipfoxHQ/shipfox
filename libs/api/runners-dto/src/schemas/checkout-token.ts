@@ -2,15 +2,15 @@ import {z} from 'zod';
 
 const checkoutTokenBasicAuthSchema = z.object({
   kind: z.literal('basic'),
-  username: z.string(),
-  token: z.string(),
-  expires_at: z.string().datetime(),
+  username: z.string().min(1),
+  token: z.string().min(1),
+  expires_at: z.string().datetime({offset: true}),
 });
 
 const checkoutTokenBearerAuthSchema = z.object({
   kind: z.literal('bearer'),
-  token: z.string(),
-  expires_at: z.string().datetime(),
+  token: z.string().min(1),
+  expires_at: z.string().datetime({offset: true}),
 });
 
 export const checkoutTokenAuthSchema = z.discriminatedUnion('kind', [
@@ -21,8 +21,8 @@ export const checkoutTokenAuthSchema = z.discriminatedUnion('kind', [
 export type CheckoutTokenAuthDto = z.infer<typeof checkoutTokenAuthSchema>;
 
 export const checkoutTokenResponseSchema = z.object({
-  repository_url: z.string(),
-  ref: z.string(),
+  repository_url: z.string().min(1),
+  ref: z.string().min(1),
   auth: checkoutTokenAuthSchema,
 });
 
