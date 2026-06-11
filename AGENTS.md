@@ -237,6 +237,33 @@ planning-doc decisions (`/plan-eng-review A1`) in module or function headers.
 Speculation about future work ("today X, tomorrow Y") and tracked tasks belong in
 `TODOS.md`, the issue tracker, or the design doc, not in code that outlives them.
 
+## Auth & token security
+
+The auth module issues two stateless bearer tokens — a **user session token** and
+a **job lease token** — each signed with its own dedicated secret. The full
+security model (trust boundaries, scope, threat model, and rotation) lives in
+`libs/api/auth/README.md#security-model`; read it before touching anything that
+mints, verifies, or carries either token.
+
+The job lease token is a single-job **capability**, not an identity. When working
+near it, keep its authority narrow:
+
+- **Keep the scope to one job.** Do not add claims that grant access beyond the
+  single job the lease names. It is not a runner identity, not workspace-wide, and
+  not a replacement for the long-lived runner credential.
+- **Keep a single issuer; everyone else verifies only.** Scheduling mints leases;
+  every other side does an in-process signature check with no callback. Treat the
+  runner and the agent workload it hosts as untrusted — they only present a token.
+- **Keep the lifetime bounded** and never trade the short TTL for convenience.
+- **Server state is the final gate.** A valid token must never be sufficient to
+  advance work on its own — terminal job/step state always wins, and cancellation
+  rides on the heartbeat response.
+- **Never log a raw token.** There is no automatic redaction; tokens must not reach
+  logs, traces, or error payloads. Secrets come from configuration, never code.
+
+If the no-revocation window proves too wide, bind the lease to live runner or job
+state — do not broaden what the token itself authorizes.
+
 ## Error handling
 
 Error handling is a cross-layer concern, not an HTTP detail. The guiding
