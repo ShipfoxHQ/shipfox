@@ -8,11 +8,14 @@ import type {createOrchestrationActivities} from '../activities/index.js';
 /**
  * Two terminal paths:
  *
- *   ┌─ runner POST /complete arrives ──► signal payload set
+ *   ┌─ job-completed signal arrives ──► signal payload set
  *   │                                     ▼
- *   │                                  setJobStatus(status from signal)
- *   │                                  applyStepResultsActivity(reportedSteps)
- *   │                                  return {status}
+ *   │   Per-step runner: the report that made the job terminal already
+ *   │   persisted every step result and signals with no steps, so we only
+ *   │   setJobStatus(status). Legacy job-atomic runner: /complete signals with
+ *   │   the reported steps, which we still applyStepResultsActivity(steps) here
+ *   │   so a mixed-version rollout cannot leave the projection behind the
+ *   │   job status. Then setJobStatus(status); return {status}.
  *   │
  *   └─ JOB_MAX_DURATION elapses with no signal ──► condition() returns false
  *                                                  ▼
@@ -82,15 +85,19 @@ export async function jobOrchestration(
     }
     const {status, steps} = signalPayload;
 
-    // Apply step results FIRST: the activity validates strict consistency for
-    // succeeded jobs (no bogus/missing/duplicate stepIds) and throws on
-    // violation. Only mark the job final if the per-step state is consistent;
-    // otherwise the job stays running and the timeout path will catch it.
-    await applyStepResultsActivity({
-      jobId: input.jobId,
-      completionStatus: status,
-      reportedSteps: steps,
-    });
+    // Per-step execution persists each result as it is reported (the same
+    // transaction that enqueued this signal) and signals with no steps, so the
+    // projection is already authoritative. A legacy job-atomic runner reports
+    // everything at once via /complete and the signal carries the steps; persist
+    // those here so a mixed-version rollout cannot leave step rows behind the
+    // (now authoritative) job status.
+    if (steps.length > 0) {
+      await applyStepResultsActivity({
+        jobId: input.jobId,
+        completionStatus: status,
+        reportedSteps: steps,
+      });
+    }
 
     const {newVersion: finalVersion} = await setJobStatus({
       jobId: input.jobId,

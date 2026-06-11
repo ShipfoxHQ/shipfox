@@ -39,7 +39,11 @@ function executeJob(input: typeof defaultJobInput): Promise<{status: string; job
 }
 
 describe('jobOrchestration', () => {
-  test('signal succeeded — workflow forwards reported steps to applyStepResultsActivity', async () => {
+  // Legacy job-atomic runner: /complete signals with the reported steps, which
+  // the workflow still persists via applyStepResultsActivity so a mixed-version
+  // rollout cannot leave step rows behind the job status. The mock enqueue
+  // simulates this by signalling with per-step entries.
+  test('signal succeeded with reported steps — workflow persists them via applyStepResultsActivity', async () => {
     setCfg({
       dag: makeDag([dagJob('job-1', 'build')]),
       jobResults: new Map([['job-1', 'succeeded']]),
@@ -58,12 +62,14 @@ describe('jobOrchestration', () => {
     }>;
     expect(applyCalls).toHaveLength(1);
     expect(applyCalls[0]?.params.reportedSteps[0]?.status).toBe('succeeded');
-    // Completion path must NOT use the bulk activity.
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
   });
 
-  test('signal failed — workflow forwards the failed step to applyStepResultsActivity', async () => {
-    setCfg({dag: makeDag([dagJob('job-2', 'build')]), jobResults: new Map([['job-2', 'failed']])});
+  test('signal failed with reported steps — workflow persists them via applyStepResultsActivity', async () => {
+    setCfg({
+      dag: makeDag([dagJob('job-2', 'build')]),
+      jobResults: new Map([['job-2', 'failed']]),
+    });
 
     const result = await executeJob({...defaultJobInput, jobId: 'job-2'});
 
@@ -80,6 +86,25 @@ describe('jobOrchestration', () => {
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
   });
 
+  // Per-step runner: results are already persisted as they are reported, so the
+  // completion signal carries no steps and the workflow only flips the status.
+  test('per-step completion signal (no steps) flips status without re-applying results', async () => {
+    setCfg({dag: makeDag([]), jobResults: new Map([['job-perstep', 'succeeded']])});
+
+    const result = await executeJob({...defaultJobInput, jobId: 'job-perstep'});
+
+    expect(result.status).toBe('succeeded');
+    const applyCallsForJob = callsNamed('applyStepResultsActivity').filter(
+      (c) => (c.params as {jobId: string}).jobId === 'job-perstep',
+    );
+    expect(applyCallsForJob).toHaveLength(0);
+    expect(
+      setJobStatusCalls()
+        .filter((c) => c.params.jobId === 'job-perstep')
+        .map((c) => c.params.status),
+    ).toEqual(['running', 'succeeded']);
+  }, 15_000);
+
   test('duplicate signal is ignored', async () => {
     setCfg({
       dag: makeDag([dagJob('job-3', 'build')]),
@@ -89,7 +114,7 @@ describe('jobOrchestration', () => {
 
     const result = await executeJob({...defaultJobInput, jobId: 'job-3'});
 
-    // First signal wins
+    // First signal wins.
     expect(result.status).toBe('succeeded');
 
     const finalStatuses = setJobStatusCalls()
@@ -107,13 +132,13 @@ describe('jobOrchestration', () => {
       args: [{...defaultJobInput, jobId: 'job-stuck'}],
     });
 
-    // Give the workflow time to reach condition()
+    // Give the workflow time to reach condition().
     await new Promise((r) => setTimeout(r, 2000));
 
     const description = await handle.describe();
     expect(description.status.name).toBe('RUNNING');
 
-    // Clean up: signal it so it completes and doesn't leak
+    // Clean up: signal it so it completes and does not leak.
     setCfg({dag: makeDag([]), jobResults: new Map()});
     await handle.signal('job-completed', {status: 'failed', steps: []});
     await handle.result();

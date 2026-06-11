@@ -9,6 +9,10 @@ export const nextStepResponseSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('step'),
     step: stepDtoSchema,
+    // The attempt number this dispatch runs. The runner echoes it back on report
+    // so a late report from a superseded attempt can be ignored. Always 1 until
+    // per-step attempts land (PR B: steps.current_attempt).
+    attempt: z.number().int().positive(),
   }),
   z.object({
     kind: z.literal('done'),
@@ -22,6 +26,14 @@ export const reportStepBodySchema = z
   .object({
     status: z.enum(['succeeded', 'failed']),
     error: stepErrorDtoSchema.optional(),
+    // The attempt the runner was dispatched, echoed from next-step. Optional on
+    // the wire for now; idempotency enforcement against it lands in PR B.
+    attempt: z.number().int().positive().optional(),
+    // Process exit code on success and failure. The runner sends it, but it is
+    // not persisted yet: PR B stores it per attempt and PR D consumes it for
+    // gates (success_if: exit_code == 0). On failure it is also carried under
+    // `error.exit_code`.
+    exit_code: z.number().int().nullable().optional(),
   })
   .refine((body) => (body.status === 'succeeded' ? body.error == null : body.error != null), {
     message: 'succeeded steps must not include an error and failed steps must include one',

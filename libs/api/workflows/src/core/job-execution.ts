@@ -4,6 +4,7 @@ import {
   cancelRemainingSteps,
   getStepsByJobIdForUpdate,
   markStepRunning,
+  writeJobCompletedOutbox,
 } from '#db/workflow-runs.js';
 import type {RuntimeCompletionStatus} from './entities/runtime-dag.js';
 import type {Step, StepStatus} from './entities/step.js';
@@ -70,6 +71,7 @@ export function recordStepResult(params: RecordStepResultParams): Promise<Record
 
     if (!target) throw new StepNotFoundError(params.stepId, params.jobId);
 
+    let applied = false;
     if (!isTerminal(target.status)) {
       // A result may only land on a step that was actually handed out.
       if (target.status === 'pending') {
@@ -87,12 +89,20 @@ export function recordStepResult(params: RecordStepResultParams): Promise<Record
       if (params.status === 'failed') {
         await cancelRemainingSteps({jobId: params.jobId}, tx);
       }
+      applied = true;
     }
     // A terminal target is a duplicate report, left untouched.
 
     const after = await getStepsByJobIdForUpdate(params.jobId, tx);
     if (after.every((step) => isTerminal(step.status))) {
-      return {jobFinished: true, status: deriveCompletion(after)};
+      const status = deriveCompletion(after);
+      // Only this call's transition to terminal emits the completion signal, so
+      // a duplicate report on an already-finished job never enqueues a second
+      // event (no double signal to the job workflow).
+      if (applied) {
+        await writeJobCompletedOutbox(tx, {jobId: params.jobId, status});
+      }
+      return {jobFinished: true, status};
     }
     return {jobFinished: false};
   });

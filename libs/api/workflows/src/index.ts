@@ -1,10 +1,15 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {RUNNER_JOB_COMPLETED} from '@shipfox/api-runners-dto';
-import {WORKFLOW_RUN_CREATED} from '@shipfox/api-workflows-dto';
+import {WORKFLOW_RUN_CREATED, WORKFLOWS_JOB_COMPLETED} from '@shipfox/api-workflows-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath, workflowsOutbox} from '#db/index.js';
-import {onRunnerJobCompleted, onWorkflowRunCreated, routes} from '#presentation/index.js';
+import {
+  onJobCompleted,
+  onRunnerJobCompleted,
+  onWorkflowRunCreated,
+  routes,
+} from '#presentation/index.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
 
 export type {Job, RunWorkflowParams, Step, TriggerPayload, WorkflowRun} from '#core/index.js';
@@ -23,6 +28,7 @@ export const workflowsModule: ShipfoxModule = {
   subscribers: [
     {event: WORKFLOW_RUN_CREATED, handler: onWorkflowRunCreated},
     {event: RUNNER_JOB_COMPLETED, handler: onRunnerJobCompleted},
+    {event: WORKFLOWS_JOB_COMPLETED, handler: onJobCompleted},
   ],
   workers: [
     {

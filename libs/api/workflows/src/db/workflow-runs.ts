@@ -1,6 +1,7 @@
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {
   WORKFLOW_RUN_CREATED,
+  WORKFLOWS_JOB_COMPLETED,
   WORKFLOWS_JOB_TIMED_OUT,
   type WorkflowsEventMap,
 } from '@shipfox/api-workflows-dto';
@@ -428,6 +429,31 @@ export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promis
     });
 
     return updated;
+  });
+}
+
+// Enqueue the terminal-completion signal in the SAME transaction as the final
+// per-step result that made the job terminal. Mirrors failJobAsTimedOut: the
+// state change and its signal intent commit together, so per-step execution
+// observes job completion exactly once (the outbox is at-least-once; the job
+// workflow dedupes the signal).
+export async function writeJobCompletedOutbox(
+  tx: Tx,
+  params: {jobId: string; status: 'succeeded' | 'failed'},
+): Promise<void> {
+  const rows = await tx
+    .select({runId: jobs.runId})
+    .from(jobs)
+    .where(eq(jobs.id, params.jobId))
+    .limit(1);
+  const runId = rows[0]?.runId;
+  if (!runId) {
+    throw new Error(`Cannot enqueue job-completed event: job ${params.jobId} not found`);
+  }
+
+  await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+    type: WORKFLOWS_JOB_COMPLETED,
+    payload: {jobId: params.jobId, runId, status: params.status},
   });
 }
 
