@@ -11,6 +11,7 @@ export const config = createConfig({
   }),
   OTEL_DIAG_LOG_LEVEL: str({
     desc: "Verbosity of OpenTelemetry's own diagnostic logs. Accepts none, error, warn, info, debug, verbose, or all.",
+    choices: ['none', 'error', 'warn', 'info', 'debug', 'verbose', 'all'],
     default: 'none',
   }),
 });

@@ -8,6 +8,7 @@ export const config = createConfig({
   }),
   MAILER_TRANSPORT: str({
     desc: 'How emails are delivered. Use console to print them to the log, or smtp to send them through an SMTP server.',
+    choices: ['console', 'smtp'],
     default: 'console',
   }),
   MAILER_FROM: str({

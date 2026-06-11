@@ -174,9 +174,10 @@ missing value fails startup. Keep the file flat: declare the schema, then derive
 any helpers (such as a mailer) below it.
 
 Document every variable with the validator's `desc` property, never a `//` comment
-beside it. `desc` is part of envalid's output, so it reaches the operators who
-self-host the service; a comment never leaves the source file. When you find an
-existing `//` note on a config param, move it into `desc`.
+beside it. `desc` stays attached to the schema: envalid's default reporter prints it
+when a required variable is missing at startup, and any config tooling can read it.
+A `//` comment never leaves the source file. When you find an existing `//` note on
+a config param, move it into `desc`.
 
 Write the descriptions for self-hosters, not for maintainers:
 
