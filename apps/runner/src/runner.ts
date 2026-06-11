@@ -4,6 +4,7 @@ import {completeJob, HTTPError, requestJob} from '#api-client.js';
 import {config} from '#config.js';
 import {type ExecuteJobResult, executeJob} from '#executor.js';
 import {startHeartbeatLoop} from '#heartbeat-loop.js';
+import {prepareWorkspace, resolveWorkspaceRoot, type Workspace} from '#workspace.js';
 
 let running = true;
 let shuttingDown = false;
@@ -14,8 +15,17 @@ let currentJobAbortController: AbortController | undefined;
 export async function startRunner(): Promise<void> {
   setupSignalHandlers();
 
+  // Validate the workspace root once at startup so a dangerous/misconfigured
+  // root crashes the process at deploy time (index.ts exits non-zero) rather
+  // than silently failing every job.
+  const workspaceRoot = resolveWorkspaceRoot(config);
+
   logger().info(
-    {apiUrl: config.SHIPFOX_API_URL, pollInterval: config.SHIPFOX_POLL_INTERVAL_MS},
+    {
+      apiUrl: config.SHIPFOX_API_URL,
+      pollInterval: config.SHIPFOX_POLL_INTERVAL_MS,
+      workspaceRoot,
+    },
     'Runner started',
   );
 
@@ -38,7 +48,7 @@ export async function startRunner(): Promise<void> {
         'Job received',
       );
 
-      await runJob(job);
+      await runJob(job, workspaceRoot);
     } catch (pollError) {
       logger().error({err: pollError}, 'Poll cycle failed');
       currentInterval = Math.min(currentInterval * 1.5, config.SHIPFOX_POLL_MAX_INTERVAL_MS);
@@ -49,7 +59,10 @@ export async function startRunner(): Promise<void> {
   logger().info('Runner stopped');
 }
 
-async function runJob(job: Awaited<ReturnType<typeof requestJob>> & object): Promise<void> {
+export async function runJob(
+  job: Awaited<ReturnType<typeof requestJob>> & object,
+  workspaceRoot: string,
+): Promise<void> {
   const ac = new AbortController();
   currentJobAbortController = ac;
 
@@ -58,9 +71,13 @@ async function runJob(job: Awaited<ReturnType<typeof requestJob>> & object): Pro
     maxStaleMs: config.SHIPFOX_HEARTBEAT_MAX_STALE_MS,
   });
 
+  let workspace: Workspace | undefined;
   let result: ExecuteJobResult;
   try {
-    result = await executeJob(job, {signal: ac.signal});
+    // A prepare failure (unsafe path, mkdir/rm error) fails the job before any
+    // step runs — the catch below reports failed with empty steps.
+    workspace = await prepareWorkspace(job, workspaceRoot);
+    result = await executeJob(job, {signal: ac.signal, cwd: workspace.cwd});
     logger().info({jobId: job.job_id, status: result.status}, 'Job execution finished');
   } catch (execError) {
     logger().error({err: execError, jobId: job.job_id}, 'Job execution failed');
@@ -72,9 +89,9 @@ async function runJob(job: Awaited<ReturnType<typeof requestJob>> & object): Pro
     if (currentJobAbortController === ac) currentJobAbortController = undefined;
   }
 
-  // 404 here is the expected signal that the backend already finalized this
-  // job; do not retry, do not fall through to the outer catch (would re-attempt).
   try {
+    // 404 here is the expected signal that the backend already finalized this
+    // job; do not retry, do not fall through to the outer catch (would re-attempt).
     await completeJob({jobId: job.job_id, status: result.status, steps: result.steps});
     logger().info({jobId: job.job_id, status: result.status}, 'Job completed');
   } catch (reportError) {
@@ -86,6 +103,11 @@ async function runJob(job: Awaited<ReturnType<typeof requestJob>> & object): Pro
     } else {
       logger().error({err: reportError, jobId: job.job_id}, 'Failed to report job completion');
     }
+  } finally {
+    // Clean up after reporting (so a hung cleanup can't lose the completion)
+    // and in a finally so success, step failure, unsupported steps, and
+    // cancellation all attempt it. cleanup() swallows its own errors.
+    if (workspace) await workspace.cleanup();
   }
 }
 

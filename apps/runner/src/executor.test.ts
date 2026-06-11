@@ -89,6 +89,19 @@ describe('executeJob', () => {
     });
   });
 
+  it('forwards cwd to executeRunStep', async () => {
+    mockExecuteRunStep.mockResolvedValue({success: true, output: '', error: null});
+
+    const job = buildJob([{position: 0}]);
+
+    await executeJob(job, {cwd: '/tmp/shipfox-job-x'});
+
+    expect(mockExecuteRunStep).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({cwd: '/tmp/shipfox-job-x'}),
+    );
+  });
+
   it('handles a single step job', async () => {
     mockExecuteRunStep.mockResolvedValue({success: true, output: 'done\n', error: null});
 
