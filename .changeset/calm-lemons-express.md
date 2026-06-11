@@ -1,6 +1,5 @@
 ---
-"@shipfox/expression-language": minor
-"@shipfox/expression-evaluator": minor
+"@shipfox/expression": minor
 ---
 
-Adds shared CEL expression language and evaluator packages behind Shipfox-owned APIs.
+Adds shared CEL expression checks and evaluation behind Shipfox-owned APIs.

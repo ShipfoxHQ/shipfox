@@ -1,4 +1,4 @@
-import {createWorkflowExpression} from '@shipfox/expression-language';
+import {createWorkflowExpression} from '../expression/create-workflow-expression.js';
 import {WorkflowExpressionEvaluationError} from './errors.js';
 import {
   evaluateWorkflowExpression,

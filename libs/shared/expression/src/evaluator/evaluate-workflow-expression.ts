@@ -1,5 +1,5 @@
 import {Runtime} from '@gresb/cel-javascript';
-import type {WorkflowExpression} from '@shipfox/expression-language';
+import type {WorkflowExpression} from '../expression/workflow-expression.js';
 import {WorkflowExpressionEvaluationError} from './errors.js';
 
 export type WorkflowExpressionEvaluationContext = Readonly<Record<string, unknown>>;

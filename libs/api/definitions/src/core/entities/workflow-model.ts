@@ -1,4 +1,4 @@
-import type {WorkflowExpression} from '@shipfox/expression-language';
+import type {WorkflowExpression} from '@shipfox/expression';
 
 export interface WorkflowModel {
   readonly kind: 'workflow';

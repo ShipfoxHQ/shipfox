@@ -554,9 +554,9 @@ importers:
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
-      '@shipfox/expression-language':
+      '@shipfox/expression':
         specifier: workspace:*
-        version: link:../../shared/expression/language
+        version: link:../../shared/expression
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -2287,32 +2287,7 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/vitest
 
-  libs/shared/expression/evaluator:
-    dependencies:
-      '@gresb/cel-javascript':
-        specifier: 0.1.1
-        version: 0.1.1(patch_hash=25633d62641014489f723fad0b7e3a3e0e43505f3c7d0562a5988d3c77b63d19)
-      '@shipfox/expression-language':
-        specifier: workspace:*
-        version: link:../language
-    devDependencies:
-      '@shipfox/biome':
-        specifier: workspace:*
-        version: link:../../../../tools/biome
-      '@shipfox/swc':
-        specifier: workspace:*
-        version: link:../../../../tools/swc
-      '@shipfox/ts-config':
-        specifier: workspace:*
-        version: link:../../../../tools/ts-config
-      '@shipfox/typescript':
-        specifier: workspace:*
-        version: link:../../../../tools/typescript
-      '@shipfox/vitest':
-        specifier: workspace:*
-        version: link:../../../../tools/vitest
-
-  libs/shared/expression/language:
+  libs/shared/expression:
     dependencies:
       '@gresb/cel-javascript':
         specifier: 0.1.1
@@ -2320,19 +2295,19 @@ importers:
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
-        version: link:../../../../tools/biome
+        version: link:../../../tools/biome
       '@shipfox/swc':
         specifier: workspace:*
-        version: link:../../../../tools/swc
+        version: link:../../../tools/swc
       '@shipfox/ts-config':
         specifier: workspace:*
-        version: link:../../../../tools/ts-config
+        version: link:../../../tools/ts-config
       '@shipfox/typescript':
         specifier: workspace:*
-        version: link:../../../../tools/typescript
+        version: link:../../../tools/typescript
       '@shipfox/vitest':
         specifier: workspace:*
-        version: link:../../../../tools/vitest
+        version: link:../../../tools/vitest
 
   libs/shared/node/drizzle:
     dependencies:

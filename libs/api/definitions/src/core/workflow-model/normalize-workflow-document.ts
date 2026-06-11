@@ -2,7 +2,7 @@ import {
   createWorkflowExpression,
   InvalidWorkflowExpressionError,
   type WorkflowExpression,
-} from '@shipfox/expression-language';
+} from '@shipfox/expression';
 import type {
   WorkflowDocument,
   WorkflowDocumentJob,
