@@ -24,7 +24,7 @@ import {
 } from '#core/errors.js';
 import {verifyUserToken} from '#core/jwt.js';
 import {db} from '#db/db.js';
-import {findActiveRefreshTokenByHash} from '#db/refresh-tokens.js';
+import * as refreshTokenDb from '#db/refresh-tokens.js';
 import {emailVerifications} from '#db/schema/email-verifications.js';
 import {refreshTokens} from '#db/schema/refresh-tokens.js';
 import {users} from '#db/schema/users.js';
@@ -169,6 +169,19 @@ describe('auth core', () => {
     expect(raced.refreshToken).toBeUndefined();
   });
 
+  test('refreshAccessToken rejects a lost rotation claim when the token was revoked', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+    const loginResult = await login({email: user.email, password: user.plainPassword});
+    vi.spyOn(refreshTokenDb, 'markRefreshTokenRotated').mockImplementationOnce(async () => {
+      await logout({refreshToken: loginResult.refreshToken});
+      return undefined;
+    });
+
+    const raced = refreshAccessToken({refreshToken: loginResult.refreshToken});
+
+    await expect(raced).rejects.toBeInstanceOf(TokenInvalidError);
+  });
+
   test('refreshAccessToken rejects reuse past the grace window and revokes the session', async () => {
     const user = await userFactory.create({emailVerifiedAt: new Date()});
     const loginResult = await login({email: user.email, password: user.plainPassword});
@@ -184,7 +197,9 @@ describe('auth core', () => {
     await expect(reused).rejects.toBeInstanceOf(TokenInvalidError);
     // The successor token is revoked too: reuse is treated as a compromise.
     const successor = refreshed.refreshToken
-      ? await findActiveRefreshTokenByHash({hashedToken: hashOpaqueToken(refreshed.refreshToken)})
+      ? await refreshTokenDb.findActiveRefreshTokenByHash({
+          hashedToken: hashOpaqueToken(refreshed.refreshToken),
+        })
       : undefined;
     expect(successor).toBeUndefined();
   });
@@ -208,7 +223,7 @@ describe('auth core', () => {
 
     const result = await confirmEmailVerification({token});
     const verified = await findUserById({id: user.id});
-    const refreshSession = await findActiveRefreshTokenByHash({
+    const refreshSession = await refreshTokenDb.findActiveRefreshTokenByHash({
       hashedToken: hashOpaqueToken(result.refreshToken),
     });
     const reused = confirmEmailVerification({token});
@@ -385,7 +400,7 @@ describe('auth core', () => {
 
     await logout({refreshToken: loginResult.refreshToken});
 
-    const active = await findActiveRefreshTokenByHash({
+    const active = await refreshTokenDb.findActiveRefreshTokenByHash({
       hashedToken: hashOpaqueToken(loginResult.refreshToken),
     });
     expect(active).toBeUndefined();

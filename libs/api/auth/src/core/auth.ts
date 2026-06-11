@@ -31,6 +31,7 @@ import {
   markEmailVerified,
   updateUserPassword,
 } from '#db/users.js';
+import type {RefreshToken} from './entities/refresh-token.js';
 import type {User} from './entities/user.js';
 import {
   AuthDependencyUnavailableError,
@@ -74,6 +75,12 @@ async function signAccessToken(user: User): Promise<string> {
     secret: config.AUTH_JWT_SECRET,
     expiresIn: config.AUTH_JWT_EXPIRES_IN,
   });
+}
+
+function isWithinRotationGrace(refreshToken: RefreshToken): boolean {
+  if (!refreshToken.rotatedAt) return false;
+  const graceMs = config.AUTH_REFRESH_ROTATION_GRACE_SECONDS * 1000;
+  return Date.now() - refreshToken.rotatedAt.getTime() <= graceMs;
 }
 
 async function createRefreshSession(user: User): Promise<string> {
@@ -329,8 +336,7 @@ export async function refreshAccessToken(params: {
   // Within the grace window a rotated token means a concurrent refresh (e.g. a
   // second tab); past it, reuse of a retired token means a compromised session.
   if (current.rotatedAt) {
-    const graceMs = config.AUTH_REFRESH_ROTATION_GRACE_SECONDS * 1000;
-    if (Date.now() - current.rotatedAt.getTime() <= graceMs) {
+    if (isWithinRotationGrace(current)) {
       const token = await signAccessToken(user);
       return {token, refreshToken: undefined, user};
     }
@@ -338,9 +344,14 @@ export async function refreshAccessToken(params: {
     throw new TokenInvalidError('Refresh token reused after rotation');
   }
 
-  // Losing the CAS means a simultaneous refresh already rotated; treat as grace.
+  // Losing the CAS requires a state check: another request may have rotated,
+  // revoked, or expired the token before this refresh could claim it.
   const rotated = await markRefreshTokenRotated({id: current.id, currentHashedToken});
   if (!rotated) {
+    const latest = await findRefreshTokenByHash({hashedToken: currentHashedToken});
+    if (!latest || !isWithinRotationGrace(latest)) {
+      throw new TokenInvalidError('Refresh token is invalid or expired');
+    }
     const token = await signAccessToken(user);
     return {token, refreshToken: undefined, user};
   }
