@@ -1,18 +1,14 @@
-import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import type {
   GetIntegrationConnectionByIdFn,
   PublishIntegrationEventReceivedFn,
   RecordDeliveryOnlyFn,
-  UpdateConnectionLifecycleStatusFn,
-} from '#core/webhook.js';
+  UpdateIntegrationConnectionLifecycleStatusFn,
+} from '@shipfox/api-integration-core-dto';
+import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {closeDb, db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {createSentryWebhookRoutes} from '#presentation/routes/webhooks.js';
 
-export type {
-  HandleSentryInstallationOutcome,
-  HandleSentryIssueOutcome,
-} from '#core/webhook.js';
 export {handleSentryInstallationLifecycle, handleSentryIssueEvent} from '#core/webhook.js';
 export type {
   SentryInstallation,
@@ -31,7 +27,7 @@ export interface CreateSentryIntegrationProviderOptions {
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
-  updateConnectionLifecycleStatus: UpdateConnectionLifecycleStatusFn;
+  updateConnectionLifecycleStatus: UpdateIntegrationConnectionLifecycleStatusFn;
 }
 
 export function createSentryIntegrationProvider(options: CreateSentryIntegrationProviderOptions) {

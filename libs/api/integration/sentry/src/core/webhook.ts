@@ -1,11 +1,17 @@
 import type {
-  IntegrationConnection,
-  IntegrationConnectionLifecycleStatus,
-  IntegrationEventReceivedEvent,
+  GetIntegrationConnectionByIdFn,
+  IntegrationTx,
+  PublishIntegrationEventReceivedFn,
+  RecordDeliveryOnlyFn,
   SentryIssuePayload,
+  UpdateIntegrationConnectionLifecycleStatusFn,
 } from '@shipfox/api-integration-core-dto';
 import type {SentryIssueWebhookDto} from '@shipfox/api-integration-sentry-dto';
-import {logger} from '@shipfox/node-opentelemetry';
+import {
+  SentryConnectionNotFoundError,
+  SentryInstallationDeletedError,
+  SentryInstallationNotFoundError,
+} from '#core/errors.js';
 import {
   getSentryInstallationByInstallationUuid,
   markSentryInstallationDeleted,
@@ -15,84 +21,40 @@ const SENTRY_SOURCE = 'sentry';
 const DEFAULT_ISSUE_TITLE = 'Sentry issue';
 const DELETED_STATUS = 'deleted';
 
-// biome-ignore lint/suspicious/noExplicitAny: cross-package tx without cyclic dep
-type Tx = any;
-
-export type PublishIntegrationEventReceivedFn = (params: {
-  tx: Tx;
-  event: IntegrationEventReceivedEvent;
-}) => Promise<{published: boolean}>;
-
-export type RecordDeliveryOnlyFn = (params: {
-  tx: Tx;
-  provider: string;
-  deliveryId: string;
-}) => Promise<void>;
-
-export type GetIntegrationConnectionByIdFn = (
-  id: string,
-  options?: {tx?: Tx},
-) => Promise<IntegrationConnection | undefined>;
-
-export type UpdateConnectionLifecycleStatusFn = (
-  params: {id: string; lifecycleStatus: IntegrationConnectionLifecycleStatus},
-  options?: {tx?: Tx},
-) => Promise<unknown>;
-
 export interface HandleSentryIssueEventParams {
-  tx: Tx;
+  tx: IntegrationTx;
   deliveryId: string;
   payload: SentryIssueWebhookDto;
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
-  recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
 }
 
-export type HandleSentryIssueOutcome =
-  | 'published'
-  | 'duplicate'
-  | 'unknown-installation'
-  | 'installation-deleted'
-  | 'unknown-connection';
-
-export async function handleSentryIssueEvent(
-  params: HandleSentryIssueEventParams,
-): Promise<{outcome: HandleSentryIssueOutcome}> {
+// Publishes the mapped event for a verified issue delivery. Throws a typed
+// SentryIssueDroppedError subclass when the delivery references state we cannot
+// publish against (unknown/deleted installation, missing connection); the webhook
+// layer records-and-drops those. Dedup of an already-seen delivery is handled
+// inside publishIntegrationEventReceived.
+export async function handleSentryIssueEvent(params: HandleSentryIssueEventParams): Promise<void> {
   const installationUuid = params.payload.installation.uuid;
 
   const installation = await getSentryInstallationByInstallationUuid(installationUuid, {
     tx: params.tx,
   });
   if (!installation) {
-    logger().warn(
-      {deliveryId: params.deliveryId, installationUuid},
-      'sentry webhook: unknown installation, dropping',
-    );
-    await recordDrop(params);
-    return {outcome: 'unknown-installation'};
+    throw new SentryInstallationNotFoundError(installationUuid);
   }
   if (installation.status === DELETED_STATUS) {
-    logger().warn(
-      {deliveryId: params.deliveryId, installationUuid},
-      'sentry webhook: installation is deleted, dropping',
-    );
-    await recordDrop(params);
-    return {outcome: 'installation-deleted'};
+    throw new SentryInstallationDeletedError(installationUuid);
   }
 
   const connection = await params.getIntegrationConnectionById(installation.connectionId, {
     tx: params.tx,
   });
   if (!connection) {
-    logger().warn(
-      {deliveryId: params.deliveryId, installationUuid, connectionId: installation.connectionId},
-      'sentry webhook: installation has no connection, dropping',
-    );
-    await recordDrop(params);
-    return {outcome: 'unknown-connection'};
+    throw new SentryConnectionNotFoundError(installation.connectionId);
   }
 
-  const result = await params.publishIntegrationEventReceived({
+  await params.publishIntegrationEventReceived({
     tx: params.tx,
     event: {
       source: SENTRY_SOURCE,
@@ -104,24 +66,20 @@ export async function handleSentryIssueEvent(
       payload: normalizeIssuePayload(params.payload),
     },
   });
-
-  return {outcome: result.published ? 'published' : 'duplicate'};
 }
 
 export interface HandleSentryInstallationLifecycleParams {
-  tx: Tx;
+  tx: IntegrationTx;
   deliveryId: string;
   action: 'created' | 'deleted';
   installationUuid: string;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
-  updateConnectionLifecycleStatus: UpdateConnectionLifecycleStatusFn;
+  updateConnectionLifecycleStatus: UpdateIntegrationConnectionLifecycleStatusFn;
 }
-
-export type HandleSentryInstallationOutcome = 'recorded' | 'disabled';
 
 export async function handleSentryInstallationLifecycle(
   params: HandleSentryInstallationLifecycleParams,
-): Promise<{outcome: HandleSentryInstallationOutcome}> {
+): Promise<void> {
   if (params.action === 'deleted') {
     const installation = await markSentryInstallationDeleted(
       {installationUuid: params.installationUuid},
@@ -132,23 +90,17 @@ export async function handleSentryInstallationLifecycle(
         {id: installation.connectionId, lifecycleStatus: 'disabled'},
         {tx: params.tx},
       );
-      await params.recordDeliveryOnly({
-        tx: params.tx,
-        provider: SENTRY_SOURCE,
-        deliveryId: params.deliveryId,
-      });
-      return {outcome: 'disabled'};
     }
   }
 
-  // The connect flow owns row creation; early lifecycle webhooks should not create
-  // partial installations from an unauthenticated provider callback.
+  // Every delivery is recorded for dedup. The connect flow owns row creation, so
+  // an early lifecycle webhook with no matching row is recorded without creating a
+  // partial installation from an unauthenticated provider callback.
   await params.recordDeliveryOnly({
     tx: params.tx,
     provider: SENTRY_SOURCE,
     deliveryId: params.deliveryId,
   });
-  return {outcome: 'recorded'};
 }
 
 // A raw Sentry `ignored` action is normalized to `archived` before validation,
@@ -179,16 +131,4 @@ function normalizeIssuePayload(payload: SentryIssueWebhookDto): SentryIssuePaylo
     firstSeenAt: issue.firstSeen ?? null,
     lastSeenAt: issue.lastSeen ?? null,
   };
-}
-
-function recordDrop(params: {
-  tx: Tx;
-  deliveryId: string;
-  recordDeliveryOnly: RecordDeliveryOnlyFn;
-}): Promise<void> {
-  return params.recordDeliveryOnly({
-    tx: params.tx,
-    provider: SENTRY_SOURCE,
-    deliveryId: params.deliveryId,
-  });
 }

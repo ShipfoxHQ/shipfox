@@ -1,10 +1,10 @@
-import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import type {
   GetIntegrationConnectionByIdFn,
   PublishIntegrationEventReceivedFn,
   RecordDeliveryOnlyFn,
-  UpdateConnectionLifecycleStatusFn,
-} from '#core/webhook.js';
+  UpdateIntegrationConnectionLifecycleStatusFn,
+} from '@shipfox/api-integration-core-dto';
+import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 
 /**
  * The capabilities a Sentry webhook handler needs from the rest of the system.
@@ -17,5 +17,5 @@ export interface SentryWebhookContext {
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
-  updateConnectionLifecycleStatus: UpdateConnectionLifecycleStatusFn;
+  updateConnectionLifecycleStatus: UpdateIntegrationConnectionLifecycleStatusFn;
 }

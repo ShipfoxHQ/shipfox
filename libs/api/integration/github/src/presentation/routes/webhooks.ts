@@ -1,5 +1,10 @@
 import {Buffer} from 'node:buffer';
 import {Webhooks} from '@octokit/webhooks';
+import type {
+  GetIntegrationConnectionByIdFn,
+  PublishIntegrationEventReceivedFn,
+  RecordDeliveryOnlyFn,
+} from '@shipfox/api-integration-core-dto';
 import {githubPushPayloadSchema} from '@shipfox/api-integration-github-dto';
 import {
   defineRoute,
@@ -10,12 +15,7 @@ import {
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {config} from '#config.js';
-import {
-  type GetIntegrationConnectionByIdFn,
-  handleGithubPush,
-  type PublishIntegrationEventReceivedFn,
-  type RecordDeliveryOnlyFn,
-} from '#core/webhook.js';
+import {handleGithubPush} from '#core/webhook.js';
 
 const SIGNATURE_HEADER = 'x-hub-signature-256';
 const EVENT_HEADER = 'x-github-event';
