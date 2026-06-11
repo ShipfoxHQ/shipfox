@@ -1,5 +1,6 @@
 import {withTransaction} from '#db/db.js';
 import {
+  countStepAttempts,
   getStepsByJobIdForUpdate,
   insertRunningStepAttempt,
   markStepRunning,
@@ -125,6 +126,11 @@ export function recordStepResult(params: RecordStepResultParams): Promise<Record
     // engine runs — and pass the precomputed outcome into the pure decision.
     const gate = readStepGate(target.config);
     const gateOutcome = evaluateGate(gate, result);
+    // The restart cap is bounded on the gating step's OWN attempts, not its
+    // current_attempt (which a rewind inflates for downstream steps).
+    const gatingAttemptCount = gate?.onFailure?.restartFrom
+      ? await countStepAttempts(params.stepId, tx)
+      : undefined;
     const decision = decideStepTransition({
       steps,
       target,
@@ -132,6 +138,7 @@ export function recordStepResult(params: RecordStepResultParams): Promise<Record
       result,
       gateOutcome,
       ...(gate?.onFailure ? {gateOnFailure: gate.onFailure} : {}),
+      ...(gatingAttemptCount !== undefined ? {gatingAttemptCount} : {}),
     });
     return applyStepTransition(
       decision,

@@ -3,6 +3,7 @@ import {
   WORKFLOW_RUN_CREATED,
   WORKFLOWS_JOB_COMPLETED,
   WORKFLOWS_JOB_TIMED_OUT,
+  WORKFLOWS_STEP_RESTART_ENQUEUED,
   type WorkflowsEventMap,
 } from '@shipfox/api-workflows-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
@@ -695,6 +696,7 @@ export interface FinishStepAttemptParams {
   output?: Record<string, unknown> | null;
   exitCode?: number | null;
   gateResult?: Record<string, unknown> | null;
+  restartReason?: string | null;
 }
 
 // Finalize the running attempt to a terminal state. The `status='running'` guard
@@ -709,6 +711,7 @@ export async function finishStepAttempt(params: FinishStepAttemptParams, tx: Tx)
       error: params.error ?? null,
       exitCode: params.exitCode ?? null,
       gateResult: params.gateResult ?? null,
+      restartReason: params.restartReason ?? null,
       finishedAt: new Date(),
     })
     .where(
@@ -718,6 +721,81 @@ export async function finishStepAttempt(params: FinishStepAttemptParams, tx: Tx)
         eq(stepAttempts.status, 'running'),
       ),
     );
+}
+
+export interface RewindStepsToPendingParams {
+  jobId: string;
+  fromPosition: number;
+}
+
+// Restart-only: rewind every step at or after `fromPosition` back to pending,
+// clearing its result and bumping both `version` and `current_attempt` so the next
+// dispatch opens a fresh attempt. This DELIBERATELY bypasses the never-downgrade
+// guard used everywhere else — it is the one place that resurrects terminal steps
+// — so it must only be called from the durable-restart path, never the ordinary
+// report path. It must run in the same transaction as the failed-attempt write.
+export async function rewindStepsToPending(
+  params: RewindStepsToPendingParams,
+  tx: Tx,
+): Promise<void> {
+  await tx
+    .update(steps)
+    .set({
+      status: 'pending',
+      output: null,
+      error: null,
+      version: sql`${steps.version} + 1`,
+      currentAttempt: sql`${steps.currentAttempt} + 1`,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(steps.jobId, params.jobId), gte(steps.position, params.fromPosition)));
+}
+
+// Enqueue the durable audit record of a restart, in the same transaction as the
+// rewind. Looks up the run id like writeJobCompletedOutbox.
+export async function writeStepRestartEnqueuedOutbox(
+  tx: Tx,
+  params: {
+    jobId: string;
+    failedStepId: string;
+    failedStepAttempt: number;
+    restartFromStepId: string;
+    reason: string;
+  },
+): Promise<void> {
+  const rows = await tx
+    .select({runId: jobs.runId})
+    .from(jobs)
+    .where(eq(jobs.id, params.jobId))
+    .limit(1);
+  const runId = rows[0]?.runId;
+  if (!runId) {
+    throw new Error(`Cannot enqueue step-restart event: job ${params.jobId} not found`);
+  }
+
+  await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+    type: WORKFLOWS_STEP_RESTART_ENQUEUED,
+    payload: {
+      jobId: params.jobId,
+      runId,
+      failedStepId: params.failedStepId,
+      failedStepAttempt: params.failedStepAttempt,
+      restartFromStepId: params.restartFromStepId,
+      reason: params.reason,
+    },
+  });
+}
+
+// Count a single step's own attempts. Used to bound the restart cap on the
+// gating step's actual executions — `steps.current_attempt` can't be used for
+// the cap because a rewind also bumps it for downstream steps swept into the
+// rewind range (which would inflate a later gate's cap in a multi-gate job).
+export async function countStepAttempts(stepId: string, tx: Tx): Promise<number> {
+  const rows = await tx
+    .select({total: count()})
+    .from(stepAttempts)
+    .where(eq(stepAttempts.stepId, stepId));
+  return Number(rows[0]?.total ?? 0);
 }
 
 export async function getStepAttempts(jobId: string): Promise<StepAttempt[]> {

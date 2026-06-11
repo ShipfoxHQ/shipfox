@@ -4,7 +4,9 @@ import {
   cancelRemainingSteps,
   finishStepAttempt,
   getStepsByJobIdForUpdate,
+  rewindStepsToPending,
   writeJobCompletedOutbox,
+  writeStepRestartEnqueuedOutbox,
 } from '#db/workflow-runs.js';
 import {
   deriveCompletion,
@@ -56,7 +58,8 @@ export async function applyStepTransition(
       );
       break;
     }
-    case 'fail-job': {
+    case 'fail-job':
+    case 'fail-job-restart-exhausted': {
       await finishStepAttempt(
         {
           stepId: decision.failedStepId,
@@ -82,10 +85,38 @@ export async function applyStepTransition(
       await cancelRemainingSteps({jobId: ctx.jobId}, tx);
       break;
     }
-    case 'restart-job-from-step':
-    case 'fail-job-restart-exhausted':
-      // Durable restart lands in PR E.
-      throw new Error(`Unsupported step transition: ${decision.kind}`);
+    case 'restart-job-from-step': {
+      // Record the failed attempt FIRST (audit, with the restart reason), then
+      // rewind the projection from restart_from so the prior result is preserved
+      // only in the attempt history. All in one transaction with the report.
+      await finishStepAttempt(
+        {
+          stepId: decision.failedStepId,
+          attempt: decision.attempt,
+          status: 'failed',
+          output: ctx.result.output ?? null,
+          error: decision.failureError,
+          exitCode: ctx.result.exitCode ?? null,
+          gateResult: ctx.gateResult ?? null,
+          restartReason: decision.reason,
+        },
+        tx,
+      );
+      await rewindStepsToPending(
+        {jobId: ctx.jobId, fromPosition: decision.restartFromPosition},
+        tx,
+      );
+      await writeStepRestartEnqueuedOutbox(tx, {
+        jobId: ctx.jobId,
+        failedStepId: decision.failedStepId,
+        failedStepAttempt: decision.attempt,
+        restartFromStepId: decision.restartFromStepId,
+        reason: decision.reason,
+      });
+      // The job stays running; the next pull re-dispatches restart_from. Do not
+      // derive completion or emit a completion event.
+      return {jobFinished: false};
+    }
   }
 
   // Re-derive completion from the post-apply projection so the outcome is robust

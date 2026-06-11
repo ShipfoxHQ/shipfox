@@ -40,11 +40,21 @@ export interface DecideStepTransitionInput {
   result: StepResult;
   // Precomputed gate evaluation. Absent ⇒ no gate, so `result.status` is authoritative.
   gateOutcome?: GateOutcome;
-  // The gate's on_failure policy, if any. Drives the restart branch (fail-closed
-  // until PR E makes durable restart executable).
+  // The gate's on_failure policy, if any. Drives the restart branch.
   gateOnFailure?: {restartFrom: string; output?: string};
-  // PR E adds the restart attempt cap here.
+  // Max total attempts for the gating step before restart is exhausted; defaults
+  // to DEFAULT_RESTART_ATTEMPT_CAP.
+  maxAttempts?: number;
+  // The gating step's own execution count (number of its attempts), used for the
+  // cap. Defaults to `reportedAttempt` — correct for a single-gate job, where the
+  // two are equal; the service passes the real count so a downstream gate in a
+  // multi-gate job isn't penalized for upstream-induced rewinds.
+  gatingAttemptCount?: number;
 }
+
+// Per-step restart cap: the gating step may run at most this many attempts before
+// a further restart is refused. Bounds runaway restart loops.
+export const DEFAULT_RESTART_ATTEMPT_CAP = 3;
 
 // The semantic outcome of a step report, independent of persistence. The restart
 // variants are typed now but only produced once durable restart lands (PR E).
@@ -58,7 +68,6 @@ export type StepTransitionDecision =
       kind: 'fail-job';
       failedStepId: string;
       attempt: number;
-      cancelFromPosition: number;
       // The error to record on the step/attempt (the reported error, or a
       // structured gate error).
       failureError: Record<string, unknown> | null;
@@ -67,14 +76,18 @@ export type StepTransitionDecision =
       kind: 'restart-job-from-step';
       failedStepId: string;
       restartFromStepId: string;
+      restartFromPosition: number;
       attempt: number;
       reason: string;
+      // Recorded on the failed attempt before the rewind clears the projection.
+      failureError: Record<string, unknown> | null;
     }
   | {
       kind: 'fail-job-restart-exhausted';
       failedStepId: string;
       attempt: number;
       maxAttempts: number;
+      failureError: Record<string, unknown> | null;
     };
 
 function succeed(target: Step, attempt: number, steps: Step[]): StepTransitionDecision {
@@ -97,63 +110,76 @@ function fail(
     kind: 'fail-job',
     failedStepId: target.id,
     attempt,
-    cancelFromPosition: target.position,
     failureError,
   };
 }
 
-// A failure that carried restart intent we cannot yet honor. Fail loudly so it is
-// never silently degraded to an ordinary failure (PR E turns this into a rewind).
-function restartUnsupportedError(restartFrom: string): Record<string, unknown> {
-  return {
-    kind: 'restart_unsupported',
-    message: `gate requested restart_from "${restartFrom}" but durable restart is not enabled`,
-    restart_from: restartFrom,
-  };
-}
-
 // Pure: maps a step report (and its precomputed gate outcome) to a transition
-// decision. No DB, no expression engine. PR C handled the gate-less cases; this
-// adds terminal gate pass/fail and fails closed for an unsupported restart. PR E
-// turns the fail-closed restart branch into an actual rewind.
+// decision. No DB, no expression engine. A passing gate succeeds; a checkable
+// failure with a resolvable `restart_from` rewinds (until the per-step attempt cap
+// is hit); everything else fails the job. An `uncheckable` failure (no exit code /
+// eval error) is always a plain failure, never a restart.
 export function decideStepTransition(input: DecideStepTransitionInput): StepTransitionDecision {
   const {steps, target, reportedAttempt, result, gateOnFailure} = input;
   const gate = input.gateOutcome ?? {kind: 'no-gate'};
+  const maxAttempts = input.maxAttempts ?? DEFAULT_RESTART_ATTEMPT_CAP;
 
-  if (gate.kind === 'no-gate') {
-    if (result.status === 'succeeded') return succeed(target, reportedAttempt, steps);
-    // `on_failure` may be set without a `success_if` predicate (the document
-    // schema allows it): a raw command failure then still carries restart intent,
-    // so fail closed loudly rather than as a plain failure.
-    if (gateOnFailure?.restartFrom) {
-      return fail(target, reportedAttempt, restartUnsupportedError(gateOnFailure.restartFrom));
-    }
-    return fail(target, reportedAttempt, result.error ?? null);
-  }
-
-  if (gate.kind === 'passed') {
-    // The gate is authoritative over the raw command status.
+  // 1. Did the step pass? The gate (when present and checkable) is authoritative
+  //    over the raw command status.
+  if (gate.kind === 'no-gate' ? result.status === 'succeeded' : gate.kind === 'passed') {
     return succeed(target, reportedAttempt, steps);
   }
 
-  if (gate.kind === 'uncheckable') {
-    // No exit code (signal-kill) or an evaluation error: a plain command failure.
-    // Fail closed — never a restart.
-    return fail(
-      target,
-      reportedAttempt,
-      result.error ?? {kind: 'gate_uncheckable', message: gate.reason},
+  // 2. It failed. Classify the failure error and whether it is restartable.
+  //    `uncheckable` (no exit code / eval error) is a plain command failure that
+  //    never restarts.
+  const uncheckable = gate.kind === 'uncheckable';
+  const failureError: Record<string, unknown> | null =
+    gate.kind === 'failed'
+      ? {kind: 'gate_failed', message: 'gate condition not met', source: gate.source}
+      : gate.kind === 'uncheckable'
+        ? (result.error ?? {kind: 'gate_uncheckable', message: gate.reason})
+        : (result.error ?? null);
+
+  // 3. Restart when a policy is configured and the failure is checkable.
+  if (gateOnFailure?.restartFrom && !uncheckable) {
+    const restartStep = steps.find(
+      (step) => step.position < target.position && step.name === gateOnFailure.restartFrom,
     );
+    if (!restartStep) {
+      // The model validates restart_from to an earlier named step, but fail closed
+      // if it can't be resolved at runtime rather than silently restarting wrong.
+      return fail(target, reportedAttempt, {
+        kind: 'restart_unresolved',
+        message: `could not resolve restart_from "${gateOnFailure.restartFrom}"`,
+        restart_from: gateOnFailure.restartFrom,
+      });
+    }
+    const gatingAttemptCount = input.gatingAttemptCount ?? reportedAttempt;
+    if (gatingAttemptCount >= maxAttempts) {
+      return {
+        kind: 'fail-job-restart-exhausted',
+        failedStepId: target.id,
+        attempt: reportedAttempt,
+        maxAttempts,
+        failureError: {
+          kind: 'restart_exhausted',
+          maxAttempts,
+          restart_from: gateOnFailure.restartFrom,
+        },
+      };
+    }
+    return {
+      kind: 'restart-job-from-step',
+      failedStepId: target.id,
+      restartFromStepId: restartStep.id,
+      restartFromPosition: restartStep.position,
+      attempt: reportedAttempt,
+      reason: gateOnFailure.output ?? 'gate condition not met',
+      failureError,
+    };
   }
 
-  // gate.kind === 'failed'
-  if (gateOnFailure?.restartFrom) {
-    // Durable restart is not executable until PR E; fail loudly.
-    return fail(target, reportedAttempt, restartUnsupportedError(gateOnFailure.restartFrom));
-  }
-  return fail(target, reportedAttempt, {
-    kind: 'gate_failed',
-    message: 'gate condition not met',
-    source: gate.source,
-  });
+  // 4. No restart → plain fail-and-cancel.
+  return fail(target, reportedAttempt, failureError);
 }
