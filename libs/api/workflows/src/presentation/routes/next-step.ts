@@ -27,9 +27,10 @@ export const nextStepRoute = defineRoute({
     const next = await nextStepForJob(leasedJob.jobId);
 
     if (next.kind === 'step') {
-      // Always attempt 1 until per-step attempts land (PR B wires the real
-      // current_attempt through nextStepForJob).
-      return {kind: 'step' as const, step: toStepDto(next.step), attempt: 1};
+      // The runner echoes this back on report so a stale report from a superseded
+      // attempt is ignored. It is 1 until a durable restart (PR E) bumps the
+      // step's current attempt.
+      return {kind: 'step' as const, step: toStepDto(next.step), attempt: next.step.currentAttempt};
     }
     return {kind: 'done' as const, status: next.status};
   },

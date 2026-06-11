@@ -1,7 +1,7 @@
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {nextStepForJob} from '#core/job-execution.js';
-import {getStepsByJobId} from '#db/workflow-runs.js';
+import {getStepAttempts, getStepsByJobId} from '#db/workflow-runs.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {leaseTokenRouteGroup} from './index.js';
@@ -105,6 +105,26 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     expect(res.statusCode).toBe(200);
     const after = await getStepsByJobId(jobId);
     expect(after[0]?.error).toEqual({message: 'boom', exitCode: 1, signal: 'SIGKILL'});
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt?.exitCode).toBe(1);
+  });
+
+  test('persists structured output on the attempt row', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const token = await mintLeaseToken({jobId});
+    await nextStepForJob(jobId);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: reportUrl(steps[0]?.id as string),
+      headers: {authorization: `Bearer ${token}`},
+      payload: {status: 'succeeded', output: {artifact: 'dist/app.tgz'}, exit_code: 0},
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt?.output).toEqual({artifact: 'dist/app.tgz'});
+    expect(attempt?.exitCode).toBe(0);
   });
 
   test('rejects a failed report without an error', async () => {
@@ -260,5 +280,21 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     const after = await getStepsByJobId(jobId);
     expect(after[0]?.status).toBe('succeeded');
     expect(after[1]?.status).toBe('pending');
+  });
+
+  test('a report whose attempt is ahead of the current attempt → 409 step-attempt-ahead', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const token = await mintLeaseToken({jobId});
+    await nextStepForJob(jobId);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: reportUrl(steps[0]?.id as string),
+      headers: {authorization: `Bearer ${token}`},
+      payload: {status: 'succeeded', attempt: 2},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('step-attempt-ahead');
   });
 });

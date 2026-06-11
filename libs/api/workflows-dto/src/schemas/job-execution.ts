@@ -9,14 +9,19 @@ export const nextStepResponseSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('step'),
     step: stepDtoSchema,
-    // The attempt number this dispatch runs. The runner echoes it back on report
-    // so a late report from a superseded attempt can be ignored. Always 1 until
-    // per-step attempts land (PR B: steps.current_attempt).
-    attempt: z.number().int().positive(),
+    attempt: z
+      .number()
+      .int()
+      .positive()
+      .describe(
+        'Attempt number for this step dispatch. Echo it back when reporting the step result so stale reports from older attempts can be ignored.',
+      ),
   }),
   z.object({
     kind: z.literal('done'),
-    status: z.enum(['succeeded', 'failed']),
+    status: z
+      .enum(['succeeded', 'failed'])
+      .describe('Terminal status of the job when no step remains to run.'),
   }),
 ]);
 
@@ -24,16 +29,33 @@ export type NextStepResponseDto = z.infer<typeof nextStepResponseSchema>;
 
 export const reportStepBodySchema = z
   .object({
-    status: z.enum(['succeeded', 'failed']),
-    error: stepErrorDtoSchema.optional(),
-    // The attempt the runner was dispatched, echoed from next-step. Optional on
-    // the wire for now; idempotency enforcement against it lands in PR B.
-    attempt: z.number().int().positive().optional(),
-    // Process exit code on success and failure. The runner sends it, but it is
-    // not persisted yet: PR B stores it per attempt and PR D consumes it for
-    // gates (success_if: exit_code == 0). On failure it is also carried under
-    // `error.exit_code`.
-    exit_code: z.number().int().nullable().optional(),
+    status: z.enum(['succeeded', 'failed']).describe('Final status reported for the step attempt.'),
+    error: stepErrorDtoSchema
+      .optional()
+      .describe('Failure details. Required when status is failed.'),
+    attempt: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe(
+        'Attempt number echoed from next-step. Older runners may omit it; when present, it protects the workflow from stale reports.',
+      ),
+    exit_code: z
+      .number()
+      .int()
+      .nullable()
+      .optional()
+      .describe(
+        'Process exit code for the step attempt. Persisted as the canonical attempt exit code and used by gate evaluation.',
+      ),
+    output: z
+      .record(z.string(), z.unknown())
+      .nullable()
+      .optional()
+      .describe(
+        'Structured output captured for attempt history. Large textual logs are stored separately.',
+      ),
   })
   .refine((body) => (body.status === 'succeeded' ? body.error == null : body.error != null), {
     message: 'succeeded steps must not include an error and failed steps must include one',
@@ -41,10 +63,13 @@ export const reportStepBodySchema = z
 
 export type ReportStepBodyDto = z.infer<typeof reportStepBodySchema>;
 
-/** `cancel` tells the agent to stop working on the job: it finished without full success. */
 export const reportStepResponseSchema = z.object({
-  ok: z.boolean(),
-  cancel: z.boolean(),
+  ok: z.boolean().describe('Whether the step report was accepted.'),
+  cancel: z
+    .boolean()
+    .describe(
+      'Whether the runner should stop working on the job because it finished without full success.',
+    ),
 });
 
 export type ReportStepResponseDto = z.infer<typeof reportStepResponseSchema>;

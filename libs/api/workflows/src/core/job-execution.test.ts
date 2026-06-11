@@ -2,9 +2,16 @@ import {WORKFLOWS_JOB_COMPLETED} from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {workflowsOutbox} from '#db/schema/outbox.js';
-import {bulkUpdateStepStatuses, getStepsByJobId} from '#db/workflow-runs.js';
+import {stepAttempts as stepAttemptsTable} from '#db/schema/step-attempts.js';
+import {steps as stepsTable} from '#db/schema/steps.js';
+import {bulkUpdateStepStatuses, getStepAttempts, getStepsByJobId} from '#db/workflow-runs.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
-import {JobNotFoundError, StepNotFoundError, StepNotRunningError} from './errors.js';
+import {
+  JobNotFoundError,
+  StepAttemptAheadError,
+  StepNotFoundError,
+  StepNotRunningError,
+} from './errors.js';
 import {nextStepForJob, recordStepResult} from './job-execution.js';
 
 async function jobCompletedEvents(jobId: string): Promise<Array<{status: string}>> {
@@ -215,6 +222,7 @@ describe('recordStepResult', () => {
     expect(after[0]?.status).toBe('failed');
     expect(after[1]?.status).toBe('cancelled');
     expect(after[2]?.status).toBe('cancelled');
+    expect(await jobCompletedEvents(jobId)).toHaveLength(1);
   });
 });
 
@@ -231,6 +239,8 @@ describe('nextStepForJob concurrency', () => {
     expect(idA).toBe(idB);
     const running = (await getStepsByJobId(jobId)).filter((s) => s.status === 'running');
     expect(running).toHaveLength(1);
+    // The onConflictDoNothing backstop keeps a single attempt row under contention.
+    expect(await getStepAttempts(jobId)).toHaveLength(1);
   });
 });
 
@@ -293,6 +303,222 @@ describe('recordStepResult job-completion event', () => {
     });
 
     expect(duplicate).toEqual({jobFinished: true, status: 'succeeded'});
+    expect(await jobCompletedEvents(jobId)).toHaveLength(1);
+  });
+
+  test('concurrent final reports enqueue exactly one completion event', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await nextStepForJob(jobId);
+
+    const outcomes = await Promise.all([
+      recordStepResult({jobId, stepId, status: 'succeeded', attempt: 1, exitCode: 0}),
+      recordStepResult({jobId, stepId, status: 'succeeded', attempt: 1, exitCode: 0}),
+    ]);
+
+    expect(outcomes).toEqual([
+      {jobFinished: true, status: 'succeeded'},
+      {jobFinished: true, status: 'succeeded'},
+    ]);
+    expect(await jobCompletedEvents(jobId)).toHaveLength(1);
+  });
+});
+
+describe('step attempts', () => {
+  test('dispatch opens a running attempt row at attempt 1', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+
+    await nextStepForJob(jobId);
+
+    const attempts = await getStepAttempts(jobId);
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]).toMatchObject({stepId: steps[0]?.id, attempt: 1, status: 'running'});
+  });
+
+  test('re-delivery does not open a second attempt row', async () => {
+    const {jobId} = await arrangeJobWithSteps(2);
+
+    await nextStepForJob(jobId);
+    await nextStepForJob(jobId);
+
+    expect(await getStepAttempts(jobId)).toHaveLength(1);
+  });
+
+  test('reporting finalizes the attempt with status and exit code', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    await nextStepForJob(jobId);
+
+    await recordStepResult({
+      jobId,
+      stepId: steps[0]?.id as string,
+      status: 'succeeded',
+      exitCode: 0,
+    });
+
+    const attempts = await getStepAttempts(jobId);
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]).toMatchObject({attempt: 1, status: 'succeeded', exitCode: 0, error: null});
+    expect(attempts[0]?.finishedAt).not.toBeNull();
+    const [step] = await getStepsByJobId(jobId);
+    expect(step?.currentAttempt).toBe(attempts[0]?.attempt);
+    expect(step?.status).toBe(attempts[0]?.status);
+  });
+
+  test('a failed report finalizes the attempt with its error and exit code', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    await nextStepForJob(jobId);
+
+    await recordStepResult({
+      jobId,
+      stepId: steps[0]?.id as string,
+      status: 'failed',
+      error: {message: 'boom'},
+      exitCode: 1,
+    });
+
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({status: 'failed', exitCode: 1, error: {message: 'boom'}});
+  });
+
+  test('reporting creates a missing running attempt before finalization', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    // Migration boundary: a step may already be running before PR B's attempt
+    // rows exist. Reporting should backfill the attempt row and finalize it.
+    await db().update(stepsTable).set({status: 'running'}).where(eq(stepsTable.id, stepId));
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId,
+      status: 'succeeded',
+      output: {summary: 'ok'},
+      exitCode: 0,
+    });
+
+    expect(outcome).toEqual({jobFinished: true, status: 'succeeded'});
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({
+      stepId,
+      attempt: 1,
+      status: 'succeeded',
+      output: {summary: 'ok'},
+      exitCode: 0,
+    });
+    const [step] = await getStepsByJobId(jobId);
+    expect(step?.currentAttempt).toBe(attempt?.attempt);
+    expect(step?.status).toBe(attempt?.status);
+    expect(step?.output).toBeNull();
+  });
+
+  test('persists structured output on the attempt row', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await nextStepForJob(jobId);
+
+    await recordStepResult({
+      jobId,
+      stepId,
+      status: 'succeeded',
+      output: {artifact: 'dist/app.tgz'},
+      exitCode: 0,
+    });
+
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt?.output).toEqual({artifact: 'dist/app.tgz'});
+  });
+
+  test('a duplicate report leaves the finalized attempt unchanged (never-downgrade)', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await nextStepForJob(jobId);
+    await recordStepResult({jobId, stepId, status: 'succeeded', exitCode: 0});
+
+    await recordStepResult({jobId, stepId, status: 'failed', exitCode: 9});
+
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({status: 'succeeded', exitCode: 0});
+  });
+
+  test('rejects non-positive attempt rows at the database boundary', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+
+    await expect(
+      db()
+        .insert(stepAttemptsTable)
+        .values({
+          jobId,
+          stepId: steps[0]?.id as string,
+          attempt: 0,
+          status: 'running',
+        }),
+    ).rejects.toThrow();
+  });
+
+  test('rejects pending attempt rows at the database boundary', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+
+    await expect(
+      db()
+        .insert(stepAttemptsTable)
+        .values({
+          jobId,
+          stepId: steps[0]?.id as string,
+          attempt: 1,
+          status: 'pending',
+        }),
+    ).rejects.toThrow();
+  });
+
+  test('rejects a report whose attempt is ahead of the current attempt', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    await nextStepForJob(jobId);
+
+    await expect(
+      recordStepResult({jobId, stepId: steps[0]?.id as string, status: 'succeeded', attempt: 2}),
+    ).rejects.toBeInstanceOf(StepAttemptAheadError);
+  });
+
+  test('a stale older-attempt report is an idempotent no-op', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await nextStepForJob(jobId);
+    // Simulate a rewind having bumped the current attempt to 2.
+    await db()
+      .update(stepsTable)
+      .set({currentAttempt: 2, status: 'running'})
+      .where(eq(stepsTable.id, stepId));
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId,
+      status: 'failed',
+      error: {message: 'late'},
+      attempt: 1,
+    });
+
+    expect(outcome).toEqual({jobFinished: false});
+    const after = await getStepsByJobId(jobId);
+    expect(after[0]?.status).toBe('running'); // projection untouched by the stale report
+  });
+
+  test('a stale report on an already-finished job reports finished without a second completion event', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await nextStepForJob(jobId);
+    await recordStepResult({jobId, stepId, status: 'succeeded', exitCode: 0});
+    // Simulate a later rewind bump on the now-terminal step.
+    await db().update(stepsTable).set({currentAttempt: 2}).where(eq(stepsTable.id, stepId));
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId,
+      status: 'failed',
+      error: {message: 'late'},
+      attempt: 1,
+    });
+
+    expect(outcome).toEqual({jobFinished: true, status: 'succeeded'});
+    // The applied-gated outbox write must not fire on the stale path.
     expect(await jobCompletedEvents(jobId)).toHaveLength(1);
   });
 });
