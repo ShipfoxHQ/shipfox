@@ -44,6 +44,7 @@
     "@shipfox/api-runners": "workspace:*",
     "@shipfox/api-runners-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
+    "@shipfox/expression": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-module": "workspace:*",

@@ -21,6 +21,7 @@ import {
   deriveCompletion,
   isTerminal,
 } from './step-transition/decide-step-transition.js';
+import {evaluateGate, gateResultPayload, readStepGate} from './step-transition/evaluate-gate.js';
 
 type CompletionStatus = RuntimeCompletionStatus;
 
@@ -120,7 +121,22 @@ export function recordStepResult(params: RecordStepResultParams): Promise<Record
       output: params.output ?? null,
       exitCode: params.exitCode ?? null,
     };
-    const decision = decideStepTransition({steps, target, reportedAttempt: reported, result});
-    return applyStepTransition(decision, {jobId: params.jobId, result}, tx);
+    // Evaluate the gate (if any) at the service boundary — the only place the CEL
+    // engine runs — and pass the precomputed outcome into the pure decision.
+    const gate = readStepGate(target.config);
+    const gateOutcome = evaluateGate(gate, result);
+    const decision = decideStepTransition({
+      steps,
+      target,
+      reportedAttempt: reported,
+      result,
+      gateOutcome,
+      ...(gate?.onFailure ? {gateOnFailure: gate.onFailure} : {}),
+    });
+    return applyStepTransition(
+      decision,
+      {jobId: params.jobId, result, gateResult: gateResultPayload(gateOutcome, result.exitCode)},
+      tx,
+    );
   });
 }

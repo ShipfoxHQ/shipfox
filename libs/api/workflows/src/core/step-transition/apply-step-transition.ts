@@ -20,6 +20,8 @@ export type StepProgressionOutcome =
 export interface ApplyStepTransitionContext {
   jobId: string;
   result: StepResult;
+  // Gate evaluation audit payload to record on the attempt, when a gate ran.
+  gateResult?: Record<string, unknown> | null;
 }
 
 // Durable side of the decision: writes the attempt + projection for a transition,
@@ -35,6 +37,8 @@ export async function applyStepTransition(
   switch (decision.kind) {
     case 'complete-step':
     case 'complete-job': {
+      // A passing gate makes a step succeed even if the raw command status was
+      // 'failed', so the projection error is cleared regardless of the report.
       await finishStepAttempt(
         {
           stepId: decision.stepId,
@@ -42,6 +46,7 @@ export async function applyStepTransition(
           status: 'succeeded',
           output: ctx.result.output ?? null,
           exitCode: ctx.result.exitCode ?? null,
+          gateResult: ctx.gateResult ?? null,
         },
         tx,
       );
@@ -57,9 +62,10 @@ export async function applyStepTransition(
           stepId: decision.failedStepId,
           attempt: decision.attempt,
           status: 'failed',
-          error: ctx.result.error ?? null,
           output: ctx.result.output ?? null,
+          error: decision.failureError,
           exitCode: ctx.result.exitCode ?? null,
+          gateResult: ctx.gateResult ?? null,
         },
         tx,
       );
@@ -68,7 +74,7 @@ export async function applyStepTransition(
           jobId: ctx.jobId,
           stepId: decision.failedStepId,
           status: 'failed',
-          error: ctx.result.error ?? null,
+          error: decision.failureError,
         },
         tx,
       );
