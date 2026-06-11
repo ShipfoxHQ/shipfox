@@ -22,7 +22,7 @@ SENTRY_APP_SLUG=
 SENTRY_APP_VERIFY_INSTALL=true
 ```
 
-`SENTRY_APP_CLIENT_SECRET` signs inbound webhooks with HMAC-SHA256.
+`SENTRY_APP_CLIENT_SECRET` is the shared secret used to verify inbound webhooks with HMAC-SHA256 (Sentry signs deliveries with it, the provider verifies them).
 
 ## Webhook Route
 
