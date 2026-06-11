@@ -1,3 +1,16 @@
+import {IntegrationProviderError} from '@shipfox/api-integration-core-dto';
+
+export class SentryIntegrationProviderError extends IntegrationProviderError {}
+
+export class SentryInstallationAlreadyLinkedError extends Error {
+  constructor(public readonly installationUuid: string) {
+    super(
+      `Sentry installation is already linked to another Shipfox workspace: ${installationUuid}`,
+    );
+    this.name = 'SentryInstallationAlreadyLinkedError';
+  }
+}
+
 /**
  * Base for issue deliveries we received and authenticated but deliberately do
  * not publish. The webhook layer records them for dedup and acknowledges with a

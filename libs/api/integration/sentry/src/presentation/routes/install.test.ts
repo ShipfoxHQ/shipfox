@@ -1,0 +1,227 @@
+import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
+import type {FastifyInstance, FastifyRequest} from 'fastify';
+import type {SentryApiClient} from '#api/client.js';
+import {SentryIntegrationProviderError} from '#core/errors.js';
+import {createSentryIntegrationProvider} from '#index.js';
+
+vi.mock('@shipfox/api-workspaces', () => ({
+  requireMembership: vi.fn(({workspaceId}) =>
+    Promise.resolve({
+      workspaceId,
+      workspace: {
+        id: workspaceId,
+        name: 'Workspace',
+        status: 'active',
+        settings: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      userId: 'user-1',
+      role: 'admin',
+    }),
+  ),
+}));
+
+const {requireMembership} = await import('@shipfox/api-workspaces');
+const requireMembershipMock = vi.mocked(requireMembership);
+
+const fakeUserAuth: AuthMethod = {
+  name: AUTH_USER,
+  authenticate: (request: FastifyRequest) => {
+    if (request.headers.authorization !== 'Bearer user') {
+      throw new ClientError('Invalid user token', 'unauthorized', {status: 401});
+    }
+    setUserContext(
+      request,
+      buildUserContext({userId: 'user-1', email: 'user@example.com', memberships: []}),
+    );
+    return Promise.resolve();
+  },
+};
+
+function sentryClient(overrides: Partial<SentryApiClient> = {}): SentryApiClient {
+  return {
+    exchangeAuthorizationCode: vi.fn(() =>
+      Promise.resolve({token: 'tok', refreshToken: 'refresh', expiresAt: 'x'}),
+    ),
+    getInstallation: vi.fn(() => Promise.resolve({orgSlug: 'acme'})),
+    verifyInstallation: vi.fn(() => Promise.resolve()),
+    ...overrides,
+  };
+}
+
+interface CreateTestAppOptions {
+  sentry?: SentryApiClient;
+  existingConnection?: IntegrationConnection<'sentry'> | undefined;
+}
+
+async function createTestApp(options: CreateTestAppOptions = {}): Promise<FastifyInstance> {
+  const provider = createSentryIntegrationProvider({
+    sentry: options.sentry ?? sentryClient(),
+    getExistingSentryConnection: vi.fn(() => Promise.resolve(options.existingConnection)),
+    connectSentryInstallation: vi.fn((input) =>
+      Promise.resolve({
+        id: crypto.randomUUID(),
+        workspaceId: input.workspaceId,
+        provider: 'sentry' as const,
+        externalAccountId: input.installationUuid,
+        displayName: input.displayName,
+        lifecycleStatus: 'active' as const,
+        capabilities: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    ),
+    // Webhook receiver dependencies — install/connect tests don't exercise them.
+    coreDb: vi.fn() as never,
+    publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: false})),
+    recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+    getIntegrationConnectionById: vi.fn(() => Promise.resolve(undefined)),
+    updateConnectionLifecycleStatus: vi.fn(() => Promise.resolve(undefined)),
+  });
+  const app = await createApp({auth: [fakeUserAuth], routes: provider.routes, swagger: false});
+  await app.ready();
+  return app;
+}
+
+function connectPayload() {
+  return {
+    workspace_id: crypto.randomUUID(),
+    code: 'the-code',
+    installation_id: 'install-uuid-1',
+  };
+}
+
+describe('Sentry integration routes', () => {
+  beforeEach(async () => {
+    requireMembershipMock.mockClear();
+    await closeApp();
+  });
+
+  afterEach(async () => {
+    await closeApp();
+  });
+
+  it('requires auth for the install URL', async () => {
+    const app = await createTestApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/sentry/install',
+      payload: {workspace_id: crypto.randomUUID()},
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns the external-install URL for a member', async () => {
+    const app = await createTestApp();
+    const workspaceId = crypto.randomUUID();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/sentry/install',
+      headers: {authorization: 'Bearer user'},
+      payload: {workspace_id: workspaceId},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().install_url).toBe(
+      'https://sentry.io/sentry-apps/shipfox-test/external-install/',
+    );
+    expect(requireMembershipMock).toHaveBeenCalledWith(expect.objectContaining({workspaceId}));
+  });
+
+  it('requires auth for connect', async () => {
+    const app = await createTestApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/sentry/connect',
+      payload: connectPayload(),
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('connects an installation and returns a connection DTO with no capabilities', async () => {
+    const app = await createTestApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/sentry/connect',
+      headers: {authorization: 'Bearer user'},
+      payload: connectPayload(),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().provider).toBe('sentry');
+    expect(res.json().external_account_id).toBe('install-uuid-1');
+    expect(res.json().display_name).toBe('Sentry acme');
+    expect(res.json().capabilities).toEqual([]);
+  });
+
+  it('returns 403 when the caller is not a workspace member', async () => {
+    requireMembershipMock.mockRejectedValueOnce(
+      new ClientError('Not a member of this workspace', 'forbidden', {status: 403}),
+    );
+    const app = await createTestApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/sentry/connect',
+      headers: {authorization: 'Bearer user'},
+      payload: connectPayload(),
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('returns 409 when the installation is already linked to another workspace', async () => {
+    const app = await createTestApp({
+      existingConnection: {
+        id: crypto.randomUUID(),
+        workspaceId: crypto.randomUUID(),
+        provider: 'sentry',
+        externalAccountId: 'install-uuid-1',
+        displayName: 'Sentry acme',
+        lifecycleStatus: 'active',
+        capabilities: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/sentry/connect',
+      headers: {authorization: 'Bearer user'},
+      payload: connectPayload(),
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('sentry-installation-already-linked');
+  });
+
+  it('maps a provider error to its status', async () => {
+    const app = await createTestApp({
+      sentry: sentryClient({
+        exchangeAuthorizationCode: vi.fn(() =>
+          Promise.reject(new SentryIntegrationProviderError('access-denied', 'rejected')),
+        ),
+      }),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/sentry/connect',
+      headers: {authorization: 'Bearer user'},
+      payload: connectPayload(),
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json().code).toBe('access-denied');
+  });
+});
