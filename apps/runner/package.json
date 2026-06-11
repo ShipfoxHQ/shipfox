@@ -22,7 +22,6 @@
   },
   "dependencies": {
     "@shipfox/api-runners-dto": "workspace:*",
-    "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "ky": "^2.0.0"

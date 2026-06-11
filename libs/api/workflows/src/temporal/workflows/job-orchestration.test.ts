@@ -44,7 +44,10 @@ describe('jobOrchestration', () => {
   // rollout cannot leave step rows behind the job status. The mock enqueue
   // simulates this by signalling with per-step entries.
   test('signal succeeded with reported steps — workflow persists them via applyStepResultsActivity', async () => {
-    setCfg({dag: makeDag([]), jobResults: new Map([['job-1', 'succeeded']])});
+    setCfg({
+      dag: makeDag([dagJob('job-1', 'build')]),
+      jobResults: new Map([['job-1', 'succeeded']]),
+    });
 
     const result = await executeJob(defaultJobInput);
 
@@ -63,7 +66,10 @@ describe('jobOrchestration', () => {
   });
 
   test('signal failed with reported steps — workflow persists them via applyStepResultsActivity', async () => {
-    setCfg({dag: makeDag([]), jobResults: new Map([['job-2', 'failed']])});
+    setCfg({
+      dag: makeDag([dagJob('job-2', 'build')]),
+      jobResults: new Map([['job-2', 'failed']]),
+    });
 
     const result = await executeJob({...defaultJobInput, jobId: 'job-2'});
 
@@ -83,20 +89,20 @@ describe('jobOrchestration', () => {
   // Per-step runner: results are already persisted as they are reported, so the
   // completion signal carries no steps and the workflow only flips the status.
   test('per-step completion signal (no steps) flips status without re-applying results', async () => {
-    setCfg({dag: makeDag([]), jobResults: new Map(), skipSignal: true});
+    setCfg({dag: makeDag([]), jobResults: new Map([['job-perstep', 'succeeded']])});
 
-    const handle = await testEnv.client.workflow.start('jobOrchestration', {
-      taskQueue: TASK_QUEUE,
-      workflowId: 'job:job-perstep',
-      args: [{...defaultJobInput, jobId: 'job-perstep'}],
-    });
-    await new Promise((r) => setTimeout(r, 500));
-    await handle.signal('job-completed', {status: 'succeeded', steps: []});
-    const result = await handle.result();
+    const result = await executeJob({...defaultJobInput, jobId: 'job-perstep'});
 
     expect(result.status).toBe('succeeded');
-    expect(callsNamed('applyStepResultsActivity')).toHaveLength(0);
-    expect(setJobStatusCalls().map((c) => c.params.status)).toEqual(['running', 'succeeded']);
+    const applyCallsForJob = callsNamed('applyStepResultsActivity').filter(
+      (c) => (c.params as {jobId: string}).jobId === 'job-perstep',
+    );
+    expect(applyCallsForJob).toHaveLength(0);
+    expect(
+      setJobStatusCalls()
+        .filter((c) => c.params.jobId === 'job-perstep')
+        .map((c) => c.params.status),
+    ).toEqual(['running', 'succeeded']);
   }, 15_000);
 
   test('duplicate signal is ignored', async () => {

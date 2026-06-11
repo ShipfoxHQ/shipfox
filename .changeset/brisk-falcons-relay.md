@@ -5,4 +5,4 @@
 "@shipfox/api-runners-dto": minor
 ---
 
-Adds per-step runner execution: the runner pulls and reports steps over the lease-token-authed step API (minted at job claim), step reports carry exit codes, and job completion is signalled through the workflows outbox instead of a single atomic job report.
+Adds the backend contract for per-step execution: job claims mint a lease token for the step API, step reports carry attempts and exit codes, and workflow completion can be signalled through the workflows outbox. The runner-side step loop is intentionally owned by the follow-up runner protocol work.

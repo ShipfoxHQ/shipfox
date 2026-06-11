@@ -3,15 +3,8 @@ import {randomUUID} from 'node:crypto';
 import {unlink, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import type {StepErrorDto} from '@shipfox/api-runners-dto';
+import type {JobPayloadStepDto, StepErrorDto} from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
-
-// The runner pulls steps from the per-step API (a workflows StepDto), so only
-// the fields needed to execute a run step are required here.
-export interface RunnableStep {
-  type: string;
-  config: Record<string, unknown>;
-}
 
 export interface StepResult {
   success: boolean;
@@ -19,10 +12,6 @@ export interface StepResult {
   // grandchild-PID extraction in run-step.test.ts depends on this). Never sent
   // to the API: per-step logs are a separate concern (future S3-backed logs).
   output: string;
-  // Process exit code: 0 on success, the non-zero code on failure, null when no
-  // process ran (bad step) or it was signal-killed. Reported on both success and
-  // failure so gates like `success_if: exit_code == 0` can evaluate it.
-  exit_code: number | null;
   // Populated when success is false. Null on success.
   error: StepErrorDto;
 }
@@ -30,14 +19,13 @@ export interface StepResult {
 const MAX_OUTPUT_BYTES = 1024 * 1024; // 1MB
 
 export function executeRunStep(
-  step: RunnableStep,
+  step: JobPayloadStepDto,
   options: {signal?: AbortSignal} = {},
 ): Promise<StepResult> {
   if (step.type !== 'run') {
     return Promise.resolve({
       success: false,
       output: '',
-      exit_code: null,
       error: {message: `Unsupported step type: ${step.type}`},
     });
   }
@@ -47,7 +35,6 @@ export function executeRunStep(
     return Promise.resolve({
       success: false,
       output: '',
-      exit_code: null,
       error: {message: 'Step config.run is missing or empty'},
     });
   }
@@ -140,7 +127,7 @@ function spawnAndCapture(scriptPath: string, options: {signal?: AbortSignal}): P
       cleanupAbortListener();
       const finalOutput = truncated ? `[output truncated]\n${output}` : output;
       if (code === 0) {
-        resolve({success: true, output: finalOutput, exit_code: 0, error: null});
+        resolve({success: true, output: finalOutput, error: null});
         return;
       }
       // code === null when the child was terminated by a signal (e.g. SIGKILL
@@ -153,7 +140,7 @@ function spawnAndCapture(scriptPath: string, options: {signal?: AbortSignal}): P
               ...(signal ? {signal} : {}),
             }
           : {message: `Command exited with code ${code}`, exit_code: code};
-      resolve({success: false, output: finalOutput, exit_code: code, error});
+      resolve({success: false, output: finalOutput, error});
     });
 
     child.on('error', (err) => {
@@ -162,7 +149,6 @@ function spawnAndCapture(scriptPath: string, options: {signal?: AbortSignal}): P
       resolve({
         success: false,
         output: '',
-        exit_code: null,
         error: {message: `Failed to spawn process: ${err.message}`},
       });
     });
