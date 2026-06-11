@@ -4,6 +4,7 @@ export interface RefreshToken {
   hashedToken: string;
   expiresAt: Date;
   revokedAt: Date | null;
+  rotatedAt: Date | null;
   lastUsedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;

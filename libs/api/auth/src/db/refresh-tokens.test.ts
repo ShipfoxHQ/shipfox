@@ -2,9 +2,10 @@ import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {
   createRefreshToken,
   findActiveRefreshTokenByHash,
+  findRefreshTokenByHash,
+  markRefreshTokenRotated,
   revokeRefreshTokenByHash,
   revokeRefreshTokensForUser,
-  rotateActiveRefreshToken,
 } from './refresh-tokens.js';
 import {createUser} from './users.js';
 
@@ -42,31 +43,38 @@ describe('refresh-tokens db', () => {
     expect(found).toBeUndefined();
   });
 
-  test('rotates an active refresh token and rejects stale reuse', async () => {
+  test('marks a token rotated once and only the first caller wins', async () => {
     const user = await createUser({email: emailFor('rt-rotate'), hashedPassword: 'h'});
     const currentHashedToken = hashOpaqueToken(`current-${crypto.randomUUID()}`);
-    const nextHashedToken = hashOpaqueToken(`next-${crypto.randomUUID()}`);
     const created = await createRefreshToken({
       userId: user.id,
       hashedToken: currentHashedToken,
       expiresAt: new Date(Date.now() + 60_000),
     });
 
-    const rotated = await rotateActiveRefreshToken({
-      id: created.id,
-      currentHashedToken,
-      nextHashedToken,
-      expiresAt: new Date(Date.now() + 120_000),
-    });
-    const stale = await rotateActiveRefreshToken({
-      id: created.id,
-      currentHashedToken,
-      nextHashedToken: hashOpaqueToken(`stale-${crypto.randomUUID()}`),
-      expiresAt: new Date(Date.now() + 120_000),
-    });
+    const won = await markRefreshTokenRotated({id: created.id, currentHashedToken});
+    const lost = await markRefreshTokenRotated({id: created.id, currentHashedToken});
 
-    expect(rotated?.hashedToken).toBe(nextHashedToken);
-    expect(stale).toBeUndefined();
+    expect(won?.rotatedAt).toBeInstanceOf(Date);
+    expect(lost).toBeUndefined();
+  });
+
+  test('rotated tokens drop out of the active lookup but stay findable for the grace window', async () => {
+    const user = await createUser({email: emailFor('rt-rotated-find'), hashedPassword: 'h'});
+    const currentHashedToken = hashOpaqueToken(`current-${crypto.randomUUID()}`);
+    const created = await createRefreshToken({
+      userId: user.id,
+      hashedToken: currentHashedToken,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await markRefreshTokenRotated({id: created.id, currentHashedToken});
+
+    const active = await findActiveRefreshTokenByHash({hashedToken: currentHashedToken});
+    const found = await findRefreshTokenByHash({hashedToken: currentHashedToken});
+
+    expect(active).toBeUndefined();
+    expect(found?.id).toBe(created.id);
+    expect(found?.rotatedAt).toBeInstanceOf(Date);
   });
 
   test('revokes a single refresh token by hash', async () => {

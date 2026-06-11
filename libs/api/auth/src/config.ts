@@ -20,6 +20,10 @@ export const config = createConfig({
     desc: 'How many days a refresh token stays valid before the user must sign in again.',
     default: 14,
   }),
+  AUTH_REFRESH_ROTATION_GRACE_SECONDS: num({
+    desc: 'Window after a refresh token is rotated during which the now-rotated token is still accepted, so concurrent refreshes from parallel tabs do not log the user out. Reuse past this window is treated as a compromise and revokes the session.',
+    default: 30,
+  }),
   AUTH_REFRESH_COOKIE_NAME: str({
     desc: 'Name of the browser cookie that stores the refresh token.',
     default: 'shipfox_refresh_token',

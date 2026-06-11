@@ -26,6 +26,7 @@ import {verifyUserToken} from '#core/jwt.js';
 import {db} from '#db/db.js';
 import {findActiveRefreshTokenByHash} from '#db/refresh-tokens.js';
 import {emailVerifications} from '#db/schema/email-verifications.js';
+import {refreshTokens} from '#db/schema/refresh-tokens.js';
 import {users} from '#db/schema/users.js';
 import {findUserByEmail, findUserById} from '#db/users.js';
 import {userFactory} from '#test/index.js';
@@ -56,6 +57,7 @@ vi.mock('#config.js', () => ({
     AUTH_JWT_SECRET: 'auth-core-test-secret',
     AUTH_JWT_EXPIRES_IN: '15m',
     AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS: 14,
+    AUTH_REFRESH_ROTATION_GRACE_SECONDS: 30,
     AUTH_REFRESH_COOKIE_NAME: 'shipfox_refresh_token',
     CLIENT_BASE_URL: testConfig.clientBaseUrl,
   },
@@ -142,17 +144,49 @@ describe('auth core', () => {
     await expect(promise).rejects.toBeInstanceOf(EmailNotVerifiedError);
   });
 
-  test('refreshAccessToken rotates the refresh token and rejects stale reuse', async () => {
+  test('refreshAccessToken rotates the refresh token', async () => {
     const user = await userFactory.create({emailVerifiedAt: new Date()});
     const loginResult = await login({email: user.email, password: user.plainPassword});
 
     const refreshed = await refreshAccessToken({refreshToken: loginResult.refreshToken});
-    const stale = refreshAccessToken({refreshToken: loginResult.refreshToken});
 
     expect(refreshed.token).toEqual(expect.any(String));
+    expect(refreshed.refreshToken).toEqual(expect.any(String));
     expect(refreshed.refreshToken).not.toBe(loginResult.refreshToken);
     expect(refreshed.user.id).toBe(user.id);
-    await expect(stale).rejects.toBeInstanceOf(TokenInvalidError);
+  });
+
+  test('refreshAccessToken tolerates a concurrent reuse within the grace window', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+    const loginResult = await login({email: user.email, password: user.plainPassword});
+
+    await refreshAccessToken({refreshToken: loginResult.refreshToken});
+    const raced = await refreshAccessToken({refreshToken: loginResult.refreshToken});
+
+    expect(raced.token).toEqual(expect.any(String));
+    expect(raced.user.id).toBe(user.id);
+    // The racing tab keeps the cookie the winning refresh installed.
+    expect(raced.refreshToken).toBeUndefined();
+  });
+
+  test('refreshAccessToken rejects reuse past the grace window and revokes the session', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+    const loginResult = await login({email: user.email, password: user.plainPassword});
+    const refreshed = await refreshAccessToken({refreshToken: loginResult.refreshToken});
+    // Backdate the rotation so the original token is now past the grace window.
+    await db()
+      .update(refreshTokens)
+      .set({rotatedAt: new Date(Date.now() - 60 * 60 * 1000)})
+      .where(eq(refreshTokens.hashedToken, hashOpaqueToken(loginResult.refreshToken)));
+
+    const reused = refreshAccessToken({refreshToken: loginResult.refreshToken});
+
+    await expect(reused).rejects.toBeInstanceOf(TokenInvalidError);
+    // The successor token is revoked too: reuse is treated as a compromise.
+    const successor = refreshed.refreshToken
+      ? await findActiveRefreshTokenByHash({hashedToken: hashOpaqueToken(refreshed.refreshToken)})
+      : undefined;
+    expect(successor).toBeUndefined();
   });
 
   test('refreshAccessToken rejects refresh tokens for inactive users', async () => {
