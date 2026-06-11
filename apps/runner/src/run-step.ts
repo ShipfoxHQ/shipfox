@@ -70,8 +70,6 @@ function spawnAndCapture(
     // detached:true makes the shell a process-group leader so killGroup() can
     // SIGKILL its grandchildren too (Linux does not propagate signals down the
     // parent chain). We don't unref() — output capture still needs `close`.
-    // cwd is the per-job workspace directory; steps no longer inherit the
-    // runner process CWD.
     const child = spawn(shell, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,

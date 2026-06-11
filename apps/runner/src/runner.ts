@@ -15,9 +15,8 @@ let currentJobAbortController: AbortController | undefined;
 export async function startRunner(): Promise<void> {
   setupSignalHandlers();
 
-  // Validate the workspace root once at startup so a dangerous/misconfigured
-  // root crashes the process at deploy time (index.ts exits non-zero) rather
-  // than silently failing every job.
+  // Fail fast at startup: a dangerous root should crash the process at deploy,
+  // not silently fail every job.
   const workspaceRoot = resolveWorkspaceRoot(config);
 
   logger().info(
@@ -74,8 +73,6 @@ export async function runJob(
   let workspace: Workspace | undefined;
   let result: ExecuteJobResult;
   try {
-    // A prepare failure (unsafe path, mkdir/rm error) fails the job before any
-    // step runs — the catch below reports failed with empty steps.
     workspace = await prepareWorkspace(job, workspaceRoot);
     result = await executeJob(job, {signal: ac.signal, cwd: workspace.cwd});
     logger().info({jobId: job.job_id, status: result.status}, 'Job execution finished');
@@ -104,9 +101,7 @@ export async function runJob(
       logger().error({err: reportError, jobId: job.job_id}, 'Failed to report job completion');
     }
   } finally {
-    // Clean up after reporting (so a hung cleanup can't lose the completion)
-    // and in a finally so success, step failure, unsupported steps, and
-    // cancellation all attempt it. cleanup() swallows its own errors.
+    // Clean up after reporting so a slow cleanup can't lose the completion.
     if (workspace) await workspace.cleanup();
   }
 }
