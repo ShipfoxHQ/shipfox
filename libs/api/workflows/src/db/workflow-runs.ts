@@ -670,14 +670,15 @@ export async function insertRunningStepAttempt(
       attempt: params.attempt,
       status: 'running',
     })
-    .onConflictDoNothing();
+    .onConflictDoNothing({target: [stepAttempts.stepId, stepAttempts.attempt]});
 }
 
 export interface FinishStepAttemptParams {
   stepId: string;
   attempt: number;
-  status: StepAttemptStatus;
+  status: Exclude<StepAttemptStatus, 'running'>;
   error?: Record<string, unknown> | null;
+  output?: Record<string, unknown> | null;
   exitCode?: number | null;
   gateResult?: Record<string, unknown> | null;
 }
@@ -690,6 +691,7 @@ export async function finishStepAttempt(params: FinishStepAttemptParams, tx: Tx)
     .update(stepAttempts)
     .set({
       status: params.status,
+      output: params.output ?? null,
       error: params.error ?? null,
       exitCode: params.exitCode ?? null,
       gateResult: params.gateResult ?? null,

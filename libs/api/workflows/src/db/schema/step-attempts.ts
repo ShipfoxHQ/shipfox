@@ -1,5 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {index, integer, jsonb, text, timestamp, unique, uuid} from 'drizzle-orm/pg-core';
+import {sql} from 'drizzle-orm';
+import {check, index, integer, jsonb, text, timestamp, unique, uuid} from 'drizzle-orm/pg-core';
 import type {StepAttempt, StepAttemptStatus} from '#core/entities/step.js';
 import {pgTable} from './common.js';
 import {jobs} from './jobs.js';
@@ -38,6 +39,8 @@ export const stepAttempts = pgTable(
   (table) => [
     unique('workflows_step_attempts_step_id_attempt_uq').on(table.stepId, table.attempt),
     index('workflows_step_attempts_job_id_idx').on(table.jobId),
+    check('workflows_step_attempts_attempt_positive_ck', sql`${table.attempt} > 0`),
+    check('workflows_step_attempts_status_not_pending_ck', sql`${table.status} <> 'pending'`),
   ],
 );
 

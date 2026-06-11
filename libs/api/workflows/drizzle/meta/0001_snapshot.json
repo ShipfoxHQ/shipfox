@@ -310,7 +310,16 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "workflows_step_attempts_attempt_positive_ck": {
+          "name": "workflows_step_attempts_attempt_positive_ck",
+          "value": "\"workflows_step_attempts\".\"attempt\" > 0"
+        },
+        "workflows_step_attempts_status_not_pending_ck": {
+          "name": "workflows_step_attempts_status_not_pending_ck",
+          "value": "\"workflows_step_attempts\".\"status\" <> 'pending'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.workflows_steps": {

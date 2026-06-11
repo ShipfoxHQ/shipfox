@@ -4,6 +4,7 @@ import {
   cancelRemainingSteps,
   finishStepAttempt,
   getStepsByJobIdForUpdate,
+  insertRunningStepAttempt,
   markStepRunning,
   writeJobCompletedOutbox,
 } from '#db/workflow-runs.js';
@@ -61,6 +62,10 @@ export interface RecordStepResultParams {
   stepId: string;
   status: 'succeeded' | 'failed';
   error?: Record<string, unknown> | null;
+  // Structured runner output for audit/history on the attempt row. The current
+  // step projection keeps status/error only until logs/output have a stable
+  // product contract.
+  output?: Record<string, unknown> | null;
   // Process exit code reported by the runner (PR B persists it on the attempt).
   exitCode?: number | null;
   // The attempt the runner was dispatched. Omitted = "the step's current
@@ -109,12 +114,20 @@ export function recordStepResult(params: RecordStepResultParams): Promise<Record
       if (target.status === 'pending') {
         throw new StepNotRunningError(params.stepId, params.jobId);
       }
+      // Migration/back-compat boundary: a running step may predate the
+      // step_attempts table or have been marked running by legacy code. Create
+      // the audit row just before finalization if dispatch did not already do it.
+      await insertRunningStepAttempt(
+        {jobId: params.jobId, stepId: params.stepId, attempt: current},
+        tx,
+      );
       await finishStepAttempt(
         {
           stepId: params.stepId,
           attempt: current,
           status: params.status,
           error: params.error ?? null,
+          output: params.output ?? null,
           exitCode: params.exitCode ?? null,
         },
         tx,
