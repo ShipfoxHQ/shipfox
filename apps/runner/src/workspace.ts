@@ -16,6 +16,17 @@ export class UnsafeWorkspaceRootError extends Error {
   }
 }
 
+/**
+ * Thrown when a job's id is not the UUID the API contract guarantees, so it
+ * cannot be used as the per-job directory name.
+ */
+export class InvalidJobIdError extends Error {
+  constructor(public readonly jobId: string) {
+    super(`Invalid job id: ${jobId}`);
+    this.name = 'InvalidJobIdError';
+  }
+}
+
 export interface WorkspaceConfig {
   SHIPFOX_RUNNER_WORKSPACE_ROOT?: string | undefined;
 }
@@ -62,7 +73,7 @@ const JOB_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
  */
 export async function prepareWorkspace(job: {job_id: string}, root: string): Promise<Workspace> {
   if (!JOB_ID_PATTERN.test(job.job_id)) {
-    throw new Error(`Cannot prepare workspace: invalid job id ${job.job_id}`);
+    throw new InvalidJobIdError(job.job_id);
   }
 
   const cwd = join(root, `job-${job.job_id}`);

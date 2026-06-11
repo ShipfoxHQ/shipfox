@@ -3,6 +3,7 @@ import {homedir, tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {
   cleanupWorkspace,
+  InvalidJobIdError,
   prepareWorkspace,
   resolveWorkspaceRoot,
   UnsafeWorkspaceRootError,
@@ -83,7 +84,7 @@ describe('prepareWorkspace', () => {
   it('rejects a job id that is not a UUID', async () => {
     const prepare = () => prepareWorkspace({job_id: '../../etc/passwd'}, root);
 
-    await expect(prepare()).rejects.toThrow();
+    await expect(prepare()).rejects.toThrow(InvalidJobIdError);
   });
 
   it('cleanup() removes the directory', async () => {
