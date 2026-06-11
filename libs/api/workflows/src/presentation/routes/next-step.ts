@@ -9,7 +9,7 @@ export const nextStepRoute = defineRoute({
   method: 'POST',
   path: '/steps/next',
   description:
-    'Returns the next step for the runner to run on its job. The job is identified by the access token, so no job ID is needed. Calling this again before reporting the current step returns that same step, so retries are safe. When no steps remain, the response signals that the job has finished and whether it succeeded or failed.',
+    'Returns the next step for the runner to run on its job. The job is identified by the access token, so no job ID is needed. Calling this again before reporting the current step returns that same step, so retries are safe. When no steps remain, the response reports that there are no more steps to run, along with the job status so far — this does not finalize the job, which the runner still completes through the job-completion endpoint.',
   schema: {
     response: {
       200: nextStepResponseSchema,

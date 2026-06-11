@@ -10,7 +10,7 @@ export const reportStepRoute = defineRoute({
   method: 'POST',
   path: '/steps/:stepId/report',
   description:
-    'Reports whether a step succeeded or failed. The job is identified by the access token. Reporting the same step more than once is safe: once a step has finished, later reports for it are ignored.',
+    'Reports whether a step succeeded or failed. The job is identified by the access token. Reporting the same step more than once is safe: once a step has finished, later reports for it are ignored. Reporting every step does not by itself finalize the job — the runner must still call the job-completion endpoint, which is what drives the job to its terminal state.',
   schema: {
     params: z.object({stepId: z.string().uuid()}),
     body: reportStepBodySchema,
