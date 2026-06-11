@@ -1,9 +1,13 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import {requireProjectAccess} from '@shipfox/api-projects';
 import {ClientError} from '@shipfox/node-fastify';
+import {eq} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
+import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
+import {db} from '#db/db.js';
+import {steps as stepsTable} from '#db/schema/steps.js';
 import {
   applyStepResults,
   createWorkflowRun,
@@ -221,5 +225,117 @@ describe('GET /api/workflows/runs/:id', () => {
     });
 
     expect(res.statusCode).toBe(500);
+  });
+
+  test('exposes step current_attempt and attempt history', async () => {
+    const projectId = crypto.randomUUID();
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId: crypto.randomUUID(),
+      model: workflowModel({
+        name: 'Test',
+        jobs: {build: {steps: [{run: 'a'}, {run: 'b'}]}},
+      }),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const jobId = (await getJobsByRunId(run.id))[0]?.id as string;
+    const steps = await getStepsByJobId(jobId);
+    await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: steps[0]?.id as string,
+      status: 'succeeded',
+      exitCode: 0,
+    });
+
+    const res = await app.inject({method: 'GET', url: `/api/workflows/runs/${run.id}`});
+
+    expect(res.statusCode).toBe(200);
+    const [step0, step1] = res.json().jobs[0].steps;
+    expect(step0.current_attempt).toBe(1);
+    expect(step0.attempts).toHaveLength(1);
+    expect(step0.attempts[0]).toMatchObject({attempt: 1, status: 'succeeded', exit_code: 0});
+    // A never-dispatched step has no attempt history yet.
+    expect(step1.current_attempt).toBe(1);
+    expect(step1.attempts).toEqual([]);
+  });
+
+  test('exposes multiple ordered attempts for a restarted step', async () => {
+    const projectId = crypto.randomUUID();
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId: crypto.randomUUID(),
+      model: workflowModel({
+        name: 'Test',
+        jobs: {build: {steps: [{run: 'produce'}, {run: 'review'}]}},
+      }),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const jobId = (await getJobsByRunId(run.id))[0]?.id as string;
+    const steps = await getStepsByJobId(jobId);
+    const producerId = steps[0]?.id as string;
+    const reviewerId = steps[1]?.id as string;
+    // reviewer gate: succeed only on exit 0; otherwise restart from producer.
+    await db().update(stepsTable).set({name: 'producer'}).where(eq(stepsTable.id, producerId));
+    await db()
+      .update(stepsTable)
+      .set({
+        config: {
+          run: 'review',
+          gate: {
+            success_if: {language: 'cel', check: 'syntax', source: 'exit_code == 0'},
+            on_failure: {restart_from: 'producer'},
+          },
+        },
+      })
+      .where(eq(stepsTable.id, reviewerId));
+    const runStep = async (stepId: string, exitCode: number) => {
+      await nextStepForJob(jobId);
+      await recordStepResult({
+        jobId,
+        stepId,
+        status: exitCode === 0 ? 'succeeded' : 'failed',
+        ...(exitCode === 0 ? {} : {error: {message: `exit ${exitCode}`}}),
+        exitCode,
+      });
+    };
+    await runStep(producerId, 0); // producer attempt 1 succeeds
+    await runStep(reviewerId, 1); // reviewer attempt 1 gate-fails → restart, both bumped to 2
+    await runStep(producerId, 0); // producer attempt 2 succeeds
+    await runStep(reviewerId, 0); // reviewer attempt 2 gate-passes → job done
+
+    const res = await app.inject({method: 'GET', url: `/api/workflows/runs/${run.id}`});
+
+    expect(res.statusCode).toBe(200);
+    const [producer, reviewer] = res.json().jobs[0].steps;
+    expect(producer.current_attempt).toBe(2);
+    expect(producer.attempts.map((a: {attempt: number}) => a.attempt)).toEqual([1, 2]);
+    expect(reviewer.current_attempt).toBe(2);
+    const reviewerAttempts = reviewer.attempts as Array<{
+      attempt: number;
+      status: string;
+      exit_code: number | null;
+      gate_result: unknown;
+      restart_reason: string | null;
+    }>;
+    expect(reviewerAttempts.map((a) => a.attempt)).toEqual([1, 2]); // ordered by attempt
+    expect(reviewerAttempts[0]?.status).toBe('failed');
+    expect(reviewerAttempts[0]?.exit_code).toBe(1);
+    expect(reviewerAttempts[0]?.gate_result).toMatchObject({passed: false});
+    expect(reviewerAttempts[0]?.restart_reason).toBeTruthy();
+    expect(reviewerAttempts[1]?.status).toBe('succeeded');
+    expect(reviewerAttempts[1]?.exit_code).toBe(0);
   });
 });

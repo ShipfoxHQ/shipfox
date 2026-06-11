@@ -1,14 +1,27 @@
 import {requireProjectAccess} from '@shipfox/api-projects';
-import {jobDtoSchema, runResponseSchema, stepDtoSchema} from '@shipfox/api-workflows-dto';
+import {
+  jobDtoSchema,
+  runResponseSchema,
+  stepAttemptDtoSchema,
+  stepDtoSchema,
+} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {getJobsByRunId, getStepsByJobIds, getWorkflowRunById} from '#db/index.js';
-import {toJobDto, toRunDto, toStepDto} from '#presentation/dto/index.js';
+import {
+  getJobsByRunId,
+  getStepAttemptsByJobIds,
+  getStepsByJobIds,
+  getWorkflowRunById,
+} from '#db/index.js';
+import {toJobDto, toRunDto, toStepAttemptDto, toStepDto} from '#presentation/dto/index.js';
 
 const runDetailResponseSchema = runResponseSchema.extend({
   jobs: z.array(
     jobDtoSchema.extend({
-      steps: z.array(stepDtoSchema),
+      // Each step carries its attempt history (one entry per dispatched attempt;
+      // a restarted step has more than one). `current_attempt` on the step points
+      // at the latest.
+      steps: z.array(stepDtoSchema.extend({attempts: z.array(stepAttemptDtoSchema)})),
     }),
   ),
 });
@@ -41,11 +54,20 @@ export const getRunRoute = defineRoute({
     });
 
     const runJobs = await getJobsByRunId(run.id);
-    const allSteps = await getStepsByJobIds(runJobs.map((j) => j.id));
+    const jobIds = runJobs.map((j) => j.id);
+    const [allSteps, allAttempts] = await Promise.all([
+      getStepsByJobIds(jobIds),
+      getStepAttemptsByJobIds(jobIds),
+    ]);
 
     const jobDtos = runJobs.map((job) => ({
       ...toJobDto(job),
-      steps: allSteps.filter((s) => s.jobId === job.id).map(toStepDto),
+      steps: allSteps
+        .filter((s) => s.jobId === job.id)
+        .map((step) => ({
+          ...toStepDto(step),
+          attempts: allAttempts.filter((a) => a.stepId === step.id).map(toStepAttemptDto),
+        })),
     }));
 
     return {

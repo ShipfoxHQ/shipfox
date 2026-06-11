@@ -23,6 +23,7 @@ export {
   failJobAsTimedOut,
   getJobsByRunId,
   getStepAttempts,
+  getStepAttemptsByJobIds,
   getStepsByJobId,
   getStepsByJobIds,
   getWorkflowRunAggregates,
