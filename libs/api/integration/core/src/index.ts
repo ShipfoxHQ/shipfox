@@ -13,7 +13,11 @@ import {
   createSourceControlIntegrationService,
   type IntegrationSourceControlService,
 } from '#core/source-control-service.js';
-import {getIntegrationConnectionById, upsertIntegrationConnection} from '#db/connections.js';
+import {
+  getIntegrationConnectionById,
+  updateIntegrationConnectionLifecycleStatus,
+  upsertIntegrationConnection,
+} from '#db/connections.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
@@ -95,7 +99,19 @@ export interface IntegrationsContext {
   sourceControl: IntegrationSourceControlService;
 }
 
+// Stable migration-tracking table names per provider database. These must NOT
+// depend on the provider's position in the module `database` array — a
+// positional name would shift if a provider is flag-disabled and silently
+// re-run migrations against existing tables.
+const GITHUB_MIGRATIONS_TABLE = '__drizzle_migrations_integrations_github';
+const SENTRY_MIGRATIONS_TABLE = '__drizzle_migrations_integrations_sentry';
+
 interface GithubModuleParts {
+  provider: IntegrationProvider;
+  database: ModuleDatabase;
+}
+
+interface SentryModuleParts {
   provider: IntegrationProvider;
   database: ModuleDatabase;
 }
@@ -159,9 +175,29 @@ async function loadGithubModuleParts(): Promise<GithubModuleParts> {
   };
 }
 
+async function loadSentryModuleParts(): Promise<SentryModuleParts> {
+  const {
+    createSentryIntegrationProvider,
+    db: sentryDb,
+    migrationsPath: sentryMigrationsPath,
+  } = await import('@shipfox/api-integration-sentry');
+
+  return {
+    provider: createSentryIntegrationProvider({
+      coreDb: db,
+      publishIntegrationEventReceived,
+      recordDeliveryOnly,
+      getIntegrationConnectionById,
+      updateConnectionLifecycleStatus: updateIntegrationConnectionLifecycleStatus,
+    }),
+    database: {db: sentryDb, migrationsPath: sentryMigrationsPath},
+  };
+}
+
 async function createConfiguredProviders(): Promise<{
   providers: IntegrationProvider[];
   github: GithubModuleParts | undefined;
+  sentry: SentryModuleParts | undefined;
 }> {
   const providers: IntegrationProvider[] = [];
   if (config.INTEGRATIONS_ENABLE_DEBUG_PROVIDER) {
@@ -172,7 +208,12 @@ async function createConfiguredProviders(): Promise<{
     github = await loadGithubModuleParts();
     providers.push(github.provider);
   }
-  return {providers, github};
+  let sentry: SentryModuleParts | undefined;
+  if (config.INTEGRATIONS_ENABLE_SENTRY_PROVIDER) {
+    sentry = await loadSentryModuleParts();
+    providers.push(sentry.provider);
+  }
+  return {providers, github, sentry};
 }
 
 export async function createIntegrationsModule(
@@ -186,10 +227,11 @@ export async function createIntegrationsContext(
 ): Promise<IntegrationsContext> {
   let providers: IntegrationProvider[];
   let github: GithubModuleParts | undefined;
+  let sentry: SentryModuleParts | undefined;
   if (options.providers) {
     providers = options.providers;
   } else {
-    ({providers, github} = await createConfiguredProviders());
+    ({providers, github, sentry} = await createConfiguredProviders());
   }
 
   const registry = createIntegrationProviderRegistry(providers);
@@ -200,7 +242,11 @@ export async function createIntegrationsContext(
 
   const module: ShipfoxModule = {
     name: 'integrations',
-    database: github ? [{db, migrationsPath}, github.database] : {db, migrationsPath},
+    database: [
+      {db, migrationsPath},
+      ...(github ? [{...github.database, migrationsTableName: GITHUB_MIGRATIONS_TABLE}] : []),
+      ...(sentry ? [{...sentry.database, migrationsTableName: SENTRY_MIGRATIONS_TABLE}] : []),
+    ],
     routes: createIntegrationRoutes(registry, sourceControl),
     publishers: [{name: 'integrations', table: integrationsOutbox, db}],
     workers: [

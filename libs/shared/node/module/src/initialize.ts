@@ -42,7 +42,7 @@ export async function initializeModules(
         await runMigrations(
           database.db(),
           database.migrationsPath,
-          moduleMigrationTableName(mod.name, index),
+          database.migrationsTableName ?? moduleMigrationTableName(mod.name, index),
         );
         logger().info({module: mod.name, database: index}, 'Migrations complete');
       }

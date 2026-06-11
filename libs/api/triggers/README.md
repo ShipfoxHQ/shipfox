@@ -231,6 +231,9 @@ triggers module, the projection schema, the run table, or `TriggerPayload`
 is needed for a new source. Author workflows that subscribe to the new
 `(source, event)` and narrow `triggerPayload.data` themselves.
 
+For Sentry's supported `(source, event)` values, see
+[`@shipfox/api-integration-sentry`](../integration/sentry).
+
 ## Development
 
 Run checks for this package:

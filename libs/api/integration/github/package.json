@@ -48,7 +48,6 @@
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "fastify-plugin": "^5.1.0",
     "ky": "^2.0.0",
     "octokit": "^5.0.3",
     "zod": "^4.4.3"

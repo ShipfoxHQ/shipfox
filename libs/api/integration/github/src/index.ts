@@ -1,11 +1,11 @@
-import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
-import {createGithubApiClient, type GithubApiClient} from '#api/client.js';
-import {GithubSourceControlProvider} from '#core/source-control.js';
 import type {
   GetIntegrationConnectionByIdFn,
   PublishIntegrationEventReceivedFn,
   RecordDeliveryOnlyFn,
-} from '#core/webhook.js';
+} from '@shipfox/api-integration-core-dto';
+import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
+import {createGithubApiClient, type GithubApiClient} from '#api/client.js';
+import {GithubSourceControlProvider} from '#core/source-control.js';
 import {closeDb, db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {

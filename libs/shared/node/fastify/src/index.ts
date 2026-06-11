@@ -32,6 +32,7 @@ export type {
   RouteSchema,
 } from './types.js';
 export {defineRoute, isRouteGroup} from './types.js';
+export {rawBodyPlugin, WEBHOOK_BODY_LIMIT} from './webhook-raw-body.js';
 
 let _app: FastifyInstance | undefined;
 

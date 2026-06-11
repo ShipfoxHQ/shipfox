@@ -1,8 +1,10 @@
 import {
   buildProviderRepositoryId,
+  type GetIntegrationConnectionByIdFn,
   type GithubPushPayload,
-  type IntegrationConnection,
-  type IntegrationEventReceivedEvent,
+  type IntegrationTx,
+  type PublishIntegrationEventReceivedFn,
+  type RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-core-dto';
 import type {GithubPushPayloadDto} from '@shipfox/api-integration-github-dto';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -12,27 +14,8 @@ const REFS_HEADS_PREFIX = 'refs/heads/';
 const GITHUB_SOURCE = 'github';
 const PUSH_EVENT = 'push';
 
-// biome-ignore lint/suspicious/noExplicitAny: cross-package tx without cyclic dep
-type Tx = any;
-
-export type PublishIntegrationEventReceivedFn = (params: {
-  tx: Tx;
-  event: IntegrationEventReceivedEvent;
-}) => Promise<{published: boolean}>;
-
-export type RecordDeliveryOnlyFn = (params: {
-  tx: Tx;
-  provider: string;
-  deliveryId: string;
-}) => Promise<void>;
-
-export type GetIntegrationConnectionByIdFn = (
-  id: string,
-  options?: {tx?: Tx},
-) => Promise<IntegrationConnection | undefined>;
-
 export interface HandleGithubPushParams {
-  tx: Tx;
+  tx: IntegrationTx;
   deliveryId: string;
   payload: GithubPushPayloadDto;
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;

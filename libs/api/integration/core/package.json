@@ -41,6 +41,7 @@
     "@shipfox/api-integration-debug": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-integration-github": "workspace:*",
+    "@shipfox/api-integration-sentry": "workspace:*",
     "@shipfox/api-workspaces": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
