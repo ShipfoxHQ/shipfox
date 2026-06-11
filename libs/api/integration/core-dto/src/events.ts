@@ -34,7 +34,18 @@ export interface SentryIssuePayload {
   lastSeenAt: string | null;
 }
 
-export type SentryIssueAction = 'created' | 'resolved' | 'assigned' | 'archived' | 'unresolved';
+// Single source of truth for Sentry issue actions: the sentry-dto webhook schema
+// builds its z.enum from this tuple, so accepted webhook actions and the published
+// SentryIssuePayload contract cannot drift.
+export const SENTRY_ISSUE_ACTIONS = [
+  'created',
+  'resolved',
+  'assigned',
+  'archived',
+  'unresolved',
+] as const;
+
+export type SentryIssueAction = (typeof SENTRY_ISSUE_ACTIONS)[number];
 
 export interface IntegrationsEventMap {
   [INTEGRATION_EVENT_RECEIVED]: IntegrationEventReceivedEvent;

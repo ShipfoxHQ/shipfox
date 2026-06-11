@@ -1,13 +1,10 @@
+import {SENTRY_ISSUE_ACTIONS} from '@shipfox/api-integration-core-dto';
 import {z} from 'zod';
 
-// Sentry may add actions without notice; unknown actions are acknowledged and dropped.
-export const sentryIssueActionSchema = z.enum([
-  'created',
-  'resolved',
-  'assigned',
-  'archived',
-  'unresolved',
-]);
+// Built from the SENTRY_ISSUE_ACTIONS tuple in core-dto so the accepted webhook
+// actions stay in lockstep with the published SentryIssuePayload contract. Sentry
+// may add actions without notice; unknown actions are acknowledged and dropped.
+export const sentryIssueActionSchema = z.enum(SENTRY_ISSUE_ACTIONS);
 export type SentryIssueAction = z.infer<typeof sentryIssueActionSchema>;
 
 // Sentry sends large webhook envelopes; validating only consumed fields avoids
