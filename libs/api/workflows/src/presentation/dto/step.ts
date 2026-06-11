@@ -11,7 +11,7 @@ function toStepErrorDto(error: Record<string, unknown> | null): StepErrorDtoShap
   return {
     message,
     ...(exitCode === null || typeof exitCode === 'number' ? {exit_code: exitCode} : {}),
-    ...(signal ? {signal} : {}),
+    ...(signal === undefined ? {} : {signal}),
   };
 }
 
@@ -26,7 +26,7 @@ export function fromStepErrorDto(
     ...(error.exit_code === null || typeof error.exit_code === 'number'
       ? {exitCode: error.exit_code}
       : {}),
-    ...(error.signal ? {signal: error.signal} : {}),
+    ...(typeof error.signal === 'string' ? {signal: error.signal} : {}),
   };
 }
 
