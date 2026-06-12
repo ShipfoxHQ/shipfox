@@ -9,7 +9,7 @@ import {
 import {getProjectById} from '@shipfox/api-projects';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {pino} from 'pino';
-import {setSourceControl} from '#core/source-control.js';
+import {clearSourceControl, setSourceControl} from '#core/source-control.js';
 import {jobFactory} from '#test/factories/job.js';
 import {projectFactory} from '#test/factories/project.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
@@ -54,7 +54,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   afterAll(async () => {
     await closeApp();
-    setSourceControl(undefined as unknown as IntegrationSourceControlService);
+    clearSourceControl();
   });
 
   describe('lease-token auth', () => {

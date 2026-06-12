@@ -1,5 +1,5 @@
 import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
-import {setSourceControl, sourceControl} from './source-control.js';
+import {clearSourceControl, setSourceControl, sourceControl} from './source-control.js';
 
 describe('sourceControl', () => {
   it('returns the configured service', () => {
@@ -10,7 +10,7 @@ describe('sourceControl', () => {
   });
 
   it('throws when the source-control integration is not configured', () => {
-    setSourceControl(undefined as unknown as IntegrationSourceControlService);
+    clearSourceControl();
 
     expect(() => sourceControl()).toThrow('source-control integration is not configured');
   });

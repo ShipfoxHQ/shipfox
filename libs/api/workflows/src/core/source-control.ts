@@ -10,6 +10,10 @@ export function setSourceControl(service: IntegrationSourceControlService): void
   _sourceControl = service;
 }
 
+export function clearSourceControl(): void {
+  _sourceControl = undefined;
+}
+
 export function sourceControl(): IntegrationSourceControlService {
   if (!_sourceControl) {
     throw new Error('workflows: source-control integration is not configured');

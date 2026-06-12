@@ -44,4 +44,21 @@ describe('toCheckoutTokenDto', () => {
 
     expect(() => toCheckoutTokenDto(spec)).toThrow();
   });
+
+  it('rejects an scp-like URL that embeds credentials', () => {
+    const spec: CheckoutSpec = {
+      repositoryUrl: 'user:secret@github.com:acme/repo.git',
+      ref: 'main',
+    };
+
+    expect(() => toCheckoutTokenDto(spec)).toThrow();
+  });
+
+  it('accepts a credential-free scp-like URL', () => {
+    const spec: CheckoutSpec = {repositoryUrl: 'git@github.com:acme/repo.git', ref: 'main'};
+
+    const dto = toCheckoutTokenDto(spec);
+
+    expect(dto).toEqual({repository_url: 'git@github.com:acme/repo.git', ref: 'main'});
+  });
 });
