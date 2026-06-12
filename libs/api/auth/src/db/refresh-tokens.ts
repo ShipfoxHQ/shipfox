@@ -78,37 +78,51 @@ export async function findRefreshTokenByHash(params: {
 }
 
 /**
- * Atomically marks the token rotated, guarding that it is still the active hash.
- * Acts as a compare-and-swap: of several concurrent refreshes only one updates a
- * row and gets it back; the rest get `undefined` (another refresh already rotated
- * or revoked it). The row is marked rather than deleted so later reuse of the
- * retired token can be detected.
+ * Atomically claims rotation and inserts the successor token. The predecessor is
+ * marked rather than deleted so later reuse of the retired token can be detected.
+ * If the successor insert fails, the predecessor rotation rolls back.
  */
-export async function markRefreshTokenRotated(params: {
+export async function rotateRefreshToken(params: {
   id: string;
   currentHashedToken: string;
+  nextHashedToken: string;
+  expiresAt: Date;
 }): Promise<RefreshToken | undefined> {
-  const rows = await db()
-    .update(refreshTokens)
-    .set({
-      rotatedAt: sql`now()`,
-      lastUsedAt: sql`now()`,
-      updatedAt: sql`now()`,
-    })
-    .where(
-      and(
-        eq(refreshTokens.id, params.id),
-        eq(refreshTokens.hashedToken, params.currentHashedToken),
-        isNull(refreshTokens.revokedAt),
-        isNull(refreshTokens.rotatedAt),
-        gt(refreshTokens.expiresAt, sql`now()`),
-      ),
-    )
-    .returning();
+  return await db().transaction(async (tx) => {
+    const rotatedRows = await tx
+      .update(refreshTokens)
+      .set({
+        rotatedAt: sql`now()`,
+        lastUsedAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(refreshTokens.id, params.id),
+          eq(refreshTokens.hashedToken, params.currentHashedToken),
+          isNull(refreshTokens.revokedAt),
+          isNull(refreshTokens.rotatedAt),
+          gt(refreshTokens.expiresAt, sql`now()`),
+        ),
+      )
+      .returning();
 
-  const row = rows[0];
-  if (!row) return undefined;
-  return toRefreshToken(row);
+    const rotated = rotatedRows[0];
+    if (!rotated) return undefined;
+
+    const successorRows = await tx
+      .insert(refreshTokens)
+      .values({
+        userId: rotated.userId,
+        hashedToken: params.nextHashedToken,
+        expiresAt: params.expiresAt,
+      })
+      .returning();
+
+    if (!successorRows[0]) throw new Error('Insert returned no rows');
+
+    return toRefreshToken(rotated);
+  });
 }
 
 export async function revokeRefreshTokenByHash(params: {hashedToken: string}): Promise<void> {

@@ -172,7 +172,7 @@ describe('auth core', () => {
   test('refreshAccessToken rejects a lost rotation claim when the token was revoked', async () => {
     const user = await userFactory.create({emailVerifiedAt: new Date()});
     const loginResult = await login({email: user.email, password: user.plainPassword});
-    vi.spyOn(refreshTokenDb, 'markRefreshTokenRotated').mockImplementationOnce(async () => {
+    vi.spyOn(refreshTokenDb, 'rotateRefreshToken').mockImplementationOnce(async () => {
       await logout({refreshToken: loginResult.refreshToken});
       return undefined;
     });

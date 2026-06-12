@@ -20,9 +20,9 @@ import {
   createRefreshToken,
   findActiveRefreshTokenByHash,
   findRefreshTokenByHash,
-  markRefreshTokenRotated,
   revokeRefreshTokenByHash,
   revokeRefreshTokensForUser,
+  rotateRefreshToken,
 } from '#db/refresh-tokens.js';
 import {
   createUser as createDbUser,
@@ -346,24 +346,22 @@ export async function refreshAccessToken(params: {
 
   // Losing the CAS requires a state check: another request may have rotated,
   // revoked, or expired the token before this refresh could claim it.
-  const rotated = await markRefreshTokenRotated({id: current.id, currentHashedToken});
+  const nextRefreshToken = generateOpaqueToken('refreshToken');
+  const token = await signAccessToken(user);
+  const rotated = await rotateRefreshToken({
+    id: current.id,
+    currentHashedToken,
+    nextHashedToken: hashOpaqueToken(nextRefreshToken),
+    expiresAt: daysFromNow(config.AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS),
+  });
   if (!rotated) {
     const latest = await findRefreshTokenByHash({hashedToken: currentHashedToken});
     if (!latest || !isWithinRotationGrace(latest)) {
       throw new TokenInvalidError('Refresh token is invalid or expired');
     }
-    const token = await signAccessToken(user);
     return {token, refreshToken: undefined, user};
   }
 
-  const nextRefreshToken = generateOpaqueToken('refreshToken');
-  await createRefreshToken({
-    userId: user.id,
-    hashedToken: hashOpaqueToken(nextRefreshToken),
-    expiresAt: daysFromNow(config.AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS),
-  });
-
-  const token = await signAccessToken(user);
   return {token, refreshToken: nextRefreshToken, user};
 }
 
