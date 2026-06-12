@@ -104,6 +104,18 @@ describe('handleSentryConnect', () => {
     expect(sentry.verifyInstallation).not.toHaveBeenCalled();
   });
 
+  it('returns the persisted connection when verify-install fails (non-fatal)', async () => {
+    const sentry = sentryClient({
+      verifyInstallation: vi.fn(() => Promise.reject(new Error('verify failed'))),
+    });
+    const {connectSentryInstallation, result} = run({sentry});
+
+    const connected = await result;
+
+    expect(connectSentryInstallation).toHaveBeenCalled();
+    expect(connected.lifecycleStatus).toBe('active');
+  });
+
   it('throws when the installation is linked to a different workspace', async () => {
     const sentry = sentryClient();
     const {result} = run({

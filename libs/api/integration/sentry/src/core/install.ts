@@ -1,4 +1,5 @@
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {logger} from '@shipfox/node-opentelemetry';
 import type {SentryApiClient} from '#api/client.js';
 import {SentryInstallationAlreadyLinkedError} from '#core/errors.js';
 
@@ -65,10 +66,21 @@ export async function handleSentryConnect(
   });
 
   if (params.verifyInstall) {
-    await params.sentry.verifyInstallation({
-      installationUuid: params.installationUuid,
-      token: authorization.token,
-    });
+    // Best-effort: the connection is already persisted and receiving webhooks, so
+    // a verify failure only leaves the install pending on Sentry's side. Failing
+    // the connect would strand a working row behind the idempotent short-circuit
+    // on retry (re-verifying needs a fresh token we cannot mint yet), so we log it.
+    try {
+      await params.sentry.verifyInstallation({
+        installationUuid: params.installationUuid,
+        token: authorization.token,
+      });
+    } catch (error) {
+      logger().warn(
+        {installationUuid: params.installationUuid, connectionId: connection.id, err: error},
+        'sentry connect: verify-install failed after persistence, connection is active',
+      );
+    }
   }
 
   return connection;
