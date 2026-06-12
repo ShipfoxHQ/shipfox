@@ -1,9 +1,9 @@
 import {z} from 'zod';
 
 // Machine-readable cause of a setup-phase failure, for DB troubleshooting. The
-// runner reports it; `checkout_*` and `git_unavailable` arrive with the checkout
-// work (ENG-405), `setup_aborted` is reserved for a future best-effort abort-report
-// path (today an abort stops the runner without reporting).
+// runner reports it and the server stores it as-is. The runner currently emits
+// `workspace_prep_failed`; the `checkout_*`, `git_unavailable`, and `setup_aborted`
+// values complete the taxonomy the read path accepts.
 export const stepErrorReasonSchema = z.enum([
   'checkout_failed',
   'checkout_auth_failed',

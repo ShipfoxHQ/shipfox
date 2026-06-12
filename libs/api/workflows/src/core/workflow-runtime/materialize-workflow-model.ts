@@ -20,10 +20,9 @@ export interface MaterializedWorkflowStep {
 }
 
 // Synthetic "Set up job" step prepended to every job at position 0, mirroring
-// GitHub Actions' implicit setup step. The runner prepares the workspace (and,
-// with ENG-405, checks out the repo) here; failures report through the normal
-// step protocol instead of hanging the job until the lease/timeout fires. Its
-// config is credential-free.
+// GitHub Actions' implicit setup step. The runner prepares the workspace here;
+// failures report through the normal step protocol instead of hanging the job
+// until the lease/timeout fires. Its config is credential-free.
 const SETUP_STEP: MaterializedWorkflowStep = {
   sourceName: 'Set up job',
   status: 'pending',

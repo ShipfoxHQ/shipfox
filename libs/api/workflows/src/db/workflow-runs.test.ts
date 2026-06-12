@@ -1,5 +1,6 @@
 import {WORKFLOW_RUN_CREATED, WORKFLOWS_JOB_TIMED_OUT} from '@shipfox/api-workflows-dto';
-import {and, eq, sql} from 'drizzle-orm';
+import {eq, sql} from 'drizzle-orm';
+import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
 import {db} from './db.js';
 import {jobs} from './schema/jobs.js';
@@ -833,15 +834,7 @@ describe('workflow run queries', () => {
       // strictness predates the synthetic setup step (and that path is being retired
       // separately). Strip the setup step here so these tests stay focused on the
       // step-result mechanics, with user steps renumbered back to 0-based.
-      await db().transaction(async (tx) => {
-        await tx
-          .delete(stepsTable)
-          .where(and(eq(stepsTable.jobId, jobId), eq(stepsTable.type, 'setup')));
-        await tx
-          .update(stepsTable)
-          .set({position: sql`${stepsTable.position} - 1`})
-          .where(eq(stepsTable.jobId, jobId));
-      });
+      await stripSetupStep(jobId);
       const jobSteps = await getStepsByJobId(jobId);
       return {jobId, jobSteps};
     }
