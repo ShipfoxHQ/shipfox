@@ -1,8 +1,10 @@
 import {releaseJob, scheduleJob} from '@shipfox/api-runners';
+import {ApplicationFailure} from '@temporalio/common';
 import type {JobStatus} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus, RuntimeDagJob} from '#core/entities/runtime-dag.js';
 import type {StepStatus} from '#core/entities/step.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
+import {JobNotFoundError} from '#core/errors.js';
 import {
   bulkUpdateStepStatuses,
   failJobAsTimedOut,
@@ -112,7 +114,17 @@ export async function resolveLeaseExpiredJobActivity(params: {
   jobId: string;
   expectedVersion: number;
 }): Promise<{status: RuntimeCompletionStatus; jobVersion: number}> {
-  return await resolveJobAfterLeaseExpiry(params);
+  try {
+    return await resolveJobAfterLeaseExpiry(params);
+  } catch (err) {
+    // A job with no steps is a data-integrity bug, not a transient fault. Retrying
+    // it would loop until the workflow's 60-min backstop; surface it immediately
+    // as a non-retryable failure instead.
+    if (err instanceof JobNotFoundError) {
+      throw ApplicationFailure.nonRetryable(err.message, err.name);
+    }
+    throw err;
+  }
 }
 
 // Best-effort lease cleanup on job finalization. Idempotent: deleting an

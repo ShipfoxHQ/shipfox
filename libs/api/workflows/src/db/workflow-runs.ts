@@ -12,6 +12,7 @@ import type {Job, JobStatus} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
 import type {TriggerPayload, WorkflowRun, WorkflowRunStatus} from '#core/entities/workflow-run.js';
+import {JobNotFoundError} from '#core/errors.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import {materializeWorkflowModel} from '#core/workflow-runtime/index.js';
 import {db, type Tx} from './db.js';
@@ -471,8 +472,9 @@ export async function resolveJobAfterLeaseExpiry(params: {
 
     // A job with no steps is malformed, not a runner-died-mid-job failure. Surface
     // it loudly instead of silently marking the job failed and hiding the bad state.
+    // The activity translates this to a non-retryable failure so it fails fast.
     if (jobSteps.length === 0) {
-      throw new Error(`Job has no steps resolving lease expiry: ${params.jobId}`);
+      throw new JobNotFoundError(params.jobId);
     }
 
     if (jobSteps.every((step) => isTerminal(step.status))) {

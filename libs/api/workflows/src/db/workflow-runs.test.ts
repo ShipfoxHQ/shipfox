@@ -1,5 +1,6 @@
 import {WORKFLOW_RUN_CREATED, WORKFLOWS_JOB_TIMED_OUT} from '@shipfox/api-workflows-dto';
 import {eq, sql} from 'drizzle-orm';
+import {JobNotFoundError} from '#core/errors.js';
 import {recordStepResult} from '#core/job-execution.js';
 import {workflowModel} from '#test/index.js';
 import {db} from './db.js';
@@ -900,12 +901,12 @@ describe('workflow run queries', () => {
       expect(final[2]?.status).toBe('cancelled');
     });
 
-    test('job with no steps: throws instead of silently failing the malformed job', async () => {
+    test('job with no steps: throws JobNotFoundError instead of silently failing the malformed job', async () => {
       const {jobId, runningVersion} = await seedRunningJob(0);
 
       await expect(
         resolveJobAfterLeaseExpiry({jobId, expectedVersion: runningVersion}),
-      ).rejects.toThrow('no steps');
+      ).rejects.toBeInstanceOf(JobNotFoundError);
 
       expect((await jobRow(jobId))?.status).toBe('running');
     });
