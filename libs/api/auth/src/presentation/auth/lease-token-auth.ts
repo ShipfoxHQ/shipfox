@@ -12,7 +12,7 @@ import {verifyJobLeaseToken} from '#core/job-lease-token.js';
  * revoked stays usable until it expires (`AUTH_JOB_LEASE_TOKEN_EXPIRES_IN`, 90m).
  * Accepted deliberately for a short-lived, job-scoped capability token; tightening
  * this would mean a per-request DB lookup on the hot status-reporting path. See the
- * "Auth methods" section in the package README for the full rationale.
+ * "Security model" section in the package README for the full rationale.
  */
 export function createLeaseTokenAuthMethod(): AuthMethod {
   return {
