@@ -1,5 +1,12 @@
 # @shipfox/client-workspace-settings
 
+## 0.0.3
+
+### Patch Changes
+
+- @shipfox/client-runners@0.0.3
+- @shipfox/client-auth@0.0.3
+
 ## 0.0.2
 
 ### Patch Changes
