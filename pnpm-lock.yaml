@@ -154,6 +154,9 @@ importers:
       '@shipfox/api-runners-dto':
         specifier: workspace:*
         version: link:../../libs/api/runners-dto
+      '@shipfox/api-workflows-dto':
+        specifier: workspace:*
+        version: link:../../libs/api/workflows-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../libs/shared/common/config

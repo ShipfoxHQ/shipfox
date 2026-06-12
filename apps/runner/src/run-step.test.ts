@@ -1,6 +1,7 @@
 import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, join} from 'node:path';
+import type {StepDto} from '@shipfox/api-workflows-dto';
 import {executeRunStep} from '#run-step.js';
 
 const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
@@ -14,6 +15,7 @@ describe('executeRunStep', () => {
 
     expect(result.success).toBe(true);
     expect(result.output).toContain('hello');
+    expect(result.exit_code).toBe(0);
   });
 
   it('fails with non-zero exit code and reports it on result.error', async () => {
@@ -23,6 +25,7 @@ describe('executeRunStep', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toEqual({message: 'Command exited with code 1', exit_code: 1});
+    expect(result.exit_code).toBe(1);
   });
 
   it('captures both stdout and stderr', async () => {
@@ -149,12 +152,18 @@ describe('executeRunStep', () => {
 
 function buildStep(
   overrides: Partial<{type: string; name: string | null; config: Record<string, unknown>}> = {},
-) {
+): StepDto {
   return {
     id: '00000000-0000-0000-0000-000000000001',
+    job_id: '00000000-0000-0000-0000-000000000002',
     name: overrides.name ?? 'test-step',
+    status: 'running',
     type: overrides.type ?? 'run',
     config: overrides.config ?? {run: 'echo test'},
+    error: null,
     position: 0,
+    current_attempt: 1,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
   };
 }

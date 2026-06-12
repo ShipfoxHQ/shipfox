@@ -18,25 +18,25 @@ vi.mock('#workspace.js', async (importActual) => ({
   resolveWorkspaceRoot: vi.fn(),
 }));
 
-vi.mock('#executor.js', () => ({
-  executeJob: vi.fn(),
+vi.mock('#step-loop.js', () => ({
+  runJobSteps: vi.fn(),
 }));
 
 vi.mock('#api-client.js', () => ({
-  completeJob: vi.fn(),
   requestJob: vi.fn(),
+  createLeaseClient: vi.fn(() => ({}) as never),
   HTTPError: class HTTPError extends Error {},
 }));
 
-import {completeJob, requestJob} from '#api-client.js';
-import {executeJob} from '#executor.js';
+import {createLeaseClient, requestJob} from '#api-client.js';
 import {runJob, startRunner} from '#runner.js';
+import {runJobSteps} from '#step-loop.js';
 import {prepareWorkspace, resolveWorkspaceRoot, UnsafeWorkspaceRootError} from '#workspace.js';
 
 const mockPrepareWorkspace = vi.mocked(prepareWorkspace);
 const mockResolveWorkspaceRoot = vi.mocked(resolveWorkspaceRoot);
-const mockExecuteJob = vi.mocked(executeJob);
-const mockCompleteJob = vi.mocked(completeJob);
+const mockRunJobSteps = vi.mocked(runJobSteps);
+const mockCreateLeaseClient = vi.mocked(createLeaseClient);
 const mockRequestJob = vi.mocked(requestJob);
 
 const JOB = {
@@ -44,13 +44,14 @@ const JOB = {
   run_id: '00000000-0000-0000-0000-000000000002',
   job_name: 'test-job',
   steps: [],
+  lease_token: 'lease-token',
 } as Parameters<typeof runJob>[0];
 
 const WORKSPACE_ROOT = '/tmp/shipfox-test-root';
 
 function mockWorkspace() {
   const cleanup = vi.fn().mockResolvedValue(undefined);
-  mockPrepareWorkspace.mockResolvedValue({cwd: '/tmp/shipfox-job-1', cleanup});
+  mockPrepareWorkspace.mockResolvedValue({cwd: '/tmp/job-1', cleanup});
   return cleanup;
 }
 
@@ -59,67 +60,34 @@ beforeEach(() => {
 });
 
 describe('runJob', () => {
-  beforeEach(() => {
-    mockCompleteJob.mockResolvedValue({} as never);
-  });
-
-  it('cleans up and reports completion on success', async () => {
+  it('runs the step loop with the workspace cwd and lease client, then cleans up', async () => {
     const cleanup = mockWorkspace();
-    mockExecuteJob.mockResolvedValue({status: 'succeeded', steps: []});
+    mockRunJobSteps.mockResolvedValue();
 
     await runJob(JOB, WORKSPACE_ROOT);
 
-    expect(mockCompleteJob).toHaveBeenCalledWith(
-      expect.objectContaining({jobId: JOB.job_id, status: 'succeeded'}),
+    expect(mockCreateLeaseClient).toHaveBeenCalledWith(JOB.lease_token);
+    expect(mockRunJobSteps).toHaveBeenCalledWith(
+      expect.objectContaining({jobId: JOB.job_id, cwd: '/tmp/job-1'}),
     );
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
-  it('reports completion before cleaning up (D2)', async () => {
+  it('cleans up when the step loop throws', async () => {
     const cleanup = mockWorkspace();
-    mockExecuteJob.mockResolvedValue({status: 'succeeded', steps: []});
+    mockRunJobSteps.mockRejectedValue(new Error('aborted'));
 
     await runJob(JOB, WORKSPACE_ROOT);
 
-    const completeOrder = mockCompleteJob.mock.invocationCallOrder[0] ?? 0;
-    const cleanupOrder = cleanup.mock.invocationCallOrder[0] ?? 0;
-    expect(completeOrder).toBeLessThan(cleanupOrder);
-  });
-
-  it('cleans up when a step fails', async () => {
-    const cleanup = mockWorkspace();
-    mockExecuteJob.mockResolvedValue({
-      status: 'failed',
-      steps: [{step_id: JOB.job_id, status: 'failed', error: {message: 'boom'}}],
-    });
-
-    await runJob(JOB, WORKSPACE_ROOT);
-
-    expect(mockCompleteJob).toHaveBeenCalledWith(expect.objectContaining({status: 'failed'}));
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
-  it('cleans up when execution throws (e.g. cancellation)', async () => {
-    const cleanup = mockWorkspace();
-    mockExecuteJob.mockRejectedValue(new Error('aborted'));
-
-    await runJob(JOB, WORKSPACE_ROOT);
-
-    expect(mockCompleteJob).toHaveBeenCalledWith(
-      expect.objectContaining({status: 'failed', steps: []}),
-    );
-    expect(cleanup).toHaveBeenCalledTimes(1);
-  });
-
-  it('fails the job with empty steps and runs no steps when prepare fails', async () => {
+  it('runs no steps when preparing the workspace fails', async () => {
     mockPrepareWorkspace.mockRejectedValue(new Error('mkdir failed'));
 
     await runJob(JOB, WORKSPACE_ROOT);
 
-    expect(mockExecuteJob).not.toHaveBeenCalled();
-    expect(mockCompleteJob).toHaveBeenCalledWith(
-      expect.objectContaining({status: 'failed', steps: []}),
-    );
+    expect(mockRunJobSteps).not.toHaveBeenCalled();
   });
 });
 

@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {unlink, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import type {JobPayloadStepDto, StepErrorDto} from '@shipfox/api-runners-dto';
+import type {StepDto, StepErrorDtoShape} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 
 export interface StepResult {
@@ -13,13 +13,15 @@ export interface StepResult {
   // to the API: per-step logs are a separate concern (future S3-backed logs).
   output: string;
   // Populated when success is false. Null on success.
-  error: StepErrorDto;
+  error: StepErrorDtoShape;
+  // 0 on success, the exit code on failure, null when signal-killed or never spawned.
+  exit_code: number | null;
 }
 
 const MAX_OUTPUT_BYTES = 1024 * 1024; // 1MB
 
 export function executeRunStep(
-  step: JobPayloadStepDto,
+  step: StepDto,
   options: {signal?: AbortSignal; cwd?: string} = {},
 ): Promise<StepResult> {
   if (step.type !== 'run') {
@@ -27,6 +29,7 @@ export function executeRunStep(
       success: false,
       output: '',
       error: {message: `Unsupported step type: ${step.type}`},
+      exit_code: null,
     });
   }
 
@@ -36,6 +39,7 @@ export function executeRunStep(
       success: false,
       output: '',
       error: {message: 'Step config.run is missing or empty'},
+      exit_code: null,
     });
   }
 
@@ -131,12 +135,12 @@ function spawnAndCapture(
       cleanupAbortListener();
       const finalOutput = truncated ? `[output truncated]\n${output}` : output;
       if (code === 0) {
-        resolve({success: true, output: finalOutput, error: null});
+        resolve({success: true, output: finalOutput, error: null, exit_code: 0});
         return;
       }
       // code === null when the child was terminated by a signal (e.g. SIGKILL
       // from killGroup() on abort). Otherwise code is the non-zero exit code.
-      const error: StepErrorDto =
+      const error: StepErrorDtoShape =
         code === null
           ? {
               message: `Killed by signal ${signal ?? 'unknown'}`,
@@ -144,7 +148,7 @@ function spawnAndCapture(
               ...(signal ? {signal} : {}),
             }
           : {message: `Command exited with code ${code}`, exit_code: code};
-      resolve({success: false, output: finalOutput, error});
+      resolve({success: false, output: finalOutput, error, exit_code: code});
     });
 
     child.on('error', (err) => {
@@ -154,6 +158,7 @@ function spawnAndCapture(
         success: false,
         output: '',
         error: {message: `Failed to spawn process: ${err.message}`},
+        exit_code: null,
       });
     });
   });

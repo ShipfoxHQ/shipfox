@@ -1,9 +1,9 @@
 import {setTimeout as setTimeoutPromise} from 'node:timers/promises';
 import {logger} from '@shipfox/node-opentelemetry';
-import {completeJob, HTTPError, requestJob} from '#api-client.js';
+import {createLeaseClient, requestJob} from '#api-client.js';
 import {config} from '#config.js';
-import {type ExecuteJobResult, executeJob} from '#executor.js';
 import {startHeartbeatLoop} from '#heartbeat-loop.js';
+import {runJobSteps} from '#step-loop.js';
 import {prepareWorkspace, resolveWorkspaceRoot, type Workspace} from '#workspace.js';
 
 let running = true;
@@ -42,10 +42,7 @@ export async function startRunner(): Promise<void> {
       }
 
       currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
-      logger().info(
-        {jobId: job.job_id, jobName: job.job_name, steps: job.steps.length},
-        'Job received',
-      );
+      logger().info({jobId: job.job_id, runId: job.run_id}, 'Job claimed');
 
       await runJob(job, workspaceRoot);
     } catch (pollError) {
@@ -71,37 +68,20 @@ export async function runJob(
   });
 
   let workspace: Workspace | undefined;
-  let result: ExecuteJobResult;
   try {
     workspace = await prepareWorkspace(job, workspaceRoot);
-    result = await executeJob(job, {signal: ac.signal, cwd: workspace.cwd});
-    logger().info({jobId: job.job_id, status: result.status}, 'Job execution finished');
-  } catch (execError) {
-    logger().error({err: execError, jobId: job.job_id}, 'Job execution failed');
-    // Empty steps[] tells the API "we don't know which step crashed"; the
-    // workflow falls back to bulk-failing every step.
-    result = {status: 'failed', steps: []};
+    const leaseClient = createLeaseClient(job.lease_token);
+    await runJobSteps({jobId: job.job_id, leaseClient, signal: ac.signal, cwd: workspace.cwd});
+    logger().info({jobId: job.job_id}, 'Job step loop finished');
+  } catch (stepLoopError) {
+    // Workspace prep failed, retries are exhausted, or a non-retryable error surfaced.
+    // Bail this job; the lease expires server-side and the outer poll moves on. Do not
+    // re-pull (would re-execute).
+    logger().error({err: stepLoopError, jobId: job.job_id}, 'Job step loop failed');
   } finally {
     heartbeatLoop.stop();
     if (currentJobAbortController === ac) currentJobAbortController = undefined;
-  }
-
-  try {
-    // 404 here is the expected signal that the backend already finalized this
-    // job; do not retry, do not fall through to the outer catch (would re-attempt).
-    await completeJob({jobId: job.job_id, status: result.status, steps: result.steps});
-    logger().info({jobId: job.job_id, status: result.status}, 'Job completed');
-  } catch (reportError) {
-    if (reportError instanceof HTTPError && reportError.response.status === 404) {
-      logger().info(
-        {jobId: job.job_id},
-        'Backend already finalized this job; skipping completion report',
-      );
-    } else {
-      logger().error({err: reportError, jobId: job.job_id}, 'Failed to report job completion');
-    }
-  } finally {
-    // Clean up after reporting so a slow cleanup can't lose the completion.
+    // Clean up the per-job workspace on every exit path.
     if (workspace) await workspace.cleanup();
   }
 }
