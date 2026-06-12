@@ -264,8 +264,12 @@ restate the type or the name:
  */
 ```
 
-Skip JSDoc entirely on internal, app-local, or self-evident functions; a
-docstring that only echoes `getRunner(id): Runner` is noise.
+Self-evident functions need no docstring at all; a docstring that only echoes
+`getRunner(id): Runner` is noise. But the choice for an internal function is not
+JSDoc versus nothing, it is JSDoc versus a `//` comment. When an internal
+function does carry a why that earns a comment, prefer a `/** ... */` block over
+a loose `//`: it attaches to the symbol, surfaces on hover at every call site,
+and travels with the signature instead of floating above one line of the body.
 
 ### Keep planning and process out of the source
 
