@@ -9,7 +9,7 @@ export interface ExecuteJobResult {
 
 export async function executeJob(
   job: JobPayloadDto,
-  options: {signal?: AbortSignal} = {},
+  options: {signal?: AbortSignal; cwd?: string} = {},
 ): Promise<ExecuteJobResult> {
   const steps = [...job.steps].sort((a, b) => a.position - b.position);
   const reported: StepResultDto[] = [];

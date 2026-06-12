@@ -1,3 +1,6 @@
+import {mkdtemp, rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {basename, join} from 'node:path';
 import {executeRunStep} from '#run-step.js';
 
 const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
@@ -66,6 +69,22 @@ describe('executeRunStep', () => {
     expect(result.error?.exit_code).toBeNull();
     expect(result.error?.signal).toBe('SIGKILL');
     expect(result.error?.message).toContain('SIGKILL');
+  });
+
+  it('runs the step in the provided cwd', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'shipfox-cwd-test-'));
+    try {
+      const step = buildStep({config: {run: 'pwd'}});
+
+      const result = await executeRunStep(step, {cwd: dir});
+
+      expect(result.success).toBe(true);
+      // macOS resolves tmpdir() through a /private symlink, so match the unique
+      // mkdtemp suffix rather than the full path.
+      expect(result.output).toContain(basename(dir));
+    } finally {
+      await rm(dir, {recursive: true, force: true});
+    }
   });
 
   it('handles multi-line scripts', async () => {

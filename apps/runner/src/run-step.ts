@@ -20,7 +20,7 @@ const MAX_OUTPUT_BYTES = 1024 * 1024; // 1MB
 
 export function executeRunStep(
   step: JobPayloadStepDto,
-  options: {signal?: AbortSignal} = {},
+  options: {signal?: AbortSignal; cwd?: string} = {},
 ): Promise<StepResult> {
   if (step.type !== 'run') {
     return Promise.resolve({
@@ -44,7 +44,7 @@ export function executeRunStep(
 
 async function runShellCommand(
   command: string,
-  options: {signal?: AbortSignal},
+  options: {signal?: AbortSignal; cwd?: string},
 ): Promise<StepResult> {
   const scriptPath = join(tmpdir(), `shipfox-runner-${randomUUID()}.sh`);
 
@@ -56,7 +56,10 @@ async function runShellCommand(
   }
 }
 
-function spawnAndCapture(scriptPath: string, options: {signal?: AbortSignal}): Promise<StepResult> {
+function spawnAndCapture(
+  scriptPath: string,
+  options: {signal?: AbortSignal; cwd?: string},
+): Promise<StepResult> {
   return new Promise((resolve) => {
     const shell = findShell();
     const args =
@@ -70,6 +73,7 @@ function spawnAndCapture(scriptPath: string, options: {signal?: AbortSignal}): P
     const child = spawn(shell, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
+      cwd: options.cwd,
     });
 
     let output = '';
