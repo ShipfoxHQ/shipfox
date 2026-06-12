@@ -2,13 +2,35 @@ import {createConfig, num, str} from '@shipfox/config';
 import {createConsoleMailer, createSmtpMailer, type Mailer} from '@shipfox/node-mailer';
 
 export const config = createConfig({
-  CLIENT_BASE_URL: str({default: 'http://localhost:3000'}),
-  MAILER_TRANSPORT: str({default: 'console'}),
-  MAILER_FROM: str({default: 'noreply@shipfox.local'}),
-  SMTP_HOST: str({default: undefined}),
-  SMTP_PORT: num({default: 587}),
-  SMTP_USER: str({default: undefined}),
-  SMTP_PASSWORD: str({default: undefined}),
+  CLIENT_BASE_URL: str({
+    desc: 'Base URL of the client app. Used to build links in workspace invitation emails.',
+    default: 'http://localhost:3000',
+  }),
+  MAILER_TRANSPORT: str({
+    desc: 'How emails are delivered. Use console to print them to the log, or smtp to send them through an SMTP server.',
+    choices: ['console', 'smtp'],
+    default: 'console',
+  }),
+  MAILER_FROM: str({
+    desc: 'Sender address shown on outgoing emails.',
+    default: 'noreply@shipfox.local',
+  }),
+  SMTP_HOST: str({
+    desc: 'Hostname of the SMTP server. Required when MAILER_TRANSPORT is smtp.',
+    default: undefined,
+  }),
+  SMTP_PORT: num({
+    desc: 'Port of the SMTP server.',
+    default: 587,
+  }),
+  SMTP_USER: str({
+    desc: 'Username for SMTP authentication. Leave it unset if the server needs no login.',
+    default: undefined,
+  }),
+  SMTP_PASSWORD: str({
+    desc: 'Password for SMTP authentication. Leave it unset if the server needs no login.',
+    default: undefined,
+  }),
 });
 
 function createMailer(): Mailer {

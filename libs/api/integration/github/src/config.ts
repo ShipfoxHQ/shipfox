@@ -1,13 +1,27 @@
 import {createConfig, str} from '@shipfox/config';
 
 export const config = createConfig({
-  GITHUB_APP_ID: str(),
-  GITHUB_APP_PRIVATE_KEY: str(),
-  GITHUB_APP_CLIENT_ID: str(),
-  GITHUB_APP_CLIENT_SECRET: str(),
-  GITHUB_APP_WEBHOOK_SECRET: str(),
-  GITHUB_APP_SLUG: str(),
-  GITHUB_INSTALL_STATE_SECRET: str(),
+  GITHUB_APP_ID: str({
+    desc: "Numeric ID of the GitHub App, found on the app's settings page. Required.",
+  }),
+  GITHUB_APP_PRIVATE_KEY: str({
+    desc: 'Private key of the GitHub App in PEM format, used to sign API requests. Newlines may be written as \\n and are restored at runtime. Required.',
+  }),
+  GITHUB_APP_CLIENT_ID: str({
+    desc: 'OAuth client ID of the GitHub App, used for user sign-in. Required.',
+  }),
+  GITHUB_APP_CLIENT_SECRET: str({
+    desc: 'OAuth client secret of the GitHub App. Required.',
+  }),
+  GITHUB_APP_WEBHOOK_SECRET: str({
+    desc: 'Secret used to verify the signature of incoming GitHub webhooks. Must match the value set on the GitHub App. Required.',
+  }),
+  GITHUB_APP_SLUG: str({
+    desc: 'URL slug of the GitHub App, used to build install and callback links. Required.',
+  }),
+  GITHUB_INSTALL_STATE_SECRET: str({
+    desc: 'Secret used to sign the state token that protects the GitHub App install flow. Required.',
+  }),
 });
 
 export function normalizedGithubPrivateKey(): string {

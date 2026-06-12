@@ -164,6 +164,43 @@ Each E2E package must also declare an explicit workspace dependency on the packa
 it verifies, such as `@shipfox/client-auth` for `@shipfox/e2e-client-auth`, so
 Turbo includes the referenced package in the task DAG.
 
+### Configuration
+
+Each app and each package that reads the environment owns a `src/config.ts`. It
+calls `createConfig` from `@shipfox/config` (a thin wrapper over envalid) with one
+validator per variable: `str`, `num`, `bool`, `host`, `port`, `url`, or `email`. A
+validator with a `default` is optional; one without a default is required, so a
+missing value fails startup. Keep the file flat: declare the schema, then derive
+any helpers (such as a mailer) below it.
+
+Document every variable with the validator's `desc` property, never a `//` comment
+beside it. `desc` stays attached to the schema: envalid's default reporter prints it
+when a required variable is missing at startup, and any config tooling can read it.
+A `//` comment never leaves the source file. When you find an existing `//` note on
+a config param, move it into `desc`.
+
+Write the descriptions for self-hosters, not for maintainers:
+
+- Plain language, one idea per sentence, present tense.
+- Say what the variable does and how to set it.
+- List the accepted values when the variable is constrained: enums like
+  `LOG_LEVEL` or `MAILER_TRANSPORT`, a URL, a comma-separated list.
+- Note when a variable is required, or when it depends on another (for example,
+  `SMTP_HOST` is required when `MAILER_TRANSPORT` is `smtp`).
+- No marketing words.
+
+```ts
+export const config = createConfig({
+  AUTH_JWT_SECRET: str({
+    desc: 'Secret used to sign and verify user access tokens (JWTs). Required, with no default, so startup fails when it is missing.',
+  }),
+  MAILER_TRANSPORT: str({
+    desc: 'How emails are delivered. Use console to print them to the log, or smtp to send them through an SMTP server.',
+    default: 'console',
+  }),
+});
+```
+
 ## Code comments
 
 Default to fewer comments. Well-named functions, types, and variables carry the

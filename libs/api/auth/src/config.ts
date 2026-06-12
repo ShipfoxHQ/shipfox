@@ -2,21 +2,57 @@ import {createConfig, num, str} from '@shipfox/config';
 import {createConsoleMailer, createSmtpMailer, type Mailer} from '@shipfox/node-mailer';
 
 export const config = createConfig({
-  AUTH_JWT_SECRET: str(),
-  AUTH_JWT_EXPIRES_IN: str({default: '15m'}),
-  // Mirrors AUTH_JWT_SECRET handling: required, no default — fail fast on misconfig.
-  AUTH_JOB_LEASE_TOKEN_SECRET: str(),
-  // TTL must outlast a job (JOB_MAX_DURATION is 60 minutes) plus margin.
-  AUTH_JOB_LEASE_TOKEN_EXPIRES_IN: str({default: '90m'}),
-  AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS: num({default: 14}),
-  AUTH_REFRESH_COOKIE_NAME: str({default: 'shipfox_refresh_token'}),
-  CLIENT_BASE_URL: str({default: 'http://localhost:3000'}),
-  MAILER_TRANSPORT: str({default: 'console'}),
-  MAILER_FROM: str({default: 'noreply@shipfox.local'}),
-  SMTP_HOST: str({default: undefined}),
-  SMTP_PORT: num({default: 587}),
-  SMTP_USER: str({default: undefined}),
-  SMTP_PASSWORD: str({default: undefined}),
+  AUTH_JWT_SECRET: str({
+    desc: 'Secret used to sign and verify user access tokens (JWTs). Required, with no default, so startup fails when it is missing.',
+  }),
+  AUTH_JWT_EXPIRES_IN: str({
+    desc: 'How long an access token stays valid. Accepts a duration string such as 15m, 1h, or 7d.',
+    default: '15m',
+  }),
+  AUTH_JOB_LEASE_TOKEN_SECRET: str({
+    desc: 'Secret used to sign and verify job lease tokens. Required, with no default, so startup fails when it is missing.',
+  }),
+  AUTH_JOB_LEASE_TOKEN_EXPIRES_IN: str({
+    desc: 'How long a job lease token stays valid. Set it longer than the longest job (JOB_MAX_DURATION is 60 minutes) plus a safety margin.',
+    default: '90m',
+  }),
+  AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS: num({
+    desc: 'How many days a refresh token stays valid before the user must sign in again.',
+    default: 14,
+  }),
+  AUTH_REFRESH_COOKIE_NAME: str({
+    desc: 'Name of the browser cookie that stores the refresh token.',
+    default: 'shipfox_refresh_token',
+  }),
+  CLIENT_BASE_URL: str({
+    desc: 'Base URL of the client app. Used to build links in emails such as password resets.',
+    default: 'http://localhost:3000',
+  }),
+  MAILER_TRANSPORT: str({
+    desc: 'How emails are delivered. Use console to print them to the log, or smtp to send them through an SMTP server.',
+    choices: ['console', 'smtp'],
+    default: 'console',
+  }),
+  MAILER_FROM: str({
+    desc: 'Sender address shown on outgoing emails.',
+    default: 'noreply@shipfox.local',
+  }),
+  SMTP_HOST: str({
+    desc: 'Hostname of the SMTP server. Required when MAILER_TRANSPORT is smtp.',
+    default: undefined,
+  }),
+  SMTP_PORT: num({
+    desc: 'Port of the SMTP server.',
+    default: 587,
+  }),
+  SMTP_USER: str({
+    desc: 'Username for SMTP authentication. Leave it unset if the server needs no login.',
+    default: undefined,
+  }),
+  SMTP_PASSWORD: str({
+    desc: 'Password for SMTP authentication. Leave it unset if the server needs no login.',
+    default: undefined,
+  }),
 });
 
 function createMailer(): Mailer {
