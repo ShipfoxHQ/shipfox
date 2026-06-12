@@ -2904,7 +2904,7 @@ importers:
         version: link:../typescript
       '@types/node':
         specifier: 25.9.1
-        version: 24.13.0
+        version: 25.9.1
 
   tools/depcruise:
     dependencies:
@@ -2926,7 +2926,7 @@ importers:
         version: link:../typescript
       '@types/node':
         specifier: 25.9.1
-        version: 24.13.0
+        version: 25.9.1
 
   tools/playwright:
     dependencies:
@@ -6607,6 +6607,9 @@ packages:
 
   '@types/node@24.13.0':
     resolution: {integrity: sha512-5vtOqGQr4NJKeEzV441FcOi2MeG9UTWq9LqVLGneDdu4vlX17H8kQ2PA2UmNwCUGPVDj4oBjNhS7ReVEIWJJrg==}
+
+  '@types/node@25.9.1':
+    resolution: {integrity: sha512-xfrlY7UD5rMJk3ZVJP8BNzS28J36YJg+xp+LPXV1TdWxr8uMH5A860QNxYDGQe/ylDSgjxE52Q9VnO7p75tJxg==}
 
   '@types/node@25.9.2':
     resolution: {integrity: sha512-G05zqtJhcDLb8uslf5EjCxXg9G1KQxiV8OS0R26IC//Eoyitzqe8z37I7cqvnZlrlSfgocQRfSn/AHBZJJFyGw==}
@@ -13006,7 +13009,7 @@ snapshots:
 
   '@types/bunyan@1.8.11':
     dependencies:
-      '@types/node': 25.9.2
+      '@types/node': 24.13.0
 
   '@types/chai@5.2.3':
     dependencies:
@@ -13015,7 +13018,7 @@ snapshots:
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 25.9.2
+      '@types/node': 24.13.0
 
   '@types/deep-eql@4.0.2': {}
 
@@ -13031,17 +13034,21 @@ snapshots:
 
   '@types/memcached@2.2.10':
     dependencies:
-      '@types/node': 25.9.2
+      '@types/node': 24.13.0
 
   '@types/mysql@2.15.27':
     dependencies:
-      '@types/node': 25.9.2
+      '@types/node': 24.13.0
 
   '@types/node@12.20.55': {}
 
   '@types/node@24.13.0':
     dependencies:
       undici-types: 7.18.2
+
+  '@types/node@25.9.1':
+    dependencies:
+      undici-types: 7.24.6
 
   '@types/node@25.9.2':
     dependencies:
@@ -13053,7 +13060,7 @@ snapshots:
 
   '@types/oracledb@6.5.2':
     dependencies:
-      '@types/node': 25.9.2
+      '@types/node': 24.13.0
 
   '@types/pg-pool@2.0.7':
     dependencies:
@@ -13061,7 +13068,7 @@ snapshots:
 
   '@types/pg@8.15.6':
     dependencies:
-      '@types/node': 25.9.2
+      '@types/node': 24.13.0
       pg-protocol: 1.13.0
       pg-types: 2.2.0
 
@@ -13083,7 +13090,7 @@ snapshots:
 
   '@types/tedious@4.0.14':
     dependencies:
-      '@types/node': 25.9.2
+      '@types/node': 24.13.0
 
   '@vitejs/plugin-react@6.0.2(vite@8.0.16(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.8.3))':
     dependencies:
@@ -14418,7 +14425,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 25.9.2
+      '@types/node': 24.13.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -15053,7 +15060,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 25.9.2
+      '@types/node': 24.13.0
       long: 5.3.2
 
   protobufjs@7.6.2:
@@ -15068,7 +15075,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 25.9.2
+      '@types/node': 24.13.0
       long: 5.3.2
 
   pump@3.0.4:
