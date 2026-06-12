@@ -869,6 +869,23 @@ describe('workflow run queries', () => {
       expect(final.every((step) => step.status === 'succeeded')).toBe(true);
     });
 
+    test('all steps terminal but mixed: adopts failed without cancelling the terminal steps', async () => {
+      const {jobId, runningVersion, jobSteps} = await seedRunningJob(2);
+      await setStepStatus(jobSteps[0]?.id as string, 'succeeded');
+      await setStepStatus(jobSteps[1]?.id as string, 'failed');
+
+      const result = await resolveJobAfterLeaseExpiry({jobId, expectedVersion: runningVersion});
+
+      // deriveCompletion over an all-terminal-but-mixed projection is 'failed', and the
+      // adopt branch must NOT run the bulk-cancel sweep, so the already-terminal steps
+      // keep their reported statuses.
+      expect(result.status).toBe('failed');
+      expect((await jobRow(jobId))?.status).toBe('failed');
+      const final = await getStepsByJobId(jobId);
+      expect(final[0]?.status).toBe('succeeded');
+      expect(final[1]?.status).toBe('failed');
+    });
+
     test('runner died mid-job: fails the job and cancels the remaining steps', async () => {
       const {jobId, runningVersion, jobSteps} = await seedRunningJob(3);
       await setStepStatus(jobSteps[0]?.id as string, 'succeeded');

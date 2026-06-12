@@ -474,4 +474,32 @@ describe('detectAndExpireStuckJobs', () => {
     expect(second).toBeUndefined();
     expect(await outboxForJobs([jobId])).toHaveLength(1);
   });
+
+  it('sweeps an orphan pending row for the job it reaps (best-effort release may have failed)', async () => {
+    const {jobId, runId} = await makeStaleJob(600);
+    // A post-claim enqueue retry left a pending row whose job is already running;
+    // without this sweep it would stay re-claimable for an already-finished job.
+    await db().insert(pendingJobs).values({workspaceId, jobId, runId});
+
+    await expireStuckJob({jobId, staleBeforeMs: 180_000});
+
+    expect(await runningJobsForTest()).toHaveLength(0);
+    expect(await db().select().from(pendingJobs).where(eq(pendingJobs.jobId, jobId))).toHaveLength(
+      0,
+    );
+  });
+
+  it('leaves the orphan pending row alone when the running row is not stale enough to reap', async () => {
+    const {jobId, runId} = await makeStaleJob(60);
+    await db().insert(pendingJobs).values({workspaceId, jobId, runId});
+
+    const result = await expireStuckJob({jobId, staleBeforeMs: 180_000});
+
+    // The sweep is gated on actually reaping a running row, so a live job's
+    // pending row is untouched.
+    expect(result).toBeUndefined();
+    expect(await db().select().from(pendingJobs).where(eq(pendingJobs.jobId, jobId))).toHaveLength(
+      1,
+    );
+  });
 });

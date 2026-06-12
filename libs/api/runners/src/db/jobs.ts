@@ -18,8 +18,8 @@ export interface ScheduleJobParams {
 // at-least-once, so a unique-violation throw on a retry-after-lost-result
 // would permanently fail a healthy job's workflow. The guard does not extend
 // past the claim: once the job has moved to `runners_running_jobs`, a retry
-// can reinsert a pending row that a later claim then rejects on the
-// running-job unique constraint.
+// can reinsert an orphan pending row, which a later `claimPendingJob` drops
+// via the running-job unique constraint (onConflictDoNothing) instead of failing.
 export async function scheduleJob(params: ScheduleJobParams): Promise<void> {
   await db()
     .insert(pendingJobs)
@@ -103,9 +103,12 @@ export async function releaseJob(params: {jobId: string}): Promise<void> {
  * WHERE and the outbox event is written in the same transaction only when a row
  * was deleted, so a heartbeat landing between an outer `findStuckJobs` read and
  * this call leaves the live job untouched, and overlapping detector runs cannot
- * double-emit. `runId` comes from `RETURNING`. Distinct from `releaseJob` (the
- * workflow-driven cleanup), which is unconditional and emits no event: the two
- * guard on different predicates, so the resemblance is shallow.
+ * double-emit. `runId` comes from `RETURNING`. Once a running row is reaped it
+ * also sweeps any orphan pending row for the job (same as `releaseJob`): if the
+ * workflow's best-effort `releaseJob` failed, reaping only the running row would
+ * leave that orphan re-claimable for an already-finished job. Distinct from
+ * `releaseJob` (the workflow-driven cleanup), which is unconditional and emits no
+ * event: the two guard on different predicates, so the resemblance is shallow.
  */
 export async function expireStuckJob(params: {
   jobId: string;
@@ -127,6 +130,8 @@ export async function expireStuckJob(params: {
 
     const row = deleted[0];
     if (!row) return undefined;
+
+    await tx.delete(pendingJobs).where(eq(pendingJobs.jobId, params.jobId));
 
     await writeOutboxEvent<RunnersEventMap>(tx, runnersOutbox, {
       type: RUNNER_JOB_LEASE_EXPIRED,
