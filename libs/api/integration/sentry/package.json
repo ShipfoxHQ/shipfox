@@ -37,14 +37,17 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-integration-sentry-dto": "workspace:*",
+    "@shipfox/api-workspaces": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "drizzle-orm": "^0.45.2",
+    "ky": "^2.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

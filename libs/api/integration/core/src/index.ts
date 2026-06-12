@@ -3,6 +3,7 @@ import {fileURLToPath} from 'node:url';
 import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {createDebugIntegrationProvider} from '@shipfox/api-integration-debug';
 import type {ConnectGithubInstallationInput} from '@shipfox/api-integration-github';
+import type {ConnectSentryInstallationInput} from '@shipfox/api-integration-sentry';
 import type {ModuleDatabase, ShipfoxModule} from '@shipfox/node-module';
 import type {IntegrationProvider} from '#core/entities/provider.js';
 import {
@@ -178,12 +179,56 @@ async function loadGithubModuleParts(): Promise<GithubModuleParts> {
 async function loadSentryModuleParts(): Promise<SentryModuleParts> {
   const {
     createSentryIntegrationProvider,
+    getSentryInstallationByInstallationUuid,
+    upsertSentryInstallation,
     db: sentryDb,
     migrationsPath: sentryMigrationsPath,
   } = await import('@shipfox/api-integration-sentry');
 
+  async function getExistingSentryConnection(input: {
+    installationUuid: string;
+  }): Promise<CoreIntegrationConnection<'sentry'> | undefined> {
+    const installation = await getSentryInstallationByInstallationUuid(input.installationUuid);
+    if (!installation) return undefined;
+    const connection = await getIntegrationConnectionById(installation.connectionId);
+    if (!connection) return undefined;
+    return connection as CoreIntegrationConnection<'sentry'>;
+  }
+
+  async function connectSentryInstallation(
+    input: ConnectSentryInstallationInput,
+  ): Promise<CoreIntegrationConnection<'sentry'>> {
+    return await db().transaction(async (tx) => {
+      const connection = await upsertIntegrationConnection(
+        {
+          workspaceId: input.workspaceId,
+          provider: 'sentry',
+          externalAccountId: input.installationUuid,
+          displayName: input.displayName,
+          lifecycleStatus: 'active',
+        },
+        {tx},
+      );
+
+      await upsertSentryInstallation(
+        {
+          connectionId: connection.id,
+          installationUuid: input.installationUuid,
+          orgSlug: input.orgSlug,
+          status: 'installed',
+          installerUserId: input.installerUserId,
+        },
+        {tx},
+      );
+
+      return connection as CoreIntegrationConnection<'sentry'>;
+    });
+  }
+
   return {
     provider: createSentryIntegrationProvider({
+      getExistingSentryConnection,
+      connectSentryInstallation,
       coreDb: db,
       publishIntegrationEventReceived,
       recordDeliveryOnly,
