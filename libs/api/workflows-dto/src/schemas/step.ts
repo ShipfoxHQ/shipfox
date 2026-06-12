@@ -1,10 +1,33 @@
 import {z} from 'zod';
 
+// Machine-readable cause of a setup-phase failure, for DB troubleshooting. The
+// runner reports it; `checkout_*` and `git_unavailable` arrive with the checkout
+// work (ENG-405), `setup_aborted` is reserved for a future best-effort abort-report
+// path (today an abort stops the runner without reporting).
+export const stepErrorReasonSchema = z.enum([
+  'checkout_failed',
+  'checkout_auth_failed',
+  'checkout_unavailable',
+  'git_unavailable',
+  'workspace_prep_failed',
+  'setup_aborted',
+]);
+
+export type StepErrorReason = z.infer<typeof stepErrorReasonSchema>;
+
+// Whether a failure is infrastructure (`setup`) or user-code (`user`). Server-derived
+// from the step's type on the read path; the runner never sends it.
+export const stepErrorCategorySchema = z.enum(['setup', 'user']);
+
+export type StepErrorCategory = z.infer<typeof stepErrorCategorySchema>;
+
 export const stepErrorDtoSchema = z
   .object({
     message: z.string(),
     exit_code: z.number().int().nullable().optional(),
     signal: z.string().optional(),
+    reason: stepErrorReasonSchema.optional(),
+    category: stepErrorCategorySchema.optional(),
   })
   .nullable();
 

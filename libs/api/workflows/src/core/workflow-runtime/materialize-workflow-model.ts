@@ -14,10 +14,23 @@ export interface MaterializedWorkflowJob {
 export interface MaterializedWorkflowStep {
   readonly sourceName: string | null;
   readonly status: 'pending';
-  readonly type: WorkflowModelStep['kind'];
+  readonly type: WorkflowModelStep['kind'] | 'setup';
   readonly config: Readonly<Record<string, unknown>>;
   readonly position: number;
 }
+
+// Synthetic "Set up job" step prepended to every job at position 0, mirroring
+// GitHub Actions' implicit setup step. The runner prepares the workspace (and,
+// with ENG-405, checks out the repo) here; failures report through the normal
+// step protocol instead of hanging the job until the lease/timeout fires. Its
+// config is credential-free.
+const SETUP_STEP: MaterializedWorkflowStep = {
+  sourceName: 'Set up job',
+  status: 'pending',
+  type: 'setup',
+  config: {},
+  position: 0,
+};
 
 export function materializeWorkflowModel(model: WorkflowModel): readonly MaterializedWorkflowJob[] {
   const jobsById = new Map(model.jobs.map((job) => [job.id, job]));
@@ -27,13 +40,18 @@ export function materializeWorkflowModel(model: WorkflowModel): readonly Materia
     dependencies: dependencySourceNames(job, jobsById),
     runner: job.runner,
     position,
-    steps: job.steps.map((step, stepPosition) => ({
-      sourceName: step.sourceName ?? null,
-      status: 'pending',
-      type: step.kind,
-      config: stepConfig(step),
-      position: stepPosition,
-    })),
+    // Every job runs on a runner (scheduling never filters on the runner field),
+    // so every job gets a setup step. User steps shift to position 1..n.
+    steps: [
+      SETUP_STEP,
+      ...job.steps.map((step, stepPosition) => ({
+        sourceName: step.sourceName ?? null,
+        status: 'pending' as const,
+        type: step.kind,
+        config: stepConfig(step),
+        position: stepPosition + 1,
+      })),
+    ],
   }));
 }
 

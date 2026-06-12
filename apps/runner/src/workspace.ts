@@ -56,38 +56,39 @@ export function resolveWorkspaceRoot(config: WorkspaceConfig): string {
   return resolved;
 }
 
-export interface Workspace {
-  cwd: string;
-  cleanup(): Promise<void>;
-}
-
 // The job id is the only input to the per-job path; assert it is the UUID the
 // API contract guarantees rather than munging it, so a malformed id fails the
 // job loudly instead of silently reshaping the directory name.
 const JOB_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Pre-cleans the per-job directory before creating it, so a directory left by a
- * previous crash is never reused. Throws when the job id is not the UUID the
- * API contract guarantees, since it is the only input to the directory path.
+ * The deterministic per-job directory path. Pure: validates the id and builds the
+ * path without touching the filesystem, so `runJob` can compute it up front (for
+ * cleanup on every exit path) while the setup step owns the actual directory
+ * creation. Throws {@link InvalidJobIdError} when the id is not the UUID the API
+ * contract guarantees, since it is the only input to the path.
  */
-export async function prepareWorkspace(job: {job_id: string}, root: string): Promise<Workspace> {
-  if (!JOB_ID_PATTERN.test(job.job_id)) {
-    throw new InvalidJobIdError(job.job_id);
+export function jobWorkspacePath(jobId: string, root: string): string {
+  if (!JOB_ID_PATTERN.test(jobId)) {
+    throw new InvalidJobIdError(jobId);
   }
+  return join(root, `job-${jobId}`);
+}
 
-  const cwd = join(root, `job-${job.job_id}`);
-
+/**
+ * Pre-cleans the per-job directory before creating it, so a directory left by a
+ * previous crash is never reused. Run inside the setup step so a prep failure is
+ * reported through the step protocol rather than bailing the job.
+ */
+export async function createJobDir(cwd: string): Promise<void> {
   // Pre-clean the per-job directory only — never the configured root.
   await rm(cwd, {recursive: true, force: true});
   await mkdir(cwd, {recursive: true});
-
-  return {cwd, cleanup: () => cleanupWorkspace(cwd)};
 }
 
 /**
  * Never throws: failures are logged and swallowed so a dirty directory can't
- * mask the job result; the next prepareWorkspace pre-clean reclaims it.
+ * mask the job result; the next createJobDir pre-clean reclaims it.
  */
 export async function cleanupWorkspace(cwd: string): Promise<void> {
   try {
