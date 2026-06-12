@@ -1,0 +1,74 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import {ApiError} from '@shipfox/client-api';
+import {screen, waitFor} from '@testing-library/react';
+import {INTEGRATIONS_TEST_WID, renderIntegrationsPage} from '#test/render.js';
+import {RedirectInstallPage} from './redirect-install-page.js';
+
+function renderInstallPage(props: Parameters<typeof RedirectInstallPage>[0]) {
+  return renderIntegrationsPage({
+    path: `/workspaces/${INTEGRATIONS_TEST_WID}/integrations/github`,
+    routePath: '/workspaces/$wid/integrations/github',
+    element: <RedirectInstallPage {...props} />,
+    extraRoutes: ['/workspaces/$wid/integrations'],
+  });
+}
+
+describe('RedirectInstallPage', () => {
+  test('requests the install URL and leaves the app', async () => {
+    const installRequest = vi
+      .fn()
+      .mockResolvedValue({install_url: 'https://provider.test/install'});
+    const assignLocation = vi.fn();
+    const beforeRedirect = vi.fn();
+
+    renderInstallPage({
+      installRequest,
+      errorFallbackMessage: 'Could not start install.',
+      beforeRedirect,
+      assignLocation,
+    });
+
+    await waitFor(() =>
+      expect(assignLocation).toHaveBeenCalledWith('https://provider.test/install'),
+    );
+    expect(installRequest).toHaveBeenCalledWith(
+      {workspace_id: INTEGRATIONS_TEST_WID},
+      expect.anything(),
+    );
+    expect(beforeRedirect).toHaveBeenCalledWith(INTEGRATIONS_TEST_WID);
+    expect(beforeRedirect.mock.invocationCallOrder[0]).toBeLessThan(
+      installRequest.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    );
+  });
+
+  test('shows the API error message with a back link on failure', async () => {
+    const installRequest = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError({message: 'Sentry app not configured', code: 'bad-config', status: 422}),
+      );
+
+    renderInstallPage({
+      installRequest,
+      errorFallbackMessage: 'Could not start install.',
+      assignLocation: vi.fn(),
+    });
+
+    // Alert mounts via framer-motion (opacity 0 in jsdom), so assert presence.
+    expect(await screen.findByText('Sentry app not configured')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Back to integrations'})).toBeVisible();
+  });
+
+  test('falls back to the provided message for unknown errors', async () => {
+    const installRequest = vi.fn().mockRejectedValue(new Error('network down'));
+
+    renderInstallPage({
+      installRequest,
+      errorFallbackMessage: 'Could not start install.',
+      assignLocation: vi.fn(),
+    });
+
+    expect(await screen.findByText('Could not start install.')).toBeInTheDocument();
+  });
+});

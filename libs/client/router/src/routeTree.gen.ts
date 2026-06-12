@@ -18,6 +18,7 @@ import { Route as AuthResetRouteImport } from './routes/auth/reset'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as WorkspacesWidLayoutRouteImport } from './routes/workspaces/$wid/_layout'
+import { Route as IntegrationsSentryCallbackRouteImport } from './routes/integrations/sentry/callback'
 import { Route as IntegrationsGithubCallbackRouteImport } from './routes/integrations/github/callback'
 import { Route as WorkspacesWidLayoutIndexRouteImport } from './routes/workspaces/$wid/_layout/index'
 import { Route as SetupLayoutWorkspacesNewRouteImport } from './routes/setup/_layout/workspaces/new'
@@ -25,7 +26,9 @@ import { Route as WorkspacesWidLayoutSettingsIndexRouteImport } from './routes/w
 import { Route as WorkspacesWidLayoutIntegrationsIndexRouteImport } from './routes/workspaces/$wid/_layout/integrations/index'
 import { Route as WorkspacesWidLayoutSettingsRunnersRouteImport } from './routes/workspaces/$wid/_layout/settings/runners'
 import { Route as WorkspacesWidLayoutSettingsMembersRouteImport } from './routes/workspaces/$wid/_layout/settings/members'
+import { Route as WorkspacesWidLayoutSettingsIntegrationsRouteImport } from './routes/workspaces/$wid/_layout/settings/integrations'
 import { Route as WorkspacesWidLayoutProjectsNewRouteImport } from './routes/workspaces/$wid/_layout/projects/new'
+import { Route as WorkspacesWidLayoutIntegrationsSentryRouteImport } from './routes/workspaces/$wid/_layout/integrations/sentry'
 import { Route as WorkspacesWidLayoutIntegrationsGithubRouteImport } from './routes/workspaces/$wid/_layout/integrations/github'
 import { Route as WorkspacesWidLayoutIntegrationsDebugRouteImport } from './routes/workspaces/$wid/_layout/integrations/debug'
 import { Route as WorkspacesWidLayoutProjectsPidLayoutRouteImport } from './routes/workspaces/$wid/_layout/projects/$pid/_layout'
@@ -78,6 +81,12 @@ const WorkspacesWidLayoutRoute = WorkspacesWidLayoutRouteImport.update({
   path: '/workspaces/$wid',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IntegrationsSentryCallbackRoute =
+  IntegrationsSentryCallbackRouteImport.update({
+    id: '/integrations/sentry/callback',
+    path: '/integrations/sentry/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const IntegrationsGithubCallbackRoute =
   IntegrationsGithubCallbackRouteImport.update({
     id: '/integrations/github/callback',
@@ -120,10 +129,22 @@ const WorkspacesWidLayoutSettingsMembersRoute =
     path: '/settings/members',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
+const WorkspacesWidLayoutSettingsIntegrationsRoute =
+  WorkspacesWidLayoutSettingsIntegrationsRouteImport.update({
+    id: '/settings/integrations',
+    path: '/settings/integrations',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
 const WorkspacesWidLayoutProjectsNewRoute =
   WorkspacesWidLayoutProjectsNewRouteImport.update({
     id: '/projects/new',
     path: '/projects/new',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
+const WorkspacesWidLayoutIntegrationsSentryRoute =
+  WorkspacesWidLayoutIntegrationsSentryRouteImport.update({
+    id: '/integrations/sentry',
+    path: '/integrations/sentry',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
 const WorkspacesWidLayoutIntegrationsGithubRoute =
@@ -173,12 +194,15 @@ export interface FileRoutesByFullPath {
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/setup': typeof SetupLayoutRouteWithChildren
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
+  '/integrations/sentry/callback': typeof IntegrationsSentryCallbackRoute
   '/workspaces/$wid': typeof WorkspacesWidLayoutRouteWithChildren
   '/setup/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
   '/workspaces/$wid/': typeof WorkspacesWidLayoutIndexRoute
   '/workspaces/$wid/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
+  '/workspaces/$wid/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
@@ -198,11 +222,14 @@ export interface FileRoutesByTo {
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/setup': typeof SetupLayoutRouteWithChildren
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
+  '/integrations/sentry/callback': typeof IntegrationsSentryCallbackRoute
   '/setup/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
   '/workspaces/$wid': typeof WorkspacesWidLayoutIndexRoute
   '/workspaces/$wid/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
+  '/workspaces/$wid/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/integrations': typeof WorkspacesWidLayoutIntegrationsIndexRoute
@@ -222,12 +249,15 @@ export interface FileRoutesById {
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/setup/_layout': typeof SetupLayoutRouteWithChildren
   '/integrations/github/callback': typeof IntegrationsGithubCallbackRoute
+  '/integrations/sentry/callback': typeof IntegrationsSentryCallbackRoute
   '/workspaces/$wid/_layout': typeof WorkspacesWidLayoutRouteWithChildren
   '/setup/_layout/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
   '/workspaces/$wid/_layout/': typeof WorkspacesWidLayoutIndexRoute
   '/workspaces/$wid/_layout/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
   '/workspaces/$wid/_layout/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
+  '/workspaces/$wid/_layout/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/_layout/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/_layout/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/_layout/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/_layout/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
   '/workspaces/$wid/_layout/integrations/': typeof WorkspacesWidLayoutIntegrationsIndexRoute
@@ -249,12 +279,15 @@ export interface FileRouteTypes {
     | '/invitations/accept'
     | '/setup'
     | '/integrations/github/callback'
+    | '/integrations/sentry/callback'
     | '/workspaces/$wid'
     | '/setup/workspaces/new'
     | '/workspaces/$wid/'
     | '/workspaces/$wid/integrations/debug'
     | '/workspaces/$wid/integrations/github'
+    | '/workspaces/$wid/integrations/sentry'
     | '/workspaces/$wid/projects/new'
+    | '/workspaces/$wid/settings/integrations'
     | '/workspaces/$wid/settings/members'
     | '/workspaces/$wid/settings/runners'
     | '/workspaces/$wid/integrations/'
@@ -274,11 +307,14 @@ export interface FileRouteTypes {
     | '/invitations/accept'
     | '/setup'
     | '/integrations/github/callback'
+    | '/integrations/sentry/callback'
     | '/setup/workspaces/new'
     | '/workspaces/$wid'
     | '/workspaces/$wid/integrations/debug'
     | '/workspaces/$wid/integrations/github'
+    | '/workspaces/$wid/integrations/sentry'
     | '/workspaces/$wid/projects/new'
+    | '/workspaces/$wid/settings/integrations'
     | '/workspaces/$wid/settings/members'
     | '/workspaces/$wid/settings/runners'
     | '/workspaces/$wid/integrations'
@@ -297,12 +333,15 @@ export interface FileRouteTypes {
     | '/invitations/accept'
     | '/setup/_layout'
     | '/integrations/github/callback'
+    | '/integrations/sentry/callback'
     | '/workspaces/$wid/_layout'
     | '/setup/_layout/workspaces/new'
     | '/workspaces/$wid/_layout/'
     | '/workspaces/$wid/_layout/integrations/debug'
     | '/workspaces/$wid/_layout/integrations/github'
+    | '/workspaces/$wid/_layout/integrations/sentry'
     | '/workspaces/$wid/_layout/projects/new'
+    | '/workspaces/$wid/_layout/settings/integrations'
     | '/workspaces/$wid/_layout/settings/members'
     | '/workspaces/$wid/_layout/settings/runners'
     | '/workspaces/$wid/_layout/integrations/'
@@ -323,6 +362,7 @@ export interface RootRouteChildren {
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
   SetupLayoutRoute: typeof SetupLayoutRouteWithChildren
   IntegrationsGithubCallbackRoute: typeof IntegrationsGithubCallbackRoute
+  IntegrationsSentryCallbackRoute: typeof IntegrationsSentryCallbackRoute
   WorkspacesWidLayoutRoute: typeof WorkspacesWidLayoutRouteWithChildren
 }
 
@@ -391,6 +431,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWidLayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/integrations/sentry/callback': {
+      id: '/integrations/sentry/callback'
+      path: '/integrations/sentry/callback'
+      fullPath: '/integrations/sentry/callback'
+      preLoaderRoute: typeof IntegrationsSentryCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/integrations/github/callback': {
       id: '/integrations/github/callback'
       path: '/integrations/github/callback'
@@ -440,11 +487,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWidLayoutSettingsMembersRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
+    '/workspaces/$wid/_layout/settings/integrations': {
+      id: '/workspaces/$wid/_layout/settings/integrations'
+      path: '/settings/integrations'
+      fullPath: '/workspaces/$wid/settings/integrations'
+      preLoaderRoute: typeof WorkspacesWidLayoutSettingsIntegrationsRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
     '/workspaces/$wid/_layout/projects/new': {
       id: '/workspaces/$wid/_layout/projects/new'
       path: '/projects/new'
       fullPath: '/workspaces/$wid/projects/new'
       preLoaderRoute: typeof WorkspacesWidLayoutProjectsNewRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
+    '/workspaces/$wid/_layout/integrations/sentry': {
+      id: '/workspaces/$wid/_layout/integrations/sentry'
+      path: '/integrations/sentry'
+      fullPath: '/workspaces/$wid/integrations/sentry'
+      preLoaderRoute: typeof WorkspacesWidLayoutIntegrationsSentryRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
     '/workspaces/$wid/_layout/integrations/github': {
@@ -529,7 +590,9 @@ interface WorkspacesWidLayoutRouteChildren {
   WorkspacesWidLayoutIndexRoute: typeof WorkspacesWidLayoutIndexRoute
   WorkspacesWidLayoutIntegrationsDebugRoute: typeof WorkspacesWidLayoutIntegrationsDebugRoute
   WorkspacesWidLayoutIntegrationsGithubRoute: typeof WorkspacesWidLayoutIntegrationsGithubRoute
+  WorkspacesWidLayoutIntegrationsSentryRoute: typeof WorkspacesWidLayoutIntegrationsSentryRoute
   WorkspacesWidLayoutProjectsNewRoute: typeof WorkspacesWidLayoutProjectsNewRoute
+  WorkspacesWidLayoutSettingsIntegrationsRoute: typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   WorkspacesWidLayoutSettingsMembersRoute: typeof WorkspacesWidLayoutSettingsMembersRoute
   WorkspacesWidLayoutSettingsRunnersRoute: typeof WorkspacesWidLayoutSettingsRunnersRoute
   WorkspacesWidLayoutIntegrationsIndexRoute: typeof WorkspacesWidLayoutIntegrationsIndexRoute
@@ -543,7 +606,11 @@ const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
     WorkspacesWidLayoutIntegrationsDebugRoute,
   WorkspacesWidLayoutIntegrationsGithubRoute:
     WorkspacesWidLayoutIntegrationsGithubRoute,
+  WorkspacesWidLayoutIntegrationsSentryRoute:
+    WorkspacesWidLayoutIntegrationsSentryRoute,
   WorkspacesWidLayoutProjectsNewRoute: WorkspacesWidLayoutProjectsNewRoute,
+  WorkspacesWidLayoutSettingsIntegrationsRoute:
+    WorkspacesWidLayoutSettingsIntegrationsRoute,
   WorkspacesWidLayoutSettingsMembersRoute:
     WorkspacesWidLayoutSettingsMembersRoute,
   WorkspacesWidLayoutSettingsRunnersRoute:
@@ -568,6 +635,7 @@ const rootRouteChildren: RootRouteChildren = {
   InvitationsAcceptRoute: InvitationsAcceptRoute,
   SetupLayoutRoute: SetupLayoutRouteWithChildren,
   IntegrationsGithubCallbackRoute: IntegrationsGithubCallbackRoute,
+  IntegrationsSentryCallbackRoute: IntegrationsSentryCallbackRoute,
   WorkspacesWidLayoutRoute: WorkspacesWidLayoutRouteWithChildren,
 }
 export const routeTree = rootRouteImport

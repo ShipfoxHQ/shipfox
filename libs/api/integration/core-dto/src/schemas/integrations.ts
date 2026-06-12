@@ -41,6 +41,7 @@ export const integrationConnectionDtoSchema = z.object({
   display_name: z.string(),
   lifecycle_status: integrationConnectionLifecycleStatusSchema,
   capabilities: z.array(integrationCapabilitySchema),
+  external_url: z.string().url().optional(),
   created_at: z.string(),
   updated_at: z.string(),
 });

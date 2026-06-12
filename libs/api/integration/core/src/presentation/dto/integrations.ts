@@ -13,6 +13,7 @@ export function toIntegrationProviderDto(provider: RegisteredIntegrationProvider
 export function toIntegrationConnectionDto(
   connection: IntegrationConnection,
   provider: RegisteredIntegrationProvider,
+  options: {externalUrl?: string | undefined} = {},
 ) {
   return {
     id: connection.id,
@@ -22,6 +23,7 @@ export function toIntegrationConnectionDto(
     display_name: connection.displayName,
     lifecycle_status: connection.lifecycleStatus,
     capabilities: provider.capabilities,
+    ...(options.externalUrl ? {external_url: options.externalUrl} : {}),
     created_at: connection.createdAt.toISOString(),
     updated_at: connection.updatedAt.toISOString(),
   };

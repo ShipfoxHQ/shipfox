@@ -52,7 +52,7 @@ describe('integration connection queries', () => {
     expect(result).toHaveLength(2);
   });
 
-  it('lists only active connections for a workspace', async () => {
+  it('lists workspace connections across all lifecycle statuses', async () => {
     await upsertIntegrationConnection({
       workspaceId,
       provider: 'debug',
@@ -75,7 +75,11 @@ describe('integration connection queries', () => {
 
     const result = await listIntegrationConnections({workspaceId});
 
-    expect(result.map((connection) => connection.provider)).toEqual(['debug', 'github']);
+    expect(result.map((connection) => [connection.provider, connection.lifecycleStatus])).toEqual([
+      ['debug', 'active'],
+      ['github', 'active'],
+      ['github', 'disabled'],
+    ]);
   });
 
   it('updates a connection lifecycle status and returns the mapped connection', async () => {

@@ -14,7 +14,7 @@ export function createListIntegrationConnectionsRoute(registry: IntegrationProvi
     method: 'GET',
     path: '/integration-connections',
     auth: AUTH_USER,
-    description: 'List active workspace integration connections.',
+    description: 'List workspace integration connections across all lifecycle statuses.',
     schema: {
       querystring: listIntegrationConnectionsQuerySchema,
       response: {
@@ -29,15 +29,26 @@ export function createListIntegrationConnectionsRoute(registry: IntegrationProvi
       const providers = new Map(
         registry.list(capability).map((provider) => [provider.provider, provider]),
       );
-      const connectionDtos = connections
-        .map((connection) => {
+      const connectionDtos = await Promise.all(
+        connections.map(async (connection) => {
           const provider = providers.get(connection.provider);
           if (!provider) return undefined;
-          return toIntegrationConnectionDto(connection, provider);
-        })
-        .filter((connection) => connection !== undefined);
+          // Best-effort: the external link is cosmetic, so a failing or missing
+          // provider-side lookup must never fail the whole connections list.
+          let externalUrl: string | undefined;
+          try {
+            externalUrl = await provider.connectionExternalUrl?.(connection);
+          } catch (error) {
+            request.log.warn(
+              {connectionId: connection.id, provider: connection.provider, err: error},
+              'Could not resolve integration connection external URL',
+            );
+          }
+          return toIntegrationConnectionDto(connection, provider, {externalUrl});
+        }),
+      );
 
-      return {connections: connectionDtos};
+      return {connections: connectionDtos.filter((connection) => connection !== undefined)};
     },
   });
 }

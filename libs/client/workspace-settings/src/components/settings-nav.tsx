@@ -9,6 +9,9 @@ export function SettingsNav({workspaceId}: {workspaceId: string}) {
   const isRunnersActive = Boolean(
     matchRoute({to: '/workspaces/$wid/settings/runners', params: {wid: workspaceId}}),
   );
+  const isIntegrationsActive = Boolean(
+    matchRoute({to: '/workspaces/$wid/settings/integrations', params: {wid: workspaceId}}),
+  );
 
   return (
     <nav aria-label="Workspace settings" className="flex flex-col gap-4">
@@ -38,6 +41,20 @@ export function SettingsNav({workspaceId}: {workspaceId: string}) {
         >
           <Icon name="settings3Line" className="size-16" />
           Runners
+        </Link>
+      </Button>
+      <Button
+        asChild
+        variant={isIntegrationsActive ? 'secondary' : 'transparent'}
+        className="w-full justify-start"
+      >
+        <Link
+          to="/workspaces/$wid/settings/integrations"
+          params={{wid: workspaceId}}
+          aria-current={isIntegrationsActive ? 'page' : undefined}
+        >
+          <Icon name="plugLine" className="size-16" />
+          Integrations
         </Link>
       </Button>
     </nav>

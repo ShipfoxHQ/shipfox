@@ -6,6 +6,7 @@ export * from './component-line.js';
 export * from './ellipse-mini-solid.js';
 export * from './info-tooltip-fill.js';
 export * from './resize.js';
+export * from './sentry-logo.js';
 export * from './shipfox-logo.js';
 export * from './slack-logo.js';
 export * from './spinner.js';

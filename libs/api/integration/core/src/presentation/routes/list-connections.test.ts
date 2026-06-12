@@ -10,7 +10,37 @@ import {
 describe('GET /integration-connections', () => {
   const context = useIntegrationRouteTest();
 
-  it('lists only active workspace connections by capability', async () => {
+  it('lists workspace connections across all lifecycle statuses', async () => {
+    const app = await createTestApp([sourceProvider()]);
+    await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'debug',
+      externalAccountId: 'debug-active',
+      displayName: 'Debug',
+    });
+    await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'debug',
+      externalAccountId: 'debug-error',
+      displayName: 'Debug',
+      lifecycleStatus: 'error',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integration-connections?workspace_id=${context.workspaceId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(
+      res
+        .json()
+        .connections.map((connection: {lifecycle_status: string}) => connection.lifecycle_status),
+    ).toEqual(['active', 'error']);
+  });
+
+  it('drops connections whose provider misses the capability filter', async () => {
     const app = await createTestApp([sourceProvider()]);
     await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
@@ -24,13 +54,6 @@ describe('GET /integration-connections', () => {
       externalAccountId: 'team-1',
       displayName: 'GitHub',
     });
-    await upsertIntegrationConnection({
-      workspaceId: context.workspaceId,
-      provider: 'github',
-      externalAccountId: 'installation-1',
-      displayName: 'GitHub',
-      lifecycleStatus: 'error',
-    });
 
     const res = await app.inject({
       method: 'GET',
@@ -42,6 +65,53 @@ describe('GET /integration-connections', () => {
     expect(
       res.json().connections.map((connection: {provider: string}) => connection.provider),
     ).toEqual(['debug']);
+  });
+
+  it('includes external_url when the provider resolves one', async () => {
+    const app = await createTestApp([
+      sourceProvider({
+        connectionExternalUrl: () => Promise.resolve('https://debug.local/team'),
+      }),
+    ]);
+    await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'debug',
+      externalAccountId: 'debug',
+      displayName: 'Debug',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integration-connections?workspace_id=${context.workspaceId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().connections[0].external_url).toBe('https://debug.local/team');
+  });
+
+  it('omits external_url and keeps the list alive when the provider lookup throws', async () => {
+    const app = await createTestApp([
+      sourceProvider({
+        connectionExternalUrl: () => Promise.reject(new Error('installation row missing')),
+      }),
+    ]);
+    await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'debug',
+      externalAccountId: 'debug',
+      displayName: 'Debug',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integration-connections?workspace_id=${context.workspaceId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().connections).toHaveLength(1);
+    expect(res.json().connections[0].external_url).toBeUndefined();
   });
 
   it('returns membership errors', async () => {
