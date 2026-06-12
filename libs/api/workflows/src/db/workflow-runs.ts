@@ -469,7 +469,13 @@ export async function resolveJobAfterLeaseExpiry(params: {
   return await db().transaction(async (tx) => {
     const jobSteps = await getStepsByJobIdForUpdate(params.jobId, tx);
 
-    if (jobSteps.length > 0 && jobSteps.every((step) => isTerminal(step.status))) {
+    // A job with no steps is malformed, not a runner-died-mid-job failure. Surface
+    // it loudly instead of silently marking the job failed and hiding the bad state.
+    if (jobSteps.length === 0) {
+      throw new Error(`Job has no steps resolving lease expiry: ${params.jobId}`);
+    }
+
+    if (jobSteps.every((step) => isTerminal(step.status))) {
       await updateJobStatusAtVersion(tx, {
         jobId: params.jobId,
         status: deriveCompletion(jobSteps),

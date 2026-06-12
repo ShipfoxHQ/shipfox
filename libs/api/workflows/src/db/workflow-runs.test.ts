@@ -900,6 +900,16 @@ describe('workflow run queries', () => {
       expect(final[2]?.status).toBe('cancelled');
     });
 
+    test('job with no steps: throws instead of silently failing the malformed job', async () => {
+      const {jobId, runningVersion} = await seedRunningJob(0);
+
+      await expect(
+        resolveJobAfterLeaseExpiry({jobId, expectedVersion: runningVersion}),
+      ).rejects.toThrow('no steps');
+
+      expect((await jobRow(jobId))?.status).toBe('running');
+    });
+
     test('does not flip a row a concurrent DAG-cancel already terminalised; reports it truthfully', async () => {
       const {jobId, runningVersion} = await seedRunningJob(2);
       // run-orchestration cancelled the job (steps left non-terminal), bumping the version.

@@ -91,8 +91,12 @@ export async function claimPendingJob(params: {
  */
 export async function releaseJob(params: {jobId: string}): Promise<void> {
   await db().transaction(async (tx) => {
-    await tx.delete(runningJobs).where(eq(runningJobs.jobId, params.jobId));
+    // Delete pending before running to match `claimPendingJob`'s lock-acquisition
+    // order (it locks the pending row first, then the running row). A concurrent
+    // claim picking up an orphan pending row for this same job would otherwise
+    // deadlock against the reverse order here.
     await tx.delete(pendingJobs).where(eq(pendingJobs.jobId, params.jobId));
+    await tx.delete(runningJobs).where(eq(runningJobs.jobId, params.jobId));
   });
 }
 

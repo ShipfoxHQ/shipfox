@@ -3,12 +3,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import type {DomainEvent} from '@shipfox/node-outbox';
 import {temporalClient} from '@shipfox/node-temporal';
 import {JOB_FINISHED_SIGNAL} from '#temporal/constants.js';
-
-const WORKFLOW_NOT_FOUND = 'WorkflowNotFoundError';
-
-function isWorkflowNotFound(err: unknown): boolean {
-  return err instanceof Error && err.name === WORKFLOW_NOT_FOUND;
-}
+import {isWorkflowNotFound} from '#temporal/workflow-not-found.js';
 
 // Per-step execution finishes a job inside recordStepResult (no runner /complete
 // call), which enqueues WORKFLOWS_JOB_COMPLETED in the same transaction. The
