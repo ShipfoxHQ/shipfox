@@ -1,8 +1,8 @@
 import {
+  type ClaimedJobResponseDto,
+  claimedJobResponseSchema,
   type HeartbeatResponseDto,
   heartbeatResponseSchema,
-  type JobPayloadResponseDto,
-  jobPayloadResponseSchema,
 } from '@shipfox/api-runners-dto';
 import {
   type NextStepResponseDto,
@@ -28,9 +28,9 @@ const api = ky.create({
   },
 });
 
-// The runner only needs the claim's lease token; its steps[] are ignored — steps are
-// pulled one at a time from the step API, not run from this payload.
-export async function requestJob(): Promise<JobPayloadResponseDto | null> {
+// Scheduling is step-less: the claim returns only the job/run ids and the lease
+// token. Steps are pulled one at a time from the step API using that token.
+export async function requestJob(): Promise<ClaimedJobResponseDto | null> {
   logger().debug('Polling for job');
 
   const response = await api.post('runners/jobs/request');
@@ -39,7 +39,7 @@ export async function requestJob(): Promise<JobPayloadResponseDto | null> {
     return null;
   }
 
-  return jobPayloadResponseSchema.parse(await response.json());
+  return claimedJobResponseSchema.parse(await response.json());
 }
 
 // next/report are idempotent, so we widen ky's retry to POST (off by default): a lost

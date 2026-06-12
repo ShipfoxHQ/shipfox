@@ -38,12 +38,14 @@ function executeJob(input: typeof defaultJobInput): Promise<{status: string; job
   });
 }
 
+function finalStatusesFor(jobId: string): string[] {
+  return setJobStatusCalls()
+    .filter((c) => c.params.jobId === jobId)
+    .map((c) => c.params.status);
+}
+
 describe('jobOrchestration', () => {
-  // Legacy job-atomic runner: /complete signals with the reported steps, which
-  // the workflow still persists via applyStepResultsActivity so a mixed-version
-  // rollout cannot leave step rows behind the job status. The mock enqueue
-  // simulates this by signalling with per-step entries.
-  test('signal succeeded with reported steps — workflow persists them via applyStepResultsActivity', async () => {
+  test('finished signal (succeeded) flips status and releases the lease', async () => {
     setCfg({
       dag: makeDag([dagJob('job-1', 'build')]),
       jobResults: new Map([['job-1', 'succeeded']]),
@@ -52,75 +54,104 @@ describe('jobOrchestration', () => {
     const result = await executeJob(defaultJobInput);
 
     expect(result.status).toBe('succeeded');
-    expect(result.jobVersion).toBeGreaterThan(0);
-
-    const statuses = setJobStatusCalls().map((c) => c.params.status);
-    expect(statuses).toEqual(['running', 'succeeded']);
-
-    const applyCalls = callsNamed('applyStepResultsActivity') as Array<{
-      params: {jobId: string; reportedSteps: Array<{status: string}>};
-    }>;
-    expect(applyCalls).toHaveLength(1);
-    expect(applyCalls[0]?.params.reportedSteps[0]?.status).toBe('succeeded');
+    expect(finalStatusesFor('job-1')).toEqual(['running', 'succeeded']);
+    expect(callsNamed('releaseLeaseActivity')).toHaveLength(1);
+    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(0);
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
   });
 
-  test('signal failed with reported steps — workflow persists them via applyStepResultsActivity', async () => {
-    setCfg({
-      dag: makeDag([dagJob('job-2', 'build')]),
-      jobResults: new Map([['job-2', 'failed']]),
-    });
+  test('finished signal (failed) flips status without sweeping steps', async () => {
+    setCfg({dag: makeDag([dagJob('job-2', 'build')]), jobResults: new Map([['job-2', 'failed']])});
 
     const result = await executeJob({...defaultJobInput, jobId: 'job-2'});
 
     expect(result.status).toBe('failed');
-
-    const statuses = setJobStatusCalls().map((c) => c.params.status);
-    expect(statuses).toEqual(['running', 'failed']);
-
-    const applyCalls = callsNamed('applyStepResultsActivity') as Array<{
-      params: {reportedSteps: Array<{status: string}>};
-    }>;
-    expect(applyCalls).toHaveLength(1);
-    expect(applyCalls[0]?.params.reportedSteps[0]?.status).toBe('failed');
+    expect(finalStatusesFor('job-2')).toEqual(['running', 'failed']);
+    expect(callsNamed('releaseLeaseActivity')).toHaveLength(1);
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
   });
 
-  // Per-step runner: results are already persisted as they are reported, so the
-  // completion signal carries no steps and the workflow only flips the status.
-  test('per-step completion signal (no steps) flips status without re-applying results', async () => {
-    setCfg({dag: makeDag([]), jobResults: new Map([['job-perstep', 'succeeded']])});
+  test('lease-expired signal resolves via the activity and releases the lease', async () => {
+    setCfg({
+      dag: makeDag([]),
+      jobResults: new Map(),
+      signalLeaseExpired: true,
+      leaseExpiredStatus: 'failed',
+    });
 
-    const result = await executeJob({...defaultJobInput, jobId: 'job-perstep'});
+    const result = await executeJob({...defaultJobInput, jobId: 'job-le'});
+
+    expect(result.status).toBe('failed');
+    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(1);
+    expect(callsNamed('releaseLeaseActivity')).toHaveLength(1);
+    expect(callsNamed('failJobAsTimedOutActivity')).toHaveLength(0);
+  });
+
+  test('lease-expired adoption: resolver reports succeeded → job succeeds (server state wins)', async () => {
+    setCfg({
+      dag: makeDag([]),
+      jobResults: new Map(),
+      signalLeaseExpired: true,
+      leaseExpiredStatus: 'succeeded',
+    });
+
+    const result = await executeJob({...defaultJobInput, jobId: 'job-le2'});
 
     expect(result.status).toBe('succeeded');
-    const applyCallsForJob = callsNamed('applyStepResultsActivity').filter(
-      (c) => (c.params as {jobId: string}).jobId === 'job-perstep',
-    );
-    expect(applyCallsForJob).toHaveLength(0);
-    expect(
-      setJobStatusCalls()
-        .filter((c) => c.params.jobId === 'job-perstep')
-        .map((c) => c.params.status),
-    ).toEqual(['running', 'succeeded']);
-  }, 15_000);
+    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(1);
+  });
 
-  test('duplicate signal is ignored', async () => {
+  test('both signals: finished wins, lease-expiry is ignored', async () => {
     setCfg({
-      dag: makeDag([dagJob('job-3', 'build')]),
-      jobResults: new Map([['job-3', 'succeeded']]),
+      dag: makeDag([]),
+      jobResults: new Map([['job-both', 'succeeded']]),
+      signalBoth: true,
+    });
+
+    const result = await executeJob({...defaultJobInput, jobId: 'job-both'});
+
+    expect(result.status).toBe('succeeded');
+    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(0);
+  });
+
+  test('both signals with finished=failed: fails via the finished path, one terminal setJobStatus', async () => {
+    setCfg({
+      dag: makeDag([]),
+      jobResults: new Map([['job-bf', 'failed']]),
+      signalBoth: true,
+    });
+
+    const result = await executeJob({...defaultJobInput, jobId: 'job-bf'});
+
+    expect(result.status).toBe('failed');
+    expect(finalStatusesFor('job-bf').filter((s) => s !== 'running')).toEqual(['failed']);
+    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(0);
+  });
+
+  test('duplicate finished signal: first wins', async () => {
+    setCfg({
+      dag: makeDag([]),
+      jobResults: new Map([['job-dup', 'succeeded']]),
       duplicateSignal: true,
     });
 
-    const result = await executeJob({...defaultJobInput, jobId: 'job-3'});
+    const result = await executeJob({...defaultJobInput, jobId: 'job-dup'});
 
-    // First signal wins.
     expect(result.status).toBe('succeeded');
+    expect(finalStatusesFor('job-dup').filter((s) => s !== 'running')).toEqual(['succeeded']);
+  });
 
-    const finalStatuses = setJobStatusCalls()
-      .map((c) => c.params.status)
-      .filter((s) => s !== 'running');
-    expect(finalStatuses).toEqual(['succeeded']);
+  test('releaseLease failure does not block the result (best-effort)', async () => {
+    setCfg({
+      dag: makeDag([]),
+      jobResults: new Map([['job-rl', 'succeeded']]),
+      releaseLeaseError: 'runners db down',
+    });
+
+    const result = await executeJob({...defaultJobInput, jobId: 'job-rl'});
+
+    expect(result.status).toBe('succeeded');
+    expect(callsNamed('releaseLeaseActivity').length).toBeGreaterThanOrEqual(1);
   });
 
   test('no signal — workflow stays blocked indefinitely', async () => {
@@ -132,7 +163,6 @@ describe('jobOrchestration', () => {
       args: [{...defaultJobInput, jobId: 'job-stuck'}],
     });
 
-    // Give the workflow time to reach condition().
     await new Promise((r) => setTimeout(r, 2000));
 
     const description = await handle.describe();
@@ -140,7 +170,7 @@ describe('jobOrchestration', () => {
 
     // Clean up: signal it so it completes and does not leak.
     setCfg({dag: makeDag([]), jobResults: new Map()});
-    await handle.signal('job-completed', {status: 'failed', steps: []});
+    await handle.signal('job-finished', {status: 'failed'});
     await handle.result();
   }, 15_000);
 });

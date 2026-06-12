@@ -1,18 +1,5 @@
 import {issueJobLeaseToken} from '@shipfox/api-auth';
-import type {StepResultDto} from '@shipfox/api-runners-dto';
-import {claimPendingJob, expireStuckJob, finalizeRunningJob, findStuckJobs} from '#db/jobs.js';
-
-export async function completeJob(
-  params: {jobId: string; runnerTokenId: string},
-  result: {status: 'succeeded' | 'failed'; steps: StepResultDto[]},
-): Promise<{runId: string}> {
-  return await finalizeRunningJob({
-    jobId: params.jobId,
-    runnerTokenId: params.runnerTokenId,
-    status: result.status,
-    steps: result.steps,
-  });
-}
+import {claimPendingJob, expireStuckJob, findStuckJobs} from '#db/jobs.js';
 
 export interface ClaimJobResult {
   jobId: string;
