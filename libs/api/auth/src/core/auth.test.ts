@@ -172,6 +172,7 @@ describe('auth core', () => {
   test('refreshAccessToken rejects a lost rotation claim when the token was revoked', async () => {
     const user = await userFactory.create({emailVerifiedAt: new Date()});
     const loginResult = await login({email: user.email, password: user.plainPassword});
+    listMembershipsByUserMock.mockClear();
     vi.spyOn(refreshTokenDb, 'rotateRefreshToken').mockImplementationOnce(async () => {
       await logout({refreshToken: loginResult.refreshToken});
       return undefined;
@@ -180,6 +181,7 @@ describe('auth core', () => {
     const raced = refreshAccessToken({refreshToken: loginResult.refreshToken});
 
     await expect(raced).rejects.toBeInstanceOf(TokenInvalidError);
+    expect(listMembershipsByUserMock).not.toHaveBeenCalled();
   });
 
   test('refreshAccessToken rejects reuse past the grace window and revokes the session', async () => {

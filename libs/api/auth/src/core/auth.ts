@@ -347,7 +347,6 @@ export async function refreshAccessToken(params: {
   // Losing the CAS requires a state check: another request may have rotated,
   // revoked, or expired the token before this refresh could claim it.
   const nextRefreshToken = generateOpaqueToken('refreshToken');
-  const token = await signAccessToken(user);
   const rotated = await rotateRefreshToken({
     id: current.id,
     currentHashedToken,
@@ -359,9 +358,11 @@ export async function refreshAccessToken(params: {
     if (!latest || !isWithinRotationGrace(latest)) {
       throw new TokenInvalidError('Refresh token is invalid or expired');
     }
+    const token = await signAccessToken(user);
     return {token, refreshToken: undefined, user};
   }
 
+  const token = await signAccessToken(user);
   return {token, refreshToken: nextRefreshToken, user};
 }
 
