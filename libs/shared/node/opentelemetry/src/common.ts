@@ -15,8 +15,14 @@ import {ATTR_SERVICE_NAME} from '@opentelemetry/semantic-conventions';
 import {createConfig, str, url} from '@shipfox/config';
 
 export const env = createConfig({
-  OTEL_SERVICE_NAME: str({default: undefined}),
-  TRACES_COLLECTOR_URL: url({default: undefined}),
+  OTEL_SERVICE_NAME: str({
+    desc: 'Service name reported on the telemetry this process emits. Leave it unset to use the auto-detected resource name.',
+    default: undefined,
+  }),
+  TRACES_COLLECTOR_URL: url({
+    desc: 'OTLP endpoint that traces are exported to. Leave it unset to disable trace export.',
+    default: undefined,
+  }),
 });
 
 /**

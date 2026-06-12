@@ -1,13 +1,17 @@
 import {bool, createConfig, str} from '@shipfox/config';
 
 export const config = createConfig({
-  // CLIENT_ID and SLUG are not used by this webhook receiver; they are consumed by
-  // the install/OAuth + app-token-exchange flow in the next PR. Declared now so the
-  // app credential contract is defined once rather than toggled across PRs.
-  SENTRY_APP_CLIENT_ID: str(),
-  // Shared secret used to verify inbound webhook HMAC-SHA256 signatures (Sentry
-  // signs deliveries with it, we verify them); also keys app token exchange later.
-  SENTRY_APP_CLIENT_SECRET: str(),
-  SENTRY_APP_SLUG: str(),
-  SENTRY_APP_VERIFY_INSTALL: bool({default: true}),
+  SENTRY_APP_CLIENT_ID: str({
+    desc: 'OAuth client ID of the Sentry app. Reserved for the install and app-token-exchange flow; the webhook receiver does not read it yet. Required.',
+  }),
+  SENTRY_APP_CLIENT_SECRET: str({
+    desc: 'Shared secret used to verify the HMAC-SHA256 signature on inbound Sentry webhooks. Must match the value set on the Sentry app. Required.',
+  }),
+  SENTRY_APP_SLUG: str({
+    desc: 'URL slug of the Sentry app, used to build install and callback links. Required.',
+  }),
+  SENTRY_APP_VERIFY_INSTALL: bool({
+    desc: 'Verifies the signature on Sentry app installation requests. Keep it true; turn it off only for local testing.',
+    default: true,
+  }),
 });
