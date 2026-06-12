@@ -45,7 +45,10 @@ export const refreshRoute = defineRoute({
 
     const result = await refreshAccessToken({refreshToken});
 
-    setRefreshTokenCookie(reply, result.refreshToken);
+    // Absent on a grace-window hit: keep the existing cookie rather than overwrite it.
+    if (result.refreshToken) {
+      setRefreshTokenCookie(reply, result.refreshToken);
+    }
     return toAuthSessionDto(result);
   },
 });

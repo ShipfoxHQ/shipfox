@@ -2,9 +2,10 @@ import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {
   createRefreshToken,
   findActiveRefreshTokenByHash,
+  findRefreshTokenByHash,
   revokeRefreshTokenByHash,
   revokeRefreshTokensForUser,
-  rotateActiveRefreshToken,
+  rotateRefreshToken,
 } from './refresh-tokens.js';
 import {createUser} from './users.js';
 
@@ -42,7 +43,7 @@ describe('refresh-tokens db', () => {
     expect(found).toBeUndefined();
   });
 
-  test('rotates an active refresh token and rejects stale reuse', async () => {
+  test('rotates a token once, creates the successor, and only the first caller wins', async () => {
     const user = await createUser({email: emailFor('rt-rotate'), hashedPassword: 'h'});
     const currentHashedToken = hashOpaqueToken(`current-${crypto.randomUUID()}`);
     const nextHashedToken = hashOpaqueToken(`next-${crypto.randomUUID()}`);
@@ -52,21 +53,75 @@ describe('refresh-tokens db', () => {
       expiresAt: new Date(Date.now() + 60_000),
     });
 
-    const rotated = await rotateActiveRefreshToken({
+    const won = await rotateRefreshToken({
       id: created.id,
       currentHashedToken,
       nextHashedToken,
       expiresAt: new Date(Date.now() + 120_000),
     });
-    const stale = await rotateActiveRefreshToken({
+    const lost = await rotateRefreshToken({
       id: created.id,
       currentHashedToken,
-      nextHashedToken: hashOpaqueToken(`stale-${crypto.randomUUID()}`),
+      nextHashedToken: hashOpaqueToken(`lost-${crypto.randomUUID()}`),
+      expiresAt: new Date(Date.now() + 120_000),
+    });
+    const successor = await findActiveRefreshTokenByHash({hashedToken: nextHashedToken});
+
+    expect(won?.rotatedAt).toBeInstanceOf(Date);
+    expect(lost).toBeUndefined();
+    expect(successor?.hashedToken).toBe(nextHashedToken);
+  });
+
+  test('rolls back the rotation when successor creation fails', async () => {
+    const user = await createUser({email: emailFor('rt-rotate-rollback'), hashedPassword: 'h'});
+    const currentHashedToken = hashOpaqueToken(`current-${crypto.randomUUID()}`);
+    const duplicateHashedToken = hashOpaqueToken(`duplicate-${crypto.randomUUID()}`);
+    const created = await createRefreshToken({
+      userId: user.id,
+      hashedToken: currentHashedToken,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await createRefreshToken({
+      userId: user.id,
+      hashedToken: duplicateHashedToken,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const failed = rotateRefreshToken({
+      id: created.id,
+      currentHashedToken,
+      nextHashedToken: duplicateHashedToken,
       expiresAt: new Date(Date.now() + 120_000),
     });
 
-    expect(rotated?.hashedToken).toBe(nextHashedToken);
-    expect(stale).toBeUndefined();
+    await expect(failed).rejects.toThrow();
+    const active = await findActiveRefreshTokenByHash({hashedToken: currentHashedToken});
+    expect(active?.id).toBe(created.id);
+    expect(active?.rotatedAt).toBeNull();
+  });
+
+  test('rotated tokens drop out of the active lookup but stay findable for the grace window', async () => {
+    const user = await createUser({email: emailFor('rt-rotated-find'), hashedPassword: 'h'});
+    const currentHashedToken = hashOpaqueToken(`current-${crypto.randomUUID()}`);
+    const nextHashedToken = hashOpaqueToken(`next-${crypto.randomUUID()}`);
+    const created = await createRefreshToken({
+      userId: user.id,
+      hashedToken: currentHashedToken,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await rotateRefreshToken({
+      id: created.id,
+      currentHashedToken,
+      nextHashedToken,
+      expiresAt: new Date(Date.now() + 120_000),
+    });
+
+    const active = await findActiveRefreshTokenByHash({hashedToken: currentHashedToken});
+    const found = await findRefreshTokenByHash({hashedToken: currentHashedToken});
+
+    expect(active).toBeUndefined();
+    expect(found?.id).toBe(created.id);
+    expect(found?.rotatedAt).toBeInstanceOf(Date);
   });
 
   test('revokes a single refresh token by hash', async () => {

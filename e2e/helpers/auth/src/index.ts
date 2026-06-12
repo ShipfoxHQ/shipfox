@@ -44,15 +44,21 @@ export async function createSession(params: E2eCreateSessionBodyDto): Promise<E2
   return {...(await response.json<E2eCreateSessionResponseDto>()), setCookie};
 }
 
-function cookieNameValue(setCookie: string): {name: string; value: string} {
-  const [cookie] = setCookie.split(';');
-  if (!cookie) throw new Error('Set-Cookie header did not include a cookie');
-  const separator = cookie.indexOf('=');
+function parseSetCookie(setCookie: string): {name: string; value: string; path: string} {
+  const segments = setCookie.split(';').map((segment) => segment.trim());
+  const [pair] = segments;
+  if (!pair) throw new Error('Set-Cookie header did not include a cookie');
+  const separator = pair.indexOf('=');
   if (separator === -1) throw new Error('Set-Cookie header did not include a cookie value');
 
+  const pathSegment = segments.find((segment) => segment.toLowerCase().startsWith('path='));
+
   return {
-    name: cookie.slice(0, separator),
-    value: cookie.slice(separator + 1),
+    name: pair.slice(0, separator),
+    value: pair.slice(separator + 1),
+    // Honour the server's Path: a URL-derived path collapses `/auth` to `/`,
+    // leaving a duplicate cookie the server never rotates.
+    path: pathSegment ? pathSegment.slice('path='.length) : '/',
   };
 }
 
@@ -61,14 +67,16 @@ async function addRefreshCookie(params: {
   apiUrl: string;
   setCookie: string;
 }): Promise<void> {
-  const {name, value} = cookieNameValue(params.setCookie);
+  const {name, value, path} = parseSetCookie(params.setCookie);
+  const apiUrl = new URL(params.apiUrl);
   await params.context.addCookies([
     {
       name,
       value,
-      url: new URL('/auth', params.apiUrl).toString(),
+      domain: apiUrl.hostname,
+      path,
       httpOnly: true,
-      secure: params.setCookie.includes('Secure'),
+      secure: apiUrl.protocol === 'https:',
       sameSite: 'Lax',
     },
   ]);

@@ -19,9 +19,10 @@ import {consumePasswordReset, createPasswordReset} from '#db/password-resets.js'
 import {
   createRefreshToken,
   findActiveRefreshTokenByHash,
+  findRefreshTokenByHash,
   revokeRefreshTokenByHash,
   revokeRefreshTokensForUser,
-  rotateActiveRefreshToken,
+  rotateRefreshToken,
 } from '#db/refresh-tokens.js';
 import {
   createUser as createDbUser,
@@ -30,6 +31,7 @@ import {
   markEmailVerified,
   updateUserPassword,
 } from '#db/users.js';
+import type {RefreshToken} from './entities/refresh-token.js';
 import type {User} from './entities/user.js';
 import {
   AuthDependencyUnavailableError,
@@ -73,6 +75,12 @@ async function signAccessToken(user: User): Promise<string> {
     secret: config.AUTH_JWT_SECRET,
     expiresIn: config.AUTH_JWT_EXPIRES_IN,
   });
+}
+
+function isWithinRotationGrace(refreshToken: RefreshToken): boolean {
+  if (!refreshToken.rotatedAt) return false;
+  const graceMs = config.AUTH_REFRESH_ROTATION_GRACE_SECONDS * 1000;
+  return Date.now() - refreshToken.rotatedAt.getTime() <= graceMs;
 }
 
 async function createRefreshSession(user: User): Promise<string> {
@@ -305,7 +313,8 @@ export async function createSessionForUser(
 
 export interface RefreshAccessTokenResult {
   token: string;
-  refreshToken: string;
+  /** Undefined on a grace-window hit: keep the existing cookie instead of rotating it. */
+  refreshToken: string | undefined;
   user: User;
 }
 
@@ -313,7 +322,7 @@ export async function refreshAccessToken(params: {
   refreshToken: string;
 }): Promise<RefreshAccessTokenResult> {
   const currentHashedToken = hashOpaqueToken(params.refreshToken);
-  const current = await findActiveRefreshTokenByHash({hashedToken: currentHashedToken});
+  const current = await findRefreshTokenByHash({hashedToken: currentHashedToken});
   if (!current) {
     throw new TokenInvalidError('Refresh token is invalid or expired');
   }
@@ -324,15 +333,33 @@ export async function refreshAccessToken(params: {
     throw new TokenInvalidError('Refresh token is invalid or expired');
   }
 
+  // Within the grace window a rotated token means a concurrent refresh (e.g. a
+  // second tab); past it, reuse of a retired token means a compromised session.
+  if (current.rotatedAt) {
+    if (isWithinRotationGrace(current)) {
+      const token = await signAccessToken(user);
+      return {token, refreshToken: undefined, user};
+    }
+    await revokeRefreshTokensForUser({userId: user.id});
+    throw new TokenInvalidError('Refresh token reused after rotation');
+  }
+
+  // Losing the CAS requires a state check: another request may have rotated,
+  // revoked, or expired the token before this refresh could claim it.
   const nextRefreshToken = generateOpaqueToken('refreshToken');
-  const rotated = await rotateActiveRefreshToken({
+  const rotated = await rotateRefreshToken({
     id: current.id,
     currentHashedToken,
     nextHashedToken: hashOpaqueToken(nextRefreshToken),
     expiresAt: daysFromNow(config.AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS),
   });
   if (!rotated) {
-    throw new TokenInvalidError('Refresh token is invalid or expired');
+    const latest = await findRefreshTokenByHash({hashedToken: currentHashedToken});
+    if (!latest || !isWithinRotationGrace(latest)) {
+      throw new TokenInvalidError('Refresh token is invalid or expired');
+    }
+    const token = await signAccessToken(user);
+    return {token, refreshToken: undefined, user};
   }
 
   const token = await signAccessToken(user);

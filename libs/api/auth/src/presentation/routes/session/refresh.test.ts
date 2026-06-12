@@ -52,22 +52,25 @@ describe('POST /auth/refresh', () => {
     expect(res.headers['set-cookie']).toContain('shipfox_refresh_token=;');
   });
 
-  test('transforms stale refresh token into 401', async () => {
-    const account = await signupVerifyLogin(app, 'refresh-stale');
+  test('tolerates a concurrent reuse within the grace window without rotating the cookie', async () => {
+    const account = await signupVerifyLogin(app, 'refresh-concurrent');
     await app.inject({
       method: 'POST',
       url: '/auth/refresh',
       headers: {cookie: cookieHeader(account.refreshCookie)},
     });
 
-    const stale = await app.inject({
+    const raced = await app.inject({
       method: 'POST',
       url: '/auth/refresh',
       headers: {cookie: cookieHeader(account.refreshCookie)},
     });
 
-    expect(stale.statusCode).toBe(401);
-    expect(stale.json().code).toBe('unauthorized');
+    // The racing tab gets a fresh access token but keeps the cookie the winning
+    // refresh already installed, so no Set-Cookie is emitted.
+    expect(raced.statusCode).toBe(200);
+    expect(raced.json().token).toBeDefined();
+    expect(raced.headers['set-cookie']).toBeUndefined();
   });
 
   test('transforms membership dependency outages into 503', async () => {

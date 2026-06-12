@@ -46,6 +46,7 @@ Required environment:
 | `AUTH_JOB_LEASE_TOKEN_SECRET` | none | Secret used to sign and verify job lease tokens. |
 | `AUTH_JOB_LEASE_TOKEN_EXPIRES_IN` | `90m` | Job lease token lifetime. |
 | `AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS` | `14` | Refresh token and cookie lifetime. |
+| `AUTH_REFRESH_ROTATION_GRACE_SECONDS` | `30` | Grace window for accepting a just-rotated refresh token during concurrent refreshes. |
 | `AUTH_REFRESH_COOKIE_NAME` | `shipfox_refresh_token` | HTTP cookie name for refresh sessions. |
 | `CLIENT_BASE_URL` | `http://localhost:3000` | Base URL used in email verification and password reset links. |
 | `MAILER_TRANSPORT` | `console` | Mail transport. Set to `smtp` to send real mail. |
@@ -148,7 +149,7 @@ All routes are mounted under `/auth`.
 | `POST` | `/verify-email/confirm` | none | Verifies email, returns an access token, and sets the refresh cookie. |
 | `POST` | `/verify-email/resend` | none | Sends a new verification email when the account is eligible. |
 | `POST` | `/login` | none | Returns an access token and sets the refresh cookie. |
-| `POST` | `/refresh` | refresh cookie | Rotates the refresh token and returns a new access token. |
+| `POST` | `/refresh` | refresh cookie | Rotates the refresh token when needed and returns a new access token. |
 | `POST` | `/logout` | refresh cookie | Revokes the current refresh token and clears the cookie. |
 | `GET` | `/me` | bearer token | Returns the signed-in user. |
 | `POST` | `/change-password` | bearer token | Changes the password and revokes other refresh sessions. |

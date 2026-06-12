@@ -72,6 +72,7 @@ vi.mock('#config.js', () => ({
     AUTH_JWT_SECRET: testConfig.secret,
     AUTH_JWT_EXPIRES_IN: '15m',
     AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS: 14,
+    AUTH_REFRESH_ROTATION_GRACE_SECONDS: 30,
     AUTH_REFRESH_COOKIE_NAME: 'shipfox_refresh_token',
     CLIENT_BASE_URL: testConfig.clientBaseUrl,
   },
