@@ -1,5 +1,11 @@
 # @shipfox/node-log
 
+## 0.3.2
+
+### Patch Changes
+
+- e47f8da: Documents every environment-variable config param with a `desc` field so self-hosters can see what each variable does and how to set it.
+
 ## 0.3.1
 
 ### Patch Changes

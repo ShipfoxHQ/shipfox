@@ -1,5 +1,15 @@
 # @shipfox/client-integrations
 
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies [f3614ae]
+- Updated dependencies [d6d4862]
+  - @shipfox/api-integration-core-dto@0.1.0
+  - @shipfox/client-auth@0.0.3
+  - @shipfox/api-integration-github-dto@0.0.1
+
 ## 0.0.2
 
 ### Patch Changes
