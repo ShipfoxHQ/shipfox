@@ -46,10 +46,15 @@ function createTestRouter(path: string, element: ReactElement) {
     path: '/workspaces/$wid/settings/runners',
     component: () => element,
   });
+  const integrationsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/settings/integrations',
+    component: () => element,
+  });
 
   return createRouter({
     history: createMemoryHistory({initialEntries: [path]}),
-    routeTree: rootRoute.addChildren([runnersRoute]),
+    routeTree: rootRoute.addChildren([runnersRoute, integrationsRoute]),
   });
 }
 

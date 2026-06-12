@@ -1,4 +1,4 @@
-import {and, eq} from 'drizzle-orm';
+import {eq} from 'drizzle-orm';
 import type {
   IntegrationConnection,
   IntegrationConnectionLifecycleStatus,
@@ -100,12 +100,7 @@ export async function listIntegrationConnections(
   const rows = await db()
     .select()
     .from(integrationConnections)
-    .where(
-      and(
-        eq(integrationConnections.workspaceId, params.workspaceId),
-        eq(integrationConnections.lifecycleStatus, 'active'),
-      ),
-    )
+    .where(eq(integrationConnections.workspaceId, params.workspaceId))
     .orderBy(integrationConnections.createdAt, integrationConnections.id);
 
   const connections = rows.map(toIntegrationConnection);

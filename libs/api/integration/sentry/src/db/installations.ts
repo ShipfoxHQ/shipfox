@@ -72,6 +72,21 @@ export async function getSentryInstallationByInstallationUuid(
   return toSentryInstallation(row);
 }
 
+export async function getSentryInstallationByConnectionId(
+  connectionId: string,
+  options: {tx?: unknown} = {},
+): Promise<SentryInstallation | undefined> {
+  const executor = (options.tx ?? db()) as SentryDb | SentryTx;
+  const rows = await executor
+    .select()
+    .from(sentryInstallations)
+    .where(eq(sentryInstallations.connectionId, connectionId))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return undefined;
+  return toSentryInstallation(row);
+}
+
 export async function markSentryInstallationDeleted(
   params: {installationUuid: string},
   options: {tx?: unknown} = {},

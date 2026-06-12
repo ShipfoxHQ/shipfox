@@ -1,3 +1,4 @@
+import {logger} from '@shipfox/node-opentelemetry';
 import ky, {HTTPError, TimeoutError} from 'ky';
 import {config} from '#config.js';
 import {SentryIntegrationProviderError} from '#core/errors.js';
@@ -30,7 +31,7 @@ export interface SentryApiClient {
 export function createSentryApiClient(): SentryApiClient {
   return {
     async exchangeAuthorizationCode(input) {
-      const body = await mapSentryError(() =>
+      const body = await mapSentryError('exchange-authorization-code', () =>
         ky
           .post(
             `${SENTRY_API_BASE}/sentry-app-installations/${input.installationUuid}/authorizations/`,
@@ -60,7 +61,7 @@ export function createSentryApiClient(): SentryApiClient {
     },
 
     async getInstallation(input) {
-      const body = await mapSentryError(() =>
+      const body = await mapSentryError('get-installation', () =>
         ky
           .get(`${SENTRY_API_BASE}/sentry-app-installations/${input.installationUuid}/`, {
             headers: {authorization: `Bearer ${input.token}`},
@@ -79,7 +80,7 @@ export function createSentryApiClient(): SentryApiClient {
     },
 
     async verifyInstallation(input) {
-      await mapSentryError(() =>
+      await mapSentryError('verify-installation', () =>
         ky
           .put(`${SENTRY_API_BASE}/sentry-app-installations/${input.installationUuid}/`, {
             headers: {authorization: `Bearer ${input.token}`},
@@ -91,15 +92,20 @@ export function createSentryApiClient(): SentryApiClient {
   };
 }
 
-// Build the error from status + a fixed message only — never the request body,
-// token, code, or client secret — so secrets cannot leak through the logged `cause`.
-async function mapSentryError<T>(operation: () => Promise<T>): Promise<T> {
+// The typed error deliberately drops Sentry's status and body so no token, code,
+// or client secret can leak to the client or the logged error chain. That also
+// strips the one detail a self-hoster needs to fix a misconfigured Sentry app —
+// e.g. a 403 on `get-installation` means the app is missing "Organization: Read"
+// (see README "Required permissions"). So we log the upstream status
+// here, the only place it survives, keyed by the operation that failed.
+async function mapSentryError<T>(operation: string, request: () => Promise<T>): Promise<T> {
   try {
-    return await operation();
+    return await request();
   } catch (error) {
     if (error instanceof SentryIntegrationProviderError) throw error;
     if (error instanceof HTTPError) {
-      const {status, headers} = error.response;
+      const {status, statusText, headers} = error.response;
+      logger().warn({operation, status, statusText}, 'Sentry API request rejected');
       if (status === 429) {
         throw new SentryIntegrationProviderError(
           'rate-limited',
@@ -113,8 +119,13 @@ async function mapSentryError<T>(operation: () => Promise<T>): Promise<T> {
       throw new SentryIntegrationProviderError('access-denied', 'Sentry request was rejected');
     }
     if (error instanceof TimeoutError) {
+      logger().warn({operation}, 'Sentry API request timed out');
       throw new SentryIntegrationProviderError('timeout', 'Sentry request timed out');
     }
+    logger().warn(
+      {operation, errName: error instanceof Error ? error.name : typeof error},
+      'Sentry API request failed',
+    );
     throw new SentryIntegrationProviderError('provider-unavailable', 'Sentry request failed');
   }
 }
