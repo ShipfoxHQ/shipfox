@@ -32,7 +32,13 @@ export function RedirectInstallPage({
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
-    beforeRedirect?.(workspace.id);
+    // The side effect is best-effort persistence; a throw here must never
+    // block the install redirect, so swallow it and continue.
+    try {
+      beforeRedirect?.(workspace.id);
+    } catch {
+      // ignore
+    }
     createInstall
       .mutateAsync({workspace_id: workspace.id})
       .then((response) => {
