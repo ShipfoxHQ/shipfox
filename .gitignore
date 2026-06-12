@@ -148,3 +148,6 @@ screenshots/
 
 # macOS
 .DS_Store
+
+# Local scratch backlog; tracked work lives in Linear
+TODOS.md
