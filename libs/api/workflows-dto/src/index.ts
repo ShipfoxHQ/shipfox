@@ -29,10 +29,14 @@ export {
   runStatusSchema,
   type StepAttemptDto,
   type StepDto,
+  type StepErrorCategory,
   type StepErrorDtoShape,
+  type StepErrorReason,
   stepAttemptDtoSchema,
   stepDtoSchema,
+  stepErrorCategorySchema,
   stepErrorDtoSchema,
+  stepErrorReasonSchema,
 } from '#schemas/index.js';
 export {
   WORKFLOW_RUN_CREATED,
