@@ -7,7 +7,7 @@ import {createRunnerTokenAuthMethod, onWorkflowsJobTimedOut, routes} from '#pres
 import {createRunnersMaintenanceActivities} from '#temporal/activities/index.js';
 import {RUNNERS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 
-export {type ScheduleJobParams, scheduleJob} from '#db/index.js';
+export {releaseJob, type ScheduleJobParams, scheduleJob} from '#db/index.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');

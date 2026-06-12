@@ -4,20 +4,17 @@ import {fileURLToPath} from 'node:url';
 export {closeDb, db, schema} from './db.js';
 export {workflowsOutbox} from './schema/outbox.js';
 export type {
-  ApplyStepResultsParams,
   BulkUpdateStepStatusesParams,
   CreateWorkflowRunParams,
   FailJobAsTimedOutParams,
   ListWorkflowRunsParams,
   ListWorkflowRunsResult,
-  ReportedStepResult,
   UpdateJobStatusParams,
   UpdateWorkflowRunStatusParams,
   WorkflowRunAggregates,
   WorkflowRunFilters,
 } from './workflow-runs.js';
 export {
-  applyStepResults,
   bulkUpdateStepStatuses,
   createWorkflowRun,
   failJobAsTimedOut,
@@ -25,12 +22,13 @@ export {
   getStepAttempts,
   getStepAttemptsByJobIds,
   getStepsByJobId,
+  getStepsByJobIdForUpdate,
   getStepsByJobIds,
   getWorkflowRunAggregates,
   getWorkflowRunById,
   listWorkflowRuns,
   listWorkflowRunsByProject,
-  StepResultsContractViolationError,
+  resolveJobAfterLeaseExpiry,
   updateJobStatus,
   updateWorkflowRunStatus,
 } from './workflow-runs.js';

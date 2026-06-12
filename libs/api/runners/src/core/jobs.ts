@@ -1,18 +1,5 @@
 import {issueJobLeaseToken} from '@shipfox/api-auth';
-import type {StepResultDto} from '@shipfox/api-runners-dto';
-import {claimPendingJob, expireStuckJob, finalizeRunningJob, findStuckJobs} from '#db/jobs.js';
-
-export async function completeJob(
-  params: {jobId: string; runnerTokenId: string},
-  result: {status: 'succeeded' | 'failed'; steps: StepResultDto[]},
-): Promise<{runId: string}> {
-  return await finalizeRunningJob({
-    jobId: params.jobId,
-    runnerTokenId: params.runnerTokenId,
-    status: result.status,
-    steps: result.steps,
-  });
-}
+import {claimPendingJob, expireStuckJob, findStuckJobs} from '#db/jobs.js';
 
 export interface ClaimJobResult {
   jobId: string;
@@ -37,9 +24,10 @@ export async function claimJob(params: {
   return {jobId: claimed.jobId, runId: claimed.runId, leaseToken};
 }
 
-// N+1 by design (~1 SELECT + N DELETEs per tick). Bulk DELETE…RETURNING +
-// multi-row outbox insert is the documented scale path; deferred until load
-// signals demand it.
+// N+1 by design (~1 SELECT + N DELETEs per tick): each candidate gets its own
+// guarded DELETE so a heartbeat landing mid-tick spares the live row, and its
+// outbox event commits in isolation. Chosen for simplicity over a bulk
+// DELETE…RETURNING + multi-row outbox insert at the current low tick volume.
 export async function detectAndExpireStuckJobs(params: {
   thresholdSeconds: number;
 }): Promise<{expired: number}> {

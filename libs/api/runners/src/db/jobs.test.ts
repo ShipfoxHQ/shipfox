@@ -1,13 +1,14 @@
 import {verifyJobLeaseToken} from '@shipfox/api-auth';
-import {RUNNER_JOB_COMPLETED, RUNNER_JOB_LEASE_EXPIRED} from '@shipfox/api-runners-dto';
+import {RUNNER_JOB_LEASE_EXPIRED} from '@shipfox/api-runners-dto';
 import {eq, sql} from 'drizzle-orm';
-import {claimJob, completeJob, detectAndExpireStuckJobs} from '#core/jobs.js';
+import {claimJob, detectAndExpireStuckJobs} from '#core/jobs.js';
 import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
 import {db} from './db.js';
 import {
   claimPendingJob,
   expireStuckJob,
   recordHeartbeat,
+  releaseJob,
   requestJobCancellation,
   scheduleJob,
 } from './jobs.js';
@@ -119,6 +120,40 @@ describe('claimPendingJob', () => {
 
     expect(claimed).toBeNull();
   });
+
+  it('drops an orphan pending row whose job is already running, without a poison loop', async () => {
+    const created = await pendingJobFactory.create({workspaceId});
+    const first = await claimPendingJob({workspaceId, runnerTokenId});
+    expect(first?.jobId).toBe(created.jobId);
+
+    // Simulate an enqueue retry that re-inserts a pending row after the claim.
+    await db()
+      .insert(pendingJobs)
+      .values({workspaceId, jobId: created.jobId, runId: created.runId});
+
+    const second = await claimPendingJob({workspaceId, runnerTokenId});
+
+    expect(second).toBeNull();
+    expect(await db().select().from(pendingJobs)).toHaveLength(0);
+    const running = await db().select().from(runningJobs);
+    expect(running).toHaveLength(1);
+    expect(running[0]?.jobId).toBe(created.jobId);
+  });
+
+  it('claims a real pending job ahead of a newer orphan', async () => {
+    const alreadyRunning = await pendingJobFactory.create({workspaceId});
+    await claimPendingJob({workspaceId, runnerTokenId});
+
+    // A genuinely new pending job (older), then an orphan re-insert for the running job (newer).
+    const real = await pendingJobFactory.create({workspaceId});
+    await db()
+      .insert(pendingJobs)
+      .values({workspaceId, jobId: alreadyRunning.jobId, runId: alreadyRunning.runId});
+
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+
+    expect(claimed?.jobId).toBe(real.jobId);
+  });
 });
 
 describe('claimJob', () => {
@@ -160,7 +195,7 @@ describe('claimJob', () => {
   });
 });
 
-describe('completeJob', () => {
+describe('releaseJob', () => {
   let workspaceId: string;
   let runnerTokenId: string;
 
@@ -173,62 +208,42 @@ describe('completeJob', () => {
     runnerTokenId = runnerToken.id;
   });
 
-  function succeededResult(stepId: string) {
-    return {
-      status: 'succeeded' as const,
-      steps: [{step_id: stepId, status: 'succeeded' as const, error: null}],
-    };
-  }
-
-  it('deletes the running job and writes an outbox event', async () => {
+  it('deletes the running row and writes no outbox event', async () => {
     await pendingJobFactory.create({workspaceId});
     const claimed = await claimPendingJob({workspaceId, runnerTokenId});
 
-    const result = await completeJob(
-      {jobId: claimed?.jobId as string, runnerTokenId},
-      succeededResult(crypto.randomUUID()),
-    );
+    await releaseJob({jobId: claimed?.jobId as string});
 
-    expect(result.runId).toBe(claimed?.runId as string);
-
-    const running = await db().select().from(runningJobs);
-    expect(running).toHaveLength(0);
-
-    const outboxRows = await db().select().from(runnersOutbox);
-    expect(outboxRows).toHaveLength(1);
-    expect(outboxRows[0]?.eventType).toBe(RUNNER_JOB_COMPLETED);
-    const payload = outboxRows[0]?.payload as Record<string, unknown>;
-    expect(payload.jobId).toBe(claimed?.jobId as string);
-    expect(payload.runId).toBe(claimed?.runId as string);
-    expect(payload.status).toBe('succeeded');
-    expect(payload.steps).toHaveLength(1);
+    expect(await db().select().from(runningJobs)).toHaveLength(0);
+    expect(await db().select().from(runnersOutbox)).toHaveLength(0);
   });
 
-  it('throws RunningJobNotFoundError when job is not running', async () => {
-    await expect(
-      completeJob(
-        {jobId: crypto.randomUUID(), runnerTokenId},
-        succeededResult(crypto.randomUUID()),
-      ),
-    ).rejects.toThrow('Running job not found');
+  it('is a no-op when the job is absent (idempotent)', async () => {
+    await expect(releaseJob({jobId: crypto.randomUUID()})).resolves.toBeUndefined();
   });
 
-  it('does not complete a job owned by another runner token', async () => {
-    const otherRunnerToken = await runnerTokenFactory.create({workspaceId});
+  it('releases regardless of which runner token holds the lease', async () => {
     await pendingJobFactory.create({workspaceId});
     const claimed = await claimPendingJob({workspaceId, runnerTokenId});
 
-    await expect(
-      completeJob(
-        {jobId: claimed?.jobId as string, runnerTokenId: otherRunnerToken.id},
-        succeededResult(crypto.randomUUID()),
-      ),
-    ).rejects.toThrow('Running job not found');
+    // No token is passed: the workflow is authoritative over the lease.
+    await releaseJob({jobId: claimed?.jobId as string});
 
-    const running = await db().select().from(runningJobs);
-    const outboxRows = await db().select().from(runnersOutbox);
-    expect(running).toHaveLength(1);
-    expect(outboxRows).toHaveLength(0);
+    expect(await db().select().from(runningJobs)).toHaveLength(0);
+  });
+
+  it('also sweeps a lingering pending row for the same job', async () => {
+    await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+    // An orphan pending row left by a post-claim enqueue retry.
+    await db()
+      .insert(pendingJobs)
+      .values({workspaceId, jobId: claimed?.jobId as string, runId: claimed?.runId as string});
+
+    await releaseJob({jobId: claimed?.jobId as string});
+
+    expect(await db().select().from(runningJobs)).toHaveLength(0);
+    expect(await db().select().from(pendingJobs)).toHaveLength(0);
   });
 });
 
@@ -458,5 +473,33 @@ describe('detectAndExpireStuckJobs', () => {
     expect(first).toBeDefined();
     expect(second).toBeUndefined();
     expect(await outboxForJobs([jobId])).toHaveLength(1);
+  });
+
+  it('sweeps an orphan pending row for the job it reaps (best-effort release may have failed)', async () => {
+    const {jobId, runId} = await makeStaleJob(600);
+    // A post-claim enqueue retry left a pending row whose job is already running;
+    // without this sweep it would stay re-claimable for an already-finished job.
+    await db().insert(pendingJobs).values({workspaceId, jobId, runId});
+
+    await expireStuckJob({jobId, staleBeforeMs: 180_000});
+
+    expect(await runningJobsForTest()).toHaveLength(0);
+    expect(await db().select().from(pendingJobs).where(eq(pendingJobs.jobId, jobId))).toHaveLength(
+      0,
+    );
+  });
+
+  it('leaves the orphan pending row alone when the running row is not stale enough to reap', async () => {
+    const {jobId, runId} = await makeStaleJob(60);
+    await db().insert(pendingJobs).values({workspaceId, jobId, runId});
+
+    const result = await expireStuckJob({jobId, staleBeforeMs: 180_000});
+
+    // The sweep is gated on actually reaping a running row, so a live job's
+    // pending row is untouched.
+    expect(result).toBeUndefined();
+    expect(await db().select().from(pendingJobs).where(eq(pendingJobs.jobId, jobId))).toHaveLength(
+      1,
+    );
   });
 });

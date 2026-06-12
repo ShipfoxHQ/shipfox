@@ -8,12 +8,7 @@ import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {db} from '#db/db.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
-import {
-  applyStepResults,
-  createWorkflowRun,
-  getJobsByRunId,
-  getStepsByJobId,
-} from '#db/workflow-runs.js';
+import {createWorkflowRun, getJobsByRunId, getStepsByJobId} from '#db/workflow-runs.js';
 import {workflowModel} from '#test/index.js';
 import {getRunRoute} from './get-run.js';
 
@@ -109,7 +104,7 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(body.jobs[0].steps[1].name).toBeNull();
   });
 
-  test('exposes per-step error and cancelled status after applyStepResults', async () => {
+  test('exposes per-step error and cancelled status after a failed per-step report', async () => {
     const projectId = crypto.randomUUID();
     const definitionId = crypto.randomUUID();
 
@@ -133,17 +128,21 @@ describe('GET /api/workflows/runs/:id', () => {
     const jobId = runJobs[0]?.id ?? '';
     const steps = await getStepsByJobId(jobId);
 
-    await applyStepResults({
+    // Drive the per-step path: step 1 succeeds, step 2 fails (cancelling step 3).
+    await nextStepForJob(jobId);
+    await recordStepResult({
       jobId,
-      completionStatus: 'failed',
-      reportedSteps: [
-        {stepId: steps[0]?.id as string, status: 'succeeded', error: null},
-        {
-          stepId: steps[1]?.id as string,
-          status: 'failed',
-          error: {message: 'Command exited with code 1', exitCode: 1},
-        },
-      ],
+      stepId: steps[0]?.id as string,
+      status: 'succeeded',
+      exitCode: 0,
+    });
+    await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: steps[1]?.id as string,
+      status: 'failed',
+      error: {message: 'Command exited with code 1', exitCode: 1},
+      exitCode: 1,
     });
 
     const res = await app.inject({

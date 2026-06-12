@@ -30,13 +30,17 @@ beforeEach(() => {
 });
 
 describe('api-client auth contexts', () => {
-  it('requestJob sends the runner token and parses the claim payload + lease token', async () => {
-    stubFetch(() => jsonResponse(jobPayload()));
+  it('requestJob sends the runner token and parses the step-less claim + lease token', async () => {
+    stubFetch(() => jsonResponse(claimResponse()));
 
     const job = await requestJob();
 
     expect(job?.job_id).toBe(JOB_ID);
+    expect(job?.run_id).toBe(RUN_ID);
     expect(job?.lease_token).toBe('lease-xyz');
+    // The claim is step-less: no job_name / steps are required to parse.
+    expect(job).not.toHaveProperty('steps');
+    expect(job).not.toHaveProperty('job_name');
     expect(calls[0]?.url).toContain('runners/jobs/request');
     expect(calls[0]?.authorization).toBe(`Bearer ${config.SHIPFOX_RUNNER_TOKEN}`);
   });
@@ -86,20 +90,10 @@ describe('api-client auth contexts', () => {
   });
 });
 
-function jobPayload() {
+function claimResponse() {
   return {
     job_id: JOB_ID,
     run_id: RUN_ID,
-    job_name: 'ci',
-    steps: [
-      {
-        id: crypto.randomUUID(),
-        name: 'build',
-        type: 'run',
-        config: {run: 'echo hi'},
-        position: 0,
-      },
-    ],
     lease_token: 'lease-xyz',
   };
 }
