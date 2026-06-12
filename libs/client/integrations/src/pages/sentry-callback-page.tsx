@@ -1,6 +1,15 @@
 import type {SentryConnectResponseDto} from '@shipfox/api-integration-sentry-dto';
 import {useAuthState, useRefreshAuth} from '@shipfox/client-auth';
-import {Alert, Button, ButtonLink, Card, Header, Text, toast} from '@shipfox/react-ui';
+import {
+  Alert,
+  Button,
+  ButtonLink,
+  Card,
+  FullPageLoader,
+  Header,
+  Text,
+  toast,
+} from '@shipfox/react-ui';
 import {useQueryClient} from '@tanstack/react-query';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect, useMemo, useRef, useState} from 'react';
@@ -14,17 +23,18 @@ import {
   type SentryConnectFailure,
 } from '#sentry-callback.js';
 
-// De-dupes concurrent attempts for the same installation+workspace (double
-// click, remount while in flight). Entries are deleted when a request
-// rejects so Retry issues a genuinely fresh request — a cached rejection
-// would make Retry fail instantly forever.
+// De-dupes concurrent attempts for the same installation+workspace+code
+// (double click, remount while in flight). Entries are evicted once the
+// request settles, so Retry, and any later attempt carrying a fresh grant
+// code, always issues a genuinely new request instead of replaying a cached
+// outcome.
 const connectRequests = new Map<string, Promise<SentryConnectResponseDto>>();
 
 export function SentryCallbackPage() {
   const search = useSearch({strict: false});
   const navigate = useNavigate();
   const refreshAuth = useRefreshAuth();
-  const {workspaces} = useAuthState();
+  const {workspaces, isLoading} = useAuthState();
   const queryClient = useQueryClient();
 
   const params = useMemo(() => parseSentryCallbackParams(search), [search]);
@@ -46,7 +56,10 @@ export function SentryCallbackPage() {
     };
   }, []);
 
-  const noWorkspace = preselection.kind === 'none';
+  // Wait for auth before treating an empty workspace list as "no workspace": on
+  // a cold return from Sentry, `workspaces` is [] until the session refresh
+  // resolves, and bouncing to `/` then would discard the one-shot grant code.
+  const noWorkspace = !isLoading && preselection.kind === 'none';
   useEffect(() => {
     if (!noWorkspace) return;
     toast.error('You need a workspace before connecting Sentry.');
@@ -56,7 +69,12 @@ export function SentryCallbackPage() {
   const retryAfterSeconds =
     failure?.failure.kind === 'retryable' ? failure.failure.retryAfterSeconds : undefined;
   useEffect(() => {
-    if (!retryAfterSeconds) return;
+    // No backoff window (any non-rate-limited failure) re-enables Retry, so a
+    // prior rate-limit lock can never strand the button in a disabled state.
+    if (!retryAfterSeconds) {
+      setRetryLocked(false);
+      return;
+    }
     setRetryLocked(true);
     const timer = setTimeout(() => setRetryLocked(false), retryAfterSeconds * 1000);
     return () => clearTimeout(timer);
@@ -78,12 +96,16 @@ export function SentryCallbackPage() {
     );
   }
 
+  // Hold the loader until auth resolves; the workspace list and the
+  // noWorkspace redirect both depend on a settled `workspaces`.
+  if (isLoading) return <FullPageLoader />;
+
   if (noWorkspace) return null;
 
   const connect = (workspaceId: string) => {
     setConnectingId(workspaceId);
     setFailure(undefined);
-    const key = `${params.installationId}|${workspaceId}`;
+    const key = `${params.installationId}|${workspaceId}|${params.code}`;
     let request = connectRequests.get(key);
     if (!request) {
       request = refreshAuth().then((session) =>
@@ -96,14 +118,21 @@ export function SentryCallbackPage() {
           token: session.token,
         }),
       );
-      request.catch(() => connectRequests.delete(key));
+      // Evict on settle (success or failure) so the key never replays a stale
+      // outcome. Two-arg `then` keeps this cleanup branch from surfacing the
+      // rejection as unhandled — the main chain below owns the user-facing
+      // failure handling.
+      const evict = () => connectRequests.delete(key);
+      request.then(evict, evict);
       connectRequests.set(key, request);
     }
 
     request
       .then(async () => {
         clearSentryInstallWorkspace(window.sessionStorage);
-        await queryClient.invalidateQueries({queryKey: integrationsQueryKeys.all});
+        await queryClient.invalidateQueries({
+          queryKey: integrationsQueryKeys.connectionsByWorkspace(workspaceId),
+        });
         if (disposedRef.current) return;
         toast.success('Sentry connected.');
         await navigate({
@@ -172,7 +201,7 @@ export function SentryCallbackPage() {
       ) : null}
 
       <section className="flex flex-col gap-8" aria-label="Choose a workspace">
-        {orderedWorkspaces.map((workspace, index) => (
+        {orderedWorkspaces.map((workspace) => (
           <Card key={workspace.id} className="p-16">
             <div className="flex items-center justify-between gap-12">
               <Text size="md" bold className="truncate">
@@ -182,7 +211,6 @@ export function SentryCallbackPage() {
                 variant="secondary"
                 disabled={connectingId !== undefined}
                 isLoading={connectingId === workspace.id}
-                autoFocus={index === 0 && workspace.id === preselectedId}
                 onClick={() => connect(workspace.id)}
               >
                 Connect

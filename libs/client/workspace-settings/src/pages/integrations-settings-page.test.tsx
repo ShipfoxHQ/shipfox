@@ -27,7 +27,10 @@ const githubConnection = {
   updated_at: '2026-03-12T00:00:00.000Z',
 };
 
-function fetchForIntegrations({connectionsFail = false} = {}) {
+function fetchForIntegrations({
+  connectionsFail = false,
+  connections = [githubConnection] as unknown[],
+} = {}) {
   return vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     if (url.includes('/integration-providers')) {
@@ -37,7 +40,7 @@ function fetchForIntegrations({connectionsFail = false} = {}) {
       if (connectionsFail) {
         return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
       }
-      return Promise.resolve(jsonResponse({connections: [githubConnection]}));
+      return Promise.resolve(jsonResponse({connections}));
     }
     return Promise.resolve(jsonResponse({}, {status: 404}));
   });
@@ -76,6 +79,31 @@ describe('IntegrationsSettingsPage', () => {
     expect(cardTitles.indexOf('GitHub')).toBeLessThan(cardTitles.indexOf('Sentry'));
   });
 
+  test('renders the disabled and error lifecycle pills', async () => {
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: fetchForIntegrations({
+        connections: [
+          {...githubConnection, lifecycle_status: 'disabled'},
+          {
+            ...githubConnection,
+            id: '55555555-5555-4555-8555-555555555555',
+            provider: 'sentry',
+            display_name: 'acme',
+            lifecycle_status: 'error',
+            external_url: undefined,
+          },
+        ],
+      }),
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Disabled')).toBeVisible();
+    expect(screen.getByText('Error')).toBeVisible();
+    expect(screen.queryByText('Connected')).not.toBeInTheDocument();
+  });
+
   test('degrades to status-less cards when the connections request fails', async () => {
     configureApiClient({
       baseUrl: 'https://api.example.test',
@@ -84,7 +112,7 @@ describe('IntegrationsSettingsPage', () => {
 
     renderPage();
 
-    expect(await screen.findByText('Could not load connection status.')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load connection status')).toBeInTheDocument();
     expect(await screen.findByText('Sentry')).toBeVisible();
     expect(screen.queryByText('Connected')).not.toBeInTheDocument();
     expect(screen.getAllByRole('link', {name: 'Connect'}).length).toBeGreaterThan(0);

@@ -84,7 +84,10 @@ export function IntegrationGallerySection({
       {connections?.isError ? (
         <Alert variant="error">
           <div className="flex flex-col gap-8">
-            <Text size="sm">Could not load connection status.</Text>
+            <Text size="sm" bold>
+              Could not load connection status
+            </Text>
+            <Text size="sm">Providers still load. Retry to refresh connection status.</Text>
             <Button size="sm" variant="secondary" onClick={() => connections.retry()}>
               Retry
             </Button>

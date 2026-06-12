@@ -30,6 +30,7 @@ function renderCallback(options: {
   orgSlug?: string;
   workspaces?: Parameters<typeof renderIntegrationsPage>[0]['workspaces'];
   search?: string;
+  loadingAuth?: boolean;
 }) {
   const search =
     options.search ??
@@ -42,6 +43,7 @@ function renderCallback(options: {
     element: <SentryCallbackPage />,
     extraRoutes: ['/workspaces/$wid/settings/integrations', '/workspaces/$wid/integrations/sentry'],
     ...(options.workspaces ? {workspaces: options.workspaces} : {}),
+    ...(options.loadingAuth ? {loadingAuth: true} : {}),
   });
 }
 
@@ -56,6 +58,16 @@ describe('SentryCallbackPage', () => {
 
     expect(await screen.findByText('Connect the Sentry org "acme" to a workspace.')).toBeVisible();
     expect(screen.getByRole('button', {name: 'Connect'})).toBeVisible();
+    expect(connectSentryMock).not.toHaveBeenCalled();
+  });
+
+  test('waits for auth instead of bouncing away and discarding the grant code', async () => {
+    // On a cold return from Sentry, auth is still loading and `workspaces` is
+    // empty; the page must hold a loader, not treat that as "no workspace".
+    renderCallback({installationId: 'install-loading', loadingAuth: true});
+
+    expect(await screen.findByRole('status', {name: 'Loading'})).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Connect'})).not.toBeInTheDocument();
     expect(connectSentryMock).not.toHaveBeenCalled();
   });
 
@@ -116,6 +128,29 @@ describe('SentryCallbackPage', () => {
 
     await screen.findByTestId('route:/workspaces/$wid/settings/integrations');
     expect(connectSentryMock).toHaveBeenCalledTimes(2);
+  });
+
+  test('a non-rate-limited failure re-enables Retry after a rate-limit lock', async () => {
+    connectSentryMock
+      .mockRejectedValueOnce(
+        new ApiError({
+          message: 'slow down',
+          code: 'rate-limited',
+          status: 429,
+          details: {retry_after_seconds: 60},
+        }),
+      )
+      .mockRejectedValueOnce(new ApiError({message: 'down', code: 'timeout', status: 503}));
+    renderCallback({installationId: 'install-lock-recover'});
+
+    // First failure is rate-limited, so the lock disables Retry.
+    fireEvent.click(await screen.findByRole('button', {name: 'Connect'}));
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Retry'})).toBeDisabled());
+
+    // A second attempt (via the still-enabled workspace Connect) fails with no
+    // backoff hint — the lock must clear so the user is not stranded.
+    fireEvent.click(screen.getByRole('button', {name: 'Connect'}));
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Retry'})).toBeEnabled());
   });
 
   test('terminal 422 offers start-over, not retry', async () => {

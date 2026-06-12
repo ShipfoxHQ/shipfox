@@ -60,14 +60,16 @@ interface RenderIntegrationsPageOptions {
   workspaces?: TestWorkspace[];
   /** Additional route templates registered with a stub component, for navigation targets. */
   extraRoutes?: string[];
+  /** Seed auth as still-loading (the cold-load window) instead of authenticated. */
+  loadingAuth?: boolean;
 }
 
-function AuthSeed({workspaces}: {workspaces: TestWorkspace[]}) {
+function AuthSeed({workspaces, loading}: {workspaces: TestWorkspace[]; loading?: boolean}) {
   const setAuth = useSetAtom(authStateAtom);
 
   useEffect(() => {
-    setAuth(authState(workspaces));
-  }, [setAuth, workspaces]);
+    setAuth(loading ? {status: 'loading'} : authState(workspaces));
+  }, [setAuth, workspaces, loading]);
 
   return null;
 }
@@ -100,7 +102,7 @@ export function renderIntegrationsPage(options: RenderIntegrationsPageOptions): 
   return render(
     <QueryClientProvider client={queryClient}>
       <JotaiProvider>
-        <AuthSeed workspaces={workspaces} />
+        <AuthSeed workspaces={workspaces} loading={options.loadingAuth ?? false} />
         <RouterProvider router={router} />
         <Toaster />
       </JotaiProvider>

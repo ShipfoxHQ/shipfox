@@ -98,6 +98,16 @@ export function classifySentryConnectError(error: unknown): SentryConnectFailure
     if (error.code === 'timeout' || error.code === 'provider-unavailable') {
       return {kind: 'retryable', message: 'Sentry is unreachable. Try again.'};
     }
+    if (error.status === 0 || error.code === 'network-error') {
+      // A network failure (apiRequest throws status 0) never reached the
+      // server, so the grant code is untouched and a plain Retry can recover.
+      // Must precede the status < 500 branch, which would otherwise treat it as
+      // a spent code and force a full restart.
+      return {
+        kind: 'retryable',
+        message: 'Could not reach Shipfox. Check your connection and try again.',
+      };
+    }
     if (error.status < 500) {
       // 4xx (access-denied, malformed-provider-response, validation): the grant
       // code is spent or rejected — only a fresh install can recover.

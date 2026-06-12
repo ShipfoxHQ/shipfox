@@ -165,6 +165,15 @@ describe('classifySentryConnectError', () => {
     });
   });
 
+  test('network failure (status 0) is retryable, not terminal', () => {
+    const result = classifySentryConnectError(apiError({code: 'network-error', status: 0}));
+
+    expect(result).toEqual({
+      kind: 'retryable',
+      message: 'Could not reach Shipfox. Check your connection and try again.',
+    });
+  });
+
   test('5xx ApiError falls back to retryable', () => {
     const result = classifySentryConnectError(apiError({code: 'server-error', status: 500}));
 

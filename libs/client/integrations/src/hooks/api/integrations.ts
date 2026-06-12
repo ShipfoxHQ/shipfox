@@ -25,6 +25,11 @@ export const integrationsQueryKeys = {
     [...integrationsQueryKeys.all, 'providers', capability] as const,
   connections: (workspaceId: string, capability: IntegrationCapabilityDto | 'all') =>
     [...integrationsQueryKeys.all, 'connections', workspaceId, capability] as const,
+  // Prefix matching every per-capability connections query for a workspace, so
+  // a mutation can refresh all connection views without touching providers or
+  // repositories.
+  connectionsByWorkspace: (workspaceId: string) =>
+    [...integrationsQueryKeys.all, 'connections', workspaceId] as const,
   sourceConnections: (workspaceId: string) =>
     integrationsQueryKeys.connections(workspaceId, 'source_control'),
   repositories: (connectionId: string, search: string) =>
@@ -69,7 +74,20 @@ export async function listSourceConnections({
   workspaceId: string;
   signal?: AbortSignal;
 }) {
-  return await listIntegrationConnections({workspaceId, capability: 'source_control', signal});
+  const result = await listIntegrationConnections({
+    workspaceId,
+    capability: 'source_control',
+    signal,
+  });
+  // The endpoint returns every lifecycle status (the settings hub needs that),
+  // but source-control consumers (onboarding redirect, project creation) only
+  // act on usable connections — a disabled/error one must read as "not there".
+  return {
+    ...result,
+    connections: result.connections.filter(
+      (connection) => connection.lifecycle_status === 'active',
+    ),
+  };
 }
 
 export async function createDebugConnection(body: CreateDebugConnectionBodyDto) {
@@ -178,12 +196,4 @@ export function useRepositoriesInfiniteQuery(
 
 export function useCreateDebugConnectionMutation() {
   return useMutation({mutationFn: createDebugConnection});
-}
-
-export function useCreateGithubInstallMutation() {
-  return useMutation({mutationFn: createGithubInstall});
-}
-
-export function useCreateSentryInstallMutation() {
-  return useMutation({mutationFn: createSentryInstall});
 }
