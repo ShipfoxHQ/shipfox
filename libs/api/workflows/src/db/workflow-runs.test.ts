@@ -1,7 +1,8 @@
 import {WORKFLOW_RUN_CREATED, WORKFLOWS_JOB_TIMED_OUT} from '@shipfox/api-workflows-dto';
-import {and, eq, sql} from 'drizzle-orm';
+import {eq, sql} from 'drizzle-orm';
 import {JobNotFoundError} from '#core/errors.js';
 import {recordStepResult} from '#core/job-execution.js';
+import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
 import {db} from './db.js';
 import {jobs} from './schema/jobs.js';
@@ -860,18 +861,9 @@ describe('workflow run queries', () => {
         },
       });
       const jobId = (await getJobsByRunId(run.id))[0]?.id as string;
-      // createWorkflowRun prepends a synthetic "Set up job" step to every job. These
-      // tests exercise step-execution mechanics in isolation, so strip it and renumber
-      // the user steps back to 0-based to match the steps they declared.
-      await db().transaction(async (tx) => {
-        await tx
-          .delete(stepsTable)
-          .where(and(eq(stepsTable.jobId, jobId), eq(stepsTable.type, 'setup')));
-        await tx
-          .update(stepsTable)
-          .set({position: sql`${stepsTable.position} - 1`})
-          .where(eq(stepsTable.jobId, jobId));
-      });
+      // These tests exercise step-execution mechanics in isolation, so strip the
+      // synthetic setup step and renumber the user steps back to 0-based.
+      await stripSetupStep(jobId);
       const running = await updateJobStatus({jobId, status: 'running', expectedVersion: 1});
       const jobSteps = await getStepsByJobId(jobId);
       return {jobId, runningVersion: running.version, jobSteps};
