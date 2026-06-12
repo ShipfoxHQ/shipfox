@@ -5,7 +5,7 @@ import {createIntegrationsContext} from '@shipfox/api-integration-core';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {runnersModule} from '@shipfox/api-runners';
 import {triggersModule} from '@shipfox/api-triggers';
-import {workflowsModule} from '@shipfox/api-workflows';
+import {setSourceControl, workflowsModule} from '@shipfox/api-workflows';
 import {workspacesModule} from '@shipfox/api-workspaces';
 import {createApp, listen} from '@shipfox/node-fastify';
 import {initializeModules, startModuleWorkers} from '@shipfox/node-module';
@@ -28,6 +28,9 @@ export async function run(): Promise<void> {
   createPostgresClient();
 
   const integrations = await createIntegrationsContext();
+  // The checkout-token route resolves intents and mints credentials through the
+  // source-control service; wire it into the workflows module before serving.
+  setSourceControl(integrations.sourceControl);
   const projectsModule = createProjectsModule({sourceControl: integrations.sourceControl});
   const definitionsModule = createDefinitionsModule({sourceControl: integrations.sourceControl});
 

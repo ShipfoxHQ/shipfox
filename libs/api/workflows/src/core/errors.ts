@@ -1,3 +1,5 @@
+import type {JobStatus} from './entities/job.js';
+
 export class DefinitionNotFoundError extends Error {
   constructor(definitionId: string) {
     super(`Definition not found: ${definitionId}`);
@@ -18,6 +20,34 @@ export class JobNotFoundError extends Error {
   constructor(jobId: string) {
     super(`Job not found or has no steps: ${jobId}`);
     this.name = 'JobNotFoundError';
+  }
+}
+
+// The job named by a lease is terminal, so it must not exchange its lease for
+// fresh checkout credentials. Server state is the final gate, not the token.
+export class JobNotActiveError extends Error {
+  constructor(
+    readonly jobId: string,
+    readonly status: JobStatus,
+  ) {
+    super(`Job ${jobId} is ${status} and cannot mint checkout credentials`);
+    this.name = 'JobNotActiveError';
+  }
+}
+
+export class WorkflowRunNotFoundError extends Error {
+  constructor(runId: string) {
+    super(`Workflow run not found: ${runId}`);
+    this.name = 'WorkflowRunNotFoundError';
+  }
+}
+
+// The run's project (and therefore its source repository) cannot be resolved, so
+// there is nothing to check out.
+export class CheckoutIntentUnresolvedError extends Error {
+  constructor(projectId: string) {
+    super(`Checkout intent unresolved: project ${projectId} not found`);
+    this.name = 'CheckoutIntentUnresolvedError';
   }
 }
 

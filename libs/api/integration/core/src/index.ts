@@ -86,6 +86,7 @@ export type {
   RecordDeliveryOnlyParams,
 } from '#db/webhook-deliveries.js';
 export {pruneWebhookDeliveries} from '#db/webhook-deliveries.js';
+export {integrationRouteErrorHandler} from '#presentation/routes/errors.js';
 
 export interface CreateIntegrationsModuleOptions {
   providers?: IntegrationProvider[] | undefined;

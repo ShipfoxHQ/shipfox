@@ -40,6 +40,7 @@
     "@shipfox/api-auth": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-definitions": "workspace:*",
+    "@shipfox/api-integration-core": "workspace:*",
     "@shipfox/api-projects": "workspace:*",
     "@shipfox/api-runners": "workspace:*",
     "@shipfox/api-runners-dto": "workspace:*",
@@ -73,6 +74,7 @@
     "drizzle-kit": "^0.31.10",
     "fastify": "^5.3.3",
     "fastify-type-provider-zod": "^6.0.0",
-    "fishery": "^2.2.2"
+    "fishery": "^2.2.2",
+    "pino": "^10.3.0"
   }
 }

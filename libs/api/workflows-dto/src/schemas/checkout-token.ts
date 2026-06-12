@@ -23,7 +23,9 @@ export type CheckoutTokenAuthDto = z.infer<typeof checkoutTokenAuthSchema>;
 export const checkoutTokenResponseSchema = z.object({
   repository_url: z.string().min(1),
   ref: z.string().min(1),
-  auth: checkoutTokenAuthSchema,
+  // Optional: credential-free providers (e.g. the debug source control) return a
+  // public clone URL with no auth material, so the runner clones without a token.
+  auth: checkoutTokenAuthSchema.optional(),
 });
 
 export type CheckoutTokenResponseDto = z.infer<typeof checkoutTokenResponseSchema>;
