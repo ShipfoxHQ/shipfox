@@ -4,7 +4,7 @@ import {createLeaseClient, requestJob} from '#api-client.js';
 import {config} from '#config.js';
 import {startHeartbeatLoop} from '#heartbeat-loop.js';
 import {runJobSteps} from '#step-loop.js';
-import {prepareWorkspace, resolveWorkspaceRoot, type Workspace} from '#workspace.js';
+import {cleanupWorkspace, jobWorkspacePath, resolveWorkspaceRoot} from '#workspace.js';
 
 let running = true;
 let shuttingDown = false;
@@ -59,6 +59,17 @@ export async function runJob(
   job: Awaited<ReturnType<typeof requestJob>> & object,
   workspaceRoot: string,
 ): Promise<void> {
+  // The path is deterministic, so compute it up front for cleanup on every exit
+  // path; the setup step (position 0) creates the directory. An invalid job id is
+  // an internal/claim error: bail before starting any per-job resources.
+  let cwd: string;
+  try {
+    cwd = jobWorkspacePath(job.job_id, workspaceRoot);
+  } catch (error) {
+    logger().error({err: error, jobId: job.job_id}, 'Invalid job id; skipping job');
+    return;
+  }
+
   const ac = new AbortController();
   currentJobAbortController = ac;
 
@@ -67,22 +78,21 @@ export async function runJob(
     maxStaleMs: config.SHIPFOX_HEARTBEAT_MAX_STALE_MS,
   });
 
-  let workspace: Workspace | undefined;
   try {
-    workspace = await prepareWorkspace(job, workspaceRoot);
     const leaseClient = createLeaseClient(job.lease_token);
-    await runJobSteps({jobId: job.job_id, leaseClient, signal: ac.signal, cwd: workspace.cwd});
+    await runJobSteps({jobId: job.job_id, leaseClient, signal: ac.signal, cwd});
     logger().info({jobId: job.job_id}, 'Job step loop finished');
   } catch (stepLoopError) {
-    // Workspace prep failed, retries are exhausted, or a non-retryable error surfaced.
-    // Bail this job; the lease expires server-side and the outer poll moves on. Do not
-    // re-pull (would re-execute).
+    // A non-retryable error surfaced (e.g. an unexpected throw from the loop).
+    // Bail this job; the lease expires server-side and the outer poll moves on.
+    // Do not re-pull (would re-execute). Setup failures do NOT reach here — they
+    // report through the step protocol and finalize the job.
     logger().error({err: stepLoopError, jobId: job.job_id}, 'Job step loop failed');
   } finally {
     heartbeatLoop.stop();
     if (currentJobAbortController === ac) currentJobAbortController = undefined;
     // Clean up the per-job workspace on every exit path.
-    if (workspace) await workspace.cleanup();
+    await cleanupWorkspace(cwd);
   }
 }
 

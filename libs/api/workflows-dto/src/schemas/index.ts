@@ -33,8 +33,12 @@ export {
 export {
   type StepAttemptDto,
   type StepDto,
+  type StepErrorCategory,
   type StepErrorDtoShape,
+  type StepErrorReason,
   stepAttemptDtoSchema,
   stepDtoSchema,
+  stepErrorCategorySchema,
   stepErrorDtoSchema,
+  stepErrorReasonSchema,
 } from './step.js';

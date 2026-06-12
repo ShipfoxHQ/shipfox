@@ -138,6 +138,35 @@ describe('decideStepTransition', () => {
     });
   });
 
+  test('restart_from never resolves to the synthetic setup step (no workspace re-delete)', () => {
+    // A user step legitimately named "Set up job" shares its name with the synthetic
+    // setup step at position 0. Restart must resolve to the user step, not position 0.
+    const setup = step({
+      id: 'setup',
+      name: 'Set up job',
+      type: 'setup',
+      position: 0,
+      status: 'succeeded',
+    });
+    const userSetup = step({id: 's1', name: 'Set up job', position: 1, status: 'succeeded'});
+    const target = step({id: 's2', position: 2, status: 'running'});
+
+    const decision = decideStepTransition({
+      steps: [setup, userSetup, target],
+      target,
+      reportedAttempt: 1,
+      result: {status: 'failed', exitCode: 1},
+      gateOutcome: {kind: 'failed', source: 'exit_code == 0'},
+      gateOnFailure: {restartFrom: 'Set up job'},
+    });
+
+    expect(decision).toMatchObject({
+      kind: 'restart-job-from-step',
+      restartFromStepId: 's1',
+      restartFromPosition: 1,
+    });
+  });
+
   test('restart is refused (exhausted) once the gating step hits the attempt cap', () => {
     const restartTarget = step({id: 's0', name: 'producer', position: 0, status: 'succeeded'});
     const target = step({id: 's1', position: 1, status: 'running'});

@@ -1,9 +1,14 @@
 import type {Step} from '#core/entities/step.js';
 import {createWorkflowRun, getJobsByRunId, getStepsByJobId} from '#db/workflow-runs.js';
+import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
 
 // Jobs and steps have no standalone factory — they only exist as children
-// materialized from a WorkflowModel by createWorkflowRun.
+// materialized from a WorkflowModel by createWorkflowRun, which also prepends a
+// synthetic "Set up job" step to every job. This fixture exercises step-execution
+// mechanics in isolation, so it strips that step (see stripSetupStep) to keep the
+// arrangement focused. The setup step's own behavior is covered by materialize /
+// createWorkflowRun / runner tests.
 export async function arrangeJobWithSteps(
   stepCount: number,
 ): Promise<{jobId: string; steps: Step[]}> {
@@ -29,6 +34,9 @@ export async function arrangeJobWithSteps(
 
   const jobs = await getJobsByRunId(run.id);
   const jobId = jobs[0]?.id as string;
+
+  await stripSetupStep(jobId);
+
   const steps = await getStepsByJobId(jobId);
   return {jobId, steps};
 }

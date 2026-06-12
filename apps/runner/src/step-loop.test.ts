@@ -4,6 +4,7 @@ import {HTTPError} from 'ky';
 const requestNextStepMock = vi.fn();
 const reportStepMock = vi.fn();
 const executeRunStepMock = vi.fn();
+const executeSetupStepMock = vi.fn();
 
 vi.mock('#api-client.js', () => ({
   requestNextStep: (...args: unknown[]) => requestNextStepMock(...args),
@@ -13,6 +14,10 @@ vi.mock('#api-client.js', () => ({
 
 vi.mock('#run-step.js', () => ({
   executeRunStep: (...args: unknown[]) => executeRunStepMock(...args),
+}));
+
+vi.mock('#setup-step.js', () => ({
+  executeSetupStep: (...args: unknown[]) => executeSetupStepMock(...args),
 }));
 
 const {runJobSteps} = await import('#step-loop.js');
@@ -25,13 +30,18 @@ describe('runJobSteps', () => {
     requestNextStepMock.mockReset();
     reportStepMock.mockReset();
     executeRunStepMock.mockReset();
+    executeSetupStepMock.mockReset();
     reportStepMock.mockResolvedValue({ok: true, cancel: false});
+    // Setup succeeds by default; tests that exercise setup failure override it.
+    executeSetupStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
   });
 
-  it('pulls, executes, reports (echoing attempt + exit_code), then stops on done', async () => {
-    const step = buildStep();
+  it('runs the setup step then a run step against the prepared cwd, reporting both', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
     requestNextStepMock
-      .mockResolvedValueOnce(stepResponse(step, 1))
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
       .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
     executeRunStepMock.mockResolvedValue({
       success: true,
@@ -43,16 +53,64 @@ describe('runJobSteps', () => {
 
     await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
 
-    expect(executeRunStepMock).toHaveBeenCalledTimes(1);
+    expect(executeSetupStepMock).toHaveBeenCalledWith({cwd: '/work'});
+    expect(executeRunStepMock).toHaveBeenCalledWith(run, {signal: ac.signal, cwd: '/work'});
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
-      stepId: step.id,
+      stepId: run.id,
       attempt: 1,
       status: 'succeeded',
       error: null,
       exitCode: 0,
       signal: ac.signal,
     });
-    expect(requestNextStepMock).toHaveBeenCalledTimes(2);
+    expect(requestNextStepMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('reports the setup step failed with its reason, then stops on cancel:true (no user step runs)', async () => {
+    const setup = buildSetupStep();
+    const error = {message: 'mkdir denied', reason: 'workspace_prep_failed' as const};
+    requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 1));
+    executeSetupStepMock.mockResolvedValueOnce({
+      success: false,
+      output: '',
+      error,
+      exit_code: null,
+    });
+    reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+
+    expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: setup.id,
+      attempt: 1,
+      status: 'failed',
+      error,
+      exitCode: null,
+      signal: ac.signal,
+    });
+    expect(executeRunStepMock).not.toHaveBeenCalled();
+    expect(requestNextStepMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails a run step dispatched before setup without spawning it', async () => {
+    const run = buildRunStep();
+    requestNextStepMock.mockResolvedValueOnce(stepResponse(run, 1));
+    reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+
+    expect(executeSetupStepMock).not.toHaveBeenCalled();
+    expect(executeRunStepMock).not.toHaveBeenCalled();
+    expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: run.id,
+      attempt: 1,
+      status: 'failed',
+      error: {message: 'Run step dispatched before setup prepared the workspace'},
+      exitCode: null,
+      signal: ac.signal,
+    });
   });
 
   it('stops immediately when there are no steps', async () => {
@@ -61,7 +119,7 @@ describe('runJobSteps', () => {
 
     await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
 
-    expect(executeRunStepMock).not.toHaveBeenCalled();
+    expect(executeSetupStepMock).not.toHaveBeenCalled();
     expect(reportStepMock).not.toHaveBeenCalled();
   });
 
@@ -73,7 +131,7 @@ describe('runJobSteps', () => {
       runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'}),
     ).resolves.toBeUndefined();
 
-    expect(executeRunStepMock).not.toHaveBeenCalled();
+    expect(executeSetupStepMock).not.toHaveBeenCalled();
     expect(reportStepMock).not.toHaveBeenCalled();
   });
 
@@ -88,37 +146,47 @@ describe('runJobSteps', () => {
     expect(requestNextStepMock).toHaveBeenCalledTimes(1);
   });
 
-  it('reports a failed step with its exit_code, then stops on cancel:true', async () => {
-    const step = buildStep();
+  it('reports a failed run step with its exit_code after setup, then stops on cancel:true', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
     const error = {message: 'Command exited with code 1', exit_code: 1};
-    requestNextStepMock.mockResolvedValueOnce(stepResponse(step, 1));
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1));
     executeRunStepMock.mockResolvedValueOnce({
       success: false,
       output: 'boom\n',
       error,
       exit_code: 1,
     });
-    reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
+    reportStepMock
+      .mockResolvedValueOnce({ok: true, cancel: false})
+      .mockResolvedValueOnce({ok: true, cancel: true});
     const ac = new AbortController();
 
     await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
 
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
-      stepId: step.id,
+      stepId: run.id,
       attempt: 1,
       status: 'failed',
       error,
       exitCode: 1,
       signal: ac.signal,
     });
-    expect(requestNextStepMock).toHaveBeenCalledTimes(1);
+    expect(requestNextStepMock).toHaveBeenCalledTimes(2);
   });
 
   it('reports the step failed when executeRunStep throws (no leaked error, no hung step)', async () => {
-    const step = buildStep();
-    requestNextStepMock.mockResolvedValueOnce(stepResponse(step, 2));
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 2));
     executeRunStepMock.mockRejectedValueOnce(new Error('ENOSPC: no space left on device'));
-    reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
+    reportStepMock
+      .mockResolvedValueOnce({ok: true, cancel: false})
+      .mockResolvedValueOnce({ok: true, cancel: true});
     const ac = new AbortController();
 
     await expect(
@@ -126,7 +194,7 @@ describe('runJobSteps', () => {
     ).resolves.toBeUndefined();
 
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
-      stepId: step.id,
+      stepId: run.id,
       attempt: 2,
       status: 'failed',
       error: {message: 'ENOSPC: no space left on device'},
@@ -135,18 +203,18 @@ describe('runJobSteps', () => {
     });
   });
 
-  it('does not report when the signal aborts mid-step', async () => {
-    const step = buildStep();
+  it('does not report when the signal aborts during setup', async () => {
+    const setup = buildSetupStep();
     const ac = new AbortController();
-    requestNextStepMock.mockResolvedValueOnce(stepResponse(step, 1));
-    executeRunStepMock.mockImplementationOnce(() => {
+    requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 1));
+    executeSetupStepMock.mockImplementationOnce(() => {
       ac.abort();
       return Promise.resolve({success: true, output: '', error: null, exit_code: 0});
     });
 
     await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
 
-    expect(executeRunStepMock).toHaveBeenCalledTimes(1);
+    expect(executeSetupStepMock).toHaveBeenCalledTimes(1);
     expect(reportStepMock).not.toHaveBeenCalled();
   });
 
@@ -159,6 +227,21 @@ describe('runJobSteps', () => {
     expect(requestNextStepMock).not.toHaveBeenCalled();
   });
 });
+
+function buildSetupStep(overrides: Partial<StepDto> = {}): StepDto {
+  return buildStep({
+    id: '00000000-0000-0000-0000-0000000000b0',
+    name: 'Set up job',
+    type: 'setup',
+    config: {},
+    position: 0,
+    ...overrides,
+  });
+}
+
+function buildRunStep(overrides: Partial<StepDto> = {}): StepDto {
+  return buildStep({position: 1, ...overrides});
+}
 
 function buildStep(overrides: Partial<StepDto> = {}): StepDto {
   return {

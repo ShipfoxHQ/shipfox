@@ -143,8 +143,15 @@ export function decideStepTransition(input: DecideStepTransitionInput): StepTran
 
   // 3. Restart when a policy is configured and the failure is checkable.
   if (gateOnFailure?.restartFrom && !uncheckable) {
+    // Exclude the synthetic setup step: a user step legitimately named "Set up job"
+    // would otherwise resolve to position 0 and rewind setup (deleting the workspace
+    // mid-job). Duplicate user-step names are already impossible (normalize rejects
+    // them with duplicate-step-id), so this is the only collision to guard.
     const restartStep = steps.find(
-      (step) => step.position < target.position && step.name === gateOnFailure.restartFrom,
+      (step) =>
+        step.type !== 'setup' &&
+        step.position < target.position &&
+        step.name === gateOnFailure.restartFrom,
     );
     if (!restartStep) {
       // The model validates restart_from to an earlier named step, but fail closed
