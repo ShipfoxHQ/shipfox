@@ -256,8 +256,9 @@ near it, keep its authority narrow:
   runner and the agent workload it hosts as untrusted — they only present a token.
 - **Keep the lifetime bounded** and never trade the short TTL for convenience.
 - **Server state is the final gate.** A valid token must never be sufficient to
-  advance work on its own — terminal job/step state always wins, and cancellation
-  rides on the heartbeat response.
+  advance work on its own — on the lease path, terminal step/progression state
+  always wins (job finalization is enforced outside it), and cancellation rides on
+  the heartbeat response.
 - **Never log a raw token.** There is no automatic redaction; tokens must not reach
   logs, traces, or error payloads. Secrets come from configuration, never code.
 

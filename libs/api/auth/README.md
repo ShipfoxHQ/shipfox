@@ -112,13 +112,13 @@ progress and drives that job to completion.
   code or committed. The raw token must **never** be written to logs, traces, or
   error payloads — there is no automatic redaction to fall back on.
 - **Defense in depth — server state is the final authority.** A valid token is
-  never sufficient on its own to advance work. Server-side job and step state is
-  the ultimate gate: a report against work that has already reached a terminal
-  state (finished, failed, or cancelled) is ignored, so a still-valid token cannot
-  resurrect or re-drive a job that is already done. Cancellation flows the other
-  way as well — the server can ask the runner to stop at any point, and that
-  request rides on the response to each heartbeat rather than depending on the
-  token.
+  never sufficient on its own to advance work. On the lease's own request path the
+  gate is server-side step and progression state: a report against a step that has
+  already reached a terminal state (finished, failed, or cancelled) is ignored, so
+  a still-valid token cannot re-drive work that is already done. Job-level
+  finalization is enforced outside the lease path. Cancellation flows the other way
+  as well — the server can ask the runner to stop at any point, and that request
+  rides on the response to each heartbeat rather than depending on the token.
 - **Threat model.** A leaked or replayed token has a deliberately small blast
   radius: it grants action on one already-claimed job, and only until it expires.
   It cannot claim new work, impersonate a runner, or reach other workspaces. If the
