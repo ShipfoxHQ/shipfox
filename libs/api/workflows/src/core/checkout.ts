@@ -9,7 +9,12 @@ import {
   WorkflowRunNotFoundError,
 } from './errors.js';
 
-const TERMINAL_JOB_STATUSES: ReadonlySet<JobStatus> = new Set(['succeeded', 'failed', 'cancelled']);
+// A job may exchange its lease for checkout credentials only while it is
+// actively running. Gating on a positive allowlist (rather than a terminal
+// denylist) fails closed: a job that is still pending, paused for a manual
+// gate, or already finished mints nothing, and any future non-terminal status
+// cannot silently slip through.
+const ACTIVE_JOB_STATUSES: ReadonlySet<JobStatus> = new Set(['running']);
 
 export interface CheckoutIntent {
   workspaceId: string;
@@ -25,7 +30,7 @@ export interface CheckoutIntent {
 export async function resolveCheckoutIntent(jobId: string): Promise<CheckoutIntent> {
   const job = await getJobById(jobId);
   if (!job) throw new JobNotFoundError(jobId);
-  if (TERMINAL_JOB_STATUSES.has(job.status)) throw new JobNotActiveError(jobId, job.status);
+  if (!ACTIVE_JOB_STATUSES.has(job.status)) throw new JobNotActiveError(jobId, job.status);
 
   // job.runId is a NOT NULL FK to workflow_runs, so the run effectively always
   // exists; the guard stays only to keep the resolution total.

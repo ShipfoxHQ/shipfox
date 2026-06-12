@@ -39,7 +39,7 @@ export const checkoutTokenRoute = defineRoute({
     // map through the shared handler, which re-throws unknowns to the global handler.
     return integrationRouteErrorHandler(error);
   },
-  handler: async (request) => {
+  handler: async (request, reply) => {
     const leasedJob = requireLeasedJobContext(request);
 
     const spec = await createJobCheckoutSpec({
@@ -47,6 +47,9 @@ export const checkoutTokenRoute = defineRoute({
       sourceControl: sourceControl(),
     });
 
+    // The body carries short-lived git credentials; forbid any intermediary or
+    // client cache from retaining them.
+    reply.header('cache-control', 'no-store');
     return toCheckoutTokenDto(spec);
   },
 });

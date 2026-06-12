@@ -1,3 +1,5 @@
+import type {JobStatus} from './entities/job.js';
+
 export class DefinitionNotFoundError extends Error {
   constructor(definitionId: string) {
     super(`Definition not found: ${definitionId}`);
@@ -26,7 +28,7 @@ export class JobNotFoundError extends Error {
 export class JobNotActiveError extends Error {
   constructor(
     readonly jobId: string,
-    readonly status: string,
+    readonly status: JobStatus,
   ) {
     super(`Job ${jobId} is ${status} and cannot mint checkout credentials`);
     this.name = 'JobNotActiveError';
