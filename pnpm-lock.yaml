@@ -1477,6 +1477,9 @@ importers:
       '@shipfox/api-definitions':
         specifier: workspace:*
         version: link:../definitions
+      '@shipfox/api-integration-core':
+        specifier: workspace:*
+        version: link:../integration/core
       '@shipfox/api-projects':
         specifier: workspace:*
         version: link:../projects
@@ -1574,6 +1577,9 @@ importers:
       fishery:
         specifier: ^2.2.2
         version: 2.4.0
+      pino:
+        specifier: ^10.3.0
+        version: 10.3.1
 
   libs/api/workflows-dto:
     dependencies:

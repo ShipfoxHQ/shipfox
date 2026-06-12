@@ -6,6 +6,10 @@ const SECRET = process.env.AUTH_JOB_LEASE_TOKEN_SECRET ?? 'test-lease-secret';
 
 export interface MintLeaseTokenParams {
   jobId: string;
+  // Override the informational claims to pair a job with a chosen (possibly
+  // mismatched) run/workspace — used by the hostile-claims checkout test.
+  runId?: string;
+  workspaceId?: string;
   secret?: string;
   expiresIn?: string;
   audience?: string;
@@ -15,8 +19,8 @@ export function mintLeaseToken(params: MintLeaseTokenParams): Promise<string> {
   return signHs256({
     payload: {
       jobId: params.jobId,
-      runId: crypto.randomUUID(),
-      workspaceId: crypto.randomUUID(),
+      runId: params.runId ?? crypto.randomUUID(),
+      workspaceId: params.workspaceId ?? crypto.randomUUID(),
       runnerTokenId: crypto.randomUUID(),
     },
     secret: params.secret ?? SECRET,
