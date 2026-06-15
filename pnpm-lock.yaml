@@ -230,6 +230,12 @@ importers:
 
   e2e/client/integrations:
     devDependencies:
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/integration/core-dto
+      '@shipfox/api-integration-sentry-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/integration/sentry-dto
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
