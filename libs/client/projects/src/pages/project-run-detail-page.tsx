@@ -15,6 +15,16 @@ type RailFilter = 'all' | 'failed' | 'running';
 type DetailJob = RunDetailDto['jobs'][number];
 type DetailStep = DetailJob['steps'][number];
 type DetailAttempt = DetailStep['attempts'][number];
+type LogStream = 'stdout' | 'stderr' | 'system' | 'gate';
+type LogFilter = 'all' | Exclude<LogStream, 'gate'>;
+type SourceView = 'yaml' | 'document' | 'model';
+
+const LOG_FILTERS: Array<{value: LogFilter; label: string}> = [
+  {value: 'all', label: 'All'},
+  {value: 'stdout', label: 'stdout'},
+  {value: 'stderr', label: 'stderr'},
+  {value: 'system', label: 'system'},
+];
 
 export function ProjectRunDetailPage({projectId, runId}: {projectId: string; runId: string}) {
   return (
@@ -283,9 +293,23 @@ function RunWorkspace({run, workspaceId}: {run: RunDetailDto; workspaceId: strin
     setSelectedAttemptNumber(nextAttempt?.attempt ?? null);
   }
 
+  function focusDefaultSelection() {
+    const nextStep = chooseSelectedStep(defaultJob);
+    const nextAttempt = chooseSelectedAttempt(nextStep);
+    setSelectedJobId(defaultJob?.id ?? null);
+    setSelectedStepId(nextStep?.id ?? null);
+    setSelectedAttemptNumber(nextAttempt?.attempt ?? null);
+    setMode('overview');
+  }
+
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-background-neutral-subtle">
-      <RunHeader run={run} workspaceId={workspaceId} onSource={() => setMode('source')} />
+      <RunHeader
+        run={run}
+        workspaceId={workspaceId}
+        onFocusSelection={focusDefaultSelection}
+        onSource={() => setMode('source')}
+      />
       <main className="flex min-h-0 flex-1 overflow-hidden">
         <div className="min-w-0 flex-1 overflow-y-auto">
           <div className="px-20 pt-18 pb-6">
@@ -343,10 +367,12 @@ function RunWorkspace({run, workspaceId}: {run: RunDetailDto; workspaceId: strin
 function RunHeader({
   run,
   workspaceId,
+  onFocusSelection,
   onSource,
 }: {
   run: RunDetailDto;
   workspaceId: string;
+  onFocusSelection: () => void;
   onSource: () => void;
 }) {
   const goLabel =
@@ -387,14 +413,14 @@ function RunHeader({
         <span className="min-w-12 flex-1" />
         <div className="flex flex-wrap items-center gap-8">
           {goLabel ? (
-            <Button size="sm" iconRight="arrowRightLine">
+            <Button size="sm" iconRight="arrowRightLine" onClick={onFocusSelection}>
               {goLabel}
             </Button>
           ) : null}
           <Button size="sm" variant="secondary" iconLeft="fileCodeLine" onClick={onSource}>
             Workflow source
           </Button>
-          <Button size="sm" variant="secondary" iconLeft="refreshLine">
+          <Button size="sm" variant="secondary" iconLeft="refreshLine" disabled>
             Re-run
           </Button>
           <Button asChild size="sm" variant="transparentMuted" iconLeft="arrowLeftLine">
@@ -758,9 +784,9 @@ function SelectionInspector({
             </Text>
           </div>
         ) : mode === 'source' ? (
-          <SourceShell run={run} />
+          <SourceShell run={run} job={job} step={step} />
         ) : mode === 'logs' ? (
-          <LogsShell job={job} step={step} attempt={attempt} />
+          <LogsShell run={run} job={job} step={step} attempt={attempt} />
         ) : (
           <InspectorOverview
             run={run}
@@ -992,6 +1018,7 @@ function AttemptHistory({
             <button
               key={attempt.id}
               type="button"
+              aria-label={`Select attempt ${attempt.attempt} ${attempt.status}`}
               aria-pressed={attempt.attempt === selected?.attempt}
               onClick={() => onSelect(attempt.attempt)}
               className={`flex items-center gap-8 rounded-6 border px-9 py-7 text-left transition-colors hover:bg-background-components-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-highlights-interactive ${
@@ -1023,58 +1050,318 @@ function AttemptHistory({
 }
 
 function LogsShell({
+  run,
   job,
   step,
   attempt,
 }: {
+  run: RunDetailDto;
   job: DetailJob | null;
   step: DetailStep | null;
   attempt: DetailAttempt | null;
 }) {
-  return (
-    <div className="m-14 overflow-hidden rounded-8 border border-border-neutral-base bg-background-contrast-base">
-      <div className="flex items-center justify-between border-b border-white/10 bg-background-contrast-subtle px-12 py-8">
-        <Code variant="label" className="text-foreground-neutral-on-color">
-          {step ? `${stepLabel(step)} logs` : job ? `${job.name} logs` : 'run logs'}
-        </Code>
-        <Text size="xs" className="text-foreground-neutral-muted">
-          {attempt ? `attempt #${attempt.attempt}` : 'preview data'}
+  const [filter, setFilter] = useState<LogFilter>('all');
+  const [query, setQuery] = useState('');
+  const lines = step
+    ? fixtureLogLines({job, step, attempt}).filter((line) => {
+        if (filter !== 'all' && line.stream !== filter) return false;
+        const needle = query.trim().toLowerCase();
+        return !needle || `${line.source} ${line.message}`.toLowerCase().includes(needle);
+      })
+    : [];
+
+  if (step && step.attempts.length === 0) {
+    return (
+      <div className="m-14 rounded-8 border border-border-neutral-base bg-background-neutral-base px-16 py-28 text-center">
+        <Icon name="timeLine" className="mx-auto mb-8 size-20 text-foreground-neutral-muted" />
+        <Text size="sm" bold>
+          {step.status === 'pending' ? 'Step not started' : 'Step not run'}
+        </Text>
+        <Text size="sm" className="mt-4 text-foreground-neutral-muted">
+          No attempts were executed for this step.
         </Text>
       </div>
-      <div className="px-12 py-28 text-center">
-        <Text size="sm" className="text-foreground-neutral-muted">
-          Log rows will appear here when available.
-        </Text>
+    );
+  }
+
+  return (
+    <div className="m-14 overflow-hidden rounded-8 border border-border-neutral-base bg-background-contrast-base">
+      <div className="border-b border-white/10 bg-background-contrast-subtle px-12 py-9">
+        <div className="flex items-center justify-between gap-10">
+          <Code variant="label" className="min-w-0 truncate text-foreground-neutral-on-color">
+            {step ? `${stepLabel(step)} logs` : job ? `${job.name} logs` : 'run logs'}
+          </Code>
+          <Text size="xs" className="shrink-0 text-foreground-neutral-muted">
+            {attempt ? `attempt #${attempt.attempt}` : 'all attempts'}
+          </Text>
+        </div>
+        <div className="mt-9 flex flex-wrap items-center gap-6">
+          <div className="flex rounded-6 border border-white/10 bg-black/20 p-2">
+            {LOG_FILTERS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setFilter(option.value)}
+                className={`h-24 rounded-4 px-7 text-xs transition-colors ${
+                  filter === option.value
+                    ? 'bg-background-contrast-base text-foreground-neutral-on-color'
+                    : 'text-foreground-neutral-muted hover:text-foreground-neutral-on-color'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <label className="flex h-28 min-w-180 flex-1 items-center gap-6 rounded-6 border border-white/10 bg-black/20 px-8 text-foreground-neutral-muted">
+            <Icon name="searchLine" className="size-13" />
+            <input
+              aria-label="Search logs"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search logs..."
+              className="min-w-0 flex-1 bg-transparent text-sm text-foreground-neutral-on-color outline-none placeholder:text-foreground-neutral-muted"
+            />
+          </label>
+        </div>
+      </div>
+      <div className="max-h-[520px] overflow-auto px-12 py-10">
+        <div className="mb-8 flex items-center justify-between gap-8 rounded-6 border border-white/10 bg-black/20 px-9 py-7">
+          <Code variant="label" className="min-w-0 truncate text-foreground-neutral-on-color">
+            $ {step ? stepCommand(step) : 'workflow'}
+          </Code>
+          <Code variant="label" className="shrink-0 text-foreground-neutral-muted">
+            {attempt?.status ?? step?.status ?? run.status}
+          </Code>
+        </div>
+        {lines.length === 0 ? (
+          <div className="py-20 text-center">
+            <Text size="sm" className="text-foreground-neutral-muted">
+              {query.trim() ? 'No matching log lines.' : `No ${filter} log lines.`}
+            </Text>
+          </div>
+        ) : (
+          <div className="font-code text-xs leading-18">
+            {lines.map((line) => (
+              <div
+                key={`${line.at}-${line.stream}-${line.message}`}
+                className={`grid grid-cols-[54px_54px_minmax(0,1fr)] gap-8 border-b border-white/5 py-3 last:border-b-0 ${
+                  line.stream === 'stderr'
+                    ? 'text-tag-error-text'
+                    : line.stream === 'gate'
+                      ? 'text-tag-warning-text'
+                      : 'text-foreground-neutral-on-color'
+                }`}
+              >
+                <span className="text-foreground-neutral-muted">{line.at}</span>
+                <span className="text-foreground-neutral-muted uppercase">{line.stream}</span>
+                <span className="min-w-0 break-words">
+                  <span className="text-foreground-neutral-muted">{line.source}</span>{' '}
+                  {line.message}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function SourceShell({run}: {run: RunDetailDto}) {
+function SourceShell({
+  run,
+  job,
+  step,
+}: {
+  run: RunDetailDto;
+  job: DetailJob | null;
+  step: DetailStep | null;
+}) {
+  const [view, setView] = useState<SourceView>('yaml');
   const source = run.workflow_source_yaml;
-  return (
-    <div className="m-14 overflow-hidden rounded-8 border border-border-neutral-base bg-background-contrast-base">
-      <div className="flex items-center justify-between border-b border-white/10 bg-background-contrast-subtle px-12 py-8">
-        <Code variant="label" className="text-foreground-neutral-on-color">
-          workflow.yaml
-        </Code>
-        <Text size="xs" className="text-foreground-neutral-muted">
-          run snapshot
+  const sourceText =
+    view === 'yaml'
+      ? source
+      : view === 'document'
+        ? compactJson(run.workflow_document)
+        : compactJson(run.workflow_model);
+
+  if (!source) {
+    return (
+      <div className="m-14 rounded-8 border border-border-neutral-base bg-background-neutral-base px-16 py-28 text-center">
+        <Icon
+          name="fileWarningLine"
+          className="mx-auto mb-8 size-20 text-foreground-neutral-muted"
+        />
+        <Text size="sm" bold>
+          Source snapshot unavailable
+        </Text>
+        <Text size="sm" className="mt-4 text-foreground-neutral-muted">
+          This run was created before workflow source snapshots were available.
         </Text>
       </div>
-      {source ? (
-        <pre className="max-h-[460px] overflow-auto p-12 text-xs leading-18 text-foreground-neutral-on-color">
-          {source}
-        </pre>
-      ) : (
-        <div className="px-12 py-28 text-center">
-          <Text size="sm" className="text-foreground-neutral-muted">
-            This run was created before workflow source snapshots were available.
-          </Text>
+    );
+  }
+
+  return (
+    <div className="m-14 overflow-hidden rounded-8 border border-border-neutral-base bg-background-contrast-base">
+      <div className="border-b border-white/10 bg-background-contrast-subtle px-12 py-9">
+        <div className="flex items-center justify-between gap-10">
+          <Code variant="label" className="min-w-0 truncate text-foreground-neutral-on-color">
+            {view === 'yaml'
+              ? 'workflow.yaml'
+              : view === 'document'
+                ? 'workflow_document.json'
+                : 'workflow_model.json'}
+          </Code>
+          <CopyTextButton text={sourceText ?? ''} />
         </div>
-      )}
+        <div className="mt-9 flex rounded-6 border border-white/10 bg-black/20 p-2">
+          {(['yaml', 'document', 'model'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setView(option)}
+              className={`h-24 rounded-4 px-8 text-xs capitalize transition-colors ${
+                view === option
+                  ? 'bg-background-contrast-base text-foreground-neutral-on-color'
+                  : 'text-foreground-neutral-muted hover:text-foreground-neutral-on-color'
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+      <SourceCodeBlock text={sourceText ?? ''} view={view} job={job} step={step} />
     </div>
   );
+}
+
+function CopyTextButton({text}: {text: string}) {
+  return (
+    <Button
+      size="2xs"
+      variant="transparentMuted"
+      iconLeft="copy"
+      onClick={() => {
+        void navigator.clipboard?.writeText(text);
+      }}
+    >
+      Copy
+    </Button>
+  );
+}
+
+function SourceCodeBlock({
+  text,
+  view,
+  job,
+  step,
+}: {
+  text: string;
+  view: SourceView;
+  job: DetailJob | null;
+  step: DetailStep | null;
+}) {
+  const lines = text.split('\n');
+  return (
+    <div className="max-h-[520px] overflow-auto p-10 font-code text-xs leading-18 text-foreground-neutral-on-color">
+      {lines.map((line, index) => {
+        const highlighted = view === 'yaml' && sourceLineMatchesSelection(line, job, step);
+        return (
+          <div
+            // biome-ignore lint/suspicious/noArrayIndexKey: source line position is the stable identity.
+            key={index}
+            className={`grid grid-cols-[38px_minmax(0,1fr)] gap-10 rounded-3 px-4 ${
+              highlighted ? 'bg-background-highlight-interactive/25' : ''
+            }`}
+          >
+            <span className="select-none text-right text-foreground-neutral-muted">
+              {index + 1}
+            </span>
+            <span className="whitespace-pre-wrap break-words">{line || ' '}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function sourceLineMatchesSelection(line: string, job: DetailJob | null, step: DetailStep | null) {
+  const normalized = line.toLowerCase();
+  const stepName = step ? stepLabel(step).toLowerCase() : null;
+  const jobName = job?.name.toLowerCase() ?? null;
+  return Boolean(
+    (stepName && normalized.includes(stepName)) || (jobName && normalized.includes(jobName)),
+  );
+}
+
+function fixtureLogLines({
+  job,
+  step,
+  attempt,
+}: {
+  job: DetailJob | null;
+  step: DetailStep;
+  attempt: DetailAttempt | null;
+}) {
+  const selectedAttempt = attempt ?? chooseSelectedAttempt(step);
+  const attemptLabel = selectedAttempt ? `attempt #${selectedAttempt.attempt}` : 'attempt';
+  const command = stepCommand(step);
+  const source = `${job?.name ?? 'run'}.${stepLabel(step)}`;
+  const lines: Array<{at: string; stream: LogStream; source: string; message: string}> = [
+    {at: '+0.000s', stream: 'system', source, message: `${attemptLabel} queued for execution`},
+    {at: '+0.116s', stream: 'system', source, message: 'runner workspace prepared'},
+    {at: '+0.231s', stream: 'stdout', source, message: `$ ${command}`},
+  ];
+
+  if (selectedAttempt?.status === 'running' || step.status === 'running') {
+    lines.push(
+      {at: '+1.004s', stream: 'stdout', source, message: 'waiting for remote command output...'},
+      {at: '+live', stream: 'system', source, message: 'streaming output is still open'},
+    );
+    return lines;
+  }
+
+  if (selectedAttempt?.status === 'succeeded' || step.status === 'succeeded') {
+    lines.push(
+      {at: '+1.204s', stream: 'stdout', source, message: 'completed without stderr output'},
+      {
+        at: formatLogDuration(selectedAttempt?.duration_ms ?? step.duration_ms),
+        stream: 'system',
+        source,
+        message: 'attempt finished successfully',
+      },
+    );
+    return lines;
+  }
+
+  const errorMessage =
+    extractErrorMessage(selectedAttempt?.error) ?? step.error?.message ?? 'Command failed';
+  lines.push(
+    {at: '+1.037s', stream: 'stderr', source, message: errorMessage},
+    {
+      at: formatLogDuration(selectedAttempt?.duration_ms ?? step.duration_ms),
+      stream: 'system',
+      source,
+      message: `attempt finished with exit ${selectedAttempt?.exit_code ?? 1}`,
+    },
+  );
+
+  if (selectedAttempt?.gate_result) {
+    lines.push({
+      at: formatLogDuration(selectedAttempt.duration_ms),
+      stream: 'gate',
+      source,
+      message: gateResultSummary(selectedAttempt.gate_result, selectedAttempt.exit_code),
+    });
+  }
+
+  return lines;
+}
+
+function formatLogDuration(durationMs: number) {
+  return `+${(durationMs / 1000).toFixed(3)}s`;
 }
 
 function chooseSelectedJob(run: RunDetailDto) {
