@@ -6,7 +6,7 @@ import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
 import {db} from './db.js';
 import {
   claimPendingJob,
-  expireStuckJob,
+  expireStuckJobs,
   recordHeartbeat,
   releaseJob,
   requestJobCancellation,
@@ -467,11 +467,12 @@ describe('detectAndExpireStuckJobs', () => {
   it('double-expiring the same stuck job emits exactly one event', async () => {
     const {jobId} = await makeStaleJob(600);
 
-    const first = await expireStuckJob({jobId, staleBeforeMs: 180_000});
-    const second = await expireStuckJob({jobId, staleBeforeMs: 180_000});
+    await detectAndExpireStuckJobs({thresholdSeconds: 180});
+    await detectAndExpireStuckJobs({thresholdSeconds: 180});
 
-    expect(first).toBeDefined();
-    expect(second).toBeUndefined();
+    expect(await db().select().from(runningJobs).where(eq(runningJobs.jobId, jobId))).toHaveLength(
+      0,
+    );
     expect(await outboxForJobs([jobId])).toHaveLength(1);
   });
 
@@ -481,7 +482,7 @@ describe('detectAndExpireStuckJobs', () => {
     // without this sweep it would stay re-claimable for an already-finished job.
     await db().insert(pendingJobs).values({workspaceId, jobId, runId});
 
-    await expireStuckJob({jobId, staleBeforeMs: 180_000});
+    await detectAndExpireStuckJobs({thresholdSeconds: 180});
 
     expect(await runningJobsForTest()).toHaveLength(0);
     expect(await db().select().from(pendingJobs).where(eq(pendingJobs.jobId, jobId))).toHaveLength(
@@ -493,13 +494,69 @@ describe('detectAndExpireStuckJobs', () => {
     const {jobId, runId} = await makeStaleJob(60);
     await db().insert(pendingJobs).values({workspaceId, jobId, runId});
 
-    const result = await expireStuckJob({jobId, staleBeforeMs: 180_000});
+    await detectAndExpireStuckJobs({thresholdSeconds: 180});
 
     // The sweep is gated on actually reaping a running row, so a live job's
     // pending row is untouched.
-    expect(result).toBeUndefined();
     expect(await db().select().from(pendingJobs).where(eq(pendingJobs.jobId, jobId))).toHaveLength(
       1,
     );
+  });
+
+  it('returns the reaped {jobId, runId} per row without leaking the internal id', async () => {
+    const {jobId, runId} = await makeStaleJob(600);
+
+    const reaped = await expireStuckJobs({thresholdSeconds: 180});
+
+    const mine = reaped.find((row) => row.jobId === jobId);
+    expect(mine).toEqual({jobId, runId});
+    expect(mine).not.toHaveProperty('id');
+  });
+
+  it('writes one lease_expired event per reaped job in a single bulk insert', async () => {
+    const stuck1 = await makeStaleJob(600);
+    const stuck2 = await makeStaleJob(600);
+
+    await detectAndExpireStuckJobs({thresholdSeconds: 180});
+
+    const outbox = await outboxForJobs([stuck1.jobId, stuck2.jobId]);
+    expect(outbox).toHaveLength(2);
+    expect(outbox.every((row) => row.eventType === RUNNER_JOB_LEASE_EXPIRED)).toBe(true);
+  });
+
+  it('two concurrent ticks reap each stuck job exactly once (no double-emit)', async () => {
+    const stuck1 = await makeStaleJob(600);
+    const stuck2 = await makeStaleJob(600);
+
+    await Promise.all([
+      detectAndExpireStuckJobs({thresholdSeconds: 180}),
+      detectAndExpireStuckJobs({thresholdSeconds: 180}),
+    ]);
+
+    expect(await runningJobsForTest()).toHaveLength(0);
+    expect(await outboxForJobs([stuck1.jobId, stuck2.jobId])).toHaveLength(2);
+  });
+
+  it('a reaper tick and a concurrent claim of the same orphan-pending job leave consistent state', async () => {
+    const {jobId, runId} = await makeStaleJob(600);
+    // Orphan pending row from a post-claim enqueue retry for an already-running job.
+    await db().insert(pendingJobs).values({workspaceId, jobId, runId});
+
+    // The reaper locks running-then-pending while the claim locks pending-then-running;
+    // a deadlock loser rolls back, so either side may settle as rejected.
+    await Promise.allSettled([
+      detectAndExpireStuckJobs({thresholdSeconds: 180}),
+      claimPendingJob({workspaceId, runnerTokenId}),
+    ]);
+
+    // A follow-up tick finishes any reap that lost a deadlock race.
+    await detectAndExpireStuckJobs({thresholdSeconds: 180});
+
+    // The expired job is gone and not re-claimable; its orphan pending row is swept.
+    expect(await runningJobsForTest()).toHaveLength(0);
+    expect(await db().select().from(pendingJobs).where(eq(pendingJobs.jobId, jobId))).toHaveLength(
+      0,
+    );
+    expect(await claimPendingJob({workspaceId, runnerTokenId})).toBeNull();
   });
 });

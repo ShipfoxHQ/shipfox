@@ -1,6 +1,6 @@
 import {RUNNER_JOB_LEASE_EXPIRED, type RunnersEventMap} from '@shipfox/api-runners-dto';
-import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {and, asc, eq, lt, sql} from 'drizzle-orm';
+import {writeOutboxEvents} from '@shipfox/node-outbox';
+import {and, asc, eq, inArray, lt, sql} from 'drizzle-orm';
 import {RunningJobNotFoundError} from '#core/errors.js';
 import {db} from './db.js';
 import {runnersOutbox} from './schema/outbox.js';
@@ -101,51 +101,57 @@ export async function releaseJob(params: {jobId: string}): Promise<void> {
 }
 
 /**
- * Deletes a stuck running-job lease and emits `runners.job.lease_expired`.
+ * Reaps stale leases (bounded by `limit`), emitting one
+ * `runners.job.lease_expired` event per reaped job.
  *
- * Race-safe by construction: the stale-heartbeat guard lives inside the DELETE's
- * WHERE and the outbox event is written in the same transaction only when a row
- * was deleted, so a heartbeat landing between an outer `findStuckJobs` read and
- * this call leaves the live job untouched, and overlapping detector runs cannot
- * double-emit. `runId` comes from `RETURNING`. Once a running row is reaped it
- * also sweeps any orphan pending row for the job (same as `releaseJob`): if the
- * workflow's best-effort `releaseJob` failed, reaping only the running row would
- * leave that orphan re-claimable for an already-finished job. Distinct from
- * `releaseJob` (the workflow-driven cleanup), which is unconditional and emits no
- * event: the two guard on different predicates, so the resemblance is shallow.
+ * The cutoff is re-checked in the DELETE, not just the locking subquery, so a
+ * heartbeat landing mid-call spares the live row. Each reaped job also sweeps its
+ * pending row: a failed best-effort `releaseJob` would otherwise leave an orphan
+ * that a later claim re-runs as an already-finished job.
+ *
+ * Locks running-then-pending, the inverse of `claimPendingJob` / `releaseJob`.
+ * That pre-existing asymmetry opens a narrow deadlock window against a concurrent
+ * claim of the same orphan-pending job; Postgres breaks it and the cron retries.
  */
-export async function expireStuckJob(params: {
-  jobId: string;
-  staleBeforeMs: number;
-}): Promise<{runId: string} | undefined> {
+export async function expireStuckJobs(params: {
+  thresholdSeconds: number;
+  limit?: number;
+}): Promise<Array<{jobId: string; runId: string}>> {
   return await db().transaction(async (tx) => {
-    const deleted = await tx
+    const cutoff = sql`now() - (${params.thresholdSeconds} || ' seconds')::interval`;
+
+    const staleIds = tx
+      .select({id: runningJobs.id})
+      .from(runningJobs)
+      .where(lt(runningJobs.lastHeartbeatAt, cutoff))
+      .orderBy(asc(runningJobs.lastHeartbeatAt))
+      .limit(params.limit ?? 100)
+      .for('update', {skipLocked: true});
+
+    const reaped = await tx
       .delete(runningJobs)
-      .where(
-        and(
-          eq(runningJobs.jobId, params.jobId),
-          lt(
-            runningJobs.lastHeartbeatAt,
-            sql`now() - (${params.staleBeforeMs} || ' milliseconds')::interval`,
-          ),
-        ),
-      )
-      .returning({runId: runningJobs.runId});
+      .where(and(inArray(runningJobs.id, staleIds), lt(runningJobs.lastHeartbeatAt, cutoff)))
+      .returning({jobId: runningJobs.jobId, runId: runningJobs.runId});
 
-    const row = deleted[0];
-    if (!row) return undefined;
+    if (reaped.length === 0) return [];
 
-    await tx.delete(pendingJobs).where(eq(pendingJobs.jobId, params.jobId));
+    await tx.delete(pendingJobs).where(
+      inArray(
+        pendingJobs.jobId,
+        reaped.map((row) => row.jobId),
+      ),
+    );
 
-    await writeOutboxEvent<RunnersEventMap>(tx, runnersOutbox, {
-      type: RUNNER_JOB_LEASE_EXPIRED,
-      payload: {
-        jobId: params.jobId,
-        runId: row.runId,
-      },
-    });
+    await writeOutboxEvents<RunnersEventMap>(
+      tx,
+      runnersOutbox,
+      reaped.map((row) => ({
+        type: RUNNER_JOB_LEASE_EXPIRED,
+        payload: {jobId: row.jobId, runId: row.runId},
+      })),
+    );
 
-    return {runId: row.runId};
+    return reaped;
   });
 }
 
@@ -175,22 +181,4 @@ export async function requestJobCancellation(params: {jobId: string}): Promise<v
       cancellationRequestedAt: sql`COALESCE(${runningJobs.cancellationRequestedAt}, now())`,
     })
     .where(eq(runningJobs.jobId, params.jobId));
-}
-
-// Candidate set only — callers must re-check the cutoff inside any subsequent
-// DELETE so a heartbeat that lands between this read and the write is honored.
-export async function findStuckJobs(params: {
-  thresholdSeconds: number;
-  limit?: number;
-}): Promise<Array<{jobId: string}>> {
-  return await db()
-    .select({jobId: runningJobs.jobId})
-    .from(runningJobs)
-    .where(
-      lt(
-        runningJobs.lastHeartbeatAt,
-        sql`now() - (${params.thresholdSeconds} || ' seconds')::interval`,
-      ),
-    )
-    .limit(params.limit ?? 100);
 }
