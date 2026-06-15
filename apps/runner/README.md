@@ -14,6 +14,14 @@ The runner prepares a fresh working directory for every job, runs all of the
 job's steps from it, and removes it afterwards. Steps do **not** inherit the
 runner process's working directory.
 
+During the synthetic "Set up job" step, the runner exchanges the job's lease for
+short-lived, read-only checkout credentials and shallow-clones the project
+repository into the per-job directory. The credentials are fetched only after the
+job is claimed, are never persisted to disk or `.git/config`, and never appear in
+logs or step errors. A setup failure (missing `git`, a denied credential, or an
+unreachable provider) fails the job before any step runs, with a machine-readable
+reason recorded on the step.
+
 ### `SHIPFOX_RUNNER_WORKSPACE_ROOT` (optional)
 
 Parent directory under which per-job working directories are created.

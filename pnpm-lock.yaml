@@ -2352,9 +2352,15 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/runner-protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@shipfox/runner-workspace':
         specifier: workspace:*
         version: link:../workspace
+      ky:
+        specifier: ^2.0.0
+        version: 2.0.2
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -2448,6 +2454,9 @@ importers:
 
   libs/runner/workspace:
     dependencies:
+      '@shipfox/api-workflows-dto':
+        specifier: workspace:*
+        version: link:../../api/workflows-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
@@ -9429,6 +9438,7 @@ packages:
   tsconfck@3.1.6:
     resolution: {integrity: sha512-ks6Vjr/jEw0P1gmOVwutM3B7fWxoWBL2KRDb1JfqGVawBmO5UsvmWOQFGHBPl5yxYz4eERr19E6L7NMv+Fej4w==}
     engines: {node: ^18 || >=20}
+    deprecated: unmaintained
     hasBin: true
     peerDependencies:
       typescript: ^5.0.0

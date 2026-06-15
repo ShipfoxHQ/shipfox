@@ -50,7 +50,11 @@ describe('runJobSteps', () => {
 
     await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
 
-    expect(executeSetupStepMock).toHaveBeenCalledWith({cwd: '/work'});
+    expect(executeSetupStepMock).toHaveBeenCalledWith({
+      cwd: '/work',
+      leaseClient,
+      signal: ac.signal,
+    });
     expect(executeRunStepMock).toHaveBeenCalledWith(run, {signal: ac.signal, cwd: '/work'});
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
       stepId: run.id,
