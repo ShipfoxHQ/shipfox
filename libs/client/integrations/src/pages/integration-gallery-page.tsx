@@ -1,5 +1,5 @@
 import {Header, Text} from '@shipfox/react-ui';
-import {IntegrationGallerySection} from '#components/integration-gallery-section.js';
+import {IntegrationGallery} from '#components/integration-gallery.js';
 
 export function IntegrationGalleryPage() {
   return (
@@ -11,9 +11,10 @@ export function IntegrationGalleryPage() {
         </Text>
       </header>
 
-      <IntegrationGallerySection
+      <IntegrationGallery
         capability="source_control"
-        emptyMessage="Enable at least one source-control provider in the application settings."
+        hideInstalledUntilConnected
+        emptyProvidersMessage="Enable at least one source-control provider in the application settings."
       />
     </div>
   );

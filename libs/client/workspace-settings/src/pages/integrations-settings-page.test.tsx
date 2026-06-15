@@ -27,19 +27,13 @@ const githubConnection = {
   updated_at: '2026-03-12T00:00:00.000Z',
 };
 
-function fetchForIntegrations({
-  connectionsFail = false,
-  connections = [githubConnection] as unknown[],
-} = {}) {
+function fetchForIntegrations({connections = [githubConnection] as unknown[]} = {}) {
   return vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     if (url.includes('/integration-providers')) {
       return Promise.resolve(jsonResponse(providers));
     }
     if (url.includes('/integration-connections')) {
-      if (connectionsFail) {
-        return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
-      }
       return Promise.resolve(jsonResponse({connections}));
     }
     return Promise.resolve(jsonResponse({}, {status: 404}));
@@ -54,12 +48,12 @@ function renderPage() {
 }
 
 const INTEGRATIONS_LINK_RE = /Integrations/;
-const ADDED_METADATA_RE = /acme-corp · Added/;
-const OPEN_IN_GITHUB_RE = /Open in GitHub/;
-const PROVIDER_NAMES_RE = /GitHub|Sentry/;
+// The provider is named once (icon + account name); the meta line carries the
+// date only, so it no longer repeats "GitHub".
+const ADDED_META_RE = /^Added /;
 
 describe('IntegrationsSettingsPage', () => {
-  test('renders the settings shell with connected providers first', async () => {
+  test('renders the settings shell and delegates to the integration gallery', async () => {
     configureApiClient({
       baseUrl: 'https://api.example.test',
       fetchImpl: fetchForIntegrations(),
@@ -69,52 +63,10 @@ describe('IntegrationsSettingsPage', () => {
 
     expect(await screen.findByRole('heading', {name: 'Workspace settings'})).toBeVisible();
     expect(screen.getByRole('link', {name: INTEGRATIONS_LINK_RE})).toBeVisible();
+    expect(await screen.findByRole('region', {name: 'Installed integrations'})).toBeInTheDocument();
+    expect(screen.getByRole('region', {name: 'Available integrations'})).toBeInTheDocument();
     expect(await screen.findByText('Connected')).toBeVisible();
-    expect(screen.getByText(ADDED_METADATA_RE)).toBeVisible();
-    expect(screen.getByRole('link', {name: OPEN_IN_GITHUB_RE})).toHaveAttribute(
-      'href',
-      'https://github.com/organizations/acme-corp/settings/installations/1',
-    );
-    const cardTitles = screen.getAllByText(PROVIDER_NAMES_RE).map((element) => element.textContent);
-    expect(cardTitles.indexOf('GitHub')).toBeLessThan(cardTitles.indexOf('Sentry'));
-  });
-
-  test('renders the disabled and error lifecycle pills', async () => {
-    configureApiClient({
-      baseUrl: 'https://api.example.test',
-      fetchImpl: fetchForIntegrations({
-        connections: [
-          {...githubConnection, lifecycle_status: 'disabled'},
-          {
-            ...githubConnection,
-            id: '55555555-5555-4555-8555-555555555555',
-            provider: 'sentry',
-            display_name: 'acme',
-            lifecycle_status: 'error',
-            external_url: undefined,
-          },
-        ],
-      }),
-    });
-
-    renderPage();
-
-    expect(await screen.findByText('Disabled')).toBeVisible();
-    expect(screen.getByText('Error')).toBeVisible();
-    expect(screen.queryByText('Connected')).not.toBeInTheDocument();
-  });
-
-  test('degrades to status-less cards when the connections request fails', async () => {
-    configureApiClient({
-      baseUrl: 'https://api.example.test',
-      fetchImpl: fetchForIntegrations({connectionsFail: true}),
-    });
-
-    renderPage();
-
-    expect(await screen.findByText('Could not load connection status')).toBeInTheDocument();
-    expect(await screen.findByText('Sentry')).toBeVisible();
-    expect(screen.queryByText('Connected')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('link', {name: 'Connect'}).length).toBeGreaterThan(0);
+    expect(screen.getByText('acme-corp')).toBeVisible();
+    expect(screen.getByText(ADDED_META_RE)).toBeVisible();
   });
 });
