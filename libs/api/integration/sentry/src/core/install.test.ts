@@ -304,4 +304,24 @@ describe('handleSentryConnect — simultaneous race', () => {
       expect.objectContaining({codeHash: CODE_HASH}),
     );
   });
+
+  it('resolves idempotently when the concurrent webhook claimed the row between lookups', async () => {
+    const sentry = sentryClient({
+      exchangeAuthorizationCode: vi.fn(() =>
+        Promise.reject(new SentryIntegrationProviderError('access-denied', 'already used')),
+      ),
+    });
+    const existing = connection({workspaceId: WORKSPACE_ID});
+    const {connectSentryInstallation, result} = run({
+      sentry,
+      // First lookup sees no row; the re-read finds it already claimed.
+      installSequence: [undefined, installation({connectionId: CONNECTION_ID})],
+      connection: existing,
+    });
+
+    const connected = await result;
+
+    expect(connected).toBe(existing);
+    expect(connectSentryInstallation).not.toHaveBeenCalled();
+  });
 });

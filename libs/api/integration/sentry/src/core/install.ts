@@ -1,4 +1,4 @@
-import {createHash} from 'node:crypto';
+import {createHash, timingSafeEqual} from 'node:crypto';
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {SentryApiClient, SentryAuthorization} from '#api/client.js';
@@ -30,6 +30,14 @@ export function hashAuthorizationCode(code: string): string {
   return createHash('sha256').update(code).digest('hex');
 }
 
+// Constant-time compare of two sha256 hex digests, matching the HMAC check in
+// signature.ts. The length guard runs first because timingSafeEqual throws on a
+// length mismatch, and a digest's length is not secret.
+function codeHashesEqual(presented: string, stored: string): boolean {
+  if (presented.length !== stored.length) return false;
+  return timingSafeEqual(Buffer.from(presented), Buffer.from(stored));
+}
+
 export interface VerifyAndPersistUnclaimedInstallationParams {
   sentry: SentryApiClient;
   installationUuid: string;
@@ -50,12 +58,12 @@ export interface VerifyAndPersistUnclaimedInstallationResult {
 
 /**
  * Security-critical exchange → persist → best-effort verify, shared by the signed
- * webhook and the browser-first claim (D4). The exchange is the authenticity
- * check and spends the single-use code, so it runs OUTSIDE any DB transaction
- * (D2); the caller's `persistVerifiedUnclaimedInstallation` owns the short
- * transaction. The verify runs AFTER the row is durably persisted (D5), so a
- * verify failure leaves a claimable row rather than a Sentry-side "installed"
- * state pointing at a row that was never written. Never logs the raw code.
+ * webhook and the browser-first claim. The exchange is the authenticity check and
+ * spends the single-use code, so it runs OUTSIDE any DB transaction; the caller's
+ * `persistVerifiedUnclaimedInstallation` owns the short transaction. The verify
+ * runs AFTER the row is durably persisted, so a verify failure leaves a claimable
+ * row rather than a Sentry-side "installed" state pointing at a row that was never
+ * written. Never logs the raw code.
  */
 export async function verifyAndPersistUnclaimedInstallation(
   params: VerifyAndPersistUnclaimedInstallationParams,
@@ -115,7 +123,7 @@ export interface HandleSentryConnectParams {
  * webhook-authoritative flow). The webhook persists the verified-unclaimed row;
  * this proves the claimant controls the install and sets `connection_id`.
  *
- * Proof rules (unified claim auth, D1/D3):
+ * Proof rules (unified claim auth):
  * - exchange succeeds → browser-first winner or a re-entry with a fresh code.
  * - exchange "already used" + the presented code hashes to the stored hash →
  *   the same code the webhook spent, so the claimant holds it (same-code race).
@@ -164,7 +172,10 @@ async function claimVerifiedInstall(
     });
   } catch (error) {
     if (isCodeAlreadyUsed(error)) {
-      if (install.codeHash && hashAuthorizationCode(params.code) === install.codeHash) {
+      if (
+        install.codeHash &&
+        codeHashesEqual(hashAuthorizationCode(params.code), install.codeHash)
+      ) {
         return bindClaim(params, {orgSlug: install.orgSlug, codeHash: install.codeHash});
       }
       throw new SentryClaimProofMismatchError(params.installationUuid);

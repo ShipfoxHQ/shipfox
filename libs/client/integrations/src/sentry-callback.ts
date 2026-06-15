@@ -127,8 +127,13 @@ export function classifySentryConnectError(error: unknown): SentryConnectFailure
 }
 
 function retryAfterSeconds(details: unknown): number | undefined {
+  // client-api's toApiError stores the whole response body as ApiError.details,
+  // so the structured payload lives one level deeper at details.details (mirrors
+  // project-error.ts apiDetails()).
   if (typeof details !== 'object' || details === null) return undefined;
-  const value = (details as Record<string, unknown>).retry_after_seconds;
+  const inner = (details as Record<string, unknown>).details;
+  if (typeof inner !== 'object' || inner === null) return undefined;
+  const value = (inner as Record<string, unknown>).retry_after_seconds;
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 

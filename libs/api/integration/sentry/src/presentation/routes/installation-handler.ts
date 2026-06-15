@@ -7,9 +7,7 @@ import {
   persistVerifiedUnclaimedInstallation,
 } from '#db/installations.js';
 import type {SentryWebhookContext} from './webhook-context.js';
-import {parseAndValidateOrDrop} from './webhook-delivery.js';
-
-const SENTRY_PROVIDER = 'sentry';
+import {parseAndValidateOrDrop, SENTRY_PROVIDER} from './webhook-delivery.js';
 
 // Validates an installation lifecycle delivery, then applies it. `created` is the
 // authoritative install signal: it exchanges the single-use code and persists a
@@ -56,7 +54,7 @@ export async function handleInstallationResource(args: {
     code: installation.code,
     sentry: context.sentry,
     verifyInstall: config.SENTRY_APP_VERIFY_INSTALL,
-    getSentryInstallation: (installationUuid) =>
+    getSentryInstallation: ({installationUuid}) =>
       getSentryInstallationByInstallationUuid(installationUuid),
     persistUnclaimedAndRecordDelivery: ({installationUuid, orgSlug, codeHash, deliveryId: id}) =>
       context.coreDb().transaction(async (tx) => {

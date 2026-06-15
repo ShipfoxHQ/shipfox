@@ -267,4 +267,41 @@ describe('Sentry integration routes', () => {
     expect(res.statusCode).toBe(503);
     expect(res.json().code).toBe('sentry-verification-in-progress');
   });
+
+  it('returns 403 when the presented code cannot prove control of a verified install', async () => {
+    const app = await createTestApp({
+      installation: unclaimedInstallation({codeHash: 'a-different-hash'}),
+      sentry: sentryClient({
+        exchangeAuthorizationCode: vi.fn(() =>
+          Promise.reject(new SentryIntegrationProviderError('access-denied', 'already used')),
+        ),
+      }),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/sentry/connect',
+      headers: {authorization: 'Bearer user'},
+      payload: connectPayload(),
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('sentry-claim-proof-mismatch');
+  });
+
+  it('returns 409 when the installation is tombstoned', async () => {
+    const app = await createTestApp({
+      installation: unclaimedInstallation({status: 'deleted'}),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/sentry/connect',
+      headers: {authorization: 'Bearer user'},
+      payload: connectPayload(),
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('sentry-installation-deleted');
+  });
 });

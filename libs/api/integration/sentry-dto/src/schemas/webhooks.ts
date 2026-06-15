@@ -39,7 +39,8 @@ export type SentryIssueWebhookDto = z.infer<typeof sentryIssueWebhookSchema>;
 // `code` is security-sensitive and must never be logged.
 export const sentryInstallationWebhookSchema = z.object({
   action: z.enum(['created', 'deleted']),
-  // Identifies who performed the install in Sentry. Logged only; never trusted.
+  // Identifies who performed the install in Sentry. Tolerated for forward-compat
+  // but not consumed; never trusted.
   actor: z
     .object({
       type: z.string().optional(),

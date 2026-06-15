@@ -7,6 +7,7 @@ import {
   SentryConnectionNotFoundError,
   SentryInstallationDeletedError,
   SentryInstallationNotFoundError,
+  SentryInstallationUnclaimedError,
 } from './errors.js';
 import {handleSentryIssueEvent, normalizeSentryIssueAction} from './webhook.js';
 
@@ -58,7 +59,7 @@ describe('handleSentryIssueEvent', () => {
     expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
   });
 
-  test('throws SentryConnectionNotFoundError for a verified-but-unclaimed installation', async () => {
+  test('throws SentryInstallationUnclaimedError for a verified-but-unclaimed installation', async () => {
     const installationUuid = randomUUID();
     await sentryInstallationFactory.create({installationUuid, connectionId: null});
     const publishIntegrationEventReceived = vi.fn(() => Promise.resolve({published: true}));
@@ -72,7 +73,7 @@ describe('handleSentryIssueEvent', () => {
       getIntegrationConnectionById,
     });
 
-    await expect(run).rejects.toBeInstanceOf(SentryConnectionNotFoundError);
+    await expect(run).rejects.toBeInstanceOf(SentryInstallationUnclaimedError);
     expect(getIntegrationConnectionById).not.toHaveBeenCalled();
     expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
   });

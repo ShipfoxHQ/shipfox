@@ -13,6 +13,7 @@ import {
   SentryConnectionNotFoundError,
   SentryInstallationDeletedError,
   SentryInstallationNotFoundError,
+  SentryInstallationUnclaimedError,
   SentryIntegrationProviderError,
 } from '#core/errors.js';
 import {verifyAndPersistUnclaimedInstallation} from '#core/install.js';
@@ -54,7 +55,7 @@ export async function handleSentryIssueEvent(params: HandleSentryIssueEventParam
   // A verified-but-unclaimed install has no workspace yet, so there is nothing to
   // publish an event against. This is the pre-claim drop window (counted/logged).
   if (!installation.connectionId) {
-    throw new SentryConnectionNotFoundError(installationUuid);
+    throw new SentryInstallationUnclaimedError(installationUuid);
   }
 
   const connection = await params.getIntegrationConnectionById(installation.connectionId, {
@@ -87,9 +88,11 @@ export interface HandleSentryInstallationCreatedParams {
   code: string | undefined;
   sentry: SentryApiClient;
   verifyInstall: boolean;
-  getSentryInstallation: (installationUuid: string) => Promise<SentryInstallation | undefined>;
+  getSentryInstallation: (input: {
+    installationUuid: string;
+  }) => Promise<SentryInstallation | undefined>;
   // Persists the verified-unclaimed row and records the delivery in one short
-  // transaction (D2), returning the persisted row.
+  // transaction, returning the persisted row.
   persistUnclaimedAndRecordDelivery: (input: {
     installationUuid: string;
     orgSlug: string;
@@ -104,16 +107,15 @@ export interface HandleSentryInstallationCreatedParams {
 /**
  * The authoritative `installation.created` path. Whichever of webhook or browser
  * arrives first exchanges the single-use code and persists a verified-unclaimed
- * row (D1); the other reconciles. Idempotent on the installation uuid. The
- * exchange runs outside any DB transaction (D2); a short transaction wraps only
- * persist + delivery record. On any exchange failure the delivery is
- * record-and-dropped (204) — the browser may still win, or the code expired.
- * Never logs the raw code.
+ * row; the other reconciles. Idempotent on the installation uuid. The exchange
+ * runs outside any DB transaction; a short transaction wraps only persist +
+ * delivery record. On an exchange failure the delivery is record-and-dropped
+ * (204) — the browser may still win, or the code expired. Never logs the raw code.
  */
 export async function handleSentryInstallationCreated(
   params: HandleSentryInstallationCreatedParams,
 ): Promise<void> {
-  const existing = await params.getSentryInstallation(params.installationUuid);
+  const existing = await params.getSentryInstallation({installationUuid: params.installationUuid});
   if (existing) {
     logger().debug(
       {deliveryId: params.deliveryId, installationUuid: params.installationUuid},
@@ -148,20 +150,32 @@ export async function handleSentryInstallationCreated(
         }),
     });
   } catch (error) {
-    // `reason` distinguishes a transient/expected drop (access-denied: the code
-    // was already spent, e.g. the browser won) from a likely misconfiguration
-    // (a bad client id/secret/slug fails every install) so log-based alerting can
-    // fire on the sustained case. Never logs the raw code.
-    const reason = error instanceof SentryIntegrationProviderError ? error.reason : undefined;
-    logger().warn(
-      {
-        deliveryId: params.deliveryId,
-        installationUuid: params.installationUuid,
-        reason,
-        err: error,
-      },
-      'sentry webhook: installation.created exchange failed, dropping',
-    );
+    if (error instanceof SentryIntegrationProviderError) {
+      // The Sentry exchange (or org-slug lookup) failed, so we never durably
+      // spent the code on a row we own. `reason` distinguishes a transient/expected
+      // drop (access-denied: the code was already spent, e.g. the browser won) from
+      // a likely misconfiguration (a bad client id/secret/slug fails every install)
+      // so log-based alerting can fire on the sustained case. Never logs the raw code.
+      logger().warn(
+        {
+          deliveryId: params.deliveryId,
+          installationUuid: params.installationUuid,
+          reason: error.reason,
+          err: error,
+        },
+        'sentry webhook: installation.created exchange failed, dropping',
+      );
+    } else {
+      // The exchange succeeded (the single-use code is now spent) but the persist
+      // transaction failed, so no row exists and Sentry will not usefully
+      // re-deliver — the install is stranded until a reinstall mints a fresh uuid.
+      // Log at error so alerting catches it; still record-and-drop because retrying
+      // a spent code cannot recover the row. Never logs the raw code.
+      logger().error(
+        {deliveryId: params.deliveryId, installationUuid: params.installationUuid, err: error},
+        'sentry webhook: installation.created persisted nothing after a successful exchange, install stranded until reinstall',
+      );
+    }
     await params.recordDelivery(params.deliveryId);
   }
 }

@@ -210,8 +210,7 @@ async function loadSentryModuleParts(): Promise<SentryModuleParts> {
         {tx},
       );
 
-      // Promotes the verified-unclaimed row to claimed by setting connection_id,
-      // and refreshes code_hash so a re-entry with a fresh code stays claimable.
+      // Promotes the verified-unclaimed row to claimed by setting connection_id.
       await upsertSentryInstallation(
         {
           connectionId: connection.id,

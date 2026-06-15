@@ -66,3 +66,16 @@ export class SentryConnectionNotFoundError extends SentryIssueDroppedError {
     this.name = 'SentryConnectionNotFoundError';
   }
 }
+
+/**
+ * A verified install that no workspace has claimed yet (`connection_id IS NULL`),
+ * so an issue delivery has no workspace to publish against. Dropped (204) like the
+ * other pre-publish cases; kept distinct from SentryConnectionNotFoundError so the
+ * carried identifier is unambiguously an installation uuid, not a connection id.
+ */
+export class SentryInstallationUnclaimedError extends SentryIssueDroppedError {
+  constructor(public readonly installationUuid: string) {
+    super(`Sentry installation is verified but not yet claimed: ${installationUuid}`);
+    this.name = 'SentryInstallationUnclaimedError';
+  }
+}

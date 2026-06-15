@@ -134,7 +134,12 @@ describe('classifySentryConnectError', () => {
 
   test('429 rate-limited is retryable and carries retry_after_seconds', () => {
     const result = classifySentryConnectError(
-      apiError({code: 'rate-limited', status: 429, details: {retry_after_seconds: 30}}),
+      // Real wire shape: client-api stores the whole {code, details} body as ApiError.details.
+      apiError({
+        code: 'rate-limited',
+        status: 429,
+        details: {code: 'rate-limited', details: {retry_after_seconds: 30}},
+      }),
     );
 
     expect(result).toEqual({
@@ -149,7 +154,7 @@ describe('classifySentryConnectError', () => {
       apiError({
         code: 'sentry-verification-in-progress',
         status: 503,
-        details: {retry_after_seconds: 2},
+        details: {code: 'sentry-verification-in-progress', details: {retry_after_seconds: 2}},
       }),
     );
 

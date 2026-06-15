@@ -31,10 +31,13 @@ export interface SentryApiClient {
 export function createSentryApiClient(): SentryApiClient {
   return {
     async exchangeAuthorizationCode(input) {
+      // Encode the uuid: it originates from the request body / webhook payload, so
+      // a path separator in it must not be able to alter the request path (the host
+      // is already pinned to SENTRY_API_BASE).
       const body = await mapSentryError('exchange-authorization-code', () =>
         ky
           .post(
-            `${SENTRY_API_BASE}/sentry-app-installations/${input.installationUuid}/authorizations/`,
+            `${SENTRY_API_BASE}/sentry-app-installations/${encodeURIComponent(input.installationUuid)}/authorizations/`,
             {
               json: {
                 grant_type: 'authorization_code',
@@ -63,9 +66,12 @@ export function createSentryApiClient(): SentryApiClient {
     async getInstallation(input) {
       const body = await mapSentryError('get-installation', () =>
         ky
-          .get(`${SENTRY_API_BASE}/sentry-app-installations/${input.installationUuid}/`, {
-            headers: {authorization: `Bearer ${input.token}`},
-          })
+          .get(
+            `${SENTRY_API_BASE}/sentry-app-installations/${encodeURIComponent(input.installationUuid)}/`,
+            {
+              headers: {authorization: `Bearer ${input.token}`},
+            },
+          )
           .json<{organization?: {slug?: unknown}}>(),
       );
 
@@ -82,10 +88,13 @@ export function createSentryApiClient(): SentryApiClient {
     async verifyInstallation(input) {
       await mapSentryError('verify-installation', () =>
         ky
-          .put(`${SENTRY_API_BASE}/sentry-app-installations/${input.installationUuid}/`, {
-            headers: {authorization: `Bearer ${input.token}`},
-            json: {status: 'installed'},
-          })
+          .put(
+            `${SENTRY_API_BASE}/sentry-app-installations/${encodeURIComponent(input.installationUuid)}/`,
+            {
+              headers: {authorization: `Bearer ${input.token}`},
+              json: {status: 'installed'},
+            },
+          )
           .json<unknown>(),
       );
     },
