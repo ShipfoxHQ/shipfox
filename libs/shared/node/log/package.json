@@ -25,6 +25,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./test": {
+      "development": {
+        "types": "./src/test.ts",
+        "default": "./src/test.ts"
+      },
+      "default": {
+        "types": "./dist/test.d.ts",
+        "default": "./dist/test.js"
+      }
     }
   },
   "scripts": {

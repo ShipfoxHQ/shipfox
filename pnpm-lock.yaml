@@ -1532,6 +1532,9 @@ importers:
       '@shipfox/node-jwt':
         specifier: workspace:*
         version: link:../../shared/node/jwt
+      '@shipfox/node-log':
+        specifier: workspace:*
+        version: link:../../shared/node/log
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc
@@ -1577,9 +1580,6 @@ importers:
       fishery:
         specifier: ^2.2.2
         version: 2.4.0
-      pino:
-        specifier: ^10.3.0
-        version: 10.3.1
 
   libs/api/workflows-dto:
     dependencies:

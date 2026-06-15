@@ -8,7 +8,7 @@ import {
 } from '@shipfox/api-integration-core';
 import {getProjectById} from '@shipfox/api-projects';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
-import {pino} from 'pino';
+import {createCapturingLogger} from '@shipfox/node-log/test';
 import {clearSourceControl, setSourceControl} from '#core/source-control.js';
 import {jobFactory} from '#test/factories/job.js';
 import {projectFactory} from '#test/factories/project.js';
@@ -29,19 +29,15 @@ const githubSpec = (token: string): CheckoutSpec => ({
 describe('POST /runs/jobs/current/checkout-token', () => {
   let app: FastifyInstance;
   const createCheckoutSpec = vi.fn();
-  const logLines: string[] = [];
+  const {logger, lines: logLines, clear: clearLogLines} = createCapturingLogger();
 
   beforeAll(async () => {
-    const capturingLogger = pino(
-      {level: 'trace'},
-      {write: (line: string) => void logLines.push(line)},
-    );
     setSourceControl({createCheckoutSpec} as unknown as IntegrationSourceControlService);
     app = await createApp({
       auth: [createLeaseTokenAuthMethod()],
       routes: [leaseTokenRouteGroup],
       swagger: false,
-      fastifyOptions: {loggerInstance: capturingLogger},
+      fastifyOptions: {loggerInstance: logger},
     });
     await app.ready();
   });
@@ -49,7 +45,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
   beforeEach(() => {
     createCheckoutSpec.mockReset();
     mockGetProjectById.mockReset();
-    logLines.length = 0;
+    clearLogLines();
   });
 
   afterAll(async () => {
