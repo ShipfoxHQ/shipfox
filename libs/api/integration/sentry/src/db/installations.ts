@@ -1,4 +1,5 @@
-import {and, eq, isNull, lt} from 'drizzle-orm';
+import {and, eq, isNull, lt, sql} from 'drizzle-orm';
+import {SentryInstallationAlreadyLinkedError} from '#core/errors.js';
 import {db} from './db.js';
 import {sentryInstallations, toSentryInstallation} from './schema/installations.js';
 
@@ -52,6 +53,15 @@ export async function upsertSentryInstallation(
     })
     .onConflictDoUpdate({
       target: sentryInstallations.installationUuid,
+      // TOCTOU guard: allow the update only when this installation is unclaimed
+      // (connection_id IS NULL, the first claim of a verified-unclaimed row) or
+      // already owned by this same connection (idempotent reconnect). A concurrent
+      // claim of the same installation to a different workspace commits its own
+      // connection_id first; this losing transaction then sees a different non-null
+      // connection_id, the predicate is false, Postgres updates nothing, and the
+      // empty RETURNING below rolls it back instead of silently repointing the
+      // installation (cross-tenant event misroute).
+      setWhere: sql`${sentryInstallations.connectionId} is null or ${sentryInstallations.connectionId} = ${params.connectionId}`,
       set: {
         connectionId: params.connectionId,
         orgSlug: params.orgSlug,
@@ -63,7 +73,7 @@ export async function upsertSentryInstallation(
     })
     .returning();
 
-  if (!row) throw new Error('Sentry installation upsert returned no rows');
+  if (!row) throw new SentryInstallationAlreadyLinkedError(params.installationUuid);
   return toSentryInstallation(row);
 }
 

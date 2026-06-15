@@ -17,7 +17,7 @@ export class GithubInstallationNotAuthorizedError extends Error {
 }
 
 export class GithubInstallationAlreadyLinkedError extends Error {
-  constructor(installationId: number) {
+  constructor(installationId: number | string) {
     super(`GitHub installation is already linked to another Shipfox workspace: ${installationId}`);
   }
 }

@@ -1,4 +1,5 @@
 import {eq} from 'drizzle-orm';
+import {GithubInstallationAlreadyLinkedError} from '#core/errors.js';
 import {db} from './db.js';
 import {githubInstallations, toGithubInstallation} from './schema/installations.js';
 
@@ -53,6 +54,13 @@ export async function upsertGithubInstallation(
     })
     .onConflictDoUpdate({
       target: githubInstallations.installationId,
+      // TOCTOU guard: only (re)point this installation at the connection that
+      // already owns it. A concurrent connect of the same installation to a
+      // different workspace inserts its own connection row, so its connectionId
+      // differs here; the predicate is false, Postgres updates nothing, and the
+      // empty RETURNING below rolls the losing transaction back instead of
+      // silently repointing the installation (cross-tenant event misroute).
+      setWhere: eq(githubInstallations.connectionId, params.connectionId),
       set: {
         connectionId: params.connectionId,
         accountLogin: params.accountLogin,
@@ -67,7 +75,7 @@ export async function upsertGithubInstallation(
     })
     .returning();
 
-  if (!row) throw new Error('GitHub installation upsert returned no rows');
+  if (!row) throw new GithubInstallationAlreadyLinkedError(params.installationId);
   return toGithubInstallation(row);
 }
 
