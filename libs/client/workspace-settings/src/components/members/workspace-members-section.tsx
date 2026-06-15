@@ -1,11 +1,13 @@
 import {createInvitationBodySchema, type MembershipWithUserDto} from '@shipfox/api-workspaces-dto';
 import {ApiError} from '@shipfox/client-api';
 import {useAuthState} from '@shipfox/client-auth';
+import {QueryLoadError} from '@shipfox/client-ui';
 import {
   Alert,
   Badge,
   Button,
   Code,
+  EmptyState,
   FormField,
   FormFieldInput,
   Header,
@@ -77,17 +79,8 @@ function MembersSection({
 
       {query.isPending ? <TableSkeleton rows={3} cols={3} /> : null}
 
-      {query.isError ? (
-        <Alert variant="error" animated={false}>
-          <div className="flex flex-col gap-8">
-            <Text size="sm" bold>
-              Could not load members
-            </Text>
-            <Button size="sm" variant="secondary" onClick={() => query.refetch()}>
-              Retry
-            </Button>
-          </div>
-        </Alert>
+      {query.isError && query.data === undefined ? (
+        <QueryLoadError query={query} subject="members" />
       ) : null}
 
       {!query.isPending && !query.isError && members.length > 0 ? (
@@ -225,20 +218,11 @@ function PendingInvitationsSection({
 
       {query.isPending ? <TableSkeleton rows={2} cols={3} /> : null}
 
-      {query.isError ? (
-        <Alert variant="error" animated={false}>
-          <div className="flex flex-col gap-8">
-            <Text size="sm" bold>
-              Could not load invitations
-            </Text>
-            <Button size="sm" variant="secondary" onClick={() => query.refetch()}>
-              Retry
-            </Button>
-          </div>
-        </Alert>
+      {query.isError && query.data === undefined ? (
+        <QueryLoadError query={query} subject="invitations" />
       ) : null}
 
-      {!query.isPending && !query.isError && invitations.length === 0 ? <EmptyInvitations /> : null}
+      {query.data !== undefined && invitations.length === 0 ? <EmptyInvitations /> : null}
 
       {!query.isError && invitations.length > 0 ? (
         <Table>
@@ -468,17 +452,11 @@ function fieldError(field: FieldLike): string | undefined {
 
 function EmptyInvitations() {
   return (
-    <div className="flex flex-col items-center gap-12 rounded-8 border border-border-neutral-base bg-background-subtle-base p-32 text-center">
-      <Icon name="mailLine" className="size-24 text-foreground-neutral-muted" />
-      <div className="flex flex-col gap-4">
-        <Text size="sm" bold>
-          No pending invitations.
-        </Text>
-        <Text size="sm" className="text-foreground-neutral-muted">
-          Invite someone above to grow your workspace.
-        </Text>
-      </div>
-    </div>
+    <EmptyState
+      icon="mailLine"
+      title="No pending invitations."
+      description="Invite someone above to grow your workspace."
+    />
   );
 }
 

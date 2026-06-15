@@ -83,8 +83,8 @@ describe('ProjectsHubPage', () => {
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
 
-    expect(await screen.findByText('Project request failed')).toBeInTheDocument();
-    expect(screen.getByRole('button', {name: 'Retry'})).toBeInTheDocument();
+    expect(await screen.findByText("Couldn't load projects")).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Retry loading projects'})).toBeInTheDocument();
   });
 });
 

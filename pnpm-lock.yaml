@@ -1871,6 +1871,9 @@ importers:
       '@shipfox/client-auth':
         specifier: workspace:*
         version: link:../auth
+      '@shipfox/client-ui':
+        specifier: workspace:*
+        version: link:../ui
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
@@ -2020,6 +2023,9 @@ importers:
       '@shipfox/client-integrations':
         specifier: workspace:*
         version: link:../integrations
+      '@shipfox/client-ui':
+        specifier: workspace:*
+        version: link:../ui
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
@@ -2160,6 +2166,9 @@ importers:
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api
+      '@shipfox/client-ui':
+        specifier: workspace:*
+        version: link:../ui
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
@@ -2172,6 +2181,58 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.101.0
         version: 5.101.0(react@19.2.7)
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+      '@testing-library/jest-dom':
+        specifier: ^6.6.3
+        version: 6.9.1
+      '@testing-library/react':
+        specifier: ^16.3.0
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@testing-library/user-event':
+        specifier: ^14.6.1
+        version: 14.6.1(@testing-library/dom@10.4.1)
+      '@types/react':
+        specifier: ^19.1.11
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.1.7
+        version: 19.2.3(@types/react@19.2.17)
+      jsdom:
+        specifier: ^29.0.0
+        version: 29.1.1
+      react:
+        specifier: ^19.1.1
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.1.1
+        version: 19.2.7(react@19.2.7)
+
+  libs/client/ui:
+    dependencies:
+      '@shipfox/client-api':
+        specifier: workspace:*
+        version: link:../api
+      '@shipfox/react-ui':
+        specifier: workspace:*
+        version: link:../../shared/react/ui
+      '@swc/helpers':
+        specifier: ^0.5.17
+        version: 0.5.23
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -2230,6 +2291,9 @@ importers:
       '@shipfox/client-runners':
         specifier: workspace:*
         version: link:../runners
+      '@shipfox/client-ui':
+        specifier: workspace:*
+        version: link:../ui
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
@@ -8201,10 +8265,6 @@ packages:
     resolution: {integrity: sha512-ozCC6gdQ+glXOQsveKD0YsDy8DSQFjDTz4zyzEHNV5+JP5D62LmfDZ6o1cycFx9ouG940M5dE8C8CTewdj2YWQ==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
-  lru-cache@11.3.6:
-    resolution: {integrity: sha512-Gf/KoL3C/MlI7Bt0PGI9I+TeTC/I6r/csU58N4BSNc4lppLBeKsOdFYkK+dX0ABDUMJNfCHTyPpzwwO21Awd3A==}
-    engines: {node: 20 || >=22}
-
   lru-cache@11.5.1:
     resolution: {integrity: sha512-RPimw/7aMdv2oqRrxKwvZXcPfwBrn/JZ2xYcY9Hus/6LaS3VOAKVWKWgNLCFSiOm1ESXinjsDlidVU7JlnCN2A==}
     engines: {node: 20 || >=22}
@@ -10723,7 +10783,7 @@ snapshots:
 
   '@manypkg/find-root@1.1.0':
     dependencies:
-      '@babel/runtime': 7.29.2
+      '@babel/runtime': 7.29.7
       '@types/node': 12.20.55
       find-up: 4.1.0
       fs-extra: 8.1.0
@@ -13005,7 +13065,7 @@ snapshots:
 
   '@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@babel/runtime': 7.29.2
+      '@babel/runtime': 7.29.7
       '@testing-library/dom': 10.4.1
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
@@ -14519,7 +14579,7 @@ snapshots:
       decimal.js: 10.6.0
       html-encoding-sniffer: 6.0.0
       is-potential-custom-element-name: 1.0.1
-      lru-cache: 11.3.6
+      lru-cache: 11.5.1
       parse5: 8.0.1
       saxes: 6.0.0
       symbol-tree: 3.2.4
@@ -14656,8 +14716,6 @@ snapshots:
   loupe@3.2.1: {}
 
   lowercase-keys@3.0.0: {}
-
-  lru-cache@11.3.6: {}
 
   lru-cache@11.5.1: {}
 

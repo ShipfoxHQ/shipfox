@@ -1,0 +1,72 @@
+import type {ComponentProps, ReactNode} from 'react';
+import {cn} from '#utils/cn.js';
+import {Icon, type IconName} from '../icon/index.js';
+import {Text} from '../typography/index.js';
+
+export interface EmptyStateProps extends ComponentProps<'div'> {
+  icon?: IconName;
+  /** Tints the icon only: neutral for "no content", error for a failed load. */
+  tone?: 'neutral' | 'error';
+  title?: string;
+  description?: ReactNode;
+  /** Single primary action (a Button/Link) rendered below the text. */
+  action?: ReactNode;
+  variant?: 'default' | 'compact';
+}
+
+export function EmptyState({
+  icon = 'fileDamageLine',
+  tone = 'neutral',
+  title,
+  description,
+  action,
+  variant = 'default',
+  className,
+  ...props
+}: EmptyStateProps) {
+  const containerClasses =
+    variant === 'compact'
+      ? 'flex flex-col items-center justify-center gap-10'
+      : 'flex flex-col items-center justify-center gap-12 py-48';
+
+  const iconContainerClasses =
+    variant === 'compact'
+      ? 'flex size-32 items-center justify-center rounded-6 border border-border-neutral-strong bg-background-neutral-base p-8'
+      : 'flex size-32 items-center justify-center rounded-6 border border-border-neutral-strong';
+
+  return (
+    <div className={cn(containerClasses, className)} {...props}>
+      <div className={iconContainerClasses}>
+        <Icon
+          name={icon}
+          className={cn(
+            variant === 'compact' ? 'size-20' : 'size-16',
+            // Only the glyph carries the status color (DESIGN.md §10.1 / §13);
+            // the surface and border stay neutral so the placeholder reads calm.
+            tone === 'error' ? 'text-tag-error-icon' : 'text-foreground-neutral-subtle',
+          )}
+        />
+      </div>
+      <div className={cn('text-center', variant === 'default' && 'space-y-4')}>
+        {title ? (
+          <Text
+            size="sm"
+            className={
+              variant === 'compact'
+                ? 'text-foreground-neutral-subtle'
+                : 'text-foreground-neutral-base'
+            }
+          >
+            {title}
+          </Text>
+        ) : null}
+        {description ? (
+          <Text size="xs" className="text-foreground-neutral-muted">
+            {description}
+          </Text>
+        ) : null}
+      </div>
+      {action ? <div>{action}</div> : null}
+    </div>
+  );
+}

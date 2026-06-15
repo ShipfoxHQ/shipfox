@@ -3,7 +3,7 @@ import {
   Alert,
   Button,
   Code,
-  Icon,
+  EmptyState,
   Popover,
   PopoverArrow,
   PopoverContent,
@@ -173,19 +173,11 @@ function RevokeRunnerTokenButton({
 
 export function EmptyRunnerTokens() {
   return (
-    <div className="flex flex-col items-center gap-14 rounded-8 border border-dashed border-border-neutral-base bg-background-neutral-base px-24 py-32 text-center">
-      <div className="flex size-44 items-center justify-center rounded-8 border border-border-neutral-base bg-background-subtle-base">
-        <Icon name="key2Line" className="size-24 text-background-highlight-interactive" />
-      </div>
-      <div className="flex max-w-420 flex-col gap-4">
-        <Text size="lg" bold>
-          No usable runner tokens
-        </Text>
-        <Text size="sm" className="text-foreground-neutral-muted">
-          Create a token to connect a runner to this workspace.
-        </Text>
-      </div>
-    </div>
+    <EmptyState
+      icon="key2Line"
+      title="No usable runner tokens"
+      description="Create a token to connect a runner to this workspace."
+    />
   );
 }
 
