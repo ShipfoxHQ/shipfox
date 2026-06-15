@@ -1,10 +1,5 @@
 import {requireProjectAccess} from '@shipfox/api-projects';
-import {
-  jobDtoSchema,
-  runResponseSchema,
-  stepAttemptDtoSchema,
-  stepDtoSchema,
-} from '@shipfox/api-workflows-dto';
+import {runDetailDtoSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {
@@ -15,17 +10,6 @@ import {
 } from '#db/index.js';
 import {toJobDto, toRunDto, toStepAttemptDto, toStepDto} from '#presentation/dto/index.js';
 
-const runDetailResponseSchema = runResponseSchema.extend({
-  jobs: z.array(
-    jobDtoSchema.extend({
-      // Each step carries its attempt history (one entry per dispatched attempt;
-      // a restarted step has more than one). `current_attempt` on the step points
-      // at the latest.
-      steps: z.array(stepDtoSchema.extend({attempts: z.array(stepAttemptDtoSchema)})),
-    }),
-  ),
-});
-
 export const getRunRoute = defineRoute({
   method: 'GET',
   path: '/:id',
@@ -35,7 +19,7 @@ export const getRunRoute = defineRoute({
       id: z.string().uuid(),
     }),
     response: {
-      200: runDetailResponseSchema,
+      200: runDetailDtoSchema,
     },
   },
   handler: async (request) => {
