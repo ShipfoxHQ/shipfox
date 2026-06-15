@@ -37,6 +37,14 @@ describe('materializeWorkflowModel', () => {
 
     const rows = materializeWorkflowModel(model);
 
+    const setupStep = {
+      sourceName: 'Set up job',
+      status: 'pending',
+      type: 'setup',
+      config: {},
+      position: 0,
+    };
+
     expect(rows).toEqual([
       {
         sourceName: 'build',
@@ -44,12 +52,13 @@ describe('materializeWorkflowModel', () => {
         runner: ['ubuntu-latest'],
         position: 0,
         steps: [
+          setupStep,
           {
             sourceName: 'install',
             status: 'pending',
             type: 'run',
             config: {run: 'npm install'},
-            position: 0,
+            position: 1,
           },
           {
             sourceName: null,
@@ -62,7 +71,7 @@ describe('materializeWorkflowModel', () => {
                 on_failure: {restart_from: 'install', output: 'Build failed'},
               },
             },
-            position: 1,
+            position: 2,
           },
         ],
       },
@@ -72,15 +81,26 @@ describe('materializeWorkflowModel', () => {
         runner: ['ubuntu-latest', 'node-22'],
         position: 1,
         steps: [
+          setupStep,
           {
             sourceName: null,
             status: 'pending',
             type: 'run',
             config: {run: 'npm test'},
-            position: 0,
+            position: 1,
           },
         ],
       },
+    ]);
+  });
+
+  it('gives a job with no user steps just the synthetic setup step', () => {
+    const model = workflowModel({jobs: {noop: {steps: []}}});
+
+    const rows = materializeWorkflowModel(model);
+
+    expect(rows[0]?.steps).toEqual([
+      {sourceName: 'Set up job', status: 'pending', type: 'setup', config: {}, position: 0},
     ]);
   });
 

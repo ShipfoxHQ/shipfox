@@ -99,9 +99,11 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(body.id).toBe(run.id);
     expect(body.jobs).toHaveLength(1);
     expect(body.jobs[0].name).toBe('build');
-    expect(body.jobs[0].steps).toHaveLength(2);
-    expect(body.jobs[0].steps[0].name).toBe('Install');
-    expect(body.jobs[0].steps[1].name).toBeNull();
+    // Synthetic setup step at position 0, then the two user steps.
+    expect(body.jobs[0].steps).toHaveLength(3);
+    expect(body.jobs[0].steps[0].name).toBe('Set up job');
+    expect(body.jobs[0].steps[1].name).toBe('Install');
+    expect(body.jobs[0].steps[2].name).toBeNull();
   });
 
   test('exposes per-step error and cancelled status after a failed per-step report', async () => {
@@ -152,9 +154,11 @@ describe('GET /api/workflows/runs/:id', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
+    // steps[0] is the setup step (reported succeeded above); the failed user step
+    // follows. A failed step's error carries the server-derived category 'user'.
     const responseSteps = body.jobs[0].steps as Array<{
       status: string;
-      error: {message: string; exit_code?: number | null} | null;
+      error: {message: string; exit_code?: number | null; category?: string} | null;
     }>;
     expect(responseSteps[0]?.status).toBe('succeeded');
     expect(responseSteps[0]?.error).toBeNull();
@@ -162,6 +166,7 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(responseSteps[1]?.error).toEqual({
       message: 'Command exited with code 1',
       exit_code: 1,
+      category: 'user',
     });
     expect(responseSteps[2]?.status).toBe('cancelled');
     expect(responseSteps[2]?.error).toBeNull();
@@ -284,8 +289,10 @@ describe('GET /api/workflows/runs/:id', () => {
     });
     const jobId = (await getJobsByRunId(run.id))[0]?.id as string;
     const steps = await getStepsByJobId(jobId);
-    const producerId = steps[0]?.id as string;
-    const reviewerId = steps[1]?.id as string;
+    // steps[0] is the synthetic setup step; the user steps follow at 1..2.
+    const setupId = steps[0]?.id as string;
+    const producerId = steps[1]?.id as string;
+    const reviewerId = steps[2]?.id as string;
     // reviewer gate: succeed only on exit 0; otherwise restart from producer.
     await db().update(stepsTable).set({name: 'producer'}).where(eq(stepsTable.id, producerId));
     await db()
@@ -310,6 +317,7 @@ describe('GET /api/workflows/runs/:id', () => {
         exitCode,
       });
     };
+    await runStep(setupId, 0); // setup (position 0) succeeds first
     await runStep(producerId, 0); // producer attempt 1 succeeds
     await runStep(reviewerId, 1); // reviewer attempt 1 gate-fails → restart, both bumped to 2
     await runStep(producerId, 0); // producer attempt 2 succeeds
@@ -318,7 +326,7 @@ describe('GET /api/workflows/runs/:id', () => {
     const res = await app.inject({method: 'GET', url: `/api/workflows/runs/${run.id}`});
 
     expect(res.statusCode).toBe(200);
-    const [producer, reviewer] = res.json().jobs[0].steps;
+    const [, producer, reviewer] = res.json().jobs[0].steps;
     expect(producer.current_attempt).toBe(2);
     expect(producer.attempts.map((a: {attempt: number}) => a.attempt)).toEqual([1, 2]);
     expect(reviewer.current_attempt).toBe(2);

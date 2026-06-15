@@ -3,8 +3,9 @@ import {homedir, tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {
   cleanupWorkspace,
+  createJobDir,
   InvalidJobIdError,
-  prepareWorkspace,
+  jobWorkspacePath,
   resolveWorkspaceRoot,
   UnsafeWorkspaceRootError,
 } from '#workspace.js';
@@ -41,7 +42,25 @@ describe('resolveWorkspaceRoot', () => {
   });
 });
 
-describe('prepareWorkspace', () => {
+describe('jobWorkspacePath', () => {
+  const root = '/var/shipfox/work';
+
+  it('names the directory after the job id under the root', () => {
+    const jobId = '44444444-4444-4444-8444-444444444444';
+
+    const cwd = jobWorkspacePath(jobId, root);
+
+    expect(cwd).toBe(join(root, `job-${jobId}`));
+  });
+
+  it('rejects a job id that is not a UUID', () => {
+    const resolve = () => jobWorkspacePath('../../etc/passwd', root);
+
+    expect(resolve).toThrow(InvalidJobIdError);
+  });
+});
+
+describe('createJobDir', () => {
   let root: string;
 
   beforeEach(async () => {
@@ -52,51 +71,23 @@ describe('prepareWorkspace', () => {
     await rm(root, {recursive: true, force: true});
   });
 
-  it('creates a per-job directory under the root', async () => {
-    const workspace = await prepareWorkspace(
-      {job_id: '11111111-1111-4111-8111-111111111111'},
-      root,
-    );
+  it('creates the per-job directory', async () => {
+    const cwd = join(root, 'job-11111111-1111-4111-8111-111111111111');
 
-    expect(workspace.cwd.startsWith(root)).toBe(true);
-    expect((await stat(workspace.cwd)).isDirectory()).toBe(true);
+    await createJobDir(cwd);
+
+    expect((await stat(cwd)).isDirectory()).toBe(true);
   });
 
   it('pre-cleans a dirty directory left from a previous run', async () => {
-    const jobId = '22222222-2222-4222-8222-222222222222';
-    const first = await prepareWorkspace({job_id: jobId}, root);
-    await writeFile(join(first.cwd, 'stale.txt'), 'leftover');
+    const cwd = join(root, 'job-22222222-2222-4222-8222-222222222222');
+    await createJobDir(cwd);
+    await writeFile(join(cwd, 'stale.txt'), 'leftover');
 
-    const second = await prepareWorkspace({job_id: jobId}, root);
+    await createJobDir(cwd);
 
-    const readStale = () => stat(join(second.cwd, 'stale.txt'));
+    const readStale = () => stat(join(cwd, 'stale.txt'));
     await expect(readStale()).rejects.toThrow();
-  });
-
-  it('names the directory after the job id', async () => {
-    const jobId = '44444444-4444-4444-8444-444444444444';
-
-    const workspace = await prepareWorkspace({job_id: jobId}, root);
-
-    expect(workspace.cwd).toBe(join(root, `job-${jobId}`));
-  });
-
-  it('rejects a job id that is not a UUID', async () => {
-    const prepare = () => prepareWorkspace({job_id: '../../etc/passwd'}, root);
-
-    await expect(prepare()).rejects.toThrow(InvalidJobIdError);
-  });
-
-  it('cleanup() removes the directory', async () => {
-    const workspace = await prepareWorkspace(
-      {job_id: '33333333-3333-4333-8333-333333333333'},
-      root,
-    );
-
-    await workspace.cleanup();
-
-    const readDir = () => stat(workspace.cwd);
-    await expect(readDir()).rejects.toThrow();
   });
 });
 

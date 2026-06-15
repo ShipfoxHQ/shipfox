@@ -1,5 +1,6 @@
 import {ApplicationFailure} from '@temporalio/common';
 import {createWorkflowRun, getJobsByRunId, updateJobStatus} from '#db/index.js';
+import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
 import {resolveLeaseExpiredJobActivity} from './orchestration-activities.js';
 
@@ -36,6 +37,9 @@ describe('resolveLeaseExpiredJobActivity', () => {
 
   test('a malformed job (no steps) fails non-retryably so it never loops to the backstop', async () => {
     const {jobId, runningVersion} = await seedRunningJob(0);
+    // createWorkflowRun always prepends the synthetic setup step, so strip it to
+    // reproduce a genuinely stepless (malformed) job.
+    await stripSetupStep(jobId);
 
     const error = await resolveLeaseExpiredJobActivity({
       jobId,

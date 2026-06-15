@@ -2,6 +2,7 @@ import {WORKFLOW_RUN_CREATED, WORKFLOWS_JOB_TIMED_OUT} from '@shipfox/api-workfl
 import {eq, sql} from 'drizzle-orm';
 import {JobNotFoundError} from '#core/errors.js';
 import {recordStepResult} from '#core/job-execution.js';
+import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
 import {db} from './db.js';
 import {jobs} from './schema/jobs.js';
@@ -66,9 +67,16 @@ describe('workflow run queries', () => {
       expect(runJobs).toHaveLength(1);
       expect(runJobs[0]?.name).toBe('build');
 
+      // Every job gets a synthetic "Set up job" step at position 0; user steps follow.
       const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
-      expect(jobSteps).toHaveLength(1);
-      expect(jobSteps[0]?.config).toEqual({run: 'echo hello'});
+      expect(jobSteps).toHaveLength(2);
+      expect(jobSteps[0]).toMatchObject({
+        type: 'setup',
+        name: 'Set up job',
+        position: 0,
+        config: {},
+      });
+      expect(jobSteps[1]).toMatchObject({position: 1, config: {run: 'echo hello'}});
     });
 
     test('writes workflows.run.created outbox event in same transaction', async () => {
@@ -241,9 +249,11 @@ describe('workflow run queries', () => {
       const runJobs = await getJobsByRunId(run.id);
       expect(runJobs).toHaveLength(1);
 
+      // A job with no user steps still gets the synthetic setup step.
       const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
 
-      expect(jobSteps).toHaveLength(0);
+      expect(jobSteps).toHaveLength(1);
+      expect(jobSteps[0]).toMatchObject({type: 'setup', name: 'Set up job', position: 0});
     });
 
     test('stores step with optional name', async () => {
@@ -269,8 +279,10 @@ describe('workflow run queries', () => {
       const runJobs = await getJobsByRunId(run.id);
       const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
 
-      expect(jobSteps[0]?.name).toBe('Install deps');
-      expect(jobSteps[1]?.name).toBeNull();
+      // Index 0 is the synthetic setup step; user steps start at index 1.
+      expect(jobSteps[0]?.name).toBe('Set up job');
+      expect(jobSteps[1]?.name).toBe('Install deps');
+      expect(jobSteps[2]?.name).toBeNull();
     });
 
     test('stores frozen step config', async () => {
@@ -294,8 +306,9 @@ describe('workflow run queries', () => {
       const runJobs = await getJobsByRunId(run.id);
       const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
 
-      expect(jobSteps[0]?.type).toBe('run');
-      expect(jobSteps[0]?.config).toEqual({run: 'make build'});
+      // Index 0 is the synthetic setup step; the user run step is at index 1.
+      expect(jobSteps[1]?.type).toBe('run');
+      expect(jobSteps[1]?.config).toEqual({run: 'make build'});
     });
 
     test('stores inputs when provided', async () => {
@@ -515,10 +528,12 @@ describe('workflow run queries', () => {
       const runJobs = await getJobsByRunId(run.id);
       const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
 
-      expect(jobSteps).toHaveLength(3);
-      expect(jobSteps[0]?.position).toBe(0);
+      // The synthetic setup step occupies position 0; user steps follow at 1..3.
+      expect(jobSteps).toHaveLength(4);
+      expect(jobSteps[0]).toMatchObject({type: 'setup', position: 0});
       expect(jobSteps[1]?.position).toBe(1);
       expect(jobSteps[2]?.position).toBe(2);
+      expect(jobSteps[3]?.position).toBe(3);
     });
   });
 
@@ -789,8 +804,9 @@ describe('workflow run queries', () => {
       const jobId = runJobs[0]?.id ?? '';
       await bulkUpdateStepStatuses({jobId, status: 'succeeded'});
 
+      // 3 user steps + the synthetic setup step.
       const jobSteps = await getStepsByJobId(jobId);
-      expect(jobSteps).toHaveLength(3);
+      expect(jobSteps).toHaveLength(4);
       for (const step of jobSteps) {
         expect(step.status).toBe('succeeded');
       }
@@ -845,6 +861,9 @@ describe('workflow run queries', () => {
         },
       });
       const jobId = (await getJobsByRunId(run.id))[0]?.id as string;
+      // These tests exercise step-execution mechanics in isolation, so strip the
+      // synthetic setup step and renumber the user steps back to 0-based.
+      await stripSetupStep(jobId);
       const running = await updateJobStatus({jobId, status: 'running', expectedVersion: 1});
       const jobSteps = await getStepsByJobId(jobId);
       return {jobId, runningVersion: running.version, jobSteps};

@@ -14,7 +14,8 @@ vi.mock('#heartbeat-loop.js', () => ({
 
 vi.mock('#workspace.js', async (importActual) => ({
   ...(await importActual<typeof import('#workspace.js')>()),
-  prepareWorkspace: vi.fn(),
+  jobWorkspacePath: vi.fn(),
+  cleanupWorkspace: vi.fn(),
   resolveWorkspaceRoot: vi.fn(),
 }));
 
@@ -31,9 +32,16 @@ vi.mock('#api-client.js', () => ({
 import {createLeaseClient, requestJob} from '#api-client.js';
 import {runJob, startRunner} from '#runner.js';
 import {runJobSteps} from '#step-loop.js';
-import {prepareWorkspace, resolveWorkspaceRoot, UnsafeWorkspaceRootError} from '#workspace.js';
+import {
+  cleanupWorkspace,
+  InvalidJobIdError,
+  jobWorkspacePath,
+  resolveWorkspaceRoot,
+  UnsafeWorkspaceRootError,
+} from '#workspace.js';
 
-const mockPrepareWorkspace = vi.mocked(prepareWorkspace);
+const mockJobWorkspacePath = vi.mocked(jobWorkspacePath);
+const mockCleanupWorkspace = vi.mocked(cleanupWorkspace);
 const mockResolveWorkspaceRoot = vi.mocked(resolveWorkspaceRoot);
 const mockRunJobSteps = vi.mocked(runJobSteps);
 const mockCreateLeaseClient = vi.mocked(createLeaseClient);
@@ -48,46 +56,44 @@ const JOB = {
 } as Parameters<typeof runJob>[0];
 
 const WORKSPACE_ROOT = '/tmp/shipfox-test-root';
-
-function mockWorkspace() {
-  const cleanup = vi.fn().mockResolvedValue(undefined);
-  mockPrepareWorkspace.mockResolvedValue({cwd: '/tmp/job-1', cleanup});
-  return cleanup;
-}
+const JOB_CWD = '/tmp/shipfox-test-root/job-1';
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe('runJob', () => {
-  it('runs the step loop with the workspace cwd and lease client, then cleans up', async () => {
-    const cleanup = mockWorkspace();
+  it('runs the step loop with the per-job cwd and lease client, then cleans up', async () => {
+    mockJobWorkspacePath.mockReturnValue(JOB_CWD);
     mockRunJobSteps.mockResolvedValue();
 
     await runJob(JOB, WORKSPACE_ROOT);
 
     expect(mockCreateLeaseClient).toHaveBeenCalledWith(JOB.lease_token);
     expect(mockRunJobSteps).toHaveBeenCalledWith(
-      expect.objectContaining({jobId: JOB.job_id, cwd: '/tmp/job-1'}),
+      expect.objectContaining({jobId: JOB.job_id, cwd: JOB_CWD}),
     );
-    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(mockCleanupWorkspace).toHaveBeenCalledWith(JOB_CWD);
   });
 
-  it('cleans up when the step loop throws', async () => {
-    const cleanup = mockWorkspace();
+  it('cleans up the per-job cwd when the step loop throws', async () => {
+    mockJobWorkspacePath.mockReturnValue(JOB_CWD);
     mockRunJobSteps.mockRejectedValue(new Error('aborted'));
 
     await runJob(JOB, WORKSPACE_ROOT);
 
-    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(mockCleanupWorkspace).toHaveBeenCalledWith(JOB_CWD);
   });
 
-  it('runs no steps when preparing the workspace fails', async () => {
-    mockPrepareWorkspace.mockRejectedValue(new Error('mkdir failed'));
+  it('skips the job without running the loop or cleaning up when the job id is invalid', async () => {
+    mockJobWorkspacePath.mockImplementation(() => {
+      throw new InvalidJobIdError(JOB.job_id);
+    });
 
     await runJob(JOB, WORKSPACE_ROOT);
 
     expect(mockRunJobSteps).not.toHaveBeenCalled();
+    expect(mockCleanupWorkspace).not.toHaveBeenCalled();
   });
 });
 
