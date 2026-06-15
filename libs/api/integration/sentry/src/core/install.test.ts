@@ -324,4 +324,19 @@ describe('handleSentryConnect — simultaneous race', () => {
     expect(connected).toBe(existing);
     expect(connectSentryInstallation).not.toHaveBeenCalled();
   });
+
+  it('surfaces a terminal deleted error when the row is tombstoned between lookups', async () => {
+    const sentry = sentryClient({
+      exchangeAuthorizationCode: vi.fn(() =>
+        Promise.reject(new SentryIntegrationProviderError('access-denied', 'already used')),
+      ),
+    });
+    const {result} = run({
+      sentry,
+      // First lookup sees no row; the re-read finds it tombstoned.
+      installSequence: [undefined, installation({status: 'deleted'})],
+    });
+
+    await expect(result).rejects.toBeInstanceOf(SentryInstallationDeletedError);
+  });
 });

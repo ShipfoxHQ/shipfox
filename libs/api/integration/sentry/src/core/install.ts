@@ -235,12 +235,16 @@ async function claimBrowserFirst(
 // The browser-first exchange got "already used" with no row visible at lookup: a
 // concurrent webhook won the exchange. Re-read once — if its verified row is now
 // visible we reconcile through the same proof rules; if it got claimed we resolve
-// it; otherwise it is still mid-flight, so the claim is retryable.
+// it; if it was tombstoned we surface that terminally (matching the top-level
+// check); otherwise it is still mid-flight, so the claim is retryable.
 async function reconcileConcurrentClaim(
   params: HandleSentryConnectParams,
 ): Promise<IntegrationConnection<'sentry'>> {
   const reread = await params.getSentryInstallation({installationUuid: params.installationUuid});
-  if (reread && reread.status !== 'deleted') {
+  if (reread?.status === 'deleted') {
+    throw new SentryInstallationDeletedError(params.installationUuid);
+  }
+  if (reread) {
     if (reread.connectionId) {
       return resolveClaimedInstall(params, reread.connectionId);
     }
