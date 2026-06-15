@@ -1,12 +1,13 @@
 import {WORKFLOW_RUN_CREATED, WORKFLOWS_JOB_TIMED_OUT} from '@shipfox/api-workflows-dto';
 import {eq, sql} from 'drizzle-orm';
+import {JobNotFoundError} from '#core/errors.js';
+import {recordStepResult} from '#core/job-execution.js';
 import {workflowModel} from '#test/index.js';
 import {db} from './db.js';
 import {jobs} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
 import {steps as stepsTable} from './schema/steps.js';
 import {
-  applyStepResults,
   bulkUpdateStepStatuses,
   createWorkflowRun,
   failJobAsTimedOut,
@@ -14,7 +15,7 @@ import {
   getStepsByJobId,
   getWorkflowRunById,
   listWorkflowRunsByProject,
-  StepResultsContractViolationError,
+  resolveJobAfterLeaseExpiry,
   updateJobStatus,
   updateWorkflowRunStatus,
 } from './workflow-runs.js';
@@ -623,6 +624,39 @@ describe('workflow run queries', () => {
         updateJobStatus({jobId: runJobs[0]?.id ?? '', status: 'running', expectedVersion: 99}),
       ).rejects.toThrow('Optimistic lock failure');
     });
+
+    test('idempotent on retry: re-applying the same transition at the old version is a no-op', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const job = (await getJobsByRunId(run.id))[0];
+      const first = await updateJobStatus({
+        jobId: job?.id as string,
+        status: 'running',
+        expectedVersion: 1,
+      });
+
+      // Simulates a lost Temporal activity result: the row already moved to the
+      // requested status at version 2, so the retried expected-version-1 UPDATE
+      // matches 0 rows but must return the existing row, not throw.
+      const retry = await updateJobStatus({
+        jobId: job?.id as string,
+        status: 'running',
+        expectedVersion: 1,
+      });
+
+      expect(retry.status).toBe('running');
+      expect(retry.version).toBe(first.version);
+    });
   });
 
   describe('failJobAsTimedOut', () => {
@@ -792,17 +826,15 @@ describe('workflow run queries', () => {
     });
   });
 
-  describe('applyStepResults', () => {
-    async function seedJob(stepCount: number) {
+  describe('resolveJobAfterLeaseExpiry', () => {
+    async function seedRunningJob(stepCount: number) {
       const run = await createWorkflowRun({
         workspaceId,
         projectId,
         definitionId,
         model: buildModel({
           jobs: {
-            build: {
-              steps: Array.from({length: stepCount}, (_, i) => ({run: `step${i + 1}`})),
-            },
+            build: {steps: Array.from({length: stepCount}, (_, i) => ({run: `step${i + 1}`}))},
           },
         }),
         triggerPayload: {
@@ -812,262 +844,113 @@ describe('workflow run queries', () => {
           userId: crypto.randomUUID(),
         },
       });
-      const runJobs = await getJobsByRunId(run.id);
-      const jobId = runJobs[0]?.id ?? '';
+      const jobId = (await getJobsByRunId(run.id))[0]?.id as string;
+      const running = await updateJobStatus({jobId, status: 'running', expectedVersion: 1});
       const jobSteps = await getStepsByJobId(jobId);
-      return {jobId, jobSteps};
+      return {jobId, runningVersion: running.version, jobSteps};
     }
 
-    test('REGRESSION: mid-job failure marks unreached steps as cancelled, not failed', async () => {
-      const {jobId, jobSteps} = await seedJob(4);
+    async function setStepStatus(stepId: string, status: 'succeeded' | 'failed' | 'running') {
+      await db().update(stepsTable).set({status}).where(eq(stepsTable.id, stepId));
+    }
 
-      await applyStepResults({
-        jobId,
-        completionStatus: 'failed',
-        reportedSteps: [
-          {stepId: jobSteps[0]?.id as string, status: 'succeeded', error: null},
-          {
-            stepId: jobSteps[1]?.id as string,
-            status: 'failed',
-            error: {message: 'Command exited with code 1', exitCode: 1},
-          },
-        ],
-      });
+    async function jobRow(jobId: string) {
+      return (await db().select().from(jobs).where(eq(jobs.id, jobId)))[0];
+    }
 
+    test('all steps terminal: adopts the derived status without failing', async () => {
+      const {jobId, runningVersion, jobSteps} = await seedRunningJob(2);
+      for (const step of jobSteps) await setStepStatus(step.id, 'succeeded');
+
+      const result = await resolveJobAfterLeaseExpiry({jobId, expectedVersion: runningVersion});
+
+      expect(result.status).toBe('succeeded');
+      expect((await jobRow(jobId))?.status).toBe('succeeded');
+      const final = await getStepsByJobId(jobId);
+      expect(final.every((step) => step.status === 'succeeded')).toBe(true);
+    });
+
+    test('all steps terminal but mixed: adopts failed without cancelling the terminal steps', async () => {
+      const {jobId, runningVersion, jobSteps} = await seedRunningJob(2);
+      await setStepStatus(jobSteps[0]?.id as string, 'succeeded');
+      await setStepStatus(jobSteps[1]?.id as string, 'failed');
+
+      const result = await resolveJobAfterLeaseExpiry({jobId, expectedVersion: runningVersion});
+
+      // deriveCompletion over an all-terminal-but-mixed projection is 'failed', and the
+      // adopt branch must NOT run the bulk-cancel sweep, so the already-terminal steps
+      // keep their reported statuses.
+      expect(result.status).toBe('failed');
+      expect((await jobRow(jobId))?.status).toBe('failed');
       const final = await getStepsByJobId(jobId);
       expect(final[0]?.status).toBe('succeeded');
-      expect(final[0]?.error).toBeNull();
       expect(final[1]?.status).toBe('failed');
-      expect(final[1]?.error).toEqual({message: 'Command exited with code 1', exitCode: 1});
-      expect(final[2]?.status).toBe('cancelled');
-      expect(final[3]?.status).toBe('cancelled');
     });
 
-    test('writes status=succeeded with null error when every step succeeds', async () => {
-      const {jobId, jobSteps} = await seedJob(2);
+    test('runner died mid-job: fails the job and cancels the remaining steps', async () => {
+      const {jobId, runningVersion, jobSteps} = await seedRunningJob(3);
+      await setStepStatus(jobSteps[0]?.id as string, 'succeeded');
 
-      await applyStepResults({
-        jobId,
-        completionStatus: 'succeeded',
-        reportedSteps: jobSteps.map((s) => ({
-          stepId: s.id,
-          status: 'succeeded' as const,
-          error: null,
-        })),
-      });
+      const result = await resolveJobAfterLeaseExpiry({jobId, expectedVersion: runningVersion});
 
+      expect(result.status).toBe('failed');
+      expect((await jobRow(jobId))?.status).toBe('failed');
       const final = await getStepsByJobId(jobId);
-      for (const step of final) {
-        expect(step.status).toBe('succeeded');
-        expect(step.error).toBeNull();
-      }
-    });
-
-    test('terminal-state guard blocks downgrade on reported updates', async () => {
-      const {jobId, jobSteps} = await seedJob(2);
-      await db()
-        .update(stepsTable)
-        .set({status: 'failed'})
-        .where(eq(stepsTable.id, jobSteps[0]?.id as string));
-
-      await applyStepResults({
-        jobId,
-        completionStatus: 'succeeded',
-        reportedSteps: [
-          {stepId: jobSteps[0]?.id as string, status: 'succeeded', error: null},
-          {stepId: jobSteps[1]?.id as string, status: 'succeeded', error: null},
-        ],
-      });
-
-      const final = await getStepsByJobId(jobId);
-      expect(final[0]?.status).toBe('failed');
-      expect(final[1]?.status).toBe('succeeded');
-    });
-
-    test('terminal-state guard blocks cancellation of an already-succeeded step', async () => {
-      const {jobId, jobSteps} = await seedJob(3);
-      await db()
-        .update(stepsTable)
-        .set({status: 'succeeded'})
-        .where(eq(stepsTable.id, jobSteps[2]?.id as string));
-
-      await applyStepResults({
-        jobId,
-        completionStatus: 'failed',
-        reportedSteps: [{stepId: jobSteps[0]?.id as string, status: 'succeeded', error: null}],
-      });
-
-      const final = await getStepsByJobId(jobId);
-      expect(final[2]?.status).toBe('succeeded');
-    });
-
-    test('empty reportedSteps[] with completionStatus=failed falls back to bulk-fail', async () => {
-      const {jobId} = await seedJob(3);
-
-      await applyStepResults({jobId, completionStatus: 'failed', reportedSteps: []});
-
-      const final = await getStepsByJobId(jobId);
-      for (const step of final) {
-        expect(step.status).toBe('failed');
-      }
-    });
-
-    test('Temporal-retry idempotency: re-running with the same payload is a no-op', async () => {
-      const {jobId, jobSteps} = await seedJob(3);
-      const payload = {
-        jobId,
-        completionStatus: 'failed' as const,
-        reportedSteps: [
-          {stepId: jobSteps[0]?.id as string, status: 'succeeded' as const, error: null},
-          {
-            stepId: jobSteps[1]?.id as string,
-            status: 'failed' as const,
-            error: {message: 'boom', exitCode: 1},
-          },
-        ],
-      };
-
-      await applyStepResults(payload);
-      const afterFirst = await getStepsByJobId(jobId);
-      const updatedAtAfterFirst = afterFirst.map((s) => s.updatedAt.toISOString());
-
-      await applyStepResults(payload);
-      const afterSecond = await getStepsByJobId(jobId);
-
-      expect(afterSecond.map((s) => s.status)).toEqual(['succeeded', 'failed', 'cancelled']);
-      // Already-terminal rows are guarded; updatedAt should not move.
-      expect(afterSecond.map((s) => s.updatedAt.toISOString())).toEqual(updatedAtAfterFirst);
-    });
-
-    test('hostile (failed): bogus stepId does not corrupt real steps', async () => {
-      const {jobId, jobSteps} = await seedJob(3);
-
-      await applyStepResults({
-        jobId,
-        completionStatus: 'failed',
-        reportedSteps: [
-          {
-            stepId: '00000000-0000-0000-0000-000000000999',
-            status: 'failed',
-            error: {message: 'bogus'},
-          },
-        ],
-      });
-
-      const final = await getStepsByJobId(jobId);
-      // Every real step ends cancelled; no real step has 'failed' or the bogus error written.
-      for (const step of final) {
-        expect(step.status).toBe('cancelled');
-        expect(step.error).toBeNull();
-      }
-      expect(final.map((s) => s.id)).toEqual(jobSteps.map((s) => s.id));
-    });
-
-    test('hostile (failed): duplicate stepId is idempotent (terminal guard absorbs the second write)', async () => {
-      const {jobId, jobSteps} = await seedJob(2);
-      const stepId = jobSteps[0]?.id as string;
-
-      await applyStepResults({
-        jobId,
-        completionStatus: 'failed',
-        reportedSteps: [
-          {stepId, status: 'succeeded', error: null},
-          {stepId, status: 'failed', error: {message: 'should not apply', exitCode: 1}},
-        ],
-      });
-
-      const final = await getStepsByJobId(jobId);
-      // The first write wins because the terminal guard then blocks the second.
       expect(final[0]?.status).toBe('succeeded');
-      expect(final[0]?.error).toBeNull();
+      expect(final[1]?.status).toBe('cancelled');
+      expect(final[2]?.status).toBe('cancelled');
     });
 
-    test('hostile (failed): cross-job stepId is filtered out by the canonical-set check', async () => {
-      const seedA = await seedJob(2);
-      const seedB = await seedJob(2);
+    test('job with no steps: throws JobNotFoundError instead of silently failing the malformed job', async () => {
+      const {jobId, runningVersion} = await seedRunningJob(0);
 
-      await applyStepResults({
-        jobId: seedA.jobId,
-        completionStatus: 'failed',
-        reportedSteps: [
-          {stepId: seedA.jobSteps[0]?.id as string, status: 'succeeded', error: null},
-          {stepId: seedB.jobSteps[0]?.id as string, status: 'succeeded', error: null},
-        ],
-      });
+      await expect(
+        resolveJobAfterLeaseExpiry({jobId, expectedVersion: runningVersion}),
+      ).rejects.toBeInstanceOf(JobNotFoundError);
 
-      // The cross-job step should not have been touched.
-      const finalB = await getStepsByJobId(seedB.jobId);
-      for (const step of finalB) {
-        expect(step.status).toBe('pending');
-      }
+      expect((await jobRow(jobId))?.status).toBe('running');
     });
 
-    describe('strict mode (completionStatus=succeeded)', () => {
-      test('throws when reportedSteps is empty', async () => {
-        const {jobId} = await seedJob(2);
+    test('does not flip a row a concurrent DAG-cancel already terminalised; reports it truthfully', async () => {
+      const {jobId, runningVersion} = await seedRunningJob(2);
+      // run-orchestration cancelled the job (steps left non-terminal), bumping the version.
+      await updateJobStatus({jobId, status: 'cancelled', expectedVersion: runningVersion});
 
-        await expect(
-          applyStepResults({jobId, completionStatus: 'succeeded', reportedSteps: []}),
-        ).rejects.toThrow(StepResultsContractViolationError);
-      });
+      // The lease-expiry resolver runs with the now-stale running version.
+      const result = await resolveJobAfterLeaseExpiry({jobId, expectedVersion: runningVersion});
 
-      test('throws when a reported stepId is unknown to the job (bogus uuid)', async () => {
-        const {jobId, jobSteps} = await seedJob(2);
+      expect(result.status).toBe('failed'); // cancelled maps to failed for the DAG
+      expect((await jobRow(jobId))?.status).toBe('cancelled'); // not flipped to failed
+    });
 
-        await expect(
-          applyStepResults({
-            jobId,
-            completionStatus: 'succeeded',
-            reportedSteps: [
-              {stepId: jobSteps[0]?.id as string, status: 'succeeded', error: null},
-              {
-                stepId: '00000000-0000-0000-0000-000000000999',
-                status: 'succeeded',
-                error: null,
-              },
-            ],
-          }),
-        ).rejects.toThrow(StepResultsContractViolationError);
+    test('idempotent on retry: a second resolve at the stale version is a no-op', async () => {
+      const {jobId, runningVersion} = await seedRunningJob(2);
 
-        // No DB writes leaked: every real step still pending.
-        const final = await getStepsByJobId(jobId);
-        for (const step of final) {
-          expect(step.status).toBe('pending');
-        }
-      });
+      const first = await resolveJobAfterLeaseExpiry({jobId, expectedVersion: runningVersion});
+      const second = await resolveJobAfterLeaseExpiry({jobId, expectedVersion: runningVersion});
 
-      test('throws when a canonical stepId is missing from the report', async () => {
-        const {jobId, jobSteps} = await seedJob(3);
+      expect(first.status).toBe('failed');
+      expect(second.status).toBe('failed');
+      expect(second.jobVersion).toBe(first.jobVersion);
+    });
 
-        await expect(
-          applyStepResults({
-            jobId,
-            completionStatus: 'succeeded',
-            reportedSteps: [
-              {stepId: jobSteps[0]?.id as string, status: 'succeeded', error: null},
-              {stepId: jobSteps[1]?.id as string, status: 'succeeded', error: null},
-              // jobSteps[2] missing
-            ],
-          }),
-        ).rejects.toThrow(StepResultsContractViolationError);
-      });
+    test('concurrent with recordStepResult: serializes on FOR UPDATE, no deadlock, terminal end state', async () => {
+      const {jobId, runningVersion, jobSteps} = await seedRunningJob(2);
+      await setStepStatus(jobSteps[0]?.id as string, 'running');
 
-      test('throws on duplicate stepIds in the report', async () => {
-        const {jobId, jobSteps} = await seedJob(2);
-        const stepId = jobSteps[0]?.id as string;
+      const [resolved, recorded] = await Promise.allSettled([
+        resolveJobAfterLeaseExpiry({jobId, expectedVersion: runningVersion}),
+        recordStepResult({
+          jobId,
+          stepId: jobSteps[0]?.id as string,
+          status: 'succeeded',
+          exitCode: 0,
+        }),
+      ]);
 
-        await expect(
-          applyStepResults({
-            jobId,
-            completionStatus: 'succeeded',
-            reportedSteps: [
-              {stepId, status: 'succeeded', error: null},
-              {stepId, status: 'succeeded', error: null},
-              {stepId: jobSteps[1]?.id as string, status: 'succeeded', error: null},
-            ],
-          }),
-        ).rejects.toThrow(StepResultsContractViolationError);
-      });
+      expect(resolved.status).toBe('fulfilled');
+      expect(recorded.status).toBe('fulfilled');
+      expect(['succeeded', 'failed', 'cancelled']).toContain((await jobRow(jobId))?.status);
     });
   });
 });

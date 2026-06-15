@@ -9,8 +9,11 @@ import {
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, asc, count, desc, eq, gte, inArray, lt, lte, or, type SQL, sql} from 'drizzle-orm';
 import type {Job, JobStatus} from '#core/entities/job.js';
+import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
 import type {TriggerPayload, WorkflowRun, WorkflowRunStatus} from '#core/entities/workflow-run.js';
+import {JobNotFoundError} from '#core/errors.js';
+import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import {materializeWorkflowModel} from '#core/workflow-runtime/index.js';
 import {db, type Tx} from './db.js';
 import {jobs, toJob} from './schema/jobs.js';
@@ -382,18 +385,26 @@ export interface UpdateJobStatusParams {
 }
 
 export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Job> {
-  const updated = await db().transaction(async (tx) =>
-    updateJobStatusAtVersion(tx, {
+  return await db().transaction(async (tx) => {
+    const updated = await updateJobStatusAtVersion(tx, {
       jobId: params.jobId,
       status: params.status,
       expectedVersion: params.expectedVersion,
-    }),
-  );
-  if (!updated)
+    });
+    if (updated) return updated;
+
+    // Idempotent under Temporal activity retry: a lost result after a committed
+    // status update leaves the row at version+1, so the retried call's
+    // expected-version UPDATE matches 0 rows. If the row is already in the
+    // requested status, the prior attempt of this same transition won — return it
+    // instead of throwing an optimistic-lock error that would wedge the workflow.
+    const existing = await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1);
+    const row = existing[0];
+    if (row && row.status === params.status) return toJob(row);
     throw new Error(
       `Optimistic lock failure: job ${params.jobId} version ${params.expectedVersion}`,
     );
-  return updated;
+  });
 }
 
 export interface FailJobAsTimedOutParams {
@@ -431,6 +442,60 @@ export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promis
     });
 
     return updated;
+  });
+}
+
+/**
+ * Resolves a job whose runner lease expired, in a SINGLE transaction so a
+ * concurrent `recordStepResult` cannot interleave between the terminal check and
+ * the writes. Server state is the final gate:
+ *
+ *   getStepsByJobIdForUpdate (FOR UPDATE, position order — same lock order as
+ *   recordStepResult, so the two never deadlock)
+ *        │
+ *        ├─ all steps terminal ─► the job finished concurrently (e.g. a lagging
+ *        │                        WORKFLOWS_JOB_COMPLETED). Adopt deriveCompletion.
+ *        └─ otherwise ──────────► the runner died mid-job: fail it + cancel the
+ *                                 remaining (non-terminal) steps.
+ *
+ * Returns the job's ACTUAL persisted terminal status (+version) by re-reading the
+ * row, never a hardcoded 'failed' — so a row a concurrent DAG-cancel already
+ * terminalised (the guarded UPDATE then matches 0 rows) is reported truthfully.
+ * A non-`succeeded` terminal status maps to `failed` for the run-orchestration DAG.
+ */
+export async function resolveJobAfterLeaseExpiry(params: {
+  jobId: string;
+  expectedVersion: number;
+}): Promise<{status: RuntimeCompletionStatus; jobVersion: number}> {
+  return await db().transaction(async (tx) => {
+    const jobSteps = await getStepsByJobIdForUpdate(params.jobId, tx);
+
+    // A job with no steps is malformed, not a runner-died-mid-job failure. Surface
+    // it loudly instead of silently marking the job failed and hiding the bad state.
+    // The activity translates this to a non-retryable failure so it fails fast.
+    if (jobSteps.length === 0) {
+      throw new JobNotFoundError(params.jobId);
+    }
+
+    if (jobSteps.every((step) => isTerminal(step.status))) {
+      await updateJobStatusAtVersion(tx, {
+        jobId: params.jobId,
+        status: deriveCompletion(jobSteps),
+        expectedVersion: params.expectedVersion,
+      });
+    } else {
+      await updateJobStatusAtVersion(tx, {
+        jobId: params.jobId,
+        status: 'failed',
+        expectedVersion: params.expectedVersion,
+      });
+      await bulkUpdateStepStatuses({jobId: params.jobId, status: 'cancelled'}, tx);
+    }
+
+    const row = (await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1))[0];
+    if (!row) throw new Error(`Job not found resolving lease expiry: ${params.jobId}`);
+    const status: RuntimeCompletionStatus = row.status === 'succeeded' ? 'succeeded' : 'failed';
+    return {status, jobVersion: row.version};
   });
 }
 
@@ -495,129 +560,6 @@ export async function bulkUpdateStepStatuses(
       .set({status: params.status, finishedAt: new Date()})
       .where(and(eq(stepAttempts.jobId, params.jobId), eq(stepAttempts.status, 'running')));
   }
-}
-
-export interface ReportedStepResult {
-  stepId: string;
-  status: 'succeeded' | 'failed';
-  error: Record<string, unknown> | null;
-}
-
-export interface ApplyStepResultsParams {
-  jobId: string;
-  /**
-   * Job-level completion status. When 'succeeded', the activity enforces strict
-   * consistency: reported step ids must be the canonical set, with no
-   * duplicates and no unknowns. Violations throw — the workflow surfaces the
-   * failure and the job stays running until the timeout path catches it.
-   */
-  completionStatus: 'succeeded' | 'failed';
-  reportedSteps: ReportedStepResult[];
-}
-
-export class StepResultsContractViolationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'StepResultsContractViolationError';
-  }
-}
-
-/**
- * Persists per-step results from the runner, marks any unreported step in the
- * job as `cancelled`, and never downgrades an already-terminal row.
- *
- *   reportedSteps[] ──► ┌──────────────────────────────────────┐
- *                       │ canonical = SELECT id WHERE job_id=? │
- *                       └──────────────────────────────────────┘
- *                                       │
- *                       ┌───────────────┴───────────────┐
- *                       ▼                               ▼
- *                 reported ∩ canonical          canonical \ reported
- *                  status + error                  status='cancelled'
- *                       │                               │
- *                       ▼                               ▼
- *                   one UPDATE per row,         one UPDATE id IN (...)
- *                   guarded by terminal         guarded by terminal
- *
- * Unknown / cross-job step ids get filtered out by the canonical-set
- * intersection so they cannot leak into either branch.
- */
-export async function applyStepResults(params: ApplyStepResultsParams): Promise<void> {
-  if (params.reportedSteps.length === 0) {
-    if (params.completionStatus === 'succeeded') {
-      throw new StepResultsContractViolationError(
-        'completionStatus=succeeded with no reported steps',
-      );
-    }
-    await bulkUpdateStepStatuses({jobId: params.jobId, status: 'failed'});
-    return;
-  }
-
-  await db().transaction(async (tx) => {
-    const canonical = await tx
-      .select({id: steps.id})
-      .from(steps)
-      .where(eq(steps.jobId, params.jobId));
-    const canonicalIds = new Set(canonical.map((row) => row.id));
-    const reportedIdSet = new Set(params.reportedSteps.map((r) => r.stepId));
-
-    if (params.completionStatus === 'succeeded') {
-      // Strict mode: every reported id must be canonical, every canonical id
-      // must be reported, and the reported list must have no duplicates. A
-      // bogus or missing id with status=succeeded would otherwise corrupt the
-      // run history (job marked succeeded while real steps end cancelled).
-      if (params.reportedSteps.length !== reportedIdSet.size) {
-        throw new StepResultsContractViolationError(
-          'duplicate stepId in reportedSteps with completionStatus=succeeded',
-        );
-      }
-      const unknown = params.reportedSteps.find((r) => !canonicalIds.has(r.stepId));
-      if (unknown) {
-        throw new StepResultsContractViolationError(
-          `unknown stepId ${unknown.stepId} with completionStatus=succeeded`,
-        );
-      }
-      const missing = canonical.filter((row) => !reportedIdSet.has(row.id));
-      if (missing.length > 0) {
-        throw new StepResultsContractViolationError(
-          `unreported canonical stepIds with completionStatus=succeeded: ${missing.map((r) => r.id).join(', ')}`,
-        );
-      }
-    }
-
-    const updatedAt = new Date();
-
-    for (const reported of params.reportedSteps) {
-      if (!canonicalIds.has(reported.stepId)) continue;
-      await tx
-        .update(steps)
-        .set({
-          status: reported.status,
-          error: reported.error ?? null,
-          updatedAt,
-        })
-        .where(
-          and(
-            eq(steps.id, reported.stepId),
-            eq(steps.jobId, params.jobId),
-            sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
-          ),
-        );
-    }
-
-    const cancelIds = canonical.map((row) => row.id).filter((id) => !reportedIdSet.has(id));
-    if (cancelIds.length > 0) {
-      await tx
-        .update(steps)
-        .set({status: 'cancelled', updatedAt})
-        .where(
-          and(
-            inArray(steps.id, cancelIds),
-            sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
-          ),
-        );
-    }
-  });
 }
 
 // Per-step progression primitives. They take a mandatory `tx` because they only

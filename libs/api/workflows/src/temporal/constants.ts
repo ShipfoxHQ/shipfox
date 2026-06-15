@@ -1,2 +1,3 @@
 export const WORKFLOWS_TASK_QUEUE = 'workflows-orchestrator';
-export const JOB_COMPLETED_SIGNAL = 'job-completed';
+export const JOB_FINISHED_SIGNAL = 'job-finished';
+export const JOB_LEASE_EXPIRED_SIGNAL = 'job-lease-expired';

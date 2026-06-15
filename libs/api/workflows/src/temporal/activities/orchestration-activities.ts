@@ -1,16 +1,17 @@
-import {scheduleJob} from '@shipfox/api-runners';
-import type {StepResultDto} from '@shipfox/api-runners-dto';
+import {releaseJob, scheduleJob} from '@shipfox/api-runners';
+import {ApplicationFailure} from '@temporalio/common';
 import type {JobStatus} from '#core/entities/job.js';
-import type {RuntimeDagJob} from '#core/entities/runtime-dag.js';
+import type {RuntimeCompletionStatus, RuntimeDagJob} from '#core/entities/runtime-dag.js';
 import type {StepStatus} from '#core/entities/step.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
+import {JobNotFoundError} from '#core/errors.js';
 import {
-  applyStepResults,
   bulkUpdateStepStatuses,
   failJobAsTimedOut,
   getJobsByRunId,
   getStepsByJobIds,
   getWorkflowRunById,
+  resolveJobAfterLeaseExpiry,
   updateJobStatus,
   updateWorkflowRunStatus,
 } from '#db/index.js';
@@ -106,30 +107,31 @@ export async function bulkSetStepStatuses(params: {
   await bulkUpdateStepStatuses(params);
 }
 
-// Wire (snake_case) → domain (camelCase) at the activity boundary so DB code
-// never sees the external shape. The completionStatus is forwarded so the
-// activity can enforce strict consistency for succeeded jobs.
-export async function applyStepResultsActivity(params: {
+// Lease-expiry resolution is a single guarded DB transaction (server state is the
+// final gate); the activity is a thin pass-through that returns the job's actual
+// persisted terminal status so the workflow hands run-orchestration the truth.
+export async function resolveLeaseExpiredJobActivity(params: {
   jobId: string;
-  completionStatus: 'succeeded' | 'failed';
-  reportedSteps: StepResultDto[];
-}): Promise<void> {
-  await applyStepResults({
-    jobId: params.jobId,
-    completionStatus: params.completionStatus,
-    reportedSteps: params.reportedSteps.map((s) => ({
-      stepId: s.step_id,
-      status: s.status,
-      error:
-        s.error == null
-          ? null
-          : {
-              message: s.error.message,
-              ...(s.error.exit_code !== undefined ? {exitCode: s.error.exit_code} : {}),
-              ...(s.error.signal !== undefined ? {signal: s.error.signal} : {}),
-            },
-    })),
-  });
+  expectedVersion: number;
+}): Promise<{status: RuntimeCompletionStatus; jobVersion: number}> {
+  try {
+    return await resolveJobAfterLeaseExpiry(params);
+  } catch (err) {
+    // A job with no steps is a data-integrity bug, not a transient fault. Retrying
+    // it would loop until the workflow's 60-min backstop; surface it immediately
+    // as a non-retryable failure instead.
+    if (err instanceof JobNotFoundError) {
+      throw ApplicationFailure.nonRetryable(err.message, err.name);
+    }
+    throw err;
+  }
+}
+
+// Best-effort lease cleanup on job finalization. Idempotent: deleting an
+// already-released (or already-reaped) lease is a no-op. The workflow wraps the
+// call so a persistent failure never blocks the DAG result.
+export async function releaseLeaseActivity(params: {jobId: string}): Promise<void> {
+  await releaseJob({jobId: params.jobId});
 }
 
 export async function enqueueJobForRunner(params: {

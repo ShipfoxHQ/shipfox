@@ -48,8 +48,12 @@ beforeAll(async () => {
       bulkSetStepStatuses: (params: unknown) => {
         calls.push({name: 'bulkSetStepStatuses', params});
       },
-      applyStepResultsActivity: (params: unknown) => {
-        calls.push({name: 'applyStepResultsActivity', params});
+      resolveLeaseExpiredJobActivity: (params: unknown) => {
+        calls.push({name: 'resolveLeaseExpiredJobActivity', params});
+        return {status: 'failed', jobVersion: nextVersion()};
+      },
+      releaseLeaseActivity: (params: unknown) => {
+        calls.push({name: 'releaseLeaseActivity', params});
       },
       enqueueJobForRunner: (params: unknown) => {
         // No-op — we want the workflow to block on the signal until the timeout fires.
@@ -112,11 +116,13 @@ describe('jobOrchestration timeout path', () => {
     );
     expect(setJobStatuses).toEqual(['running']);
 
-    // Timeout path uses the bulk activity (no per-step detail available),
-    // NOT applyStepResultsActivity.
+    // Timeout path sweeps steps with the bulk activity (no per-step detail).
     const stepCall = callsNamed('bulkSetStepStatuses')[0];
     expect((stepCall?.params as {status: string})?.status).toBe('failed');
-    expect(callsNamed('applyStepResultsActivity')).toHaveLength(0);
+    // The lease is intentionally NOT released on the timeout path (the TIMED_OUT
+    // event drives cooperative cancel; the stuck detector reaps the row).
+    expect(callsNamed('releaseLeaseActivity')).toHaveLength(0);
+    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(0);
   }, 60_000);
 
   test('failJobAsTimedOutActivity throws → workflow surfaces the error', async () => {

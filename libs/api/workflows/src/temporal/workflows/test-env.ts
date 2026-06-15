@@ -3,6 +3,7 @@ import {TestWorkflowEnvironment} from '@temporalio/testing';
 import {Worker} from '@temporalio/worker';
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {RunDag} from '../activities/orchestration-activities.js';
+import {JOB_FINISHED_SIGNAL, JOB_LEASE_EXPIRED_SIGNAL} from '../constants.js';
 
 const TASK_QUEUE = 'test-orchestration';
 const WORKFLOWS_PATH = resolve(import.meta.dirname, '../../../dist/temporal/workflows/index.js');
@@ -20,10 +21,18 @@ export interface TestConfig {
   jobResults: Map<string, RuntimeCompletionStatus>;
   /** If set, enqueueJobForRunner will throw with this message instead of signaling */
   enqueueError?: string;
-  /** If true, enqueueJobForRunner sends two signals (for dedup testing) */
+  /** If true, enqueueJobForRunner sends two job-finished signals (for dedup testing) */
   duplicateSignal?: boolean;
   /** If true, enqueueJobForRunner does nothing (no signal — for timeout testing) */
   skipSignal?: boolean;
+  /** If true, signal job-lease-expired instead of job-finished */
+  signalLeaseExpired?: boolean;
+  /** If true, signal BOTH job-finished and job-lease-expired (precedence testing) */
+  signalBoth?: boolean;
+  /** Status resolveLeaseExpiredJobActivity returns (defaults to 'failed') */
+  leaseExpiredStatus?: RuntimeCompletionStatus;
+  /** If set, releaseLeaseActivity throws (non-retryable) to prove the workflow still returns */
+  releaseLeaseError?: string;
   /** If set, failJobAsTimedOutActivity throws (for timeout error-path testing) */
   failJobAsTimedOutError?: string;
 }
@@ -142,14 +151,9 @@ function createMockActivities() {
       calls.push({name: 'bulkSetStepStatuses', params});
     },
 
-    applyStepResultsActivity: (params: {
-      jobId: string;
-      completionStatus: 'succeeded' | 'failed';
-      reportedSteps: unknown[];
-    }) => {
-      calls.push({name: 'applyStepResultsActivity', params});
-    },
-
+    // Scheduling is step-less. The mock runner reports the job outcome by signalling
+    // the per-step terminal-completion signal (job-finished) and/or the lease-expiry
+    // signal, reproducing the outbox → subscriber → signal rail.
     enqueueJobForRunner: async (params: {workspaceId: string; jobId: string; runId: string}) => {
       calls.push({name: 'enqueueJobForRunner', params});
 
@@ -161,30 +165,36 @@ function createMockActivities() {
       if (cfg.skipSignal) return;
 
       const status = cfg.jobResults.get(params.jobId) ?? 'succeeded';
-      // Scheduling is step-less, so a real runner resolves its own steps and
-      // reports them back. The schedule call no longer carries them, so source
-      // them from the DAG to reproduce that report shape.
-      const jobSteps = cfg.dag.jobs.find((job) => job.id === params.jobId)?.steps ?? [];
-      const steps =
-        status === 'succeeded'
-          ? jobSteps.map((s) => ({step_id: s.id, status: 'succeeded' as const, error: null}))
-          : jobSteps[0]
-            ? [
-                {
-                  step_id: jobSteps[0].id,
-                  status: 'failed' as const,
-                  error: {message: 'mock failure', exit_code: 1},
-                },
-              ]
-            : [];
       const handle = testEnv.client.workflow.getHandle(`job:${params.jobId}`);
-      await handle.signal('job-completed', {status, steps});
+
+      if (cfg.signalLeaseExpired) {
+        await handle.signal(JOB_LEASE_EXPIRED_SIGNAL);
+        return;
+      }
+
+      if (cfg.signalBoth) {
+        await handle.signal(JOB_FINISHED_SIGNAL, {status});
+        await handle.signal(JOB_LEASE_EXPIRED_SIGNAL);
+        return;
+      }
+
+      await handle.signal(JOB_FINISHED_SIGNAL, {status});
 
       if (cfg.duplicateSignal) {
-        await handle.signal('job-completed', {
-          status: 'failed',
-          steps: [],
-        });
+        await handle.signal(JOB_FINISHED_SIGNAL, {status: 'failed'});
+      }
+    },
+
+    resolveLeaseExpiredJobActivity: (params: {jobId: string; expectedVersion: number}) => {
+      calls.push({name: 'resolveLeaseExpiredJobActivity', params});
+      return {status: cfg.leaseExpiredStatus ?? 'failed', jobVersion: nextVersion()};
+    },
+
+    releaseLeaseActivity: async (params: {jobId: string}) => {
+      calls.push({name: 'releaseLeaseActivity', params});
+      if (cfg.releaseLeaseError) {
+        const {ApplicationFailure} = await import('@temporalio/common');
+        throw ApplicationFailure.nonRetryable(cfg.releaseLeaseError);
       }
     },
 
