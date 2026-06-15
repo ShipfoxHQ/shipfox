@@ -2,14 +2,14 @@
 // use the runner token and step calls use the lease token. SHIPFOX_API_URL comes from
 // test/env.ts (setupFiles), loaded before config is imported.
 
-import {config} from '#config.js';
 import {
   createLeaseClient,
   heartbeat,
   reportStep,
   requestJob,
   requestNextStep,
-} from '#protocol/api-client.js';
+} from '#api-client.js';
+import {config} from '#config.js';
 
 const JOB_ID = crypto.randomUUID();
 const RUN_ID = crypto.randomUUID();

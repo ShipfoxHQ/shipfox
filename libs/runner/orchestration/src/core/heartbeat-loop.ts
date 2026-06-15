@@ -1,5 +1,5 @@
 import {logger} from '@shipfox/node-opentelemetry';
-import {HTTPError, heartbeat} from '#protocol/api-client.js';
+import {HTTPError, heartbeat} from '@shipfox/runner-protocol';
 
 export interface HeartbeatLoopOptions {
   intervalMs: number;

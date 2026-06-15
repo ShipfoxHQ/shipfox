@@ -8,31 +8,23 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "imports": {
-    "#*": "./src/*"
-  },
   "scripts": {
     "build": "shipfox-swc",
     "dev": "tsx watch --conditions=development --env-file-if-exists=.env --env-file-if-exists=.env.local src/index.ts",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "type": "shipfox-tsc-check",
-    "type:emit": "shipfox-tsc-emit",
-    "test": "shipfox-vitest-run"
+    "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/api-runners-dto": "workspace:*",
-    "@shipfox/api-workflows-dto": "workspace:*",
-    "@shipfox/config": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
-    "ky": "^2.0.0"
+    "@shipfox/runner-orchestration": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vitest": "workspace:*",
     "tsx": "^4.21.0"
   }
 }

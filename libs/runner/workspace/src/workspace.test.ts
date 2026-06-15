@@ -8,35 +8,35 @@ import {
   jobWorkspacePath,
   resolveWorkspaceRoot,
   UnsafeWorkspaceRootError,
-} from '#workspace/workspace.js';
+} from '#workspace.js';
 
 describe('resolveWorkspaceRoot', () => {
   it('returns the configured root when set', () => {
-    const root = resolveWorkspaceRoot({SHIPFOX_RUNNER_WORKSPACE_ROOT: '/var/shipfox/work'});
+    const root = resolveWorkspaceRoot('/var/shipfox/work');
 
     expect(root).toBe('/var/shipfox/work');
   });
 
   it('falls back to the OS temp dir when unset', () => {
-    const root = resolveWorkspaceRoot({});
+    const root = resolveWorkspaceRoot(undefined);
 
     expect(root).toBe(tmpdir());
   });
 
   it.each(['', '   '])('rejects an empty/whitespace root (%j)', (value) => {
-    const resolveRoot = () => resolveWorkspaceRoot({SHIPFOX_RUNNER_WORKSPACE_ROOT: value});
+    const resolveRoot = () => resolveWorkspaceRoot(value);
 
     expect(resolveRoot).toThrow(UnsafeWorkspaceRootError);
   });
 
   it('rejects the filesystem root', () => {
-    const resolveRoot = () => resolveWorkspaceRoot({SHIPFOX_RUNNER_WORKSPACE_ROOT: '/'});
+    const resolveRoot = () => resolveWorkspaceRoot('/');
 
     expect(resolveRoot).toThrow(UnsafeWorkspaceRootError);
   });
 
   it('rejects the home directory', () => {
-    const resolveRoot = () => resolveWorkspaceRoot({SHIPFOX_RUNNER_WORKSPACE_ROOT: homedir()});
+    const resolveRoot = () => resolveWorkspaceRoot(homedir());
 
     expect(resolveRoot).toThrow(UnsafeWorkspaceRootError);
   });

@@ -1,10 +1,14 @@
 import {setTimeout as setTimeoutPromise} from 'node:timers/promises';
 import {logger} from '@shipfox/node-opentelemetry';
-import {runJobSteps} from '#agent/step-loop.js';
+import {createLeaseClient, requestJob} from '@shipfox/runner-protocol';
+import {
+  cleanupWorkspace,
+  jobWorkspacePath,
+  resolveWorkspaceRootFromEnv,
+} from '@shipfox/runner-workspace';
 import {config} from '#config.js';
-import {startHeartbeatLoop} from '#orchestration/heartbeat-loop.js';
-import {createLeaseClient, requestJob} from '#protocol/api-client.js';
-import {cleanupWorkspace, jobWorkspacePath, resolveWorkspaceRoot} from '#workspace/workspace.js';
+import {startHeartbeatLoop} from '#core/heartbeat-loop.js';
+import {runJobSteps} from '#core/step-loop.js';
 
 let running = true;
 let shuttingDown = false;
@@ -17,11 +21,10 @@ export async function startRunner(): Promise<void> {
 
   // Fail fast at startup: a dangerous root should crash the process at deploy,
   // not silently fail every job.
-  const workspaceRoot = resolveWorkspaceRoot(config);
+  const workspaceRoot = resolveWorkspaceRootFromEnv();
 
   logger().info(
     {
-      apiUrl: config.SHIPFOX_API_URL,
       pollInterval: config.SHIPFOX_POLL_INTERVAL_MS,
       workspaceRoot,
     },

@@ -2,12 +2,12 @@ import {HTTPError} from 'ky';
 
 const heartbeatMock = vi.fn();
 
-vi.mock('#protocol/api-client.js', () => ({
+vi.mock('@shipfox/runner-protocol', () => ({
   heartbeat: (jobId: string, opts?: {signal?: AbortSignal}) => heartbeatMock(jobId, opts),
   HTTPError,
 }));
 
-const {startHeartbeatLoop} = await import('#orchestration/heartbeat-loop.js');
+const {startHeartbeatLoop} = await import('#core/heartbeat-loop.js');
 
 beforeEach(() => {
   heartbeatMock.mockReset();

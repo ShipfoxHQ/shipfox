@@ -1,5 +1,5 @@
-import type {StepResult} from '#execution/step-result.js';
-import {createJobDir} from '#workspace/workspace.js';
+import {createJobDir} from '@shipfox/runner-workspace';
+import type {StepResult} from '#core/step-result.js';
 
 // The synthetic "Set up job" step body. It owns per-job workspace preparation and
 // reports failures through the normal step protocol, so a setup failure fails the

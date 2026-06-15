@@ -1,6 +1,5 @@
 vi.mock('#config.js', () => ({
   config: {
-    SHIPFOX_API_URL: 'http://localhost',
     SHIPFOX_POLL_INTERVAL_MS: 5000,
     SHIPFOX_POLL_MAX_INTERVAL_MS: 30000,
     SHIPFOX_HEARTBEAT_INTERVAL_MS: 10_000,
@@ -8,41 +7,41 @@ vi.mock('#config.js', () => ({
   },
 }));
 
-vi.mock('#orchestration/heartbeat-loop.js', () => ({
+vi.mock('#core/heartbeat-loop.js', () => ({
   startHeartbeatLoop: vi.fn(() => ({stop: vi.fn()})),
 }));
 
-vi.mock('#workspace/workspace.js', async (importActual) => ({
-  ...(await importActual<typeof import('#workspace/workspace.js')>()),
+vi.mock('@shipfox/runner-workspace', async (importActual) => ({
+  ...(await importActual<typeof import('@shipfox/runner-workspace')>()),
   jobWorkspacePath: vi.fn(),
   cleanupWorkspace: vi.fn(),
-  resolveWorkspaceRoot: vi.fn(),
+  resolveWorkspaceRootFromEnv: vi.fn(),
 }));
 
-vi.mock('#agent/step-loop.js', () => ({
+vi.mock('#core/step-loop.js', () => ({
   runJobSteps: vi.fn(),
 }));
 
-vi.mock('#protocol/api-client.js', () => ({
+vi.mock('@shipfox/runner-protocol', () => ({
   requestJob: vi.fn(),
   createLeaseClient: vi.fn(() => ({}) as never),
   HTTPError: class HTTPError extends Error {},
 }));
 
-import {runJobSteps} from '#agent/step-loop.js';
-import {runJob, startRunner} from '#orchestration/runner.js';
-import {createLeaseClient, requestJob} from '#protocol/api-client.js';
+import {createLeaseClient, requestJob} from '@shipfox/runner-protocol';
 import {
   cleanupWorkspace,
   InvalidJobIdError,
   jobWorkspacePath,
-  resolveWorkspaceRoot,
+  resolveWorkspaceRootFromEnv,
   UnsafeWorkspaceRootError,
-} from '#workspace/workspace.js';
+} from '@shipfox/runner-workspace';
+import {runJob, startRunner} from '#core/runner.js';
+import {runJobSteps} from '#core/step-loop.js';
 
 const mockJobWorkspacePath = vi.mocked(jobWorkspacePath);
 const mockCleanupWorkspace = vi.mocked(cleanupWorkspace);
-const mockResolveWorkspaceRoot = vi.mocked(resolveWorkspaceRoot);
+const mockResolveWorkspaceRoot = vi.mocked(resolveWorkspaceRootFromEnv);
 const mockRunJobSteps = vi.mocked(runJobSteps);
 const mockCreateLeaseClient = vi.mocked(createLeaseClient);
 const mockRequestJob = vi.mocked(requestJob);

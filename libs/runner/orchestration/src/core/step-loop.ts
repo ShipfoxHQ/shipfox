@@ -1,10 +1,8 @@
 import type {NextStepResponseDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {executeRunStep, executeSetupStep, type StepResult} from '@shipfox/runner-execution';
+import {HTTPError, reportStep, requestNextStep} from '@shipfox/runner-protocol';
 import type {KyInstance} from 'ky';
-import {executeRunStep} from '#execution/run-step.js';
-import {executeSetupStep} from '#execution/setup-step.js';
-import type {StepResult} from '#execution/step-result.js';
-import {HTTPError, reportStep, requestNextStep} from '#protocol/api-client.js';
 
 // Reporting a step before pulling the next one is the safety invariant: a lost report is
 // retried in place (next/report are idempotent), so a step is never re-pulled or

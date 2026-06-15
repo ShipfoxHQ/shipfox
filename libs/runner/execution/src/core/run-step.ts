@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {StepDto, StepErrorDtoShape} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
-import type {StepResult} from '#execution/step-result.js';
+import type {StepResult} from '#core/step-result.js';
 
 const MAX_OUTPUT_BYTES = 1024 * 1024; // 1MB
 

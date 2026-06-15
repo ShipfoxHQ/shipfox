@@ -1,9 +1,9 @@
-vi.mock('#workspace/workspace.js', () => ({
+vi.mock('@shipfox/runner-workspace', () => ({
   createJobDir: vi.fn(),
 }));
 
-import {executeSetupStep} from '#execution/setup-step.js';
-import {createJobDir} from '#workspace/workspace.js';
+import {createJobDir} from '@shipfox/runner-workspace';
+import {executeSetupStep} from '#core/setup-step.js';
 
 const mockCreateJobDir = vi.mocked(createJobDir);
 
