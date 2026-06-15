@@ -144,6 +144,22 @@ describe('classifySentryConnectError', () => {
     });
   });
 
+  test('503 verification-in-progress is retryable and carries retry_after_seconds', () => {
+    const result = classifySentryConnectError(
+      apiError({
+        code: 'sentry-verification-in-progress',
+        status: 503,
+        details: {retry_after_seconds: 2},
+      }),
+    );
+
+    expect(result).toEqual({
+      kind: 'retryable',
+      message: 'Finishing Sentry verification. This only takes a moment.',
+      retryAfterSeconds: 2,
+    });
+  });
+
   test.each(['timeout', 'provider-unavailable'])('503 %s is retryable', (code) => {
     const result = classifySentryConnectError(apiError({code, status: 503}));
 

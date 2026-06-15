@@ -19,6 +19,7 @@ function installation(overrides: Partial<SentryInstallation> = {}): SentryInstal
     installationUuid: 'install-1',
     orgSlug: 'acme',
     status: 'installed',
+    codeHash: null,
     installerUserId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -29,8 +30,10 @@ function installation(overrides: Partial<SentryInstallation> = {}): SentryInstal
 function createProvider(lookup: (connectionId: string) => Promise<SentryInstallation | undefined>) {
   return createSentryIntegrationProvider({
     sentry: sentryClient(),
-    getExistingSentryConnection: vi.fn(() => Promise.resolve(undefined)),
+    getSentryInstallation: vi.fn(() => Promise.resolve(undefined)),
+    getConnectionById: vi.fn(() => Promise.resolve(undefined)),
     connectSentryInstallation: vi.fn() as never,
+    persistVerifiedUnclaimedInstallation: vi.fn() as never,
     coreDb: vi.fn() as never,
     publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: false})),
     recordDeliveryOnly: vi.fn(() => Promise.resolve()),

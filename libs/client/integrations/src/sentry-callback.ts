@@ -88,6 +88,15 @@ export function classifySentryConnectError(error: unknown): SentryConnectFailure
         startOver: false,
       };
     }
+    if (error.code === 'sentry-verification-in-progress') {
+      // A concurrent signed webhook is still verifying the install. The grant code
+      // is untouched, so the existing backoff re-calls and finds the verified row.
+      return {
+        kind: 'retryable',
+        message: 'Finishing Sentry verification. This only takes a moment.',
+        retryAfterSeconds: retryAfterSeconds(error.details),
+      };
+    }
     if (error.code === 'rate-limited') {
       return {
         kind: 'retryable',

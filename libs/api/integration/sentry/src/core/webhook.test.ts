@@ -58,6 +58,25 @@ describe('handleSentryIssueEvent', () => {
     expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
   });
 
+  test('throws SentryConnectionNotFoundError for a verified-but-unclaimed installation', async () => {
+    const installationUuid = randomUUID();
+    await sentryInstallationFactory.create({installationUuid, connectionId: null});
+    const publishIntegrationEventReceived = vi.fn(() => Promise.resolve({published: true}));
+    const getIntegrationConnectionById = vi.fn();
+
+    const run = handleSentryIssueEvent({
+      tx: db(),
+      deliveryId: randomUUID(),
+      payload: issuePayload(installationUuid),
+      publishIntegrationEventReceived,
+      getIntegrationConnectionById,
+    });
+
+    await expect(run).rejects.toBeInstanceOf(SentryConnectionNotFoundError);
+    expect(getIntegrationConnectionById).not.toHaveBeenCalled();
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+  });
+
   test('throws SentryConnectionNotFoundError when the installation has no connection', async () => {
     const installationUuid = randomUUID();
     await sentryInstallationFactory.create({installationUuid});
