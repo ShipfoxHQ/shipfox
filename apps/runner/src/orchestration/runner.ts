@@ -1,10 +1,10 @@
 import {setTimeout as setTimeoutPromise} from 'node:timers/promises';
 import {logger} from '@shipfox/node-opentelemetry';
-import {createLeaseClient, requestJob} from '#api-client.js';
+import {runJobSteps} from '#agent/step-loop.js';
 import {config} from '#config.js';
-import {startHeartbeatLoop} from '#heartbeat-loop.js';
-import {runJobSteps} from '#step-loop.js';
-import {cleanupWorkspace, jobWorkspacePath, resolveWorkspaceRoot} from '#workspace.js';
+import {startHeartbeatLoop} from '#orchestration/heartbeat-loop.js';
+import {createLeaseClient, requestJob} from '#protocol/api-client.js';
+import {cleanupWorkspace, jobWorkspacePath, resolveWorkspaceRoot} from '#workspace/workspace.js';
 
 let running = true;
 let shuttingDown = false;

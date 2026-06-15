@@ -190,6 +190,76 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "apps/runner/src/protocol/**",
+        "apps/runner/src/execution/**",
+        "apps/runner/src/workspace/**",
+        "apps/runner/src/agent/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@swc/core": "Use @shipfox/swc instead",
+                  "@swc/cli": "Use @shipfox/swc instead",
+                  "@biomejs/biome": "Use @shipfox/biome instead",
+                  "typescript": "Use @shipfox/typescript instead",
+                  "vitest": "Use @shipfox/vitest instead",
+                  "@shipfox/node-log": "Use @shipfox/node-opentelemetry logger instead"
+                },
+                "patterns": [
+                  {
+                    "group": ["./core/**", "../core/**", "../../core/**", "../../../core/**"],
+                    "message": "Use #core/ instead of relative path for cross-domain imports"
+                  },
+                  {
+                    "group": ["./db/**", "../db/**", "../../db/**", "../../../db/**"],
+                    "message": "Use #db/ instead of relative path for cross-domain imports"
+                  },
+                  {
+                    "group": [
+                      "./presentation/**",
+                      "../presentation/**",
+                      "../../presentation/**",
+                      "../../../presentation/**"
+                    ],
+                    "message": "Use #presentation/ instead of relative path for cross-domain imports"
+                  },
+                  {
+                    "group": ["../hooks/**", "../../hooks/**", "../../../hooks/**"],
+                    "message": "Use #hooks/ instead of relative path for hooks imports"
+                  },
+                  {
+                    "group": ["../state/**", "../../state/**", "../../../state/**"],
+                    "message": "Use #state/ instead of relative path for state imports"
+                  },
+                  {
+                    "group": ["../components/**", "../../components/**", "../../../components/**"],
+                    "message": "Use #components/ instead of relative path for components imports"
+                  },
+                  {
+                    "group": ["../src/**", "../../src/**", "../../../src/**"],
+                    "message": "Use # instead of relative path for src imports"
+                  },
+                  {
+                    "group": ["../test/**", "../../test/**", "../../../test/**"],
+                    "message": "Use #test/ instead of relative path for test imports"
+                  },
+                  {
+                    "group": ["#orchestration/**"],
+                    "message": "Lower layers (protocol/execution/workspace/agent) must not import orchestration; the dependency points the other way."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

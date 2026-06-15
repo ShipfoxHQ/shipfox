@@ -2,7 +2,7 @@ import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, join} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
-import {executeRunStep} from '#run-step.js';
+import {executeRunStep} from '#execution/run-step.js';
 
 const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
 const ESRCH_REGEX = /ESRCH/;

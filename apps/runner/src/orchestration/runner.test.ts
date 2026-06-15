@@ -8,37 +8,37 @@ vi.mock('#config.js', () => ({
   },
 }));
 
-vi.mock('#heartbeat-loop.js', () => ({
+vi.mock('#orchestration/heartbeat-loop.js', () => ({
   startHeartbeatLoop: vi.fn(() => ({stop: vi.fn()})),
 }));
 
-vi.mock('#workspace.js', async (importActual) => ({
-  ...(await importActual<typeof import('#workspace.js')>()),
+vi.mock('#workspace/workspace.js', async (importActual) => ({
+  ...(await importActual<typeof import('#workspace/workspace.js')>()),
   jobWorkspacePath: vi.fn(),
   cleanupWorkspace: vi.fn(),
   resolveWorkspaceRoot: vi.fn(),
 }));
 
-vi.mock('#step-loop.js', () => ({
+vi.mock('#agent/step-loop.js', () => ({
   runJobSteps: vi.fn(),
 }));
 
-vi.mock('#api-client.js', () => ({
+vi.mock('#protocol/api-client.js', () => ({
   requestJob: vi.fn(),
   createLeaseClient: vi.fn(() => ({}) as never),
   HTTPError: class HTTPError extends Error {},
 }));
 
-import {createLeaseClient, requestJob} from '#api-client.js';
-import {runJob, startRunner} from '#runner.js';
-import {runJobSteps} from '#step-loop.js';
+import {runJobSteps} from '#agent/step-loop.js';
+import {runJob, startRunner} from '#orchestration/runner.js';
+import {createLeaseClient, requestJob} from '#protocol/api-client.js';
 import {
   cleanupWorkspace,
   InvalidJobIdError,
   jobWorkspacePath,
   resolveWorkspaceRoot,
   UnsafeWorkspaceRootError,
-} from '#workspace.js';
+} from '#workspace/workspace.js';
 
 const mockJobWorkspacePath = vi.mocked(jobWorkspacePath);
 const mockCleanupWorkspace = vi.mocked(cleanupWorkspace);

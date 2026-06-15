@@ -6,21 +6,21 @@ const reportStepMock = vi.fn();
 const executeRunStepMock = vi.fn();
 const executeSetupStepMock = vi.fn();
 
-vi.mock('#api-client.js', () => ({
+vi.mock('#protocol/api-client.js', () => ({
   requestNextStep: (...args: unknown[]) => requestNextStepMock(...args),
   reportStep: (...args: unknown[]) => reportStepMock(...args),
   HTTPError,
 }));
 
-vi.mock('#run-step.js', () => ({
+vi.mock('#execution/run-step.js', () => ({
   executeRunStep: (...args: unknown[]) => executeRunStepMock(...args),
 }));
 
-vi.mock('#setup-step.js', () => ({
+vi.mock('#execution/setup-step.js', () => ({
   executeSetupStep: (...args: unknown[]) => executeSetupStepMock(...args),
 }));
 
-const {runJobSteps} = await import('#step-loop.js');
+const {runJobSteps} = await import('#agent/step-loop.js');
 
 const JOB_ID = '00000000-0000-0000-0000-0000000000aa';
 const leaseClient = {} as never;

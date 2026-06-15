@@ -8,7 +8,7 @@ import {
   jobWorkspacePath,
   resolveWorkspaceRoot,
   UnsafeWorkspaceRootError,
-} from '#workspace.js';
+} from '#workspace/workspace.js';
 
 describe('resolveWorkspaceRoot', () => {
   it('returns the configured root when set', () => {

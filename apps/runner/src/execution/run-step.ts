@@ -5,18 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {StepDto, StepErrorDtoShape} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
-
-export interface StepResult {
-  success: boolean;
-  // Captured stdout/stderr for runner-side observability and tests (the
-  // grandchild-PID extraction in run-step.test.ts depends on this). Never sent
-  // to the API: per-step logs are a separate concern (future S3-backed logs).
-  output: string;
-  // Populated when success is false. Null on success.
-  error: StepErrorDtoShape;
-  // 0 on success, the exit code on failure, null when signal-killed or never spawned.
-  exit_code: number | null;
-}
+import type {StepResult} from '#execution/step-result.js';
 
 const MAX_OUTPUT_BYTES = 1024 * 1024; // 1MB
 

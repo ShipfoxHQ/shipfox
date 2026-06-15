@@ -1,14 +1,15 @@
 // Exercises the real api-client (the mocked step-loop tests can't) to prove claim/heartbeat
 // use the runner token and step calls use the lease token. SHIPFOX_API_URL comes from
 // test/env.ts (setupFiles), loaded before config is imported.
+
+import {config} from '#config.js';
 import {
   createLeaseClient,
   heartbeat,
   reportStep,
   requestJob,
   requestNextStep,
-} from '#api-client.js';
-import {config} from '#config.js';
+} from '#protocol/api-client.js';
 
 const JOB_ID = crypto.randomUUID();
 const RUN_ID = crypto.randomUUID();

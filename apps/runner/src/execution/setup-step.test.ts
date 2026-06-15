@@ -1,9 +1,9 @@
-vi.mock('#workspace.js', () => ({
+vi.mock('#workspace/workspace.js', () => ({
   createJobDir: vi.fn(),
 }));
 
-import {executeSetupStep} from '#setup-step.js';
-import {createJobDir} from '#workspace.js';
+import {executeSetupStep} from '#execution/setup-step.js';
+import {createJobDir} from '#workspace/workspace.js';
 
 const mockCreateJobDir = vi.mocked(createJobDir);
 
