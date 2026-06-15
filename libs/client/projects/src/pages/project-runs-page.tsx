@@ -1,8 +1,10 @@
 import type {RunDto, RunStatusDto} from '@shipfox/api-workflows-dto';
+import {QueryLoadError} from '@shipfox/client-ui';
 import {
   Alert,
   Button,
   Combobox,
+  EmptyState,
   Header,
   Select,
   SelectContent,
@@ -96,21 +98,11 @@ function ProjectRunsPageInner({projectId}: {projectId: string}) {
 
       {runsQuery.isPending ? <RunsSkeleton /> : null}
 
-      {runsQuery.isError && runs.length === 0 ? (
-        <Alert variant="error" animated={false}>
-          <div className="flex flex-col gap-8">
-            <Text size="sm" bold>
-              Runs unavailable
-            </Text>
-            <Text size="sm">Workflow runs could not be loaded.</Text>
-            <Button size="sm" variant="secondary" onClick={() => runsQuery.refetch()}>
-              Retry
-            </Button>
-          </div>
-        </Alert>
+      {runsQuery.isError && runsQuery.data === undefined ? (
+        <QueryLoadError query={runsQuery} subject="runs" />
       ) : null}
 
-      {!runsQuery.isPending && !runsQuery.isError && runs.length === 0 ? (
+      {runsQuery.data !== undefined && runs.length === 0 ? (
         <RunsEmptyState
           workspaceId={params.wid ?? ''}
           projectId={projectId}
@@ -308,37 +300,35 @@ function RunsEmptyState({
 }) {
   if (filtered) {
     return (
-      <div className="rounded-8 border border-border-neutral-base bg-background-neutral-subtle px-14 py-18">
-        <Text size="sm" bold>
-          No matching runs
-        </Text>
-        <Text size="sm" className="mt-4 text-foreground-neutral-muted">
-          No workflow runs match the current filters.
-        </Text>
-        <Button size="sm" variant="secondary" className="mt-12" onClick={onClear}>
-          Clear filters
-        </Button>
-      </div>
+      <EmptyState
+        icon="filterOffLine"
+        title="No matching runs"
+        description="No workflow runs match the current filters."
+        action={
+          <Button size="sm" variant="secondary" onClick={onClear}>
+            Clear filters
+          </Button>
+        }
+      />
     );
   }
 
   return (
-    <div className="rounded-8 border border-border-neutral-base bg-background-neutral-subtle px-14 py-18">
-      <Text size="sm" bold>
-        No runs yet
-      </Text>
-      <Text size="sm" className="mt-4 text-foreground-neutral-muted">
-        Open the Workflows tab and click Run on a definition.
-      </Text>
-      <Button asChild size="sm" variant="secondary" className="mt-12">
-        <Link
-          to="/workspaces/$wid/projects/$pid/workflows"
-          params={{wid: workspaceId, pid: projectId}}
-        >
-          Workflows
-        </Link>
-      </Button>
-    </div>
+    <EmptyState
+      icon="pulseLine"
+      title="No runs yet"
+      description="Open the Workflows tab and click Run on a definition."
+      action={
+        <Button asChild size="sm" variant="secondary">
+          <Link
+            to="/workspaces/$wid/projects/$pid/workflows"
+            params={{wid: workspaceId, pid: projectId}}
+          >
+            Workflows
+          </Link>
+        </Button>
+      }
+    />
   );
 }
 

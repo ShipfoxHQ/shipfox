@@ -1,12 +1,15 @@
 import type {DefinitionDto, DefinitionSyncSummaryDto} from '@shipfox/api-definitions-dto';
 import {ApiError} from '@shipfox/client-api';
+import {QueryLoadError} from '@shipfox/client-ui';
 import {
   Alert,
   Button,
   Code,
+  EmptyState,
   Header,
   Icon,
   type IconName,
+  LoadErrorState,
   Sheet,
   SheetBody,
   SheetContent,
@@ -29,7 +32,6 @@ import {useDefinitionsInfiniteQuery} from '#hooks/api/definitions.js';
 import {useProjectQuery} from '#hooks/api/projects.js';
 import {useFireManualWorkflowMutation} from '#hooks/api/workflow-runs.js';
 import {RelativeTime, RelativeTimeProvider} from '#lib/relative-time.js';
-import {projectErrorCopy} from '#project-error.js';
 
 export function ProjectWorkflowsPage({projectId}: {projectId: string}) {
   return (
@@ -45,7 +47,6 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
   const fireManual = useFireManualWorkflowMutation();
   const [selectedDefinition, setSelectedDefinition] = useState<DefinitionDto | null>(null);
   const [runError, setRunError] = useState<{definitionId: string; message: string} | null>(null);
-  const errorCopy = projectQuery.error ? projectErrorCopy(projectQuery.error) : undefined;
   const definitions = definitionsQuery.data?.pages.flatMap((page) => page.definitions) ?? [];
   const sync = definitionsQuery.data?.pages[0]?.sync;
 
@@ -71,24 +72,16 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
         </div>
       ) : null}
 
-      {projectQuery.isError ? (
-        <Alert variant="error" animated={false}>
-          <div className="flex flex-col gap-8">
-            <Text size="sm" bold>
-              {errorCopy?.title ?? 'Project unavailable'}
-            </Text>
-            <Text size="sm">
-              {projectQuery.error &&
-              'status' in projectQuery.error &&
-              projectQuery.error.status === 404
-                ? 'This project was not found.'
-                : errorCopy?.message}
-            </Text>
-            <Button size="sm" variant="secondary" onClick={() => projectQuery.refetch()}>
-              Retry
-            </Button>
-          </div>
-        </Alert>
+      {projectQuery.isError && projectQuery.data === undefined ? (
+        projectQuery.error instanceof ApiError && projectQuery.error.status === 404 ? (
+          <EmptyState
+            icon="errorWarningLine"
+            title="Project not found"
+            description="This project doesn't exist, or you don't have access to it."
+          />
+        ) : (
+          <QueryLoadError query={projectQuery} subject="project" />
+        )
       ) : null}
 
       {projectQuery.data ? (
@@ -184,17 +177,12 @@ function WorkflowDefinitionsList({
 
   if (isError && definitions.length === 0) {
     return (
-      <Alert variant="error" animated={false}>
-        <div className="flex flex-col gap-8">
-          <Text size="sm" bold>
-            Workflows unavailable
-          </Text>
-          <Text size="sm">Definitions could not be loaded. Source metadata remains visible.</Text>
-          <Button size="sm" variant="secondary" onClick={onRetry}>
-            Retry
-          </Button>
-        </div>
-      </Alert>
+      <LoadErrorState
+        title="Couldn't load workflows"
+        description="Definitions could not be loaded. Source metadata remains visible."
+        onRetry={onRetry}
+        retryLabel="Retry loading workflows"
+      />
     );
   }
 
@@ -364,16 +352,7 @@ function WorkflowEmptyState({sync}: {sync: DefinitionSyncSummaryDto | null}) {
             ? 'No workflow definitions found.'
             : 'Workflow sync has not reported yet.';
 
-  return (
-    <div className="rounded-8 border border-border-neutral-base bg-background-neutral-subtle px-14 py-18">
-      <Text size="sm" bold>
-        No workflows
-      </Text>
-      <Text size="sm" className="mt-4 text-foreground-neutral-muted">
-        {message}
-      </Text>
-    </div>
-  );
+  return <EmptyState icon="flowChart" title="No workflows" description={message} />;
 }
 
 function WorkflowSyncAlert({sync}: {sync: DefinitionSyncSummaryDto | null | undefined}) {

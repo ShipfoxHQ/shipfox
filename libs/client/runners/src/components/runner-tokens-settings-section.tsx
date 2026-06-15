@@ -1,6 +1,6 @@
 import type {CreateRunnerTokenResponseDto} from '@shipfox/api-runners-dto';
+import {QueryLoadError} from '@shipfox/client-ui';
 import {
-  Alert,
   Button,
   Header,
   Icon,
@@ -15,7 +15,6 @@ import {
 import {useState} from 'react';
 import {useRunnerTokensQuery} from '#hooks/api/runner-tokens.js';
 import {CreatedRunnerTokenPanel, CreateRunnerTokenForm} from './create-runner-token-form.js';
-import {runnerTokenErrorMessage} from './runner-token-errors.js';
 import {EmptyRunnerTokens, RunnerTokenList, RunnerTokenTableSkeleton} from './runner-token-list.js';
 
 export function WorkspaceRunnerTokensSettingsSection({workspaceId}: {workspaceId: string}) {
@@ -78,27 +77,13 @@ export function WorkspaceRunnerTokensSettingsSection({workspaceId}: {workspaceId
 
         {tokensQuery.isPending ? <RunnerTokenTableSkeleton /> : null}
 
-        {tokensQuery.isError ? (
-          <Alert variant="error" animated={false}>
-            <div className="flex flex-col gap-8">
-              <Text size="sm" bold>
-                Could not load tokens
-              </Text>
-              <Text size="sm">{runnerTokenErrorMessage(tokensQuery.error)}</Text>
-              <Button size="sm" variant="secondary" onClick={() => tokensQuery.refetch()}>
-                Retry
-              </Button>
-            </div>
-          </Alert>
+        {tokensQuery.isError && tokensQuery.data === undefined ? (
+          <QueryLoadError query={tokensQuery} subject="runner tokens" />
         ) : null}
 
-        {!tokensQuery.isPending && !tokensQuery.isError && tokens.length === 0 ? (
-          <EmptyRunnerTokens />
-        ) : null}
+        {tokensQuery.data !== undefined && tokens.length === 0 ? <EmptyRunnerTokens /> : null}
 
-        {!tokensQuery.isError && tokens.length > 0 ? (
-          <RunnerTokenList workspaceId={workspaceId} tokens={tokens} />
-        ) : null}
+        {tokens.length > 0 ? <RunnerTokenList workspaceId={workspaceId} tokens={tokens} /> : null}
       </section>
     </div>
   );

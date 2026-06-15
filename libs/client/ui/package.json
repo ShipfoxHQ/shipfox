@@ -1,11 +1,11 @@
 {
-  "name": "@shipfox/client-runners",
+  "name": "@shipfox/client-ui",
   "license": "MIT",
-  "version": "0.0.2",
+  "version": "0.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/platform.git",
-    "directory": "libs/client/runners"
+    "directory": "libs/client/ui"
   },
   "private": true,
   "type": "module",
@@ -36,13 +36,9 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/api-runners-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
-    "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
-    "@swc/helpers": "^0.5.17",
-    "@tanstack/react-form": "^1.32.0",
-    "@tanstack/react-query": "^5.101.0"
+    "@swc/helpers": "^0.5.17"
   },
   "peerDependencies": {
     "react": "^19.0.0",

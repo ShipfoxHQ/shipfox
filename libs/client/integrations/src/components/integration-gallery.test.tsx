@@ -254,14 +254,16 @@ describe('IntegrationGallery — installed section', () => {
     expect(await screen.findByText('acme-corp')).toBeVisible();
     expect(within(installedRegion()).getByText(ADDED_META_RE)).toBeVisible();
     expect(screen.getByRole('link', {name: 'Open acme-corp in github'})).toBeInTheDocument();
-    expect(within(availableRegion()).getByText('Could not load providers')).toBeInTheDocument();
+    expect(
+      within(availableRegion()).getByText("Couldn't load available integrations"),
+    ).toBeInTheDocument();
   });
 
   test('surfaces a connections error only in the installed section (settings context)', async () => {
     renderGallery({}, {connectionsFail: true});
 
-    expect(await screen.findByText('Could not load connections')).toBeInTheDocument();
-    expect(screen.queryByText('Could not load providers')).not.toBeInTheDocument();
+    expect(await screen.findByText("Couldn't load integrations")).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load available integrations")).not.toBeInTheDocument();
     expect(within(availableRegion()).getByRole('link', {name: 'Connect GitHub'})).toBeVisible();
   });
 
@@ -286,7 +288,7 @@ describe('IntegrationGallery — onboarding suppression', () => {
 
     await screen.findByRole('region', {name: 'Available integrations'});
     await waitFor(() =>
-      expect(screen.queryByText('Could not load connections')).not.toBeInTheDocument(),
+      expect(screen.queryByText("Couldn't load integrations")).not.toBeInTheDocument(),
     );
 
     expect(screen.queryByRole('region', {name: 'Installed integrations'})).not.toBeInTheDocument();
@@ -331,8 +333,8 @@ describe('IntegrationGallery — available section', () => {
   test('surfaces a providers error only in the available section', async () => {
     renderGallery({}, {providersFail: true, connections: [githubConnection]});
 
-    expect(await screen.findByText('Could not load providers')).toBeInTheDocument();
-    expect(screen.queryByText('Could not load connections')).not.toBeInTheDocument();
+    expect(await screen.findByText("Couldn't load available integrations")).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load integrations")).not.toBeInTheDocument();
   });
 
   test('skips providers with no catalog entry', async () => {

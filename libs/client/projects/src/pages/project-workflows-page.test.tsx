@@ -40,7 +40,7 @@ describe('ProjectWorkflowsPage', () => {
       <ProjectWorkflowsPage projectId={PROJECT_ID} />,
     );
 
-    expect(await screen.findByText('Workflows unavailable')).toBeInTheDocument();
+    expect(await screen.findByText("Couldn't load workflows")).toBeInTheDocument();
     // SyncBadge in the strip falls back to Unavailable when sync is undefined
     // (definitions errored before providing one).
     expect(screen.getByText('Unavailable')).toBeInTheDocument();
@@ -139,7 +139,7 @@ describe('ProjectWorkflowsPage', () => {
       <ProjectWorkflowsPage projectId={PROJECT_ID} />,
     );
 
-    expect(await screen.findByText('This project was not found.')).toBeInTheDocument();
+    expect(await screen.findByText('Project not found')).toBeInTheDocument();
   });
 });
 

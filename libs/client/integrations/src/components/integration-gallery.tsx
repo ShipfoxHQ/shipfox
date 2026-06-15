@@ -4,14 +4,14 @@ import type {
   IntegrationConnectionLifecycleStatusDto,
   IntegrationProviderDto,
 } from '@shipfox/api-integration-core-dto';
-import {ApiError} from '@shipfox/client-api';
 import {useActiveWorkspace} from '@shipfox/client-auth';
+import {QueryLoadError} from '@shipfox/client-ui';
 import {
-  Alert,
   Badge,
   Button,
   Card,
   cn,
+  EmptyState,
   Header,
   Icon,
   type IconName,
@@ -106,33 +106,20 @@ export function IntegrationGallery({
 
           {connectionsQuery.isPending ? <InstalledSkeleton label="Loading integrations" /> : null}
 
-          {connectionsQuery.isError ? (
-            <Alert variant="error">
-              <div className="flex flex-col gap-8">
-                <Text size="sm" bold>
-                  Could not load connections
-                </Text>
-                <Text size="sm">
-                  {connectionsQuery.error instanceof ApiError
-                    ? connectionsQuery.error.message
-                    : 'Please try again.'}
-                </Text>
-                <Button size="sm" variant="secondary" onClick={() => connectionsQuery.refetch()}>
-                  Retry
-                </Button>
-              </div>
-            </Alert>
+          {connectionsQuery.isError && connectionsQuery.data === undefined ? (
+            <div className={cn(SURFACE_CLASS, 'px-16')}>
+              <QueryLoadError query={connectionsQuery} subject="integrations" />
+            </div>
           ) : null}
 
-          {!connectionsQuery.isPending && !connectionsQuery.isError && !hasConnections ? (
-            <Card className="items-start gap-8 p-16">
-              <Text size="sm" bold>
-                No integrations connected yet
-              </Text>
-              <Text size="sm" className="text-foreground-neutral-muted">
-                Connect a provider below to get started.
-              </Text>
-            </Card>
+          {connectionsQuery.data !== undefined && !hasConnections ? (
+            <div className={cn(SURFACE_CLASS, 'px-16')}>
+              <EmptyState
+                icon="componentLine"
+                title="No integrations connected yet"
+                description="Connect a provider below to get started."
+              />
+            </div>
           ) : null}
 
           {hasConnections ? (
@@ -154,35 +141,20 @@ export function IntegrationGallery({
 
         {providersQuery.isPending ? <AvailableSkeleton label="Loading providers" /> : null}
 
-        {providersQuery.isError ? (
-          <Alert variant="error">
-            <div className="flex flex-col gap-8">
-              <Text size="sm" bold>
-                Could not load providers
-              </Text>
-              <Text size="sm">
-                {providersQuery.error instanceof ApiError
-                  ? providersQuery.error.message
-                  : 'Please try again.'}
-              </Text>
-              <Button size="sm" variant="secondary" onClick={() => providersQuery.refetch()}>
-                Retry
-              </Button>
-            </div>
-          </Alert>
+        {providersQuery.isError && providersQuery.data === undefined ? (
+          <div className={cn(SURFACE_CLASS, 'px-16')}>
+            <QueryLoadError query={providersQuery} subject="available integrations" />
+          </div>
         ) : null}
 
-        {!providersQuery.isPending &&
-        !providersQuery.isError &&
-        installableProviders.length === 0 ? (
-          <Card className="items-start gap-8 p-16">
-            <Text size="sm" bold>
-              No providers available
-            </Text>
-            <Text size="sm" className="text-foreground-neutral-muted">
-              {emptyProvidersMessage}
-            </Text>
-          </Card>
+        {providersQuery.data !== undefined && installableProviders.length === 0 ? (
+          <div className={cn(SURFACE_CLASS, 'px-16')}>
+            <EmptyState
+              icon="componentLine"
+              title="No integrations available"
+              description={emptyProvidersMessage}
+            />
+          </div>
         ) : null}
 
         {installableProviders.length > 0 ? (

@@ -44,6 +44,7 @@
     "@shipfox/client-api": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/client-integrations": "workspace:*",
+    "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",
     "@tanstack/react-query": "^5.101.0",

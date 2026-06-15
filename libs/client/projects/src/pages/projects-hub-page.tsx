@@ -1,14 +1,13 @@
 import type {ProjectResponseDto} from '@shipfox/api-projects-dto';
 import {useActiveWorkspace} from '@shipfox/client-auth';
+import {QueryLoadError} from '@shipfox/client-ui';
 import {
   Alert,
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Code,
+  EmptyState,
   Header,
   Icon,
   Input,
@@ -19,7 +18,6 @@ import {
 import {Link} from '@tanstack/react-router';
 import {useEffect, useState} from 'react';
 import {useProjectsInfiniteQuery} from '#hooks/api/projects.js';
-import {projectErrorCopy} from '#project-error.js';
 
 export function ProjectsHubPage() {
   const workspace = useActiveWorkspace();
@@ -28,7 +26,6 @@ export function ProjectsHubPage() {
   const debouncedSearch = useDebouncedValue(trimmedInput, 250);
   const query = useProjectsInfiniteQuery(workspace.id, debouncedSearch || undefined);
   const projects = query.data?.pages.flatMap((page) => page.projects) ?? [];
-  const errorCopy = query.error ? projectErrorCopy(query.error) : undefined;
 
   const isInitialLoading = query.isPending;
   const isDebouncePending = trimmedInput !== debouncedSearch;
@@ -74,19 +71,7 @@ export function ProjectsHubPage() {
         <ProjectsSkeleton />
       ) : null}
 
-      {query.isError && hasNoData ? (
-        <Alert variant="error">
-          <div className="flex flex-col gap-8">
-            <Text size="sm" bold>
-              {errorCopy?.title}
-            </Text>
-            <Text size="sm">{errorCopy?.message}</Text>
-            <Button size="sm" variant="secondary" onClick={() => query.refetch()}>
-              Retry
-            </Button>
-          </div>
-        </Alert>
-      ) : null}
+      {query.isError && hasNoData ? <QueryLoadError query={query} subject="projects" /> : null}
 
       {!isInitialLoading && !query.isError && projects.length === 0 && !debouncedSearch ? (
         <EmptyProjects workspaceId={workspace.id} />
@@ -104,7 +89,7 @@ export function ProjectsHubPage() {
             ))}
           </ul>
           {query.error && query.data ? (
-            <Alert variant="warning" className="mt-16">
+            <Alert variant="error" className="mt-16">
               <Text size="sm">
                 Could not load the next page. Existing projects are still shown.
               </Text>
@@ -160,39 +145,33 @@ function ProjectsSkeleton() {
 
 function EmptyProjects({workspaceId}: {workspaceId: string}) {
   return (
-    <Card className="items-center gap-18 p-32 text-center">
-      <div className="flex size-44 items-center justify-center rounded-8 border border-border-neutral-base bg-background-neutral-base">
-        <Icon name="folderLine" className="size-24 text-background-highlight-interactive" />
-      </div>
-      <CardHeader className="items-center">
-        <CardTitle variant="h2">Create your first project</CardTitle>
-        <CardDescription>
-          Connect a repository-backed project to start building workflows.
-        </CardDescription>
-      </CardHeader>
-      <Button asChild iconRight="chevronRight">
-        <Link to="/workspaces/$wid/projects/new" params={{wid: workspaceId}}>
-          Create project
-        </Link>
-      </Button>
-    </Card>
+    <EmptyState
+      icon="folderLine"
+      title="Create your first project"
+      description="Connect a repository-backed project to start building workflows."
+      action={
+        <Button asChild iconRight="chevronRight">
+          <Link to="/workspaces/$wid/projects/new" params={{wid: workspaceId}}>
+            Create project
+          </Link>
+        </Button>
+      }
+    />
   );
 }
 
 function NoSearchResults({search, onClear}: {search: string; onClear: () => void}) {
   return (
-    <Card className="items-center gap-18 p-32 text-center">
-      <div className="flex size-44 items-center justify-center rounded-8 border border-border-neutral-base bg-background-neutral-base">
-        <Icon name="searchLine" className="size-24 text-foreground-neutral-muted" />
-      </div>
-      <CardHeader className="items-center">
-        <CardTitle variant="h3">No projects match “{search}”</CardTitle>
-        <CardDescription>Try a different search, or clear it to see all projects.</CardDescription>
-      </CardHeader>
-      <Button size="sm" variant="secondary" onClick={onClear}>
-        Clear search
-      </Button>
-    </Card>
+    <EmptyState
+      icon="searchLine"
+      title={`No projects match “${search}”`}
+      description="Try a different search, or clear it to see all projects."
+      action={
+        <Button size="sm" variant="secondary" onClick={onClear}>
+          Clear search
+        </Button>
+      }
+    />
   );
 }
 
