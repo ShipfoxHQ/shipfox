@@ -18,6 +18,7 @@ export {
   bulkUpdateStepStatuses,
   createWorkflowRun,
   failJobAsTimedOut,
+  getJobById,
   getJobsByRunId,
   getStepAttempts,
   getStepAttemptsByJobIds,

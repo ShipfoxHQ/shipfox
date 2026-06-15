@@ -1,6 +1,7 @@
 import {ClientError} from '@shipfox/node-fastify';
 import {
   IntegrationCapabilityUnavailableError,
+  IntegrationCheckoutUnsupportedError,
   IntegrationConnectionInactiveError,
   IntegrationConnectionNotFoundError,
   IntegrationConnectionWorkspaceMismatchError,
@@ -48,6 +49,9 @@ export function integrationRouteErrorHandler(error: unknown): never {
   }
   if (error instanceof IntegrationCapabilityUnavailableError) {
     throw new ClientError(error.message, 'integration-capability-unavailable', {status: 422});
+  }
+  if (error instanceof IntegrationCheckoutUnsupportedError) {
+    throw new ClientError(error.message, 'integration-checkout-unsupported', {status: 422});
   }
   if (isProviderError(error)) {
     throw new ClientError(error.message, error.reason, {

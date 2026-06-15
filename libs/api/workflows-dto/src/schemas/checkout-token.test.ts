@@ -34,6 +34,15 @@ describe('checkoutTokenResponseSchema', () => {
     expect(result).toEqual(basicResponse);
   });
 
+  it('accepts a credential-free response with no auth (debug provider)', () => {
+    const input = {repository_url: 'https://github.com/acme/repo.git', ref: 'main'};
+
+    const result = checkoutTokenResponseSchema.parse(input);
+
+    expect(result).toEqual(input);
+    expect(result.auth).toBeUndefined();
+  });
+
   it('rejects basic auth missing a username', () => {
     const {username: _username, ...basicAuthWithoutUsername} = basicResponse.auth;
     const input = {...basicResponse, auth: basicAuthWithoutUsername};
@@ -67,7 +76,7 @@ describe('checkoutTokenResponseSchema', () => {
 
     const result = checkoutTokenResponseSchema.parse(input);
 
-    expect(result.auth.expires_at).toBe('2026-06-10T12:00:00.000Z');
+    expect(result.auth?.expires_at).toBe('2026-06-10T12:00:00.000Z');
   });
 
   it('accepts an offset (non-Z) expires_at', () => {
@@ -78,7 +87,7 @@ describe('checkoutTokenResponseSchema', () => {
 
     const result = checkoutTokenResponseSchema.parse(input);
 
-    expect(result.auth.expires_at).toBe('2026-06-10T12:00:00+02:00');
+    expect(result.auth?.expires_at).toBe('2026-06-10T12:00:00+02:00');
   });
 
   it('rejects an empty token', () => {

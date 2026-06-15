@@ -1,5 +1,6 @@
 import {AUTH_LEASED_JOB, AUTH_USER} from '@shipfox/api-auth-context';
 import type {RouteGroup} from '@shipfox/node-fastify';
+import {checkoutTokenRoute} from './checkout-token.js';
 import {getRunRoute} from './get-run.js';
 import {getRunAggregatesRoute} from './get-run-aggregates.js';
 import {listRunsRoute} from './list-runs.js';
@@ -10,7 +11,7 @@ export const leaseTokenRouteGroup: RouteGroup = {
   // The lease token names the job, so the path carries no job id ("current").
   prefix: '/runs/jobs/current',
   auth: AUTH_LEASED_JOB,
-  routes: [nextStepRoute, reportStepRoute],
+  routes: [nextStepRoute, reportStepRoute, checkoutTokenRoute],
 };
 
 export const workflowRoutes: RouteGroup[] = [

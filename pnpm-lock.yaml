@@ -1477,6 +1477,9 @@ importers:
       '@shipfox/api-definitions':
         specifier: workspace:*
         version: link:../definitions
+      '@shipfox/api-integration-core':
+        specifier: workspace:*
+        version: link:../integration/core
       '@shipfox/api-projects':
         specifier: workspace:*
         version: link:../projects
@@ -1529,6 +1532,9 @@ importers:
       '@shipfox/node-jwt':
         specifier: workspace:*
         version: link:../../shared/node/jwt
+      '@shipfox/node-log':
+        specifier: workspace:*
+        version: link:../../shared/node/log
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc

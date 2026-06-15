@@ -304,6 +304,13 @@ export async function getJobsByRunId(runId: string): Promise<Job[]> {
   return rows.map(toJob);
 }
 
+export async function getJobById(id: string): Promise<Job | undefined> {
+  const rows = await db().select().from(jobs).where(eq(jobs.id, id)).limit(1);
+  const row = rows[0];
+  if (!row) return undefined;
+  return toJob(row);
+}
+
 export async function getStepsByJobId(jobId: string): Promise<Step[]> {
   const rows = await db()
     .select()
