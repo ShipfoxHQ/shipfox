@@ -136,7 +136,7 @@ via the admin panel, preventing starvation for other tenants.
 Considered a global queue with fair-scheduling, but per-org limits are
 simpler to reason about and easier to tune per customer.
 
-Refs LINEAR-123
+Closes LINEAR-123
 ```
 
 ### Bug Fix PR
@@ -164,15 +164,27 @@ Prepares for adding rate-limiting per token in LINEAR-789.
 
 ## Issue References
 
-Reference Linear tickets in the PR body:
+Reference Linear tickets in the PR body. Linear's
+[magic words](https://linear.app/docs/github#link-through-pull-requests) decide
+whether merging closes the ticket.
 
-| Syntax             | Effect                                   |
-| ------------------ | ---------------------------------------- |
-| `Fixes LINEAR-123` | Links and signals the ticket is resolved |
-| `Refs LINEAR-123`  | Links without closing                    |
+**Default to a closing keyword.** If merging the PR completes the ticket's work,
+use `Closes` / `Fixes` / `Resolves` so it moves to Done. Only use a non-closing
+keyword (`Refs`, `Part of`, `Related to`) when the PR is partial work that
+leaves the ticket open.
 
-If a ticket is referenced in the user request, command arguments, or branch
-name, include the appropriate reference in the PR body.
+| Keywords                        | Effect on merge                 |
+| ------------------------------- | ------------------------------- |
+| `Closes`, `Fixes`, `Resolves`   | Links **and** closes the ticket |
+| `Refs`, `Part of`, `Related to` | Links without closing           |
+
+```markdown
+Closes LINEAR-123
+```
+
+Include a reference whenever a ticket is named in the request, arguments, or
+branch name. When unsure whether the PR fully resolves it, ask rather than
+defaulting to `Refs`.
 
 ## Guidelines
 
