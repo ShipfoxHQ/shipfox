@@ -4,6 +4,9 @@ import {sentryIssueActionSchema} from '@shipfox/api-integration-sentry-dto';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {eq} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
+import type {SentryApiClient} from '#api/client.js';
+import {SentryIntegrationProviderError} from '#core/errors.js';
+import {hashAuthorizationCode} from '#core/install.js';
 import {db} from '#db/db.js';
 import {sentryInstallations} from '#db/schema/installations.js';
 import {
@@ -15,6 +18,17 @@ import {createSentryWebhookRoutes} from './webhooks.js';
 
 const CLIENT_SECRET = 'test-client-secret';
 const URL = '/webhooks/integrations/sentry';
+
+function sentryClient(overrides: Partial<SentryApiClient> = {}): SentryApiClient {
+  return {
+    exchangeAuthorizationCode: vi.fn(() =>
+      Promise.resolve({token: 'tok', refreshToken: 'refresh', expiresAt: 'x'}),
+    ),
+    getInstallation: vi.fn(() => Promise.resolve({orgSlug: 'acme'})),
+    verifyInstallation: vi.fn(() => Promise.resolve()),
+    ...overrides,
+  };
+}
 
 // The route persists through injected core functions (publishIntegrationEventReceived,
 // recordDeliveryOnly, getIntegrationConnectionById, updateConnectionLifecycleStatus)
@@ -40,20 +54,25 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
 
 interface TestApp {
   app: FastifyInstance;
+  sentry: SentryApiClient;
   publishIntegrationEventReceived: ReturnType<typeof vi.fn>;
   recordDeliveryOnly: ReturnType<typeof vi.fn>;
   getIntegrationConnectionById: ReturnType<typeof vi.fn>;
   updateConnectionLifecycleStatus: ReturnType<typeof vi.fn>;
 }
 
-async function createTestApp(options: {connection?: IntegrationConnection} = {}): Promise<TestApp> {
+async function createTestApp(
+  options: {connection?: IntegrationConnection; sentry?: SentryApiClient} = {},
+): Promise<TestApp> {
   const publishIntegrationEventReceived = vi.fn(() => Promise.resolve({published: true}));
   const recordDeliveryOnly = vi.fn(() => Promise.resolve());
   const getIntegrationConnectionById = vi.fn(() =>
     Promise.resolve(options.connection ?? fakeConnection()),
   );
   const updateConnectionLifecycleStatus = vi.fn(() => Promise.resolve(undefined));
+  const sentry = options.sentry ?? sentryClient();
   const routes = createSentryWebhookRoutes({
+    sentry,
     coreDb: db,
     publishIntegrationEventReceived,
     recordDeliveryOnly,
@@ -64,6 +83,7 @@ async function createTestApp(options: {connection?: IntegrationConnection} = {})
   await app.ready();
   return {
     app,
+    sentry,
     publishIntegrationEventReceived,
     recordDeliveryOnly,
     getIntegrationConnectionById,
@@ -73,12 +93,13 @@ async function createTestApp(options: {connection?: IntegrationConnection} = {})
 
 async function seedInstallation(
   installationUuid: string,
-  options: {connectionId?: string; status?: 'installed' | 'deleted'} = {},
+  options: {connectionId?: string | null; status?: 'installed' | 'deleted'; codeHash?: string} = {},
 ): Promise<void> {
   await sentryInstallationFactory.create({
     installationUuid,
     ...(options.connectionId !== undefined && {connectionId: options.connectionId}),
     ...(options.status !== undefined && {status: options.status}),
+    ...(options.codeHash !== undefined && {codeHash: options.codeHash}),
   });
 }
 
@@ -466,6 +487,29 @@ describe('Sentry webhook route', () => {
     expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
   });
 
+  test('records the delivery only for an issue from a verified-but-unclaimed installation', async () => {
+    const installationUuid = 'install-unclaimed';
+    await seedInstallation(installationUuid, {connectionId: null});
+    const {app, publishIntegrationEventReceived, recordDeliveryOnly, getIntegrationConnectionById} =
+      await createTestApp();
+    const deliveryId = randomUUID();
+    const body = JSON.stringify(
+      sentryIssueWebhookFactory.build({action: 'created', installation: {uuid: installationUuid}}),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: URL,
+      headers: signedHeaders(body, 'issue', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(getIntegrationConnectionById).not.toHaveBeenCalled();
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
+  });
+
   test('records the delivery only for a non-issue, non-installation resource', async () => {
     const {app, publishIntegrationEventReceived, recordDeliveryOnly} = await createTestApp();
     const deliveryId = randomUUID();
@@ -551,7 +595,7 @@ describe('Sentry webhook route', () => {
     const body = JSON.stringify(
       sentryInstallationWebhookFactory.build({
         action: 'deleted',
-        installation: {uuid: installationUuid},
+        data: {installation: {uuid: installationUuid}},
       }),
     );
 
@@ -578,7 +622,7 @@ describe('Sentry webhook route', () => {
     const body = JSON.stringify(
       sentryInstallationWebhookFactory.build({
         action: 'deleted',
-        installation: {uuid: 'never-installed'},
+        data: {installation: {uuid: 'never-installed'}},
       }),
     );
 
@@ -594,13 +638,15 @@ describe('Sentry webhook route', () => {
     expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
   });
 
-  test('installation/created records the delivery and creates no installation row', async () => {
-    const {app, recordDeliveryOnly, updateConnectionLifecycleStatus} = await createTestApp();
+  test('installation/created exchanges the code and persists a verified-unclaimed row', async () => {
+    const installationUuid = 'install-created-webhook';
+    const code = 'grant-code-webhook';
+    const {app, sentry, recordDeliveryOnly} = await createTestApp();
     const deliveryId = randomUUID();
     const body = JSON.stringify(
       sentryInstallationWebhookFactory.build({
         action: 'created',
-        installation: {uuid: 'install-pending'},
+        data: {installation: {uuid: installationUuid, code, organization: {slug: 'acme'}}},
       }),
     );
 
@@ -612,8 +658,95 @@ describe('Sentry webhook route', () => {
     });
 
     expect(res.statusCode).toBe(204);
-    expect(await readInstallation('install-pending')).toBeUndefined();
-    expect(updateConnectionLifecycleStatus).not.toHaveBeenCalled();
+    expect(sentry.exchangeAuthorizationCode).toHaveBeenCalledWith({installationUuid, code});
+    const row = await readInstallation(installationUuid);
+    expect(row?.connectionId).toBeNull();
+    expect(row?.status).toBe('installed');
+    expect(row?.orgSlug).toBe('acme');
+    expect(row?.codeHash).toBe(hashAuthorizationCode(code));
+    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
+  });
+
+  test('installation/created reconciles to a no-op when a row already exists', async () => {
+    const installationUuid = 'install-created-existing';
+    await seedInstallation(installationUuid, {connectionId: null, codeHash: 'pre-existing'});
+    const {app, sentry, recordDeliveryOnly} = await createTestApp();
+    const deliveryId = randomUUID();
+    const body = JSON.stringify(
+      sentryInstallationWebhookFactory.build({
+        action: 'created',
+        data: {
+          installation: {uuid: installationUuid, code: 'new-code', organization: {slug: 'acme'}},
+        },
+      }),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: URL,
+      headers: signedHeaders(body, 'installation', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    // No re-exchange and the stored hash is untouched (no clobber).
+    expect(sentry.exchangeAuthorizationCode).not.toHaveBeenCalled();
+    expect((await readInstallation(installationUuid))?.codeHash).toBe('pre-existing');
+    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
+  });
+
+  test('installation/created without a code records-and-drops without persisting', async () => {
+    const installationUuid = 'install-created-nocode';
+    const {app, sentry, recordDeliveryOnly} = await createTestApp();
+    const deliveryId = randomUUID();
+    // Built literally rather than via the factory: the factory always supplies a
+    // code and Fishery deep-merges, so an override cannot remove it.
+    const body = JSON.stringify({
+      action: 'created',
+      data: {installation: {uuid: installationUuid, organization: {slug: 'acme'}}},
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: URL,
+      headers: signedHeaders(body, 'installation', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(sentry.exchangeAuthorizationCode).not.toHaveBeenCalled();
+    expect(await readInstallation(installationUuid)).toBeUndefined();
+    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
+  });
+
+  test('installation/created records-and-drops when the code exchange fails', async () => {
+    const installationUuid = 'install-created-exchangefail';
+    const {app, recordDeliveryOnly} = await createTestApp({
+      sentry: sentryClient({
+        exchangeAuthorizationCode: vi.fn(() =>
+          Promise.reject(new SentryIntegrationProviderError('access-denied', 'spent')),
+        ),
+      }),
+    });
+    const deliveryId = randomUUID();
+    const body = JSON.stringify(
+      sentryInstallationWebhookFactory.build({
+        action: 'created',
+        data: {
+          installation: {uuid: installationUuid, code: 'spent-code', organization: {slug: 'acme'}},
+        },
+      }),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: URL,
+      headers: signedHeaders(body, 'installation', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(await readInstallation(installationUuid)).toBeUndefined();
     expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
   });
 
@@ -621,7 +754,10 @@ describe('Sentry webhook route', () => {
     const {app, recordDeliveryOnly} = await createTestApp();
     const deliveryId = randomUUID();
     const body = JSON.stringify(
-      sentryInstallationWebhookFactory.build({action: 'suspended', installation: {uuid: 'x'}}),
+      sentryInstallationWebhookFactory.build({
+        action: 'suspended',
+        data: {installation: {uuid: 'x'}},
+      }),
     );
 
     const res = await app.inject({

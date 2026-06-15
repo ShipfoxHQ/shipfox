@@ -137,7 +137,8 @@ describe('SentryCallbackPage', () => {
           message: 'slow down',
           code: 'rate-limited',
           status: 429,
-          details: {retry_after_seconds: 60},
+          // Real wire shape: client-api stores the whole {code, details} body as ApiError.details.
+          details: {code: 'rate-limited', details: {retry_after_seconds: 60}},
         }),
       )
       .mockRejectedValueOnce(new ApiError({message: 'down', code: 'timeout', status: 503}));

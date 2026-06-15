@@ -97,17 +97,49 @@ describe('sentryIssueWebhookSchema', () => {
 });
 
 describe('sentryInstallationWebhookSchema', () => {
-  test('parses a created installation envelope', () => {
-    const body = {action: 'created', installation: {uuid: 'install-uuid-1'}};
+  test('parses a created installation envelope with uuid, org slug, status, and code', () => {
+    const body = {
+      action: 'created',
+      actor: {type: 'user', id: 42, name: 'Ada'},
+      data: {
+        installation: {
+          uuid: 'install-uuid-1',
+          status: 'installed',
+          code: 'grant-code-1',
+          organization: {slug: 'acme'},
+          extra: 'ignored',
+        },
+      },
+    };
 
     const parsed = sentryInstallationWebhookSchema.parse(body);
 
     expect(parsed.action).toBe('created');
-    expect(parsed.installation.uuid).toBe('install-uuid-1');
+    expect(parsed.data.installation.uuid).toBe('install-uuid-1');
+    expect(parsed.data.installation.organization?.slug).toBe('acme');
+    expect(parsed.data.installation.code).toBe('grant-code-1');
+  });
+
+  test('tolerates a missing status, actor, code, and organization', () => {
+    const body = {action: 'deleted', data: {installation: {uuid: 'install-uuid-1'}}};
+
+    const parsed = sentryInstallationWebhookSchema.parse(body);
+
+    expect(parsed.action).toBe('deleted');
+    expect(parsed.data.installation.uuid).toBe('install-uuid-1');
+    expect(parsed.data.installation.code).toBeUndefined();
   });
 
   test('rejects an unknown installation action', () => {
-    const body = {action: 'suspended', installation: {uuid: 'install-uuid-1'}};
+    const body = {action: 'suspended', data: {installation: {uuid: 'install-uuid-1'}}};
+
+    const result = sentryInstallationWebhookSchema.safeParse(body);
+
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects a payload missing data.installation.uuid', () => {
+    const body = {action: 'created', data: {installation: {}}};
 
     const result = sentryInstallationWebhookSchema.safeParse(body);
 

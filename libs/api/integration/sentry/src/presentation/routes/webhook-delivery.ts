@@ -3,7 +3,7 @@ import type {FastifyReply} from 'fastify';
 import type {z} from 'zod';
 import type {SentryWebhookContext} from './webhook-context.js';
 
-const SENTRY_PROVIDER = 'sentry';
+export const SENTRY_PROVIDER = 'sentry';
 
 /**
  * Parses and validates a delivery body, recording-and-dropping it (HTTP 204) when

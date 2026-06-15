@@ -181,17 +181,16 @@ async function loadSentryModuleParts(): Promise<SentryModuleParts> {
   const {
     createSentryIntegrationProvider,
     getSentryInstallationByInstallationUuid,
+    persistVerifiedUnclaimedInstallation,
     upsertSentryInstallation,
     db: sentryDb,
     migrationsPath: sentryMigrationsPath,
   } = await import('@shipfox/api-integration-sentry');
 
-  async function getExistingSentryConnection(input: {
-    installationUuid: string;
-  }): Promise<CoreIntegrationConnection<'sentry'> | undefined> {
-    const installation = await getSentryInstallationByInstallationUuid(input.installationUuid);
-    if (!installation) return undefined;
-    const connection = await getIntegrationConnectionById(installation.connectionId);
+  async function getConnectionById(
+    id: string,
+  ): Promise<CoreIntegrationConnection<'sentry'> | undefined> {
+    const connection = await getIntegrationConnectionById(id);
     if (!connection) return undefined;
     return connection as CoreIntegrationConnection<'sentry'>;
   }
@@ -211,12 +210,14 @@ async function loadSentryModuleParts(): Promise<SentryModuleParts> {
         {tx},
       );
 
+      // Promotes the verified-unclaimed row to claimed by setting connection_id.
       await upsertSentryInstallation(
         {
           connectionId: connection.id,
           installationUuid: input.installationUuid,
           orgSlug: input.orgSlug,
           status: 'installed',
+          codeHash: input.codeHash,
           installerUserId: input.installerUserId,
         },
         {tx},
@@ -228,8 +229,11 @@ async function loadSentryModuleParts(): Promise<SentryModuleParts> {
 
   return {
     provider: createSentryIntegrationProvider({
-      getExistingSentryConnection,
+      getSentryInstallation: ({installationUuid}) =>
+        getSentryInstallationByInstallationUuid(installationUuid),
+      getConnectionById,
       connectSentryInstallation,
+      persistVerifiedUnclaimedInstallation,
       coreDb: db,
       publishIntegrationEventReceived,
       recordDeliveryOnly,
@@ -306,6 +310,17 @@ export async function createIntegrationsContext(
             id: 'integrations-prune-webhook-deliveries',
             cronSchedule: '0 3 * * *',
           },
+          // Only when Sentry is enabled: its tables exist only then, and the
+          // activity reads them.
+          ...(sentry
+            ? [
+                {
+                  name: 'pruneUnclaimedSentryInstallationsCron',
+                  id: 'integrations-prune-unclaimed-sentry-installations',
+                  cronSchedule: '0 4 * * *',
+                },
+              ]
+            : []),
         ],
       },
     ],

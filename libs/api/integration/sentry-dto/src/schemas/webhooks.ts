@@ -31,8 +31,30 @@ export const sentryIssueWebhookSchema = z.object({
 });
 export type SentryIssueWebhookDto = z.infer<typeof sentryIssueWebhookSchema>;
 
+// Sentry delivers the installation lifecycle under `data.installation` (issue
+// webhooks instead carry a top-level `installation`). The signed payload carries
+// the same material the browser redirect delivers unauthenticated — the install
+// uuid, the org slug, and the single-use authorization `code`. Only consumed
+// fields are validated; `status`/`actor` are tolerated-but-optional. The raw
+// `code` is security-sensitive and must never be logged.
 export const sentryInstallationWebhookSchema = z.object({
   action: z.enum(['created', 'deleted']),
-  installation: z.object({uuid: z.string().min(1)}),
+  // Identifies who performed the install in Sentry. Tolerated for forward-compat
+  // but not consumed; never trusted.
+  actor: z
+    .object({
+      type: z.string().optional(),
+      id: z.union([z.string(), z.number()]).optional(),
+      name: z.string().optional(),
+    })
+    .optional(),
+  data: z.object({
+    installation: z.object({
+      uuid: z.string().min(1),
+      status: z.string().optional(),
+      code: z.string().min(1).optional(),
+      organization: z.object({slug: z.string().min(1)}).optional(),
+    }),
+  }),
 });
 export type SentryInstallationWebhookDto = z.infer<typeof sentryInstallationWebhookSchema>;

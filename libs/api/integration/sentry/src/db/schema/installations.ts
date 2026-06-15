@@ -7,10 +7,17 @@ export const sentryInstallations = pgTable(
   'installations',
   {
     id: uuidv7PrimaryKey(),
-    connectionId: uuid('connection_id').notNull(),
+    // Null until a logged-in user claims the verified install into a workspace.
+    // An unclaimed install (`connection_id IS NULL`, `status='installed'`) is
+    // persisted by the authoritative webhook before any browser claim arrives.
+    connectionId: uuid('connection_id'),
     installationUuid: text('installation_uuid').notNull(),
     orgSlug: text('org_slug').notNull(),
     status: text('status').notNull(),
+    // sha256(authorization code) of the exchange that verified this install.
+    // The claim presents the code and we match the hash, so a bare uuid alone
+    // cannot bind the install (IDOR guard) without storing a live credential.
+    codeHash: text('code_hash'),
     installerUserId: uuid('installer_user_id'),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
@@ -31,6 +38,7 @@ export function toSentryInstallation(row: SentryInstallationDb): SentryInstallat
     installationUuid: row.installationUuid,
     orgSlug: row.orgSlug,
     status: row.status,
+    codeHash: row.codeHash,
     installerUserId: row.installerUserId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

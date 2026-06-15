@@ -7,7 +7,10 @@ import type {
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createSentryApiClient, type SentryApiClient} from '#api/client.js';
 import {closeDb, db} from '#db/db.js';
-import {getSentryInstallationByConnectionId} from '#db/installations.js';
+import {
+  getSentryInstallationByConnectionId,
+  persistVerifiedUnclaimedInstallation,
+} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
 import {
   type CreateSentryIntegrationRoutesOptions,
@@ -17,13 +20,28 @@ import {createSentryWebhookRoutes} from '#presentation/routes/webhooks.js';
 
 export type {SentryApiClient} from '#api/client.js';
 export {
+  SentryClaimProofMismatchError,
   SentryInstallationAlreadyLinkedError,
+  SentryInstallationDeletedError,
   SentryIntegrationProviderError,
+  SentryVerificationInProgressError,
 } from '#core/errors.js';
-export type {ConnectSentryInstallationInput} from '#core/install.js';
-export {handleSentryConnect} from '#core/install.js';
-export {handleSentryInstallationLifecycle, handleSentryIssueEvent} from '#core/webhook.js';
 export type {
+  ConnectSentryInstallationInput,
+  VerifyAndPersistUnclaimedInstallationParams,
+} from '#core/install.js';
+export {
+  handleSentryConnect,
+  hashAuthorizationCode,
+  verifyAndPersistUnclaimedInstallation,
+} from '#core/install.js';
+export {
+  handleSentryInstallationCreated,
+  handleSentryInstallationDeleted,
+  handleSentryIssueEvent,
+} from '#core/webhook.js';
+export type {
+  PersistVerifiedUnclaimedInstallationParams,
   SentryInstallation,
   SentryInstallationStatus,
   UpsertSentryInstallationParams,
@@ -31,13 +49,19 @@ export type {
 export {
   getSentryInstallationByConnectionId,
   getSentryInstallationByInstallationUuid,
+  listUnclaimedSentryInstallations,
   markSentryInstallationDeleted,
+  persistVerifiedUnclaimedInstallation,
+  pruneUnclaimedSentryInstallations,
   upsertSentryInstallation,
 } from '#db/installations.js';
 export {closeDb, db, migrationsPath};
 
 export interface CreateSentryIntegrationProviderOptions
-  extends Omit<CreateSentryIntegrationRoutesOptions, 'sentry'> {
+  extends Omit<
+    CreateSentryIntegrationRoutesOptions,
+    'sentry' | 'persistVerifiedUnclaimedInstallation'
+  > {
   sentry?: SentryApiClient | undefined;
   coreDb: () => NodePgDatabase<Record<string, unknown>>;
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
@@ -45,12 +69,15 @@ export interface CreateSentryIntegrationProviderOptions
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
   updateConnectionLifecycleStatus: UpdateIntegrationConnectionLifecycleStatusFn;
   getSentryInstallationByConnectionId?: typeof getSentryInstallationByConnectionId | undefined;
+  persistVerifiedUnclaimedInstallation?: typeof persistVerifiedUnclaimedInstallation | undefined;
 }
 
 export function createSentryIntegrationProvider(options: CreateSentryIntegrationProviderOptions) {
   const sentry = options.sentry ?? createSentryApiClient();
   const getInstallationByConnectionId =
     options.getSentryInstallationByConnectionId ?? getSentryInstallationByConnectionId;
+  const persistUnclaimed =
+    options.persistVerifiedUnclaimedInstallation ?? persistVerifiedUnclaimedInstallation;
 
   return {
     provider: 'sentry' as const,
@@ -63,10 +90,13 @@ export function createSentryIntegrationProvider(options: CreateSentryIntegration
     routes: [
       createSentryIntegrationRoutes({
         sentry,
-        getExistingSentryConnection: options.getExistingSentryConnection,
+        getSentryInstallation: options.getSentryInstallation,
+        getConnectionById: options.getConnectionById,
         connectSentryInstallation: options.connectSentryInstallation,
+        persistVerifiedUnclaimedInstallation: persistUnclaimed,
       }),
       createSentryWebhookRoutes({
+        sentry,
         coreDb: options.coreDb,
         publishIntegrationEventReceived: options.publishIntegrationEventReceived,
         recordDeliveryOnly: options.recordDeliveryOnly,

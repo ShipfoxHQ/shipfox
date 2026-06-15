@@ -4,6 +4,7 @@ import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-f
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {SentryApiClient} from '#api/client.js';
 import {SentryIntegrationProviderError} from '#core/errors.js';
+import type {SentryInstallation} from '#db/installations.js';
 import {createSentryIntegrationProvider} from '#index.js';
 
 vi.mock('@shipfox/api-workspaces', () => ({
@@ -52,15 +53,35 @@ function sentryClient(overrides: Partial<SentryApiClient> = {}): SentryApiClient
   };
 }
 
+function unclaimedInstallation(overrides: Partial<SentryInstallation> = {}): SentryInstallation {
+  return {
+    id: 'row-1',
+    connectionId: null,
+    installationUuid: 'install-uuid-1',
+    orgSlug: 'acme',
+    status: 'installed',
+    codeHash: null,
+    installerUserId: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
 interface CreateTestAppOptions {
   sentry?: SentryApiClient;
+  installation?: SentryInstallation | undefined;
   existingConnection?: IntegrationConnection<'sentry'> | undefined;
 }
 
 async function createTestApp(options: CreateTestAppOptions = {}): Promise<FastifyInstance> {
   const provider = createSentryIntegrationProvider({
     sentry: options.sentry ?? sentryClient(),
-    getExistingSentryConnection: vi.fn(() => Promise.resolve(options.existingConnection)),
+    getSentryInstallation: vi.fn(() => Promise.resolve(options.installation)),
+    getConnectionById: vi.fn(() => Promise.resolve(options.existingConnection)),
+    persistVerifiedUnclaimedInstallation: vi.fn((input) =>
+      Promise.resolve(unclaimedInstallation({...input})),
+    ),
     connectSentryInstallation: vi.fn((input) =>
       Promise.resolve({
         id: crypto.randomUUID(),
@@ -180,9 +201,11 @@ describe('Sentry integration routes', () => {
   });
 
   it('returns 409 when the installation is already linked to another workspace', async () => {
+    const connectionId = crypto.randomUUID();
     const app = await createTestApp({
+      installation: unclaimedInstallation({connectionId}),
       existingConnection: {
-        id: crypto.randomUUID(),
+        id: connectionId,
         workspaceId: crypto.randomUUID(),
         provider: 'sentry',
         externalAccountId: 'install-uuid-1',
@@ -205,11 +228,11 @@ describe('Sentry integration routes', () => {
     expect(res.json().code).toBe('sentry-installation-already-linked');
   });
 
-  it('maps a provider error to its status', async () => {
+  it('maps a non-access-denied provider error to its status', async () => {
     const app = await createTestApp({
       sentry: sentryClient({
         exchangeAuthorizationCode: vi.fn(() =>
-          Promise.reject(new SentryIntegrationProviderError('access-denied', 'rejected')),
+          Promise.reject(new SentryIntegrationProviderError('rate-limited', 'slow down')),
         ),
       }),
     });
@@ -221,7 +244,64 @@ describe('Sentry integration routes', () => {
       payload: connectPayload(),
     });
 
-    expect(res.statusCode).toBe(422);
-    expect(res.json().code).toBe('access-denied');
+    expect(res.statusCode).toBe(429);
+    expect(res.json().code).toBe('rate-limited');
+  });
+
+  it('returns a retryable 503 when a concurrent webhook is still verifying the install', async () => {
+    const app = await createTestApp({
+      sentry: sentryClient({
+        exchangeAuthorizationCode: vi.fn(() =>
+          Promise.reject(new SentryIntegrationProviderError('access-denied', 'already used')),
+        ),
+      }),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/sentry/connect',
+      headers: {authorization: 'Bearer user'},
+      payload: connectPayload(),
+    });
+
+    expect(res.statusCode).toBe(503);
+    expect(res.json().code).toBe('sentry-verification-in-progress');
+  });
+
+  it('returns 403 when the presented code cannot prove control of a verified install', async () => {
+    const app = await createTestApp({
+      installation: unclaimedInstallation({codeHash: 'a-different-hash'}),
+      sentry: sentryClient({
+        exchangeAuthorizationCode: vi.fn(() =>
+          Promise.reject(new SentryIntegrationProviderError('access-denied', 'already used')),
+        ),
+      }),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/sentry/connect',
+      headers: {authorization: 'Bearer user'},
+      payload: connectPayload(),
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('sentry-claim-proof-mismatch');
+  });
+
+  it('returns 409 when the installation is tombstoned', async () => {
+    const app = await createTestApp({
+      installation: unclaimedInstallation({status: 'deleted'}),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/sentry/connect',
+      headers: {authorization: 'Bearer user'},
+      payload: connectPayload(),
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('sentry-installation-deleted');
   });
 });

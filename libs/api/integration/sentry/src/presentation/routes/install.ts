@@ -11,23 +11,33 @@ import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {SentryApiClient} from '#api/client.js';
 import {config} from '#config.js';
 import {type ConnectSentryInstallationInput, handleSentryConnect} from '#core/install.js';
+import type {
+  PersistVerifiedUnclaimedInstallationParams,
+  SentryInstallation,
+} from '#db/installations.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
 import {sentryRouteErrorHandler} from './errors.js';
 
 export interface CreateSentryIntegrationRoutesOptions {
   sentry: SentryApiClient;
-  getExistingSentryConnection: (input: {
+  getSentryInstallation: (input: {
     installationUuid: string;
-  }) => Promise<IntegrationConnection<'sentry'> | undefined>;
+  }) => Promise<SentryInstallation | undefined>;
+  getConnectionById: (id: string) => Promise<IntegrationConnection<'sentry'> | undefined>;
   connectSentryInstallation: (
     input: ConnectSentryInstallationInput,
   ) => Promise<IntegrationConnection<'sentry'>>;
+  persistVerifiedUnclaimedInstallation: (
+    input: PersistVerifiedUnclaimedInstallationParams,
+  ) => Promise<SentryInstallation>;
 }
 
 export function createSentryIntegrationRoutes({
   sentry,
-  getExistingSentryConnection,
+  getSentryInstallation,
+  getConnectionById,
   connectSentryInstallation,
+  persistVerifiedUnclaimedInstallation,
 }: CreateSentryIntegrationRoutesOptions): RouteGroup {
   const createInstallRoute = defineRoute({
     method: 'POST',
@@ -76,8 +86,10 @@ export function createSentryIntegrationRoutes({
         installationUuid,
         installerUserId: actor.userId,
         verifyInstall: config.SENTRY_APP_VERIFY_INSTALL,
-        getExistingSentryConnection,
+        getSentryInstallation,
+        getConnectionById,
         connectSentryInstallation,
+        persistVerifiedUnclaimedInstallation,
       });
 
       return toIntegrationConnectionDto(connection);
