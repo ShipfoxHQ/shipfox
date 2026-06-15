@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {SentryInstallationAlreadyLinkedError} from '#core/errors.js';
 import {db} from './db.js';
 import {
   getSentryInstallationByInstallationUuid,
@@ -15,28 +16,71 @@ describe('sentry installations persistence', () => {
     await db().delete(sentryInstallations);
   });
 
-  test('upsert inserts then updates on conflicting installation_uuid without duplicating', async () => {
+  test('upsert updates in place when the same connection reconnects, without duplicating', async () => {
+    const installationUuid = randomUUID();
+    const connectionId = randomUUID();
+
+    await upsertSentryInstallation({
+      connectionId,
+      installationUuid,
+      orgSlug: 'acme',
+      status: 'installed',
+    });
+    const updated = await upsertSentryInstallation({
+      connectionId,
+      installationUuid,
+      orgSlug: 'acme-renamed',
+      status: 'installed',
+    });
+
+    expect(updated.connectionId).toBe(connectionId);
+    expect(updated.orgSlug).toBe('acme-renamed');
+    const fetched = await getSentryInstallationByInstallationUuid(installationUuid);
+    expect(fetched?.orgSlug).toBe('acme-renamed');
+  });
+
+  test('upsert rejects repointing an installation to a different connection (TOCTOU guard)', async () => {
     const installationUuid = randomUUID();
     const firstConnectionId = randomUUID();
     const secondConnectionId = randomUUID();
-
     await upsertSentryInstallation({
       connectionId: firstConnectionId,
       installationUuid,
       orgSlug: 'acme',
       status: 'installed',
     });
-    const updated = await upsertSentryInstallation({
+
+    const repoint = upsertSentryInstallation({
       connectionId: secondConnectionId,
       installationUuid,
-      orgSlug: 'acme-renamed',
+      orgSlug: 'acme',
       status: 'installed',
     });
 
-    expect(updated.connectionId).toBe(secondConnectionId);
-    expect(updated.orgSlug).toBe('acme-renamed');
+    await expect(repoint).rejects.toBeInstanceOf(SentryInstallationAlreadyLinkedError);
     const fetched = await getSentryInstallationByInstallationUuid(installationUuid);
-    expect(fetched?.orgSlug).toBe('acme-renamed');
+    expect(fetched?.connectionId).toBe(firstConnectionId);
+  });
+
+  test('upsert claims a verified-unclaimed row by setting connection_id (first claim)', async () => {
+    const installationUuid = randomUUID();
+    const connectionId = randomUUID();
+    await persistVerifiedUnclaimedInstallation({
+      installationUuid,
+      orgSlug: 'acme',
+      codeHash: 'webhook-hash',
+    });
+
+    const claimed = await upsertSentryInstallation({
+      connectionId,
+      installationUuid,
+      orgSlug: 'acme',
+      status: 'installed',
+    });
+
+    expect(claimed.connectionId).toBe(connectionId);
+    const fetched = await getSentryInstallationByInstallationUuid(installationUuid);
+    expect(fetched?.connectionId).toBe(connectionId);
   });
 
   test('markSentryInstallationDeleted sets status and returns the updated row', async () => {
