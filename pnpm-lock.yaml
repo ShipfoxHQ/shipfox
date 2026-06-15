@@ -151,21 +151,12 @@ importers:
 
   apps/runner:
     dependencies:
-      '@shipfox/api-runners-dto':
-        specifier: workspace:*
-        version: link:../../libs/api/runners-dto
-      '@shipfox/api-workflows-dto':
-        specifier: workspace:*
-        version: link:../../libs/api/workflows-dto
-      '@shipfox/config':
-        specifier: workspace:*
-        version: link:../../libs/shared/common/config
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../libs/shared/node/opentelemetry
-      ky:
-        specifier: ^2.0.0
-        version: 2.0.2
+      '@shipfox/runner-orchestration':
+        specifier: workspace:*
+        version: link:../../libs/runner/orchestration
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -179,9 +170,6 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../../tools/typescript
-      '@shipfox/vitest':
-        specifier: workspace:*
-        version: link:../../tools/vitest
       tsx:
         specifier: ^4.21.0
         version: 4.22.4
@@ -2291,6 +2279,133 @@ importers:
       react-dom:
         specifier: ^19.1.1
         version: 19.2.7(react@19.2.7)
+
+  libs/runner/execution:
+    dependencies:
+      '@shipfox/api-workflows-dto':
+        specifier: workspace:*
+        version: link:../../api/workflows-dto
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../shared/node/opentelemetry
+      '@shipfox/runner-workspace':
+        specifier: workspace:*
+        version: link:../workspace
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
+  libs/runner/orchestration:
+    dependencies:
+      '@shipfox/api-workflows-dto':
+        specifier: workspace:*
+        version: link:../../api/workflows-dto
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../shared/common/config
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../shared/node/opentelemetry
+      '@shipfox/runner-execution':
+        specifier: workspace:*
+        version: link:../execution
+      '@shipfox/runner-protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@shipfox/runner-workspace':
+        specifier: workspace:*
+        version: link:../workspace
+      ky:
+        specifier: ^2.0.0
+        version: 2.0.2
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
+  libs/runner/protocol:
+    dependencies:
+      '@shipfox/api-runners-dto':
+        specifier: workspace:*
+        version: link:../../api/runners-dto
+      '@shipfox/api-workflows-dto':
+        specifier: workspace:*
+        version: link:../../api/workflows-dto
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../shared/common/config
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../shared/node/opentelemetry
+      ky:
+        specifier: ^2.0.0
+        version: 2.0.2
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
+  libs/runner/workspace:
+    dependencies:
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../shared/common/config
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../shared/node/opentelemetry
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
 
   libs/shared/common/config:
     dependencies:

@@ -1,5 +1,5 @@
 import {logger} from '@shipfox/node-opentelemetry';
-import {startRunner} from '#runner.js';
+import {startRunner} from '@shipfox/runner-orchestration';
 
 try {
   await startRunner();

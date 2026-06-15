@@ -2,6 +2,7 @@ import {mkdir, rm} from 'node:fs/promises';
 import {homedir, tmpdir} from 'node:os';
 import {join, parse, resolve} from 'node:path';
 import {logger} from '@shipfox/node-opentelemetry';
+import {config} from '#config.js';
 
 /**
  * Thrown when `SHIPFOX_RUNNER_WORKSPACE_ROOT` resolves to a path we refuse to
@@ -27,33 +28,34 @@ export class InvalidJobIdError extends Error {
   }
 }
 
-export interface WorkspaceConfig {
-  SHIPFOX_RUNNER_WORKSPACE_ROOT?: string | undefined;
-}
-
 /**
  * Falls back to the OS temp directory when no root is configured. Only a
  * configured root is validated (throws {@link UnsafeWorkspaceRootError}); the
- * temp fallback is trusted.
+ * temp fallback is trusted. Pure: takes the raw configured value so the
+ * path-safety logic is unit-testable without reading the environment; the
+ * config-reading entry point is {@link resolveWorkspaceRootFromEnv}.
  */
-export function resolveWorkspaceRoot(config: WorkspaceConfig): string {
-  const configured = config.SHIPFOX_RUNNER_WORKSPACE_ROOT;
+export function resolveWorkspaceRoot(root: string | undefined): string {
+  if (root === undefined) return tmpdir();
 
-  if (configured === undefined) return tmpdir();
+  if (root.trim() === '') throw new UnsafeWorkspaceRootError(root);
 
-  if (configured.trim() === '') throw new UnsafeWorkspaceRootError(configured);
-
-  const resolved = resolve(configured);
+  const resolved = resolve(root);
 
   // A filesystem root ('/' on POSIX, 'C:\\' on Windows) has no parent and would
   // put job dirs at the top level — never manage cleanup there.
-  if (resolved === parse(resolved).root) throw new UnsafeWorkspaceRootError(configured);
+  if (resolved === parse(resolved).root) throw new UnsafeWorkspaceRootError(root);
 
   // The home directory holds the operator's files; a stray recursive cleanup
   // there would be catastrophic.
-  if (resolved === resolve(homedir())) throw new UnsafeWorkspaceRootError(configured);
+  if (resolved === resolve(homedir())) throw new UnsafeWorkspaceRootError(root);
 
   return resolved;
+}
+
+/** Resolves the workspace root from this package's own configuration. */
+export function resolveWorkspaceRootFromEnv(): string {
+  return resolveWorkspaceRoot(config.SHIPFOX_RUNNER_WORKSPACE_ROOT);
 }
 
 // The job id is the only input to the per-job path; assert it is the UUID the
