@@ -1,5 +1,5 @@
 export * from './components/connection-picker.js';
-export * from './components/integration-gallery-section.js';
+export * from './components/integration-gallery.js';
 export * from './components/redirect-install-page.js';
 export * from './components/repository-picker.js';
 export * from './hooks/api/integrations.js';

@@ -1,14 +1,10 @@
 import {useActiveWorkspace} from '@shipfox/client-auth';
-import {
-  IntegrationGallerySection,
-  useIntegrationConnectionsQuery,
-} from '@shipfox/client-integrations';
+import {IntegrationGallery} from '@shipfox/client-integrations';
 import {Header, Text} from '@shipfox/react-ui';
 import {SettingsNav} from '#components/settings-nav.js';
 
 export function IntegrationsSettingsPage() {
   const workspace = useActiveWorkspace();
-  const connectionsQuery = useIntegrationConnectionsQuery(workspace.id);
 
   return (
     <div className="flex w-full flex-col gap-24">
@@ -21,13 +17,7 @@ export function IntegrationsSettingsPage() {
 
       <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-32 max-[760px]:grid-cols-1">
         <SettingsNav workspaceId={workspace.id} />
-        <IntegrationGallerySection
-          connections={{
-            connections: connectionsQuery.data?.connections,
-            isError: connectionsQuery.isError,
-            retry: () => connectionsQuery.refetch(),
-          }}
-        />
+        <IntegrationGallery />
       </div>
     </div>
   );
