@@ -5,8 +5,7 @@ export {closeDb, db, schema} from './db.js';
 export type {ClaimedJob, ScheduleJobParams} from './jobs.js';
 export {
   claimPendingJob,
-  expireStuckJob,
-  findStuckJobs,
+  expireStuckJobs,
   recordHeartbeat,
   releaseJob,
   scheduleJob,
