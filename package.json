@@ -6,7 +6,7 @@
   },
   "license": "MIT",
   "private": true,
-  "packageManager": "pnpm@11.5.1",
+  "packageManager": "pnpm@11.5.2",
   "type": "module",
   "scripts": {
     "release:publish": "turbo build type:emit --filter='./libs/**' --filter='./tools/**' && changeset publish"
