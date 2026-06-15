@@ -35,20 +35,20 @@ export class InvalidJobIdError extends Error {
  * path-safety logic is unit-testable without reading the environment; the
  * config-reading entry point is {@link resolveWorkspaceRootFromEnv}.
  */
-export function resolveWorkspaceRoot(configuredRoot: string | undefined): string {
-  if (configuredRoot === undefined) return tmpdir();
+export function resolveWorkspaceRoot(root: string | undefined): string {
+  if (root === undefined) return tmpdir();
 
-  if (configuredRoot.trim() === '') throw new UnsafeWorkspaceRootError(configuredRoot);
+  if (root.trim() === '') throw new UnsafeWorkspaceRootError(root);
 
-  const resolved = resolve(configuredRoot);
+  const resolved = resolve(root);
 
   // A filesystem root ('/' on POSIX, 'C:\\' on Windows) has no parent and would
   // put job dirs at the top level — never manage cleanup there.
-  if (resolved === parse(resolved).root) throw new UnsafeWorkspaceRootError(configuredRoot);
+  if (resolved === parse(resolved).root) throw new UnsafeWorkspaceRootError(root);
 
   // The home directory holds the operator's files; a stray recursive cleanup
   // there would be catastrophic.
-  if (resolved === resolve(homedir())) throw new UnsafeWorkspaceRootError(configuredRoot);
+  if (resolved === resolve(homedir())) throw new UnsafeWorkspaceRootError(root);
 
   return resolved;
 }
