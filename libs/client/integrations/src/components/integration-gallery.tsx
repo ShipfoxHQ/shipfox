@@ -52,14 +52,16 @@ const FALLBACK_ICON: IconName = 'componentLine';
 
 // Shared so the live grid and its loading skeleton can never drift to a
 // different column rule. Container-driven (auto-fill) columns work in both the
-// wide settings panel and the narrow onboarding container. Keep it space-free —
-// Tailwind v4 arbitrary-property values must not contain spaces.
+// wide settings panel and the narrow onboarding container. The 180px min keeps
+// the compact provider tiles dense (3+ per row in the settings panel). Keep it
+// space-free — Tailwind v4 arbitrary-property values must not contain spaces.
 const AVAILABLE_GRID_CLASS =
-  'grid gap-16 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]';
+  'grid gap-12 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]';
 
-// Installed rows share one grid (via subgrid) so the status pill aligns down a
-// single scannable column regardless of which rows carry an "Open" action.
-const INSTALLED_GRID_COLS = 'grid-cols-[24px_minmax(0,1fr)_auto_auto]';
+// Both gallery surfaces use the same card fill so they read as one system on
+// the subtle page canvas, rather than the list blending into the background.
+const SURFACE_CLASS =
+  'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';
 
 export function IntegrationGallery({
   capability,
@@ -134,12 +136,7 @@ export function IntegrationGallery({
           ) : null}
 
           {hasConnections ? (
-            <ul
-              className={cn(
-                'grid divide-y divide-border-neutral-base overflow-hidden rounded-8 border border-border-neutral-base',
-                INSTALLED_GRID_COLS,
-              )}
-            >
+            <ul className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}>
               {sortedConnections.map((connection) => (
                 <InstalledRow
                   key={connection.id}
@@ -214,7 +211,7 @@ function InstalledRow({
   const muted = connection.lifecycle_status === 'disabled';
 
   return (
-    <li className="col-span-4 grid grid-cols-subgrid items-center gap-12 px-16 py-10 transition-colors hover:bg-background-components-hover">
+    <li className="flex items-center gap-12 px-16 py-10 transition-colors hover:bg-background-components-hover">
       <Icon
         name={iconName}
         className={cn(
@@ -222,7 +219,7 @@ function InstalledRow({
           muted ? 'text-foreground-neutral-disabled' : 'text-foreground-neutral-base',
         )}
       />
-      <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
         <Text
           size="md"
           bold
@@ -278,21 +275,23 @@ function AvailableCard({
 
   // The whole tile is the click target (no Button nested inside the Link); the
   // hover wash + the "Connect" affordance signal that the tile is clickable.
+  // The affordance is muted by default and only turns brand-orange on hover —
+  // a per-card orange CTA repeated across the grid would be too loud (DESIGN.md §4).
   return (
     <Link
       to={catalog.setupPath}
       params={{wid: workspaceId}}
       aria-label={`Connect ${provider.display_name}`}
-      className="block h-full rounded-8 focus-visible:shadow-button-secondary-focus focus-visible:outline-none"
+      className="group block h-full rounded-8 focus-visible:shadow-button-secondary-focus focus-visible:outline-none"
     >
-      <Card className="h-full gap-12 p-20 transition-colors hover:bg-background-components-hover">
+      <Card className="h-full gap-8 p-16 transition-colors hover:bg-background-components-hover">
         <div className="flex min-w-0 items-center gap-12">
           <Icon name={catalog.iconName} className="size-24 shrink-0 text-foreground-neutral-base" />
           <Text size="md" bold className="truncate">
             {provider.display_name}
           </Text>
         </div>
-        <div className="mt-auto flex items-center gap-4 text-foreground-highlight-interactive">
+        <div className="flex items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">
           <Text size="sm">Connect</Text>
           <Icon name="chevronRight" className="size-16" />
         </div>
@@ -314,15 +313,15 @@ function InstalledSkeleton({label}: {label: string}) {
     <ul
       role="status"
       aria-label={label}
-      className={cn(
-        'grid divide-y divide-border-neutral-base overflow-hidden rounded-8 border border-border-neutral-base',
-        'grid-cols-[24px_minmax(0,1fr)_auto]',
-      )}
+      className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}
     >
       {[0, 1, 2].map((row) => (
-        <li key={row} className="col-span-3 grid grid-cols-subgrid items-center gap-12 px-16 py-10">
+        <li key={row} className="flex items-center gap-12 px-16 py-10">
           <Skeleton className="size-24 shrink-0" />
-          <Skeleton className="h-16 w-120" />
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <Skeleton className="h-16 w-120" />
+            <Skeleton className="h-12 w-80" />
+          </div>
           <Skeleton className="h-20 w-72 shrink-0" />
         </li>
       ))}
@@ -335,12 +334,12 @@ function AvailableSkeleton({label}: {label: string}) {
     <ul role="status" aria-label={label} className={AVAILABLE_GRID_CLASS}>
       {[0, 1, 2, 3].map((tile) => (
         <li key={tile}>
-          <Card className="h-full gap-12 p-20">
+          <Card className="h-full gap-8 p-16">
             <div className="flex items-center gap-12">
               <Skeleton className="size-24 shrink-0" />
-              <Skeleton className="h-16 w-120" />
+              <Skeleton className="h-16 w-100" />
             </div>
-            <Skeleton className="mt-auto h-16 w-64" />
+            <Skeleton className="h-16 w-64" />
           </Card>
         </li>
       ))}
