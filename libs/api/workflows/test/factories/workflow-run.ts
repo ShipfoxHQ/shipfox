@@ -15,6 +15,7 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
       definitionId: run.definitionId,
       name: run.name,
       model: workflowModel({name: run.name}),
+      definitionSnapshot: run.definitionSnapshot,
       triggerPayload: run.triggerPayload,
       inputs: run.inputs ?? undefined,
     });
@@ -35,6 +36,7 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
       subscriptionId: crypto.randomUUID(),
       userId: crypto.randomUUID(),
     },
+    definitionSnapshot: null,
     inputs: null,
     triggerIdempotencyKey: null,
     version: 1,

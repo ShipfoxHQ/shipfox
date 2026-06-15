@@ -154,6 +154,8 @@ function definitionsDto() {
         sha: 'abc123',
         ref: 'main',
         name: 'Deploy production',
+        workflow_source_yaml:
+          'name: Deploy production\njobs:\n  deploy:\n    steps:\n      - run: ./deploy.sh\n',
         workflow_document: {
           name: 'Deploy production',
           jobs: {deploy: {steps: [{run: './deploy.sh'}]}},

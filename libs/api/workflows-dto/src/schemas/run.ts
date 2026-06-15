@@ -1,4 +1,6 @@
 import {z} from 'zod';
+import {jobDtoSchema} from './job.js';
+import {stepAttemptDtoSchema, stepDtoSchema} from './step.js';
 
 export const runStatusSchema = z.enum(['pending', 'running', 'succeeded', 'failed', 'cancelled']);
 
@@ -62,6 +64,7 @@ export const runDtoSchema = z.object({
   trigger_event: z.string(),
   trigger_payload: z.record(z.string(), z.unknown()),
   inputs: z.record(z.string(), z.unknown()).nullable(),
+  duration_ms: z.number().int().nonnegative(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -71,6 +74,22 @@ export type RunDto = z.infer<typeof runDtoSchema>;
 export const runResponseSchema = runDtoSchema;
 
 export type RunResponseDto = z.infer<typeof runResponseSchema>;
+
+export const runDetailDtoSchema = runResponseSchema.extend({
+  workflow_source_yaml: z.string().nullable(),
+  workflow_document: z.unknown().nullable(),
+  workflow_model: z.unknown().nullable(),
+  jobs: z.array(
+    jobDtoSchema.extend({
+      // Each step carries its attempt history (one entry per dispatched attempt;
+      // a restarted step has more than one). `current_attempt` on the step points
+      // at the latest.
+      steps: z.array(stepDtoSchema.extend({attempts: z.array(stepAttemptDtoSchema)})),
+    }),
+  ),
+});
+
+export type RunDetailDto = z.infer<typeof runDetailDtoSchema>;
 
 export const runListResponseSchema = z.object({
   runs: z.array(runResponseSchema),

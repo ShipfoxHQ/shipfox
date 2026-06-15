@@ -58,6 +58,7 @@ describe('workflow run queries', () => {
       expect(run.definitionId).toBe(definitionId);
       expect(run.status).toBe('pending');
       expect(run.triggerPayload).toMatchObject({source: 'manual', event: 'fire'});
+      expect(run.definitionSnapshot).toBeNull();
       expect(run.inputs).toBeNull();
       expect(run.version).toBe(1);
       expect(run.createdAt).toBeInstanceOf(Date);
@@ -77,6 +78,40 @@ describe('workflow run queries', () => {
         config: {},
       });
       expect(jobSteps[1]).toMatchObject({position: 1, config: {run: 'echo hello'}});
+    });
+
+    test('persists the definition snapshot when provided', async () => {
+      const model = buildModel();
+      const document = {
+        name: model.name,
+        jobs: {
+          build: {steps: [{run: 'echo hello'}]},
+        },
+      };
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        definitionSnapshot: {
+          sourceYaml: 'name: Test Workflow\njobs:\n  build:\n    steps:\n      - run: echo hello\n',
+          document,
+          model,
+        },
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      expect(run.definitionSnapshot).toEqual({
+        sourceYaml: 'name: Test Workflow\njobs:\n  build:\n    steps:\n      - run: echo hello\n',
+        document,
+        model,
+      });
     });
 
     test('writes workflows.run.created outbox event in same transaction', async () => {

@@ -26,7 +26,11 @@ function definitionFields(name = 'Test Workflow'): WorkflowDefinitionPayload {
     name,
     jobs: {build: {steps: [{run: 'echo hello'}]}},
   };
-  return {document, model: normalizeWorkflowDocument(document)};
+  return {
+    sourceYaml: `name: ${name}\njobs:\n  build:\n    steps:\n      - run: echo hello\n`,
+    document,
+    model: normalizeWorkflowDocument(document),
+  };
 }
 
 async function listOutboxRowsForProject(projectId: string) {
@@ -66,7 +70,11 @@ describe('definition queries', () => {
       expect(definition.projectId).toBe(projectId);
       expect(definition.configPath).toBe('.shipfox/workflows/test.yml');
       expect(definition.name).toBe('Test');
-      expect({document: definition.document, model: definition.model}).toEqual(definitionFields());
+      expect({
+        sourceYaml: definition.workflowSourceYaml,
+        document: definition.document,
+        model: definition.model,
+      }).toEqual(definitionFields());
       expect(definition.sha).toBeNull();
       expect(definition.ref).toBeNull();
       expect(definition.fetchedAt).toBeInstanceOf(Date);

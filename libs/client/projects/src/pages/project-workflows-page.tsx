@@ -382,6 +382,7 @@ function DefinitionSheet({
   const normalizedJson = definition
     ? JSON.stringify(
         {
+          workflow_source_yaml: definition.workflow_source_yaml,
           workflow_document: definition.workflow_document,
           workflow_model: definition.workflow_model,
         },

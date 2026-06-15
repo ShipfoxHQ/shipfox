@@ -1,10 +1,5 @@
 import {requireProjectAccess} from '@shipfox/api-projects';
-import {
-  jobDtoSchema,
-  runResponseSchema,
-  stepAttemptDtoSchema,
-  stepDtoSchema,
-} from '@shipfox/api-workflows-dto';
+import {runDetailDtoSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {
@@ -13,18 +8,7 @@ import {
   getStepsByJobIds,
   getWorkflowRunById,
 } from '#db/index.js';
-import {toJobDto, toRunDto, toStepAttemptDto, toStepDto} from '#presentation/dto/index.js';
-
-const runDetailResponseSchema = runResponseSchema.extend({
-  jobs: z.array(
-    jobDtoSchema.extend({
-      // Each step carries its attempt history (one entry per dispatched attempt;
-      // a restarted step has more than one). `current_attempt` on the step points
-      // at the latest.
-      steps: z.array(stepDtoSchema.extend({attempts: z.array(stepAttemptDtoSchema)})),
-    }),
-  ),
-});
+import {toRunDetailDto} from '#presentation/dto/index.js';
 
 export const getRunRoute = defineRoute({
   method: 'GET',
@@ -35,7 +19,7 @@ export const getRunRoute = defineRoute({
       id: z.string().uuid(),
     }),
     response: {
-      200: runDetailResponseSchema,
+      200: runDetailDtoSchema,
     },
   },
   handler: async (request) => {
@@ -60,19 +44,6 @@ export const getRunRoute = defineRoute({
       getStepAttemptsByJobIds(jobIds),
     ]);
 
-    const jobDtos = runJobs.map((job) => ({
-      ...toJobDto(job),
-      steps: allSteps
-        .filter((s) => s.jobId === job.id)
-        .map((step) => ({
-          ...toStepDto(step),
-          attempts: allAttempts.filter((a) => a.stepId === step.id).map(toStepAttemptDto),
-        })),
-    }));
-
-    return {
-      ...toRunDto(run),
-      jobs: jobDtos,
-    };
+    return toRunDetailDto({run, jobs: runJobs, steps: allSteps, attempts: allAttempts});
   },
 });

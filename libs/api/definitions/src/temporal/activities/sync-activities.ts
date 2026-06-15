@@ -117,6 +117,7 @@ function createFetchAndApplyActivity(sourceControl: IntegrationSourceControlServ
           name: entry.name,
           document: entry.definition.document,
           model: entry.definition.model,
+          sourceYaml: entry.definition.sourceYaml ?? null,
           contentHash: entry.contentHash,
         })),
       });

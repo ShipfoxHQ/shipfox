@@ -9,6 +9,7 @@ export function toJobDto(job: Job): JobDto {
     status: job.status,
     dependencies: job.dependencies,
     position: job.position,
+    duration_ms: 0,
     created_at: job.createdAt.toISOString(),
     updated_at: job.updatedAt.toISOString(),
   };

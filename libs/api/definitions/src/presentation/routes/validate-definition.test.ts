@@ -32,6 +32,7 @@ jobs:
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.valid).toBe(true);
+    expect(body.workflow_source_yaml).toContain('name: Test');
     expect(body.workflow_document.name).toBe('Test');
     expect(body.workflow_model.kind).toBe('workflow');
   });

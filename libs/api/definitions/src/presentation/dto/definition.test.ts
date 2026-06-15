@@ -27,6 +27,8 @@ describe('toDefinitionDto', () => {
       ref: null,
       name: document.name,
       definition: document,
+      workflowSourceYaml:
+        'name: Manual workflow\njobs:\n  build:\n    steps:\n      - run: pnpm build\n',
       document,
       model: normalizeWorkflowDocument(document),
       contentHash: null,
@@ -46,6 +48,8 @@ describe('toDefinitionDto', () => {
       sha: null,
       ref: null,
       name: document.name,
+      workflow_source_yaml:
+        'name: Manual workflow\njobs:\n  build:\n    steps:\n      - run: pnpm build\n',
       workflow_document: document,
       workflow_model: definition.model,
       manual_trigger: {name: 'run_now'},

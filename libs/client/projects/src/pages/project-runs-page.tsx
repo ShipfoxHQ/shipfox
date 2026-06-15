@@ -113,7 +113,7 @@ function ProjectRunsPageInner({projectId}: {projectId: string}) {
 
       {runs.length > 0 ? (
         <>
-          <RunsList runs={runs} />
+          <RunsList workspaceId={params.wid ?? ''} projectId={projectId} runs={runs} />
           {runsQuery.isFetchNextPageError ? (
             <Alert variant="error" animated={false}>
               <div className="flex items-center justify-between gap-12">
@@ -332,11 +332,19 @@ function RunsEmptyState({
   );
 }
 
-function RunsList({runs}: {runs: RunDto[]}) {
+function RunsList({
+  workspaceId,
+  projectId,
+  runs,
+}: {
+  workspaceId: string;
+  projectId: string;
+  runs: RunDto[];
+}) {
   return (
     <div className="flex flex-col divide-y divide-border-neutral-base rounded-8 border border-border-neutral-base bg-background-neutral-base">
       {runs.map((run) => (
-        <RunRow key={run.id} run={run} />
+        <RunRow key={run.id} run={run} linkParams={{workspaceId, projectId}} />
       ))}
     </div>
   );

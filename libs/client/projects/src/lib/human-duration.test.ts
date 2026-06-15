@@ -1,4 +1,4 @@
-import {humanDuration} from './human-duration.js';
+import {humanDuration, humanDurationMs} from './human-duration.js';
 
 describe('humanDuration', () => {
   test('returns seconds under a minute', () => {
@@ -78,5 +78,19 @@ describe('humanDuration', () => {
   test('returns empty string for unparseable input', () => {
     expect(humanDuration('not-a-date')).toBe('');
     expect(humanDuration('2026-05-13T00:00:00.000Z', 'nope')).toBe('');
+  });
+});
+
+describe('humanDurationMs', () => {
+  it('renders zero milliseconds as 0s', () => {
+    expect(humanDurationMs(0)).toBe('0s');
+  });
+
+  it('renders minutes and seconds', () => {
+    expect(humanDurationMs(134_000)).toBe('2m 14s');
+  });
+
+  it('renders hours and padded minutes', () => {
+    expect(humanDurationMs(3_780_000)).toBe('1h 03m');
   });
 });

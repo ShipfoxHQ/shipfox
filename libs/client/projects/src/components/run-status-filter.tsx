@@ -9,7 +9,8 @@ import {
   Icon,
   Text,
 } from '@shipfox/react-ui';
-import {StatusDot, type StatusDotVariant} from './status-dot.js';
+import {workflowStatusVisual} from '#lib/workflow-status-visual.js';
+import {StatusDot} from './status-dot.js';
 
 /**
  * Vercel-style status filter dropdown.
@@ -24,14 +25,6 @@ import {StatusDot, type StatusDotVariant} from './status-dot.js';
  */
 
 const RUN_STATUSES: RunStatusDto[] = ['pending', 'running', 'succeeded', 'failed', 'cancelled'];
-
-const variantByStatus: Record<RunStatusDto, StatusDotVariant> = {
-  pending: 'neutral',
-  running: 'info',
-  succeeded: 'success',
-  failed: 'error',
-  cancelled: 'neutral',
-};
 
 export function RunStatusFilter({
   value,
@@ -61,7 +54,7 @@ export function RunStatusFilter({
           }
         >
           <span className="inline-flex items-center gap-6">
-            {value ? <StatusDot variant={variantByStatus[value]} /> : null}
+            {value ? <StatusDot variant={workflowStatusVisual(value).dot} /> : null}
             <Text size="sm">{triggerLabel}</Text>
             <Icon name="arrowDownSLine" className="size-14 text-foreground-neutral-muted" />
           </span>
@@ -103,7 +96,7 @@ export function RunStatusFilter({
                         : 'size-14 text-transparent'
                     }
                   />
-                  <StatusDot variant={variantByStatus[status]} />
+                  <StatusDot variant={workflowStatusVisual(status).dot} />
                   <Text size="sm">{status}</Text>
                 </span>
                 {countsUnavailable ? null : (

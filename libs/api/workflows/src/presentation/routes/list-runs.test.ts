@@ -91,6 +91,7 @@ describe('GET /api/workflows/runs', () => {
     expect(body.runs[0].project_id).toBe(projectId);
     expect(body.runs[0].name).toBeDefined();
     expect(body.runs[0].trigger_source).toBe('manual');
+    expect(body.runs[0].duration_ms).toBe(0);
     expect(body.next_cursor).toBeNull();
     expect(body.filtered_total_count).toBe(2);
   });

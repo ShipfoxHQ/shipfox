@@ -17,6 +17,7 @@ export {
 export {
   type RunAggregatesQueryDto,
   type RunAggregatesResponseDto,
+  type RunDetailDto,
   type RunDto,
   type RunListQueryDto,
   type RunListResponseDto,
@@ -24,6 +25,7 @@ export {
   type RunStatusDto,
   runAggregatesQuerySchema,
   runAggregatesResponseSchema,
+  runDetailDtoSchema,
   runDtoSchema,
   runListQuerySchema,
   runListResponseSchema,

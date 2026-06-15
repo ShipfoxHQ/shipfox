@@ -230,6 +230,8 @@ function baseDefinitionsDto() {
         sha: 'abc123',
         ref: 'main',
         name: 'Deploy production',
+        workflow_source_yaml:
+          'name: Deploy production\ntriggers:\n  on_demand:\n    source: manual\n    event: fire\njobs:\n  deploy:\n    steps:\n      - run: ./deploy.sh\n',
         workflow_document: {
           name: 'Deploy production',
           triggers: {on_demand: {source: 'manual', event: 'fire'}},

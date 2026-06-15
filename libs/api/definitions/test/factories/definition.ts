@@ -15,7 +15,11 @@ function defaultDefinition(): WorkflowDefinitionPayload {
       },
     },
   };
-  return {document, model: normalizeWorkflowDocument(document)};
+  return {
+    sourceYaml: 'name: Test Workflow\njobs:\n  build:\n    steps:\n      - run: echo hello\n',
+    document,
+    model: normalizeWorkflowDocument(document),
+  };
 }
 
 interface DefinitionTransients {
@@ -33,6 +37,7 @@ export const definitionFactory = Factory.define<WorkflowDefinition, DefinitionTr
         configPath: definition.configPath,
         source: definition.source,
         name: definition.name,
+        sourceYaml: definition.workflowSourceYaml,
         document: definition.document,
         model: definition.model,
         contentHash: definition.contentHash ?? undefined,
@@ -52,6 +57,7 @@ export const definitionFactory = Factory.define<WorkflowDefinition, DefinitionTr
       ref: null,
       name: `Test Workflow ${sequence}`,
       definition: definition.document,
+      workflowSourceYaml: definition.sourceYaml ?? null,
       ...definition,
       contentHash: null,
       fetchedAt: new Date(),

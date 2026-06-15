@@ -44,6 +44,7 @@ export const stepDtoSchema = z.object({
   position: z.number(),
   // Execution-attempt identity of the current projection (>1 after a restart).
   current_attempt: z.number().int(),
+  duration_ms: z.number().int().nonnegative(),
   created_at: z.string(),
   updated_at: z.string(),
 });

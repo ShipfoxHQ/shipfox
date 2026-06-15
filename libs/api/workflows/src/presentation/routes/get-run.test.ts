@@ -70,17 +70,30 @@ describe('GET /api/workflows/runs/:id', () => {
   test('returns 200 with run, jobs, and steps', async () => {
     const projectId = crypto.randomUUID();
     const definitionId = crypto.randomUUID();
+    const model = workflowModel({
+      name: 'Test',
+      jobs: {
+        build: {steps: [{name: 'Install', run: 'npm install'}, {run: 'npm build'}]},
+      },
+    });
+    const document = {
+      name: 'Test',
+      jobs: {
+        build: {steps: [{name: 'Install', run: 'npm install'}, {run: 'npm build'}]},
+      },
+    };
 
     const run = await createWorkflowRun({
       workspaceId,
       projectId,
       definitionId,
-      model: workflowModel({
-        name: 'Test',
-        jobs: {
-          build: {steps: [{name: 'Install', run: 'npm install'}, {run: 'npm build'}]},
-        },
-      }),
+      model,
+      definitionSnapshot: {
+        sourceYaml:
+          'name: Test\njobs:\n  build:\n    steps:\n      - name: Install\n        run: npm install\n      - run: npm build\n',
+        document,
+        model,
+      },
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -97,11 +110,17 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.id).toBe(run.id);
+    expect(body.duration_ms).toBe(0);
+    expect(body.workflow_source_yaml).toContain('name: Test');
+    expect(body.workflow_document).toEqual(document);
+    expect(body.workflow_model).toEqual(model);
     expect(body.jobs).toHaveLength(1);
     expect(body.jobs[0].name).toBe('build');
+    expect(body.jobs[0].duration_ms).toBe(0);
     // Synthetic setup step at position 0, then the two user steps.
     expect(body.jobs[0].steps).toHaveLength(3);
     expect(body.jobs[0].steps[0].name).toBe('Set up job');
+    expect(body.jobs[0].steps[0].duration_ms).toBe(0);
     expect(body.jobs[0].steps[1].name).toBe('Install');
     expect(body.jobs[0].steps[2].name).toBeNull();
   });

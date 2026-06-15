@@ -11,7 +11,12 @@ import {and, asc, count, desc, eq, gte, inArray, lt, lte, or, type SQL, sql} fro
 import type {Job, JobStatus} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
-import type {TriggerPayload, WorkflowRun, WorkflowRunStatus} from '#core/entities/workflow-run.js';
+import type {
+  TriggerPayload,
+  WorkflowRun,
+  WorkflowRunDefinitionSnapshot,
+  WorkflowRunStatus,
+} from '#core/entities/workflow-run.js';
 import {JobNotFoundError} from '#core/errors.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import {materializeWorkflowModel} from '#core/workflow-runtime/index.js';
@@ -28,6 +33,7 @@ export interface CreateWorkflowRunParams {
   definitionId: string;
   name?: string | undefined;
   model: WorkflowModel;
+  definitionSnapshot?: WorkflowRunDefinitionSnapshot | null | undefined;
   triggerPayload: TriggerPayload;
   inputs?: Record<string, unknown> | undefined;
   triggerIdempotencyKey?: string | undefined;
@@ -48,6 +54,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         triggerSource: params.triggerPayload.source,
         triggerEvent: params.triggerPayload.event,
         triggerPayload: params.triggerPayload,
+        definitionSnapshot: params.definitionSnapshot ?? null,
         inputs: params.inputs ?? null,
         triggerIdempotencyKey: params.triggerIdempotencyKey ?? null,
       })
