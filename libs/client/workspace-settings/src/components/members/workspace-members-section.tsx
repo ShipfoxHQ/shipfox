@@ -83,7 +83,7 @@ function MembersSection({
         <QueryLoadError query={query} subject="members" />
       ) : null}
 
-      {!query.isPending && !query.isError && members.length > 0 ? (
+      {members.length > 0 ? (
         <Table>
           <TableHeader>
             <TableRow>
@@ -224,7 +224,7 @@ function PendingInvitationsSection({
 
       {query.data !== undefined && invitations.length === 0 ? <EmptyInvitations /> : null}
 
-      {!query.isError && invitations.length > 0 ? (
+      {invitations.length > 0 ? (
         <Table>
           <TableHeader>
             <TableRow>

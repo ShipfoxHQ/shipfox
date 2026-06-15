@@ -83,9 +83,7 @@ export function WorkspaceRunnerTokensSettingsSection({workspaceId}: {workspaceId
 
         {tokensQuery.data !== undefined && tokens.length === 0 ? <EmptyRunnerTokens /> : null}
 
-        {!tokensQuery.isError && tokens.length > 0 ? (
-          <RunnerTokenList workspaceId={workspaceId} tokens={tokens} />
-        ) : null}
+        {tokens.length > 0 ? <RunnerTokenList workspaceId={workspaceId} tokens={tokens} /> : null}
       </section>
     </div>
   );
