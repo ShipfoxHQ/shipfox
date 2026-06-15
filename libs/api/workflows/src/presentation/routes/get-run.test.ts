@@ -98,6 +98,9 @@ describe('GET /api/workflows/runs/:id', () => {
     const body = res.json();
     expect(body.id).toBe(run.id);
     expect(body.duration_ms).toBe(0);
+    expect(body.workflow_source_yaml).toBeNull();
+    expect(body.workflow_document).toBeNull();
+    expect(body.workflow_model).toBeNull();
     expect(body.jobs).toHaveLength(1);
     expect(body.jobs[0].name).toBe('build');
     expect(body.jobs[0].duration_ms).toBe(0);
@@ -107,6 +110,76 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(body.jobs[0].steps[0].duration_ms).toBe(0);
     expect(body.jobs[0].steps[1].name).toBe('Install');
     expect(body.jobs[0].steps[2].name).toBeNull();
+  });
+
+  test('returns the immutable definition snapshot when present', async () => {
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+    const model = workflowModel({name: 'Snapshot source'});
+    const document = {name: 'Snapshot source', jobs: {build: {steps: [{run: 'echo hello'}]}}};
+
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model,
+      definitionSnapshot: {
+        sourceYaml: 'name: Snapshot source\n',
+        document,
+      },
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.workflow_source_yaml).toBe('name: Snapshot source\n');
+    expect(body.workflow_document).toEqual(document);
+    expect(body.workflow_model).toEqual(model);
+  });
+
+  test('returns null source YAML without dropping document and model snapshot fields', async () => {
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+    const model = workflowModel({name: 'Generated definition'});
+    const document = {name: 'Generated definition', jobs: {build: {steps: [{run: 'echo hello'}]}}};
+
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model,
+      definitionSnapshot: {
+        sourceYaml: null,
+        document,
+      },
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.workflow_source_yaml).toBeNull();
+    expect(body.workflow_document).toEqual(document);
+    expect(body.workflow_model).toEqual(model);
   });
 
   test('exposes per-step error and cancelled status after a failed per-step report', async () => {

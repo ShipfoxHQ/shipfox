@@ -58,6 +58,7 @@ describe('workflow run queries', () => {
       expect(run.definitionId).toBe(definitionId);
       expect(run.status).toBe('pending');
       expect(run.triggerPayload).toMatchObject({source: 'manual', event: 'fire'});
+      expect(run.definitionSnapshot).toBeNull();
       expect(run.inputs).toBeNull();
       expect(run.version).toBe(1);
       expect(run.createdAt).toBeInstanceOf(Date);
@@ -77,6 +78,35 @@ describe('workflow run queries', () => {
         config: {},
       });
       expect(jobSteps[1]).toMatchObject({position: 1, config: {run: 'echo hello'}});
+    });
+
+    test('persists the definition snapshot with the run', async () => {
+      const model = buildModel();
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        definitionSnapshot: {
+          sourceYaml: 'name: Test\n',
+          document: {name: 'Test', jobs: {build: {steps: [{run: 'echo hello'}]}}},
+        },
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const stored = await getWorkflowRunById(run.id);
+
+      expect(stored?.definitionSnapshot).toEqual({
+        sourceYaml: 'name: Test\n',
+        document: {name: 'Test', jobs: {build: {steps: [{run: 'echo hello'}]}}},
+        model,
+      });
     });
 
     test('writes workflows.run.created outbox event in same transaction', async () => {
@@ -333,12 +363,18 @@ describe('workflow run queries', () => {
       const subscriptionId = crypto.randomUUID();
       const eventId = crypto.randomUUID();
       const idempotencyKey = `${subscriptionId}:${eventId}`;
+      const firstModel = buildModel({name: 'First snapshot'});
+      const secondModel = buildModel({name: 'Second snapshot'});
 
       const first = await createWorkflowRun({
         workspaceId,
         projectId,
         definitionId,
-        model: buildModel(),
+        model: firstModel,
+        definitionSnapshot: {
+          sourceYaml: 'name: First snapshot\n',
+          document: {name: 'First snapshot', jobs: {build: {steps: [{run: 'echo first'}]}}},
+        },
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -351,7 +387,11 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        model: buildModel(),
+        model: secondModel,
+        definitionSnapshot: {
+          sourceYaml: 'name: Second snapshot\n',
+          document: {name: 'Second snapshot', jobs: {build: {steps: [{run: 'echo second'}]}}},
+        },
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -363,6 +403,7 @@ describe('workflow run queries', () => {
 
       expect(second.id).toBe(first.id);
       expect(second.triggerIdempotencyKey).toBe(idempotencyKey);
+      expect(second.definitionSnapshot).toEqual(first.definitionSnapshot);
 
       const allJobs = await getJobsByRunId(first.id);
       expect(allJobs).toHaveLength(1);

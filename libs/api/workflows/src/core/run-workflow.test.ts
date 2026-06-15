@@ -79,6 +79,11 @@ describe('runWorkflow', () => {
     expect(run.triggerSource).toBe('manual');
     expect(run.triggerEvent).toBe('fire');
     expect(run.triggerPayload).toEqual(triggerPayload);
+    expect(run.definitionSnapshot).toEqual({
+      sourceYaml: definition.sourceYaml,
+      document: definition.document,
+      model: definition.model,
+    });
   });
 
   test('persists an integration trigger payload intact', async () => {

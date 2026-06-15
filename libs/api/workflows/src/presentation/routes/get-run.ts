@@ -56,6 +56,9 @@ export const getRunRoute = defineRoute({
 
     return {
       ...toRunDto(run),
+      workflow_source_yaml: run.definitionSnapshot?.sourceYaml ?? null,
+      workflow_document: run.definitionSnapshot?.document ?? null,
+      workflow_model: run.definitionSnapshot?.model ?? null,
       jobs: jobDtos,
     };
   },

@@ -1,3 +1,5 @@
+import type {WorkflowModel, WorkflowSpec} from '@shipfox/api-definitions';
+
 export type WorkflowRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
 export type TriggerPayload =
@@ -22,6 +24,12 @@ export type TriggerPayload =
       data: unknown;
     };
 
+export interface WorkflowRunDefinitionSnapshot {
+  sourceYaml: string | null;
+  document: WorkflowSpec;
+  model: WorkflowModel;
+}
+
 export interface WorkflowRun {
   id: string;
   workspaceId: string;
@@ -32,6 +40,7 @@ export interface WorkflowRun {
   triggerSource: string;
   triggerEvent: string;
   triggerPayload: TriggerPayload;
+  definitionSnapshot: WorkflowRunDefinitionSnapshot | null;
   inputs: Record<string, unknown> | null;
   triggerIdempotencyKey: string | null;
   version: number;

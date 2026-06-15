@@ -71,6 +71,9 @@ describe('getWorkflowRun', () => {
           trigger_payload: {source: 'manual', event: 'fire'},
           inputs: null,
           duration_ms: 0,
+          workflow_source_yaml: 'name: Deploy\n',
+          workflow_document: {name: 'Deploy', jobs: {}},
+          workflow_model: {kind: 'workflow', name: 'Deploy'},
           created_at: '2026-05-13T00:00:00.000Z',
           updated_at: '2026-05-13T00:00:00.000Z',
           jobs: [],
@@ -89,5 +92,6 @@ describe('getWorkflowRun', () => {
     );
     expect(request.method).toBe('GET');
     expect(result.duration_ms).toBe(0);
+    expect(result.workflow_source_yaml).toBe('name: Deploy\n');
   });
 });
