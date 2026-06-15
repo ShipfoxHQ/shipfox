@@ -1,6 +1,16 @@
 import type {RunDto} from '@shipfox/api-workflows-dto';
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from '@tanstack/react-router';
 import {render, screen} from '@testing-library/react';
+import type {ReactElement} from 'react';
 import {RelativeTimeProvider} from '#lib/relative-time.js';
+import {PROJECT_TEST_WID} from '#test/pages.js';
 import {RunRow} from './run-row.js';
 
 function makeRun(overrides: Partial<RunDto> = {}): RunDto {
@@ -22,46 +32,65 @@ function makeRun(overrides: Partial<RunDto> = {}): RunDto {
 }
 
 function renderRow(run: RunDto) {
-  return render(
+  return renderWithRouter(
+    `/workspaces/${PROJECT_TEST_WID}/projects/${run.project_id}/runs`,
     <RelativeTimeProvider>
-      <RunRow run={run} />
+      <RunRow run={run} workspaceId={PROJECT_TEST_WID} />
     </RelativeTimeProvider>,
   );
 }
 
 describe('RunRow', () => {
-  test('renders short id, trigger, workflow name, and terminal duration', () => {
+  test('renders short id, trigger, workflow name, and terminal duration', async () => {
     renderRow(makeRun({status: 'succeeded', duration_ms: 13_000}));
 
-    expect(screen.getByText('abcd1234')).toBeInTheDocument();
+    expect(await screen.findByText('abcd1234')).toBeInTheDocument();
     expect(screen.getByText('manual')).toBeInTheDocument();
     expect(screen.getByText('Deploy production')).toBeInTheDocument();
     expect(screen.getByText('13s')).toBeInTheDocument();
   });
 
-  test('shows "running Xs" with current-time computation for running runs', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(Date.parse('2026-05-13T00:00:30.000Z'));
+  test('shows running duration with current-time computation for running runs', async () => {
+    const createdAt = new Date(Date.now() - 30_500).toISOString();
 
     renderRow(
       makeRun({
         status: 'running',
         duration_ms: 0,
-        created_at: '2026-05-13T00:00:00.000Z',
+        created_at: createdAt,
         updated_at: '2026-05-13T00:00:10.000Z',
       }),
     );
 
-    expect(screen.getByText('running 30s')).toBeInTheDocument();
-
-    vi.useRealTimers();
+    expect(await screen.findByText('running 30s')).toBeInTheDocument();
   });
 
-  test('is not interactive — no role=button, no tabindex on the row', () => {
-    const {container} = renderRow(makeRun());
+  test('links to the run detail route', async () => {
+    renderRow(makeRun());
 
-    const row = container.firstChild as HTMLElement;
-    expect(row.getAttribute('role')).not.toBe('button');
-    expect(row.getAttribute('tabindex')).toBe(null);
+    expect(await screen.findByRole('link')).toHaveAttribute(
+      'href',
+      `/workspaces/${PROJECT_TEST_WID}/projects/p/runs/abcd1234-0000-0000-0000-000000000000`,
+    );
   });
 });
+
+function renderWithRouter(path: string, element: ReactElement) {
+  const rootRoute = createRootRoute({component: Outlet});
+  const runsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/projects/$pid/runs',
+    component: () => element,
+  });
+  const runDetailRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/projects/$pid/runs/$rid',
+    component: () => null,
+  });
+  const router = createRouter({
+    history: createMemoryHistory({initialEntries: [path]}),
+    routeTree: rootRoute.addChildren([runsRoute, runDetailRoute]),
+  });
+
+  return render(<RouterProvider router={router} />);
+}

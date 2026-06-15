@@ -5,6 +5,7 @@ import {ProjectRunsPage} from './project-runs-page.js';
 
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
+const DEPLOY_PRODUCTION_RE = /Deploy production/;
 const REFRESH_BUTTON_RE = /refresh/i;
 
 describe('ProjectRunsPage', () => {
@@ -18,6 +19,10 @@ describe('ProjectRunsPage', () => {
 
     expect(await screen.findByRole('heading', {name: 'Runs'})).toBeInTheDocument();
     expect((await screen.findAllByText('Deploy production'))[0]).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: DEPLOY_PRODUCTION_RE})).toHaveAttribute(
+      'href',
+      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/66666666-6666-4666-8666-666666666666`,
+    );
     expect(screen.getByText('Loaded 1 of 2')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', {name: 'Load more'}));
@@ -124,6 +129,7 @@ function runDto(overrides: Partial<{id: string; name: string; status: string}> =
     trigger_event: 'fire',
     trigger_payload: {source: 'manual', event: 'fire'},
     inputs: null,
+    duration_ms: 60_000,
     created_at: '2026-05-07T01:01:00.000Z',
     updated_at: '2026-05-07T01:02:00.000Z',
   };

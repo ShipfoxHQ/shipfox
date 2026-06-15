@@ -15,6 +15,7 @@ import {type RenderResult, render} from '@testing-library/react';
 import {Provider as JotaiProvider, useSetAtom} from 'jotai';
 import {type ReactElement, useEffect} from 'react';
 import {CreateProjectPage} from '#pages/create-project-page.js';
+import {ProjectRunDetailPage} from '#pages/project-run-detail-page.js';
 import {ProjectRunsPage} from '#pages/project-runs-page.js';
 import {ProjectWorkflowsPage} from '#pages/project-workflows-page.js';
 import {ProjectsHubPage} from '#pages/projects-hub-page.js';
@@ -100,6 +101,20 @@ function createTestRouter(path: string, element: ReactElement) {
       return <ProjectRunsPage projectId={params.pid ?? 'p-1'} />;
     },
   });
+  const projectRunDetailRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/projects/$pid/runs/$rid',
+    component: () => {
+      const params = useParams({strict: false}) as {pid?: string; rid?: string};
+      if (
+        initialPath === `/workspaces/${PROJECT_TEST_WID}/projects/${params.pid}/runs/${params.rid}`
+      ) {
+        return element;
+      }
+
+      return <ProjectRunDetailPage projectId={params.pid ?? 'p-1'} runId={params.rid ?? 'r-1'} />;
+    },
+  });
   const projectWorkflowsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/workspaces/$wid/projects/$pid/workflows',
@@ -122,6 +137,7 @@ function createTestRouter(path: string, element: ReactElement) {
       integrationsRoute,
       projectDetailRoute,
       projectRunsRoute,
+      projectRunDetailRoute,
       projectWorkflowsRoute,
     ]),
   });

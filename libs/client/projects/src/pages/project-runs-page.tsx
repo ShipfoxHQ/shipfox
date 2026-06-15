@@ -113,7 +113,7 @@ function ProjectRunsPageInner({projectId}: {projectId: string}) {
 
       {runs.length > 0 ? (
         <>
-          <RunsList runs={runs} />
+          <RunsList runs={runs} workspaceId={params.wid ?? ''} />
           {runsQuery.isFetchNextPageError ? (
             <Alert variant="error" animated={false}>
               <div className="flex items-center justify-between gap-12">
@@ -332,11 +332,11 @@ function RunsEmptyState({
   );
 }
 
-function RunsList({runs}: {runs: RunDto[]}) {
+function RunsList({runs, workspaceId}: {runs: RunDto[]; workspaceId: string}) {
   return (
     <div className="flex flex-col divide-y divide-border-neutral-base rounded-8 border border-border-neutral-base bg-background-neutral-base">
       {runs.map((run) => (
-        <RunRow key={run.id} run={run} />
+        <RunRow key={run.id} run={run} workspaceId={workspaceId} />
       ))}
     </div>
   );
