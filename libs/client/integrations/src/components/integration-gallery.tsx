@@ -233,14 +233,9 @@ function InstalledRow({
           Added {formatAddedDate(connection.created_at)}
         </Text>
       </div>
-      <Badge
-        variant={pill.variant}
-        radius="rounded"
-        className="shrink-0"
-        {...(pill.iconLeft ? {iconLeft: pill.iconLeft} : {})}
-      >
-        {pill.label}
-      </Badge>
+      {/* "Open" sits left of the pill (optional, only when external_url is set)
+          so the status pill stays the rightmost element on every row and the
+          pills align in a single scannable column. */}
       {connection.external_url ? (
         <Button
           asChild
@@ -259,6 +254,14 @@ function InstalledRow({
           </a>
         </Button>
       ) : null}
+      <Badge
+        variant={pill.variant}
+        radius="rounded"
+        className="shrink-0"
+        {...(pill.iconLeft ? {iconLeft: pill.iconLeft} : {})}
+      >
+        {pill.label}
+      </Badge>
     </li>
   );
 }
