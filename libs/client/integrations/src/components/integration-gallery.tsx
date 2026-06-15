@@ -50,6 +50,17 @@ const lifecyclePills: Record<
 
 const FALLBACK_ICON: IconName = 'componentLine';
 
+// Shared so the live grid and its loading skeleton can never drift to a
+// different column rule. Container-driven (auto-fill) columns work in both the
+// wide settings panel and the narrow onboarding container. Keep it space-free —
+// Tailwind v4 arbitrary-property values must not contain spaces.
+const AVAILABLE_GRID_CLASS =
+  'grid gap-16 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]';
+
+// Installed rows share one grid (via subgrid) so the status pill aligns down a
+// single scannable column regardless of which rows carry an "Open" action.
+const INSTALLED_GRID_COLS = 'grid-cols-[24px_minmax(0,1fr)_auto_auto]';
+
 export function IntegrationGallery({
   capability,
   emptyProvidersMessage = 'Enable at least one provider in the application settings.',
@@ -91,7 +102,7 @@ export function IntegrationGallery({
         <section className="flex flex-col gap-16" aria-label="Installed integrations">
           <Header variant="h3">Installed integrations</Header>
 
-          {connectionsQuery.isPending ? <GallerySkeleton label="Loading integrations" /> : null}
+          {connectionsQuery.isPending ? <InstalledSkeleton label="Loading integrations" /> : null}
 
           {connectionsQuery.isError ? (
             <Alert variant="error">
@@ -123,15 +134,20 @@ export function IntegrationGallery({
           ) : null}
 
           {hasConnections ? (
-            <div className="flex flex-col gap-8">
+            <ul
+              className={cn(
+                'grid divide-y divide-border-neutral-base overflow-hidden rounded-8 border border-border-neutral-base',
+                INSTALLED_GRID_COLS,
+              )}
+            >
               {sortedConnections.map((connection) => (
-                <InstalledCard
+                <InstalledRow
                   key={connection.id}
                   connection={connection}
                   providerLabel={providerLabel(connection.provider)}
                 />
               ))}
-            </div>
+            </ul>
           ) : null}
         </section>
       ) : null}
@@ -139,7 +155,7 @@ export function IntegrationGallery({
       <section className="flex flex-col gap-16" aria-label="Available integrations">
         <Header variant="h3">Available integrations</Header>
 
-        {providersQuery.isPending ? <GallerySkeleton label="Loading providers" /> : null}
+        {providersQuery.isPending ? <AvailableSkeleton label="Loading providers" /> : null}
 
         {providersQuery.isError ? (
           <Alert variant="error">
@@ -173,22 +189,20 @@ export function IntegrationGallery({
         ) : null}
 
         {installableProviders.length > 0 ? (
-          <div className="flex flex-col gap-8">
+          <ul className={AVAILABLE_GRID_CLASS}>
             {installableProviders.map((provider) => (
-              <AvailableCard
-                key={provider.provider}
-                provider={provider}
-                workspaceId={workspace.id}
-              />
+              <li key={provider.provider}>
+                <AvailableCard provider={provider} workspaceId={workspace.id} />
+              </li>
             ))}
-          </div>
+          </ul>
         ) : null}
       </section>
     </div>
   );
 }
 
-function InstalledCard({
+function InstalledRow({
   connection,
   providerLabel,
 }: {
@@ -200,52 +214,55 @@ function InstalledCard({
   const muted = connection.lifecycle_status === 'disabled';
 
   return (
-    <Card className="p-16">
-      <div className="flex flex-wrap items-center justify-between gap-12">
-        <div className="flex min-w-0 flex-col gap-4">
-          <div className="flex min-w-0 items-center gap-12">
-            <Icon
-              name={iconName}
-              className={cn(
-                'size-24 shrink-0',
-                muted ? 'text-foreground-neutral-disabled' : 'text-foreground-neutral-base',
-              )}
-            />
-            <Text
-              size="md"
-              bold
-              className={cn('truncate', muted ? 'text-foreground-neutral-disabled' : undefined)}
-            >
-              {connection.display_name}
-            </Text>
-            <Badge
-              variant={pill.variant}
-              radius="rounded"
-              {...(pill.iconLeft ? {iconLeft: pill.iconLeft} : {})}
-            >
-              {pill.label}
-            </Badge>
-          </div>
-          <Text size="sm" className="truncate pl-36 text-foreground-neutral-muted">
-            {providerLabel} · Added {formatAddedDate(connection.created_at)}
-          </Text>
-        </div>
-        {connection.external_url ? (
-          <div className="ml-auto flex items-center gap-8">
-            <Button asChild size="sm" variant="transparentMuted" iconRight="externalLinkLine">
-              <a
-                href={connection.external_url}
-                target="_blank"
-                rel="noreferrer noopener"
-                aria-label={`Open ${connection.display_name} in ${providerLabel}`}
-              >
-                Open in {providerLabel}
-              </a>
-            </Button>
-          </div>
-        ) : null}
+    <li className="col-span-4 grid grid-cols-subgrid items-center gap-12 px-16 py-10 transition-colors hover:bg-background-components-hover">
+      <Icon
+        name={iconName}
+        className={cn(
+          'size-24 shrink-0',
+          muted ? 'text-foreground-neutral-disabled' : 'text-foreground-neutral-base',
+        )}
+      />
+      <div className="flex min-w-0 flex-col gap-2">
+        <Text
+          size="md"
+          bold
+          className={cn('truncate', muted ? 'text-foreground-neutral-disabled' : undefined)}
+        >
+          {connection.display_name}
+        </Text>
+        {/* Provider is already named by the icon (and the account name), so the
+            meta line carries only the date — no third repeat of the provider. */}
+        <Text size="sm" className="truncate text-foreground-neutral-muted">
+          Added {formatAddedDate(connection.created_at)}
+        </Text>
       </div>
-    </Card>
+      <Badge
+        variant={pill.variant}
+        radius="rounded"
+        className="shrink-0"
+        {...(pill.iconLeft ? {iconLeft: pill.iconLeft} : {})}
+      >
+        {pill.label}
+      </Badge>
+      {connection.external_url ? (
+        <Button
+          asChild
+          size="sm"
+          variant="transparentMuted"
+          iconRight="externalLinkLine"
+          className="shrink-0"
+        >
+          <a
+            href={connection.external_url}
+            target="_blank"
+            rel="noreferrer noopener"
+            aria-label={`Open ${connection.display_name} in ${providerLabel}`}
+          >
+            Open
+          </a>
+        </Button>
+      ) : null}
+    </li>
   );
 }
 
@@ -259,26 +276,28 @@ function AvailableCard({
   const catalog = PROVIDER_CATALOG[provider.provider];
   if (!catalog) return null;
 
+  // The whole tile is the click target (no Button nested inside the Link); the
+  // hover wash + the "Connect" affordance signal that the tile is clickable.
   return (
-    <Card className="p-16">
-      <div className="flex flex-wrap items-center justify-between gap-12">
+    <Link
+      to={catalog.setupPath}
+      params={{wid: workspaceId}}
+      aria-label={`Connect ${provider.display_name}`}
+      className="block h-full rounded-8 focus-visible:shadow-button-secondary-focus focus-visible:outline-none"
+    >
+      <Card className="h-full gap-12 p-20 transition-colors hover:bg-background-components-hover">
         <div className="flex min-w-0 items-center gap-12">
           <Icon name={catalog.iconName} className="size-24 shrink-0 text-foreground-neutral-base" />
           <Text size="md" bold className="truncate">
             {provider.display_name}
           </Text>
         </div>
-        <Button asChild variant="secondary">
-          <Link
-            to={catalog.setupPath}
-            params={{wid: workspaceId}}
-            aria-label={`Connect ${provider.display_name}`}
-          >
-            Connect
-          </Link>
-        </Button>
-      </div>
-    </Card>
+        <div className="mt-auto flex items-center gap-4 text-foreground-highlight-interactive">
+          <Text size="sm">Connect</Text>
+          <Icon name="chevronRight" className="size-16" />
+        </div>
+      </Card>
+    </Link>
   );
 }
 
@@ -290,20 +309,41 @@ function formatAddedDate(createdAt: string): string {
   });
 }
 
-function GallerySkeleton({label}: {label: string}) {
+function InstalledSkeleton({label}: {label: string}) {
   return (
-    <div className="flex flex-col gap-8" role="status" aria-label={label}>
-      {[0, 1].map((row) => (
-        <Card className="p-16" key={row}>
-          <div className="flex items-center justify-between gap-12">
+    <ul
+      role="status"
+      aria-label={label}
+      className={cn(
+        'grid divide-y divide-border-neutral-base overflow-hidden rounded-8 border border-border-neutral-base',
+        'grid-cols-[24px_minmax(0,1fr)_auto]',
+      )}
+    >
+      {[0, 1, 2].map((row) => (
+        <li key={row} className="col-span-3 grid grid-cols-subgrid items-center gap-12 px-16 py-10">
+          <Skeleton className="size-24 shrink-0" />
+          <Skeleton className="h-16 w-120" />
+          <Skeleton className="h-20 w-72 shrink-0" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function AvailableSkeleton({label}: {label: string}) {
+  return (
+    <ul role="status" aria-label={label} className={AVAILABLE_GRID_CLASS}>
+      {[0, 1, 2, 3].map((tile) => (
+        <li key={tile}>
+          <Card className="h-full gap-12 p-20">
             <div className="flex items-center gap-12">
               <Skeleton className="size-24 shrink-0" />
               <Skeleton className="h-16 w-120" />
             </div>
-            <Skeleton className="h-32 w-96" />
-          </div>
-        </Card>
+            <Skeleton className="mt-auto h-16 w-64" />
+          </Card>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }

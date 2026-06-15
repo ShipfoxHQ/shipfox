@@ -82,8 +82,9 @@ const installedRegion = () => screen.getByRole('region', {name: 'Installed integ
 const availableRegion = () => screen.getByRole('region', {name: 'Available integrations'});
 
 const SORTED_NAMES_RE = /acme-(early|late)/;
-const MYSTERY_SUBTITLE_RE = /mystery · Added/;
-const GITHUB_SUBTITLE_RE = /github · Added/;
+// The meta line carries the date only — the provider is named once, by the
+// icon and the account name, never repeated as body text in the row.
+const ADDED_META_RE = /^Added /;
 
 describe('IntegrationGallery — installed section', () => {
   test('renders two distinct cards for two connections sharing one provider', async () => {
@@ -234,14 +235,24 @@ describe('IntegrationGallery — installed section', () => {
     );
 
     expect(await screen.findByText('mystery-acct')).toBeVisible();
-    expect(within(installedRegion()).getByText(MYSTERY_SUBTITLE_RE)).toBeVisible();
+    expect(within(installedRegion()).getByText(ADDED_META_RE)).toBeVisible();
+  });
+
+  test('names the provider once per row — not repeated in the meta line', async () => {
+    renderGallery({}, {connections: [githubConnection]});
+
+    await screen.findByText('acme-corp');
+
+    const region = installedRegion();
+    expect(within(region).getByText(ADDED_META_RE)).toBeVisible();
+    expect(within(region).queryByText('GitHub')).not.toBeInTheDocument();
   });
 
   test('renders installed cards even when the providers query fails', async () => {
     renderGallery({}, {providersFail: true, connections: [githubConnection]});
 
     expect(await screen.findByText('acme-corp')).toBeVisible();
-    expect(within(installedRegion()).getByText(GITHUB_SUBTITLE_RE)).toBeVisible();
+    expect(within(installedRegion()).getByText(ADDED_META_RE)).toBeVisible();
     expect(screen.getByRole('link', {name: 'Open acme-corp in github'})).toBeInTheDocument();
     expect(within(availableRegion()).getByText('Could not load providers')).toBeInTheDocument();
   });
@@ -307,6 +318,14 @@ describe('IntegrationGallery — available section', () => {
 
     expect(await screen.findByRole('link', {name: 'Connect GitHub'})).toBeVisible();
     expect(screen.getByRole('link', {name: 'Connect Sentry'})).toBeVisible();
+  });
+
+  test('exposes each available tile as a single link with no nested button', async () => {
+    renderGallery({}, {connections: [githubConnection]});
+
+    const link = await screen.findByRole('link', {name: 'Connect GitHub'});
+
+    expect(within(link).queryByRole('button')).not.toBeInTheDocument();
   });
 
   test('surfaces a providers error only in the available section', async () => {

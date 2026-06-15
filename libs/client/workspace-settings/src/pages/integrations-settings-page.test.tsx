@@ -48,7 +48,9 @@ function renderPage() {
 }
 
 const INTEGRATIONS_LINK_RE = /Integrations/;
-const GITHUB_SUBTITLE_RE = /GitHub · Added/;
+// The provider is named once (icon + account name); the meta line carries the
+// date only, so it no longer repeats "GitHub".
+const ADDED_META_RE = /^Added /;
 
 describe('IntegrationsSettingsPage', () => {
   test('renders the settings shell and delegates to the integration gallery', async () => {
@@ -65,6 +67,6 @@ describe('IntegrationsSettingsPage', () => {
     expect(screen.getByRole('region', {name: 'Available integrations'})).toBeInTheDocument();
     expect(await screen.findByText('Connected')).toBeVisible();
     expect(screen.getByText('acme-corp')).toBeVisible();
-    expect(screen.getByText(GITHUB_SUBTITLE_RE)).toBeVisible();
+    expect(screen.getByText(ADDED_META_RE)).toBeVisible();
   });
 });
