@@ -7,6 +7,7 @@ import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createGithubApiClient, type GithubApiClient} from '#api/client.js';
 import {GithubSourceControlProvider} from '#core/source-control.js';
 import {closeDb, db} from '#db/db.js';
+import {getGithubInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
 import {
   type CreateGithubIntegrationRoutesOptions,
@@ -36,16 +37,29 @@ export interface CreateGithubIntegrationProviderOptions
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  getGithubInstallationByConnectionId?: typeof getGithubInstallationByConnectionId | undefined;
 }
 
 export function createGithubIntegrationProvider(options: CreateGithubIntegrationProviderOptions) {
   const github = options.github ?? createGithubApiClient();
+  const getInstallationByConnectionId =
+    options.getGithubInstallationByConnectionId ?? getGithubInstallationByConnectionId;
 
   return {
     provider: 'github' as const,
     displayName: 'GitHub',
     adapters: {
       source_control: new GithubSourceControlProvider(github),
+    },
+    async connectionExternalUrl(connection: {id: string}): Promise<string | undefined> {
+      const installation = await getInstallationByConnectionId(connection.id);
+      if (!installation) return undefined;
+      const installationId = encodeURIComponent(installation.installationId);
+      if (installation.accountType === 'Organization') {
+        const login = encodeURIComponent(installation.accountLogin);
+        return `https://github.com/organizations/${login}/settings/installations/${installationId}`;
+      }
+      return `https://github.com/settings/installations/${installationId}`;
     },
     routes: [
       createGithubIntegrationRoutes({

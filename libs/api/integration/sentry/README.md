@@ -76,13 +76,41 @@ verify-install call and then discarded; **no Sentry token is persisted**.
 
 Configure the Sentry App (Settings → Developer Settings → your app):
 
-- **Redirect URL:** point it at the client callback route, which reads
-  `code`, `installationId`, and `orgSlug` from the redirect query and calls
-  `POST /integrations/sentry/connect`.
+- **Redirect URL:** point it at the client callback route
+  `<client-origin>/integrations/sentry/callback` (for example
+  `https://app.shipfox.io/integrations/sentry/callback`, or
+  `http://localhost:5173/integrations/sentry/callback` for local development).
+  The page reads `code` and `installationId` from the redirect query, asks the
+  user to confirm the target workspace, and calls
+  `POST /integrations/sentry/connect` with `{workspace_id, code,
+  installation_id}`. A redirect `orgSlug`, if present, is used only as display
+  copy on the confirm screen; it is never sent to the API. The server derives
+  the authoritative org slug from Sentry after the code exchange (the
+  `get-installation` call), so a forged slug cannot influence the stored
+  connection. This is per-environment configuration:
+  each environment's Sentry App must point at that environment's client
+  origin, or installs end on sentry.io with nowhere to return to.
 - **Webhooks:** enable the **Issue** resource so issue webhooks are delivered.
 - **Verify Install:** when enabled, the connect flow issues a
   `PUT /api/0/sentry-app-installations/{installation_id}/` to mark the
   installation installed; mirror the toggle with `SENTRY_APP_VERIFY_INSTALL`.
+
+### Required permissions
+
+Set these under the app's **Permissions** tab. The installation token bakes in
+the app's permissions at install time, so **changing a permission requires
+reinstalling the app** before the new scope takes effect.
+
+| Permission | Level | Why |
+| --- | --- | --- |
+| **Organization** | Read | `POST /connect` reads the installation to derive the org slug. Without it, the org lookup returns `403 Forbidden` and connect fails with `access-denied` (422). |
+| **Issue & Event** | Read | Required for Sentry to deliver issue webhooks against the installation. |
+
+When a Sentry call is rejected, the API logs a `Sentry API request rejected`
+warning with the failing `operation` and the upstream `status` (for example
+`{operation: "get-installation", status: 403}`). The client-facing error stays
+generic to avoid leaking provider internals, so this log is where you confirm a
+missing-permission `403` versus a transient failure.
 
 ## Development
 

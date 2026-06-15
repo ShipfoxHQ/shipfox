@@ -38,6 +38,7 @@ export const CommonIcons: Story = {
         'github',
         'google',
         'microsoft',
+        'sentry',
         'slack',
         'stripe',
       ].map((name) => (

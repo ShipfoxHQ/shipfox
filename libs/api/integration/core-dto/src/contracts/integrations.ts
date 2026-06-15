@@ -129,6 +129,12 @@ export interface IntegrationProvider<
   displayName: string;
   adapters?: IntegrationProviderAdapters<Connection> | undefined;
   routes?: Route[] | undefined;
+  /**
+   * Resolves the provider-side home of a connection (e.g. the Sentry org or the
+   * GitHub installation settings page). Returns undefined when the connection has
+   * no external home or the provider-side record is missing.
+   */
+  connectionExternalUrl?(connection: Connection): Promise<string | undefined>;
 }
 
 export interface RegisteredIntegrationProvider<

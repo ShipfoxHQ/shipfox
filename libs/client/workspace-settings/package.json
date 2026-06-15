@@ -40,6 +40,7 @@
     "@shipfox/api-workspaces-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
+    "@shipfox/client-integrations": "workspace:*",
     "@shipfox/client-runners": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",

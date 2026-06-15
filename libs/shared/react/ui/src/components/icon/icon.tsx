@@ -25,6 +25,7 @@ import {
   EllipseMiniSolidIcon,
   InfoTooltipFillIcon,
   ResizeIcon,
+  SentryLogo,
   ShipfoxLogo,
   SlackLogo,
   SpinnerIcon,
@@ -53,6 +54,7 @@ const commonRemixicons = {
 
 const customIconsMap = {
   shipfox: ShipfoxLogo,
+  sentry: SentryLogo,
   slack: SlackLogo,
   stripe: StripeLogo,
   badge: BadgeIcon,

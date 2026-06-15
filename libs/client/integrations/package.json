@@ -40,6 +40,7 @@
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-integration-debug-dto": "workspace:*",
     "@shipfox/api-integration-github-dto": "workspace:*",
+    "@shipfox/api-integration-sentry-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
