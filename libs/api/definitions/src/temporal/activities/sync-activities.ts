@@ -115,6 +115,7 @@ function createFetchAndApplyActivity(sourceControl: IntegrationSourceControlServ
         upserts: definitions.map((entry) => ({
           configPath: entry.path,
           name: entry.name,
+          sourceYaml: entry.definition.sourceYaml,
           document: entry.definition.document,
           model: entry.definition.model,
           contentHash: entry.contentHash,

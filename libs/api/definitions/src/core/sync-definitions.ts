@@ -109,7 +109,12 @@ export async function fetchAndParseWorkflows(
     try {
       const definition = parseDefinition(snapshot.content);
       const contentHash = sha256Hex(snapshot.content);
-      return {path: snapshot.path, name: definition.document.name, definition, contentHash};
+      return {
+        path: snapshot.path,
+        name: definition.document.name,
+        definition,
+        contentHash,
+      };
     } catch (error) {
       if (error instanceof DefinitionParseError) {
         throw new DefinitionSyncPermanentError(

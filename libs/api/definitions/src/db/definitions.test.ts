@@ -26,7 +26,7 @@ function definitionFields(name = 'Test Workflow'): WorkflowDefinitionPayload {
     name,
     jobs: {build: {steps: [{run: 'echo hello'}]}},
   };
-  return {document, model: normalizeWorkflowDocument(document)};
+  return {sourceYaml: `name: ${name}\n`, document, model: normalizeWorkflowDocument(document)};
 }
 
 async function listOutboxRowsForProject(projectId: string) {
@@ -66,12 +66,34 @@ describe('definition queries', () => {
       expect(definition.projectId).toBe(projectId);
       expect(definition.configPath).toBe('.shipfox/workflows/test.yml');
       expect(definition.name).toBe('Test');
-      expect({document: definition.document, model: definition.model}).toEqual(definitionFields());
+      expect({
+        sourceYaml: definition.sourceYaml,
+        document: definition.document,
+        model: definition.model,
+      }).toEqual(definitionFields());
       expect(definition.sha).toBeNull();
       expect(definition.ref).toBeNull();
       expect(definition.fetchedAt).toBeInstanceOf(Date);
       expect(definition.createdAt).toBeInstanceOf(Date);
       expect(definition.updatedAt).toBeInstanceOf(Date);
+    });
+
+    test('maps legacy rows without source YAML to null', async () => {
+      const {document, model} = definitionFields('Legacy');
+      const rows = await db()
+        .insert(workflowDefinitions)
+        .values({
+          projectId,
+          configPath: '.shipfox/workflows/legacy.yml',
+          name: 'Legacy',
+          definition: {document, model},
+        })
+        .returning({id: workflowDefinitions.id});
+
+      const definition = await getDefinitionById(rows[0]?.id ?? '');
+
+      expect(definition?.sourceYaml).toBeNull();
+      expect(definition?.document.name).toBe('Legacy');
     });
 
     test('updates existing definition on conflict (same project_id + config_path)', async () => {

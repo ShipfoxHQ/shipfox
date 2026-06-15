@@ -29,6 +29,7 @@ export const definitionDtoSchema = z.object({
   sha: z.string().nullable(),
   ref: z.string().nullable(),
   name: z.string(),
+  workflow_source_yaml: z.string().nullable(),
   workflow_document: z.unknown(),
   workflow_model: z.unknown(),
   manual_trigger: z

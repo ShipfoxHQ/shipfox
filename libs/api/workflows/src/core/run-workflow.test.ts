@@ -29,6 +29,7 @@ function buildDefinition(overrides?: Partial<WorkflowDefinition>): WorkflowDefin
     ref: null,
     name: 'Test Workflow',
     definition: document,
+    sourceYaml: 'name: Test Workflow\n',
     document,
     model,
     contentHash: null,

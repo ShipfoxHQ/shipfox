@@ -15,6 +15,7 @@ export function toDefinitionDto(definition: WorkflowDefinition): DefinitionDto {
     sha: definition.sha,
     ref: definition.ref,
     name: definition.name,
+    workflow_source_yaml: definition.sourceYaml,
     workflow_document: definition.document,
     workflow_model: definition.model,
     manual_trigger: manualEntry ? {name: manualEntry[0]} : null,

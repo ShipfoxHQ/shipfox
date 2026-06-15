@@ -24,6 +24,7 @@ export interface UpsertDefinitionParams {
   configPath?: string | null | undefined;
   source?: 'manual' | 'vcs' | undefined;
   name: string;
+  sourceYaml?: string | null | undefined;
   document: WorkflowDocument;
   model: WorkflowModel;
   contentHash?: string | null | undefined;
@@ -38,6 +39,7 @@ function buildUpsertQuery(tx: Tx, params: UpsertDefinitionParams) {
   }
 
   const definition: WorkflowDefinitionPayload = {
+    sourceYaml: params.sourceYaml ?? null,
     document: params.document,
     model: params.model,
   };
@@ -255,6 +257,7 @@ export interface ApplyVcsDefinitionsBatchParams {
     name: string;
     document: WorkflowDocument;
     model: WorkflowModel;
+    sourceYaml?: string | null | undefined;
     contentHash: string;
   }>;
 }
@@ -298,6 +301,7 @@ export async function applyVcsDefinitionsBatch(
         source: 'vcs',
         ref: params.ref,
         name: item.name,
+        sourceYaml: item.sourceYaml,
         document: item.document,
         model: item.model,
         contentHash: item.contentHash,
