@@ -11,14 +11,7 @@ export {
   definitionListResponseSchema,
   definitionResponseSchema,
   definitionSyncSummarySchema,
-  type JobDto,
-  jobSchema,
-  type RunStepDto,
-  runStepSchema,
   type TriggerDto,
-  triggerSchema,
-  type WorkflowSpecDto,
-  workflowSpecSchema,
 } from '#schemas/index.js';
 export {
   DEFINITION_DELETED,
