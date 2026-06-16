@@ -44,6 +44,7 @@ export const stepDtoSchema = z.object({
   position: z.number(),
   // Execution-attempt identity of the current projection (>1 after a restart).
   current_attempt: z.number().int(),
+  duration_ms: z.number().int().nonnegative(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -67,6 +68,7 @@ export const stepAttemptDtoSchema = z.object({
   error: z.record(z.string(), z.unknown()).nullable(),
   gate_result: z.record(z.string(), z.unknown()).nullable(),
   restart_reason: z.string().nullable(),
+  duration_ms: z.number().int().nonnegative(),
   started_at: z.string(),
   finished_at: z.string().nullable(),
 });

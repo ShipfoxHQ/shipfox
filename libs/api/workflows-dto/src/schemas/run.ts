@@ -1,4 +1,6 @@
 import {z} from 'zod';
+import {jobDtoSchema} from './job.js';
+import {stepAttemptDtoSchema, stepDtoSchema} from './step.js';
 
 export const runStatusSchema = z.enum(['pending', 'running', 'succeeded', 'failed', 'cancelled']);
 
@@ -62,6 +64,7 @@ export const runDtoSchema = z.object({
   trigger_event: z.string(),
   trigger_payload: z.record(z.string(), z.unknown()),
   inputs: z.record(z.string(), z.unknown()).nullable(),
+  duration_ms: z.number().int().nonnegative(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -71,6 +74,16 @@ export type RunDto = z.infer<typeof runDtoSchema>;
 export const runResponseSchema = runDtoSchema;
 
 export type RunResponseDto = z.infer<typeof runResponseSchema>;
+
+export const runDetailResponseSchema = runResponseSchema.extend({
+  jobs: z.array(
+    jobDtoSchema.extend({
+      steps: z.array(stepDtoSchema.extend({attempts: z.array(stepAttemptDtoSchema)})),
+    }),
+  ),
+});
+
+export type RunDetailResponseDto = z.infer<typeof runDetailResponseSchema>;
 
 export const runListResponseSchema = z.object({
   runs: z.array(runResponseSchema),

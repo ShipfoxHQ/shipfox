@@ -58,6 +58,7 @@ export function toStepDto(step: Step): StepDto {
     error: toStepErrorDto(step.error, step.type === 'setup' ? 'setup' : 'user'),
     position: step.position,
     current_attempt: step.currentAttempt,
+    duration_ms: 0,
     created_at: step.createdAt.toISOString(),
     updated_at: step.updatedAt.toISOString(),
   };
@@ -75,6 +76,7 @@ export function toStepAttemptDto(attempt: StepAttempt): StepAttemptDto {
     error: attempt.error,
     gate_result: attempt.gateResult,
     restart_reason: attempt.restartReason,
+    duration_ms: 0,
     started_at: attempt.startedAt.toISOString(),
     finished_at: attempt.finishedAt ? attempt.finishedAt.toISOString() : null,
   };

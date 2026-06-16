@@ -14,6 +14,7 @@ function makeRun(overrides: Partial<RunDto> = {}): RunDto {
     trigger_event: 'fire',
     trigger_payload: {source: 'manual', event: 'fire'},
     inputs: null,
+    duration_ms: 0,
     created_at: '2026-05-13T00:00:00.000Z',
     updated_at: '2026-05-13T00:00:13.000Z',
     ...overrides,
@@ -45,12 +46,12 @@ describe('RunRow', () => {
     renderRow(
       makeRun({
         status: 'running',
+        duration_ms: 0,
         created_at: '2026-05-13T00:00:00.000Z',
         updated_at: '2026-05-13T00:00:10.000Z',
       }),
     );
 
-    // running runs ignore updated_at and recompute against now.
     expect(screen.getByText('running 30s')).toBeInTheDocument();
 
     vi.useRealTimers();

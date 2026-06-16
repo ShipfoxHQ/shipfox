@@ -97,11 +97,14 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.id).toBe(run.id);
+    expect(body.duration_ms).toBe(0);
     expect(body.jobs).toHaveLength(1);
     expect(body.jobs[0].name).toBe('build');
+    expect(body.jobs[0].duration_ms).toBe(0);
     // Synthetic setup step at position 0, then the two user steps.
     expect(body.jobs[0].steps).toHaveLength(3);
     expect(body.jobs[0].steps[0].name).toBe('Set up job');
+    expect(body.jobs[0].steps[0].duration_ms).toBe(0);
     expect(body.jobs[0].steps[1].name).toBe('Install');
     expect(body.jobs[0].steps[2].name).toBeNull();
   });
@@ -159,9 +162,11 @@ describe('GET /api/workflows/runs/:id', () => {
     const responseSteps = body.jobs[0].steps as Array<{
       status: string;
       error: {message: string; exit_code?: number | null; category?: string} | null;
+      attempts: Array<{duration_ms: number}>;
     }>;
     expect(responseSteps[0]?.status).toBe('succeeded');
     expect(responseSteps[0]?.error).toBeNull();
+    expect(responseSteps[0]?.attempts[0]?.duration_ms).toBe(0);
     expect(responseSteps[1]?.status).toBe('failed');
     expect(responseSteps[1]?.error).toEqual({
       message: 'Command exited with code 1',

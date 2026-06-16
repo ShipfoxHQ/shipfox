@@ -23,6 +23,20 @@ export function humanDuration(fromIso: string, toIso?: string): string {
   return `${totalHr}h ${pad2(min)}m`;
 }
 
+export function humanDurationMs(durationMs: number): string {
+  const totalSec = Math.floor(Math.max(0, durationMs) / 1000);
+
+  if (totalSec < 60) return `${totalSec}s`;
+
+  const totalMin = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  if (totalMin < 60) return `${totalMin}m ${pad2(sec)}s`;
+
+  const totalHr = Math.floor(totalMin / 60);
+  const min = totalMin % 60;
+  return `${totalHr}h ${pad2(min)}m`;
+}
+
 function pad2(n: number) {
   return n.toString().padStart(2, '0');
 }

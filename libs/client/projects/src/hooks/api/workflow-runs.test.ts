@@ -1,5 +1,5 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {fireManualWorkflow} from './workflow-runs.js';
+import {fireManualWorkflow, getWorkflowRun} from './workflow-runs.js';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -49,5 +49,45 @@ describe('fireManualWorkflow', () => {
     });
 
     expect(requestBody).toEqual({inputs: {env: 'production'}});
+  });
+});
+
+describe('getWorkflowRun', () => {
+  beforeEach(() => {
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: undefined});
+  });
+
+  test('requests a run detail by id', async () => {
+    const fetchImpl = vi.fn((_input: RequestInfo | URL) => {
+      return Promise.resolve(
+        jsonResponse({
+          id: '66666666-6666-4666-8666-666666666666',
+          project_id: '11111111-1111-4111-8111-111111111111',
+          definition_id: '55555555-5555-4555-8555-555555555555',
+          name: 'Deploy',
+          status: 'succeeded',
+          trigger_source: 'manual',
+          trigger_event: 'fire',
+          trigger_payload: {source: 'manual', event: 'fire'},
+          inputs: null,
+          duration_ms: 0,
+          created_at: '2026-05-13T00:00:00.000Z',
+          updated_at: '2026-05-13T00:00:00.000Z',
+          jobs: [],
+        }),
+      );
+    });
+    configureApiClient({fetchImpl});
+
+    const result = await getWorkflowRun({
+      runId: '66666666-6666-4666-8666-666666666666',
+    });
+
+    const request = fetchImpl.mock.calls[0]?.[0] as Request;
+    expect(request.url).toBe(
+      'https://api.example.test/workflows/runs/66666666-6666-4666-8666-666666666666',
+    );
+    expect(request.method).toBe('GET');
+    expect(result.duration_ms).toBe(0);
   });
 });

@@ -1,5 +1,6 @@
 import type {
   RunAggregatesResponseDto,
+  RunDetailResponseDto,
   RunDto,
   RunListResponseDto,
   RunStatusDto,
@@ -29,6 +30,7 @@ export const workflowRunsQueryKeys = {
     [...workflowRunsQueryKeys.lists(projectId), normalizeFilters(filters)] as const,
   aggregates: (projectId: string, filters: WorkflowRunFilters) =>
     [...workflowRunsQueryKeys.all, 'aggregates', projectId, normalizeFilters(filters)] as const,
+  detail: (runId: string) => [...workflowRunsQueryKeys.all, 'detail', runId] as const,
 };
 
 function normalizeFilters(filters: WorkflowRunFilters) {
@@ -85,6 +87,10 @@ export async function getWorkflowRunAggregates({
       signal,
     },
   );
+}
+
+export async function getWorkflowRun({runId, signal}: {runId: string; signal?: AbortSignal}) {
+  return await apiRequest<RunDetailResponseDto>(`/workflows/runs/${runId}`, {signal});
 }
 
 /**
@@ -168,6 +174,18 @@ export function useWorkflowRunAggregatesQuery(
   });
 }
 
+export function useWorkflowRunQuery(runId: string | undefined) {
+  return useQuery({
+    queryKey: runId
+      ? workflowRunsQueryKeys.detail(runId)
+      : [...workflowRunsQueryKeys.all, 'detail'],
+    enabled: Boolean(runId),
+    queryFn: ({signal}) => getWorkflowRun({runId: runId ?? '', signal}),
+    staleTime: 2_000,
+    refetchOnWindowFocus: true,
+  });
+}
+
 type RunListPage = {
   runs: RunDto[];
   next_cursor: string | null;
@@ -225,6 +243,7 @@ function buildTempRun({
     trigger_event: 'fire',
     trigger_payload: {source: 'manual', event: 'fire'},
     inputs: null,
+    duration_ms: 0,
     created_at: createdAt,
     updated_at: createdAt,
   };

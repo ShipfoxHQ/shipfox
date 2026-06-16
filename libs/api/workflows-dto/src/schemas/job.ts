@@ -7,6 +7,7 @@ export const jobDtoSchema = z.object({
   status: z.string(),
   dependencies: z.array(z.string()),
   position: z.number(),
+  duration_ms: z.number().int().nonnegative(),
   created_at: z.string(),
   updated_at: z.string(),
 });
