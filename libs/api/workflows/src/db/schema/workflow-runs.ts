@@ -9,7 +9,11 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import type {TriggerPayload, WorkflowRun} from '#core/entities/workflow-run.js';
+import type {
+  TriggerPayload,
+  WorkflowRun,
+  WorkflowSourceSnapshot,
+} from '#core/entities/workflow-run.js';
 import {pgTable} from './common.js';
 
 export const workflowRunStatusEnum = pgEnum('workflows_run_status', [
@@ -33,6 +37,7 @@ export const workflowRuns = pgTable(
     triggerEvent: text('trigger_event').notNull(),
     triggerPayload: jsonb('trigger_payload').notNull().$type<TriggerPayload>(),
     inputs: jsonb('inputs').$type<Record<string, unknown>>(),
+    sourceSnapshot: jsonb('source_snapshot').$type<WorkflowSourceSnapshot>(),
     // Idempotency token for at-least-once outbox replays. Unique when set; NULL is unconstrained (Postgres default).
     triggerIdempotencyKey: text('trigger_idempotency_key'),
     version: integer('version').notNull().default(1),
@@ -78,6 +83,7 @@ export function toWorkflowRun(row: WorkflowRunDb): WorkflowRun {
     triggerEvent: row.triggerEvent,
     triggerPayload: row.triggerPayload as TriggerPayload,
     inputs: row.inputs ?? null,
+    sourceSnapshot: row.sourceSnapshot ?? null,
     triggerIdempotencyKey: row.triggerIdempotencyKey,
     version: row.version,
     createdAt: row.createdAt,

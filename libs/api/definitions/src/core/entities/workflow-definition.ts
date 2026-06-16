@@ -3,9 +3,15 @@ import type {WorkflowModel} from './workflow-model.js';
 
 export type WorkflowSpec = WorkflowDocument;
 
+export interface WorkflowSourceSnapshot {
+  content: string;
+  format: 'yaml';
+}
+
 export interface WorkflowDefinitionPayload {
   document: WorkflowDocument;
   model: WorkflowModel;
+  sourceSnapshot?: WorkflowSourceSnapshot | null;
 }
 
 export interface WorkflowDefinition {
@@ -23,6 +29,7 @@ export interface WorkflowDefinition {
   definition: WorkflowSpec;
   document: WorkflowDocument;
   model: WorkflowModel;
+  sourceSnapshot: WorkflowSourceSnapshot | null;
   contentHash: string | null;
   fetchedAt: Date;
   createdAt: Date;

@@ -28,6 +28,7 @@ export async function runWorkflow(params: RunWorkflowParams): Promise<WorkflowRu
     model: definition.model,
     triggerPayload: params.triggerPayload,
     inputs: params.inputs,
+    sourceSnapshot: definition.sourceSnapshot,
     triggerIdempotencyKey: params.triggerIdempotencyKey,
   });
 }

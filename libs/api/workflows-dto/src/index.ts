@@ -37,6 +37,8 @@ export {
   stepErrorCategorySchema,
   stepErrorDtoSchema,
   stepErrorReasonSchema,
+  type WorkflowSourceSnapshotDto,
+  workflowSourceSnapshotSchema,
 } from '#schemas/index.js';
 export {
   WORKFLOW_RUN_CREATED,

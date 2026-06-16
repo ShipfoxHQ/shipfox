@@ -58,6 +58,7 @@ export function toDefinition(row: DefinitionDb): WorkflowDefinition {
     definition: row.definition.document,
     document: row.definition.document,
     model: row.definition.model,
+    sourceSnapshot: row.definition.sourceSnapshot ?? null,
     contentHash: row.contentHash,
     fetchedAt: row.fetchedAt,
     createdAt: row.createdAt,
