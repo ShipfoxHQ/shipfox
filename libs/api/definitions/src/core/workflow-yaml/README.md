@@ -6,6 +6,9 @@ This module reads workflow files written in YAML.
 
 - **`parseWorkflowYaml(source)`**: Reads YAML source text and returns a
   `WorkflowDocument`.
+- **`parseWorkflowYamlWithLocations(source)`**: Reads YAML source text and
+  returns both the `WorkflowDocument` and source line ranges for authored
+  `jobs.*.steps[]` entries.
 - **`InvalidWorkflowYamlError`**: Reports bad YAML and roots that are not
   objects.
 - **Document checks**: Sends parsed objects to
@@ -17,10 +20,12 @@ that object to the document package.
 
 This keeps the first step easy to test. Code that has found a file can call this
 part and then pass the result to the next step. Keep new rules out of this part
-unless they are about how YAML text is read.
+unless they are about how YAML text is read or where authored YAML nodes appeared
+in the source.
 
-If a rule needs to know about jobs, steps, ids, or run order, put that rule in a
-later part. This part should stay easy to read and easy to change.
+If a rule needs to know about jobs, ids, or run order beyond extracting a YAML
+node's source range, put that rule in a later part. This part should stay easy
+to read and easy to change.
 
 That keeps the next part clear too.
 
@@ -32,7 +37,8 @@ This code is part of `@shipfox/api-definitions`. It is not a standalone package.
 {
   "dependencies": {
     "@shipfox/workflow-document": "workspace:*",
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.0",
+    "yaml": "^2.8.3"
   }
 }
 ```

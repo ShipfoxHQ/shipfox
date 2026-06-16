@@ -39,6 +39,7 @@ export {
   stepErrorReasonSchema,
 } from '#schemas/index.js';
 export {type WorkflowSourceSnapshotDto, workflowSourceSnapshotSchema} from '#schemas/run.js';
+export {type StepSourceLocationDto, stepSourceLocationSchema} from '#schemas/step.js';
 export {
   WORKFLOW_RUN_CREATED,
   WORKFLOW_RUN_FINISHED,

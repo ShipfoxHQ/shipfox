@@ -245,6 +245,7 @@ function buildStep(overrides: Partial<StepDto> = {}): StepDto {
     id: '00000000-0000-0000-0000-000000000001',
     job_id: JOB_ID,
     name: 'test-step',
+    source_location: null,
     status: 'running',
     type: 'run',
     config: {run: 'echo test'},

@@ -17,9 +17,10 @@ describe('materializeWorkflowModel', () => {
       jobs: {
         build: {
           steps: [
-            {name: 'install', run: 'npm install'},
+            {name: 'install', run: 'npm install', sourceLocation: {startLine: 5, endLine: 6}},
             {
               run: 'npm run build',
+              sourceLocation: {startLine: 7, endLine: 14},
               gate: {
                 successIf: expression('exit_code == 0'),
                 onFailure: {restartFrom: 'install', output: 'Build failed'},
@@ -39,6 +40,7 @@ describe('materializeWorkflowModel', () => {
 
     const setupStep = {
       sourceName: 'Set up job',
+      sourceLocation: null,
       status: 'pending',
       type: 'setup',
       config: {},
@@ -55,6 +57,7 @@ describe('materializeWorkflowModel', () => {
           setupStep,
           {
             sourceName: 'install',
+            sourceLocation: {startLine: 5, endLine: 6},
             status: 'pending',
             type: 'run',
             config: {run: 'npm install'},
@@ -62,6 +65,7 @@ describe('materializeWorkflowModel', () => {
           },
           {
             sourceName: null,
+            sourceLocation: {startLine: 7, endLine: 14},
             status: 'pending',
             type: 'run',
             config: {
@@ -84,6 +88,7 @@ describe('materializeWorkflowModel', () => {
           setupStep,
           {
             sourceName: null,
+            sourceLocation: null,
             status: 'pending',
             type: 'run',
             config: {run: 'npm test'},
@@ -100,7 +105,14 @@ describe('materializeWorkflowModel', () => {
     const rows = materializeWorkflowModel(model);
 
     expect(rows[0]?.steps).toEqual([
-      {sourceName: 'Set up job', status: 'pending', type: 'setup', config: {}, position: 0},
+      {
+        sourceName: 'Set up job',
+        sourceLocation: null,
+        status: 'pending',
+        type: 'setup',
+        config: {},
+        position: 0,
+      },
     ]);
   });
 
