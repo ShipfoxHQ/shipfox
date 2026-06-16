@@ -264,7 +264,14 @@ describe('GET /api/workflows/runs/:id', () => {
     const [step0, step1] = res.json().jobs[0].steps;
     expect(step0.current_attempt).toBe(1);
     expect(step0.attempts).toHaveLength(1);
-    expect(step0.attempts[0]).toMatchObject({attempt: 1, status: 'succeeded', exit_code: 0});
+    expect(step0.attempts[0]).toMatchObject({
+      attempt: 1,
+      status: 'succeeded',
+      exit_code: 0,
+      gate_result: null,
+      restart_reason: null,
+      restart_result: null,
+    });
     // A never-dispatched step has no attempt history yet.
     expect(step1.current_attempt).toBe(1);
     expect(step1.attempts).toEqual([]);
@@ -336,13 +343,30 @@ describe('GET /api/workflows/runs/:id', () => {
       exit_code: number | null;
       gate_result: unknown;
       restart_reason: string | null;
+      restart_result: unknown;
     }>;
     expect(reviewerAttempts.map((a) => a.attempt)).toEqual([1, 2]); // ordered by attempt
     expect(reviewerAttempts[0]?.status).toBe('failed');
     expect(reviewerAttempts[0]?.exit_code).toBe(1);
-    expect(reviewerAttempts[0]?.gate_result).toMatchObject({passed: false});
-    expect(reviewerAttempts[0]?.restart_reason).toBeTruthy();
+    expect(reviewerAttempts[0]?.gate_result).toEqual({
+      kind: 'failed',
+      passed: false,
+      source: 'exit_code == 0',
+      exit_code: 1,
+    });
+    expect(reviewerAttempts[0]?.restart_reason).toBe('gate condition not met');
+    expect(reviewerAttempts[0]?.restart_result).toEqual({
+      kind: 'restart_enqueued',
+      reason: 'gate condition not met',
+    });
     expect(reviewerAttempts[1]?.status).toBe('succeeded');
     expect(reviewerAttempts[1]?.exit_code).toBe(0);
+    expect(reviewerAttempts[1]?.gate_result).toEqual({
+      kind: 'passed',
+      passed: true,
+      source: 'exit_code == 0',
+      exit_code: 0,
+    });
+    expect(reviewerAttempts[1]?.restart_result).toBeNull();
   });
 });

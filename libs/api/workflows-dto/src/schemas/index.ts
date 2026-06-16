@@ -36,9 +36,13 @@ export {
   type StepErrorCategory,
   type StepErrorDtoShape,
   type StepErrorReason,
+  type StepGateResultDto,
+  type StepRestartResultDto,
   stepAttemptDtoSchema,
   stepDtoSchema,
   stepErrorCategorySchema,
   stepErrorDtoSchema,
   stepErrorReasonSchema,
+  stepGateResultDtoSchema,
+  stepRestartResultDtoSchema,
 } from './step.js';
