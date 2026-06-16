@@ -28,6 +28,24 @@ services:
       - temporal:/home/temporal
     command: "server start-dev --ip 0.0.0.0 --db-filename /home/temporal/temporal.db"
 
+  # S3-compatible object storage for runner logs. Garage is self-host-oriented;
+  # any S3-compatible endpoint works in production. Run ./dev/garage/bootstrap.sh
+  # once after first start to create the layout, bucket, and access key.
+  garage:
+    container_name: garage
+    image: dxflrs/garage:v1.0.1
+    volumes:
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+      - ./dev/garage/garage.toml:/etc/garage.toml:ro
+    ports:
+      - 127.0.0.1:3900:3900
+      - 127.0.0.1:3901:3901
+      - 127.0.0.1:3903:3903
+    restart: unless-stopped
+
 volumes:
   postgres:
   temporal:
+  garage_meta:
+  garage_data:

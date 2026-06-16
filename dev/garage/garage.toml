@@ -1,0 +1,20 @@
+# Local-development Garage (single node, no replication). Not for production.
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+# Dev-only secret (64 hex). Generate a real one for any shared environment.
+rpc_secret = "1799bccfd7411eddcf9ebd1f2f9a7d626af0a73f6cd2e8e1d3a4b5c6d7e8f900"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[admin]
+api_bind_addr = "[::]:3903"
+admin_token = "shipfox-dev-admin-token"
