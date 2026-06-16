@@ -41,7 +41,7 @@ export async function executeSetupStep(params: {
   try {
     checkout = await requestCheckoutToken(leaseClient, {signal});
   } catch (error) {
-    return fail(error, await classifyCheckoutTokenError(error));
+    return fail(error, classifyCheckoutTokenError(error));
   }
 
   try {
@@ -73,11 +73,11 @@ const CHECKOUT_KIND_REASON: Record<CheckoutFailureKind, StepErrorReason> = {
 // missing checkout intent (404) and everything else fold into the generic failure.
 // CheckoutError messages are already redacted in the workspace layer; the token-fetch
 // error never carries credential material.
-async function classifyCheckoutTokenError(error: unknown): Promise<StepErrorReason> {
+function classifyCheckoutTokenError(error: unknown): StepErrorReason {
   if (!(error instanceof HTTPError)) return 'checkout_failed';
 
   const {status} = error.response;
-  const code = await readErrorCode(error);
+  const code = readErrorCode(error);
 
   if (status === 401 || status === 403 || code === 'access-denied' || code === 'forbidden') {
     return 'checkout_auth_failed';
@@ -94,14 +94,13 @@ async function classifyCheckoutTokenError(error: unknown): Promise<StepErrorReas
   return 'checkout_failed';
 }
 
-async function readErrorCode(error: HTTPError): Promise<string | undefined> {
-  try {
-    const body: unknown = await error.response.clone().json();
-    if (body && typeof body === 'object' && 'code' in body && typeof body.code === 'string') {
-      return body.code;
-    }
-  } catch {
-    // Body is not JSON or already consumed; fall back to status-only mapping.
+// ky consumes the response body to populate `error.data` before throwing, so the body
+// is already read here: `error.response.json()` would throw "Body has already been
+// consumed". Read ky's pre-parsed `data` instead.
+function readErrorCode(error: HTTPError): string | undefined {
+  const body = error.data;
+  if (body && typeof body === 'object' && 'code' in body && typeof body.code === 'string') {
+    return body.code;
   }
   return undefined;
 }

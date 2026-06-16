@@ -43,12 +43,18 @@ function run() {
   return executeSetupStep({cwd: CWD, leaseClient, signal});
 }
 
+// ky populates `error.data` with the pre-parsed body and consumes `error.response`, so
+// the production classifier reads `error.data` — mirror that here rather than faking a
+// re-readable `response.clone().json()`, which production can never do.
 function httpError(status: number, body?: unknown): HTTPError {
-  const response = {
-    status,
-    clone: () => ({json: async () => body ?? {}}),
-  } as unknown as Response;
-  return new HTTPError(response, {} as Request, {} as ConstructorParameters<typeof HTTPError>[2]);
+  const response = {status} as unknown as Response;
+  const error = new HTTPError(
+    response,
+    {} as Request,
+    {} as ConstructorParameters<typeof HTTPError>[2],
+  );
+  error.data = body;
+  return error;
 }
 
 beforeEach(() => {

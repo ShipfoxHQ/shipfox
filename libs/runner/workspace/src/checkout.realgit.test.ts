@@ -63,6 +63,25 @@ describe('checkoutRepository (real git)', () => {
     expect(gitConfig.toLowerCase()).not.toContain('extraheader');
   });
 
+  it('never persists a basic credential to .git/config', async () => {
+    await checkoutRepository({
+      repositoryUrl: `file://${sourceRepo}`,
+      ref: 'main',
+      cwd,
+      auth: {
+        kind: 'basic',
+        username: 'x-token',
+        token: 'super-secret-token',
+        expires_at: '2026-01-01T00:00:00Z',
+      },
+    });
+
+    const gitConfig = await readFile(join(cwd, '.git', 'config'), 'utf8');
+    expect(gitConfig).not.toContain('super-secret-token');
+    expect(gitConfig).not.toContain(Buffer.from('x-token:super-secret-token').toString('base64'));
+    expect(gitConfig.toLowerCase()).not.toContain('extraheader');
+  });
+
   it('fails with a generic CheckoutError for a missing ref', async () => {
     const error = await checkoutRepository({
       repositoryUrl: `file://${sourceRepo}`,
