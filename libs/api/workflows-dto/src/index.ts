@@ -45,9 +45,8 @@ export {
   stepErrorCategorySchema,
   stepErrorDtoSchema,
   stepErrorReasonSchema,
-  type WorkflowSourceSnapshotDto,
-  workflowSourceSnapshotSchema,
 } from '#schemas/index.js';
+export {type WorkflowSourceSnapshotDto, workflowSourceSnapshotSchema} from '#schemas/run.js';
 export {
   terminalStatusSchema,
   WORKFLOWS_JOB_STEPS_SETTLED,
