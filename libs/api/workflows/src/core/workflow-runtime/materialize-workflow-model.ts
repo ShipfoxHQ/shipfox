@@ -2,6 +2,7 @@ import type {WorkflowModel} from '@shipfox/api-definitions';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelStep = WorkflowModelJob['steps'][number];
+type WorkflowSourceLocation = NonNullable<WorkflowModelStep['sourceLocation']>;
 
 const FIRST_LINE_PATTERN = /\r?\n/;
 
@@ -16,6 +17,7 @@ export interface MaterializedWorkflowJob {
 export interface MaterializedWorkflowStep {
   readonly sourceName: string | null;
   readonly displayName: string;
+  readonly sourceLocation: WorkflowSourceLocation | null;
   readonly status: 'pending';
   readonly type: WorkflowModelStep['kind'] | 'setup';
   readonly config: Readonly<Record<string, unknown>>;
@@ -29,6 +31,7 @@ export interface MaterializedWorkflowStep {
 const SETUP_STEP: MaterializedWorkflowStep = {
   sourceName: 'Set up job',
   displayName: 'Set up job',
+  sourceLocation: null,
   status: 'pending',
   type: 'setup',
   config: {},
@@ -50,6 +53,7 @@ export function materializeWorkflowModel(model: WorkflowModel): readonly Materia
       ...job.steps.map((step, stepPosition) => ({
         sourceName: step.sourceName ?? null,
         displayName: step.sourceName ?? stepDisplayName(step),
+        sourceLocation: step.sourceLocation ?? null,
         status: 'pending' as const,
         type: step.kind,
         config: stepConfig(step),

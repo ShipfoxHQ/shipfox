@@ -16,6 +16,7 @@ function buildAgentStep(overrides: Partial<StepDto> = {}): StepDto {
     job_id: '00000000-0000-0000-0000-000000000002',
     name: 'implement',
     display_name: displayName,
+    source_location: null,
     status: 'running',
     type: 'agent',
     config: {model: 'claude-opus-4-8', thinking: 'high', prompt: 'Fix the failing tests.'},

@@ -5,7 +5,8 @@ type AgentThinking = Extract<ModelStep, {kind: 'agent'}>['thinking'];
 
 interface TestWorkflowStepBase {
   readonly name?: string | undefined;
-  readonly gate?: ModelStep['gate'] | undefined;
+  readonly sourceLocation?: WorkflowModel['jobs'][number]['steps'][number]['sourceLocation'];
+  readonly gate?: WorkflowModel['jobs'][number]['steps'][number]['gate'] | undefined;
 }
 
 interface TestRunStep extends TestWorkflowStepBase {
@@ -82,6 +83,7 @@ function stepBase(step: TestWorkflowStep, jobId: string, stepIndex: number) {
         ? `${jobId}-step-${stepIndex + 1}`
         : `${jobId}-${stableId(step.name)}`,
     ...(step.name === undefined ? {} : {sourceName: step.name}),
+    ...(step.sourceLocation === undefined ? {} : {sourceLocation: step.sourceLocation}),
     ...(step.gate === undefined ? {} : {gate: step.gate}),
   };
 }
