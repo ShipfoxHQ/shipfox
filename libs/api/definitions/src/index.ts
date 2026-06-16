@@ -25,6 +25,7 @@ export type {
   WorkflowDefinition,
   WorkflowDefinitionPayload,
   WorkflowModel,
+  WorkflowSourceSnapshot,
   WorkflowSpec,
 } from '#core/index.js';
 export {db, definitionsOutbox, getDefinitionById, migrationsPath} from '#db/index.js';

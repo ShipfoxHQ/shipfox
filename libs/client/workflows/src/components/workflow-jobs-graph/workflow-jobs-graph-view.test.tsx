@@ -188,6 +188,7 @@ function makeRun(overrides: Partial<RunDetailResponseDto> = {}): RunDetailRespon
     trigger_event: 'fire',
     trigger_payload: {},
     inputs: null,
+    source_snapshot: null,
     created_at: '2026-06-21T12:00:00.000Z',
     updated_at: '2026-06-21T12:01:00.000Z',
     started_at: '2026-06-21T12:00:10.000Z',

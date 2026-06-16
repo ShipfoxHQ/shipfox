@@ -45,6 +45,8 @@ export {
   stepErrorCategorySchema,
   stepErrorDtoSchema,
   stepErrorReasonSchema,
+  type WorkflowSourceSnapshotDto,
+  workflowSourceSnapshotSchema,
 } from '#schemas/index.js';
 export {
   terminalStatusSchema,

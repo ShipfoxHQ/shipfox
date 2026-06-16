@@ -17,6 +17,11 @@ export function isWorkflowRunTerminal(
   return TERMINAL_WORKFLOW_RUN_STATUSES.has(status);
 }
 
+export interface WorkflowSourceSnapshot {
+  content: string;
+  format: 'yaml';
+}
+
 export type TriggerPayload =
   | {
       source: 'manual';
@@ -50,6 +55,7 @@ export interface WorkflowRun {
   triggerEvent: string;
   triggerPayload: TriggerPayload;
   inputs: Record<string, unknown> | null;
+  sourceSnapshot: WorkflowSourceSnapshot | null;
   triggerIdempotencyKey: string | null;
   version: number;
   createdAt: Date;

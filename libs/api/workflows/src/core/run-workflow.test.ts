@@ -31,6 +31,7 @@ function buildDefinition(overrides?: Partial<WorkflowDefinition>): WorkflowDefin
     definition: document,
     document,
     model,
+    sourceSnapshot: null,
     contentHash: null,
     fetchedAt: new Date(),
     createdAt: new Date(),
@@ -100,6 +101,21 @@ describe('runWorkflow', () => {
     expect(run.triggerSource).toBe('github');
     expect(run.triggerEvent).toBe('push');
     expect(run.triggerPayload).toEqual(triggerPayload);
+  });
+
+  test('creates the run with the definition source snapshot', async () => {
+    const sourceSnapshot = {content: 'name: Test Workflow\njobs: {}\n', format: 'yaml'} as const;
+    const definition = buildDefinition({projectId, sourceSnapshot});
+    mockGetDefinitionById.mockResolvedValue(definition);
+
+    const run = await runWorkflow({
+      workspaceId,
+      projectId,
+      definitionId: definition.id,
+      triggerPayload: manualPayload(),
+    });
+
+    expect(run.sourceSnapshot).toEqual(sourceSnapshot);
   });
 
   test('throws DefinitionNotFoundError for unknown definition', async () => {

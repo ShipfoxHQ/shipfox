@@ -12,6 +12,7 @@ export function toRunDto(run: WorkflowRun): RunDto {
     trigger_event: run.triggerEvent,
     trigger_payload: run.triggerPayload,
     inputs: run.inputs,
+    source_snapshot: run.sourceSnapshot,
     created_at: run.createdAt.toISOString(),
     updated_at: run.updatedAt.toISOString(),
     started_at: run.startedAt?.toISOString() ?? null,

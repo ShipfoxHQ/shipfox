@@ -9,6 +9,7 @@ import {and, asc, eq, gt, isNull, notInArray, or, type SQL, sql} from 'drizzle-o
 import type {
   WorkflowDefinition,
   WorkflowDefinitionPayload,
+  WorkflowSourceSnapshot,
 } from '#core/entities/workflow-definition.js';
 import type {WorkflowModel} from '#core/entities/workflow-model.js';
 import {db} from './db.js';
@@ -26,6 +27,7 @@ export interface UpsertDefinitionParams {
   name: string;
   document: WorkflowDocument;
   model: WorkflowModel;
+  sourceSnapshot?: WorkflowSourceSnapshot | null | undefined;
   contentHash?: string | null | undefined;
   sha?: string | undefined;
   ref?: string | undefined;
@@ -40,6 +42,7 @@ function buildUpsertQuery(tx: Tx, params: UpsertDefinitionParams) {
   const definition: WorkflowDefinitionPayload = {
     document: params.document,
     model: params.model,
+    sourceSnapshot: params.sourceSnapshot ?? null,
   };
 
   const set = {
@@ -255,6 +258,7 @@ export interface ApplyVcsDefinitionsBatchParams {
     name: string;
     document: WorkflowDocument;
     model: WorkflowModel;
+    sourceSnapshot?: WorkflowSourceSnapshot | null | undefined;
     contentHash: string;
   }>;
 }
@@ -300,6 +304,7 @@ export async function applyVcsDefinitionsBatch(
         name: item.name,
         document: item.document,
         model: item.model,
+        sourceSnapshot: item.sourceSnapshot ?? null,
         contentHash: item.contentHash,
       });
       const row = rows[0];
