@@ -28,10 +28,21 @@ export interface WorkflowModelJob {
 export interface WorkflowModelStep {
   readonly id: string;
   readonly sourceName?: string;
+  readonly sourceLocation?: WorkflowSourceLocation;
   readonly kind: 'run';
   readonly command: WorkflowModelRunCommand;
   readonly gate?: WorkflowModelStepGate;
 }
+
+export interface WorkflowSourceLocation {
+  readonly startLine: number;
+  readonly endLine: number;
+}
+
+export type WorkflowStepSourceLocationMap = ReadonlyMap<
+  string,
+  ReadonlyMap<number, WorkflowSourceLocation>
+>;
 
 export interface WorkflowModelRunCommand {
   readonly kind: 'shell';

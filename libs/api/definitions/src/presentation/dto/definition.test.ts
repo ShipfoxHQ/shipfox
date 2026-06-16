@@ -29,6 +29,7 @@ describe('toDefinitionDto', () => {
       definition: document,
       document,
       model: normalizeWorkflowDocument(document),
+      sourceSnapshot: null,
       contentHash: null,
       fetchedAt: new Date('2026-06-09T10:00:00.000Z'),
       createdAt: new Date('2026-06-09T10:00:01.000Z'),

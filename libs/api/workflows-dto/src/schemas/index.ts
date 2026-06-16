@@ -5,6 +5,12 @@ export {
   checkoutTokenAuthSchema,
   checkoutTokenResponseSchema,
 } from './checkout-token.js';
+export {
+  type E2eCreateWorkflowRunPageFixtureBodyDto,
+  type E2eWorkflowRunPageFixtureResponseDto,
+  e2eCreateWorkflowRunPageFixtureBodySchema,
+  e2eWorkflowRunPageFixtureResponseSchema,
+} from './e2e.js';
 export {type JobDto, jobDtoSchema} from './job.js';
 export {
   type NextStepResponseDto,
@@ -29,16 +35,32 @@ export {
   runListResponseSchema,
   runResponseSchema,
   runStatusSchema,
+  type WorkflowSourceSnapshotDto,
+  workflowSourceSnapshotSchema,
 } from './run.js';
+export {
+  type RunDetailJobDto,
+  type RunDetailResponseDto,
+  type RunDetailStepDto,
+  runDetailJobDtoSchema,
+  runDetailResponseSchema,
+  runDetailStepDtoSchema,
+} from './run-detail.js';
 export {
   type StepAttemptDto,
   type StepDto,
   type StepErrorCategory,
   type StepErrorDtoShape,
   type StepErrorReason,
+  type StepGateResultDto,
+  type StepRestartResultDto,
+  type StepSourceLocationDto,
   stepAttemptDtoSchema,
   stepDtoSchema,
   stepErrorCategorySchema,
   stepErrorDtoSchema,
   stepErrorReasonSchema,
+  stepGateResultDtoSchema,
+  stepRestartResultDtoSchema,
+  stepSourceLocationSchema,
 } from './step.js';

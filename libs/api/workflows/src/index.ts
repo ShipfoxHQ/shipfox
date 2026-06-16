@@ -4,6 +4,7 @@ import {RUNNER_JOB_LEASE_EXPIRED} from '@shipfox/api-runners-dto';
 import {WORKFLOW_RUN_CREATED, WORKFLOWS_JOB_COMPLETED} from '@shipfox/api-workflows-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath, workflowsOutbox} from '#db/index.js';
+import {workflowsE2eRoutes} from '#presentation/e2eRoutes/index.js';
 import {
   onJobCompleted,
   onRunnerJobLeaseExpired,
@@ -12,7 +13,14 @@ import {
 } from '#presentation/index.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
 
-export type {Job, RunWorkflowParams, Step, TriggerPayload, WorkflowRun} from '#core/index.js';
+export type {
+  Job,
+  RunWorkflowParams,
+  Step,
+  TriggerPayload,
+  WorkflowRun,
+  WorkflowSourceSnapshot,
+} from '#core/index.js';
 export {DefinitionNotFoundError, ProjectMismatchError, runWorkflow} from '#core/index.js';
 export {setSourceControl} from '#core/source-control.js';
 export {db, migrationsPath, workflowsOutbox} from '#db/index.js';
@@ -25,6 +33,7 @@ export const workflowsModule: ShipfoxModule = {
   name: 'workflows',
   database: {db, migrationsPath},
   routes,
+  e2eRoutes: [workflowsE2eRoutes],
   publishers: [{name: 'workflows', table: workflowsOutbox, db}],
   subscribers: [
     {event: WORKFLOW_RUN_CREATED, handler: onWorkflowRunCreated},

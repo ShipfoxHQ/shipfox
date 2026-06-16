@@ -1,11 +1,12 @@
-import type {Step} from '#core/entities/step.js';
-import {fromStepErrorDto, toStepDto} from './step.js';
+import type {Step, StepAttempt} from '#core/entities/step.js';
+import {fromStepErrorDto, toStepAttemptDto, toStepDto} from './step.js';
 
 function step(overrides: Partial<Step> & {type: string}): Step {
   return {
     id: '00000000-0000-0000-0000-000000000001',
     jobId: '00000000-0000-0000-0000-0000000000aa',
     name: null,
+    sourceLocation: null,
     status: 'failed',
     config: {},
     output: null,
@@ -71,5 +72,119 @@ describe('toStepDto error category', () => {
     const dto = toStepDto(step({type: 'run', status: 'succeeded', error: null}));
 
     expect(dto.error).toBeNull();
+  });
+
+  it('maps source locations to snake_case', () => {
+    const dto = toStepDto(
+      step({type: 'run', sourceLocation: {startLine: 5, endLine: 8}, error: null}),
+    );
+
+    expect(dto.source_location).toEqual({start_line: 5, end_line: 8});
+  });
+
+  it('maps missing source locations to null', () => {
+    const dto = toStepDto(step({type: 'setup', sourceLocation: null, error: null}));
+
+    expect(dto.source_location).toBeNull();
+  });
+});
+
+const baseAttempt: StepAttempt = {
+  id: '11111111-1111-4111-8111-111111111111',
+  stepId: '22222222-2222-4222-8222-222222222222',
+  jobId: '33333333-3333-4333-8333-333333333333',
+  attempt: 1,
+  status: 'failed',
+  output: null,
+  error: null,
+  exitCode: 1,
+  gateResult: {passed: 'yes'},
+  restartReason: null,
+  startedAt: new Date('2026-01-01T00:00:00.000Z'),
+  finishedAt: new Date('2026-01-01T00:01:00.000Z'),
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+};
+
+describe('toStepAttemptDto', () => {
+  it('maps passed gate payloads to typed gate results', () => {
+    const attempt: StepAttempt = {
+      ...baseAttempt,
+      status: 'succeeded',
+      exitCode: 0,
+      gateResult: {passed: true, source: 'exit_code == 0', exit_code: 0},
+    };
+
+    const result = toStepAttemptDto(attempt);
+
+    expect(result.gate_result).toEqual({
+      kind: 'passed',
+      passed: true,
+      source: 'exit_code == 0',
+      exit_code: 0,
+    });
+  });
+
+  it('maps failed gate payloads to typed gate results', () => {
+    const attempt: StepAttempt = {
+      ...baseAttempt,
+      gateResult: {passed: false, source: 'exit_code == 0', exit_code: 1},
+    };
+
+    const result = toStepAttemptDto(attempt);
+
+    expect(result.gate_result).toEqual({
+      kind: 'failed',
+      passed: false,
+      source: 'exit_code == 0',
+      exit_code: 1,
+    });
+  });
+
+  it('maps uncheckable gate payloads before generic failed payloads', () => {
+    const attempt: StepAttempt = {
+      ...baseAttempt,
+      gateResult: {passed: false, uncheckable: true, reason: 'missing output', exit_code: null},
+    };
+
+    const result = toStepAttemptDto(attempt);
+
+    expect(result.gate_result).toEqual({
+      kind: 'uncheckable',
+      passed: false,
+      uncheckable: true,
+      reason: 'missing output',
+      exit_code: null,
+    });
+  });
+
+  it('maps missing gate and restart payloads to null results', () => {
+    const attempt: StepAttempt = {...baseAttempt, gateResult: null};
+
+    const result = toStepAttemptDto(attempt);
+
+    expect(result.gate_result).toBeNull();
+    expect(result.restart_result).toBeNull();
+  });
+
+  it('maps restart reasons to typed restart results', () => {
+    const attempt: StepAttempt = {...baseAttempt, restartReason: 'gate condition not met'};
+
+    const result = toStepAttemptDto(attempt);
+
+    expect(result.restart_result).toEqual({
+      kind: 'restart_enqueued',
+      reason: 'gate condition not met',
+    });
+  });
+
+  it('maps legacy gate payloads to an explicit unknown result', () => {
+    const attempt = baseAttempt;
+
+    const result = toStepAttemptDto(attempt);
+
+    expect(result.gate_result).toEqual({
+      kind: 'unknown',
+      data: {passed: 'yes'},
+    });
   });
 });

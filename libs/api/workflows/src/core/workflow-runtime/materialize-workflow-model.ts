@@ -2,6 +2,7 @@ import type {WorkflowModel} from '@shipfox/api-definitions';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelStep = WorkflowModelJob['steps'][number];
+type WorkflowSourceLocation = NonNullable<WorkflowModelStep['sourceLocation']>;
 
 export interface MaterializedWorkflowJob {
   readonly sourceName: string;
@@ -13,6 +14,7 @@ export interface MaterializedWorkflowJob {
 
 export interface MaterializedWorkflowStep {
   readonly sourceName: string | null;
+  readonly sourceLocation: WorkflowSourceLocation | null;
   readonly status: 'pending';
   readonly type: WorkflowModelStep['kind'] | 'setup';
   readonly config: Readonly<Record<string, unknown>>;
@@ -25,6 +27,7 @@ export interface MaterializedWorkflowStep {
 // until the lease/timeout fires. Its config is credential-free.
 const SETUP_STEP: MaterializedWorkflowStep = {
   sourceName: 'Set up job',
+  sourceLocation: null,
   status: 'pending',
   type: 'setup',
   config: {},
@@ -45,6 +48,7 @@ export function materializeWorkflowModel(model: WorkflowModel): readonly Materia
       SETUP_STEP,
       ...job.steps.map((step, stepPosition) => ({
         sourceName: step.sourceName ?? null,
+        sourceLocation: step.sourceLocation ?? null,
         status: 'pending' as const,
         type: step.kind,
         config: stepConfig(step),

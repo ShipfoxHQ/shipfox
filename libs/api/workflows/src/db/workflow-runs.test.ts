@@ -285,6 +285,39 @@ describe('workflow run queries', () => {
       expect(jobSteps[2]?.name).toBeNull();
     });
 
+    test('stores source locations for authored steps', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              steps: [
+                {run: 'npm install', sourceLocation: {startLine: 5, endLine: 6}},
+                {run: 'npm test', sourceLocation: {startLine: 7, endLine: 10}},
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByRunId(run.id);
+      const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
+
+      expect(jobSteps.map((step) => step.sourceLocation)).toEqual([
+        null,
+        {startLine: 5, endLine: 6},
+        {startLine: 7, endLine: 10},
+      ]);
+    });
+
     test('stores frozen step config', async () => {
       const run = await createWorkflowRun({
         workspaceId,
@@ -329,6 +362,55 @@ describe('workflow run queries', () => {
       expect(run.inputs).toEqual({env: 'staging', verbose: true});
     });
 
+    test('stores the exact source snapshot when provided', async () => {
+      const sourceContent = `name: Exact
+# keep comment and spacing
+jobs:
+  build:
+    steps:
+      - run: echo "hello"
+`;
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({name: 'Exact'}),
+        sourceSnapshot: {content: sourceContent, format: 'yaml'},
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const found = await getWorkflowRunById(run.id);
+
+      expect(run.sourceSnapshot).toEqual({content: sourceContent, format: 'yaml'});
+      expect(found?.sourceSnapshot).toEqual({content: sourceContent, format: 'yaml'});
+    });
+
+    test('stores null source snapshot when omitted', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const found = await getWorkflowRunById(run.id);
+
+      expect(run.sourceSnapshot).toBeNull();
+      expect(found?.sourceSnapshot).toBeNull();
+    });
+
     test('duplicate triggerIdempotencyKey returns the existing run without writing jobs/steps/outbox a second time', async () => {
       const subscriptionId = crypto.randomUUID();
       const eventId = crypto.randomUUID();
@@ -345,6 +427,7 @@ describe('workflow run queries', () => {
           subscriptionId,
           userId: crypto.randomUUID(),
         },
+        sourceSnapshot: {content: 'name: Original\njobs: {}\n', format: 'yaml'},
         triggerIdempotencyKey: idempotencyKey,
       });
       const second = await createWorkflowRun({
@@ -358,11 +441,16 @@ describe('workflow run queries', () => {
           subscriptionId,
           userId: crypto.randomUUID(),
         },
+        sourceSnapshot: {content: 'name: Mutated\njobs: {}\n', format: 'yaml'},
         triggerIdempotencyKey: idempotencyKey,
       });
 
       expect(second.id).toBe(first.id);
       expect(second.triggerIdempotencyKey).toBe(idempotencyKey);
+      expect(second.sourceSnapshot).toEqual({
+        content: 'name: Original\njobs: {}\n',
+        format: 'yaml',
+      });
 
       const allJobs = await getJobsByRunId(first.id);
       expect(allJobs).toHaveLength(1);

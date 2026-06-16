@@ -11,7 +11,12 @@ import {and, asc, count, desc, eq, gte, inArray, lt, lte, or, type SQL, sql} fro
 import type {Job, JobStatus} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
-import type {TriggerPayload, WorkflowRun, WorkflowRunStatus} from '#core/entities/workflow-run.js';
+import type {
+  TriggerPayload,
+  WorkflowRun,
+  WorkflowRunStatus,
+  WorkflowSourceSnapshot,
+} from '#core/entities/workflow-run.js';
 import {JobNotFoundError} from '#core/errors.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import {materializeWorkflowModel} from '#core/workflow-runtime/index.js';
@@ -30,6 +35,7 @@ export interface CreateWorkflowRunParams {
   model: WorkflowModel;
   triggerPayload: TriggerPayload;
   inputs?: Record<string, unknown> | undefined;
+  sourceSnapshot?: WorkflowSourceSnapshot | null | undefined;
   triggerIdempotencyKey?: string | undefined;
 }
 
@@ -49,6 +55,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         triggerEvent: params.triggerPayload.event,
         triggerPayload: params.triggerPayload,
         inputs: params.inputs ?? null,
+        sourceSnapshot: params.sourceSnapshot ?? null,
         triggerIdempotencyKey: params.triggerIdempotencyKey ?? null,
       })
       .onConflictDoNothing({target: workflowRuns.triggerIdempotencyKey})
@@ -100,6 +107,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         stepValues.push({
           jobId: jobRow.id,
           name: step.sourceName,
+          sourceLocation: step.sourceLocation,
           status: step.status,
           type: step.type,
           config: step.config,

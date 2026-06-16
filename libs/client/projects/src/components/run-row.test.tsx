@@ -14,6 +14,7 @@ function makeRun(overrides: Partial<RunDto> = {}): RunDto {
     trigger_event: 'fire',
     trigger_payload: {source: 'manual', event: 'fire'},
     inputs: null,
+    source_snapshot: null,
     created_at: '2026-05-13T00:00:00.000Z',
     updated_at: '2026-05-13T00:00:13.000Z',
     ...overrides,

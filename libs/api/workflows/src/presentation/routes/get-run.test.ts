@@ -97,6 +97,7 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.id).toBe(run.id);
+    expect(body.source_snapshot).toBeNull();
     expect(body.jobs).toHaveLength(1);
     expect(body.jobs[0].name).toBe('build');
     // Synthetic setup step at position 0, then the two user steps.
@@ -104,6 +105,76 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(body.jobs[0].steps[0].name).toBe('Set up job');
     expect(body.jobs[0].steps[1].name).toBe('Install');
     expect(body.jobs[0].steps[2].name).toBeNull();
+  });
+
+  test('returns run source snapshot when present', async () => {
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+    const sourceContent = `name: Source View
+jobs:
+  build:
+    steps:
+      - run: echo source
+`;
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model: workflowModel({name: 'Source View'}),
+      sourceSnapshot: {content: sourceContent, format: 'yaml'},
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().source_snapshot).toEqual({content: sourceContent, format: 'yaml'});
+  });
+
+  test('returns source locations for authored steps and null for synthetic steps', async () => {
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model: workflowModel({
+        name: 'Source locations',
+        jobs: {
+          build: {
+            steps: [
+              {name: 'Install', run: 'npm install', sourceLocation: {startLine: 5, endLine: 6}},
+              {run: 'npm test', sourceLocation: {startLine: 7, endLine: 10}},
+            ],
+          },
+        },
+      }),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(
+      res.json().jobs[0].steps.map((step: {source_location: unknown}) => step.source_location),
+    ).toEqual([null, {start_line: 5, end_line: 6}, {start_line: 7, end_line: 10}]);
   });
 
   test('exposes per-step error and cancelled status after a failed per-step report', async () => {
@@ -264,7 +335,14 @@ describe('GET /api/workflows/runs/:id', () => {
     const [step0, step1] = res.json().jobs[0].steps;
     expect(step0.current_attempt).toBe(1);
     expect(step0.attempts).toHaveLength(1);
-    expect(step0.attempts[0]).toMatchObject({attempt: 1, status: 'succeeded', exit_code: 0});
+    expect(step0.attempts[0]).toMatchObject({
+      attempt: 1,
+      status: 'succeeded',
+      exit_code: 0,
+      gate_result: null,
+      restart_reason: null,
+      restart_result: null,
+    });
     // A never-dispatched step has no attempt history yet.
     expect(step1.current_attempt).toBe(1);
     expect(step1.attempts).toEqual([]);
@@ -336,13 +414,30 @@ describe('GET /api/workflows/runs/:id', () => {
       exit_code: number | null;
       gate_result: unknown;
       restart_reason: string | null;
+      restart_result: unknown;
     }>;
     expect(reviewerAttempts.map((a) => a.attempt)).toEqual([1, 2]); // ordered by attempt
     expect(reviewerAttempts[0]?.status).toBe('failed');
     expect(reviewerAttempts[0]?.exit_code).toBe(1);
-    expect(reviewerAttempts[0]?.gate_result).toMatchObject({passed: false});
-    expect(reviewerAttempts[0]?.restart_reason).toBeTruthy();
+    expect(reviewerAttempts[0]?.gate_result).toEqual({
+      kind: 'failed',
+      passed: false,
+      source: 'exit_code == 0',
+      exit_code: 1,
+    });
+    expect(reviewerAttempts[0]?.restart_reason).toBe('gate condition not met');
+    expect(reviewerAttempts[0]?.restart_result).toEqual({
+      kind: 'restart_enqueued',
+      reason: 'gate condition not met',
+    });
     expect(reviewerAttempts[1]?.status).toBe('succeeded');
     expect(reviewerAttempts[1]?.exit_code).toBe(0);
+    expect(reviewerAttempts[1]?.gate_result).toEqual({
+      kind: 'passed',
+      passed: true,
+      source: 'exit_code == 0',
+      exit_code: 0,
+    });
+    expect(reviewerAttempts[1]?.restart_result).toBeNull();
   });
 });

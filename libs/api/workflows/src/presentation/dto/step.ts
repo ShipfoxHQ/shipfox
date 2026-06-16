@@ -3,6 +3,9 @@ import {
   type StepDto,
   type StepErrorCategory,
   type StepErrorDtoShape,
+  type StepGateResultDto,
+  type StepRestartResultDto,
+  type StepSourceLocationDto,
   stepErrorReasonSchema,
 } from '@shipfox/api-workflows-dto';
 import type {Step, StepAttempt} from '#core/entities/step.js';
@@ -47,11 +50,49 @@ export function fromStepErrorDto(
   };
 }
 
+function isIntOrNull(value: unknown): value is number | null {
+  return value === null || (typeof value === 'number' && Number.isInteger(value));
+}
+
+function toStepGateResultDto(gateResult: Record<string, unknown> | null): StepGateResultDto {
+  if (gateResult === null) return null;
+
+  const exitCode = gateResult.exit_code;
+  const passed = gateResult.passed;
+  const source = gateResult.source;
+  const reason = gateResult.reason;
+
+  if (passed === true && typeof source === 'string' && isIntOrNull(exitCode)) {
+    return {kind: 'passed', passed, source, exit_code: exitCode};
+  }
+
+  if (
+    passed === false &&
+    gateResult.uncheckable === true &&
+    typeof reason === 'string' &&
+    isIntOrNull(exitCode)
+  ) {
+    return {kind: 'uncheckable', passed, uncheckable: true, reason, exit_code: exitCode};
+  }
+
+  if (passed === false && typeof source === 'string' && isIntOrNull(exitCode)) {
+    return {kind: 'failed', passed, source, exit_code: exitCode};
+  }
+
+  return {kind: 'unknown', data: gateResult};
+}
+
+function toStepRestartResultDto(restartReason: string | null): StepRestartResultDto {
+  if (restartReason === null) return null;
+  return {kind: 'restart_enqueued', reason: restartReason};
+}
+
 export function toStepDto(step: Step): StepDto {
   return {
     id: step.id,
     job_id: step.jobId,
     name: step.name,
+    source_location: toStepSourceLocationDto(step.sourceLocation),
     status: step.status,
     type: step.type,
     config: step.config,
@@ -60,6 +101,16 @@ export function toStepDto(step: Step): StepDto {
     current_attempt: step.currentAttempt,
     created_at: step.createdAt.toISOString(),
     updated_at: step.updatedAt.toISOString(),
+  };
+}
+
+function toStepSourceLocationDto(
+  sourceLocation: Step['sourceLocation'],
+): StepSourceLocationDto | null {
+  if (sourceLocation === null) return null;
+  return {
+    start_line: sourceLocation.startLine,
+    end_line: sourceLocation.endLine,
   };
 }
 
@@ -73,8 +124,9 @@ export function toStepAttemptDto(attempt: StepAttempt): StepAttemptDto {
     exit_code: attempt.exitCode,
     output: attempt.output,
     error: attempt.error,
-    gate_result: attempt.gateResult,
+    gate_result: toStepGateResultDto(attempt.gateResult),
     restart_reason: attempt.restartReason,
+    restart_result: toStepRestartResultDto(attempt.restartReason),
     started_at: attempt.startedAt.toISOString(),
     finished_at: attempt.finishedAt ? attempt.finishedAt.toISOString() : null,
   };

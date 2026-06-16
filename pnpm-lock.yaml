@@ -377,6 +377,34 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/typescript
 
+  e2e/helpers/workflows:
+    dependencies:
+      '@shipfox/api-workflows':
+        specifier: workspace:*
+        version: link:../../../libs/api/workflows
+      '@shipfox/api-workflows-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/workflows-dto
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../tools/playwright
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
   e2e/helpers/workspaces:
     dependencies:
       '@shipfox/api-workspaces':
@@ -593,6 +621,9 @@ importers:
       js-yaml:
         specifier: ^4.1.0
         version: 4.2.0
+      yaml:
+        specifier: ^2.8.3
+        version: 2.8.3
       zod:
         specifier: ^4.4.3
         version: 4.4.3
