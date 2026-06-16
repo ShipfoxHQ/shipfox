@@ -6,6 +6,7 @@ import {ProjectRunsPage} from './project-runs-page.js';
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
 const REFRESH_BUTTON_RE = /refresh/i;
+const DEPLOY_PRODUCTION_RE = /Deploy production/;
 
 describe('ProjectRunsPage', () => {
   test('renders run history, counts, and paginated load more', async () => {
@@ -24,6 +25,22 @@ describe('ProjectRunsPage', () => {
 
     expect((await screen.findAllByText('Cleanup staging'))[0]).toBeInTheDocument();
     expect(screen.getByText('Loaded 2 of 2')).toBeInTheDocument();
+  });
+
+  test('navigates from a run row to the run detail route', async () => {
+    configureApiClient({fetchImpl: createRunsFetch()});
+
+    renderProjectPage(
+      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs`,
+      <ProjectRunsPage projectId={PROJECT_ID} />,
+    );
+
+    const runLink = await screen.findByRole('link', {name: DEPLOY_PRODUCTION_RE});
+    fireEvent.click(runLink);
+
+    expect(
+      await screen.findByText('Run detail route 66666666-6666-4666-8666-666666666666'),
+    ).toBeInTheDocument();
   });
 
   test('does not render a manual Refresh button (polling is silent)', async () => {
@@ -124,6 +141,7 @@ function runDto(overrides: Partial<{id: string; name: string; status: string}> =
     trigger_event: 'fire',
     trigger_payload: {source: 'manual', event: 'fire'},
     inputs: null,
+    duration_ms: 0,
     created_at: '2026-05-07T01:01:00.000Z',
     updated_at: '2026-05-07T01:02:00.000Z',
   };

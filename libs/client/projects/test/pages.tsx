@@ -91,6 +91,11 @@ function createTestRouter(path: string, element: ReactElement) {
   const projectRunsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/workspaces/$wid/projects/$pid/runs',
+    component: Outlet,
+  });
+  const projectRunsIndexRoute = createRoute({
+    getParentRoute: () => projectRunsRoute,
+    path: '/',
     component: () => {
       const params = useParams({strict: false}) as {pid?: string};
       if (initialPath === `/workspaces/${PROJECT_TEST_WID}/projects/${params.pid}/runs`) {
@@ -98,6 +103,20 @@ function createTestRouter(path: string, element: ReactElement) {
       }
 
       return <ProjectRunsPage projectId={params.pid ?? 'p-1'} />;
+    },
+  });
+  const projectWorkflowRunRoute = createRoute({
+    getParentRoute: () => projectRunsRoute,
+    path: '$rid',
+    component: () => {
+      const params = useParams({strict: false}) as {pid?: string; rid?: string};
+      if (
+        initialPath === `/workspaces/${PROJECT_TEST_WID}/projects/${params.pid}/runs/${params.rid}`
+      ) {
+        return element;
+      }
+
+      return <div>Run detail route {params.rid}</div>;
     },
   });
   const projectWorkflowsRoute = createRoute({
@@ -121,7 +140,7 @@ function createTestRouter(path: string, element: ReactElement) {
       workspaceNewProjectRoute,
       integrationsRoute,
       projectDetailRoute,
-      projectRunsRoute,
+      projectRunsRoute.addChildren([projectRunsIndexRoute, projectWorkflowRunRoute]),
       projectWorkflowsRoute,
     ]),
   });

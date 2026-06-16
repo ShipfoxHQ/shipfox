@@ -51,6 +51,9 @@ function ProjectRunsPageInner({projectId}: {projectId: string}) {
   // data and renders.
   const runsQuery = useWorkflowRunsInfiniteQuery(projectId, filters);
   const params = useParams({strict: false}) as {wid?: string};
+  if (!params.wid) {
+    throw new Error('ProjectRunsPage must render under a workspace route.');
+  }
   const aggregatesQuery = useWorkflowRunAggregatesQuery(projectId, filters);
   const definitionsQuery = useDefinitionsInfiniteQuery(projectId);
 
@@ -104,7 +107,7 @@ function ProjectRunsPageInner({projectId}: {projectId: string}) {
 
       {runsQuery.data !== undefined && runs.length === 0 ? (
         <RunsEmptyState
-          workspaceId={params.wid ?? ''}
+          workspaceId={params.wid}
           projectId={projectId}
           filtered={hasActiveFilters}
           onClear={() => setSearchState({date: 'all'})}
@@ -113,7 +116,7 @@ function ProjectRunsPageInner({projectId}: {projectId: string}) {
 
       {runs.length > 0 ? (
         <>
-          <RunsList runs={runs} />
+          <RunsList projectId={projectId} runs={runs} workspaceId={params.wid} />
           {runsQuery.isFetchNextPageError ? (
             <Alert variant="error" animated={false}>
               <div className="flex items-center justify-between gap-12">
@@ -332,11 +335,19 @@ function RunsEmptyState({
   );
 }
 
-function RunsList({runs}: {runs: RunDto[]}) {
+function RunsList({
+  projectId,
+  runs,
+  workspaceId,
+}: {
+  projectId: string;
+  runs: RunDto[];
+  workspaceId: string;
+}) {
   return (
     <div className="flex flex-col divide-y divide-border-neutral-base rounded-8 border border-border-neutral-base bg-background-neutral-base">
       {runs.map((run) => (
-        <RunRow key={run.id} run={run} />
+        <RunRow key={run.id} projectId={projectId} run={run} workspaceId={workspaceId} />
       ))}
     </div>
   );

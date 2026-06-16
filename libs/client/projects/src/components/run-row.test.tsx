@@ -1,13 +1,41 @@
 import type {RunDto} from '@shipfox/api-workflows-dto';
 import {render, screen} from '@testing-library/react';
+import type {ReactNode} from 'react';
 import {RelativeTimeProvider} from '#lib/relative-time.js';
 import {RunRow} from './run-row.js';
 
+const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
+const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
+const DEPLOY_PRODUCTION_RE = /Deploy production/;
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    params,
+    to,
+    ...props
+  }: {
+    children: ReactNode;
+    params: Record<string, string>;
+    to: string;
+  }) => {
+    const href = Object.entries(params).reduce(
+      (path, [key, value]) => path.replace(`$${key}`, value),
+      to,
+    );
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    );
+  },
+}));
+
 function makeRun(overrides: Partial<RunDto> = {}): RunDto {
   return {
-    id: 'abcd1234-0000-0000-0000-000000000000',
-    project_id: 'p',
-    definition_id: 'd',
+    id: 'abcd1234-0000-4000-8000-000000000000',
+    project_id: PROJECT_ID,
+    definition_id: '33333333-3333-4333-8333-333333333333',
     name: 'Deploy production',
     status: 'succeeded',
     trigger_source: 'manual',
@@ -24,7 +52,7 @@ function makeRun(overrides: Partial<RunDto> = {}): RunDto {
 function renderRow(run: RunDto) {
   return render(
     <RelativeTimeProvider>
-      <RunRow run={run} />
+      <RunRow projectId={PROJECT_ID} run={run} workspaceId={WORKSPACE_ID} />
     </RelativeTimeProvider>,
   );
 }
@@ -57,11 +85,12 @@ describe('RunRow', () => {
     vi.useRealTimers();
   });
 
-  test('is not interactive — no role=button, no tabindex on the row', () => {
-    const {container} = renderRow(makeRun());
+  test('links to the run detail route', () => {
+    renderRow(makeRun());
 
-    const row = container.firstChild as HTMLElement;
-    expect(row.getAttribute('role')).not.toBe('button');
-    expect(row.getAttribute('tabindex')).toBe(null);
+    expect(screen.getByRole('link', {name: DEPLOY_PRODUCTION_RE})).toHaveAttribute(
+      'href',
+      `/workspaces/${WORKSPACE_ID}/projects/${PROJECT_ID}/runs/abcd1234-0000-4000-8000-000000000000`,
+    );
   });
 });
