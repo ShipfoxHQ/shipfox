@@ -134,6 +134,16 @@ describe('checkoutRepository failure classification', () => {
     await expect(checkoutRepository(BASE)).rejects.toMatchObject({kind: 'unavailable'});
   });
 
+  it('classifies a git-side 429 (rate limit) as unavailable', async () => {
+    rejectExec(
+      gitError(
+        "fatal: unable to access 'https://github.com/acme/repo.git/': The requested URL returned error: 429",
+      ),
+    );
+
+    await expect(checkoutRepository(BASE)).rejects.toMatchObject({kind: 'unavailable'});
+  });
+
   it('classifies an unknown clone failure as a generic failure', async () => {
     rejectExec(gitError('fatal: Remote branch main not found in upstream origin'));
 

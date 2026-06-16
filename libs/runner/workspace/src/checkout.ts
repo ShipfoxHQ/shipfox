@@ -56,7 +56,7 @@ export function redactSecrets(text: string, secrets: string[]): string {
 const AUTH_FAILURE =
   /authentication failed|could not read username|invalid username or password|terminal prompts disabled|403 forbidden|the requested url returned error: 40[13]|permission denied \(publickey\)|access denied/i;
 const PROVIDER_UNAVAILABLE =
-  /could not resolve host|could not connect|connection timed out|failed to connect|temporary failure in name resolution|the requested url returned error: 5\d\d/i;
+  /could not resolve host|could not connect|connection timed out|failed to connect|temporary failure in name resolution|the requested url returned error: (?:429|5\d\d)/i;
 
 /**
  * Shallow-clones `ref` of `repositoryUrl` into `cwd` (which must already exist and be empty).
