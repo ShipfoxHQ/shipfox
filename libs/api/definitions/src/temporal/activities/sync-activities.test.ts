@@ -235,6 +235,7 @@ describe('definition sync activities', () => {
         expect.objectContaining({ref: 'abc123', path: '.shipfox/workflows/ci.yml'}),
       );
       expect(rows[0]?.ref).toBe('main');
+      expect(rows[0]?.definition.sourceYaml).toBe(validYaml);
     });
   });
 

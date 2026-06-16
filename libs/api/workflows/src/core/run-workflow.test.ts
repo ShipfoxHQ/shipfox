@@ -29,6 +29,7 @@ function buildDefinition(overrides?: Partial<WorkflowDefinition>): WorkflowDefin
     ref: null,
     name: 'Test Workflow',
     definition: document,
+    sourceYaml: 'name: Test Workflow\n',
     document,
     model,
     contentHash: null,
@@ -78,6 +79,11 @@ describe('runWorkflow', () => {
     expect(run.triggerSource).toBe('manual');
     expect(run.triggerEvent).toBe('fire');
     expect(run.triggerPayload).toEqual(triggerPayload);
+    expect(run.definitionSnapshot).toEqual({
+      sourceYaml: definition.sourceYaml,
+      document: definition.document,
+      model: definition.model,
+    });
   });
 
   test('persists an integration trigger payload intact', async () => {

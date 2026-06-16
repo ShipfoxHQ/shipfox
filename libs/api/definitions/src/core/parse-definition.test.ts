@@ -16,6 +16,7 @@ describe('parseDefinition', () => {
 
     const definition = parseDefinition(yaml);
 
+    expect(definition.sourceYaml).toBe(yaml);
     expect(definition.document.name).toBe('Simple build');
     expect(definition.document.triggers?.on_push?.source).toBe('github');
     expect(definition.document.triggers?.on_push?.event).toBe('push');

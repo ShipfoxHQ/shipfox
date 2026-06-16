@@ -4,6 +4,7 @@ import type {WorkflowModel} from './workflow-model.js';
 export type WorkflowSpec = WorkflowDocument;
 
 export interface WorkflowDefinitionPayload {
+  sourceYaml?: string | null;
   document: WorkflowDocument;
   model: WorkflowModel;
 }
@@ -21,6 +22,7 @@ export interface WorkflowDefinition {
    * before they migrate to `document`/`model`.
    */
   definition: WorkflowSpec;
+  sourceYaml: string | null;
   document: WorkflowDocument;
   model: WorkflowModel;
   contentHash: string | null;

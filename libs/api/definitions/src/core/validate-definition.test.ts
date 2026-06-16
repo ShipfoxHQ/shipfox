@@ -14,6 +14,7 @@ jobs:
 
     expect(result.valid).toBe(true);
     if (result.valid) {
+      expect(result.definition.sourceYaml).toBe(yaml);
       expect(result.definition.document.name).toBe('Test');
       expect(result.definition.document.jobs.build?.steps).toHaveLength(1);
       expect(result.definition.model.jobs[0]?.id).toBe('build');

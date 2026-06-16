@@ -13,7 +13,7 @@ export function validateDefinition(yamlContent: string): ValidationResult {
   try {
     const document = parseWorkflowYaml(yamlContent);
     const model = normalizeWorkflowDocument(document);
-    return {valid: true, definition: {document, model}};
+    return {valid: true, definition: {sourceYaml: yamlContent, document, model}};
   } catch (error) {
     return {valid: false, errors: validationErrorsFor(error)};
   }

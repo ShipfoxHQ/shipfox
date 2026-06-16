@@ -150,6 +150,7 @@ describe('fetchAndParseWorkflows', () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.name).toBe('CI');
     expect(result[0]?.path).toBe('.shipfox/workflows/ci.yml');
+    expect(result[0]?.definition.sourceYaml).toContain('name: CI');
     expect(result[0]?.contentHash).toMatch(SHA256_HEX_RE);
   });
 

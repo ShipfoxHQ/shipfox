@@ -76,6 +76,9 @@ export const runResponseSchema = runDtoSchema;
 export type RunResponseDto = z.infer<typeof runResponseSchema>;
 
 export const runDetailResponseSchema = runResponseSchema.extend({
+  workflow_source_yaml: z.string().nullable(),
+  workflow_document: z.unknown().nullable(),
+  workflow_model: z.unknown().nullable(),
   jobs: z.array(
     jobDtoSchema.extend({
       steps: z.array(stepDtoSchema.extend({attempts: z.array(stepAttemptDtoSchema)})),

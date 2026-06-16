@@ -40,6 +40,7 @@ export const createDefinitionRoute = defineRoute({
       configPath: config_path,
       source,
       name: parsed.document.name,
+      sourceYaml: parsed.sourceYaml,
       document: parsed.document,
       model: parsed.model,
       sha,
