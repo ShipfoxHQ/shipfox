@@ -11,6 +11,7 @@ CREATE TABLE "runners_pending_jobs" (
 	"workspace_id" uuid NOT NULL,
 	"job_id" uuid NOT NULL,
 	"run_id" uuid NOT NULL,
+	"project_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "runners_pending_jobs_job_id_unique" UNIQUE("job_id")
 );
@@ -20,6 +21,7 @@ CREATE TABLE "runners_running_jobs" (
 	"workspace_id" uuid NOT NULL,
 	"job_id" uuid NOT NULL,
 	"run_id" uuid NOT NULL,
+	"project_id" uuid NOT NULL,
 	"runner_token" text NOT NULL,
 	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"last_heartbeat_at" timestamp with time zone DEFAULT now() NOT NULL,

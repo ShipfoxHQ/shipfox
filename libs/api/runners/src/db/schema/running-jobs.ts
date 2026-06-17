@@ -9,6 +9,7 @@ export const runningJobs = pgTable(
     workspaceId: uuid('workspace_id').notNull(),
     jobId: uuid('job_id').notNull().unique(),
     runId: uuid('run_id').notNull(),
+    projectId: uuid('project_id').notNull(),
     runnerTokenId: uuid('runner_token_id').notNull(),
     startedAt: timestamp('started_at', {withTimezone: true}).notNull().defaultNow(),
     lastHeartbeatAt: timestamp('last_heartbeat_at', {withTimezone: true}).notNull().defaultNow(),

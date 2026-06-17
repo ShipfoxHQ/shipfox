@@ -27,6 +27,7 @@ const defaultJobInput = {
   workspaceId: 'workspace-1',
   jobId: 'job-1',
   runId: 'run-1',
+  projectId: 'project-1',
   jobVersion: 1,
 };
 

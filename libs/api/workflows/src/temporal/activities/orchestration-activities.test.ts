@@ -2,7 +2,7 @@ import {ApplicationFailure} from '@temporalio/common';
 import {createWorkflowRun, getJobsByRunId, updateJobStatus} from '#db/index.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
-import {resolveLeaseExpiredJobActivity} from './orchestration-activities.js';
+import {loadRunDag, resolveLeaseExpiredJobActivity} from './orchestration-activities.js';
 
 describe('resolveLeaseExpiredJobActivity', () => {
   let workspaceId: string;
@@ -56,5 +56,30 @@ describe('resolveLeaseExpiredJobActivity', () => {
     const result = await resolveLeaseExpiredJobActivity({jobId, expectedVersion: runningVersion});
 
     expect(result.status).toBe('failed');
+  });
+});
+
+describe('loadRunDag', () => {
+  test('surfaces the run workspace, project, and run ids on the dag', async () => {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId: crypto.randomUUID(),
+      model: workflowModel({jobs: {build: {steps: [{run: 'step1'}]}}}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+
+    const dag = await loadRunDag(run.id);
+
+    expect(dag.runId).toBe(run.id);
+    expect(dag.workspaceId).toBe(workspaceId);
+    expect(dag.projectId).toBe(projectId);
   });
 });

@@ -95,7 +95,7 @@ export function dagJob(id: string, name: string, deps: string[] = []): RunDag['j
 }
 
 export function makeDag(jobs: RunDag['jobs'], runId = 'run-1'): RunDag {
-  return {runId, workspaceId: 'workspace-1', runVersion: 1, jobs};
+  return {runId, workspaceId: 'workspace-1', projectId: 'project-1', runVersion: 1, jobs};
 }
 
 // ---------------------------------------------------------------------------
@@ -154,7 +154,12 @@ function createMockActivities() {
     // Scheduling is step-less. The mock runner reports the job outcome by signalling
     // the per-step terminal-completion signal (job-finished) and/or the lease-expiry
     // signal, reproducing the outbox → subscriber → signal rail.
-    enqueueJobForRunner: async (params: {workspaceId: string; jobId: string; runId: string}) => {
+    enqueueJobForRunner: async (params: {
+      workspaceId: string;
+      jobId: string;
+      runId: string;
+      projectId: string;
+    }) => {
       calls.push({name: 'enqueueJobForRunner', params});
 
       if (cfg.enqueueError) {

@@ -9,6 +9,7 @@ export const pendingJobs = pgTable(
     workspaceId: uuid('workspace_id').notNull(),
     jobId: uuid('job_id').notNull().unique(),
     runId: uuid('run_id').notNull(),
+    projectId: uuid('project_id').notNull(),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [

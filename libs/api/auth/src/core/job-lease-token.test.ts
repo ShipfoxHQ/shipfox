@@ -9,6 +9,7 @@ function claims() {
   return {
     jobId: crypto.randomUUID(),
     runId: crypto.randomUUID(),
+    projectId: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
     runnerTokenId: crypto.randomUUID(),
   };
@@ -24,6 +25,7 @@ describe('job-lease-token', () => {
     expect(verified).not.toBeNull();
     expect(verified?.jobId).toBe(input.jobId);
     expect(verified?.runId).toBe(input.runId);
+    expect(verified?.projectId).toBe(input.projectId);
     expect(verified?.workspaceId).toBe(input.workspaceId);
     expect(verified?.runnerTokenId).toBe(input.runnerTokenId);
     expect(verified?.aud).toBe(JOB_LEASE_TOKEN_AUDIENCE);
@@ -35,6 +37,7 @@ describe('job-lease-token', () => {
     const input = {
       jobId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d0e',
       runId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d0f',
+      projectId: crypto.randomUUID(),
       workspaceId: crypto.randomUUID(),
       runnerTokenId: crypto.randomUUID(),
     };
@@ -113,12 +116,20 @@ describe('job-lease-token', () => {
 
   test('returns null for a token whose claims fail the schema (non-uuid jobId)', async () => {
     const token = await signHs256({
-      payload: {
-        jobId: 'not-a-uuid',
-        runId: crypto.randomUUID(),
-        workspaceId: crypto.randomUUID(),
-        runnerTokenId: crypto.randomUUID(),
-      },
+      payload: {...claims(), jobId: 'not-a-uuid'},
+      secret: SECRET,
+      expiresIn: '90m',
+      audience: JOB_LEASE_TOKEN_AUDIENCE,
+    });
+
+    const verified = await verifyJobLeaseToken(token);
+
+    expect(verified).toBeNull();
+  });
+
+  test('returns null for a token whose claims fail the schema (non-uuid projectId)', async () => {
+    const token = await signHs256({
+      payload: {...claims(), projectId: 'not-a-uuid'},
       secret: SECRET,
       expiresIn: '90m',
       audience: JOB_LEASE_TOKEN_AUDIENCE,
