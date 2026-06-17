@@ -153,9 +153,14 @@ export function WorkflowRunsList({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {loading ? <WorkflowRunsListSkeleton /> : null}
-          {!loading && error ? <WorkflowRunsListError onRetry={onRetry} /> : null}
+          {!loading && error && runs.length === 0 ? (
+            <WorkflowRunsListError onRetry={onRetry} />
+          ) : null}
+          {!loading && error && runs.length > 0 ? (
+            <WorkflowRunsListStaleError onRetry={onRetry} />
+          ) : null}
           {!loading && !error && runs.length === 0 ? <WorkflowRunsListEmpty /> : null}
-          {!loading && !error && runs.length > 0 && filteredRows.length === 0 ? (
+          {!loading && runs.length > 0 && filteredRows.length === 0 ? (
             <WorkflowRunsListNoMatches
               onClear={() => {
                 setQuery('');
@@ -163,7 +168,7 @@ export function WorkflowRunsList({
               }}
             />
           ) : null}
-          {!loading && !error && filteredRows.length > 0 ? (
+          {!loading && filteredRows.length > 0 ? (
             <nav aria-label="Run history">
               <ul className="flex flex-col">
                 {filteredRows.map(({run, item}) => {
@@ -213,15 +218,22 @@ function WorkflowRunsListRow({
         <StatusPill status={item.status} />
       </div>
 
-      <div className="flex min-w-0 items-center gap-6 pl-16">
-        <Icon name="thunder" className="size-12 shrink-0 text-foreground-neutral-muted" />
-        <Code variant="label" className="min-w-0 flex-1 truncate text-foreground-neutral-subtle">
-          {item.triggerLabel}
-        </Code>
-        <Code variant="label" className="shrink-0 text-foreground-neutral-muted">
+      {item.triggerLabel ? (
+        <div className="flex min-w-0 items-center gap-6 pl-16">
+          <Icon name="thunder" className="size-12 shrink-0 text-foreground-neutral-muted" />
+          <Code variant="label" className="min-w-0 flex-1 truncate text-foreground-neutral-subtle">
+            {item.triggerLabel}
+          </Code>
+          <Code variant="label" className="shrink-0 text-foreground-neutral-muted">
+            <RelativeTime value={item.updatedAt} />
+          </Code>
+        </div>
+      ) : (
+        <Code variant="label" className="pl-16 text-foreground-neutral-muted">
+          <span className="sr-only">Run updated </span>
           <RelativeTime value={item.updatedAt} />
         </Code>
-      </div>
+      )}
 
       <Text size="xs" className="min-w-0 truncate pl-16 text-foreground-neutral-muted">
         {item.name}
@@ -324,6 +336,23 @@ function WorkflowRunsListError({onRetry}: {onRetry?: (() => void) | undefined}) 
           <Text size="sm">Could not load workflow runs.</Text>
           {onRetry ? (
             <Button type="button" size="sm" variant="secondary" onClick={onRetry}>
+              Retry
+            </Button>
+          ) : null}
+        </div>
+      </Alert>
+    </div>
+  );
+}
+
+function WorkflowRunsListStaleError({onRetry}: {onRetry?: (() => void) | undefined}) {
+  return (
+    <div className="border-b border-border-neutral-base p-8">
+      <Alert variant="error" animated={false}>
+        <div className="flex items-center justify-between gap-8">
+          <Text size="xs">Could not refresh workflow runs.</Text>
+          {onRetry ? (
+            <Button type="button" size="2xs" variant="secondary" onClick={onRetry}>
               Retry
             </Button>
           ) : null}
