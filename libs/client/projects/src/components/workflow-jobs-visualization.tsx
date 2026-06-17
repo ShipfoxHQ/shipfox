@@ -14,7 +14,7 @@ import type {ReactNode} from 'react';
 import {StatusDot, type StatusDotVariant} from './status-dot.js';
 
 export type WorkflowJobDto = JobDto & {
-  steps?: Array<StepDto & {attempts?: StepAttemptDto[] | undefined}> | undefined;
+  steps?: Array<StepDto & {attempts: StepAttemptDto[]}> | undefined;
 };
 
 export interface WorkflowJobNode {
@@ -66,8 +66,6 @@ export function WorkflowJobsVisualization({
   title = 'Jobs',
 }: WorkflowJobsVisualizationProps) {
   const nodes = toWorkflowJobNodes(jobs);
-  const columns = groupByColumn(nodes);
-  const summary = summarizeJobs(nodes);
 
   if (nodes.length === 0) {
     return (
@@ -81,6 +79,9 @@ export function WorkflowJobsVisualization({
       </Card>
     );
   }
+
+  const columns = groupByColumn(nodes);
+  const summary = summarizeJobs(nodes);
 
   return (
     <Card role="region" aria-label="Workflow jobs" className="gap-20 p-16">
@@ -250,15 +251,15 @@ function WorkflowJobCard({
             Needs
           </Text>
           <div className="flex flex-wrap gap-4">
-            {node.dependencyNames.map((dependency) => (
+            {node.dependencies.map((dependencyId, index) => (
               <Badge
-                key={dependency}
+                key={dependencyId}
                 variant="neutral"
                 size="2xs"
                 radius="rounded"
                 className="max-w-full"
               >
-                <span className="truncate">{dependency}</span>
+                <span className="truncate">{node.dependencyNames[index] ?? dependencyId}</span>
               </Badge>
             ))}
           </div>
