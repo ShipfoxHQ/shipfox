@@ -157,6 +157,7 @@ function buildStep(
     id: '00000000-0000-0000-0000-000000000001',
     job_id: '00000000-0000-0000-0000-000000000002',
     name: overrides.name ?? 'test-step',
+    source_location: null,
     status: 'running',
     type: overrides.type ?? 'run',
     config: overrides.config ?? {run: 'echo test'},

@@ -3,6 +3,7 @@ import type {WorkflowModel} from '@shipfox/api-definitions';
 interface TestWorkflowStep {
   readonly name?: string | undefined;
   readonly run: string;
+  readonly sourceLocation?: WorkflowModel['jobs'][number]['steps'][number]['sourceLocation'];
   readonly gate?: WorkflowModel['jobs'][number]['steps'][number]['gate'] | undefined;
 }
 
@@ -37,6 +38,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
             ? `${jobId}-step-${stepIndex + 1}`
             : `${jobId}-${stableId(step.name)}`,
         ...(step.name === undefined ? {} : {sourceName: step.name}),
+        ...(step.sourceLocation === undefined ? {} : {sourceLocation: step.sourceLocation}),
         kind: 'run' as const,
         command: {kind: 'shell' as const, value: step.run},
         ...(step.gate === undefined ? {} : {gate: step.gate}),

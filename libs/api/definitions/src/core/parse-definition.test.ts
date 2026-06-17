@@ -44,6 +44,57 @@ describe('parseDefinition', () => {
     ]);
   });
 
+  test('attaches source line locations to workflow model steps', () => {
+    const yaml = `name: Source locations
+jobs:
+  build:
+    steps:
+      - name: Install
+        run: pnpm install
+      # comments between authored steps are not part of either step range
+      - run: |
+          pnpm test
+          pnpm build
+        gate:
+          success_if: exit_code == 0
+  deploy:
+    needs: build
+    steps:
+      - name: Deploy
+        run: ./deploy.sh
+`;
+
+    const definition = parseDefinition(yaml);
+
+    const build = definition.model.jobs.find((job) => job.id === 'build');
+    const deploy = definition.model.jobs.find((job) => job.id === 'deploy');
+    expect(build?.steps.map((step) => step.sourceLocation)).toEqual([
+      {startLine: 5, endLine: 6},
+      {startLine: 8, endLine: 12},
+    ]);
+    expect(deploy?.steps.map((step) => step.sourceLocation)).toEqual([
+      {startLine: 16, endLine: 17},
+    ]);
+  });
+
+  test('ends source line locations on the final content line of block scalar steps', () => {
+    const yaml = `name: Block scalar
+jobs:
+  build:
+    steps:
+      - run: |
+          echo one
+          echo two
+`;
+
+    const definition = parseDefinition(yaml);
+
+    expect(definition.model.jobs[0]?.steps[0]?.sourceLocation).toEqual({
+      startLine: 5,
+      endLine: 7,
+    });
+  });
+
   test('invalid YAML syntax throws DefinitionParseError', () => {
     const yaml = readFixture('invalid-yaml-syntax.yml');
 

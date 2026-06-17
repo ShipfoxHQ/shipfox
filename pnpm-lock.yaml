@@ -593,6 +593,9 @@ importers:
       js-yaml:
         specifier: ^4.1.0
         version: 4.2.0
+      yaml:
+        specifier: ^2.8.3
+        version: 2.8.3
       zod:
         specifier: ^4.4.3
         version: 4.4.3
