@@ -25,7 +25,7 @@ describe('WorkflowStepOverview', () => {
     expect(screen.getByText('collecting')).toBeInTheDocument();
   });
 
-  test('renders a failed step with multi-attempt metadata and does not parse opaque gate data', () => {
+  test('renders a failed step with multi-attempt metadata and gate/restart details', () => {
     render(<WorkflowStepOverview selection={workflowStepOverviewFixtures.failed} />);
 
     expect(screen.getByText('run_unit_tests')).toBeInTheDocument();
@@ -34,7 +34,8 @@ describe('WorkflowStepOverview', () => {
     expect(screen.getByText('#1')).toBeInTheDocument();
     expect(screen.getByText('#2')).toBeInTheDocument();
     expect(screen.getByText('#3')).toBeInTheDocument();
-    expect(screen.queryByText('Gate')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Gate result')).toHaveLength(3);
+    expect(screen.getByText('restart_exhausted')).toBeInTheDocument();
   });
 
   test('renders a succeeded step without a root-cause alert', () => {

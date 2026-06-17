@@ -8,10 +8,18 @@ import {
 import {z} from 'zod';
 
 export const workflowStepOverviewStepSchema = stepDtoSchema.extend({
-  attempts: z.array(stepAttemptDtoSchema),
+  attempts: z.array(
+    stepAttemptDtoSchema.extend({
+      restart_result: z.record(z.string(), z.unknown()).nullable().optional(),
+    }),
+  ),
 });
 
-export type WorkflowStepOverviewStep = StepDto & {attempts: StepAttemptDto[]};
+type WorkflowStepOverviewAttempt = StepAttemptDto & {
+  restart_result?: Record<string, unknown> | null;
+};
+
+export type WorkflowStepOverviewStep = StepDto & {attempts: WorkflowStepOverviewAttempt[]};
 
 export interface WorkflowStepSelection {
   readonly jobName: string;
@@ -44,6 +52,8 @@ export interface WorkflowStepAttemptModel {
   readonly startedAtLabel: string;
   readonly finishedAtLabel: string;
   readonly restartReason: string | null;
+  readonly gateResultEntries: WorkflowStepOutputEntryModel[];
+  readonly restartResultEntries: WorkflowStepOutputEntryModel[];
 }
 
 export interface WorkflowStepSummaryModel {
@@ -82,9 +92,7 @@ export function toWorkflowStepOverviewModel(
 
   const attempts = [...selection.step.attempts].sort((left, right) => left.attempt - right.attempt);
   const currentAttempt =
-    attempts.find((attempt) => attempt.attempt === selection.step.current_attempt) ??
-    attempts.at(-1) ??
-    null;
+    attempts.find((attempt) => attempt.attempt === selection.step.current_attempt) ?? null;
 
   return {
     jobName: selection.jobName,
@@ -111,6 +119,8 @@ export function toWorkflowStepOverviewModel(
             ? formatTimestamp(currentAttempt.finished_at)
             : 'Still running',
           restartReason: currentAttempt.restart_reason,
+          gateResultEntries: toOutputEntries(currentAttempt.gate_result),
+          restartResultEntries: toOutputEntries(currentAttempt.restart_result ?? null),
         }
       : null,
     attempts: attempts.map((attempt) => ({
@@ -124,6 +134,8 @@ export function toWorkflowStepOverviewModel(
       startedAtLabel: formatTimestamp(attempt.started_at),
       finishedAtLabel: attempt.finished_at ? formatTimestamp(attempt.finished_at) : 'Still running',
       restartReason: attempt.restart_reason,
+      gateResultEntries: toOutputEntries(attempt.gate_result),
+      restartResultEntries: toOutputEntries(attempt.restart_result ?? null),
     })),
     summary: buildSummary(selection.step, currentAttempt, attempts),
     outputEntries: toOutputEntries(currentAttempt?.output ?? null),
