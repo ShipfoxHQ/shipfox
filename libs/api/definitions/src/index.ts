@@ -20,6 +20,7 @@ export type {
   WorkflowSourceSnapshot,
   WorkflowSpec,
 } from '#core/index.js';
+export {parseDefinition} from '#core/index.js';
 export {db, definitionsOutbox, getDefinitionById, migrationsPath} from '#db/index.js';
 export {routes} from '#presentation/index.js';
 

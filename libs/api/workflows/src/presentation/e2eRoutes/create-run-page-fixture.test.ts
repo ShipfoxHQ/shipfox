@@ -65,6 +65,25 @@ describe('POST /__e2e/workflows/run-page-fixture', () => {
       category: 'user',
     });
 
+    expect(body.runs.succeeded.source_snapshot).toEqual({
+      content: expect.stringContaining('name: Deploy pipeline'),
+      format: 'yaml',
+    });
+    expect(body.runs.failed.source_snapshot?.format).toBe('yaml');
+    expect(body.runs.running.source_snapshot?.format).toBe('yaml');
+
+    const userSteps = stepsFor(body.runs.succeeded).filter((step) => step.type !== 'setup');
+    expect(userSteps).toHaveLength(5);
+    for (const step of userSteps) {
+      expect(step.source_location).not.toBeNull();
+      expect(step.source_location?.start_line).toBeGreaterThan(0);
+      expect(step.source_location?.end_line).toBeGreaterThanOrEqual(
+        step.source_location?.start_line ?? 0,
+      );
+    }
+    const setupSteps = stepsFor(body.runs.succeeded).filter((step) => step.type === 'setup');
+    expect(setupSteps.every((step) => step.source_location === null)).toBe(true);
+
     expect(body.runs.running.status).toBe('running');
     expect(body.runs.running.jobs.map((job) => job.status)).toEqual([
       'succeeded',

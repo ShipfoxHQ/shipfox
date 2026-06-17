@@ -1,4 +1,4 @@
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import {parseDefinition} from '@shipfox/api-definitions';
 import {createProject} from '@shipfox/api-projects';
 import {
   type E2eWorkflowRunPageFixtureResponseDto,
@@ -26,80 +26,39 @@ const scenarioNames = {
   running: 'Deploy pipeline running',
 } satisfies Record<Scenario, string>;
 
-function model(name: string): WorkflowModel {
-  return {
-    kind: 'workflow',
-    name,
-    triggers: [
-      {
-        id: 'manual-run',
-        sourceName: 'manual_run',
-        source: 'manual',
-        event: 'fire',
-      },
-    ],
-    jobs: [
-      {
-        id: 'build',
-        sourceName: 'Build',
-        runner: ['ubuntu-latest'],
-        dependencies: [],
-        steps: [
-          {
-            id: 'build-install',
-            sourceName: 'Install dependencies',
-            kind: 'run',
-            command: {kind: 'shell', value: 'pnpm install --frozen-lockfile'},
-          },
-          {
-            id: 'build-compile',
-            sourceName: 'Compile application',
-            kind: 'run',
-            command: {kind: 'shell', value: 'turbo build --filter=@shipfox/client...'},
-          },
-        ],
-      },
-      {
-        id: 'test',
-        sourceName: 'Test',
-        runner: ['ubuntu-latest'],
-        dependencies: ['build'],
-        steps: [
-          {
-            id: 'test-unit',
-            sourceName: 'Unit tests',
-            kind: 'run',
-            command: {kind: 'shell', value: 'turbo test --filter=@shipfox/client...'},
-          },
-          {
-            id: 'test-e2e',
-            sourceName: 'Browser smoke',
-            kind: 'run',
-            command: {kind: 'shell', value: 'turbo test:e2e --filter=@shipfox/e2e-client-projects'},
-          },
-        ],
-      },
-      {
-        id: 'deploy',
-        sourceName: 'Deploy',
-        runner: ['ubuntu-latest'],
-        dependencies: ['test'],
-        steps: [
-          {
-            id: 'deploy-release',
-            sourceName: 'Promote release',
-            kind: 'run',
-            command: {kind: 'shell', value: 'shipfox deploy production'},
-          },
-        ],
-      },
-    ],
-    dependencies: [
-      {from: 'build', to: 'test'},
-      {from: 'test', to: 'deploy'},
-    ],
-  };
-}
+// Real Shipfox workflow YAML matching the three-job Build → Test → Deploy
+// pipeline below. It is parsed through the production definition pipeline so the
+// run carries a faithful source snapshot and every step a real source location.
+const workflowSource = `name: Deploy pipeline
+triggers:
+  manual_run:
+    source: manual
+    event: fire
+runner: ubuntu-latest
+jobs:
+  Build:
+    steps:
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Compile application
+        run: turbo build --filter=@shipfox/client...
+  Test:
+    needs: Build
+    steps:
+      - name: Unit tests
+        run: turbo test --filter=@shipfox/client...
+      - name: Browser smoke
+        run: turbo test:e2e --filter=@shipfox/e2e-client-projects
+  Deploy:
+    needs: Test
+    steps:
+      - name: Promote release
+        run: shipfox deploy production
+`;
+
+// Parsing once gives the canonical model (with per-step source locations) and the
+// source snapshot; scenario runs override only the display name.
+const definition = parseDefinition(workflowSource);
 
 async function startRun(params: {workspaceId: string; projectId: string; scenario: Scenario}) {
   const run = await createWorkflowRun({
@@ -107,7 +66,8 @@ async function startRun(params: {workspaceId: string; projectId: string; scenari
     projectId: params.projectId,
     definitionId: crypto.randomUUID(),
     name: scenarioNames[params.scenario],
-    model: model(scenarioNames[params.scenario]),
+    model: {...definition.model, name: scenarioNames[params.scenario]},
+    sourceSnapshot: definition.sourceSnapshot ?? null,
     triggerPayload: {
       source: 'manual',
       event: 'fire',
