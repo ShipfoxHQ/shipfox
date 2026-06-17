@@ -142,13 +142,41 @@ describe('toStepAttemptDto', () => {
     });
   });
 
-  it('maps missing gate and restart payloads to null results', () => {
+  it('maps missing gate payloads to an explicit none result', () => {
     const attempt: StepAttempt = {...baseAttempt, gateResult: null};
 
     const result = toStepAttemptDto(attempt);
 
-    expect(result.gate_result).toBeNull();
+    expect(result.gate_result).toEqual({kind: 'none'});
     expect(result.restart_result).toBeNull();
+  });
+
+  it('maps running attempts without gate payloads to not evaluated', () => {
+    const attempt: StepAttempt = {...baseAttempt, status: 'running', gateResult: null};
+
+    const result = toStepAttemptDto(attempt);
+
+    expect(result.gate_result).toEqual({kind: 'not_evaluated'});
+  });
+
+  it('maps gate expression failures to typed evaluation errors', () => {
+    const attempt: StepAttempt = {
+      ...baseAttempt,
+      gateResult: {
+        passed: false,
+        uncheckable: true,
+        reason: 'gate expression evaluation failed',
+        exit_code: 1,
+      },
+    };
+
+    const result = toStepAttemptDto(attempt);
+
+    expect(result.gate_result).toEqual({
+      kind: 'evaluation_error',
+      reason: 'gate expression evaluation failed',
+      exit_code: 1,
+    });
   });
 
   it('maps restart reasons to typed restart results', () => {
@@ -159,6 +187,44 @@ describe('toStepAttemptDto', () => {
     expect(result.restart_result).toEqual({
       kind: 'restart_enqueued',
       reason: 'gate condition not met',
+    });
+  });
+
+  it('maps restart-exhausted errors to typed restart results', () => {
+    const attempt: StepAttempt = {
+      ...baseAttempt,
+      error: {
+        kind: 'restart_exhausted',
+        maxAttempts: 3,
+        restart_from: 'producer',
+      },
+    };
+
+    const result = toStepAttemptDto(attempt);
+
+    expect(result.restart_result).toEqual({
+      kind: 'restart_exhausted',
+      max_attempts: 3,
+      restart_from: 'producer',
+    });
+  });
+
+  it('maps restart-exhausted errors with camelCase restart targets', () => {
+    const attempt: StepAttempt = {
+      ...baseAttempt,
+      error: {
+        kind: 'restart_exhausted',
+        max_attempts: 3,
+        restartFrom: 'producer',
+      },
+    };
+
+    const result = toStepAttemptDto(attempt);
+
+    expect(result.restart_result).toEqual({
+      kind: 'restart_exhausted',
+      max_attempts: 3,
+      restart_from: 'producer',
     });
   });
 
