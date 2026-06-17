@@ -13,8 +13,7 @@ import {MalformedLogChunkError, OffsetGapError} from '#core/errors.js';
 export const appendLogsRoute = defineRoute({
   method: 'POST',
   path: '/steps/:stepId/logs',
-  description:
-    'Appends a chunk of framed NDJSON log records for one step attempt of the leased job. The body is raw NDJSON bytes (whole records, newline-terminated). `offset` must equal the server-held committed length: an earlier offset is acknowledged as already applied, a later offset is rejected with the committed length so the runner rewinds. The job is identified by the lease token; there is no step-state gate. When the per-job log budget is exhausted the response reports `capped` and further output is dropped.',
+  description: 'Append a chunk of logs for a step attempt of the leased job.',
   schema: {
     params: z.object({stepId: z.string().uuid()}),
     querystring: appendLogsQuerySchema,

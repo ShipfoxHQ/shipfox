@@ -10,15 +10,32 @@ import {z} from 'zod';
  * so JavaScript `number` is safe.
  */
 export const appendLogsQuerySchema = z.object({
-  attempt: z.coerce.number().int().min(1).max(2_147_483_647),
-  offset: z.coerce.number().int().min(0),
+  attempt: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(2_147_483_647)
+    .describe('Attempt number of the step this chunk belongs to.'),
+  offset: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .describe(
+      'Byte position of this chunk in the raw NDJSON spool. Must equal the server-held committed length: an earlier offset is acknowledged as already applied, a later offset returns 409 so the runner rewinds.',
+    ),
 });
 
 export type AppendLogsQueryDto = z.infer<typeof appendLogsQuerySchema>;
 
 export const appendLogsResponseSchema = z.object({
-  committed_length: z.number().int().min(0),
-  capped: z.boolean(),
+  committed_length: z
+    .number()
+    .int()
+    .min(0)
+    .describe('New server-held byte position after this chunk was applied.'),
+  capped: z
+    .boolean()
+    .describe('When true, the per-job log budget is exhausted and further output is dropped.'),
 });
 
 export type AppendLogsResponseDto = z.infer<typeof appendLogsResponseSchema>;
@@ -27,7 +44,11 @@ export type AppendLogsResponseDto = z.infer<typeof appendLogsResponseSchema>;
 export const offsetGapResponseSchema = z.object({
   code: z.literal('offset-gap'),
   details: z.object({
-    committed_length: z.number().int().min(0),
+    committed_length: z
+      .number()
+      .int()
+      .min(0)
+      .describe('Current server-held committed length the runner should rewind to.'),
   }),
 });
 
