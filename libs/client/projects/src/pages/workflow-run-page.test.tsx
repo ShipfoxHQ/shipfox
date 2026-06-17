@@ -7,6 +7,7 @@ const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
 const OTHER_RUN_ID = '77777777-7777-4777-8777-777777777777';
 const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
+const INLINE_MODE_HINT_RE = /Overview \| Source render inline/;
 
 describe('WorkflowRunPage', () => {
   test('renders a loading shell while run history loads', async () => {
@@ -39,27 +40,33 @@ describe('WorkflowRunPage', () => {
     ).toBeInTheDocument();
   });
 
-  test('renders selected run identity, status, and section placeholders', async () => {
+  test('renders run identity, status, and the rail + center section slots', async () => {
     configureApiClient({fetchImpl: createWorkflowRunFetch()});
 
     renderWorkflowRunPage(RUN_ID, {selectedJobId: 'job-build', selectedStepId: 'step-checkout'});
 
-    expect(await screen.findByRole('heading', {name: 'Deploy production'})).toBeInTheDocument();
+    expect(await screen.findByText('Deploy production')).toBeInTheDocument();
     expect(screen.getAllByText(RUN_ID)).not.toHaveLength(0);
     expect(screen.getByText('Running')).toBeInTheDocument();
     expect(screen.getAllByText('job-build')).not.toHaveLength(0);
     expect(screen.getAllByText('step-checkout')).not.toHaveLength(0);
 
-    for (const section of [
-      'Runs list',
-      'Run summary',
-      'Jobs visualization',
-      'Step list',
-      'Step overview',
-      'Source view',
-    ]) {
+    for (const section of ['Runs list', 'Run summary', 'Jobs visualization', 'Step list']) {
       expect(screen.getByRole('heading', {name: section})).toBeInTheDocument();
     }
+  });
+
+  test('keeps step overview/source inline in the step list, not a right-side inspector', async () => {
+    configureApiClient({fetchImpl: createWorkflowRunFetch()});
+
+    renderWorkflowRunPage(RUN_ID, {selectedStepId: 'step-checkout'});
+
+    expect(await screen.findByText('Deploy production')).toBeInTheDocument();
+    // The composition contract: overview/source are inline content modes of the step
+    // list, never standalone inspector regions.
+    expect(screen.getByText(INLINE_MODE_HINT_RE)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', {name: 'Step overview'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', {name: 'Source view'})).not.toBeInTheDocument();
   });
 });
 

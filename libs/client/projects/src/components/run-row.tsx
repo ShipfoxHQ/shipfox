@@ -1,23 +1,21 @@
 import type {RunDto, RunStatusDto} from '@shipfox/api-workflows-dto';
-import {Code, Text} from '@shipfox/react-ui';
+import {Code, Icon, Text} from '@shipfox/react-ui';
 import {humanDuration} from '#lib/human-duration.js';
 import {RelativeTime} from '#lib/relative-time.js';
 import {StatusDot, type StatusDotVariant} from './status-dot.js';
 
 /**
- * Single Vercel-style row for a workflow run.
+ * Single Vercel-style row for a workflow run (presentational).
  *
- * Four zones at md+ (id+trigger / status+duration / workflow name / time)
- * collapse to a 2-line stack on sm. Rows are presentational only — no
- * click target until the run-detail surface ships (TODOS.md defers this).
+ * `RunsList` wraps each row in a router Link to the run detail page, so the row itself
+ * stays render-only; the trailing chevron marks it as navigable. Four zones at md+
+ * (id+trigger / status+duration / workflow name / time) collapse to a 2-line stack on sm.
  *
  *  md+:
- *  ┌─────────────┬──────────────────┬────────────────────────────┬───────────┐
- *  │ id8         │ ● running 12s    │ Workflow name (truncate)   │   3m ago  │
- *  │ manual      │                  │                            │           │
- *  └─────────────┴──────────────────┴────────────────────────────┴───────────┘
- *
- *  sm: status dot + name on row 1; id8 · trigger · time · duration on row 2.
+ *  ┌─────────────┬──────────────────┬────────────────────────────┬──────────────┐
+ *  │ id8         │ ● running 12s    │ Workflow name (truncate)   │  3m ago    › │
+ *  │ manual      │                  │                            │              │
+ *  └─────────────┴──────────────────┴────────────────────────────┴──────────────┘
  */
 
 const TERMINAL_STATUSES = new Set<RunStatusDto>(['succeeded', 'failed', 'cancelled']);
@@ -37,12 +35,7 @@ export function RunRow({run}: {run: RunDto}) {
   const shortId = run.id.slice(0, 8);
 
   return (
-    <div
-      // Presentational row. Not interactive in this PR (see TODOS.md
-      // "Workflow run detail page"). No tabindex, no role=button — when
-      // run-detail ships, swap to a Link and add the chevron.
-      className="flex flex-col gap-6 px-12 py-10 transition-colors hover:bg-background-components-hover md:h-44 md:flex-row md:items-center md:gap-12 md:py-0"
-    >
+    <div className="flex flex-col gap-6 px-12 py-10 transition-colors hover:bg-background-components-hover md:h-44 md:flex-row md:items-center md:gap-12 md:py-0">
       <div className="flex shrink-0 flex-col gap-2 md:w-140">
         <Code variant="label" className="text-foreground-neutral-muted">
           {shortId}
@@ -65,10 +58,15 @@ export function RunRow({run}: {run: RunDto}) {
         </Text>
       </div>
 
-      <div className="shrink-0 md:w-100 md:text-right">
+      <div className="flex shrink-0 items-center justify-between gap-8 md:w-110 md:justify-end">
         <Text size="xs" className="text-foreground-neutral-muted">
           <RelativeTime value={run.created_at} />
         </Text>
+        <Icon
+          name="arrowRightSLine"
+          className="size-16 shrink-0 text-foreground-neutral-muted"
+          aria-hidden
+        />
       </div>
     </div>
   );

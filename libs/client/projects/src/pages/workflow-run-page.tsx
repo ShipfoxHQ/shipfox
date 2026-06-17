@@ -1,6 +1,6 @@
 import type {RunDto, RunStatusDto} from '@shipfox/api-workflows-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {Code, EmptyState, Header, Skeleton, StatusBadge, Text} from '@shipfox/react-ui';
+import {Code, cn, EmptyState, Header, Skeleton, StatusBadge, Text} from '@shipfox/react-ui';
 import {useMemo} from 'react';
 import {useWorkflowRunsInfiniteQuery} from '#hooks/api/workflow-runs.js';
 
@@ -30,15 +30,6 @@ const statusLabelByStatus: Record<RunStatusDto, string> = {
   cancelled: 'Cancelled',
 };
 
-const placeholderSections = [
-  {title: 'Runs list', selection: 'run'},
-  {title: 'Run summary', selection: 'run'},
-  {title: 'Jobs visualization', selection: 'job'},
-  {title: 'Step list', selection: 'step'},
-  {title: 'Step overview', selection: 'step'},
-  {title: 'Source view', selection: 'step'},
-] as const;
-
 export function WorkflowRunPage(props: WorkflowRunPageProps) {
   const {projectId, runId} = props;
   const filters = useMemo(() => ({}), []);
@@ -61,20 +52,133 @@ export function WorkflowRunPage(props: WorkflowRunPageProps) {
   return <WorkflowRunSuccessState {...props} run={selectedRun} />;
 }
 
+/**
+ * Page layout contract for the Workflow Run Page (component PRs mount real sections into
+ * these slots):
+ *
+ *   ┌──────────┬───────────────────────────────────────────┐
+ *   │ Runs     │  Run summary                               │
+ *   │ list     │  Jobs visualization                        │
+ *   │ (rail)   │  Step list  ── Overview | Source render    │
+ *   │          │               INLINE in the expanded row   │
+ *   └──────────┴───────────────────────────────────────────┘
+ *
+ * Step overview and source are NOT a persistent right-side inspector: they are content
+ * modes the step list renders inside the selected step's expanded row. The shell keeps no
+ * right column so later composition cannot regress into one.
+ */
+function WorkflowRunSuccessState({
+  run,
+  selectedJobId,
+  selectedStepId,
+}: WorkflowRunPageProps & {run: RunDto}) {
+  return (
+    <div className="grid gap-16 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <aside aria-label="Runs" className="min-w-0 lg:sticky lg:top-16 lg:self-start">
+        <ShellSlot title="Runs list" hint="Run navigation rail mounts here.">
+          <SelectionHint label="Selected run" value={run.id} />
+        </ShellSlot>
+      </aside>
+
+      <div className="flex min-w-0 flex-col gap-16">
+        <ShellSlot title="Run summary">
+          <RunIdentity run={run} />
+        </ShellSlot>
+
+        <ShellSlot title="Jobs visualization" hint="Jobs execution graph mounts here.">
+          <SelectionHint label="Selected job" value={selectedJobId} />
+        </ShellSlot>
+
+        <ShellSlot
+          title="Step list"
+          hint="Overview | Source render inline inside the expanded step row — no separate inspector panel."
+        >
+          <SelectionHint label="Selected step" value={selectedStepId} />
+        </ShellSlot>
+      </div>
+    </div>
+  );
+}
+
+function RunIdentity({run}: {run: RunDto}) {
+  return (
+    <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
+      <div className="flex min-w-0 flex-col gap-6">
+        <Text size="lg" bold className="truncate">
+          {run.name}
+        </Text>
+        <div className="flex flex-wrap items-center gap-8">
+          <Code variant="label" className="text-foreground-neutral-muted">
+            {run.id}
+          </Code>
+          <Text size="xs" className="text-foreground-neutral-muted">
+            Run ID
+          </Text>
+        </div>
+      </div>
+      <StatusBadge variant={statusBadgeVariantByStatus[run.status]} className="shrink-0">
+        {statusLabelByStatus[run.status]}
+      </StatusBadge>
+    </div>
+  );
+}
+
+function ShellSlot({
+  title,
+  hint,
+  children,
+  className,
+}: {
+  title: string;
+  hint?: string;
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      aria-label={title}
+      className={cn(
+        'flex min-h-120 flex-col gap-12 rounded-8 border border-border-neutral-base bg-background-neutral-base p-16',
+        className,
+      )}
+    >
+      <Header variant="h4">{title}</Header>
+      {hint ? (
+        <Text size="xs" className="text-foreground-neutral-muted">
+          {hint}
+        </Text>
+      ) : null}
+      {children}
+    </section>
+  );
+}
+
+function SelectionHint({label, value}: {label: string; value?: string | undefined}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <Text size="xs" className="text-foreground-neutral-muted">
+        {label}
+      </Text>
+      <Code variant="label" className="truncate text-foreground-neutral-base">
+        {value ?? 'None'}
+      </Code>
+    </div>
+  );
+}
+
 function WorkflowRunLoadingState({runId}: {runId: string}) {
   return (
-    <section className="flex flex-col gap-24" aria-label="Loading workflow run">
-      <header className="flex flex-col gap-8">
-        <Skeleton className="h-28 w-260" />
-        <Skeleton className="h-16 w-360 max-w-full" />
-        <Code variant="label" className="text-foreground-neutral-muted">
-          {runId}
-        </Code>
-      </header>
-      <div className="grid gap-16 lg:grid-cols-[260px_minmax(0,1fr)]">
-        {placeholderSections.map((section) => (
-          <Skeleton key={section.title} className="min-h-120 rounded-8" />
-        ))}
+    <section className="flex flex-col gap-16" aria-label="Loading workflow run">
+      <Code variant="label" className="text-foreground-neutral-muted">
+        {runId}
+      </Code>
+      <div className="grid gap-16 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <Skeleton className="min-h-120 rounded-8" />
+        <div className="flex flex-col gap-16">
+          <Skeleton className="min-h-120 rounded-8" />
+          <Skeleton className="min-h-120 rounded-8" />
+          <Skeleton className="min-h-200 rounded-8" />
+        </div>
       </div>
     </section>
   );
@@ -87,91 +191,5 @@ function WorkflowRunNotFoundState({runId}: {runId: string}) {
       title="Run not found"
       description={`This run is not available in the current run history: ${runId}.`}
     />
-  );
-}
-
-function WorkflowRunSuccessState({
-  run,
-  selectedJobId,
-  selectedStepId,
-}: WorkflowRunPageProps & {run: RunDto}) {
-  return (
-    <div className="flex flex-col gap-24">
-      <header className="flex flex-col gap-16 md:flex-row md:items-start md:justify-between">
-        <div className="flex min-w-0 flex-col gap-6">
-          <Header variant="h2" className="truncate">
-            {run.name}
-          </Header>
-          <div className="flex flex-wrap items-center gap-8">
-            <Code variant="label" className="text-foreground-neutral-muted">
-              {run.id}
-            </Code>
-            <Text size="xs" className="text-foreground-neutral-muted">
-              Run ID
-            </Text>
-          </div>
-        </div>
-        <StatusBadge variant={statusBadgeVariantByStatus[run.status]} className="shrink-0">
-          {statusLabelByStatus[run.status]}
-        </StatusBadge>
-      </header>
-
-      <section
-        aria-label="Workflow run selection"
-        className="grid gap-12 rounded-8 border border-border-neutral-base bg-background-neutral-base p-16 md:grid-cols-3"
-      >
-        <SelectionValue label="Run" value={run.id} />
-        <SelectionValue label="Job" value={selectedJobId ?? 'None'} />
-        <SelectionValue label="Step" value={selectedStepId ?? 'None'} />
-      </section>
-
-      <section
-        aria-label="Workflow run sections"
-        className="grid gap-16 lg:grid-cols-[260px_minmax(0,1fr)]"
-      >
-        {placeholderSections.map((section) => (
-          <PlaceholderSection
-            key={section.title}
-            title={section.title}
-            selectedId={
-              section.selection === 'run'
-                ? run.id
-                : section.selection === 'job'
-                  ? selectedJobId
-                  : selectedStepId
-            }
-          />
-        ))}
-      </section>
-    </div>
-  );
-}
-
-function SelectionValue({label, value}: {label: string; value: string}) {
-  return (
-    <div className="min-w-0">
-      <Text size="xs" className="text-foreground-neutral-muted">
-        {label}
-      </Text>
-      <Code variant="label" className="truncate text-foreground-neutral-base">
-        {value}
-      </Code>
-    </div>
-  );
-}
-
-function PlaceholderSection({title, selectedId}: {title: string; selectedId?: string | undefined}) {
-  return (
-    <article className="flex min-h-120 flex-col justify-between gap-16 rounded-8 border border-border-neutral-base bg-background-neutral-base p-16">
-      <div className="flex flex-col gap-4">
-        <Header variant="h4">{title}</Header>
-        <Text size="sm" className="text-foreground-neutral-muted">
-          Placeholder
-        </Text>
-      </div>
-      <Code variant="label" className="truncate text-foreground-neutral-muted">
-        {selectedId ?? 'No selection'}
-      </Code>
-    </article>
   );
 }
