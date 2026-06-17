@@ -1,11 +1,12 @@
 import {Buffer} from 'node:buffer';
-import {parseLogRecordLine} from '@shipfox/api-log-ingest-dto';
+import {type LogRecord, parseLogRecordLine} from '@shipfox/api-log-ingest-dto';
 import {config} from '#config.js';
-import {accruePayloadBytes, claimCap, ensureJobAccounting, isJobCapped} from '#db/accounting.js';
+import {accrueStoredBytes, claimCap, ensureJobAccounting, isJobCapped} from '#db/accounting.js';
 import {insertChunk} from '#db/chunks.js';
 import {db} from '#db/db.js';
 import {
   casExtendCommittedLength,
+  getAttemptStream,
   getOrCreateAttemptStream,
   setDeclaredTotalBytes,
 } from '#db/streams.js';
@@ -27,18 +28,19 @@ export interface AppendLogsResult {
 }
 
 interface ParsedBody {
-  payloadDelta: number;
   declaredTotalBytes?: number;
 }
 
 /**
  * Pure pre-transaction parse: validates the body is whole, newline-terminated v1
- * records and sums the decoded `data` payload bytes (output records only). This
- * runs before any lock is taken, so a malformed or large body never holds a row.
+ * records and pulls out the declared total from an `end` record. The budget
+ * charges the raw stored byte length, not a decoded sum, so no per-record byte
+ * counting happens here. Runs before any lock is taken, so a malformed or large
+ * body never holds a row.
  */
 function parseAppendBody(body: Buffer): ParsedBody {
   const text = body.toString('utf8');
-  if (text.length === 0) return {payloadDelta: 0};
+  if (text.length === 0) return {};
   if (!text.endsWith('\n')) {
     throw new MalformedLogChunkError('append body must end with a newline (whole records only)');
   }
@@ -46,7 +48,6 @@ function parseAppendBody(body: Buffer): ParsedBody {
   const lines = text.split('\n');
   lines.pop(); // the trailing '' after the final newline
 
-  let payloadDelta = 0;
   let declaredTotalBytes: number | undefined;
   for (const line of lines) {
     let record: ReturnType<typeof parseLogRecordLine>;
@@ -55,45 +56,53 @@ function parseAppendBody(body: Buffer): ParsedBody {
     } catch {
       throw new MalformedLogChunkError('append body contains an invalid NDJSON record');
     }
-    if (record.type === 'output') {
-      payloadDelta += Buffer.byteLength(record.data, 'utf8');
-    } else if (record.kind === 'end') {
+    if (record.type === 'control' && record.kind === 'end') {
       declaredTotalBytes = record.total_bytes;
     }
   }
 
-  return declaredTotalBytes === undefined ? {payloadDelta} : {payloadDelta, declaredTotalBytes};
+  return declaredTotalBytes === undefined ? {} : {declaredTotalBytes};
 }
 
 function cappedTombstone(): Buffer {
-  const record = {v: 1, ts: Date.now(), src: 'system', type: 'control', kind: 'capped'};
+  // Typed against the shared v1 contract so an envelope change in the dto package
+  // breaks this at compile time rather than silently emitting an off-contract record.
+  const record: LogRecord = {v: 1, ts: Date.now(), src: 'system', type: 'control', kind: 'capped'};
   return Buffer.from(`${JSON.stringify(record)}\n`, 'utf8');
 }
 
 /**
  * Appends one chunk of framed NDJSON for a `(job, step, attempt)` stream under the
- * offset-CAS protocol, enforcing the per-job accrual budget. Lock-free: every
- * write is an atomic conditional UPDATE, so concurrent and multi-instance appends
- * serialize through Postgres with no explicit row locks.
+ * offset-CAS protocol, enforcing the per-job accrual budget. Concurrency is
+ * serialized through Postgres row locks taken implicitly by the conditional
+ * UPDATEs (no explicit `SELECT ... FOR UPDATE`); appends for one job contend on
+ * its single accounting row, so the path is multi-instance safe but not lock-free.
  */
 export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsResult> {
   const parsed = parseAppendBody(params.body);
   const byteLen = params.body.length;
 
   return await db().transaction(async (tx) => {
+    if (byteLen === 0) {
+      // Empty heartbeat: report the current committed length without materializing
+      // a stream, so a runner cannot mint unbounded rows with empty appends.
+      const existing = await getAttemptStream(tx, {
+        jobId: params.jobId,
+        stepId: params.stepId,
+        attempt: params.attempt,
+      });
+      return {
+        committedLength: existing?.committedLength ?? 0,
+        capped: await isJobCapped(tx, params.jobId),
+      };
+    }
+
     const stream = await getOrCreateAttemptStream(tx, {
       jobId: params.jobId,
       stepId: params.stepId,
       attempt: params.attempt,
       workspaceId: params.workspaceId,
     });
-
-    if (byteLen === 0) {
-      return {
-        committedLength: stream.committedLength,
-        capped: await isJobCapped(tx, params.jobId),
-      };
-    }
 
     const cas = await casExtendCommittedLength(tx, {
       streamId: stream.id,
@@ -107,7 +116,7 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
 
     const committedLength = cas.committedLength;
     await ensureJobAccounting(tx, {jobId: params.jobId, workspaceId: params.workspaceId});
-    const accrued = await accruePayloadBytes(tx, {jobId: params.jobId, delta: parsed.payloadDelta});
+    const accrued = await accrueStoredBytes(tx, {jobId: params.jobId, delta: byteLen});
 
     // Already capped: accept-and-drop. committed_length has advanced so the runner
     // drains its spool cleanly instead of retry-looping; nothing is stored.

@@ -1,5 +1,10 @@
 import {Buffer} from 'node:buffer';
-import {logRecordSchema, MAX_RECORD_DATA_BYTES, parseLogRecordLine} from './record.js';
+import {
+  logRecordSchema,
+  MAX_RECORD_DATA_BYTES,
+  MAX_RECORD_NAME_BYTES,
+  parseLogRecordLine,
+} from './record.js';
 
 const ts = 1765531200123;
 
@@ -59,6 +64,33 @@ describe('logRecordSchema', () => {
     const parsed = logRecordSchema.parse({v: 1, ts, type: 'output', data});
 
     expect(Buffer.byteLength((parsed as {data: string}).data, 'utf8')).toBe(MAX_RECORD_DATA_BYTES);
+  });
+
+  it('rejects an empty output record so it cannot store bytes without payload', () => {
+    const parse = () => logRecordSchema.parse({v: 1, ts, type: 'output', data: ''});
+
+    expect(parse).toThrow();
+  });
+
+  it('rejects a group_start whose name exceeds the per-record byte cap', () => {
+    const parse = () =>
+      logRecordSchema.parse({
+        v: 1,
+        ts,
+        type: 'control',
+        kind: 'group_start',
+        name: 'x'.repeat(MAX_RECORD_NAME_BYTES + 1),
+      });
+
+    expect(parse).toThrow();
+  });
+
+  it('accepts a group_start name exactly at the per-record byte cap', () => {
+    const name = 'x'.repeat(MAX_RECORD_NAME_BYTES);
+
+    const parsed = logRecordSchema.parse({v: 1, ts, type: 'control', kind: 'group_start', name});
+
+    expect(parsed).toMatchObject({kind: 'group_start', name});
   });
 });
 

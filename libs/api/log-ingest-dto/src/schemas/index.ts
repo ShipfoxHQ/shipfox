@@ -12,6 +12,7 @@ export {
   type LogRecord,
   logRecordSchema,
   MAX_RECORD_DATA_BYTES,
+  MAX_RECORD_NAME_BYTES,
   type OutputRecord,
   outputRecordSchema,
   parseLogRecordLine,

@@ -10,7 +10,7 @@ import {z} from 'zod';
  * so JavaScript `number` is safe.
  */
 export const appendLogsQuerySchema = z.object({
-  attempt: z.coerce.number().int().min(1),
+  attempt: z.coerce.number().int().min(1).max(2_147_483_647),
   offset: z.coerce.number().int().min(0),
 });
 
@@ -25,7 +25,10 @@ export type AppendLogsResponseDto = z.infer<typeof appendLogsResponseSchema>;
 
 /** Body of the 409 returned on an offset gap, so the runner rewinds its spool cursor. */
 export const offsetGapResponseSchema = z.object({
-  committed_length: z.number().int().min(0),
+  code: z.literal('offset-gap'),
+  details: z.object({
+    committed_length: z.number().int().min(0),
+  }),
 });
 
 export type OffsetGapResponseDto = z.infer<typeof offsetGapResponseSchema>;

@@ -61,17 +61,42 @@ describe('appendLogs', () => {
       expect(error).toBeInstanceOf(OffsetGapError);
       expect((error as OffsetGapError).committedLength).toBe(body.length);
     });
+
+    it('rejects a straddling append (offset before committed but extending past it)', async () => {
+      const ctx = newCtx();
+      const first = ndjsonBody(outputLine('hello\n'));
+      await appendLogs({...ctx, attempt: 1, offset: 0, body: first});
+
+      const error = await appendLogs({
+        ...ctx,
+        attempt: 1,
+        offset: first.length - 2,
+        body: ndjsonBody(outputLine('more\n')),
+      }).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(OffsetGapError);
+      expect((error as OffsetGapError).committedLength).toBe(first.length);
+    });
+
+    it('treats an empty body as a heartbeat that creates no stream', async () => {
+      const ctx = newCtx();
+
+      const result = await appendLogs({...ctx, attempt: 1, offset: 0, body: ndjsonBody()});
+
+      expect(result).toEqual({committedLength: 0, capped: false});
+      expect(await findStream({...ctx, attempt: 1})).toBeNull();
+    });
   });
 
   describe('budget accounting', () => {
-    it('counts output data bytes only, excluding control records and the envelope', async () => {
+    it('charges the raw stored bytes, envelope and control records included', async () => {
       const ctx = newCtx();
       const body = ndjsonBody(outputLine('abc'), controlLine({kind: 'group_start', name: 'Build'}));
 
       await appendLogs({...ctx, attempt: 1, offset: 0, body});
 
       const accounting = await findAccounting(ctx.jobId);
-      expect(accounting?.payloadBytesUsed).toBe(3);
+      expect(accounting?.storedBytesUsed).toBe(body.length);
     });
 
     it('stays under cap when accrual from elapsed time covers the payload', async () => {
@@ -113,6 +138,23 @@ describe('appendLogs', () => {
       expect(result).toEqual({committedLength: first.length + straggler.length, capped: true});
       const stream = await findStream({...ctx, attempt: 1});
       expect(await listChunks(stream?.id as string)).toHaveLength(2); // runner + tombstone, no straggler
+    });
+
+    it('does not cap when stored bytes land exactly on the budget', async () => {
+      const ctx = newCtx();
+      const body = outputOfBytes(9);
+      // Test env base budget is 100 bytes; pre-fill so this append lands used == allowed.
+      await jobAccountingFactory.create({
+        jobId: ctx.jobId,
+        workspaceId: ctx.workspaceId,
+        storedBytesUsed: 100 - body.length,
+        startedAt: new Date(),
+      });
+
+      const result = await appendLogs({...ctx, attempt: 1, offset: 0, body});
+
+      expect(result.capped).toBe(false);
+      expect((await findAccounting(ctx.jobId))?.cappedAt).toBeNull();
     });
   });
 

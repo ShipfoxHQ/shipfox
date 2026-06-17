@@ -1,6 +1,10 @@
 import {Buffer} from 'node:buffer';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
-import {appendLogsQuerySchema, appendLogsResponseSchema} from '@shipfox/api-log-ingest-dto';
+import {
+  appendLogsQuerySchema,
+  appendLogsResponseSchema,
+  offsetGapResponseSchema,
+} from '@shipfox/api-log-ingest-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {appendLogs} from '#core/append-logs.js';
@@ -16,6 +20,7 @@ export const appendLogsRoute = defineRoute({
     querystring: appendLogsQuerySchema,
     response: {
       200: appendLogsResponseSchema,
+      409: offsetGapResponseSchema,
     },
   },
   errorHandler: (error) => {

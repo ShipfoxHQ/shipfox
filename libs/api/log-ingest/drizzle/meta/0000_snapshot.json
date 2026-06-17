@@ -1,5 +1,5 @@
 {
-  "id": "da5f8ccc-06b8-4f37-8a1e-b3fc8363721b",
+  "id": "a245404d-1340-423d-8459-eb1f891df142",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -230,8 +230,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "payload_bytes_used": {
-          "name": "payload_bytes_used",
+        "stored_bytes_used": {
+          "name": "stored_bytes_used",
           "type": "bigint",
           "primaryKey": false,
           "notNull": true,
@@ -311,8 +311,8 @@
         }
       },
       "indexes": {
-        "outbox_pending_idx": {
-          "name": "outbox_pending_idx",
+        "log_ingest_outbox_pending_idx": {
+          "name": "log_ingest_outbox_pending_idx",
           "columns": [
             {
               "expression": "created_at",

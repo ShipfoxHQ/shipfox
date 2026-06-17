@@ -14,6 +14,10 @@ export function s3Client(): S3Client {
         accessKeyId: config.LOG_STORAGE_S3_ACCESS_KEY_ID,
         secretAccessKey: config.LOG_STORAGE_S3_SECRET_ACCESS_KEY,
       },
+      // Fail fast: a slow or black-holed endpoint must not hang callers behind
+      // SDK backoff. One retry, short connect/request timeouts.
+      maxAttempts: 2,
+      requestHandler: {connectionTimeout: 1_000, requestTimeout: 3_000},
     });
   }
   return _client;

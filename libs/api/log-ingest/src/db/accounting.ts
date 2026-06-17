@@ -19,22 +19,22 @@ export interface AccrualResult {
 }
 
 /**
- * Atomically adds `delta` payload bytes to the job's accrual, returning the new
+ * Atomically adds `delta` stored bytes to the job's accrual, returning the new
  * total and the budget clock origin. Returns null when the job is already capped
  * (the `capped_at IS NULL` guard matched no row), so the caller drops the append.
  */
-export async function accruePayloadBytes(
+export async function accrueStoredBytes(
   tx: Transaction,
   params: {jobId: string; delta: number},
 ): Promise<AccrualResult | null> {
   const [row] = await tx
     .update(jobAccounting)
     .set({
-      payloadBytesUsed: sql`${jobAccounting.payloadBytesUsed} + ${params.delta}`,
+      storedBytesUsed: sql`${jobAccounting.storedBytesUsed} + ${params.delta}`,
       updatedAt: sql`now()`,
     })
     .where(and(eq(jobAccounting.jobId, params.jobId), isNull(jobAccounting.cappedAt)))
-    .returning({used: jobAccounting.payloadBytesUsed, startedAt: jobAccounting.startedAt});
+    .returning({used: jobAccounting.storedBytesUsed, startedAt: jobAccounting.startedAt});
 
   return row ?? null;
 }

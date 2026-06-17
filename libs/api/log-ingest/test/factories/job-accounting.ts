@@ -5,7 +5,7 @@ import {jobAccounting} from '#db/schema/job-accounting.js';
 interface JobAccountingAttrs {
   jobId: string;
   workspaceId: string;
-  payloadBytesUsed: number;
+  storedBytesUsed: number;
   startedAt: Date;
   cappedAt: Date | null;
 }
@@ -20,7 +20,7 @@ export const jobAccountingFactory = Factory.define<JobAccountingAttrs>(({onCreat
       .values({
         jobId: attrs.jobId,
         workspaceId: attrs.workspaceId,
-        payloadBytesUsed: attrs.payloadBytesUsed,
+        storedBytesUsed: attrs.storedBytesUsed,
         startedAt: attrs.startedAt,
         cappedAt: attrs.cappedAt,
       })
@@ -31,7 +31,7 @@ export const jobAccountingFactory = Factory.define<JobAccountingAttrs>(({onCreat
   return {
     jobId: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
-    payloadBytesUsed: 0,
+    storedBytesUsed: 0,
     startedAt: new Date(),
     cappedAt: null,
   };

@@ -28,7 +28,7 @@ CREATE TABLE "log_ingest_chunks" (
 CREATE TABLE "log_ingest_job_accounting" (
 	"job_id" uuid PRIMARY KEY NOT NULL,
 	"workspace_id" uuid NOT NULL,
-	"payload_bytes_used" bigint DEFAULT 0 NOT NULL,
+	"stored_bytes_used" bigint DEFAULT 0 NOT NULL,
 	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"capped_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -45,4 +45,4 @@ CREATE TABLE "log_ingest_outbox" (
 --> statement-breakpoint
 CREATE UNIQUE INDEX "log_ingest_attempt_streams_identity_unique" ON "log_ingest_attempt_streams" USING btree ("job_id","step_id","attempt");--> statement-breakpoint
 CREATE INDEX "log_ingest_chunks_stream_seq_idx" ON "log_ingest_chunks" USING btree ("stream_id","seq");--> statement-breakpoint
-CREATE INDEX "outbox_pending_idx" ON "log_ingest_outbox" USING btree ("created_at") WHERE "dispatched_at" IS NULL;
+CREATE INDEX "log_ingest_outbox_pending_idx" ON "log_ingest_outbox" USING btree ("created_at") WHERE "dispatched_at" IS NULL;

@@ -2,7 +2,7 @@ import {authModule} from '@shipfox/api-auth';
 import {createDefinitionsModule} from '@shipfox/api-definitions';
 import {dispatcherModule} from '@shipfox/api-dispatcher';
 import {createIntegrationsContext} from '@shipfox/api-integration-core';
-import {checkBucketReachable, logIngestModule} from '@shipfox/api-log-ingest';
+import {logIngestModule} from '@shipfox/api-log-ingest';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {runnersModule} from '@shipfox/api-runners';
 import {triggersModule} from '@shipfox/api-triggers';
@@ -56,9 +56,6 @@ export async function run(): Promise<void> {
   await createApp({
     auth: [...auth, ...e2eAuth],
     routes: [...routes, ...mountedE2eRoutes],
-    // Readiness (not liveness) gates on log object storage so a Garage outage
-    // marks the instance not-ready without crashing the process.
-    readinessChecks: [{name: 'log-storage', check: checkBucketReachable}],
   });
   logger().info('Starting HTTP server');
   const address = await listen();

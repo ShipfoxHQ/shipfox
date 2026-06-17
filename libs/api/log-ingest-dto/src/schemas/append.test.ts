@@ -1,4 +1,4 @@
-import {appendLogsQuerySchema} from './append.js';
+import {appendLogsQuerySchema, offsetGapResponseSchema} from './append.js';
 
 describe('appendLogsQuerySchema', () => {
   it('coerces string query params to integers', () => {
@@ -29,5 +29,22 @@ describe('appendLogsQuerySchema', () => {
     const parse = () => appendLogsQuerySchema.parse({attempt: '1', offset: '1.5'});
 
     expect(parse).toThrow();
+  });
+
+  it('rejects an attempt beyond the Postgres integer range', () => {
+    const parse = () => appendLogsQuerySchema.parse({attempt: '2147483648', offset: '0'});
+
+    expect(parse).toThrow();
+  });
+});
+
+describe('offsetGapResponseSchema', () => {
+  it('matches the ClientError wire shape', () => {
+    const parsed = offsetGapResponseSchema.parse({
+      code: 'offset-gap',
+      details: {committed_length: 42},
+    });
+
+    expect(parsed).toEqual({code: 'offset-gap', details: {committed_length: 42}});
   });
 });
