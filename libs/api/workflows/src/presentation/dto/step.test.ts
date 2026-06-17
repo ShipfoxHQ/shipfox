@@ -6,6 +6,7 @@ function step(overrides: Partial<Step> & {type: string}): Step {
     id: '00000000-0000-0000-0000-000000000001',
     jobId: '00000000-0000-0000-0000-0000000000aa',
     name: null,
+    sourceLocation: null,
     status: 'failed',
     config: {},
     output: null,
@@ -71,6 +72,20 @@ describe('toStepDto error category', () => {
     const dto = toStepDto(step({type: 'run', status: 'succeeded', error: null}));
 
     expect(dto.error).toBeNull();
+  });
+
+  it('maps source locations to snake_case', () => {
+    const dto = toStepDto(
+      step({type: 'run', sourceLocation: {startLine: 5, endLine: 8}, error: null}),
+    );
+
+    expect(dto.source_location).toEqual({start_line: 5, end_line: 8});
+  });
+
+  it('maps missing source locations to null', () => {
+    const dto = toStepDto(step({type: 'setup', sourceLocation: null, error: null}));
+
+    expect(dto.source_location).toBeNull();
   });
 });
 

@@ -139,6 +139,44 @@ jobs:
     expect(res.json().source_snapshot).toEqual({content: sourceContent, format: 'yaml'});
   });
 
+  test('returns source locations for authored steps and null for synthetic steps', async () => {
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model: workflowModel({
+        name: 'Source locations',
+        jobs: {
+          build: {
+            steps: [
+              {name: 'Install', run: 'npm install', sourceLocation: {startLine: 5, endLine: 6}},
+              {run: 'npm test', sourceLocation: {startLine: 7, endLine: 10}},
+            ],
+          },
+        },
+      }),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(
+      res.json().jobs[0].steps.map((step: {source_location: unknown}) => step.source_location),
+    ).toEqual([null, {start_line: 5, end_line: 6}, {start_line: 7, end_line: 10}]);
+  });
+
   test('exposes per-step error and cancelled status after a failed per-step report', async () => {
     const projectId = crypto.randomUUID();
     const definitionId = crypto.randomUUID();

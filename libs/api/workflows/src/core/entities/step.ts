@@ -4,10 +4,16 @@ export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cance
 // 'pending'.
 export type StepAttemptStatus = Exclude<StepStatus, 'pending'>;
 
+export interface StepSourceLocation {
+  startLine: number;
+  endLine: number;
+}
+
 export interface Step {
   id: string;
   jobId: string;
   name: string | null;
+  sourceLocation: StepSourceLocation | null;
   status: StepStatus;
   type: string;
   config: Record<string, unknown>;

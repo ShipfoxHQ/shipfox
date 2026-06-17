@@ -107,6 +107,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         stepValues.push({
           jobId: jobRow.id,
           name: step.sourceName,
+          sourceLocation: step.sourceLocation,
           status: step.status,
           type: step.type,
           config: step.config,
