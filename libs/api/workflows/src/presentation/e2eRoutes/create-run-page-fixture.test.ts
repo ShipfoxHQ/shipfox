@@ -59,7 +59,9 @@ describe('POST /__e2e/workflows/run-page-fixture', () => {
     const failedSteps = stepsFor(body.runs.failed);
     expect(failedSteps.some((step) => step.status === 'failed')).toBe(true);
     expect(body.runs.failed.jobs.some((job) => job.status === 'cancelled')).toBe(true);
-    expect(failedSteps.find((step) => step.status === 'failed')?.error).toEqual({
+    const failedStep = failedSteps.find((step) => step.status === 'failed');
+    expect(failedStep?.name).toBe('Browser smoke');
+    expect(failedStep?.error).toEqual({
       message: 'Browser smoke failed on checkout summary',
       exit_code: 1,
       category: 'user',
@@ -73,7 +75,9 @@ describe('POST /__e2e/workflows/run-page-fixture', () => {
     ]);
     const runningSteps = stepsFor(body.runs.running);
     expect(runningSteps.filter((step) => step.status === 'running')).toHaveLength(1);
-    expect(runningSteps.find((step) => step.status === 'running')?.attempts).toEqual([
+    const runningStep = runningSteps.find((step) => step.status === 'running');
+    expect(runningStep?.name).toBe('Browser smoke');
+    expect(runningStep?.attempts).toEqual([
       expect.objectContaining({status: 'running', finished_at: null}),
     ]);
     expect(body.deferred.gated_restart).toBe('typed-gate-restart-contract-not-on-main');

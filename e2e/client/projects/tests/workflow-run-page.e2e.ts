@@ -63,7 +63,8 @@ test('renders real workflow run page scenarios and keeps section interactions in
   await page.getByRole('button', {name: runningRunName}).click();
   await expect(runSummary.getByText('Deploy pipeline running')).toBeVisible();
   await expect(page.getByText('Running').first()).toBeVisible();
-  await expect(page.getByText('Browser smoke')).toBeVisible();
+  await jobsRegion.getByRole('button', {name: testJobName}).click();
+  await expect(page.getByRole('button', {name: browserSmokeStepName})).toBeVisible();
   await argosScreenshot(page, 'projects/workflow-run-page/running-run');
 });
 

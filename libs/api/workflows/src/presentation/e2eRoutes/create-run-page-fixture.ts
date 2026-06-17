@@ -248,6 +248,7 @@ async function createRunningRun(params: {workspaceId: string; projectId: string}
 
   await startJob(test.id);
   await finishNextStep({jobId: test.id, status: 'succeeded', exitCode: 0});
+  await finishNextStep({jobId: test.id, status: 'succeeded', exitCode: 0});
   await dispatchInFlightStep(test.id);
 
   return await toRunDetailDto(run);
