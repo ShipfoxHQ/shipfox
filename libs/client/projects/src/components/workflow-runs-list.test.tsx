@@ -118,6 +118,44 @@ describe('WorkflowRunsList', () => {
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
+  test('keeps stale rows visible when a refetch errors', () => {
+    const onRetry = vi.fn();
+
+    render(<WorkflowRunsList runs={mixedRuns()} error onRetry={onRetry} />);
+
+    expect(screen.getByRole('navigation', {name: 'Run history'})).toBeInTheDocument();
+    expect(screen.getByText('#11111111')).toBeInTheDocument();
+    expect(screen.getByText('Could not refresh workflow runs.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Retry'}));
+
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  test('hides trigger metadata when source and event are missing', () => {
+    render(
+      <WorkflowRunsList
+        runs={[
+          runDto({
+            trigger_source: '',
+            trigger_event: '',
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.queryByText('/')).not.toBeInTheDocument();
+    expect(screen.getByText('#66666666')).toBeInTheDocument();
+    expect(screen.getByText('Run updated', {exact: false})).toBeInTheDocument();
+  });
+
+  test('renders partial trigger metadata without a separator', () => {
+    render(<WorkflowRunsList runs={[runDto({trigger_source: 'manual', trigger_event: ''})]} />);
+
+    expect(screen.getByText('manual')).toBeInTheDocument();
+    expect(screen.queryByText('manual /')).not.toBeInTheDocument();
+  });
+
   test('maps DTO fields into stable list item text', () => {
     const item = toWorkflowRunsListItem(
       runDto({
