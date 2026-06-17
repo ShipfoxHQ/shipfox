@@ -8,4 +8,5 @@ export * from './pages/home-router.js';
 export * from './pages/project-runs-page.js';
 export * from './pages/project-workflows-page.js';
 export * from './pages/projects-hub-page.js';
+export * from './pages/workflow-run-page.js';
 export * from './project-error.js';

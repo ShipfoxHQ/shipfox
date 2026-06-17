@@ -18,6 +18,7 @@ import {CreateProjectPage} from '#pages/create-project-page.js';
 import {ProjectRunsPage} from '#pages/project-runs-page.js';
 import {ProjectWorkflowsPage} from '#pages/project-workflows-page.js';
 import {ProjectsHubPage} from '#pages/projects-hub-page.js';
+import {WorkflowRunPage} from '#pages/workflow-run-page.js';
 
 // All test renders that exercise pages requiring `useActiveWorkspace()` mount
 // under `/workspaces/$wid`. The seeded workspace id (see authState) is the wid
@@ -100,6 +101,21 @@ function createTestRouter(path: string, element: ReactElement) {
       return <ProjectRunsPage projectId={params.pid ?? 'p-1'} />;
     },
   });
+  const workflowRunRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/projects/$pid/runs/$runId',
+    component: () => {
+      const params = useParams({strict: false}) as {pid?: string; runId?: string};
+      if (
+        initialPath ===
+        `/workspaces/${PROJECT_TEST_WID}/projects/${params.pid}/runs/${params.runId}`
+      ) {
+        return element;
+      }
+
+      return <WorkflowRunPage projectId={params.pid ?? 'p-1'} runId={params.runId ?? 'r-1'} />;
+    },
+  });
   const projectWorkflowsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/workspaces/$wid/projects/$pid/workflows',
@@ -122,6 +138,7 @@ function createTestRouter(path: string, element: ReactElement) {
       integrationsRoute,
       projectDetailRoute,
       projectRunsRoute,
+      workflowRunRoute,
       projectWorkflowsRoute,
     ]),
   });
