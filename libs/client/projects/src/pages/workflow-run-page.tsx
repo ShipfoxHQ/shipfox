@@ -1,8 +1,20 @@
-import type {RunResponseDto, RunStatusDto} from '@shipfox/api-workflows-dto';
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {Code, cn, EmptyState, Header, Skeleton, StatusBadge, Text} from '@shipfox/react-ui';
-import {useWorkflowRunQuery, type WorkflowRunDetailDto} from '#hooks/api/workflow-runs.js';
+import {Code, cn, EmptyState, Header, Skeleton, Text} from '@shipfox/react-ui';
+import {useMemo} from 'react';
+import {WorkflowJobsVisualization} from '#components/workflow-jobs-visualization.js';
+import {WorkflowRunSummary} from '#components/workflow-run-summary.js';
+import {
+  type WorkflowSourceLineRange,
+  WorkflowSourceView,
+} from '#components/workflow-source-view.js';
+import {type WorkflowStepDetailMode, WorkflowStepList} from '#components/workflow-step-list.js';
+import {WorkflowStepOverview} from '#components/workflow-step-overview.js';
+import {
+  useWorkflowRunQuery,
+  type WorkflowRunDetailDto,
+  type WorkflowRunStepDetailDto,
+} from '#hooks/api/workflow-runs.js';
 
 export interface WorkflowRunPageProps {
   projectId: string;
@@ -13,22 +25,6 @@ export interface WorkflowRunPageProps {
   onSelectJob?: ((jobId: string | undefined) => void) | undefined;
   onSelectStep?: ((stepId: string | undefined) => void) | undefined;
 }
-
-const statusBadgeVariantByStatus: Record<RunStatusDto, 'neutral' | 'info' | 'success' | 'error'> = {
-  pending: 'neutral',
-  running: 'info',
-  succeeded: 'success',
-  failed: 'error',
-  cancelled: 'neutral',
-};
-
-const statusLabelByStatus: Record<RunStatusDto, string> = {
-  pending: 'Pending',
-  running: 'Running',
-  succeeded: 'Succeeded',
-  failed: 'Failed',
-  cancelled: 'Cancelled',
-};
 
 export function WorkflowRunPage(props: WorkflowRunPageProps) {
   const {runId} = props;
@@ -49,8 +45,7 @@ export function WorkflowRunPage(props: WorkflowRunPageProps) {
 }
 
 /**
- * Page layout contract for the Workflow Run Page (component PRs mount real sections into
- * these slots):
+ * Page layout contract for the Workflow Run Page:
  *
  *   ┌──────────┬───────────────────────────────────────────┐
  *   │ Runs     │  Run summary                               │
@@ -61,15 +56,39 @@ export function WorkflowRunPage(props: WorkflowRunPageProps) {
  *
  * Step overview and source are NOT a persistent right-side inspector: they are content
  * modes the step list renders inside the selected step's expanded row. The shell keeps no
- * right column so later composition cannot regress into one.
+ * right column so composition cannot regress into one.
  */
 function WorkflowRunSuccessState({
   run,
   selectedJobId,
   selectedStepId,
+  onSelectJob,
+  onSelectStep,
 }: WorkflowRunPageProps & {run: WorkflowRunDetailDto}) {
-  const jobCount = run.jobs.length;
-  const stepCount = run.jobs.reduce((total, job) => total + job.steps.length, 0);
+  const stepIndex = useMemo(() => indexStepsByJob(run), [run]);
+
+  const source = run.source_snapshot;
+
+  function renderExpandedStep({stepId, mode}: {stepId: string; mode: WorkflowStepDetailMode}) {
+    const located = stepIndex.get(stepId);
+
+    if (mode === 'source') {
+      return (
+        <WorkflowSourceView
+          variant="inline"
+          source={source}
+          selectedRange={toSelectedRange(located?.step ?? null)}
+        />
+      );
+    }
+
+    return (
+      <WorkflowStepOverview
+        variant="inline"
+        selection={located ? {jobName: located.jobName, step: located.step} : null}
+      />
+    );
+  }
 
   return (
     <div className="grid gap-16 lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -81,49 +100,58 @@ function WorkflowRunSuccessState({
 
       <div className="flex min-w-0 flex-col gap-16">
         <ShellSlot title="Run summary">
-          <RunIdentity run={run} />
-          <Text size="xs" className="text-foreground-neutral-muted">
-            {jobCount} {jobCount === 1 ? 'job' : 'jobs'} · {stepCount}{' '}
-            {stepCount === 1 ? 'step' : 'steps'}
-          </Text>
+          <WorkflowRunSummary run={run} />
         </ShellSlot>
 
-        <ShellSlot title="Jobs visualization" hint="Jobs execution graph mounts here.">
-          <SelectionHint label="Selected job" value={selectedJobId} />
+        <ShellSlot title="Jobs visualization">
+          <WorkflowJobsVisualization
+            jobs={run.jobs}
+            {...(selectedJobId !== undefined ? {selectedJobId} : {})}
+            {...(onSelectJob ? {onSelectJob: (jobId: string) => onSelectJob(jobId)} : {})}
+          />
         </ShellSlot>
 
         <ShellSlot
           title="Step list"
           hint="Overview | Source render inline inside the expanded step row — no separate inspector panel."
         >
-          <SelectionHint label="Selected step" value={selectedStepId} />
+          {run.jobs.map((job) => (
+            <WorkflowStepList
+              key={job.id}
+              job={job}
+              {...(selectedStepId !== undefined ? {selectedStepId} : {})}
+              {...(onSelectStep
+                ? {onSelectedStepChange: (stepId: string) => onSelectStep(stepId)}
+                : {})}
+              renderExpandedStep={renderExpandedStep}
+            />
+          ))}
         </ShellSlot>
       </div>
     </div>
   );
 }
 
-function RunIdentity({run}: {run: RunResponseDto}) {
-  return (
-    <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
-      <div className="flex min-w-0 flex-col gap-6">
-        <Text size="lg" bold className="truncate">
-          {run.name}
-        </Text>
-        <div className="flex flex-wrap items-center gap-8">
-          <Code variant="label" className="text-foreground-neutral-muted">
-            {run.id}
-          </Code>
-          <Text size="xs" className="text-foreground-neutral-muted">
-            Run ID
-          </Text>
-        </div>
-      </div>
-      <StatusBadge variant={statusBadgeVariantByStatus[run.status]} className="shrink-0">
-        {statusLabelByStatus[run.status]}
-      </StatusBadge>
-    </div>
-  );
+type LocatedStep = {jobName: string; step: WorkflowRunStepDetailDto};
+
+function indexStepsByJob(run: WorkflowRunDetailDto): Map<string, LocatedStep> {
+  const index = new Map<string, LocatedStep>();
+  for (const job of run.jobs) {
+    for (const step of job.steps) {
+      index.set(step.id, {jobName: job.name, step});
+    }
+  }
+  return index;
+}
+
+function toSelectedRange(step: WorkflowRunStepDetailDto | null): WorkflowSourceLineRange | null {
+  if (!step?.source_location) return null;
+  const {start_line, end_line} = step.source_location;
+  return {
+    startLine: start_line,
+    endLine: end_line,
+    ...(step.name ? {label: step.name} : {}),
+  };
 }
 
 function ShellSlot({

@@ -1,12 +1,9 @@
 import type {
-  JobDto,
   RunAggregatesResponseDto,
+  RunDetailResponseDto,
   RunDto,
   RunListResponseDto,
-  RunResponseDto,
   RunStatusDto,
-  StepAttemptDto,
-  StepDto,
 } from '@shipfox/api-workflows-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {
@@ -175,13 +172,13 @@ export function useWorkflowRunAggregatesQuery(
 
 /**
  * The run detail read model returned by `GET /workflows/runs/:id`: a run plus its jobs,
- * each job's steps, and each step's attempt history. The canonical response schema lives
- * inline in the API route today; this mirrors it from the shared run/job/step DTOs until a
- * dedicated run-detail DTO is exported.
+ * each job's steps, and each step's attempt history. Backed by the canonical run-detail
+ * contract, so the run's `source_snapshot`, each step's `source_location`, and the typed
+ * gate/restart fields on attempts are all available to the page.
  */
-export type WorkflowRunStepDetailDto = StepDto & {attempts: StepAttemptDto[]};
-export type WorkflowRunJobDetailDto = JobDto & {steps: WorkflowRunStepDetailDto[]};
-export type WorkflowRunDetailDto = RunResponseDto & {jobs: WorkflowRunJobDetailDto[]};
+export type WorkflowRunDetailDto = RunDetailResponseDto;
+export type WorkflowRunJobDetailDto = RunDetailResponseDto['jobs'][number];
+export type WorkflowRunStepDetailDto = WorkflowRunJobDetailDto['steps'][number];
 
 export async function getWorkflowRun({runId, signal}: {runId: string; signal?: AbortSignal}) {
   return await apiRequest<WorkflowRunDetailDto>(`/workflows/runs/${runId}`, {signal});

@@ -1,5 +1,5 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {screen} from '@testing-library/react';
+import {fireEvent, screen, within} from '@testing-library/react';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {WorkflowRunPage} from './workflow-run-page.js';
 
@@ -8,7 +8,7 @@ const RUN_ID = '66666666-6666-4666-8666-666666666666';
 const OTHER_RUN_ID = '77777777-7777-4777-8777-777777777777';
 const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
 const INLINE_MODE_HINT_RE = /Overview \| Source render inline/;
-const RUN_COUNTS_RE = /1 job · 2 steps/;
+const CHECKOUT_ROW_RE = /checkout/;
 
 describe('WorkflowRunPage', () => {
   test('renders a loading shell while the run detail loads', async () => {
@@ -49,11 +49,12 @@ describe('WorkflowRunPage', () => {
 
     expect(await screen.findByText('Deploy production')).toBeInTheDocument();
     expect(screen.getAllByText(RUN_ID)).not.toHaveLength(0);
-    expect(screen.getByText('Running')).toBeInTheDocument();
-    // Real run-detail data (jobs + steps) flows into the shell.
-    expect(screen.getByText(RUN_COUNTS_RE)).toBeInTheDocument();
-    expect(screen.getAllByText('job-build')).not.toHaveLength(0);
-    expect(screen.getAllByText('step-checkout')).not.toHaveLength(0);
+    expect(screen.getAllByText('Running')).not.toHaveLength(0);
+    // Real run-detail data flows into the live sections: the jobs visualization shows the
+    // job by name and the step list shows the steps by name.
+    expect(screen.getAllByText('build')).not.toHaveLength(0);
+    expect(screen.getAllByText('checkout')).not.toHaveLength(0);
+    expect(screen.getAllByText('test')).not.toHaveLength(0);
 
     for (const section of ['Runs list', 'Run summary', 'Jobs visualization', 'Step list']) {
       expect(screen.getByRole('heading', {name: section})).toBeInTheDocument();
@@ -71,6 +72,39 @@ describe('WorkflowRunPage', () => {
     expect(screen.getByText(INLINE_MODE_HINT_RE)).toBeInTheDocument();
     expect(screen.queryByRole('heading', {name: 'Step overview'})).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', {name: 'Source view'})).not.toBeInTheDocument();
+  });
+
+  test('renders the real source view inline when a step row switches to source mode', async () => {
+    configureApiClient({fetchImpl: createWorkflowRunFetch()});
+
+    renderWorkflowRunPage(RUN_ID);
+
+    const checkoutRow = await screen.findByRole('button', {name: CHECKOUT_ROW_RE});
+    fireEvent.click(checkoutRow);
+    fireEvent.click(screen.getByRole('tab', {name: 'Source'}));
+
+    // The source mode mounts the real WorkflowSourceView, not a placeholder note: the
+    // snapshot content renders inside its labelled source-code region with line numbers.
+    const sourceView = await screen.findByLabelText('Workflow source');
+    const sourceCode = within(sourceView).getByLabelText('Workflow source code');
+    expect(within(sourceCode).getByText('jobs:')).toBeInTheDocument();
+    expect(within(sourceCode).getByText('1')).toBeInTheDocument();
+    // The selected step's source_location drives the highlighted line range label.
+    expect(within(sourceView).getByText('checkout')).toBeInTheDocument();
+  });
+
+  test('shows the source view empty state when the run has no source snapshot', async () => {
+    configureApiClient({
+      fetchImpl: createWorkflowRunFetch({detail: runDetailDto({sourceSnapshot: null})}),
+    });
+
+    renderWorkflowRunPage(RUN_ID);
+
+    const checkoutRow = await screen.findByRole('button', {name: CHECKOUT_ROW_RE});
+    fireEvent.click(checkoutRow);
+    fireEvent.click(screen.getByRole('tab', {name: 'Source'}));
+
+    expect(await screen.findByText('No source document')).toBeInTheDocument();
   });
 });
 
@@ -101,9 +135,25 @@ function requestInputUrl(input: RequestInfo | URL) {
   return String(input);
 }
 
-// Mirrors GET /workflows/runs/:id: a run plus one job with two steps (so the shell shows
-// "1 job · 2 steps"). Only the fields the shell reads are populated.
-function runDetailDto(overrides: Partial<{id: string; name: string; status: string}> = {}) {
+const SOURCE_YAML = [
+  'name: deploy',
+  'jobs:',
+  '  build:',
+  '    steps:',
+  '      - run: pnpm test',
+].join('\n');
+
+// Mirrors GET /workflows/runs/:id: a run plus one job with two steps, carrying the source
+// snapshot and per-step source locations the page feeds into the inline overview and source
+// view.
+function runDetailDto(
+  overrides: Partial<{
+    id: string;
+    name: string;
+    status: string;
+    sourceSnapshot: {content: string; format: 'yaml'} | null;
+  }> = {},
+) {
   return {
     id: overrides.id ?? RUN_ID,
     project_id: PROJECT_ID,
@@ -114,18 +164,71 @@ function runDetailDto(overrides: Partial<{id: string; name: string; status: stri
     trigger_event: 'fire',
     trigger_payload: {source: 'manual', event: 'fire'},
     inputs: null,
+    source_snapshot:
+      overrides.sourceSnapshot === undefined
+        ? {content: SOURCE_YAML, format: 'yaml'}
+        : overrides.sourceSnapshot,
     created_at: '2026-05-07T01:01:00.000Z',
     updated_at: '2026-05-07T01:02:00.000Z',
     jobs: [
       {
         id: 'job-build',
+        run_id: RUN_ID,
         name: 'build',
         status: 'succeeded',
+        dependencies: [],
+        position: 0,
+        created_at: '2026-05-07T01:01:00.000Z',
+        updated_at: '2026-05-07T01:02:00.000Z',
         steps: [
-          {id: 'step-checkout', name: 'checkout', status: 'succeeded', attempts: []},
-          {id: 'step-test', name: 'test', status: 'succeeded', attempts: []},
+          stepDto({
+            id: 'step-checkout',
+            name: 'checkout',
+            position: 0,
+            sourceLocation: {
+              start_line: 2,
+              end_line: 4,
+            },
+          }),
+          stepDto({
+            id: 'step-test',
+            name: 'test',
+            position: 1,
+            sourceLocation: {
+              start_line: 5,
+              end_line: 5,
+            },
+          }),
         ],
       },
     ],
+  };
+}
+
+function stepDto({
+  id,
+  name,
+  position,
+  sourceLocation,
+}: {
+  id: string;
+  name: string;
+  position: number;
+  sourceLocation: {start_line: number; end_line: number} | null;
+}) {
+  return {
+    id,
+    job_id: 'job-build',
+    name,
+    source_location: sourceLocation,
+    status: 'succeeded',
+    type: 'run',
+    config: {run: 'pnpm test'},
+    error: null,
+    position,
+    current_attempt: 1,
+    created_at: '2026-05-07T01:01:00.000Z',
+    updated_at: '2026-05-07T01:02:00.000Z',
+    attempts: [],
   };
 }
