@@ -1,5 +1,6 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {screen} from '@testing-library/react';
+import {fireEvent, screen, waitFor, within} from '@testing-library/react';
+import {useState} from 'react';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {WorkflowRunPage} from './workflow-run-page.js';
 
@@ -9,6 +10,11 @@ const OTHER_RUN_ID = '77777777-7777-4777-8777-777777777777';
 const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
 const JOB_ID = '88888888-8888-4888-8888-888888888888';
 const STEP_ID = '99999999-9999-4999-8999-999999999999';
+const TEST_STEP_ID = '99999999-9999-4999-8999-999999999998';
+const DEPLOY_JOB_ID = '88888888-8888-4888-8888-888888888887';
+const DEPLOY_STEP_ID = '99999999-9999-4999-8999-999999999997';
+const DEPLOY_BUTTON_LABEL = /deploy/i;
+const TEST_BUTTON_LABEL = /Test/i;
 
 describe('WorkflowRunPage', () => {
   test('renders a loading shell while run history loads', async () => {
@@ -55,6 +61,53 @@ describe('WorkflowRunPage', () => {
     expect(screen.getByLabelText('Workflow source')).toBeInTheDocument();
     expect(screen.getAllByText('pnpm build')).not.toHaveLength(0);
   });
+
+  test('normalizes missing job and step selection to the first visible step', async () => {
+    configureApiClient({fetchImpl: createWorkflowRunFetch()});
+
+    renderWorkflowRunPageWithSelection(RUN_ID, {
+      selectedJobId: 'missing-job',
+      selectedStepId: 'missing-step',
+    });
+
+    expect(await screen.findByRole('heading', {name: 'build · Steps'})).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(within(screen.getByLabelText('Step overview')).getByText('Build')).toBeInTheDocument();
+    });
+    expect(highlightedSourceText()).toContain('pnpm build');
+  });
+
+  test('selecting a job updates the step list, overview, and source highlight', async () => {
+    configureApiClient({fetchImpl: createWorkflowRunFetch()});
+
+    renderWorkflowRunPageWithSelection(RUN_ID, {selectedJobId: JOB_ID, selectedStepId: STEP_ID});
+
+    expect(await screen.findByRole('heading', {name: 'build · Steps'})).toBeInTheDocument();
+
+    fireEvent.click(
+      within(screen.getByRole('region', {name: 'Workflow jobs'})).getByRole('button', {
+        name: DEPLOY_BUTTON_LABEL,
+      }),
+    );
+
+    expect(await screen.findByRole('heading', {name: 'deploy · Steps'})).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Step overview')).getByText('Deploy')).toBeInTheDocument();
+    expect(highlightedSourceText()).toContain('pnpm deploy');
+  });
+
+  test('selecting a step updates the overview and source highlight', async () => {
+    configureApiClient({fetchImpl: createWorkflowRunFetch()});
+
+    renderWorkflowRunPageWithSelection(RUN_ID, {selectedJobId: JOB_ID, selectedStepId: STEP_ID});
+
+    expect(await screen.findByRole('heading', {name: 'build · Steps'})).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', {name: TEST_BUTTON_LABEL}));
+
+    expect(within(screen.getByLabelText('Step overview')).getByText('Test')).toBeInTheDocument();
+    expect(highlightedSourceText()).toContain('pnpm test');
+  });
 });
 
 function renderWorkflowRunPage(
@@ -64,6 +117,32 @@ function renderWorkflowRunPage(
   renderProjectPage(
     `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${runId}`,
     <WorkflowRunPage projectId={PROJECT_ID} runId={runId} {...options} />,
+  );
+}
+
+function renderWorkflowRunPageWithSelection(
+  runId: string,
+  options: {selectedJobId?: string; selectedStepId?: string} = {},
+) {
+  function WorkflowRunSelectionHarness() {
+    const [selectedJobId, setSelectedJobId] = useState(options.selectedJobId);
+    const [selectedStepId, setSelectedStepId] = useState(options.selectedStepId);
+
+    return (
+      <WorkflowRunPage
+        projectId={PROJECT_ID}
+        runId={runId}
+        selectedJobId={selectedJobId}
+        selectedStepId={selectedStepId}
+        onSelectJob={setSelectedJobId}
+        onSelectStep={setSelectedStepId}
+      />
+    );
+  }
+
+  return renderProjectPage(
+    `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${runId}`,
+    <WorkflowRunSelectionHarness />,
   );
 }
 
@@ -117,6 +196,10 @@ function runDetailDto() {
         '  build:',
         '    steps:',
         '      - run: pnpm build',
+        '      - run: pnpm test',
+        '  deploy:',
+        '    steps:',
+        '      - run: pnpm deploy',
       ].join('\n'),
       format: 'yaml',
     },
@@ -162,8 +245,56 @@ function runDetailDto() {
               },
             ],
           },
+          {
+            id: TEST_STEP_ID,
+            job_id: JOB_ID,
+            name: 'Test',
+            source_location: {start_line: 6, end_line: 6},
+            status: 'pending',
+            type: 'run',
+            config: {run: 'pnpm test'},
+            error: null,
+            position: 1,
+            current_attempt: 1,
+            created_at: '2026-05-07T01:01:00.000Z',
+            updated_at: '2026-05-07T01:02:00.000Z',
+            attempts: [],
+          },
+        ],
+      },
+      {
+        id: DEPLOY_JOB_ID,
+        run_id: RUN_ID,
+        name: 'deploy',
+        status: 'pending',
+        dependencies: [JOB_ID],
+        position: 1,
+        created_at: '2026-05-07T01:01:00.000Z',
+        updated_at: '2026-05-07T01:02:00.000Z',
+        steps: [
+          {
+            id: DEPLOY_STEP_ID,
+            job_id: DEPLOY_JOB_ID,
+            name: 'Deploy',
+            source_location: {start_line: 9, end_line: 9},
+            status: 'pending',
+            type: 'run',
+            config: {run: 'pnpm deploy'},
+            error: null,
+            position: 0,
+            current_attempt: 1,
+            created_at: '2026-05-07T01:01:00.000Z',
+            updated_at: '2026-05-07T01:02:00.000Z',
+            attempts: [],
+          },
         ],
       },
     ],
   };
+}
+
+function highlightedSourceText() {
+  return Array.from(document.querySelectorAll('[data-highlighted="true"]'))
+    .map((element) => element.textContent ?? '')
+    .join('\n');
 }

@@ -6,7 +6,7 @@ import type {
 } from '@shipfox/api-workflows-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Code, EmptyState, Skeleton} from '@shipfox/react-ui';
-import {useMemo} from 'react';
+import {useEffect, useMemo} from 'react';
 import {WorkflowJobsVisualization} from '#components/workflow-jobs-visualization.js';
 import {WorkflowRunSummary} from '#components/workflow-run-summary.js';
 import {WorkflowRunsList} from '#components/workflow-runs-list.js';
@@ -133,6 +133,25 @@ function WorkflowRunSuccessState({
   const selectedJob = selectJob(run.jobs, selectedJobId);
   const selectedStep = selectStep(selectedJob, selectedStepId);
   const selectedRange = toSourceRange(selectedStep);
+  const resolvedJobId = selectedJob?.id;
+  const resolvedStepId = selectedStep?.id;
+
+  useEffect(() => {
+    if (resolvedJobId !== selectedJobId) {
+      onSelectJob?.(resolvedJobId);
+      return;
+    }
+    if (resolvedStepId !== selectedStepId) onSelectStep?.(resolvedStepId);
+  }, [onSelectJob, onSelectStep, resolvedJobId, resolvedStepId, selectedJobId, selectedStepId]);
+
+  function handleSelectJob(jobId: string) {
+    const nextJob = run.jobs.find((job) => job.id === jobId);
+    onSelectJob?.(nextJob?.id);
+  }
+
+  function handleSelectStep(stepId: string) {
+    onSelectStep?.(stepId);
+  }
 
   return (
     <div className="flex min-h-[calc(100vh-160px)] overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base">
@@ -150,14 +169,14 @@ function WorkflowRunSuccessState({
               jobs={run.jobs}
               selectedJobId={selectedJob?.id}
               focusedJobId={selectedJob?.id}
-              onSelectJob={onSelectJob}
+              onSelectJob={handleSelectJob}
             />
             {selectedJob ? (
               <WorkflowStepList
                 job={selectedJob}
                 {...(selectedStep ? {selectedStepId: selectedStep.id} : {})}
                 defaultExpandedStepIds={selectedStep ? [selectedStep.id] : []}
-                {...(onSelectStep ? {onSelectedStepChange: onSelectStep} : {})}
+                onSelectedStepChange={handleSelectStep}
               />
             ) : (
               <EmptyState
