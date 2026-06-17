@@ -32,9 +32,9 @@ importers:
       '@shipfox/api-integration-core':
         specifier: workspace:*
         version: link:../../libs/api/integration/core
-      '@shipfox/api-log-ingest':
+      '@shipfox/api-logs':
         specifier: workspace:*
-        version: link:../../libs/api/log-ingest
+        version: link:../../libs/api/logs
       '@shipfox/api-projects':
         specifier: workspace:*
         version: link:../../libs/api/projects
@@ -1124,7 +1124,7 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/vitest
 
-  libs/api/log-ingest:
+  libs/api/logs:
     dependencies:
       '@aws-sdk/client-s3':
         specifier: ^3.1068.0
@@ -1132,9 +1132,9 @@ importers:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context
-      '@shipfox/api-log-ingest-dto':
+      '@shipfox/api-logs-dto':
         specifier: workspace:*
-        version: link:../log-ingest-dto
+        version: link:../logs-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
@@ -1203,7 +1203,7 @@ importers:
         specifier: ^2.2.2
         version: 2.4.0
 
-  libs/api/log-ingest-dto:
+  libs/api/logs-dto:
     dependencies:
       zod:
         specifier: ^4.4.3

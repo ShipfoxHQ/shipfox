@@ -2,7 +2,7 @@ import {authModule} from '@shipfox/api-auth';
 import {createDefinitionsModule} from '@shipfox/api-definitions';
 import {dispatcherModule} from '@shipfox/api-dispatcher';
 import {createIntegrationsContext} from '@shipfox/api-integration-core';
-import {logIngestModule} from '@shipfox/api-log-ingest';
+import {logsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {runnersModule} from '@shipfox/api-runners';
 import {triggersModule} from '@shipfox/api-triggers';
@@ -44,7 +44,7 @@ export async function run(): Promise<void> {
       definitionsModule,
       workflowsModule,
       runnersModule,
-      logIngestModule,
+      logsModule,
       triggersModule,
       dispatcherModule,
     ],

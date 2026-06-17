@@ -26,7 +26,7 @@ targets Garage at startup with no extra configuration.
 
 The secret in `garage.toml` and the access key are **development-only**.
 Generate fresh credentials for any shared or production environment, and set the
-`LOG_STORAGE_S3_*` variables accordingly (see `libs/api/log-ingest/src/config.ts`).
+`LOG_STORAGE_S3_*` variables accordingly (see `libs/api/logs/src/config.ts`).
 
 ## Browser reads (later)
 
