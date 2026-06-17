@@ -16,7 +16,7 @@ export const workflowStepOverviewStepSchema = stepDtoSchema.extend({
 });
 
 type WorkflowStepOverviewAttempt = StepAttemptDto & {
-  restart_result?: Record<string, unknown> | null;
+  restart_result?: Record<string, unknown> | null | undefined;
 };
 
 export type WorkflowStepOverviewStep = StepDto & {attempts: WorkflowStepOverviewAttempt[]};
