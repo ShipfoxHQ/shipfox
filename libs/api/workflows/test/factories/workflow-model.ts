@@ -45,30 +45,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
       sourceName,
       runner: normalizeStringArray(job.runner ?? input.runner),
       dependencies: normalizeStringArray(job.needs).map(stableId),
-      steps: job.steps.map((step, stepIndex) => {
-        const base = {
-          id:
-            step.name === undefined
-              ? `${jobId}-step-${stepIndex + 1}`
-              : `${jobId}-${stableId(step.name)}`,
-          ...(step.name === undefined ? {} : {sourceName: step.name}),
-          ...(step.gate === undefined ? {} : {gate: step.gate}),
-        };
-        if ('run' in step) {
-          return {
-            ...base,
-            kind: 'run' as const,
-            command: {kind: 'shell' as const, value: step.run},
-          };
-        }
-        return {
-          ...base,
-          kind: 'agent' as const,
-          model: step.model,
-          thinking: step.thinking,
-          prompt: step.prompt,
-        };
-      }),
+      steps: job.steps.map((step, stepIndex) => normalizeStep(step, jobId, stepIndex)),
     };
   });
 
@@ -80,6 +57,24 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
     dependencies: modelJobs.flatMap((job) =>
       job.dependencies.map((dependency) => ({from: dependency, to: job.id})),
     ),
+  };
+}
+
+function normalizeStep(step: TestWorkflowStep, jobId: string, stepIndex: number): ModelStep {
+  const base = stepBase(step, jobId, stepIndex);
+  return 'run' in step
+    ? {...base, kind: 'run', command: {kind: 'shell', value: step.run}}
+    : {...base, kind: 'agent', model: step.model, thinking: step.thinking, prompt: step.prompt};
+}
+
+function stepBase(step: TestWorkflowStep, jobId: string, stepIndex: number) {
+  return {
+    id:
+      step.name === undefined
+        ? `${jobId}-step-${stepIndex + 1}`
+        : `${jobId}-${stableId(step.name)}`,
+    ...(step.name === undefined ? {} : {sourceName: step.name}),
+    ...(step.gate === undefined ? {} : {gate: step.gate}),
   };
 }
 
