@@ -16,6 +16,8 @@ import {MalformedLogChunkError, OffsetGapError} from './errors.js';
 export interface AppendLogsParams {
   jobId: string;
   workspaceId: string;
+  projectId: string;
+  runId: string;
   stepId: string;
   attempt: number;
   offset: number;
@@ -164,6 +166,8 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
       stepId: params.stepId,
       attempt: params.attempt,
       workspaceId: params.workspaceId,
+      projectId: params.projectId,
+      runId: params.runId,
     });
 
     const cas = await casExtendCommittedLength(tx, {

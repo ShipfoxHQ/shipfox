@@ -6,8 +6,11 @@ export type StreamCloseReason = 'declared' | 'timeout';
 
 /**
  * A single `(job, step, attempt)` log stream. Identity is scoped to the lease's
- * job. `committedLength` is the offset-CAS axis: raw NDJSON spool bytes the server
- * has durably accepted from the runner.
+ * job. `workspaceId`, `projectId`, and `runId` are stamped from the lease on
+ * stream creation and asserted on subsequent appends, so reads can authorize
+ * per-project without joining back to workflows. `committedLength` is the
+ * offset-CAS axis: raw NDJSON spool bytes the server has durably accepted from
+ * the runner.
  */
 export interface AttemptStream {
   id: string;
@@ -15,6 +18,8 @@ export interface AttemptStream {
   stepId: string;
   attempt: number;
   workspaceId: string;
+  projectId: string;
+  runId: string;
   committedLength: number;
   state: StreamState;
   closeReason: StreamCloseReason | null;

@@ -4,6 +4,8 @@ CREATE TABLE "logs_attempt_streams" (
 	"step_id" uuid NOT NULL,
 	"attempt" integer NOT NULL,
 	"workspace_id" uuid NOT NULL,
+	"project_id" uuid NOT NULL,
+	"run_id" uuid NOT NULL,
 	"committed_length" bigint DEFAULT 0 NOT NULL,
 	"state" text DEFAULT 'open' NOT NULL,
 	"close_reason" text,

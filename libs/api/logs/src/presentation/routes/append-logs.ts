@@ -8,7 +8,7 @@ import {
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {appendLogs} from '#core/append-logs.js';
-import {MalformedLogChunkError, OffsetGapError} from '#core/errors.js';
+import {LeaseStreamMismatchError, MalformedLogChunkError, OffsetGapError} from '#core/errors.js';
 
 export const appendLogsRoute = defineRoute({
   method: 'POST',
@@ -32,6 +32,9 @@ export const appendLogsRoute = defineRoute({
     if (error instanceof MalformedLogChunkError) {
       throw new ClientError(error.message, 'malformed-log-chunk', {status: 400});
     }
+    if (error instanceof LeaseStreamMismatchError) {
+      throw new ClientError(error.message, 'lease-stream-mismatch', {status: 403});
+    }
     throw error;
   },
   handler: async (request) => {
@@ -42,6 +45,8 @@ export const appendLogsRoute = defineRoute({
     const result = await appendLogs({
       jobId: leasedJob.jobId,
       workspaceId: leasedJob.workspaceId,
+      projectId: leasedJob.projectId,
+      runId: leasedJob.runId,
       stepId,
       attempt,
       offset,

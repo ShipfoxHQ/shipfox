@@ -6,8 +6,12 @@ import {pgTable} from './common.js';
 /**
  * One stream per (job, step, attempt). Identity is scoped by `job_id` (from the
  * lease), so a lease can only ever reach its own job's streams — cross-job log
- * injection is structurally impossible. `committed_length` is the offset-CAS axis
- * (raw NDJSON spool bytes the server has durably accepted from the runner).
+ * injection is structurally impossible. `workspace_id`, `project_id`, and
+ * `run_id` are stamped from the lease at create time; they are functionally
+ * determined by `job_id` via workflows FKs, so they are denormalized here for
+ * self-contained authorization (per-project read filtering, audit) without
+ * joining back to workflows. `committed_length` is the offset-CAS axis (raw
+ * NDJSON spool bytes the server has durably accepted from the runner).
  */
 export const attemptStreams = pgTable(
   'attempt_streams',
@@ -17,6 +21,8 @@ export const attemptStreams = pgTable(
     stepId: uuid('step_id').notNull(),
     attempt: integer('attempt').notNull(),
     workspaceId: uuid('workspace_id').notNull(),
+    projectId: uuid('project_id').notNull(),
+    runId: uuid('run_id').notNull(),
     committedLength: bigint('committed_length', {mode: 'number'}).notNull().default(0),
     state: text('state', {enum: ['open', 'closed']})
       .notNull()
@@ -48,6 +54,8 @@ export function toAttemptStream(row: AttemptStreamDb): AttemptStream {
     stepId: row.stepId,
     attempt: row.attempt,
     workspaceId: row.workspaceId,
+    projectId: row.projectId,
+    runId: row.runId,
     committedLength: row.committedLength,
     state: row.state,
     closeReason: row.closeReason,

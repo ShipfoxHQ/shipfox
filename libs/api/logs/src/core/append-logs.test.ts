@@ -1,5 +1,5 @@
 import {appendLogs} from '#core/append-logs.js';
-import {OffsetGapError} from '#core/errors.js';
+import {LeaseStreamMismatchError, OffsetGapError} from '#core/errors.js';
 import {jobAccountingFactory} from '#test/factories/job-accounting.js';
 import {controlLine, ndjsonBody, outputLine, outputOfBytes} from '#test/fixtures/ndjson.js';
 import {findAccounting, findStream, listChunks} from '#test/queries.js';
@@ -8,6 +8,8 @@ interface Ctx {
   jobId: string;
   stepId: string;
   workspaceId: string;
+  projectId: string;
+  runId: string;
 }
 
 function newCtx(): Ctx {
@@ -15,6 +17,8 @@ function newCtx(): Ctx {
     jobId: crypto.randomUUID(),
     stepId: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
+    projectId: crypto.randomUUID(),
+    runId: crypto.randomUUID(),
   };
 }
 
@@ -233,16 +237,34 @@ describe('appendLogs', () => {
       expect(controls).toHaveLength(1);
     });
 
+    it('rejects a second append whose lease workspace/project/run does not match the stamped row', async () => {
+      const ctx = newCtx();
+      await appendLogs({...ctx, attempt: 1, offset: 0, body: ndjsonBody(outputLine('first\n'))});
+
+      const error = await appendLogs({
+        ...ctx,
+        projectId: crypto.randomUUID(),
+        attempt: 1,
+        offset: 6,
+        body: ndjsonBody(outputLine('more\n')),
+      }).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(LeaseStreamMismatchError);
+    });
+
     it('isolates streams by job: a different job with the same stepId gets its own stream', async () => {
       const stepId = crypto.randomUUID();
       const jobA = crypto.randomUUID();
       const jobB = crypto.randomUUID();
       const workspaceId = crypto.randomUUID();
+      const projectId = crypto.randomUUID();
+      const runId = crypto.randomUUID();
       const bodyA = ndjsonBody(outputLine('a\n'));
       const bodyB = ndjsonBody(outputLine('bbbb\n'));
 
-      await appendLogs({jobId: jobA, workspaceId, stepId, attempt: 1, offset: 0, body: bodyA});
-      await appendLogs({jobId: jobB, workspaceId, stepId, attempt: 1, offset: 0, body: bodyB});
+      const common = {workspaceId, projectId, runId, stepId, attempt: 1, offset: 0};
+      await appendLogs({...common, jobId: jobA, body: bodyA});
+      await appendLogs({...common, jobId: jobB, body: bodyB});
 
       const streamA = await findStream({jobId: jobA, stepId, attempt: 1});
       const streamB = await findStream({jobId: jobB, stepId, attempt: 1});

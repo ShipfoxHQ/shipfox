@@ -1,5 +1,6 @@
 import {and, eq, sql} from 'drizzle-orm';
 import type {AttemptStream} from '#core/entities/attempt-stream.js';
+import {LeaseStreamMismatchError} from '#core/errors.js';
 import type {Transaction} from './db.js';
 import {attemptStreams, toAttemptStream} from './schema/attempt-streams.js';
 
@@ -8,6 +9,8 @@ export interface AttemptStreamIdentity {
   stepId: string;
   attempt: number;
   workspaceId: string;
+  projectId: string;
+  runId: string;
 }
 
 export interface AttemptStreamLookup {
@@ -41,7 +44,9 @@ export async function getAttemptStream(
  * Loads the stream for `(job, step, attempt)`, creating it on first append.
  * Scoped by `jobId` from the lease, so a lease never reaches another job's stream.
  * A single upsert with `RETURNING` (the touch-update yields the row on conflict)
- * avoids a separate read on the hot path.
+ * avoids a separate read on the hot path. On conflict, asserts the lease's
+ * `(workspaceId, projectId, runId)` still match the stamped row; a mismatch
+ * implies a forged or cross-job-confused lease and is rejected.
  */
 export async function getOrCreateAttemptStream(
   tx: Transaction,
@@ -57,6 +62,13 @@ export async function getOrCreateAttemptStream(
     .returning();
 
   if (!row) throw new Error('attempt stream missing after upsert');
+  if (
+    row.workspaceId !== identity.workspaceId ||
+    row.projectId !== identity.projectId ||
+    row.runId !== identity.runId
+  ) {
+    throw new LeaseStreamMismatchError();
+  }
   return toAttemptStream(row);
 }
 
