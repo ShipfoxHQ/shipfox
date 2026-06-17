@@ -170,7 +170,7 @@ export function WorkflowRunsList({
           ) : null}
           {!loading && filteredRows.length > 0 ? (
             <nav aria-label="Run history">
-              <ul className="flex flex-col">
+              <ul className="flex flex-col gap-4 p-8">
                 {filteredRows.map(({run, item}) => {
                   const href = getRunHref?.(run);
                   return (
@@ -206,44 +206,47 @@ function WorkflowRunsListRow({
 }) {
   const content = (
     <>
-      <div className="flex min-w-0 items-center gap-8">
-        <StatusDot
-          variant={getStatusVisual(item.status).dot}
-          pulse={item.status === 'running'}
-          className="mt-2"
+      {selected ? (
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-8 left-0 w-3 rounded-full bg-border-highlights-interactive"
         />
+      ) : null}
+
+      <div className="flex min-w-0 items-center gap-7">
+        <StatusDot variant={getStatusVisual(item.status).dot} pulse={item.status === 'running'} />
         <Code variant="label" bold className="truncate text-foreground-neutral-base">
           {item.label}
         </Code>
         <StatusPill status={item.status} />
       </div>
 
-      {item.triggerLabel ? (
-        <div className="flex min-w-0 items-center gap-6 pl-16">
-          <Icon name="thunder" className="size-12 shrink-0 text-foreground-neutral-muted" />
-          <Code variant="label" className="min-w-0 flex-1 truncate text-foreground-neutral-subtle">
-            {item.triggerLabel}
-          </Code>
-          <Code variant="label" className="shrink-0 text-foreground-neutral-muted">
-            <RelativeTime value={item.updatedAt} />
-          </Code>
-        </div>
-      ) : (
-        <Code variant="label" className="pl-16 text-foreground-neutral-muted">
-          <span className="sr-only">Run updated </span>
+      <div className="flex min-w-0 items-center gap-6 pl-15">
+        {item.triggerLabel ? (
+          <>
+            <Icon name="thunder" className="size-12 shrink-0 text-foreground-neutral-muted" />
+            <Code
+              variant="label"
+              className="min-w-0 flex-1 truncate text-foreground-neutral-subtle"
+            >
+              {item.triggerLabel}
+            </Code>
+          </>
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-foreground-neutral-muted">
+            <span className="sr-only">Run updated </span>
+          </span>
+        )}
+        <Code variant="label" className="shrink-0 text-foreground-neutral-disabled">
           <RelativeTime value={item.updatedAt} />
         </Code>
-      )}
-
-      <Text size="xs" className="min-w-0 truncate pl-16 text-foreground-neutral-muted">
-        {item.name}
-      </Text>
+      </div>
     </>
   );
   const className = cn(
-    'group flex w-full flex-col gap-6 border-l-2 border-transparent border-b border-border-neutral-base px-12 py-10 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
+    'group relative flex w-full flex-col gap-5 rounded-8 border border-transparent px-10 py-9 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
     selected &&
-      'border-l-border-highlights-interactive bg-background-highlight-base hover:bg-background-highlight-hover',
+      'border-border-highlights-interactive bg-background-highlight-base hover:bg-background-highlight-hover',
   );
 
   if (href) {
@@ -308,20 +311,23 @@ function StatusPill({status}: {status: RunStatusDto}) {
 
 function WorkflowRunsListSkeleton() {
   return (
-    <div className="flex flex-col" role="status" aria-label="Loading runs">
-      {Array.from({length: 5}).map((_, index) => (
+    <div className="flex flex-col gap-4 p-8" role="status" aria-label="Loading runs">
+      {Array.from({length: 6}).map((_, index) => (
         <div
           // biome-ignore lint/suspicious/noArrayIndexKey: skeleton row, stable position
           key={index}
-          className="flex flex-col gap-8 border-b border-border-neutral-base px-12 py-10"
+          className="flex flex-col gap-5 rounded-8 px-10 py-9"
         >
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-7">
             <Skeleton className="size-8 rounded-full" />
             <Skeleton className="h-16 w-1/3" />
             <Skeleton className="h-20 w-2/5 rounded-6" />
           </div>
-          <Skeleton className="ml-16 h-16 w-3/4" />
-          <Skeleton className="ml-16 h-16 w-1/2" />
+          <div className="flex items-center gap-6 pl-15">
+            <Skeleton className="size-12 rounded-4" />
+            <Skeleton className="h-14 flex-1" />
+            <Skeleton className="h-14 w-40" />
+          </div>
         </div>
       ))}
     </div>

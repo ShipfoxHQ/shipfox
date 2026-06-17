@@ -48,6 +48,18 @@ describe('WorkflowRunsList', () => {
     expect(onSelectRun).toHaveBeenCalledWith(SUCCEEDED_RUN_ID);
   });
 
+  test('marks only the selected row with the brand accent and aria-current', () => {
+    render(<WorkflowRunsList runs={mixedRuns()} selectedRunId={FAILED_RUN_ID} />);
+
+    const selectedRow = screen.getByRole('button', {name: FAILED_RUN_LABEL_RE});
+    const otherRow = screen.getByRole('button', {name: RUNNING_RUN_LABEL_RE});
+
+    expect(selectedRow).toHaveAttribute('aria-current', 'page');
+    expect(selectedRow).toHaveClass('border-border-highlights-interactive');
+    expect(otherRow).not.toHaveAttribute('aria-current');
+    expect(otherRow).not.toHaveClass('border-border-highlights-interactive');
+  });
+
   test('renders navigation hrefs when provided', () => {
     const onSelectRun = vi.fn();
 
