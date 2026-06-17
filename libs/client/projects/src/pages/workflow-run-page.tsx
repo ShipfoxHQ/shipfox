@@ -1,8 +1,8 @@
-import type {RunDto, RunStatusDto} from '@shipfox/api-workflows-dto';
+import type {RunResponseDto, RunStatusDto} from '@shipfox/api-workflows-dto';
+import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Code, cn, EmptyState, Header, Skeleton, StatusBadge, Text} from '@shipfox/react-ui';
-import {useMemo} from 'react';
-import {useWorkflowRunsInfiniteQuery} from '#hooks/api/workflow-runs.js';
+import {useWorkflowRunQuery, type WorkflowRunDetailDto} from '#hooks/api/workflow-runs.js';
 
 export interface WorkflowRunPageProps {
   projectId: string;
@@ -31,25 +31,21 @@ const statusLabelByStatus: Record<RunStatusDto, string> = {
 };
 
 export function WorkflowRunPage(props: WorkflowRunPageProps) {
-  const {projectId, runId} = props;
-  const filters = useMemo(() => ({}), []);
-  const runsQuery = useWorkflowRunsInfiniteQuery(projectId, filters);
-  const runs = runsQuery.data?.pages.flatMap((page) => page.runs) ?? [];
-  const selectedRun = runs.find((run) => run.id === runId);
+  const {runId} = props;
+  const runQuery = useWorkflowRunQuery(runId);
 
-  if (runsQuery.isPending) {
+  if (runQuery.isPending) {
     return <WorkflowRunLoadingState runId={runId} />;
   }
 
-  if (runsQuery.isError && runsQuery.data === undefined) {
-    return <QueryLoadError query={runsQuery} subject="workflow run" icon="pulseLine" />;
+  if (runQuery.isError) {
+    if (runQuery.error instanceof ApiError && runQuery.error.status === 404) {
+      return <WorkflowRunNotFoundState runId={runId} />;
+    }
+    return <QueryLoadError query={runQuery} subject="workflow run" icon="pulseLine" />;
   }
 
-  if (!selectedRun) {
-    return <WorkflowRunNotFoundState runId={runId} />;
-  }
-
-  return <WorkflowRunSuccessState {...props} run={selectedRun} />;
+  return <WorkflowRunSuccessState {...props} run={runQuery.data} />;
 }
 
 /**
@@ -71,7 +67,10 @@ function WorkflowRunSuccessState({
   run,
   selectedJobId,
   selectedStepId,
-}: WorkflowRunPageProps & {run: RunDto}) {
+}: WorkflowRunPageProps & {run: WorkflowRunDetailDto}) {
+  const jobCount = run.jobs.length;
+  const stepCount = run.jobs.reduce((total, job) => total + job.steps.length, 0);
+
   return (
     <div className="grid gap-16 lg:grid-cols-[280px_minmax(0,1fr)]">
       <aside aria-label="Runs" className="min-w-0 lg:sticky lg:top-16 lg:self-start">
@@ -83,6 +82,10 @@ function WorkflowRunSuccessState({
       <div className="flex min-w-0 flex-col gap-16">
         <ShellSlot title="Run summary">
           <RunIdentity run={run} />
+          <Text size="xs" className="text-foreground-neutral-muted">
+            {jobCount} {jobCount === 1 ? 'job' : 'jobs'} · {stepCount}{' '}
+            {stepCount === 1 ? 'step' : 'steps'}
+          </Text>
         </ShellSlot>
 
         <ShellSlot title="Jobs visualization" hint="Jobs execution graph mounts here.">
@@ -100,7 +103,7 @@ function WorkflowRunSuccessState({
   );
 }
 
-function RunIdentity({run}: {run: RunDto}) {
+function RunIdentity({run}: {run: RunResponseDto}) {
   return (
     <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
       <div className="flex min-w-0 flex-col gap-6">
@@ -189,7 +192,7 @@ function WorkflowRunNotFoundState({runId}: {runId: string}) {
     <EmptyState
       icon="pulseLine"
       title="Run not found"
-      description={`This run is not available in the current run history: ${runId}.`}
+      description={`This run does not exist or is no longer available: ${runId}.`}
     />
   );
 }

@@ -8,9 +8,10 @@ const RUN_ID = '66666666-6666-4666-8666-666666666666';
 const OTHER_RUN_ID = '77777777-7777-4777-8777-777777777777';
 const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
 const INLINE_MODE_HINT_RE = /Overview \| Source render inline/;
+const RUN_COUNTS_RE = /1 job · 2 steps/;
 
 describe('WorkflowRunPage', () => {
-  test('renders a loading shell while run history loads', async () => {
+  test('renders a loading shell while the run detail loads', async () => {
     configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
 
     renderWorkflowRunPage(RUN_ID);
@@ -19,7 +20,7 @@ describe('WorkflowRunPage', () => {
     expect(screen.getByText(RUN_ID)).toBeInTheDocument();
   });
 
-  test('renders an error state when run history cannot load', async () => {
+  test('renders an error state when the run detail cannot load', async () => {
     configureApiClient({
       fetchImpl: vi.fn(() => Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}))),
     });
@@ -29,18 +30,19 @@ describe('WorkflowRunPage', () => {
     expect(await screen.findByText("Couldn't load workflow run")).toBeInTheDocument();
   });
 
-  test('renders not found when the selected run is absent from loaded history', async () => {
-    configureApiClient({fetchImpl: createWorkflowRunFetch({runs: [runDto({id: OTHER_RUN_ID})]})});
+  test('renders not found when the run detail returns 404', async () => {
+    configureApiClient({fetchImpl: createWorkflowRunFetch()});
 
-    renderWorkflowRunPage(RUN_ID);
+    // The fetch only serves RUN_ID; any other id 404s from the detail endpoint.
+    renderWorkflowRunPage(OTHER_RUN_ID);
 
     expect(await screen.findByText('Run not found')).toBeInTheDocument();
     expect(
-      screen.getByText(`This run is not available in the current run history: ${RUN_ID}.`),
+      screen.getByText(`This run does not exist or is no longer available: ${OTHER_RUN_ID}.`),
     ).toBeInTheDocument();
   });
 
-  test('renders run identity, status, and the rail + center section slots', async () => {
+  test('renders run identity, status, job/step counts, and the rail + center slots', async () => {
     configureApiClient({fetchImpl: createWorkflowRunFetch()});
 
     renderWorkflowRunPage(RUN_ID, {selectedJobId: 'job-build', selectedStepId: 'step-checkout'});
@@ -48,6 +50,8 @@ describe('WorkflowRunPage', () => {
     expect(await screen.findByText('Deploy production')).toBeInTheDocument();
     expect(screen.getAllByText(RUN_ID)).not.toHaveLength(0);
     expect(screen.getByText('Running')).toBeInTheDocument();
+    // Real run-detail data (jobs + steps) flows into the shell.
+    expect(screen.getByText(RUN_COUNTS_RE)).toBeInTheDocument();
     expect(screen.getAllByText('job-build')).not.toHaveLength(0);
     expect(screen.getAllByText('step-checkout')).not.toHaveLength(0);
 
@@ -80,14 +84,12 @@ function renderWorkflowRunPage(
   );
 }
 
-function createWorkflowRunFetch({runs = [runDto()]}: {runs?: unknown[]} = {}) {
+function createWorkflowRunFetch({detail = runDetailDto()}: {detail?: unknown} = {}) {
   return vi.fn((input: RequestInfo | URL) => {
     const url = new URL(requestInputUrl(input));
 
-    if (url.pathname === '/workflows/runs') {
-      return Promise.resolve(
-        jsonResponse({runs, next_cursor: null, filtered_total_count: runs.length}),
-      );
+    if (url.pathname === `/workflows/runs/${RUN_ID}`) {
+      return Promise.resolve(jsonResponse(detail));
     }
 
     return Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}));
@@ -99,7 +101,9 @@ function requestInputUrl(input: RequestInfo | URL) {
   return String(input);
 }
 
-function runDto(overrides: Partial<{id: string; name: string; status: string}> = {}) {
+// Mirrors GET /workflows/runs/:id: a run plus one job with two steps (so the shell shows
+// "1 job · 2 steps"). Only the fields the shell reads are populated.
+function runDetailDto(overrides: Partial<{id: string; name: string; status: string}> = {}) {
   return {
     id: overrides.id ?? RUN_ID,
     project_id: PROJECT_ID,
@@ -110,8 +114,18 @@ function runDto(overrides: Partial<{id: string; name: string; status: string}> =
     trigger_event: 'fire',
     trigger_payload: {source: 'manual', event: 'fire'},
     inputs: null,
-    source_snapshot: null,
     created_at: '2026-05-07T01:01:00.000Z',
     updated_at: '2026-05-07T01:02:00.000Z',
+    jobs: [
+      {
+        id: 'job-build',
+        name: 'build',
+        status: 'succeeded',
+        steps: [
+          {id: 'step-checkout', name: 'checkout', status: 'succeeded', attempts: []},
+          {id: 'step-test', name: 'test', status: 'succeeded', attempts: []},
+        ],
+      },
+    ],
   };
 }
