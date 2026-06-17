@@ -1,4 +1,4 @@
-import {logObjectKey} from './object-storage.js';
+import {logObjectKey} from './log-object.js';
 
 describe('logObjectKey', () => {
   it('builds the logs/{workspace}/{job}/{step}/{attempt} key', () => {

@@ -28,18 +28,6 @@ export function closeS3Client(): void {
   _client = undefined;
 }
 
-export interface LogObjectKeyParams {
-  workspaceId: string;
-  jobId: string;
-  stepId: string;
-  attempt: number;
-}
-
-/** Object layout `logs/{workspace}/{job}/{step}/{attempt}` so retention and workspace deletion are prefix operations. */
-export function logObjectKey({workspaceId, jobId, stepId, attempt}: LogObjectKeyParams): string {
-  return `logs/${workspaceId}/${jobId}/${stepId}/${attempt}`;
-}
-
 /** Readiness probe: true when the configured bucket answers a HEAD. Used by the app readiness check, not at process boot. */
 export async function checkBucketReachable(): Promise<boolean> {
   try {
