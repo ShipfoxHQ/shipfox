@@ -1,5 +1,6 @@
 import {
   Badge,
+  Button,
   Code,
   cn,
   Header,
@@ -18,11 +19,16 @@ import {toWorkflowRunSummary, type WorkflowRunSummaryRun} from './workflow-run-s
 export function WorkflowRunSummary({
   run,
   className,
+  onOpenSource,
+  onJump,
 }: {
   run: WorkflowRunSummaryRun;
-  className?: string;
+  className?: string | undefined;
+  onOpenSource?: (() => void) | undefined;
+  onJump?: (() => void) | undefined;
 }) {
   const summary = toWorkflowRunSummary(run);
+  const showJump = onJump !== undefined && summary.jumpLabel !== undefined;
 
   return (
     <section
@@ -33,36 +39,41 @@ export function WorkflowRunSummary({
       )}
     >
       <StatusDot variant={summary.dotVariant} pulse={summary.status === 'running'} />
-      <div className="flex w-190 shrink-0 flex-col gap-2">
-        <Header as="h2" variant="h3" className="truncate text-foreground-neutral-base">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="max-w-full truncate rounded-4 font-code tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-border-interactive-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background-neutral-base"
-                aria-label={`Full run id ${summary.id}`}
-              >
-                Run {summary.shortId}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{summary.id}</TooltipContent>
-          </Tooltip>
-        </Header>
-        <Text size="xs" className="truncate text-foreground-neutral-muted">
-          {summary.name}
-        </Text>
-      </div>
+      <Header as="h2" variant="h3" className="shrink-0 truncate text-foreground-neutral-base">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="max-w-full truncate rounded-4 font-code tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-border-interactive-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background-neutral-base"
+              aria-label={`Full run id ${summary.id}`}
+            >
+              Run {summary.shortId}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{summary.id}</TooltipContent>
+        </Tooltip>
+      </Header>
       <Badge variant={summary.statusVariant}>{summary.statusLabel}</Badge>
+
+      <Text size="sm" className="min-w-0 max-w-220 truncate text-foreground-neutral-muted">
+        {summary.name}
+      </Text>
 
       <div className="h-18 w-px shrink-0 bg-border-neutral-base" aria-hidden="true" />
 
-      <MetadataItem icon={summary.triggerIcon} className="max-w-190">
+      <MetadataItem icon={summary.triggerIcon} className="max-w-220">
         <Code variant="label" className="truncate text-foreground-neutral-base">
+          {summary.incidentLabel}
+        </Code>
+      </MetadataItem>
+
+      <MetadataItem icon="pulseLine" className="max-w-190">
+        <Code variant="label" className="truncate text-foreground-neutral-muted">
           {summary.triggerLabel}
         </Code>
       </MetadataItem>
 
-      <MetadataItem icon="externalLinkLine" className="max-w-200">
+      <MetadataItem icon="stackLine">
         <Code variant="label" className="truncate text-foreground-neutral-muted">
           {summary.triggerPayloadLabel}
         </Code>
@@ -88,6 +99,21 @@ export function WorkflowRunSummary({
           />
         </Text>
       </MetadataItem>
+
+      {(showJump || onOpenSource !== undefined) && (
+        <div className="flex shrink-0 items-center gap-8">
+          {showJump && (
+            <Button variant="primary" size="sm" iconRight="arrowRightLine" onClick={onJump}>
+              {summary.jumpLabel}
+            </Button>
+          )}
+          {onOpenSource !== undefined && (
+            <Button variant="secondary" size="sm" iconLeft="fileCodeLine" onClick={onOpenSource}>
+              Workflow source
+            </Button>
+          )}
+        </div>
+      )}
     </section>
   );
 }

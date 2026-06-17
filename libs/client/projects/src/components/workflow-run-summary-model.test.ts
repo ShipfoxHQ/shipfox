@@ -38,6 +38,50 @@ describe('toWorkflowRunSummary', () => {
     });
   });
 
+  test.each([
+    ['failed', 'Go to root cause'],
+    ['running', 'Go to active step'],
+  ] as const)('exposes a %s jump label', (status, jumpLabel) => {
+    const run = makeRun({status});
+
+    const result = toWorkflowRunSummary(run);
+
+    expect(result.jumpLabel).toBe(jumpLabel);
+  });
+
+  test.each([
+    'pending',
+    'succeeded',
+    'cancelled',
+  ] as const)('has no jump label for %s runs', (status) => {
+    const run = makeRun({status});
+
+    const result = toWorkflowRunSummary(run);
+
+    expect(result.jumpLabel).toBeUndefined();
+  });
+
+  test('extracts the incident reference from the trigger payload', () => {
+    const result = toWorkflowRunSummary(failedWorkflowRunSummaryFixture);
+
+    expect(result.incidentLabel).toBe('SENTRY-CHKOUT-9002');
+  });
+
+  test.each([
+    [{incident: 'INC-1', issue: 'ISS-2'}, 'INC-1'],
+    [{issue: 'ISS-2'}, 'ISS-2'],
+    [{alert: '  ALERT-7  '}, 'ALERT-7'],
+    [{branch: 'main'}, 'no incident'],
+    [{incident: '   '}, 'no incident'],
+    [{incident: 42}, 'no incident'],
+  ])('derives an incident label from %o', (triggerPayload, incidentLabel) => {
+    const run = makeRun({trigger_payload: triggerPayload});
+
+    const result = toWorkflowRunSummary(run);
+
+    expect(result.incidentLabel).toBe(incidentLabel);
+  });
+
   test('trims trigger source and event labels', () => {
     const run = makeRun({
       trigger_source: '  github  ',
