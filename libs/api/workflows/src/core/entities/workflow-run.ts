@@ -1,5 +1,10 @@
 export type WorkflowRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
+export interface WorkflowSourceSnapshot {
+  content: string;
+  format: 'yaml';
+}
+
 export type TriggerPayload =
   | {
       source: 'manual';
@@ -33,6 +38,7 @@ export interface WorkflowRun {
   triggerEvent: string;
   triggerPayload: TriggerPayload;
   inputs: Record<string, unknown> | null;
+  sourceSnapshot: WorkflowSourceSnapshot | null;
   triggerIdempotencyKey: string | null;
   version: number;
   createdAt: Date;

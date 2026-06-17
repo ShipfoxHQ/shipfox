@@ -52,6 +52,13 @@ export const runAggregatesQuerySchema = runListQueryBaseSchema
 
 export type RunAggregatesQueryDto = z.infer<typeof runAggregatesQuerySchema>;
 
+export const workflowSourceSnapshotSchema = z.object({
+  content: z.string(),
+  format: z.literal('yaml'),
+});
+
+export type WorkflowSourceSnapshotDto = z.infer<typeof workflowSourceSnapshotSchema>;
+
 export const runDtoSchema = z.object({
   id: z.string().uuid(),
   project_id: z.string().uuid(),
@@ -62,6 +69,7 @@ export const runDtoSchema = z.object({
   trigger_event: z.string(),
   trigger_payload: z.record(z.string(), z.unknown()),
   inputs: z.record(z.string(), z.unknown()).nullable(),
+  source_snapshot: workflowSourceSnapshotSchema.nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });

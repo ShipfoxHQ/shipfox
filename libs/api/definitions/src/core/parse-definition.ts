@@ -12,5 +12,8 @@ export function parseDefinition(yamlString: string): WorkflowDefinitionPayload {
     );
   }
 
-  return result.definition;
+  return {
+    ...result.definition,
+    sourceSnapshot: {content: yamlString, format: 'yaml'},
+  };
 }
