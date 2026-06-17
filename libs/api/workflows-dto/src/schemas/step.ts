@@ -50,6 +50,63 @@ export const stepDtoSchema = z.object({
 
 export type StepDto = z.infer<typeof stepDtoSchema>;
 
+export const stepGateResultDtoSchema = z
+  .discriminatedUnion('kind', [
+    z.object({
+      kind: z.literal('none'),
+    }),
+    z.object({
+      kind: z.literal('not_evaluated'),
+    }),
+    z.object({
+      kind: z.literal('passed'),
+      passed: z.literal(true),
+      source: z.string(),
+      exit_code: z.number().int().nullable(),
+    }),
+    z.object({
+      kind: z.literal('failed'),
+      passed: z.literal(false),
+      source: z.string(),
+      exit_code: z.number().int().nullable(),
+    }),
+    z.object({
+      kind: z.literal('uncheckable'),
+      passed: z.literal(false),
+      uncheckable: z.literal(true),
+      reason: z.string(),
+      exit_code: z.number().int().nullable(),
+    }),
+    z.object({
+      kind: z.literal('evaluation_error'),
+      reason: z.string(),
+      exit_code: z.number().int().nullable(),
+    }),
+    z.object({
+      kind: z.literal('unknown'),
+      data: z.record(z.string(), z.unknown()),
+    }),
+  ])
+  .nullable();
+
+export type StepGateResultDto = z.infer<typeof stepGateResultDtoSchema>;
+
+export const stepRestartResultDtoSchema = z
+  .discriminatedUnion('kind', [
+    z.object({
+      kind: z.literal('restart_enqueued'),
+      reason: z.string(),
+    }),
+    z.object({
+      kind: z.literal('restart_exhausted'),
+      max_attempts: z.number().int().positive(),
+      restart_from: z.string(),
+    }),
+  ])
+  .nullable();
+
+export type StepRestartResultDto = z.infer<typeof stepRestartResultDtoSchema>;
+
 // One execution attempt of a step (the durable history behind the current
 // projection). Surfaced in run details so a restarted step's attempts are visible.
 export const stepAttemptDtoSchema = z.object({
@@ -59,14 +116,17 @@ export const stepAttemptDtoSchema = z.object({
   attempt: z.number().int().positive(),
   status: z.string(),
   exit_code: z.number().int().nullable(),
-  // `output`, `error`, and `gate_result` are opaque audit blobs: the raw jsonb
-  // persisted for the attempt, NOT snake_case-normalized (their nested keys may
-  // be camelCase, e.g. `error.exitCode`). Consume the top-level snake_case
-  // `exit_code` for the numeric code; treat these as display/debug payloads.
+  // `output` and `error` are opaque audit blobs: the raw jsonb persisted for the
+  // attempt, NOT snake_case-normalized (their nested keys may be camelCase, e.g.
+  // `error.exitCode`). Consume the top-level snake_case `exit_code` for the
+  // numeric code; treat these as display/debug payloads.
   output: z.record(z.string(), z.unknown()).nullable(),
   error: z.record(z.string(), z.unknown()).nullable(),
-  gate_result: z.record(z.string(), z.unknown()).nullable(),
+  // `unknown.data` is the raw jsonb gate payload for legacy or unrecognized
+  // rows; nested keys are not snake_case-normalized.
+  gate_result: stepGateResultDtoSchema,
   restart_reason: z.string().nullable(),
+  restart_result: stepRestartResultDtoSchema,
   started_at: z.string(),
   finished_at: z.string().nullable(),
 });
