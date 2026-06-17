@@ -1,34 +1,39 @@
-import type {
-  CreateAgentSessionOptions,
-  ModelRegistry as PiModelRegistry,
+import {
+  AuthStorage,
+  type CreateAgentSessionOptions,
+  createAgentSession,
+  ModelRegistry,
 } from '@earendil-works/pi-coding-agent';
-import type {AgentHarness, AgentInvocation, AgentRunResult} from '#core/agent-harness.js';
 
 type PiModel = NonNullable<CreateAgentSessionOptions['model']>;
 type PiThinkingLevel = NonNullable<CreateAgentSessionOptions['thinkingLevel']>;
 
-// pi resolves a model from its registry by (provider, modelId). The workflow `model`
-// is free text: "provider/modelId" selects a provider explicitly; a bare id assumes
-// Anthropic, matching v1's Anthropic-first default. An unresolvable model throws,
-// which the step records as `agent_invocation_failed`.
 const DEFAULT_PROVIDER = 'anthropic';
 
-export function createPiAgentHarness(): AgentHarness {
-  return {run: runWithPi};
+export interface AgentInvocation {
+  readonly cwd: string;
+  readonly model: string;
+  readonly thinking: string;
+  readonly prompt: string;
+  readonly signal: AbortSignal;
 }
 
-async function runWithPi(invocation: AgentInvocation): Promise<AgentRunResult> {
+/**
+ * Runs the pi coding agent for one step. Resolves when the agent's turn completes and
+ * throws on a pi/provider failure or abort, so the caller maps a resolved call to a
+ * succeeded step and a thrown call to a failed step.
+ *
+ * The returned `summary` is the agent's final assistant message, kept runner-local for
+ * observability and never sent to the API, so it is optional.
+ */
+export async function runAgent(invocation: AgentInvocation): Promise<{summary?: string}> {
   const {cwd, model: modelSpec, thinking, prompt, signal} = invocation;
 
-  // A listener added to an already-aborted signal never fires, so an abort that
-  // lands before this point (or during the awaits below) would leave pi running and
-  // burning tokens after the step loop has moved on. Guard on entry, then again once
-  // the session exists so a mid-creation abort still stops pi.
+  // A listener added to an already-aborted signal never fires, so an abort that lands
+  // before this point (or during the awaits below) would leave pi running and burning
+  // tokens after the step loop has moved on. Guard on entry, then again once the
+  // session exists so a mid-creation abort still stops pi.
   if (signal.aborted) throw new Error('Agent step aborted before the pi session started');
-
-  const {createAgentSession, AuthStorage, ModelRegistry} = await import(
-    '@earendil-works/pi-coding-agent'
-  );
 
   const authStorage = AuthStorage.create();
   const modelRegistry = ModelRegistry.create(authStorage);
@@ -61,7 +66,11 @@ async function runWithPi(invocation: AgentInvocation): Promise<AgentRunResult> {
   }
 }
 
-function resolveModel(registry: PiModelRegistry, spec: string): PiModel {
+// pi resolves a model from its registry by (provider, modelId). The workflow `model`
+// is free text: "provider/modelId" selects a provider explicitly; a bare id assumes
+// Anthropic, matching v1's Anthropic-first default. An unresolvable model throws,
+// which the step records as `agent_invocation_failed`.
+function resolveModel(registry: ModelRegistry, spec: string): PiModel {
   const separator = spec.indexOf('/');
   const [provider, modelId] =
     separator > 0

@@ -1,17 +1,17 @@
-import type {AgentInvocation} from '#core/agent-harness.js';
-
-const createAgentSessionMock = vi.fn();
-const findMock = vi.fn();
-const promptMock = vi.fn();
-const abortMock = vi.fn();
-
-vi.mock('@earendil-works/pi-coding-agent', () => ({
-  createAgentSession: (...args: unknown[]) => createAgentSessionMock(...args),
-  AuthStorage: {create: () => ({})},
-  ModelRegistry: {create: () => ({find: (...args: unknown[]) => findMock(...args)})},
+const {createAgentSessionMock, findMock, promptMock, abortMock} = vi.hoisted(() => ({
+  createAgentSessionMock: vi.fn(),
+  findMock: vi.fn(),
+  promptMock: vi.fn(),
+  abortMock: vi.fn(),
 }));
 
-const {createPiAgentHarness} = await import('#core/pi-agent-harness.js');
+vi.mock('@earendil-works/pi-coding-agent', () => ({
+  createAgentSession: createAgentSessionMock,
+  AuthStorage: {create: () => ({})},
+  ModelRegistry: {create: () => ({find: findMock})},
+}));
+
+import {type AgentInvocation, runAgent} from '#core/run-agent.js';
 
 function invocation(overrides: Partial<AgentInvocation> = {}): AgentInvocation {
   return {
@@ -24,7 +24,7 @@ function invocation(overrides: Partial<AgentInvocation> = {}): AgentInvocation {
   };
 }
 
-describe('createPiAgentHarness', () => {
+describe('runAgent', () => {
   beforeEach(() => {
     createAgentSessionMock.mockReset();
     findMock.mockReset();
@@ -38,9 +38,7 @@ describe('createPiAgentHarness', () => {
   });
 
   it('resolves a bare model id under the anthropic provider and runs the prompt', async () => {
-    const harness = createPiAgentHarness();
-
-    const result = await harness.run(invocation());
+    const result = await runAgent(invocation());
 
     expect(findMock).toHaveBeenCalledWith('anthropic', 'claude-opus-4-8');
     expect(createAgentSessionMock).toHaveBeenCalledWith(
@@ -55,9 +53,7 @@ describe('createPiAgentHarness', () => {
   });
 
   it('splits a provider/modelId spec on the first slash', async () => {
-    const harness = createPiAgentHarness();
-
-    await harness.run(invocation({model: 'openrouter/anthropic/claude'}));
+    await runAgent(invocation({model: 'openrouter/anthropic/claude'}));
 
     expect(findMock).toHaveBeenCalledWith('openrouter', 'anthropic/claude');
   });
@@ -73,9 +69,8 @@ describe('createPiAgentHarness', () => {
           resolvePrompt = resolve;
         }),
     );
-    const harness = createPiAgentHarness();
 
-    const promise = harness.run(invocation({signal: ac.signal}));
+    const promise = runAgent(invocation({signal: ac.signal}));
     await vi.waitFor(() => expect(promptMock).toHaveBeenCalled());
     ac.abort();
 
@@ -95,9 +90,8 @@ describe('createPiAgentHarness', () => {
           resolveCreate = resolve;
         }),
     );
-    const harness = createPiAgentHarness();
 
-    const promise = harness.run(invocation({signal: ac.signal}));
+    const promise = runAgent(invocation({signal: ac.signal}));
     await vi.waitFor(() => expect(createAgentSessionMock).toHaveBeenCalled());
     ac.abort();
     resolveCreate({session: {prompt: promptMock, abort: abortMock, messages: []}});
@@ -110,16 +104,14 @@ describe('createPiAgentHarness', () => {
   it('does not run pi when the signal is already aborted on entry', async () => {
     const ac = new AbortController();
     ac.abort();
-    const harness = createPiAgentHarness();
 
-    await expect(harness.run(invocation({signal: ac.signal}))).rejects.toThrow('aborted');
+    await expect(runAgent(invocation({signal: ac.signal}))).rejects.toThrow('aborted');
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
   it('throws when the model cannot be resolved', async () => {
     findMock.mockReturnValue(undefined);
-    const harness = createPiAgentHarness();
 
-    await expect(harness.run(invocation({model: 'bogus'}))).rejects.toThrow('Unknown agent model');
+    await expect(runAgent(invocation({model: 'bogus'}))).rejects.toThrow('Unknown agent model');
   });
 });
