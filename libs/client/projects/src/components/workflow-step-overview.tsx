@@ -141,6 +141,11 @@ export function WorkflowStepOverview({selection}: {selection: WorkflowStepSelect
                           </Code>
                         </div>
                       ) : null}
+                      <AttemptEntries title="Gate result" entries={attempt.gateResultEntries} />
+                      <AttemptEntries
+                        title="Restart result"
+                        entries={attempt.restartResultEntries}
+                      />
                     </div>
                   ))}
                 </div>
@@ -193,6 +198,41 @@ function MetadataPair({label, value}: {label: string; value: string}) {
         {label}
       </Text>
       <Code variant="label">{value}</Code>
+    </div>
+  );
+}
+
+function AttemptEntries({
+  title,
+  entries,
+}: {
+  title: string;
+  entries: {key: string; value: string}[];
+}) {
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="mt-8 flex flex-col gap-6">
+      <Text size="xs" className="font-medium text-foreground-neutral-muted">
+        {title}
+      </Text>
+      <div className="overflow-hidden rounded-6 border border-border-neutral-base">
+        {entries.map((entry, index) => (
+          <div
+            key={entry.key}
+            className={`grid grid-cols-[minmax(0,180px)_minmax(0,1fr)] gap-12 px-12 py-10 ${
+              index === 0 ? 'border-t-0' : 'border-t border-border-neutral-base'
+            }`}
+          >
+            <Text size="xs" className="text-foreground-neutral-muted">
+              {entry.key}
+            </Text>
+            <Code variant="paragraph" className="whitespace-pre-wrap break-words">
+              {entry.value}
+            </Code>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
