@@ -242,6 +242,47 @@ export const workflowStepOverviewFixtures = {
       ],
     }),
   },
+  inlineStepRow: {
+    jobName: 'validate_release',
+    step: workflowStepOverviewStepSchema.parse({
+      id: '10000000-0000-4000-8000-000000000007',
+      job_id: '20000000-0000-4000-8000-000000000007',
+      name: 'lint_workspace',
+      source_location: null,
+      status: 'failed',
+      type: 'run',
+      config: {
+        run: 'pnpm -w lint',
+        gate: {success_if: 'exit_code == 0'},
+      },
+      error: {
+        message: 'Linting reported 2 errors',
+        exit_code: 2,
+        category: 'user',
+      },
+      position: 1,
+      current_attempt: 1,
+      created_at: '2026-06-12T10:00:00.000Z',
+      updated_at: '2026-06-12T10:00:18.000Z',
+      attempts: [
+        {
+          id: '30000000-0000-4000-8000-000000000009',
+          step_id: '10000000-0000-4000-8000-000000000007',
+          job_id: '20000000-0000-4000-8000-000000000007',
+          attempt: 1,
+          status: 'failed',
+          exit_code: 2,
+          output: {warnings: 4, errors: 2},
+          error: {message: 'Linting reported 2 errors'},
+          gate_result: {kind: 'failed', passed: false, source: 'exit_code == 0', exit_code: 2},
+          restart_reason: null,
+          restart_result: null,
+          started_at: '2026-06-12T10:00:02.000Z',
+          finished_at: '2026-06-12T10:00:18.000Z',
+        },
+      ],
+    }),
+  },
   pending: {
     jobName: 'validate_release',
     step: workflowStepOverviewStepSchema.parse({

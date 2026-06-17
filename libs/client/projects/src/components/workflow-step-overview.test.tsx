@@ -74,4 +74,47 @@ describe('WorkflowStepOverview', () => {
     expect(screen.queryByText('Attempt')).not.toBeInTheDocument();
     expect(screen.queryByText('Output')).not.toBeInTheDocument();
   });
+
+  test('keeps the panel chrome and minimum height in the default variant', () => {
+    render(<WorkflowStepOverview selection={workflowStepOverviewFixtures.running} />);
+
+    const section = screen.getByRole('region', {name: 'Step overview'});
+
+    expect(section).toHaveClass('min-h-560', 'border', 'bg-background-neutral-base');
+  });
+
+  test('drops the panel chrome and minimum height in the inline variant', () => {
+    render(
+      <WorkflowStepOverview selection={workflowStepOverviewFixtures.running} variant="inline" />,
+    );
+
+    const section = screen.getByRole('region', {name: 'Step overview'});
+
+    expect(section).not.toHaveClass('min-h-560');
+    expect(section).not.toHaveClass('border');
+    expect(section).not.toHaveClass('bg-background-neutral-base');
+  });
+
+  test('renders identical content inside the inline variant', () => {
+    render(
+      <WorkflowStepOverview
+        selection={workflowStepOverviewFixtures.inlineStepRow}
+        variant="inline"
+      />,
+    );
+
+    expect(screen.getByText('lint_workspace')).toBeInTheDocument();
+    expect(screen.getByText('pnpm -w lint')).toBeInTheDocument();
+    expect(screen.getByText('Failed with exit code 2.')).toBeInTheDocument();
+    expect(screen.getByText('warnings')).toBeInTheDocument();
+  });
+
+  test('drops the panel minimum height from the inline empty state', () => {
+    render(<WorkflowStepOverview selection={null} variant="inline" />);
+
+    const section = screen.getByRole('region', {name: 'Step overview'});
+
+    expect(section.querySelector('.min-h-560')).toBeNull();
+    expect(screen.getByText('Select a step')).toBeInTheDocument();
+  });
 });

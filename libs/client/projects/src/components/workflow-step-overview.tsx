@@ -14,16 +14,35 @@ import {
   type WorkflowStepSelection,
 } from './workflow-step-overview-model.js';
 
-export function WorkflowStepOverview({selection}: {selection: WorkflowStepSelection | null}) {
+export type WorkflowStepOverviewVariant = 'panel' | 'inline';
+
+export function WorkflowStepOverview({
+  selection,
+  variant = 'panel',
+}: {
+  selection: WorkflowStepSelection | null;
+  variant?: WorkflowStepOverviewVariant | undefined;
+}) {
   const model = toWorkflowStepOverviewModel(selection);
+  const isInline = variant === 'inline';
 
   return (
     <section
       aria-label="Step overview"
-      className="flex min-h-560 flex-col rounded-8 border border-border-neutral-base bg-background-neutral-base"
+      className={
+        isInline
+          ? 'flex flex-col'
+          : 'flex min-h-560 flex-col rounded-8 border border-border-neutral-base bg-background-neutral-base'
+      }
     >
       {model === null ? (
-        <div className="flex min-h-560 items-center justify-center px-24">
+        <div
+          className={
+            isInline
+              ? 'flex items-center justify-center px-24 py-32'
+              : 'flex min-h-560 items-center justify-center px-24'
+          }
+        >
           <EmptyState
             icon="componentLine"
             title="Select a step"
@@ -32,7 +51,13 @@ export function WorkflowStepOverview({selection}: {selection: WorkflowStepSelect
         </div>
       ) : (
         <>
-          <div className="flex items-start justify-between gap-16 border-b border-border-neutral-base px-20 py-20">
+          <div
+            className={
+              isInline
+                ? 'flex items-start justify-between gap-16 border-b border-border-neutral-base py-12'
+                : 'flex items-start justify-between gap-16 border-b border-border-neutral-base px-20 py-20'
+            }
+          >
             <div className="flex min-w-0 flex-col gap-8">
               <div className="flex flex-wrap items-center gap-8">
                 <Code as="h3" variant="paragraph" bold className="min-w-0 text-lg">
@@ -61,7 +86,11 @@ export function WorkflowStepOverview({selection}: {selection: WorkflowStepSelect
             ) : null}
           </div>
 
-          <div className="flex flex-1 flex-col gap-20 p-20">
+          <div
+            className={
+              isInline ? 'flex flex-1 flex-col gap-16 py-16' : 'flex flex-1 flex-col gap-20 p-20'
+            }
+          >
             {model.summary ? (
               <Alert variant={model.summary.tone} animated={false}>
                 <AlertContent>
