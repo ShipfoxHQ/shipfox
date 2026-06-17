@@ -58,7 +58,7 @@ describe('POST /__e2e/workflows/run-page-fixture', () => {
     ]);
     const failedSteps = stepsFor(body.runs.failed);
     expect(failedSteps.some((step) => step.status === 'failed')).toBe(true);
-    expect(failedSteps.some((step) => step.status === 'cancelled')).toBe(true);
+    expect(body.runs.failed.jobs.some((job) => job.status === 'cancelled')).toBe(true);
     expect(failedSteps.find((step) => step.status === 'failed')?.error).toEqual({
       message: 'Browser smoke failed on checkout summary',
       exit_code: 1,

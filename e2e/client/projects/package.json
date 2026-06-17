@@ -1,0 +1,33 @@
+{
+  "name": "@shipfox/e2e-client-projects",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "e2e/client/projects"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#test/*": "./tests/*"
+  },
+  "scripts": {
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "test:e2e": "shipfox-playwright-test",
+    "type": "shipfox-tsc-check"
+  },
+  "devDependencies": {
+    "@shipfox/api-workflows": "workspace:*",
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/client-projects": "workspace:*",
+    "@shipfox/client-router": "workspace:*",
+    "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-helper-auth": "workspace:*",
+    "@shipfox/e2e-helper-workflows": "workspace:*",
+    "@shipfox/e2e-helper-workspaces": "workspace:*",
+    "@shipfox/playwright": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*"
+  }
+}

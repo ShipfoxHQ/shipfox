@@ -214,6 +214,7 @@ async function createFailedRun(params: {workspaceId: string; projectId: string})
 
   const testVersion = await startJob(test.id);
   await finishNextStep({jobId: test.id, status: 'succeeded', exitCode: 0});
+  await finishNextStep({jobId: test.id, status: 'succeeded', exitCode: 0});
   await finishNextStep({
     jobId: test.id,
     status: 'failed',

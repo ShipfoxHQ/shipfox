@@ -26,7 +26,13 @@ function e2eUrl(path: string): URL {
 }
 
 async function parseErrorDetails(response: Response): Promise<unknown> {
-  const text = await response.text();
+  let text: string;
+  try {
+    text = await response.clone().text();
+  } catch {
+    return undefined;
+  }
+
   if (!text) return undefined;
 
   try {

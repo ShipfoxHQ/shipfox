@@ -206,7 +206,9 @@ function selectJob(
   selectedJobId: string | undefined,
 ): RunDetailJobDto | null {
   if (jobs.length === 0) return null;
-  return jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null;
+  return (
+    jobs.find((job) => job.id === selectedJobId) ?? jobs.find(hasAttentionStatus) ?? jobs[0] ?? null
+  );
 }
 
 function selectStep(
@@ -214,7 +216,17 @@ function selectStep(
   selectedStepId: string | undefined,
 ): RunDetailStepDto | null {
   if (!job || job.steps.length === 0) return null;
-  return job.steps.find((step) => step.id === selectedStepId) ?? job.steps[0] ?? null;
+  return (
+    job.steps.find((step) => step.id === selectedStepId) ??
+    job.steps.find(hasAttentionStatus) ??
+    job.steps.find((step) => step.type !== 'setup') ??
+    job.steps[0] ??
+    null
+  );
+}
+
+function hasAttentionStatus(item: {status: string}): boolean {
+  return item.status === 'failed' || item.status === 'running';
 }
 
 function toSourceRange(step: RunDetailStepDto | null): WorkflowSourceLineRange | null {
