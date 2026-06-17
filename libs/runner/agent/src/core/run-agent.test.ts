@@ -1,14 +1,11 @@
-const {createAgentSessionMock, findMock, promptMock, abortMock} = vi.hoisted(() => ({
+const {createAgentSessionMock, promptMock, abortMock} = vi.hoisted(() => ({
   createAgentSessionMock: vi.fn(),
-  findMock: vi.fn(),
   promptMock: vi.fn(),
   abortMock: vi.fn(),
 }));
 
 vi.mock('@earendil-works/pi-coding-agent', () => ({
   createAgentSession: createAgentSessionMock,
-  AuthStorage: {create: () => ({})},
-  ModelRegistry: {create: () => ({find: findMock})},
 }));
 
 import {type AgentInvocation, runAgent} from '#core/run-agent.js';
@@ -27,35 +24,22 @@ function invocation(overrides: Partial<AgentInvocation> = {}): AgentInvocation {
 describe('runAgent', () => {
   beforeEach(() => {
     createAgentSessionMock.mockReset();
-    findMock.mockReset();
     promptMock.mockReset();
     abortMock.mockReset();
-    findMock.mockReturnValue({id: 'claude-opus-4-8'});
     promptMock.mockResolvedValue(undefined);
     createAgentSessionMock.mockResolvedValue({
       session: {prompt: promptMock, abort: abortMock, messages: []},
     });
   });
 
-  it('resolves a bare model id under the anthropic provider and runs the prompt', async () => {
+  it('starts a pi session for the cwd and thinking level and runs the prompt', async () => {
     const result = await runAgent(invocation());
 
-    expect(findMock).toHaveBeenCalledWith('anthropic', 'claude-opus-4-8');
     expect(createAgentSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cwd: '/work',
-        thinkingLevel: 'high',
-        model: {id: 'claude-opus-4-8'},
-      }),
+      expect.objectContaining({cwd: '/work', thinkingLevel: 'high'}),
     );
     expect(promptMock).toHaveBeenCalledWith('Fix it.');
     expect(result).toEqual({});
-  });
-
-  it('splits a provider/modelId spec on the first slash', async () => {
-    await runAgent(invocation({model: 'openrouter/anthropic/claude'}));
-
-    expect(findMock).toHaveBeenCalledWith('openrouter', 'anthropic/claude');
   });
 
   it('aborts the pi session when the signal fires', async () => {
@@ -107,11 +91,5 @@ describe('runAgent', () => {
 
     await expect(runAgent(invocation({signal: ac.signal}))).rejects.toThrow('aborted');
     expect(createAgentSessionMock).not.toHaveBeenCalled();
-  });
-
-  it('throws when the model cannot be resolved', async () => {
-    findMock.mockReturnValue(undefined);
-
-    await expect(runAgent(invocation({model: 'bogus'}))).rejects.toThrow('Unknown agent model');
   });
 });

@@ -1,14 +1,6 @@
-import {
-  AuthStorage,
-  type CreateAgentSessionOptions,
-  createAgentSession,
-  ModelRegistry,
-} from '@earendil-works/pi-coding-agent';
+import {type CreateAgentSessionOptions, createAgentSession} from '@earendil-works/pi-coding-agent';
 
-type PiModel = NonNullable<CreateAgentSessionOptions['model']>;
 type PiThinkingLevel = NonNullable<CreateAgentSessionOptions['thinkingLevel']>;
-
-const DEFAULT_PROVIDER = 'anthropic';
 
 export interface AgentInvocation {
   readonly cwd: string;
@@ -27,7 +19,7 @@ export interface AgentInvocation {
  * observability and never sent to the API, so it is optional.
  */
 export async function runAgent(invocation: AgentInvocation): Promise<{summary?: string}> {
-  const {cwd, model: modelSpec, thinking, prompt, signal} = invocation;
+  const {cwd, thinking, prompt, signal} = invocation;
 
   // A listener added to an already-aborted signal never fires, so an abort that lands
   // before this point (or during the awaits below) would leave pi running and burning
@@ -35,15 +27,9 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   // session exists so a mid-creation abort still stops pi.
   if (signal.aborted) throw new Error('Agent step aborted before the pi session started');
 
-  const authStorage = AuthStorage.create();
-  const modelRegistry = ModelRegistry.create(authStorage);
-
   const {session} = await createAgentSession({
     cwd,
-    model: resolveModel(modelRegistry, modelSpec),
     thinkingLevel: thinking as PiThinkingLevel,
-    authStorage,
-    modelRegistry,
   });
 
   // session.abort() returns a promise; a rejected abort must not become an unhandled
@@ -64,22 +50,4 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   } finally {
     signal.removeEventListener('abort', abortSession);
   }
-}
-
-// pi resolves a model from its registry by (provider, modelId). The workflow `model`
-// is free text: "provider/modelId" selects a provider explicitly; a bare id assumes
-// Anthropic, matching v1's Anthropic-first default. An unresolvable model throws,
-// which the step records as `agent_invocation_failed`.
-function resolveModel(registry: ModelRegistry, spec: string): PiModel {
-  const separator = spec.indexOf('/');
-  const [provider, modelId] =
-    separator > 0
-      ? [spec.slice(0, separator), spec.slice(separator + 1)]
-      : [DEFAULT_PROVIDER, spec];
-
-  const model = registry.find(provider, modelId);
-  if (!model) {
-    throw new Error(`Unknown agent model "${spec}" (provider "${provider}", model "${modelId}")`);
-  }
-  return model;
 }
