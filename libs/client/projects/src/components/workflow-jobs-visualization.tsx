@@ -1,16 +1,6 @@
 import type {JobDto, StepAttemptDto, StepDto} from '@shipfox/api-workflows-dto';
-import {
-  Badge,
-  type BadgeVariant,
-  Card,
-  CardContent,
-  CardHeader,
-  cn,
-  Header,
-  Icon,
-  Text,
-} from '@shipfox/react-ui';
-import type {ReactNode} from 'react';
+import {Badge, type BadgeVariant, Card, CardHeader, cn, Header, Text} from '@shipfox/react-ui';
+import {Fragment} from 'react';
 import {StatusDot, type StatusDotVariant} from './status-dot.js';
 
 export type WorkflowJobDto = JobDto & {
@@ -29,8 +19,6 @@ export interface WorkflowJobNode {
   blockedBy: string[];
   position: number;
   column: number;
-  stepCount: number | null;
-  attemptCount: number | null;
 }
 
 export interface WorkflowJobsVisualizationProps {
@@ -80,71 +68,37 @@ export function WorkflowJobsVisualization({
     );
   }
 
-  const columns = groupByColumn(nodes);
-  const summary = summarizeJobs(nodes);
-
   return (
-    <Card role="region" aria-label="Workflow jobs" className="gap-20 p-16">
-      <CardHeader className="flex-row items-start justify-between gap-16">
-        <div className="flex min-w-0 flex-col gap-4">
-          <Header variant="h3">{title}</Header>
-          <Text size="sm" className="text-foreground-neutral-muted">
-            {summary.total} {pluralize('job', summary.total)} across {columns.length}{' '}
-            {pluralize('stage', columns.length)}
-          </Text>
-        </div>
-        <div className="flex shrink-0 flex-wrap justify-end gap-6">
-          {summary.running > 0 ? (
-            <SummaryBadge variant="info" label={`${summary.running} running`} />
-          ) : null}
-          {summary.failed > 0 ? (
-            <SummaryBadge variant="error" label={`${summary.failed} failed`} />
-          ) : null}
-          {summary.blocked > 0 ? (
-            <SummaryBadge variant="warning" label={`${summary.blocked} blocked`} />
-          ) : null}
-          {summary.succeeded > 0 ? (
-            <SummaryBadge variant="success" label={`${summary.succeeded} succeeded`} />
-          ) : null}
-        </div>
+    <Card role="region" aria-label="Workflow jobs" className="gap-16 p-16">
+      <CardHeader>
+        <Header variant="h3">{title}</Header>
+        <Text size="sm" className="text-foreground-neutral-muted">
+          {nodes.length} {pluralize('job', nodes.length)} in this run
+        </Text>
       </CardHeader>
 
-      <CardContent className="overflow-x-auto">
-        <div
-          className="grid min-w-[720px] gap-16"
-          style={{gridTemplateColumns: `repeat(${columns.length}, minmax(168px, 1fr))`}}
-        >
-          {columns.map((column, index) => (
-            <section
-              key={`stage-${column[0]?.column ?? 'empty'}`}
-              className="flex min-w-0 flex-col gap-10"
-              aria-label={`Stage ${index + 1}`}
-            >
-              <div className="flex h-24 items-center gap-8">
-                <Text size="xs" bold className="text-foreground-neutral-muted">
-                  Stage {index + 1}
-                </Text>
-                <span className="h-px flex-1 bg-border-neutral-base" aria-hidden="true" />
-              </div>
-              <div className="flex flex-col gap-12">
-                {column.map((node) => (
-                  <WorkflowJobCard
-                    key={node.id}
-                    node={node}
-                    selected={node.id === selectedJobId}
-                    focused={node.id === focusedJobId}
-                    showInbound={node.dependencies.length > 0}
-                    showOutbound={nodes.some((candidate) =>
-                      candidate.dependencies.includes(node.id),
-                    )}
-                    onSelectJob={onSelectJob}
-                  />
-                ))}
-              </div>
-            </section>
+      <div className="overflow-x-auto">
+        <ol className="flex min-w-max items-stretch gap-0" aria-label="Execution graph">
+          <li className="flex items-center">
+            <TriggerNode />
+          </li>
+          {nodes.map((node) => (
+            <Fragment key={node.id}>
+              <li className="flex items-center" aria-hidden="true">
+                <Connector error={node.blockedBy.length > 0} />
+              </li>
+              <li className="flex items-center">
+                <JobNode
+                  node={node}
+                  selected={node.id === selectedJobId}
+                  focused={node.id === focusedJobId}
+                  onSelectJob={onSelectJob}
+                />
+              </li>
+            </Fragment>
           ))}
-        </div>
-      </CardContent>
+        </ol>
+      </div>
     </Card>
   );
 }
@@ -193,89 +147,61 @@ export function toWorkflowJobNodes(jobs: readonly WorkflowJobDto[]): WorkflowJob
         blockedBy,
         position: job.position,
         column: columnFor(job),
-        stepCount: job.steps ? job.steps.length : null,
-        attemptCount: maxAttempt(job.steps),
       };
     });
 }
 
-function WorkflowJobCard({
+function TriggerNode() {
+  return (
+    <div className="flex h-full min-w-160 flex-col gap-6 rounded-8 border border-border-neutral-base bg-background-components-base p-12">
+      <Text size="xs" bold className="font-mono text-foreground-neutral-muted">
+        trigger
+      </Text>
+      <Text size="sm" bold className="truncate">
+        Workflow run
+      </Text>
+    </div>
+  );
+}
+
+function JobNode({
   node,
   selected,
   focused,
-  showInbound,
-  showOutbound,
   onSelectJob,
 }: {
   node: WorkflowJobNode;
   selected: boolean;
   focused: boolean;
-  showInbound: boolean;
-  showOutbound: boolean;
   onSelectJob?: ((jobId: string) => void) | undefined;
 }) {
   const content = (
     <>
-      <DependencyConnector
-        inbound={showInbound}
-        outbound={showOutbound}
-        error={node.blockedBy.length > 0}
-      />
-      <div className="flex min-w-0 items-start justify-between gap-10">
-        <div className="flex min-w-0 items-center gap-8">
-          <StatusDot variant={node.statusDotVariant} pulse={node.status === 'running'} />
-          <Text size="sm" bold className="truncate">
-            {node.name}
-          </Text>
-        </div>
-        <Badge variant={node.statusVariant} size="2xs">
-          {node.statusLabel}
-        </Badge>
+      <div className="flex min-w-0 items-center gap-8">
+        <StatusDot variant={node.statusDotVariant} pulse={node.status === 'running'} />
+        <Text size="sm" bold className="truncate font-mono">
+          {node.name}
+        </Text>
       </div>
 
-      <div className="flex flex-wrap gap-6">
-        {node.stepCount === null ? null : (
-          <MetadataChip
-            icon="listCheck3"
-            label={`${node.stepCount} ${pluralize('step', node.stepCount)}`}
-          />
-        )}
-        {node.attemptCount && node.attemptCount > 1 ? (
-          <MetadataChip icon="restartLine" label={`Attempt ${node.attemptCount}`} />
-        ) : null}
-      </div>
+      <Badge variant={node.statusVariant} size="2xs" className="self-start">
+        {node.statusLabel}
+      </Badge>
 
       {node.dependencyNames.length > 0 ? (
-        <div className="flex flex-col gap-4">
-          <Text size="xs" className="text-foreground-neutral-muted">
-            Needs
-          </Text>
-          <div className="flex flex-wrap gap-4">
-            {node.dependencies.map((dependencyId, index) => (
-              <Badge
-                key={dependencyId}
-                variant="neutral"
-                size="2xs"
-                radius="rounded"
-                className="max-w-full"
-              >
-                <span className="truncate">{node.dependencyNames[index] ?? dependencyId}</span>
-              </Badge>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {node.blockedBy.length > 0 ? (
-        <Text size="xs" className="text-tag-error-text">
-          Blocked by {node.blockedBy.join(', ')}
+        <Text
+          size="xs"
+          className="truncate font-mono text-foreground-neutral-muted"
+          title={`needs ${node.dependencyNames.join(', ')}`}
+        >
+          {`↳ needs ${node.dependencyNames.join(', ')}`}
         </Text>
       ) : null}
     </>
   );
 
   const className = cn(
-    'relative flex min-h-120 min-w-0 flex-col gap-10 rounded-8 border bg-background-components-base p-12 text-left transition-colors',
+    'flex h-full min-w-160 max-w-240 flex-col gap-8 rounded-8 border bg-background-components-base p-12 text-left transition-colors',
     selected
       ? 'border-border-highlights-interactive ring-1 ring-border-highlights-interactive'
       : 'border-border-neutral-base',
@@ -299,51 +225,24 @@ function WorkflowJobCard({
   );
 }
 
-function DependencyConnector({
-  inbound,
-  outbound,
-  error,
-}: {
-  inbound: boolean;
-  outbound: boolean;
-  error: boolean;
-}) {
-  const color = error ? 'bg-tag-error-border' : 'bg-border-neutral-strong';
+function Connector({error}: {error: boolean}) {
   return (
-    <span className="pointer-events-none absolute inset-y-0 left-0 right-0" aria-hidden="true">
-      {inbound ? (
-        <span className={cn('absolute left-0 top-1/2 h-px w-12 -translate-x-full', color)} />
-      ) : null}
-      {outbound ? (
-        <span className={cn('absolute right-0 top-1/2 h-px w-12 translate-x-full', color)} />
-      ) : null}
+    <span
+      className={cn('px-6', error ? 'text-tag-error-text' : 'text-border-neutral-strong')}
+      aria-hidden="true"
+    >
+      <svg width="32" height="16" viewBox="0 0 32 16" fill="none" role="img">
+        <title>leads to</title>
+        <line x1="0" y1="8" x2="24" y2="8" stroke="currentColor" strokeWidth="1.5" />
+        <path
+          d="M22 4l5 4-5 4"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
     </span>
-  );
-}
-
-function SummaryBadge({variant, label}: {variant: BadgeVariant; label: string}) {
-  return (
-    <Badge variant={variant} size="2xs" radius="rounded">
-      {label}
-    </Badge>
-  );
-}
-
-function MetadataChip({icon, label}: {icon: Parameters<typeof Icon>[0]['name']; label: ReactNode}) {
-  return (
-    <span className="inline-flex h-20 items-center gap-4 rounded-full border border-border-neutral-base px-6 text-foreground-neutral-muted">
-      <Icon name={icon} className="size-12" />
-      <Text size="xs" as="span">
-        {label}
-      </Text>
-    </span>
-  );
-}
-
-function groupByColumn(nodes: readonly WorkflowJobNode[]) {
-  const maxColumn = Math.max(...nodes.map((node) => node.column));
-  return Array.from({length: maxColumn + 1}, (_, column) =>
-    nodes.filter((node) => node.column === column).sort((a, b) => a.position - b.position),
   );
 }
 
@@ -357,25 +256,6 @@ function titleizeStatus(status: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
-}
-
-function maxAttempt(steps: WorkflowJobDto['steps']): number | null {
-  if (!steps) return null;
-  const attempts = steps.flatMap((step) => [
-    step.current_attempt,
-    ...(step.attempts ?? []).map((attempt) => attempt.attempt),
-  ]);
-  return attempts.length === 0 ? null : Math.max(...attempts);
-}
-
-function summarizeJobs(nodes: readonly WorkflowJobNode[]) {
-  return {
-    total: nodes.length,
-    running: nodes.filter((node) => node.status === 'running').length,
-    failed: nodes.filter((node) => node.status === 'failed').length,
-    blocked: nodes.filter((node) => node.blockedBy.length > 0).length,
-    succeeded: nodes.filter((node) => node.status === 'succeeded').length,
-  };
 }
 
 function pluralize(word: string, count: number): string {

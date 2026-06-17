@@ -1,27 +1,13 @@
-import {
-  type JobDto,
-  jobDtoSchema,
-  type StepAttemptDto,
-  type StepDto,
-  stepAttemptDtoSchema,
-  stepDtoSchema,
-} from '@shipfox/api-workflows-dto';
+import {type JobDto, jobDtoSchema} from '@shipfox/api-workflows-dto';
 import {fireEvent, render, screen, within} from '@testing-library/react';
-import {z} from 'zod';
 import {type WorkflowJobDto, WorkflowJobsVisualization} from './workflow-jobs-visualization.js';
 
-const GATE_LABEL_PATTERN = /gate/i;
-const RESTART_LABEL_PATTERN = /restart/i;
 const DEPLOY_BUTTON_LABEL_PATTERN = /^deploy\b/;
 const BUILD_BUTTON_LABEL_PATTERN = /^build\b/;
+const NEEDS_BUILD_PATTERN = /↳ needs build/;
+const JOB_NAME_PATTERN = /^(build|test|deploy)$/;
 
-const jobWithStepsSchema = jobDtoSchema.extend({
-  steps: z.array(stepDtoSchema.extend({attempts: z.array(stepAttemptDtoSchema)})).optional(),
-});
-
-type WorkflowJobStep = StepDto & {attempts: StepAttemptDto[]};
-
-function makeJob(overrides: Partial<JobDto> & {steps?: WorkflowJobDto['steps']}): WorkflowJobDto {
+function makeJob(overrides: Partial<JobDto>): WorkflowJobDto {
   const job = {
     id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f001',
     run_id: '018fd019-2b2b-7cc3-98d4-0b4f91b7e000',
@@ -34,65 +20,23 @@ function makeJob(overrides: Partial<JobDto> & {steps?: WorkflowJobDto['steps']})
     ...overrides,
   };
 
-  return jobWithStepsSchema.parse(job);
-}
-
-function makeStep(overrides: Partial<StepDto> & {attempts?: StepAttemptDto[]}): WorkflowJobStep {
-  const step = {
-    id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f101',
-    job_id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f001',
-    name: 'Install',
-    source_location: null,
-    status: 'succeeded',
-    type: 'run',
-    config: {run: 'pnpm install'},
-    error: null,
-    position: 0,
-    current_attempt: 1,
-    created_at: '2026-06-16T10:00:00.000Z',
-    updated_at: '2026-06-16T10:01:00.000Z',
-    attempts: [],
-    ...overrides,
-  };
-
-  return stepDtoSchema.extend({attempts: z.array(stepAttemptDtoSchema)}).parse(step);
-}
-
-function makeAttempt(overrides: Partial<StepAttemptDto>): StepAttemptDto {
-  const attempt = {
-    id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f201',
-    step_id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f101',
-    job_id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f001',
-    attempt: 1,
-    status: 'succeeded',
-    exit_code: 0,
-    output: null,
-    error: null,
-    gate_result: null,
-    restart_reason: null,
-    restart_result: null,
-    started_at: '2026-06-16T10:00:00.000Z',
-    finished_at: '2026-06-16T10:01:00.000Z',
-    ...overrides,
-  };
-
-  return stepAttemptDtoSchema.parse(attempt);
+  return jobDtoSchema.parse(job);
 }
 
 describe('WorkflowJobsVisualization', () => {
-  test('renders a single job with status and step count', () => {
-    const jobs = [makeJob({name: 'build', steps: [makeStep({})]})];
+  test('renders a single job with its status inside the execution graph', () => {
+    const jobs = [makeJob({name: 'build', status: 'succeeded'})];
 
     render(<WorkflowJobsVisualization jobs={jobs} />);
 
     expect(screen.getByRole('region', {name: 'Workflow jobs'})).toBeInTheDocument();
-    expect(screen.getByText('1 job across 1 stage')).toBeInTheDocument();
+    expect(screen.getByText('1 job in this run')).toBeInTheDocument();
+    expect(screen.getByText('trigger')).toBeInTheDocument();
     expect(screen.getByText('build')).toBeInTheDocument();
     expect(screen.getByText('Succeeded')).toBeInTheDocument();
-    expect(screen.getByText('1 step')).toBeInTheDocument();
   });
 
-  test('lays out dependent jobs by stage and shows dependency chips', () => {
+  test('lays out dependent jobs left to right with a needs hint', () => {
     const build = makeJob({
       id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f001',
       name: 'build',
@@ -113,11 +57,14 @@ describe('WorkflowJobsVisualization', () => {
 
     render(<WorkflowJobsVisualization jobs={[deploy, test, build]} />);
 
-    expect(screen.getByText('3 jobs across 3 stages')).toBeInTheDocument();
-    expect(screen.getByRole('region', {name: 'Stage 1'})).toHaveTextContent('build');
-    expect(screen.getByRole('region', {name: 'Stage 2'})).toHaveTextContent('test');
-    expect(screen.getByRole('region', {name: 'Stage 3'})).toHaveTextContent('deploy');
-    expect(screen.getAllByText('Needs')).toHaveLength(2);
+    expect(screen.getByText('3 jobs in this run')).toBeInTheDocument();
+    const nodeNames = screen
+      .getAllByRole('listitem')
+      .flatMap((item) => within(item).queryAllByText(JOB_NAME_PATTERN))
+      .map((node) => node.textContent);
+    expect(nodeNames).toEqual(['build', 'test', 'deploy']);
+    expect(screen.getByText('↳ needs build')).toBeInTheDocument();
+    expect(screen.getByText('↳ needs test')).toBeInTheDocument();
   });
 
   test('renders selected job state and calls the selection callback', () => {
@@ -140,10 +87,21 @@ describe('WorkflowJobsVisualization', () => {
 
     const deployButton = screen.getByRole('button', {name: DEPLOY_BUTTON_LABEL_PATTERN});
     expect(deployButton).toHaveAttribute('aria-pressed', 'true');
+    const buildButton = screen.getByRole('button', {name: BUILD_BUTTON_LABEL_PATTERN});
+    expect(buildButton).toHaveAttribute('aria-pressed', 'false');
 
-    fireEvent.click(screen.getByRole('button', {name: BUILD_BUTTON_LABEL_PATTERN}));
+    fireEvent.click(buildButton);
 
     expect(onSelectJob).toHaveBeenCalledWith(build.id);
+  });
+
+  test('renders job nodes as static articles when no selection handler is given', () => {
+    render(<WorkflowJobsVisualization jobs={[makeJob({name: 'build'})]} />);
+
+    expect(
+      screen.queryByRole('button', {name: BUILD_BUTTON_LABEL_PATTERN}),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('build').closest('article')).not.toBe(null);
   });
 
   test('renders focused job state independently from selection', () => {
@@ -182,9 +140,7 @@ describe('WorkflowJobsVisualization', () => {
     const deployCard = screen.getByText('deploy').closest('article');
     expect(deployCard).not.toBe(null);
     expect(within(deployCard as HTMLElement).getByText('Blocked')).toBeInTheDocument();
-    expect(within(deployCard as HTMLElement).getByText('Blocked by build')).toBeInTheDocument();
-    expect(screen.getByText('1 failed')).toBeInTheDocument();
-    expect(screen.getByText('1 blocked')).toBeInTheDocument();
+    expect(within(deployCard as HTMLElement).getByText(NEEDS_BUILD_PATTERN)).toBeInTheDocument();
   });
 
   test('renders cancelled and unknown statuses without failing', () => {
@@ -204,47 +160,6 @@ describe('WorkflowJobsVisualization', () => {
 
     expect(screen.getByText('Cancelled')).toBeInTheDocument();
     expect(screen.getByText('Runner Disappeared')).toBeInTheDocument();
-  });
-
-  test('shows attempt-cycle markers from typed attempt numbers only', () => {
-    const attempts = [
-      makeAttempt({attempt: 1, status: 'failed', exit_code: 1}),
-      makeAttempt({
-        id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f202',
-        attempt: 2,
-        status: 'succeeded',
-        exit_code: 0,
-      }),
-    ];
-
-    render(
-      <WorkflowJobsVisualization
-        jobs={[
-          makeJob({
-            name: 'deploy',
-            steps: [makeStep({current_attempt: 2, attempts})],
-          }),
-        ]}
-      />,
-    );
-
-    expect(screen.getByText('Attempt 2')).toBeInTheDocument();
-  });
-
-  test('does not render gate or restart labels from opaque audit blobs', () => {
-    const attempt = makeAttempt({
-      gate_result: {kind: 'unknown', data: {kind: 'evaluated', passed: false}},
-      restart_reason: 'gate_failed',
-    });
-
-    render(
-      <WorkflowJobsVisualization
-        jobs={[makeJob({name: 'deploy', steps: [makeStep({attempts: [attempt]})]})]}
-      />,
-    );
-
-    expect(screen.queryByText(GATE_LABEL_PATTERN)).not.toBeInTheDocument();
-    expect(screen.queryByText(RESTART_LABEL_PATTERN)).not.toBeInTheDocument();
   });
 
   test('renders an empty state when a run has no jobs', () => {

@@ -1,21 +1,7 @@
-import {
-  type JobDto,
-  jobDtoSchema,
-  type StepAttemptDto,
-  type StepDto,
-  stepAttemptDtoSchema,
-  stepDtoSchema,
-} from '@shipfox/api-workflows-dto';
-import {z} from 'zod';
+import {type JobDto, jobDtoSchema} from '@shipfox/api-workflows-dto';
 import {toWorkflowJobNodes, type WorkflowJobDto} from './workflow-jobs-visualization.js';
 
-const jobWithStepsSchema = jobDtoSchema.extend({
-  steps: z.array(stepDtoSchema.extend({attempts: z.array(stepAttemptDtoSchema)})).optional(),
-});
-
-type WorkflowJobStep = StepDto & {attempts: StepAttemptDto[]};
-
-function makeJob(overrides: Partial<JobDto> & {steps?: WorkflowJobDto['steps']}): WorkflowJobDto {
+function makeJob(overrides: Partial<JobDto>): WorkflowJobDto {
   const job = {
     id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f001',
     run_id: '018fd019-2b2b-7cc3-98d4-0b4f91b7e000',
@@ -28,49 +14,7 @@ function makeJob(overrides: Partial<JobDto> & {steps?: WorkflowJobDto['steps']})
     ...overrides,
   };
 
-  return jobWithStepsSchema.parse(job);
-}
-
-function makeStep(overrides: Partial<StepDto> & {attempts?: StepAttemptDto[]}): WorkflowJobStep {
-  const step = {
-    id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f101',
-    job_id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f001',
-    name: 'Install',
-    source_location: null,
-    status: 'succeeded',
-    type: 'run',
-    config: {run: 'pnpm install'},
-    error: null,
-    position: 0,
-    current_attempt: 1,
-    created_at: '2026-06-16T10:00:00.000Z',
-    updated_at: '2026-06-16T10:01:00.000Z',
-    attempts: [],
-    ...overrides,
-  };
-
-  return stepDtoSchema.extend({attempts: z.array(stepAttemptDtoSchema)}).parse(step);
-}
-
-function makeAttempt(overrides: Partial<StepAttemptDto>): StepAttemptDto {
-  const attempt = {
-    id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f201',
-    step_id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f101',
-    job_id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f001',
-    attempt: 1,
-    status: 'succeeded',
-    exit_code: 0,
-    output: null,
-    error: null,
-    gate_result: null,
-    restart_reason: null,
-    restart_result: null,
-    started_at: '2026-06-16T10:00:00.000Z',
-    finished_at: '2026-06-16T10:01:00.000Z',
-    ...overrides,
-  };
-
-  return stepAttemptDtoSchema.parse(attempt);
+  return jobDtoSchema.parse(job);
 }
 
 describe('toWorkflowJobNodes', () => {
@@ -197,23 +141,41 @@ describe('toWorkflowJobNodes', () => {
     });
   });
 
-  test('derives typed attempt count from step attempts', () => {
-    const attempts = [
-      makeAttempt({attempt: 1, status: 'failed', exit_code: 1}),
-      makeAttempt({
-        id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f202',
-        attempt: 3,
-        status: 'succeeded',
-        exit_code: 0,
-      }),
-    ];
-    const deploy = makeJob({
-      name: 'deploy',
-      steps: [makeStep({current_attempt: 2, attempts})],
+  test('orders nodes by job position regardless of input order', () => {
+    const first = makeJob({
+      id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f001',
+      name: 'first',
+      position: 0,
+    });
+    const second = makeJob({
+      id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f002',
+      name: 'second',
+      position: 1,
+    });
+    const third = makeJob({
+      id: '018fd019-2b2b-7cc3-98d4-0b4f91b7f003',
+      name: 'third',
+      position: 2,
     });
 
-    const nodes = toWorkflowJobNodes([deploy]);
+    const nodes = toWorkflowJobNodes([third, first, second]);
 
-    expect(nodes[0]?.attemptCount).toBe(3);
+    expect(nodes.map((node) => node.name)).toEqual(['first', 'second', 'third']);
+  });
+
+  test('maps a healthy single job to neutral-or-status visuals without blocking', () => {
+    const build = makeJob({name: 'build', status: 'running'});
+
+    const nodes = toWorkflowJobNodes([build]);
+
+    expect(nodes[0]).toMatchObject({
+      name: 'build',
+      status: 'running',
+      statusLabel: 'Running',
+      statusVariant: 'info',
+      statusDotVariant: 'info',
+      blockedBy: [],
+      dependencyNames: [],
+    });
   });
 });
