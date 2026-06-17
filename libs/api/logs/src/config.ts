@@ -15,11 +15,11 @@ export const config = createConfig({
   }),
   LOG_STORAGE_S3_ACCESS_KEY_ID: str({
     desc: 'Access key id used to authenticate to the object store. Defaults to the local-development Garage key; set real credentials for production.',
-    default: 'GKc0ffeec0ffeec0ffeec0ffee',
+    default: 'GK000000000000000000000000',
   }),
   LOG_STORAGE_S3_SECRET_ACCESS_KEY: str({
     desc: 'Secret access key used to authenticate to the object store. Defaults to the local-development Garage secret; set real credentials for production.',
-    default: 'c0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ff',
+    default: '0000000000000000000000000000000000000000000000000000000000000000',
   }),
   LOG_STORAGE_S3_FORCE_PATH_STYLE: bool({
     desc: 'Whether to address the bucket as a path (endpoint/bucket) instead of a subdomain. Set it to true for Garage and MinIO; false works for AWS S3.',

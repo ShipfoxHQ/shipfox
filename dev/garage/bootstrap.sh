@@ -8,10 +8,10 @@ set -eu
 GARAGE_URL="${GARAGE_URL:-http://localhost:3903}"
 ADMIN_TOKEN="${GARAGE_ADMIN_TOKEN:-shipfox-dev-admin-token}"
 BUCKET="shipfox-logs"
-KEY_NAME="shipfox-dev"
-ACCESS_KEY_ID="GKc0ffeec0ffeec0ffeec0ffee"
-SECRET_ACCESS_KEY="c0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ff"
-ZONE="dc1"
+KEY_NAME="local-dev"
+ACCESS_KEY_ID="GK000000000000000000000000"
+SECRET_ACCESS_KEY="0000000000000000000000000000000000000000000000000000000000000000"
+ZONE="local"
 CAPACITY=1000000000 # 1G, in bytes
 
 api() {

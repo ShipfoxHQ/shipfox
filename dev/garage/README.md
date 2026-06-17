@@ -10,7 +10,7 @@ in production.
 | Endpoint | `http://localhost:3900` |
 | Region | `garage` |
 | Bucket | `shipfox-logs` |
-| Access key id | `GKc0ffeec0ffeec0ffeec0ffee` |
+| Access key id | `GK000000000000000000000000` |
 
 The secret in `garage.toml` and the access key are **development-only**.
 Generate fresh credentials for any shared or production environment, and set the
