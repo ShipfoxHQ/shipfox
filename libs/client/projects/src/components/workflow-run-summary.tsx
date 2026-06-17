@@ -34,18 +34,20 @@ export function WorkflowRunSummary({
     >
       <StatusDot variant={summary.dotVariant} pulse={summary.status === 'running'} />
       <div className="flex w-190 shrink-0 flex-col gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Header
-              as="h2"
-              variant="h3"
-              className="truncate font-code tabular-nums text-foreground-neutral-base"
-            >
-              Run {summary.shortId}
-            </Header>
-          </TooltipTrigger>
-          <TooltipContent>{summary.id}</TooltipContent>
-        </Tooltip>
+        <Header as="h2" variant="h3" className="truncate text-foreground-neutral-base">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="max-w-full truncate rounded-4 font-code tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-border-interactive-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background-neutral-base"
+                aria-label={`Full run id ${summary.id}`}
+              >
+                Run {summary.shortId}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{summary.id}</TooltipContent>
+          </Tooltip>
+        </Header>
         <Text size="xs" className="truncate text-foreground-neutral-muted">
           {summary.name}
         </Text>
@@ -60,13 +62,11 @@ export function WorkflowRunSummary({
         </Code>
       </MetadataItem>
 
-      {summary.triggerPayloadLabel ? (
-        <MetadataItem icon="externalLinkLine" className="max-w-200">
-          <Code variant="label" className="truncate text-foreground-neutral-muted">
-            {summary.triggerPayloadLabel}
-          </Code>
-        </MetadataItem>
-      ) : null}
+      <MetadataItem icon="externalLinkLine" className="max-w-200">
+        <Code variant="label" className="truncate text-foreground-neutral-muted">
+          {summary.triggerPayloadLabel}
+        </Code>
+      </MetadataItem>
 
       <span className="min-w-12 flex-1" />
 

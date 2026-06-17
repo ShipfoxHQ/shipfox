@@ -26,7 +26,7 @@ export interface WorkflowRunSummaryModel {
   statusVariant: StatusVariant;
   dotVariant: StatusDotVariant;
   triggerLabel: string;
-  triggerPayloadLabel: string | null;
+  triggerPayloadLabel: string;
   triggerIcon: IconName;
   createdAt: string;
   updatedAt: string;
@@ -86,6 +86,5 @@ function triggerIconName(source: string): IconName {
 
 function summarizeTriggerPayload(payload: Record<string, unknown>) {
   const fieldCount = Object.keys(payload).length;
-  if (fieldCount === 0) return null;
   return `${fieldCount} payload ${fieldCount === 1 ? 'field' : 'fields'}`;
 }

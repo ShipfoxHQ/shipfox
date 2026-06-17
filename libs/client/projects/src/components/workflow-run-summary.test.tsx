@@ -11,7 +11,6 @@ import {WorkflowRunSummaryPreview} from './workflow-run-summary.preview.js';
 
 const createdText = /created/i;
 const updatedText = /updated/i;
-const payloadText = /payload/;
 
 function renderSummary(run: Parameters<typeof WorkflowRunSummary>[0]['run']) {
   return render(
@@ -57,7 +56,15 @@ describe('WorkflowRunSummary', () => {
     renderSummary(missingTriggerWorkflowRunSummaryFixture);
 
     expect(screen.getByText('unknown trigger')).toBeInTheDocument();
-    expect(screen.queryByText(payloadText)).not.toBeInTheDocument();
+    expect(screen.getByText('0 payload fields')).toBeInTheDocument();
+  });
+
+  test('exposes the full run id tooltip trigger to keyboard users', () => {
+    renderSummary(failedWorkflowRunSummaryFixture);
+
+    expect(
+      screen.getByRole('button', {name: `Full run id ${failedWorkflowRunSummaryFixture.id}`}),
+    ).toBeInTheDocument();
   });
 
   test('provides an isolated preview fixture for failed, running, and succeeded runs', () => {
