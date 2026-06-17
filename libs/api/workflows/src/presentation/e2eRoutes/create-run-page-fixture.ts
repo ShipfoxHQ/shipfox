@@ -10,12 +10,12 @@ import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {
   createWorkflowRun,
   getJobsByRunId,
+  getWorkflowRunById,
   listWorkflowRuns,
-  updateJobStatus,
-  updateWorkflowRunStatus,
 } from '#db/index.js';
 import {toRunDetailDto} from '#presentation/dto/run-detail.js';
 import {toRunDto} from '#presentation/dto/workflow-run.js';
+import {setJobStatus, setRunStatus} from '#temporal/activities/orchestration-activities.js';
 
 type Scenario = 'succeeded' | 'failed' | 'running';
 type TerminalScenario = Exclude<Scenario, 'running'>;
@@ -117,12 +117,18 @@ async function startRun(params: {workspaceId: string; projectId: string; scenari
     inputs: {environment: 'production', ref: 'main'},
   });
 
-  return await updateWorkflowRunStatus({runId: run.id, status: 'running', expectedVersion: 1});
+  const {newVersion} = await setRunStatus({runId: run.id, status: 'running', version: 1});
+  const running = await getWorkflowRunById(run.id);
+  if (!running) throw new Error(`Run not found: ${run.id}`);
+  if (running.version !== newVersion) {
+    throw new Error(`Run ${run.id} version mismatch after status update`);
+  }
+  return running;
 }
 
 async function startJob(jobId: string): Promise<number> {
-  const job = await updateJobStatus({jobId, status: 'running', expectedVersion: 1});
-  return job.version;
+  const {newVersion} = await setJobStatus({jobId, status: 'running', version: 1});
+  return newVersion;
 }
 
 async function finishJob(params: {
@@ -130,10 +136,10 @@ async function finishJob(params: {
   runningVersion: number;
   status: TerminalScenario;
 }): Promise<void> {
-  await updateJobStatus({
+  await setJobStatus({
     jobId: params.jobId,
     status: params.status,
-    expectedVersion: params.runningVersion,
+    version: params.runningVersion,
   });
 }
 
@@ -184,11 +190,16 @@ async function createSucceededRun(params: {workspaceId: string; projectId: strin
     await finishJob({jobId: job.id, runningVersion, status: 'succeeded'});
   }
 
-  const finished = await updateWorkflowRunStatus({
+  const {newVersion} = await setRunStatus({
     runId: run.id,
     status: 'succeeded',
-    expectedVersion: run.version,
+    version: run.version,
   });
+  const finished = await getWorkflowRunById(run.id);
+  if (!finished) throw new Error(`Run not found: ${run.id}`);
+  if (finished.version !== newVersion) {
+    throw new Error(`Run ${run.id} version mismatch after status update`);
+  }
   return await toRunDetailDto(finished);
 }
 
@@ -210,13 +221,18 @@ async function createFailedRun(params: {workspaceId: string; projectId: string})
     error: {message: 'Browser smoke failed on checkout summary', exitCode: 1},
   });
   await finishJob({jobId: test.id, runningVersion: testVersion, status: 'failed'});
-  await updateJobStatus({jobId: deploy.id, status: 'cancelled', expectedVersion: 1});
+  await setJobStatus({jobId: deploy.id, status: 'cancelled', version: 1});
 
-  const finished = await updateWorkflowRunStatus({
+  const {newVersion} = await setRunStatus({
     runId: run.id,
     status: 'failed',
-    expectedVersion: run.version,
+    version: run.version,
   });
+  const finished = await getWorkflowRunById(run.id);
+  if (!finished) throw new Error(`Run not found: ${run.id}`);
+  if (finished.version !== newVersion) {
+    throw new Error(`Run ${run.id} version mismatch after status update`);
+  }
   return await toRunDetailDto(finished);
 }
 

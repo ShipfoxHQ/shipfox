@@ -13,14 +13,26 @@ export async function toRunDetailDto(run: WorkflowRun): Promise<RunDetailRespons
     getStepAttemptsByJobIds(jobIds),
   ]);
 
+  const stepsByJobId = new Map<string, typeof allSteps>();
+  for (const step of allSteps) {
+    const steps = stepsByJobId.get(step.jobId) ?? [];
+    steps.push(step);
+    stepsByJobId.set(step.jobId, steps);
+  }
+
+  const attemptsByStepId = new Map<string, typeof allAttempts>();
+  for (const attempt of allAttempts) {
+    const attempts = attemptsByStepId.get(attempt.stepId) ?? [];
+    attempts.push(attempt);
+    attemptsByStepId.set(attempt.stepId, attempts);
+  }
+
   const jobDtos = runJobs.map((job) => ({
     ...toJobDto(job),
-    steps: allSteps
-      .filter((s) => s.jobId === job.id)
-      .map((step) => ({
-        ...toStepDto(step),
-        attempts: allAttempts.filter((a) => a.stepId === step.id).map(toStepAttemptDto),
-      })),
+    steps: (stepsByJobId.get(job.id) ?? []).map((step) => ({
+      ...toStepDto(step),
+      attempts: (attemptsByStepId.get(step.id) ?? []).map(toStepAttemptDto),
+    })),
   }));
 
   return {
