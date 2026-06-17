@@ -54,10 +54,11 @@ describe('toWorkflowRunSummary', () => {
     const result = toWorkflowRunSummary(missingTriggerWorkflowRunSummaryFixture);
 
     expect(result.triggerLabel).toBe('unknown trigger');
-    expect(result.triggerPayloadLabel).toBe(null);
+    expect(result.triggerPayloadLabel).toBe('0 payload fields');
   });
 
   test.each([
+    [{}, '0 payload fields'],
     [{branch: 'main'}, '1 payload field'],
     [{issue: 'SENTRY-CHKOUT-9002', retry: false}, '2 payload fields'],
   ])('summarizes payload shape generically', (triggerPayload, triggerPayloadLabel) => {
