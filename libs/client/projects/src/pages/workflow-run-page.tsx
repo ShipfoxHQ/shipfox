@@ -155,9 +155,9 @@ function WorkflowRunSuccessState({
             {selectedJob ? (
               <WorkflowStepList
                 job={selectedJob}
-                selectedStepId={selectedStep?.id}
+                {...(selectedStep ? {selectedStepId: selectedStep.id} : {})}
                 defaultExpandedStepIds={selectedStep ? [selectedStep.id] : []}
-                onSelectedStepChange={onSelectStep}
+                {...(onSelectStep ? {onSelectedStepChange: onSelectStep} : {})}
               />
             ) : (
               <EmptyState
@@ -203,6 +203,6 @@ function toSourceRange(step: RunDetailStepDto | null): WorkflowSourceLineRange |
   return {
     startLine: step.source_location.start_line,
     endLine: step.source_location.end_line,
-    label: step.name ?? undefined,
+    ...(step.name ? {label: step.name} : {}),
   };
 }

@@ -8,18 +8,9 @@ import {
 import {z} from 'zod';
 
 export const workflowStepOverviewStepSchema = stepDtoSchema.extend({
-  attempts: z.array(
-    stepAttemptDtoSchema.extend({
-      restart_result: z.record(z.string(), z.unknown()).nullable().optional(),
-    }),
-  ),
+  attempts: z.array(stepAttemptDtoSchema),
 });
-
-type WorkflowStepOverviewAttempt = StepAttemptDto & {
-  restart_result?: Record<string, unknown> | null | undefined;
-};
-
-export type WorkflowStepOverviewStep = StepDto & {attempts: WorkflowStepOverviewAttempt[]};
+export type WorkflowStepOverviewStep = StepDto & {attempts: StepAttemptDto[]};
 
 export interface WorkflowStepSelection {
   readonly jobName: string;
@@ -120,7 +111,7 @@ export function toWorkflowStepOverviewModel(
             : 'Still running',
           restartReason: currentAttempt.restart_reason,
           gateResultEntries: toOutputEntries(currentAttempt.gate_result),
-          restartResultEntries: toOutputEntries(currentAttempt.restart_result ?? null),
+          restartResultEntries: toOutputEntries(currentAttempt.restart_result),
         }
       : null,
     attempts: attempts.map((attempt) => ({
@@ -135,7 +126,7 @@ export function toWorkflowStepOverviewModel(
       finishedAtLabel: attempt.finished_at ? formatTimestamp(attempt.finished_at) : 'Still running',
       restartReason: attempt.restart_reason,
       gateResultEntries: toOutputEntries(attempt.gate_result),
-      restartResultEntries: toOutputEntries(attempt.restart_result ?? null),
+      restartResultEntries: toOutputEntries(attempt.restart_result),
     })),
     summary: buildSummary(selection.step, currentAttempt, attempts),
     outputEntries: toOutputEntries(currentAttempt?.output ?? null),

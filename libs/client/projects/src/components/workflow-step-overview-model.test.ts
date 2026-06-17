@@ -29,8 +29,8 @@ describe('toWorkflowStepOverviewModel', () => {
       value: 'exit_code == 0',
     });
     expect(model?.attempts[0]?.restartResultEntries).toContainEqual({
-      key: 'restart_from',
-      value: 'produce_fix',
+      key: 'reason',
+      value: 'Unit tests failed after the generated fix',
     });
     expect(model?.attempts[2]?.restartResultEntries).toContainEqual({
       key: 'kind',

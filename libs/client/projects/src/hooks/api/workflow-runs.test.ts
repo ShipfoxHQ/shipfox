@@ -26,7 +26,9 @@ describe('fireManualWorkflow', () => {
       definitionId: '55555555-5555-4555-8555-555555555555',
     });
 
-    const request = fetchImpl.mock.calls[0]?.[0] as Request;
+    const call = fetchImpl.mock.calls[0];
+    if (!call) throw new Error('Expected fireManualWorkflow to call fetch');
+    const request = call[0] as Request;
     expect(result.run_id).toBe('66666666-6666-4666-8666-666666666666');
     expect(request.url).toBe(
       'https://api.example.test/workflow-definitions/55555555-5555-4555-8555-555555555555/fire-manual',
@@ -58,7 +60,7 @@ describe('getWorkflowRun', () => {
   });
 
   test('requests the workflow run detail endpoint', async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL) =>
       jsonResponse({
         id: '66666666-6666-4666-8666-666666666666',
         jobs: [],
@@ -68,7 +70,9 @@ describe('getWorkflowRun', () => {
 
     const result = await getWorkflowRun({runId: '66666666-6666-4666-8666-666666666666'});
 
-    const request = fetchImpl.mock.calls[0]?.[0] as Request;
+    const call = fetchImpl.mock.calls[0];
+    if (!call) throw new Error('Expected getWorkflowRun to call fetch');
+    const request = call[0] as Request;
     expect(result.id).toBe('66666666-6666-4666-8666-666666666666');
     expect(request.url).toBe(
       'https://api.example.test/workflows/runs/66666666-6666-4666-8666-666666666666',
