@@ -56,11 +56,11 @@ describe('RunRow', () => {
     vi.useRealTimers();
   });
 
-  test('is not interactive — no role=button, no tabindex on the row', () => {
+  test('is presentational — the row itself carries no link/button role (RunsList owns navigation)', () => {
     const {container} = renderRow(makeRun());
 
     const row = container.firstChild as HTMLElement;
     expect(row.getAttribute('role')).not.toBe('button');
-    expect(row.getAttribute('tabindex')).toBe(null);
+    expect(row.tagName).not.toBe('A');
   });
 });

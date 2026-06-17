@@ -1,8 +1,12 @@
 import type {
+  JobDto,
   RunAggregatesResponseDto,
   RunDto,
   RunListResponseDto,
+  RunResponseDto,
   RunStatusDto,
+  StepAttemptDto,
+  StepDto,
 } from '@shipfox/api-workflows-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {
@@ -29,6 +33,7 @@ export const workflowRunsQueryKeys = {
     [...workflowRunsQueryKeys.lists(projectId), normalizeFilters(filters)] as const,
   aggregates: (projectId: string, filters: WorkflowRunFilters) =>
     [...workflowRunsQueryKeys.all, 'aggregates', projectId, normalizeFilters(filters)] as const,
+  detail: (runId: string) => [...workflowRunsQueryKeys.all, 'detail', runId] as const,
 };
 
 function normalizeFilters(filters: WorkflowRunFilters) {
@@ -165,6 +170,41 @@ export function useWorkflowRunAggregatesQuery(
     queryFn: ({signal}) => getWorkflowRunAggregates({projectId: projectId ?? '', filters, signal}),
     staleTime: 2_000,
     refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * The run detail read model returned by `GET /workflows/runs/:id`: a run plus its jobs,
+ * each job's steps, and each step's attempt history. The canonical response schema lives
+ * inline in the API route today; this mirrors it from the shared run/job/step DTOs until a
+ * dedicated run-detail DTO is exported.
+ */
+export type WorkflowRunStepDetailDto = StepDto & {attempts: StepAttemptDto[]};
+export type WorkflowRunJobDetailDto = JobDto & {steps: WorkflowRunStepDetailDto[]};
+export type WorkflowRunDetailDto = RunResponseDto & {jobs: WorkflowRunJobDetailDto[]};
+
+export async function getWorkflowRun({runId, signal}: {runId: string; signal?: AbortSignal}) {
+  return await apiRequest<WorkflowRunDetailDto>(`/workflows/runs/${runId}`, {signal});
+}
+
+export function useWorkflowRunQuery(runId: string | undefined) {
+  // Poll a non-terminal run so the open run detail stays live (same cadence as the run
+  // list); stop once the run is terminal. Tab-hidden polling pauses via
+  // refetchIntervalInBackground: false.
+  return useQuery({
+    queryKey: runId
+      ? workflowRunsQueryKeys.detail(runId)
+      : [...workflowRunsQueryKeys.all, 'detail'],
+    enabled: Boolean(runId),
+    queryFn: ({signal}) => getWorkflowRun({runId: runId ?? '', signal}),
+    staleTime: 2_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (!status) return false;
+      return TERMINAL_RUN_STATUSES.has(status) ? false : ACTIVE_POLL_MS;
+    },
+    refetchIntervalInBackground: false,
   });
 }
 

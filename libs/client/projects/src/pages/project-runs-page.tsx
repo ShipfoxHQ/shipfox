@@ -113,7 +113,7 @@ function ProjectRunsPageInner({projectId}: {projectId: string}) {
 
       {runs.length > 0 ? (
         <>
-          <RunsList runs={runs} />
+          <RunsList runs={runs} workspaceId={params.wid ?? ''} projectId={projectId} />
           {runsQuery.isFetchNextPageError ? (
             <Alert variant="error" animated={false}>
               <div className="flex items-center justify-between gap-12">
@@ -332,12 +332,33 @@ function RunsEmptyState({
   );
 }
 
-function RunsList({runs}: {runs: RunDto[]}) {
+function RunsList({
+  runs,
+  workspaceId,
+  projectId,
+}: {
+  runs: RunDto[];
+  workspaceId: string;
+  projectId: string;
+}) {
   return (
     <div className="flex flex-col divide-y divide-border-neutral-base rounded-8 border border-border-neutral-base bg-background-neutral-base">
-      {runs.map((run) => (
-        <RunRow key={run.id} run={run} />
-      ))}
+      {runs.map((run) =>
+        run.id.startsWith('temp-') ? (
+          // Optimistic manual runs (temp-<uuid>) have no detail page until the canonical
+          // row replaces them on the next poll, so they render non-interactively.
+          <RunRow key={run.id} run={run} />
+        ) : (
+          <Link
+            key={run.id}
+            to="/workspaces/$wid/projects/$pid/runs/$runId"
+            params={{wid: workspaceId, pid: projectId, runId: run.id}}
+            className="block outline-none focus-visible:shadow-border-interactive-with-active"
+          >
+            <RunRow run={run} />
+          </Link>
+        ),
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {ProjectRunsPage} from './project-runs-page.js';
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
 const REFRESH_BUTTON_RE = /refresh/i;
+const RUN_NAME_RE = /Deploy production/;
 
 describe('ProjectRunsPage', () => {
   test('renders run history, counts, and paginated load more', async () => {
@@ -62,6 +63,22 @@ describe('ProjectRunsPage', () => {
     fireEvent.click(clearFiltersButton);
 
     expect(await screen.findAllByText('Deploy production')).not.toHaveLength(0);
+  });
+
+  test('links each run row to its run detail page', async () => {
+    configureApiClient({fetchImpl: createRunsFetch()});
+
+    renderProjectPage(
+      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs`,
+      <ProjectRunsPage projectId={PROJECT_ID} />,
+    );
+
+    const runLink = await screen.findByRole('link', {name: RUN_NAME_RE});
+
+    expect(runLink).toHaveAttribute(
+      'href',
+      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/66666666-6666-4666-8666-666666666666`,
+    );
   });
 });
 

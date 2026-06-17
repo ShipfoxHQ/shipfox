@@ -18,6 +18,7 @@ import {CreateProjectPage} from '#pages/create-project-page.js';
 import {ProjectRunsPage} from '#pages/project-runs-page.js';
 import {ProjectWorkflowsPage} from '#pages/project-workflows-page.js';
 import {ProjectsHubPage} from '#pages/projects-hub-page.js';
+import {WorkflowRunPage} from '#pages/workflow-run-page.js';
 
 // All test renders that exercise pages requiring `useActiveWorkspace()` mount
 // under `/workspaces/$wid`. The seeded workspace id (see authState) is the wid
@@ -45,6 +46,16 @@ export function jsonResponse(body: unknown, init: ResponseInit = {}) {
     headers: {'content-type': 'application/json'},
     ...init,
   });
+}
+
+// The param-carrying routes below declare `$pid`/`$runId` in their path, so the value is
+// always present when their fallback page renders. A missing param means the harness
+// wired a route wrong — fail loudly instead of rendering a page with a fabricated id.
+function requireParam(value: string | undefined, name: string): string {
+  if (value === undefined) {
+    throw new Error(`Test router: route param "${name}" is missing`);
+  }
+  return value;
 }
 
 function createTestRouter(path: string, element: ReactElement) {
@@ -85,7 +96,7 @@ function createTestRouter(path: string, element: ReactElement) {
         return element;
       }
 
-      return <ProjectRunsPage projectId={params.pid ?? 'p-1'} />;
+      return <ProjectRunsPage projectId={requireParam(params.pid, 'pid')} />;
     },
   });
   const projectRunsRoute = createRoute({
@@ -97,7 +108,27 @@ function createTestRouter(path: string, element: ReactElement) {
         return element;
       }
 
-      return <ProjectRunsPage projectId={params.pid ?? 'p-1'} />;
+      return <ProjectRunsPage projectId={requireParam(params.pid, 'pid')} />;
+    },
+  });
+  const workflowRunRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/projects/$pid/runs/$runId',
+    component: () => {
+      const params = useParams({strict: false}) as {pid?: string; runId?: string};
+      if (
+        initialPath ===
+        `/workspaces/${PROJECT_TEST_WID}/projects/${params.pid}/runs/${params.runId}`
+      ) {
+        return element;
+      }
+
+      return (
+        <WorkflowRunPage
+          projectId={requireParam(params.pid, 'pid')}
+          runId={requireParam(params.runId, 'runId')}
+        />
+      );
     },
   });
   const projectWorkflowsRoute = createRoute({
@@ -109,7 +140,7 @@ function createTestRouter(path: string, element: ReactElement) {
         return element;
       }
 
-      return <ProjectWorkflowsPage projectId={params.pid ?? 'p-1'} />;
+      return <ProjectWorkflowsPage projectId={requireParam(params.pid, 'pid')} />;
     },
   });
 
@@ -122,6 +153,7 @@ function createTestRouter(path: string, element: ReactElement) {
       integrationsRoute,
       projectDetailRoute,
       projectRunsRoute,
+      workflowRunRoute,
       projectWorkflowsRoute,
     ]),
   });
