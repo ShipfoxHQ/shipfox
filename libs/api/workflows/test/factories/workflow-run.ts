@@ -17,6 +17,7 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
       model: workflowModel({name: run.name}),
       triggerPayload: run.triggerPayload,
       inputs: run.inputs ?? undefined,
+      sourceSnapshot: run.sourceSnapshot,
     });
   });
 
@@ -36,6 +37,7 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
       userId: crypto.randomUUID(),
     },
     inputs: null,
+    sourceSnapshot: null,
     triggerIdempotencyKey: null,
     version: 1,
     createdAt: new Date(),

@@ -42,6 +42,7 @@ export {
   stepGateResultDtoSchema,
   stepRestartResultDtoSchema,
 } from '#schemas/index.js';
+export {type WorkflowSourceSnapshotDto, workflowSourceSnapshotSchema} from '#schemas/run.js';
 export {
   WORKFLOW_RUN_CREATED,
   WORKFLOW_RUN_FINISHED,

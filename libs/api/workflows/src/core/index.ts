@@ -6,7 +6,12 @@ export type {
 } from './entities/runtime-dag.js';
 export type {RuntimeSchedulingCommand} from './entities/runtime-scheduling-command.js';
 export type {Step, StepStatus} from './entities/step.js';
-export type {TriggerPayload, WorkflowRun, WorkflowRunStatus} from './entities/workflow-run.js';
+export type {
+  TriggerPayload,
+  WorkflowRun,
+  WorkflowRunStatus,
+  WorkflowSourceSnapshot,
+} from './entities/workflow-run.js';
 export {
   DefinitionNotFoundError,
   JobNotFoundError,

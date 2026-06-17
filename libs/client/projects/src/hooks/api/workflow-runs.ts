@@ -225,6 +225,7 @@ function buildTempRun({
     trigger_event: 'fire',
     trigger_payload: {source: 'manual', event: 'fire'},
     inputs: null,
+    source_snapshot: null,
     created_at: createdAt,
     updated_at: createdAt,
   };
