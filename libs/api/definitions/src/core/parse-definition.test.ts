@@ -23,10 +23,8 @@ describe('parseDefinition', () => {
     expect(definition.document.triggers?.on_demand?.event).toBe('fire');
     expect(definition.document.jobs.build?.steps).toHaveLength(2);
     expect(definition.document.jobs.build?.steps?.[0]?.run).toBe('npm install');
-    expect(definition.model.jobs.find((job) => job.id === 'build')?.steps[0]?.command).toEqual({
-      kind: 'shell',
-      value: 'npm install',
-    });
+    const firstStep = definition.model.jobs.find((job) => job.id === 'build')?.steps[0];
+    expect(firstStep).toMatchObject({kind: 'run', command: {kind: 'shell', value: 'npm install'}});
   });
 
   test('valid DAG workflow parses successfully', () => {

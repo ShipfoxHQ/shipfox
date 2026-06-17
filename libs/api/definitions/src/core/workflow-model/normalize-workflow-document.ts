@@ -3,10 +3,11 @@ import {
   InvalidWorkflowExpressionError,
   type WorkflowExpression,
 } from '@shipfox/expression';
-import type {
-  WorkflowDocument,
-  WorkflowDocumentJob,
-  WorkflowDocumentRunStep,
+import {
+  DEFAULT_AGENT_THINKING,
+  type WorkflowDocument,
+  type WorkflowDocumentJob,
+  type WorkflowDocumentStep,
 } from '@shipfox/workflow-document';
 import type {
   WorkflowModel,
@@ -178,13 +179,30 @@ function normalizeJobs(
         issues,
       });
 
-      return {
+      const stepBase = {
         id: stepId,
         ...(stepSourceName === undefined ? {} : {sourceName: stepSourceName}),
-        kind: 'run',
-        command: {kind: 'shell', value: step.run},
         ...(gate === undefined ? {} : {gate}),
       };
+
+      if (step.run !== undefined) {
+        return {...stepBase, kind: 'run', command: {kind: 'shell', value: step.run}};
+      }
+
+      if (step.model !== undefined && step.prompt !== undefined) {
+        return {
+          ...stepBase,
+          kind: 'agent',
+          model: step.model,
+          prompt: step.prompt,
+          thinking: step.thinking ?? DEFAULT_AGENT_THINKING,
+        };
+      }
+
+      // workflowDocumentStepSchema guarantees a step is a run step or an agent step
+      // carrying both model and prompt, so this is unreachable; the guard keeps the
+      // model-step union honest without a non-null assertion.
+      throw new Error(`Workflow step "${stepId}" is neither a run nor an agent step`);
     });
 
     return [
@@ -200,7 +218,7 @@ function normalizeJobs(
 }
 
 function normalizeStepGate(params: {
-  step: WorkflowDocumentRunStep;
+  step: WorkflowDocumentStep;
   sourceName: string;
   stepIndex: number;
   stepId: string;

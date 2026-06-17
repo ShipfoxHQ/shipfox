@@ -1,4 +1,5 @@
 import type {WorkflowExpression} from '@shipfox/expression';
+import type {AgentThinking} from '@shipfox/workflow-document';
 
 export interface WorkflowModel {
   readonly kind: 'workflow';
@@ -25,12 +26,24 @@ export interface WorkflowModelJob {
   readonly steps: readonly WorkflowModelStep[];
 }
 
-export interface WorkflowModelStep {
+export type WorkflowModelStep = WorkflowModelRunStep | WorkflowModelAgentStep;
+
+interface WorkflowModelStepBase {
   readonly id: string;
   readonly sourceName?: string;
+  readonly gate?: WorkflowModelStepGate;
+}
+
+export interface WorkflowModelRunStep extends WorkflowModelStepBase {
   readonly kind: 'run';
   readonly command: WorkflowModelRunCommand;
-  readonly gate?: WorkflowModelStepGate;
+}
+
+export interface WorkflowModelAgentStep extends WorkflowModelStepBase {
+  readonly kind: 'agent';
+  readonly model: string;
+  readonly thinking: AgentThinking;
+  readonly prompt: string;
 }
 
 export interface WorkflowModelRunCommand {

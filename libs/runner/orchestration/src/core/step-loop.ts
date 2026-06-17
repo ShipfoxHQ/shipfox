@@ -1,6 +1,11 @@
 import type {NextStepResponseDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
-import {executeRunStep, executeSetupStep, type StepResult} from '@shipfox/runner-execution';
+import {
+  executeAgentStep,
+  executeRunStep,
+  executeSetupStep,
+  type StepResult,
+} from '@shipfox/runner-execution';
 import {HTTPError, reportStep, requestNextStep} from '@shipfox/runner-protocol';
 import type {KyInstance} from 'ky';
 
@@ -64,6 +69,8 @@ export async function runJobSteps(params: {
           error: {message: 'Run step dispatched before setup prepared the workspace'},
           exit_code: null,
         };
+      } else if (step.type === 'agent') {
+        result = await executeAgentStep(step, {signal, cwd});
       } else {
         result = await executeRunStep(step, {signal, cwd});
       }

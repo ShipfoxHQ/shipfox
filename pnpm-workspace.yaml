@@ -3,6 +3,7 @@ dedupePeerDependents: true
 nodeLinker: isolated
 minimumReleaseAge: 2880
 allowBuilds:
+  '@google/genai': false
   '@swc/core': true
   esbuild: true
   protobufjs: true

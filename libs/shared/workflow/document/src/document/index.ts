@@ -1,12 +1,13 @@
+export {type AgentThinking, agentThinkingSchema, DEFAULT_AGENT_THINKING} from './step-enums.js';
 export {
   type WorkflowDocument,
   type WorkflowDocumentJob,
-  type WorkflowDocumentRunStep,
   type WorkflowDocumentRunStepGate,
+  type WorkflowDocumentStep,
   type WorkflowDocumentTrigger,
   workflowDocumentJobSchema,
-  workflowDocumentRunStepSchema,
   workflowDocumentSchema,
+  workflowDocumentStepSchema,
   workflowDocumentTriggerSchema,
 } from './workflow-document.js';
 export {

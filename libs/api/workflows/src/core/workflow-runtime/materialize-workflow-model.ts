@@ -68,10 +68,10 @@ function dependencySourceNames(
 }
 
 function stepConfig(step: WorkflowModelStep): Record<string, unknown> {
-  return {
-    run: step.command.value,
-    ...(step.gate === undefined ? {} : {gate: stepGateConfig(step.gate)}),
-  };
+  const gate = step.gate === undefined ? {} : {gate: stepGateConfig(step.gate)};
+  return step.kind === 'run'
+    ? {run: step.command.value, ...gate}
+    : {model: step.model, thinking: step.thinking, prompt: step.prompt, ...gate};
 }
 
 function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<string, unknown> {
