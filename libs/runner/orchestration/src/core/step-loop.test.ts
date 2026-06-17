@@ -16,6 +16,9 @@ vi.mock('@shipfox/runner-protocol', () => ({
 vi.mock('@shipfox/runner-execution', () => ({
   executeRunStep: (...args: unknown[]) => executeRunStepMock(...args),
   executeSetupStep: (...args: unknown[]) => executeSetupStepMock(...args),
+}));
+
+vi.mock('@shipfox/runner-agent', () => ({
   executeAgentStep: (...args: unknown[]) => executeAgentStepMock(...args),
 }));
 

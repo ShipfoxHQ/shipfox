@@ -1,11 +1,7 @@
 import type {NextStepResponseDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
-import {
-  executeAgentStep,
-  executeRunStep,
-  executeSetupStep,
-  type StepResult,
-} from '@shipfox/runner-execution';
+import {executeAgentStep} from '@shipfox/runner-agent';
+import {executeRunStep, executeSetupStep, type StepResult} from '@shipfox/runner-execution';
 import {HTTPError, reportStep, requestNextStep} from '@shipfox/runner-protocol';
 import type {KyInstance} from 'ky';
 

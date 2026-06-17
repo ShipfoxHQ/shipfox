@@ -40,6 +40,7 @@
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/runner-agent": "workspace:*",
     "@shipfox/runner-execution": "workspace:*",
     "@shipfox/runner-protocol": "workspace:*",
     "@shipfox/runner-workspace": "workspace:*",

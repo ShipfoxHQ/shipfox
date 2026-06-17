@@ -1,11 +1,11 @@
 {
-  "name": "@shipfox/runner-execution",
+  "name": "@shipfox/runner-agent",
   "license": "MIT",
   "version": "0.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/platform.git",
-    "directory": "libs/runner/execution"
+    "directory": "libs/runner/agent"
   },
   "private": true,
   "type": "module",
@@ -37,9 +37,9 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.79.3",
     "@shipfox/api-workflows-dto": "workspace:*",
-    "@shipfox/node-opentelemetry": "workspace:*",
-    "@shipfox/runner-workspace": "workspace:*"
+    "@shipfox/runner-execution": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

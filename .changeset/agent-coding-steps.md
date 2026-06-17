@@ -3,6 +3,7 @@
 "@shipfox/api-definitions": patch
 "@shipfox/api-workflows": patch
 "@shipfox/api-workflows-dto": patch
+"@shipfox/runner-agent": patch
 "@shipfox/runner-execution": patch
 "@shipfox/runner-orchestration": patch
 ---

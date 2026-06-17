@@ -1,7 +1,7 @@
 import type {StepDto, StepErrorDtoShape} from '@shipfox/api-workflows-dto';
+import type {StepResult} from '@shipfox/runner-execution';
 import type {AgentHarness} from '#core/agent-harness.js';
 import {createPiAgentHarness} from '#core/pi-agent-harness.js';
-import type {StepResult} from '#core/step-result.js';
 
 const DEFAULT_THINKING = 'high';
 
