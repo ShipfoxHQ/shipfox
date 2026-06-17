@@ -1,8 +1,10 @@
 import {and, asc, eq} from 'drizzle-orm';
+import type {AttemptStream} from '#core/entities/attempt-stream.js';
+import type {JobAccounting} from '#core/entities/job-accounting.js';
 import {db} from '#db/db.js';
-import {type AttemptStream, attemptStreams, toAttemptStream} from '#db/schema/attempt-streams.js';
+import {attemptStreams, toAttemptStream} from '#db/schema/attempt-streams.js';
 import {type LogChunkDb, logChunks} from '#db/schema/chunks.js';
-import {type JobAccounting, jobAccounting, toJobAccounting} from '#db/schema/job-accounting.js';
+import {jobAccounting, toJobAccounting} from '#db/schema/job-accounting.js';
 
 export interface StreamIdentity {
   jobId: string;

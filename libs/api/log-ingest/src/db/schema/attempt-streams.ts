@@ -1,5 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {bigint, boolean, integer, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import type {AttemptStream} from '#core/entities/attempt-stream.js';
 import {pgTable} from './common.js';
 
 /**
@@ -39,25 +40,7 @@ export const attemptStreams = pgTable(
 export type AttemptStreamDb = typeof attemptStreams.$inferSelect;
 export type AttemptStreamInsertDb = typeof attemptStreams.$inferInsert;
 
-export type StreamState = 'open' | 'closed';
-export type StreamCloseReason = 'declared' | 'timeout';
-
-export interface AttemptStream {
-  id: string;
-  jobId: string;
-  stepId: string;
-  attempt: number;
-  workspaceId: string;
-  committedLength: number;
-  state: StreamState;
-  closeReason: StreamCloseReason | null;
-  declaredTotalBytes: number | null;
-  truncated: boolean;
-  objectKey: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
+/** Maps a persisted row to the `AttemptStream` domain entity. */
 export function toAttemptStream(row: AttemptStreamDb): AttemptStream {
   return {
     id: row.id,

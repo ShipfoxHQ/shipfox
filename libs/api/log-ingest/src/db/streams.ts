@@ -1,6 +1,7 @@
 import {and, eq, sql} from 'drizzle-orm';
+import type {AttemptStream} from '#core/entities/attempt-stream.js';
 import type {Transaction} from './db.js';
-import {type AttemptStream, attemptStreams, toAttemptStream} from './schema/attempt-streams.js';
+import {attemptStreams, toAttemptStream} from './schema/attempt-streams.js';
 
 export interface AttemptStreamIdentity {
   jobId: string;

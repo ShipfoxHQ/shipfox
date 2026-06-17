@@ -1,4 +1,5 @@
 import {bigint, timestamp, uuid} from 'drizzle-orm/pg-core';
+import type {JobAccounting} from '#core/entities/job-accounting.js';
 import {pgTable} from './common.js';
 
 /**
@@ -21,14 +22,7 @@ export const jobAccounting = pgTable('job_accounting', {
 export type JobAccountingDb = typeof jobAccounting.$inferSelect;
 export type JobAccountingInsertDb = typeof jobAccounting.$inferInsert;
 
-export interface JobAccounting {
-  jobId: string;
-  workspaceId: string;
-  storedBytesUsed: number;
-  startedAt: Date;
-  cappedAt: Date | null;
-}
-
+/** Maps a persisted row to the `JobAccounting` domain entity. */
 export function toJobAccounting(row: JobAccountingDb): JobAccounting {
   return {
     jobId: row.jobId,
