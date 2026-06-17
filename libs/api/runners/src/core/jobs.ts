@@ -17,6 +17,7 @@ export async function claimJob(params: {
   const leaseToken = await issueJobLeaseToken({
     jobId: claimed.jobId,
     runId: claimed.runId,
+    projectId: claimed.projectId,
     workspaceId: params.workspaceId,
     runnerTokenId: params.runnerTokenId,
   });

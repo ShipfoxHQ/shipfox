@@ -14,6 +14,7 @@ export async function issueJobLeaseToken(claims: IssueJobLeaseTokenParams): Prom
     payload: {
       jobId: claims.jobId,
       runId: claims.runId,
+      projectId: claims.projectId,
       workspaceId: claims.workspaceId,
       runnerTokenId: claims.runnerTokenId,
     },

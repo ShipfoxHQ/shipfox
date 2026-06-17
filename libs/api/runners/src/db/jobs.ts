@@ -11,6 +11,7 @@ export interface ScheduleJobParams {
   workspaceId: string;
   jobId: string;
   runId: string;
+  projectId: string;
 }
 
 // Idempotent while the job is still pending: a duplicate jobId already in
@@ -27,6 +28,7 @@ export async function scheduleJob(params: ScheduleJobParams): Promise<void> {
       workspaceId: params.workspaceId,
       jobId: params.jobId,
       runId: params.runId,
+      projectId: params.projectId,
     })
     .onConflictDoNothing({target: pendingJobs.jobId});
 }
@@ -34,6 +36,7 @@ export async function scheduleJob(params: ScheduleJobParams): Promise<void> {
 export interface ClaimedJob {
   jobId: string;
   runId: string;
+  projectId: string;
 }
 
 export async function claimPendingJob(params: {
@@ -67,6 +70,7 @@ export async function claimPendingJob(params: {
         workspaceId: row.workspaceId,
         jobId: row.jobId,
         runId: row.runId,
+        projectId: row.projectId,
         runnerTokenId: params.runnerTokenId,
       })
       .onConflictDoNothing({target: runningJobs.jobId})
@@ -77,6 +81,7 @@ export async function claimPendingJob(params: {
     return {
       jobId: row.jobId,
       runId: row.runId,
+      projectId: row.projectId,
     };
   });
 }

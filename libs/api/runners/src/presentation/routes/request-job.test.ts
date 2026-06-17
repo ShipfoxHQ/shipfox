@@ -89,6 +89,7 @@ describe('POST /runners/jobs/request', () => {
     expect(claims).toMatchObject({
       jobId: created.jobId,
       runId: created.runId,
+      projectId: created.projectId,
       workspaceId,
       runnerTokenId,
     });

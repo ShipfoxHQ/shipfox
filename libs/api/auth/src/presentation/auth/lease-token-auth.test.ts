@@ -33,6 +33,7 @@ describe('lease-token-auth', () => {
     const claims = {
       jobId: crypto.randomUUID(),
       runId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
       workspaceId: crypto.randomUUID(),
       runnerTokenId: crypto.randomUUID(),
     };

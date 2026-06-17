@@ -34,6 +34,7 @@ export interface DagJob extends RuntimeDagJob {
 export interface RunDag {
   runId: string;
   workspaceId: string;
+  projectId: string;
   runVersion: number;
   jobs: DagJob[];
 }
@@ -56,6 +57,7 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
   return {
     runId: run.id,
     workspaceId: run.workspaceId,
+    projectId: run.projectId,
     runVersion: run.version,
     jobs: jobs.map((job) => ({
       id: job.id,
@@ -138,11 +140,13 @@ export async function enqueueJobForRunner(params: {
   workspaceId: string;
   jobId: string;
   runId: string;
+  projectId: string;
 }): Promise<void> {
   await scheduleJob({
     workspaceId: params.workspaceId,
     jobId: params.jobId,
     runId: params.runId,
+    projectId: params.projectId,
   });
 }
 

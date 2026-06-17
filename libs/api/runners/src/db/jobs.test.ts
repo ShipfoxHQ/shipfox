@@ -27,20 +27,27 @@ describe('scheduleJob', () => {
     const jobId = crypto.randomUUID();
     const runId = crypto.randomUUID();
     const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
 
-    await scheduleJob({workspaceId, jobId, runId});
+    await scheduleJob({workspaceId, jobId, runId, projectId});
 
     const rows = await db().select().from(pendingJobs);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.jobId).toBe(jobId);
     expect(rows[0]?.runId).toBe(runId);
+    expect(rows[0]?.projectId).toBe(projectId);
     expect(rows[0]?.workspaceId).toBe(workspaceId);
     expect(rows[0]).not.toHaveProperty('payload');
   });
 
   it('is idempotent: scheduling the same jobId twice is a no-op', async () => {
     const jobId = crypto.randomUUID();
-    const params = {workspaceId: crypto.randomUUID(), runId: crypto.randomUUID(), jobId};
+    const params = {
+      workspaceId: crypto.randomUUID(),
+      runId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      jobId,
+    };
 
     await scheduleJob(params);
     await expect(scheduleJob(params)).resolves.toBeUndefined();
@@ -71,6 +78,7 @@ describe('claimPendingJob', () => {
     expect(claimed).not.toBeNull();
     expect(claimed?.jobId).toBe(created.jobId);
     expect(claimed?.runId).toBe(created.runId);
+    expect(claimed?.projectId).toBe(created.projectId);
   });
 
   it('returns null when no jobs are pending', async () => {
@@ -102,7 +110,7 @@ describe('claimPendingJob', () => {
   });
 
   it('moves the job from pending to running', async () => {
-    await pendingJobFactory.create({workspaceId});
+    const created = await pendingJobFactory.create({workspaceId});
 
     await claimPendingJob({workspaceId, runnerTokenId});
 
@@ -111,6 +119,7 @@ describe('claimPendingJob', () => {
     expect(pending).toHaveLength(0);
     expect(running).toHaveLength(1);
     expect(running[0]?.runnerTokenId).toBe(runnerTokenId);
+    expect(running[0]?.projectId).toBe(created.projectId);
   });
 
   it('does not claim jobs from another workspace', async () => {
@@ -127,9 +136,12 @@ describe('claimPendingJob', () => {
     expect(first?.jobId).toBe(created.jobId);
 
     // Simulate an enqueue retry that re-inserts a pending row after the claim.
-    await db()
-      .insert(pendingJobs)
-      .values({workspaceId, jobId: created.jobId, runId: created.runId});
+    await db().insert(pendingJobs).values({
+      workspaceId,
+      jobId: created.jobId,
+      runId: created.runId,
+      projectId: created.projectId,
+    });
 
     const second = await claimPendingJob({workspaceId, runnerTokenId});
 
@@ -146,9 +158,12 @@ describe('claimPendingJob', () => {
 
     // A genuinely new pending job (older), then an orphan re-insert for the running job (newer).
     const real = await pendingJobFactory.create({workspaceId});
-    await db()
-      .insert(pendingJobs)
-      .values({workspaceId, jobId: alreadyRunning.jobId, runId: alreadyRunning.runId});
+    await db().insert(pendingJobs).values({
+      workspaceId,
+      jobId: alreadyRunning.jobId,
+      runId: alreadyRunning.runId,
+      projectId: alreadyRunning.projectId,
+    });
 
     const claimed = await claimPendingJob({workspaceId, runnerTokenId});
 
@@ -183,6 +198,7 @@ describe('claimJob', () => {
     expect(claims).toMatchObject({
       jobId: created.jobId,
       runId: created.runId,
+      projectId: created.projectId,
       workspaceId,
       runnerTokenId,
     });
@@ -238,7 +254,12 @@ describe('releaseJob', () => {
     // An orphan pending row left by a post-claim enqueue retry.
     await db()
       .insert(pendingJobs)
-      .values({workspaceId, jobId: claimed?.jobId as string, runId: claimed?.runId as string});
+      .values({
+        workspaceId,
+        jobId: claimed?.jobId as string,
+        runId: claimed?.runId as string,
+        projectId: claimed?.projectId as string,
+      });
 
     await releaseJob({jobId: claimed?.jobId as string});
 
@@ -380,7 +401,9 @@ describe('detectAndExpireStuckJobs', () => {
     runnerTokenId = runnerToken.id;
   });
 
-  async function makeStaleJob(staleSeconds: number): Promise<{jobId: string; runId: string}> {
+  async function makeStaleJob(
+    staleSeconds: number,
+  ): Promise<{jobId: string; runId: string; projectId: string}> {
     await pendingJobFactory.create({workspaceId});
     const claimed = await claimPendingJob({workspaceId, runnerTokenId});
     await db()
@@ -389,7 +412,11 @@ describe('detectAndExpireStuckJobs', () => {
         lastHeartbeatAt: sql`now() - (${staleSeconds} || ' seconds')::interval`,
       })
       .where(eq(runningJobs.jobId, claimed?.jobId as string));
-    return {jobId: claimed?.jobId as string, runId: claimed?.runId as string};
+    return {
+      jobId: claimed?.jobId as string,
+      runId: claimed?.runId as string,
+      projectId: claimed?.projectId as string,
+    };
   }
 
   async function runningJobsForTest() {
@@ -477,10 +504,10 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('sweeps an orphan pending row for the job it reaps (best-effort release may have failed)', async () => {
-    const {jobId, runId} = await makeStaleJob(600);
+    const {jobId, runId, projectId} = await makeStaleJob(600);
     // A post-claim enqueue retry left a pending row whose job is already running;
     // without this sweep it would stay re-claimable for an already-finished job.
-    await db().insert(pendingJobs).values({workspaceId, jobId, runId});
+    await db().insert(pendingJobs).values({workspaceId, jobId, runId, projectId});
 
     await detectAndExpireStuckJobs({thresholdSeconds: 180});
 
@@ -491,8 +518,8 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('leaves the orphan pending row alone when the running row is not stale enough to reap', async () => {
-    const {jobId, runId} = await makeStaleJob(60);
-    await db().insert(pendingJobs).values({workspaceId, jobId, runId});
+    const {jobId, runId, projectId} = await makeStaleJob(60);
+    await db().insert(pendingJobs).values({workspaceId, jobId, runId, projectId});
 
     await detectAndExpireStuckJobs({thresholdSeconds: 180});
 
@@ -538,9 +565,9 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('a reaper tick and a concurrent claim of the same orphan-pending job leave consistent state', async () => {
-    const {jobId, runId} = await makeStaleJob(600);
+    const {jobId, runId, projectId} = await makeStaleJob(600);
     // Orphan pending row from a post-claim enqueue retry for an already-running job.
-    await db().insert(pendingJobs).values({workspaceId, jobId, runId});
+    await db().insert(pendingJobs).values({workspaceId, jobId, runId, projectId});
 
     // The reaper locks running-then-pending while the claim locks pending-then-running;
     // a deadlock loser rolls back, so either side may settle as rejected.

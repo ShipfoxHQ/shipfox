@@ -52,6 +52,7 @@ export interface JobOrchestrationInput {
   workspaceId: string;
   jobId: string;
   runId: string;
+  projectId: string;
   jobVersion: number;
 }
 
@@ -82,6 +83,7 @@ async function markJobRunningAndEnqueue(input: JobOrchestrationInput): Promise<n
     workspaceId: input.workspaceId,
     jobId: input.jobId,
     runId: input.runId,
+    projectId: input.projectId,
   });
 
   return runningVersion;

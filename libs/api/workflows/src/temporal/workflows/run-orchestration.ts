@@ -4,7 +4,7 @@ import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import {scheduleRuntimeDag} from '#core/workflow-runtime/index.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
-import type {DagJob} from '../activities/orchestration-activities.js';
+import type {DagJob, RunDag} from '../activities/orchestration-activities.js';
 import {jobOrchestration} from './job-orchestration.js';
 
 const {loadRunDag, setRunStatus, setJobStatus} = proxyActivities<
@@ -47,7 +47,7 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
     const jobsToStart = commands.flatMap((command) =>
       command.kind === 'start-job' ? [command.job] : [],
     );
-    const results = await launchJobs(jobsToStart, input, jobVersions);
+    const results = await launchJobs(jobsToStart, dag, jobVersions);
     for (const [job, result] of jobsToStart.map((j, i) => [j, results[i]] as const)) {
       if (!result) continue;
       completed.set(job.name, result.status);
@@ -83,7 +83,7 @@ interface LaunchResult {
 
 function launchJobs(
   jobs: DagJob[],
-  input: RunOrchestrationInput,
+  run: RunDag,
   jobVersions: Map<string, number>,
 ): Promise<LaunchResult[]> {
   return Promise.all(
@@ -92,9 +92,10 @@ function launchJobs(
         workflowId: `job:${job.id}`,
         args: [
           {
-            workspaceId: input.workspaceId,
+            workspaceId: run.workspaceId,
+            projectId: run.projectId,
             jobId: job.id,
-            runId: input.runId,
+            runId: run.runId,
             jobVersion: jobVersions.get(job.id) ?? job.version,
           },
         ],

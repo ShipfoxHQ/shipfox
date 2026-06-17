@@ -51,7 +51,16 @@ describe('runOrchestration', () => {
 
     const runStatuses = setRunStatusCalls().map((c) => c.params.status);
     expect(runStatuses).toEqual(['running', 'succeeded']);
-    expect(callsNamed('enqueueJobForRunner')).toHaveLength(3);
+    const enqueueCalls = callsNamed('enqueueJobForRunner');
+    expect(enqueueCalls).toHaveLength(3);
+    // The lease tuple is sourced from the loaded dag (workspace/project/run together).
+    for (const call of enqueueCalls) {
+      expect(call.params).toMatchObject({
+        workspaceId: 'workspace-1',
+        projectId: 'project-1',
+        runId: 'r1',
+      });
+    }
   });
 
   test('parallel roots both succeed', async () => {
