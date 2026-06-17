@@ -123,6 +123,43 @@ describe('WorkflowSourceView', () => {
     expect(screen.getByText('jobs:').textContent).toBe('jobs:');
   });
 
+  describe('inline variant', () => {
+    test('renders the line-numbered body with a highlighted range and no card header', () => {
+      render(
+        <WorkflowSourceView
+          source={workflowSourceFixture}
+          selectedRange={workflowSourceFixtureRange}
+          variant="inline"
+        />,
+      );
+
+      expect(screen.getByRole('region', {name: 'Workflow source'})).toBeInTheDocument();
+      expect(screen.queryByText('Source')).not.toBeInTheDocument();
+      expect(screen.queryByText('.shipfox/workflows/deploy.yml')).not.toBeInTheDocument();
+      expect(screen.getByText('name: deploy-production')).toBeInTheDocument();
+      expect(screen.getByText('Selected step: Build')).toBeInTheDocument();
+      expect(document.querySelectorAll('[data-highlighted="true"]')).toHaveLength(4);
+    });
+
+    test('renders the missing-location state without highlighted lines', () => {
+      render(
+        <WorkflowSourceView source={workflowSourceFixture} selectedRange={null} variant="inline" />,
+      );
+
+      expect(screen.getByText('No step source location')).toBeInTheDocument();
+      expect(document.querySelectorAll('[data-highlighted="true"]')).toHaveLength(0);
+    });
+
+    test('renders the missing-source state for empty source content', () => {
+      render(<WorkflowSourceView source={{content: '', format: 'yaml'}} variant="inline" />);
+
+      expect(screen.getByText('No source document')).toBeInTheDocument();
+      expect(
+        screen.getByText('The workflow source snapshot is not available for this run.'),
+      ).toBeInTheDocument();
+    });
+  });
+
   test('keeps long source lines intact for horizontal scrolling', () => {
     render(
       <WorkflowSourceView

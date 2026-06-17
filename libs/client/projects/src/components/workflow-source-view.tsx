@@ -12,9 +12,12 @@ export type WorkflowSourceDocument = {
   path?: string | null;
 };
 
+export type WorkflowSourceViewVariant = 'panel' | 'inline';
+
 export type WorkflowSourceViewProps = {
   source: WorkflowSourceDocument | null | undefined;
   selectedRange?: WorkflowSourceLineRange | null;
+  variant?: WorkflowSourceViewVariant | undefined;
   className?: string;
 };
 
@@ -26,9 +29,35 @@ type SourceLine = {
 const TRAILING_NEWLINE_REGEX = /\n$/;
 const CRLF_REGEX = /\r\n/g;
 
-export function WorkflowSourceView({source, selectedRange, className}: WorkflowSourceViewProps) {
+export function WorkflowSourceView({
+  source,
+  selectedRange,
+  variant = 'panel',
+  className,
+}: WorkflowSourceViewProps) {
   const sourceContent = source?.content ?? '';
   const hasSourceContent = sourceContent.trim().length > 0;
+
+  const body = hasSourceContent ? (
+    <SourceCodePanel content={sourceContent} selectedRange={selectedRange} />
+  ) : (
+    <div className="min-h-220">
+      <EmptyState
+        icon="fileDamageLine"
+        title="No source document"
+        description="The workflow source snapshot is not available for this run."
+        variant="default"
+      />
+    </div>
+  );
+
+  if (variant === 'inline') {
+    return (
+      <section aria-label="Workflow source" className={className}>
+        {body}
+      </section>
+    );
+  }
 
   return (
     <section
@@ -57,18 +86,7 @@ export function WorkflowSourceView({source, selectedRange, className}: WorkflowS
         </Code>
       </div>
 
-      {hasSourceContent ? (
-        <SourceCodePanel content={sourceContent} selectedRange={selectedRange} />
-      ) : (
-        <div className="min-h-220">
-          <EmptyState
-            icon="fileDamageLine"
-            title="No source document"
-            description="The workflow source snapshot is not available for this run."
-            variant="default"
-          />
-        </div>
-      )}
+      {body}
     </section>
   );
 }
