@@ -5,11 +5,8 @@ import {
   stepDtoSchema,
 } from '@shipfox/api-workflows-dto';
 import {fireEvent, render, screen, within} from '@testing-library/react';
-import {
-  WorkflowStepList,
-  type WorkflowStepListJob,
-  type WorkflowStepListStep,
-} from './workflow-step-list.js';
+import {WorkflowStepList} from './workflow-step-list.js';
+import type {WorkflowStepListJob, WorkflowStepListStep} from './workflow-step-list-model.js';
 
 const jobId = '10000000-0000-4000-8000-000000000001';
 const installStepName = /install_dependencies/i;
