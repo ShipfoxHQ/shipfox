@@ -1,5 +1,6 @@
 import type {
   RunAggregatesResponseDto,
+  RunDetailResponseDto,
   RunDto,
   RunListResponseDto,
   RunStatusDto,
@@ -27,6 +28,7 @@ export const workflowRunsQueryKeys = {
   lists: (projectId: string) => [...workflowRunsQueryKeys.all, 'list', projectId] as const,
   list: (projectId: string, filters: WorkflowRunFilters) =>
     [...workflowRunsQueryKeys.lists(projectId), normalizeFilters(filters)] as const,
+  detail: (runId: string) => [...workflowRunsQueryKeys.all, 'detail', runId] as const,
   aggregates: (projectId: string, filters: WorkflowRunFilters) =>
     [...workflowRunsQueryKeys.all, 'aggregates', projectId, normalizeFilters(filters)] as const,
 };
@@ -85,6 +87,10 @@ export async function getWorkflowRunAggregates({
       signal,
     },
   );
+}
+
+export async function getWorkflowRun({runId, signal}: {runId: string; signal?: AbortSignal}) {
+  return await apiRequest<RunDetailResponseDto>(`/workflows/runs/${runId}`, {signal});
 }
 
 /**
@@ -165,6 +171,24 @@ export function useWorkflowRunAggregatesQuery(
     queryFn: ({signal}) => getWorkflowRunAggregates({projectId: projectId ?? '', filters, signal}),
     staleTime: 2_000,
     refetchOnWindowFocus: true,
+  });
+}
+
+export function useWorkflowRunQuery(runId: string | undefined) {
+  return useQuery({
+    queryKey: runId
+      ? workflowRunsQueryKeys.detail(runId)
+      : [...workflowRunsQueryKeys.all, 'detail'],
+    enabled: Boolean(runId),
+    queryFn: ({signal}) => getWorkflowRun({runId: runId ?? '', signal}),
+    staleTime: 2_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => {
+      const run = query.state.data;
+      if (!run || TERMINAL_RUN_STATUSES.has(run.status)) return false;
+      return ACTIVE_POLL_MS;
+    },
+    refetchIntervalInBackground: false,
   });
 }
 

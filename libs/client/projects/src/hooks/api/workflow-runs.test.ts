@@ -1,5 +1,5 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {fireManualWorkflow} from './workflow-runs.js';
+import {fireManualWorkflow, getWorkflowRun} from './workflow-runs.js';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -49,5 +49,30 @@ describe('fireManualWorkflow', () => {
     });
 
     expect(requestBody).toEqual({inputs: {env: 'production'}});
+  });
+});
+
+describe('getWorkflowRun', () => {
+  beforeEach(() => {
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: undefined});
+  });
+
+  test('requests the workflow run detail endpoint', async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        id: '66666666-6666-4666-8666-666666666666',
+        jobs: [],
+      }),
+    );
+    configureApiClient({fetchImpl});
+
+    const result = await getWorkflowRun({runId: '66666666-6666-4666-8666-666666666666'});
+
+    const request = fetchImpl.mock.calls[0]?.[0] as Request;
+    expect(result.id).toBe('66666666-6666-4666-8666-666666666666');
+    expect(request.url).toBe(
+      'https://api.example.test/workflows/runs/66666666-6666-4666-8666-666666666666',
+    );
+    expect(request.method).toBe('GET');
   });
 });

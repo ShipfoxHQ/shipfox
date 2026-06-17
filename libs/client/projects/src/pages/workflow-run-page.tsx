@@ -1,8 +1,22 @@
-import type {RunDto, RunStatusDto} from '@shipfox/api-workflows-dto';
+import type {
+  RunDetailJobDto,
+  RunDetailResponseDto,
+  RunDetailStepDto,
+  RunDto,
+} from '@shipfox/api-workflows-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {Code, EmptyState, Header, Skeleton, StatusBadge, Text} from '@shipfox/react-ui';
+import {Code, EmptyState, Skeleton} from '@shipfox/react-ui';
 import {useMemo} from 'react';
-import {useWorkflowRunsInfiniteQuery} from '#hooks/api/workflow-runs.js';
+import {WorkflowJobsVisualization} from '#components/workflow-jobs-visualization.js';
+import {WorkflowRunSummary} from '#components/workflow-run-summary.js';
+import {WorkflowRunsList} from '#components/workflow-runs-list.js';
+import {
+  type WorkflowSourceLineRange,
+  WorkflowSourceView,
+} from '#components/workflow-source-view.js';
+import {WorkflowStepList} from '#components/workflow-step-list.js';
+import {WorkflowStepOverview} from '#components/workflow-step-overview.js';
+import {useWorkflowRunQuery, useWorkflowRunsInfiniteQuery} from '#hooks/api/workflow-runs.js';
 
 export interface WorkflowRunPageProps {
   projectId: string;
@@ -13,22 +27,6 @@ export interface WorkflowRunPageProps {
   onSelectJob?: ((jobId: string | undefined) => void) | undefined;
   onSelectStep?: ((stepId: string | undefined) => void) | undefined;
 }
-
-const statusBadgeVariantByStatus: Record<RunStatusDto, 'neutral' | 'info' | 'success' | 'error'> = {
-  pending: 'neutral',
-  running: 'info',
-  succeeded: 'success',
-  failed: 'error',
-  cancelled: 'neutral',
-};
-
-const statusLabelByStatus: Record<RunStatusDto, string> = {
-  pending: 'Pending',
-  running: 'Running',
-  succeeded: 'Succeeded',
-  failed: 'Failed',
-  cancelled: 'Cancelled',
-};
 
 const placeholderSections = [
   {title: 'Runs list', selection: 'run'},
@@ -45,6 +43,7 @@ export function WorkflowRunPage(props: WorkflowRunPageProps) {
   const runsQuery = useWorkflowRunsInfiniteQuery(projectId, filters);
   const runs = runsQuery.data?.pages.flatMap((page) => page.runs) ?? [];
   const selectedRun = runs.find((run) => run.id === runId);
+  const runDetailQuery = useWorkflowRunQuery(selectedRun?.id);
 
   if (runsQuery.isPending) {
     return <WorkflowRunLoadingState runId={runId} />;
@@ -58,7 +57,21 @@ export function WorkflowRunPage(props: WorkflowRunPageProps) {
     return <WorkflowRunNotFoundState runId={runId} />;
   }
 
-  return <WorkflowRunSuccessState {...props} run={selectedRun} />;
+  if (runDetailQuery.isPending) {
+    return <WorkflowRunDetailLoadingState runId={runId} runs={runs} />;
+  }
+
+  if (runDetailQuery.isError) {
+    return (
+      <QueryLoadError query={runDetailQuery} subject="workflow run details" icon="pulseLine" />
+    );
+  }
+
+  if (!runDetailQuery.data) {
+    return <WorkflowRunNotFoundState runId={runId} />;
+  }
+
+  return <WorkflowRunSuccessState {...props} runs={runs} run={runDetailQuery.data} />;
 }
 
 function WorkflowRunLoadingState({runId}: {runId: string}) {
@@ -90,88 +103,106 @@ function WorkflowRunNotFoundState({runId}: {runId: string}) {
   );
 }
 
+function WorkflowRunDetailLoadingState({runId, runs}: {runId: string; runs: RunDto[]}) {
+  return (
+    <div className="flex min-h-[calc(100vh-160px)] overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base">
+      <WorkflowRunsList runs={runs} selectedRunId={runId} loading />
+      <main
+        className="flex min-w-0 flex-1 flex-col gap-16 p-16"
+        aria-label="Loading workflow run details"
+      >
+        <Skeleton className="h-56 rounded-8" />
+        <div className="grid min-h-0 gap-16 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <Skeleton className="h-360 rounded-8" />
+          <Skeleton className="h-360 rounded-8" />
+        </div>
+      </main>
+    </div>
+  );
+}
+
 function WorkflowRunSuccessState({
   run,
+  runs,
   selectedJobId,
   selectedStepId,
-}: WorkflowRunPageProps & {run: RunDto}) {
+  onSelectRun,
+  onSelectJob,
+  onSelectStep,
+}: WorkflowRunPageProps & {runs: RunDto[]; run: RunDetailResponseDto}) {
+  const selectedJob = selectJob(run.jobs, selectedJobId);
+  const selectedStep = selectStep(selectedJob, selectedStepId);
+  const selectedRange = toSourceRange(selectedStep);
+
   return (
-    <div className="flex flex-col gap-24">
-      <header className="flex flex-col gap-16 md:flex-row md:items-start md:justify-between">
-        <div className="flex min-w-0 flex-col gap-6">
-          <Header variant="h2" className="truncate">
-            {run.name}
-          </Header>
-          <div className="flex flex-wrap items-center gap-8">
-            <Code variant="label" className="text-foreground-neutral-muted">
-              {run.id}
-            </Code>
-            <Text size="xs" className="text-foreground-neutral-muted">
-              Run ID
-            </Text>
+    <div className="flex min-h-[calc(100vh-160px)] overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base">
+      <WorkflowRunsList runs={runs} selectedRunId={run.id} onSelectRun={onSelectRun} />
+
+      <main
+        className="flex min-w-0 flex-1 flex-col overflow-hidden"
+        aria-label="Workflow run details"
+      >
+        <WorkflowRunSummary run={run} className="border-b border-border-neutral-base" />
+
+        <div className="grid min-h-0 flex-1 gap-16 overflow-auto bg-background-neutral-background p-16 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="flex min-w-0 flex-col gap-16">
+            <WorkflowJobsVisualization
+              jobs={run.jobs}
+              selectedJobId={selectedJob?.id}
+              focusedJobId={selectedJob?.id}
+              onSelectJob={onSelectJob}
+            />
+            {selectedJob ? (
+              <WorkflowStepList
+                job={selectedJob}
+                selectedStepId={selectedStep?.id}
+                defaultExpandedStepIds={selectedStep ? [selectedStep.id] : []}
+                onSelectedStepChange={onSelectStep}
+              />
+            ) : (
+              <EmptyState
+                icon="listCheck3"
+                title="No job selected"
+                description="Select a job to inspect its steps."
+              />
+            )}
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-16">
+            <WorkflowStepOverview
+              selection={
+                selectedJob && selectedStep ? {jobName: selectedJob.name, step: selectedStep} : null
+              }
+            />
+            <WorkflowSourceView source={run.source_snapshot} selectedRange={selectedRange} />
           </div>
         </div>
-        <StatusBadge variant={statusBadgeVariantByStatus[run.status]} className="shrink-0">
-          {statusLabelByStatus[run.status]}
-        </StatusBadge>
-      </header>
-
-      <section
-        aria-label="Workflow run selection"
-        className="grid gap-12 rounded-8 border border-border-neutral-base bg-background-neutral-base p-16 md:grid-cols-3"
-      >
-        <SelectionValue label="Run" value={run.id} />
-        <SelectionValue label="Job" value={selectedJobId ?? 'None'} />
-        <SelectionValue label="Step" value={selectedStepId ?? 'None'} />
-      </section>
-
-      <section
-        aria-label="Workflow run sections"
-        className="grid gap-16 lg:grid-cols-[260px_minmax(0,1fr)]"
-      >
-        {placeholderSections.map((section) => (
-          <PlaceholderSection
-            key={section.title}
-            title={section.title}
-            selectedId={
-              section.selection === 'run'
-                ? run.id
-                : section.selection === 'job'
-                  ? selectedJobId
-                  : selectedStepId
-            }
-          />
-        ))}
-      </section>
+      </main>
     </div>
   );
 }
 
-function SelectionValue({label, value}: {label: string; value: string}) {
-  return (
-    <div className="min-w-0">
-      <Text size="xs" className="text-foreground-neutral-muted">
-        {label}
-      </Text>
-      <Code variant="label" className="truncate text-foreground-neutral-base">
-        {value}
-      </Code>
-    </div>
-  );
+function selectJob(
+  jobs: readonly RunDetailJobDto[],
+  selectedJobId: string | undefined,
+): RunDetailJobDto | null {
+  if (jobs.length === 0) return null;
+  return jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null;
 }
 
-function PlaceholderSection({title, selectedId}: {title: string; selectedId?: string | undefined}) {
-  return (
-    <article className="flex min-h-120 flex-col justify-between gap-16 rounded-8 border border-border-neutral-base bg-background-neutral-base p-16">
-      <div className="flex flex-col gap-4">
-        <Header variant="h4">{title}</Header>
-        <Text size="sm" className="text-foreground-neutral-muted">
-          Placeholder
-        </Text>
-      </div>
-      <Code variant="label" className="truncate text-foreground-neutral-muted">
-        {selectedId ?? 'No selection'}
-      </Code>
-    </article>
-  );
+function selectStep(
+  job: RunDetailJobDto | null,
+  selectedStepId: string | undefined,
+): RunDetailStepDto | null {
+  if (!job || job.steps.length === 0) return null;
+  return job.steps.find((step) => step.id === selectedStepId) ?? job.steps[0] ?? null;
+}
+
+function toSourceRange(step: RunDetailStepDto | null): WorkflowSourceLineRange | null {
+  if (!step?.source_location) return null;
+  return {
+    startLine: step.source_location.start_line,
+    endLine: step.source_location.end_line,
+    label: step.name ?? undefined,
+  };
 }
