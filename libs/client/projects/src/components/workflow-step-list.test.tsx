@@ -138,6 +138,58 @@ describe('WorkflowStepList', () => {
     expect(onSelectedStepChange).toHaveBeenCalledTimes(1);
     expect(onSelectedStepChange).toHaveBeenCalledWith(stepId(2));
   });
+
+  test('renders an Overview | Source detail-mode control defaulting to Overview', () => {
+    render(<WorkflowStepList job={makeJob()} />);
+
+    const tablist = screen.getByRole('tablist', {name: 'Step detail mode'});
+
+    expect(within(tablist).getByRole('tab', {name: 'Overview'})).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(within(tablist).getByRole('tab', {name: 'Source'})).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
+  });
+
+  test('renders caller-provided expanded content with the step id and active mode', () => {
+    render(
+      <WorkflowStepList
+        job={makeJob()}
+        defaultExpandedStepIds={[stepId(2)]}
+        renderExpandedStep={({stepId: id, mode}) => <div>{`detail ${mode} ${id}`}</div>}
+      />,
+    );
+
+    expect(screen.getByText(`detail overview ${stepId(2)}`)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', {name: 'Source'}));
+
+    expect(screen.getByText(`detail source ${stepId(2)}`)).toBeInTheDocument();
+  });
+
+  test('supports a controlled detail mode', () => {
+    const onDetailModeChange = vi.fn();
+    render(
+      <WorkflowStepList
+        job={makeJob()}
+        detailMode="source"
+        onDetailModeChange={onDetailModeChange}
+        defaultExpandedStepIds={[stepId(2)]}
+        renderExpandedStep={({mode}) => <div>{`mode ${mode}`}</div>}
+      />,
+    );
+
+    expect(screen.getByText('mode source')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', {name: 'Overview'}));
+
+    // Controlled: the parent owns the value, so it stays until the parent updates it.
+    expect(onDetailModeChange).toHaveBeenCalledWith('overview');
+    expect(screen.getByText('mode source')).toBeInTheDocument();
+  });
 });
 
 function makeJob({steps}: {steps?: WorkflowStepListStep[]} = {}): WorkflowStepListJob {

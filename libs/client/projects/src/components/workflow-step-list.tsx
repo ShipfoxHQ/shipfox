@@ -1,5 +1,5 @@
 import {Alert, Badge, Code, cn, Header, Icon, StatusBadge, Text} from '@shipfox/react-ui';
-import {useMemo, useState} from 'react';
+import {type ReactNode, useMemo, useState} from 'react';
 import {StatusDot} from './status-dot.js';
 import {
   toWorkflowStepListModel,
@@ -8,6 +8,14 @@ import {
   type WorkflowStepListStepModel,
   type WorkflowStepListTone,
 } from './workflow-step-list-model.js';
+
+/** Inline detail mode for the selected step's expanded row. */
+export type WorkflowStepDetailMode = 'overview' | 'source';
+
+const DETAIL_MODES: ReadonlyArray<{value: WorkflowStepDetailMode; label: string}> = [
+  {value: 'overview', label: 'Overview'},
+  {value: 'source', label: 'Source'},
+];
 
 const rowBorderByTone: Record<WorkflowStepListTone, string> = {
   neutral: 'border-border-neutral-base',
@@ -28,19 +36,47 @@ const attemptChipByTone: Record<WorkflowStepListTone, string> = {
   error: 'border-tag-error-border bg-tag-error-bg text-tag-error-text hover:bg-tag-error-bg-hover',
 };
 
+export interface WorkflowStepListProps {
+  job: WorkflowStepListJob;
+  selectedStepId?: string;
+  defaultExpandedStepIds?: string[];
+  onSelectedStepChange?: (stepId: string) => void;
+  /**
+   * Detail mode for the `Overview | Source` control. Controlled when provided (the page
+   * syncs it with URL/selection state — ENG-465); otherwise the list owns it internally,
+   * defaulting to `overview`.
+   */
+  detailMode?: WorkflowStepDetailMode;
+  onDetailModeChange?: (mode: WorkflowStepDetailMode) => void;
+  /**
+   * Content rendered inside a step's expanded row. Receives the expanded step id and the
+   * active detail mode so the caller mounts the step overview (`overview`) or the source
+   * view (`source`) inline — there is no separate inspector panel. When omitted the list
+   * renders a built-in summary so it stays usable in isolation.
+   */
+  renderExpandedStep?:
+    | ((args: {stepId: string; mode: WorkflowStepDetailMode}) => ReactNode)
+    | undefined;
+}
+
 export function WorkflowStepList({
   job,
   selectedStepId,
   defaultExpandedStepIds = [],
   onSelectedStepChange,
-}: {
-  job: WorkflowStepListJob;
-  selectedStepId?: string;
-  defaultExpandedStepIds?: string[];
-  onSelectedStepChange?: (stepId: string) => void;
-}) {
+  detailMode,
+  onDetailModeChange,
+  renderExpandedStep,
+}: WorkflowStepListProps) {
   const [expandedStepIds, setExpandedStepIds] = useState(() => new Set(defaultExpandedStepIds));
+  const [internalMode, setInternalMode] = useState<WorkflowStepDetailMode>('overview');
   const model = useMemo(() => toWorkflowStepListModel(job), [job]);
+  const mode = detailMode ?? internalMode;
+
+  function changeMode(next: WorkflowStepDetailMode) {
+    if (detailMode === undefined) setInternalMode(next);
+    onDetailModeChange?.(next);
+  }
 
   function toggleExpanded(stepId: string) {
     const shouldSelect = !expandedStepIds.has(stepId);
@@ -64,7 +100,10 @@ export function WorkflowStepList({
             {model.stepCount} steps in execution order.
           </Text>
         </div>
-        <StatusBadge variant={model.statusTone}>{model.statusLabel}</StatusBadge>
+        <div className="flex shrink-0 items-center gap-8">
+          <DetailModeControl mode={mode} onChange={changeMode} />
+          <StatusBadge variant={model.statusTone}>{model.statusLabel}</StatusBadge>
+        </div>
       </div>
 
       <ol className="flex flex-col gap-4">
@@ -72,9 +111,11 @@ export function WorkflowStepList({
           <WorkflowStepRow
             key={step.id}
             step={step}
+            mode={mode}
             expanded={expandedStepIds.has(step.id)}
             selected={selectedStepId === step.id}
             onToggle={() => toggleExpanded(step.id)}
+            renderExpandedStep={renderExpandedStep}
           />
         ))}
       </ol>
@@ -82,16 +123,56 @@ export function WorkflowStepList({
   );
 }
 
+function DetailModeControl({
+  mode,
+  onChange,
+}: {
+  mode: WorkflowStepDetailMode;
+  onChange: (mode: WorkflowStepDetailMode) => void;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Step detail mode"
+      className="inline-flex shrink-0 items-center gap-2 rounded-6 border border-border-neutral-base bg-background-field-base p-2"
+    >
+      {DETAIL_MODES.map(({value, label}) => (
+        <button
+          key={value}
+          type="button"
+          role="tab"
+          aria-selected={mode === value}
+          className={cn(
+            'rounded-4 px-8 py-4 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-highlights-interactive',
+            mode === value
+              ? 'bg-background-components-base text-foreground-neutral-base'
+              : 'text-foreground-neutral-muted hover:text-foreground-neutral-base',
+          )}
+          onClick={() => onChange(value)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function WorkflowStepRow({
   step,
+  mode,
   expanded,
   selected,
   onToggle,
+  renderExpandedStep,
 }: {
   step: WorkflowStepListStepModel;
+  mode: WorkflowStepDetailMode;
   expanded: boolean;
   selected: boolean;
   onToggle: () => void;
+  renderExpandedStep?:
+    | ((args: {stepId: string; mode: WorkflowStepDetailMode}) => ReactNode)
+    | undefined;
 }) {
   return (
     <li className="flex flex-col">
@@ -136,35 +217,60 @@ function WorkflowStepRow({
 
       {expanded ? (
         <div className="rounded-b-8 border border-t-0 border-border-neutral-strong bg-background-components-base px-16 py-12">
-          <div className="flex flex-col gap-12">
-            {step.errorMessage ? (
-              <Alert variant="error" animated={false}>
-                <div className="flex flex-col gap-6">
-                  <Text size="sm" bold>
-                    Step failed
-                  </Text>
-                  <Text size="sm">{step.errorMessage}</Text>
-                </div>
-              </Alert>
-            ) : null}
-
-            {step.command ? (
-              <div className="flex items-center gap-8 rounded-6 border border-border-neutral-base bg-background-field-base px-10 py-8">
-                <Badge variant="neutral">code</Badge>
-                <Code
-                  variant="paragraph"
-                  className="min-w-0 truncate text-foreground-neutral-muted"
-                >
-                  {step.command}
-                </Code>
-              </div>
-            ) : null}
-
-            <AttemptHistory attempts={step.attempts} />
-          </div>
+          {renderExpandedStep ? (
+            renderExpandedStep({stepId: step.id, mode})
+          ) : (
+            <BuiltInStepDetail step={step} mode={mode} />
+          )}
         </div>
       ) : null}
     </li>
+  );
+}
+
+/**
+ * Fallback expanded content for isolated/standalone use (tests, previews). In the page the
+ * caller supplies `renderExpandedStep` to mount the real overview/source components inline.
+ */
+function BuiltInStepDetail({
+  step,
+  mode,
+}: {
+  step: WorkflowStepListStepModel;
+  mode: WorkflowStepDetailMode;
+}) {
+  if (mode === 'source') {
+    return (
+      <Text size="sm" className="text-foreground-neutral-muted">
+        Source view mounts here when the page provides it.
+      </Text>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-12">
+      {step.errorMessage ? (
+        <Alert variant="error" animated={false}>
+          <div className="flex flex-col gap-6">
+            <Text size="sm" bold>
+              Step failed
+            </Text>
+            <Text size="sm">{step.errorMessage}</Text>
+          </div>
+        </Alert>
+      ) : null}
+
+      {step.command ? (
+        <div className="flex items-center gap-8 rounded-6 border border-border-neutral-base bg-background-field-base px-10 py-8">
+          <Badge variant="neutral">code</Badge>
+          <Code variant="paragraph" className="min-w-0 truncate text-foreground-neutral-muted">
+            {step.command}
+          </Code>
+        </div>
+      ) : null}
+
+      <AttemptHistory attempts={step.attempts} />
+    </div>
   );
 }
 
