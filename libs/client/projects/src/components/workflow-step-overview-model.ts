@@ -15,7 +15,7 @@ export const workflowStepOverviewStepSchema = stepDtoSchema.extend({
   ),
 });
 
-type WorkflowStepOverviewAttempt = StepAttemptDto & {
+type WorkflowStepOverviewAttempt = Omit<StepAttemptDto, 'restart_result'> & {
   restart_result?: Record<string, unknown> | null | undefined;
 };
 
