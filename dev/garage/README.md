@@ -5,18 +5,6 @@ development and self-hosting, `compose.yml` bundles [Garage](https://garagehq.de
 any S3-compatible endpoint (AWS S3, Cloudflare R2, Backblaze B2, MinIO, …) works
 in production.
 
-## First-time setup
-
-```sh
-docker compose up -d garage
-./dev/garage/bootstrap.sh
-```
-
-`bootstrap.sh` assigns the single-node layout, creates the `shipfox-logs`
-bucket, and imports a fixed dev access key. It is idempotent, so re-running it
-is safe. The credentials it sets match the committed root `.env`, so the API
-targets Garage at startup with no extra configuration.
-
 | Setting | Value |
 | -- | -- |
 | Endpoint | `http://localhost:3900` |
