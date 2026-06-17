@@ -37,6 +37,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*"
   },

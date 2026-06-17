@@ -51,7 +51,7 @@ export async function runJobSteps(params: {
     let result: StepResult;
     try {
       if (step.type === 'setup') {
-        result = await executeSetupStep({cwd});
+        result = await executeSetupStep({cwd, leaseClient, signal});
         if (result.success) workspacePrepared = true;
       } else if (!workspacePrepared) {
         // Invariant violation (a run step before setup prepared the cwd), not a

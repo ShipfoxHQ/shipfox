@@ -5,6 +5,8 @@ import {
   heartbeatResponseSchema,
 } from '@shipfox/api-runners-dto';
 import {
+  type CheckoutTokenResponseDto,
+  checkoutTokenResponseSchema,
   type NextStepResponseDto,
   nextStepResponseSchema,
   type ReportStepResponseDto,
@@ -92,6 +94,20 @@ export async function reportStep(
     ...(params.signal ? {signal: params.signal} : {}),
   });
   return reportStepResponseSchema.parse(await response.json());
+}
+
+// Exchanges the job lease for short-lived, read-only checkout credentials. The job is
+// identified by the lease claims, so no id is sent. Retries ride the leaseClient policy
+// (which honors Retry-After); each retry re-mints a fresh short-lived credential.
+export async function requestCheckoutToken(
+  leaseClient: KyInstance,
+  options: {signal?: AbortSignal} = {},
+): Promise<CheckoutTokenResponseDto> {
+  const response = await leaseClient.post(
+    'runs/jobs/current/checkout-token',
+    options.signal ? {signal: options.signal} : undefined,
+  );
+  return checkoutTokenResponseSchema.parse(await response.json());
 }
 
 export async function heartbeat(

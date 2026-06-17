@@ -6,6 +6,7 @@ import {
   createLeaseClient,
   heartbeat,
   reportStep,
+  requestCheckoutToken,
   requestJob,
   requestNextStep,
 } from '#api-client.js';
@@ -72,6 +73,24 @@ describe('api-client auth contexts', () => {
     expect(next).toEqual({kind: 'done', status: 'succeeded'});
     expect(calls[0]?.url).toContain('runs/jobs/current/steps/next');
     expect(calls[0]?.authorization).toBe('Bearer lease-abc');
+  });
+
+  it('requestCheckoutToken sends the lease token and parses the checkout response', async () => {
+    stubFetch(() =>
+      jsonResponse({
+        repository_url: 'https://github.com/acme/repo.git',
+        ref: 'main',
+        auth: {kind: 'bearer', token: 'tok-123', expires_at: '2026-01-01T00:00:00.000Z'},
+      }),
+    );
+    const leaseClient = createLeaseClient('lease-ghi');
+
+    const checkout = await requestCheckoutToken(leaseClient);
+
+    expect(checkout.repository_url).toBe('https://github.com/acme/repo.git');
+    expect(checkout.ref).toBe('main');
+    expect(calls[0]?.url).toContain('runs/jobs/current/checkout-token');
+    expect(calls[0]?.authorization).toBe('Bearer lease-ghi');
   });
 
   it('reportStep sends the lease token to the per-step report endpoint', async () => {
