@@ -5,6 +5,12 @@ import {
 } from '@shipfox/expression';
 import type {GateOutcome, StepResult} from './decide-step-transition.js';
 
+// The exact `uncheckable` reason recorded when the gate's CEL expression itself
+// throws (as opposed to a missing exit code). The DTO mapper keys on this string to
+// surface a distinct `evaluation_error` gate result, so the producer and the mapper
+// must share this constant rather than duplicating the literal.
+export const GATE_EVALUATION_ERROR_REASON = 'gate expression evaluation failed';
+
 // The gate as parsed from a step's materialized `config.gate` (snake_case JSON).
 export interface StepGate {
   successIf?: WorkflowExpression;
@@ -65,7 +71,7 @@ export function evaluateGate(gate: StepGate | undefined, result: StepResult): Ga
     return passed ? {kind: 'passed', source} : {kind: 'failed', source};
   } catch (error) {
     if (error instanceof WorkflowExpressionEvaluationError) {
-      return {kind: 'uncheckable', reason: 'gate expression evaluation failed'};
+      return {kind: 'uncheckable', reason: GATE_EVALUATION_ERROR_REASON};
     }
     throw error;
   }

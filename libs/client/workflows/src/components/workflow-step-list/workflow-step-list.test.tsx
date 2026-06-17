@@ -217,6 +217,7 @@ function makeAttempt(overrides: Partial<StepAttemptDto> = {}): StepAttemptDto {
     error: null,
     gate_result: null,
     restart_reason: null,
+    restart_result: null,
     started_at: '2026-06-21T12:00:00.000Z',
     finished_at: null,
     ...overrides,

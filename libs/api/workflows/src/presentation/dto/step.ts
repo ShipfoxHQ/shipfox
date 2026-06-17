@@ -8,6 +8,7 @@ import {
   stepErrorReasonSchema,
 } from '@shipfox/api-workflows-dto';
 import type {Step, StepAttempt} from '#core/entities/step.js';
+import {GATE_EVALUATION_ERROR_REASON} from '#core/step-transition/evaluate-gate.js';
 
 // Domain `error` is loosely typed (jsonb), so narrow it to the fixed runner
 // contract rather than trusting whatever shape the row happens to hold. `category`
@@ -53,8 +54,13 @@ function isIntOrNull(value: unknown): value is number | null {
   return value === null || (typeof value === 'number' && Number.isInteger(value));
 }
 
-function toStepGateResultDto(gateResult: Record<string, unknown> | null): StepGateResultDto {
-  if (gateResult === null) return null;
+function toStepGateResultDto(
+  gateResult: Record<string, unknown> | null,
+  status: string,
+): StepGateResultDto {
+  if (gateResult === null) {
+    return status === 'running' || status === 'pending' ? {kind: 'not_evaluated'} : {kind: 'none'};
+  }
 
   const exitCode = gateResult.exit_code;
   const passed = gateResult.passed;
@@ -71,6 +77,9 @@ function toStepGateResultDto(gateResult: Record<string, unknown> | null): StepGa
     typeof reason === 'string' &&
     isIntOrNull(exitCode)
   ) {
+    if (reason === GATE_EVALUATION_ERROR_REASON) {
+      return {kind: 'evaluation_error', reason, exit_code: exitCode};
+    }
     return {kind: 'uncheckable', passed, uncheckable: true, reason, exit_code: exitCode};
   }
 
@@ -81,7 +90,26 @@ function toStepGateResultDto(gateResult: Record<string, unknown> | null): StepGa
   return {kind: 'unknown', data: gateResult};
 }
 
-function toStepRestartResultDto(restartReason: string | null): StepRestartResultDto {
+function toStepRestartResultDto(
+  restartReason: string | null,
+  error: Record<string, unknown> | null,
+): StepRestartResultDto {
+  const maxAttempts = error?.maxAttempts ?? error?.max_attempts;
+  const restartFrom = error?.restartFrom ?? error?.restart_from;
+  if (
+    error?.kind === 'restart_exhausted' &&
+    typeof restartFrom === 'string' &&
+    typeof maxAttempts === 'number' &&
+    Number.isInteger(maxAttempts) &&
+    maxAttempts > 0
+  ) {
+    return {
+      kind: 'restart_exhausted',
+      max_attempts: maxAttempts,
+      restart_from: restartFrom,
+    };
+  }
+
   if (restartReason === null) return null;
   return {kind: 'restart_enqueued', reason: restartReason};
 }
@@ -125,9 +153,9 @@ export function toStepAttemptDto(attempt: StepAttempt): StepAttemptDto {
     exit_code: attempt.exitCode,
     output: attempt.output,
     error: attempt.error,
-    gate_result: toStepGateResultDto(attempt.gateResult),
+    gate_result: toStepGateResultDto(attempt.gateResult, attempt.status),
     restart_reason: attempt.restartReason,
-    restart_result: toStepRestartResultDto(attempt.restartReason),
+    restart_result: toStepRestartResultDto(attempt.restartReason, attempt.error),
     started_at: attempt.startedAt.toISOString(),
     finished_at: attempt.finishedAt ? attempt.finishedAt.toISOString() : null,
   };

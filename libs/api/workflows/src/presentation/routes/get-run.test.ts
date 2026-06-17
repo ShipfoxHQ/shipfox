@@ -342,7 +342,7 @@ jobs:
       attempt: 1,
       status: 'succeeded',
       exit_code: 0,
-      gate_result: null,
+      gate_result: {kind: 'none'},
       restart_reason: null,
       restart_result: null,
     });

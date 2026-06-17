@@ -234,6 +234,7 @@ function attemptDto(overrides: Partial<StepAttemptDto> = {}): StepAttemptDto {
     error: null,
     gate_result: null,
     restart_reason: null,
+    restart_result: null,
     started_at: '2026-05-07T01:01:10.000Z',
     finished_at: '2026-05-07T01:01:20.000Z',
     ...overrides,

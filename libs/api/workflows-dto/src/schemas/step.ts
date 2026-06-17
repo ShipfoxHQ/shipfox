@@ -73,6 +73,12 @@ export type StepDto = z.infer<typeof stepDtoSchema>;
 export const stepGateResultDtoSchema = z
   .discriminatedUnion('kind', [
     z.object({
+      kind: z.literal('none'),
+    }),
+    z.object({
+      kind: z.literal('not_evaluated'),
+    }),
+    z.object({
       kind: z.literal('passed'),
       passed: z.literal(true),
       source: z.string(),
@@ -92,6 +98,11 @@ export const stepGateResultDtoSchema = z
       exit_code: z.number().int().nullable(),
     }),
     z.object({
+      kind: z.literal('evaluation_error'),
+      reason: z.string(),
+      exit_code: z.number().int().nullable(),
+    }),
+    z.object({
       kind: z.literal('unknown'),
       data: z.record(z.string(), z.unknown()),
     }),
@@ -101,10 +112,17 @@ export const stepGateResultDtoSchema = z
 export type StepGateResultDto = z.infer<typeof stepGateResultDtoSchema>;
 
 export const stepRestartResultDtoSchema = z
-  .object({
-    kind: z.literal('restart_enqueued'),
-    reason: z.string(),
-  })
+  .discriminatedUnion('kind', [
+    z.object({
+      kind: z.literal('restart_enqueued'),
+      reason: z.string(),
+    }),
+    z.object({
+      kind: z.literal('restart_exhausted'),
+      max_attempts: z.number().int().positive(),
+      restart_from: z.string(),
+    }),
+  ])
   .nullable();
 
 export type StepRestartResultDto = z.infer<typeof stepRestartResultDtoSchema>;
