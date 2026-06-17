@@ -9,6 +9,9 @@ Input shape for Shipfox workflow authoring.
 - `InvalidWorkflowDocumentError` reports invalid input with the original Zod error as `cause`.
 - `WorkflowDocumentRunStepGate` describes the step `gate` block with `success_if`
   and `on_failure`.
+- A job step is either a **run step** (`run: <shell command>`) or an inline
+  **agent step** (`model` + `prompt`, with an optional `thinking` level). A step
+  carries one or the other, never both.
 
 Use this package where Shipfox accepts a workflow object from a file, tool, or
 API call. It checks the shape only. It does not add defaults, pick runners,
@@ -57,12 +60,38 @@ try {
 }
 ```
 
+A step can also be an inline agent step. It declares a `model` and a `prompt`
+(no `run`), with an optional `thinking` level that defaults to `high`. The
+recommended pattern is an agent step that produces a change, followed by a `run`
+step whose `gate` judges the result:
+
+```ts
+parseWorkflowDocument({
+  name: 'agent build',
+  jobs: {
+    fix: {
+      steps: [
+        {model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'},
+        {run: 'npm test', gate: {success_if: 'exit_code == 0'}},
+      ],
+    },
+  },
+});
+```
+
 ## Behavior Notes
 
 - The public contract is the Zod schema and the TypeScript types built from it.
 - Bad input throws a typed `Error`; UI or API code can read `validationError.issues` for field details.
 - The `gate` block is checked as input shape here. CEL parsing and restart
   target checks belong to definitions-owned model code.
+- A step is discriminated by which keys it carries: `run` marks a run step;
+  `model` + `prompt` (both required) mark an agent step; declaring both, or
+  neither, is rejected. `thinking` is optional and validated against a fixed set
+  (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`); the `high` default is
+  applied later in the model layer, not here. `model` is free text, so an unknown
+  model is accepted at parse time and fails later at runtime. The `agent` key is
+  reserved for a future step kind and is rejected today.
 - Rules that need a project, user, runner, database row, or saved state belong
   outside this package.
 

@@ -2,7 +2,6 @@ import type {
   CreateAgentSessionOptions,
   ModelRegistry as PiModelRegistry,
 } from '@earendil-works/pi-coding-agent';
-import {config} from '#config.js';
 import type {AgentHarness, AgentInvocation, AgentRunResult} from '#core/agent-harness.js';
 
 type PiModel = NonNullable<CreateAgentSessionOptions['model']>;
@@ -21,13 +20,11 @@ export function createPiAgentHarness(): AgentHarness {
 async function runWithPi(invocation: AgentInvocation): Promise<AgentRunResult> {
   const {cwd, model: modelSpec, thinking, prompt, signal} = invocation;
 
-  // pi reads ANTHROPIC_API_KEY from the environment. Mirror the runner config into
-  // the env when set so a configured key reaches pi without a separate credential
-  // store. The runner already loads config from the same variable, so this is a
-  // no-op in the common case.
-  if (config.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY === undefined) {
-    process.env.ANTHROPIC_API_KEY = config.ANTHROPIC_API_KEY;
-  }
+  // A listener added to an already-aborted signal never fires, so an abort that
+  // lands before this point (or during the awaits below) would leave pi running and
+  // burning tokens after the step loop has moved on. Guard on entry, then again once
+  // the session exists so a mid-creation abort still stops pi.
+  if (signal.aborted) throw new Error('Agent step aborted before the pi session started');
 
   const {createAgentSession, AuthStorage, ModelRegistry} = await import(
     '@earendil-works/pi-coding-agent'
@@ -44,15 +41,23 @@ async function runWithPi(invocation: AgentInvocation): Promise<AgentRunResult> {
     modelRegistry,
   });
 
-  const onAbort = () => {
-    void session.abort();
+  // session.abort() returns a promise; a rejected abort must not become an unhandled
+  // rejection that crashes the long-lived runner, so swallow it.
+  const abortSession = () => {
+    Promise.resolve(session.abort()).catch(() => undefined);
   };
-  signal.addEventListener('abort', onAbort, {once: true});
+
+  if (signal.aborted) {
+    abortSession();
+    throw new Error('Agent step aborted during pi session creation');
+  }
+
+  signal.addEventListener('abort', abortSession, {once: true});
   try {
     await session.prompt(prompt);
     return {};
   } finally {
-    signal.removeEventListener('abort', onAbort);
+    signal.removeEventListener('abort', abortSession);
   }
 }
 

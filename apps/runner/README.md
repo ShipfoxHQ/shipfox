@@ -41,3 +41,4 @@ configured root is empty, the filesystem root (`/`), or a home directory.
 | `SHIPFOX_POLL_MAX_INTERVAL_MS` | `30000` | Maximum backoff interval when no jobs are available. |
 | `SHIPFOX_HEARTBEAT_INTERVAL_MS` | `10000` | Heartbeat tick interval for an in-flight job. |
 | `SHIPFOX_HEARTBEAT_MAX_STALE_MS` | `10000` | Max time a single heartbeat may stay outstanding before it is aborted. |
+| `ANTHROPIC_API_KEY` | none | Anthropic API key the embedded pi harness uses to run agent steps against Anthropic models. Read from the process environment. Unset or empty disables agent steps, which then fail at invocation; other step types are unaffected. |

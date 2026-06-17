@@ -84,6 +84,38 @@ describe('createPiAgentHarness', () => {
     await promise;
   });
 
+  it('aborts the session and skips the prompt when the signal fires during session creation', async () => {
+    const ac = new AbortController();
+    let resolveCreate: (value: {session: unknown}) => void = () => {
+      // replaced by the mock implementation below
+    };
+    createAgentSessionMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+    const harness = createPiAgentHarness();
+
+    const promise = harness.run(invocation({signal: ac.signal}));
+    await vi.waitFor(() => expect(createAgentSessionMock).toHaveBeenCalled());
+    ac.abort();
+    resolveCreate({session: {prompt: promptMock, abort: abortMock, messages: []}});
+
+    await expect(promise).rejects.toThrow('aborted');
+    expect(abortMock).toHaveBeenCalledTimes(1);
+    expect(promptMock).not.toHaveBeenCalled();
+  });
+
+  it('does not run pi when the signal is already aborted on entry', async () => {
+    const ac = new AbortController();
+    ac.abort();
+    const harness = createPiAgentHarness();
+
+    await expect(harness.run(invocation({signal: ac.signal}))).rejects.toThrow('aborted');
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
+  });
+
   it('throws when the model cannot be resolved', async () => {
     findMock.mockReturnValue(undefined);
     const harness = createPiAgentHarness();

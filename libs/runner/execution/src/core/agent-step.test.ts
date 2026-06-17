@@ -102,4 +102,14 @@ describe('executeAgentStep', () => {
     expect(result.success).toBe(false);
     expect(sawSignal).toBe(ac.signal);
   });
+
+  it('fails without crashing when the signal is already aborted before the call', async () => {
+    const ac = new AbortController();
+    ac.abort();
+    const harness = fakeHarness(() => Promise.reject(new Error('harness rejected after abort')));
+
+    const result = await executeAgentStep(buildAgentStep(), {harness, signal: ac.signal});
+
+    expect(result.success).toBe(false);
+  });
 });

@@ -52,7 +52,12 @@ async function runAgentStep(params: {
 // reaches its abort-before-report guard in seconds instead of hanging until lease
 // expiry; the harness still calls session.abort() to stop the agent's own work.
 function raceAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(abortError());
+  if (signal.aborted) {
+    // `work` (the harness call) is already in flight; attach a no-op catch so its
+    // eventual rejection can't surface as an unhandled rejection on the aborted path.
+    void work.catch(() => undefined);
+    return Promise.reject(abortError());
+  }
   return new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(abortError());
     signal.addEventListener('abort', onAbort, {once: true});

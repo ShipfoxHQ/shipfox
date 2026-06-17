@@ -59,10 +59,10 @@ export async function runJobSteps(params: {
         result = await executeSetupStep({cwd});
         if (result.success) workspacePrepared = true;
       } else if (!workspacePrepared) {
-        // Invariant violation (a run step before setup prepared the cwd), not a
-        // setup-phase failure, so no `reason`. step.type is 'run' so the server
-        // derives category 'user'. Only reachable for a setup-less in-flight job
-        // hitting a new runner during the rollout window.
+        // Invariant violation (a run or agent step before setup prepared the cwd),
+        // not a setup-phase failure, so no `reason`. step.type is not 'setup' so the
+        // server derives category 'user'. Only reachable for a setup-less in-flight
+        // job hitting a new runner during the rollout window.
         result = {
           success: false,
           output: '',
