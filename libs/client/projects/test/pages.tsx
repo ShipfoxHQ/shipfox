@@ -48,6 +48,16 @@ export function jsonResponse(body: unknown, init: ResponseInit = {}) {
   });
 }
 
+// The param-carrying routes below declare `$pid`/`$runId` in their path, so the value is
+// always present when their fallback page renders. A missing param means the harness
+// wired a route wrong — fail loudly instead of rendering a page with a fabricated id.
+function requireParam(value: string | undefined, name: string): string {
+  if (value === undefined) {
+    throw new Error(`Test router: route param "${name}" is missing`);
+  }
+  return value;
+}
+
 function createTestRouter(path: string, element: ReactElement) {
   const initialPath = path.split('?')[0] ?? path;
   const rootRoute = createRootRoute({component: Outlet});
@@ -86,7 +96,7 @@ function createTestRouter(path: string, element: ReactElement) {
         return element;
       }
 
-      return <ProjectRunsPage projectId={params.pid ?? 'p-1'} />;
+      return <ProjectRunsPage projectId={requireParam(params.pid, 'pid')} />;
     },
   });
   const projectRunsRoute = createRoute({
@@ -98,7 +108,7 @@ function createTestRouter(path: string, element: ReactElement) {
         return element;
       }
 
-      return <ProjectRunsPage projectId={params.pid ?? 'p-1'} />;
+      return <ProjectRunsPage projectId={requireParam(params.pid, 'pid')} />;
     },
   });
   const workflowRunRoute = createRoute({
@@ -113,7 +123,12 @@ function createTestRouter(path: string, element: ReactElement) {
         return element;
       }
 
-      return <WorkflowRunPage projectId={params.pid ?? 'p-1'} runId={params.runId ?? 'r-1'} />;
+      return (
+        <WorkflowRunPage
+          projectId={requireParam(params.pid, 'pid')}
+          runId={requireParam(params.runId, 'runId')}
+        />
+      );
     },
   });
   const projectWorkflowsRoute = createRoute({
@@ -125,7 +140,7 @@ function createTestRouter(path: string, element: ReactElement) {
         return element;
       }
 
-      return <ProjectWorkflowsPage projectId={params.pid ?? 'p-1'} />;
+      return <ProjectWorkflowsPage projectId={requireParam(params.pid, 'pid')} />;
     },
   });
 
