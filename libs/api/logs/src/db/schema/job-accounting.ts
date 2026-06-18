@@ -8,6 +8,11 @@ import {pgTable} from './common.js';
  * job (envelope and control records included), so the budget bounds exactly what
  * lands in Postgres. `started_at` is the budget clock origin (first append).
  * `capped_at`, once set, makes every later append a no-op drop.
+ *
+ * Per-row `stored_bytes_used` is bounded by the per-job budget, so `mode:
+ * 'number'` is safe on the hot path. Any cross-row aggregate (workspace or
+ * system-wide totals) MUST read as bigint at the query site — the global sum
+ * is unbounded and would silently lose precision past 2^53 as a JS number.
  */
 export const jobAccounting = pgTable('job_accounting', {
   jobId: uuid('job_id').primaryKey(),

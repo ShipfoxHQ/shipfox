@@ -12,6 +12,12 @@ import {pgTable} from './common.js';
  * self-contained authorization (per-project read filtering, audit) without
  * joining back to workflows. `committed_length` is the offset-CAS axis (raw
  * NDJSON spool bytes the server has durably accepted from the runner).
+ *
+ * Per-row `committed_length` and `declared_total_bytes` are bounded by the
+ * per-job budget, so `mode: 'number'` is safe on the hot path. Any cross-row
+ * aggregate (workspace or system-wide totals) MUST read as bigint at the
+ * query site — the global sum is unbounded and would silently lose precision
+ * past 2^53 as a JS number.
  */
 export const attemptStreams = pgTable(
   'attempt_streams',
