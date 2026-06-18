@@ -45,7 +45,7 @@ CREATE TABLE "logs_outbox" (
 	"dispatched_at" timestamp with time zone
 );
 --> statement-breakpoint
-ALTER TABLE "logs_chunks" ADD CONSTRAINT "logs_chunks_stream_id_logs_attempt_streams_id_fk" FOREIGN KEY ("stream_id") REFERENCES "public"."logs_attempt_streams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "logs_chunks" ADD CONSTRAINT "logs_chunks_stream_id_logs_attempt_streams_id_fk" FOREIGN KEY ("stream_id") REFERENCES "public"."logs_attempt_streams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "logs_attempt_streams_identity_unique" ON "logs_attempt_streams" USING btree ("job_id","step_id","attempt");--> statement-breakpoint
 CREATE INDEX "logs_chunks_stream_seq_idx" ON "logs_chunks" USING btree ("stream_id","seq");--> statement-breakpoint
 CREATE INDEX "logs_outbox_pending_idx" ON "logs_outbox" USING btree ("created_at") WHERE "dispatched_at" IS NULL;

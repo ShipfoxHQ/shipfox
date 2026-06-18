@@ -24,7 +24,7 @@ export const logChunks = pgTable(
     id: uuidv7PrimaryKey(),
     streamId: uuid('stream_id')
       .notNull()
-      .references(() => attemptStreams.id),
+      .references(() => attemptStreams.id, {onDelete: 'cascade'}),
     seq: bigserial('seq', {mode: 'number'}).notNull(),
     streamOffset: bigint('stream_offset', {mode: 'number'}).notNull(),
     byteLen: integer('byte_len').notNull(),
