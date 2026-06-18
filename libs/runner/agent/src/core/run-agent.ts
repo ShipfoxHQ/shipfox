@@ -1,6 +1,16 @@
-import {type CreateAgentSessionOptions, createAgentSession} from '@earendil-works/pi-coding-agent';
+import {
+  AuthStorage,
+  type CreateAgentSessionOptions,
+  createAgentSession,
+  ModelRegistry,
+} from '@earendil-works/pi-coding-agent';
 
 type PiThinkingLevel = NonNullable<CreateAgentSessionOptions['thinkingLevel']>;
+
+// pi resolves a model from its registry by (provider, modelId), so a bare id is
+// ambiguous on its own. v1 targets Anthropic, so we pin the provider and treat the
+// workflow `model` as the Anthropic model id; selecting other providers comes later.
+const PROVIDER = 'anthropic';
 
 export interface AgentInvocation {
   readonly cwd: string;
@@ -19,7 +29,7 @@ export interface AgentInvocation {
  * observability and never sent to the API, so it is optional.
  */
 export async function runAgent(invocation: AgentInvocation): Promise<{summary?: string}> {
-  const {cwd, thinking, prompt, signal} = invocation;
+  const {cwd, model: modelId, thinking, prompt, signal} = invocation;
 
   // A listener added to an already-aborted signal never fires, so an abort that lands
   // before this point (or during the awaits below) would leave pi running and burning
@@ -27,9 +37,19 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   // session exists so a mid-creation abort still stops pi.
   if (signal.aborted) throw new Error('Agent step aborted before the pi session started');
 
+  const authStorage = AuthStorage.create();
+  const modelRegistry = ModelRegistry.create(authStorage);
+  const model = modelRegistry.find(PROVIDER, modelId);
+  if (!model) {
+    throw new Error(`Unknown agent model "${modelId}" for provider "${PROVIDER}"`);
+  }
+
   const {session} = await createAgentSession({
     cwd,
+    model,
     thinkingLevel: thinking as PiThinkingLevel,
+    authStorage,
+    modelRegistry,
   });
 
   // session.abort() returns a promise; a rejected abort must not become an unhandled
