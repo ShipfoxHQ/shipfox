@@ -95,7 +95,18 @@ describe('runAgent', () => {
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
+  it('throws an AgentConfigError without a hint when no provider carries the model', async () => {
+    findMock.mockReturnValue(undefined);
+    getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);
+
+    await expect(runAgent(invocation({provider: 'anthropic', model: 'gpt-5.1'}))).rejects.toThrow(
+      new AgentConfigError('Model "gpt-5.1" is not available for provider "anthropic".'),
+    );
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
+  });
+
   it('throws an AgentConfigError when the provider has no credentials on the runner', async () => {
+    findMock.mockReturnValue({provider: 'openai', id: 'gpt-5.1'});
     hasConfiguredAuthMock.mockReturnValue(false);
 
     await expect(runAgent(invocation({provider: 'openai', model: 'gpt-5.1'}))).rejects.toThrow(
