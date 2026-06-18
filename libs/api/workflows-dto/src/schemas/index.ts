@@ -31,6 +31,14 @@ export {
   runStatusSchema,
 } from './run.js';
 export {
+  type RunDetailResponseDto,
+  type RunJobDetailDto,
+  type RunStepDetailDto,
+  runDetailResponseSchema,
+  runJobDetailDtoSchema,
+  runStepDetailDtoSchema,
+} from './run-detail.js';
+export {
   type StepAttemptDto,
   type StepDto,
   type StepErrorCategory,

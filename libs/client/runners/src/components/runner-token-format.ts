@@ -1,11 +1,9 @@
 import type {RunnerTokenDto} from '@shipfox/api-runners-dto';
+import {formatTimestamp} from '@shipfox/react-ui';
 
 export function formatRunnerTokenDate(value: string | null): string {
   if (!value) return 'Never';
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+  return formatTimestamp(value);
 }
 
 export function runnerTokenDisplayName(token: RunnerTokenDto): string {

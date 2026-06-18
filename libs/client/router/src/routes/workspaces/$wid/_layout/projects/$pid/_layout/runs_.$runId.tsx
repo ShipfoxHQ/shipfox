@@ -1,8 +1,9 @@
-import {WorkflowRunPage} from '@shipfox/client-projects';
+import {WorkflowRunPage} from '@shipfox/client-workflows';
 import {createFileRoute} from '@tanstack/react-router';
 
 export const Route = createFileRoute('/workspaces/$wid/_layout/projects/$pid/_layout/runs_/$runId')(
   {
+    staticData: {layout: 'full-bleed'},
     component: WorkflowRunRoute,
   },
 );

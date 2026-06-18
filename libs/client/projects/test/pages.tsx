@@ -15,10 +15,8 @@ import {type RenderResult, render} from '@testing-library/react';
 import {Provider as JotaiProvider, useSetAtom} from 'jotai';
 import {type ReactElement, useEffect} from 'react';
 import {CreateProjectPage} from '#pages/create-project-page.js';
-import {ProjectRunsPage} from '#pages/project-runs-page.js';
 import {ProjectWorkflowsPage} from '#pages/project-workflows-page.js';
 import {ProjectsHubPage} from '#pages/projects-hub-page.js';
-import {WorkflowRunPage} from '#pages/workflow-run-page.js';
 
 // All test renders that exercise pages requiring `useActiveWorkspace()` mount
 // under `/workspaces/$wid`. The seeded workspace id (see authState) is the wid
@@ -96,39 +94,11 @@ function createTestRouter(path: string, element: ReactElement) {
         return element;
       }
 
-      return <ProjectRunsPage projectId={requireParam(params.pid, 'pid')} />;
-    },
-  });
-  const projectRunsRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: '/workspaces/$wid/projects/$pid/runs',
-    component: () => {
-      const params = useParams({strict: false}) as {pid?: string};
-      if (initialPath === `/workspaces/${PROJECT_TEST_WID}/projects/${params.pid}/runs`) {
-        return element;
-      }
-
-      return <ProjectRunsPage projectId={requireParam(params.pid, 'pid')} />;
-    },
-  });
-  const workflowRunRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: '/workspaces/$wid/projects/$pid/runs/$runId',
-    component: () => {
-      const params = useParams({strict: false}) as {pid?: string; runId?: string};
-      if (
-        initialPath ===
-        `/workspaces/${PROJECT_TEST_WID}/projects/${params.pid}/runs/${params.runId}`
-      ) {
-        return element;
-      }
-
-      return (
-        <WorkflowRunPage
-          projectId={requireParam(params.pid, 'pid')}
-          runId={requireParam(params.runId, 'runId')}
-        />
-      );
+      // Production redirects the project-detail URL to the Runs tab, which now lives in
+      // @shipfox/client-workflows. The harness only needs to prove navigation landed there
+      // (e.g. create-project duplicate recovery), so it renders a minimal stand-in rather
+      // than depending on that package.
+      return <h1>Runs</h1>;
     },
   });
   const projectWorkflowsRoute = createRoute({
@@ -152,8 +122,6 @@ function createTestRouter(path: string, element: ReactElement) {
       workspaceNewProjectRoute,
       integrationsRoute,
       projectDetailRoute,
-      projectRunsRoute,
-      workflowRunRoute,
       projectWorkflowsRoute,
     ]),
   });

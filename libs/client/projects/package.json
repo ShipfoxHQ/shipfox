@@ -45,11 +45,9 @@
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/client-integrations": "workspace:*",
     "@shipfox/client-ui": "workspace:*",
-    "@shipfox/regex": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",
-    "@tanstack/react-query": "^5.101.0",
-    "zod": "^4.2.1"
+    "@tanstack/react-query": "^5.101.0"
   },
   "peerDependencies": {
     "@tanstack/react-router": "^1.170.15",
@@ -61,7 +59,6 @@
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vite": "workspace:*",
     "@shipfox/vitest": "workspace:*",
     "@tanstack/react-router": "^1.170.15",
     "@testing-library/jest-dom": "^6.6.3",

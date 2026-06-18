@@ -12,6 +12,7 @@ import {
   Card,
   cn,
   EmptyState,
+  formatDate,
   Header,
   Icon,
   type IconName,
@@ -202,7 +203,7 @@ function InstalledRow({
         {/* Provider is already named by the icon (and the account name), so the
             meta line carries only the date — no third repeat of the provider. */}
         <Text size="sm" className="truncate text-foreground-neutral-muted">
-          Added {formatAddedDate(connection.created_at)}
+          Added {formatDate(connection.created_at)}
         </Text>
       </div>
       {/* "Open" sits left of the pill (optional, only when external_url is set)
@@ -273,14 +274,6 @@ function AvailableCard({
       </Card>
     </Link>
   );
-}
-
-function formatAddedDate(createdAt: string): string {
-  return new Date(createdAt).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
 }
 
 function InstalledSkeleton({label}: {label: string}) {

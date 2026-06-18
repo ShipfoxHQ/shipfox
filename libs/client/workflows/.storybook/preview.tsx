@@ -1,0 +1,71 @@
+import './preview.css';
+import {RelativeTimeProvider, ThemeProvider} from '@shipfox/react-ui';
+import type {Decorator, Preview} from '@storybook/react';
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+} from '@tanstack/react-router';
+
+const withTheme: Decorator = (Story, context) => {
+  const theme = context.globals.theme;
+  return (
+    <ThemeProvider key={theme} defaultTheme={theme} storageKey={`shipfox-theme-${theme}`}>
+      <Story />
+    </ThemeProvider>
+  );
+};
+
+const withRelativeTime: Decorator = (Story) => (
+  <RelativeTimeProvider>
+    <Story />
+  </RelativeTimeProvider>
+);
+
+// Run rows render `<Link to="/workspaces/$wid/projects/$pid/runs/$runId">` and read
+// `useParams`, both of which need a router in context. A memory router seeded at a
+// matching path lets the rows render and resolve their hrefs without a real app shell.
+const withRouter: Decorator = (Story) => {
+  const rootRoute = createRootRoute();
+  const runRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/projects/$pid/runs/$runId',
+    component: () => <Story />,
+  });
+  const router = createRouter({
+    routeTree: rootRoute.addChildren([runRoute]),
+    history: createMemoryHistory({
+      initialEntries: ['/workspaces/ws-demo/projects/proj-demo/runs/run-1'],
+    }),
+  });
+  return <RouterProvider router={router} />;
+};
+
+const preview: Preview = {
+  decorators: [withTheme, withRelativeTime, withRouter],
+  parameters: {
+    options: {
+      storySort: {method: 'alphabetical'},
+    },
+  },
+  globalTypes: {
+    theme: {
+      name: 'Theme',
+      description: 'Global theme for components',
+      defaultValue: 'dark',
+      toolbar: {
+        icon: 'sun',
+        items: [
+          {value: 'light', icon: 'sun', title: 'Light'},
+          {value: 'dark', icon: 'moon', title: 'Dark'},
+          {value: 'system', icon: 'info', title: 'System'},
+        ],
+        showName: true,
+      },
+    },
+  },
+};
+
+export default preview;
