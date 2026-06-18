@@ -1,20 +1,20 @@
 import type {RunDto} from '@shipfox/api-workflows-dto';
 import {Code, cn, Dot, RelativeTime} from '@shipfox/react-ui';
-import {Link, useParams} from '@tanstack/react-router';
+import {Link} from '@tanstack/react-router';
 import {runTriggerLabel} from './run-display.js';
 import {getStatusVisual} from './status-visuals.js';
 
 export function WorkflowRunRowList({
   runs,
+  workspaceId,
   projectId,
   selectedRunId,
 }: {
   runs: RunDto[];
+  workspaceId: string;
   projectId: string;
   selectedRunId?: string | undefined;
 }) {
-  const {wid} = useParams({strict: false}) as {wid?: string};
-
   return (
     <nav aria-label="Run history">
       <ul className="flex flex-col gap-4 p-8">
@@ -22,7 +22,7 @@ export function WorkflowRunRowList({
           <li key={run.id}>
             <WorkflowRunRow
               run={run}
-              wid={wid}
+              workspaceId={workspaceId}
               projectId={projectId}
               selected={run.id === selectedRunId}
             />
@@ -35,12 +35,12 @@ export function WorkflowRunRowList({
 
 export function WorkflowRunRow({
   run,
-  wid,
+  workspaceId,
   projectId,
   selected,
 }: {
   run: RunDto;
-  wid: string | undefined;
+  workspaceId: string;
   projectId: string;
   selected: boolean;
 }) {
@@ -50,7 +50,7 @@ export function WorkflowRunRow({
   return (
     <Link
       to="/workspaces/$wid/projects/$pid/runs/$runId"
-      params={{wid, pid: projectId, runId: run.id}}
+      params={{wid: workspaceId, pid: projectId, runId: run.id}}
       aria-current={selected ? 'page' : undefined}
       className={cn(
         'group relative flex w-full flex-col gap-3 rounded-8 border border-transparent px-10 py-7 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',

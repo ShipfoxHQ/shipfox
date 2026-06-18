@@ -4,7 +4,12 @@ import {useWorkflowRunsInfiniteQuery} from '#hooks/api/workflow-runs.js';
 import type {WorkflowRunsListProps} from './types.js';
 import {WorkflowRunsListView} from './workflow-runs-list-view.js';
 
-export function WorkflowRunsList({projectId, selectedRunId, className}: WorkflowRunsListProps) {
+export function WorkflowRunsList({
+  workspaceId,
+  projectId,
+  selectedRunId,
+  className,
+}: WorkflowRunsListProps) {
   const query = useWorkflowRunsInfiniteQuery(projectId, {});
   const runs = useMemo<RunDto[]>(
     () => query.data?.pages.flatMap((page) => page.runs) ?? [],
@@ -15,6 +20,7 @@ export function WorkflowRunsList({projectId, selectedRunId, className}: Workflow
     <WorkflowRunsListView
       runs={runs}
       query={query}
+      workspaceId={workspaceId}
       projectId={projectId}
       selectedRunId={selectedRunId}
       className={className}

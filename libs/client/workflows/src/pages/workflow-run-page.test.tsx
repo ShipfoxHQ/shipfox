@@ -43,7 +43,7 @@ describe('WorkflowRunPage', () => {
 
 function renderRunsPath() {
   renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs`, ({runId}) => (
-    <WorkflowRunPage projectId={PROJECT_ID} runId={runId} />
+    <WorkflowRunPage workspaceId={PROJECT_TEST_WID} projectId={PROJECT_ID} runId={runId} />
   ));
 }
 

@@ -8,6 +8,7 @@ import {WorkflowRunsListHeader} from './workflow-runs-list-header.js';
 export function WorkflowRunsListView({
   runs,
   query,
+  workspaceId,
   projectId,
   selectedRunId,
   className,
@@ -44,6 +45,7 @@ export function WorkflowRunsListView({
           query={query}
           totalRuns={runs.length}
           runs={filteredRuns}
+          workspaceId={workspaceId}
           projectId={projectId}
           selectedRunId={selectedRunId}
           onClearFilters={handleClearFilters}

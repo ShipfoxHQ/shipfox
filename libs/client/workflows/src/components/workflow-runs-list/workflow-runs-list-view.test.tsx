@@ -55,7 +55,12 @@ describe('WorkflowRunsListView', () => {
 
 function renderListView(runs: RunDto[]) {
   renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs`, () => (
-    <WorkflowRunsListView runs={runs} query={loadedQuery()} projectId={PROJECT_ID} />
+    <WorkflowRunsListView
+      runs={runs}
+      query={loadedQuery()}
+      workspaceId={PROJECT_TEST_WID}
+      projectId={PROJECT_ID}
+    />
   ));
 }
 

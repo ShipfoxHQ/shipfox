@@ -9,6 +9,6 @@ export const Route = createFileRoute('/workspaces/$wid/_layout/projects/$pid/_la
 );
 
 function WorkflowRunRoute() {
-  const {pid, runId} = Route.useParams();
-  return <WorkflowRunPage projectId={pid} runId={runId} />;
+  const {wid, pid, runId} = Route.useParams();
+  return <WorkflowRunPage workspaceId={wid} projectId={pid} runId={runId} />;
 }
