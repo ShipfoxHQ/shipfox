@@ -1,4 +1,4 @@
-import {closeSync, fstatSync, mkdirSync, openSync, readSync, writeSync} from 'node:fs';
+import {closeSync, mkdirSync, openSync, readSync, statSync, writeSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {InvalidStepIdError} from '#core/errors.js';
 
@@ -23,7 +23,16 @@ export class AttemptSpool {
   private readFd: number | undefined;
   private _length = 0;
 
-  private constructor(private readonly filePath: string) {}
+  private constructor(private readonly filePath: string) {
+    // Seed length from bytes already on disk (a reopened attempt after a process restart) so
+    // reads, append offsets, and the uploader's server-ahead check are all correct before the
+    // first append opens the fd. A fresh attempt's file is absent, so length stays 0.
+    try {
+      this._length = statSync(filePath).size;
+    } catch {
+      // ENOENT for a fresh attempt; any other stat error surfaces on the first append.
+    }
+  }
 
   static open(logsDir: string, stepId: string, attempt: number): AttemptSpool {
     if (!UUID_PATTERN.test(stepId)) throw new InvalidStepIdError(stepId);
@@ -90,12 +99,9 @@ export class AttemptSpool {
   private ensureAppendFd(): number {
     if (this.appendFd === undefined) {
       mkdirSync(dirname(this.filePath), {recursive: true});
+      // Append mode does not truncate, so the on-disk bytes _length was seeded from at
+      // construction are preserved; opening 'a' here only attaches the write fd.
       this.appendFd = openSync(this.filePath, 'a');
-      // Reopening an existing spool (same step+attempt after a runner-process restart):
-      // seed _length from the on-disk size so reads and append offsets line up with the
-      // bytes already written, instead of treating a non-empty file as empty. A fresh
-      // attempt's file is size 0, so the common path is unaffected.
-      this._length = fstatSync(this.appendFd).size;
     }
     return this.appendFd;
   }

@@ -184,9 +184,9 @@ export class LogUploader {
   // If it does (e.g. an attempt re-delivered to a fresh workspace where the server already
   // holds a prior runner's bytes), adopting that offset would skip this runner's own early
   // output and splice the rest onto a foreign prefix. Stop instead and let the server's
-  // stream lifecycle close the stream. (spool.length reflects bytes this process has
-  // appended, seeded from the on-disk size on first append; a future durable-restart resume
-  // must seed it before the probe, or bump the attempt so the stream is fresh.)
+  // stream lifecycle close the stream. (spool.length is seeded from the on-disk size at
+  // construction, before the probe, so a legitimate same-workspace resume reads its existing
+  // bytes here and is not mistaken for the server being ahead.)
   private serverAhead(committedLength: number): boolean {
     if (committedLength <= this.spool.length) return false;
     logger().warn(

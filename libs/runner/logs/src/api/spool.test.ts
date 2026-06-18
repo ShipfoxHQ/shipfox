@@ -155,6 +155,12 @@ describe('AttemptSpool', () => {
     first.close();
 
     const reopened = AttemptSpool.open(logsDir, STEP_ID, 7);
+    // Length and reads reflect the on-disk bytes immediately, before any append opens the fd.
+    // The uploader's server-ahead check runs at probe time (pre-append), so this must hold or
+    // a legitimate resume gets mistaken for the server being ahead and is dropped.
+    expect(reopened.length).toBe(6);
+    expect(reopened.read(0, 100).toString()).toBe('hello\n');
+
     reopened.append(Buffer.from('world\n'));
 
     expect(reopened.length).toBe(12);

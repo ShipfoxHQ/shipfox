@@ -184,6 +184,32 @@ describe('runJobSteps', () => {
     expect(events).toContain(`dispose:${run2.id}`);
   });
 
+  it('drains the prior stream before requesting the next step, not after', async () => {
+    const setup = buildSetupStep();
+    const run1 = buildRunStep({id: '00000000-0000-0000-0000-0000000000d1', position: 1});
+    const run2 = buildRunStep({id: '00000000-0000-0000-0000-0000000000d2', position: 2});
+    // Record each pull in the ordered event log so we can assert it relative to the drain.
+    const responses = [
+      stepResponse(setup, 1),
+      stepResponse(run1, 1),
+      stepResponse(run2, 1),
+      {kind: 'done', status: 'succeeded'},
+    ];
+    let pull = 0;
+    requestNextStepMock.mockImplementation(() => {
+      events.push(`pull:${pull}`);
+      return Promise.resolve(responses[pull++]);
+    });
+    executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+
+    // pull index 2 is the request that claims run2. run1's stream must be disposed before it,
+    // so a slow drain delays only the (unclaimed) pull, never a freshly claimed step.
+    expect(events.indexOf(`dispose:${run1.id}`)).toBeLessThan(events.indexOf('pull:2'));
+  });
+
   it('drains and disposes the stream on abort, without reporting', async () => {
     const setup = buildSetupStep();
     const run = buildRunStep();

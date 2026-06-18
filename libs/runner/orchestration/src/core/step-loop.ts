@@ -33,6 +33,12 @@ export async function runJobSteps(params: {
 
   try {
     while (!signal.aborted) {
+      // Settle the previous run step's stream before pulling the next step, not after: a slow
+      // drain must not delay a freshly claimed step (the server marks it running on pull), and
+      // open fds/uploaders must not accumulate across fast retries.
+      await settleStream({stream: activeStream, signal});
+      activeStream = undefined;
+
       const pulled = await pullNextStep({leaseClient, jobId, signal});
       if (!pulled) return;
       if (signal.aborted) return;
@@ -43,11 +49,6 @@ export async function runJobSteps(params: {
         {jobId, stepId: step.id, stepName: step.name, position: step.position, attempt},
         `Running ${stepLabel}`,
       );
-
-      // Settle the previous run step's stream before this step opens its own, so open
-      // fds and uploaders cannot accumulate across fast retries.
-      await settleStream({stream: activeStream, signal});
-      activeStream = undefined;
 
       const execution = await executeStep({
         step,
