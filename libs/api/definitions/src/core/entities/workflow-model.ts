@@ -42,6 +42,7 @@ export interface WorkflowModelRunStep extends WorkflowModelStepBase {
 export interface WorkflowModelAgentStep extends WorkflowModelStepBase {
   readonly kind: 'agent';
   readonly model: string;
+  readonly provider: string;
   readonly thinking: AgentThinking;
   readonly prompt: string;
 }

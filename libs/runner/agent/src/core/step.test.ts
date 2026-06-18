@@ -3,6 +3,7 @@ const {runAgentMock} = vi.hoisted(() => ({runAgentMock: vi.fn()}));
 vi.mock('#core/run-agent.js', () => ({runAgent: runAgentMock}));
 
 import type {StepDto} from '@shipfox/api-workflows-dto';
+import {AgentConfigError} from '#core/errors.js';
 import type {AgentInvocation} from '#core/run-agent.js';
 import {executeAgentStep} from '#core/step.js';
 
@@ -44,22 +45,50 @@ describe('executeAgentStep', () => {
     );
   });
 
-  it('defaults thinking to high when the config omits it', async () => {
+  it('defaults thinking to high and provider to anthropic when the config omits them', async () => {
     runAgentMock.mockResolvedValue({});
 
     await executeAgentStep(buildAgentStep({config: {model: 'm', prompt: 'p'}}), {});
 
-    expect(runAgentMock).toHaveBeenCalledWith(expect.objectContaining({thinking: 'high'}));
+    expect(runAgentMock).toHaveBeenCalledWith(
+      expect.objectContaining({thinking: 'high', provider: 'anthropic'}),
+    );
   });
 
-  it('fails with agent_invocation_failed when the agent run throws', async () => {
-    runAgentMock.mockRejectedValue(new Error('model not found'));
+  it('forwards an explicit provider from the config', async () => {
+    runAgentMock.mockResolvedValue({});
+
+    await executeAgentStep(
+      buildAgentStep({config: {model: 'gpt-5.1', prompt: 'p', provider: 'openai'}}),
+      {},
+    );
+
+    expect(runAgentMock).toHaveBeenCalledWith(expect.objectContaining({provider: 'openai'}));
+  });
+
+  it('fails with agent_invocation_failed when the agent run throws a generic error', async () => {
+    runAgentMock.mockRejectedValue(new Error('provider returned 503'));
 
     const result = await executeAgentStep(buildAgentStep(), {});
 
     expect(result.success).toBe(false);
-    expect(result.error).toEqual({message: 'model not found', reason: 'agent_invocation_failed'});
+    expect(result.error).toEqual({
+      message: 'provider returned 503',
+      reason: 'agent_invocation_failed',
+    });
     expect(result.exit_code).toBeNull();
+  });
+
+  it('fails with agent_config_invalid when the agent run throws an AgentConfigError', async () => {
+    runAgentMock.mockRejectedValue(new AgentConfigError('Unknown provider "foo" for agent step.'));
+
+    const result = await executeAgentStep(buildAgentStep(), {});
+
+    expect(result.success).toBe(false);
+    expect(result.error).toEqual({
+      message: 'Unknown provider "foo" for agent step.',
+      reason: 'agent_config_invalid',
+    });
   });
 
   it('rejects a non-agent step type without running the agent', async () => {
@@ -70,11 +99,11 @@ describe('executeAgentStep', () => {
     expect(runAgentMock).not.toHaveBeenCalled();
   });
 
-  it('fails when the config is missing model or prompt', async () => {
+  it('fails with agent_config_invalid when the config is missing model or prompt', async () => {
     const result = await executeAgentStep(buildAgentStep({config: {model: 'm'}}), {});
 
     expect(result.success).toBe(false);
-    expect(result.error?.reason).toBe('agent_invocation_failed');
+    expect(result.error?.reason).toBe('agent_config_invalid');
     expect(runAgentMock).not.toHaveBeenCalled();
   });
 

@@ -1,22 +1,33 @@
-const {createAgentSessionMock, findMock, promptMock, abortMock} = vi.hoisted(() => ({
-  createAgentSessionMock: vi.fn(),
-  findMock: vi.fn(),
-  promptMock: vi.fn(),
-  abortMock: vi.fn(),
-}));
+const {createAgentSessionMock, findMock, getAllMock, hasConfiguredAuthMock, promptMock, abortMock} =
+  vi.hoisted(() => ({
+    createAgentSessionMock: vi.fn(),
+    findMock: vi.fn(),
+    getAllMock: vi.fn(),
+    hasConfiguredAuthMock: vi.fn(),
+    promptMock: vi.fn(),
+    abortMock: vi.fn(),
+  }));
 
 vi.mock('@earendil-works/pi-coding-agent', () => ({
   createAgentSession: createAgentSessionMock,
   AuthStorage: {create: () => ({})},
-  ModelRegistry: {create: () => ({find: findMock})},
+  ModelRegistry: {
+    create: () => ({
+      find: findMock,
+      getAll: getAllMock,
+      hasConfiguredAuth: hasConfiguredAuthMock,
+    }),
+  },
 }));
 
+import {AgentConfigError} from '#core/errors.js';
 import {type AgentInvocation, runAgent} from '#core/run-agent.js';
 
 function invocation(overrides: Partial<AgentInvocation> = {}): AgentInvocation {
   return {
     cwd: '/work',
     model: 'claude-opus-4-8',
+    provider: 'anthropic',
     thinking: 'high',
     prompt: 'Fix it.',
     signal: new AbortController().signal,
@@ -28,22 +39,26 @@ describe('runAgent', () => {
   beforeEach(() => {
     createAgentSessionMock.mockReset();
     findMock.mockReset();
+    getAllMock.mockReset();
+    hasConfiguredAuthMock.mockReset();
     promptMock.mockReset();
     abortMock.mockReset();
     findMock.mockReturnValue({provider: 'anthropic', id: 'claude-opus-4-8'});
+    getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);
+    hasConfiguredAuthMock.mockReturnValue(true);
     promptMock.mockResolvedValue(undefined);
     createAgentSessionMock.mockResolvedValue({
       session: {prompt: promptMock, abort: abortMock, messages: []},
     });
   });
 
-  it('resolves the configured model under the anthropic provider and runs the prompt', async () => {
-    const model = {provider: 'anthropic', id: 'claude-opus-4-8'};
+  it('resolves the configured model under the requested provider and runs the prompt', async () => {
+    const model = {provider: 'openai', id: 'gpt-5.1'};
     findMock.mockReturnValue(model);
 
-    const result = await runAgent(invocation());
+    const result = await runAgent(invocation({provider: 'openai', model: 'gpt-5.1'}));
 
-    expect(findMock).toHaveBeenCalledWith('anthropic', 'claude-opus-4-8');
+    expect(findMock).toHaveBeenCalledWith('openai', 'gpt-5.1');
     expect(createAgentSessionMock).toHaveBeenCalledWith(
       expect.objectContaining({cwd: '/work', thinkingLevel: 'high', model}),
     );
@@ -51,10 +66,55 @@ describe('runAgent', () => {
     expect(result).toEqual({});
   });
 
-  it('throws when the configured model is not a known anthropic model', async () => {
+  it('throws an AgentConfigError naming the provider when it is unknown', async () => {
     findMock.mockReturnValue(undefined);
+    getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);
 
-    await expect(runAgent(invocation({model: 'bogus'}))).rejects.toThrow('Unknown agent model');
+    await expect(runAgent(invocation({provider: 'bogus', model: 'gpt-5.1'}))).rejects.toThrow(
+      new AgentConfigError(
+        'Unknown provider "bogus" for agent step. ' +
+          'Known providers are pi built-ins plus any from models.json.',
+      ),
+    );
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
+  });
+
+  it('throws an AgentConfigError with a did-you-mean hint when the model is on another provider', async () => {
+    findMock.mockReturnValue(undefined);
+    getAllMock.mockReturnValue([
+      {provider: 'anthropic', id: 'claude-opus-4-8'},
+      {provider: 'openai', id: 'gpt-5.1'},
+    ]);
+
+    await expect(runAgent(invocation({provider: 'anthropic', model: 'gpt-5.1'}))).rejects.toThrow(
+      new AgentConfigError(
+        'Model "gpt-5.1" is not available for provider "anthropic". ' +
+          'Did you mean to set provider: openai?',
+      ),
+    );
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
+  });
+
+  it('throws an AgentConfigError without a hint when no provider carries the model', async () => {
+    findMock.mockReturnValue(undefined);
+    getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);
+
+    await expect(runAgent(invocation({provider: 'anthropic', model: 'gpt-5.1'}))).rejects.toThrow(
+      new AgentConfigError('Model "gpt-5.1" is not available for provider "anthropic".'),
+    );
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
+  });
+
+  it('throws an AgentConfigError when the provider has no credentials on the runner', async () => {
+    findMock.mockReturnValue({provider: 'openai', id: 'gpt-5.1'});
+    hasConfiguredAuthMock.mockReturnValue(false);
+
+    await expect(runAgent(invocation({provider: 'openai', model: 'gpt-5.1'}))).rejects.toThrow(
+      new AgentConfigError(
+        'No credentials configured for provider "openai" on this runner. ' +
+          "Set the provider's API key in the runner environment.",
+      ),
+    );
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 

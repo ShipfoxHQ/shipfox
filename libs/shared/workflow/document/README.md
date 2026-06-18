@@ -10,8 +10,8 @@ Input shape for Shipfox workflow authoring.
 - `WorkflowDocumentRunStepGate` describes the step `gate` block with `success_if`
   and `on_failure`.
 - A job step is either a **run step** (`run: <shell command>`) or an inline
-  **agent step** (`model` + `prompt`, with an optional `thinking` level). A step
-  carries one or the other, never both.
+  **agent step** (`model` + `prompt`, with an optional `thinking` level and an
+  optional `provider`). A step carries one or the other, never both.
 
 Use this package where Shipfox accepts a workflow object from a file, tool, or
 API call. It checks the shape only. It does not add defaults, pick runners,
@@ -61,9 +61,12 @@ try {
 ```
 
 A step can also be an inline agent step. It declares a `model` and a `prompt`
-(no `run`), with an optional `thinking` level that defaults to `high`. The
-recommended pattern is an agent step that produces a change, followed by a `run`
-step whose `gate` judges the result:
+(no `run`), with an optional `thinking` level that defaults to `high` and an
+optional `provider` that defaults to `anthropic`. The `provider` names the
+model's provider (for example `anthropic` or `openai`); pairing it with `model`
+lets a step target a non-Anthropic model. The recommended pattern is an agent
+step that produces a change, followed by a `run` step whose `gate` judges the
+result:
 
 ```ts
 parseWorkflowDocument({
@@ -72,6 +75,7 @@ parseWorkflowDocument({
     fix: {
       steps: [
         {model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'},
+        {model: 'gpt-5.1', provider: 'openai', prompt: 'Review the fix.'},
         {run: 'npm test', gate: {success_if: 'exit_code == 0'}},
       ],
     },
@@ -87,11 +91,13 @@ parseWorkflowDocument({
   target checks belong to definitions-owned model code.
 - A step is discriminated by which keys it carries: `run` marks a run step;
   `model` + `prompt` (both required) mark an agent step; declaring both, or
-  neither, is rejected. `thinking` is optional and validated against a fixed set
-  (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`); the `high` default is
-  applied later in the model layer, not here. `model` is free text, so an unknown
-  model is accepted at parse time and fails later at runtime. The `agent` key is
-  reserved for a future step kind and is rejected today.
+  neither, is rejected. `thinking` and `provider` are optional and valid only on
+  an agent step; using either on a run step is rejected. `thinking` is validated
+  against a fixed set (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`).
+  `model` and `provider` are free text, so an unknown value is accepted at parse
+  time and fails later at runtime. The `high` and `anthropic` defaults are
+  applied later in the model layer, not here. The `agent` key is reserved for a
+  future step kind and is rejected today.
 - Rules that need a project, user, runner, database row, or saved state belong
   outside this package.
 

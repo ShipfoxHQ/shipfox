@@ -4,6 +4,7 @@ import {
   type WorkflowExpression,
 } from '@shipfox/expression';
 import {
+  DEFAULT_AGENT_PROVIDER,
   DEFAULT_AGENT_THINKING,
   type WorkflowDocument,
   type WorkflowDocumentJob,
@@ -194,6 +195,7 @@ function normalizeJobs(
           ...stepBase,
           kind: 'agent',
           model: step.model,
+          provider: step.provider ?? DEFAULT_AGENT_PROVIDER,
           prompt: step.prompt,
           thinking: step.thinking ?? DEFAULT_AGENT_THINKING,
         };

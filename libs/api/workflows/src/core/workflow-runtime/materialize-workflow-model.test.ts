@@ -103,11 +103,13 @@ describe('materializeWorkflowModel', () => {
             {
               name: 'implement',
               model: 'claude-opus-4-8',
+              provider: 'anthropic',
               thinking: 'high',
               prompt: 'Fix the tests.',
             },
             {
-              model: 'claude-opus-4-8',
+              model: 'gpt-5.1',
+              provider: 'openai',
               thinking: 'low',
               prompt: 'Review it.',
               gate: {
@@ -126,7 +128,12 @@ describe('materializeWorkflowModel', () => {
       sourceName: 'implement',
       status: 'pending',
       type: 'agent',
-      config: {model: 'claude-opus-4-8', thinking: 'high', prompt: 'Fix the tests.'},
+      config: {
+        model: 'claude-opus-4-8',
+        provider: 'anthropic',
+        thinking: 'high',
+        prompt: 'Fix the tests.',
+      },
       position: 2,
     });
     expect(rows[0]?.steps[3]).toEqual({
@@ -134,7 +141,8 @@ describe('materializeWorkflowModel', () => {
       status: 'pending',
       type: 'agent',
       config: {
-        model: 'claude-opus-4-8',
+        model: 'gpt-5.1',
+        provider: 'openai',
         thinking: 'low',
         prompt: 'Review it.',
         gate: {

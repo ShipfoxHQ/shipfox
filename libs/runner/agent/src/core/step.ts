@@ -1,8 +1,13 @@
-import type {StepDto, StepErrorDtoShape} from '@shipfox/api-workflows-dto';
+import type {StepDto, StepErrorDtoShape, StepErrorReason} from '@shipfox/api-workflows-dto';
 import type {StepResult} from '@shipfox/runner-execution';
+import {AgentConfigError} from '#core/errors.js';
 import {runAgent} from '#core/run-agent.js';
 
 const DEFAULT_THINKING = 'high';
+// Matches DEFAULT_AGENT_PROVIDER upstream; kept local so the runner stays decoupled from
+// the workflow-document package, and so a config materialized before `provider` existed
+// still resolves to anthropic.
+const DEFAULT_PROVIDER = 'anthropic';
 
 export function executeAgentStep(
   step: StepDto,
@@ -12,9 +17,11 @@ export function executeAgentStep(
     return Promise.resolve(agentFailure(`Unsupported step type: ${step.type}`));
   }
 
-  const {model, prompt, thinking} = step.config;
+  const {model, prompt, thinking, provider} = step.config;
   if (typeof model !== 'string' || model === '' || typeof prompt !== 'string' || prompt === '') {
-    return Promise.resolve(agentFailure('Agent step config is missing model or prompt'));
+    return Promise.resolve(
+      agentFailure('Agent step config is missing model or prompt', 'agent_config_invalid'),
+    );
   }
 
   return runAgentStep({
@@ -22,6 +29,7 @@ export function executeAgentStep(
     model,
     prompt,
     thinking: typeof thinking === 'string' ? thinking : DEFAULT_THINKING,
+    provider: typeof provider === 'string' && provider !== '' ? provider : DEFAULT_PROVIDER,
     signal: options.signal,
   });
 }
@@ -31,16 +39,22 @@ async function runAgentStep(params: {
   model: string;
   prompt: string;
   thinking: string;
+  provider: string;
   signal: AbortSignal | undefined;
 }): Promise<StepResult> {
-  const {cwd, model, prompt, thinking} = params;
+  const {cwd, model, prompt, thinking, provider} = params;
   const signal = params.signal ?? new AbortController().signal;
 
   try {
-    const {summary} = await raceAbort(runAgent({cwd, model, thinking, prompt, signal}), signal);
+    const {summary} = await raceAbort(
+      runAgent({cwd, model, provider, thinking, prompt, signal}),
+      signal,
+    );
     return {success: true, output: summary ?? '', error: null, exit_code: 0};
   } catch (error) {
-    return agentFailure(error instanceof Error ? error.message : String(error));
+    const reason: StepErrorReason =
+      error instanceof AgentConfigError ? 'agent_config_invalid' : 'agent_invocation_failed';
+    return agentFailure(error instanceof Error ? error.message : String(error), reason);
   }
 }
 
@@ -77,10 +91,14 @@ function abortError(): Error {
   return error;
 }
 
-// All agent-step failures are `agent_invocation_failed` in v1 (the server derives
-// the `user` category from the step type). An aborted step never reaches the API:
-// the step loop returns before reporting once the signal fires.
-function agentFailure(message: string): StepResult {
-  const error: StepErrorDtoShape = {message, reason: 'agent_invocation_failed'};
+// Agent-step failures split into a user-fixable config error (`agent_config_invalid`)
+// and a genuine provider/API failure (`agent_invocation_failed`, the default); the
+// server derives the `user` category from the step type for both. An aborted step never
+// reaches the API: the step loop returns before reporting once the signal fires.
+function agentFailure(
+  message: string,
+  reason: StepErrorReason = 'agent_invocation_failed',
+): StepResult {
+  const error: StepErrorDtoShape = {message, reason};
   return {success: false, output: '', error, exit_code: null};
 }
