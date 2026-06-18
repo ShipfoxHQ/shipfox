@@ -239,17 +239,25 @@ describe('appendLogs', () => {
 
     it('rejects a second append whose lease workspace/project/run does not match the stamped row', async () => {
       const ctx = newCtx();
-      await appendLogs({...ctx, attempt: 1, offset: 0, body: ndjsonBody(outputLine('first\n'))});
+      const body = ndjsonBody(outputLine('first\n'));
+      await appendLogs({...ctx, attempt: 1, offset: 0, body});
+      const before = await findStream({...ctx, attempt: 1});
 
       const error = await appendLogs({
         ...ctx,
         projectId: crypto.randomUUID(),
         attempt: 1,
-        offset: 6,
+        offset: body.length,
         body: ndjsonBody(outputLine('more\n')),
       }).catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(LeaseStreamMismatchError);
+      // The wrapping transaction rolls back: updated_at and committed_length on
+      // the stamped row are untouched, so a stale lease cannot tick the
+      // stream's freshness or advance its CAS axis.
+      const after = await findStream({...ctx, attempt: 1});
+      expect(after?.updatedAt.getTime()).toBe(before?.updatedAt.getTime());
+      expect(after?.committedLength).toBe(before?.committedLength);
     });
 
     it('isolates streams by job: a different job with the same stepId gets its own stream', async () => {

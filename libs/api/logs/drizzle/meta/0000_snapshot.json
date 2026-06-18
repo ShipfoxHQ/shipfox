@@ -219,7 +219,17 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "logs_chunks_stream_id_logs_attempt_streams_id_fk": {
+          "name": "logs_chunks_stream_id_logs_attempt_streams_id_fk",
+          "tableFrom": "logs_chunks",
+          "tableTo": "logs_attempt_streams",
+          "columnsFrom": ["stream_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

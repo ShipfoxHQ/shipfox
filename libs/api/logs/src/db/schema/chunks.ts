@@ -1,5 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {bigint, bigserial, index, integer, text, timestamp, uuid} from 'drizzle-orm/pg-core';
+import {attemptStreams} from './attempt-streams.js';
 import {bytea, pgTable} from './common.js';
 
 /**
@@ -21,7 +22,9 @@ export const logChunks = pgTable(
   'chunks',
   {
     id: uuidv7PrimaryKey(),
-    streamId: uuid('stream_id').notNull(),
+    streamId: uuid('stream_id')
+      .notNull()
+      .references(() => attemptStreams.id),
     seq: bigserial('seq', {mode: 'number'}).notNull(),
     streamOffset: bigint('stream_offset', {mode: 'number'}).notNull(),
     byteLen: integer('byte_len').notNull(),

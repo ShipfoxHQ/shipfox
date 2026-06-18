@@ -26,11 +26,11 @@ export const config = createConfig({
     default: true,
   }),
   LOG_BUDGET_BASE_BYTES: num({
-    desc: 'Base of the per-job log accrual budget, in stored bytes (raw NDJSON the server keeps, framing included). A job may always store this much before the time-based rate is added. Defaults to 5 MB.',
+    desc: 'Base of the per-job log accrual budget, in stored bytes (raw NDJSON the server keeps, framing included). A job may always store this much before the time-based rate is added. Defaults to 5 MiB.',
     default: 5_242_880,
   }),
   LOG_BUDGET_RATE_BYTES_PER_MINUTE: num({
-    desc: 'Stored bytes added to the per-job log budget for each minute since the first log append. Defaults to 1 MB per minute.',
+    desc: 'Stored bytes added to the per-job log budget for each minute since the first log append. Defaults to 1 MiB per minute.',
     default: 1_048_576,
   }),
 });
