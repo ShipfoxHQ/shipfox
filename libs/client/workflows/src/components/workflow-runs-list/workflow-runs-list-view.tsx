@@ -1,6 +1,6 @@
 import {cn, RelativeTimeProvider} from '@shipfox/react-ui';
 import {useState} from 'react';
-import {runMatchesSearch} from './run-display.js';
+import {runMatchesSearch, runMatchesStatusFilter} from './run-display.js';
 import type {RunsListStatusFilter, WorkflowRunsListViewProps} from './types.js';
 import {WorkflowRunsListContent} from './workflow-runs-list-content.js';
 import {WorkflowRunsListHeader} from './workflow-runs-list-header.js';
@@ -17,7 +17,7 @@ export function WorkflowRunsListView({
   const [statusFilter, setStatusFilter] = useState<RunsListStatusFilter>('all');
 
   const filteredRuns = runs.filter((run) => {
-    if (statusFilter !== 'all' && run.status !== statusFilter) return false;
+    if (!runMatchesStatusFilter(run.status, statusFilter)) return false;
     return runMatchesSearch(run, search);
   });
 

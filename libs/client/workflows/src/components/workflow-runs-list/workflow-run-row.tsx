@@ -47,16 +47,8 @@ export function WorkflowRunRow({
   const visual = getStatusVisual(run.status);
   const triggerLabel = runTriggerLabel(run);
 
-  return (
-    <Link
-      to="/workspaces/$wid/projects/$pid/runs/$runId"
-      params={{wid: workspaceId, pid: projectId, runId: run.id}}
-      aria-current={selected ? 'page' : undefined}
-      className={cn(
-        'group relative flex w-full flex-col gap-3 rounded-8 border border-transparent px-10 py-7 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
-        selected && 'bg-background-components-hover',
-      )}
-    >
+  const body = (
+    <>
       {selected ? (
         <span
           aria-hidden="true"
@@ -86,6 +78,31 @@ export function WorkflowRunRow({
           <RelativeTime value={run.updated_at} />
         </Code>
       </div>
+    </>
+  );
+
+  // Optimistic manual runs (temp-<uuid>) have no detail page until the canonical row
+  // replaces them on the next poll, so they render non-interactively instead of as a link
+  // that would navigate to a run id the detail route rejects.
+  if (run.id.startsWith('temp-')) {
+    return (
+      <div className="relative flex w-full flex-col gap-3 rounded-8 border border-transparent px-10 py-7 text-left">
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      to="/workspaces/$wid/projects/$pid/runs/$runId"
+      params={{wid: workspaceId, pid: projectId, runId: run.id}}
+      aria-current={selected ? 'page' : undefined}
+      className={cn(
+        'group relative flex w-full flex-col gap-3 rounded-8 border border-transparent px-10 py-7 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
+        selected && 'bg-background-components-hover',
+      )}
+    >
+      {body}
     </Link>
   );
 }

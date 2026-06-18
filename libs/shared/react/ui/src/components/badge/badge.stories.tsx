@@ -6,7 +6,7 @@ import {StatusBadge} from './status-badge.js';
 import {UserBadge} from './user-badge.js';
 
 const variants = ['neutral', 'info', 'feature', 'success', 'warning', 'error'] as const;
-const iconBadgeVariants = ['neutral', 'info', 'feature', 'success', 'primary', 'error'] as const;
+const iconBadgeVariants = ['neutral', 'info', 'feature', 'success', 'warning', 'error'] as const;
 const sizes = ['2xs', 'xs'] as const;
 
 const meta = {

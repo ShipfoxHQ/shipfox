@@ -35,6 +35,32 @@ describe('WorkflowRunsListView', () => {
     expect(screen.getByRole('button', {name: 'Failed'})).toHaveAttribute('aria-pressed', 'true');
   });
 
+  test('the Running filter keeps in-progress pending runs alongside running ones', async () => {
+    const user = userEvent.setup();
+    renderListView([
+      run('running', 'deploy-web'),
+      run('pending', 'queued-build'),
+      run('succeeded', 'build-image'),
+    ]);
+
+    await user.click(await screen.findByRole('button', {name: 'Running'}));
+
+    expect(screen.getByText('deploy-web')).toBeInTheDocument();
+    expect(screen.getByText('queued-build')).toBeInTheDocument();
+    expect(screen.queryByText('build-image')).not.toBeInTheDocument();
+  });
+
+  test('renders optimistic temp runs without a navigable link', async () => {
+    renderListView([run('pending', 'queued-build', 'temp-1234'), run('running', 'deploy-web')]);
+
+    // The canonical run is a link to its detail page; the optimistic temp run is shown but
+    // not yet navigable (its detail page does not exist until the canonical row replaces it).
+    const links = await screen.findAllByRole('link');
+    expect(links.some((link) => link.textContent?.includes('deploy-web'))).toBe(true);
+    expect(links.some((link) => link.textContent?.includes('queued-build'))).toBe(false);
+    expect(screen.getByText('queued-build')).toBeInTheDocument();
+  });
+
   test('restores every row after the filters are cleared', async () => {
     const user = userEvent.setup();
     renderListView([
@@ -43,6 +69,8 @@ describe('WorkflowRunsListView', () => {
       run('succeeded', 'build-image'),
     ]);
     await user.type(await screen.findByLabelText('Search runs'), 'no-such-run');
+
+    expect(screen.getByText('No matching runs')).toBeInTheDocument();
 
     await user.click(await screen.findByRole('button', {name: 'Clear filters'}));
 
@@ -64,9 +92,9 @@ function renderListView(runs: RunDto[]) {
   ));
 }
 
-function run(status: RunStatusDto, name: string): RunDto {
+function run(status: RunStatusDto, name: string, id = `run-${name}`): RunDto {
   return {
-    id: `run-${name}`,
+    id,
     project_id: PROJECT_ID,
     definition_id: '55555555-5555-4555-8555-555555555555',
     name,

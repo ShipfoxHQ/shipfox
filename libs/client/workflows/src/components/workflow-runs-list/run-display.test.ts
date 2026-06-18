@@ -1,5 +1,5 @@
 import type {RunDto} from '@shipfox/api-workflows-dto';
-import {runMatchesSearch, runTriggerLabel} from './run-display.js';
+import {runMatchesSearch, runMatchesStatusFilter, runTriggerLabel} from './run-display.js';
 
 function runDto(overrides: Partial<RunDto> = {}): RunDto {
   return {
@@ -58,5 +58,26 @@ describe('runMatchesSearch', () => {
     const matches = runMatchesSearch(runDto(), 'no-such-run');
 
     expect(matches).toBe(false);
+  });
+});
+
+describe('runMatchesStatusFilter', () => {
+  test('matches every status when the filter is "all"', () => {
+    expect(runMatchesStatusFilter('succeeded', 'all')).toBe(true);
+    expect(runMatchesStatusFilter('cancelled', 'all')).toBe(true);
+  });
+
+  test('"failed" matches only failed runs', () => {
+    expect(runMatchesStatusFilter('failed', 'failed')).toBe(true);
+    expect(runMatchesStatusFilter('running', 'failed')).toBe(false);
+    expect(runMatchesStatusFilter('succeeded', 'failed')).toBe(false);
+  });
+
+  test('"running" reads as in-progress and also covers pending runs', () => {
+    expect(runMatchesStatusFilter('running', 'running')).toBe(true);
+    expect(runMatchesStatusFilter('pending', 'running')).toBe(true);
+    expect(runMatchesStatusFilter('succeeded', 'running')).toBe(false);
+    expect(runMatchesStatusFilter('failed', 'running')).toBe(false);
+    expect(runMatchesStatusFilter('cancelled', 'running')).toBe(false);
   });
 });

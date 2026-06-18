@@ -19,8 +19,6 @@ export const workflowRunsQueryKeys = {
   lists: (projectId: string) => [...workflowRunsQueryKeys.all, 'list', projectId] as const,
   list: (projectId: string, filters: WorkflowRunFilters) =>
     [...workflowRunsQueryKeys.lists(projectId), normalizeFilters(filters)] as const,
-  aggregates: (projectId: string, filters: WorkflowRunFilters) =>
-    [...workflowRunsQueryKeys.all, 'aggregates', projectId, normalizeFilters(filters)] as const,
   detail: (runId: string) => [...workflowRunsQueryKeys.all, 'detail', runId] as const,
 };
 

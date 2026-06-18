@@ -24,9 +24,12 @@ function useWorkflowRunPageTarget(
   runId: string | undefined,
 ) {
   const navigate = useNavigate();
-  const {data, isPending, isError} = useWorkflowRunsInfiniteQuery(projectId, {});
+  const {data, isPending} = useWorkflowRunsInfiniteQuery(projectId, {});
   const firstRunId = data?.pages[0]?.runs[0]?.id;
-  const isLoaded = !isPending && !isError;
+  // Gate on data presence, not `!isError`: a transient refetch error after a prior success
+  // keeps `data`, so the redirect (and the no-runs surface) still resolve from it instead of
+  // stalling on the rail while active-run polling hits a blip.
+  const isLoaded = !isPending && data !== undefined;
 
   useEffect(() => {
     if (runId || !isLoaded || !firstRunId) return;

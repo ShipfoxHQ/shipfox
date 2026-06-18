@@ -4,15 +4,16 @@ import {cn} from '#utils/cn.js';
 
 export function CircleDottedLineIcon({
   className,
-  size,
   ...props
 }: ComponentProps<RemixiconComponentType>) {
-  const iconSize = size ?? 24;
+  // Width/height stay overridable: `<Icon>` resolves a numeric `size` into width/height and
+  // forwards them through `...props`, so a `size`/`size-N` override scales the icon while the
+  // intrinsic 25x24 (matching the viewBox) is the default.
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width={iconSize}
-      height={iconSize}
+      width="25"
+      height="24"
       viewBox="0 0 25 24"
       fill="currentColor"
       className={cn(className)}

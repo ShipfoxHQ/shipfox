@@ -2,7 +2,7 @@ import type {ComponentProps} from 'react';
 import {cn} from '#utils/cn.js';
 import {Icon, type IconName} from '../icon/index.js';
 
-export type IconBadgeVariant = 'neutral' | 'info' | 'feature' | 'success' | 'primary' | 'error';
+export type IconBadgeVariant = 'neutral' | 'info' | 'feature' | 'success' | 'warning' | 'error';
 
 export type IconBadgeProps = ComponentProps<'span'> & {
   variant?: IconBadgeVariant;
@@ -14,7 +14,7 @@ const variantStyles: Record<IconBadgeVariant, string> = {
   info: 'bg-tag-blue-bg border-tag-blue-border',
   feature: 'bg-tag-purple-bg border-tag-purple-border',
   success: 'bg-tag-success-bg border-tag-success-border',
-  primary: 'bg-tag-warning-bg border-tag-warning-border',
+  warning: 'bg-tag-warning-bg border-tag-warning-border',
   error: 'bg-tag-error-bg border-tag-error-border',
 };
 
@@ -23,7 +23,7 @@ const iconColorStyles: Record<IconBadgeVariant, string> = {
   info: 'text-tag-blue-icon',
   feature: 'text-tag-purple-icon',
   success: 'text-tag-success-icon',
-  primary: 'text-tag-warning-icon',
+  warning: 'text-tag-warning-icon',
   error: 'text-tag-error-icon',
 };
 
