@@ -69,7 +69,7 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
-  it('normalizes an inline agent step, applying the thinking default and keeping gates', () => {
+  it('normalizes an inline agent step, applying the thinking and provider defaults and keeping gates', () => {
     const document: WorkflowDocument = {
       name: 'agent build',
       jobs: {
@@ -78,7 +78,8 @@ describe('normalizeWorkflowDocument', () => {
             {name: 'implement', model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'},
             {
               name: 'review',
-              model: 'claude-opus-4-8',
+              model: 'gpt-5.1',
+              provider: 'openai',
               prompt: 'Review the fix.',
               thinking: 'low',
               gate: {success_if: 'exit_code == 0', on_failure: {restart_from: 'implement'}},
@@ -95,12 +96,14 @@ describe('normalizeWorkflowDocument', () => {
       sourceName: 'implement',
       kind: 'agent',
       model: 'claude-opus-4-8',
+      provider: 'anthropic',
       thinking: 'high',
       prompt: 'Fix the failing tests.',
     });
     expect(model.jobs[0]?.steps[1]).toMatchObject({
       id: 'fix-review',
       kind: 'agent',
+      provider: 'openai',
       thinking: 'low',
       gate: {onFailure: {restartFrom: 'implement'}},
     });

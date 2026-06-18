@@ -67,6 +67,21 @@ describe('toStepDto error category', () => {
     });
   });
 
+  it("derives category 'user' for an agent config error and surfaces the reason", () => {
+    const dto = toStepDto(
+      step({
+        type: 'agent',
+        error: {message: 'Unknown provider "foo" for agent step.', reason: 'agent_config_invalid'},
+      }),
+    );
+
+    expect(dto.error).toEqual({
+      message: 'Unknown provider "foo" for agent step.',
+      reason: 'agent_config_invalid',
+      category: 'user',
+    });
+  });
+
   it('renders no error (and no category) for a successful step', () => {
     const dto = toStepDto(step({type: 'run', status: 'succeeded', error: null}));
 

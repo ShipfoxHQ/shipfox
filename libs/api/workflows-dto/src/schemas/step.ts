@@ -2,9 +2,12 @@ import {z} from 'zod';
 
 // Machine-readable cause of a step failure, for DB troubleshooting. The runner
 // reports it and the server stores it as-is. The `checkout_*`, `git_unavailable`,
-// `workspace_prep_failed`, and `setup_aborted` values cover setup-phase failures;
-// `agent_invocation_failed` covers an agent step whose harness could not run it to
-// completion. (Aborts are never reported: the step loop stops before reporting.)
+// `workspace_prep_failed`, and `setup_aborted` values cover setup-phase failures.
+// For agent steps the cause is split: `agent_config_invalid` is a user-fixable
+// configuration error (unknown provider, missing provider credentials on the runner,
+// wrong provider/model pair, missing model or prompt), while `agent_invocation_failed`
+// covers a genuine provider/API failure once the config is valid (network, 5xx, auth
+// rejected at call time). (Aborts are never reported: the step loop stops before reporting.)
 export const stepErrorReasonSchema = z.enum([
   'checkout_failed',
   'checkout_auth_failed',
@@ -12,6 +15,7 @@ export const stepErrorReasonSchema = z.enum([
   'git_unavailable',
   'workspace_prep_failed',
   'setup_aborted',
+  'agent_config_invalid',
   'agent_invocation_failed',
 ]);
 

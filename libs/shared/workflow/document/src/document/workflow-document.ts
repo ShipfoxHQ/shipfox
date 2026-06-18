@@ -45,6 +45,7 @@ export const workflowDocumentStepSchema = z
     model: z.string().min(1).optional(),
     prompt: z.string().min(1).optional(),
     thinking: agentThinkingSchema.optional(),
+    provider: z.string().min(1).optional(),
     agent: z.unknown().optional(),
     gate: workflowDocumentStepGateSchema.optional(),
   })
@@ -92,7 +93,7 @@ export const workflowDocumentStepSchema = z
       return;
     }
 
-    for (const key of ['model', 'prompt', 'thinking'] as const) {
+    for (const key of ['model', 'prompt', 'thinking', 'provider'] as const) {
       if (step[key] !== undefined) {
         ctx.addIssue({
           code: 'custom',

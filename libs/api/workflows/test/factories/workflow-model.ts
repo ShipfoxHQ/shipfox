@@ -14,6 +14,7 @@ interface TestRunStep extends TestWorkflowStepBase {
 
 interface TestAgentStep extends TestWorkflowStepBase {
   readonly model: string;
+  readonly provider: string;
   readonly prompt: string;
   readonly thinking: AgentThinking;
 }
@@ -64,7 +65,14 @@ function normalizeStep(step: TestWorkflowStep, jobId: string, stepIndex: number)
   const base = stepBase(step, jobId, stepIndex);
   return 'run' in step
     ? {...base, kind: 'run', command: {kind: 'shell', value: step.run}}
-    : {...base, kind: 'agent', model: step.model, thinking: step.thinking, prompt: step.prompt};
+    : {
+        ...base,
+        kind: 'agent',
+        model: step.model,
+        provider: step.provider,
+        thinking: step.thinking,
+        prompt: step.prompt,
+      };
 }
 
 function stepBase(step: TestWorkflowStep, jobId: string, stepIndex: number) {
