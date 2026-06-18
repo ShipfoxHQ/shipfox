@@ -1,6 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["mise.toml", "biome.json"],
+  "globalDependencies": ["mise.toml", "biome.json", "compose.yml"],
   "globalPassThroughEnv": [
     "GITHUB_*",
     "ACTIONS_*",
