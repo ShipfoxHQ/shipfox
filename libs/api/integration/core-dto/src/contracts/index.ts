@@ -27,5 +27,4 @@ export {
   IntegrationProviderError,
   MAX_REPOSITORY_FILE_BYTES,
   parseProviderRepositoryId,
-  redactCheckoutSpec,
 } from './integrations.js';

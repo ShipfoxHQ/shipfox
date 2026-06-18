@@ -57,6 +57,7 @@ export {
   IntegrationProviderError,
   IntegrationProviderUnavailableError,
 } from '#core/errors.js';
+export {redactCheckoutSpec} from '#core/providers/redact-checkout-spec.js';
 export type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 export type {
   CheckoutCredentials,
@@ -74,7 +75,6 @@ export type {
   ResolveRepositoryInput,
   SourceControlProvider,
 } from '#core/providers/source-control.js';
-export {redactCheckoutSpec} from '#core/providers/source-control.js';
 export type {IntegrationSourceControlService} from '#core/source-control-service.js';
 export {createSourceControlIntegrationService} from '#core/source-control-service.js';
 export type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
