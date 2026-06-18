@@ -1,11 +1,15 @@
 export {
+  type AgentThinking,
+  agentThinkingSchema,
+  DEFAULT_AGENT_THINKING,
   InvalidWorkflowDocumentError,
   invalidWorkflowDocumentErrorCode,
   parseWorkflowDocument,
   type WorkflowDocument,
   type WorkflowDocumentJob,
-  type WorkflowDocumentRunStep,
   type WorkflowDocumentRunStepGate,
+  type WorkflowDocumentStep,
   type WorkflowDocumentTrigger,
   workflowDocumentSchema,
+  workflowDocumentStepSchema,
 } from '#document/index.js';

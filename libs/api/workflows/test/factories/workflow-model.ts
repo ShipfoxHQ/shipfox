@@ -1,10 +1,24 @@
 import type {WorkflowModel} from '@shipfox/api-definitions';
 
-interface TestWorkflowStep {
+type ModelStep = WorkflowModel['jobs'][number]['steps'][number];
+type AgentThinking = Extract<ModelStep, {kind: 'agent'}>['thinking'];
+
+interface TestWorkflowStepBase {
   readonly name?: string | undefined;
-  readonly run: string;
-  readonly gate?: WorkflowModel['jobs'][number]['steps'][number]['gate'] | undefined;
+  readonly gate?: ModelStep['gate'] | undefined;
 }
+
+interface TestRunStep extends TestWorkflowStepBase {
+  readonly run: string;
+}
+
+interface TestAgentStep extends TestWorkflowStepBase {
+  readonly model: string;
+  readonly prompt: string;
+  readonly thinking: AgentThinking;
+}
+
+type TestWorkflowStep = TestRunStep | TestAgentStep;
 
 interface TestWorkflowJob {
   readonly needs?: string | readonly string[] | undefined;
@@ -31,16 +45,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
       sourceName,
       runner: normalizeStringArray(job.runner ?? input.runner),
       dependencies: normalizeStringArray(job.needs).map(stableId),
-      steps: job.steps.map((step, stepIndex) => ({
-        id:
-          step.name === undefined
-            ? `${jobId}-step-${stepIndex + 1}`
-            : `${jobId}-${stableId(step.name)}`,
-        ...(step.name === undefined ? {} : {sourceName: step.name}),
-        kind: 'run' as const,
-        command: {kind: 'shell' as const, value: step.run},
-        ...(step.gate === undefined ? {} : {gate: step.gate}),
-      })),
+      steps: job.steps.map((step, stepIndex) => normalizeStep(step, jobId, stepIndex)),
     };
   });
 
@@ -52,6 +57,24 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
     dependencies: modelJobs.flatMap((job) =>
       job.dependencies.map((dependency) => ({from: dependency, to: job.id})),
     ),
+  };
+}
+
+function normalizeStep(step: TestWorkflowStep, jobId: string, stepIndex: number): ModelStep {
+  const base = stepBase(step, jobId, stepIndex);
+  return 'run' in step
+    ? {...base, kind: 'run', command: {kind: 'shell', value: step.run}}
+    : {...base, kind: 'agent', model: step.model, thinking: step.thinking, prompt: step.prompt};
+}
+
+function stepBase(step: TestWorkflowStep, jobId: string, stepIndex: number) {
+  return {
+    id:
+      step.name === undefined
+        ? `${jobId}-step-${stepIndex + 1}`
+        : `${jobId}-${stableId(step.name)}`,
+    ...(step.name === undefined ? {} : {sourceName: step.name}),
+    ...(step.gate === undefined ? {} : {gate: step.gate}),
   };
 }
 

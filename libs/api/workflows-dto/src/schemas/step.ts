@@ -1,9 +1,10 @@
 import {z} from 'zod';
 
-// Machine-readable cause of a setup-phase failure, for DB troubleshooting. The
-// runner reports it and the server stores it as-is. The runner currently emits
-// `workspace_prep_failed`; the `checkout_*`, `git_unavailable`, and `setup_aborted`
-// values complete the taxonomy the read path accepts.
+// Machine-readable cause of a step failure, for DB troubleshooting. The runner
+// reports it and the server stores it as-is. The `checkout_*`, `git_unavailable`,
+// `workspace_prep_failed`, and `setup_aborted` values cover setup-phase failures;
+// `agent_invocation_failed` covers an agent step whose harness could not run it to
+// completion. (Aborts are never reported: the step loop stops before reporting.)
 export const stepErrorReasonSchema = z.enum([
   'checkout_failed',
   'checkout_auth_failed',
@@ -11,6 +12,7 @@ export const stepErrorReasonSchema = z.enum([
   'git_unavailable',
   'workspace_prep_failed',
   'setup_aborted',
+  'agent_invocation_failed',
 ]);
 
 export type StepErrorReason = z.infer<typeof stepErrorReasonSchema>;

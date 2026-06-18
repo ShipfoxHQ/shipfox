@@ -64,7 +64,7 @@ describe('parseWorkflowYaml', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(InvalidWorkflowDocumentError);
       expect((error as InvalidWorkflowDocumentError).validationError.issues[0]).toMatchObject({
-        path: ['jobs', 'build', 'steps', 0, 'run'],
+        path: ['jobs', 'build', 'steps', 0],
       });
     }
   });

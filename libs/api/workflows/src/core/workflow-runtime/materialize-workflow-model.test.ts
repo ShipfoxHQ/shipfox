@@ -94,6 +94,58 @@ describe('materializeWorkflowModel', () => {
     ]);
   });
 
+  it('materializes an agent step as type "agent" with its config, alongside run steps', () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {
+          steps: [
+            {run: 'npm install'},
+            {
+              name: 'implement',
+              model: 'claude-opus-4-8',
+              thinking: 'high',
+              prompt: 'Fix the tests.',
+            },
+            {
+              model: 'claude-opus-4-8',
+              thinking: 'low',
+              prompt: 'Review it.',
+              gate: {
+                successIf: expression('exit_code == 0'),
+                onFailure: {restartFrom: 'implement'},
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel(model);
+
+    expect(rows[0]?.steps[2]).toEqual({
+      sourceName: 'implement',
+      status: 'pending',
+      type: 'agent',
+      config: {model: 'claude-opus-4-8', thinking: 'high', prompt: 'Fix the tests.'},
+      position: 2,
+    });
+    expect(rows[0]?.steps[3]).toEqual({
+      sourceName: null,
+      status: 'pending',
+      type: 'agent',
+      config: {
+        model: 'claude-opus-4-8',
+        thinking: 'low',
+        prompt: 'Review it.',
+        gate: {
+          success_if: {language: 'cel', check: 'typed', source: 'exit_code == 0'},
+          on_failure: {restart_from: 'implement'},
+        },
+      },
+      position: 3,
+    });
+  });
+
   it('gives a job with no user steps just the synthetic setup step', () => {
     const model = workflowModel({jobs: {noop: {steps: []}}});
 

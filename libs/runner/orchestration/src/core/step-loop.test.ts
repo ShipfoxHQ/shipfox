@@ -5,6 +5,7 @@ const requestNextStepMock = vi.fn();
 const reportStepMock = vi.fn();
 const executeRunStepMock = vi.fn();
 const executeSetupStepMock = vi.fn();
+const executeAgentStepMock = vi.fn();
 
 vi.mock('@shipfox/runner-protocol', () => ({
   requestNextStep: (...args: unknown[]) => requestNextStepMock(...args),
@@ -15,6 +16,10 @@ vi.mock('@shipfox/runner-protocol', () => ({
 vi.mock('@shipfox/runner-execution', () => ({
   executeRunStep: (...args: unknown[]) => executeRunStepMock(...args),
   executeSetupStep: (...args: unknown[]) => executeSetupStepMock(...args),
+}));
+
+vi.mock('@shipfox/runner-agent', () => ({
+  executeAgentStep: (...args: unknown[]) => executeAgentStepMock(...args),
 }));
 
 const {runJobSteps} = await import('#core/step-loop.js');
@@ -28,6 +33,7 @@ describe('runJobSteps', () => {
     reportStepMock.mockReset();
     executeRunStepMock.mockReset();
     executeSetupStepMock.mockReset();
+    executeAgentStepMock.mockReset();
     reportStepMock.mockResolvedValue({ok: true, cancel: false});
     // Setup succeeds by default; tests that exercise setup failure override it.
     executeSetupStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
@@ -227,6 +233,58 @@ describe('runJobSteps', () => {
 
     expect(requestNextStepMock).not.toHaveBeenCalled();
   });
+
+  it('dispatches an agent step to executeAgentStep against the prepared cwd, reporting it', async () => {
+    const setup = buildSetupStep();
+    const agent = buildAgentStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+
+    expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {signal: ac.signal, cwd: '/work'});
+    expect(executeRunStepMock).not.toHaveBeenCalled();
+    expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: agent.id,
+      attempt: 1,
+      status: 'succeeded',
+      error: null,
+      exitCode: 0,
+      signal: ac.signal,
+    });
+  });
+
+  it('does not report the agent step when the signal aborts mid-run', async () => {
+    const setup = buildSetupStep();
+    const agent = buildAgentStep();
+    const ac = new AbortController();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1));
+    executeAgentStepMock.mockImplementationOnce(() => {
+      ac.abort();
+      return Promise.resolve({
+        success: false,
+        output: '',
+        error: {message: 'Agent step aborted', reason: 'agent_invocation_failed' as const},
+        exit_code: null,
+      });
+    });
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+
+    expect(executeAgentStepMock).toHaveBeenCalledTimes(1);
+    // Only the setup step is reported; the aborted agent step is not.
+    expect(reportStepMock).toHaveBeenCalledTimes(1);
+    expect(reportStepMock).not.toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({stepId: agent.id}),
+    );
+  });
 });
 
 function buildSetupStep(overrides: Partial<StepDto> = {}): StepDto {
@@ -242,6 +300,17 @@ function buildSetupStep(overrides: Partial<StepDto> = {}): StepDto {
 
 function buildRunStep(overrides: Partial<StepDto> = {}): StepDto {
   return buildStep({position: 1, ...overrides});
+}
+
+function buildAgentStep(overrides: Partial<StepDto> = {}): StepDto {
+  return buildStep({
+    id: '00000000-0000-0000-0000-0000000000c0',
+    name: 'implement',
+    type: 'agent',
+    config: {model: 'claude-opus-4-8', thinking: 'high', prompt: 'Fix it.'},
+    position: 1,
+    ...overrides,
+  });
 }
 
 function buildStep(overrides: Partial<StepDto> = {}): StepDto {

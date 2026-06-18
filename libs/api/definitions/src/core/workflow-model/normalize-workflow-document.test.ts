@@ -69,6 +69,43 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
+  it('normalizes an inline agent step, applying the thinking default and keeping gates', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [
+            {name: 'implement', model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'},
+            {
+              name: 'review',
+              model: 'claude-opus-4-8',
+              prompt: 'Review the fix.',
+              thinking: 'low',
+              gate: {success_if: 'exit_code == 0', on_failure: {restart_from: 'implement'}},
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]).toEqual({
+      id: 'fix-implement',
+      sourceName: 'implement',
+      kind: 'agent',
+      model: 'claude-opus-4-8',
+      thinking: 'high',
+      prompt: 'Fix the failing tests.',
+    });
+    expect(model.jobs[0]?.steps[1]).toMatchObject({
+      id: 'fix-review',
+      kind: 'agent',
+      thinking: 'low',
+      gate: {onFailure: {restartFrom: 'implement'}},
+    });
+  });
+
   it('applies top-level runner defaults to jobs without runner overrides', () => {
     const document: WorkflowDocument = {
       name: 'runner defaults',
