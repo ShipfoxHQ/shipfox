@@ -111,6 +111,9 @@ export class LogUploader {
     this.timer = setTimeout(() => {
       void this.flush();
     }, this.options.intervalMs);
+    // A pending upload tick must not keep the runner process alive on its own; the
+    // step loop drives flushes explicitly and dispose()/stop() clears the timer.
+    this.timer.unref();
   }
 
   private async runFlush(): Promise<void> {
@@ -129,9 +132,25 @@ export class LogUploader {
         this.probed = true;
       }
       while (!this.terminal()) {
+        // drain() can abort the in-flight controller and return; if a misbehaving append
+        // resolves instead of rejecting on abort, this stops the loop from re-sending past
+        // the deadline rather than relying on the transport to honor the signal.
+        if (inflight.signal.aborted) break;
         const body = this.spool.read(this.acked, this.options.flushBytes);
         if (body.length === 0) break;
+        const before = this.acked;
         this.apply(await this.append({offset: this.acked, body, signal: inflight.signal}));
+        // No-progress guard: a non-empty body that did not move the committed offset means a
+        // stuck/garbage server (e.g. constant conflict at the same length). Re-sending the
+        // identical bytes would spin forever, so stop and let the next tick / lifecycle act.
+        if (!this.terminal() && this.acked === before) {
+          logger().warn(
+            {offset: before},
+            'Log append made no progress on a non-empty body; stopping to avoid a re-send loop',
+          );
+          this.stopped = true;
+          break;
+        }
       }
     } catch (err) {
       // Network/timeout errors are retried inside the transport; a surfaced error
@@ -147,16 +166,35 @@ export class LogUploader {
   private apply(outcome: LogAppendOutcome): void {
     switch (outcome.status) {
       case 'committed':
+        if (this.serverAhead(outcome.committedLength)) return;
         this.acked = outcome.committedLength;
         if (outcome.capped) this.capped = true;
         break;
       case 'conflict':
+        if (this.serverAhead(outcome.committedLength)) return;
         this.acked = outcome.committedLength;
         break;
       case 'stopped':
         this.stopped = true;
         break;
     }
+  }
+
+  // The server's committed offset must never exceed what this runner has spooled locally.
+  // If it does (e.g. an attempt re-delivered to a fresh workspace where the server already
+  // holds a prior runner's bytes), adopting that offset would skip this runner's own early
+  // output and splice the rest onto a foreign prefix. Stop instead and let the server's
+  // stream lifecycle close the stream. (spool.length reflects bytes this process has
+  // appended, seeded from the on-disk size on first append; a future durable-restart resume
+  // must seed it before the probe, or bump the attempt so the stream is fresh.)
+  private serverAhead(committedLength: number): boolean {
+    if (committedLength <= this.spool.length) return false;
+    logger().warn(
+      {committedLength, spoolLength: this.spool.length},
+      'Server committed offset is ahead of the local spool; stopping log upload',
+    );
+    this.stopped = true;
+    return true;
   }
 }
 

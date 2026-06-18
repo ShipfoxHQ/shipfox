@@ -65,6 +65,10 @@ function utf8Length(codePoint: number): number {
  * A single code point is at most 4 bytes, so it always fits.
  */
 export function splitByUtf8Bytes(text: string, maxBytes: number): string[] {
+  // Fast path for the dominant case (a chunk well under the cap): one native byte
+  // count instead of an O(n) per-code-point scan, with an identical single-part result.
+  if (Buffer.byteLength(text, 'utf8') <= maxBytes) return [text];
+
   const parts: string[] = [];
   let start = 0;
   let bytes = 0;

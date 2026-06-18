@@ -75,6 +75,18 @@ describe('StreamFramer.frameOutput', () => {
     expect(outputData(parseRecords(second.bytes))).toBe('€');
   });
 
+  it('reassembles a 4-byte code point split across two chunks on the same pipe', () => {
+    const framer = new StreamFramer(() => 1);
+    const grin = Buffer.from('😀', 'utf8'); // 4 bytes: F0 9F 98 80 (a surrogate pair)
+
+    const first = framer.frameOutput(grin.subarray(0, 2), 'stdout');
+    const second = framer.frameOutput(grin.subarray(2), 'stdout');
+
+    // The decoder holds the partial 4-byte sequence, so the first chunk yields nothing.
+    expect(first.bytes.length).toBe(0);
+    expect(outputData(parseRecords(second.bytes))).toBe('😀');
+  });
+
   it('does not complete a stdout partial sequence with stderr bytes', () => {
     const framer = new StreamFramer(() => 1);
     const euro = Buffer.from('€', 'utf8');
@@ -141,6 +153,22 @@ describe('splitByUtf8Bytes', () => {
     expect(parts.join('')).toBe(text);
     for (const part of parts) {
       expect(Buffer.byteLength(part)).toBeLessThanOrEqual(MAX_RECORD_DATA_BYTES);
+    }
+  });
+
+  it('never tears a 4-byte surrogate-pair code point at the byte cap', () => {
+    // '😀' is a surrogate pair (2 UTF-16 units) encoded as 4 UTF-8 bytes. A cap that is not a
+    // multiple of 4 forces splits to land between code points, never inside one.
+    const text = '😀'.repeat(5000); // 4 bytes each = 20000 bytes
+    const maxBytes = 10;
+
+    const parts = splitByUtf8Bytes(text, maxBytes);
+
+    expect(parts.join('')).toBe(text);
+    for (const part of parts) {
+      expect(Buffer.byteLength(part)).toBeLessThanOrEqual(maxBytes);
+      // A torn surrogate pair would not survive a UTF-8 round-trip (becomes U+FFFD).
+      expect(Buffer.from(part, 'utf8').toString('utf8')).toBe(part);
     }
   });
 });

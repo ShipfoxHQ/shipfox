@@ -142,6 +142,36 @@ describe('LogUploader.flush', () => {
     expect(server.calls.length).toBe(1);
   });
 
+  it('stops instead of looping when a non-empty body makes no progress', async () => {
+    const spool = new FakeSpool(Buffer.from('abcdef'));
+    // A stuck server that accepts but never advances its committed length.
+    let calls = 0;
+    const append: LogAppendFn = () => {
+      calls += 1;
+      return Promise.resolve({status: 'committed', committedLength: 0, capped: false});
+    };
+    const uploader = new LogUploader(spool, append, OPTS);
+
+    await uploader.flush();
+
+    expect(uploader.isStopped()).toBe(true);
+    // Probe, then one data send that made no progress, then stop — not an endless re-send.
+    expect(calls).toBe(2);
+  });
+
+  it('stops when the server committed offset is ahead of the local spool', async () => {
+    const spool = new FakeSpool(Buffer.from('abc')); // 3 bytes on disk
+    // The probe reports the server already holds more than this runner has spooled.
+    const server = scriptedServer([{status: 'committed', committedLength: 10, capped: false}]);
+    const uploader = new LogUploader(spool, server.append, OPTS);
+
+    await uploader.flush();
+
+    expect(uploader.isStopped()).toBe(true);
+    expect(uploader.ackedOffset).toBe(0); // never adopted the foreign offset
+    expect(server.calls).toHaveLength(1); // only the probe; no data shipped onto the prefix
+  });
+
   it('is single-flight: concurrent flush() calls share one run and probe once', async () => {
     const spool = new FakeSpool(Buffer.from('abcdef'));
     const server = casServer();

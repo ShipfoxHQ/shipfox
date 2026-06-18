@@ -200,6 +200,48 @@ describe('appendStepLogs', () => {
     expect(outcome).toEqual({status: 'stopped'});
   });
 
+  it('returns stopped on a permanently rejected body (400) so it is not retried forever', async () => {
+    stubFetch(() => jsonResponse({code: 'malformed-log-chunk'}, 400));
+    const leaseClient = createLeaseClient('lease-log');
+
+    const outcome = await appendStepLogs(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      offset: 0,
+      body: new Uint8Array([1]),
+    });
+
+    expect(outcome).toEqual({status: 'stopped'});
+  });
+
+  it('returns stopped on an over-large body (413)', async () => {
+    stubFetch(() => new Response(null, {status: 413}));
+    const leaseClient = createLeaseClient('lease-log');
+
+    const outcome = await appendStepLogs(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      offset: 0,
+      body: new Uint8Array([1]),
+    });
+
+    expect(outcome).toEqual({status: 'stopped'});
+  });
+
+  it('throws on 429 so a transient rate-limit is retried, not abandoned', async () => {
+    stubFetch(() => new Response(null, {status: 429}));
+    const leaseClient = createLeaseClient('lease-log');
+
+    const append = appendStepLogs(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      offset: 0,
+      body: new Uint8Array([1]),
+    });
+
+    await expect(append).rejects.toThrow('Log append failed with status 429');
+  });
+
   it('throws on an unexpected status so the uploader retries on its next tick', async () => {
     stubFetch(() => new Response(null, {status: 500}));
     const leaseClient = createLeaseClient('lease-log');

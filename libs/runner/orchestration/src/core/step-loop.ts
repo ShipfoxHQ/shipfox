@@ -236,9 +236,9 @@ export async function reportStepResult(params: {
     );
   }
 
-  // Close the stream to seal its end record and learn the declared length; the report
-  // carries it without blocking on the upload draining.
-  const logStreamLength = stream ? (await stream.close()).streamLength : undefined;
+  // Seal the stream's end record before reporting so the background uploader can ship it; the
+  // upload drains separately (settleStream), so the report never blocks on it.
+  if (stream) await stream.close();
 
   const report = await reportStep(leaseClient, {
     stepId: step.id,
@@ -247,7 +247,6 @@ export async function reportStepResult(params: {
     // null on success, the error shape on failure — matches reportStepBodySchema's refine.
     error: result.error,
     exitCode: result.exit_code,
-    ...(logStreamLength !== undefined ? {logStreamLength} : {}),
     signal,
   });
 

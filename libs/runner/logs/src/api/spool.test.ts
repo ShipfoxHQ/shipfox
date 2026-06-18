@@ -44,6 +44,18 @@ describe('AttemptSpool', () => {
     expect(onDisk).toBe('hi\n');
   });
 
+  it('treats an empty append as a no-op that opens no file', async () => {
+    const logsDir = join(dir, 'logs');
+    const spool = AttemptSpool.open(logsDir, STEP_ID, 3);
+
+    spool.append(Buffer.alloc(0));
+    spool.close();
+
+    expect(spool.length).toBe(0);
+    // The empty append must not have opened an fd or created the spool file.
+    await expect(readFile(join(logsDir, `${STEP_ID}-3.ndjson`))).rejects.toThrow();
+  });
+
   it('reads a slice from an arbitrary offset, bounded by written length', () => {
     const spool = AttemptSpool.open(join(dir, 'logs'), STEP_ID, 1);
     spool.append(Buffer.from('abcdef'));

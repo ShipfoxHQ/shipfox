@@ -110,7 +110,6 @@ describe('runJobSteps', () => {
       status: 'succeeded',
       error: null,
       exitCode: 0,
-      logStreamLength: STREAM_LENGTH,
       signal: ac.signal,
     });
     expect(requestNextStepMock).toHaveBeenCalledTimes(3);
@@ -304,7 +303,6 @@ describe('runJobSteps', () => {
       status: 'failed',
       error,
       exitCode: 1,
-      logStreamLength: STREAM_LENGTH,
       signal: ac.signal,
     });
     expect(requestNextStepMock).toHaveBeenCalledTimes(2);
@@ -332,7 +330,6 @@ describe('runJobSteps', () => {
       status: 'failed',
       error: {message: 'ENOSPC: no space left on device'},
       exitCode: null,
-      logStreamLength: STREAM_LENGTH,
       signal: ac.signal,
     });
   });

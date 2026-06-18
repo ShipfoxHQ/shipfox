@@ -107,7 +107,6 @@ export async function reportStep(
     status: 'succeeded' | 'failed';
     error?: StepErrorDtoShape;
     exitCode: number | null;
-    logStreamLength?: number;
     signal?: AbortSignal;
   },
 ): Promise<ReportStepResponseDto> {
@@ -116,7 +115,6 @@ export async function reportStep(
     error: params.error ?? undefined,
     attempt: params.attempt,
     exit_code: params.exitCode,
-    ...(params.logStreamLength !== undefined ? {log_stream_length: params.logStreamLength} : {}),
   });
 
   const response = await leaseClient.post(`runs/jobs/current/steps/${params.stepId}/report`, {
@@ -177,13 +175,21 @@ export async function appendStepLogs(
     const {details} = offsetGapResponseSchema.parse(await response.json());
     return {status: 'conflict', committedLength: details.committed_length};
   }
-  // Endpoint absent (deploy skew) or the lease is no longer accepted: stop
-  // uploading and let the server's stream lifecycle close the stream.
-  if (response.status === 404 || response.status === 401 || response.status === 403) {
+  // Any other 4xx is permanent for this request: the endpoint is gone (deploy skew), the
+  // lease is rejected (401/403), or the body will never be accepted (400 malformed, 413 too
+  // large, 415/422, ...). Re-sending the identical body cannot succeed, so stop and let the
+  // server's stream lifecycle close the stream. 408/429 are transient and fall through to
+  // the retry path so server-driven backpressure still paces (not storms) the next attempt.
+  if (
+    response.status >= 400 &&
+    response.status < 500 &&
+    response.status !== 408 &&
+    response.status !== 429
+  ) {
     return {status: 'stopped'};
   }
-  // 5xx (not retried here, since throwHttpErrors disables status-code retry) or any
-  // other unexpected status: throw so the uploader logs it and retries on the next tick.
+  // 5xx, 408, 429, or any other unexpected status: throw so the uploader logs it and retries
+  // on the next tick (throwHttpErrors disables ky's in-transport status-code retry).
   throw new Error(`Log append failed with status ${response.status}`);
 }
 

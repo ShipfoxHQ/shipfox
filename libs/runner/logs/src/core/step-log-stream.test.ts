@@ -4,6 +4,7 @@ import {join} from 'node:path';
 import type {LogRecord} from '@shipfox/api-logs-dto';
 import {logRecordSchema} from '@shipfox/api-logs-dto';
 import type {LogAppendFn} from '@shipfox/runner-protocol';
+import {AttemptSpool} from '#api/spool.js';
 import {createStepLogStream} from '#core/step-log-stream.js';
 
 const STEP_ID = '00000000-0000-0000-0000-000000000abc';
@@ -319,5 +320,35 @@ describe('createStepLogStream', () => {
     stream.dispose();
 
     expect(streamLength).toBe(0);
+  });
+
+  it('abandons capture without crashing when a write fails mid-stream', async () => {
+    // First append succeeds; a later one throws like a real fs failure (ENOSPC/EMFILE) after
+    // the spool has already opened and committed bytes. This is the path the open-time test
+    // above does not reach.
+    let appends = 0;
+    const appendSpy = vi.spyOn(AttemptSpool.prototype, 'append').mockImplementation(() => {
+      appends += 1;
+      if (appends >= 2) throw Object.assign(new Error('ENOSPC'), {code: 'ENOSPC'});
+    });
+
+    const stream = createStepLogStream({
+      logsDir: join(dir, 'logs'),
+      stepId: STEP_ID,
+      attempt: 10,
+      append: hangingAppend,
+      flushIntervalMs: 100000,
+      now: () => 1,
+    });
+
+    // The mid-stream throw originates inside the sink (the child's 'data' handler); it must be
+    // swallowed, not propagated, or it would crash the whole runner. Capture is then abandoned.
+    expect(() => stream.write(Buffer.from('first\n'), 'stdout')).not.toThrow();
+    expect(() => stream.write(Buffer.from('second\n'), 'stdout')).not.toThrow();
+    expect(() => stream.write(Buffer.from('third\n'), 'stdout')).not.toThrow();
+    await expect(stream.close()).resolves.toBeDefined();
+    stream.dispose();
+
+    appendSpy.mockRestore();
   });
 });
