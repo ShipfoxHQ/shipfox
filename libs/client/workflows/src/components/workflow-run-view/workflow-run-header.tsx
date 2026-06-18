@@ -6,7 +6,7 @@ export function WorkflowRunHeader({run}: {run: RunResponseDto}) {
   const status = getStatusVisual(run.status);
 
   return (
-    <header className="flex w-full items-center gap-12 border-b border-border-neutral-base px-16 py-12">
+    <header className="flex w-full items-center gap-12 border-b border-border-neutral-base bg-background-subtle-base px-16 py-12">
       <Text size="lg" bold className="min-w-0 truncate">
         {run.name}
       </Text>

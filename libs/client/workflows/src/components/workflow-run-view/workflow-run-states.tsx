@@ -6,7 +6,7 @@ export function WorkflowRunSkeleton() {
   return (
     <section
       aria-label="Loading workflow run"
-      className="flex w-full items-center gap-12 border-b border-border-neutral-base px-16 py-12"
+      className="flex w-full items-center gap-12 border-b border-border-neutral-base bg-background-subtle-base px-16 py-12"
     >
       <Skeleton className="h-24 w-160 rounded-6" />
       <Skeleton className="h-20 w-72 rounded-6" />
