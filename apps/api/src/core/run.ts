@@ -2,6 +2,7 @@ import {authModule} from '@shipfox/api-auth';
 import {createDefinitionsModule} from '@shipfox/api-definitions';
 import {dispatcherModule} from '@shipfox/api-dispatcher';
 import {createIntegrationsContext} from '@shipfox/api-integration-core';
+import {logsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {runnersModule} from '@shipfox/api-runners';
 import {triggersModule} from '@shipfox/api-triggers';
@@ -43,6 +44,7 @@ export async function run(): Promise<void> {
       definitionsModule,
       workflowsModule,
       runnersModule,
+      logsModule,
       triggersModule,
       dispatcherModule,
     ],
@@ -51,7 +53,10 @@ export async function run(): Promise<void> {
   const mountedE2eRoutes = createE2eRouteGroup(e2eRoutes, config);
 
   logger().info('Creating HTTP server');
-  await createApp({auth: [...auth, ...e2eAuth], routes: [...routes, ...mountedE2eRoutes]});
+  await createApp({
+    auth: [...auth, ...e2eAuth],
+    routes: [...routes, ...mountedE2eRoutes],
+  });
   logger().info('Starting HTTP server');
   const address = await listen();
   logger().info({address}, 'HTTP server listening');

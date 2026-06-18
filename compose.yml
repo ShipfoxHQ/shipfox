@@ -28,6 +28,38 @@ services:
       - temporal:/home/temporal
     command: "server start-dev --ip 0.0.0.0 --db-filename /home/temporal/temporal.db"
 
+  garage:
+    container_name: garage
+    image: dxflrs/garage:v1.0.1
+    volumes:
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+      - ./dev/garage/garage.toml:/etc/garage.toml:ro
+    ports:
+      - 127.0.0.1:3900:3900
+      - 127.0.0.1:3901:3901
+      - 127.0.0.1:3903:3903
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, /garage, status]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  garage-init:
+    image: alpine:3.21
+    depends_on:
+      garage:
+        condition: service_healthy
+    volumes:
+      - ./dev/garage/bootstrap.sh:/bootstrap.sh:ro
+    environment:
+      GARAGE_URL: http://garage:3903
+    entrypoint: [sh, -c, apk add --no-cache curl jq >/dev/null && /bootstrap.sh]
+    restart: "no"
+
 volumes:
   postgres:
   temporal:
+  garage_meta:
+  garage_data:
