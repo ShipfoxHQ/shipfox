@@ -3,6 +3,7 @@
 // test/env.ts (setupFiles), loaded before config is imported.
 
 import {
+  appendStepLogs,
   createLeaseClient,
   heartbeat,
   reportStep,
@@ -107,6 +108,124 @@ describe('api-client auth contexts', () => {
     expect(result).toEqual({ok: true, cancel: false});
     expect(calls[0]?.url).toContain(`runs/jobs/current/steps/${STEP_ID}/report`);
     expect(calls[0]?.authorization).toBe('Bearer lease-def');
+  });
+});
+
+describe('appendStepLogs', () => {
+  it('posts NDJSON to the lease-authed logs endpoint and parses committed', async () => {
+    stubFetch(() => jsonResponse({committed_length: 42, capped: false}));
+    const leaseClient = createLeaseClient('lease-log');
+
+    const outcome = await appendStepLogs(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 2,
+      offset: 10,
+      body: new Uint8Array([1, 2, 3]),
+    });
+
+    expect(outcome).toEqual({status: 'committed', committedLength: 42, capped: false});
+    expect(calls[0]?.url).toContain(`runs/jobs/current/steps/${STEP_ID}/logs`);
+    expect(calls[0]?.url).toContain('attempt=2');
+    expect(calls[0]?.url).toContain('offset=10');
+    expect(calls[0]?.authorization).toBe('Bearer lease-log');
+  });
+
+  it('surfaces the capped flag from the server', async () => {
+    stubFetch(() => jsonResponse({committed_length: 100, capped: true}));
+    const leaseClient = createLeaseClient('lease-log');
+
+    const outcome = await appendStepLogs(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      offset: 0,
+      body: new Uint8Array([1]),
+    });
+
+    expect(outcome).toEqual({status: 'committed', committedLength: 100, capped: true});
+  });
+
+  it('returns conflict with the committed offset on 409', async () => {
+    stubFetch(() => jsonResponse({code: 'offset-gap', details: {committed_length: 7}}, 409));
+    const leaseClient = createLeaseClient('lease-log');
+
+    const outcome = await appendStepLogs(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      offset: 99,
+      body: new Uint8Array([1]),
+    });
+
+    expect(outcome).toEqual({status: 'conflict', committedLength: 7});
+  });
+
+  it('returns stopped when the endpoint is absent (404)', async () => {
+    stubFetch(() => new Response(null, {status: 404}));
+    const leaseClient = createLeaseClient('lease-log');
+
+    const outcome = await appendStepLogs(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      offset: 0,
+      body: new Uint8Array(0),
+    });
+
+    expect(outcome).toEqual({status: 'stopped'});
+  });
+
+  it('returns stopped when the lease is rejected (401)', async () => {
+    stubFetch(() => new Response(null, {status: 401}));
+    const leaseClient = createLeaseClient('lease-log');
+
+    const outcome = await appendStepLogs(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      offset: 0,
+      body: new Uint8Array(0),
+    });
+
+    expect(outcome).toEqual({status: 'stopped'});
+  });
+
+  it('returns stopped when the lease is forbidden (403)', async () => {
+    stubFetch(() => new Response(null, {status: 403}));
+    const leaseClient = createLeaseClient('lease-log');
+
+    const outcome = await appendStepLogs(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      offset: 0,
+      body: new Uint8Array(0),
+    });
+
+    expect(outcome).toEqual({status: 'stopped'});
+  });
+
+  it('throws on an unexpected status so the uploader retries on its next tick', async () => {
+    stubFetch(() => new Response(null, {status: 500}));
+    const leaseClient = createLeaseClient('lease-log');
+
+    const append = appendStepLogs(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      offset: 0,
+      body: new Uint8Array([1]),
+    });
+
+    await expect(append).rejects.toThrow('Log append failed with status 500');
+  });
+
+  it('rejects a non-UUID step id before making any request', async () => {
+    const leaseClient = createLeaseClient('lease-log');
+
+    const append = appendStepLogs(leaseClient, {
+      stepId: '../escape',
+      attempt: 1,
+      offset: 0,
+      body: new Uint8Array(0),
+    });
+
+    await expect(append).rejects.toThrow();
+    expect(calls).toHaveLength(0);
   });
 });
 

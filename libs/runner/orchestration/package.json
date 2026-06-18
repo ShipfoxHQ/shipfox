@@ -42,6 +42,7 @@
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/runner-agent": "workspace:*",
     "@shipfox/runner-execution": "workspace:*",
+    "@shipfox/runner-logs": "workspace:*",
     "@shipfox/runner-protocol": "workspace:*",
     "@shipfox/runner-workspace": "workspace:*",
     "ky": "^2.0.0"

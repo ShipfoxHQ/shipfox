@@ -1,11 +1,11 @@
 {
-  "name": "@shipfox/runner-protocol",
+  "name": "@shipfox/runner-logs",
   "license": "MIT",
   "version": "0.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/platform.git",
-    "directory": "libs/runner/protocol"
+    "directory": "libs/runner/logs"
   },
   "private": true,
   "type": "module",
@@ -38,11 +38,9 @@
   },
   "dependencies": {
     "@shipfox/api-logs-dto": "workspace:*",
-    "@shipfox/api-runners-dto": "workspace:*",
-    "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
-    "ky": "^2.0.0"
+    "@shipfox/runner-protocol": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

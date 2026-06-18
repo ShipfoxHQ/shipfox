@@ -83,7 +83,7 @@ describe('executeSetupStep', () => {
       cwd: CWD,
       signal,
     });
-    expect(result).toEqual({success: true, output: '', error: null, exit_code: 0});
+    expect(result).toEqual({success: true, error: null, exit_code: 0});
   });
 
   it('checks git before minting a credential', async () => {

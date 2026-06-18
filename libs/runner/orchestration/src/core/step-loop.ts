@@ -1,13 +1,19 @@
-import type {NextStepResponseDto} from '@shipfox/api-workflows-dto';
+import {join} from 'node:path';
+import type {NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {executeAgentStep} from '@shipfox/runner-agent';
 import {executeRunStep, executeSetupStep, type StepResult} from '@shipfox/runner-execution';
-import {HTTPError, reportStep, requestNextStep} from '@shipfox/runner-protocol';
+import {createStepLogStream, type StepLogStream} from '@shipfox/runner-logs';
+import {appendStepLogs, HTTPError, reportStep, requestNextStep} from '@shipfox/runner-protocol';
 import type {KyInstance} from 'ky';
 
 // Reporting a step before pulling the next one is the safety invariant: a lost report is
 // retried in place (next/report are idempotent), so a step is never re-pulled or
 // re-executed. An abort mid-step stops without reporting, leaving the job for lease expiry.
+//
+// Each run step gets a per-attempt log stream: capture → spool → upload. The prior
+// attempt's stream is drained and disposed before the next opens, and the `finally`
+// drains the last one (bounded) before runJob deletes the workspace the spool lives in.
 export async function runJobSteps(params: {
   jobId: string;
   leaseClient: KyInstance;
@@ -16,102 +22,247 @@ export async function runJobSteps(params: {
 }): Promise<void> {
   const {jobId, leaseClient, signal, cwd} = params;
 
-  // The setup step (position 0) prepares the workspace; every run step assumes it
-  // ran. This guard makes the invariant explicit: a run step pulled before a
-  // successful setup is reported as a clean failure rather than spawning against an
-  // unprepared cwd. It assumes one runner executes a job's full lifecycle, which
-  // holds today (a job is never re-dispatched mid-flight).
+  // The setup step (position 0) prepares the workspace; every run step assumes it ran.
+  // A run step pulled before a successful setup is failed cleanly rather than spawned
+  // against an unprepared cwd. The guard and its rollout rationale live in `executeStep`.
   let workspacePrepared = false;
 
-  while (!signal.aborted) {
-    let next: NextStepResponseDto;
-    try {
-      next = await requestNextStep(leaseClient, {signal});
-    } catch (error) {
-      if (error instanceof HTTPError && error.response.status === 404) {
-        logger().info({jobId}, 'No job for this lease (404); stopping step loop');
+  // The most recent run step's stream, kept until the next iteration settles it (or the
+  // finally does at job end). The step loop is sequential, so at most one tail drains.
+  let activeStream: StepLogStream | undefined;
+
+  try {
+    while (!signal.aborted) {
+      const pulled = await pullNextStep({leaseClient, jobId, signal});
+      if (!pulled) return;
+      if (signal.aborted) return;
+
+      const {step, attempt} = pulled;
+      const stepLabel = step.name ?? `step #${step.position}`;
+      logger().info(
+        {jobId, stepId: step.id, stepName: step.name, position: step.position, attempt},
+        `Running ${stepLabel}`,
+      );
+
+      // Settle the previous run step's stream before this step opens its own, so open
+      // fds and uploaders cannot accumulate across fast retries.
+      await settleStream({stream: activeStream, signal});
+      activeStream = undefined;
+
+      const execution = await executeStep({
+        step,
+        attempt,
+        cwd,
+        leaseClient,
+        signal,
+        workspacePrepared,
+        jobId,
+        stepLabel,
+      });
+      activeStream = execution.stream;
+      if (execution.preparedWorkspace) workspacePrepared = true;
+
+      if (signal.aborted) return;
+
+      const {cancel} = await reportStepResult({
+        leaseClient,
+        step,
+        attempt,
+        result: execution.result,
+        stream: execution.stream,
+        jobId,
+        stepLabel,
+        signal,
+      });
+      if (cancel) {
+        logger().info(
+          {jobId, stepId: step.id},
+          'Job finished without full success; stopping step loop',
+        );
         return;
       }
-      throw error;
+    }
+  } finally {
+    // Drain the last stream (bounded) before runJob deletes the workspace; an abort
+    // cuts the wait short. Whatever did not drain is timeout-closed server-side.
+    await settleStream({stream: activeStream, signal});
+  }
+}
+
+export interface PulledStep {
+  step: StepDto;
+  attempt: number;
+}
+
+// Pulls the next step, translating the loop's two quiet stop conditions into `undefined`:
+// a 404 (the lease no longer maps to a job) and a `done` response. Any other error
+// propagates so the loop bails without re-pulling.
+export async function pullNextStep(params: {
+  leaseClient: KyInstance;
+  jobId: string;
+  signal: AbortSignal;
+}): Promise<PulledStep | undefined> {
+  const {leaseClient, jobId, signal} = params;
+
+  let next: NextStepResponseDto;
+  try {
+    next = await requestNextStep(leaseClient, {signal});
+  } catch (error) {
+    if (error instanceof HTTPError && error.response.status === 404) {
+      logger().info({jobId}, 'No job for this lease (404); stopping step loop');
+      return undefined;
+    }
+    throw error;
+  }
+
+  if (next.kind === 'done') {
+    logger().info({jobId, status: next.status}, 'No more steps; stopping step loop');
+    return undefined;
+  }
+
+  return {step: next.step, attempt: next.attempt};
+}
+
+export interface StepExecution {
+  result: StepResult;
+  /** The run step's log stream, when one was opened; settle it after reporting. */
+  stream?: StepLogStream | undefined;
+  /** True when a setup step succeeded, unlocking the run steps that follow it. */
+  preparedWorkspace: boolean;
+}
+
+// Runs one step and always yields a StepResult, never throws: a crash before a result
+// exists (e.g. writing the temp script) becomes a reported failure so the step does not
+// hang `running`. The log stream is opened for run steps only and returned even on a
+// throw, so the caller can still settle it.
+export async function executeStep(params: {
+  step: StepDto;
+  attempt: number;
+  cwd: string;
+  leaseClient: KyInstance;
+  signal: AbortSignal;
+  workspacePrepared: boolean;
+  jobId: string;
+  stepLabel: string;
+}): Promise<StepExecution> {
+  const {step, attempt, cwd, leaseClient, signal, workspacePrepared, jobId, stepLabel} = params;
+
+  let stream: StepLogStream | undefined;
+  try {
+    if (step.type === 'setup') {
+      const result = await executeSetupStep({cwd, leaseClient, signal});
+      return {result, preparedWorkspace: result.success};
     }
 
-    if (next.kind === 'done') {
-      logger().info({jobId, status: next.status}, 'No more steps; stopping step loop');
-      return;
-    }
-
-    if (signal.aborted) return;
-
-    const {step, attempt} = next;
-    const stepLabel = step.name ?? `step #${step.position}`;
-    logger().info(
-      {jobId, stepId: step.id, stepName: step.name, position: step.position, attempt},
-      `Running ${stepLabel}`,
-    );
-
-    let result: StepResult;
-    try {
-      if (step.type === 'setup') {
-        result = await executeSetupStep({cwd, leaseClient, signal});
-        if (result.success) workspacePrepared = true;
-      } else if (!workspacePrepared) {
-        // Invariant violation (a run or agent step before setup prepared the cwd),
-        // not a setup-phase failure, so no `reason`. step.type is not 'setup' so the
-        // server derives category 'user'. Only reachable for a setup-less in-flight
-        // job hitting a new runner during the rollout window.
-        result = {
+    if (!workspacePrepared) {
+      // Invariant violation (a run or agent step before setup prepared the cwd), not a
+      // setup-phase failure, so no `reason`. step.type is not 'setup' so the server
+      // derives category 'user'. Only reachable for a setup-less in-flight job hitting a
+      // new runner during the rollout window.
+      return {
+        result: {
           success: false,
-          output: '',
           error: {message: 'Run step dispatched before setup prepared the workspace'},
           exit_code: null,
-        };
-      } else if (step.type === 'agent') {
-        result = await executeAgentStep(step, {signal, cwd});
-      } else {
-        result = await executeRunStep(step, {signal, cwd});
-      }
-    } catch (error) {
-      // A local executor failure (e.g. writing the temp script) throws before a
-      // StepResult exists. Report the step failed so it does not hang `running`.
-      logger().error(
-        {err: error, jobId, stepId: step.id},
-        `Step ${stepLabel} crashed before producing a result`,
-      );
-      result = {
-        success: false,
-        output: '',
-        error: {message: error instanceof Error ? error.message : String(error)},
-        exit_code: null,
+        },
+        preparedWorkspace: false,
       };
     }
 
-    if (signal.aborted) return;
-
-    if (result.success) {
-      logger().info({jobId, stepId: step.id, stepName: step.name}, `Step ${stepLabel} succeeded`);
-    } else {
-      logger().error(
-        {jobId, stepId: step.id, stepName: step.name, reason: result.error?.reason},
-        `Step ${stepLabel} failed`,
-      );
+    // Agent steps run the embedded pi harness; they capture their own summary and do not
+    // stream output through the log pipeline (run steps below do).
+    if (step.type === 'agent') {
+      const result = await executeAgentStep(step, {signal, cwd});
+      return {result, preparedWorkspace: false};
     }
 
-    const report = await reportStep(leaseClient, {
+    stream = createStepLogStream({
+      logsDir: join(cwd, 'logs'),
       stepId: step.id,
       attempt,
-      status: result.success ? 'succeeded' : 'failed',
-      // null on success, the error shape on failure — matches reportStepBodySchema's refine.
-      error: result.error,
-      exitCode: result.exit_code,
-      signal,
+      append: ({offset, body, signal: appendSignal}) =>
+        appendStepLogs(leaseClient, {
+          stepId: step.id,
+          attempt,
+          offset,
+          body,
+          ...(appendSignal ? {signal: appendSignal} : {}),
+        }),
     });
 
-    if (report.cancel) {
-      logger().info(
-        {jobId, stepId: step.id},
-        'Job finished without full success; stopping step loop',
-      );
-      return;
-    }
+    const result = await executeRunStep(step, {
+      signal,
+      cwd,
+      onOutput: (chunk, source) => stream?.write(chunk, source),
+    });
+    return {result, stream, preparedWorkspace: false};
+  } catch (error) {
+    logger().error(
+      {err: error, jobId, stepId: step.id},
+      `Step ${stepLabel} crashed before producing a result`,
+    );
+    return {
+      result: {
+        success: false,
+        error: {message: error instanceof Error ? error.message : String(error)},
+        exit_code: null,
+      },
+      stream,
+      preparedWorkspace: false,
+    };
   }
+}
+
+// Logs the outcome, seals the stream to learn its declared length, and reports the step.
+// Returns whether the server asked the loop to stop (job finished without full success).
+export async function reportStepResult(params: {
+  leaseClient: KyInstance;
+  step: StepDto;
+  attempt: number;
+  result: StepResult;
+  stream: StepLogStream | undefined;
+  jobId: string;
+  stepLabel: string;
+  signal: AbortSignal;
+}): Promise<{cancel: boolean}> {
+  const {leaseClient, step, attempt, result, stream, jobId, stepLabel, signal} = params;
+
+  if (result.success) {
+    logger().info({jobId, stepId: step.id, stepName: step.name}, `Step ${stepLabel} succeeded`);
+  } else {
+    logger().error(
+      {jobId, stepId: step.id, stepName: step.name, reason: result.error?.reason},
+      `Step ${stepLabel} failed`,
+    );
+  }
+
+  // Close the stream to seal its end record and learn the declared length; the report
+  // carries it without blocking on the upload draining.
+  const logStreamLength = stream ? (await stream.close()).streamLength : undefined;
+
+  const report = await reportStep(leaseClient, {
+    stepId: step.id,
+    attempt,
+    status: result.success ? 'succeeded' : 'failed',
+    // null on success, the error shape on failure — matches reportStepBodySchema's refine.
+    error: result.error,
+    exitCode: result.exit_code,
+    ...(logStreamLength !== undefined ? {logStreamLength} : {}),
+    signal,
+  });
+
+  return {cancel: report.cancel};
+}
+
+// Closes (idempotent), drains (bounded; an abort cuts it short), and disposes a stream.
+// A no-op when there is no stream, so callers can settle unconditionally.
+export async function settleStream(params: {
+  stream: StepLogStream | undefined;
+  signal: AbortSignal;
+}): Promise<void> {
+  const {stream, signal} = params;
+  if (!stream) return;
+  await stream.close();
+  await stream.drain({signal});
+  stream.dispose();
 }

@@ -2,19 +2,35 @@ import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, join} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
-import {executeRunStep} from '#core/run-step.js';
+import {executeRunStep, type OutputSink} from '#core/run-step.js';
 
 const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
 const ESRCH_REGEX = /ESRCH/;
 
+// Collects what the durable pipeline would receive, the way the runner now
+// captures step output (StepResult no longer carries it).
+function collectOutput(): {sink: OutputSink; text: () => string; sources: () => string[]} {
+  const chunks: Buffer[] = [];
+  const sources: string[] = [];
+  return {
+    sink: (chunk, source) => {
+      chunks.push(chunk);
+      sources.push(source);
+    },
+    text: () => Buffer.concat(chunks).toString(),
+    sources: () => sources,
+  };
+}
+
 describe('executeRunStep', () => {
   it('succeeds with exit code 0', async () => {
     const step = buildStep({config: {run: 'echo hello'}});
+    const output = collectOutput();
 
-    const result = await executeRunStep(step);
+    const result = await executeRunStep(step, {onOutput: output.sink});
 
     expect(result.success).toBe(true);
-    expect(result.output).toContain('hello');
+    expect(output.text()).toContain('hello');
     expect(result.exit_code).toBe(0);
   });
 
@@ -28,25 +44,29 @@ describe('executeRunStep', () => {
     expect(result.exit_code).toBe(1);
   });
 
-  it('captures both stdout and stderr', async () => {
+  it('captures both stdout and stderr with their origin', async () => {
     const step = buildStep({config: {run: 'echo out && echo err >&2'}});
+    const output = collectOutput();
 
-    const result = await executeRunStep(step);
+    const result = await executeRunStep(step, {onOutput: output.sink});
 
     expect(result.success).toBe(true);
-    expect(result.output).toContain('out');
-    expect(result.output).toContain('err');
+    expect(output.text()).toContain('out');
+    expect(output.text()).toContain('err');
+    expect(output.sources()).toContain('stdout');
+    expect(output.sources()).toContain('stderr');
   });
 
   it('returns failure for unsupported step type with the reason on error.message', async () => {
     const step = buildStep({type: 'docker', config: {image: 'node:20'}});
+    const output = collectOutput();
 
-    const result = await executeRunStep(step);
+    const result = await executeRunStep(step, {onOutput: output.sink});
 
     expect(result.success).toBe(false);
     expect(result.error?.message).toContain('Unsupported step type: docker');
     expect(result.error?.exit_code).toBeUndefined();
-    expect(result.output).toBe('');
+    expect(output.text()).toBe('');
   });
 
   it('returns failure when config.run is missing with the reason on error.message', async () => {
@@ -78,13 +98,14 @@ describe('executeRunStep', () => {
     const dir = await mkdtemp(join(tmpdir(), 'shipfox-cwd-test-'));
     try {
       const step = buildStep({config: {run: 'pwd'}});
+      const output = collectOutput();
 
-      const result = await executeRunStep(step, {cwd: dir});
+      const result = await executeRunStep(step, {cwd: dir, onOutput: output.sink});
 
       expect(result.success).toBe(true);
       // macOS resolves tmpdir() through a /private symlink, so match the unique
       // mkdtemp suffix rather than the full path.
-      expect(result.output).toContain(basename(dir));
+      expect(output.text()).toContain(basename(dir));
     } finally {
       await rm(dir, {recursive: true, force: true});
     }
@@ -94,12 +115,13 @@ describe('executeRunStep', () => {
     const step = buildStep({
       config: {run: 'echo first\necho second'},
     });
+    const output = collectOutput();
 
-    const result = await executeRunStep(step);
+    const result = await executeRunStep(step, {onOutput: output.sink});
 
     expect(result.success).toBe(true);
-    expect(result.output).toContain('first');
-    expect(result.output).toContain('second');
+    expect(output.text()).toContain('first');
+    expect(output.text()).toContain('second');
   });
 
   it('fails on first error with pipefail', async () => {
@@ -130,8 +152,9 @@ describe('executeRunStep', () => {
     const step = buildStep({
       config: {run: 'sleep 30 & echo "GRANDCHILD_PID=$!"; wait'},
     });
+    const output = collectOutput();
     const ac = new AbortController();
-    const promise = executeRunStep(step, {signal: ac.signal});
+    const promise = executeRunStep(step, {signal: ac.signal, onOutput: output.sink});
 
     await new Promise((r) => setTimeout(r, 200));
     ac.abort();
@@ -139,7 +162,7 @@ describe('executeRunStep', () => {
     const result = await promise;
     expect(result.success).toBe(false);
 
-    const match = result.output.match(GRANDCHILD_PID_REGEX);
+    const match = output.text().match(GRANDCHILD_PID_REGEX);
     expect(match).not.toBeNull();
     const grandchildPid = Number(match?.[1]);
 

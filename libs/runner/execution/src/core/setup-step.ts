@@ -58,7 +58,7 @@ export async function executeSetupStep(params: {
     return fail(error, reason);
   }
 
-  return {success: true, output: '', error: null, exit_code: 0};
+  return {success: true, error: null, exit_code: 0};
 }
 
 const CHECKOUT_KIND_REASON: Record<CheckoutFailureKind, StepErrorReason> = {
@@ -108,7 +108,6 @@ function readErrorCode(error: HTTPError): string | undefined {
 function fail(error: unknown, reason: StepErrorReason): StepResult {
   return {
     success: false,
-    output: '',
     error: {message: error instanceof Error ? error.message : String(error), reason},
     exit_code: null,
   };

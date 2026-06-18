@@ -56,6 +56,14 @@ export const reportStepBodySchema = z
       .describe(
         'Structured output captured for attempt history. Large textual logs are stored separately.',
       ),
+    log_stream_length: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe(
+        'Final length in raw NDJSON bytes of the attempt log stream. The log module marks the stream complete once its committed length reaches this value, so the report never blocks on log drain.',
+      ),
   })
   .refine((body) => (body.status === 'succeeded' ? body.error == null : body.error != null), {
     message: 'succeeded steps must not include an error and failed steps must include one',

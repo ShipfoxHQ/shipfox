@@ -1,7 +1,10 @@
 export {
+  appendStepLogs,
   createLeaseClient,
   HTTPError,
   heartbeat,
+  type LogAppendFn,
+  type LogAppendOutcome,
   reportStep,
   requestCheckoutToken,
   requestJob,
