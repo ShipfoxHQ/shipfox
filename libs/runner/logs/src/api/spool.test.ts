@@ -4,12 +4,37 @@ import {join} from 'node:path';
 import {AttemptSpool} from '#api/spool.js';
 import {InvalidStepIdError} from '#core/errors.js';
 
+// Lets a test force a short or zero-length writeSync without a real disk-full. Both flags
+// default off and reset themselves after one call, so every other test hits the real fs.
+const {fsControl} = vi.hoisted(() => ({fsControl: {splitNextWrite: false, zeroNextWrite: false}}));
+
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
+  const realWriteSync = actual.writeSync as (...args: unknown[]) => number;
+  return {
+    ...actual,
+    writeSync: ((fd: number, data: unknown, ...rest: unknown[]) => {
+      if (fsControl.zeroNextWrite) {
+        fsControl.zeroNextWrite = false;
+        return 0;
+      }
+      if (fsControl.splitNextWrite && Buffer.isBuffer(data) && data.length > 1) {
+        fsControl.splitNextWrite = false;
+        return realWriteSync(fd, data, 0, 1); // only the first byte lands this call
+      }
+      return realWriteSync(fd, data, ...rest);
+    }) as typeof actual.writeSync,
+  };
+});
+
 const STEP_ID = '00000000-0000-0000-0000-000000000001';
 
 describe('AttemptSpool', () => {
   let dir: string;
 
   beforeEach(async () => {
+    fsControl.splitNextWrite = false;
+    fsControl.zeroNextWrite = false;
     dir = await mkdtemp(join(tmpdir(), 'shipfox-spool-test-'));
   });
 
@@ -54,6 +79,29 @@ describe('AttemptSpool', () => {
     expect(spool.length).toBe(0);
     // The empty append must not have opened an fd or created the spool file.
     await expect(readFile(join(logsDir, `${STEP_ID}-3.ndjson`))).rejects.toThrow();
+  });
+
+  it('finishes the buffer and tracks exact length when a write returns short', async () => {
+    const logsDir = join(dir, 'logs');
+    const spool = AttemptSpool.open(logsDir, STEP_ID, 4);
+
+    fsControl.splitNextWrite = true; // first writeSync lands only 1 of the 6 bytes
+    spool.append(Buffer.from('hello\n'));
+    spool.close();
+
+    expect(spool.length).toBe(6);
+    const onDisk = await readFile(join(logsDir, `${STEP_ID}-4.ndjson`), 'utf8');
+    expect(onDisk).toBe('hello\n');
+  });
+
+  it('throws when a write makes no progress, so the caller can abandon capture', () => {
+    const spool = AttemptSpool.open(join(dir, 'logs'), STEP_ID, 5);
+
+    fsControl.zeroNextWrite = true;
+    const append = () => spool.append(Buffer.from('x\n'));
+
+    expect(append).toThrow();
+    spool.close();
   });
 
   it('reads a slice from an arbitrary offset, bounded by written length', () => {

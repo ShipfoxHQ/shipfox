@@ -36,8 +36,22 @@ export class AttemptSpool {
 
   append(bytes: Buffer): void {
     if (bytes.length === 0) return;
-    writeSync(this.ensureAppendFd(), bytes);
-    this._length += bytes.length;
+    const fd = this.ensureAppendFd();
+    // writeSync can return a short count: a non-error partial write (an EINTR after some
+    // bytes, or a filesystem filling mid-write). Loop until the whole buffer lands so
+    // _length never drifts ahead of the file (which would tear the offset-addressed stream).
+    // A real out-of-space surfaces as the next call throwing ENOSPC, which the caller turns
+    // into failStream. A zero-byte return with no error is impossible for a regular file, so
+    // treat it as fatal rather than spin forever.
+    let written = 0;
+    while (written < bytes.length) {
+      const n = writeSync(fd, bytes, written, bytes.length - written);
+      if (n === 0) {
+        throw new Error(`Spool write made no progress at offset ${this._length + written}`);
+      }
+      written += n;
+    }
+    this._length += written;
   }
 
   /**
