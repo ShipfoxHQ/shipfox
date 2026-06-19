@@ -1,7 +1,10 @@
-import {type LogRecord, logRecordSchema, MAX_RECORD_DATA_BYTES} from '@shipfox/api-logs-dto';
+import {
+  type LogRecord,
+  logRecordSchema,
+  MAX_RECORD_DATA_BYTES,
+  MAX_RECORD_NAME_BYTES,
+} from '@shipfox/api-logs-dto';
 import {StreamFramer, splitByUtf8Bytes} from '#core/framing.js';
-
-const REPLACEMENT = '�';
 
 function parseRecords(bytes: Buffer): LogRecord[] {
   const text = bytes.toString('utf8');
@@ -19,22 +22,31 @@ function outputData(records: LogRecord[]): string {
     .join('');
 }
 
-describe('StreamFramer.frameOutput', () => {
-  it('frames a chunk into a single output record with origin and stamped ts', () => {
+describe('StreamFramer.frameOutputText', () => {
+  it('frames text into a single output record with origin and stamped ts', () => {
     const framer = new StreamFramer(() => 1000);
 
-    const framed = framer.frameOutput(Buffer.from('hello world\n'), 'stdout');
+    const framed = framer.frameOutputText('hello world\n', 'stdout');
     const [record] = parseRecords(framed.bytes);
 
     expect(record).toEqual({v: 1, ts: 1000, type: 'output', src: 'stdout', data: 'hello world\n'});
     expect(framed.payloadBytes).toBe(Buffer.byteLength('hello world\n'));
   });
 
-  it('preserves ANSI escape bytes verbatim', () => {
+  it('returns an empty frame for empty text', () => {
+    const framer = new StreamFramer(() => 1);
+
+    const framed = framer.frameOutputText('', 'stdout');
+
+    expect(framed.bytes.length).toBe(0);
+    expect(framed.payloadBytes).toBe(0);
+  });
+
+  it('preserves ANSI escape sequences verbatim', () => {
     const framer = new StreamFramer(() => 1);
     const ansi = '[31mred[0m';
 
-    const framed = framer.frameOutput(Buffer.from(ansi), 'stdout');
+    const framed = framer.frameOutputText(ansi, 'stdout');
 
     expect(outputData(parseRecords(framed.bytes))).toBe(ansi);
   });
@@ -43,7 +55,7 @@ describe('StreamFramer.frameOutput', () => {
     const framer = new StreamFramer(() => 1);
     const long = 'a'.repeat(MAX_RECORD_DATA_BYTES + 5000);
 
-    const framed = framer.frameOutput(Buffer.from(long), 'stdout');
+    const framed = framer.frameOutputText(long, 'stdout');
     const records = parseRecords(framed.bytes);
 
     expect(records.length).toBe(2);
@@ -53,62 +65,6 @@ describe('StreamFramer.frameOutput', () => {
     }
     expect(outputData(records)).toBe(long);
     expect(framed.payloadBytes).toBe(long.length);
-  });
-
-  it('replaces invalid UTF-8 with the replacement character', () => {
-    const framer = new StreamFramer(() => 1);
-
-    const framed = framer.frameOutput(Buffer.from([0xff, 0xfe]), 'stdout');
-
-    expect(outputData(parseRecords(framed.bytes))).toBe(`${REPLACEMENT}${REPLACEMENT}`);
-  });
-
-  it('reassembles a multi-byte char split across two chunks on the same pipe', () => {
-    const framer = new StreamFramer(() => 1);
-    const euro = Buffer.from('€', 'utf8'); // 0xE2 0x82 0xAC
-
-    const first = framer.frameOutput(euro.subarray(0, 2), 'stdout');
-    const second = framer.frameOutput(euro.subarray(2), 'stdout');
-
-    // The decoder holds the partial sequence, so the first chunk yields nothing.
-    expect(first.bytes.length).toBe(0);
-    expect(outputData(parseRecords(second.bytes))).toBe('€');
-  });
-
-  it('reassembles a 4-byte code point split across two chunks on the same pipe', () => {
-    const framer = new StreamFramer(() => 1);
-    const grin = Buffer.from('😀', 'utf8'); // 4 bytes: F0 9F 98 80 (a surrogate pair)
-
-    const first = framer.frameOutput(grin.subarray(0, 2), 'stdout');
-    const second = framer.frameOutput(grin.subarray(2), 'stdout');
-
-    // The decoder holds the partial 4-byte sequence, so the first chunk yields nothing.
-    expect(first.bytes.length).toBe(0);
-    expect(outputData(parseRecords(second.bytes))).toBe('😀');
-  });
-
-  it('does not complete a stdout partial sequence with stderr bytes', () => {
-    const framer = new StreamFramer(() => 1);
-    const euro = Buffer.from('€', 'utf8');
-
-    framer.frameOutput(euro.subarray(0, 2), 'stdout');
-    const stderrFramed = framer.frameOutput(euro.subarray(2), 'stderr');
-
-    // The trailing byte arrives on stderr, whose decoder never saw the lead bytes,
-    // so it is invalid there and must not reconstruct '€'.
-    expect(outputData(parseRecords(stderrFramed.bytes))).toBe(REPLACEMENT);
-  });
-});
-
-describe('StreamFramer.flushDecoders', () => {
-  it('flushes a held incomplete sequence as the replacement character', () => {
-    const framer = new StreamFramer(() => 1);
-    const euro = Buffer.from('€', 'utf8');
-
-    framer.frameOutput(euro.subarray(0, 2), 'stdout');
-    const flushed = framer.flushDecoders();
-
-    expect(outputData(parseRecords(flushed.bytes))).toBe(REPLACEMENT);
   });
 });
 
@@ -141,6 +97,44 @@ describe('StreamFramer control records', () => {
       kind: 'gap',
       dropped_bytes: 4096,
     });
+  });
+
+  it('frames a group_start record with its name', () => {
+    const framer = new StreamFramer(() => 7);
+
+    const [record] = parseRecords(framer.frameGroupStart('Install deps'));
+
+    expect(record).toEqual({
+      v: 1,
+      ts: 7,
+      type: 'control',
+      src: 'system',
+      kind: 'group_start',
+      name: 'Install deps',
+    });
+  });
+
+  it('frames a group_end record', () => {
+    const framer = new StreamFramer(() => 7);
+
+    const [record] = parseRecords(framer.frameGroupEnd());
+
+    expect(record).toEqual({v: 1, ts: 7, type: 'control', src: 'system', kind: 'group_end'});
+  });
+
+  it('byte-truncates an over-long group name on a code-point boundary', () => {
+    const framer = new StreamFramer(() => 7);
+    const name = '€'.repeat(MAX_RECORD_NAME_BYTES); // 3 bytes each, far over the cap
+
+    const [record] = parseRecords(framer.frameGroupStart(name));
+
+    if (record?.type !== 'control' || record.kind !== 'group_start') {
+      throw new Error('expected a group_start control record');
+    }
+    expect(Buffer.byteLength(record.name)).toBeLessThanOrEqual(MAX_RECORD_NAME_BYTES);
+    expect(name.startsWith(record.name)).toBe(true);
+    // A torn multi-byte char would not survive a UTF-8 round-trip.
+    expect(Buffer.from(record.name, 'utf8').toString('utf8')).toBe(record.name);
   });
 });
 

@@ -79,3 +79,84 @@ export function redactSecrets(text: string, secrets: string[]): string {
   }
   return redactUrlCredentials(redacted);
 }
+
+const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const BASE64URL_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+// Forms shorter than this are dropped: a short, low-entropy derivation (e.g. the hex of a
+// one-byte secret) would scrub unrelated text. Real secrets are long, so this never drops
+// a genuine token's forms — it only guards against a degenerate registration.
+const MIN_WIRE_FORM_LENGTH = 8;
+
+// Self-contained, unpadded base64 so this stays a pure-JS (browser-safe) module: no
+// node:buffer, no btoa. Padding is irrelevant here because callers only ever slice the
+// stable middle of the output (see base64Alignments).
+function base64Encode(bytes: Uint8Array, alphabet: string): string {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i] as number;
+    const b1 = i + 1 < bytes.length ? (bytes[i + 1] as number) : 0;
+    const b2 = i + 2 < bytes.length ? (bytes[i + 2] as number) : 0;
+    out += alphabet[b0 >> 2];
+    out += alphabet[((b0 & 0b11) << 4) | (b1 >> 4)];
+    if (i + 1 < bytes.length) out += alphabet[((b1 & 0b1111) << 2) | (b2 >> 6)];
+    if (i + 2 < bytes.length) out += alphabet[b2 & 0b111111];
+  }
+  return out;
+}
+
+/**
+ * The three phase-aligned base64 substrings a secret yields when embedded at byte offset
+ * 0, 1, or 2 (mod 3) inside a larger base64 blob (e.g. a token inside a base64-encoded
+ * request body). For each phase we encode `phase` filler bytes followed by the secret,
+ * drop the `lead` chars the filler produced, and keep the `keep` chars that depend only on
+ * the secret's own bytes — the run that appears no matter what surrounds the secret.
+ */
+function base64Alignments(bytes: Uint8Array, alphabet: string): string[] {
+  const alignments: string[] = [];
+  for (let phase = 0; phase < 3; phase++) {
+    const padded = new Uint8Array(phase + bytes.length);
+    padded.set(bytes, phase);
+    const encoded = base64Encode(padded, alphabet);
+    const lead = Math.ceil((phase * 8) / 6);
+    const lostBits = lead * 6 - phase * 8;
+    const keep = Math.floor((bytes.length * 8 - lostBits) / 6);
+    alignments.push(encoded.slice(lead, lead + keep));
+  }
+  return alignments;
+}
+
+function hexEncode(bytes: Uint8Array): string {
+  let out = '';
+  for (const byte of bytes) out += byte.toString(16).padStart(2, '0');
+  return out;
+}
+
+/**
+ * Every wire form a secret can appear as in captured output, ready to hand straight to
+ * {@link redactSecrets}: the literal, its base64 and base64url forms (all three phase
+ * alignments, so a secret embedded in a larger encoded blob is masked too), its
+ * URL-encoded form, and its lower- and upper-case hex. Deduplicated and sorted
+ * longest-first; forms under {@link MIN_WIRE_FORM_LENGTH} chars are dropped so a short
+ * derivation never scrubs unrelated text.
+ *
+ * redactSecrets' contract still holds: pass real, high-entropy secrets. This is the
+ * "deriving every wire form a credential takes" step that redactSecrets leaves to callers,
+ * given one home so every masker derives the same set.
+ */
+export function secretWireForms(secret: string): string[] {
+  if (!secret) return [];
+  const bytes = new TextEncoder().encode(secret);
+  const hex = hexEncode(bytes);
+  const forms = new Set<string>([
+    secret,
+    ...base64Alignments(bytes, BASE64_ALPHABET),
+    ...base64Alignments(bytes, BASE64URL_ALPHABET),
+    encodeURIComponent(secret),
+    hex,
+    hex.toUpperCase(),
+  ]);
+  return [...forms]
+    .filter((form) => form.length >= MIN_WIRE_FORM_LENGTH)
+    .sort((a, b) => b.length - a.length);
+}

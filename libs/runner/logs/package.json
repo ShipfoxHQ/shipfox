@@ -40,6 +40,7 @@
     "@shipfox/api-logs-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/redact": "workspace:*",
     "@shipfox/regex": "workspace:*",
     "@shipfox/runner-protocol": "workspace:*"
   },

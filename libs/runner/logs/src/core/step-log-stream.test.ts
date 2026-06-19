@@ -347,4 +347,118 @@ describe('createStepLogStream', () => {
 
     appendSpy.mockRestore();
   });
+
+  it('never writes an unmasked secret or any encoded form to the spool', async () => {
+    const secret = 'sf_rt_SECRET123456';
+    const forms = {
+      literal: secret,
+      base64: Buffer.from(secret).toString('base64'),
+      base64url: Buffer.from(secret).toString('base64url'),
+      hex: Buffer.from(secret).toString('hex'),
+      url: encodeURIComponent(secret),
+    };
+    const stream = createStepLogStream({
+      logsDir: join(dir, 'logs'),
+      stepId: STEP_ID,
+      attempt: 11,
+      append: hangingAppend, // the spool is written synchronously; no drain needed to inspect it
+      secrets: [secret],
+      flushIntervalMs: 100000,
+      now: () => 1,
+    });
+
+    stream.write(Buffer.from(`literal=${forms.literal}\n`), 'stdout');
+    stream.write(Buffer.from(`base64=${forms.base64}\n`), 'stdout');
+    stream.write(Buffer.from(`base64url=${forms.base64url}\n`), 'stderr');
+    stream.write(Buffer.from(`hex=${forms.hex}\n`), 'stdout');
+    stream.write(Buffer.from(`url=${forms.url}\n`), 'stdout');
+    await stream.close();
+    stream.dispose();
+
+    // Read the plaintext spool file directly: not one secret form may have reached disk.
+    const raw = await readFile(join(dir, 'logs', `${STEP_ID}-11.ndjson`), 'utf8');
+    for (const form of Object.values(forms)) {
+      expect(raw).not.toContain(form);
+    }
+    expect(raw).toContain('***');
+  });
+
+  it('counts masked bytes (not the raw secret) in the end record total', async () => {
+    const secret = 'sf_rt_SECRET123456';
+    const stream = createStepLogStream({
+      logsDir: join(dir, 'logs'),
+      stepId: STEP_ID,
+      attempt: 12,
+      append: hangingAppend,
+      secrets: [secret],
+      flushIntervalMs: 100000,
+      now: () => 1,
+    });
+
+    stream.write(Buffer.from(`x=${secret}\n`), 'stdout'); // masked to 'x=***\n'
+    await stream.close();
+    stream.dispose();
+
+    const records = await readRecords(12);
+    const end = records.find((r) => r.type === 'control' && r.kind === 'end');
+    expect(end).toEqual({
+      v: 1,
+      ts: 1,
+      type: 'control',
+      src: 'system',
+      kind: 'end',
+      total_bytes: Buffer.byteLength('x=***\n'),
+    });
+  });
+
+  it('writes group markers as control records and swallows the marker lines', async () => {
+    const stream = createStepLogStream({
+      logsDir: join(dir, 'logs'),
+      stepId: STEP_ID,
+      attempt: 13,
+      append: hangingAppend,
+      flushIntervalMs: 100000,
+      now: () => 1,
+    });
+
+    stream.write(Buffer.from('::group::Install\nbuilding\n::endgroup::\n'), 'stdout');
+    await stream.close();
+    stream.dispose();
+
+    const records = await readRecords(13);
+    expect(records).toEqual([
+      {v: 1, ts: 1, type: 'control', src: 'system', kind: 'group_start', name: 'Install'},
+      {v: 1, ts: 1, type: 'output', src: 'stdout', data: 'building\n'},
+      {v: 1, ts: 1, type: 'control', src: 'system', kind: 'group_end'},
+      {
+        v: 1,
+        ts: 1,
+        type: 'control',
+        src: 'system',
+        kind: 'end',
+        total_bytes: Buffer.byteLength('building\n'),
+      },
+    ]);
+  });
+
+  it('drops a group record under backlog pressure rather than growing the spool unbounded', async () => {
+    const stream = createStepLogStream({
+      logsDir: join(dir, 'logs'),
+      stepId: STEP_ID,
+      attempt: 14,
+      append: hangingAppend, // never acks, so the backlog only grows
+      spoolMaxBytes: 60, // fits the first record, not the next
+      flushIntervalMs: 100000,
+      now: () => 1,
+    });
+
+    stream.write(Buffer.from('a'.repeat(40)), 'stdout'); // spooled (~50-byte record)
+    stream.write(Buffer.from('::group::Build\n'), 'stdout'); // group_start over the cap -> dropped
+    await stream.close();
+    stream.dispose();
+
+    const records = await readRecords(14);
+    expect(records.some((r) => r.type === 'control' && r.kind === 'group_start')).toBe(false);
+    expect(records.some((r) => r.type === 'control' && r.kind === 'gap')).toBe(true);
+  });
 });
