@@ -3,13 +3,18 @@ import type {IntegrationProvider} from '#core/entities/provider.js';
 
 /**
  * Everything one integration contributes to the composed integrations module:
- * a registry provider, plus an optional dedicated database and background
- * workers. Providers that own no database or workers simply omit them.
+ * a registry provider, plus an optional dedicated database, background workers,
+ * and one-shot boot-time tasks. Providers that own none of these simply omit them.
+ *
+ * A startup task is run once after modules are initialized (migrations done). The
+ * provider owns its own wiring — core runs each task generically and isolates
+ * failures so a task can never gate API boot.
  */
 export interface IntegrationModuleParts {
   provider: IntegrationProvider;
   database?: ModuleDatabase | undefined;
   workers?: ModuleWorker[] | undefined;
+  startupTasks?: Array<() => Promise<void>> | undefined;
 }
 
 /**

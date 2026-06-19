@@ -1,10 +1,10 @@
 import {INTEGRATION_SOURCE_COMMIT_PUSHED} from '@shipfox/api-integration-core-dto';
 import * as debugModule from '@shipfox/api-integration-debug';
-import {createDebugIntegrationProvider} from '@shipfox/api-integration-debug';
 import {sql} from 'drizzle-orm';
 import {upsertIntegrationConnection} from '#db/connections.js';
 import {db} from '#db/db.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
+import {debugProviderModule} from '#providers/debug.js';
 import {createIntegrationsContext} from './index.js';
 
 vi.mock('@shipfox/api-integration-debug', async (importActual) => {
@@ -22,10 +22,6 @@ function outboxForConnection(connectionId: string) {
     .where(sql`${integrationsOutbox.payload}->>'connectionId' = ${connectionId}`);
 }
 
-function debugProvider() {
-  return createDebugIntegrationProvider({upsertIntegrationConnection});
-}
-
 describe('createIntegrationsContext runStartupTasks', () => {
   let workspaceId: string;
 
@@ -40,7 +36,7 @@ describe('createIntegrationsContext runStartupTasks', () => {
       externalAccountId: 'debug',
       displayName: 'Debug',
     });
-    const context = await createIntegrationsContext({providers: [debugProvider()]});
+    const context = await createIntegrationsContext({parts: [await debugProviderModule.load()]});
 
     await context.runStartupTasks();
 
@@ -60,7 +56,7 @@ describe('createIntegrationsContext runStartupTasks', () => {
       externalAccountId: 'debug',
       displayName: 'Debug',
     });
-    const context = await createIntegrationsContext({providers: []});
+    const context = await createIntegrationsContext({parts: []});
 
     await context.runStartupTasks();
 
@@ -75,7 +71,7 @@ describe('createIntegrationsContext runStartupTasks', () => {
       displayName: 'Debug',
       lifecycleStatus: 'disabled',
     });
-    const context = await createIntegrationsContext({providers: [debugProvider()]});
+    const context = await createIntegrationsContext({parts: [await debugProviderModule.load()]});
 
     await context.runStartupTasks();
 
@@ -84,7 +80,7 @@ describe('createIntegrationsContext runStartupTasks', () => {
 
   it('swallows and logs a re-sync failure instead of crashing boot', async () => {
     vi.mocked(debugModule.emitDebugStartupResync).mockRejectedValueOnce(new Error('boom'));
-    const context = await createIntegrationsContext({providers: [debugProvider()]});
+    const context = await createIntegrationsContext({parts: [await debugProviderModule.load()]});
 
     await expect(context.runStartupTasks()).resolves.toBeUndefined();
   });

@@ -49,8 +49,8 @@ export async function run(): Promise<void> {
       dispatcherModule,
     ],
   });
-  // Boot-time module tasks (post-migration). When the debug provider is enabled this forces
-  // a definitions re-sync of the debug fixtures; it is a no-op otherwise and never throws.
+  // Boot-time provider tasks (post-migration). No-op when no enabled provider contributes
+  // one; failures are isolated and logged, never thrown, so they cannot gate boot.
   await integrations.runStartupTasks();
 
   const e2eAuth = config.E2E_ENABLED ? [createE2eAdminAuthMethod(config)] : [];
