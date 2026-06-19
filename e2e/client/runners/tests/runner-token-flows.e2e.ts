@@ -1,7 +1,8 @@
 import {argosScreenshot} from '@shipfox/playwright';
+import {createShipfoxTokenPrefixRegexes} from '@shipfox/regex';
 import {expect, test} from './test.js';
 
-const RUNNER_TOKEN_PREFIX_RE = /^sf_rt_/u;
+const RUNNER_TOKEN_PREFIX_RE = createShipfoxTokenPrefixRegexes(['rt']).unqualified;
 const VISUAL_TEST_NOW = new Date('2026-01-15T12:00:00Z');
 const VISUAL_TEST_RUNNER_TOKEN_PREFIX = 'sf_rt_visual';
 const VISUAL_TEST_RUNNER_TOKEN = 'sf_rt_visual_regression_token';

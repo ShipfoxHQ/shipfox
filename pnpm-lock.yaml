@@ -293,6 +293,9 @@ importers:
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../tools/playwright
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../../libs/shared/common/regex
       '@shipfox/ts-config':
         specifier: workspace:*
         version: link:../../../tools/ts-config
@@ -603,6 +606,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../shared/common/regex
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc
@@ -770,6 +776,9 @@ importers:
       '@shipfox/redact':
         specifier: workspace:*
         version: link:../../../shared/common/redact
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../../shared/common/regex
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
@@ -2175,6 +2184,9 @@ importers:
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../shared/common/regex
       '@swc/helpers':
         specifier: ^0.5.17
         version: 0.5.23
@@ -2575,6 +2587,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../shared/common/regex
       '@shipfox/runner-protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -2658,6 +2673,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../shared/common/regex
       ky:
         specifier: ^2.0.0
         version: 2.0.2
@@ -2689,6 +2707,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../shared/common/regex
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -2729,6 +2750,24 @@ importers:
         version: link:../../../../tools/vitest
 
   libs/shared/common/redact:
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+
+  libs/shared/common/regex:
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -3044,6 +3083,9 @@ importers:
       '@shipfox/node-log':
         specifier: workspace:*
         version: link:../log
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../common/regex
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -3150,6 +3192,9 @@ importers:
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../common/config
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../common/regex
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*

@@ -1,8 +1,7 @@
 import {closeSync, mkdirSync, openSync, readSync, statSync, writeSync} from 'node:fs';
 import {dirname, join} from 'node:path';
+import {isUuid} from '@shipfox/regex';
 import {InvalidStepIdError} from '#core/errors.js';
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const EMPTY = Buffer.alloc(0);
 
@@ -39,7 +38,7 @@ export class AttemptSpool {
   }
 
   static open(logsDir: string, stepId: string, attempt: number): AttemptSpool {
-    if (!UUID_PATTERN.test(stepId)) throw new InvalidStepIdError(stepId);
+    if (!isUuid(stepId)) throw new InvalidStepIdError(stepId);
     return new AttemptSpool(join(logsDir, `${stepId}-${attempt}.ndjson`));
   }
 

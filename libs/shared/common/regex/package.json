@@ -1,18 +1,20 @@
 {
-  "name": "@shipfox/runner-logs",
+  "name": "@shipfox/regex",
   "license": "MIT",
-  "version": "0.0.0",
+  "private": false,
+  "version": "0.1.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/platform.git",
-    "directory": "libs/runner/logs"
+    "directory": "libs/shared/common/regex"
   },
-  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "imports": {
-    "#test/*": "./test/*",
     "#*": "./src/*"
   },
   "exports": {
@@ -35,13 +37,6 @@
     "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
-  },
-  "dependencies": {
-    "@shipfox/api-logs-dto": "workspace:*",
-    "@shipfox/config": "workspace:*",
-    "@shipfox/node-opentelemetry": "workspace:*",
-    "@shipfox/regex": "workspace:*",
-    "@shipfox/runner-protocol": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

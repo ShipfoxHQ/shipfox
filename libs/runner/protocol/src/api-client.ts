@@ -16,10 +16,9 @@ import {
   type StepErrorDtoShape,
 } from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {isUuid} from '@shipfox/regex';
 import ky, {HTTPError, type KyInstance} from 'ky';
 import {config} from '#config.js';
-
-const STEP_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Media type the append endpoint expects for the raw NDJSON request body. */
 const LOG_NDJSON_CONTENT_TYPE = 'application/x-ndjson';
@@ -152,7 +151,7 @@ export async function appendStepLogs(
     signal?: AbortSignal;
   },
 ): Promise<LogAppendOutcome> {
-  if (!STEP_ID_PATTERN.test(params.stepId)) {
+  if (!isUuid(params.stepId)) {
     throw new Error(`Invalid step id for log append: ${params.stepId}`);
   }
 

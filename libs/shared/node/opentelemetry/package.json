@@ -59,7 +59,8 @@
     "@opentelemetry/sdk-trace-node": "^2.6.0",
     "@opentelemetry/semantic-conventions": "^1.33.0",
     "@shipfox/config": "workspace:*",
-    "@shipfox/node-log": "workspace:*"
+    "@shipfox/node-log": "workspace:*",
+    "@shipfox/regex": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

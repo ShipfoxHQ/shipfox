@@ -44,6 +44,14 @@ describe('project runs search helpers', () => {
     expect(result).toEqual({date: 'all'});
   });
 
+  test('accepts structurally valid UUIDs without enforcing an RFC version nibble', () => {
+    const search = {definition_id: '99999999-9999-9999-9999-999999999999', date: 'all'};
+
+    const result = sanitizeRunsSearch(search);
+
+    expect(result.definitionId).toBe('99999999-9999-9999-9999-999999999999');
+  });
+
   test('accepts unknown but well-formed trigger sources', () => {
     const search = {trigger_source: 'gitlab', date: 'all'};
 

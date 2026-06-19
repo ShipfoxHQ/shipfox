@@ -39,7 +39,8 @@
   "dependencies": {
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
-    "@shipfox/node-opentelemetry": "workspace:*"
+    "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/regex": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

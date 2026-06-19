@@ -1,10 +1,9 @@
 import {createHash, randomBytes} from 'node:crypto';
+import {createShipfoxTokenPrefixRegexes} from '@shipfox/regex';
 import {config} from './config.js';
 
 const DISPLAY_PREFIX_LENGTH = 12;
 const TOKEN_PREFIX_NAMESPACE = 'sf';
-const UNQUALIFIED_TOKEN_PREFIX_RE = /^sf_(pr|rt|r|k|i|v)_/;
-const QUALIFIED_TOKEN_PREFIX_RE = /^sf_([a-z0-9-]+)_(pr|rt|r|k|i|v)_/;
 
 export const tokenTypeParts = {
   apiKey: 'k',
@@ -14,6 +13,8 @@ export const tokenTypeParts = {
   refreshToken: 'r',
   runnerToken: 'rt',
 } as const;
+
+const tokenPrefixRegexes = createShipfoxTokenPrefixRegexes(Object.values(tokenTypeParts));
 
 export type TokenType = keyof typeof tokenTypeParts;
 export type TokenEnvironment = 'production' | string;
@@ -69,12 +70,12 @@ function getTokenEnvironmentPart(): string | undefined {
 }
 
 function parseTokenPrefix(raw: string): {environment?: string; tokenTypePart: string} | undefined {
-  const unqualifiedMatch = raw.match(UNQUALIFIED_TOKEN_PREFIX_RE);
+  const unqualifiedMatch = raw.match(tokenPrefixRegexes.unqualified);
   if (unqualifiedMatch?.[1]) {
     return {tokenTypePart: unqualifiedMatch[1]};
   }
 
-  const qualifiedMatch = raw.match(QUALIFIED_TOKEN_PREFIX_RE);
+  const qualifiedMatch = raw.match(tokenPrefixRegexes.qualified);
   if (qualifiedMatch?.[1] && qualifiedMatch[2]) {
     return {environment: qualifiedMatch[1], tokenTypePart: qualifiedMatch[2]};
   }

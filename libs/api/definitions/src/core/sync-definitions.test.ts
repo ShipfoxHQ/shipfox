@@ -5,6 +5,7 @@ import {
   IntegrationProviderError,
   type IntegrationSourceControlService,
 } from '@shipfox/api-integration-core';
+import {LOWERCASE_SHA256_HEX_RE} from '@shipfox/regex';
 import {DefinitionSyncPermanentError} from './errors.js';
 import {
   classifySyncFailure,
@@ -20,8 +21,6 @@ jobs:
     steps:
       - run: pnpm test
 `;
-
-const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
 
 function sourceControl(
   overrides: Partial<IntegrationSourceControlService> = {},
@@ -150,7 +149,7 @@ describe('fetchAndParseWorkflows', () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.name).toBe('CI');
     expect(result[0]?.path).toBe('.shipfox/workflows/ci.yml');
-    expect(result[0]?.contentHash).toMatch(SHA256_HEX_RE);
+    expect(result[0]?.contentHash).toMatch(LOWERCASE_SHA256_HEX_RE);
   });
 
   it('produces stable content hashes for identical content', async () => {
