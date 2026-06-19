@@ -1,12 +1,7 @@
 import {execSync} from 'node:child_process';
-import {cpSync, existsSync, readdirSync, rmSync, statSync} from 'node:fs';
+import {cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync} from 'node:fs';
 import {dirname, join, relative} from 'node:path';
-import {
-  buildShellCommand,
-  getProjectFilePath,
-  getWorkspaceBinaryPath,
-  getWorkspaceRootPath,
-} from '@shipfox/tool-utils';
+import {buildShellCommand, getProjectFilePath, getWorkspaceRootPath} from '@shipfox/tool-utils';
 
 /**
  * Prepare the Docker build context for a node app the "build outside Docker,
@@ -21,7 +16,7 @@ export function setupContext(packageName: string) {
   rmSync(contextPath, {recursive: true, force: true});
 
   const prune = buildShellCommand([
-    getWorkspaceBinaryPath('turbo'),
+    'turbo',
     'prune',
     '--docker',
     '--out-dir',
@@ -38,10 +33,28 @@ function overlayDist(prunedRoot: string) {
 
   for (const packageJson of findPackageJsonFiles(prunedRoot)) {
     const packagePath = relative(prunedRoot, dirname(packageJson));
+    if (!packagePath) continue;
     const source = join(workspaceRoot, packagePath, 'dist');
-    if (!existsSync(source)) continue;
+    if (!existsSync(source)) {
+      // A package with a `build` script is expected to emit `dist/` (every build
+      // here transpiles to `dist/`). A missing one means the build did not run,
+      // so fail now instead of shipping an image that breaks at runtime.
+      if (buildsToDist(join(workspaceRoot, packagePath, 'package.json')))
+        throw new Error(
+          `${packagePath} has no built dist/ at ${source}. Build the workspace before "shipfox-docker --setup-context".`,
+        );
+      continue;
+    }
     cpSync(source, join(prunedRoot, packagePath, 'dist'), {recursive: true});
   }
+}
+
+function buildsToDist(packageJsonPath: string): boolean {
+  if (!existsSync(packageJsonPath)) return false;
+  const manifest = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
+    scripts?: Record<string, string>;
+  };
+  return Boolean(manifest.scripts?.build);
 }
 
 function findPackageJsonFiles(dir: string): string[] {

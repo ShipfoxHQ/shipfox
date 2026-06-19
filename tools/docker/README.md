@@ -5,8 +5,9 @@ Workspace wrapper around `docker buildx` for building Shipfox app images. It pre
 ## What it does
 
 - **`shipfox-docker`**: Runs `docker buildx build` for the current package, with sensible defaults for a multi-arch push.
-- **Context prep (`--setup-context`)**: Runs `turbo prune --docker --out-dir out <pkg>` and overlays each pruned package's prebuilt `dist/` into `out/full/`. This is the "build outside Docker, ingest `dist`" approach: the image never recompiles TypeScript, it ingests the turbo-cached build plus a real `node_modules`.
+- **Context prep (`--setup-context`)**: Runs `turbo prune --docker` into an `out/` directory under the package and overlays each pruned package's prebuilt `dist/` into `out/full/`. This is the "build outside Docker, ingest `dist`" approach: the image never recompiles TypeScript, it ingests the turbo-cached build plus a real `node_modules`.
 - **Single multi-platform build**: Defaults to `--platform linux/amd64,linux/arm64 --push`, so one invocation emits the multi-arch manifest (no per-arch tags, no `docker manifest` step). QEMU covers both arches.
+- **Clean manifest**: Defaults to `--provenance=false` so the pushed multi-arch index stays a clean per-arch manifest, without the `unknown/unknown` provenance entries some registries display. Pass your own `--provenance` to re-enable SLSA attestations.
 - **gha BuildKit cache**: Adds `--cache-from`/`--cache-to type=gha` (scoped per image) when running in GitHub Actions.
 
 The defaults are added only when you did not pass the flag yourself, so the caller stays in control. To validate a Dockerfile on a PR (single arch, no push), pass your own `--platform linux/amd64` and `--load`.

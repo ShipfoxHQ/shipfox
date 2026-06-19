@@ -6,6 +6,9 @@ import {setupContext} from './turbo.js';
 
 const DEFAULT_PLATFORMS = 'linux/amd64,linux/arm64';
 
+// Matches the :tag / @digest suffix of an image reference's final path segment.
+const TAG_OR_DIGEST_SUFFIX = /[:@].*$/;
+
 // Everything after the bin name; `--setup-context` is consumed here, the rest is
 // forwarded verbatim to `docker buildx build` (tags, build-args, labels, ...).
 const passthrough = process.argv.slice(2);
@@ -26,8 +29,10 @@ function firstTag(): string | undefined {
 // run don't clobber each other. The scope is the image name (its last path
 // segment), which is stable across registries: e.g. ghcr.io/org/api -> api.
 function cacheScope(): string | undefined {
-  const image = firstTag()?.split(':')[0] ?? process.env.npm_package_name;
-  return image?.split('/').pop();
+  const reference = firstTag() ?? process.env.npm_package_name;
+  // Take the final path segment first, then drop the :tag / @digest suffix, so a
+  // registry port (host:port/...) is never mistaken for the tag separator.
+  return reference?.split('/').pop()?.replace(TAG_OR_DIGEST_SUFFIX, '');
 }
 
 const setupIndex = passthrough.indexOf('--setup-context');
