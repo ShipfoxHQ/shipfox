@@ -210,6 +210,49 @@ describe('appendLogs', () => {
       expect(await listChunks(after?.id as string)).toHaveLength(1);
     });
 
+    it('declared-closes when one body both crosses the budget and ends', async () => {
+      const ctx = newCtx();
+      // 150 payload bytes cross the 100-byte test budget, but the crossing chunk is still
+      // stored in full; the same body carries the end, so the stream declared-closes.
+      const body = ndjsonBody(
+        outputLine('x'.repeat(150)),
+        controlLine({kind: 'end', total_bytes: 4}),
+      );
+
+      const result = await appendLogs({...ctx, attempt: 1, offset: 0, body});
+
+      expect(result.capped).toBe(true);
+      const stream = await findStream({...ctx, attempt: 1});
+      expect(stream?.state).toBe('closed');
+      expect(stream?.closeReason).toBe('declared');
+      expect(stream?.truncated).toBe(false);
+      expect((await listChunks(stream?.id as string)).map((c) => c.kind)).toEqual([
+        'runner',
+        'control',
+      ]);
+      expect(await listStreamClosedEvents(stream?.id as string)).toHaveLength(1);
+    });
+
+    it('does not declared-close when an already-capped job drops the end body', async () => {
+      const ctx = newCtx();
+      // Cap the job first (150 payload bytes cross the 100-byte budget), then send the end
+      // body: it is dropped, so the stream is not whole and must stay open for the sweep.
+      const first = outputOfBytes(150);
+      await appendLogs({...ctx, attempt: 1, offset: 0, body: first});
+      const end = ndjsonBody(controlLine({kind: 'end', total_bytes: 4}));
+
+      const result = await appendLogs({...ctx, attempt: 1, offset: first.length, body: end});
+
+      expect(result.capped).toBe(true);
+      const stream = await findStream({...ctx, attempt: 1});
+      expect(stream?.state).toBe('open');
+      expect(stream?.closeReason).toBeNull();
+      expect(stream?.declaredTotalBytes).toBeNull();
+      // The dropped end body persisted nothing: still just the runner chunk + cap tombstone.
+      expect(await listChunks(stream?.id as string)).toHaveLength(2);
+      expect(await listStreamClosedEvents(stream?.id as string)).toHaveLength(0);
+    });
+
     it('keeps attempts of the same step on independent streams', async () => {
       const ctx = newCtx();
       const a1 = ndjsonBody(outputLine('one\n'));
