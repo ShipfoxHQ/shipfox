@@ -1,3 +1,4 @@
+import {appendLogsResponseSchema, offsetGapResponseSchema} from '@shipfox/api-logs-dto';
 import {
   type ClaimedJobResponseDto,
   claimedJobResponseSchema,
@@ -17,6 +18,33 @@ import {
 import {logger} from '@shipfox/node-opentelemetry';
 import ky, {HTTPError, type KyInstance} from 'ky';
 import {config} from '#config.js';
+
+const STEP_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Media type the append endpoint expects for the raw NDJSON request body. */
+const LOG_NDJSON_CONTENT_TYPE = 'application/x-ndjson';
+
+/**
+ * The runner-facing result of one append, after the transport has interpreted the
+ * HTTP status. `committed` carries the new server offset (and whether the budget is
+ * now exhausted); `conflict` carries the offset to rewind/fast-forward to; `stopped`
+ * means the endpoint is gone or the lease is no longer accepted, so the uploader gives
+ * up (the server's stream lifecycle takes over).
+ */
+export type LogAppendOutcome =
+  | {status: 'committed'; committedLength: number; capped: boolean}
+  | {status: 'conflict'; committedLength: number}
+  | {status: 'stopped'};
+
+/**
+ * The append port the runner's uploader depends on. The caller binds the lease
+ * client, step, and attempt; the uploader only supplies the offset and body.
+ */
+export type LogAppendFn = (args: {
+  offset: number;
+  body: Uint8Array;
+  signal?: AbortSignal;
+}) => Promise<LogAppendOutcome>;
 
 const baseUrl = config.SHIPFOX_API_URL.endsWith('/')
   ? config.SHIPFOX_API_URL
@@ -108,6 +136,61 @@ export async function requestCheckoutToken(
     options.signal ? {signal: options.signal} : undefined,
   );
   return checkoutTokenResponseSchema.parse(await response.json());
+}
+
+// throwHttpErrors:false (below) turns off ky's status-code retry for this call, so no
+// HTTP status is retried in-transport here (only network/timeout errors are). Every
+// status is mapped explicitly: 409 and the terminal 4xx to outcomes, 5xx/unknown to a
+// thrown error the uploader retries on its next tick.
+export async function appendStepLogs(
+  leaseClient: KyInstance,
+  params: {
+    stepId: string;
+    attempt: number;
+    offset: number;
+    body: Uint8Array;
+    signal?: AbortSignal;
+  },
+): Promise<LogAppendOutcome> {
+  if (!STEP_ID_PATTERN.test(params.stepId)) {
+    throw new Error(`Invalid step id for log append: ${params.stepId}`);
+  }
+
+  // throwHttpErrors:false so we can read the 409 body ourselves (ky discards it when
+  // it builds an HTTPError). It also disables ky's status-code retry, so 5xx is not
+  // retried in-transport and falls through to the throw below.
+  const response = await leaseClient.post(`runs/jobs/current/steps/${params.stepId}/logs`, {
+    body: params.body,
+    headers: {'content-type': LOG_NDJSON_CONTENT_TYPE},
+    searchParams: {attempt: params.attempt, offset: params.offset},
+    throwHttpErrors: false,
+    ...(params.signal ? {signal: params.signal} : {}),
+  });
+
+  if (response.ok) {
+    const {committed_length, capped} = appendLogsResponseSchema.parse(await response.json());
+    return {status: 'committed', committedLength: committed_length, capped};
+  }
+  if (response.status === 409) {
+    const {details} = offsetGapResponseSchema.parse(await response.json());
+    return {status: 'conflict', committedLength: details.committed_length};
+  }
+  // Any other 4xx is permanent for this request: the endpoint is gone (deploy skew), the
+  // lease is rejected (401/403), or the body will never be accepted (400 malformed, 413 too
+  // large, 415/422, ...). Re-sending the identical body cannot succeed, so stop and let the
+  // server's stream lifecycle close the stream. 408/429 are transient and fall through to
+  // the retry path so server-driven backpressure still paces (not storms) the next attempt.
+  if (
+    response.status >= 400 &&
+    response.status < 500 &&
+    response.status !== 408 &&
+    response.status !== 429
+  ) {
+    return {status: 'stopped'};
+  }
+  // 5xx, 408, 429, or any other unexpected status: throw so the uploader logs it and retries
+  // on the next tick (throwHttpErrors disables ky's in-transport status-code retry).
+  throw new Error(`Log append failed with status ${response.status}`);
 }
 
 export async function heartbeat(

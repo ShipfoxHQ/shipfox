@@ -7,16 +7,25 @@ import type {StepDto, StepErrorDtoShape} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {StepResult} from '#core/step-result.js';
 
-const MAX_OUTPUT_BYTES = 1024 * 1024; // 1MB
+/**
+ * Receives each captured output chunk with its origin pipe. The runner tees step
+ * output to its own stdout/stderr for container observability and, separately,
+ * feeds it here for the durable log pipeline. Durability and output caps (per-record,
+ * the unacked-backlog cap, and the server budget) are the sink's concern, not the
+ * executor's.
+ */
+export type OutputSink = (chunk: Buffer, source: 'stdout' | 'stderr') => void;
 
-export function executeRunStep(
-  step: StepDto,
-  options: {signal?: AbortSignal; cwd?: string} = {},
-): Promise<StepResult> {
+interface RunStepOptions {
+  signal?: AbortSignal;
+  cwd?: string;
+  onOutput?: OutputSink;
+}
+
+export function executeRunStep(step: StepDto, options: RunStepOptions = {}): Promise<StepResult> {
   if (step.type !== 'run') {
     return Promise.resolve({
       success: false,
-      output: '',
       error: {message: `Unsupported step type: ${step.type}`},
       exit_code: null,
     });
@@ -26,7 +35,6 @@ export function executeRunStep(
   if (!command) {
     return Promise.resolve({
       success: false,
-      output: '',
       error: {message: 'Step config.run is missing or empty'},
       exit_code: null,
     });
@@ -35,10 +43,7 @@ export function executeRunStep(
   return runShellCommand(command, options);
 }
 
-async function runShellCommand(
-  command: string,
-  options: {signal?: AbortSignal; cwd?: string},
-): Promise<StepResult> {
+async function runShellCommand(command: string, options: RunStepOptions): Promise<StepResult> {
   const scriptPath = join(tmpdir(), `shipfox-runner-${randomUUID()}.sh`);
 
   try {
@@ -49,10 +54,7 @@ async function runShellCommand(
   }
 }
 
-function spawnAndCapture(
-  scriptPath: string,
-  options: {signal?: AbortSignal; cwd?: string},
-): Promise<StepResult> {
+function spawnAndCapture(scriptPath: string, options: RunStepOptions): Promise<StepResult> {
   return new Promise((resolve) => {
     const shell = findShell();
     const args =
@@ -69,27 +71,16 @@ function spawnAndCapture(
       cwd: options.cwd,
     });
 
-    let output = '';
-    let truncated = false;
-
-    const appendOutput = (chunk: Buffer) => {
-      const text = chunk.toString();
-      output += text;
-
-      if (Buffer.byteLength(output) > MAX_OUTPUT_BYTES) {
-        output = output.slice(-MAX_OUTPUT_BYTES);
-        truncated = true;
-      }
-    };
-
+    // stdout and stderr are two separate pipes, so the sink sees them merged by
+    // arrival order, not kernel/wall-clock order; origin is preserved per chunk.
     child.stdout.on('data', (chunk: Buffer) => {
       process.stdout.write(chunk);
-      appendOutput(chunk);
+      options.onOutput?.(chunk, 'stdout');
     });
 
     child.stderr.on('data', (chunk: Buffer) => {
       process.stderr.write(chunk);
-      appendOutput(chunk);
+      options.onOutput?.(chunk, 'stderr');
     });
 
     const killGroup = () => {
@@ -122,9 +113,8 @@ function spawnAndCapture(
 
     child.on('close', (code, signal) => {
       cleanupAbortListener();
-      const finalOutput = truncated ? `[output truncated]\n${output}` : output;
       if (code === 0) {
-        resolve({success: true, output: finalOutput, error: null, exit_code: 0});
+        resolve({success: true, error: null, exit_code: 0});
         return;
       }
       // code === null when the child was terminated by a signal (e.g. SIGKILL
@@ -137,7 +127,7 @@ function spawnAndCapture(
               ...(signal ? {signal} : {}),
             }
           : {message: `Command exited with code ${code}`, exit_code: code};
-      resolve({success: false, output: finalOutput, error, exit_code: code});
+      resolve({success: false, error, exit_code: code});
     });
 
     child.on('error', (err) => {
@@ -145,7 +135,6 @@ function spawnAndCapture(
       logger().error({err}, 'Failed to spawn shell process');
       resolve({
         success: false,
-        output: '',
         error: {message: `Failed to spawn process: ${err.message}`},
         exit_code: null,
       });

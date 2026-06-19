@@ -3,19 +3,26 @@ import {HTTPError} from 'ky';
 
 const requestNextStepMock = vi.fn();
 const reportStepMock = vi.fn();
+const appendStepLogsMock = vi.fn();
 const executeRunStepMock = vi.fn();
 const executeSetupStepMock = vi.fn();
+const createStepLogStreamMock = vi.fn();
 const executeAgentStepMock = vi.fn();
 
 vi.mock('@shipfox/runner-protocol', () => ({
   requestNextStep: (...args: unknown[]) => requestNextStepMock(...args),
   reportStep: (...args: unknown[]) => reportStepMock(...args),
+  appendStepLogs: (...args: unknown[]) => appendStepLogsMock(...args),
   HTTPError,
 }));
 
 vi.mock('@shipfox/runner-execution', () => ({
   executeRunStep: (...args: unknown[]) => executeRunStepMock(...args),
   executeSetupStep: (...args: unknown[]) => executeSetupStepMock(...args),
+}));
+
+vi.mock('@shipfox/runner-logs', () => ({
+  createStepLogStream: (...args: unknown[]) => createStepLogStreamMock(...args),
 }));
 
 vi.mock('@shipfox/runner-agent', () => ({
@@ -26,17 +33,53 @@ const {runJobSteps} = await import('#core/step-loop.js');
 
 const JOB_ID = '00000000-0000-0000-0000-0000000000aa';
 const leaseClient = {} as never;
+const STREAM_LENGTH = 128;
+
+// Ordered log of stream lifecycle events across all created streams, so tests can
+// assert "prior attempt drained before the next opens".
+let events: string[];
+
+interface FakeStream {
+  write: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+  drain: ReturnType<typeof vi.fn>;
+  dispose: ReturnType<typeof vi.fn>;
+}
+
+function makeFakeStream(label: string): FakeStream {
+  return {
+    write: vi.fn(),
+    close: vi.fn(() => {
+      events.push(`close:${label}`);
+      return Promise.resolve({streamLength: STREAM_LENGTH});
+    }),
+    drain: vi.fn(() => {
+      events.push(`drain:${label}`);
+      return Promise.resolve();
+    }),
+    dispose: vi.fn(() => {
+      events.push(`dispose:${label}`);
+    }),
+  };
+}
 
 describe('runJobSteps', () => {
   beforeEach(() => {
     requestNextStepMock.mockReset();
     reportStepMock.mockReset();
+    appendStepLogsMock.mockReset();
     executeRunStepMock.mockReset();
     executeSetupStepMock.mockReset();
+    createStepLogStreamMock.mockReset();
     executeAgentStepMock.mockReset();
+    events = [];
     reportStepMock.mockResolvedValue({ok: true, cancel: false});
     // Setup succeeds by default; tests that exercise setup failure override it.
-    executeSetupStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
+    executeSetupStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    createStepLogStreamMock.mockImplementation((opts: {stepId: string}) => {
+      events.push(`create:${opts.stepId}`);
+      return makeFakeStream(opts.stepId);
+    });
   });
 
   it('runs the setup step then a run step against the prepared cwd, reporting both', async () => {
@@ -46,12 +89,7 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce(stepResponse(setup, 1))
       .mockResolvedValueOnce(stepResponse(run, 1))
       .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
-    executeRunStepMock.mockResolvedValue({
-      success: true,
-      output: 'ok\n',
-      error: null,
-      exit_code: 0,
-    });
+    executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
     await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
@@ -61,7 +99,11 @@ describe('runJobSteps', () => {
       leaseClient,
       signal: ac.signal,
     });
-    expect(executeRunStepMock).toHaveBeenCalledWith(run, {signal: ac.signal, cwd: '/work'});
+    expect(executeRunStepMock).toHaveBeenCalledWith(run, {
+      signal: ac.signal,
+      cwd: '/work',
+      onOutput: expect.any(Function),
+    });
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
       stepId: run.id,
       attempt: 1,
@@ -73,16 +115,151 @@ describe('runJobSteps', () => {
     expect(requestNextStepMock).toHaveBeenCalledTimes(3);
   });
 
+  it('opens a per-attempt log stream for the run step and disposes it at the end', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 3))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+
+    expect(createStepLogStreamMock).toHaveBeenCalledWith({
+      logsDir: '/work/logs',
+      stepId: run.id,
+      attempt: 3,
+      append: expect.any(Function),
+    });
+    // No stream for the synthetic setup step.
+    expect(createStepLogStreamMock).toHaveBeenCalledTimes(1);
+    // Drained and disposed once the loop finishes.
+    expect(events).toContain(`drain:${run.id}`);
+    expect(events).toContain(`dispose:${run.id}`);
+  });
+
+  it('routes captured output through the stream write sink', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    let captured: FakeStream | undefined;
+    createStepLogStreamMock.mockImplementation((opts: {stepId: string}) => {
+      captured = makeFakeStream(opts.stepId);
+      return captured;
+    });
+    executeRunStepMock.mockImplementation(
+      (_step, opts: {onOutput: (chunk: Buffer, src: string) => void}) => {
+        opts.onOutput(Buffer.from('hello'), 'stdout');
+        return Promise.resolve({success: true, error: null, exit_code: 0});
+      },
+    );
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+
+    expect(captured?.write).toHaveBeenCalledWith(Buffer.from('hello'), 'stdout');
+  });
+
+  it('runs and reports the step when opening the log stream fails (capture abandoned)', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    // Opening the spool throws (e.g. a broken logs dir): capture must be abandoned, not fatal.
+    createStepLogStreamMock.mockImplementationOnce(() => {
+      throw new Error('logs dir is a file');
+    });
+    executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+
+    // The step still runs and is reported succeeded; the stream failure does not fail the step.
+    expect(executeRunStepMock).toHaveBeenCalled();
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({stepId: run.id, status: 'succeeded'}),
+    );
+  });
+
+  it('drains and disposes the prior attempt stream before opening the next', async () => {
+    const setup = buildSetupStep();
+    const run1 = buildRunStep({id: '00000000-0000-0000-0000-0000000000c1', position: 1});
+    const run2 = buildRunStep({id: '00000000-0000-0000-0000-0000000000c2', position: 2});
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run1, 1))
+      .mockResolvedValueOnce(stepResponse(run2, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+
+    // The first stream is drained and disposed before the second is created.
+    expect(events.indexOf(`dispose:${run1.id}`)).toBeLessThan(events.indexOf(`create:${run2.id}`));
+    expect(events).toContain(`dispose:${run2.id}`);
+  });
+
+  it('drains the prior stream before requesting the next step, not after', async () => {
+    const setup = buildSetupStep();
+    const run1 = buildRunStep({id: '00000000-0000-0000-0000-0000000000d1', position: 1});
+    const run2 = buildRunStep({id: '00000000-0000-0000-0000-0000000000d2', position: 2});
+    // Record each pull in the ordered event log so we can assert it relative to the drain.
+    const responses = [
+      stepResponse(setup, 1),
+      stepResponse(run1, 1),
+      stepResponse(run2, 1),
+      {kind: 'done', status: 'succeeded'},
+    ];
+    let pull = 0;
+    requestNextStepMock.mockImplementation(() => {
+      events.push(`pull:${pull}`);
+      return Promise.resolve(responses[pull++]);
+    });
+    executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+
+    // pull index 2 is the request that claims run2. run1's stream must be disposed before it,
+    // so a slow drain delays only the (unclaimed) pull, never a freshly claimed step.
+    expect(events.indexOf(`dispose:${run1.id}`)).toBeLessThan(events.indexOf('pull:2'));
+  });
+
+  it('drains and disposes the stream on abort, without reporting', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1));
+    const ac = new AbortController();
+    executeRunStepMock.mockImplementationOnce(() => {
+      ac.abort();
+      return Promise.resolve({success: true, error: null, exit_code: 0});
+    });
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+
+    // Setup completed and was reported; the aborted run step is not.
+    const reportedSteps = reportStepMock.mock.calls.map((call) => call[1].stepId);
+    expect(reportedSteps).not.toContain(run.id);
+    expect(events).toContain(`drain:${run.id}`);
+    expect(events).toContain(`dispose:${run.id}`);
+  });
+
   it('reports the setup step failed with its reason, then stops on cancel:true (no user step runs)', async () => {
     const setup = buildSetupStep();
     const error = {message: 'mkdir denied', reason: 'workspace_prep_failed' as const};
     requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 1));
-    executeSetupStepMock.mockResolvedValueOnce({
-      success: false,
-      output: '',
-      error,
-      exit_code: null,
-    });
+    executeSetupStepMock.mockResolvedValueOnce({success: false, error, exit_code: null});
     reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
     const ac = new AbortController();
 
@@ -97,6 +274,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
     });
     expect(executeRunStepMock).not.toHaveBeenCalled();
+    expect(createStepLogStreamMock).not.toHaveBeenCalled();
     expect(requestNextStepMock).toHaveBeenCalledTimes(1);
   });
 
@@ -110,6 +288,7 @@ describe('runJobSteps', () => {
 
     expect(executeSetupStepMock).not.toHaveBeenCalled();
     expect(executeRunStepMock).not.toHaveBeenCalled();
+    expect(createStepLogStreamMock).not.toHaveBeenCalled();
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
       stepId: run.id,
       attempt: 1,
@@ -160,12 +339,7 @@ describe('runJobSteps', () => {
     requestNextStepMock
       .mockResolvedValueOnce(stepResponse(setup, 1))
       .mockResolvedValueOnce(stepResponse(run, 1));
-    executeRunStepMock.mockResolvedValueOnce({
-      success: false,
-      output: 'boom\n',
-      error,
-      exit_code: 1,
-    });
+    executeRunStepMock.mockResolvedValueOnce({success: false, error, exit_code: 1});
     reportStepMock
       .mockResolvedValueOnce({ok: true, cancel: false})
       .mockResolvedValueOnce({ok: true, cancel: true});
@@ -216,7 +390,7 @@ describe('runJobSteps', () => {
     requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 1));
     executeSetupStepMock.mockImplementationOnce(() => {
       ac.abort();
-      return Promise.resolve({success: true, output: '', error: null, exit_code: 0});
+      return Promise.resolve({success: true, error: null, exit_code: 0});
     });
 
     await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
@@ -248,6 +422,7 @@ describe('runJobSteps', () => {
 
     expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {signal: ac.signal, cwd: '/work'});
     expect(executeRunStepMock).not.toHaveBeenCalled();
+    // No log stream is opened for agent steps, so the report carries no stream length.
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
       stepId: agent.id,
       attempt: 1,
