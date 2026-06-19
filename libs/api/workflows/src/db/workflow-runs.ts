@@ -1,17 +1,24 @@
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {
-  WORKFLOW_RUN_CREATED,
-  WORKFLOWS_JOB_COMPLETED,
+  WORKFLOWS_JOB_STEPS_SETTLED,
+  WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_JOB_TIMED_OUT,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
+  WORKFLOWS_WORKFLOW_RUN_CREATED,
+  WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   type WorkflowsEventMap,
 } from '@shipfox/api-workflows-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, asc, count, desc, eq, gte, inArray, lt, lte, or, type SQL, sql} from 'drizzle-orm';
-import type {Job, JobStatus} from '#core/entities/job.js';
+import {isJobTerminal, type Job, type JobStatus} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
-import type {TriggerPayload, WorkflowRun, WorkflowRunStatus} from '#core/entities/workflow-run.js';
+import {
+  isWorkflowRunTerminal,
+  type TriggerPayload,
+  type WorkflowRun,
+  type WorkflowRunStatus,
+} from '#core/entities/workflow-run.js';
 import {JobNotFoundError} from '#core/errors.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import {materializeWorkflowModel} from '#core/workflow-runtime/index.js';
@@ -113,7 +120,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
     }
 
     await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
-      type: WORKFLOW_RUN_CREATED,
+      type: WORKFLOWS_WORKFLOW_RUN_CREATED,
       payload: {
         runId: runRow.id,
         workspaceId: runRow.workspaceId,
@@ -339,22 +346,54 @@ export interface UpdateWorkflowRunStatusParams {
 export async function updateWorkflowRunStatus(
   params: UpdateWorkflowRunStatusParams,
 ): Promise<WorkflowRun> {
-  const rows = await db()
-    .update(workflowRuns)
-    .set({
-      status: params.status,
-      version: sql`${workflowRuns.version} + 1`,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(workflowRuns.id, params.runId), eq(workflowRuns.version, params.expectedVersion)))
-    .returning();
+  return await db().transaction(async (tx) => {
+    const rows = await tx
+      .update(workflowRuns)
+      .set({
+        status: params.status,
+        version: sql`${workflowRuns.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(workflowRuns.id, params.runId), eq(workflowRuns.version, params.expectedVersion)),
+      )
+      .returning();
 
-  const row = rows[0];
-  if (!row)
-    throw new Error(
-      `Optimistic lock failure: run ${params.runId} version ${params.expectedVersion}`,
-    );
-  return toWorkflowRun(row);
+    const row = rows[0];
+    if (!row) {
+      // Idempotent under Temporal activity retry: a lost result after a committed
+      // status update leaves the row at version+1, so the retried expected-version
+      // UPDATE matches 0 rows. If the row already holds the requested status, the
+      // prior attempt of this same transition won — return it without re-emitting
+      // the terminal event, instead of throwing an optimistic-lock error that would
+      // wedge the workflow. run-orchestration is the sole writer of run status, so a
+      // mismatch only ever happens on retry-after-commit.
+      const existing = await tx
+        .select()
+        .from(workflowRuns)
+        .where(eq(workflowRuns.id, params.runId))
+        .limit(1);
+      const existingRow = existing[0];
+      if (existingRow && existingRow.status === params.status) return toWorkflowRun(existingRow);
+      throw new Error(
+        `Optimistic lock failure: run ${params.runId} version ${params.expectedVersion}`,
+      );
+    }
+
+    const run = toWorkflowRun(row);
+
+    // Mirror updateJobStatusAtVersion: emit the canonical run-terminal fact in the
+    // same transaction as the status flip, gated on the guarded UPDATE so it fires
+    // exactly once.
+    if (isWorkflowRunTerminal(run.status)) {
+      await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+        type: WORKFLOWS_WORKFLOW_RUN_TERMINATED,
+        payload: {runId: run.id, projectId: run.projectId, status: run.status},
+      });
+    }
+
+    return run;
+  });
 }
 
 export interface UpdateJobStatusAtVersionParams {
@@ -382,7 +421,21 @@ async function updateJobStatusAtVersion(
 
   const row = rows[0];
   if (!row) return null;
-  return toJob(row);
+  const job = toJob(row);
+
+  // Single chokepoint: every terminal job-status write funnels through this guarded
+  // UPDATE, and the version match means only one caller can win the transition.
+  // Emit the canonical terminal fact here, in the same transaction as the status
+  // flip, so it fires exactly once across all terminal paths (normal completion,
+  // DAG cancellation, lease-expiry resolution, timeout).
+  if (isJobTerminal(job.status)) {
+    await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+      type: WORKFLOWS_JOB_TERMINATED,
+      payload: {jobId: job.id, runId: job.runId, status: job.status},
+    });
+  }
+
+  return job;
 }
 
 export interface UpdateJobStatusParams {
@@ -461,7 +514,7 @@ export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promis
  *   recordStepResult, so the two never deadlock)
  *        │
  *        ├─ all steps terminal ─► the job finished concurrently (e.g. a lagging
- *        │                        WORKFLOWS_JOB_COMPLETED). Adopt deriveCompletion.
+ *        │                        WORKFLOWS_JOB_STEPS_SETTLED). Adopt deriveCompletion.
  *        └─ otherwise ──────────► the runner died mid-job: fail it + cancel the
  *                                 remaining (non-terminal) steps.
  *
@@ -506,12 +559,14 @@ export async function resolveJobAfterLeaseExpiry(params: {
   });
 }
 
-// Enqueue the terminal-completion signal in the SAME transaction as the final
-// per-step result that made the job terminal. Mirrors failJobAsTimedOut: the
-// state change and its signal intent commit together, so per-step execution
-// observes job completion exactly once (the outbox is at-least-once; the job
-// workflow dedupes the signal).
-export async function writeJobCompletedOutbox(
+// Enqueue the steps-settled signal in the SAME transaction as the final per-step
+// result that made the job's steps all terminal. This is the internal signal that
+// drives the Temporal JOB_FINISHED_SIGNAL (via on-job-steps-settled); the job's own
+// terminal fact is emitted later by updateJobStatusAtVersion when the workflow flips
+// the job status. Mirrors failJobAsTimedOut: the state change and its signal intent
+// commit together, so per-step execution observes the signal exactly once (the
+// outbox is at-least-once; the job workflow dedupes the signal).
+export async function writeJobStepsSettledOutbox(
   tx: Tx,
   params: {jobId: string; status: 'succeeded' | 'failed'},
 ): Promise<void> {
@@ -522,11 +577,11 @@ export async function writeJobCompletedOutbox(
     .limit(1);
   const runId = rows[0]?.runId;
   if (!runId) {
-    throw new Error(`Cannot enqueue job-completed event: job ${params.jobId} not found`);
+    throw new Error(`Cannot enqueue job-steps-settled event: job ${params.jobId} not found`);
   }
 
   await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
-    type: WORKFLOWS_JOB_COMPLETED,
+    type: WORKFLOWS_JOB_STEPS_SETTLED,
     payload: {jobId: params.jobId, runId, status: params.status},
   });
 }
@@ -701,7 +756,7 @@ export async function rewindStepsToPending(
 }
 
 // Enqueue the durable audit record of a restart, in the same transaction as the
-// rewind. Looks up the run id like writeJobCompletedOutbox.
+// rewind. Looks up the run id like writeJobStepsSettledOutbox.
 export async function writeStepRestartEnqueuedOutbox(
   tx: Tx,
   params: {

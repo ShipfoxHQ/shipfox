@@ -5,7 +5,7 @@ import {
   finishStepAttempt,
   getStepsByJobIdForUpdate,
   rewindStepsToPending,
-  writeJobCompletedOutbox,
+  writeJobStepsSettledOutbox,
   writeStepRestartEnqueuedOutbox,
 } from '#db/workflow-runs.js';
 import {
@@ -120,12 +120,12 @@ export async function applyStepTransition(
   }
 
   // Re-derive completion from the post-apply projection so the outcome is robust
-  // to the cancel sweep above; emit the completion event exactly once, here on
+  // to the cancel sweep above; emit the steps-settled signal exactly once, here on
   // the applied path.
   const after = await getStepsByJobIdForUpdate(ctx.jobId, tx);
   if (after.every((step) => isTerminal(step.status))) {
     const status = deriveCompletion(after);
-    await writeJobCompletedOutbox(tx, {jobId: ctx.jobId, status});
+    await writeJobStepsSettledOutbox(tx, {jobId: ctx.jobId, status});
     return {jobFinished: true, status};
   }
   return {jobFinished: false};

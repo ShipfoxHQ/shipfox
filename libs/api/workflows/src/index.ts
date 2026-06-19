@@ -1,11 +1,14 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {RUNNER_JOB_LEASE_EXPIRED} from '@shipfox/api-runners-dto';
-import {WORKFLOW_RUN_CREATED, WORKFLOWS_JOB_COMPLETED} from '@shipfox/api-workflows-dto';
+import {
+  WORKFLOWS_JOB_STEPS_SETTLED,
+  WORKFLOWS_WORKFLOW_RUN_CREATED,
+} from '@shipfox/api-workflows-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath, workflowsOutbox} from '#db/index.js';
 import {
-  onJobCompleted,
+  onJobStepsSettled,
   onRunnerJobLeaseExpired,
   onWorkflowRunCreated,
   routes,
@@ -27,8 +30,8 @@ export const workflowsModule: ShipfoxModule = {
   routes,
   publishers: [{name: 'workflows', table: workflowsOutbox, db}],
   subscribers: [
-    {event: WORKFLOW_RUN_CREATED, handler: onWorkflowRunCreated},
-    {event: WORKFLOWS_JOB_COMPLETED, handler: onJobCompleted},
+    {event: WORKFLOWS_WORKFLOW_RUN_CREATED, handler: onWorkflowRunCreated},
+    {event: WORKFLOWS_JOB_STEPS_SETTLED, handler: onJobStepsSettled},
     {event: RUNNER_JOB_LEASE_EXPIRED, handler: onRunnerJobLeaseExpired},
   ],
   workers: [

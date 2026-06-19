@@ -21,3 +21,11 @@ export interface Job {
   updatedAt: Date;
   timedOutAt: Date | null;
 }
+
+export type TerminalJobStatus = Extract<JobStatus, 'succeeded' | 'failed' | 'cancelled'>;
+
+const TERMINAL_JOB_STATUSES = new Set<JobStatus>(['succeeded', 'failed', 'cancelled']);
+
+export function isJobTerminal(status: JobStatus): status is TerminalJobStatus {
+  return TERMINAL_JOB_STATUSES.has(status);
+}

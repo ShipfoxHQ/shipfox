@@ -1,11 +1,11 @@
-import type {WorkflowRunCreatedEvent} from '@shipfox/api-workflows-dto';
+import type {WorkflowsWorkflowRunCreatedEvent} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {DomainEvent} from '@shipfox/node-outbox';
 import {temporalClient} from '@shipfox/node-temporal';
 import {WORKFLOWS_TASK_QUEUE} from '#temporal/constants.js';
 
 export async function onWorkflowRunCreated(event: DomainEvent): Promise<void> {
-  const payload = event.payload as WorkflowRunCreatedEvent;
+  const payload = event.payload as WorkflowsWorkflowRunCreatedEvent;
   logger().info({runId: payload.runId}, 'Starting workflow run orchestration');
   try {
     await temporalClient().workflow.start('runOrchestration', {

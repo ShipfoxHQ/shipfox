@@ -39,15 +39,17 @@ export {
   stepErrorReasonSchema,
 } from '#schemas/index.js';
 export {
-  WORKFLOW_RUN_CREATED,
-  WORKFLOW_RUN_FINISHED,
-  WORKFLOWS_JOB_COMPLETED,
+  WORKFLOWS_JOB_STEPS_SETTLED,
+  WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_JOB_TIMED_OUT,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
-  type WorkflowRunCreatedEvent,
-  type WorkflowRunFinishedEvent,
+  WORKFLOWS_WORKFLOW_RUN_CREATED,
+  WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   type WorkflowsEventMap,
-  type WorkflowsJobCompletedEvent,
+  type WorkflowsJobStepsSettledEvent,
+  type WorkflowsJobTerminatedEvent,
   type WorkflowsJobTimedOutEvent,
   type WorkflowsStepRestartEnqueuedEvent,
+  type WorkflowsWorkflowRunCreatedEvent,
+  type WorkflowsWorkflowRunTerminatedEvent,
 } from './events.js';

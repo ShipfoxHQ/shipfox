@@ -1,5 +1,22 @@
 export type WorkflowRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
+export type TerminalWorkflowRunStatus = Extract<
+  WorkflowRunStatus,
+  'succeeded' | 'failed' | 'cancelled'
+>;
+
+const TERMINAL_WORKFLOW_RUN_STATUSES = new Set<WorkflowRunStatus>([
+  'succeeded',
+  'failed',
+  'cancelled',
+]);
+
+export function isWorkflowRunTerminal(
+  status: WorkflowRunStatus,
+): status is TerminalWorkflowRunStatus {
+  return TERMINAL_WORKFLOW_RUN_STATUSES.has(status);
+}
+
 export type TriggerPayload =
   | {
       source: 'manual';
