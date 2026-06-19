@@ -327,6 +327,8 @@ describe('IntegrationGallery — available section', () => {
 
     const link = await screen.findByRole('link', {name: 'Connect GitHub'});
 
+    expect(link).toHaveClass('focus-visible:shadow-button-neutral-focus');
+    expect(link.className).not.toContain('shadow-button-secondary');
     expect(within(link).queryByRole('button')).not.toBeInTheDocument();
   });
 

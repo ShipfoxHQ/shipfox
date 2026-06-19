@@ -257,7 +257,7 @@ function AvailableCard({
       to={catalog.setupPath}
       params={{wid: workspaceId}}
       aria-label={`Connect ${provider.display_name}`}
-      className="group block h-full rounded-8 focus-visible:shadow-button-secondary-focus focus-visible:outline-none"
+      className="group block h-full rounded-8 focus-visible:shadow-button-neutral-focus focus-visible:outline-none"
     >
       <Card className="h-full gap-8 p-16 transition-colors hover:bg-background-components-hover">
         <div className="flex min-w-0 items-center gap-12">
