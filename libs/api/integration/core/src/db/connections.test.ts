@@ -2,6 +2,7 @@ import {upsertGithubInstallation} from '@shipfox/api-integration-github';
 import {
   getIntegrationConnectionById,
   listIntegrationConnections,
+  listIntegrationConnectionsByProvider,
   updateIntegrationConnectionLifecycleStatus,
   upsertIntegrationConnection,
 } from './connections.js';
@@ -80,6 +81,35 @@ describe('integration connection queries', () => {
       ['github', 'active'],
       ['github', 'disabled'],
     ]);
+  });
+
+  it('lists connections for a provider across all workspaces', async () => {
+    const otherWorkspaceId = crypto.randomUUID();
+    const debugA = await upsertIntegrationConnection({
+      workspaceId,
+      provider: 'debug',
+      externalAccountId: 'debug',
+      displayName: 'Debug',
+    });
+    const debugB = await upsertIntegrationConnection({
+      workspaceId: otherWorkspaceId,
+      provider: 'debug',
+      externalAccountId: 'debug',
+      displayName: 'Debug',
+    });
+    const github = await upsertIntegrationConnection({
+      workspaceId,
+      provider: 'github',
+      externalAccountId: 'gh-1',
+      displayName: 'GitHub',
+    });
+
+    const result = await listIntegrationConnectionsByProvider({provider: 'debug'});
+
+    const ids = result.map((connection) => connection.id);
+    expect(result.every((connection) => connection.provider === 'debug')).toBe(true);
+    expect(ids).toEqual(expect.arrayContaining([debugA.id, debugB.id]));
+    expect(ids).not.toContain(github.id);
   });
 
   it('updates a connection lifecycle status and returns the mapped connection', async () => {

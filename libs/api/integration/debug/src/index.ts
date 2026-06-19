@@ -5,6 +5,12 @@ import {
 } from '#presentation/routes/connections.js';
 
 export {DebugSourceControlProvider} from '#core/source-control.js';
+export {
+  type DebugStartupResyncConnection,
+  type DebugStartupResyncDeps,
+  emitDebugStartupResync,
+  type PublishDebugSourceCommitPushedParams,
+} from '#core/startup-resync.js';
 
 export function createDebugIntegrationProvider(options: CreateDebugIntegrationRoutesOptions) {
   return {

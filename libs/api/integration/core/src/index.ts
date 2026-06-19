@@ -1,6 +1,7 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {ShipfoxModule} from '@shipfox/node-module';
+import {logger} from '@shipfox/node-opentelemetry';
 import type {IntegrationProvider} from '#core/entities/provider.js';
 import {
   createIntegrationProviderRegistry,
@@ -84,6 +85,12 @@ export {integrationRouteErrorHandler} from '#presentation/routes/errors.js';
 
 export interface CreateIntegrationsModuleOptions {
   providers?: IntegrationProvider[] | undefined;
+  /**
+   * Pre-built module parts, bypassing config-gated provider loading. Test-only seam
+   * for exercising a provider's database, workers, or startup tasks directly. Takes
+   * precedence over `providers`.
+   */
+  parts?: IntegrationModuleParts[] | undefined;
 }
 
 export interface IntegrationsContext {
@@ -93,6 +100,12 @@ export interface IntegrationsContext {
     sourceControl: IntegrationSourceControlService;
   };
   sourceControl: IntegrationSourceControlService;
+  /**
+   * Runs every enabled provider's one-shot boot-time tasks, after modules are initialized
+   * (migrations done). Failures are isolated and logged, never rethrown, so a provider task
+   * can never gate API boot. No-op when no enabled provider contributes a task.
+   */
+  runStartupTasks: () => Promise<void>;
 }
 
 export async function createIntegrationsModule(
@@ -104,9 +117,11 @@ export async function createIntegrationsModule(
 export async function createIntegrationsContext(
   options: CreateIntegrationsModuleOptions = {},
 ): Promise<IntegrationsContext> {
-  const parts: IntegrationModuleParts[] = options.providers
-    ? options.providers.map((provider) => ({provider}))
-    : await loadEnabledProviderModules();
+  const parts: IntegrationModuleParts[] =
+    options.parts ??
+    (options.providers
+      ? options.providers.map((provider) => ({provider}))
+      : await loadEnabledProviderModules());
 
   const registry = createIntegrationProviderRegistry(parts.map((part) => part.provider));
   const sourceControl = createSourceControlIntegrationService({
@@ -139,5 +154,17 @@ export async function createIntegrationsContext(
     ],
   };
 
-  return {module, registry, capabilities: {sourceControl}, sourceControl};
+  async function runStartupTasks(): Promise<void> {
+    for (const task of parts.flatMap((part) => part.startupTasks ?? [])) {
+      // A provider convenience must never gate API boot. Mirrors startModuleWorkers, which
+      // catches per-worker errors and logs instead of throwing.
+      try {
+        await task();
+      } catch (error) {
+        logger().error({err: error}, 'Integration startup task failed, continuing boot');
+      }
+    }
+  }
+
+  return {module, registry, capabilities: {sourceControl}, sourceControl, runStartupTasks};
 }

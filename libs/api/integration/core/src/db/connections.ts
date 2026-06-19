@@ -106,3 +106,19 @@ export async function listIntegrationConnections(
   const connections = rows.map(toIntegrationConnection);
   return connections;
 }
+
+export interface ListIntegrationConnectionsByProviderParams {
+  provider: IntegrationProviderKind;
+}
+
+export async function listIntegrationConnectionsByProvider(
+  params: ListIntegrationConnectionsByProviderParams,
+): Promise<IntegrationConnection[]> {
+  const rows = await db()
+    .select()
+    .from(integrationConnections)
+    .where(eq(integrationConnections.provider, params.provider))
+    .orderBy(integrationConnections.createdAt, integrationConnections.id);
+
+  return rows.map(toIntegrationConnection);
+}

@@ -10,6 +10,7 @@ import {integrationsOutbox} from './schema/outbox.js';
 import {integrationsWebhookDeliveries} from './schema/webhook-deliveries.js';
 import {
   publishIntegrationEventReceived,
+  publishSourceCommitPushed,
   publishSourcePush,
   recordDeliveryOnly,
 } from './webhook-deliveries.js';
@@ -169,5 +170,42 @@ describe('publishSourcePush', () => {
     expect(second.published).toBe(false);
     expect(await deliveriesFor(params.provider, params.deliveryId)).toHaveLength(1);
     expect(await outboxFor(params.deliveryId)).toHaveLength(2);
+  });
+});
+
+describe('publishSourceCommitPushed', () => {
+  function buildParams() {
+    return {
+      provider: 'debug',
+      workspaceId: crypto.randomUUID(),
+      connectionId: crypto.randomUUID(),
+      deliveryId: crypto.randomUUID(),
+      receivedAt: new Date().toISOString(),
+      push: buildPush({externalRepositoryId: 'debug:platform'}),
+    };
+  }
+
+  it('writes only the typed event, never the generic envelope', async () => {
+    const params = buildParams();
+
+    await publishSourceCommitPushed(params);
+
+    const outbox = await outboxFor(params.deliveryId);
+    expect(outbox).toHaveLength(1);
+    expect(outbox[0]?.eventType).toBe(INTEGRATION_SOURCE_COMMIT_PUSHED);
+    expect(outbox.some((row) => row.eventType === INTEGRATION_EVENT_RECEIVED)).toBe(false);
+    expect(outbox[0]?.payload).toMatchObject({
+      provider: 'debug',
+      deliveryId: params.deliveryId,
+      push: {externalRepositoryId: 'debug:platform', isDefaultBranch: true},
+    });
+  });
+
+  it('does not write a webhook-delivery dedup row', async () => {
+    const params = buildParams();
+
+    await publishSourceCommitPushed(params);
+
+    expect(await deliveriesFor(params.provider, params.deliveryId)).toHaveLength(0);
   });
 });
