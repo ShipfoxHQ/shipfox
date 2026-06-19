@@ -1,77 +1,64 @@
-import {type CheckoutSpec, redactCheckoutSpec} from './integrations.js';
+import {
+  buildProviderRepositoryId,
+  IntegrationProviderError,
+  parseProviderRepositoryId,
+} from './integrations.js';
 
-describe('redactCheckoutSpec', () => {
-  it('masks the credential token while keeping the other fields intact', () => {
-    const expiresAt = new Date('2026-06-10T12:00:00.000Z');
-    const spec: CheckoutSpec = {
-      repositoryUrl: 'https://github.com/shipfox/platform.git',
-      ref: 'main',
-      credentials: {username: 'x-access-token', token: 'ghs_supersecret', expiresAt},
-    };
+const MISSING_PREFIX = /missing a provider prefix/;
+const WRONG_PROVIDER = /not owned by provider github/;
+const MISSING_VALUE = /missing a provider-owned value/;
 
-    const redacted = redactCheckoutSpec(spec);
+describe('buildProviderRepositoryId', () => {
+  it('joins the provider and value with a colon', () => {
+    const result = buildProviderRepositoryId('github', '42');
 
-    expect(redacted).toEqual({
-      repositoryUrl: 'https://github.com/shipfox/platform.git',
-      ref: 'main',
-      credentials: {username: 'x-access-token', token: '***', expiresAt},
-    });
+    expect(result).toBe('github:42');
+  });
+});
+
+describe('parseProviderRepositoryId', () => {
+  it('returns the provider-owned value for a well-formed id', () => {
+    const result = parseProviderRepositoryId('github:42', 'github');
+
+    expect(result).toBe('42');
   });
 
-  it('does not mutate the original spec', () => {
-    const spec: CheckoutSpec = {
-      repositoryUrl: 'https://github.com/shipfox/platform.git',
-      ref: 'main',
-      credentials: {
-        username: 'x-access-token',
-        token: 'ghs_supersecret',
-        expiresAt: new Date('2026-06-10T12:00:00.000Z'),
-      },
-    };
+  it('keeps colons inside the value (splits only on the first separator)', () => {
+    const result = parseProviderRepositoryId('github:org/repo:extra', 'github');
 
-    redactCheckoutSpec(spec);
-
-    expect(spec.credentials?.token).toBe('ghs_supersecret');
+    expect(result).toBe('org/repo:extra');
   });
 
-  it('returns the spec unchanged when there are no credentials and the url is clean', () => {
-    const spec: CheckoutSpec = {
-      repositoryUrl: 'https://debug.local/debug-owner/platform.git',
-      ref: 'main',
-    };
+  it.each([
+    ['42', 'no provider prefix'],
+    [':42', 'an empty provider prefix'],
+  ])('rejects %s (%s)', (externalRepositoryId) => {
+    const parse = () => parseProviderRepositoryId(externalRepositoryId, 'github');
 
-    const redacted = redactCheckoutSpec(spec);
-
-    expect(redacted).toBe(spec);
+    expect(parse).toThrow(IntegrationProviderError);
+    expect(parse).toThrow(MISSING_PREFIX);
   });
 
-  it('strips credentials embedded in repositoryUrl as a defense in depth', () => {
-    const spec: CheckoutSpec = {
-      repositoryUrl: 'https://x-access-token:ghs_supersecret@github.com/shipfox/platform.git',
-      ref: 'main',
-      credentials: {
-        username: 'x-access-token',
-        token: 'ghs_supersecret',
-        expiresAt: new Date('2026-06-10T12:00:00.000Z'),
-      },
-    };
+  it('rejects an id owned by a different provider', () => {
+    const parse = () => parseProviderRepositoryId('gitlab:42', 'github');
 
-    const redacted = redactCheckoutSpec(spec);
-
-    expect(redacted.repositoryUrl).toBe('https://github.com/shipfox/platform.git');
-    expect(redacted.repositoryUrl).not.toContain('ghs_supersecret');
-    expect(redacted.credentials?.token).toBe('***');
+    expect(parse).toThrow(IntegrationProviderError);
+    expect(parse).toThrow(WRONG_PROVIDER);
   });
 
-  it('strips embedded credentials even when the spec has no credentials field', () => {
-    const spec: CheckoutSpec = {
-      repositoryUrl: 'https://x-access-token:ghs_supersecret@github.com/shipfox/platform.git',
-      ref: 'main',
-    };
+  it('rejects an id with a prefix but no value', () => {
+    const parse = () => parseProviderRepositoryId('github:', 'github');
 
-    const redacted = redactCheckoutSpec(spec);
+    expect(parse).toThrow(IntegrationProviderError);
+    expect(parse).toThrow(MISSING_VALUE);
+  });
 
-    expect(redacted.repositoryUrl).toBe('https://github.com/shipfox/platform.git');
-    expect(redacted.repositoryUrl).not.toContain('ghs_supersecret');
+  it('surfaces the repository-not-found reason on the thrown error', () => {
+    expect.assertions(1);
+    try {
+      parseProviderRepositoryId('42', 'github');
+    } catch (error) {
+      expect((error as IntegrationProviderError).reason).toBe('repository-not-found');
+    }
   });
 });
