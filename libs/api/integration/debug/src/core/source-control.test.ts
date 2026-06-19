@@ -1,4 +1,10 @@
-import {DebugIntegrationProviderError, DebugSourceControlProvider} from '#core/source-control.js';
+import {parseWorkflowDocument} from '@shipfox/workflow-document';
+import yaml from 'js-yaml';
+import {
+  DEBUG_FILES,
+  DebugIntegrationProviderError,
+  DebugSourceControlProvider,
+} from '#core/source-control.js';
 
 const connection = {
   id: crypto.randomUUID(),
@@ -69,8 +75,9 @@ describe('DebugSourceControlProvider', () => {
     });
 
     expect(result.files.map((file) => file.path)).toEqual([
-      '.shipfox/workflows/ci.yml',
-      '.shipfox/workflows/deploy.yaml',
+      '.shipfox/workflows/agent.yml',
+      '.shipfox/workflows/build-and-deploy.yaml',
+      '.shipfox/workflows/hello-world.yml',
     ]);
   });
 
@@ -81,10 +88,10 @@ describe('DebugSourceControlProvider', () => {
       connection,
       externalRepositoryId: 'debug:platform',
       ref: 'main',
-      path: '.shipfox/workflows/ci.yml',
+      path: '.shipfox/workflows/hello-world.yml',
     });
 
-    expect(result.content).toContain('name: CI');
+    expect(result.content).toContain('name: Hello world');
   });
 
   it('creates a credential-free checkout spec for the requested ref', async () => {
@@ -112,5 +119,23 @@ describe('DebugSourceControlProvider', () => {
     });
 
     expect(result.ref).toBe('main');
+  });
+});
+
+const workflowFixtures = [...DEBUG_FILES.entries()].flatMap(([repository, files]) =>
+  Object.entries(files)
+    .filter(([path]) => path.endsWith('.yml') || path.endsWith('.yaml'))
+    .map(([path, content]) => ({repository, path, content})),
+);
+
+describe('debug workflow fixtures', () => {
+  it.each(workflowFixtures)('parses $repository/$path as a valid workflow document', ({
+    content,
+  }) => {
+    const parsed = yaml.load(content);
+
+    const document = parseWorkflowDocument(parsed);
+
+    expect(document.name).not.toBe('');
   });
 });
