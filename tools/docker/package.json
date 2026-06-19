@@ -1,0 +1,32 @@
+{
+  "name": "@shipfox/docker",
+  "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "tools/docker"
+  },
+  "license": "MIT",
+  "private": false,
+  "type": "module",
+  "imports": {
+    "#*": "./src/*"
+  },
+  "bin": {
+    "shipfox-docker": "./bin/docker.js"
+  },
+  "scripts": {
+    "build": "shipfox-swc",
+    "type": "shipfox-tsc-check",
+    "type:emit": "shipfox-tsc-emit"
+  },
+  "dependencies": {
+    "@shipfox/tool-utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@shipfox/swc": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@types/node": "25.9.2"
+  }
+}
