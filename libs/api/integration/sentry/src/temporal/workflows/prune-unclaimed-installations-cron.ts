@@ -1,8 +1,8 @@
 import {log, proxyActivities} from '@temporalio/workflow';
-import type {createIntegrationsMaintenanceActivities} from '../activities/index.js';
+import type {createSentryMaintenanceActivities} from '../activities/index.js';
 
 const {pruneUnclaimedSentryInstallationsActivity} = proxyActivities<
-  ReturnType<typeof createIntegrationsMaintenanceActivities>
+  ReturnType<typeof createSentryMaintenanceActivities>
 >({
   startToCloseTimeout: '5 minutes',
 });
