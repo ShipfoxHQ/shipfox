@@ -56,52 +56,83 @@ const DEBUG_REPOSITORIES: RepositorySnapshot[] = [
   },
 ];
 
-const DEBUG_FILES = new Map<string, Record<string, string>>([
+// Fake workflow definitions returned by the debug integration. They double as
+// fixtures for sync/definition tests, so each one exercises a different slice of
+// the workflow language and must stay a valid workflow document (see the parsing
+// test in source-control.test.ts).
+export const DEBUG_FILES = new Map<string, Record<string, string>>([
   [
     'platform',
     {
-      '.shipfox/workflows/ci.yml': `
-name: CI
+      '.shipfox/workflows/hello-world.yml': `
+name: Hello world
+runner:
+  - ubuntu-latest
+  - node-22
 triggers:
   on_demand:
     source: manual
-jobs:
-  build:
-    steps:
-      - run: pnpm test
-`,
-      '.shipfox/workflows/deploy.yaml': `
-name: Deploy
-triggers:
-  on_demand:
-    source: manual
+    event: fire
   on_push:
     source: github
     event: push
-    on: main
+    filter: 'event.ref == "refs/heads/main"'
 jobs:
+  build:
+    steps:
+      - run: echo "hello world"
+      - name: test
+        run: pnpm test
+        gate:
+          success_if: exit_code == 0
+`,
+      '.shipfox/workflows/build-and-deploy.yaml': `
+name: Build and deploy
+triggers:
+  on_push:
+    source: github
+    event: push
+    filter: 'event.ref == "refs/heads/main"'
+jobs:
+  build:
+    steps:
+      - run: pnpm install
+      - run: pnpm build
   deploy:
+    needs: build
+    runner: ubuntu-latest
     steps:
       - run: pnpm deploy
+`,
+      '.shipfox/workflows/agent.yml': `
+name: Agent
+triggers:
+  on_demand:
+    source: manual
+    event: fire
+jobs:
+  fix:
+    steps:
+      - name: implement
+        model: claude-opus-4-8
+        prompt: Fix the failing tests.
+      - name: review
+        model: gpt-5.1
+        provider: openai
+        prompt: Review the fix.
+        thinking: low
+        gate:
+          success_if: exit_code == 0
+          on_failure:
+            restart_from: implement
+      - run: pnpm test
+        gate:
+          success_if: exit_code == 0
 `,
       'README.md': '# Debug platform\n',
     },
   ],
-  [
-    'api',
-    {
-      '.shipfox/workflows/api.yml': `
-name: API
-triggers:
-  on_demand:
-    source: manual
-jobs:
-  test:
-    steps:
-      - run: turbo test --filter=@shipfox/api
-`,
-    },
-  ],
+  ['api', {}],
   ['runner', {}],
 ]);
 
