@@ -62,7 +62,7 @@ async function listKeysUnderStream(identity: ClosedStreamIdentity): Promise<stri
   const res = await s3Client().send(
     new ListObjectsV2Command({
       Bucket: config.LOG_STORAGE_S3_BUCKET,
-      Prefix: `${logObjectKey(identity)}/`,
+      Prefix: `${logObjectKey(config.LOG_STORAGE_S3_PREFIX, identity)}/`,
     }),
   );
   return (res.Contents ?? []).map((object) => object.Key ?? '');
@@ -84,7 +84,7 @@ describe('compactStreamActivity', () => {
     const result = await runCompaction(stream.id);
 
     const key = compactedKey(result);
-    expect(key.startsWith(`${logObjectKey(identity)}/`)).toBe(true);
+    expect(key.startsWith(`${logObjectKey(config.LOG_STORAGE_S3_PREFIX, identity)}/`)).toBe(true);
     const after = await getAttemptStreamById(stream.id);
     expect(after?.objectKey).toBe(key);
     expect(await listChunks(stream.id)).toHaveLength(0);

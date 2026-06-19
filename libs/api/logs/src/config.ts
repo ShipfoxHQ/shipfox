@@ -13,6 +13,10 @@ export const config = createConfig({
     desc: 'Name of the bucket that stores compacted log objects. Defaults to shipfox-logs (created by dev/garage/bootstrap.sh); create the bucket and set this for production.',
     default: 'shipfox-logs',
   }),
+  LOG_STORAGE_S3_PREFIX: str({
+    desc: 'Key prefix under which compacted log objects are stored in the bucket. Set this to host several modules in one bucket, each under its own prefix. Use a value without a leading or trailing slash. Defaults to logs.',
+    default: 'logs',
+  }),
   LOG_STORAGE_S3_ACCESS_KEY_ID: str({
     desc: 'Access key id used to authenticate to the object store. Defaults to the local-development Garage key; set real credentials for production.',
     default: 'GK000000000000000000000000',

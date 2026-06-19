@@ -73,7 +73,7 @@ export function closeUploadS3Client(): void {
 
 /**
  * Per-attempt object key for a compacted stream: the stream's stable prefix
- * (`logObjectKey` -> `logs/{workspaceId}/{jobId}/{stepId}/{attempt}`, shared with retention
+ * (`logObjectKey` -> `{prefix}/{workspaceId}/{jobId}/{stepId}/{attempt}`, shared with retention
  * and workspace prefix deletes) plus a unique `uploadToken` leaf. Each compaction attempt
  * uploads to its own key and the winner records it atomically, so a slow or zombie attempt
  * can never overwrite a published object. Losing and crashed attempts leave a leaf under the
@@ -81,7 +81,7 @@ export function closeUploadS3Client(): void {
  * retention.
  */
 export function compactedObjectKey(identity: LogObjectKeyParams, uploadToken: string): string {
-  return `${logObjectKey(identity)}/${uploadToken}`;
+  return `${logObjectKey(config.LOG_STORAGE_S3_PREFIX, identity)}/${uploadToken}`;
 }
 
 // lib-storage defaults (5MB parts, queue of 4); we pin a small queue so peak buffer memory
