@@ -42,6 +42,7 @@
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/regex": "workspace:*",
     "ky": "^2.0.0"
   },
   "devDependencies": {

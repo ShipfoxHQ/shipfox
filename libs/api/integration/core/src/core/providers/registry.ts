@@ -1,3 +1,4 @@
+import {isLowercaseAlphaSlug} from '@shipfox/regex';
 import type {
   IntegrationCapability,
   IntegrationProvider,
@@ -9,8 +10,6 @@ import {
   IntegrationCapabilityUnavailableError,
   IntegrationProviderUnavailableError,
 } from '#core/errors.js';
-
-const providerIdPattern = /^[a-z][a-z0-9_-]*$/;
 
 export interface IntegrationProviderRegistry {
   list(capability?: IntegrationCapability | undefined): RegisteredIntegrationProvider[];
@@ -37,7 +36,7 @@ class MapIntegrationProviderRegistry implements IntegrationProviderRegistry {
     this.providers = new Map();
 
     for (const provider of providers) {
-      if (!providerIdPattern.test(provider.provider)) {
+      if (!isLowercaseAlphaSlug(provider.provider)) {
         throw new Error(`Invalid integration provider id: ${provider.provider}`);
       }
       if (this.providers.has(provider.provider)) {

@@ -2,6 +2,7 @@ import {mkdir, rm} from 'node:fs/promises';
 import {homedir, tmpdir} from 'node:os';
 import {join, parse, resolve} from 'node:path';
 import {logger} from '@shipfox/node-opentelemetry';
+import {isUuid} from '@shipfox/regex';
 import {config} from '#config.js';
 
 /**
@@ -58,11 +59,6 @@ export function resolveWorkspaceRootFromEnv(): string {
   return resolveWorkspaceRoot(config.SHIPFOX_RUNNER_WORKSPACE_ROOT);
 }
 
-// The job id is the only input to the per-job path; assert it is the UUID the
-// API contract guarantees rather than munging it, so a malformed id fails the
-// job loudly instead of silently reshaping the directory name.
-const JOB_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
  * The deterministic per-job directory path. Pure: validates the id and builds the
  * path without touching the filesystem, so `runJob` can compute it up front (for
@@ -71,7 +67,7 @@ const JOB_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
  * contract guarantees, since it is the only input to the path.
  */
 export function jobWorkspacePath(jobId: string, root: string): string {
-  if (!JOB_ID_PATTERN.test(jobId)) {
+  if (!isUuid(jobId)) {
     throw new InvalidJobIdError(jobId);
   }
   return join(root, `job-${jobId}`);

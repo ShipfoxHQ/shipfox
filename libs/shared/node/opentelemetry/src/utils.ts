@@ -1,16 +1,13 @@
 import type {FastifyOtelInstrumentationOpts} from '@fastify/otel';
+import {isUuid} from '@shipfox/regex';
 
-// UUID (all versions, case-insensitive)
-const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Pure integers (numeric IDs)
 const NUMERIC_SEGMENT = /^\d+$/;
 
 export const normalizeRoutePath = (path: string): string =>
   path
     .split('/')
-    .map((segment) =>
-      UUID_SEGMENT.test(segment) || NUMERIC_SEGMENT.test(segment) ? ':id' : segment,
-    )
+    .map((segment) => (isUuid(segment) || NUMERIC_SEGMENT.test(segment) ? ':id' : segment))
     .join('/');
 
 export const fastifyRequestHook: Required<FastifyOtelInstrumentationOpts>['requestHook'] = (

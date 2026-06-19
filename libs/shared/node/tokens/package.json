@@ -37,7 +37,8 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/config": "workspace:*"
+    "@shipfox/config": "workspace:*",
+    "@shipfox/regex": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
