@@ -30,8 +30,21 @@ async function stableArgosScreenshot(
           | {kind: 'attribute'; target: Element; attribute: string; value: string}
           | {kind: 'text'; target: Text; value: string}
           | {kind: 'value'; target: HTMLInputElement | HTMLTextAreaElement; value: string};
-        const visualWindow = window as Window & {__shipfoxVisualRestore?: RestoreEntry[]};
+        const visualWindow = window as Window & {
+          __shipfoxVisualRestore?: RestoreEntry[];
+          __shipfoxToasterDisplay?: string;
+        };
         const restoreEntries: RestoreEntry[] = [];
+
+        // A prior action's success toast auto-dismisses after a few seconds, so whether
+        // it lingers into a later snapshot is a timing race. Hide the toaster region for
+        // the capture; afterScreenshot restores it so later toast assertions still see it.
+        const toaster = document.querySelector('[data-sonner-toaster]');
+        if (toaster instanceof HTMLElement) {
+          visualWindow.__shipfoxToasterDisplay = toaster.style.display;
+          toaster.style.display = 'none';
+        }
+
         const replaceValue = (value: string): string =>
           visualReplacements.reduce(
             (current, [source, replacement]) => current.split(source).join(replacement),
@@ -81,7 +94,10 @@ async function stableArgosScreenshot(
           | {kind: 'attribute'; target: Element; attribute: string; value: string}
           | {kind: 'text'; target: Text; value: string}
           | {kind: 'value'; target: HTMLInputElement | HTMLTextAreaElement; value: string};
-        const visualWindow = window as Window & {__shipfoxVisualRestore?: RestoreEntry[]};
+        const visualWindow = window as Window & {
+          __shipfoxVisualRestore?: RestoreEntry[];
+          __shipfoxToasterDisplay?: string;
+        };
         const restoreEntries = visualWindow.__shipfoxVisualRestore ?? [];
 
         for (const entry of restoreEntries.reverse()) {
@@ -92,6 +108,12 @@ async function stableArgosScreenshot(
           } else {
             entry.target.setAttribute(entry.attribute, entry.value);
           }
+        }
+
+        const toaster = document.querySelector('[data-sonner-toaster]');
+        if (toaster instanceof HTMLElement && visualWindow.__shipfoxToasterDisplay !== undefined) {
+          toaster.style.display = visualWindow.__shipfoxToasterDisplay;
+          delete visualWindow.__shipfoxToasterDisplay;
         }
 
         delete visualWindow.__shipfoxVisualRestore;
