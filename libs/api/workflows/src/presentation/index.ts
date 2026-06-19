@@ -1,6 +1,6 @@
 export {workflowRoutes as routes} from './routes/index.js';
 export {
-  onJobCompleted,
+  onJobStepsSettled,
   onRunnerJobLeaseExpired,
   onWorkflowRunCreated,
 } from './subscribers/index.js';

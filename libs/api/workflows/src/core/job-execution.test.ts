@@ -1,5 +1,5 @@
 import {
-  WORKFLOWS_JOB_COMPLETED,
+  WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
   type WorkflowsStepRestartEnqueuedEvent,
 } from '@shipfox/api-workflows-dto';
@@ -18,13 +18,13 @@ import {
 } from './errors.js';
 import {nextStepForJob, recordStepResult} from './job-execution.js';
 
-async function jobCompletedEvents(jobId: string): Promise<Array<{status: string}>> {
+async function jobStepsSettledEvents(jobId: string): Promise<Array<{status: string}>> {
   const rows = await db()
     .select({payload: workflowsOutbox.payload})
     .from(workflowsOutbox)
     .where(
       and(
-        eq(workflowsOutbox.eventType, WORKFLOWS_JOB_COMPLETED),
+        eq(workflowsOutbox.eventType, WORKFLOWS_JOB_STEPS_SETTLED),
         sql`${workflowsOutbox.payload}->>'jobId' = ${jobId}`,
       ),
     );
@@ -226,7 +226,7 @@ describe('recordStepResult', () => {
     expect(after[0]?.status).toBe('failed');
     expect(after[1]?.status).toBe('cancelled');
     expect(after[2]?.status).toBe('cancelled');
-    expect(await jobCompletedEvents(jobId)).toHaveLength(1);
+    expect(await jobStepsSettledEvents(jobId)).toHaveLength(1);
   });
 });
 
@@ -260,7 +260,7 @@ describe('recordStepResult job-completion event', () => {
     });
 
     expect(outcome).toEqual({jobFinished: true, status: 'succeeded'});
-    const events = await jobCompletedEvents(jobId);
+    const events = await jobStepsSettledEvents(jobId);
     expect(events).toHaveLength(1);
     expect(events[0]?.status).toBe('succeeded');
   });
@@ -276,7 +276,7 @@ describe('recordStepResult job-completion event', () => {
     });
 
     expect(outcome).toEqual({jobFinished: false});
-    expect(await jobCompletedEvents(jobId)).toHaveLength(0);
+    expect(await jobStepsSettledEvents(jobId)).toHaveLength(0);
   });
 
   test('a failed final step enqueues one completion event with status failed', async () => {
@@ -290,7 +290,7 @@ describe('recordStepResult job-completion event', () => {
       error: {message: 'boom'},
     });
 
-    const events = await jobCompletedEvents(jobId);
+    const events = await jobStepsSettledEvents(jobId);
     expect(events).toHaveLength(1);
     expect(events[0]?.status).toBe('failed');
   });
@@ -307,7 +307,7 @@ describe('recordStepResult job-completion event', () => {
     });
 
     expect(duplicate).toEqual({jobFinished: true, status: 'succeeded'});
-    expect(await jobCompletedEvents(jobId)).toHaveLength(1);
+    expect(await jobStepsSettledEvents(jobId)).toHaveLength(1);
   });
 
   test('concurrent final reports enqueue exactly one completion event', async () => {
@@ -324,7 +324,7 @@ describe('recordStepResult job-completion event', () => {
       {jobFinished: true, status: 'succeeded'},
       {jobFinished: true, status: 'succeeded'},
     ]);
-    expect(await jobCompletedEvents(jobId)).toHaveLength(1);
+    expect(await jobStepsSettledEvents(jobId)).toHaveLength(1);
   });
 });
 
@@ -523,7 +523,7 @@ describe('step attempts', () => {
 
     expect(outcome).toEqual({jobFinished: true, status: 'succeeded'});
     // The applied-gated outbox write must not fire on the stale path.
-    expect(await jobCompletedEvents(jobId)).toHaveLength(1);
+    expect(await jobStepsSettledEvents(jobId)).toHaveLength(1);
   });
 });
 

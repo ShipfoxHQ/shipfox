@@ -1,5 +1,10 @@
-import {WORKFLOW_RUN_CREATED, WORKFLOWS_JOB_TIMED_OUT} from '@shipfox/api-workflows-dto';
-import {eq, sql} from 'drizzle-orm';
+import {
+  WORKFLOWS_JOB_TERMINATED,
+  WORKFLOWS_JOB_TIMED_OUT,
+  WORKFLOWS_WORKFLOW_RUN_CREATED,
+  WORKFLOWS_WORKFLOW_RUN_TERMINATED,
+} from '@shipfox/api-workflows-dto';
+import {and, eq, sql} from 'drizzle-orm';
 import {JobNotFoundError} from '#core/errors.js';
 import {recordStepResult} from '#core/job-execution.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
@@ -25,6 +30,47 @@ type TestWorkflowModelInput = Parameters<typeof workflowModel>[0];
 
 function buildModel(overrides?: TestWorkflowModelInput) {
   return workflowModel(overrides);
+}
+
+function createTestRun(scope: {workspaceId: string; projectId: string; definitionId: string}) {
+  return createWorkflowRun({
+    workspaceId: scope.workspaceId,
+    projectId: scope.projectId,
+    definitionId: scope.definitionId,
+    model: buildModel(),
+    triggerPayload: {
+      source: 'manual',
+      event: 'fire',
+      subscriptionId: crypto.randomUUID(),
+      userId: crypto.randomUUID(),
+    },
+  });
+}
+
+async function jobTerminatedEvents(jobId: string) {
+  const rows = await db()
+    .select({payload: workflowsOutbox.payload})
+    .from(workflowsOutbox)
+    .where(
+      and(
+        eq(workflowsOutbox.eventType, WORKFLOWS_JOB_TERMINATED),
+        sql`${workflowsOutbox.payload}->>'jobId' = ${jobId}`,
+      ),
+    );
+  return rows.map((row) => row.payload as {jobId: string; runId: string; status: string});
+}
+
+async function runTerminatedEvents(runId: string) {
+  const rows = await db()
+    .select({payload: workflowsOutbox.payload})
+    .from(workflowsOutbox)
+    .where(
+      and(
+        eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_TERMINATED),
+        sql`${workflowsOutbox.payload}->>'runId' = ${runId}`,
+      ),
+    );
+  return rows.map((row) => row.payload as {runId: string; projectId: string; status: string});
 }
 
 describe('workflow run queries', () => {
@@ -79,7 +125,7 @@ describe('workflow run queries', () => {
       expect(jobSteps[1]).toMatchObject({position: 1, config: {run: 'echo hello'}});
     });
 
-    test('writes workflows.run.created outbox event in same transaction', async () => {
+    test('writes workflows.workflow_run.created outbox event in same transaction', async () => {
       const run = await createWorkflowRun({
         workspaceId,
         projectId,
@@ -96,7 +142,7 @@ describe('workflow run queries', () => {
       const outboxRows = await db()
         .select()
         .from(workflowsOutbox)
-        .where(eq(workflowsOutbox.eventType, WORKFLOW_RUN_CREATED));
+        .where(eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_CREATED));
 
       const matchingRow = outboxRows.find(
         (row) => (row.payload as Record<string, unknown>).runId === run.id,
@@ -118,7 +164,7 @@ describe('workflow run queries', () => {
       try {
         await db().transaction(async (tx) => {
           await tx.insert(workflowsOutbox).values({
-            eventType: WORKFLOW_RUN_CREATED,
+            eventType: WORKFLOWS_WORKFLOW_RUN_CREATED,
             payload: {runId: marker, projectId, definitionId},
           });
           throw new Error('Simulated failure');
@@ -590,6 +636,46 @@ describe('workflow run queries', () => {
         }),
       ).rejects.toThrow('Optimistic lock failure');
     });
+
+    test.each([
+      'succeeded',
+      'failed',
+      'cancelled',
+    ] as const)('writes one run-terminated event when the status becomes %s', async (status) => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+
+      await updateWorkflowRunStatus({runId: run.id, status, expectedVersion: 1});
+
+      const events = await runTerminatedEvents(run.id);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toEqual({runId: run.id, projectId: run.projectId, status});
+    });
+
+    test('writes no run-terminated event for a non-terminal transition', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+
+      await updateWorkflowRunStatus({runId: run.id, status: 'running', expectedVersion: 1});
+
+      expect(await runTerminatedEvents(run.id)).toHaveLength(0);
+    });
+
+    test('idempotent retry: a second terminal update at the stale version emits once', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+
+      const first = await updateWorkflowRunStatus({
+        runId: run.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+      const retry = await updateWorkflowRunStatus({
+        runId: run.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      expect(retry.version).toBe(first.version);
+      expect(await runTerminatedEvents(run.id)).toHaveLength(1);
+    });
   });
 
   describe('updateJobStatus', () => {
@@ -671,6 +757,78 @@ describe('workflow run queries', () => {
 
       expect(retry.status).toBe('running');
       expect(retry.version).toBe(first.version);
+    });
+  });
+
+  describe('job terminal event (WORKFLOWS_JOB_TERMINATED)', () => {
+    async function seedPendingJob() {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      const jobId = (await getJobsByRunId(run.id))[0]?.id as string;
+      return {run, jobId};
+    }
+
+    test.each([
+      'succeeded',
+      'failed',
+      'cancelled',
+    ] as const)('writes one terminated event when a job becomes %s', async (status) => {
+      const {run, jobId} = await seedPendingJob();
+
+      await updateJobStatus({jobId, status, expectedVersion: 1});
+
+      const events = await jobTerminatedEvents(jobId);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toEqual({jobId, runId: run.id, status});
+    });
+
+    test('writes no terminated event for a non-terminal transition', async () => {
+      const {jobId} = await seedPendingJob();
+
+      await updateJobStatus({jobId, status: 'running', expectedVersion: 1});
+
+      expect(await jobTerminatedEvents(jobId)).toHaveLength(0);
+    });
+
+    test('idempotent retry: a second terminal update at the stale version emits once', async () => {
+      const {jobId} = await seedPendingJob();
+
+      const first = await updateJobStatus({jobId, status: 'succeeded', expectedVersion: 1});
+      const retry = await updateJobStatus({jobId, status: 'succeeded', expectedVersion: 1});
+
+      expect(retry.version).toBe(first.version);
+      expect(await jobTerminatedEvents(jobId)).toHaveLength(1);
+    });
+
+    test('failJobAsTimedOut writes both the timed-out and terminated events', async () => {
+      const {run, jobId} = await seedPendingJob();
+
+      await failJobAsTimedOut({jobId, runId: run.id, expectedVersion: 1});
+
+      const terminated = await jobTerminatedEvents(jobId);
+      expect(terminated).toHaveLength(1);
+      expect(terminated[0]).toEqual({jobId, runId: run.id, status: 'failed'});
+
+      const timedOut = await db()
+        .select()
+        .from(workflowsOutbox)
+        .where(
+          and(
+            eq(workflowsOutbox.eventType, WORKFLOWS_JOB_TIMED_OUT),
+            sql`${workflowsOutbox.payload}->>'jobId' = ${jobId}`,
+          ),
+        );
+      expect(timedOut).toHaveLength(1);
+    });
+
+    test('lease-expiry resolution of a running job writes one terminated event', async () => {
+      const {jobId} = await seedPendingJob();
+      const running = await updateJobStatus({jobId, status: 'running', expectedVersion: 1});
+
+      await resolveJobAfterLeaseExpiry({jobId, expectedVersion: running.version});
+
+      const events = await jobTerminatedEvents(jobId);
+      expect(events).toHaveLength(1);
+      expect(events[0]?.status).toBe('failed');
     });
   });
 
