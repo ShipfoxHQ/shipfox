@@ -22,7 +22,11 @@ import {
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
-import {publishIntegrationEventReceived, recordDeliveryOnly} from '#db/webhook-deliveries.js';
+import {
+  publishIntegrationEventReceived,
+  publishSourcePush,
+  recordDeliveryOnly,
+} from '#db/webhook-deliveries.js';
 import {createIntegrationRoutes} from '#presentation/routes/index.js';
 import {createIntegrationsMaintenanceActivities} from '#temporal/activities/index.js';
 import {INTEGRATIONS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
@@ -82,6 +86,8 @@ export type {
   PublishIntegrationEventReceivedFn,
   PublishIntegrationEventReceivedParams,
   PublishIntegrationEventReceivedResult,
+  PublishSourcePushFn,
+  PublishSourcePushParams,
   RecordDeliveryOnlyFn,
   RecordDeliveryOnlyParams,
 } from '#db/webhook-deliveries.js';
@@ -168,7 +174,7 @@ async function loadGithubModuleParts(): Promise<GithubModuleParts> {
     provider: createGithubIntegrationProvider({
       getExistingGithubConnection,
       connectGithubInstallation,
-      publishIntegrationEventReceived,
+      publishSourcePush,
       recordDeliveryOnly,
       getIntegrationConnectionById,
       coreDb: db,

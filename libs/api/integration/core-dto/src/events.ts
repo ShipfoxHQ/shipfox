@@ -10,12 +10,30 @@ export interface IntegrationEventReceivedEvent {
   payload: unknown;
 }
 
-export interface GithubPushPayload {
+// A source-control push, normalized by the producing provider. Carried both as the
+// generic `INTEGRATION_EVENT_RECEIVED` envelope payload (consumed opaquely by triggers)
+// and nested inside `INTEGRATION_SOURCE_COMMIT_PUSHED` (consumed by domain modules).
+export interface SourcePushPayload {
   externalRepositoryId: string;
   ref: string;
   headCommitSha: string;
   defaultBranch: string;
   isDefaultBranch: boolean;
+}
+
+export const INTEGRATION_SOURCE_COMMIT_PUSHED =
+  'integrations.source_control.commit_pushed' as const;
+
+// Typed, provider-agnostic source-control event. The producing provider owns the
+// translation from its raw webhook into this shape, so domain consumers never decode
+// provider payloads. `isDefaultBranch` is a fact; the branch policy lives in the consumer.
+export interface IntegrationSourceCommitPushedEvent {
+  provider: string;
+  workspaceId: string;
+  connectionId: string;
+  deliveryId: string;
+  receivedAt: string;
+  push: SourcePushPayload;
 }
 
 export interface SentryIssuePayload {
@@ -49,4 +67,5 @@ export type SentryIssueAction = (typeof SENTRY_ISSUE_ACTIONS)[number];
 
 export interface IntegrationsEventMap {
   [INTEGRATION_EVENT_RECEIVED]: IntegrationEventReceivedEvent;
+  [INTEGRATION_SOURCE_COMMIT_PUSHED]: IntegrationSourceCommitPushedEvent;
 }

@@ -1,8 +1,11 @@
 import {
   INTEGRATION_EVENT_RECEIVED,
+  INTEGRATION_SOURCE_COMMIT_PUSHED,
   type IntegrationEventReceivedEvent,
+  type IntegrationsEventMap,
+  type SourcePushPayload,
 } from '@shipfox/api-integration-core-dto';
-import {writeOutboxEvent} from '@shipfox/node-outbox';
+import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
 import {lt} from 'drizzle-orm';
 import {db} from './db.js';
 import {integrationsOutbox} from './schema/outbox.js';
@@ -45,6 +48,66 @@ export async function publishIntegrationEventReceived(
   return {published: true};
 }
 
+export interface PublishSourcePushParams {
+  tx: IntegrationTx;
+  provider: string;
+  workspaceId: string;
+  connectionId: string;
+  deliveryId: string;
+  receivedAt: string;
+  push: SourcePushPayload;
+}
+
+// Emits a single source-control push as two outbox rows: the generic
+// `INTEGRATION_EVENT_RECEIVED` envelope (consumed opaquely by triggers) and the typed
+// `INTEGRATION_SOURCE_COMMIT_PUSHED` event (consumed by domain modules). One delivery-dedup
+// gates both, so a redelivered webhook writes nothing. Requires a transaction: the dedup
+// insert and both outbox rows must commit or roll back together.
+export async function publishSourcePush(
+  params: PublishSourcePushParams,
+): Promise<{published: boolean}> {
+  const inserted = await params.tx
+    .insert(integrationsWebhookDeliveries)
+    .values({
+      provider: params.provider,
+      deliveryId: params.deliveryId,
+    })
+    .onConflictDoNothing({
+      target: [integrationsWebhookDeliveries.provider, integrationsWebhookDeliveries.deliveryId],
+    })
+    .returning({deliveryId: integrationsWebhookDeliveries.deliveryId});
+
+  if (inserted.length === 0) return {published: false};
+
+  await writeOutboxEvents<IntegrationsEventMap>(params.tx, integrationsOutbox, [
+    {
+      type: INTEGRATION_EVENT_RECEIVED,
+      payload: {
+        source: params.provider,
+        event: 'push',
+        workspaceId: params.workspaceId,
+        connectionId: params.connectionId,
+        deliveryId: params.deliveryId,
+        receivedAt: params.receivedAt,
+        payload: params.push,
+      },
+    },
+    {
+      type: INTEGRATION_SOURCE_COMMIT_PUSHED,
+      payload: {
+        provider: params.provider,
+        workspaceId: params.workspaceId,
+        connectionId: params.connectionId,
+        deliveryId: params.deliveryId,
+        receivedAt: params.receivedAt,
+        push: params.push,
+      },
+    },
+  ]);
+
+  return {published: true};
+}
+
 export interface RecordDeliveryOnlyParams {
   tx: Executor;
   provider: string;
@@ -77,4 +140,5 @@ export async function pruneWebhookDeliveries(
 }
 
 export type PublishIntegrationEventReceivedFn = typeof publishIntegrationEventReceived;
+export type PublishSourcePushFn = typeof publishSourcePush;
 export type RecordDeliveryOnlyFn = typeof recordDeliveryOnly;
