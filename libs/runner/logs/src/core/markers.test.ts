@@ -1,4 +1,4 @@
-import {type MarkerEvent, parseMarker} from '#core/markers.js';
+import {couldBeMarker, type MarkerEvent, parseMarker} from '#core/markers.js';
 
 describe('parseMarker', () => {
   it('parses a group_start with its name', () => {
@@ -44,5 +44,33 @@ describe('parseMarker', () => {
       kind: 'group_start',
       name: 'token=sf_rt_abc and spaces  ',
     });
+  });
+});
+
+describe('couldBeMarker', () => {
+  it.each([
+    ['empty', ''],
+    ['a partial marker sigil', '::'],
+    ['a partial group prefix', '::gro'],
+    ['a partial endgroup', '::endgr'],
+    ['a complete group_start with a name', '::group::Install deps'],
+    ['a complete endgroup awaiting its newline', '::endgroup::'],
+  ])('holds %s', (_label, prefix) => {
+    expect(couldBeMarker(prefix)).toBe(true);
+  });
+
+  it.each([
+    ['a CRLF endgroup awaiting its LF', '::endgroup::\r'],
+    ['a CRLF group_start awaiting its LF', '::group::Build\r'],
+  ])('holds %s so the marker is not released before its newline', (_label, prefix) => {
+    expect(couldBeMarker(prefix)).toBe(true);
+  });
+
+  it.each([
+    ['plain output', 'installing'],
+    ['a diverged sigil', '::x'],
+    ['endgroup with a trailing argument', '::endgroup:: extra'],
+  ])('releases %s', (_label, prefix) => {
+    expect(couldBeMarker(prefix)).toBe(false);
   });
 });

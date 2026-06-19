@@ -3,6 +3,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {LogRecord} from '@shipfox/api-logs-dto';
 import {logRecordSchema} from '@shipfox/api-logs-dto';
+import {secretWireForms} from '@shipfox/redact';
 import type {LogAppendFn} from '@shipfox/runner-protocol';
 import {AttemptSpool} from '#api/spool.js';
 import {createStepLogStream} from '#core/step-log-stream.js';
@@ -348,15 +349,11 @@ describe('createStepLogStream', () => {
     appendSpy.mockRestore();
   });
 
-  it('never writes an unmasked secret or any encoded form to the spool', async () => {
-    const secret = 'sf_rt_SECRET123456';
-    const forms = {
-      literal: secret,
-      base64: Buffer.from(secret).toString('base64'),
-      base64url: Buffer.from(secret).toString('base64url'),
-      hex: Buffer.from(secret).toString('hex'),
-      url: encodeURIComponent(secret),
-    };
+  it('never writes the secret or any of its wire forms to the spool', async () => {
+    // Reserved characters ('/', '+', '=') so the URL-encoded form genuinely differs from the
+    // literal — a base64url-shaped token's URL form equals the literal and would prove nothing.
+    const secret = 'sf/rt+SECRET=12';
+    const forms = secretWireForms(secret); // the exact set the masker derives, incl. the literal
     const stream = createStepLogStream({
       logsDir: join(dir, 'logs'),
       stepId: STEP_ID,
@@ -367,17 +364,20 @@ describe('createStepLogStream', () => {
       now: () => 1,
     });
 
-    stream.write(Buffer.from(`literal=${forms.literal}\n`), 'stdout');
-    stream.write(Buffer.from(`base64=${forms.base64}\n`), 'stdout');
-    stream.write(Buffer.from(`base64url=${forms.base64url}\n`), 'stderr');
-    stream.write(Buffer.from(`hex=${forms.hex}\n`), 'stdout');
-    stream.write(Buffer.from(`url=${forms.url}\n`), 'stdout');
+    // Emit every derived form, alternating pipes, so each must be masked before reaching disk.
+    for (const [i, form] of forms.entries()) {
+      stream.write(Buffer.from(`f${i}=${form}\n`), i % 2 === 0 ? 'stdout' : 'stderr');
+    }
     await stream.close();
     stream.dispose();
 
-    // Read the plaintext spool file directly: not one secret form may have reached disk.
+    // The URL form must be distinct, or this test would silently degrade to a literal check.
+    expect(forms).toContain(encodeURIComponent(secret));
+    expect(encodeURIComponent(secret)).not.toBe(secret);
+
+    // Read the plaintext spool file directly: not one wire form may have reached disk.
     const raw = await readFile(join(dir, 'logs', `${STEP_ID}-11.ndjson`), 'utf8');
-    for (const form of Object.values(forms)) {
+    for (const form of forms) {
       expect(raw).not.toContain(form);
     }
     expect(raw).toContain('***');

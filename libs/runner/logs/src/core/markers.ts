@@ -32,10 +32,14 @@ export function parseMarker(line: string): MarkerEvent | undefined {
  * three characters.
  */
 export function couldBeMarker(linePrefix: string): boolean {
+  // A CRLF marker reaches here as `...\r` one byte before its `\n`. Treat a trailing CR as
+  // not-yet-divergent so a split `::endgroup::\r` keeps being held until the `\n` that
+  // completes and swallows it, instead of being released as an output line.
+  const prefix = linePrefix.endsWith('\r') ? linePrefix.slice(0, -1) : linePrefix;
   return (
-    GROUP_START_PREFIX.startsWith(linePrefix) ||
-    linePrefix.startsWith(GROUP_START_PREFIX) ||
-    GROUP_END_LINE.startsWith(linePrefix)
+    GROUP_START_PREFIX.startsWith(prefix) ||
+    prefix.startsWith(GROUP_START_PREFIX) ||
+    GROUP_END_LINE.startsWith(prefix)
   );
 }
 

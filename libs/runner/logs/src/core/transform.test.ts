@@ -88,13 +88,25 @@ describe('LogTransformer secret masking', () => {
     ['base64', Buffer.from(SECRET).toString('base64')],
     ['base64url', Buffer.from(SECRET).toString('base64url')],
     ['hex', Buffer.from(SECRET).toString('hex')],
-    ['url-encoded', encodeURIComponent(SECRET)],
   ])('masks the %s form of a secret', (_label, form) => {
     const transformer = new LogTransformer([SECRET]);
 
     const events = transformer.push(Buffer.from(`value=${form}\n`), 'stdout');
 
     expect(outputText(events)).toBe('value=***\n');
+  });
+
+  it('masks the URL-encoded form of a secret with reserved characters', () => {
+    // '/', '+' and '=' all percent-encode, so the URL form genuinely differs from the literal
+    // (a base64url-shaped token's URL form equals the literal and would test nothing).
+    const secret = 'sf/rt+secret=99';
+    const encoded = encodeURIComponent(secret);
+    const transformer = new LogTransformer([secret]);
+
+    const events = transformer.push(Buffer.from(`q=${encoded}\n`), 'stdout');
+
+    expect(encoded).not.toBe(secret);
+    expect(outputText(events)).toBe('q=***\n');
   });
 
   it('masks a secret embedded inside a larger base64 blob', () => {
@@ -222,5 +234,30 @@ describe('LogTransformer markers', () => {
     const flushed = transformer.flush();
 
     expect(flushed).toEqual([{type: 'group_end'}]);
+  });
+
+  it('swallows a CRLF endgroup whose CR and LF arrive in separate pushes', () => {
+    const transformer = new LogTransformer([]);
+
+    const first = transformer.push(Buffer.from('::endgroup::\r'), 'stdout');
+    const second = transformer.push(Buffer.from('\n'), 'stdout');
+
+    expect(first).toEqual([]); // held across the CR, not released as output
+    expect(second).toEqual([{type: 'group_end'}]);
+  });
+
+  it('swallows CRLF group markers and keeps a CRLF body line as output', () => {
+    const transformer = new LogTransformer([]);
+
+    const events = transformer.push(
+      Buffer.from('::group::Install\r\nbuilding\r\n::endgroup::\r\n'),
+      'stdout',
+    );
+
+    expect(events).toEqual([
+      {type: 'group_start', name: 'Install'},
+      {type: 'output', src: 'stdout', data: 'building\r\n'},
+      {type: 'group_end'},
+    ]);
   });
 });
