@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1068.0",
+    "@aws-sdk/lib-storage": "^3.1068.0",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-logs-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
@@ -49,6 +50,7 @@
     "@shipfox/node-outbox": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/node-temporal": "workspace:*",
+    "@temporalio/activity": "^1.16.1",
     "@temporalio/workflow": "^1.16.1",
     "drizzle-orm": "^0.45.2",
     "zod": "^4.4.3"
@@ -62,7 +64,6 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@temporalio/activity": "^1.16.1",
     "@temporalio/client": "^1.16.1",
     "@temporalio/common": "^1.16.1",
     "@temporalio/testing": "^1.16.1",

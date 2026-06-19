@@ -37,4 +37,8 @@ export const config = createConfig({
     desc: 'How long to wait after a job reaches a terminal state before force-closing any of its log streams the runner never ended itself (it died, was capped, or its log spool failed). The wait lets a last in-flight chunk land before the stream is marked truncated. Defaults to 120 seconds.',
     default: 120,
   }),
+  LOG_COMPACTION_RECONCILE_STALE_SECONDS: num({
+    desc: 'How long a closed log stream may stay uncompacted before the reconcile cron re-drives it. The event-triggered compaction normally runs within seconds of close; this backstop only re-drives streams whose compaction never started or permanently failed. Defaults to 900 seconds (15 minutes).',
+    default: 900,
+  }),
 });

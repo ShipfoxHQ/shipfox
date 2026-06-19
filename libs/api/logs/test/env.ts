@@ -12,13 +12,14 @@ process.env.AUTH_JOB_LEASE_TOKEN_SECRET = 'test-lease-secret';
 process.env.LOG_BUDGET_BASE_BYTES = '100';
 process.env.LOG_BUDGET_RATE_BYTES_PER_MINUTE = '60';
 
-// Dummy object-storage config so config validation passes without a live Garage;
-// no test in this package talks to S3 (hot chunks live in Postgres).
+// Real Garage dev credentials (bootstrap.sh creates the shipfox-logs-test bucket and grants
+// this key). Compaction tests upload to and read back from live Garage from compose.yml.
 process.env.LOG_STORAGE_S3_ENDPOINT = 'http://localhost:3900';
 process.env.LOG_STORAGE_S3_REGION = 'garage';
 process.env.LOG_STORAGE_S3_BUCKET = 'shipfox-logs-test';
-process.env.LOG_STORAGE_S3_ACCESS_KEY_ID = 'test-access-key';
-process.env.LOG_STORAGE_S3_SECRET_ACCESS_KEY = 'test-secret-key';
+process.env.LOG_STORAGE_S3_ACCESS_KEY_ID = 'GK000000000000000000000000';
+process.env.LOG_STORAGE_S3_SECRET_ACCESS_KEY =
+  '0000000000000000000000000000000000000000000000000000000000000000';
 process.env.LOG_STORAGE_S3_FORCE_PATH_STYLE = 'true';
 
 process.env.TZ = 'UTC';

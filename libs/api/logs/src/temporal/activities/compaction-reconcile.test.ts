@@ -1,0 +1,110 @@
+import {eq, sql} from 'drizzle-orm';
+import {db} from '#db/db.js';
+import {attemptStreams} from '#db/schema/attempt-streams.js';
+import {LOGS_COMPACTION_TASK_QUEUE} from '#temporal/constants.js';
+import {arrangeClosedStream, type ClosedStreamIdentity} from '#test/fixtures/closed-stream.js';
+import {ndjsonBody, outputLine} from '#test/fixtures/ndjson.js';
+import {compactionReconcileActivity} from './compaction-reconcile.js';
+
+const startMock = vi.fn();
+
+vi.mock('@shipfox/node-temporal', () => ({
+  temporalClient: () => ({
+    workflow: {
+      start: startMock,
+    },
+  }),
+}));
+
+function newIdentity(): ClosedStreamIdentity {
+  return {
+    jobId: crypto.randomUUID(),
+    stepId: crypto.randomUUID(),
+    attempt: 1,
+    workspaceId: crypto.randomUUID(),
+    projectId: crypto.randomUUID(),
+    runId: crypto.randomUUID(),
+  };
+}
+
+async function backdateClosedAt(streamId: string): Promise<void> {
+  await db()
+    .update(attemptStreams)
+    .set({closedAt: sql`now() - interval '1 hour'`})
+    .where(eq(attemptStreams.id, streamId));
+}
+
+async function markCompacted(streamId: string): Promise<void> {
+  await db()
+    .update(attemptStreams)
+    .set({objectKey: `logs/test/${streamId}`})
+    .where(eq(attemptStreams.id, streamId));
+}
+
+function alreadyStartedError(): Error {
+  const error = new Error('Workflow execution already started');
+  error.name = 'WorkflowExecutionAlreadyStartedError';
+  return error;
+}
+
+describe('compactionReconcileActivity', () => {
+  beforeEach(() => {
+    startMock.mockReset();
+    startMock.mockResolvedValue({});
+  });
+
+  it('re-starts compaction for a closed, uncompacted stream past the stale window', async () => {
+    const stream = await arrangeClosedStream(newIdentity(), {
+      chunks: [ndjsonBody(outputLine('x\n'))],
+    });
+    await backdateClosedAt(stream.id);
+
+    await compactionReconcileActivity();
+
+    expect(startMock).toHaveBeenCalledWith('compactStream', {
+      taskQueue: LOGS_COMPACTION_TASK_QUEUE,
+      workflowId: `logs-compact:${stream.id}`,
+      args: [{streamId: stream.id}],
+    });
+  });
+
+  it('does not re-start a stream closed too recently to be stale', async () => {
+    const stream = await arrangeClosedStream(newIdentity(), {
+      chunks: [ndjsonBody(outputLine('x\n'))],
+    });
+
+    await compactionReconcileActivity();
+
+    expect(startMock).not.toHaveBeenCalledWith(
+      'compactStream',
+      expect.objectContaining({workflowId: `logs-compact:${stream.id}`}),
+    );
+  });
+
+  it('does not re-start an already-compacted stream', async () => {
+    const stream = await arrangeClosedStream(newIdentity(), {
+      chunks: [ndjsonBody(outputLine('x\n'))],
+    });
+    await backdateClosedAt(stream.id);
+    await markCompacted(stream.id);
+
+    await compactionReconcileActivity();
+
+    expect(startMock).not.toHaveBeenCalledWith(
+      'compactStream',
+      expect.objectContaining({workflowId: `logs-compact:${stream.id}`}),
+    );
+  });
+
+  it('swallows an already-started workflow so a still-running compaction is left alone', async () => {
+    const stream = await arrangeClosedStream(newIdentity(), {
+      chunks: [ndjsonBody(outputLine('x\n'))],
+    });
+    await backdateClosedAt(stream.id);
+    startMock.mockRejectedValue(alreadyStartedError());
+
+    await expect(compactionReconcileActivity()).resolves.toEqual(
+      expect.objectContaining({restarted: expect.any(Number)}),
+    );
+  });
+});
