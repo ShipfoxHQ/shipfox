@@ -1,5 +1,13 @@
 import {execSync} from 'node:child_process';
-import {cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync} from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import {dirname, join, relative} from 'node:path';
 import {buildShellCommand, getProjectFilePath, getWorkspaceRootPath} from '@shipfox/tool-utils';
 
@@ -46,7 +54,40 @@ function overlayDist(prunedRoot: string) {
       continue;
     }
     cpSync(source, join(prunedRoot, packagePath, 'dist'), {recursive: true});
+    productionizeSubpathImports(packageJson);
   }
+}
+
+/**
+ * Point a package's `#*` subpath imports at the built `dist/` instead of the
+ * `src/` TypeScript, in the pruned context only. The image runs `dist/` with
+ * plain `node`, so `import '#core/run.js'` must resolve to `./dist/core/run.js`;
+ * the source map `"#*": "./src/*"` resolves it to a `.ts` file the image does
+ * not ship, which crashes with ERR_MODULE_NOT_FOUND.
+ *
+ * Done here, on the throwaway build context, rather than the two tempting spots:
+ *  - Source package.json: `#*` has to stay the unconditional `./src/*`. It is an
+ *    intra-package alias, and type-check / type-emit / tests all run against
+ *    `src/` without activating the `development` condition, so a `default ->
+ *    dist` map would resolve a package's own imports to its (not-yet-built)
+ *    dist and fail type-checking (TS7016).
+ *  - swc emit: `jsc.paths` + `resolveFully` rewrites `#dir/file.js` but silently
+ *    leaves bare `#file.js` (e.g. `#config.js`) as-is, producing broken output
+ *    with no error.
+ *
+ * Rewriting the map here leaves source/dev/test untouched and lets Node's own
+ * subpath resolver do the work, just aimed at `dist/`. The `development` branch
+ * is kept only for symmetry with each package's `exports`; the image runs the
+ * `default` branch.
+ */
+function productionizeSubpathImports(packageJsonPath: string) {
+  const manifest = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
+    imports?: Record<string, unknown>;
+  };
+  if (manifest.imports?.['#*'] !== './src/*') return;
+
+  manifest.imports['#*'] = {development: './src/*', default: './dist/*'};
+  writeFileSync(packageJsonPath, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 function buildsToDist(packageJsonPath: string): boolean {
