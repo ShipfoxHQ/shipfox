@@ -1,6 +1,8 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {emitDebugStartupResync} from '@shipfox/api-integration-debug';
 import type {ShipfoxModule} from '@shipfox/node-module';
+import {logger} from '@shipfox/node-opentelemetry';
 import type {IntegrationProvider} from '#core/entities/provider.js';
 import {
   createIntegrationProviderRegistry,
@@ -10,10 +12,14 @@ import {
   createSourceControlIntegrationService,
   type IntegrationSourceControlService,
 } from '#core/source-control-service.js';
-import {getIntegrationConnectionById} from '#db/connections.js';
+import {
+  getIntegrationConnectionById,
+  listIntegrationConnectionsByProvider,
+} from '#db/connections.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
+import {publishSourceCommitPushed} from '#db/webhook-deliveries.js';
 import {createIntegrationRoutes} from '#presentation/routes/index.js';
 import {loadEnabledProviderModules} from '#providers/modules.js';
 import type {IntegrationModuleParts} from '#providers/types.js';
@@ -93,6 +99,12 @@ export interface IntegrationsContext {
     sourceControl: IntegrationSourceControlService;
   };
   sourceControl: IntegrationSourceControlService;
+  /**
+   * One-shot boot-time tasks, run by the app after modules are initialized (migrations done).
+   * Today: when the debug provider is enabled, force a definitions re-sync of the debug
+   * fixtures. No-op when debug is not registered. Never throws.
+   */
+  runStartupTasks: () => Promise<void>;
 }
 
 export async function createIntegrationsModule(
@@ -139,5 +151,26 @@ export async function createIntegrationsContext(
     ],
   };
 
-  return {module, registry, capabilities: {sourceControl}, sourceControl};
+  async function runStartupTasks(): Promise<void> {
+    // Gate = "debug provider registered". On the production boot path run.ts calls
+    // createIntegrationsContext() with no providers, so registration is driven by
+    // INTEGRATIONS_ENABLE_DEBUG_PROVIDER; the {providers} option is a test-only seam.
+    if (!registry.list().some((registered) => registered.provider === 'debug')) return;
+
+    // A debug-only convenience must never gate API boot. Mirrors startModuleWorkers, which
+    // catches per-worker errors and logs instead of throwing.
+    try {
+      await emitDebugStartupResync({
+        listConnections: async () =>
+          (await listIntegrationConnectionsByProvider({provider: 'debug'}))
+            .filter((connection) => connection.lifecycleStatus === 'active')
+            .map((connection) => ({id: connection.id, workspaceId: connection.workspaceId})),
+        publishSourceCommitPushed,
+      });
+    } catch (error) {
+      logger().error({err: error}, 'Debug integration: startup re-sync failed, continuing boot');
+    }
+  }
+
+  return {module, registry, capabilities: {sourceControl}, sourceControl, runStartupTasks};
 }

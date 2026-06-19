@@ -108,6 +108,35 @@ export async function publishSourcePush(
   return {published: true};
 }
 
+export interface PublishSourceCommitPushedParams {
+  provider: string;
+  workspaceId: string;
+  connectionId: string;
+  deliveryId: string;
+  receivedAt: string;
+  push: SourcePushPayload;
+}
+
+// Emits ONLY the typed `INTEGRATION_SOURCE_COMMIT_PUSHED` event, intentionally skipping the
+// `INTEGRATION_EVENT_RECEIVED` envelope so triggers do not run workflows, and skipping the
+// delivery-dedup row so it is never suppressed. Used to force a definitions re-sync without
+// simulating an inbound webhook.
+export async function publishSourceCommitPushed(
+  params: PublishSourceCommitPushedParams,
+): Promise<void> {
+  await writeOutboxEvent<IntegrationsEventMap>(db(), integrationsOutbox, {
+    type: INTEGRATION_SOURCE_COMMIT_PUSHED,
+    payload: {
+      provider: params.provider,
+      workspaceId: params.workspaceId,
+      connectionId: params.connectionId,
+      deliveryId: params.deliveryId,
+      receivedAt: params.receivedAt,
+      push: params.push,
+    },
+  });
+}
+
 export interface RecordDeliveryOnlyParams {
   tx: Executor;
   provider: string;
@@ -141,4 +170,5 @@ export async function pruneWebhookDeliveries(
 
 export type PublishIntegrationEventReceivedFn = typeof publishIntegrationEventReceived;
 export type PublishSourcePushFn = typeof publishSourcePush;
+export type PublishSourceCommitPushedFn = typeof publishSourceCommitPushed;
 export type RecordDeliveryOnlyFn = typeof recordDeliveryOnly;

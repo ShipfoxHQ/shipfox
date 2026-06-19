@@ -23,7 +23,7 @@ function debugRepositoryId(name: string): string {
   return buildProviderRepositoryId(DEBUG_PROVIDER, name);
 }
 
-const DEBUG_REPOSITORIES: RepositorySnapshot[] = [
+export const DEBUG_REPOSITORIES: RepositorySnapshot[] = [
   {
     externalRepositoryId: debugRepositoryId('platform'),
     owner: 'debug-owner',
