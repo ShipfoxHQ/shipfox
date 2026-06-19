@@ -46,6 +46,13 @@ const withRouter: Decorator = (Story) => {
 const preview: Preview = {
   decorators: [withTheme, withRelativeTime, withRouter],
   parameters: {
+    argos: {
+      modes: {
+        light: {theme: 'light'},
+        dark: {theme: 'dark'},
+      },
+      fitToContent: false,
+    },
     options: {
       storySort: {method: 'alphabetical'},
     },
