@@ -59,7 +59,9 @@ describe('AttemptSpool', () => {
 
     const open = () => AttemptSpool.open(join(dir, 'logs'), STEP_ID, 9);
 
-    expect(open).toThrow();
+    // Assert the original error propagates (not just that something threw), so a future
+    // change that swallows it or rethrows a different error is caught.
+    expect(open).toThrow(expect.objectContaining({code: 'EACCES'}));
   });
 
   it('rejects a non-UUID step id before touching the filesystem', () => {
