@@ -45,22 +45,36 @@ export async function emitDebugStartupResync(deps: DebugStartupResyncDeps): Prom
   if (!repository) return;
   const externalRepositoryId = repository.externalRepositoryId;
 
+  // Attempt every connection: a failure for one must not skip the rest. Collect errors and
+  // surface them together so the caller's boot-time handler still logs the failure.
+  const failures: unknown[] = [];
   for (const connection of connections) {
-    await deps.publishSourceCommitPushed({
-      provider: DEBUG_PROVIDER,
-      workspaceId: connection.workspaceId,
-      connectionId: connection.id,
-      // Unique per emission for traceable logs; the writer skips delivery-dedup, so a stable
-      // id would make every boot's events indistinguishable.
-      deliveryId: `debug-startup-resync:${crypto.randomUUID()}`,
-      receivedAt: new Date().toISOString(),
-      push: {
-        externalRepositoryId,
-        ref: repository.defaultBranch,
-        headCommitSha: DEBUG_RESYNC_COMMIT,
-        defaultBranch: repository.defaultBranch,
-        isDefaultBranch: true,
-      },
-    });
+    try {
+      await deps.publishSourceCommitPushed({
+        provider: DEBUG_PROVIDER,
+        workspaceId: connection.workspaceId,
+        connectionId: connection.id,
+        // Unique per emission for traceable logs; the writer skips delivery-dedup, so a stable
+        // id would make every boot's events indistinguishable.
+        deliveryId: `debug-startup-resync:${crypto.randomUUID()}`,
+        receivedAt: new Date().toISOString(),
+        push: {
+          externalRepositoryId,
+          ref: repository.defaultBranch,
+          headCommitSha: DEBUG_RESYNC_COMMIT,
+          defaultBranch: repository.defaultBranch,
+          isDefaultBranch: true,
+        },
+      });
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures,
+      `Debug startup re-sync failed for ${failures.length} of ${connections.length} connection(s)`,
+    );
   }
 }

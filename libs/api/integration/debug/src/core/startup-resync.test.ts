@@ -51,6 +51,27 @@ describe('emitDebugStartupResync', () => {
     expect(publishSourceCommitPushed).not.toHaveBeenCalled();
   });
 
+  it('attempts every connection and aggregates failures when some publishes fail', async () => {
+    const published: PublishDebugSourceCommitPushedParams[] = [];
+    const deps: DebugStartupResyncDeps = {
+      listConnections: async () => [
+        {id: 'conn-1', workspaceId: 'ws-1'},
+        {id: 'conn-2', workspaceId: 'ws-2'},
+        {id: 'conn-3', workspaceId: 'ws-3'},
+      ],
+      publishSourceCommitPushed: (params) => {
+        if (params.connectionId === 'conn-2') return Promise.reject(new Error('boom'));
+        published.push(params);
+        return Promise.resolve();
+      },
+    };
+
+    const result = emitDebugStartupResync(deps);
+
+    await expect(result).rejects.toBeInstanceOf(AggregateError);
+    expect(published.map((entry) => entry.connectionId)).toEqual(['conn-1', 'conn-3']);
+  });
+
   it('uses a unique deliveryId per emission', async () => {
     const published: PublishDebugSourceCommitPushedParams[] = [];
     const deps: DebugStartupResyncDeps = {
