@@ -5,11 +5,6 @@ const assertGitAvailableMock = vi.fn();
 const createJobDirMock = vi.fn();
 const checkoutRepositoryMock = vi.fn();
 
-vi.mock('@shipfox/runner-protocol', () => ({
-  requestCheckoutToken: (...args: unknown[]) => requestCheckoutTokenMock(...args),
-  HTTPError,
-}));
-
 // CheckoutError is a real class (setup-step branches on instanceof), so keep the actual
 // implementation and only stub the side-effecting functions.
 vi.mock('@shipfox/runner-workspace', async () => {
@@ -28,7 +23,7 @@ const {executeSetupStep} = await import('#core/setup-step.js');
 const {CheckoutError} = await import('@shipfox/runner-workspace');
 
 const CWD = '/tmp/shipfox-test-root/job-1';
-const leaseClient = {} as never;
+const lease = {requestCheckoutToken: requestCheckoutTokenMock};
 const signal = new AbortController().signal;
 
 function checkoutResponse(auth?: unknown) {
@@ -40,7 +35,7 @@ function checkoutResponse(auth?: unknown) {
 }
 
 function run() {
-  return executeSetupStep({cwd: CWD, leaseClient, signal});
+  return executeSetupStep({cwd: CWD, lease, signal});
 }
 
 // ky populates `error.data` with the pre-parsed body and consumes `error.response`, so
@@ -75,7 +70,7 @@ describe('executeSetupStep', () => {
 
     expect(assertGitAvailableMock).toHaveBeenCalledOnce();
     expect(createJobDirMock).toHaveBeenCalledWith(CWD);
-    expect(requestCheckoutTokenMock).toHaveBeenCalledWith(leaseClient, {signal});
+    expect(requestCheckoutTokenMock).toHaveBeenCalledWith({signal});
     expect(checkoutRepositoryMock).toHaveBeenCalledWith({
       repositoryUrl: 'https://github.com/acme/repo.git',
       ref: 'main',
@@ -83,7 +78,7 @@ describe('executeSetupStep', () => {
       cwd: CWD,
       signal,
     });
-    expect(result).toEqual({success: true, error: null, exit_code: 0});
+    expect(result).toEqual({success: true, output: '', error: null, exit_code: 0});
   });
 
   it('checks git before minting a credential', async () => {

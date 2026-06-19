@@ -1,5 +1,5 @@
 import {logger} from '@shipfox/node-opentelemetry';
-import {HTTPError, heartbeat} from '@shipfox/runner-protocol';
+import {JobLeaseNotFoundError, type RunnerProtocol} from '@shipfox/runner-protocol/contract';
 
 export interface HeartbeatLoopOptions {
   intervalMs: number;
@@ -9,6 +9,11 @@ export interface HeartbeatLoopOptions {
    * call in flight" under any API latency.
    */
   maxStaleMs: number;
+}
+
+export interface HeartbeatLoopDeps {
+  /** The heartbeat call, injected so the loop never reaches for a module singleton. */
+  heartbeat: RunnerProtocol['heartbeat'];
 }
 
 export interface HeartbeatLoopHandle {
@@ -23,7 +28,7 @@ export interface HeartbeatLoopHandle {
  *
  *   tick fires → heartbeat resolves before maxStaleMs ──► schedule next tick
  *                heartbeat returns cancel:true ──────────► jobAc.abort('cancelled'); stop
- *                heartbeat returns 404 ──────────────────► jobAc.abort('orphaned');  stop
+ *                heartbeat throws JobLeaseNotFoundError ──► jobAc.abort('orphaned');  stop
  *                maxStaleMs elapses ─────────────────────► httpAc.abort(); schedule next tick
  *                other error ────────────────────────────► log warn; schedule next tick
  */
@@ -31,6 +36,7 @@ export function startHeartbeatLoop(
   jobId: string,
   jobAbortController: AbortController,
   options: HeartbeatLoopOptions,
+  deps: HeartbeatLoopDeps,
 ): HeartbeatLoopHandle {
   let stopped = false;
   let pendingTimer: NodeJS.Timeout | undefined;
@@ -56,7 +62,7 @@ export function startHeartbeatLoop(
     }, options.maxStaleMs);
 
     try {
-      const {cancel} = await heartbeat(jobId, {signal: httpAc.signal});
+      const {cancel} = await deps.heartbeat(jobId, {signal: httpAc.signal});
       if (stopped) return;
       if (cancel) {
         logger().info({jobId}, 'Heartbeat returned cancel:true; aborting job');
@@ -71,10 +77,10 @@ export function startHeartbeatLoop(
         scheduleNext();
         return;
       }
-      if (err instanceof HTTPError && err.response.status === 404) {
+      if (err instanceof JobLeaseNotFoundError) {
         logger().info(
           {jobId},
-          'Heartbeat returned 404; orchestration finalized this job, aborting runner-side',
+          'Heartbeat reports the lease is gone; orchestration finalized this job, aborting runner-side',
         );
         jobAbortController.abort('orphaned');
         return;

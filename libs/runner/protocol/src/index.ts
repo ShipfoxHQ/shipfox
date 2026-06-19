@@ -1,12 +1,10 @@
 export {
-  appendStepLogs,
-  createLeaseClient,
-  HTTPError,
-  heartbeat,
+  JobLeaseNotFoundError,
+  type LeaseProtocol,
   type LogAppendFn,
   type LogAppendOutcome,
-  reportStep,
-  requestCheckoutToken,
-  requestJob,
-  requestNextStep,
-} from '#api-client.js';
+  type RunnerProtocol,
+  StepReportRejectedError,
+} from '#contract.js';
+export {defaultProtocolClient} from '#default-client.js';
+export {createProtocolClient} from '#protocol-client.js';
