@@ -113,8 +113,8 @@ async function stableArgosScreenshot(
         const toaster = document.querySelector('[data-sonner-toaster]');
         if (toaster instanceof HTMLElement && visualWindow.__shipfoxToasterDisplay !== undefined) {
           toaster.style.display = visualWindow.__shipfoxToasterDisplay;
-          delete visualWindow.__shipfoxToasterDisplay;
         }
+        delete visualWindow.__shipfoxToasterDisplay;
 
         delete visualWindow.__shipfoxVisualRestore;
       });
