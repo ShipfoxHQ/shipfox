@@ -3,7 +3,7 @@ min_version = "2026.5.18"
 [tools]
 gh = "2.94.0"
 "node"      = "24.16.0"
-"npm:pnpm"  = "11.5.3"
+"npm:pnpm"  = "11.6.0"
 "npm:turbo" = "2.9.18"
 
 [env]
