@@ -218,11 +218,25 @@ describe('secretWireForms', () => {
     expect(redactSecrets(`digest=${hex.toUpperCase()}`, forms)).toBe('digest=***');
   });
 
-  it('drops forms below the min length and never returns duplicates', () => {
-    const forms = secretWireForms('sk_live_TESTsecret123');
+  it('always keeps the literal but drops every too-short derived form', () => {
+    // 'abc' is 3 chars: the literal always masks, but every derived form (hex 6, base64 3-4,
+    // url-encoded 3) is under the 8-char floor and dropped, so no short derivation scrubs
+    // unrelated text.
+    const forms = secretWireForms('abc');
 
-    expect(forms.every((form) => form.length >= 8)).toBe(true);
-    expect(new Set(forms).size).toBe(forms.length);
+    expect(forms).toEqual(['abc']);
+  });
+
+  it('keeps a derived form that clears the floor while dropping the shorter ones', () => {
+    // 'wxyz' is 4 chars: the literal always masks and its 8-char hex clears the floor, but its
+    // base64 phase forms (5 chars or fewer) are dropped, since a short base64 substring
+    // over-matches common encoded text.
+    const forms = secretWireForms('wxyz');
+    const base64Phase0 = Buffer.from('wxyz').toString('base64').slice(0, 5);
+
+    expect(forms).toContain('wxyz');
+    expect(forms).toContain(Buffer.from('wxyz').toString('hex'));
+    expect(forms).not.toContain(base64Phase0);
   });
 
   it('returns forms sorted longest-first', () => {

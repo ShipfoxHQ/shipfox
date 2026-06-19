@@ -83,10 +83,12 @@ export function redactSecrets(text: string, secrets: string[]): string {
 const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 const BASE64URL_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
-// Forms shorter than this are dropped: a short, low-entropy derivation (e.g. the hex of a
-// one-byte secret) would scrub unrelated text. Real secrets are long, so this never drops
-// a genuine token's forms — it only guards against a degenerate registration.
-const MIN_WIRE_FORM_LENGTH = 8;
+// A derived form (base64/base64url phase substrings, hex, URL-encoding) is dropped below this
+// length: a short derivation matches common encoded text and would scrub unrelated output. The
+// literal secret is never dropped, because failing to mask a registered secret is a leak. A
+// derived form's length scales with the secret, so this only ever bites a short secret; a long
+// token keeps every form.
+const MIN_DERIVED_FORM_LENGTH = 8;
 
 // Self-contained, unpadded base64 so this stays a pure-JS (browser-safe) module: no
 // node:buffer, no btoa. Padding is irrelevant here because callers only ever slice the
@@ -135,28 +137,30 @@ function hexEncode(bytes: Uint8Array): string {
 /**
  * Every wire form a secret can appear as in captured output, ready to hand straight to
  * {@link redactSecrets}: the literal, its base64 and base64url forms (all three phase
- * alignments, so a secret embedded in a larger encoded blob is masked too), its
- * URL-encoded form, and its lower- and upper-case hex. Deduplicated and sorted
- * longest-first; forms under {@link MIN_WIRE_FORM_LENGTH} chars are dropped so a short
- * derivation never scrubs unrelated text.
+ * alignments, so a secret embedded in a larger encoded blob is masked too), its URL-encoded
+ * form, and its lower- and upper-case hex. Deduplicated and sorted longest-first.
  *
- * redactSecrets' contract still holds: pass real, high-entropy secrets. This is the
- * "deriving every wire form a credential takes" step that redactSecrets leaves to callers,
- * given one home so every masker derives the same set.
+ * The literal is always included so a registered secret is never left unmasked. Its derived
+ * forms are dropped below {@link MIN_DERIVED_FORM_LENGTH} chars, because a short derivation
+ * (e.g. the base64 substring of a tiny secret) matches common encoded text and would scrub
+ * unrelated output. A derived form's length scales with the secret, so this only bites a short
+ * secret; a genuine long token keeps every form.
+ *
+ * redactSecrets' contract still holds: pass real, high-entropy secrets. This is the "deriving
+ * every wire form a credential takes" step that redactSecrets leaves to callers, given one
+ * home so every masker derives the same set.
  */
 export function secretWireForms(secret: string): string[] {
   if (!secret) return [];
   const bytes = new TextEncoder().encode(secret);
   const hex = hexEncode(bytes);
-  const forms = new Set<string>([
-    secret,
+  const derived = [
     ...base64Alignments(bytes, BASE64_ALPHABET),
     ...base64Alignments(bytes, BASE64URL_ALPHABET),
     encodeURIComponent(secret),
     hex,
     hex.toUpperCase(),
-  ]);
-  return [...forms]
-    .filter((form) => form.length >= MIN_WIRE_FORM_LENGTH)
-    .sort((a, b) => b.length - a.length);
+  ].filter((form) => form.length >= MIN_DERIVED_FORM_LENGTH);
+  // The literal always masks; only its derived forms are length-gated.
+  return [...new Set([secret, ...derived])].sort((a, b) => b.length - a.length);
 }

@@ -125,6 +125,21 @@ describe('LogTransformer secret masking', () => {
     expect(combined).not.toContain('sf_rt_SE');
   });
 
+  it('masks a secret straddling the release of an over-long marker candidate', () => {
+    const transformer = new LogTransformer([SECRET]);
+    // A `::group::`-leading run with no newline that grows past MARKER_CANDIDATE_LIMIT (16KB):
+    // it stops being held as a marker and is released as output, and the lookbehind must still
+    // hold the secret that straddles that release boundary.
+    const head = `::group::${'x'.repeat(20_000)}`;
+
+    const first = transformer.push(Buffer.from(`${head}sf_rt_SE`), 'stdout');
+    const second = transformer.push(Buffer.from('CRET123456 done\n'), 'stdout');
+    const combined = outputText(first) + outputText(second);
+
+    expect(combined).toBe(`${head}*** done\n`);
+    expect(combined).not.toContain('sf_rt_SE');
+  });
+
   it('passes output through unchanged when no secrets are registered', () => {
     const transformer = new LogTransformer([]);
 
