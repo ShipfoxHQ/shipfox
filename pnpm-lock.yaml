@@ -3438,6 +3438,25 @@ importers:
         specifier: 25.9.2
         version: 25.9.2
 
+  tools/docker:
+    dependencies:
+      '@shipfox/tool-utils':
+        specifier: workspace:*
+        version: link:../utils
+    devDependencies:
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../typescript
+      '@types/node':
+        specifier: 25.9.2
+        version: 25.9.2
+
   tools/playwright:
     dependencies:
       '@argos-ci/playwright':
