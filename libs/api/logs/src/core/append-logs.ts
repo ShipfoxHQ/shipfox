@@ -1,5 +1,5 @@
-import {Buffer} from 'node:buffer';
-import {type LogRecord, parseLogRecordLine} from '@shipfox/api-logs-dto';
+import type {Buffer} from 'node:buffer';
+import {parseLogRecordLine} from '@shipfox/api-logs-dto';
 import {config} from '#config.js';
 import {accrueStoredBytes, claimCap, ensureJobAccounting, isJobCapped} from '#db/accounting.js';
 import {insertChunk} from '#db/chunks.js';
@@ -11,6 +11,7 @@ import {
   setDeclaredTotalBytes,
 } from '#db/streams.js';
 import {allowedBudget} from './budget.js';
+import {closeStream, controlTombstone} from './close-stream.js';
 import {MalformedLogChunkError, OffsetGapError} from './errors.js';
 
 export interface AppendLogsParams {
@@ -66,13 +67,6 @@ function parseAppendBody(body: Buffer): ParsedBody {
   return declaredTotalBytes === undefined ? {} : {declaredTotalBytes};
 }
 
-function cappedTombstone(): Buffer {
-  // Typed against the shared v1 contract so an envelope change in the dto package
-  // breaks this at compile time rather than silently emitting an off-contract record.
-  const record: LogRecord = {v: 1, ts: Date.now(), src: 'system', type: 'control', kind: 'capped'};
-  return Buffer.from(`${JSON.stringify(record)}\n`, 'utf8');
-}
-
 /**
  * Empty-body heartbeat: report the current committed length without materializing
  * a stream, so a runner cannot mint unbounded rows with empty appends.
@@ -97,6 +91,15 @@ interface StoreChunkParams {
   declaredTotalBytes: number | undefined;
 }
 
+interface StoreChunkResult extends AppendLogsResult {
+  /**
+   * Whether the runner chunk was persisted. False only when the job was already
+   * capped and the body (including any `end` record) was dropped, so the stream is
+   * not whole and must not be declared-closed.
+   */
+  stored: boolean;
+}
+
 /**
  * Accrues the stored bytes, persists the chunk, and trips the per-job cap when
  * this append crosses the budget. Runs only after the offset-CAS extended
@@ -105,13 +108,13 @@ interface StoreChunkParams {
 async function storeChunk(
   tx: Transaction,
   {params, streamId, byteLen, committedLength, declaredTotalBytes}: StoreChunkParams,
-): Promise<AppendLogsResult> {
+): Promise<StoreChunkResult> {
   await ensureJobAccounting(tx, {jobId: params.jobId, workspaceId: params.workspaceId});
   const accrued = await accrueStoredBytes(tx, {jobId: params.jobId, delta: byteLen});
 
   // Already capped: accept-and-drop. committed_length has advanced so the runner
   // drains its spool cleanly instead of retry-looping; nothing is stored.
-  if (!accrued) return {committedLength, capped: true};
+  if (!accrued) return {committedLength, capped: true, stored: false};
 
   await insertChunk(tx, {
     streamId,
@@ -129,13 +132,13 @@ async function storeChunk(
     ratePerMinuteBytes: config.LOG_BUDGET_RATE_BYTES_PER_MINUTE,
     elapsedMs: Date.now() - accrued.startedAt.getTime(),
   });
-  if (accrued.used <= allowed) return {committedLength, capped: false};
+  if (accrued.used <= allowed) return {committedLength, capped: false, stored: true};
 
   // Over budget. No hard ceiling: this crossing append is stored in full (overshoot
   // bounded by one body). Claim the cap once and inject the tombstone for the winner.
   const won = await claimCap(tx, params.jobId);
   if (won) {
-    const tombstone = cappedTombstone();
+    const tombstone = controlTombstone('capped');
     await insertChunk(tx, {
       streamId,
       streamOffset: committedLength,
@@ -144,7 +147,7 @@ async function storeChunk(
       kind: 'control',
     });
   }
-  return {committedLength, capped: true};
+  return {committedLength, capped: true, stored: true};
 }
 
 /**
@@ -170,6 +173,13 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
       runId: params.runId,
     });
 
+    // Closed stream (the runner's end already landed, or the job-terminated sweep ran):
+    // accept-and-drop so a late chunk can never race compaction. committed_length is
+    // frozen at close, so this reports the final offset and the runner stops cleanly.
+    if (stream.state === 'closed') {
+      return {committedLength: stream.committedLength, capped: await isJobCapped(tx, params.jobId)};
+    }
+
     const cas = await casExtendCommittedLength(tx, {
       streamId: stream.id,
       offset: params.offset,
@@ -180,12 +190,24 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
       return {committedLength: cas.committedLength, capped: await isJobCapped(tx, params.jobId)};
     }
 
-    return storeChunk(tx, {
+    const {stored, ...result} = await storeChunk(tx, {
       params,
       streamId: stream.id,
       byteLen,
       committedLength: cas.committedLength,
       declaredTotalBytes,
     });
+
+    // The runner's end record was committed in this append (offset-CAS guarantees
+    // everything before it is already committed), so the stream is whole. Declared-close
+    // it in-band so compaction starts at once instead of waiting for the timeout sweep.
+    // Only when the chunk was actually stored: an end body dropped because the job was
+    // already capped persists nothing, so the stream is not whole and stays open for the
+    // timeout sweep to close it as truncated.
+    if (declaredTotalBytes !== undefined && stored) {
+      await closeStream(tx, {streamId: stream.id, reason: 'declared'});
+    }
+
+    return result;
   });
 }

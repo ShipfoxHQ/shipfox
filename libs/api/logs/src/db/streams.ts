@@ -1,7 +1,7 @@
 import {and, eq, sql} from 'drizzle-orm';
-import type {AttemptStream} from '#core/entities/attempt-stream.js';
+import type {AttemptStream, StreamCloseReason} from '#core/entities/attempt-stream.js';
 import {LeaseStreamMismatchError} from '#core/errors.js';
-import type {Transaction} from './db.js';
+import {db, type Transaction} from './db.js';
 import {attemptStreams, toAttemptStream} from './schema/attempt-streams.js';
 
 export interface AttemptStreamIdentity {
@@ -125,4 +125,40 @@ export async function setDeclaredTotalBytes(
     .update(attemptStreams)
     .set({declaredTotalBytes: params.declaredTotalBytes, updatedAt: sql`now()`})
     .where(eq(attemptStreams.id, params.streamId));
+}
+
+/**
+ * Guarded close: flips `open → closed` and stamps `closed_at` iff the stream is
+ * still open, returning the closed row (or null when another path already closed
+ * it). The `WHERE state='open'` predicate is both the row lock and the
+ * exactly-once gate. `committed_length` is left untouched; it stays equal to the
+ * runner spool bytes. `truncated` is set only on the timeout path.
+ */
+export async function markStreamClosed(
+  tx: Transaction,
+  params: {streamId: string; reason: StreamCloseReason; markTruncated: boolean},
+): Promise<AttemptStream | null> {
+  const [row] = await tx
+    .update(attemptStreams)
+    .set({
+      state: 'closed',
+      closeReason: params.reason,
+      closedAt: sql`now()`,
+      updatedAt: sql`now()`,
+      ...(params.markTruncated ? {truncated: true} : {}),
+    })
+    .where(and(eq(attemptStreams.id, params.streamId), eq(attemptStreams.state, 'open')))
+    .returning();
+
+  return row ? toAttemptStream(row) : null;
+}
+
+/** Open streams of a job, for the timeout sweep to force-close after the grace period. */
+export async function listOpenStreamsByJob(jobId: string): Promise<AttemptStream[]> {
+  const rows = await db()
+    .select()
+    .from(attemptStreams)
+    .where(and(eq(attemptStreams.jobId, jobId), eq(attemptStreams.state, 'open')));
+
+  return rows.map(toAttemptStream);
 }
