@@ -1,6 +1,5 @@
 import type {WorkflowsJobTerminatedEvent} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
-import type {DomainEvent} from '@shipfox/node-outbox';
 import {temporalClient} from '@shipfox/node-temporal';
 import {config} from '#config.js';
 import {LOGS_LIFECYCLE_TASK_QUEUE} from '#temporal/constants.js';
@@ -10,9 +9,7 @@ import {LOGS_LIFECYCLE_TASK_QUEUE} from '#temporal/constants.js';
  * timeout). Arm the grace-then-close workflow for any of its streams the runner never
  * ended itself. Deduped by workflow id, so a redelivered event is a no-op.
  */
-export async function onJobTerminated(event: DomainEvent): Promise<void> {
-  const payload = event.payload as WorkflowsJobTerminatedEvent;
-
+export async function onJobTerminated(payload: WorkflowsJobTerminatedEvent): Promise<void> {
   try {
     await temporalClient().workflow.start('closeAbandonedStreams', {
       taskQueue: LOGS_LIFECYCLE_TASK_QUEUE,

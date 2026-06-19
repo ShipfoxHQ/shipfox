@@ -1,5 +1,4 @@
 import type {WorkflowsJobTerminatedEvent} from '@shipfox/api-workflows-dto';
-import type {DomainEvent} from '@shipfox/node-outbox';
 import {config} from '#config.js';
 import {LOGS_LIFECYCLE_TASK_QUEUE} from '#temporal/constants.js';
 import {onJobTerminated} from './on-job-terminated.js';
@@ -14,17 +13,11 @@ vi.mock('@shipfox/node-temporal', () => ({
   }),
 }));
 
-function buildEvent(jobId: string): DomainEvent {
-  const payload: WorkflowsJobTerminatedEvent = {
+function buildPayload(jobId: string): WorkflowsJobTerminatedEvent {
+  return {
     jobId,
     runId: crypto.randomUUID(),
     status: 'failed',
-  };
-  return {
-    id: crypto.randomUUID(),
-    type: 'workflows.job.terminated',
-    createdAt: new Date(),
-    payload,
   };
 }
 
@@ -43,7 +36,7 @@ describe('onJobTerminated', () => {
   it('arms the close-abandoned-streams workflow keyed on the job id', async () => {
     const jobId = crypto.randomUUID();
 
-    await onJobTerminated(buildEvent(jobId));
+    await onJobTerminated(buildPayload(jobId));
 
     expect(startMock).toHaveBeenCalledTimes(1);
     expect(startMock).toHaveBeenCalledWith('closeAbandonedStreams', {
@@ -56,13 +49,13 @@ describe('onJobTerminated', () => {
   it('swallows a redelivered event when the workflow is already started', async () => {
     startMock.mockRejectedValue(alreadyStartedError());
 
-    await expect(onJobTerminated(buildEvent(crypto.randomUUID()))).resolves.toBeUndefined();
+    await expect(onJobTerminated(buildPayload(crypto.randomUUID()))).resolves.toBeUndefined();
   });
 
   it('re-throws an unexpected start failure so the outbox retries delivery', async () => {
     startMock.mockRejectedValue(new Error('temporal unreachable'));
 
-    await expect(onJobTerminated(buildEvent(crypto.randomUUID()))).rejects.toThrow(
+    await expect(onJobTerminated(buildPayload(crypto.randomUUID()))).rejects.toThrow(
       'temporal unreachable',
     );
   });
