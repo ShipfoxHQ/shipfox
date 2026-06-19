@@ -9,6 +9,11 @@ import {assertGitAvailable, CheckoutError, checkoutRepository} from '#checkout.j
 // flag mistake a mock would accept fails here. git is a runner host prerequisite, so it is
 // present in CI. Only the network/auth/abort paths (which a local remote cannot produce)
 // stay mocked in checkout.test.ts.
+//
+// The file:// transport ignores http.extraHeader, so these tests prove the env-config syntax
+// is accepted, the clone succeeds, and the credential is never persisted to .git/config. They
+// do not prove the header reaches the HTTP wire; that transport-level check is out of unit
+// scope (covered end-to-end against a real provider).
 const execFileAsync = promisify(execFile);
 
 let workdir: string;

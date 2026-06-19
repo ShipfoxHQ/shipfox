@@ -4,7 +4,6 @@ export {
   type CheckoutFailureKind,
   checkoutRepository,
   GitUnavailableError,
-  redactSecrets,
 } from '#checkout.js';
 export {
   cleanupWorkspace,

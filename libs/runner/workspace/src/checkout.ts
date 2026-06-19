@@ -1,13 +1,17 @@
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import type {CheckoutTokenAuthDto} from '@shipfox/api-workflows-dto';
+import {redactSecrets, secretWireForms} from '@shipfox/redact';
 
 const execFileAsync = promisify(execFile);
 
-/** Thrown when `git` is not on the runner host's PATH; surfaced as `git_unavailable`. */
+/**
+ * Thrown when `git` is unusable on the runner host: absent from PATH, or older than the
+ * minimum version the checkout requires. Surfaced as `git_unavailable` by the setup step.
+ */
 export class GitUnavailableError extends Error {
-  constructor(options?: ErrorOptions) {
-    super('git is not available on the runner host', options);
+  constructor(message = 'git is not available on the runner host', options?: ErrorOptions) {
+    super(message, options);
     this.name = 'GitUnavailableError';
   }
 }
@@ -29,25 +33,57 @@ export class CheckoutError extends Error {
   }
 }
 
-/** Throws {@link GitUnavailableError} when `git` cannot be invoked on the host. */
+// Env-based config injection (GIT_CONFIG_*) requires git 2.31; older git silently ignores it,
+// which would run the clone with no credential. Gate on the version so that failure surfaces
+// as a clear setup error before any step runs, not as a confusing downstream auth rejection.
+const MIN_GIT_VERSION = {major: 2, minor: 31} as const;
+
+// Matches major.minor only, tolerating trailing text ("2.39.5 (Apple Git-154)", "...windows.1").
+const GIT_VERSION = /git version (\d+)\.(\d+)/i;
+// Anything outside printable ASCII; replaced with a space when sanitizing host-controlled output.
+const NON_PRINTABLE_ASCII = /[^\x20-\x7e]/g;
+
+/**
+ * Resolves when `git` is present and at least {@link MIN_GIT_VERSION}; otherwise throws
+ * {@link GitUnavailableError}. Fails closed: an unparseable `git --version` is treated as
+ * unusable, since the checkout cannot prove the host supports `GIT_CONFIG_*` injection.
+ */
 export async function assertGitAvailable(): Promise<void> {
+  let stdout: string;
   try {
-    await execFileAsync('git', ['--version']);
+    ({stdout} = await execFileAsync('git', ['--version']));
   } catch (error) {
-    throw new GitUnavailableError({cause: error});
+    throw new GitUnavailableError(undefined, {cause: error});
+  }
+
+  const version = parseGitVersion(stdout);
+  if (!version || !meetsMinimum(version)) {
+    throw new GitUnavailableError(
+      `git ${MIN_GIT_VERSION.major}.${MIN_GIT_VERSION.minor} or newer is required on the runner ` +
+        'host (the checkout credential is injected via GIT_CONFIG_* environment variables, ' +
+        `supported since git ${MIN_GIT_VERSION.major}.${MIN_GIT_VERSION.minor}); found ` +
+        describeGitVersion(stdout),
+    );
   }
 }
 
-/**
- * Removes every occurrence of each secret plus any URL-embedded `user:pass@` credential
- * from `text`, so a clone error never carries token material into a log or step result.
- */
-export function redactSecrets(text: string, secrets: string[]): string {
-  let redacted = text;
-  for (const secret of secrets) {
-    if (secret) redacted = redacted.split(secret).join('***');
-  }
-  return redacted.replace(/(https?:\/\/)[^/@\s]+@/gi, '$1***@');
+function parseGitVersion(output: string): {major: number; minor: number} | undefined {
+  const match = GIT_VERSION.exec(output);
+  if (!match) return undefined;
+  return {major: Number(match[1]), minor: Number(match[2])};
+}
+
+function meetsMinimum(version: {major: number; minor: number}): boolean {
+  if (version.major !== MIN_GIT_VERSION.major) return version.major > MIN_GIT_VERSION.major;
+  return version.minor >= MIN_GIT_VERSION.minor;
+}
+
+// `git --version` output is host-controlled (a wrapper or shim on PATH can emit anything), and
+// this string lands in a logged step-error message. Keep only printable ASCII and bound the
+// length so control bytes or a megabyte of garbage cannot poison the log.
+function describeGitVersion(output: string): string {
+  const sanitized = output.replace(NON_PRINTABLE_ASCII, ' ').trim().slice(0, 80);
+  return sanitized ? `"${sanitized}"` : 'an unrecognized version';
 }
 
 // git surfaces credential rejection and provider-availability failures only through
@@ -58,11 +94,29 @@ const AUTH_FAILURE =
 const PROVIDER_UNAVAILABLE =
   /could not resolve host|could not connect|connection timed out|failed to connect|temporary failure in name resolution|the requested url returned error: (?:429|5\d\d)/i;
 
+const GIT_CONFIG_INDEXED_KEY = /^GIT_CONFIG_(?:COUNT|KEY_\d+|VALUE_\d+)$/;
+
+// Git reads injected config from two environment channels: the GIT_CONFIG_COUNT /
+// GIT_CONFIG_KEY_<n> / GIT_CONFIG_VALUE_<n> triples, and GIT_CONFIG_PARAMETERS (the channel
+// `-c` populates internally). Strip both from every git child so our injected header is the
+// only env-sourced config and a clone behaves identically regardless of the host environment.
+function gitChildEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {...process.env, GIT_TERMINAL_PROMPT: '0'};
+  for (const key of Object.keys(env)) {
+    if (GIT_CONFIG_INDEXED_KEY.test(key)) delete env[key];
+  }
+  delete env.GIT_CONFIG_PARAMETERS;
+  return env;
+}
+
 /**
  * Shallow-clones `ref` of `repositoryUrl` into `cwd` (which must already exist and be empty).
  *
- * The credential is injected with a one-shot `-c http.extraHeader`, never embedded in the
- * clone URL, so it is not persisted to `.git/config` where later user steps could read it.
+ * The credential rides a process-scoped `GIT_CONFIG_*` environment pair (`http.extraHeader`),
+ * never a CLI argument and never embedded in the clone URL. This keeps it out of the process
+ * argv (so it cannot be read via `ps` / `/proc/<pid>/cmdline` while the clone runs) and out of
+ * `.git/config`, where a later user step could read it. The child environment is first
+ * sanitized of any inherited git config-injection channels (see {@link gitChildEnv}).
  * `GIT_TERMINAL_PROMPT=0` turns a missing or denied credential into an immediate error
  * instead of a hang on an interactive prompt. Failures are classified into a
  * {@link CheckoutError} and have any token material redacted from their message.
@@ -76,17 +130,17 @@ export async function checkoutRepository(params: {
 }): Promise<void> {
   const {repositoryUrl, ref, auth, cwd, signal} = params;
 
-  const args: string[] = [];
+  const args = ['clone', '--depth=1', '--single-branch', '--branch', ref, repositoryUrl, cwd];
+
+  const env = gitChildEnv();
   if (auth) {
-    args.push('-c', `http.extraHeader=Authorization: ${authorizationValue(auth)}`);
+    env.GIT_CONFIG_COUNT = '1';
+    env.GIT_CONFIG_KEY_0 = 'http.extraHeader';
+    env.GIT_CONFIG_VALUE_0 = `Authorization: ${authorizationValue(auth)}`;
   }
-  args.push('clone', '--depth=1', '--single-branch', '--branch', ref, repositoryUrl, cwd);
 
   try {
-    await execFileAsync('git', args, {
-      env: {...process.env, GIT_TERMINAL_PROMPT: '0'},
-      ...(signal ? {signal} : {}),
-    });
+    await execFileAsync('git', args, {env, ...(signal ? {signal} : {})});
   } catch (error) {
     throw classifyCloneError(error, auth);
   }
@@ -101,13 +155,13 @@ function authorizationValue(auth: CheckoutTokenAuthDto): string {
   return `Basic ${basicCredential(auth)}`;
 }
 
-// Every form the credential takes on the wire is secret. For basic auth the raw token is
-// not a substring of the base64 the header carries, so redacting only the token would
-// leak the base64; include it explicitly.
+// Every form the credential takes on the wire is secret. `secretWireForms` derives the token's
+// encoded variants (base64/base64url/hex/url-encoded); the Basic header carries
+// `base64(username:token)`, which is not a wire form of the token alone, so add it explicitly.
 function secretsOf(auth: CheckoutTokenAuthDto | undefined): string[] {
   if (!auth) return [];
-  if (auth.kind === 'bearer') return [auth.token];
-  return [auth.token, basicCredential(auth)];
+  if (auth.kind === 'bearer') return secretWireForms(auth.token);
+  return [...secretWireForms(auth.token), basicCredential(auth)];
 }
 
 function classifyCloneError(error: unknown, auth: CheckoutTokenAuthDto | undefined): CheckoutError {
@@ -118,8 +172,8 @@ function classifyCloneError(error: unknown, auth: CheckoutTokenAuthDto | undefin
   const secrets = secretsOf(auth);
   const stderr = stderrOf(error);
   const message = redactSecrets(stderr.trim() || errorMessage(error), secrets);
-  // The raw execFile error carries the full argv (including the Authorization header) in
-  // its `message`/`cmd`, so it can never ride the cause chain into a logger un-redacted.
+  // Defense in depth: the credential no longer rides argv, but git stderr can still echo a
+  // credential-bearing URL, so scrub the cause too before it can reach a logger.
   const cause = secrets.length > 0 ? redactedCause(error, secrets) : error;
 
   if (AUTH_FAILURE.test(stderr)) return new CheckoutError('auth', message, {cause});
