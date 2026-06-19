@@ -3,7 +3,7 @@ import {db} from '#db/db.js';
 import {listOpenStreamsByJob} from '#db/streams.js';
 
 /**
- * Force-closes every stream still open for a terminated job — the runner died, was
+ * Force-closes every stream still open for a terminated job: the runner died, was
  * capped, or its spool failed, so it never sent an end record. Each stream closes in
  * its own transaction through the guarded `closeStream`, so one that the declared
  * path closed in the meantime is skipped (returns null). A `runner_lost` tombstone

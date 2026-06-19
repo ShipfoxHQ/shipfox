@@ -12,8 +12,8 @@ export interface CloseAbandonedStreamsInput {
 
 /**
  * Started by the `WORKFLOWS_JOB_TERMINATED` subscriber, deduped per job. Waits out
- * the grace period — so a last in-flight append can land and the runner's own
- * declared close can win — then force-closes whatever is still open.
+ * the grace period (so a last in-flight append can land and the runner's own
+ * declared close can win), then force-closes whatever is still open.
  */
 export async function closeAbandonedStreams(input: CloseAbandonedStreamsInput): Promise<void> {
   await sleep(input.graceSeconds * 1000);

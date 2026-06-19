@@ -131,7 +131,7 @@ export async function setDeclaredTotalBytes(
  * Guarded close: flips `open → closed` and stamps `closed_at` iff the stream is
  * still open, returning the closed row (or null when another path already closed
  * it). The `WHERE state='open'` predicate is both the row lock and the
- * exactly-once gate. `committed_length` is left untouched — it stays equal to the
+ * exactly-once gate. `committed_length` is left untouched; it stays equal to the
  * runner spool bytes. `truncated` is set only on the timeout path.
  */
 export async function markStreamClosed(
