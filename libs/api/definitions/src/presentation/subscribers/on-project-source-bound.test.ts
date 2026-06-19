@@ -1,5 +1,4 @@
 import type {ProjectSourceBoundEvent} from '@shipfox/api-projects-dto';
-import type {DomainEvent} from '@shipfox/node-outbox';
 import {onProjectSourceBound} from './on-project-source-bound.js';
 
 const startMock = vi.fn();
@@ -23,15 +22,6 @@ function buildPayload(): ProjectSourceBoundEvent {
   };
 }
 
-function buildEvent(payload: ProjectSourceBoundEvent): DomainEvent {
-  return {
-    id: crypto.randomUUID(),
-    type: 'projects.project.source_bound',
-    createdAt: new Date(),
-    payload,
-  };
-}
-
 describe('onProjectSourceBound', () => {
   beforeEach(() => {
     startMock.mockReset();
@@ -41,7 +31,7 @@ describe('onProjectSourceBound', () => {
   it('starts a definition sync workflow keyed on project + bind', async () => {
     const payload = buildPayload();
 
-    const result = onProjectSourceBound(buildEvent(payload));
+    const result = onProjectSourceBound(payload);
     await result;
 
     expect(startMock).toHaveBeenCalledTimes(1);
@@ -68,7 +58,7 @@ describe('onProjectSourceBound', () => {
     startMock.mockRejectedValueOnce(failure);
     const payload = buildPayload();
 
-    const result = onProjectSourceBound(buildEvent(payload));
+    const result = onProjectSourceBound(payload);
 
     await expect(result).rejects.toBe(failure);
   });

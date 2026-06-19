@@ -27,7 +27,7 @@ function buildEvent(
   overrides: Partial<IntegrationSourceCommitPushedEvent> = {},
   pushOverrides: Partial<SourcePushPayload> = {},
   id = crypto.randomUUID(),
-): DomainEvent {
+): DomainEvent<IntegrationSourceCommitPushedEvent> {
   return {
     id,
     type: INTEGRATION_SOURCE_COMMIT_PUSHED,
@@ -71,7 +71,7 @@ describe('onSourceCommitPushed', () => {
       {externalRepositoryId},
     );
 
-    await onSourceCommitPushed(event);
+    await onSourceCommitPushed(event.payload, event);
 
     const rows = await listCommitObservedEvents(externalRepositoryId);
     expect(rows).toHaveLength(1);
@@ -100,7 +100,7 @@ describe('onSourceCommitPushed', () => {
       {externalRepositoryId, ref: 'feature/x', isDefaultBranch: false},
     );
 
-    await onSourceCommitPushed(event);
+    await onSourceCommitPushed(event.payload, event);
 
     const rows = await listCommitObservedEvents(externalRepositoryId);
     expect(rows).toHaveLength(0);
@@ -110,7 +110,7 @@ describe('onSourceCommitPushed', () => {
     const externalRepositoryId = `github:${crypto.randomUUID()}`;
     const event = buildEvent({}, {externalRepositoryId});
 
-    await onSourceCommitPushed(event);
+    await onSourceCommitPushed(event.payload, event);
 
     const rows = await listCommitObservedEvents(externalRepositoryId);
     expect(rows).toHaveLength(0);
@@ -130,8 +130,8 @@ describe('onSourceCommitPushed', () => {
       {externalRepositoryId},
     );
 
-    await onSourceCommitPushed(event);
-    await onSourceCommitPushed(event);
+    await onSourceCommitPushed(event.payload, event);
+    await onSourceCommitPushed(event.payload, event);
 
     const rows = await listCommitObservedEvents(externalRepositoryId);
     expect(rows).toHaveLength(1);

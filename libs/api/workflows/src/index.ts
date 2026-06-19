@@ -1,11 +1,12 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {RUNNER_JOB_LEASE_EXPIRED} from '@shipfox/api-runners-dto';
+import {RUNNER_JOB_LEASE_EXPIRED, type RunnersEventMap} from '@shipfox/api-runners-dto';
 import {
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_WORKFLOW_RUN_CREATED,
+  type WorkflowsEventMap,
 } from '@shipfox/api-workflows-dto';
-import type {ShipfoxModule} from '@shipfox/node-module';
+import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, workflowsOutbox} from '#db/index.js';
 import {
   onJobStepsSettled,
@@ -24,15 +25,17 @@ export {routes} from '#presentation/index.js';
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
+const subscriber = subscriberFactory<WorkflowsEventMap & RunnersEventMap>();
+
 export const workflowsModule: ShipfoxModule = {
   name: 'workflows',
   database: {db, migrationsPath},
   routes,
   publishers: [{name: 'workflows', table: workflowsOutbox, db}],
   subscribers: [
-    {event: WORKFLOWS_WORKFLOW_RUN_CREATED, handler: onWorkflowRunCreated},
-    {event: WORKFLOWS_JOB_STEPS_SETTLED, handler: onJobStepsSettled},
-    {event: RUNNER_JOB_LEASE_EXPIRED, handler: onRunnerJobLeaseExpired},
+    subscriber(WORKFLOWS_WORKFLOW_RUN_CREATED, onWorkflowRunCreated),
+    subscriber(WORKFLOWS_JOB_STEPS_SETTLED, onJobStepsSettled),
+    subscriber(RUNNER_JOB_LEASE_EXPIRED, onRunnerJobLeaseExpired),
   ],
   workers: [
     {

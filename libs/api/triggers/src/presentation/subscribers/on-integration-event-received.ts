@@ -7,9 +7,10 @@ import {findMatchingSubscriptions} from '#db/subscriptions.js';
 // Source-agnostic dispatcher: any inbound integration event fans out to every
 // workspace subscription registered for its (source, event), passing the raw
 // payload through untouched. The module knows nothing about github, gitlab, etc.
-export async function onIntegrationEventReceived(event: DomainEvent): Promise<void> {
-  const envelope = event.payload as IntegrationEventReceivedEvent;
-
+export async function onIntegrationEventReceived(
+  envelope: IntegrationEventReceivedEvent,
+  event: DomainEvent<IntegrationEventReceivedEvent>,
+): Promise<void> {
   const subscriptions = await findMatchingSubscriptions({
     workspaceId: envelope.workspaceId,
     source: envelope.source,

@@ -26,13 +26,24 @@ function buildEnvelope(
   };
 }
 
-function buildEvent(payload: IntegrationEventReceivedEvent, id = crypto.randomUUID()): DomainEvent {
+function buildEvent(
+  payload: IntegrationEventReceivedEvent,
+  id = crypto.randomUUID(),
+): DomainEvent<IntegrationEventReceivedEvent> {
   return {
     id,
     type: 'integrations.event.received',
     createdAt: new Date(),
     payload,
   };
+}
+
+function dispatch(
+  overrides: Partial<IntegrationEventReceivedEvent> = {},
+  id = crypto.randomUUID(),
+): Promise<void> {
+  const envelope = buildEnvelope(overrides);
+  return onIntegrationEventReceived(envelope, buildEvent(envelope, id));
 }
 
 describe('onIntegrationEventReceived (triggers)', () => {
@@ -57,7 +68,7 @@ describe('onIntegrationEventReceived (triggers)', () => {
       config: {},
     });
 
-    await onIntegrationEventReceived(buildEvent(buildEnvelope({workspaceId})));
+    await dispatch({workspaceId});
 
     expect(runWorkflow).toHaveBeenCalledTimes(2);
     const firedProjects = runWorkflow.mock.calls.map(([params]) => params.projectId);
@@ -75,7 +86,7 @@ describe('onIntegrationEventReceived (triggers)', () => {
       config: {},
     });
 
-    await onIntegrationEventReceived(buildEvent(buildEnvelope({workspaceId, deliveryId, payload})));
+    await dispatch({workspaceId, deliveryId, payload});
 
     expect(runWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -93,9 +104,7 @@ describe('onIntegrationEventReceived (triggers)', () => {
       config: {},
     });
 
-    await onIntegrationEventReceived(
-      buildEvent(buildEnvelope({workspaceId, source: 'sentry', event: 'alert_triggered'})),
-    );
+    await dispatch({workspaceId, source: 'sentry', event: 'alert_triggered'});
 
     expect(runWorkflow).toHaveBeenCalledTimes(1);
     expect(runWorkflow).toHaveBeenCalledWith(
@@ -115,7 +124,7 @@ describe('onIntegrationEventReceived (triggers)', () => {
     });
     const eventId = crypto.randomUUID();
 
-    await onIntegrationEventReceived(buildEvent(buildEnvelope({workspaceId}), eventId));
+    await dispatch({workspaceId}, eventId);
 
     expect(runWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({triggerIdempotencyKey: `${subscription.id}:${eventId}`}),
@@ -131,7 +140,7 @@ describe('onIntegrationEventReceived (triggers)', () => {
       config: {with: {env: 'staging'}},
     });
 
-    await onIntegrationEventReceived(buildEvent(buildEnvelope({workspaceId})));
+    await dispatch({workspaceId});
 
     expect(runWorkflow).toHaveBeenCalledWith(expect.objectContaining({inputs: {env: 'staging'}}));
   });
@@ -145,9 +154,7 @@ describe('onIntegrationEventReceived (triggers)', () => {
       config: {},
     });
 
-    await onIntegrationEventReceived(
-      buildEvent(buildEnvelope({workspaceId, event: 'pull_request'})),
-    );
+    await dispatch({workspaceId, event: 'pull_request'});
 
     expect(runWorkflow).not.toHaveBeenCalled();
   });

@@ -1,5 +1,4 @@
-import {WORKFLOWS_JOB_TIMED_OUT} from '@shipfox/api-workflows-dto';
-import type {DomainEvent} from '@shipfox/node-outbox';
+import type {WorkflowsJobTimedOutEvent} from '@shipfox/api-workflows-dto';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {claimPendingJob} from '#db/jobs.js';
@@ -7,13 +6,8 @@ import {runningJobs} from '#db/schema/running-jobs.js';
 import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
 import {onWorkflowsJobTimedOut} from './on-workflows-job-timed-out.js';
 
-function buildEvent(jobId: string, runId: string): DomainEvent {
-  return {
-    id: crypto.randomUUID(),
-    type: WORKFLOWS_JOB_TIMED_OUT,
-    payload: {jobId, runId},
-    createdAt: new Date(),
-  };
+function buildPayload(jobId: string, runId: string): WorkflowsJobTimedOutEvent {
+  return {jobId, runId};
 }
 
 describe('onWorkflowsJobTimedOut', () => {
@@ -31,7 +25,7 @@ describe('onWorkflowsJobTimedOut', () => {
     const claimed = await claimPendingJob({workspaceId, runnerTokenId});
     expect(claimed).not.toBeNull();
 
-    await onWorkflowsJobTimedOut(buildEvent(claimed?.jobId as string, claimed?.runId as string));
+    await onWorkflowsJobTimedOut(buildPayload(claimed?.jobId as string, claimed?.runId as string));
 
     const rows = await db()
       .select()
@@ -44,7 +38,7 @@ describe('onWorkflowsJobTimedOut', () => {
     await pendingJobFactory.create({workspaceId});
     const claimed = await claimPendingJob({workspaceId, runnerTokenId});
 
-    await onWorkflowsJobTimedOut(buildEvent(claimed?.jobId as string, claimed?.runId as string));
+    await onWorkflowsJobTimedOut(buildPayload(claimed?.jobId as string, claimed?.runId as string));
     const after1 = await db()
       .select()
       .from(runningJobs)
@@ -52,7 +46,7 @@ describe('onWorkflowsJobTimedOut', () => {
     const firstTs = after1[0]?.cancellationRequestedAt;
 
     await new Promise((r) => setTimeout(r, 10));
-    await onWorkflowsJobTimedOut(buildEvent(claimed?.jobId as string, claimed?.runId as string));
+    await onWorkflowsJobTimedOut(buildPayload(claimed?.jobId as string, claimed?.runId as string));
 
     const after2 = await db()
       .select()
@@ -64,7 +58,7 @@ describe('onWorkflowsJobTimedOut', () => {
   it('no-op when the running_jobs row is gone (already finalized)', async () => {
     // Row was finalized by another path before the event reached us.
     await expect(
-      onWorkflowsJobTimedOut(buildEvent(crypto.randomUUID(), crypto.randomUUID())),
+      onWorkflowsJobTimedOut(buildPayload(crypto.randomUUID(), crypto.randomUUID())),
     ).resolves.toBeUndefined();
   });
 });

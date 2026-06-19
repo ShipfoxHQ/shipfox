@@ -7,9 +7,11 @@ import {recordIntegrationEventForProject} from '#db/integration-event-dedup.js';
 import {getProjectBySource} from '#db/projects.js';
 import {projectsOutbox} from '#db/schema/outbox.js';
 
-export async function onSourceCommitPushed(event: DomainEvent): Promise<void> {
-  const {provider, workspaceId, connectionId, push} =
-    event.payload as IntegrationSourceCommitPushedEvent;
+export async function onSourceCommitPushed(
+  payload: IntegrationSourceCommitPushedEvent,
+  event: DomainEvent<IntegrationSourceCommitPushedEvent>,
+): Promise<void> {
+  const {provider, workspaceId, connectionId, push} = payload;
 
   // Projects only track the default branch; other branches are someone else's policy.
   if (!push.isDefaultBranch) {
