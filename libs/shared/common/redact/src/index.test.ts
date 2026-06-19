@@ -48,6 +48,7 @@ describe('redactUrlCredentials', () => {
     'myapp:1.2.3@sha256:abcdef',
     'a:b@host:1',
     'https://github.com/o/r.git',
+    'notify user@example.com about the build',
     'no credentials here at all',
     '',
   ])('leaves %s unchanged', (input) => {
@@ -59,15 +60,24 @@ describe('redactUrlCredentials', () => {
   it('stays linear on long adversarial input (ReDoS guard)', () => {
     const noColon = 'a'.repeat(200_000);
     const schemeNoAt = `https://${'a'.repeat(200_000)}`;
+    const time = (fn: () => void): number => {
+      const start = performance.now();
+      fn();
+      return performance.now() - start;
+    };
 
-    const start = performance.now();
-    const a = redactUrlCredentials(noColon);
-    const b = redactUrlCredentials(schemeNoAt);
-    const elapsed = performance.now() - start;
+    // Machine-relative budget: a plain linear scan over the same input scales
+    // with the runner's speed, so this avoids the flakiness of an absolute
+    // millisecond cap. A catastrophic-backtracking regex would run orders of
+    // magnitude slower than this baseline (the bounded scheme prevents it).
+    const linearScan = time(() => noColon.replace(/a/g, 'a'));
+    const baseline = Math.max(linearScan, 1);
+    const elapsed = time(() => {
+      expect(redactUrlCredentials(noColon)).toBe(noColon);
+      expect(redactUrlCredentials(schemeNoAt)).toBe(schemeNoAt);
+    });
 
-    expect(a).toBe(noColon);
-    expect(b).toBe(schemeNoAt);
-    expect(elapsed).toBeLessThan(1000);
+    expect(elapsed).toBeLessThan(baseline * 100);
   });
 });
 
@@ -84,6 +94,13 @@ describe('stripUrlCredentials', () => {
     const result = stripUrlCredentials('https://user:pass@host:8080/p');
 
     expect(result).toBe('https://host:8080/p');
+  });
+
+  it('scrubs credentials when the authority is malformed and the URL does not parse', () => {
+    const result = stripUrlCredentials('https://x-access-token:ghs_secret@github.com:bad/o/r.git');
+
+    expect(result).toBe('https://***@github.com:bad/o/r.git');
+    expect(result).not.toContain('ghs_secret');
   });
 
   it.each([
@@ -103,6 +120,15 @@ describe('redactSecrets', () => {
     const result = redactSecrets('token=abc and again abc', ['abc']);
 
     expect(result).toBe('token=*** and again ***');
+  });
+
+  it.each([
+    [['abcdef', 'abc']],
+    [['abc', 'abcdef']],
+  ])('fully redacts overlapping secrets regardless of order: %j', (secrets) => {
+    const result = redactSecrets('token=abcdef', secrets);
+
+    expect(result).toBe('token=***');
   });
 
   it('redacts a base64 basic-auth credential', () => {

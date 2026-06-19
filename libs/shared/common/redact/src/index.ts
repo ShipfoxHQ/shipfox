@@ -18,15 +18,27 @@ const SCHEME_URL_CREDENTIALS = /([a-z][a-z0-9+.-]{0,31}:\/\/)[^@\s/?#]+@/gi;
  * security but would corrupt structurally identical strings (Docker digests
  * `name:tag@sha256:...`, `user:pass@host:port`). Literal secrets are removed by
  * {@link redactSecrets}; this pass only handles `://` URLs.
+ *
+ * This pass redacts userinfo up to the first `@` and treats `/`, `?`, and `#` as
+ * userinfo boundaries so it never bleeds into a path or query that contains an
+ * `@`. A credential whose userinfo itself contains a raw `@`, `/`, `?`, or `#`
+ * (all invalid unencoded per RFC 3986, but git can echo them) is therefore only
+ * partially masked here; {@link redactSecrets}'s literal pass is the backstop
+ * that removes such values in full.
  */
 export function redactUrlCredentials(text: string): string {
   return text.replace(SCHEME_URL_CREDENTIALS, `$1${REDACTION_PLACEHOLDER}@`);
 }
 
 /**
- * Removes a single known URL's `user:pass@` userinfo, returning a clean URL with
- * no `***@` residue. Falls back to the input unchanged when it is not a parseable
- * URL (e.g. scp-style `git@host:path`) or carries no credentials.
+ * Removes a single known URL's `user:pass@` userinfo. For a parseable URL it
+ * returns a clean URL with no `***@` residue; with no credentials it returns the
+ * input unchanged. When the value does not parse as a URL it falls back to the
+ * inline {@link redactUrlCredentials} scrubber, so a credential-bearing value
+ * whose authority is malformed (bad port, broken IPv6) is still masked (to
+ * `***@`) instead of being logged verbatim. A credential-free non-URL such as an
+ * scp-style remote (`git@host:path`) has no `scheme://`, so the fallback leaves
+ * it untouched.
  *
  * Defense in depth: callers must keep credential-free URLs, but a helper whose
  * job is to make a value safe to log must also strip any userinfo a mistake left
@@ -40,7 +52,7 @@ export function stripUrlCredentials(url: string): string {
     parsed.password = '';
     return parsed.toString();
   } catch {
-    return url;
+    return redactUrlCredentials(url);
   }
 }
 
@@ -51,11 +63,19 @@ export function stripUrlCredentials(url: string): string {
  *
  * Only the literal secrets passed are removed; deriving every wire form a
  * credential takes (e.g. the base64 of `user:token`) is the caller's job.
+ *
+ * Longer secrets are removed first, so when one secret is a substring of another
+ * the output is the same no matter what order the caller lists them in. Pass
+ * real, high-entropy secrets only; a trivially short literal (e.g. a single
+ * character) would scrub unrelated text.
  */
 export function redactSecrets(text: string, secrets: string[]): string {
   let redacted = text;
-  for (const secret of secrets) {
-    if (secret) redacted = redacted.split(secret).join(REDACTION_PLACEHOLDER);
+  // Remove longer secrets first: scrubbing a shorter secret that is a substring
+  // of a longer one would otherwise leave the longer secret's tail visible.
+  const longestFirst = [...secrets].filter(Boolean).sort((a, b) => b.length - a.length);
+  for (const secret of longestFirst) {
+    redacted = redacted.split(secret).join(REDACTION_PLACEHOLDER);
   }
   return redactUrlCredentials(redacted);
 }

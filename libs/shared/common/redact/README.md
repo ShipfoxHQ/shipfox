@@ -10,7 +10,10 @@ across Shipfox so they cannot drift.
   git, ssh, ...). Use it on log lines and command stderr.
 - **`stripUrlCredentials(url)`** removes the userinfo from a single known URL via
   `new URL()`, returning a clean URL with no `***@` residue. Use it on one URL
-  field you control. Returns the input unchanged when it does not parse.
+  field you control. When the value does not parse as a URL it falls back to
+  `redactUrlCredentials`, so a credential with a malformed authority is still
+  masked; a credential-free non-URL (scp-style `git@host:path`) is returned
+  unchanged.
 - **`redactSecrets(text, secrets)`** removes every occurrence of each literal
   secret, then applies `redactUrlCredentials`. Pass every wire form a secret
   takes (e.g. the base64 of `user:token`); the helper only removes the literals
