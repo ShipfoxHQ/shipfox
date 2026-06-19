@@ -52,12 +52,8 @@ export type {
   UpsertSentryInstallationParams,
 } from '#db/installations.js';
 export {
-  getSentryInstallationByConnectionId,
   getSentryInstallationByInstallationUuid,
-  listUnclaimedSentryInstallations,
-  markSentryInstallationDeleted,
   persistVerifiedUnclaimedInstallation,
-  pruneUnclaimedSentryInstallations,
   upsertSentryInstallation,
 } from '#db/installations.js';
 export {closeDb, db, migrationsPath};

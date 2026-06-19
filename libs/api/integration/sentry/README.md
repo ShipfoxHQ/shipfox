@@ -21,9 +21,12 @@ SENTRY_APP_CLIENT_ID=
 SENTRY_APP_CLIENT_SECRET=
 SENTRY_APP_SLUG=
 SENTRY_APP_VERIFY_INSTALL=true
+SENTRY_UNCLAIMED_INSTALLATION_RETENTION_DAYS=7
 ```
 
 `SENTRY_APP_CLIENT_SECRET` is the shared secret used to verify inbound webhooks with HMAC-SHA256 (Sentry signs deliveries with it, the provider verifies them).
+
+`SENTRY_UNCLAIMED_INSTALLATION_RETENTION_DAYS` (default 7, minimum 1) is how many days a verified-but-unclaimed installation may sit before the daily cleanup cron tombstones it. Startup fails on a value below 1.
 
 ## Webhook Route
 
