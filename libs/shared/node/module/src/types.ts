@@ -1,6 +1,7 @@
 import type {AuthMethod, RouteExport} from '@shipfox/node-fastify';
-import type {DomainEvent, OutboxTable} from '@shipfox/node-outbox';
+import type {OutboxTable} from '@shipfox/node-outbox';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
+import type {ModuleSubscriber} from './subscriber.js';
 
 export interface ModuleDatabase {
   db: () => NodePgDatabase<Record<string, unknown>>;
@@ -20,11 +21,6 @@ export interface ModulePublisher {
   name: string;
   table: OutboxTable;
   db: () => NodePgDatabase<Record<string, unknown>>;
-}
-
-export interface ModuleSubscriber {
-  event: string;
-  handler: (event: DomainEvent) => Promise<void>;
 }
 
 export interface WorkflowStart {

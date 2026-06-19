@@ -1,5 +1,4 @@
 import type {ProjectSourceCommitObservedEvent} from '@shipfox/api-projects-dto';
-import type {DomainEvent} from '@shipfox/node-outbox';
 import {onProjectSourceCommitObserved} from './on-project-source-commit-observed.js';
 
 const startMock = vi.fn();
@@ -24,15 +23,6 @@ function buildPayload(): ProjectSourceCommitObservedEvent {
   };
 }
 
-function buildEvent(payload: ProjectSourceCommitObservedEvent): DomainEvent {
-  return {
-    id: crypto.randomUUID(),
-    type: 'projects.project.source_commit_observed',
-    createdAt: new Date(),
-    payload,
-  };
-}
-
 describe('onProjectSourceCommitObserved', () => {
   beforeEach(() => {
     startMock.mockReset();
@@ -42,7 +32,7 @@ describe('onProjectSourceCommitObserved', () => {
   it('starts a definition sync workflow keyed on project + source commit sha', async () => {
     const payload = buildPayload();
 
-    const result = onProjectSourceCommitObserved(buildEvent(payload));
+    const result = onProjectSourceCommitObserved(payload);
     await result;
 
     expect(startMock).toHaveBeenCalledTimes(1);

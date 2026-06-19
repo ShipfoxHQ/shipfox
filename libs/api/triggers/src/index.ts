@@ -1,6 +1,13 @@
-import {DEFINITION_DELETED, DEFINITION_RESOLVED} from '@shipfox/api-definitions-dto';
-import {INTEGRATION_EVENT_RECEIVED} from '@shipfox/api-integration-core-dto';
-import type {ShipfoxModule} from '@shipfox/node-module';
+import {
+  DEFINITION_DELETED,
+  DEFINITION_RESOLVED,
+  type DefinitionsEventMap,
+} from '@shipfox/api-definitions-dto';
+import {
+  INTEGRATION_EVENT_RECEIVED,
+  type IntegrationsEventMap,
+} from '@shipfox/api-integration-core-dto';
+import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, triggersOutbox} from '#db/index.js';
 import {routes} from '#presentation/index.js';
 import {
@@ -27,14 +34,16 @@ export {
   triggersOutbox,
 } from '#db/index.js';
 
+const subscriber = subscriberFactory<DefinitionsEventMap & IntegrationsEventMap>();
+
 export const triggersModule: ShipfoxModule = {
   name: 'triggers',
   database: {db, migrationsPath},
   routes,
   publishers: [{name: 'triggers', table: triggersOutbox, db}],
   subscribers: [
-    {event: DEFINITION_RESOLVED, handler: onDefinitionResolved},
-    {event: DEFINITION_DELETED, handler: onDefinitionDeleted},
-    {event: INTEGRATION_EVENT_RECEIVED, handler: onIntegrationEventReceived},
+    subscriber(DEFINITION_RESOLVED, onDefinitionResolved),
+    subscriber(DEFINITION_DELETED, onDefinitionDeleted),
+    subscriber(INTEGRATION_EVENT_RECEIVED, onIntegrationEventReceived),
   ],
 };

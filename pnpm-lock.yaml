@@ -2969,6 +2969,9 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
 
   libs/shared/node/opentelemetry:
     dependencies:
