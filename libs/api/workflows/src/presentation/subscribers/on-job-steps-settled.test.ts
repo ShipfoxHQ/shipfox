@@ -43,6 +43,7 @@ describe('onJobStepsSettled', () => {
     const result = onJobStepsSettled(buildPayload());
 
     await expect(result).resolves.toBeUndefined();
+    expect(signalMock).toHaveBeenCalledTimes(1);
   });
 
   it('rethrows a non-terminal signal failure', async () => {

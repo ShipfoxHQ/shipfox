@@ -45,6 +45,7 @@ describe('onWorkflowRunCreated', () => {
     const result = onWorkflowRunCreated(buildPayload());
 
     await expect(result).resolves.toBeUndefined();
+    expect(startMock).toHaveBeenCalledTimes(1);
   });
 
   it('rethrows any other start failure', async () => {

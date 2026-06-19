@@ -19,6 +19,10 @@ export interface ModuleSubscriber {
  * against the map and the handler's `payload` is typed to that exact event, so a wrong
  * event name or a mismatched payload fails to compile and no handler hand-casts.
  *
+ * The intersected maps must keep disjoint event names; the module-namespaced event
+ * strings (`definitions.*`, `workflows.*`, ...) already guarantee this. A shared key with
+ * differing payloads would silently intersect to `never` rather than failing to compile.
+ *
  * Curried because TypeScript has no partial type-argument inference: the outer call
  * fixes `TMap`, the inner call infers the event key `K` from the `event` argument.
  */
