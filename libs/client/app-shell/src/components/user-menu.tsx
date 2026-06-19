@@ -31,7 +31,7 @@ export function UserMenu() {
         <button
           type="button"
           aria-label="User menu"
-          className="rounded-full focus-visible:outline-none focus-visible:shadow-button-secondary-focus"
+          className="rounded-full focus-visible:outline-none focus-visible:shadow-button-neutral-focus"
         >
           <Avatar size="sm" content="letters" fallback={email} />
         </button>

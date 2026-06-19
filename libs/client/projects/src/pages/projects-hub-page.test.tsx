@@ -71,6 +71,10 @@ describe('ProjectsHubPage', () => {
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
     expect(await screen.findByText('Platform')).toBeInTheDocument();
+    const projectLink = screen.getByText('Platform').closest('a');
+    expect(projectLink).toHaveClass('focus-visible:shadow-button-neutral-focus');
+    expect(projectLink?.className).not.toContain('shadow-button-secondary');
+
     fireEvent.click(screen.getByRole('button', {name: 'Load more'}));
 
     expect(await screen.findByText('API')).toBeInTheDocument();

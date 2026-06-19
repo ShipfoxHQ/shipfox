@@ -181,7 +181,7 @@ function ProjectCard({project, workspaceId}: {project: ProjectResponseDto; works
       <Link
         to="/workspaces/$wid/projects/$pid"
         params={{wid: workspaceId, pid: project.id}}
-        className="block h-full rounded-8 focus-visible:outline-none focus-visible:shadow-button-secondary-focus"
+        className="block h-full rounded-8 focus-visible:outline-none focus-visible:shadow-button-neutral-focus"
       >
         <Card className="p-20 h-full gap-12 hover:bg-background-components-hover transition-colors">
           <CardContent className="flex flex-col gap-8 p-0">

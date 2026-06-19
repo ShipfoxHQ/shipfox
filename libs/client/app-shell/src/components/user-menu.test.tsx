@@ -32,7 +32,11 @@ describe('UserMenu', () => {
       </ThemeProvider>,
     );
 
-    fireEvent.pointerDown(screen.getByRole('button', {name: 'User menu'}), {
+    const trigger = screen.getByRole('button', {name: 'User menu'});
+    expect(trigger).toHaveClass('focus-visible:shadow-button-neutral-focus');
+    expect(trigger.className).not.toContain('shadow-button-secondary');
+
+    fireEvent.pointerDown(trigger, {
       button: 0,
       ctrlKey: false,
     });
