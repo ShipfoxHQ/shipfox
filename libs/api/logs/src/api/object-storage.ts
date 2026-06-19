@@ -2,6 +2,7 @@ import type {Readable} from 'node:stream';
 import {DeleteObjectCommand, HeadBucketCommand, S3Client} from '@aws-sdk/client-s3';
 import {Upload} from '@aws-sdk/lib-storage';
 import {config} from '#config.js';
+import {type LogObjectKeyParams, logObjectKey} from '#core/entities/log-object.js';
 
 let _client: S3Client | undefined;
 
@@ -70,20 +71,17 @@ export function closeUploadS3Client(): void {
   _uploadClient = undefined;
 }
 
-export interface CompactedObjectIdentity {
-  workspaceId: string;
-  jobId: string;
-  stepId: string;
-  attempt: number;
-}
-
 /**
- * Stable, hierarchical object key for a compacted attempt stream. The hierarchy makes
- * retention and workspace deletion prefix operations (`logs/{workspaceId}/...`); the key
- * is stable per stream, so a re-run overwrites rather than duplicates.
+ * Per-attempt object key for a compacted stream: the stream's stable prefix
+ * (`logObjectKey` -> `logs/{workspaceId}/{jobId}/{stepId}/{attempt}`, shared with retention
+ * and workspace prefix deletes) plus a unique `uploadToken` leaf. Each compaction attempt
+ * uploads to its own key and the winner records it atomically, so a slow or zombie attempt
+ * can never overwrite a published object. Losing and crashed attempts leave a leaf under the
+ * same prefix, reclaimed by the bucket's incomplete-multipart-abort rule and prefix-scoped
+ * retention.
  */
-export function compactedObjectKey(id: CompactedObjectIdentity): string {
-  return `logs/${id.workspaceId}/${id.jobId}/${id.stepId}/${id.attempt}`;
+export function compactedObjectKey(identity: LogObjectKeyParams, uploadToken: string): string {
+  return `${logObjectKey(identity)}/${uploadToken}`;
 }
 
 // lib-storage defaults (5MB parts, queue of 4); we pin a small queue so peak buffer memory
@@ -103,6 +101,12 @@ export interface PutCompactedObjectParams {
  * Streams `body` (gzip-compressed NDJSON) to the compacted object via a multipart upload.
  * `Content-Encoding: gzip` so a browser-direct presigned GET auto-decompresses. Aborts the
  * multipart upload when `signal` fires, so a cancelled activity leaves no dangling parts.
+ *
+ * A hard crash (no graceful abort) can still strand incomplete multipart parts, which on
+ * pay-per-storage providers (S3, R2) bill until aborted. The worker never sets bucket
+ * policy, so the deployed bucket must carry an `AbortIncompleteMultipartUpload` lifecycle
+ * rule. `dev/garage/bootstrap.sh` provisions it for local Garage; self-hosters set the same
+ * rule on their bucket.
  */
 export async function putCompactedObject(params: PutCompactedObjectParams): Promise<void> {
   const upload = new Upload({
@@ -138,14 +142,10 @@ export async function putCompactedObject(params: PutCompactedObjectParams): Prom
   await upload.done();
 }
 
-/** Deletes a compacted object. Tolerates a missing key so retention and the orphan guard are idempotent. */
+/**
+ * Deletes a compacted object. S3 `DeleteObject` is idempotent (a missing key is a success),
+ * so retention and the publish orphan guard can call it freely without a pre-check.
+ */
 export async function deleteObject(key: string): Promise<void> {
-  try {
-    await s3Client().send(
-      new DeleteObjectCommand({Bucket: config.LOG_STORAGE_S3_BUCKET, Key: key}),
-    );
-  } catch (error) {
-    if (error instanceof Error && error.name === 'NoSuchKey') return;
-    throw error;
-  }
+  await s3Client().send(new DeleteObjectCommand({Bucket: config.LOG_STORAGE_S3_BUCKET, Key: key}));
 }

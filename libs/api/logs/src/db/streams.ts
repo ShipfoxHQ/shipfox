@@ -171,11 +171,13 @@ export async function getAttemptStreamById(streamId: string): Promise<AttemptStr
 }
 
 /**
- * Final compaction step: records the object key and deletes the now-cold chunk rows in
- * one transaction. The guard is `state='closed'` only (never `object_key IS NULL`): a
- * re-run no-ops earlier when the key is already set, so a 0-row result here means the row
- * was hard-deleted by retention mid-upload, not that it was already compacted. The caller
- * deletes the orphaned object in that case. Returns whether the row was updated.
+ * Final compaction step: records the object key and deletes the now-cold chunk rows in one
+ * transaction. The guard is `state='closed' AND object_key IS NULL`, so the publish is a
+ * single winner even when two compaction attempts (e.g. a heartbeat-timed-out run and its
+ * retry) race: each uploads to its own key, and only the first to land here writes a key and
+ * drops the chunks. A 0-row result means the row was either hard-deleted by retention or
+ * already published by another attempt; the caller re-reads to tell those apart and deletes
+ * its own now-orphaned upload either way. Returns whether this attempt won the publish.
  */
 export async function setObjectKeyAndDeleteChunks(
   tx: Transaction,
@@ -184,7 +186,13 @@ export async function setObjectKeyAndDeleteChunks(
   const updated = await tx
     .update(attemptStreams)
     .set({objectKey: params.objectKey, updatedAt: sql`now()`})
-    .where(and(eq(attemptStreams.id, params.streamId), eq(attemptStreams.state, 'closed')))
+    .where(
+      and(
+        eq(attemptStreams.id, params.streamId),
+        eq(attemptStreams.state, 'closed'),
+        isNull(attemptStreams.objectKey),
+      ),
+    )
     .returning({id: attemptStreams.id});
 
   if (updated.length === 0) return {updated: false};

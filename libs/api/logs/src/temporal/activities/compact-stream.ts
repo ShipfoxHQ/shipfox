@@ -8,6 +8,7 @@ import {getAttemptStreamById, setObjectKeyAndDeleteChunks} from '#db/streams.js'
 export type CompactStreamResult =
   | {outcome: 'gone'}
   | {outcome: 'already-compacted'}
+  | {outcome: 'superseded'}
   | {outcome: 'retention-raced'}
   | {outcome: 'compacted'; objectKey: string; chunkCount: number; uncompressedBytes: number};
 
@@ -16,16 +17,18 @@ export type CompactStreamResult =
  *
  *   load stream ──┬─ gone ─────────────► no-op (retention raced)
  *                 ├─ object_key set ───► no-op (idempotent re-run)
- *                 └─ else: stream chunks ─► gzip ─► multipart upload (abort-aware, heartbeat)
+ *                 └─ else: upload to a per-attempt key ─► gzip ─► multipart (abort-aware, heartbeat)
  *                          │
- *                 verify streamed count/maxSeq == table   (mismatch ─► throw, retry, no delete)
+ *                 verify streamed count/maxSeq/bytes == table  (mismatch ─► delete upload, throw, retry)
  *                          │
- *                 tx: set object_key (state='closed') + delete chunks
- *                          └─ 0 rows (row retention-deleted mid-upload) ─► deleteObject (no orphan)
+ *                 tx: set object_key (state='closed' AND object_key IS NULL) + delete chunks
+ *                          └─ 0 rows ─► delete this attempt's upload, then re-read the row:
+ *                                         gone ─► retention raced · keyed ─► superseded by another attempt
  *
- * Crash-safe via the stable key: a re-run overwrites a partial object with a complete one,
- * and the row update + chunk delete are atomic, so chunks are dropped only once the object
- * is durable. The integrity check guards against a read bug uploading a truncated object
+ * Each attempt uploads to its own `compactedObjectKey(stream, uuid)`, so a slow or zombie
+ * attempt can never overwrite a published object. The single-winner publish (object_key set
+ * + chunk delete, atomic) drops chunks only once a complete object is durable; the integrity
+ * check (count, maxSeq, and byte total) guards a read bug from publishing a truncated object
  * before the only copy of the source is gone (S3 part checksums cover byte transfer).
  */
 export async function compactStreamActivity(params: {
@@ -35,13 +38,13 @@ export async function compactStreamActivity(params: {
   if (!stream) return {outcome: 'gone'};
   if (stream.objectKey) return {outcome: 'already-compacted'};
 
-  const key = compactedObjectKey(stream);
-  const expected = await chunkStats(stream.id);
-  const {body, stats} = compactedGzipStream(stream.id);
-
   const ctx = Context.current();
+  const uploadKey = compactedObjectKey(stream, crypto.randomUUID());
+  const expected = await chunkStats(stream.id);
+  const {body, stats} = compactedGzipStream({streamId: stream.id, onPage: () => ctx.heartbeat()});
+
   await putCompactedObject({
-    key,
+    key: uploadKey,
     body,
     signal: ctx.cancellationSignal,
     onProgress: () => ctx.heartbeat(),
@@ -53,23 +56,29 @@ export async function compactStreamActivity(params: {
     },
   });
 
-  if (stats.chunkCount !== expected.count || stats.lastSeq !== expected.maxSeq) {
+  if (
+    stats.chunkCount !== expected.count ||
+    stats.lastSeq !== expected.maxSeq ||
+    stats.uncompressedBytes !== expected.uncompressedBytes
+  ) {
+    await deleteObject(uploadKey).catch(() => undefined);
     throw new Error(
-      `Compaction integrity check failed for stream ${stream.id}: streamed ${stats.chunkCount} chunks up to seq ${stats.lastSeq}, table holds ${expected.count} up to seq ${expected.maxSeq}`,
+      `Compaction integrity check failed for stream ${stream.id}: streamed ${stats.chunkCount} chunks / ${stats.uncompressedBytes} bytes up to seq ${stats.lastSeq}, table holds ${expected.count} / ${expected.uncompressedBytes} bytes up to seq ${expected.maxSeq}`,
     );
   }
 
   const {updated} = await db().transaction((tx) =>
-    setObjectKeyAndDeleteChunks(tx, {streamId: stream.id, objectKey: key}),
+    setObjectKeyAndDeleteChunks(tx, {streamId: stream.id, objectKey: uploadKey}),
   );
   if (!updated) {
-    await deleteObject(key);
-    return {outcome: 'retention-raced'};
+    await deleteObject(uploadKey);
+    const current = await getAttemptStreamById(stream.id);
+    return {outcome: current ? 'superseded' : 'retention-raced'};
   }
 
   return {
     outcome: 'compacted',
-    objectKey: key,
+    objectKey: uploadKey,
     chunkCount: stats.chunkCount,
     uncompressedBytes: stats.uncompressedBytes,
   };

@@ -107,4 +107,37 @@ describe('compactionReconcileActivity', () => {
       expect.objectContaining({restarted: expect.any(Number)}),
     );
   });
+
+  it('logs and skips one stream whose start fails, still re-driving the rest of the batch', async () => {
+    const poison = await arrangeClosedStream(newIdentity(), {
+      chunks: [ndjsonBody(outputLine('a\n'))],
+    });
+    const healthy = await arrangeClosedStream(newIdentity(), {
+      chunks: [ndjsonBody(outputLine('b\n'))],
+    });
+    // Poison sorts first (oldest closed_at); if the loop aborted on its failure, healthy would
+    // never be attempted, which is exactly the regression this guards.
+    await db()
+      .update(attemptStreams)
+      .set({closedAt: sql`now() - interval '2 hours'`})
+      .where(eq(attemptStreams.id, poison.id));
+    await backdateClosedAt(healthy.id);
+    startMock.mockImplementation((_name, opts) =>
+      opts.workflowId === `logs-compact:${poison.id}`
+        ? Promise.reject(new Error('temporal namespace rate-limited'))
+        : Promise.resolve({}),
+    );
+
+    const result = await compactionReconcileActivity();
+
+    expect(startMock).toHaveBeenCalledWith(
+      'compactStream',
+      expect.objectContaining({workflowId: `logs-compact:${poison.id}`}),
+    );
+    expect(startMock).toHaveBeenCalledWith(
+      'compactStream',
+      expect.objectContaining({workflowId: `logs-compact:${healthy.id}`}),
+    );
+    expect(result.failed).toBeGreaterThanOrEqual(1);
+  });
 });

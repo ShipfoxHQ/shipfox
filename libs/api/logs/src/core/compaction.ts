@@ -18,6 +18,16 @@ export interface CompactedGzipStream {
   stats: CompactionStreamStats;
 }
 
+export interface CompactedGzipStreamParams {
+  streamId: string;
+  /**
+   * Invoked once per fetched chunk page (after the read, before the page's bytes flow on).
+   * Lets the caller heartbeat off read progress, so the pre-upload phase and a slow first
+   * part still emit liveness instead of waiting on the upload's per-part progress event.
+   */
+  onPage?: () => void;
+}
+
 /**
  * Builds a gzip stream of a closed stream's chunk bytes in `seq` order. Keyset-paginates
  * so memory stays flat at any stream size, and fills `stats` as bytes flow so the caller
@@ -25,14 +35,19 @@ export interface CompactedGzipStream {
  * source error is forwarded to the gzip stream, so the upload consuming it rejects rather
  * than silently truncating.
  */
-export function compactedGzipStream(streamId: string): CompactedGzipStream {
+export function compactedGzipStream(params: CompactedGzipStreamParams): CompactedGzipStream {
   const stats: CompactionStreamStats = {chunkCount: 0, lastSeq: 0, uncompressedBytes: 0};
 
   async function* chunks(): AsyncGenerator<Buffer> {
     let afterSeq = 0;
     for (;;) {
-      const page = await readChunksKeyset({streamId, afterSeq, limit: CHUNK_PAGE_SIZE});
+      const page = await readChunksKeyset({
+        streamId: params.streamId,
+        afterSeq,
+        limit: CHUNK_PAGE_SIZE,
+      });
       if (page.length === 0) break;
+      params.onPage?.();
       for (const row of page) {
         stats.chunkCount += 1;
         stats.lastSeq = row.seq;

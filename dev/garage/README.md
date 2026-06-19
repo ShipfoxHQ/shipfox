@@ -16,6 +16,16 @@ The secret in `garage.toml` and the access key are **development-only**.
 Generate fresh credentials for any shared or production environment, and set the
 `LOG_STORAGE_S3_*` variables accordingly (see `libs/api/logs/src/config.ts`).
 
+## Bucket lifecycle (production)
+
+A crashed compaction can leave an incomplete multipart upload behind. On
+pay-per-storage providers (S3, R2) those parts bill until they are aborted, and
+the API worker never sets bucket policy (its credentials are limited to object
+read and write). So the bucket must carry an `AbortIncompleteMultipartUpload`
+lifecycle rule. `bootstrap.sh` provisions it on the local Garage bucket; set the
+same rule (for example, abort one day after initiation) on any shared or
+production bucket.
+
 ## Browser reads (later)
 
 The log read path serves compacted objects through presigned URLs fetched

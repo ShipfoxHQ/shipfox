@@ -7,8 +7,8 @@ const {compactionReconcileActivity} = proxyActivities<ReturnType<typeof createLo
 
 /** Cron-scheduled backstop that re-drives closed streams whose compaction never started or permanently failed. */
 export async function compactionReconcileCron(): Promise<void> {
-  const {restarted} = await compactionReconcileActivity();
-  if (restarted > 0) {
-    log.info('Re-drove stale uncompacted log streams', {restarted});
+  const {restarted, failed} = await compactionReconcileActivity();
+  if (restarted > 0 || failed > 0) {
+    log.info('Re-drove stale uncompacted log streams', {restarted, failed});
   }
 }
