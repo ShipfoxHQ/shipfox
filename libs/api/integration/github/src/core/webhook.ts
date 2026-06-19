@@ -31,7 +31,6 @@ export type HandleGithubPushOutcome =
   | 'unknown-installation'
   | 'no-installation-id';
 
-// A branch deletion is not a commit, so we never emit a source-push event for it.
 function isBranchDeletion(after: string): boolean {
   return after === DELETED_BRANCH_SHA;
 }
@@ -39,6 +38,9 @@ function isBranchDeletion(after: string): boolean {
 export async function handleGithubPush(
   params: HandleGithubPushParams,
 ): Promise<{outcome: HandleGithubPushOutcome}> {
+  // A branch deletion is not a commit. Dropping it here, before `publishSourcePush`,
+  // emits neither the typed source-commit event (projects) nor the generic
+  // `INTEGRATION_EVENT_RECEIVED` envelope (triggers), so a deletion triggers nothing.
   if (isBranchDeletion(params.payload.after)) {
     return {outcome: 'deleted'};
   }

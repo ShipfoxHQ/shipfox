@@ -24,9 +24,8 @@ export type PublishIntegrationEventReceivedFn = (params: {
   event: IntegrationEventReceivedEvent;
 }) => Promise<{published: boolean}>;
 
-// Emitted by source-control providers for a single push. Writes both the generic
-// envelope (for triggers) and the typed source event (for domain consumers) under one
-// delivery-dedup, so it must run inside a transaction — never a bare connection.
+// Emitted by source-control providers for a single push. The delivery dedup and the outbox
+// rows it writes must commit together, so it requires a transaction, never a bare connection.
 export type PublishSourcePushFn = (params: {
   tx: IntegrationTx;
   provider: string;
