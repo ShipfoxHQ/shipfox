@@ -32,7 +32,17 @@ startModuleWorkers({workers});
 ## Module Shape
 
 ```ts
-import type {ShipfoxModule} from '@shipfox/node-module';
+import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
+
+interface ExampleEventMap {
+  'example.created': {id: string};
+}
+
+const subscriber = subscriberFactory<ExampleEventMap>();
+
+async function handleExampleCreated(payload: ExampleEventMap['example.created']): Promise<void> {
+  console.log(payload.id);
+}
 
 export const exampleModule: ShipfoxModule = {
   name: 'example',
@@ -40,7 +50,7 @@ export const exampleModule: ShipfoxModule = {
   auth: [authMethod],
   routes: [routes],
   publishers: [{name: 'example', table: outbox, db}],
-  subscribers: [{event: 'example.created', handler}],
+  subscribers: [subscriber('example.created', handleExampleCreated)],
   workers: [{taskQueue: 'example', workflowsPath, activities, workflows: []}],
 };
 ```
@@ -50,6 +60,7 @@ export const exampleModule: ShipfoxModule = {
 ```sh
 turbo check --filter=@shipfox/node-module
 turbo type --filter=@shipfox/node-module
+turbo test --filter=@shipfox/node-module
 ```
 
 ## License
