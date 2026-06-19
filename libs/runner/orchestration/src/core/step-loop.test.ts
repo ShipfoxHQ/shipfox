@@ -165,6 +165,30 @@ describe('runJobSteps', () => {
     expect(captured?.write).toHaveBeenCalledWith(Buffer.from('hello'), 'stdout');
   });
 
+  it('runs and reports the step when opening the log stream fails (capture abandoned)', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    // Opening the spool throws (e.g. a broken logs dir): capture must be abandoned, not fatal.
+    createStepLogStreamMock.mockImplementationOnce(() => {
+      throw new Error('logs dir is a file');
+    });
+    executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+
+    // The step still runs and is reported succeeded; the stream failure does not fail the step.
+    expect(executeRunStepMock).toHaveBeenCalled();
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({stepId: run.id, status: 'succeeded'}),
+    );
+  });
+
   it('drains and disposes the prior attempt stream before opening the next', async () => {
     const setup = buildSetupStep();
     const run1 = buildRunStep({id: '00000000-0000-0000-0000-0000000000c1', position: 1});

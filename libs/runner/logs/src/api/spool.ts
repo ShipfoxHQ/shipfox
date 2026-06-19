@@ -29,8 +29,12 @@ export class AttemptSpool {
     // first append opens the fd. A fresh attempt's file is absent, so length stays 0.
     try {
       this._length = statSync(filePath).size;
-    } catch {
-      // ENOENT for a fresh attempt; any other stat error surfaces on the first append.
+    } catch (error) {
+      // ENOENT is the common fresh-attempt case (no file yet) and is fine. Any other stat
+      // error means a broken path that would otherwise look like an empty resume and silently
+      // diverge the offset state, so rethrow it; the caller treats a spool-open failure as
+      // abandoned capture and runs the step without logs.
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
   }
 

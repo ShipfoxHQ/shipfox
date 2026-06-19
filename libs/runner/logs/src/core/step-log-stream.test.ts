@@ -298,28 +298,24 @@ describe('createStepLogStream', () => {
     }
   });
 
-  it('abandons capture without crashing when the spool cannot be written', async () => {
-    // Pre-create a FILE where the logs directory should be so the spool's mkdir/open throws.
+  it('throws when the spool cannot be opened so the caller can abandon capture', async () => {
+    // Pre-create a FILE where the logs directory should be so the spool's stat/open fails.
     const logsDir = join(dir, 'logs');
     await writeFile(logsDir, 'not a directory');
 
-    const stream = createStepLogStream({
-      logsDir,
-      stepId: STEP_ID,
-      attempt: 8,
-      append: hangingAppend,
-      flushIntervalMs: 100000,
-      now: () => 1,
-    });
+    // The open failure (a non-ENOENT stat error) surfaces here; the orchestrator catches it
+    // and runs the step without capture rather than letting it crash the runner.
+    const open = () =>
+      createStepLogStream({
+        logsDir,
+        stepId: STEP_ID,
+        attempt: 8,
+        append: hangingAppend,
+        flushIntervalMs: 100000,
+        now: () => 1,
+      });
 
-    // The fs failure happens inside the sink; it must be swallowed, not thrown (a throw
-    // here would escape the child's 'data' handler and crash the whole runner).
-    expect(() => stream.write(Buffer.from('boom\n'), 'stdout')).not.toThrow();
-    expect(() => stream.write(Buffer.from('more\n'), 'stdout')).not.toThrow();
-    const {streamLength} = await stream.close();
-    stream.dispose();
-
-    expect(streamLength).toBe(0);
+    expect(open).toThrow();
   });
 
   it('abandons capture without crashing when a write fails mid-stream', async () => {

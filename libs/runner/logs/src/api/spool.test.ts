@@ -4,15 +4,24 @@ import {join} from 'node:path';
 import {AttemptSpool} from '#api/spool.js';
 import {InvalidStepIdError} from '#core/errors.js';
 
-// Lets a test force a short or zero-length writeSync without a real disk-full. Both flags
-// default off and reset themselves after one call, so every other test hits the real fs.
-const {fsControl} = vi.hoisted(() => ({fsControl: {splitNextWrite: false, zeroNextWrite: false}}));
+// Lets a test force a short/zero-length writeSync or a stat error without real fs conditions.
+// All controls default off (statErrorCode null) so every other test hits the real fs.
+const {fsControl} = vi.hoisted(() => ({
+  fsControl: {splitNextWrite: false, zeroNextWrite: false, statErrorCode: null as string | null},
+}));
 
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
   const realWriteSync = actual.writeSync as (...args: unknown[]) => number;
+  const realStatSync = actual.statSync as (...args: unknown[]) => unknown;
   return {
     ...actual,
+    statSync: ((path: unknown, ...rest: unknown[]) => {
+      if (fsControl.statErrorCode) {
+        throw Object.assign(new Error('forced stat error'), {code: fsControl.statErrorCode});
+      }
+      return realStatSync(path, ...rest);
+    }) as typeof actual.statSync,
     writeSync: ((fd: number, data: unknown, ...rest: unknown[]) => {
       if (fsControl.zeroNextWrite) {
         fsControl.zeroNextWrite = false;
@@ -35,11 +44,22 @@ describe('AttemptSpool', () => {
   beforeEach(async () => {
     fsControl.splitNextWrite = false;
     fsControl.zeroNextWrite = false;
+    fsControl.statErrorCode = null;
     dir = await mkdtemp(join(tmpdir(), 'shipfox-spool-test-'));
   });
 
   afterEach(async () => {
     await rm(dir, {recursive: true, force: true});
+  });
+
+  it('rethrows a non-ENOENT stat error rather than seeding an empty length', () => {
+    // A broken path (e.g. EACCES) must not be silently treated as a fresh, empty spool, which
+    // would diverge the offset state on a resume; ENOENT (a fresh attempt) is still fine.
+    fsControl.statErrorCode = 'EACCES';
+
+    const open = () => AttemptSpool.open(join(dir, 'logs'), STEP_ID, 9);
+
+    expect(open).toThrow();
   });
 
   it('rejects a non-UUID step id before touching the filesystem', () => {

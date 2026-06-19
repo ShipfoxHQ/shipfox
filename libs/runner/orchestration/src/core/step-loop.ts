@@ -177,19 +177,28 @@ export async function executeStep(params: {
       return {result, preparedWorkspace: false};
     }
 
-    stream = createStepLogStream({
-      logsDir: join(cwd, 'logs'),
-      stepId: step.id,
-      attempt,
-      append: ({offset, body, signal: appendSignal}) =>
-        appendStepLogs(leaseClient, {
-          stepId: step.id,
-          attempt,
-          offset,
-          body,
-          ...(appendSignal ? {signal: appendSignal} : {}),
-        }),
-    });
+    // Log capture is best-effort: if the spool cannot be opened (e.g. a broken logs dir),
+    // abandon capture and run the step without a stream rather than failing the step itself.
+    try {
+      stream = createStepLogStream({
+        logsDir: join(cwd, 'logs'),
+        stepId: step.id,
+        attempt,
+        append: ({offset, body, signal: appendSignal}) =>
+          appendStepLogs(leaseClient, {
+            stepId: step.id,
+            attempt,
+            offset,
+            body,
+            ...(appendSignal ? {signal: appendSignal} : {}),
+          }),
+      });
+    } catch (error) {
+      logger().error(
+        {err: error, jobId, stepId: step.id, attempt},
+        'Failed to open log capture; running the step without it',
+      );
+    }
 
     const result = await executeRunStep(step, {
       signal,
