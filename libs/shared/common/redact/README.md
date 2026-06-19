@@ -15,9 +15,17 @@ across Shipfox so they cannot drift.
   masked; a credential-free non-URL (scp-style `git@host:path`) is returned
   unchanged.
 - **`redactSecrets(text, secrets)`** removes every occurrence of each literal
-  secret, then applies `redactUrlCredentials`. Pass every wire form a secret
-  takes (e.g. the base64 of `user:token`); the helper only removes the literals
-  it is given.
+  secret, then applies `redactUrlCredentials`. The helper only removes the
+  literals it is given, so pass every wire form a secret takes; use
+  `secretWireForms` to derive them.
+- **`secretWireForms(secret)`** derives every wire form one secret can appear as
+  in captured output: the literal, its base64 and base64url forms (all three
+  phase alignments, so a secret embedded in a larger encoded blob is masked too),
+  its URL-encoded form, and its lower- and upper-case hex. The result is
+  deduplicated and sorted longest-first, ready to hand straight to `redactSecrets`.
+  The literal is always included so a registered secret is never left unmasked;
+  its derived forms are dropped below 8 characters, because a short derivation
+  matches common encoded text and would scrub unrelated output.
 - **`REDACTION_PLACEHOLDER`** is the `'***'` string every redaction writes.
 
 scp-style remotes (`git@host:path`) are left untouched on purpose: an scp URL
@@ -34,7 +42,12 @@ pnpm add @shipfox/redact
 ## Usage
 
 ```ts
-import {redactSecrets, redactUrlCredentials, stripUrlCredentials} from "@shipfox/redact";
+import {
+  redactSecrets,
+  redactUrlCredentials,
+  secretWireForms,
+  stripUrlCredentials,
+} from "@shipfox/redact";
 
 redactUrlCredentials("fatal: clone of https://x:tok@github.com/o/r.git failed");
 // -> "fatal: clone of https://***@github.com/o/r.git failed"
@@ -44,6 +57,10 @@ stripUrlCredentials("https://x-access-token:tok@github.com/o/r.git");
 
 redactSecrets("Authorization: Basic dXNlcjp0b2tlbg==", ["dXNlcjp0b2tlbg=="]);
 // -> "Authorization: Basic ***"
+
+// Mask a token in every form it might appear as (base64, hex, URL-encoded, ...).
+redactSecrets("digest=" + tokenAsHex, secretWireForms(token));
+// -> "digest=***"
 ```
 
 ## Development

@@ -2,6 +2,7 @@ import {
   REDACTION_PLACEHOLDER,
   redactSecrets,
   redactUrlCredentials,
+  secretWireForms,
   stripUrlCredentials,
 } from './index.js';
 
@@ -159,5 +160,92 @@ describe('redactSecrets', () => {
 
   it('exposes the placeholder it writes', () => {
     expect(REDACTION_PLACEHOLDER).toBe('***');
+  });
+});
+
+describe('secretWireForms', () => {
+  it('derives the exact deduped, longest-first form set for a token', () => {
+    const forms = secretWireForms('sk_live_TESTsecret123');
+
+    expect(forms).toEqual([
+      '736b5f6c6976655f54455354736563726574313233', // hex lower
+      '736B5F6C6976655F54455354736563726574313233', // hex upper
+      'c2tfbGl2ZV9URVNUc2VjcmV0MTIz', // base64 / base64url phase 0
+      'NrX2xpdmVfVEVTVHNlY3JldDEyM', // phase 1 (alphabets coincide here)
+      'za19saXZlX1RFU1RzZWNyZXQxMj', // phase 2
+      'sk_live_TESTsecret123', // literal
+    ]);
+  });
+
+  it.each([0, 1, 2])('masks a secret embedded at base64 phase alignment %i', (phase) => {
+    const secret = 'sk_live_TESTsecret123';
+    const forms = secretWireForms(secret);
+    const blob = Buffer.concat([
+      Buffer.alloc(phase, 0x41),
+      Buffer.from(secret),
+      Buffer.from('TAILTAIL'),
+    ]).toString('base64');
+
+    const masked = redactSecrets(blob, forms);
+
+    expect(forms.some((form) => blob.includes(form))).toBe(true);
+    expect(forms.some((form) => masked.includes(form))).toBe(false);
+    expect(masked).toContain('***');
+  });
+
+  it('derives distinct base64 and base64url forms when the alphabets diverge', () => {
+    const forms = secretWireForms('??>>secret<<??value');
+
+    expect(forms).toContain('Pz8+PnNlY3JldDw8Pz92YWx1Z'); // base64 phase 0 (+)
+    expect(forms).toContain('Pz8-PnNlY3JldDw8Pz92YWx1Z'); // base64url phase 0 (-)
+  });
+
+  it('masks the URL-encoded form when it differs from the literal', () => {
+    const secret = '??>>secret<<??value';
+    const forms = secretWireForms(secret);
+
+    const masked = redactSecrets(`GET /x?t=${encodeURIComponent(secret)}`, forms);
+
+    expect(masked).toBe('GET /x?t=***');
+  });
+
+  it('masks lower- and upper-case hex forms', () => {
+    const secret = 'sk_live_TESTsecret123';
+    const forms = secretWireForms(secret);
+    const hex = Buffer.from(secret).toString('hex');
+
+    expect(redactSecrets(`digest=${hex}`, forms)).toBe('digest=***');
+    expect(redactSecrets(`digest=${hex.toUpperCase()}`, forms)).toBe('digest=***');
+  });
+
+  it('always keeps the literal but drops every too-short derived form', () => {
+    // 'abc' is 3 chars: the literal always masks, but every derived form (hex 6, base64 3-4,
+    // url-encoded 3) is under the 8-char floor and dropped, so no short derivation scrubs
+    // unrelated text.
+    const forms = secretWireForms('abc');
+
+    expect(forms).toEqual(['abc']);
+  });
+
+  it('keeps a derived form that clears the floor while dropping the shorter ones', () => {
+    // 'wxyz' is 4 chars: the literal always masks and its 8-char hex clears the floor, but its
+    // base64 phase forms (5 chars or fewer) are dropped, since a short base64 substring
+    // over-matches common encoded text.
+    const forms = secretWireForms('wxyz');
+    const base64Phase0 = Buffer.from('wxyz').toString('base64').slice(0, 5);
+
+    expect(forms).toContain('wxyz');
+    expect(forms).toContain(Buffer.from('wxyz').toString('hex'));
+    expect(forms).not.toContain(base64Phase0);
+  });
+
+  it('returns forms sorted longest-first', () => {
+    const lengths = secretWireForms('sk_live_TESTsecret123').map((form) => form.length);
+
+    expect(lengths).toEqual([...lengths].sort((a, b) => b - a));
+  });
+
+  it('returns no forms for an empty secret', () => {
+    expect(secretWireForms('')).toEqual([]);
   });
 });

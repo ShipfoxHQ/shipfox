@@ -1,20 +1,28 @@
-import {TextDecoder} from 'node:util';
 import {
   type ControlRecord,
   type LogRecord,
   MAX_RECORD_DATA_BYTES,
+  MAX_RECORD_NAME_BYTES,
   type OutputRecord,
 } from '@shipfox/api-logs-dto';
 
 /** A pipe origin for captured output. */
 export type OutputSource = 'stdout' | 'stderr';
 
-const PIPES: readonly OutputSource[] = ['stdout', 'stderr'];
+export const PIPES: readonly OutputSource[] = ['stdout', 'stderr'];
 
 // v1 record builders. The DTO owns the schema and validation; the runner is the only
 // component that frames records, so the constructors live here at the framing layer.
 function outputRecord(args: {ts: number; src: OutputSource; data: string}): OutputRecord {
   return {v: 1, ts: args.ts, type: 'output', src: args.src, data: args.data};
+}
+
+function groupStartRecord(args: {ts: number; name: string}): ControlRecord {
+  return {v: 1, ts: args.ts, type: 'control', src: 'system', kind: 'group_start', name: args.name};
+}
+
+function groupEndRecord(args: {ts: number}): ControlRecord {
+  return {v: 1, ts: args.ts, type: 'control', src: 'system', kind: 'group_end'};
 }
 
 function gapRecord(args: {ts: number; droppedBytes: number}): ControlRecord {
@@ -89,49 +97,17 @@ export function splitByUtf8Bytes(text: string, maxBytes: number): string[] {
 }
 
 /**
- * Turns captured output chunks into NDJSON records. Holds one streaming UTF-8
- * decoder per pipe so invalid bytes become U+FFFD and a multi-byte character
- * split across capture chunks is reassembled from that pipe's own bytes (never
- * completed by the other pipe). Records are not line-aligned; consumers
- * reconstruct text by concatenating `data`. `ts` is stamped at frame time.
+ * Encodes already-decoded, already-masked text and control markers into NDJSON records.
+ * Decoding and masking happen upstream in the transform; this layer only frames: it splits
+ * long output into <= 16KB records (so a single entry's size is bounded), stamps `ts` at
+ * frame time, and emits the system control records. `data` is reconstructed by concatenating
+ * output records, so callers keep newlines in the text they pass.
  */
 export class StreamFramer {
-  private readonly decoders: Record<OutputSource, TextDecoder> = {
-    stdout: new TextDecoder('utf-8', {ignoreBOM: true, fatal: false}),
-    stderr: new TextDecoder('utf-8', {ignoreBOM: true, fatal: false}),
-  };
-
   constructor(private readonly now: () => number = Date.now) {}
 
-  frameOutput(chunk: Buffer, source: OutputSource): FramedOutput {
-    const text = this.decoders[source].decode(chunk, {stream: true});
+  frameOutputText(text: string, source: OutputSource): FramedOutput {
     if (text.length === 0) return EMPTY_FRAME;
-    return this.frameText(text, source);
-  }
-
-  /** Flushes any trailing partial multi-byte sequence held by each decoder. */
-  flushDecoders(): FramedOutput {
-    const buffers: Buffer[] = [];
-    let payloadBytes = 0;
-    for (const source of PIPES) {
-      const tail = this.decoders[source].decode();
-      if (tail.length === 0) continue;
-      const framed = this.frameText(tail, source);
-      buffers.push(framed.bytes);
-      payloadBytes += framed.payloadBytes;
-    }
-    return {bytes: Buffer.concat(buffers), payloadBytes};
-  }
-
-  frameGap(droppedBytes: number): Buffer {
-    return encodeRecord(gapRecord({ts: this.now(), droppedBytes}));
-  }
-
-  frameEnd(totalBytes: number): Buffer {
-    return encodeRecord(endRecord({ts: this.now(), totalBytes}));
-  }
-
-  private frameText(text: string, source: OutputSource): FramedOutput {
     const parts = splitByUtf8Bytes(text, MAX_RECORD_DATA_BYTES);
     const buffers: Buffer[] = [];
     let payloadBytes = 0;
@@ -141,5 +117,26 @@ export class StreamFramer {
       payloadBytes += Buffer.byteLength(part, 'utf8');
     }
     return {bytes: Buffer.concat(buffers), payloadBytes};
+  }
+
+  // The group name is masked upstream; here it is byte-truncated to the DTO cap (which
+  // measures UTF-8 bytes, not string length) so framing never emits a record the schema
+  // rejects. splitByUtf8Bytes cuts on a code-point boundary, so the truncation never tears
+  // a multi-byte character.
+  frameGroupStart(name: string): Buffer {
+    const [truncated = ''] = splitByUtf8Bytes(name, MAX_RECORD_NAME_BYTES);
+    return encodeRecord(groupStartRecord({ts: this.now(), name: truncated}));
+  }
+
+  frameGroupEnd(): Buffer {
+    return encodeRecord(groupEndRecord({ts: this.now()}));
+  }
+
+  frameGap(droppedBytes: number): Buffer {
+    return encodeRecord(gapRecord({ts: this.now(), droppedBytes}));
+  }
+
+  frameEnd(totalBytes: number): Buffer {
+    return encodeRecord(endRecord({ts: this.now(), totalBytes}));
   }
 }

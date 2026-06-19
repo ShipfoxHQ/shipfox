@@ -3,7 +3,8 @@ import type {LogAppendFn} from '@shipfox/runner-protocol';
 import {AttemptSpool} from '#api/spool.js';
 import {LogUploader} from '#api/uploader.js';
 import {config} from '#config.js';
-import {type OutputSource, StreamFramer} from '#core/framing.js';
+import {type FramedOutput, type OutputSource, StreamFramer} from '#core/framing.js';
+import {LogTransformer, type TransformEvent} from '#core/transform.js';
 
 export interface StepLogStreamOptions {
   /** The `<jobWorkspace>/logs` directory the spool file lives in. */
@@ -12,6 +13,12 @@ export interface StepLogStreamOptions {
   attempt: number;
   /** Append port bound to the lease client, step, and attempt by the caller. */
   append: LogAppendFn;
+  /**
+   * Secrets masked out of captured output before it reaches the spool, each replaced (with
+   * all its base64/base64url/url/hex forms) by `***`. v1 is the runner's own credentials;
+   * the set grows as step-level secrets are injected later. Empty disables masking.
+   */
+  secrets?: string[];
   flushIntervalMs?: number;
   flushBytes?: number;
   spoolMaxBytes?: number;
@@ -40,13 +47,15 @@ export interface StepLogStream {
 /**
  * Per step-attempt log pipeline:
  *
- *   write(chunk) ─▶ framer ─▶ [backlog cap?] ─▶ spool ─▶ uploader ─▶ /logs
- *                                  │ over cap
- *                                  └▶ drop + remember dropped bytes ─▶ gap marker
+ *   write(chunk) ─▶ transform ─▶ [backlog cap?] ─▶ spool ─▶ uploader ─▶ /logs
+ *                  (mask + markers)   │ over cap
+ *                                     └▶ drop + remember dropped bytes ─▶ gap marker
  *
- * The backlog cap bounds UNACKED bytes (spool length minus the server-acked
- * offset), not total output, so a healthy long stream never drops. Control
- * records (gap/end) bypass the cap so truncation is always visible.
+ * The transform decodes, masks secrets before any byte touches disk, and turns
+ * `::group::`/`::endgroup::` lines into control records. The backlog cap bounds UNACKED
+ * bytes (spool length minus the server-acked offset), not total output, so a healthy long
+ * stream never drops. Output and group records pass through the cap (a step controls both);
+ * runner-originated gap/end records bypass it so truncation is always visible.
  */
 export function createStepLogStream(options: StepLogStreamOptions): StepLogStream {
   const now = options.now ?? Date.now;
@@ -55,6 +64,7 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
   const intervalMs = options.flushIntervalMs ?? config.SHIPFOX_LOG_FLUSH_INTERVAL_MS;
 
   const framer = new StreamFramer(now);
+  const transformer = new LogTransformer(options.secrets ?? []);
   const spool = AttemptSpool.open(options.logsDir, options.stepId, options.attempt);
   const uploader = new LogUploader(spool, options.append, {intervalMs, flushBytes});
 
@@ -92,6 +102,29 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
     dropping = false;
   }
 
+  function frameEvent(event: TransformEvent): FramedOutput {
+    if (event.type === 'output') return framer.frameOutputText(event.data, event.src);
+    if (event.type === 'group_start') {
+      return {bytes: framer.frameGroupStart(event.name), payloadBytes: 0};
+    }
+    return {bytes: framer.frameGroupEnd(), payloadBytes: 0};
+  }
+
+  // Applies the backlog cap to one framed record and spools it, or drops it and remembers the
+  // dropped payload for the next gap marker.
+  function spoolFramed(framed: FramedOutput): void {
+    if (framed.bytes.length === 0) return;
+    const projectedBacklog = streamLength + framed.bytes.length - uploader.ackedOffset;
+    if (projectedBacklog > spoolMaxBytes) {
+      droppedPayload += framed.payloadBytes;
+      dropping = true;
+      return;
+    }
+    flushPendingGap();
+    spoolBytes(framed.bytes);
+    payloadTotal += framed.payloadBytes;
+  }
+
   uploader.start();
 
   return {
@@ -100,24 +133,22 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
       // tombstone is server-side, so no gap is recorded here.
       if (closed || failed || uploader.isCapped() || uploader.isStopped()) return;
 
-      const framed = framer.frameOutput(chunk, source);
-      if (framed.bytes.length === 0) return;
-
-      const projectedBacklog = streamLength + framed.bytes.length - uploader.ackedOffset;
-      if (projectedBacklog > spoolMaxBytes) {
-        droppedPayload += framed.payloadBytes;
-        dropping = true;
+      let events: TransformEvent[];
+      try {
+        events = transformer.push(chunk, source);
+      } catch (err) {
+        // Decoding/masking is pure, but guard the boundary so a surprise never escapes
+        // into the child-output handler and crashes the runner.
+        failStream(err);
         return;
       }
 
       try {
-        flushPendingGap();
-        spoolBytes(framed.bytes);
+        for (const event of events) spoolFramed(frameEvent(event));
       } catch (err) {
         failStream(err);
         return;
       }
-      payloadTotal += framed.payloadBytes;
       uploader.notify();
     },
 
@@ -127,10 +158,14 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
       if (failed) return Promise.resolve({streamLength});
 
       try {
-        const tail = framer.flushDecoders();
-        if (tail.bytes.length > 0) {
-          spoolBytes(tail.bytes);
-          payloadTotal += tail.payloadBytes;
+        // Flush held partial lines and decoder tails; these final bytes bypass the backlog cap
+        // (they are small and bounded) so the stream always ends cleanly.
+        for (const event of transformer.flush()) {
+          const framed = frameEvent(event);
+          if (framed.bytes.length === 0) continue;
+          flushPendingGap();
+          spoolBytes(framed.bytes);
+          payloadTotal += framed.payloadBytes;
         }
         flushPendingGap();
 

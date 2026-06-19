@@ -1,6 +1,6 @@
 import {setTimeout as setTimeoutPromise} from 'node:timers/promises';
 import {logger} from '@shipfox/node-opentelemetry';
-import {createLeaseClient, requestJob} from '@shipfox/runner-protocol';
+import {createLeaseClient, requestJob, runnerToken} from '@shipfox/runner-protocol';
 import {
   cleanupWorkspace,
   jobWorkspacePath,
@@ -83,7 +83,11 @@ export async function runJob(
 
   try {
     const leaseClient = createLeaseClient(job.lease_token);
-    await runJobSteps({jobId: job.job_id, leaseClient, signal: ac.signal, cwd});
+    // The v1 log mask set is the runner's own credentials: the long-lived runner token and
+    // this job's lease token. Both can reach a step's environment, so they are scrubbed from
+    // captured output before it touches the spool. The set grows as step-level secrets land.
+    const secrets = [runnerToken(), job.lease_token];
+    await runJobSteps({jobId: job.job_id, leaseClient, secrets, signal: ac.signal, cwd});
     logger().info({jobId: job.job_id}, 'Job step loop finished');
   } catch (stepLoopError) {
     // A non-retryable error surfaced (e.g. an unexpected throw from the loop).

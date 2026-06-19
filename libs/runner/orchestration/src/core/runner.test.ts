@@ -25,6 +25,7 @@ vi.mock('#core/step-loop.js', () => ({
 vi.mock('@shipfox/runner-protocol', () => ({
   requestJob: vi.fn(),
   createLeaseClient: vi.fn(() => ({}) as never),
+  runnerToken: vi.fn(() => 'runner-token'),
   HTTPError: class HTTPError extends Error {},
 }));
 

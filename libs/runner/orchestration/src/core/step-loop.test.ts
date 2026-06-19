@@ -92,7 +92,7 @@ describe('runJobSteps', () => {
     executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     expect(executeSetupStepMock).toHaveBeenCalledWith({
       cwd: '/work',
@@ -125,12 +125,13 @@ describe('runJobSteps', () => {
     executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     expect(createStepLogStreamMock).toHaveBeenCalledWith({
       logsDir: '/work/logs',
       stepId: run.id,
       attempt: 3,
+      secrets: [],
       append: expect.any(Function),
     });
     // No stream for the synthetic setup step.
@@ -160,7 +161,7 @@ describe('runJobSteps', () => {
     );
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     expect(captured?.write).toHaveBeenCalledWith(Buffer.from('hello'), 'stdout');
   });
@@ -179,7 +180,7 @@ describe('runJobSteps', () => {
     executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     // The step still runs and is reported succeeded; the stream failure does not fail the step.
     expect(executeRunStepMock).toHaveBeenCalled();
@@ -201,7 +202,7 @@ describe('runJobSteps', () => {
     executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     // The first stream is drained and disposed before the second is created.
     expect(events.indexOf(`dispose:${run1.id}`)).toBeLessThan(events.indexOf(`create:${run2.id}`));
@@ -227,7 +228,7 @@ describe('runJobSteps', () => {
     executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     // pull index 2 is the request that claims run2. run1's stream must be disposed before it,
     // so a slow drain delays only the (unclaimed) pull, never a freshly claimed step.
@@ -246,7 +247,7 @@ describe('runJobSteps', () => {
       return Promise.resolve({success: true, error: null, exit_code: 0});
     });
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     // Setup completed and was reported; the aborted run step is not.
     const reportedSteps = reportStepMock.mock.calls.map((call) => call[1].stepId);
@@ -263,7 +264,7 @@ describe('runJobSteps', () => {
     reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
       stepId: setup.id,
@@ -284,7 +285,7 @@ describe('runJobSteps', () => {
     reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     expect(executeSetupStepMock).not.toHaveBeenCalled();
     expect(executeRunStepMock).not.toHaveBeenCalled();
@@ -303,7 +304,7 @@ describe('runJobSteps', () => {
     requestNextStepMock.mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     expect(executeSetupStepMock).not.toHaveBeenCalled();
     expect(reportStepMock).not.toHaveBeenCalled();
@@ -314,7 +315,7 @@ describe('runJobSteps', () => {
     const ac = new AbortController();
 
     await expect(
-      runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'}),
+      runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'}),
     ).resolves.toBeUndefined();
 
     expect(executeSetupStepMock).not.toHaveBeenCalled();
@@ -326,7 +327,7 @@ describe('runJobSteps', () => {
     const ac = new AbortController();
 
     await expect(
-      runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'}),
+      runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'}),
     ).rejects.toThrow();
 
     expect(requestNextStepMock).toHaveBeenCalledTimes(1);
@@ -345,7 +346,7 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce({ok: true, cancel: true});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
       stepId: run.id,
@@ -371,7 +372,7 @@ describe('runJobSteps', () => {
     const ac = new AbortController();
 
     await expect(
-      runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'}),
+      runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'}),
     ).resolves.toBeUndefined();
 
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
@@ -393,7 +394,7 @@ describe('runJobSteps', () => {
       return Promise.resolve({success: true, error: null, exit_code: 0});
     });
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     expect(executeSetupStepMock).toHaveBeenCalledTimes(1);
     expect(reportStepMock).not.toHaveBeenCalled();
@@ -403,7 +404,7 @@ describe('runJobSteps', () => {
     const ac = new AbortController();
     ac.abort();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     expect(requestNextStepMock).not.toHaveBeenCalled();
   });
@@ -418,7 +419,7 @@ describe('runJobSteps', () => {
     executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {signal: ac.signal, cwd: '/work'});
     expect(executeRunStepMock).not.toHaveBeenCalled();
@@ -450,7 +451,7 @@ describe('runJobSteps', () => {
       });
     });
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, signal: ac.signal, cwd: '/work'});
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     expect(executeAgentStepMock).toHaveBeenCalledTimes(1);
     // Only the setup step is reported; the aborted agent step is not.

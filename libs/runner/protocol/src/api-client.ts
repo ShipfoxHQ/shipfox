@@ -57,6 +57,15 @@ const api = ky.create({
   },
 });
 
+/**
+ * The runner's long-lived bearer credential, exposed so the log masker can scrub it from
+ * captured step output: a step that echoes its environment must never leak it to the
+ * plaintext spool. For masking only — never log this value.
+ */
+export function runnerToken(): string {
+  return config.SHIPFOX_RUNNER_TOKEN;
+}
+
 // Scheduling is step-less: the claim returns only the job/run ids and the lease
 // token. Steps are pulled one at a time from the step API using that token.
 export async function requestJob(): Promise<ClaimedJobResponseDto | null> {

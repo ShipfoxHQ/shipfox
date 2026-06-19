@@ -17,10 +17,12 @@ import type {KyInstance} from 'ky';
 export async function runJobSteps(params: {
   jobId: string;
   leaseClient: KyInstance;
+  /** Secrets masked out of every run step's captured output before it reaches the spool. */
+  secrets: string[];
   signal: AbortSignal;
   cwd: string;
 }): Promise<void> {
-  const {jobId, leaseClient, signal, cwd} = params;
+  const {jobId, leaseClient, secrets, signal, cwd} = params;
 
   // The setup step (position 0) prepares the workspace; every run step assumes it ran.
   // A run step pulled before a successful setup is failed cleanly rather than spawned
@@ -55,6 +57,7 @@ export async function runJobSteps(params: {
         attempt,
         cwd,
         leaseClient,
+        secrets,
         signal,
         workspacePrepared,
         jobId,
@@ -141,12 +144,14 @@ export async function executeStep(params: {
   attempt: number;
   cwd: string;
   leaseClient: KyInstance;
+  secrets: string[];
   signal: AbortSignal;
   workspacePrepared: boolean;
   jobId: string;
   stepLabel: string;
 }): Promise<StepExecution> {
-  const {step, attempt, cwd, leaseClient, signal, workspacePrepared, jobId, stepLabel} = params;
+  const {step, attempt, cwd, leaseClient, secrets, signal, workspacePrepared, jobId, stepLabel} =
+    params;
 
   let stream: StepLogStream | undefined;
   try {
@@ -184,6 +189,7 @@ export async function executeStep(params: {
         logsDir: join(cwd, 'logs'),
         stepId: step.id,
         attempt,
+        secrets,
         append: ({offset, body, signal: appendSignal}) =>
           appendStepLogs(leaseClient, {
             stepId: step.id,
