@@ -33,4 +33,12 @@ export const config = createConfig({
     desc: 'Stored bytes added to the per-job log budget for each minute since the first log append. Defaults to 1 MiB per minute.',
     default: 1_048_576,
   }),
+  LOG_STREAM_CLOSE_GRACE_SECONDS: num({
+    desc: 'How long to wait after a job reaches a terminal state before force-closing any of its log streams the runner never ended itself (it died, was capped, or its log spool failed). The wait lets a last in-flight chunk land before the stream is marked truncated. Defaults to 120 seconds.',
+    default: 120,
+  }),
+  LOG_RETENTION_DAYS: num({
+    desc: 'How many days a compacted log object and its stream row are kept before the retention worker deletes both. Counts from when the stream closed. Defaults to 90 days.',
+    default: 90,
+  }),
 });

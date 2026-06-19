@@ -1,5 +1,5 @@
 {
-  "id": "190939f9-0176-4071-b32c-7ab0d76b6498",
+  "id": "ba491684-be58-4cbd-bb86-49c89eea5872",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -103,6 +103,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -129,6 +135,54 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "logs_attempt_streams_open_by_job_idx": {
+          "name": "logs_attempt_streams_open_by_job_idx",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"state\" = 'open'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "logs_attempt_streams_retention_idx": {
+          "name": "logs_attempt_streams_retention_idx",
+          "columns": [
+            {
+              "expression": "closed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"state\" = 'closed'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "logs_attempt_streams_uncompacted_idx": {
+          "name": "logs_attempt_streams_uncompacted_idx",
+          "columns": [
+            {
+              "expression": "closed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"state\" = 'closed' and \"object_key\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}

@@ -2,7 +2,7 @@ import {appendLogs} from '#core/append-logs.js';
 import {LeaseStreamMismatchError, OffsetGapError} from '#core/errors.js';
 import {jobAccountingFactory} from '#test/factories/job-accounting.js';
 import {controlLine, ndjsonBody, outputLine, outputOfBytes} from '#test/fixtures/ndjson.js';
-import {findAccounting, findStream, listChunks} from '#test/queries.js';
+import {findAccounting, findStream, listChunks, listStreamClosedEvents} from '#test/queries.js';
 
 interface Ctx {
   jobId: string;
@@ -163,30 +163,51 @@ describe('appendLogs', () => {
   });
 
   describe('stream lifecycle', () => {
-    it('records declared_total_bytes from an end record without closing the stream', async () => {
+    it('declared-closes the stream and emits one stream-closed event on an end record', async () => {
       const ctx = newCtx();
       const body = ndjsonBody(outputLine('done\n'), controlLine({kind: 'end', total_bytes: 12345}));
 
       await appendLogs({...ctx, attempt: 1, offset: 0, body});
 
       const stream = await findStream({...ctx, attempt: 1});
+      expect(stream?.state).toBe('closed');
+      expect(stream?.closeReason).toBe('declared');
+      expect(stream?.truncated).toBe(false);
       expect(stream?.declaredTotalBytes).toBe(12345);
-      expect(stream?.state).toBe('open');
+      expect(stream?.closedAt).not.toBeNull();
+      expect(await listStreamClosedEvents(stream?.id as string)).toHaveLength(1);
     });
 
-    it('lets a later end record overwrite the declared total (last wins)', async () => {
+    it('is idempotent: a re-sent end body neither re-closes nor emits a second event', async () => {
       const ctx = newCtx();
-      const first = ndjsonBody(controlLine({kind: 'end', total_bytes: 100}));
-      await appendLogs({...ctx, attempt: 1, offset: 0, body: first});
+      const body = ndjsonBody(outputLine('done\n'), controlLine({kind: 'end', total_bytes: 10}));
+      await appendLogs({...ctx, attempt: 1, offset: 0, body});
+      const stream = await findStream({...ctx, attempt: 1});
 
-      await appendLogs({
+      await appendLogs({...ctx, attempt: 1, offset: 0, body});
+
+      expect(await listStreamClosedEvents(stream?.id as string)).toHaveLength(1);
+    });
+
+    it('drops further output once declared-closed (no new chunk, committed_length frozen)', async () => {
+      const ctx = newCtx();
+      // End-only body so the single stored chunk stays under the 100-byte test budget
+      // (an extra output line would trip the cap and add a tombstone chunk).
+      const end = ndjsonBody(controlLine({kind: 'end', total_bytes: 4}));
+      await appendLogs({...ctx, attempt: 1, offset: 0, body: end});
+      const closed = await findStream({...ctx, attempt: 1});
+
+      const result = await appendLogs({
         ...ctx,
         attempt: 1,
-        offset: first.length,
-        body: ndjsonBody(controlLine({kind: 'end', total_bytes: 200})),
+        offset: end.length,
+        body: ndjsonBody(outputLine('late\n')),
       });
 
-      expect((await findStream({...ctx, attempt: 1}))?.declaredTotalBytes).toBe(200);
+      expect(result.committedLength).toBe(end.length);
+      const after = await findStream({...ctx, attempt: 1});
+      expect(after?.committedLength).toBe(closed?.committedLength);
+      expect(await listChunks(after?.id as string)).toHaveLength(1);
     });
 
     it('keeps attempts of the same step on independent streams', async () => {

@@ -28,4 +28,6 @@ export interface AttemptStream {
   objectKey: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** When the stream was closed (either close path); null while open. Retention anchor. */
+  closedAt: Date | null;
 }

@@ -1,5 +1,15 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {bigint, boolean, integer, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {sql} from 'drizzle-orm';
+import {
+  bigint,
+  boolean,
+  index,
+  integer,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import type {AttemptStream} from '#core/entities/attempt-stream.js';
 import {pgTable} from './common.js';
 
@@ -39,6 +49,7 @@ export const attemptStreams = pgTable(
     objectKey: text('object_key'),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
+    closedAt: timestamp('closed_at', {withTimezone: true}),
   },
   (table) => [
     uniqueIndex('logs_attempt_streams_identity_unique').on(
@@ -46,6 +57,16 @@ export const attemptStreams = pgTable(
       table.stepId,
       table.attempt,
     ),
+    // Timeout-close sweeps an open job's streams by job_id; the partial index keeps
+    // it off the closed tail.
+    index('logs_attempt_streams_open_by_job_idx').on(table.jobId).where(sql`"state" = 'open'`),
+    // Retention scans closed streams by close age; partial so it never carries the
+    // open (in-flight) set.
+    index('logs_attempt_streams_retention_idx').on(table.closedAt).where(sql`"state" = 'closed'`),
+    // Reconcile re-drives closed streams that never got an object key.
+    index('logs_attempt_streams_uncompacted_idx')
+      .on(table.closedAt)
+      .where(sql`"state" = 'closed' and "object_key" is null`),
   ],
 );
 
@@ -70,5 +91,6 @@ export function toAttemptStream(row: AttemptStreamDb): AttemptStream {
     objectKey: row.objectKey,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    closedAt: row.closedAt,
   };
 }
