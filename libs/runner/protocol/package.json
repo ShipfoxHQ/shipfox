@@ -25,6 +25,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./contract": {
+      "development": {
+        "types": "./src/contract.ts",
+        "default": "./src/contract.ts"
+      },
+      "default": {
+        "types": "./dist/contract.d.ts",
+        "default": "./dist/contract.js"
+      }
     }
   },
   "scripts": {

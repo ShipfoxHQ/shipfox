@@ -1,5 +1,5 @@
 import type {CheckoutTokenResponseDto, StepErrorReason} from '@shipfox/api-workflows-dto';
-import {HTTPError, requestCheckoutToken} from '@shipfox/runner-protocol';
+import type {LeaseProtocol} from '@shipfox/runner-protocol/contract';
 import {
   assertGitAvailable,
   CheckoutError,
@@ -7,7 +7,7 @@ import {
   checkoutRepository,
   createJobDir,
 } from '@shipfox/runner-workspace';
-import type {KyInstance} from 'ky';
+import {HTTPError} from 'ky';
 import type {StepResult} from '#core/step-result.js';
 
 // The synthetic "Set up job" step body. It owns per-job workspace preparation and the
@@ -19,10 +19,10 @@ import type {StepResult} from '#core/step-result.js';
 // still killed via `signal`, and the per-job workspace is cleaned up in runJob's finally.
 export async function executeSetupStep(params: {
   cwd: string;
-  leaseClient: KyInstance;
+  lease: Pick<LeaseProtocol, 'requestCheckoutToken'>;
   signal: AbortSignal;
 }): Promise<StepResult> {
-  const {cwd, leaseClient, signal} = params;
+  const {cwd, lease, signal} = params;
 
   // Check git before minting a credential: a host without git never hits the provider.
   try {
@@ -39,7 +39,7 @@ export async function executeSetupStep(params: {
 
   let checkout: CheckoutTokenResponseDto;
   try {
-    checkout = await requestCheckoutToken(leaseClient, {signal});
+    checkout = await lease.requestCheckoutToken({signal});
   } catch (error) {
     return fail(error, classifyCheckoutTokenError(error));
   }
@@ -58,7 +58,7 @@ export async function executeSetupStep(params: {
     return fail(error, reason);
   }
 
-  return {success: true, error: null, exit_code: 0};
+  return {success: true, output: '', error: null, exit_code: 0};
 }
 
 const CHECKOUT_KIND_REASON: Record<CheckoutFailureKind, StepErrorReason> = {
@@ -108,6 +108,7 @@ function readErrorCode(error: HTTPError): string | undefined {
 function fail(error: unknown, reason: StepErrorReason): StepResult {
   return {
     success: false,
+    output: '',
     error: {message: error instanceof Error ? error.message : String(error), reason},
     exit_code: null,
   };

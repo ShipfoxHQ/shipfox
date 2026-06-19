@@ -4,8 +4,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {executeAgentStep} from '@shipfox/runner-agent';
 import {executeRunStep, executeSetupStep, type StepResult} from '@shipfox/runner-execution';
 import {createStepLogStream, type StepLogStream} from '@shipfox/runner-logs';
-import {appendStepLogs, HTTPError, reportStep, requestNextStep} from '@shipfox/runner-protocol';
-import type {KyInstance} from 'ky';
+import {JobLeaseNotFoundError, type LeaseProtocol} from '@shipfox/runner-protocol/contract';
 
 // Reporting a step before pulling the next one is the safety invariant: a lost report is
 // retried in place (next/report are idempotent), so a step is never re-pulled or
@@ -16,11 +15,11 @@ import type {KyInstance} from 'ky';
 // drains the last one (bounded) before runJob deletes the workspace the spool lives in.
 export async function runJobSteps(params: {
   jobId: string;
-  leaseClient: KyInstance;
+  lease: LeaseProtocol;
   signal: AbortSignal;
   cwd: string;
 }): Promise<void> {
-  const {jobId, leaseClient, signal, cwd} = params;
+  const {jobId, lease, signal, cwd} = params;
 
   // The setup step (position 0) prepares the workspace; every run step assumes it ran.
   // A run step pulled before a successful setup is failed cleanly rather than spawned
@@ -39,7 +38,7 @@ export async function runJobSteps(params: {
       await settleStream({stream: activeStream, signal});
       activeStream = undefined;
 
-      const pulled = await pullNextStep({leaseClient, jobId, signal});
+      const pulled = await pullNextStep({lease, jobId, signal});
       if (!pulled) return;
       if (signal.aborted) return;
 
@@ -54,7 +53,7 @@ export async function runJobSteps(params: {
         step,
         attempt,
         cwd,
-        leaseClient,
+        lease,
         signal,
         workspacePrepared,
         jobId,
@@ -66,7 +65,7 @@ export async function runJobSteps(params: {
       if (signal.aborted) return;
 
       const {cancel} = await reportStepResult({
-        leaseClient,
+        lease,
         step,
         attempt,
         result: execution.result,
@@ -96,21 +95,21 @@ export interface PulledStep {
 }
 
 // Pulls the next step, translating the loop's two quiet stop conditions into `undefined`:
-// a 404 (the lease no longer maps to a job) and a `done` response. Any other error
-// propagates so the loop bails without re-pulling.
+// a vanished lease (JobLeaseNotFoundError, the mapped 404) and a `done` response. Any other
+// error propagates so the loop bails without re-pulling.
 export async function pullNextStep(params: {
-  leaseClient: KyInstance;
+  lease: LeaseProtocol;
   jobId: string;
   signal: AbortSignal;
 }): Promise<PulledStep | undefined> {
-  const {leaseClient, jobId, signal} = params;
+  const {lease, jobId, signal} = params;
 
   let next: NextStepResponseDto;
   try {
-    next = await requestNextStep(leaseClient, {signal});
+    next = await lease.requestNextStep({signal});
   } catch (error) {
-    if (error instanceof HTTPError && error.response.status === 404) {
-      logger().info({jobId}, 'No job for this lease (404); stopping step loop');
+    if (error instanceof JobLeaseNotFoundError) {
+      logger().info({jobId}, 'No job for this lease; stopping step loop');
       return undefined;
     }
     throw error;
@@ -140,18 +139,18 @@ export async function executeStep(params: {
   step: StepDto;
   attempt: number;
   cwd: string;
-  leaseClient: KyInstance;
+  lease: LeaseProtocol;
   signal: AbortSignal;
   workspacePrepared: boolean;
   jobId: string;
   stepLabel: string;
 }): Promise<StepExecution> {
-  const {step, attempt, cwd, leaseClient, signal, workspacePrepared, jobId, stepLabel} = params;
+  const {step, attempt, cwd, lease, signal, workspacePrepared, jobId, stepLabel} = params;
 
   let stream: StepLogStream | undefined;
   try {
     if (step.type === 'setup') {
-      const result = await executeSetupStep({cwd, leaseClient, signal});
+      const result = await executeSetupStep({cwd, lease, signal});
       return {result, preparedWorkspace: result.success};
     }
 
@@ -185,7 +184,7 @@ export async function executeStep(params: {
         stepId: step.id,
         attempt,
         append: ({offset, body, signal: appendSignal}) =>
-          appendStepLogs(leaseClient, {
+          lease.appendStepLogs({
             stepId: step.id,
             attempt,
             offset,
@@ -226,7 +225,7 @@ export async function executeStep(params: {
 // Logs the outcome, seals the stream to learn its declared length, and reports the step.
 // Returns whether the server asked the loop to stop (job finished without full success).
 export async function reportStepResult(params: {
-  leaseClient: KyInstance;
+  lease: LeaseProtocol;
   step: StepDto;
   attempt: number;
   result: StepResult;
@@ -235,7 +234,7 @@ export async function reportStepResult(params: {
   stepLabel: string;
   signal: AbortSignal;
 }): Promise<{cancel: boolean}> {
-  const {leaseClient, step, attempt, result, stream, jobId, stepLabel, signal} = params;
+  const {lease, step, attempt, result, stream, jobId, stepLabel, signal} = params;
 
   if (result.success) {
     logger().info({jobId, stepId: step.id, stepName: step.name}, `Step ${stepLabel} succeeded`);
@@ -250,7 +249,7 @@ export async function reportStepResult(params: {
   // upload drains separately (settleStream), so the report never blocks on it.
   if (stream) await stream.close();
 
-  const report = await reportStep(leaseClient, {
+  const report = await lease.reportStep({
     stepId: step.id,
     attempt,
     status: result.success ? 'succeeded' : 'failed',

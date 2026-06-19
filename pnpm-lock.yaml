@@ -160,6 +160,9 @@ importers:
       '@shipfox/runner-orchestration':
         specifier: workspace:*
         version: link:../../libs/runner/orchestration
+      '@shipfox/runner-protocol':
+        specifier: workspace:*
+        version: link:../../libs/runner/protocol
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -2564,6 +2567,9 @@ importers:
 
   libs/runner/orchestration:
     dependencies:
+      '@shipfox/api-runners-dto':
+        specifier: workspace:*
+        version: link:../../api/runners-dto
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../../api/workflows-dto
@@ -2588,9 +2594,6 @@ importers:
       '@shipfox/runner-workspace':
         specifier: workspace:*
         version: link:../workspace
-      ky:
-        specifier: ^2.0.0
-        version: 2.0.2
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
