@@ -30,7 +30,7 @@ services:
 
   garage:
     container_name: garage
-    image: dxflrs/garage:v1.3.1
+    image: dxflrs/garage:v2.3.0
     volumes:
       - garage_meta:/var/lib/garage/meta
       - garage_data:/var/lib/garage/data
