@@ -164,7 +164,7 @@ export async function listOpenStreamsByJob(jobId: string): Promise<AttemptStream
   return rows.map(toAttemptStream);
 }
 
-/** Loads a stream by id, for compaction (driven by the closed event, which carries the id). */
+/** For compaction, which is driven by the closed event that carries the stream id. */
 export async function getAttemptStreamById(streamId: string): Promise<AttemptStream | null> {
   const [row] = await db().select().from(attemptStreams).where(eq(attemptStreams.id, streamId));
   return row ? toAttemptStream(row) : null;
