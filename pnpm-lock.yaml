@@ -1061,6 +1061,9 @@ importers:
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../../shared/node/fastify
+      '@shipfox/node-module':
+        specifier: workspace:*
+        version: link:../../../shared/node/module
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../../shared/node/opentelemetry
@@ -1092,6 +1095,9 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../../tools/vitest
+      '@temporalio/workflow':
+        specifier: ^1.16.1
+        version: 1.17.2
       '@types/pg':
         specifier: ^8.15.5
         version: 8.20.0

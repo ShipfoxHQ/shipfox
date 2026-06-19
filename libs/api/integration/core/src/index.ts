@@ -4,7 +4,7 @@ import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/
 import {createDebugIntegrationProvider} from '@shipfox/api-integration-debug';
 import type {ConnectGithubInstallationInput} from '@shipfox/api-integration-github';
 import type {ConnectSentryInstallationInput} from '@shipfox/api-integration-sentry';
-import type {ModuleDatabase, ShipfoxModule} from '@shipfox/node-module';
+import type {ModuleDatabase, ModuleWorker, ShipfoxModule} from '@shipfox/node-module';
 import type {IntegrationProvider} from '#core/entities/provider.js';
 import {
   createIntegrationProviderRegistry,
@@ -116,6 +116,7 @@ interface GithubModuleParts {
 interface SentryModuleParts {
   provider: IntegrationProvider;
   database: ModuleDatabase;
+  worker: ModuleWorker;
 }
 
 async function loadGithubModuleParts(): Promise<GithubModuleParts> {
@@ -180,6 +181,7 @@ async function loadGithubModuleParts(): Promise<GithubModuleParts> {
 async function loadSentryModuleParts(): Promise<SentryModuleParts> {
   const {
     createSentryIntegrationProvider,
+    createSentryMaintenanceWorker,
     getSentryInstallationByInstallationUuid,
     persistVerifiedUnclaimedInstallation,
     upsertSentryInstallation,
@@ -241,6 +243,7 @@ async function loadSentryModuleParts(): Promise<SentryModuleParts> {
       updateConnectionLifecycleStatus: updateIntegrationConnectionLifecycleStatus,
     }),
     database: {db: sentryDb, migrationsPath: sentryMigrationsPath},
+    worker: createSentryMaintenanceWorker(),
   };
 }
 
@@ -248,8 +251,10 @@ async function createConfiguredProviders(): Promise<{
   providers: IntegrationProvider[];
   github: GithubModuleParts | undefined;
   sentry: SentryModuleParts | undefined;
+  workers: ModuleWorker[];
 }> {
   const providers: IntegrationProvider[] = [];
+  const workers: ModuleWorker[] = [];
   if (config.INTEGRATIONS_ENABLE_DEBUG_PROVIDER) {
     providers.push(createDebugIntegrationProvider({upsertIntegrationConnection}));
   }
@@ -262,8 +267,9 @@ async function createConfiguredProviders(): Promise<{
   if (config.INTEGRATIONS_ENABLE_SENTRY_PROVIDER) {
     sentry = await loadSentryModuleParts();
     providers.push(sentry.provider);
+    workers.push(sentry.worker);
   }
-  return {providers, github, sentry};
+  return {providers, github, sentry, workers};
 }
 
 export async function createIntegrationsModule(
@@ -278,10 +284,11 @@ export async function createIntegrationsContext(
   let providers: IntegrationProvider[];
   let github: GithubModuleParts | undefined;
   let sentry: SentryModuleParts | undefined;
+  let providerWorkers: ModuleWorker[] = [];
   if (options.providers) {
     providers = options.providers;
   } else {
-    ({providers, github, sentry} = await createConfiguredProviders());
+    ({providers, github, sentry, workers: providerWorkers} = await createConfiguredProviders());
   }
 
   const registry = createIntegrationProviderRegistry(providers);
@@ -310,19 +317,9 @@ export async function createIntegrationsContext(
             id: 'integrations-prune-webhook-deliveries',
             cronSchedule: '0 3 * * *',
           },
-          // Only when Sentry is enabled: its tables exist only then, and the
-          // activity reads them.
-          ...(sentry
-            ? [
-                {
-                  name: 'pruneUnclaimedSentryInstallationsCron',
-                  id: 'integrations-prune-unclaimed-sentry-installations',
-                  cronSchedule: '0 4 * * *',
-                },
-              ]
-            : []),
         ],
       },
+      ...providerWorkers,
     ],
   };
 

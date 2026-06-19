@@ -1,4 +1,4 @@
-import {bool, createConfig, str} from '@shipfox/config';
+import {bool, createConfig, num, str} from '@shipfox/config';
 
 export const config = createConfig({
   SENTRY_APP_CLIENT_ID: str({
@@ -13,5 +13,9 @@ export const config = createConfig({
   SENTRY_APP_VERIFY_INSTALL: bool({
     desc: 'Verifies the signature on Sentry app installation requests. Keep it true; turn it off only for local testing.',
     default: true,
+  }),
+  SENTRY_UNCLAIMED_INSTALLATION_RETENTION_DAYS: num({
+    desc: 'How many days a verified-but-unclaimed Sentry installation may sit before the daily cleanup cron tombstones it. A reinstall always mints a fresh uuid, so a tombstone is never revived. Defaults to 7.',
+    default: 7,
   }),
 });

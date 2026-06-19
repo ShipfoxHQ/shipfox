@@ -1,9 +1,12 @@
+import {dirname, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import type {
   GetIntegrationConnectionByIdFn,
   PublishIntegrationEventReceivedFn,
   RecordDeliveryOnlyFn,
   UpdateIntegrationConnectionLifecycleStatusFn,
 } from '@shipfox/api-integration-core-dto';
+import type {ModuleWorker} from '@shipfox/node-module';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createSentryApiClient, type SentryApiClient} from '#api/client.js';
 import {closeDb, db} from '#db/db.js';
@@ -17,6 +20,8 @@ import {
   createSentryIntegrationRoutes,
 } from '#presentation/routes/install.js';
 import {createSentryWebhookRoutes} from '#presentation/routes/webhooks.js';
+import {createSentryMaintenanceActivities} from '#temporal/activities/index.js';
+import {SENTRY_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 
 export type {SentryApiClient} from '#api/client.js';
 export {
@@ -103,6 +108,24 @@ export function createSentryIntegrationProvider(options: CreateSentryIntegration
         getIntegrationConnectionById: options.getIntegrationConnectionById,
         updateConnectionLifecycleStatus: options.updateConnectionLifecycleStatus,
       }),
+    ],
+  };
+}
+
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const maintenanceWorkflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
+
+export function createSentryMaintenanceWorker(): ModuleWorker {
+  return {
+    taskQueue: SENTRY_MAINTENANCE_TASK_QUEUE,
+    workflowsPath: maintenanceWorkflowsPath,
+    activities: createSentryMaintenanceActivities,
+    workflows: [
+      {
+        name: 'pruneUnclaimedSentryInstallationsCron',
+        id: 'sentry-prune-unclaimed-installations',
+        cronSchedule: '0 4 * * *',
+      },
     ],
   };
 }
