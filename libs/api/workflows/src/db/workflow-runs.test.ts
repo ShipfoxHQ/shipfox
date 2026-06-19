@@ -637,14 +637,18 @@ describe('workflow run queries', () => {
       ).rejects.toThrow('Optimistic lock failure');
     });
 
-    test('writes one run-terminated event when the status becomes terminal', async () => {
+    test.each([
+      'succeeded',
+      'failed',
+      'cancelled',
+    ] as const)('writes one run-terminated event when the status becomes %s', async (status) => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
 
-      await updateWorkflowRunStatus({runId: run.id, status: 'succeeded', expectedVersion: 1});
+      await updateWorkflowRunStatus({runId: run.id, status, expectedVersion: 1});
 
       const events = await runTerminatedEvents(run.id);
       expect(events).toHaveLength(1);
-      expect(events[0]).toEqual({runId: run.id, projectId: run.projectId, status: 'succeeded'});
+      expect(events[0]).toEqual({runId: run.id, projectId: run.projectId, status});
     });
 
     test('writes no run-terminated event for a non-terminal transition', async () => {

@@ -361,13 +361,10 @@ export async function updateWorkflowRunStatus(
 
     const row = rows[0];
     if (!row) {
-      // Idempotent under Temporal activity retry: a lost result after a committed
-      // status update leaves the row at version+1, so the retried expected-version
-      // UPDATE matches 0 rows. If the row already holds the requested status, the
-      // prior attempt of this same transition won — return it without re-emitting
-      // the terminal event, instead of throwing an optimistic-lock error that would
-      // wedge the workflow. run-orchestration is the sole writer of run status, so a
-      // mismatch only ever happens on retry-after-commit.
+      // Idempotent under Temporal retry-after-commit: the committed first attempt
+      // left the row at version+1, so this retry matches 0 rows. run-orchestration is
+      // the sole writer, so an already-matching status means the prior attempt won;
+      // return it without re-emitting, rather than throw and wedge the run.
       const existing = await tx
         .select()
         .from(workflowRuns)
@@ -382,9 +379,8 @@ export async function updateWorkflowRunStatus(
 
     const run = toWorkflowRun(row);
 
-    // Mirror updateJobStatusAtVersion: emit the canonical run-terminal fact in the
-    // same transaction as the status flip, gated on the guarded UPDATE so it fires
-    // exactly once.
+    // Same as updateJobStatusAtVersion: emitting in the same transaction as the
+    // guarded status flip makes the run-terminal fact fire exactly once.
     if (isWorkflowRunTerminal(run.status)) {
       await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
         type: WORKFLOWS_WORKFLOW_RUN_TERMINATED,
@@ -423,11 +419,9 @@ async function updateJobStatusAtVersion(
   if (!row) return null;
   const job = toJob(row);
 
-  // Single chokepoint: every terminal job-status write funnels through this guarded
-  // UPDATE, and the version match means only one caller can win the transition.
-  // Emit the canonical terminal fact here, in the same transaction as the status
-  // flip, so it fires exactly once across all terminal paths (normal completion,
-  // DAG cancellation, lease-expiry resolution, timeout).
+  // Every terminal job-status write funnels through this one guarded UPDATE, where the
+  // version match lets a single caller win. Emitting here, in the same transaction,
+  // makes the terminal fact fire exactly once across all paths.
   if (isJobTerminal(job.status)) {
     await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
       type: WORKFLOWS_JOB_TERMINATED,
@@ -559,13 +553,10 @@ export async function resolveJobAfterLeaseExpiry(params: {
   });
 }
 
-// Enqueue the steps-settled signal in the SAME transaction as the final per-step
-// result that made the job's steps all terminal. This is the internal signal that
-// drives the Temporal JOB_FINISHED_SIGNAL (via on-job-steps-settled); the job's own
-// terminal fact is emitted later by updateJobStatusAtVersion when the workflow flips
-// the job status. Mirrors failJobAsTimedOut: the state change and its signal intent
-// commit together, so per-step execution observes the signal exactly once (the
-// outbox is at-least-once; the job workflow dedupes the signal).
+// Enqueue the steps-settled signal in the same transaction as the final per-step
+// result, so per-step execution observes it exactly once (the outbox is at-least-once;
+// the job workflow dedupes the signal). Drives the Temporal JOB_FINISHED_SIGNAL; the
+// job's terminal fact is emitted separately by updateJobStatusAtVersion.
 export async function writeJobStepsSettledOutbox(
   tx: Tx,
   params: {jobId: string; status: 'succeeded' | 'failed'},

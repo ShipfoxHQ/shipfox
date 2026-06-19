@@ -1,19 +1,13 @@
 export const WORKFLOWS_WORKFLOW_RUN_CREATED = 'workflows.workflow_run.created' as const;
-// Public terminal fact for a workflow run: written in the same transaction that
-// flips the run's status to a terminal value (succeeded/failed/cancelled).
+// Terminal fact for a workflow run, written in the same transaction as the status flip.
 export const WORKFLOWS_WORKFLOW_RUN_TERMINATED = 'workflows.workflow_run.terminated' as const;
 export const WORKFLOWS_JOB_TIMED_OUT = 'workflows.job.timed_out' as const;
-// Public terminal fact for a job, and the single reliable "this job is over"
-// signal: written in the same transaction that flips the job's status to a terminal
-// value (succeeded/failed/cancelled), across every terminal path — normal
-// completion, DAG cancellation, lease-expiry resolution, and the timeout backstop.
+// Terminal fact for a job: the single reliable "this job is over" signal, written in
+// the same transaction as the status flip, on every terminal path.
 export const WORKFLOWS_JOB_TERMINATED = 'workflows.job.terminated' as const;
-// Internal orchestration signal, NOT a terminal fact: all of a job's steps have
-// settled into terminal states. Written in the same transaction as the final
-// per-step result (before the job row itself is terminal), succeeded/failed only;
-// the `on-job-steps-settled` subscriber raises the Temporal JOB_FINISHED_SIGNAL so
-// the workflow finalizes the job. Use WORKFLOWS_JOB_TERMINATED to observe the job's
-// outcome.
+// Internal signal, not a terminal fact: a job's steps have all settled, so the
+// on-job-steps-settled subscriber can raise the Temporal JOB_FINISHED_SIGNAL. Fires
+// before the job row is terminal; observe WORKFLOWS_JOB_TERMINATED for the outcome.
 export const WORKFLOWS_JOB_STEPS_SETTLED = 'workflows.job.steps_settled' as const;
 // Written in the same transaction as a durable gate restart (the failed attempt
 // + the rewind of the projection from `restart_from`), as a durable audit record
