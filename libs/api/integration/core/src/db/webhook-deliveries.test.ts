@@ -1,12 +1,18 @@
 import {
   INTEGRATION_EVENT_RECEIVED,
+  INTEGRATION_SOURCE_COMMIT_PUSHED,
   type IntegrationEventReceivedEvent,
+  type SourcePushPayload,
 } from '@shipfox/api-integration-core-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import {db} from './db.js';
 import {integrationsOutbox} from './schema/outbox.js';
 import {integrationsWebhookDeliveries} from './schema/webhook-deliveries.js';
-import {publishIntegrationEventReceived, recordDeliveryOnly} from './webhook-deliveries.js';
+import {
+  publishIntegrationEventReceived,
+  publishSourcePush,
+  recordDeliveryOnly,
+} from './webhook-deliveries.js';
 
 function buildEvent(
   overrides: Partial<IntegrationEventReceivedEvent> = {},
@@ -26,6 +32,28 @@ function buildEvent(
       isDefaultBranch: true,
     },
     ...overrides,
+  };
+}
+
+function buildPush(overrides: Partial<SourcePushPayload> = {}): SourcePushPayload {
+  return {
+    externalRepositoryId: 'github:42',
+    ref: 'main',
+    headCommitSha: 'abc123',
+    defaultBranch: 'main',
+    isDefaultBranch: true,
+    ...overrides,
+  };
+}
+
+function buildSourcePushParams() {
+  return {
+    provider: 'github',
+    workspaceId: crypto.randomUUID(),
+    connectionId: crypto.randomUUID(),
+    deliveryId: crypto.randomUUID(),
+    receivedAt: new Date().toISOString(),
+    push: buildPush(),
   };
 }
 
@@ -95,5 +123,51 @@ describe('integration webhook delivery persistence', () => {
     await recordDeliveryOnly({tx: db(), provider: 'github', deliveryId});
 
     expect(await deliveriesFor('github', deliveryId)).toHaveLength(1);
+  });
+});
+
+describe('publishSourcePush', () => {
+  it('writes the delivery row plus both outbox events for a new delivery', async () => {
+    const params = buildSourcePushParams();
+
+    const result = await db().transaction((tx) => publishSourcePush({tx, ...params}));
+
+    expect(result.published).toBe(true);
+    expect(await deliveriesFor(params.provider, params.deliveryId)).toHaveLength(1);
+    const types = (await outboxFor(params.deliveryId)).map((row) => row.eventType).sort();
+    expect(types).toEqual([INTEGRATION_EVENT_RECEIVED, INTEGRATION_SOURCE_COMMIT_PUSHED].sort());
+  });
+
+  it('emits the generic envelope (for triggers) and the typed event (for projects)', async () => {
+    const params = buildSourcePushParams();
+
+    await db().transaction((tx) => publishSourcePush({tx, ...params}));
+
+    const outbox = await outboxFor(params.deliveryId);
+    const envelope = outbox.find((row) => row.eventType === INTEGRATION_EVENT_RECEIVED);
+    const typed = outbox.find((row) => row.eventType === INTEGRATION_SOURCE_COMMIT_PUSHED);
+    expect(envelope?.payload).toMatchObject({
+      source: 'github',
+      event: 'push',
+      deliveryId: params.deliveryId,
+      payload: {externalRepositoryId: 'github:42', isDefaultBranch: true},
+    });
+    expect(typed?.payload).toMatchObject({
+      provider: 'github',
+      deliveryId: params.deliveryId,
+      push: {externalRepositoryId: 'github:42', ref: 'main', headCommitSha: 'abc123'},
+    });
+  });
+
+  it('writes nothing for a duplicate delivery', async () => {
+    const params = buildSourcePushParams();
+
+    const first = await db().transaction((tx) => publishSourcePush({tx, ...params}));
+    const second = await db().transaction((tx) => publishSourcePush({tx, ...params}));
+
+    expect(first.published).toBe(true);
+    expect(second.published).toBe(false);
+    expect(await deliveriesFor(params.provider, params.deliveryId)).toHaveLength(1);
+    expect(await outboxFor(params.deliveryId)).toHaveLength(2);
   });
 });

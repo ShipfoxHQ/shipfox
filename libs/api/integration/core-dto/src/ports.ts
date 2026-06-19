@@ -2,7 +2,7 @@ import type {
   IntegrationConnection,
   IntegrationConnectionLifecycleStatus,
 } from '#contracts/index.js';
-import type {IntegrationEventReceivedEvent} from '#events.js';
+import type {IntegrationEventReceivedEvent, SourcePushPayload} from '#events.js';
 
 // The persistence seam between the integrations core and a provider package.
 // `@shipfox/api-integration-core` implements these against its own tables and
@@ -22,6 +22,19 @@ export type IntegrationTx = any;
 export type PublishIntegrationEventReceivedFn = (params: {
   tx: IntegrationTx;
   event: IntegrationEventReceivedEvent;
+}) => Promise<{published: boolean}>;
+
+// Emitted by source-control providers for a single push. Writes both the generic
+// envelope (for triggers) and the typed source event (for domain consumers) under one
+// delivery-dedup, so it must run inside a transaction — never a bare connection.
+export type PublishSourcePushFn = (params: {
+  tx: IntegrationTx;
+  provider: string;
+  workspaceId: string;
+  connectionId: string;
+  deliveryId: string;
+  receivedAt: string;
+  push: SourcePushPayload;
 }) => Promise<{published: boolean}>;
 
 export type RecordDeliveryOnlyFn = (params: {

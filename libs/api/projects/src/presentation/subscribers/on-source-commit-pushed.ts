@@ -1,7 +1,4 @@
-import type {
-  GithubPushPayload,
-  IntegrationEventReceivedEvent,
-} from '@shipfox/api-integration-core-dto';
+import type {IntegrationSourceCommitPushedEvent} from '@shipfox/api-integration-core-dto';
 import {PROJECT_SOURCE_COMMIT_OBSERVED} from '@shipfox/api-projects-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {type DomainEvent, writeOutboxEvent} from '@shipfox/node-outbox';
@@ -10,34 +7,28 @@ import {recordIntegrationEventForProject} from '#db/integration-event-dedup.js';
 import {getProjectBySource} from '#db/projects.js';
 import {projectsOutbox} from '#db/schema/outbox.js';
 
-const GITHUB_SOURCE = 'github';
-const PUSH_EVENT = 'push';
+export async function onSourceCommitPushed(event: DomainEvent): Promise<void> {
+  const {provider, workspaceId, connectionId, push} =
+    event.payload as IntegrationSourceCommitPushedEvent;
 
-export async function onIntegrationEventReceived(event: DomainEvent): Promise<void> {
-  const envelope = event.payload as IntegrationEventReceivedEvent;
-
-  if (envelope.source !== GITHUB_SOURCE || envelope.event !== PUSH_EVENT) {
-    return;
-  }
-
-  const pushPayload = envelope.payload as GithubPushPayload;
-  if (!pushPayload.isDefaultBranch) {
+  // Projects only track the default branch; other branches are someone else's policy.
+  if (!push.isDefaultBranch) {
     return;
   }
 
   const project = await getProjectBySource({
-    workspaceId: envelope.workspaceId,
-    sourceConnectionId: envelope.connectionId,
-    sourceExternalRepositoryId: pushPayload.externalRepositoryId,
+    workspaceId,
+    sourceConnectionId: connectionId,
+    sourceExternalRepositoryId: push.externalRepositoryId,
   });
   if (!project) {
     logger().info(
       {
         eventId: event.id,
-        connectionId: envelope.connectionId,
-        externalRepositoryId: pushPayload.externalRepositoryId,
+        connectionId,
+        externalRepositoryId: push.externalRepositoryId,
       },
-      'integration event received: no project bound to source, dropping',
+      'source commit pushed: no project bound to source, dropping',
     );
     return;
   }
@@ -56,10 +47,10 @@ export async function onIntegrationEventReceived(event: DomainEvent): Promise<vo
         workspaceId: project.workspaceId,
         projectId: project.id,
         sourceConnectionId: project.sourceConnectionId,
-        provider: envelope.source,
-        externalRepositoryId: pushPayload.externalRepositoryId,
-        ref: pushPayload.ref,
-        headCommitSha: pushPayload.headCommitSha,
+        provider,
+        externalRepositoryId: push.externalRepositoryId,
+        ref: push.ref,
+        headCommitSha: push.headCommitSha,
       },
     });
   });

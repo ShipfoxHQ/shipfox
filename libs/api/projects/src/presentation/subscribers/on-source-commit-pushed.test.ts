@@ -1,6 +1,7 @@
-import type {
-  GithubPushPayload,
-  IntegrationEventReceivedEvent,
+import {
+  INTEGRATION_SOURCE_COMMIT_PUSHED,
+  type IntegrationSourceCommitPushedEvent,
+  type SourcePushPayload,
 } from '@shipfox/api-integration-core-dto';
 import {PROJECT_SOURCE_COMMIT_OBSERVED} from '@shipfox/api-projects-dto';
 import type {DomainEvent} from '@shipfox/node-outbox';
@@ -8,9 +9,10 @@ import {and, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {projectsOutbox} from '#db/schema/outbox.js';
 import {projectFactory} from '#test/index.js';
-import {onIntegrationEventReceived} from './on-integration-event-received.js';
+import {createProjectsModule} from '../../index.js';
+import {onSourceCommitPushed} from './on-source-commit-pushed.js';
 
-function buildPushPayload(overrides: Partial<GithubPushPayload> = {}): GithubPushPayload {
+function buildPush(overrides: Partial<SourcePushPayload> = {}): SourcePushPayload {
   return {
     externalRepositoryId: 'github:42',
     ref: 'main',
@@ -21,28 +23,24 @@ function buildPushPayload(overrides: Partial<GithubPushPayload> = {}): GithubPus
   };
 }
 
-function buildEnvelope(
-  overrides: Partial<IntegrationEventReceivedEvent> = {},
-  pushOverrides: Partial<GithubPushPayload> = {},
-): IntegrationEventReceivedEvent {
-  return {
-    source: 'github',
-    event: 'push',
-    workspaceId: overrides.workspaceId ?? crypto.randomUUID(),
-    connectionId: overrides.connectionId ?? crypto.randomUUID(),
-    deliveryId: overrides.deliveryId ?? crypto.randomUUID(),
-    receivedAt: new Date().toISOString(),
-    payload: buildPushPayload(pushOverrides),
-    ...overrides,
-  };
-}
-
-function buildEvent(payload: IntegrationEventReceivedEvent, id = crypto.randomUUID()): DomainEvent {
+function buildEvent(
+  overrides: Partial<IntegrationSourceCommitPushedEvent> = {},
+  pushOverrides: Partial<SourcePushPayload> = {},
+  id = crypto.randomUUID(),
+): DomainEvent {
   return {
     id,
-    type: 'integrations.event.received',
+    type: INTEGRATION_SOURCE_COMMIT_PUSHED,
     createdAt: new Date(),
-    payload,
+    payload: {
+      provider: 'github',
+      workspaceId: crypto.randomUUID(),
+      connectionId: crypto.randomUUID(),
+      deliveryId: crypto.randomUUID(),
+      receivedAt: new Date().toISOString(),
+      push: buildPush(pushOverrides),
+      ...overrides,
+    },
   };
 }
 
@@ -58,8 +56,8 @@ async function listCommitObservedEvents(externalRepositoryId: string) {
     );
 }
 
-describe('onIntegrationEventReceived', () => {
-  it('publishes a project source commit event for a default-branch github push', async () => {
+describe('onSourceCommitPushed', () => {
+  it('publishes a project source commit event for a default-branch push', async () => {
     const sourceConnectionId = crypto.randomUUID();
     const workspaceId = crypto.randomUUID();
     const externalRepositoryId = `github:${crypto.randomUUID()}`;
@@ -68,12 +66,12 @@ describe('onIntegrationEventReceived', () => {
       sourceConnectionId,
       sourceExternalRepositoryId: externalRepositoryId,
     });
-    const envelope = buildEnvelope(
+    const event = buildEvent(
       {workspaceId, connectionId: sourceConnectionId},
       {externalRepositoryId},
     );
 
-    await onIntegrationEventReceived(buildEvent(envelope));
+    await onSourceCommitPushed(event);
 
     const rows = await listCommitObservedEvents(externalRepositoryId);
     expect(rows).toHaveLength(1);
@@ -97,52 +95,12 @@ describe('onIntegrationEventReceived', () => {
       sourceConnectionId,
       sourceExternalRepositoryId: externalRepositoryId,
     });
-    const envelope = buildEnvelope(
+    const event = buildEvent(
       {workspaceId, connectionId: sourceConnectionId},
       {externalRepositoryId, ref: 'feature/x', isDefaultBranch: false},
     );
 
-    await onIntegrationEventReceived(buildEvent(envelope));
-
-    const rows = await listCommitObservedEvents(externalRepositoryId);
-    expect(rows).toHaveLength(0);
-  });
-
-  it('ignores non-github sources', async () => {
-    const sourceConnectionId = crypto.randomUUID();
-    const workspaceId = crypto.randomUUID();
-    const externalRepositoryId = `gitlab:${crypto.randomUUID()}`;
-    await projectFactory.create({
-      workspaceId,
-      sourceConnectionId,
-      sourceExternalRepositoryId: externalRepositoryId,
-    });
-    const envelope = buildEnvelope(
-      {source: 'gitlab', workspaceId, connectionId: sourceConnectionId},
-      {externalRepositoryId},
-    );
-
-    await onIntegrationEventReceived(buildEvent(envelope));
-
-    const rows = await listCommitObservedEvents(externalRepositoryId);
-    expect(rows).toHaveLength(0);
-  });
-
-  it('ignores non-push events', async () => {
-    const sourceConnectionId = crypto.randomUUID();
-    const workspaceId = crypto.randomUUID();
-    const externalRepositoryId = `github:${crypto.randomUUID()}`;
-    await projectFactory.create({
-      workspaceId,
-      sourceConnectionId,
-      sourceExternalRepositoryId: externalRepositoryId,
-    });
-    const envelope = buildEnvelope(
-      {event: 'issue_comment', workspaceId, connectionId: sourceConnectionId},
-      {externalRepositoryId},
-    );
-
-    await onIntegrationEventReceived(buildEvent(envelope));
+    await onSourceCommitPushed(event);
 
     const rows = await listCommitObservedEvents(externalRepositoryId);
     expect(rows).toHaveLength(0);
@@ -150,15 +108,15 @@ describe('onIntegrationEventReceived', () => {
 
   it('does not publish when no project is bound to the pushed repository', async () => {
     const externalRepositoryId = `github:${crypto.randomUUID()}`;
-    const envelope = buildEnvelope({}, {externalRepositoryId});
+    const event = buildEvent({}, {externalRepositoryId});
 
-    await onIntegrationEventReceived(buildEvent(envelope));
+    await onSourceCommitPushed(event);
 
     const rows = await listCommitObservedEvents(externalRepositoryId);
     expect(rows).toHaveLength(0);
   });
 
-  it('deduplicates the same integration event for the same project', async () => {
+  it('deduplicates the same source event for the same project', async () => {
     const sourceConnectionId = crypto.randomUUID();
     const workspaceId = crypto.randomUUID();
     const externalRepositoryId = `github:${crypto.randomUUID()}`;
@@ -167,16 +125,25 @@ describe('onIntegrationEventReceived', () => {
       sourceConnectionId,
       sourceExternalRepositoryId: externalRepositoryId,
     });
-    const envelope = buildEnvelope(
+    const event = buildEvent(
       {workspaceId, connectionId: sourceConnectionId},
       {externalRepositoryId},
     );
-    const event = buildEvent(envelope);
 
-    await onIntegrationEventReceived(event);
-    await onIntegrationEventReceived(event);
+    await onSourceCommitPushed(event);
+    await onSourceCommitPushed(event);
 
     const rows = await listCommitObservedEvents(externalRepositoryId);
     expect(rows).toHaveLength(1);
+  });
+
+  // The source/event filter is now the subscription itself (projects only receives the
+  // typed source event), so this registration replaces the old non-github/non-push tests.
+  it('registers the projects module on INTEGRATION_SOURCE_COMMIT_PUSHED', () => {
+    const module = createProjectsModule({sourceControl: {} as never});
+
+    const events = module.subscribers?.map((subscriber) => subscriber.event);
+
+    expect(events).toContain(INTEGRATION_SOURCE_COMMIT_PUSHED);
   });
 });

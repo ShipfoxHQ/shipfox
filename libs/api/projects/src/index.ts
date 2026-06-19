@@ -1,11 +1,11 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
-import {INTEGRATION_EVENT_RECEIVED} from '@shipfox/api-integration-core-dto';
+import {INTEGRATION_SOURCE_COMMIT_PUSHED} from '@shipfox/api-integration-core-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath, projectsOutbox} from '#db/index.js';
 import {createProjectRoutes} from '#presentation/index.js';
-import {onIntegrationEventReceived} from '#presentation/subscribers/index.js';
+import {onSourceCommitPushed} from '#presentation/subscribers/index.js';
 import {createProjectsMaintenanceActivities} from '#temporal/activities/index.js';
 import {PROJECTS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 
@@ -42,7 +42,7 @@ export function createProjectsModule({sourceControl}: CreateProjectsModuleOption
     database: {db, migrationsPath},
     routes: createProjectRoutes(sourceControl),
     publishers: [{name: 'projects', table: projectsOutbox, db}],
-    subscribers: [{event: INTEGRATION_EVENT_RECEIVED, handler: onIntegrationEventReceived}],
+    subscribers: [{event: INTEGRATION_SOURCE_COMMIT_PUSHED, handler: onSourceCommitPushed}],
     workers: [
       {
         taskQueue: PROJECTS_MAINTENANCE_TASK_QUEUE,

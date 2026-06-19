@@ -2,7 +2,7 @@ import {Buffer} from 'node:buffer';
 import {Webhooks} from '@octokit/webhooks';
 import type {
   GetIntegrationConnectionByIdFn,
-  PublishIntegrationEventReceivedFn,
+  PublishSourcePushFn,
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-core-dto';
 import {githubPushPayloadSchema} from '@shipfox/api-integration-github-dto';
@@ -24,7 +24,7 @@ const GITHUB_PROVIDER = 'github';
 
 export interface CreateGithubWebhookRoutesOptions {
   coreDb: () => NodePgDatabase<Record<string, unknown>>;
-  publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
+  publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
 }
@@ -111,7 +111,7 @@ export function createGithubWebhookRoutes(options: CreateGithubWebhookRoutesOpti
           tx,
           deliveryId,
           payload: validated.data,
-          publishIntegrationEventReceived: options.publishIntegrationEventReceived,
+          publishSourcePush: options.publishSourcePush,
           recordDeliveryOnly: options.recordDeliveryOnly,
           getIntegrationConnectionById: options.getIntegrationConnectionById,
         });
