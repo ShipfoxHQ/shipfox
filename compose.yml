@@ -30,7 +30,7 @@ services:
 
   garage:
     container_name: garage
-    image: dxflrs/garage:v1.0.1
+    image: dxflrs/garage:v1.3.1
     volumes:
       - garage_meta:/var/lib/garage/meta
       - garage_data:/var/lib/garage/data
@@ -47,7 +47,7 @@ services:
       retries: 10
 
   garage-init:
-    image: alpine:3.21
+    image: alpine:3.23
     depends_on:
       garage:
         condition: service_healthy
