@@ -40,7 +40,7 @@ export function compactedGzipStream(params: CompactedGzipStreamParams): Compacte
 
   async function* chunks(): AsyncGenerator<Buffer> {
     let afterSeq = 0;
-    for (;;) {
+    while (true) {
       const page = await readChunksKeyset({
         streamId: params.streamId,
         afterSeq,
