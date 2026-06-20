@@ -71,6 +71,14 @@ function sanitizeTag(value: string): string {
   return value.replace(/[^A-Za-z0-9_.-]/g, '-');
 }
 
+// The default branch's head is the newest build, so it takes Docker's conventional
+// `latest` moving tag instead of a `main` tag.
+const DEFAULT_BRANCH = 'main';
+
+function movingTag(refName: string): string {
+  return refName === DEFAULT_BRANCH ? 'latest' : sanitizeTag(refName);
+}
+
 // Registry bases for the derived tags: a space-separated IMAGE_REGISTRIES list read
 // by name (not a prefix scan of the environment), so a stray credential variable is
 // never mistaken for a registry base and logged. None set is the PR validation path.
@@ -89,7 +97,7 @@ function perCommitTags(image: string, registries: string[]): string[] {
   const shortSha = process.env.GITHUB_SHA?.slice(0, 7);
   if (shortSha) suffixes.push(`sha-${shortSha}`);
   if (process.env.BUILD_NUMBER) suffixes.push(`build-${process.env.BUILD_NUMBER}`);
-  if (process.env.GITHUB_REF_NAME) suffixes.push(sanitizeTag(process.env.GITHUB_REF_NAME));
+  if (process.env.GITHUB_REF_NAME) suffixes.push(movingTag(process.env.GITHUB_REF_NAME));
   if (suffixes.length === 0)
     throw new Error(
       'shipfox-docker --image needs GITHUB_SHA, BUILD_NUMBER, or GITHUB_REF_NAME set to derive a tag.',
