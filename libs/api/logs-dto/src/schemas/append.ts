@@ -1,13 +1,15 @@
 import {z} from 'zod';
+import {streamKind} from './stream-kind.js';
 
 /**
- * Append endpoint contract: `POST .../steps/:stepId/logs?attempt=N&offset=B`.
+ * Append endpoint contract: `POST .../steps/:stepId/logs?attempt=N&offset=B&kind=K`.
  *
  * The body is raw NDJSON bytes (whole records, newline-terminated), not a
- * Zod-validated object — it is parsed line by line with `logRecordSchema`.
- * `offset` is a position in the raw NDJSON spool stream; both `offset` and the
- * returned `committed_length` are bounded far below 2^53 by the accrual budget,
- * so JavaScript `number` is safe.
+ * Zod-validated object — it is parsed line by line by the kind's validator
+ * (`appendableLogRecordSchema` for `log_stream`, `parseSessionLine` for
+ * `agent_session`). `offset` is a position in the raw NDJSON spool stream; both
+ * `offset` and the returned `committed_length` are bounded far below 2^53 by the
+ * accrual budget, so JavaScript `number` is safe.
  */
 export const appendLogsQuerySchema = z.object({
   attempt: z.coerce
@@ -23,6 +25,9 @@ export const appendLogsQuerySchema = z.object({
     .describe(
       'Byte position of this chunk in the raw NDJSON spool. Must equal the server-held committed length: an earlier offset is acknowledged as already applied, a later offset returns 409 so the runner rewinds.',
     ),
+  kind: streamKind.describe(
+    'Stream kind this chunk belongs to: log_stream (process output) or agent_session (verbatim agent JSONL). Selects the ingest validator and is part of stream identity.',
+  ),
 });
 
 export type AppendLogsQueryDto = z.infer<typeof appendLogsQuerySchema>;

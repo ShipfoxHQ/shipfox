@@ -1,9 +1,8 @@
+import {Buffer} from 'node:buffer';
 import {
-  type ControlRecord,
-  type LogRecord,
+  type AppendableLogRecord,
   MAX_RECORD_DATA_BYTES,
   MAX_RECORD_NAME_BYTES,
-  type OutputRecord,
 } from '@shipfox/api-logs-dto';
 
 /** A pipe origin for captured output. */
@@ -11,40 +10,40 @@ export type OutputSource = 'stdout' | 'stderr';
 
 export const PIPES: readonly OutputSource[] = ['stdout', 'stderr'];
 
-// v1 record builders. The DTO owns the schema and validation; the runner is the only
-// component that frames records, so the constructors live here at the framing layer.
-function outputRecord(args: {ts: number; src: OutputSource; data: string}): OutputRecord {
-  return {v: 1, ts: args.ts, type: 'output', src: args.src, data: args.data};
+// Record builders. The DTO owns the schema and validation; the runner is the only
+// component that frames records, so the constructors live here at the framing layer. The
+// envelope is `{v, ts}` (no `src`); the pipe rides on `stream` for output, and group/end/gap
+// are flat `type` records. Group ids are assigned by the caller's nesting stack.
+function outputRecord(args: {ts: number; stream: OutputSource; data: string}): AppendableLogRecord {
+  return {v: 1, ts: args.ts, type: 'output', stream: args.stream, data: args.data};
 }
 
-function groupStartRecord(args: {ts: number; name: string}): ControlRecord {
-  return {v: 1, ts: args.ts, type: 'control', src: 'system', kind: 'group_start', name: args.name};
-}
-
-function groupEndRecord(args: {ts: number}): ControlRecord {
-  return {v: 1, ts: args.ts, type: 'control', src: 'system', kind: 'group_end'};
-}
-
-function gapRecord(args: {ts: number; droppedBytes: number}): ControlRecord {
+function groupStartRecord(args: {
+  ts: number;
+  groupId: string;
+  parentGroupId: string | null;
+  name: string;
+}): AppendableLogRecord {
   return {
     v: 1,
     ts: args.ts,
-    type: 'control',
-    src: 'system',
-    kind: 'gap',
-    dropped_bytes: args.droppedBytes,
+    type: 'group_start',
+    group_id: args.groupId,
+    parent_group_id: args.parentGroupId,
+    name: args.name,
   };
 }
 
-function endRecord(args: {ts: number; totalBytes: number}): ControlRecord {
-  return {
-    v: 1,
-    ts: args.ts,
-    type: 'control',
-    src: 'system',
-    kind: 'end',
-    total_bytes: args.totalBytes,
-  };
+function groupEndRecord(args: {ts: number; groupId: string}): AppendableLogRecord {
+  return {v: 1, ts: args.ts, type: 'group_end', group_id: args.groupId};
+}
+
+function gapRecord(args: {ts: number; droppedBytes: number}): AppendableLogRecord {
+  return {v: 1, ts: args.ts, type: 'gap', dropped_bytes: args.droppedBytes};
+}
+
+function endRecord(args: {ts: number; totalBytes: number}): AppendableLogRecord {
+  return {v: 1, ts: args.ts, type: 'end', total_bytes: args.totalBytes};
 }
 
 export interface FramedOutput {
@@ -56,7 +55,7 @@ export interface FramedOutput {
 
 const EMPTY_FRAME: FramedOutput = {bytes: Buffer.alloc(0), payloadBytes: 0};
 
-function encodeRecord(record: LogRecord): Buffer {
+function encodeRecord(record: AppendableLogRecord): Buffer {
   return Buffer.from(`${JSON.stringify(record)}\n`, 'utf8');
 }
 
@@ -101,7 +100,8 @@ export function splitByUtf8Bytes(text: string, maxBytes: number): string[] {
  * Decoding and masking happen upstream in the transform; this layer only frames: it splits
  * long output into <= 16KB records (so a single entry's size is bounded), stamps `ts` at
  * frame time, and emits the system control records. `data` is reconstructed by concatenating
- * output records, so callers keep newlines in the text they pass.
+ * output records, so callers keep newlines in the text they pass. Group ids/parents are
+ * resolved by the caller's nesting stack and passed in.
  */
 export class StreamFramer {
   constructor(private readonly now: () => number = Date.now) {}
@@ -113,7 +113,7 @@ export class StreamFramer {
     let payloadBytes = 0;
     const ts = this.now();
     for (const part of parts) {
-      buffers.push(encodeRecord(outputRecord({ts, src: source, data: part})));
+      buffers.push(encodeRecord(outputRecord({ts, stream: source, data: part})));
       payloadBytes += Buffer.byteLength(part, 'utf8');
     }
     return {bytes: Buffer.concat(buffers), payloadBytes};
@@ -123,13 +123,15 @@ export class StreamFramer {
   // measures UTF-8 bytes, not string length) so framing never emits a record the schema
   // rejects. splitByUtf8Bytes cuts on a code-point boundary, so the truncation never tears
   // a multi-byte character.
-  frameGroupStart(name: string): Buffer {
+  frameGroupStart(name: string, groupId: string, parentGroupId: string | null): Buffer {
     const [truncated = ''] = splitByUtf8Bytes(name, MAX_RECORD_NAME_BYTES);
-    return encodeRecord(groupStartRecord({ts: this.now(), name: truncated}));
+    return encodeRecord(
+      groupStartRecord({ts: this.now(), groupId, parentGroupId, name: truncated}),
+    );
   }
 
-  frameGroupEnd(): Buffer {
-    return encodeRecord(groupEndRecord({ts: this.now()}));
+  frameGroupEnd(groupId: string): Buffer {
+    return encodeRecord(groupEndRecord({ts: this.now(), groupId}));
   }
 
   frameGap(droppedBytes: number): Buffer {

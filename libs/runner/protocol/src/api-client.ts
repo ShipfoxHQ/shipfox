@@ -1,4 +1,8 @@
-import {appendLogsResponseSchema, offsetGapResponseSchema} from '@shipfox/api-logs-dto';
+import {
+  appendLogsResponseSchema,
+  offsetGapResponseSchema,
+  type StreamKind,
+} from '@shipfox/api-logs-dto';
 import {
   type ClaimedJobResponseDto,
   claimedJobResponseSchema,
@@ -155,6 +159,7 @@ export async function appendStepLogs(
   params: {
     stepId: string;
     attempt: number;
+    kind: StreamKind;
     offset: number;
     body: Uint8Array;
     signal?: AbortSignal;
@@ -170,7 +175,7 @@ export async function appendStepLogs(
   const response = await leaseClient.post(`runs/jobs/current/steps/${params.stepId}/logs`, {
     body: params.body,
     headers: {'content-type': LOG_NDJSON_CONTENT_TYPE},
-    searchParams: {attempt: params.attempt, offset: params.offset},
+    searchParams: {attempt: params.attempt, offset: params.offset, kind: params.kind},
     throwHttpErrors: false,
     ...(params.signal ? {signal: params.signal} : {}),
   });

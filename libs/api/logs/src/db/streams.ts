@@ -1,3 +1,4 @@
+import type {StreamKind} from '@shipfox/api-logs-dto';
 import {and, asc, eq, isNull, lt, sql} from 'drizzle-orm';
 import type {AttemptStream, StreamCloseReason} from '#core/entities/attempt-stream.js';
 import {LeaseStreamMismatchError} from '#core/errors.js';
@@ -9,6 +10,7 @@ export interface AttemptStreamIdentity {
   jobId: string;
   stepId: string;
   attempt: number;
+  kind: StreamKind;
   workspaceId: string;
   projectId: string;
   runId: string;
@@ -18,11 +20,14 @@ export interface AttemptStreamLookup {
   jobId: string;
   stepId: string;
   attempt: number;
+  kind: StreamKind;
 }
 
 /**
- * Reads the stream for `(job, step, attempt)` without creating it. Used by the
- * empty-body heartbeat path so a runner cannot mint rows with empty appends.
+ * Reads the stream for `(job, step, attempt, kind)` without creating it. Used by
+ * the empty-body heartbeat path so a runner cannot mint rows with empty appends.
+ * `kind` is part of identity, so a probe for one kind never reads another kind's
+ * committed offset on the same step.
  */
 export async function getAttemptStream(
   tx: Transaction,
@@ -36,16 +41,18 @@ export async function getAttemptStream(
         eq(attemptStreams.jobId, lookup.jobId),
         eq(attemptStreams.stepId, lookup.stepId),
         eq(attemptStreams.attempt, lookup.attempt),
+        eq(attemptStreams.kind, lookup.kind),
       ),
     );
   return row ? toAttemptStream(row) : null;
 }
 
 /**
- * Loads the stream for `(job, step, attempt)`, creating it on first append.
+ * Loads the stream for `(job, step, attempt, kind)`, creating it on first append.
  * Scoped by `jobId` from the lease, so a lease never reaches another job's stream.
  * A single upsert with `RETURNING` (the touch-update yields the row on conflict)
- * avoids a separate read on the hot path. On conflict, asserts the lease's
+ * avoids a separate read on the hot path. `kind` is part of the conflict target,
+ * so a conflict necessarily matches kind; on conflict, asserts the lease's
  * `(workspaceId, projectId, runId)` still match the stamped row; a mismatch
  * implies a forged or cross-job-confused lease and is rejected.
  */
@@ -57,7 +64,12 @@ export async function getOrCreateAttemptStream(
     .insert(attemptStreams)
     .values(identity)
     .onConflictDoUpdate({
-      target: [attemptStreams.jobId, attemptStreams.stepId, attemptStreams.attempt],
+      target: [
+        attemptStreams.jobId,
+        attemptStreams.stepId,
+        attemptStreams.attempt,
+        attemptStreams.kind,
+      ],
       set: {updatedAt: sql`now()`},
     })
     .returning();
@@ -152,6 +164,18 @@ export async function markStreamClosed(
     .returning();
 
   return row ? toAttemptStream(row) : null;
+}
+
+/**
+ * Sets the out-of-band `capped` flag on a stream. Used at close for `agent_session`,
+ * whose verbatim bytes carry no in-band `capped` tombstone; the flag is derived from
+ * the per-job `job_accounting.capped_at` (a job-level signal; see `AttemptStream`).
+ */
+export async function markStreamCapped(tx: Transaction, streamId: string): Promise<void> {
+  await tx
+    .update(attemptStreams)
+    .set({capped: true, updatedAt: sql`now()`})
+    .where(eq(attemptStreams.id, streamId));
 }
 
 /** Open streams of a job, for the timeout sweep to force-close after the grace period. */

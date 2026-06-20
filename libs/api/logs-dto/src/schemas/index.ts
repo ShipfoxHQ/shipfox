@@ -7,13 +7,14 @@ export {
   offsetGapResponseSchema,
 } from './append.js';
 export {
-  type ControlRecord,
-  controlRecordSchema,
+  type AppendableLogRecord,
+  appendableLogRecordSchema,
   type LogRecord,
   logRecordSchema,
   MAX_RECORD_DATA_BYTES,
   MAX_RECORD_NAME_BYTES,
-  type OutputRecord,
-  outputRecordSchema,
+  parseAppendableLogRecordLine,
   parseLogRecordLine,
 } from './record.js';
+export {parseSessionLine} from './session.js';
+export {type StreamKind, streamKind} from './stream-kind.js';

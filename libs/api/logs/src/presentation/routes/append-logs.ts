@@ -40,7 +40,7 @@ export const appendLogsRoute = defineRoute({
   handler: async (request) => {
     const leasedJob = requireLeasedJobContext(request);
     const {stepId} = request.params;
-    const {attempt, offset} = request.query;
+    const {attempt, offset, kind} = request.query;
 
     const result = await appendLogs({
       jobId: leasedJob.jobId,
@@ -49,6 +49,7 @@ export const appendLogsRoute = defineRoute({
       runId: leasedJob.runId,
       stepId,
       attempt,
+      kind,
       offset,
       body: (request.body as Buffer | undefined) ?? Buffer.alloc(0),
     });

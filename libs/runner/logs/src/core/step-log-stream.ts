@@ -1,3 +1,4 @@
+import {Buffer} from 'node:buffer';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {LogAppendFn} from '@shipfox/runner-protocol';
 import {AttemptSpool} from '#api/spool.js';
@@ -5,6 +6,8 @@ import {LogUploader} from '#api/uploader.js';
 import {config} from '#config.js';
 import {type FramedOutput, type OutputSource, StreamFramer} from '#core/framing.js';
 import {LogTransformer, type TransformEvent} from '#core/transform.js';
+
+const EMPTY_FRAMED: FramedOutput = {bytes: Buffer.alloc(0), payloadBytes: 0};
 
 export interface StepLogStreamOptions {
   /** The `<jobWorkspace>/logs` directory the spool file lives in. */
@@ -15,8 +18,7 @@ export interface StepLogStreamOptions {
   append: LogAppendFn;
   /**
    * Secrets masked out of captured output before it reaches the spool, each replaced (with
-   * all its base64/base64url/url/hex forms) by `***`. v1 is the runner's own credentials;
-   * the set grows as step-level secrets are injected later. Empty disables masking.
+   * all its base64/base64url/url/hex forms) by `***`. Empty disables masking.
    */
   secrets?: string[];
   flushIntervalMs?: number;
@@ -102,12 +104,49 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
     dropping = false;
   }
 
+  // ── Group nesting ───────────────────────────────────────────────────────────
+  // Single sequential consumer across both pipes. Each `::group::` gets a monotonic
+  // id (g1, g2, …) and a parent = the current stack top (null at the root). Depth is
+  // capped at MAX_GROUP_DEPTH; past the cap a group is FLATTENED (its content flows as
+  // plain output, no structural record) and counted in `overflowDepth` so its matching
+  // `::endgroup::` consumes the overflow instead of popping a real parent.
+  //
+  //   group_start ─┬─ stack.length < 32 ─▶ push(id); emit group_start(id, parent)
+  //                └─ stack.length = 32 ─▶ overflowDepth++          (flatten, no record)
+  //
+  //   group_end ───┬─ overflowDepth > 0 ─▶ overflowDepth--          (consume overflow FIRST)
+  //                ├─ stack non-empty   ─▶ emit group_end(stack.pop())
+  //                └─ stack empty       ─▶ ignore                   (unbalanced ::endgroup::)
+  // ────────────────────────────────────────────────────────────────────────────
+  const MAX_GROUP_DEPTH = 32;
+  const groupStack: string[] = [];
+  let groupCounter = 0;
+  let overflowDepth = 0;
+
   function frameEvent(event: TransformEvent): FramedOutput {
     if (event.type === 'output') return framer.frameOutputText(event.data, event.src);
+
     if (event.type === 'group_start') {
-      return {bytes: framer.frameGroupStart(event.name), payloadBytes: 0};
+      if (groupStack.length >= MAX_GROUP_DEPTH) {
+        overflowDepth += 1;
+        return EMPTY_FRAMED;
+      }
+      groupCounter += 1;
+      const groupId = `g${groupCounter}`;
+      const parentGroupId = groupStack[groupStack.length - 1] ?? null;
+      groupStack.push(groupId);
+      return {bytes: framer.frameGroupStart(event.name, groupId, parentGroupId), payloadBytes: 0};
     }
-    return {bytes: framer.frameGroupEnd(), payloadBytes: 0};
+
+    // group_end: consume an overflow level before touching the real stack, and ignore an
+    // unbalanced end so a stray ::endgroup:: never underflows or pops a real parent.
+    if (overflowDepth > 0) {
+      overflowDepth -= 1;
+      return EMPTY_FRAMED;
+    }
+    const groupId = groupStack.pop();
+    if (groupId === undefined) return EMPTY_FRAMED;
+    return {bytes: framer.frameGroupEnd(groupId), payloadBytes: 0};
   }
 
   // Applies the backlog cap to one framed record and spools it, or drops it and remembers the
