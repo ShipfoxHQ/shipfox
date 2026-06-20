@@ -86,10 +86,7 @@ export async function runRetentionSweep(
 
     let timedOutMidBatch = false;
     for (const stream of batch) {
-      // Heartbeat and check the time budget per stream, not once per batch: a slow batch must not
-      // trip the heartbeat timeout or overrun the budget into the next cron run. A single stream's
-      // work is bounded (the fail-fast S3 client caps each call), so per-stream keeps both inside
-      // their limits.
+      // Batches can be long, so liveness and budget checks stay inside the per-stream loop.
       params.onProgress?.();
       if (now() >= deadline) {
         result.timedOut = true;

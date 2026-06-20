@@ -308,7 +308,6 @@ export async function deleteExpiredStream(
   return {deleted: Boolean(row), jobId: row?.jobId ?? null};
 }
 
-/** True when a job has no remaining streams, so retention may prune its accounting row. */
 export async function accountingHasNoStreams(tx: Transaction, jobId: string): Promise<boolean> {
   const [row] = await tx
     .select({id: attemptStreams.id})

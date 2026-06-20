@@ -10,7 +10,6 @@ const {retentionSweepActivity} = proxyActivities<ReturnType<typeof createLogsAct
   retry: {maximumAttempts: 1},
 });
 
-/** Cron-scheduled sweep that hard-deletes expired closed log streams from storage and Postgres. */
 export async function retentionSweepCron(): Promise<void> {
   const {deleted, raced, failed, accountingPruned, iterations, timedOut} =
     await retentionSweepActivity();
