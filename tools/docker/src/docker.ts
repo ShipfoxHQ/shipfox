@@ -19,6 +19,14 @@ function hasFlag(...flags: string[]): boolean {
   );
 }
 
+// True when the caller already passed `--build-arg NAME=...` (the value is its own
+// token) or `--build-arg=NAME=...`, so a derived default never overrides it.
+function hasBuildArg(name: string): boolean {
+  return passthrough.some(
+    (arg) => arg.startsWith(`${name}=`) || arg.startsWith(`--build-arg=${name}=`),
+  );
+}
+
 function firstTag(): string | undefined {
   const index = passthrough.indexOf('--tag');
   if (index !== -1) return passthrough[index + 1];
@@ -63,15 +71,18 @@ function sanitizeTag(value: string): string {
   return value.replace(/[^A-Za-z0-9_.-]/g, '-');
 }
 
-// Derive the tag set from the environment (IMAGE_REGISTRIES bases plus the
-// GITHUB_SHA / BUILD_NUMBER / GITHUB_REF_NAME commit identity) so adding a registry
-// is a config change, not a code change. IMAGE_REGISTRIES is a space-separated list
-// read by name (not a prefix scan of the environment), so a stray credential
-// variable is never mistaken for a registry base and logged. With it unset (the PR
-// validation path) emit a single local tag so a --load build has a reference to
-// load. See the README for the full tag scheme.
-function perCommitTags(image: string): string[] {
-  const registries = (process.env.IMAGE_REGISTRIES ?? '').split(/\s+/).filter(Boolean);
+// Registry bases for the derived tags: a space-separated IMAGE_REGISTRIES list read
+// by name (not a prefix scan of the environment), so a stray credential variable is
+// never mistaken for a registry base and logged. None set is the PR validation path.
+function readRegistries(): string[] {
+  return (process.env.IMAGE_REGISTRIES ?? '').split(/\s+/).filter(Boolean);
+}
+
+// Derive the per-commit tag set from the registry bases plus the GITHUB_SHA /
+// BUILD_NUMBER / GITHUB_REF_NAME commit identity, so adding a registry is a config
+// change, not a code change. With no registry (the PR validation path) emit a single
+// local tag so a --load build has a reference. See the README for the full scheme.
+function perCommitTags(image: string, registries: string[]): string[] {
   if (registries.length === 0) return [`${image}:ci`];
 
   const suffixes: string[] = [];
@@ -101,6 +112,11 @@ if (setupIndex !== -1) {
 }
 
 const imageName = takeImageName();
+const registries = readRegistries();
+
+// An --image with no registry configured is the PR Dockerfile-validation path: build
+// one arch and --load it locally instead of pushing a multi-arch index.
+const validateOnly = imageName !== undefined && registries.length === 0;
 
 const args: string[] = [];
 
@@ -108,17 +124,18 @@ const args: string[] = [];
 // index without the "unknown/unknown" entries some registries show otherwise.
 if (!hasFlag('--provenance')) args.push('--provenance=false');
 
-// A single buildx build emits the multi-arch manifest itself; QEMU covers both
-// arches in one pass, so there is no per-arch matrix or `docker manifest` step.
-if (!hasFlag('--platform')) args.push('--platform', DEFAULT_PLATFORMS);
+// One buildx build emits the multi-arch manifest itself (QEMU covers both arches in
+// one pass); the validate path stays single-arch since a multi-arch build can't load.
+if (!hasFlag('--platform'))
+  args.push('--platform', validateOnly ? 'linux/amd64' : DEFAULT_PLATFORMS);
 
-// A multi-platform build cannot `--load`, so default to pushing. The PR path
-// opts out by passing its own `--load`/`--output` (single-arch, validate only).
-if (!hasFlag('--push', '--load', '--output', '-o')) args.push('--push');
+// A multi-platform build cannot `--load`, so default to pushing; the validate path
+// loads its single-arch image locally instead.
+if (!hasFlag('--push', '--load', '--output', '-o')) args.push(validateOnly ? '--load' : '--push');
 
 // Tags: an explicit --tag wins; otherwise derive the per-commit set from --image.
 if (imageName && !hasFlag('--tag', '-t')) {
-  for (const tag of perCommitTags(imageName)) args.push('--tag', tag);
+  for (const tag of perCommitTags(imageName, registries)) args.push('--tag', tag);
 }
 
 if (process.env.GITHUB_ACTIONS) {
@@ -130,6 +147,17 @@ if (process.env.GITHUB_ACTIONS) {
 
 if (process.env.NODE_VERSION) args.push(`--build-arg=NODE_VERSION=${process.env.NODE_VERSION}`);
 if (process.env.PNPM_VERSION) args.push(`--build-arg=PNPM_VERSION=${process.env.PNPM_VERSION}`);
+
+// OCI build metadata for the app images, set here from the environment rather than
+// passed as turbo `--` args: anything after `--` enters the hash of every task in the
+// run, so the run-unique IMAGE_CREATED timestamp would bust the build cache for the
+// whole graph on every CI run.
+if (imageName) {
+  if (process.env.GITHUB_SHA && !hasBuildArg('IMAGE_REVISION'))
+    args.push(`--build-arg=IMAGE_REVISION=${process.env.GITHUB_SHA}`);
+  if (!hasBuildArg('IMAGE_CREATED'))
+    args.push(`--build-arg=IMAGE_CREATED=${new Date().toISOString()}`);
+}
 
 const command = buildShellCommand(['docker', 'buildx', 'build', ...args, ...passthrough, '.']);
 log.info(command);
