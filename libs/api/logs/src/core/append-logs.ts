@@ -1,10 +1,5 @@
 import type {Buffer} from 'node:buffer';
-import {
-  parseAppendableLogRecordLine,
-  parseLogRecordLine,
-  parseSessionLine,
-  type StreamKind,
-} from '@shipfox/api-logs-dto';
+import {parseAppendableLogRecordLine, parseLogRecordLine} from '@shipfox/api-logs-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {accrueStoredBytes, claimCap, ensureJobAccounting, isJobCapped} from '#db/accounting.js';
@@ -27,7 +22,6 @@ export interface AppendLogsParams {
   runId: string;
   stepId: string;
   attempt: number;
-  kind: StreamKind;
   offset: number;
   body: Buffer;
 }
@@ -41,52 +35,20 @@ interface ParsedBody {
   declaredTotalBytes?: number;
 }
 
-/** Fatally decodes a body as UTF-8 so invalid bytes are rejected rather than replaced. */
-function decodeUtf8Fatal(body: Buffer, message: string): string {
-  try {
-    return new TextDecoder('utf-8', {fatal: true}).decode(body);
-  } catch {
-    throw new MalformedLogChunkError(message);
-  }
-}
-
 /**
- * Pure pre-transaction parse, dispatched by stream kind. Both kinds require whole,
- * newline-terminated lines so `committed_length` always lands on a line boundary
- * (one body = one chunk = whole lines; no line ever spans two chunks). Runs before
- * any lock is taken, so a malformed or large body never holds a row. The budget
- * charges the raw stored byte length, not a decoded sum, so no per-record byte
- * counting happens here.
+ * Pure pre-transaction parse. Requires whole, newline-terminated lines so
+ * `committed_length` always lands on a line boundary (one body = one chunk = whole
+ * lines; no line ever spans two chunks). Runs before any lock is taken, so a
+ * malformed or large body never holds a row. The budget charges the raw stored byte
+ * length, not a decoded sum, so no per-record byte counting happens here.
  *
- * - `log_stream`: each line is validated against the appendable union (a forged
- *   server-only `capped`/`runner_lost` fails here); the declared total is pulled
- *   from an `end` record. A line that is a valid server-only record under the read
- *   union surfaces its type via `forgedType` for the narrowed audit warn.
- * - `agent_session`: the whole body is decoded with fatal UTF-8 (so the stored
- *   verbatim bytes are guaranteed valid UTF-8 JSONL), then each line must parse as
- *   JSON within the configured line cap. The bytes are never interpreted as control.
+ * Each line is validated against the appendable record union (a forged server-only
+ * `capped`/`runner_lost` fails here); the declared total is pulled from an `end`
+ * record. A line that is a valid server-only record under the read union surfaces
+ * its type via `forgedType` for the narrowed audit warn.
  */
-function parseAppendBody(body: Buffer, kind: StreamKind): ParsedBody {
+function parseAppendBody(body: Buffer): ParsedBody {
   if (body.length === 0) return {};
-
-  if (kind === 'agent_session') {
-    const text = decodeUtf8Fatal(body, 'agent_session body is not valid UTF-8');
-    if (!text.endsWith('\n')) {
-      throw new MalformedLogChunkError('append body must end with a newline (whole records only)');
-    }
-    const lines = text.split('\n');
-    lines.pop();
-    for (const line of lines) {
-      try {
-        parseSessionLine(line, config.LOG_MAX_SESSION_LINE_BYTES);
-      } catch {
-        throw new MalformedLogChunkError(
-          'agent_session body contains an invalid or oversized JSON line',
-        );
-      }
-    }
-    return {};
-  }
 
   const text = body.toString('utf8');
   if (!text.endsWith('\n')) {
@@ -136,7 +98,6 @@ async function readHeartbeat(tx: Transaction, params: AppendLogsParams): Promise
     jobId: params.jobId,
     stepId: params.stepId,
     attempt: params.attempt,
-    kind: params.kind,
   });
   return {
     committedLength: existing?.committedLength ?? 0,
@@ -196,12 +157,10 @@ async function storeChunk(
   if (accrued.used <= allowed) return {committedLength, capped: false, stored: true};
 
   // Over budget. No hard ceiling: this crossing append is stored in full (overshoot
-  // bounded by one body). Claim the cap once. For log_stream, inject an in-band
-  // `capped` tombstone for the winner; for agent_session, inject NOTHING — a control
-  // record spliced into the verbatim JSONL would corrupt it, so the capped signal is
-  // the row flag set at close (derived from job_accounting.capped_at) instead.
+  // bounded by one body). Claim the cap once and inject an in-band `capped` tombstone
+  // for the winner.
   const won = await claimCap(tx, params.jobId);
-  if (won && params.kind === 'log_stream') {
+  if (won) {
     const tombstone = controlTombstone('capped');
     await insertChunk(tx, {
       streamId,
@@ -224,7 +183,7 @@ async function storeChunk(
 export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsResult> {
   let parsed: ParsedBody;
   try {
-    parsed = parseAppendBody(params.body, params.kind);
+    parsed = parseAppendBody(params.body);
   } catch (error) {
     // Narrowed audit: only the detectable forgery case, never the payload or a token.
     if (error instanceof MalformedLogChunkError && error.forgedType !== undefined) {
@@ -232,7 +191,6 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
         {
           jobId: params.jobId,
           stepId: params.stepId,
-          kind: params.kind,
           offendingType: error.forgedType,
         },
         'Rejected forged server-only log record on append',
@@ -250,7 +208,6 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
       jobId: params.jobId,
       stepId: params.stepId,
       attempt: params.attempt,
-      kind: params.kind,
       workspaceId: params.workspaceId,
       projectId: params.projectId,
       runId: params.runId,
@@ -286,8 +243,7 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
     // it in-band so compaction starts at once instead of waiting for the timeout sweep.
     // Only when the chunk was actually stored: an end body dropped because the job was
     // already capped persists nothing, so the stream is not whole and stays open for the
-    // timeout sweep to close it as truncated. agent_session never carries an `end`, so
-    // it is always closed by the sweep.
+    // timeout sweep to close it as truncated.
     if (declaredTotalBytes !== undefined && stored) {
       await closeStream(tx, {streamId: stream.id, reason: 'declared'});
     }

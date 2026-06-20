@@ -13,9 +13,6 @@ export {
   offsetGapResponseSchema,
   parseAppendableLogRecordLine,
   parseLogRecordLine,
-  parseSessionLine,
-  type StreamKind,
-  streamKind,
 } from '#schemas/index.js';
 export {
   LOG_STREAM_CLOSED,

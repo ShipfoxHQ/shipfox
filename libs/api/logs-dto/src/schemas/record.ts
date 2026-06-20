@@ -2,7 +2,7 @@ import {Buffer} from 'node:buffer';
 import {z} from 'zod';
 
 /**
- * NDJSON `log_stream` record contract — one JSON object per line, runner-framed.
+ * NDJSON log record contract — one JSON object per line, runner-framed.
  *
  * `offset` / `committed_length` are byte positions in the raw NDJSON spool stream
  * (envelope included) — the offset-CAS axis the runner tracks. The per-job accrual

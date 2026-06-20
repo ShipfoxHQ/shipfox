@@ -46,21 +46,7 @@ export const config = createConfig({
     default: 900,
   }),
   LOG_APPEND_BODY_LIMIT_BYTES: num({
-    desc: 'Maximum size of a single log append request body, in bytes. Shared by both stream kinds (kind is a query param, so the limit is set once on the route). Must be at least LOG_MAX_SESSION_LINE_BYTES so an agent_session producer can send one whole line; sized generously for agent sessions that inline large content (e.g. base64 images). Bounds the per-job budget overshoot to one body. Defaults to 8 MiB.',
-    default: 8_388_608,
-  }),
-  LOG_MAX_SESSION_LINE_BYTES: num({
-    desc: 'Maximum size of one agent_session JSONL line, in bytes. A session line over this is rejected with 400. Must be at most LOG_APPEND_BODY_LIMIT_BYTES (a line that cannot fit in one request body could never be accepted). Sized generously for large session entries (e.g. base64 images, big tool results). Defaults to 4 MiB.',
-    default: 4_194_304,
+    desc: 'Maximum size of a single log append request body, in bytes. The runner flushes at most a few hundred KB per request and each record caps at 16 KiB, so 1 MiB is generous headroom. This also bounds how far a job can overshoot its log budget: the one append that crosses the budget is stored in full before the job is capped. Defaults to 1 MiB.',
+    default: 1_048_576,
   }),
 });
-
-// envalid's num has no range support, and the invariant spans two variables, so enforce
-// it here. If the body limit is below the line cap, a legitimate large session line could
-// never fit in one request body — Fastify would reject it before our validator runs. Fail
-// fast at startup rather than 400 valid lines forever.
-if (config.LOG_APPEND_BODY_LIMIT_BYTES < config.LOG_MAX_SESSION_LINE_BYTES) {
-  throw new Error(
-    `LOG_APPEND_BODY_LIMIT_BYTES (${config.LOG_APPEND_BODY_LIMIT_BYTES}) must be >= LOG_MAX_SESSION_LINE_BYTES (${config.LOG_MAX_SESSION_LINE_BYTES}).`,
-  );
-}

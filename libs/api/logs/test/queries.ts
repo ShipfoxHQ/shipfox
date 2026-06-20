@@ -1,4 +1,4 @@
-import {LOG_STREAM_CLOSED, type LogStreamClosedEvent, type StreamKind} from '@shipfox/api-logs-dto';
+import {LOG_STREAM_CLOSED, type LogStreamClosedEvent} from '@shipfox/api-logs-dto';
 import {and, asc, eq} from 'drizzle-orm';
 import type {AttemptStream} from '#core/entities/attempt-stream.js';
 import type {JobAccounting} from '#core/entities/job-accounting.js';
@@ -12,8 +12,6 @@ export interface StreamIdentity {
   jobId: string;
   stepId: string;
   attempt: number;
-  /** Defaults to log_stream so existing log-stream tests stay terse. */
-  kind?: StreamKind;
 }
 
 export async function findStream(identity: StreamIdentity): Promise<AttemptStream | null> {
@@ -25,7 +23,6 @@ export async function findStream(identity: StreamIdentity): Promise<AttemptStrea
         eq(attemptStreams.jobId, identity.jobId),
         eq(attemptStreams.stepId, identity.stepId),
         eq(attemptStreams.attempt, identity.attempt),
-        eq(attemptStreams.kind, identity.kind ?? 'log_stream'),
       ),
     );
   return row ? toAttemptStream(row) : null;

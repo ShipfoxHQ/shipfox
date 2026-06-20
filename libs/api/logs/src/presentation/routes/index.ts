@@ -5,9 +5,8 @@ import {appendLogsRoute} from './append-logs.js';
 
 // Its own Fastify scope (separate from the workflows group that shares this
 // prefix) so the raw NDJSON body parser does not disturb their JSON routes. The
-// body limit is shared by both stream kinds (kind is a query param) and comes
-// from config: it must hold one whole agent_session line and bounds the per-job
-// budget overshoot to one body.
+// body limit comes from config: it must hold one whole append body and bounds the
+// per-job budget overshoot to one body.
 export const logsRoutes: RouteGroup[] = [
   {
     prefix: '/runs/jobs/current',

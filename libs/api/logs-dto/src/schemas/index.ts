@@ -16,5 +16,3 @@ export {
   parseAppendableLogRecordLine,
   parseLogRecordLine,
 } from './record.js';
-export {parseSessionLine} from './session.js';
-export {type StreamKind, streamKind} from './stream-kind.js';
