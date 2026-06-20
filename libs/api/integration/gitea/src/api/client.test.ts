@@ -186,7 +186,7 @@ describe('HttpGiteaApiClient', () => {
       ref: 'main',
     });
 
-    await expect(result).rejects.toMatchObject({reason: 'repository-not-found'});
+    await expect(result).rejects.toMatchObject({reason: 'file-not-found'});
   });
 
   it('rejects file content larger than the supported limit before decoding', async () => {
@@ -257,12 +257,67 @@ describe('HttpGiteaApiClient', () => {
     await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
   });
 
-  it('maps a malformed repository payload to provider-unavailable', async () => {
+  it('maps a malformed repository payload to malformed-provider-response', async () => {
     fetchMock.mockResolvedValue(jsonResponse({name: 'platform'}));
     const client = createGiteaApiClient();
 
     const result = client.getRepository({owner: 'shipfox', repo: 'platform'});
 
-    await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+
+  it('maps a file response without base64 content to malformed-provider-response', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({type: 'file', encoding: 'utf-8', path: 'a', size: 1, content: 'x'}),
+    );
+    const client = createGiteaApiClient();
+
+    const result = client.fetchFileContent({
+      owner: 'shipfox',
+      repo: 'platform',
+      path: 'a',
+      ref: 'main',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+
+  it('maps a 404 on the contents endpoint to file-not-found', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({}, {status: 404}));
+    const client = createGiteaApiClient();
+
+    const result = client.fetchFileContent({
+      owner: 'shipfox',
+      repo: 'platform',
+      path: 'missing.txt',
+      ref: 'main',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'file-not-found'});
+  });
+
+  it('rejects a path with traversal segments before issuing a request', async () => {
+    const client = createGiteaApiClient();
+
+    const result = client.fetchFileContent({
+      owner: 'shipfox',
+      repo: 'platform',
+      path: '../../../../user/keys',
+      ref: 'main',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'file-not-found'});
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('maps a request timeout to the timeout reason', async () => {
+    fetchMock.mockRejectedValue(
+      Object.assign(new Error('The operation timed out'), {name: 'TimeoutError'}),
+    );
+    const client = createGiteaApiClient();
+
+    const result = client.getRepository({owner: 'shipfox', repo: 'platform'});
+
+    await expect(result).rejects.toMatchObject({reason: 'timeout'});
   });
 });

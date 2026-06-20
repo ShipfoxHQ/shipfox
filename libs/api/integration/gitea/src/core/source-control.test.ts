@@ -254,7 +254,20 @@ describe('GiteaSourceControlProvider', () => {
     expect(gitea.getRepository).not.toHaveBeenCalled();
   });
 
-  it('creates a credential-free checkout spec with short-lived service credentials', async () => {
+  it('rejects an external repository id outside the connection account before any api call', async () => {
+    const gitea = giteaClient();
+    const provider = new GiteaSourceControlProvider(gitea);
+
+    const result = provider.resolveRepository({
+      connection: connection(),
+      externalRepositoryId: 'gitea:intruder/platform',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'repository-not-found'});
+    expect(gitea.getRepository).not.toHaveBeenCalled();
+  });
+
+  it('creates a credential-free checkout spec carrying the service credentials', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-20T00:00:00.000Z'));
     try {
@@ -295,6 +308,25 @@ describe('GiteaSourceControlProvider', () => {
     });
 
     expect(result.ref).toBe('main');
+  });
+
+  it('builds the checkout url from the provider clone url, not the configured base url', async () => {
+    const gitea = giteaClient({
+      getRepository: vi.fn(() =>
+        Promise.resolve({
+          ...REPOSITORY,
+          cloneUrl: 'https://git.internal.example/shipfox/platform.git',
+        }),
+      ),
+    });
+    const provider = new GiteaSourceControlProvider(gitea);
+
+    const result = await provider.createCheckoutSpec({
+      connection: connection(),
+      externalRepositoryId: 'gitea:shipfox/platform',
+    });
+
+    expect(result.repositoryUrl).toBe('https://git.internal.example/shipfox/platform.git');
   });
 
   it('propagates provider errors raised while reading the repository', async () => {

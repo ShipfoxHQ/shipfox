@@ -20,4 +20,8 @@ export const config = createConfig({
     desc: 'Lifetime in seconds of the checkout credentials handed to the runner. Defaults to 300 (five minutes).',
     default: 300,
   }),
+  GITEA_REQUEST_TIMEOUT_MS: num({
+    desc: 'How long in milliseconds the provider waits for a Gitea REST API response before giving up. A request that exceeds this fails as a timeout instead of holding an API worker open. Defaults to 10000 (ten seconds).',
+    default: 10_000,
+  }),
 });

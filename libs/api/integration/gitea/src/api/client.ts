@@ -78,7 +78,7 @@ class HttpGiteaApiClient implements GiteaApiClient {
     const data = await response.json();
     if (!Array.isArray(data)) {
       throw new GiteaIntegrationProviderError(
-        'provider-unavailable',
+        'malformed-provider-response',
         'Gitea repository list response was not an array',
       );
     }
@@ -120,7 +120,7 @@ class HttpGiteaApiClient implements GiteaApiClient {
     const data = await response.json();
     if (!isRecord(data)) {
       throw new GiteaIntegrationProviderError(
-        'provider-unavailable',
+        'malformed-provider-response',
         'Gitea tree response was not an object',
       );
     }
@@ -145,6 +145,7 @@ class HttpGiteaApiClient implements GiteaApiClient {
     const response = await this.request(
       `repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/contents/${encodePath(input.path)}`,
       {ref: input.ref},
+      {notFoundReason: 'file-not-found'},
     );
     const data = await response.json();
 
@@ -152,7 +153,7 @@ class HttpGiteaApiClient implements GiteaApiClient {
     // a non-file response means the requested path is not a readable file.
     if (!isRecord(data) || Array.isArray(data) || data.type !== 'file') {
       throw new GiteaIntegrationProviderError(
-        'repository-not-found',
+        'file-not-found',
         `Gitea path ${input.path} is not a file`,
       );
     }
@@ -166,7 +167,7 @@ class HttpGiteaApiClient implements GiteaApiClient {
     }
     if (typeof data.content !== 'string' || data.encoding !== 'base64') {
       throw new GiteaIntegrationProviderError(
-        'provider-unavailable',
+        'malformed-provider-response',
         'Gitea file response did not include base64 content',
       );
     }
@@ -181,6 +182,7 @@ class HttpGiteaApiClient implements GiteaApiClient {
   private async request(
     path: string,
     searchParams: Record<string, string> = {},
+    options: {notFoundReason?: NotFoundReason} = {},
   ): Promise<Response> {
     const url = new URL(`${this.baseApiUrl()}/${path}`);
     for (const [key, value] of Object.entries(searchParams)) {
@@ -191,15 +193,26 @@ class HttpGiteaApiClient implements GiteaApiClient {
     try {
       response = await fetch(url, {
         headers: {authorization: this.authHeader(), accept: 'application/json'},
+        signal: AbortSignal.timeout(config.GITEA_REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
+      // A bare `fetch` has no request timeout, so an unresponsive Gitea would
+      // otherwise hold the worker open indefinitely; the AbortSignal.timeout
+      // above surfaces as a fast `timeout` (503) instead of stalling.
+      if (
+        error instanceof Error &&
+        (error.name === 'TimeoutError' || error.name === 'AbortError')
+      ) {
+        throw new GiteaIntegrationProviderError('timeout', 'Gitea request timed out');
+      }
       throw new GiteaIntegrationProviderError(
         'provider-unavailable',
         `Gitea request failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
 
-    if (!response.ok) throw giteaHttpError(response);
+    if (!response.ok)
+      throw giteaHttpError(response, options.notFoundReason ?? 'repository-not-found');
     return response;
   }
 
@@ -219,10 +232,15 @@ class HttpGiteaApiClient implements GiteaApiClient {
   }
 }
 
-function giteaHttpError(response: Response): GiteaIntegrationProviderError {
+type NotFoundReason = 'repository-not-found' | 'file-not-found';
+
+function giteaHttpError(
+  response: Response,
+  notFoundReason: NotFoundReason = 'repository-not-found',
+): GiteaIntegrationProviderError {
   const status = response.status;
   if (status === 404) {
-    return new GiteaIntegrationProviderError('repository-not-found', `Gitea responded ${status}`);
+    return new GiteaIntegrationProviderError(notFoundReason, `Gitea responded ${status}`);
   }
   if (isRateLimited(response)) {
     return new GiteaIntegrationProviderError(
@@ -266,7 +284,19 @@ function nextCursorFromLink(link: string | null): string | null {
 }
 
 function encodePath(path: string): string {
-  return path.split('/').map(encodeURIComponent).join('/');
+  const segments = path.split('/');
+  // `..`/`.`/empty segments survive encodeURIComponent and would let `new URL`
+  // normalize the request path out of `/contents/` and hit other authenticated
+  // Gitea endpoints, so reject them before building the URL.
+  for (const segment of segments) {
+    if (segment === '' || segment === '.' || segment === '..') {
+      throw new GiteaIntegrationProviderError(
+        'file-not-found',
+        `Gitea path contains an invalid segment: ${path}`,
+      );
+    }
+  }
+  return segments.map(encodeURIComponent).join('/');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -285,7 +315,7 @@ function toGiteaRepository(raw: unknown): GiteaRepository {
     typeof raw.html_url !== 'string'
   ) {
     throw new GiteaIntegrationProviderError(
-      'provider-unavailable',
+      'malformed-provider-response',
       'Gitea repository response is missing required fields',
     );
   }

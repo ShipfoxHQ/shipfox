@@ -75,12 +75,18 @@ export class GiteaSourceControlProvider
   async resolveRepository(
     input: ResolveRepositoryInput<GiteaIntegrationConnection>,
   ): Promise<RepositorySnapshot> {
-    const {owner, repo} = parseGiteaRepositoryLocator(input.externalRepositoryId);
+    const {owner, repo} = parseGiteaRepositoryLocator(
+      input.externalRepositoryId,
+      input.connection.externalAccountId,
+    );
     return toRepositorySnapshot(await this.gitea.getRepository({owner, repo}));
   }
 
   async listFiles(input: ListFilesInput<GiteaIntegrationConnection>): Promise<FilePage> {
-    const {owner, repo} = parseGiteaRepositoryLocator(input.externalRepositoryId);
+    const {owner, repo} = parseGiteaRepositoryLocator(
+      input.externalRepositoryId,
+      input.connection.externalAccountId,
+    );
     const sha = await this.gitea.resolveRef({owner, repo, ref: input.ref});
     const tree = await this.gitea.listTree({owner, repo, sha});
     if (tree.truncated) {
@@ -105,7 +111,10 @@ export class GiteaSourceControlProvider
   }
 
   async fetchFile(input: FetchFileInput<GiteaIntegrationConnection>): Promise<FileSnapshot> {
-    const {owner, repo} = parseGiteaRepositoryLocator(input.externalRepositoryId);
+    const {owner, repo} = parseGiteaRepositoryLocator(
+      input.externalRepositoryId,
+      input.connection.externalAccountId,
+    );
     const file = await this.gitea.fetchFileContent({owner, repo, path: input.path, ref: input.ref});
 
     if (
@@ -128,14 +137,23 @@ export class GiteaSourceControlProvider
   async createCheckoutSpec(
     input: CreateCheckoutSpecInput<GiteaIntegrationConnection>,
   ): Promise<CheckoutSpec> {
-    const {owner, repo} = parseGiteaRepositoryLocator(input.externalRepositoryId);
+    const {owner, repo} = parseGiteaRepositoryLocator(
+      input.externalRepositoryId,
+      input.connection.externalAccountId,
+    );
     const repository = await this.gitea.getRepository({owner, repo});
     const ref = input.ref?.trim() || repository.defaultBranch;
-    const baseUrl = config.GITEA_BASE_URL.replace(TRAILING_SLASHES_RE, '');
 
     return {
-      repositoryUrl: `${baseUrl}/${owner}/${repo}.git`,
+      // The provider's own clone URL respects a Gitea instance whose external
+      // clone host differs from the API base; it is credential-free, so the
+      // CheckoutSpec "no auth material in repositoryUrl" contract still holds.
+      repositoryUrl: repository.cloneUrl,
       ref,
+      // Gitea has no per-repo, auto-expiring token like a GitHub App installation
+      // token, so checkout reuses the long-lived service credential. `expiresAt`
+      // is the runner's lease/refresh window, not the token's real expiry: this
+      // credential does not actually expire and stays valid if it leaks.
       credentials: {
         username: config.GITEA_SERVICE_USERNAME,
         token: config.GITEA_SERVICE_TOKEN,
@@ -165,7 +183,10 @@ function toRepositoryVisibility(repository: GiteaRepository): RepositoryVisibili
   return repository.private ? 'private' : 'public';
 }
 
-function parseGiteaRepositoryLocator(externalRepositoryId: string): {owner: string; repo: string} {
+function parseGiteaRepositoryLocator(
+  externalRepositoryId: string,
+  expectedOwner: string,
+): {owner: string; repo: string} {
   const value = parseProviderRepositoryId(externalRepositoryId, giteaProviderKind);
   const separatorIndex = value.indexOf('/');
   const owner = separatorIndex > 0 ? value.slice(0, separatorIndex) : '';
@@ -174,6 +195,16 @@ function parseGiteaRepositoryLocator(externalRepositoryId: string): {owner: stri
     throw new GiteaIntegrationProviderError(
       'repository-not-found',
       `Gitea repository id ${externalRepositoryId} must follow the form ${giteaProviderKind}:<owner>/<repo>`,
+    );
+  }
+  // The service token is instance-wide, so the adapter must scope every request
+  // to the connection's own account itself; without this an external id naming
+  // another org would read its private repos and mint checkout credentials for
+  // them. Reported as not-found so it does not confirm an out-of-scope repo.
+  if (owner.toLowerCase() !== expectedOwner.toLowerCase()) {
+    throw new GiteaIntegrationProviderError(
+      'repository-not-found',
+      `Gitea repository id ${externalRepositoryId} is not in the ${expectedOwner} account`,
     );
   }
 
