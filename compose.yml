@@ -61,32 +61,25 @@ services:
 
   gitea:
     container_name: gitea
-    # Pinned >= 1.26.2: that release fixes CVE-2026-28744 / CVE-2026-28699, which
-    # let the git-http clone path skip repository token-scope checks — the exact
-    # path the provider's checkout uses. See ENG-541.
+    # This release fixes CVE-2026-28744 / CVE-2026-28699 on the git-http checkout path.
     image: gitea/gitea:1.26.2
     environment:
       USER_UID: "1000"
       USER_GID: "1000"
       GITEA__database__DB_TYPE: sqlite3
       GITEA__security__INSTALL_LOCK: "true"
-      # The bootstrap registers the first user, whom Gitea promotes to site admin;
-      # registration must stay open for that one call (dev-only, instance is local).
+      # Bootstrap needs one open registration to create the first site admin.
       GITEA__service__DISABLE_REGISTRATION: "false"
-      # ROOT_URL fixes the clone/html URLs Gitea hands back. localhost is reachable
-      # from both the host-run API and the host-run runner, which is where the
-      # clone happens in dev.
+      # Gitea derives clone/html URLs from ROOT_URL; the dev API and runner reach it via localhost.
       GITEA__server__ROOT_URL: http://localhost:3000/
       GITEA__server__DOMAIN: localhost
       GITEA__server__HTTP_PORT: "3000"
-      # Built-in SSH server on a published port, ready for the deploy-key checkout
-      # model (ENG-544); the advertised SSH clone URL is ssh://git@localhost:2222.
+      # Advertise SSH clone URLs on the published dev port.
       GITEA__server__START_SSH_SERVER: "true"
       GITEA__server__SSH_DOMAIN: localhost
       GITEA__server__SSH_PORT: "2222"
       GITEA__server__SSH_LISTEN_PORT: "2222"
-      # Gitea refuses webhook delivery to private/loopback hosts by default; the dev
-      # webhook target is host.docker.internal, so allow everything (dev-only).
+      # Dev webhooks target host.docker.internal, which Gitea blocks by default.
       GITEA__webhook__ALLOWED_HOST_LIST: "*"
       GITEA__log__LEVEL: warn
     volumes:
@@ -112,11 +105,13 @@ services:
       - ./dev/gitea/seed:/seed:ro
     environment:
       GITEA_URL: http://gitea:3000
-      # Must match apps/api/.env (GITEA_SERVICE_USERNAME / GITEA_SERVICE_TOKEN):
-      # the provider authenticates as this bot with the password as its secret.
+      # Matches apps/api/.env so API and bootstrap share the dev service account.
       GITEA_SERVICE_USERNAME: shipfox-bot
       GITEA_SERVICE_TOKEN: shipfox-bot-dev-password
       GITEA_ORG: shipfox-demo
+      # Register the org push webhook as admin; the service account is read-only.
+      GITEA_WEBHOOK_TARGET_URL: http://host.docker.internal:16101/webhooks/integrations/gitea
+      GITEA_WEBHOOK_SECRET: shipfox-gitea-dev-webhook-secret
     entrypoint: [sh, -c, apk add --no-cache curl jq >/dev/null && /bootstrap.sh]
     restart: "no"
 

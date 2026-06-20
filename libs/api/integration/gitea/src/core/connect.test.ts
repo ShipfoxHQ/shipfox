@@ -11,7 +11,6 @@ function giteaClient(overrides: Partial<GiteaApiClient> = {}): GiteaApiClient {
     listTree: vi.fn(() => Promise.reject(new Error('not used'))),
     fetchFileContent: vi.fn(() => Promise.reject(new Error('not used'))),
     organizationExists: vi.fn(() => Promise.resolve(true)),
-    createOrgPushWebhook: vi.fn(() => Promise.resolve({id: 'hook-1'})),
     ...overrides,
   };
 }
@@ -46,7 +45,6 @@ describe('handleGiteaConnect', () => {
     });
 
     await expect(result).rejects.toBeInstanceOf(GiteaOrganizationNotFoundError);
-    expect(gitea.createOrgPushWebhook).not.toHaveBeenCalled();
     expect(connectGiteaConnection).not.toHaveBeenCalled();
   });
 
@@ -64,11 +62,10 @@ describe('handleGiteaConnect', () => {
     });
 
     await expect(result).rejects.toBeInstanceOf(GiteaOrgAlreadyLinkedError);
-    expect(gitea.createOrgPushWebhook).not.toHaveBeenCalled();
     expect(connectGiteaConnection).not.toHaveBeenCalled();
   });
 
-  it('returns the existing active connection without registering a second webhook', async () => {
+  it('returns the existing active connection unchanged', async () => {
     const gitea = giteaClient();
     const workspaceId = crypto.randomUUID();
     const existing = connection({workspaceId, lifecycleStatus: 'active'});
@@ -83,14 +80,11 @@ describe('handleGiteaConnect', () => {
     });
 
     expect(result).toBe(existing);
-    expect(gitea.createOrgPushWebhook).not.toHaveBeenCalled();
     expect(connectGiteaConnection).not.toHaveBeenCalled();
   });
 
-  it('registers a push webhook and persists the connection for a new org', async () => {
-    const gitea = giteaClient({
-      createOrgPushWebhook: vi.fn(() => Promise.resolve({id: '77'})),
-    });
+  it('persists the connection for a new org', async () => {
+    const gitea = giteaClient();
     const workspaceId = crypto.randomUUID();
     const connected = connection({workspaceId, externalAccountId: 'shipfox'});
     const connectGiteaConnection = vi.fn(() => Promise.resolve(connected));
@@ -103,12 +97,10 @@ describe('handleGiteaConnect', () => {
       connectGiteaConnection,
     });
 
-    expect(gitea.createOrgPushWebhook).toHaveBeenCalledWith({org: 'shipfox'});
     expect(connectGiteaConnection).toHaveBeenCalledWith({
       workspaceId,
       org: 'shipfox',
       displayName: 'Gitea shipfox',
-      webhookId: '77',
     });
     expect(result).toBe(connected);
   });
@@ -130,14 +122,11 @@ describe('handleGiteaConnect', () => {
     await expect(result).rejects.toBeInstanceOf(GiteaOrgAlreadyLinkedError);
     expect(gitea.organizationExists).toHaveBeenCalledWith({org: 'acme'});
     expect(getExistingGiteaConnection).toHaveBeenCalledWith({org: 'acme'});
-    expect(gitea.createOrgPushWebhook).not.toHaveBeenCalled();
     expect(connectGiteaConnection).not.toHaveBeenCalled();
   });
 
   it('persists the canonical lowercase org for a new connection', async () => {
-    const gitea = giteaClient({
-      createOrgPushWebhook: vi.fn(() => Promise.resolve({id: '5'})),
-    });
+    const gitea = giteaClient();
     const workspaceId = crypto.randomUUID();
     const connected = connection({workspaceId, externalAccountId: 'shipfox'});
     const connectGiteaConnection = vi.fn(() => Promise.resolve(connected));
@@ -150,12 +139,10 @@ describe('handleGiteaConnect', () => {
       connectGiteaConnection,
     });
 
-    expect(gitea.createOrgPushWebhook).toHaveBeenCalledWith({org: 'shipfox'});
     expect(connectGiteaConnection).toHaveBeenCalledWith({
       workspaceId,
       org: 'shipfox',
       displayName: 'Gitea shipfox',
-      webhookId: '5',
     });
   });
 });

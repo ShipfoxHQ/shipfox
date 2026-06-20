@@ -7,7 +7,6 @@ export interface GiteaConnection {
   id: string;
   connectionId: string;
   org: string;
-  webhookId: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -15,7 +14,6 @@ export interface GiteaConnection {
 export interface UpsertGiteaConnectionParams {
   connectionId: string;
   org: string;
-  webhookId: string;
 }
 
 type GiteaDb = ReturnType<typeof db>;
@@ -32,7 +30,6 @@ export async function upsertGiteaConnection(
     .values({
       connectionId: params.connectionId,
       org: params.org,
-      webhookId: params.webhookId,
     })
     .onConflictDoUpdate({
       target: giteaConnections.org,
@@ -45,7 +42,6 @@ export async function upsertGiteaConnection(
       setWhere: eq(giteaConnections.connectionId, params.connectionId),
       set: {
         connectionId: params.connectionId,
-        webhookId: params.webhookId,
         updatedAt: now,
       },
     })

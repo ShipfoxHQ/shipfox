@@ -1,36 +1,32 @@
 #!/usr/bin/env sh
-# Bootstraps the local-development Gitea over its HTTP API: a site-admin user, the
-# low-privilege bot user the provider authenticates as, a demo org, a read-only team
-# the bot belongs to, and a set of seeded repos carrying demo workflow + code files.
-# Idempotent, so re-running is safe. The gitea-init compose service runs it
-# automatically; it is also launchable by hand (defaults target the published
-# localhost port).
+# Bootstraps local-development Gitea over HTTP: users, org access, webhook, and seed repos.
+# Idempotent, so gitea-init can re-run it safely.
 #
-# HTTP-first, mirroring dev/garage/bootstrap.sh: no `docker exec`, no shared data
-# volume, no second Gitea process touching the SQLite file. The one endpoint that
-# is not a clean REST call is the very first admin: Gitea has no API to mint the
-# first user (every admin API needs an existing admin), so we register it through
-# the web sign-up form, which carries CSRF. Gitea makes the first registered user a
-# site administrator; every later object is created with that admin's Basic auth.
+# Gitea has no API for the first admin because every admin API needs an existing
+# admin, so that one user is created through the CSRF-protected sign-up form.
 set -eu
 
 GITEA_URL="${GITEA_URL:-http://localhost:3000}"
 ADMIN_USER="${GITEA_ADMIN_USERNAME:-gitea-admin}"
 ADMIN_PASSWORD="${GITEA_ADMIN_PASSWORD:-gitea-admin-dev-password}"
 ADMIN_EMAIL="${GITEA_ADMIN_EMAIL:-gitea-admin@shipfox.local}"
-# The bot the provider authenticates as. Username + password must match the
-# GITEA_SERVICE_USERNAME / GITEA_SERVICE_TOKEN in apps/api/.env: dev uses the
-# password itself as the Basic-auth secret, so no generated-token handoff exists.
+# Username and password match apps/api/.env; dev uses the password as the Basic-auth secret.
 BOT_USER="${GITEA_SERVICE_USERNAME:-shipfox-bot}"
 BOT_PASSWORD="${GITEA_SERVICE_TOKEN:-shipfox-bot-dev-password}"
 BOT_EMAIL="${GITEA_BOT_EMAIL:-shipfox-bot@shipfox.local}"
 ORG="${GITEA_ORG:-shipfox-demo}"
 # A read-only team that includes every repo, current and future. It is the bot's
 # only org membership, so a leaked bot credential is bounded to read access on the
-# demo repos rather than the whole instance (the ENG-541 bot-user floor).
+# demo repos rather than the whole instance.
 READ_TEAM="shipfox-readers"
+# Webhook setup uses admin credentials because the service account has read-only org access.
+WEBHOOK_TARGET_URL="${GITEA_WEBHOOK_TARGET_URL:-http://host.docker.internal:16101/webhooks/integrations/gitea}"
+WEBHOOK_SECRET="${GITEA_WEBHOOK_SECRET:-shipfox-gitea-dev-webhook-secret}"
 SEED_DIR="${SEED_DIR:-/seed}"
 COOKIE_JAR="$(mktemp)"
+# set -e aborts on any failed step, so clean the cookie jar from a trap rather than
+# a trailing rm that an early exit would skip.
+trap 'rm -f "$COOKIE_JAR"' EXIT
 
 admin_api() {
   method="$1"
@@ -54,10 +50,7 @@ admin_status() {
     -u "$ADMIN_USER:$ADMIN_PASSWORD" "$GITEA_URL/api/v1$1"
 }
 
-# Register the first user (Gitea promotes it to site admin) through the web sign-up
-# form. Skipped once the admin exists. The form is CSRF-protected: Gitea echoes one
-# token into both the `_csrf` cookie and the hidden form field, so we read it back
-# from the page and submit it with the same cookie jar.
+# Gitea promotes the first registered user to site admin; the form requires a CSRF echo.
 if [ "$(admin_status "/users/$ADMIN_USER")" = "200" ]; then
   echo "Gitea admin '$ADMIN_USER' already exists, skipping sign-up."
 else
@@ -80,7 +73,6 @@ else
   echo "Created Gitea site admin '$ADMIN_USER'."
 fi
 
-# Bot user: a regular (non-admin) account created through the admin API.
 if [ "$(admin_status "/users/$BOT_USER")" = "200" ]; then
   echo "Bot user '$BOT_USER' already exists, skipping."
 else
@@ -115,9 +107,21 @@ fi
 admin_api PUT "/teams/$team_id/members/$BOT_USER" >/dev/null
 echo "Bot user '$BOT_USER' is a member of read team '$READ_TEAM'."
 
-# One repo per immediate subdirectory of the seed tree; its files are uploaded
-# below. `auto_init` creates the default branch so the contents API has a branch to
-# commit against, and a README the demo repo can show.
+# Skip an existing hook with the same target so re-runs do not stack duplicate deliveries.
+existing_hook="$(admin_api GET "/orgs/$ORG/hooks" \
+  | jq -r --arg url "$WEBHOOK_TARGET_URL" '.[] | select(.config.url == $url) | .id' | head -n1)"
+if [ -n "$existing_hook" ]; then
+  echo "Org push webhook already registered (#$existing_hook), skipping."
+else
+  admin_api POST "/orgs/$ORG/hooks" "$(jq -n \
+    --arg url "$WEBHOOK_TARGET_URL" \
+    --arg secret "$WEBHOOK_SECRET" \
+    '{type: "gitea", active: true, events: ["push"], config: {url: $url, content_type: "json", secret: $secret}}')" \
+    >/dev/null
+  echo "Registered org push webhook -> $WEBHOOK_TARGET_URL."
+fi
+
+# auto_init creates the default branch that seeded files commit to.
 for repo_dir in "$SEED_DIR"/*/; do
   [ -d "$repo_dir" ] || continue
   repo="$(basename "$repo_dir")"
@@ -146,5 +150,4 @@ for repo_dir in "$SEED_DIR"/*/; do
   done
 done
 
-rm -f "$COOKIE_JAR"
 echo "Gitea ready: org '$ORG', bot '$BOT_USER', repos seeded under $GITEA_URL/$ORG."
