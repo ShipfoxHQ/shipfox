@@ -2,7 +2,6 @@ CREATE TABLE "integrations_gitea_connections" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"connection_id" uuid NOT NULL,
 	"org" text NOT NULL,
-	"webhook_id" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );

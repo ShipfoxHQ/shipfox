@@ -6,7 +6,6 @@ export const giteaConnectionFactory = Factory.define<GiteaConnection>(({sequence
     upsertGiteaConnection({
       connectionId: connection.connectionId,
       org: connection.org,
-      webhookId: connection.webhookId,
     }),
   );
 
@@ -14,7 +13,6 @@ export const giteaConnectionFactory = Factory.define<GiteaConnection>(({sequence
     id: crypto.randomUUID(),
     connectionId: crypto.randomUUID(),
     org: `org-${sequence + 1}`,
-    webhookId: `${sequence + 1}`,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

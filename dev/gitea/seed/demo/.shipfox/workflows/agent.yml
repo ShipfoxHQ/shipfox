@@ -1,0 +1,10 @@
+name: Agent
+triggers:
+  on_demand:
+    source: manual
+    event: fire
+jobs:
+  greet:
+    steps:
+      - model: claude-opus-4-8
+        prompt: Say hello

@@ -6,7 +6,6 @@ export interface ConnectGiteaConnectionInput {
   workspaceId: string;
   org: string;
   displayName: string;
-  webhookId: string;
 }
 
 export interface HandleGiteaConnectParams {
@@ -39,24 +38,15 @@ export async function handleGiteaConnect(
   if (existing && existing.workspaceId !== params.workspaceId) {
     throw new GiteaOrgAlreadyLinkedError(org);
   }
-  // Re-connecting an org that is already active is a no-op: returning the
-  // existing connection avoids registering a second webhook on every retry.
   if (existing && existing.lifecycleStatus === 'active') {
     return existing;
   }
 
-  // Webhook registration is idempotent: createOrgPushWebhook reuses an existing
-  // active push hook for this org. If the persistence below rolls back (a
-  // concurrent connect won the ownership race, or a transient DB failure), the
-  // hook is left in place and re-adopted by the next connect instead of being
-  // deleted. Deleting it here would risk removing a hook a concurrent successful
-  // connect just adopted, and until adoption it only delivers events that the
-  // receiver ignores for an org with no connection.
-  const webhook = await params.gitea.createOrgPushWebhook({org});
+  // The read-only service account cannot manage org hooks; the instance admin
+  // provisions push delivery out of band.
   return await params.connectGiteaConnection({
     workspaceId: params.workspaceId,
     org,
     displayName: `Gitea ${org}`,
-    webhookId: webhook.id,
   });
 }

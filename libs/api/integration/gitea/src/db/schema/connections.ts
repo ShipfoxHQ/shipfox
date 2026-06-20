@@ -9,7 +9,6 @@ export const giteaConnections = pgTable(
     id: uuidv7PrimaryKey(),
     connectionId: uuid('connection_id').notNull(),
     org: text('org').notNull(),
-    webhookId: text('webhook_id').notNull(),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
@@ -27,7 +26,6 @@ export function toGiteaConnection(row: GiteaConnectionDb): GiteaConnection {
     id: row.id,
     connectionId: row.connectionId,
     org: row.org,
-    webhookId: row.webhookId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

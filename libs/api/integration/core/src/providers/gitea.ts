@@ -49,7 +49,6 @@ async function loadGiteaModuleParts(): Promise<IntegrationModuleParts> {
         {
           connectionId: connection.id,
           org: input.org,
-          webhookId: input.webhookId,
         },
         {tx},
       );

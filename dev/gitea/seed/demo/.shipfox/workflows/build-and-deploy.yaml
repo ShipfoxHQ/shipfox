@@ -1,0 +1,16 @@
+name: Build and deploy
+runner: ubuntu-latest
+triggers:
+  on_push:
+    source: gitea
+    event: push
+    filter: 'event.ref == "refs/heads/main"'
+jobs:
+  build:
+    steps:
+      - run: node --check src/index.js
+      - run: node --test
+  deploy:
+    needs: build
+    steps:
+      - run: echo "Deploying demo"

@@ -1,0 +1,10 @@
+name: CI
+triggers:
+  on_push:
+    source: gitea
+    event: push
+jobs:
+  test:
+    runner: ubuntu-latest
+    steps:
+      - run: node --test

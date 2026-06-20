@@ -15,7 +15,6 @@ function connectionParams(
   return {
     connectionId: randomUUID(),
     org: `org-${Math.floor(Math.random() * 1_000_000)}`,
-    webhookId: '1',
     ...overrides,
   };
 }
@@ -28,16 +27,13 @@ describe('gitea connections persistence', () => {
   test('upsert updates in place when the same connection reconnects, without duplicating', async () => {
     const org = `org-${Date.now()}`;
     const connectionId = randomUUID();
-    await upsertGiteaConnection(connectionParams({connectionId, org, webhookId: '1'}));
+    await upsertGiteaConnection(connectionParams({connectionId, org}));
 
-    const updated = await upsertGiteaConnection(
-      connectionParams({connectionId, org, webhookId: '2'}),
-    );
+    const updated = await upsertGiteaConnection(connectionParams({connectionId, org}));
 
     expect(updated.connectionId).toBe(connectionId);
-    expect(updated.webhookId).toBe('2');
     const fetched = await getGiteaConnectionByOrg(org);
-    expect(fetched?.webhookId).toBe('2');
+    expect(fetched?.connectionId).toBe(connectionId);
   });
 
   test('upsert rejects linking an org already owned by another connection (TOCTOU guard)', async () => {

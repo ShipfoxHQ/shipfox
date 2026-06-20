@@ -11,10 +11,7 @@ export const config = createConfig({
     desc: 'Access token or bot password of the Gitea service account, used for REST API and git-http basic auth. Required.',
   }),
   GITEA_WEBHOOK_SECRET: str({
-    desc: 'Secret used to verify the signature of incoming Gitea webhooks. Must match the secret set on the Gitea org webhook. Required.',
-  }),
-  GITEA_WEBHOOK_TARGET_URL: url({
-    desc: 'Public URL that Gitea delivers webhooks to. Points at this API and must be reachable from the Gitea instance. Required.',
+    desc: 'Secret used to verify incoming Gitea webhooks. Must match the org webhook secret set by the instance admin. Required.',
   }),
   GITEA_CHECKOUT_TTL_SECONDS: num({
     desc: 'Lifetime in seconds of the checkout credentials handed to the runner. Defaults to 300 (five minutes).',
