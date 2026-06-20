@@ -1,1 +1,0 @@
-CREATE INDEX "logs_attempt_streams_step_attempt_idx" ON "logs_attempt_streams" USING btree ("step_id","attempt");
