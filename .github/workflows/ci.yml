@@ -96,10 +96,11 @@ jobs:
       # environment and sets the build metadata itself, so "Run verification"'s build
       # cache is reused instead of re-hashed (args after `--` enter every task's hash).
       # With IMAGE_REGISTRIES unset it validates each Dockerfile single-arch (--load,
-      # no push), tagging <app>:ci.
+      # no push), tagging <app>:ci. --concurrency=1 so the three Docker builds don't
+      # contend for the runner's CPU/memory.
       - name: Build images
         if: success() && github.ref != 'refs/heads/main'
-        run: turbo image --filter @shipfox/api --filter @shipfox/client --filter @shipfox/runner
+        run: turbo image --concurrency=1 --filter @shipfox/api --filter @shipfox/client --filter @shipfox/runner
 
   # Publish the per-commit images. A separate, main-only job that depends on ci, so
   # images are only built for a commit whose checks, tests, and E2E passed, and the
