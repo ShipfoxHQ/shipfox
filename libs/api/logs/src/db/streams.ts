@@ -1,4 +1,4 @@
-import {and, asc, eq, isNull, lt, sql} from 'drizzle-orm';
+import {and, asc, eq, isNull, lt, notInArray, sql} from 'drizzle-orm';
 import type {AttemptStream, StreamCloseReason} from '#core/entities/attempt-stream.js';
 import {LeaseStreamMismatchError} from '#core/errors.js';
 import {db, type Transaction} from './db.js';
@@ -244,4 +244,68 @@ export async function listStaleUncompactedStreams(params: {
     .limit(params.limit);
 
   return rows.map(toAttemptStream);
+}
+
+/**
+ * Lists expired closed streams for retention. `excludeIds` keeps failed or raced rows from
+ * starving younger rows in the same run, and avoids cursoring on `closed_at`, whose microsecond
+ * precision would be lost through JS `Date`.
+ *
+ * No `object_key` filter: retention deletes compacted and never-compacted streams alike.
+ */
+export async function listExpiredClosedStreams(params: {
+  retentionDays: number;
+  limit: number;
+  excludeIds?: string[] | undefined;
+}): Promise<AttemptStream[]> {
+  const rows = await db()
+    .select()
+    .from(attemptStreams)
+    .where(
+      and(
+        eq(attemptStreams.state, 'closed'),
+        lt(attemptStreams.closedAt, sql`now() - make_interval(days => ${params.retentionDays})`),
+        params.excludeIds && params.excludeIds.length > 0
+          ? notInArray(attemptStreams.id, params.excludeIds)
+          : undefined,
+      ),
+    )
+    .orderBy(asc(attemptStreams.closedAt), asc(attemptStreams.id))
+    .limit(params.limit)
+    .for('update', {skipLocked: true});
+
+  return rows.map(toAttemptStream);
+}
+
+/**
+ * Hard-deletes one expired stream row, guarded on the observed `object_key` so a racing
+ * compaction publish leaves the row for the next sweep.
+ */
+export async function deleteExpiredStream(
+  tx: Transaction,
+  params: {streamId: string; observedObjectKey: string | null},
+): Promise<{deleted: boolean; jobId: string | null}> {
+  const [row] = await tx
+    .delete(attemptStreams)
+    .where(
+      and(
+        eq(attemptStreams.id, params.streamId),
+        params.observedObjectKey === null
+          ? isNull(attemptStreams.objectKey)
+          : eq(attemptStreams.objectKey, params.observedObjectKey),
+      ),
+    )
+    .returning({jobId: attemptStreams.jobId});
+
+  return {deleted: Boolean(row), jobId: row?.jobId ?? null};
+}
+
+export async function accountingHasNoStreams(tx: Transaction, jobId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({id: attemptStreams.id})
+    .from(attemptStreams)
+    .where(eq(attemptStreams.jobId, jobId))
+    .limit(1);
+
+  return !row;
 }

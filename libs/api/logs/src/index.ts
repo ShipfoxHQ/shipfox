@@ -33,7 +33,15 @@ export const logsModule: ShipfoxModule = {
       taskQueue: LOGS_LIFECYCLE_TASK_QUEUE,
       workflowsPath,
       activities: createLogsActivities,
-      workflows: [],
+      // Temporal cron schedules are fixed after creation, so making cadence configurable would
+      // look adjustable while keeping the old schedule. Tune LOG_RETENTION_DAYS for the horizon.
+      workflows: [
+        {
+          name: 'retentionSweepCron',
+          id: 'logs-retention-sweep',
+          cronSchedule: '0 * * * *',
+        },
+      ],
     },
     // Compaction runs on its own queue so long uploads cannot starve the lifecycle sweep.
     {

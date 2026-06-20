@@ -1,8 +1,10 @@
 import type {Readable} from 'node:stream';
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  ListObjectsV2Command,
   S3Client,
 } from '@aws-sdk/client-s3';
 import {Upload} from '@aws-sdk/lib-storage';
@@ -176,4 +178,47 @@ export async function presignedGetUrl(objectKey: string): Promise<{url: string; 
     {expiresIn: ttlSeconds},
   );
   return {url, expiresAt};
+}
+
+/**
+ * Deletes all objects under a per-attempt prefix. Retention deletes by prefix, not only the
+ * recorded `object_key`, to reclaim orphan leaves from failed compaction attempts.
+ *
+ * Pass a trailing slash so attempt `1` never matches attempt `10`.
+ */
+export async function deleteObjectsByPrefix(prefix: string): Promise<void> {
+  if (prefix === '') {
+    throw new Error(
+      'deleteObjectsByPrefix refuses an empty prefix (it would target the whole bucket)',
+    );
+  }
+  const client = s3Client();
+  let continuationToken: string | undefined;
+  do {
+    const listed = await client.send(
+      new ListObjectsV2Command({
+        Bucket: config.LOG_STORAGE_S3_BUCKET,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      }),
+    );
+    const objects = (listed.Contents ?? []).flatMap((object) =>
+      object.Key ? [{Key: object.Key}] : [],
+    );
+    if (objects.length > 0) {
+      const deleted = await client.send(
+        new DeleteObjectsCommand({
+          Bucket: config.LOG_STORAGE_S3_BUCKET,
+          Delete: {Objects: objects, Quiet: true},
+        }),
+      );
+      if (deleted.Errors && deleted.Errors.length > 0) {
+        const [first] = deleted.Errors;
+        throw new Error(
+          `Failed to delete ${deleted.Errors.length} object(s) under ${prefix}: ${first?.Key} ${first?.Message}`,
+        );
+      }
+    }
+    continuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
+  } while (continuationToken);
 }

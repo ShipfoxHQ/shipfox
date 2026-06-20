@@ -57,6 +57,10 @@ export const config = createConfig({
     desc: 'Maximum number of stored log bytes returned in a single inline (hot) read response. A long-running step can buffer far more than this in Postgres before compaction, so a read is capped here and the client re-polls (following has_more) to drain the backlog before it tails. Bounds per-request memory. Must be at least 1. Defaults to 1 MiB.',
     default: 1_048_576,
   }),
+  LOG_RETENTION_DAYS: num({
+    desc: 'How many days a closed log stream is kept before the retention cron hard-deletes its stored object and database row. Our own worker enforces this (not bucket lifecycle rules), so behavior is identical across object stores. Must be a whole number of days, 1 or greater. Defaults to 90 days.',
+    default: 90,
+  }),
 });
 
 // SigV4 caps a presigned URL's lifetime at 7 days, so a larger TTL would fail at signing
@@ -73,5 +77,13 @@ if (
 if (config.LOG_READ_INLINE_MAX_BYTES < 1) {
   throw new Error(
     `LOG_READ_INLINE_MAX_BYTES must be at least 1; got ${config.LOG_READ_INLINE_MAX_BYTES}`,
+  );
+}
+
+// `num` accepts zero, negative, and fractional values; reject them before they reach
+// `make_interval(days => ...)` and hard-delete the wrong streams.
+if (!Number.isInteger(config.LOG_RETENTION_DAYS) || config.LOG_RETENTION_DAYS < 1) {
+  throw new Error(
+    `LOG_RETENTION_DAYS (${config.LOG_RETENTION_DAYS}) must be a whole number of days >= 1.`,
   );
 }

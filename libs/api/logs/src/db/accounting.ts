@@ -1,4 +1,4 @@
-import {and, eq, isNull, sql} from 'drizzle-orm';
+import {and, eq, isNull, lt, sql} from 'drizzle-orm';
 import type {Transaction} from './db.js';
 import {jobAccounting} from './schema/job-accounting.js';
 
@@ -57,4 +57,25 @@ export async function isJobCapped(tx: Transaction, jobId: string): Promise<boole
     .where(eq(jobAccounting.jobId, jobId));
 
   return Boolean(row?.cappedAt);
+}
+
+/**
+ * Prunes accounting only after the job has no recent budget activity. A live job re-touches
+ * `updated_at` on append, so this guard keeps retention from resetting its cap state.
+ */
+export async function deleteJobAccounting(
+  tx: Transaction,
+  params: {jobId: string; retentionDays: number},
+): Promise<{deleted: boolean}> {
+  const [row] = await tx
+    .delete(jobAccounting)
+    .where(
+      and(
+        eq(jobAccounting.jobId, params.jobId),
+        lt(jobAccounting.updatedAt, sql`now() - make_interval(days => ${params.retentionDays})`),
+      ),
+    )
+    .returning({jobId: jobAccounting.jobId});
+
+  return {deleted: Boolean(row)};
 }
