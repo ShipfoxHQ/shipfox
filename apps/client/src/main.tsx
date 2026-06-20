@@ -38,7 +38,9 @@ const configResult = loadAppConfig();
 if (!configResult.ok) {
   root.render(
     <StrictMode>
-      <ConfigErrorScreen errors={configResult.errors} />
+      <ThemeProvider>
+        <ConfigErrorScreen errors={configResult.errors} />
+      </ThemeProvider>
     </StrictMode>,
   );
 } else {

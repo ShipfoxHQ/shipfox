@@ -36,6 +36,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",
     "zod": "^4.4.3"
   },
