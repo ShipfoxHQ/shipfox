@@ -10,6 +10,8 @@ export async function setup() {
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_triggers');
   await db().execute(sql`TRUNCATE triggers_subscriptions CASCADE`);
   await db().execute(sql`TRUNCATE triggers_outbox CASCADE`);
+  await db().execute(sql`TRUNCATE triggers_received_events CASCADE`);
+  await db().execute(sql`TRUNCATE triggers_decisions CASCADE`);
 
   closeDb();
   await closePostgresClient();

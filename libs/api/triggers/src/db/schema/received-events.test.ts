@@ -1,0 +1,108 @@
+import {db} from '../db.js';
+import {
+  type TriggerReceivedEventDb,
+  type TriggerReceivedEventInsertDb,
+  toTriggerReceivedEvent,
+  triggersReceivedEvents,
+} from './received-events.js';
+
+describe('toTriggerReceivedEvent', () => {
+  test('maps a fully populated row to the domain entity', () => {
+    const row: TriggerReceivedEventDb = {
+      id: '019e98ab-6656-7ca1-b9ad-1ca4442c479d',
+      eventRef: 'evt-1',
+      origin: 'integration',
+      workspaceId: '019e98ab-b90f-7265-b13c-8b441c991381',
+      source: 'github',
+      event: 'push',
+      deliveryId: 'delivery-1',
+      connectionId: '019e98ab-b90f-7265-b13c-8b441c991382',
+      outcome: 'routed',
+      matchedCount: 3,
+      payload: {ref: 'refs/heads/main'},
+      receivedAt: new Date('2026-06-09T10:00:00.000Z'),
+      processedAt: new Date('2026-06-09T10:00:01.000Z'),
+      createdAt: new Date('2026-06-09T10:00:02.000Z'),
+    };
+
+    const result = toTriggerReceivedEvent(row);
+
+    expect(result).toEqual({
+      id: row.id,
+      eventRef: 'evt-1',
+      origin: 'integration',
+      workspaceId: row.workspaceId,
+      source: 'github',
+      event: 'push',
+      deliveryId: 'delivery-1',
+      connectionId: row.connectionId,
+      outcome: 'routed',
+      matchedCount: 3,
+      payload: {ref: 'refs/heads/main'},
+      receivedAt: row.receivedAt,
+      processedAt: row.processedAt,
+      createdAt: row.createdAt,
+    });
+  });
+
+  test('passes through null delivery, connection, payload, and processed_at', () => {
+    const row: TriggerReceivedEventDb = {
+      id: '019e98ab-6656-7ca1-b9ad-1ca4442c479d',
+      eventRef: 'evt-2',
+      origin: 'manual',
+      workspaceId: '019e98ab-b90f-7265-b13c-8b441c991381',
+      source: 'manual',
+      event: 'fire',
+      deliveryId: null,
+      connectionId: null,
+      outcome: 'received',
+      matchedCount: 0,
+      payload: null,
+      receivedAt: new Date('2026-06-09T10:00:00.000Z'),
+      processedAt: null,
+      createdAt: new Date('2026-06-09T10:00:02.000Z'),
+    };
+
+    const result = toTriggerReceivedEvent(row);
+
+    expect(result.deliveryId).toBeNull();
+    expect(result.connectionId).toBeNull();
+    expect(result.payload).toBeNull();
+    expect(result.processedAt).toBeNull();
+  });
+});
+
+describe('triggers_received_events schema', () => {
+  test('applies outcome, matched_count, and created_at defaults on insert', async () => {
+    const values: TriggerReceivedEventInsertDb = {
+      eventRef: crypto.randomUUID(),
+      origin: 'integration',
+      workspaceId: crypto.randomUUID(),
+      source: 'github',
+      event: 'push',
+      receivedAt: new Date(),
+    };
+
+    const [row] = await db().insert(triggersReceivedEvents).values(values).returning();
+
+    expect(row?.outcome).toBe('received');
+    expect(row?.matchedCount).toBe(0);
+    expect(row?.createdAt).toBeInstanceOf(Date);
+  });
+
+  test('rejects a duplicate event_ref', async () => {
+    const values: TriggerReceivedEventInsertDb = {
+      eventRef: crypto.randomUUID(),
+      origin: 'integration',
+      workspaceId: crypto.randomUUID(),
+      source: 'github',
+      event: 'push',
+      receivedAt: new Date(),
+    };
+    await db().insert(triggersReceivedEvents).values(values);
+
+    const duplicate = db().insert(triggersReceivedEvents).values(values);
+
+    await expect(duplicate).rejects.toThrow();
+  });
+});
