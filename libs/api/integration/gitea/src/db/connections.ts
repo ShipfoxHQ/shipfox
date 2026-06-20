@@ -51,8 +51,12 @@ export async function upsertGiteaConnection(
   return toGiteaConnection(row);
 }
 
-export async function getGiteaConnectionByOrg(org: string): Promise<GiteaConnection | undefined> {
-  const rows = await db()
+export async function getGiteaConnectionByOrg(
+  org: string,
+  options: {tx?: unknown} = {},
+): Promise<GiteaConnection | undefined> {
+  const executor = (options.tx ?? db()) as GiteaDb | GiteaTx;
+  const rows = await executor
     .select()
     .from(giteaConnections)
     .where(eq(giteaConnections.org, org))

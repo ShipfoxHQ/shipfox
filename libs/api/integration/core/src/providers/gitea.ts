@@ -3,6 +3,7 @@ import type {ConnectGiteaConnectionInput} from '@shipfox/api-integration-gitea';
 import {config} from '#config.js';
 import {getIntegrationConnectionById, upsertIntegrationConnection} from '#db/connections.js';
 import {db} from '#db/db.js';
+import {publishSourcePush, recordDeliveryOnly} from '#db/webhook-deliveries.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
 // Stable migration-tracking table name for the Gitea provider database. This
@@ -61,6 +62,10 @@ async function loadGiteaModuleParts(): Promise<IntegrationModuleParts> {
     provider: createGiteaIntegrationProvider({
       getExistingGiteaConnection,
       connectGiteaConnection,
+      publishSourcePush,
+      recordDeliveryOnly,
+      getIntegrationConnectionById,
+      coreDb: db,
     }),
     database: {
       db: giteaDb,
