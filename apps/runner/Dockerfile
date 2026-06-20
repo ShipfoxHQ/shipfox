@@ -20,9 +20,10 @@ ARG PNPM_VERSION=11.6.0
 # Build stage: install the pruned workspace, then deploy only @shipfox/runner's
 # production closure into /prod. Workspace dependencies are copied in as real
 # directories (with their prebuilt dist/), and dev-only packages are dropped.
-# The official node image (Debian/glibc) carries corepack and a clean pnpm store;
-# the runner's prod closure is pure JS + wasm (no native addons), so /prod is
-# portable to the Ubuntu runtime below.
+# The official node image (Debian/glibc) carries corepack and a clean pnpm store.
+# The runner's prod closure is JS + wasm plus pi's lazily-loaded optional clipboard
+# native addon (glibc prebuilds, never loaded on the headless runner path), so /prod
+# is portable to the Ubuntu runtime below.
 FROM node:${NODE_VERSION}-slim AS build
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -46,6 +47,12 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 FROM ubuntu:26.04 AS runtime
 ENV NODE_ENV=production
 
+# Match the UTF-8 environment user steps expect from ubuntu-latest: the Ubuntu
+# base leaves LANG unset, so tooling falls back to the byte-wise C locale and
+# mishandles non-ASCII. C.UTF-8 is built into glibc, so it needs no `locales`
+# package; a step can still override LANG for its own command.
+ENV LANG=C.UTF-8
+
 # System tooling the runner and the user steps it runs commonly need:
 #  - git: clones the repository for each job (the checkout step fails as
 #    `git_unavailable` without it); openssh-client covers git-over-ssh.
@@ -53,6 +60,13 @@ ENV NODE_ENV=production
 #    Node's own bundle, but these system tools use the OS store).
 #  - curl/wget, the archive tools, and jq: what user scripts reach for constantly.
 #  - build-essential + python3 + pkg-config: node-gyp and native build steps.
+#  - ripgrep (rg) + fd-find (fd): the pi agent's grep/find tools shell out to
+#    these. On PATH they let pi use the system binaries instead of downloading
+#    rg/fd from GitHub on first use. fd-find installs the binary as `fdfind`, so
+#    it is symlinked to `fd` after the install.
+#  - sudo: user steps get passwordless root inside the container, matching the
+#    GitHub ubuntu-latest environment (the container itself is the isolation
+#    boundary; see the sudoers drop-in below).
 #  - tini: PID 1. The runner spawns each user shell/agent step in its own
 #    detached process group; a step that orphans a grandchild re-parents it to
 #    PID 1, and Node would not reap it. tini reaps those zombies over the
@@ -75,8 +89,12 @@ RUN apt-get update \
         build-essential \
         python3 \
         pkg-config \
+        ripgrep \
+        fd-find \
+        sudo \
         tini \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s "$(command -v fdfind)" /usr/local/bin/fd
 
 # Node itself: copy the exact, pinned binary from the official image rather than
 # add an apt repo, so the runtime Node matches the build stage byte-for-byte and
@@ -90,11 +108,15 @@ RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
 
 WORKDIR /app
 
-# Run unprivileged. Unlike the api the runner writes at runtime, so the user owns
-# a home directory: the pi coding agent persists its config under $HOME/.pi, and
-# per-job workspaces and shell scripts are created under the OS temp directory.
+# Run as the unprivileged shipfox user by default, with passwordless sudo for the
+# user steps that need root (à la ubuntu-latest; the container is the isolation
+# boundary). Unlike the api the runner writes at runtime, so the user owns a home
+# directory: the pi coding agent persists its config under $HOME/.pi, and per-job
+# workspaces and shell scripts are created under the OS temp directory.
 RUN groupadd --system shipfox \
-    && useradd --system --gid shipfox --create-home --home-dir /home/shipfox shipfox
+    && useradd --system --gid shipfox --create-home --home-dir /home/shipfox shipfox \
+    && echo 'shipfox ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/shipfox \
+    && chmod 0440 /etc/sudoers.d/shipfox
 ENV HOME=/home/shipfox
 
 COPY --from=build /prod ./
