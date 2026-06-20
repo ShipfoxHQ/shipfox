@@ -2,7 +2,7 @@ import type {LogStreamClosedEvent} from '@shipfox/api-logs-dto';
 import {LOGS_COMPACTION_TASK_QUEUE} from '#temporal/constants.js';
 import {onLogStreamClosed} from './on-log-stream-closed.js';
 
-const startMock = vi.fn();
+const startMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@shipfox/node-temporal', () => ({
   temporalClient: () => ({

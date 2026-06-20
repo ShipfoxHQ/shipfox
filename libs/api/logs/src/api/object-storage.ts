@@ -125,11 +125,8 @@ export async function putCompactedObject(params: PutCompactedObjectParams): Prom
 
   if (params.onProgress) upload.on('httpUploadProgress', params.onProgress);
   if (params.signal) {
-    // An already-aborted signal never fires 'abort', so abort eagerly; otherwise listen.
-    if (params.signal.aborted) {
-      await upload.abort().catch(() => undefined);
-      throw new Error('Compaction upload aborted before it started');
-    }
+    // Subscribe before the aborted-check so a signal firing between them cannot be missed,
+    // then handle the already-aborted case eagerly (an already-aborted signal never fires 'abort').
     params.signal.addEventListener(
       'abort',
       () => {
@@ -137,6 +134,10 @@ export async function putCompactedObject(params: PutCompactedObjectParams): Prom
       },
       {once: true},
     );
+    if (params.signal.aborted) {
+      await upload.abort().catch(() => undefined);
+      throw new Error('Compaction upload aborted before it started');
+    }
   }
 
   await upload.done();
