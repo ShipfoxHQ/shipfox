@@ -50,6 +50,21 @@ describe('apiRequest', () => {
     expect(request.headers.get('authorization')).toBe('Bearer access-token');
   });
 
+  test('falls back to the runtime config api url when no baseUrl is set', async () => {
+    globalThis.__SHIPFOX_CONFIG__ = {apiUrl: 'https://runtime.example.test'};
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ok: true}));
+    configureApiClient({baseUrl: undefined, fetchImpl});
+
+    try {
+      await apiRequest('/workspaces');
+
+      const request = fetchImpl.mock.calls[0]?.[0] as Request;
+      expect(request.url).toBe('https://runtime.example.test/workspaces');
+    } finally {
+      globalThis.__SHIPFOX_CONFIG__ = undefined;
+    }
+  });
+
   test('normalizes json API errors', async () => {
     const fetchImpl = vi
       .fn()

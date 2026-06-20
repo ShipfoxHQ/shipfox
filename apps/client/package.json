@@ -13,6 +13,7 @@
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "dev": "vite-dev",
+    "image": "shipfox-docker",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
+    "@shipfox/docker": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vite": "workspace:*",
