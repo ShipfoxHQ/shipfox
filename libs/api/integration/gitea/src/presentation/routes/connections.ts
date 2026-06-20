@@ -8,6 +8,7 @@ import {requireMembership} from '@shipfox/api-workspaces';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {GiteaApiClient} from '#api/client.js';
 import {type ConnectGiteaConnectionInput, handleGiteaConnect} from '#core/connect.js';
+import {giteaConnectionExternalUrl} from '#core/connection-url.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
 import {giteaRouteErrorHandler} from './errors.js';
 
@@ -50,7 +51,9 @@ export function createGiteaConnectionRoutes({
         connectGiteaConnection,
       });
 
-      return toIntegrationConnectionDto(connection);
+      return toIntegrationConnectionDto(connection, {
+        externalUrl: giteaConnectionExternalUrl(connection.externalAccountId),
+      });
     },
   });
 

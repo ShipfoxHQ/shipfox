@@ -10,6 +10,11 @@ const NEXT_PAGE_RE = /[?&]page=(\d+)/;
 // truncated by Gitea and surfaced to the adapter as `too-many-files`.
 const TREE_PAGE_SIZE = 1000;
 
+// Org webhooks are listed a page at a time; walk every page (up to a sane cap)
+// so an existing push hook past the first page cannot be missed and duplicated.
+const HOOK_PAGE_SIZE = 50;
+const MAX_HOOK_PAGES = 100;
+
 export interface GiteaRepository {
   ownerLogin: string;
   name: string;
@@ -45,13 +50,6 @@ export interface GiteaWebhook {
   id: string;
 }
 
-export interface GiteaWebhookRegistration extends GiteaWebhook {
-  // True when an existing org hook for the configured target URL was reused
-  // instead of creating a new one. Callers use this to avoid deleting a hook
-  // they did not create when compensating for a failed connection.
-  reused: boolean;
-}
-
 export interface GiteaApiClient {
   listOrgRepositories(input: {
     org: string;
@@ -68,8 +66,7 @@ export interface GiteaApiClient {
     ref: string;
   }): Promise<GiteaFileContent>;
   organizationExists(input: {org: string}): Promise<boolean>;
-  createOrgPushWebhook(input: {org: string}): Promise<GiteaWebhookRegistration>;
-  deleteOrgWebhook(input: {org: string; webhookId: string}): Promise<void>;
+  createOrgPushWebhook(input: {org: string}): Promise<GiteaWebhook>;
 }
 
 export function createGiteaApiClient(): GiteaApiClient {
@@ -208,12 +205,12 @@ class HttpGiteaApiClient implements GiteaApiClient {
     throw giteaHttpError(response);
   }
 
-  async createOrgPushWebhook(input: {org: string}): Promise<GiteaWebhookRegistration> {
+  async createOrgPushWebhook(input: {org: string}): Promise<GiteaWebhook> {
     // An org needs at most one push hook to our single GITEA_WEBHOOK_TARGET_URL.
-    // Reuse an existing one so a retried or re-attempted connect cannot stack
-    // duplicate hooks that deliver the same push events.
+    // Reuse an existing one so a retried or concurrent connect cannot stack
+    // duplicate hooks that deliver the same push event twice.
     const existingId = await this.findOrgPushWebhookId(input.org);
-    if (existingId !== undefined) return {id: existingId, reused: true};
+    if (existingId !== undefined) return {id: existingId};
 
     const response = await this.requestRaw(`orgs/${encodeURIComponent(input.org)}/hooks`, {
       method: 'POST',
@@ -237,35 +234,32 @@ class HttpGiteaApiClient implements GiteaApiClient {
         'Gitea webhook response did not include a numeric id',
       );
     }
-    return {id: String(data.id), reused: false};
-  }
-
-  async deleteOrgWebhook(input: {org: string; webhookId: string}): Promise<void> {
-    const response = await this.requestRaw(
-      `orgs/${encodeURIComponent(input.org)}/hooks/${encodeURIComponent(input.webhookId)}`,
-      {method: 'DELETE'},
-    );
-    // A hook that is already gone (404) satisfies the intended end state.
-    if (!response.ok && response.status !== 404) throw giteaHttpError(response);
+    return {id: String(data.id)};
   }
 
   private async findOrgPushWebhookId(org: string): Promise<string | undefined> {
-    const response = await this.requestRaw(`orgs/${encodeURIComponent(org)}/hooks`, {
-      searchParams: {limit: '50'},
-    });
-    if (!response.ok) throw giteaHttpError(response);
+    // Walk every page: a matching hook past the first page must still be found,
+    // otherwise a duplicate push hook would be created for the same org.
+    for (let page = 1; page <= MAX_HOOK_PAGES; page++) {
+      const response = await this.requestRaw(`orgs/${encodeURIComponent(org)}/hooks`, {
+        searchParams: {page: String(page), limit: String(HOOK_PAGE_SIZE)},
+      });
+      if (!response.ok) throw giteaHttpError(response);
 
-    const data = await response.json();
-    if (!Array.isArray(data)) return undefined;
-    for (const hook of data) {
-      if (
-        isRecord(hook) &&
-        typeof hook.id === 'number' &&
-        isRecord(hook.config) &&
-        hook.config.url === config.GITEA_WEBHOOK_TARGET_URL
-      ) {
-        return String(hook.id);
+      const data = await response.json();
+      // A non-array body is malformed; treating it as "no hook" would hide the
+      // fault and create a duplicate hook, so fail fast instead.
+      if (!Array.isArray(data)) {
+        throw new GiteaIntegrationProviderError(
+          'malformed-provider-response',
+          'Gitea org hooks response was not an array',
+        );
       }
+
+      for (const hook of data) {
+        if (isReusablePushWebhook(hook)) return String(hook.id);
+      }
+      if (data.length < HOOK_PAGE_SIZE) return undefined;
     }
     return undefined;
   }
@@ -408,6 +402,21 @@ function encodePath(path: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function isReusablePushWebhook(hook: unknown): hook is {id: number} {
+  // Only an active hook subscribed to push events and pointing at our target URL
+  // is safe to reuse. A paused or non-push hook with the same URL would leave the
+  // connection persisted but unable to receive pushes.
+  return (
+    isRecord(hook) &&
+    typeof hook.id === 'number' &&
+    hook.active === true &&
+    Array.isArray(hook.events) &&
+    hook.events.includes('push') &&
+    isRecord(hook.config) &&
+    hook.config.url === config.GITEA_WEBHOOK_TARGET_URL
+  );
 }
 
 function toGiteaRepository(raw: unknown): GiteaRepository {

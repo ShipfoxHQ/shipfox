@@ -49,8 +49,7 @@ function giteaClient(overrides: Partial<GiteaApiClient> = {}): GiteaApiClient {
     listTree: vi.fn(() => Promise.reject(new Error('not used'))),
     fetchFileContent: vi.fn(() => Promise.reject(new Error('not used'))),
     organizationExists: vi.fn(() => Promise.resolve(true)),
-    createOrgPushWebhook: vi.fn(() => Promise.resolve({id: 'hook-1', reused: false})),
-    deleteOrgWebhook: vi.fn(() => Promise.resolve()),
+    createOrgPushWebhook: vi.fn(() => Promise.resolve({id: 'hook-1'})),
     ...overrides,
   };
 }
@@ -109,7 +108,7 @@ describe('Gitea connection routes', () => {
 
   it('connects an org, registers a webhook, and returns the connection DTO', async () => {
     const gitea = giteaClient({
-      createOrgPushWebhook: vi.fn(() => Promise.resolve({id: '77', reused: false})),
+      createOrgPushWebhook: vi.fn(() => Promise.resolve({id: '77'})),
     });
     const app = await createTestApp({gitea});
     const workspaceId = crypto.randomUUID();
@@ -125,6 +124,7 @@ describe('Gitea connection routes', () => {
     expect(res.json().provider).toBe('gitea');
     expect(res.json().external_account_id).toBe('shipfox');
     expect(res.json().lifecycle_status).toBe('active');
+    expect(res.json().external_url).toBe('https://gitea.example.com/shipfox');
     expect(gitea.createOrgPushWebhook).toHaveBeenCalledWith({org: 'shipfox'});
     expect(requireMembershipMock).toHaveBeenCalledWith(expect.objectContaining({workspaceId}));
   });

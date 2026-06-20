@@ -1,14 +1,12 @@
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {giteaProviderKind} from '@shipfox/api-integration-gitea-dto';
 import {createGiteaApiClient, type GiteaApiClient} from '#api/client.js';
-import {config} from '#config.js';
 import type {ConnectGiteaConnectionInput} from '#core/connect.js';
+import {giteaConnectionExternalUrl} from '#core/connection-url.js';
 import {GiteaSourceControlProvider} from '#core/source-control.js';
 import {closeDb, db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {createGiteaConnectionRoutes} from '#presentation/routes/connections.js';
-
-const TRAILING_SLASHES_RE = /\/+$/;
 
 export type {
   GiteaApiClient,
@@ -18,7 +16,6 @@ export type {
   GiteaTree,
   GiteaTreeBlob,
   GiteaWebhook,
-  GiteaWebhookRegistration,
 } from '#api/client.js';
 export {createGiteaApiClient} from '#api/client.js';
 export type {ConnectGiteaConnectionInput} from '#core/connect.js';
@@ -57,8 +54,7 @@ export function createGiteaIntegrationProvider(options: CreateGiteaIntegrationPr
       source_control: new GiteaSourceControlProvider(gitea),
     },
     connectionExternalUrl(connection: {externalAccountId: string}): Promise<string | undefined> {
-      const base = config.GITEA_BASE_URL.replace(TRAILING_SLASHES_RE, '');
-      return Promise.resolve(`${base}/${encodeURIComponent(connection.externalAccountId)}`);
+      return Promise.resolve(giteaConnectionExternalUrl(connection.externalAccountId));
     },
     routes: [
       createGiteaConnectionRoutes({

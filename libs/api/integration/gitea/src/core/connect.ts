@@ -45,24 +45,18 @@ export async function handleGiteaConnect(
     return existing;
   }
 
+  // Webhook registration is idempotent: createOrgPushWebhook reuses an existing
+  // active push hook for this org. If the persistence below rolls back (a
+  // concurrent connect won the ownership race, or a transient DB failure), the
+  // hook is left in place and re-adopted by the next connect instead of being
+  // deleted. Deleting it here would risk removing a hook a concurrent successful
+  // connect just adopted, and until adoption it only delivers events that the
+  // receiver ignores for an org with no connection.
   const webhook = await params.gitea.createOrgPushWebhook({org});
-  try {
-    return await params.connectGiteaConnection({
-      workspaceId: params.workspaceId,
-      org,
-      displayName: `Gitea ${org}`,
-      webhookId: webhook.id,
-    });
-  } catch (error) {
-    // The webhook is an external side effect created before the persistence
-    // transaction. If that transaction rolls back (a concurrent connect of the
-    // same org won the ownership race, or a transient DB failure), delete the
-    // hook we just created so it cannot deliver events with no backing
-    // connection. Only a freshly created hook is removed; a reused one predates
-    // this attempt. Cleanup is best-effort: the original error always wins.
-    if (!webhook.reused) {
-      await params.gitea.deleteOrgWebhook({org, webhookId: webhook.id}).catch(() => undefined);
-    }
-    throw error;
-  }
+  return await params.connectGiteaConnection({
+    workspaceId: params.workspaceId,
+    org,
+    displayName: `Gitea ${org}`,
+    webhookId: webhook.id,
+  });
 }

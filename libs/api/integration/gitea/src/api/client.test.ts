@@ -373,7 +373,7 @@ describe('HttpGiteaApiClient', () => {
 
     const webhook = await client.createOrgPushWebhook({org: 'shipfox'});
 
-    expect(webhook).toEqual({id: '99', reused: false});
+    expect(webhook).toEqual({id: '99'});
     const listUrl = requestedUrl(0);
     expect(listUrl.pathname).toBe('/api/v1/orgs/shipfox/hooks');
     expect(requestInit(0).method ?? 'GET').toBe('GET');
@@ -394,19 +394,85 @@ describe('HttpGiteaApiClient', () => {
     });
   });
 
-  it('reuses an existing push webhook that targets the configured url', async () => {
+  it('reuses an existing active push webhook that targets the configured url', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse([
-        {id: 1, config: {url: 'https://elsewhere.example.com'}},
-        {id: 7, config: {url: 'https://api.example.com/webhooks/integrations/gitea'}},
+        {id: 1, active: true, events: ['push'], config: {url: 'https://elsewhere.example.com'}},
+        {
+          id: 7,
+          active: true,
+          events: ['push'],
+          config: {url: 'https://api.example.com/webhooks/integrations/gitea'},
+        },
       ]),
     );
     const client = createGiteaApiClient();
 
     const webhook = await client.createOrgPushWebhook({org: 'shipfox'});
 
-    expect(webhook).toEqual({id: '7', reused: true});
+    expect(webhook).toEqual({id: '7'});
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not reuse an inactive or non-push hook on the configured url', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse([
+          {
+            id: 7,
+            active: false,
+            events: ['push'],
+            config: {url: 'https://api.example.com/webhooks/integrations/gitea'},
+          },
+          {
+            id: 8,
+            active: true,
+            events: ['pull_request'],
+            config: {url: 'https://api.example.com/webhooks/integrations/gitea'},
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(jsonResponse({id: 99}, {status: 201}));
+    const client = createGiteaApiClient();
+
+    const webhook = await client.createOrgPushWebhook({org: 'shipfox'});
+
+    expect(webhook).toEqual({id: '99'});
+    expect(requestInit(1).method).toBe('POST');
+  });
+
+  it('walks every hook page before deciding to create a new one', async () => {
+    const fullPage = Array.from({length: 50}, (_, index) => ({
+      id: index + 1,
+      active: true,
+      events: ['pull_request'],
+      config: {url: 'https://elsewhere.example.com'},
+    }));
+    fetchMock.mockResolvedValueOnce(jsonResponse(fullPage)).mockResolvedValueOnce(
+      jsonResponse([
+        {
+          id: 200,
+          active: true,
+          events: ['push'],
+          config: {url: 'https://api.example.com/webhooks/integrations/gitea'},
+        },
+      ]),
+    );
+    const client = createGiteaApiClient();
+
+    const webhook = await client.createOrgPushWebhook({org: 'shipfox'});
+
+    expect(webhook).toEqual({id: '200'});
+    expect(requestedUrl(1).searchParams.get('page')).toBe('2');
+  });
+
+  it('fails fast when the hook list response is not an array', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({message: 'nope'}));
+    const client = createGiteaApiClient();
+
+    const result = client.createOrgPushWebhook({org: 'shipfox'});
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
   });
 
   it('rejects a webhook response without a numeric id', async () => {
@@ -418,34 +484,5 @@ describe('HttpGiteaApiClient', () => {
     const result = client.createOrgPushWebhook({org: 'shipfox'});
 
     await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
-  });
-
-  it('deletes an org webhook by id', async () => {
-    fetchMock.mockResolvedValue(new Response(null, {status: 204}));
-    const client = createGiteaApiClient();
-
-    await client.deleteOrgWebhook({org: 'shipfox', webhookId: '7'});
-
-    const url = requestedUrl();
-    expect(url.pathname).toBe('/api/v1/orgs/shipfox/hooks/7');
-    expect(requestInit().method).toBe('DELETE');
-  });
-
-  it('treats a missing webhook on delete as already removed', async () => {
-    fetchMock.mockResolvedValue(new Response(null, {status: 404}));
-    const client = createGiteaApiClient();
-
-    await expect(
-      client.deleteOrgWebhook({org: 'shipfox', webhookId: '7'}),
-    ).resolves.toBeUndefined();
-  });
-
-  it('surfaces a non-404 error on delete', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({}, {status: 500}));
-    const client = createGiteaApiClient();
-
-    const result = client.deleteOrgWebhook({org: 'shipfox', webhookId: '7'});
-
-    await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
   });
 });
