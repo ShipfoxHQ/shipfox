@@ -73,7 +73,6 @@ const readLogsPresignedSchema = z.object({
     .describe('True when the stream was force-closed because the runner stopped reporting.'),
 });
 
-/** Read response: inline NDJSON while hot, a presigned object URL once compacted. */
 export const readLogsResponseSchema = z.discriminatedUnion('mode', [
   readLogsInlineSchema,
   readLogsPresignedSchema,

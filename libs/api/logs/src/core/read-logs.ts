@@ -4,7 +4,6 @@ import type {AttemptStream, StreamState} from '#core/entities/attempt-stream.js'
 import {readChunkPageBySeq} from '#db/chunks.js';
 import {getAttemptStreamById} from '#db/streams.js';
 
-/** Inline read: raw NDJSON from the hot chunks, served while the stream is not yet compacted. */
 export interface InlineLogRead {
   mode: 'inline';
   ndjson: string;
@@ -14,7 +13,6 @@ export interface InlineLogRead {
   truncated: boolean;
 }
 
-/** Presigned read: a short-lived GET URL to the compacted object, served once it exists. */
 export interface PresignedLogRead {
   mode: 'presigned';
   url: string;
@@ -37,9 +35,6 @@ async function presignedRead(stream: AttemptStream, objectKey: string): Promise<
 }
 
 /**
- * Builds the read result for one already-authorized stream: a presigned object URL once
- * the stream is compacted, otherwise an inline NDJSON page walked by `seq` from `cursor`.
- *
  * Compaction-boundary guard: a stream can be loaded with no `objectKey`, then compaction
  * publishes the key and deletes the chunks before the chunk read runs, which would yield a
  * spurious empty inline frame on a closed stream. On that exact shape (closed stream, empty

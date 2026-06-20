@@ -63,7 +63,6 @@ interface ChunkSpec {
   origin?: 'runner' | 'control';
 }
 
-/** Arranges one `(step, attempt)` stream with the given chunks, bypassing the lease append path. */
 async function arrangeStream(opts: {
   workspaceId: string;
   chunks: (Buffer | ChunkSpec)[];
