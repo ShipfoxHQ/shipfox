@@ -51,13 +51,11 @@ function sanitizeTag(value: string): string {
   return value.replace(/[^A-Za-z0-9_.-]/g, '-');
 }
 
-// The per-commit tag set this build pushes for an app. The workflow supplies the
-// ref through the environment — registry bases as REGISTRY_* (e.g.
-// REGISTRY_GHCR=ghcr.io/shipfoxhq) and the commit identity as GITHUB_SHA /
-// BUILD_NUMBER / GITHUB_REF_NAME — and the package script passes the image name,
-// so one `turbo image --filter ...` tags every app. Adding a registry is an env
-// change, not a code change. With no REGISTRY_* set (the PR validation path) emit
-// a single local tag so a --load build has a reference to load.
+// Derive the tag set from the environment (REGISTRY_* bases plus the GITHUB_SHA /
+// BUILD_NUMBER / GITHUB_REF_NAME commit identity) so adding a registry is a config
+// change, not a code change. With no REGISTRY_* set (the PR validation path) emit a
+// single local tag so a --load build has a reference to load. See the README for
+// the full tag scheme.
 function perCommitTags(image: string): string[] {
   const registries = Object.keys(process.env)
     .filter((key) => key.startsWith('REGISTRY_'))
