@@ -14,6 +14,10 @@
     <meta name="apple-mobile-web-app-title" content="Shipfox" />
     <meta name="msapplication-TileColor" content="#ff9300" />
     <meta name="theme-color" content="#ff9300" />
+
+    <!-- Runtime config, set before the app bundle loads. Served from public/ in
+         dev; the Docker image rewrites it from environment at container start. -->
+    <script src="/config.js"></script>
   </head>
   <body>
     <div id="app"></div>

@@ -1,0 +1,11 @@
+# The image is assembled from the prebuilt static dist/ plus the nginx config
+# and the runtime-config entrypoint. Ignore everything else so stray files never
+# enter the context or bust the layer cache, then re-include what the Dockerfile
+# copies. The /** lines are required because re-including a directory does not
+# re-include its contents (moby/moby#30018).
+*
+!dist
+!dist/**
+!nginx.conf
+!docker-entrypoint.d
+!docker-entrypoint.d/**
