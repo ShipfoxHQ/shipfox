@@ -21,7 +21,7 @@ const {auth, routes, workers} = await initializeModules({
 
 await createApp({auth, routes});
 await listen();
-startModuleWorkers({workers});
+await startModuleWorkers({workers});
 ```
 
 This adds:

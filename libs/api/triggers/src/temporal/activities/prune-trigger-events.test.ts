@@ -56,7 +56,7 @@ describe('pruneTriggerEventsActivity', () => {
   it('deletes events older than the retention window and cascades their decisions', async () => {
     const oldId = await insertEvent(new Date(Date.now() - 60 * DAY_MS));
     const decisionId = await insertDecision(oldId);
-    const recentId = await insertEvent(new Date(Date.now() - DAY_MS));
+    const recentId = await insertEvent(new Date());
 
     const result = await pruneTriggerEventsActivity();
 
@@ -67,7 +67,7 @@ describe('pruneTriggerEventsActivity', () => {
   });
 
   it('keeps events within the retention window', async () => {
-    const recentId = await insertEvent(new Date(Date.now() - DAY_MS));
+    const recentId = await insertEvent(new Date());
 
     await pruneTriggerEventsActivity();
 
