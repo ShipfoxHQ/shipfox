@@ -15,6 +15,9 @@ process.env.LOG_BUDGET_RATE_BYTES_PER_MINUTE = '60';
 // Modest body limit (64 KiB) so the route 413 test uses a small payload.
 process.env.LOG_APPEND_BODY_LIMIT_BYTES = '65536';
 
+// Tiny inline read page so the read-path drain/has_more test pages with small fixtures.
+process.env.LOG_READ_INLINE_MAX_BYTES = '256';
+
 // Real Garage dev credentials (bootstrap.sh creates the shipfox-logs-test bucket and grants
 // this key). Compaction tests upload to and read back from live Garage from compose.yml.
 process.env.LOG_STORAGE_S3_ENDPOINT = 'http://localhost:3900';

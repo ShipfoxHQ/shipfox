@@ -1,10 +1,12 @@
-import {AUTH_LEASED_JOB} from '@shipfox/api-auth-context';
+import {AUTH_LEASED_JOB, AUTH_USER} from '@shipfox/api-auth-context';
 import {createRawBodyPlugin, type RouteGroup} from '@shipfox/node-fastify';
 import {config} from '#config.js';
 import {appendLogsRoute} from './append-logs.js';
+import {readLogsRoute} from './read-logs.js';
 
-// Keep logs in their own Fastify scope so the raw NDJSON parser does not disturb
-// workflow JSON routes. The body limit also bounds one-append budget overshoot.
+// Keep the lease-authed append in its own Fastify scope so the raw NDJSON parser does not
+// disturb the JSON read route (or workflow routes). The body limit also bounds one-append
+// budget overshoot. The read route is session-authed and workspace-scoped via the row.
 export const logsRoutes: RouteGroup[] = [
   {
     prefix: '/runs/jobs/current',
@@ -16,5 +18,10 @@ export const logsRoutes: RouteGroup[] = [
       }),
     ],
     routes: [appendLogsRoute],
+  },
+  {
+    prefix: '/steps',
+    auth: AUTH_USER,
+    routes: [readLogsRoute],
   },
 ];

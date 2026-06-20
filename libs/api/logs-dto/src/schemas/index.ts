@@ -7,6 +7,12 @@ export {
   offsetGapResponseSchema,
 } from './append.js';
 export {
+  type ReadLogsQueryDto,
+  type ReadLogsResponseDto,
+  readLogsQuerySchema,
+  readLogsResponseSchema,
+} from './read.js';
+export {
   type AppendableLogRecord,
   appendableLogRecordSchema,
   type LogRecord,

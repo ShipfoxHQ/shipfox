@@ -1,11 +1,16 @@
 import {Buffer} from 'node:buffer';
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
-import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
+import {AUTH_USER} from '@shipfox/api-auth-context';
+import {type AuthMethod, closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {endLine, ndjsonBody, outputLine, recordLine} from '#test/fixtures/ndjson.js';
 import {logsRoutes} from './index.js';
 
 const NDJSON = 'application/x-ndjson';
+
+// logsRoutes also carries the session-authed read group; register a no-op AUTH_USER method
+// so auth-reference validation passes (these tests only exercise the lease append route).
+const stubUserAuth: AuthMethod = {name: AUTH_USER, authenticate: () => Promise.resolve()};
 
 function logsUrl(stepId: string, attempt: number, offset: number): string {
   return `/runs/jobs/current/steps/${stepId}/logs?attempt=${attempt}&offset=${offset}`;
@@ -16,7 +21,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
 
   beforeAll(async () => {
     app = await createApp({
-      auth: [createLeaseTokenAuthMethod()],
+      auth: [createLeaseTokenAuthMethod(), stubUserAuth],
       routes: logsRoutes,
       swagger: false,
     });

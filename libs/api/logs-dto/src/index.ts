@@ -13,6 +13,10 @@ export {
   offsetGapResponseSchema,
   parseAppendableLogRecordLine,
   parseLogRecordLine,
+  type ReadLogsQueryDto,
+  type ReadLogsResponseDto,
+  readLogsQuerySchema,
+  readLogsResponseSchema,
 } from '#schemas/index.js';
 export {
   LOG_STREAM_CLOSED,

@@ -42,6 +42,25 @@ export async function getAttemptStream(
 }
 
 /**
+ * Reads the stream for `(step, attempt)` for the session read path, which holds no lease
+ * and so has no `jobId`. `stepId` is a globally unique uuidv7, so `(stepId, attempt)`
+ * selects at most one row even though stream identity is `(jobId, stepId, attempt)`. The
+ * caller authorizes against the row's denormalized `workspaceId`.
+ */
+export async function getStreamByStepAttempt(lookup: {
+  stepId: string;
+  attempt: number;
+}): Promise<AttemptStream | null> {
+  const [row] = await db()
+    .select()
+    .from(attemptStreams)
+    .where(
+      and(eq(attemptStreams.stepId, lookup.stepId), eq(attemptStreams.attempt, lookup.attempt)),
+    );
+  return row ? toAttemptStream(row) : null;
+}
+
+/**
  * Loads the stream for `(job, step, attempt)`, creating it on first append.
  * Scoped by `jobId` from the lease, so a lease never reaches another job's stream.
  * A single upsert with `RETURNING` (the touch-update yields the row on conflict)

@@ -61,6 +61,10 @@ export const attemptStreams = pgTable(
       table.stepId,
       table.attempt,
     ),
+    // The session read path looks up a stream by (step, attempt) without the job id, so the
+    // identity unique (which leads with job_id) can't serve it. This index keeps that lookup
+    // off a sequential scan as the table grows.
+    index('logs_attempt_streams_step_attempt_idx').on(table.stepId, table.attempt),
     // Timeout-close sweeps an open job's streams by job_id; the partial index keeps
     // it off the closed tail.
     index('logs_attempt_streams_open_by_job_idx').on(table.jobId).where(sql`"state" = 'open'`),
