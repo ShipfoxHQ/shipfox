@@ -86,10 +86,10 @@ jobs:
           if-no-files-found: error
 
       # Per-commit app images. These steps come last and are guarded with success()
-      # so an image is only built once the checks, tests, and E2E above pass — a
-      # commit that fails CI never publishes an image. They reuse the dist/ already
-      # built by "Run verification"; a single buildx + QEMU pass emits the multi-arch
-      # manifest. QEMU only matters for the multi-arch main build; PRs are native amd64.
+      # so an image is only built once the checks, tests, and E2E above pass: a commit
+      # that fails CI never publishes an image. They reuse the dist/ already built by
+      # "Run verification"; a single buildx + QEMU pass emits the multi-arch manifest.
+      # QEMU only matters for the multi-arch main build; PRs are native amd64.
       - name: Set up QEMU
         if: success() && github.ref == 'refs/heads/main'
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
