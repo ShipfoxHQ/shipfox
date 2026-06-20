@@ -1,0 +1,20 @@
+name: Hello world
+runner:
+  - ubuntu-latest
+  - node-22
+triggers:
+  on_demand:
+    source: manual
+    event: fire
+  on_push:
+    source: gitea
+    event: push
+    filter: 'event.ref == "refs/heads/main"'
+jobs:
+  build:
+    steps:
+      - run: echo "hello world"
+      - name: test
+        run: pnpm test
+        gate:
+          success_if: exit_code == 0

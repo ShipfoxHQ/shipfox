@@ -1,0 +1,16 @@
+name: Build and deploy
+triggers:
+  on_push:
+    source: gitea
+    event: push
+    filter: 'event.ref == "refs/heads/main"'
+jobs:
+  build:
+    steps:
+      - run: pnpm install
+      - run: pnpm build
+  deploy:
+    needs: build
+    runner: ubuntu-latest
+    steps:
+      - run: pnpm deploy
