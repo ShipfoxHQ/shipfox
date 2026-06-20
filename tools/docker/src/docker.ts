@@ -42,7 +42,7 @@ function cacheScope(): string | undefined {
 function takeImageName(): string | undefined {
   const inline = passthrough.findIndex((arg) => arg.startsWith('--image='));
   if (inline !== -1) {
-    const value = passthrough.splice(inline, 1)[0].slice('--image='.length);
+    const value = passthrough.splice(inline, 1)[0]?.slice('--image='.length);
     if (!value) throw new Error('--image requires a non-empty value (e.g. --image api).');
     return value;
   }
