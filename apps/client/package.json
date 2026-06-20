@@ -13,7 +13,7 @@
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "dev": "vite-dev",
-    "image": "shipfox-docker",
+    "image": "shipfox-docker --image client",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },

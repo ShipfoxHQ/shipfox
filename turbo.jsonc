@@ -46,6 +46,12 @@
     "depcruise": {
       "cache": true,
       "dependsOn": ["@shipfox/depcruise#build"]
+    },
+    "image": {
+      "cache": false,
+      "dependsOn": ["build"],
+      "env": ["BUILD_NUMBER", "NODE_VERSION", "PNPM_VERSION"],
+      "passThroughEnv": ["IMAGE_REGISTRIES"]
     }
   }
 }

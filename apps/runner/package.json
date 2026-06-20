@@ -11,7 +11,7 @@
   "scripts": {
     "build": "shipfox-swc",
     "dev": "tsx watch --conditions=development --env-file-if-exists=.env --env-file-if-exists=.env.local src/index.ts",
-    "image": "shipfox-docker --setup-context",
+    "image": "shipfox-docker --setup-context --image runner",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "type": "shipfox-tsc-check",
