@@ -166,10 +166,14 @@ export async function deleteObject(key: string): Promise<void> {
  */
 export async function presignedGetUrl(objectKey: string): Promise<{url: string; expiresAt: Date}> {
   const ttlSeconds = config.LOG_READ_URL_TTL_SECONDS;
+  // Stamp the deadline from before signing: getSignedUrl bakes its expiry from the clock at
+  // sign time, so reading Date.now() after the await could report a deadline slightly past the
+  // real one. Computing it first keeps expiresAt a conservative (never-late) bound.
+  const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
   const url = await getSignedUrl(
     s3Client(),
     new GetObjectCommand({Bucket: config.LOG_STORAGE_S3_BUCKET, Key: objectKey}),
     {expiresIn: ttlSeconds},
   );
-  return {url, expiresAt: new Date(Date.now() + ttlSeconds * 1000)};
+  return {url, expiresAt};
 }

@@ -45,6 +45,12 @@ async function presignedRead(stream: AttemptStream, objectKey: string): Promise<
  * spurious empty inline frame on a closed stream. On that exact shape (closed stream, empty
  * page) the row is re-read once; if it has since compacted, the presigned object is served
  * instead.
+ *
+ * The re-read is scoped to a closed snapshot on purpose. An open stream returns empty pages
+ * on every idle tail poll, so re-reading each would add a row read to the hot path; and an
+ * open snapshot cannot have compacted (compaction runs only after close, seconds later via
+ * Temporal), so the open-empty-compacted window is too small to hit. If it ever did, the
+ * client's next poll reloads the now-compacted row and self-corrects.
  */
 export async function buildLogReadResult(
   stream: AttemptStream,
