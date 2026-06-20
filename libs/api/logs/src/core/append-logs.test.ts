@@ -1,7 +1,17 @@
+import {Buffer} from 'node:buffer';
+import type {StreamKind} from '@shipfox/api-logs-dto';
 import {appendLogs} from '#core/append-logs.js';
-import {LeaseStreamMismatchError, OffsetGapError} from '#core/errors.js';
+import {LeaseStreamMismatchError, MalformedLogChunkError, OffsetGapError} from '#core/errors.js';
 import {jobAccountingFactory} from '#test/factories/job-accounting.js';
-import {controlLine, ndjsonBody, outputLine, outputOfBytes} from '#test/fixtures/ndjson.js';
+import {
+  endLine,
+  groupStartLine,
+  ndjsonBody,
+  outputLine,
+  outputOfBytes,
+  recordLine,
+  sessionLine,
+} from '#test/fixtures/ndjson.js';
 import {findAccounting, findStream, listChunks, listStreamClosedEvents} from '#test/queries.js';
 
 interface Ctx {
@@ -10,6 +20,7 @@ interface Ctx {
   workspaceId: string;
   projectId: string;
   runId: string;
+  kind: StreamKind;
 }
 
 function newCtx(): Ctx {
@@ -19,6 +30,7 @@ function newCtx(): Ctx {
     workspaceId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     runId: crypto.randomUUID(),
+    kind: 'log_stream',
   };
 }
 
@@ -35,7 +47,7 @@ describe('appendLogs', () => {
       expect(stream?.committedLength).toBe(body.length);
       const chunks = await listChunks(stream?.id as string);
       expect(chunks).toHaveLength(1);
-      expect(chunks[0]?.kind).toBe('runner');
+      expect(chunks[0]?.origin).toBe('runner');
     });
 
     it('acks a re-sent (offset < committed) append without storing a new chunk', async () => {
@@ -95,7 +107,7 @@ describe('appendLogs', () => {
   describe('budget accounting', () => {
     it('charges the raw stored bytes, envelope and control records included', async () => {
       const ctx = newCtx();
-      const body = ndjsonBody(outputLine('abc'), controlLine({kind: 'group_start', name: 'Build'}));
+      const body = ndjsonBody(outputLine('abc'), groupStartLine('g1', 'Build'));
 
       await appendLogs({...ctx, attempt: 1, offset: 0, body});
 
@@ -128,7 +140,7 @@ describe('appendLogs', () => {
       expect((await findAccounting(ctx.jobId))?.cappedAt).not.toBeNull();
       const stream = await findStream({...ctx, attempt: 1});
       const chunks = await listChunks(stream?.id as string);
-      expect(chunks.map((c) => c.kind)).toEqual(['runner', 'control']);
+      expect(chunks.map((c) => c.origin)).toEqual(['runner', 'control']);
     });
 
     it('drops a post-cap straggler but still advances committed_length', async () => {
@@ -165,7 +177,7 @@ describe('appendLogs', () => {
   describe('stream lifecycle', () => {
     it('declared-closes the stream and emits one stream-closed event on an end record', async () => {
       const ctx = newCtx();
-      const body = ndjsonBody(outputLine('done\n'), controlLine({kind: 'end', total_bytes: 12345}));
+      const body = ndjsonBody(outputLine('done\n'), endLine(12345));
 
       await appendLogs({...ctx, attempt: 1, offset: 0, body});
 
@@ -180,7 +192,7 @@ describe('appendLogs', () => {
 
     it('is idempotent: a re-sent end body neither re-closes nor emits a second event', async () => {
       const ctx = newCtx();
-      const body = ndjsonBody(outputLine('done\n'), controlLine({kind: 'end', total_bytes: 10}));
+      const body = ndjsonBody(outputLine('done\n'), endLine(10));
       await appendLogs({...ctx, attempt: 1, offset: 0, body});
       const stream = await findStream({...ctx, attempt: 1});
 
@@ -193,7 +205,7 @@ describe('appendLogs', () => {
       const ctx = newCtx();
       // End-only body so the single stored chunk stays under the 100-byte test budget
       // (an extra output line would trip the cap and add a tombstone chunk).
-      const end = ndjsonBody(controlLine({kind: 'end', total_bytes: 4}));
+      const end = ndjsonBody(endLine(4));
       await appendLogs({...ctx, attempt: 1, offset: 0, body: end});
       const closed = await findStream({...ctx, attempt: 1});
 
@@ -214,10 +226,7 @@ describe('appendLogs', () => {
       const ctx = newCtx();
       // 150 payload bytes cross the 100-byte test budget, but the crossing chunk is still
       // stored in full; the same body carries the end, so the stream declared-closes.
-      const body = ndjsonBody(
-        outputLine('x'.repeat(150)),
-        controlLine({kind: 'end', total_bytes: 4}),
-      );
+      const body = ndjsonBody(outputLine('x'.repeat(150)), endLine(4));
 
       const result = await appendLogs({...ctx, attempt: 1, offset: 0, body});
 
@@ -226,7 +235,7 @@ describe('appendLogs', () => {
       expect(stream?.state).toBe('closed');
       expect(stream?.closeReason).toBe('declared');
       expect(stream?.truncated).toBe(false);
-      expect((await listChunks(stream?.id as string)).map((c) => c.kind)).toEqual([
+      expect((await listChunks(stream?.id as string)).map((c) => c.origin)).toEqual([
         'runner',
         'control',
       ]);
@@ -239,7 +248,7 @@ describe('appendLogs', () => {
       // body: it is dropped, so the stream is not whole and must stay open for the sweep.
       const first = outputOfBytes(150);
       await appendLogs({...ctx, attempt: 1, offset: 0, body: first});
-      const end = ndjsonBody(controlLine({kind: 'end', total_bytes: 4}));
+      const end = ndjsonBody(endLine(4));
 
       const result = await appendLogs({...ctx, attempt: 1, offset: first.length, body: end});
 
@@ -297,7 +306,7 @@ describe('appendLogs', () => {
       const controls = [
         ...(await listChunks(streamA?.id as string)),
         ...(await listChunks(streamB?.id as string)),
-      ].filter((c) => c.kind === 'control');
+      ].filter((c) => c.origin === 'control');
       expect(controls).toHaveLength(1);
     });
 
@@ -334,7 +343,15 @@ describe('appendLogs', () => {
       const bodyA = ndjsonBody(outputLine('a\n'));
       const bodyB = ndjsonBody(outputLine('bbbb\n'));
 
-      const common = {workspaceId, projectId, runId, stepId, attempt: 1, offset: 0};
+      const common = {
+        workspaceId,
+        projectId,
+        runId,
+        stepId,
+        attempt: 1,
+        offset: 0,
+        kind: 'log_stream' as const,
+      };
       await appendLogs({...common, jobId: jobA, body: bodyA});
       await appendLogs({...common, jobId: jobB, body: bodyB});
 
@@ -343,6 +360,174 @@ describe('appendLogs', () => {
       expect(streamA?.id).not.toBe(streamB?.id);
       expect(streamA?.committedLength).toBe(bodyA.length);
       expect(streamB?.committedLength).toBe(bodyB.length);
+    });
+  });
+
+  describe('write-path enforcement (log_stream)', () => {
+    it.each([
+      'capped',
+      'runner_lost',
+    ])('rejects a forged server-only %s tombstone before any row is created', async (type) => {
+      const ctx = newCtx();
+      const body = ndjsonBody(recordLine({type}));
+
+      const error = await appendLogs({...ctx, attempt: 1, offset: 0, body}).catch(
+        (e: unknown) => e,
+      );
+
+      expect(error).toBeInstanceOf(MalformedLogChunkError);
+      expect(await findStream({...ctx, attempt: 1})).toBeNull();
+    });
+
+    it('rejects an invalid NDJSON record', async () => {
+      const ctx = newCtx();
+      const body = ndjsonBody(recordLine({type: 'output', stream: 'stdout'})); // missing data
+
+      const error = await appendLogs({...ctx, attempt: 1, offset: 0, body}).catch(
+        (e: unknown) => e,
+      );
+
+      expect(error).toBeInstanceOf(MalformedLogChunkError);
+    });
+  });
+
+  describe('kind: agent_session', () => {
+    const sessionCtx = (): Ctx => ({...newCtx(), kind: 'agent_session'});
+
+    it('stores a session body verbatim, byte-identical, as runner-origin chunks', async () => {
+      const ctx = sessionCtx();
+      const body = ndjsonBody(
+        sessionLine({type: 'session', version: 3}),
+        sessionLine({type: 'message', role: 'assistant', text: 'hi'}),
+      );
+
+      const result = await appendLogs({...ctx, attempt: 1, offset: 0, body});
+
+      expect(result).toEqual({committedLength: body.length, capped: false});
+      const stream = await findStream({...ctx, attempt: 1});
+      const chunks = await listChunks(stream?.id as string);
+      expect(chunks.every((c) => c.origin === 'runner')).toBe(true);
+      expect(Buffer.concat(chunks.map((c) => c.data))).toEqual(body);
+    });
+
+    it('reassembles two whole-line appends byte-identically (line-aligned committed_length)', async () => {
+      const ctx = sessionCtx();
+      const first = ndjsonBody(sessionLine({i: 1}));
+      const second = ndjsonBody(sessionLine({i: 2}));
+      await appendLogs({...ctx, attempt: 1, offset: 0, body: first});
+
+      await appendLogs({...ctx, attempt: 1, offset: first.length, body: second});
+
+      const stream = await findStream({...ctx, attempt: 1});
+      const chunks = await listChunks(stream?.id as string);
+      expect(Buffer.concat(chunks.map((c) => c.data))).toEqual(Buffer.concat([first, second]));
+    });
+
+    it('rejects a non-newline-terminated session body', async () => {
+      const ctx = sessionCtx();
+      const body = Buffer.from(JSON.stringify({a: 1}), 'utf8'); // no trailing newline
+
+      const error = await appendLogs({...ctx, attempt: 1, offset: 0, body}).catch(
+        (e: unknown) => e,
+      );
+
+      expect(error).toBeInstanceOf(MalformedLogChunkError);
+    });
+
+    it('rejects a non-JSON session line', async () => {
+      const ctx = sessionCtx();
+      const body = Buffer.from('not json\n', 'utf8');
+
+      const error = await appendLogs({...ctx, attempt: 1, offset: 0, body}).catch(
+        (e: unknown) => e,
+      );
+
+      expect(error).toBeInstanceOf(MalformedLogChunkError);
+    });
+
+    it('rejects a session body with invalid UTF-8 bytes', async () => {
+      const ctx = sessionCtx();
+      const body = Buffer.concat([
+        Buffer.from('{"a":"'),
+        Buffer.from([0xff, 0xfe]),
+        Buffer.from('"}\n'),
+      ]);
+
+      const error = await appendLogs({...ctx, attempt: 1, offset: 0, body}).catch(
+        (e: unknown) => e,
+      );
+
+      expect(error).toBeInstanceOf(MalformedLogChunkError);
+    });
+
+    it('rejects a session line over the configured byte cap', async () => {
+      const ctx = sessionCtx();
+      const body = ndjsonBody(sessionLine({blob: 'x'.repeat(300)})); // > 256 test cap
+
+      const error = await appendLogs({...ctx, attempt: 1, offset: 0, body}).catch(
+        (e: unknown) => e,
+      );
+
+      expect(error).toBeInstanceOf(MalformedLogChunkError);
+    });
+
+    it('stores a line that looks like a control record verbatim, never interpreting it', async () => {
+      const ctx = sessionCtx();
+      const body = ndjsonBody(sessionLine({v: 1, ts: 1, type: 'capped'}));
+
+      const result = await appendLogs({...ctx, attempt: 1, offset: 0, body});
+
+      expect(result.capped).toBe(false);
+      const stream = await findStream({...ctx, attempt: 1});
+      const chunks = await listChunks(stream?.id as string);
+      expect(chunks.every((c) => c.origin === 'runner')).toBe(true);
+      expect(Buffer.concat(chunks.map((c) => c.data))).toEqual(body);
+    });
+
+    it('caps over budget WITHOUT injecting an in-band tombstone', async () => {
+      const ctx = sessionCtx();
+      const body = ndjsonBody(sessionLine({blob: 'x'.repeat(120)})); // crosses the 100-byte budget
+
+      const result = await appendLogs({...ctx, attempt: 1, offset: 0, body});
+
+      expect(result.capped).toBe(true);
+      const stream = await findStream({...ctx, attempt: 1});
+      const chunks = await listChunks(stream?.id as string);
+      expect(chunks.every((c) => c.origin === 'runner')).toBe(true); // no 'control' tombstone
+    });
+  });
+
+  describe('per-kind identity', () => {
+    it('keeps log_stream and agent_session on independent streams for one step', async () => {
+      const ctx = newCtx();
+      const logBody = ndjsonBody(outputLine('build\n'));
+      const sessBody = ndjsonBody(sessionLine({type: 'session', version: 3}));
+
+      await appendLogs({...ctx, kind: 'log_stream', attempt: 1, offset: 0, body: logBody});
+      await appendLogs({...ctx, kind: 'agent_session', attempt: 1, offset: 0, body: sessBody});
+
+      const logStream = await findStream({...ctx, attempt: 1, kind: 'log_stream'});
+      const sessStream = await findStream({...ctx, attempt: 1, kind: 'agent_session'});
+      expect(logStream?.id).not.toBe(sessStream?.id);
+      expect(logStream?.committedLength).toBe(logBody.length);
+      expect(sessStream?.committedLength).toBe(sessBody.length);
+    });
+
+    it('heartbeats per kind: an agent_session probe never reads the log_stream offset', async () => {
+      const ctx = newCtx();
+      const logBody = ndjsonBody(outputLine('a lot of build output\n'));
+      await appendLogs({...ctx, kind: 'log_stream', attempt: 1, offset: 0, body: logBody});
+
+      const probe = await appendLogs({
+        ...ctx,
+        kind: 'agent_session',
+        attempt: 1,
+        offset: 0,
+        body: ndjsonBody(),
+      });
+
+      expect(probe.committedLength).toBe(0);
+      expect(await findStream({...ctx, attempt: 1, kind: 'agent_session'})).toBeNull();
     });
   });
 });

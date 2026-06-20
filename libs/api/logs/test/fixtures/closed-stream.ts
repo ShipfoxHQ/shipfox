@@ -1,5 +1,6 @@
 import type {Buffer} from 'node:buffer';
-import {closeStream, controlTombstone} from '#core/close-stream.js';
+import type {StreamKind} from '@shipfox/api-logs-dto';
+import {closeStream} from '#core/close-stream.js';
 import type {AttemptStream} from '#core/entities/attempt-stream.js';
 import {insertChunk} from '#db/chunks.js';
 import {db} from '#db/db.js';
@@ -9,6 +10,8 @@ export interface ClosedStreamIdentity {
   jobId: string;
   stepId: string;
   attempt: number;
+  /** Defaults to log_stream so existing compaction tests stay terse. */
+  kind?: StreamKind;
   workspaceId: string;
   projectId: string;
   runId: string;
@@ -29,7 +32,10 @@ export function arrangeClosedStream(
   const chunks = options.chunks ?? [];
 
   return db().transaction(async (tx) => {
-    const stream = await getOrCreateAttemptStream(tx, identity);
+    const stream = await getOrCreateAttemptStream(tx, {
+      ...identity,
+      kind: identity.kind ?? 'log_stream',
+    });
 
     let offset = 0;
     for (const data of chunks) {
@@ -38,7 +44,7 @@ export function arrangeClosedStream(
         streamOffset: offset,
         byteLen: data.length,
         data,
-        kind: 'runner',
+        origin: 'runner',
       });
       offset += data.length;
     }
@@ -46,7 +52,6 @@ export function arrangeClosedStream(
     const closed = await closeStream(tx, {
       streamId: stream.id,
       reason: options.tombstone ? 'timeout' : 'declared',
-      ...(options.tombstone ? {tombstone: controlTombstone('runner_lost')} : {}),
     });
 
     return closed ?? stream;

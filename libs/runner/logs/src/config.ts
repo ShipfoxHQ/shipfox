@@ -7,7 +7,9 @@ import {createConfig, num} from '@shipfox/config';
 // JSON-escaping can inflate it ~6x (every byte a `\uXXXX` control char), so the floor clears
 // that worst case plus envelope headroom.
 const MIN_FLUSH_BYTES = MAX_RECORD_DATA_BYTES * 6 + 1024;
-// The server /logs route rejects request bodies over 1 MiB, so a larger window only yields 413s.
+// The server's /logs route enforces a configurable body limit (LOG_APPEND_BODY_LIMIT_BYTES,
+// default 8 MiB) that the runner cannot read, so cap the flush window at a conservative 1 MiB,
+// comfortably under any reasonable server limit; a larger window only risks 413s.
 const MAX_FLUSH_BYTES = 1024 * 1024;
 
 export const config = createConfig({
@@ -16,7 +18,7 @@ export const config = createConfig({
     default: 2000,
   }),
   SHIPFOX_LOG_FLUSH_BYTES: num({
-    desc: `Size threshold in bytes that triggers an early log upload before the interval elapses, so bursts of output do not wait for the timer. Must be between ${MIN_FLUSH_BYTES} and ${MAX_FLUSH_BYTES}: a smaller window cannot hold one whole log record, and a larger one exceeds the server's 1 MiB request limit.`,
+    desc: `Size threshold in bytes that triggers an early log upload before the interval elapses, so bursts of output do not wait for the timer. Must be between ${MIN_FLUSH_BYTES} and ${MAX_FLUSH_BYTES}: a smaller window cannot hold one whole log record, and a larger one risks exceeding the server's request body limit.`,
     default: 262144,
   }),
   SHIPFOX_LOG_SPOOL_MAX_BYTES: num({

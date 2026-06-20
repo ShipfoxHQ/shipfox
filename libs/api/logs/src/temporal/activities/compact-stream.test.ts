@@ -150,7 +150,7 @@ describe('compactStreamActivity', () => {
 
     const key = compactedKey(result);
     expect(gunzipSync(await getObjectBytes(key)).toString('utf8')).toContain(
-      '"kind":"runner_lost"',
+      '"type":"runner_lost"',
     );
 
     await deleteObject(key);

@@ -2,13 +2,13 @@ import {Buffer} from 'node:buffer';
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
-import {controlLine, ndjsonBody, outputLine} from '#test/fixtures/ndjson.js';
+import {endLine, ndjsonBody, outputLine, recordLine, sessionLine} from '#test/fixtures/ndjson.js';
 import {logsRoutes} from './index.js';
 
 const NDJSON = 'application/x-ndjson';
 
-function logsUrl(stepId: string, attempt: number, offset: number): string {
-  return `/runs/jobs/current/steps/${stepId}/logs?attempt=${attempt}&offset=${offset}`;
+function logsUrl(stepId: string, attempt: number, offset: number, kind = 'log_stream'): string {
+  return `/runs/jobs/current/steps/${stepId}/logs?attempt=${attempt}&offset=${offset}&kind=${kind}`;
 }
 
 describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
@@ -39,6 +39,19 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
     expect(res.json().code).toBe('unauthorized');
   });
 
+  it('rejects a request without a kind query param with 400', async () => {
+    const token = await mintLeaseToken({jobId: crypto.randomUUID()});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/runs/jobs/current/steps/${crypto.randomUUID()}/logs?attempt=1&offset=0`,
+      headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
+      payload: ndjsonBody(outputLine('hi\n')),
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
   it('accepts an in-order append and returns the committed length', async () => {
     const jobId = crypto.randomUUID();
     const token = await mintLeaseToken({jobId});
@@ -47,6 +60,21 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
     const res = await app.inject({
       method: 'POST',
       url: logsUrl(crypto.randomUUID(), 1, 0),
+      headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({committed_length: body.length, capped: false});
+  });
+
+  it('accepts an agent_session append', async () => {
+    const token = await mintLeaseToken({jobId: crypto.randomUUID()});
+    const body = ndjsonBody(sessionLine({type: 'session', version: 3}));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: logsUrl(crypto.randomUUID(), 1, 0, 'agent_session'),
       headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
       payload: body,
     });
@@ -102,6 +130,20 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
     expect(res.json().details).toEqual({committed_length: body.length});
   });
 
+  it('rejects a forged server-only tombstone with 400', async () => {
+    const token = await mintLeaseToken({jobId: crypto.randomUUID()});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: logsUrl(crypto.randomUUID(), 1, 0),
+      headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
+      payload: ndjsonBody(recordLine({type: 'capped'})),
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('malformed-log-chunk');
+  });
+
   it('rejects a body that is not newline-terminated with 400', async () => {
     const token = await mintLeaseToken({jobId: crypto.randomUUID()});
 
@@ -109,7 +151,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
       method: 'POST',
       url: logsUrl(crypto.randomUUID(), 1, 0),
       headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
-      payload: '{"v":1,"ts":1,"type":"output","data":"no newline"}',
+      payload: '{"v":1,"ts":1,"type":"output","stream":"stdout","data":"no newline"}',
     });
 
     expect(res.statusCode).toBe(400);
@@ -157,9 +199,10 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
     expect(res.statusCode).toBe(415);
   });
 
-  it('rejects a body over the size limit with 413', async () => {
+  it('rejects a body over the configured size limit with 413', async () => {
     const token = await mintLeaseToken({jobId: crypto.randomUUID()});
-    const oversize = Buffer.alloc(1024 * 1024 + 1024, 0x61).toString('utf8');
+    // Test body limit is 64 KiB (LOG_APPEND_BODY_LIMIT_BYTES in test/env.ts).
+    const oversize = Buffer.alloc(65536 + 1024, 0x61).toString('utf8');
 
     const res = await app.inject({
       method: 'POST',
@@ -179,10 +222,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
       method: 'POST',
       url: logsUrl(crypto.randomUUID(), 1, 0),
       headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
-      payload: ndjsonBody(
-        outputLine('x'.repeat(150)),
-        controlLine({kind: 'end', total_bytes: 150}),
-      ),
+      payload: ndjsonBody(outputLine('x'.repeat(150)), endLine(150)),
     });
 
     expect(res.statusCode).toBe(200);

@@ -119,6 +119,7 @@ describe('appendStepLogs', () => {
     const outcome = await appendStepLogs(leaseClient, {
       stepId: STEP_ID,
       attempt: 2,
+      kind: 'log_stream',
       offset: 10,
       body: new Uint8Array([1, 2, 3]),
     });
@@ -127,6 +128,7 @@ describe('appendStepLogs', () => {
     expect(calls[0]?.url).toContain(`runs/jobs/current/steps/${STEP_ID}/logs`);
     expect(calls[0]?.url).toContain('attempt=2');
     expect(calls[0]?.url).toContain('offset=10');
+    expect(calls[0]?.url).toContain('kind=log_stream');
     expect(calls[0]?.authorization).toBe('Bearer lease-log');
   });
 
@@ -137,6 +139,7 @@ describe('appendStepLogs', () => {
     const outcome = await appendStepLogs(leaseClient, {
       stepId: STEP_ID,
       attempt: 1,
+      kind: 'log_stream',
       offset: 0,
       body: new Uint8Array([1]),
     });
@@ -151,6 +154,7 @@ describe('appendStepLogs', () => {
     const outcome = await appendStepLogs(leaseClient, {
       stepId: STEP_ID,
       attempt: 1,
+      kind: 'log_stream',
       offset: 99,
       body: new Uint8Array([1]),
     });
@@ -165,6 +169,7 @@ describe('appendStepLogs', () => {
     const outcome = await appendStepLogs(leaseClient, {
       stepId: STEP_ID,
       attempt: 1,
+      kind: 'log_stream',
       offset: 0,
       body: new Uint8Array(0),
     });
@@ -179,6 +184,7 @@ describe('appendStepLogs', () => {
     const outcome = await appendStepLogs(leaseClient, {
       stepId: STEP_ID,
       attempt: 1,
+      kind: 'log_stream',
       offset: 0,
       body: new Uint8Array(0),
     });
@@ -193,6 +199,7 @@ describe('appendStepLogs', () => {
     const outcome = await appendStepLogs(leaseClient, {
       stepId: STEP_ID,
       attempt: 1,
+      kind: 'log_stream',
       offset: 0,
       body: new Uint8Array(0),
     });
@@ -207,6 +214,7 @@ describe('appendStepLogs', () => {
     const outcome = await appendStepLogs(leaseClient, {
       stepId: STEP_ID,
       attempt: 1,
+      kind: 'log_stream',
       offset: 0,
       body: new Uint8Array([1]),
     });
@@ -221,6 +229,7 @@ describe('appendStepLogs', () => {
     const outcome = await appendStepLogs(leaseClient, {
       stepId: STEP_ID,
       attempt: 1,
+      kind: 'log_stream',
       offset: 0,
       body: new Uint8Array([1]),
     });
@@ -235,6 +244,7 @@ describe('appendStepLogs', () => {
     const append = appendStepLogs(leaseClient, {
       stepId: STEP_ID,
       attempt: 1,
+      kind: 'log_stream',
       offset: 0,
       body: new Uint8Array([1]),
     });
@@ -249,6 +259,7 @@ describe('appendStepLogs', () => {
     const append = appendStepLogs(leaseClient, {
       stepId: STEP_ID,
       attempt: 1,
+      kind: 'log_stream',
       offset: 0,
       body: new Uint8Array([1]),
     });
@@ -262,6 +273,7 @@ describe('appendStepLogs', () => {
     const append = appendStepLogs(leaseClient, {
       stepId: '../escape',
       attempt: 1,
+      kind: 'log_stream',
       offset: 0,
       body: new Uint8Array(0),
     });

@@ -12,6 +12,12 @@ process.env.AUTH_JOB_LEASE_TOKEN_SECRET = 'test-lease-secret';
 process.env.LOG_BUDGET_BASE_BYTES = '100';
 process.env.LOG_BUDGET_RATE_BYTES_PER_MINUTE = '60';
 
+// Small agent_session line cap so the over-cap test uses a tiny line, and a modest
+// shared body limit so the route 413 test uses a small payload. The startup invariant
+// holds: body limit (64 KiB) >= line cap (256).
+process.env.LOG_MAX_SESSION_LINE_BYTES = '256';
+process.env.LOG_APPEND_BODY_LIMIT_BYTES = '65536';
+
 // Real Garage dev credentials (bootstrap.sh creates the shipfox-logs-test bucket and grants
 // this key). Compaction tests upload to and read back from live Garage from compose.yml.
 process.env.LOG_STORAGE_S3_ENDPOINT = 'http://localhost:3900';

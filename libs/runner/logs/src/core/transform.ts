@@ -168,8 +168,8 @@ export class LogTransformer {
 }
 
 function newDecoder(): TextDecoder {
-  // Preserve ENG-440's exact decoder options: ignoreBOM keeps a leading BOM as data (a default
-  // decoder strips it), and fatal:false turns invalid sequences into U+FFFD instead of throwing
-  // inside the child-output handler, where it would crash the runner.
+  // ignoreBOM keeps a leading BOM as data (a default decoder strips it), and fatal:false turns
+  // invalid sequences into U+FFFD instead of throwing inside the child-output handler, where it
+  // would crash the runner.
   return new TextDecoder('utf-8', {ignoreBOM: true, fatal: false});
 }

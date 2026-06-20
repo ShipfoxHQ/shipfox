@@ -1,11 +1,30 @@
 import {Buffer} from 'node:buffer';
 
-export function outputLine(data: string): string {
-  return `${JSON.stringify({v: 1, ts: 1, type: 'output', data})}\n`;
+/** One `log_stream` output record line. */
+export function outputLine(data: string, stream: 'stdout' | 'stderr' = 'stdout'): string {
+  return `${JSON.stringify({v: 1, ts: 1, type: 'output', stream, data})}\n`;
 }
 
-export function controlLine(fields: Record<string, unknown>): string {
-  return `${JSON.stringify({v: 1, ts: 1, type: 'control', ...fields})}\n`;
+/** One `log_stream` record line with an arbitrary flat `type` and fields. */
+export function recordLine(fields: Record<string, unknown>): string {
+  return `${JSON.stringify({v: 1, ts: 1, ...fields})}\n`;
+}
+
+export function endLine(totalBytes: number): string {
+  return recordLine({type: 'end', total_bytes: totalBytes});
+}
+
+export function groupStartLine(
+  groupId: string,
+  name: string,
+  parentGroupId: string | null = null,
+): string {
+  return recordLine({type: 'group_start', group_id: groupId, parent_group_id: parentGroupId, name});
+}
+
+/** One verbatim agent_session JSONL line (any JSON value). */
+export function sessionLine(value: unknown): string {
+  return `${JSON.stringify(value)}\n`;
 }
 
 export function ndjsonBody(...lines: string[]): Buffer {

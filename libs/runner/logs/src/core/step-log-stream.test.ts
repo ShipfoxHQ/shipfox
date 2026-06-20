@@ -60,6 +60,19 @@ function cappingServer(capAt: number) {
   return {append, committed: () => committed};
 }
 
+/** Group records reduced to their addressable shape, for asserting the recovered tree. */
+function groupStarts(
+  records: LogRecord[],
+): Array<{id: string; parent: string | null; name: string}> {
+  return records.flatMap((r) =>
+    r.type === 'group_start' ? [{id: r.group_id, parent: r.parent_group_id, name: r.name}] : [],
+  );
+}
+
+function groupEndIds(records: LogRecord[]): string[] {
+  return records.flatMap((r) => (r.type === 'group_end' ? [r.group_id] : []));
+}
+
 describe('createStepLogStream', () => {
   let dir: string;
 
@@ -98,9 +111,9 @@ describe('createStepLogStream', () => {
 
     const records = await readRecords(1);
     expect(records).toEqual([
-      {v: 1, ts: 1, type: 'output', src: 'stdout', data: 'hello\n'},
-      {v: 1, ts: 1, type: 'output', src: 'stderr', data: 'oops\n'},
-      {v: 1, ts: 1, type: 'control', src: 'system', kind: 'end', total_bytes: 11},
+      {v: 1, ts: 1, type: 'output', stream: 'stdout', data: 'hello\n'},
+      {v: 1, ts: 1, type: 'output', stream: 'stderr', data: 'oops\n'},
+      {v: 1, ts: 1, type: 'end', total_bytes: 11},
     ]);
     expect(server.committed()).toBe(streamLength);
   });
@@ -142,9 +155,9 @@ describe('createStepLogStream', () => {
 
     const records = await readRecords(3);
     expect(records).toEqual([
-      {v: 1, ts: 1, type: 'output', src: 'stdout', data: 'a'.repeat(40)},
-      {v: 1, ts: 1, type: 'control', src: 'system', kind: 'gap', dropped_bytes: 80},
-      {v: 1, ts: 1, type: 'control', src: 'system', kind: 'end', total_bytes: 40},
+      {v: 1, ts: 1, type: 'output', stream: 'stdout', data: 'a'.repeat(40)},
+      {v: 1, ts: 1, type: 'gap', dropped_bytes: 80},
+      {v: 1, ts: 1, type: 'end', total_bytes: 40},
     ]);
   });
 
@@ -167,17 +180,10 @@ describe('createStepLogStream', () => {
     stream.dispose();
 
     const records = await readRecords(4);
-    const gaps = records.filter((r) => r.type === 'control' && r.kind === 'gap');
-    const end = records.find((r) => r.type === 'control' && r.kind === 'end');
+    const gaps = records.filter((r) => r.type === 'gap');
+    const end = records.find((r) => r.type === 'end');
     expect(gaps).toHaveLength(0);
-    expect(end).toEqual({
-      v: 1,
-      ts: 1,
-      type: 'control',
-      src: 'system',
-      kind: 'end',
-      total_bytes: 120,
-    });
+    expect(end).toEqual({v: 1, ts: 1, type: 'end', total_bytes: 120});
   });
 
   it('stops emitting and writes no end record once the server caps the budget', async () => {
@@ -201,7 +207,7 @@ describe('createStepLogStream', () => {
 
     const records = await readRecords(5);
     // No runner end marker after a server cap (the cap tombstone is server-side).
-    expect(records.some((r) => r.type === 'control' && r.kind === 'end')).toBe(false);
+    expect(records.some((r) => r.type === 'end')).toBe(false);
     const outputs = records.filter((r) => r.type === 'output');
     expect(outputs).toHaveLength(1);
     expect(outputs.every((r) => r.type === 'output' && r.data.startsWith('a'))).toBe(true);
@@ -243,10 +249,10 @@ describe('createStepLogStream', () => {
 
     const records = await readRecords(6);
     expect(records).toEqual([
-      {v: 1, ts: 1, type: 'output', src: 'stdout', data: 'a'.repeat(40)},
-      {v: 1, ts: 1, type: 'control', src: 'system', kind: 'gap', dropped_bytes: 40},
-      {v: 1, ts: 1, type: 'output', src: 'stdout', data: 'c'.repeat(40)},
-      {v: 1, ts: 1, type: 'control', src: 'system', kind: 'end', total_bytes: 80},
+      {v: 1, ts: 1, type: 'output', stream: 'stdout', data: 'a'.repeat(40)},
+      {v: 1, ts: 1, type: 'gap', dropped_bytes: 40},
+      {v: 1, ts: 1, type: 'output', stream: 'stdout', data: 'c'.repeat(40)},
+      {v: 1, ts: 1, type: 'end', total_bytes: 80},
     ]);
   });
 
@@ -400,15 +406,8 @@ describe('createStepLogStream', () => {
     stream.dispose();
 
     const records = await readRecords(12);
-    const end = records.find((r) => r.type === 'control' && r.kind === 'end');
-    expect(end).toEqual({
-      v: 1,
-      ts: 1,
-      type: 'control',
-      src: 'system',
-      kind: 'end',
-      total_bytes: Buffer.byteLength('x=***\n'),
-    });
+    const end = records.find((r) => r.type === 'end');
+    expect(end).toEqual({v: 1, ts: 1, type: 'end', total_bytes: Buffer.byteLength('x=***\n')});
   });
 
   it('writes group markers as control records and swallows the marker lines', async () => {
@@ -427,17 +426,10 @@ describe('createStepLogStream', () => {
 
     const records = await readRecords(13);
     expect(records).toEqual([
-      {v: 1, ts: 1, type: 'control', src: 'system', kind: 'group_start', name: 'Install'},
-      {v: 1, ts: 1, type: 'output', src: 'stdout', data: 'building\n'},
-      {v: 1, ts: 1, type: 'control', src: 'system', kind: 'group_end'},
-      {
-        v: 1,
-        ts: 1,
-        type: 'control',
-        src: 'system',
-        kind: 'end',
-        total_bytes: Buffer.byteLength('building\n'),
-      },
+      {v: 1, ts: 1, type: 'group_start', group_id: 'g1', parent_group_id: null, name: 'Install'},
+      {v: 1, ts: 1, type: 'output', stream: 'stdout', data: 'building\n'},
+      {v: 1, ts: 1, type: 'group_end', group_id: 'g1'},
+      {v: 1, ts: 1, type: 'end', total_bytes: Buffer.byteLength('building\n')},
     ]);
   });
 
@@ -458,7 +450,129 @@ describe('createStepLogStream', () => {
     stream.dispose();
 
     const records = await readRecords(14);
-    expect(records.some((r) => r.type === 'control' && r.kind === 'group_start')).toBe(false);
-    expect(records.some((r) => r.type === 'control' && r.kind === 'gap')).toBe(true);
+    expect(records.some((r) => r.type === 'group_start')).toBe(false);
+    expect(records.some((r) => r.type === 'gap')).toBe(true);
+  });
+
+  describe('nested groups', () => {
+    function nestingStream(attempt: number) {
+      return createStepLogStream({
+        logsDir: join(dir, 'logs'),
+        stepId: STEP_ID,
+        attempt,
+        append: hangingAppend,
+        flushIntervalMs: 100000,
+        now: () => 1,
+      });
+    }
+
+    it('assigns ids and parent links for a nested group tree', async () => {
+      const stream = nestingStream(20);
+
+      stream.write(
+        Buffer.from('::group::Build\n::group::Compile\ncc\n::endgroup::\n::endgroup::\n'),
+        'stdout',
+      );
+      await stream.close();
+      stream.dispose();
+
+      const records = await readRecords(20);
+      expect(groupStarts(records)).toEqual([
+        {id: 'g1', parent: null, name: 'Build'},
+        {id: 'g2', parent: 'g1', name: 'Compile'},
+      ]);
+      expect(groupEndIds(records)).toEqual(['g2', 'g1']);
+    });
+
+    it('gives sibling groups distinct ids under the same parent', async () => {
+      const stream = nestingStream(21);
+
+      stream.write(
+        Buffer.from(
+          '::group::A\n::group::B\n::endgroup::\n::group::C\n::endgroup::\n::endgroup::\n',
+        ),
+        'stdout',
+      );
+      await stream.close();
+      stream.dispose();
+
+      const records = await readRecords(21);
+      expect(groupStarts(records)).toEqual([
+        {id: 'g1', parent: null, name: 'A'},
+        {id: 'g2', parent: 'g1', name: 'B'},
+        {id: 'g3', parent: 'g1', name: 'C'},
+      ]);
+      expect(groupEndIds(records)).toEqual(['g2', 'g3', 'g1']);
+    });
+
+    it('interleaves stdout/stderr group markers under one nesting stack', async () => {
+      const stream = nestingStream(22);
+
+      stream.write(Buffer.from('::group::Outer\n'), 'stdout');
+      stream.write(Buffer.from('::group::Inner\n'), 'stderr');
+      stream.write(Buffer.from('::endgroup::\n'), 'stdout');
+      stream.write(Buffer.from('::endgroup::\n'), 'stderr');
+      await stream.close();
+      stream.dispose();
+
+      const records = await readRecords(22);
+      expect(groupStarts(records)).toEqual([
+        {id: 'g1', parent: null, name: 'Outer'},
+        {id: 'g2', parent: 'g1', name: 'Inner'},
+      ]);
+      expect(groupEndIds(records)).toEqual(['g2', 'g1']);
+    });
+
+    it('ignores an unbalanced endgroup with nothing open (no underflow)', async () => {
+      const stream = nestingStream(23);
+
+      stream.write(Buffer.from('::endgroup::\nhello\n'), 'stdout');
+      await stream.close();
+      stream.dispose();
+
+      const records = await readRecords(23);
+      expect(groupEndIds(records)).toEqual([]);
+      expect(
+        records.filter((r) => r.type === 'output').map((r) => (r.type === 'output' ? r.data : '')),
+      ).toEqual(['hello\n']);
+    });
+
+    it('keeps the group exactly at depth 32 real and flattens only the 33rd', async () => {
+      const stream = nestingStream(24);
+      // 33 opens: the 32nd fills the cap (still real), the 33rd flattens. Then 33 closes.
+      const open = Array.from({length: 33}, (_, i) => `::group::G${i}\n`).join('');
+      const close = '::endgroup::\n'.repeat(33);
+
+      stream.write(Buffer.from(open + close), 'stdout');
+      await stream.close();
+      stream.dispose();
+
+      const records = await readRecords(24);
+      const starts = groupStarts(records);
+      expect(starts).toHaveLength(32); // the 33rd flattened, no record
+      expect(starts.at(-1)?.id).toBe('g32');
+      expect(starts.at(-1)?.parent).toBe('g31');
+    });
+
+    it('flattens groups past the max depth and consumes the overflow before any real pop', async () => {
+      const stream = nestingStream(25);
+      // 34 opens (2 past the cap of 32), a leaf, then 34 closes. The 2 overflow ends must be
+      // consumed by the counter before any real group_end pops, so the recovered tree is intact.
+      const open = Array.from({length: 34}, (_, i) => `::group::G${i}\n`).join('');
+      const close = '::endgroup::\n'.repeat(34);
+
+      stream.write(Buffer.from(`${open}leaf\n${close}`), 'stdout');
+      await stream.close();
+      stream.dispose();
+
+      const records = await readRecords(25);
+      const starts = groupStarts(records);
+      const ends = groupEndIds(records);
+      // Only 32 real groups (g1..g32); the 2 overflow starts produced no record.
+      expect(starts.map((s) => s.id)).toEqual(Array.from({length: 32}, (_, i) => `g${i + 1}`));
+      // The ends are the exact reverse (g32 down to g1): no real parent was popped early by an
+      // overflow end, and there is no underflow.
+      expect(ends).toEqual(Array.from({length: 32}, (_, i) => `g${32 - i}`));
+    });
   });
 });

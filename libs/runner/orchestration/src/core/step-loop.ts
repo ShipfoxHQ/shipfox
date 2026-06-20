@@ -191,9 +191,11 @@ export async function executeStep(params: {
         attempt,
         secrets,
         append: ({offset, body, signal: appendSignal}) =>
+          // This pipeline only carries process output, so the kind is always log_stream.
           appendStepLogs(leaseClient, {
             stepId: step.id,
             attempt,
+            kind: 'log_stream',
             offset,
             body,
             ...(appendSignal ? {signal: appendSignal} : {}),

@@ -23,13 +23,19 @@ function outputData(records: LogRecord[]): string {
 }
 
 describe('StreamFramer.frameOutputText', () => {
-  it('frames text into a single output record with origin and stamped ts', () => {
+  it('frames text into a single output record with its stream pipe and stamped ts', () => {
     const framer = new StreamFramer(() => 1000);
 
     const framed = framer.frameOutputText('hello world\n', 'stdout');
     const [record] = parseRecords(framed.bytes);
 
-    expect(record).toEqual({v: 1, ts: 1000, type: 'output', src: 'stdout', data: 'hello world\n'});
+    expect(record).toEqual({
+      v: 1,
+      ts: 1000,
+      type: 'output',
+      stream: 'stdout',
+      data: 'hello world\n',
+    });
     expect(framed.payloadBytes).toBe(Buffer.byteLength('hello world\n'));
   });
 
@@ -44,7 +50,7 @@ describe('StreamFramer.frameOutputText', () => {
 
   it('preserves ANSI escape sequences verbatim', () => {
     const framer = new StreamFramer(() => 1);
-    const ansi = '[31mred[0m';
+    const ansi = '[31mred[0m';
 
     const framed = framer.frameOutputText(ansi, 'stdout');
 
@@ -74,14 +80,7 @@ describe('StreamFramer control records', () => {
 
     const [record] = parseRecords(framer.frameEnd(2048));
 
-    expect(record).toEqual({
-      v: 1,
-      ts: 7,
-      type: 'control',
-      src: 'system',
-      kind: 'end',
-      total_bytes: 2048,
-    });
+    expect(record).toEqual({v: 1, ts: 7, type: 'end', total_bytes: 2048});
   });
 
   it('frames a gap record with dropped payload bytes', () => {
@@ -89,47 +88,48 @@ describe('StreamFramer control records', () => {
 
     const [record] = parseRecords(framer.frameGap(4096));
 
-    expect(record).toEqual({
-      v: 1,
-      ts: 7,
-      type: 'control',
-      src: 'system',
-      kind: 'gap',
-      dropped_bytes: 4096,
-    });
+    expect(record).toEqual({v: 1, ts: 7, type: 'gap', dropped_bytes: 4096});
   });
 
-  it('frames a group_start record with its name', () => {
+  it('frames a group_start record with its id, parent, and name', () => {
     const framer = new StreamFramer(() => 7);
 
-    const [record] = parseRecords(framer.frameGroupStart('Install deps'));
+    const [record] = parseRecords(framer.frameGroupStart('Install deps', 'g2', 'g1'));
 
     expect(record).toEqual({
       v: 1,
       ts: 7,
-      type: 'control',
-      src: 'system',
-      kind: 'group_start',
+      type: 'group_start',
+      group_id: 'g2',
+      parent_group_id: 'g1',
       name: 'Install deps',
     });
   });
 
-  it('frames a group_end record', () => {
+  it('frames a top-level group_start with a null parent', () => {
     const framer = new StreamFramer(() => 7);
 
-    const [record] = parseRecords(framer.frameGroupEnd());
+    const [record] = parseRecords(framer.frameGroupStart('Build', 'g1', null));
 
-    expect(record).toEqual({v: 1, ts: 7, type: 'control', src: 'system', kind: 'group_end'});
+    expect(record).toMatchObject({type: 'group_start', group_id: 'g1', parent_group_id: null});
+  });
+
+  it('frames a group_end record with its id', () => {
+    const framer = new StreamFramer(() => 7);
+
+    const [record] = parseRecords(framer.frameGroupEnd('g1'));
+
+    expect(record).toEqual({v: 1, ts: 7, type: 'group_end', group_id: 'g1'});
   });
 
   it('byte-truncates an over-long group name on a code-point boundary', () => {
     const framer = new StreamFramer(() => 7);
     const name = '€'.repeat(MAX_RECORD_NAME_BYTES); // 3 bytes each, far over the cap
 
-    const [record] = parseRecords(framer.frameGroupStart(name));
+    const [record] = parseRecords(framer.frameGroupStart(name, 'g1', null));
 
-    if (record?.type !== 'control' || record.kind !== 'group_start') {
-      throw new Error('expected a group_start control record');
+    if (record?.type !== 'group_start') {
+      throw new Error('expected a group_start record');
     }
     expect(Buffer.byteLength(record.name)).toBeLessThanOrEqual(MAX_RECORD_NAME_BYTES);
     expect(name.startsWith(record.name)).toBe(true);

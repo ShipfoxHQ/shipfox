@@ -6,9 +6,19 @@ export class OffsetGapError extends Error {
   }
 }
 
-/** The append body is not whole, newline-terminated NDJSON records of the v1 contract. */
+/**
+ * The append body is not whole, newline-terminated records of the stream kind's
+ * appendable contract (a `log_stream` record, or a valid-UTF-8 JSON `agent_session`
+ * line within the cap). `forgedType` is set only for the detectable forgery case —
+ * a `log_stream` line that is a valid server-only record (`capped`/`runner_lost`)
+ * under the read union but is not appendable — so the append path can emit a
+ * narrowed audit warn without logging the payload.
+ */
 export class MalformedLogChunkError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly forgedType?: string,
+  ) {
     super(message);
     this.name = 'MalformedLogChunkError';
   }
