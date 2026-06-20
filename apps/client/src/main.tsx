@@ -2,11 +2,14 @@
 
 import './styles.css';
 
+import {configureApiClient} from '@shipfox/client-api';
 import {AuthProvider, useAuthState} from '@shipfox/client-auth';
+import {ConfigErrorScreen, setLoadedConfig} from '@shipfox/client-config';
 import {RouterProvider, router} from '@shipfox/client-router';
 import {ThemeProvider, Toaster, TooltipProvider} from '@shipfox/react-ui';
 import {StrictMode, useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
+import {loadAppConfig} from './config.js';
 
 function RoutedApp() {
   const auth = useAuthState();
@@ -26,15 +29,34 @@ function RoutedApp() {
 const element = document.getElementById('app');
 if (!element) throw new Error('No element with id "app" found');
 
-createRoot(element).render(
-  <StrictMode>
-    <ThemeProvider>
-      <TooltipProvider>
-        <AuthProvider>
-          <RoutedApp />
-          <Toaster />
-        </AuthProvider>
-      </TooltipProvider>
-    </ThemeProvider>
-  </StrictMode>,
-);
+const root = createRoot(element);
+const configResult = loadAppConfig();
+
+// Validate the runtime config before mounting the app. A misconfigured
+// self-host deployment gets a precise error screen rather than a blank page or
+// a cryptic failed request later.
+if (!configResult.ok) {
+  root.render(
+    <StrictMode>
+      <ThemeProvider>
+        <ConfigErrorScreen errors={configResult.errors} />
+      </ThemeProvider>
+    </StrictMode>,
+  );
+} else {
+  setLoadedConfig(configResult.config);
+  configureApiClient({baseUrl: configResult.config.apiUrl});
+
+  root.render(
+    <StrictMode>
+      <ThemeProvider>
+        <TooltipProvider>
+          <AuthProvider>
+            <RoutedApp />
+            <Toaster />
+          </AuthProvider>
+        </TooltipProvider>
+      </ThemeProvider>
+    </StrictMode>,
+  );
+}

@@ -1,5 +1,7 @@
 import ky, {type Options as KyOptions} from 'ky';
 
+export {apiConfigShape} from './config.js';
+
 export interface ApiClientOptions {
   baseUrl?: string | undefined;
   getAccessToken?: (() => string | undefined) | undefined;
@@ -33,16 +35,11 @@ const TRAILING_SLASH_RE = /\/$/;
 const LEADING_SLASH_RE = /^\//;
 const AUTH_REFRESH_PATH_RE = /\/auth\/refresh\/?$/;
 
-// Set by /config.js before the app bundle loads. The client Docker image
-// rewrites that file from environment at container start, so one static build
-// serves any API endpoint. Empty/absent means "not configured at runtime", so
-// resolution falls through to the build-time VITE_API_URL used in dev.
-function runtimeApiUrl(): string | undefined {
-  return globalThis.__SHIPFOX_CONFIG__?.apiUrl || undefined;
-}
-
+// The base URL is supplied by the caller (the app resolves it from the
+// validated runtime config and passes it to configureApiClient). Empty means
+// same-origin relative requests.
 function defaultBaseUrl(): string {
-  return apiOptions.baseUrl ?? runtimeApiUrl() ?? import.meta.env.VITE_API_URL ?? '';
+  return apiOptions.baseUrl ?? '';
 }
 
 export function configureApiClient(options: ApiClientOptions): void {

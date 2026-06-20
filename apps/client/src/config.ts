@@ -1,0 +1,37 @@
+/// <reference types="@shipfox/vite/client" />
+
+import {apiConfigShape} from '@shipfox/client-api';
+import {
+  type ConfigResult,
+  getLoadedConfig,
+  getWindowRuntimeConfig,
+  loadConfig,
+  useConfig,
+} from '@shipfox/client-config';
+import {z} from 'zod';
+
+// Each feature module owns the config fragment it needs; the composition root
+// merges them into the one schema validated at boot. Add a key by editing its
+// module's fragment, not here.
+const appConfigShape = {
+  ...apiConfigShape,
+  environment: z
+    .enum(['development', 'staging', 'production'])
+    .default('production')
+    .describe('Deployment environment name shown in diagnostics and reported to monitoring.'),
+};
+
+export type AppConfig = z.infer<z.ZodObject<typeof appConfigShape>>;
+
+export function loadAppConfig(): ConfigResult<AppConfig> {
+  return loadConfig(appConfigShape, {
+    runtime: getWindowRuntimeConfig(),
+    build: import.meta.env,
+  });
+}
+
+/** Reads the validated config outside React (boot wiring, monitoring init). */
+export const getAppConfig = (): AppConfig => getLoadedConfig<AppConfig>();
+
+/** Reads the validated config inside React components. */
+export const useAppConfig = (): AppConfig => useConfig<AppConfig>();

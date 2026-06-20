@@ -18,14 +18,17 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/client-api": "workspace:*",
     "@shipfox/client-app-shell": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
+    "@shipfox/client-config": "workspace:*",
     "@shipfox/client-projects": "workspace:*",
     "@shipfox/client-router": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
