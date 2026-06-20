@@ -152,7 +152,7 @@ jobs:
           set -euo pipefail
           # CI supplies the ref through the environment: the registry base
           # (IMAGE_REGISTRIES) plus the commit identity (BUILD_NUMBER, GITHUB_SHA,
-          # GITHUB_REF_NAME). shipfox-docker assembles each app's sha-/build-/<branch>
+          # GITHUB_REF_NAME). shipfox-docker assembles each app's sha-/build-/latest
           # tags and build metadata from it, so no turbo `--` args are needed (those
           # would bust the build cache). Only GHCR is configured; add Docker Hub by
           # appending its base to IMAGE_REGISTRIES and adding a matching login step.
