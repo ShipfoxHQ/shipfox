@@ -8,8 +8,11 @@ import {createConfig, num} from '@shipfox/config';
 // that worst case plus envelope headroom.
 const MIN_FLUSH_BYTES = MAX_RECORD_DATA_BYTES * 6 + 1024;
 // The server's /logs route enforces a configurable body limit (LOG_APPEND_BODY_LIMIT_BYTES,
-// default 8 MiB) that the runner cannot read, so cap the flush window at a conservative 1 MiB,
-// comfortably under any reasonable server limit; a larger window only risks 413s.
+// default 1 MiB) that the runner cannot read. Cap the flush window at that same 1 MiB: the
+// default flush (256 KiB) leaves ample headroom, but at this max it only equals the server
+// default, with no slack. A body over the server limit 413s, which the uploader treats as
+// terminal (permanent log loss for the attempt), so a self-host that lowers the server limit
+// must lower SHIPFOX_LOG_FLUSH_BYTES below it too.
 const MAX_FLUSH_BYTES = 1024 * 1024;
 
 export const config = createConfig({

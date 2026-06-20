@@ -7,7 +7,6 @@ import type {Transaction} from '#db/db.js';
 import {logsOutbox} from '#db/schema/outbox.js';
 import {markStreamClosed} from '#db/streams.js';
 
-/** Server-originated control records the server injects into a `log_stream` as tombstone chunks. */
 export type TombstoneKind = 'capped' | 'runner_lost';
 
 /**
@@ -27,12 +26,12 @@ export interface CloseStreamParams {
 }
 
 /**
- * Closes a stream exactly once. The guarded UPDATE (`WHERE state='open'`) in
- * `markStreamClosed` is the lock and the idempotency gate: a stream already closed
- * by the other path (append-time declared close vs the job-terminated timeout sweep)
- * returns null, so no duplicate `LOG_STREAM_CLOSED` is written and no second tombstone
- * lands. A timeout close sets `truncated` and injects a `runner_lost` tombstone in-band
- * (a `capped` tombstone, if any, was injected earlier at the append that tripped the cap).
+ * The guarded UPDATE (`WHERE state='open'`) in `markStreamClosed` is the lock and
+ * the idempotency gate: a stream already closed by the other path (append-time
+ * declared close vs the job-terminated timeout sweep) returns null, so no duplicate
+ * `LOG_STREAM_CLOSED` is written and no second tombstone lands. A timeout close sets
+ * `truncated` and injects a `runner_lost` tombstone in-band (a `capped` tombstone,
+ * if any, was injected earlier at the append that tripped the cap).
  *
  * The event drives compaction; it is written in the same transaction as the flip.
  */

@@ -3,10 +3,8 @@ import {createRawBodyPlugin, type RouteGroup} from '@shipfox/node-fastify';
 import {config} from '#config.js';
 import {appendLogsRoute} from './append-logs.js';
 
-// Its own Fastify scope (separate from the workflows group that shares this
-// prefix) so the raw NDJSON body parser does not disturb their JSON routes. The
-// body limit comes from config: it must hold one whole append body and bounds the
-// per-job budget overshoot to one body.
+// Keep logs in their own Fastify scope so the raw NDJSON parser does not disturb
+// workflow JSON routes. The body limit also bounds one-append budget overshoot.
 export const logsRoutes: RouteGroup[] = [
   {
     prefix: '/runs/jobs/current',

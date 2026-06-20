@@ -1,11 +1,9 @@
 import {Buffer} from 'node:buffer';
 
-/** One output record line. */
 export function outputLine(data: string, stream: 'stdout' | 'stderr' = 'stdout'): string {
   return `${JSON.stringify({v: 1, ts: 1, type: 'output', stream, data})}\n`;
 }
 
-/** One log record line with an arbitrary flat `type` and fields. */
 export function recordLine(fields: Record<string, unknown>): string {
   return `${JSON.stringify({v: 1, ts: 1, ...fields})}\n`;
 }

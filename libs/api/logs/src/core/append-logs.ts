@@ -174,11 +174,10 @@ async function storeChunk(
 }
 
 /**
- * Appends one chunk of framed bytes for a `(job, step, attempt, kind)` stream under
- * the offset-CAS protocol, enforcing the per-job accrual budget. Concurrency is
- * serialized through Postgres row locks taken implicitly by the conditional
- * UPDATEs (no explicit `SELECT ... FOR UPDATE`); appends for one job contend on
- * its single accounting row, so the path is multi-instance safe but not lock-free.
+ * Concurrency is serialized through Postgres row locks taken implicitly by the
+ * conditional UPDATEs, not an explicit `SELECT ... FOR UPDATE`. Appends for one
+ * job contend on its single accounting row, so the path is multi-instance safe
+ * but not lock-free.
  */
 export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsResult> {
   let parsed: ParsedBody;
