@@ -233,10 +233,7 @@ describe('runRetentionSweep', () => {
     const remainingStream = await arrangeClosedStream(remaining);
     await backdateClosedAt(drainedStream.id, '200 days');
     await backdateClosedAt(remainingStream.id, '100 days');
-    // now() runs for the deadline base, the top-of-loop check, then once per stream. Keep the first
-    // three calls under the deadline so the oldest stream is processed, then jump past it so the
-    // per-stream check stops the sweep before the second stream (the whole point of the per-stream,
-    // not per-batch, budget check).
+    // Keep the first stream inside the budget, then make the per-stream check stop the second.
     let calls = 0;
     const clock = () => (++calls <= 3 ? 0 : 1_000);
 

@@ -8,11 +8,8 @@ import {
 } from '#temporal/constants.js';
 
 /**
- * Cron-driven sweep that hard-deletes expired closed log streams (objects + rows). Heartbeats
- * once per stream so Temporal sees liveness well within the `heartbeatTimeout`; the core loop
- * self-bounds on `RETENTION_TIME_BUDGET_MS`, which is under the workflow's `startToCloseTimeout`
- * so a slow run stops before the next run starts (a `startToCloseTimeout` alone does not kill the
- * JS loop).
+ * Cron-driven sweep for expired closed log streams. Heartbeats per stream; the core loop owns
+ * the wall-clock budget because Temporal timeouts do not stop already-running JS.
  */
 export function retentionSweepActivity(): Promise<RetentionSweepResult> {
   const ctx = Context.current();

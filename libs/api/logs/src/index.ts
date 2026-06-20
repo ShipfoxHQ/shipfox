@@ -33,11 +33,8 @@ export const logsModule: ShipfoxModule = {
       taskQueue: LOGS_LIFECYCLE_TASK_QUEUE,
       workflowsPath,
       activities: createLogsActivities,
-      // Retention is a fast lifecycle sweep (each run drains what fits in its time budget). The
-      // cadence is hard-coded, not configurable: a Temporal cron schedule is fixed when the
-      // workflow is first created and the module bootstrap skips an already-running one, so an env
-      // knob would look adjustable but silently keep the old schedule. Hourly is ample headroom for
-      // a 90-day horizon; tune LOG_RETENTION_DAYS for the horizon itself.
+      // Temporal cron schedules are fixed after creation, so making cadence configurable would
+      // look adjustable while keeping the old schedule. Tune LOG_RETENTION_DAYS for the horizon.
       workflows: [
         {
           name: 'retentionSweepCron',

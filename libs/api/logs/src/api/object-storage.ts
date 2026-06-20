@@ -181,18 +181,12 @@ export async function presignedGetUrl(objectKey: string): Promise<{url: string; 
 }
 
 /**
- * Deletes every object under `prefix` (pass the per-attempt prefix WITH a trailing slash so
- * attempt `1` never matches attempt `10`). Retention uses this instead of deleting the single
- * recorded `object_key` so it also reclaims orphan leaves left by losing or crashed compaction
- * attempts under the same prefix. Lists in pages and batch-deletes up to 1000 keys per
- * request (one `ListObjectsV2` page never exceeds that). A prefix with nothing under it is a
- * no-op; an empty-string prefix is rejected, since it would match every key in the bucket.
- * `DeleteObjects` treats a missing key as success; any partial batch failure throws with S3's
- * first reported key/message.
+ * Deletes all objects under a per-attempt prefix. Retention deletes by prefix, not only the
+ * recorded `object_key`, to reclaim orphan leaves from failed compaction attempts.
+ *
+ * Pass a trailing slash so attempt `1` never matches attempt `10`.
  */
 export async function deleteObjectsByPrefix(prefix: string): Promise<void> {
-  // An empty prefix matches every key, so listing and deleting it would wipe the whole bucket.
-  // No legitimate caller passes one; fail loud rather than silently target everything.
   if (prefix === '') {
     throw new Error(
       'deleteObjectsByPrefix refuses an empty prefix (it would target the whole bucket)',

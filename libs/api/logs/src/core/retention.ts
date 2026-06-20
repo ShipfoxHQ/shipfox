@@ -35,24 +35,12 @@ export interface RunRetentionSweepParams {
 }
 
 /**
- * Deletes expired closed streams (objects + rows) and prunes each emptied job's accounting row.
+ * Deletes expired closed streams and prunes accounting for emptied jobs.
  *
- * Drains in keyset-paginated batches until the backlog is exhausted, a self-imposed wall-clock
- * budget elapses, or `maxIterations` is hit. The budget matters because a Temporal
- * `startToCloseTimeout` marks the activity failed but does NOT kill this loop; stopping
- * ourselves well before it keeps a timed-out attempt from deleting alongside the next cron run.
- * The budget and the liveness heartbeat are both checked per stream, not once per batch, so a
- * slow batch cannot overrun the budget or trip the heartbeat timeout.
- *
- * Per stream, in order: a guarded row delete keyed on the observed `object_key` (a compaction
- * publish landing after the select changes the key, so the delete matches 0 rows and the row is
- * left for the next run), then — only once the row is gone — delete the whole attempt object
- * prefix (the recorded object plus any leaves a losing compaction attempt left). Deleting objects
- * only after the guard wins is what keeps a racing publish's object from being wiped while its row
- * survives; the cost is that an object-delete failure after the row is gone leaks an orphan of an
- * already-expired stream (storage-only, never a dangling row). One stream's row-delete failure is
- * logged and skipped so it cannot abort the batch; the skip-set keeps it out of later selects this
- * run, so the younger healthy streams behind it are not starved (it retries on the next run).
+ * The loop self-bounds because a Temporal `startToCloseTimeout` marks the activity failed but
+ * does not stop already-running JS. Rows are deleted before objects, guarded on the observed
+ * `object_key`, so a racing compaction publish leaves the stream for the next sweep instead of
+ * deleting its fresh object.
  */
 export async function runRetentionSweep(
   params: RunRetentionSweepParams,
@@ -68,8 +56,7 @@ export async function runRetentionSweep(
     timedOut: false,
   };
 
-  // Ids that failed or raced this run; excluded from later selects so they do not re-sort to
-  // the front and starve the healthy streams behind them. They retry on the next run.
+  // Failed or raced rows retry next run; skipping them here keeps the rest of the backlog moving.
   const skip = new Set<string>();
   while (result.iterations < params.maxIterations) {
     if (now() >= deadline) {
@@ -86,7 +73,7 @@ export async function runRetentionSweep(
 
     let timedOutMidBatch = false;
     for (const stream of batch) {
-      // Batches can be long, so liveness and budget checks stay inside the per-stream loop.
+      // Per-stream checks keep long batches within the heartbeat and wall-clock budgets.
       params.onProgress?.();
       if (now() >= deadline) {
         result.timedOut = true;
@@ -121,8 +108,7 @@ export async function runRetentionSweep(
       }
 
       if (!outcome.deleted) {
-        // `object_key` changed since the select: a compaction publish landed, so its object stays.
-        // Leave the row for the next run, which re-reads the fresh key.
+        // `object_key` changed since select; the next sweep will re-read the fresh key.
         result.raced += 1;
         skip.add(stream.id);
         continue;
@@ -131,9 +117,7 @@ export async function runRetentionSweep(
       result.deleted += 1;
       if (outcome.prunedAccounting) result.accountingPruned += 1;
 
-      // The guarded row delete won, so no newer publish exists under this prefix: reclaim the whole
-      // attempt prefix (recorded object plus any orphan leaves). A failure here only leaks an orphan
-      // of an already-deleted expired stream; the row is gone, so there is nothing to retry.
+      // The guarded row delete won, so reclaim the recorded object plus orphan leaves.
       try {
         await deleteObjectsByPrefix(`${logObjectKey(config.LOG_STORAGE_S3_PREFIX, stream)}/`);
       } catch (error) {

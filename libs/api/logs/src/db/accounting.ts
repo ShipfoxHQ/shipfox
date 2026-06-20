@@ -60,11 +60,8 @@ export async function isJobCapped(tx: Transaction, jobId: string): Promise<boole
 }
 
 /**
- * Prunes a job's accounting row, but only once it has had no budget activity for the full
- * retention horizon. `job_accounting` is live cap state: a still-active job re-touches
- * `updated_at` on every append, so the guard keeps retention from deleting a live budget row
- * (which would reset the job's cap on its next append). Callers gate this on the job also
- * having zero remaining streams.
+ * Prunes accounting only after the job has no recent budget activity. A live job re-touches
+ * `updated_at` on append, so this guard keeps retention from resetting its cap state.
  */
 export async function deleteJobAccounting(
   tx: Transaction,

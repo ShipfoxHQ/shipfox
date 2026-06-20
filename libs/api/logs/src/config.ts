@@ -80,10 +80,8 @@ if (config.LOG_READ_INLINE_MAX_BYTES < 1) {
   );
 }
 
-// envalid's num has no range support. A retention horizon below one whole day would make
-// `make_interval(days => …)` delete just-closed streams (0), delete with a future cutoff
-// (negative), or carry a fractional day the retention query never intends. Fail fast at
-// startup rather than silently hard-deleting live data.
+// `num` accepts zero, negative, and fractional values; reject them before they reach
+// `make_interval(days => ...)` and hard-delete the wrong streams.
 if (!Number.isInteger(config.LOG_RETENTION_DAYS) || config.LOG_RETENTION_DAYS < 1) {
   throw new Error(
     `LOG_RETENTION_DAYS (${config.LOG_RETENTION_DAYS}) must be a whole number of days >= 1.`,

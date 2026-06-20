@@ -247,16 +247,11 @@ export async function listStaleUncompactedStreams(params: {
 }
 
 /**
- * Closed streams past the retention horizon, oldest first, for the retention sweep to delete.
- * `excludeIds` carries the ids the current run already failed or skipped (raced) so they are
- * stepped over instead of re-selected at the front, which would starve the younger healthy
- * streams behind them. Excluding by id (the exact PK) avoids the precision trap of paginating
- * on a `timestamptz` cursor: `closed_at` has microsecond precision the round-tripped JS `Date`
- * loses, so a `(closed_at, id)` cursor would re-match the row it just produced. Rides the
- * partial index `logs_attempt_streams_retention_idx`. No `object_key` filter: retention
- * deletes compacted and never-compacted streams alike. `skipLocked`
- * steps over a row a compaction publish is mid-transaction on; correctness comes from the
- * guarded `deleteExpiredStream`, not this lock (a bare select releases it immediately).
+ * Lists expired closed streams for retention. `excludeIds` keeps failed or raced rows from
+ * starving younger rows in the same run, and avoids cursoring on `closed_at`, whose microsecond
+ * precision would be lost through JS `Date`.
+ *
+ * No `object_key` filter: retention deletes compacted and never-compacted streams alike.
  */
 export async function listExpiredClosedStreams(params: {
   retentionDays: number;
@@ -283,11 +278,8 @@ export async function listExpiredClosedStreams(params: {
 }
 
 /**
- * Hard-deletes one expired stream row (chunks cascade), guarded on the `object_key` the sweep
- * observed at select time. If compaction published an object in between, `object_key` no longer
- * matches and 0 rows delete, so that just-published object is never orphaned — the stream is
- * left for the next run, which re-reads the fresh key. Returns the deleted row's `job_id` for
- * the accounting-prune check.
+ * Hard-deletes one expired stream row, guarded on the observed `object_key` so a racing
+ * compaction publish leaves the row for the next sweep.
  */
 export async function deleteExpiredStream(
   tx: Transaction,
