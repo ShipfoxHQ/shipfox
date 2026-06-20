@@ -14,7 +14,3 @@ jobs:
   build:
     steps:
       - run: echo "hello world"
-      - name: test
-        run: pnpm test
-        gate:
-          success_if: exit_code == 0

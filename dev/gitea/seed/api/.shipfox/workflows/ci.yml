@@ -7,5 +7,4 @@ jobs:
   test:
     runner: ubuntu-latest
     steps:
-      - run: pnpm install
-      - run: pnpm test
+      - run: node --test

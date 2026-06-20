@@ -1,9 +1,9 @@
 {
-  "name": "demo-platform",
+  "name": "demo-api",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "build": "tsc",
     "test": "node --test"
   }
 }

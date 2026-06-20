@@ -17,7 +17,7 @@ push webhook, and a few seeded repos carrying the demo workflow and code files u
 | Web / API | `http://localhost:3000` |
 | SSH | `ssh://git@localhost:2222` |
 | Org | `shipfox-demo` |
-| Repos | `platform`, `api`, `runner` |
+| Repos | `demo`, `api`, `runner` |
 | Bot user | `shipfox-bot` |
 | Bot password (Basic-auth secret) | `shipfox-bot-dev-password` |
 | Site admin | `gitea-admin` / `gitea-admin-dev-password` |
