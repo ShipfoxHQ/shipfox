@@ -39,10 +39,11 @@
   "dependencies": {
     "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-module": "workspace:*",
+    "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-outbox": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/node-temporal": "workspace:*",
-    "@shipfox/node-opentelemetry": "workspace:*",
+    "@temporalio/workflow": "^1.16.1",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
@@ -54,7 +55,6 @@
     "@temporalio/client": "^1.16.1",
     "@temporalio/common": "^1.16.1",
     "@temporalio/worker": "^1.16.1",
-    "@temporalio/workflow": "^1.16.1",
     "@shipfox/vitest": "workspace:*"
   }
 }
