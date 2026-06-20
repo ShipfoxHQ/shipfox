@@ -49,6 +49,7 @@ const CLONE_ARGS = [
   '--single-branch',
   '--branch',
   'main',
+  '--',
   'https://github.com/acme/repo.git',
   '/work/job-1',
 ];
@@ -108,6 +109,17 @@ describe('checkoutRepository argv and env injection', () => {
     expect(args.join(' ')).not.toContain(base64);
 
     expect(optionsOf().env.GIT_CONFIG_VALUE_0).toBe(`Authorization: Basic ${base64}`);
+  });
+
+  it('passes the repository url after a `--` separator so a leading dash cannot inject an option', async () => {
+    resolveExec();
+
+    await checkoutRepository({...BASE, repositoryUrl: '--upload-pack=evil'});
+
+    const [, args] = execFileMock.mock.calls[0] as [string, string[]];
+    const separator = args.indexOf('--');
+    expect(separator).toBeGreaterThan(-1);
+    expect(args.slice(separator + 1)).toEqual(['--upload-pack=evil', '/work/job-1']);
   });
 
   it('disables interactive credential prompts', async () => {
@@ -310,6 +322,7 @@ describe('assertGitAvailable', () => {
     'git version 2.31.0',
     'git version 2.39.5 (Apple Git-154)',
     'git version 2.45.1.windows.1',
+    'git version 3.0.0',
   ])('resolves for git >= 2.31 (%s)', async (stdout) => {
     resolveExecWith(stdout);
 

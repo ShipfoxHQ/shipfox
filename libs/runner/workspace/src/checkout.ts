@@ -96,10 +96,12 @@ const PROVIDER_UNAVAILABLE =
 
 const GIT_CONFIG_INDEXED_KEY = /^GIT_CONFIG_(?:COUNT|KEY_\d+|VALUE_\d+)$/;
 
-// Git reads injected config from two environment channels: the GIT_CONFIG_COUNT /
+// Git injects arbitrary config from two environment channels: the GIT_CONFIG_COUNT /
 // GIT_CONFIG_KEY_<n> / GIT_CONFIG_VALUE_<n> triples, and GIT_CONFIG_PARAMETERS (the channel
-// `-c` populates internally). Strip both from every git child so our injected header is the
-// only env-sourced config and a clone behaves identically regardless of the host environment.
+// `-c` populates internally). Strip both from every git child so a stale or hostile host
+// environment cannot inject config keys that shadow our header or redirect the clone. Other
+// env that git honours (GIT_CONFIG_GLOBAL/SYSTEM, GIT_SSH_COMMAND, http(s)_proxy) is left
+// intact: it belongs to the runner's own trusted image, not to these injection channels.
 function gitChildEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {...process.env, GIT_TERMINAL_PROMPT: '0'};
   for (const key of Object.keys(env)) {
@@ -130,7 +132,9 @@ export async function checkoutRepository(params: {
 }): Promise<void> {
   const {repositoryUrl, ref, auth, cwd, signal} = params;
 
-  const args = ['clone', '--depth=1', '--single-branch', '--branch', ref, repositoryUrl, cwd];
+  // `--` ends option parsing: a repositoryUrl beginning with `-` would otherwise be read as a
+  // git option (e.g. `--upload-pack=...`) rather than the clone source.
+  const args = ['clone', '--depth=1', '--single-branch', '--branch', ref, '--', repositoryUrl, cwd];
 
   const env = gitChildEnv();
   if (auth) {

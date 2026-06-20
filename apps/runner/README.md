@@ -4,9 +4,9 @@ Polls the Shipfox API for jobs and executes their steps on the runner host.
 
 ## Host prerequisites
 
-- **`git`** must be installed on the runner host and on `PATH`. Each job is
-  executed against a checkout of its project repository, so a runner without
-  `git` cannot run repository-backed jobs.
+- **`git` 2.31 or newer** must be installed on the runner host and on `PATH`.
+  Each job is executed against a checkout of its project repository, so a
+  runner without a supported `git` cannot run repository-backed jobs.
 
 ## Workspace directories
 
@@ -18,9 +18,9 @@ During the synthetic "Set up job" step, the runner exchanges the job's lease for
 short-lived, read-only checkout credentials and shallow-clones the project
 repository into the per-job directory. The credentials are fetched only after the
 job is claimed, are never persisted to disk or `.git/config`, and never appear in
-logs or step errors. A setup failure (missing `git`, a denied credential, or an
-unreachable provider) fails the job before any step runs, with a machine-readable
-reason recorded on the step.
+logs or step errors. A setup failure (missing or unsupported `git`, a denied
+credential, or an unreachable provider) fails the job before any step runs, with
+a machine-readable reason recorded on the step.
 
 ### `SHIPFOX_RUNNER_WORKSPACE_ROOT` (optional)
 
