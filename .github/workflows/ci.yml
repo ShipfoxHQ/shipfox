@@ -13,12 +13,9 @@ jobs:
   ci:
     name: Check, test, type, and build
     runs-on: ubuntu-latest
-    # The image steps run after the checks, tests, and E2E below; on main they build
-    # multi-arch (linux/arm64 under QEMU emulation), slow on a cold gha BuildKit cache.
-    timeout-minutes: 60
-    permissions:
-      contents: read
-      packages: write # push images to GHCR on main
+    # On a PR the image steps below validate the Dockerfiles (single-arch, no push);
+    # the main-only publish-images job does the real multi-arch push to GHCR.
+    timeout-minutes: 40
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: shipfox
@@ -85,20 +82,66 @@ jobs:
           path: ${{ runner.temp }}/shipfox-e2e-logs/shipfox-api.log
           if-no-files-found: error
 
-      # Per-commit app images. These steps come last and are guarded with success()
-      # so an image is only built once the checks, tests, and E2E above pass: a commit
-      # that fails CI never publishes an image. They reuse the dist/ already built by
-      # "Run verification"; a single buildx + QEMU pass emits the multi-arch manifest.
-      # QEMU only matters for the multi-arch main build; PRs are native amd64.
+      # On a PR, validate that each Dockerfile still builds. Single-arch with --load
+      # (a multi-arch build cannot load) and no push; guarded with success() so it
+      # runs only after the checks, tests, and E2E above pass, reusing the dist/
+      # already built by "Run verification". On main these steps are skipped — the
+      # publish-images job does the real multi-arch push, so the test job stays
+      # least-privileged (no packages: write).
+      - name: Set up Docker Buildx
+        if: success() && github.ref != 'refs/heads/main'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build images (validate, no push)
+        if: success() && github.ref != 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          # With IMAGE_REGISTRIES unset, shipfox-docker tags each image <app>:ci.
+          turbo image --concurrency=1 \
+            --filter @shipfox/api \
+            --filter @shipfox/client \
+            --filter @shipfox/runner -- \
+            --platform linux/amd64 --load \
+            --build-arg "IMAGE_REVISION=${GITHUB_SHA}" \
+            --build-arg "IMAGE_CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  # Publish the per-commit images. A separate, main-only job that depends on ci, so
+  # images are only built for a commit whose checks, tests, and E2E passed, and the
+  # packages: write scope never reaches a pull_request run. Re-restoring the build
+  # from the turbo cache here is the cost of keeping that write scope isolated.
+  publish-images:
+    name: Publish app images
+    needs: ci
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # Multi-arch: linux/arm64 builds under QEMU emulation, slow on a cold gha BuildKit
+    # cache (the runner image's apt layer most of all); the cache makes later runs fast.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write # push images to GHCR
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: shipfox
+      TURBO_CACHE: local:rw,remote:rw
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Set up QEMU
-        if: success() && github.ref == 'refs/heads/main'
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Log in to GHCR
-        if: success() && github.ref == 'refs/heads/main'
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
@@ -106,36 +149,21 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push images
-        if: success() && github.ref == 'refs/heads/main'
         env:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           set -euo pipefail
-          # CI supplies the ref: the registry base (REGISTRY_*) plus the commit
+          # CI supplies the ref: the registry bases (IMAGE_REGISTRIES) plus the commit
           # identity (BUILD_NUMBER, GITHUB_SHA, GITHUB_REF_NAME). shipfox-docker
-          # assembles each app's sha-/build-/<branch> tags from it, so one command
-          # tags all three. Only GHCR is configured; add Docker Hub by exporting
-          # another REGISTRY_* and a matching login step.
-          export REGISTRY_GHCR="ghcr.io/$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          # --concurrency=1: three concurrent multi-arch QEMU builds would contend
-          # for the runner's CPUs; build cache hits keep the serialized run cheap.
+          # assembles each app's sha-/build-/<branch> tags from it, so one command tags
+          # all three. Only GHCR is configured; add Docker Hub by appending its base to
+          # IMAGE_REGISTRIES and adding a matching login step.
+          export IMAGE_REGISTRIES="ghcr.io/$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          # --concurrency=1: three concurrent multi-arch QEMU builds would contend for
+          # the runner's CPUs; build cache hits keep the serialized run cheap.
           turbo image --concurrency=1 \
             --filter @shipfox/api \
             --filter @shipfox/client \
             --filter @shipfox/runner -- \
-            --build-arg "IMAGE_REVISION=${GITHUB_SHA}" \
-            --build-arg "IMAGE_CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-      - name: Build images (validate, no push)
-        if: success() && github.ref != 'refs/heads/main'
-        run: |
-          set -euo pipefail
-          # PR validation: single-arch with --load (a multi-arch build cannot load)
-          # and no push. With no REGISTRY_* set, shipfox-docker tags each <app>:ci.
-          turbo image --concurrency=1 \
-            --filter @shipfox/api \
-            --filter @shipfox/client \
-            --filter @shipfox/runner -- \
-            --platform linux/amd64 --load \
             --build-arg "IMAGE_REVISION=${GITHUB_SHA}" \
             --build-arg "IMAGE_CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)"

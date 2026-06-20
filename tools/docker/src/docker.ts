@@ -37,11 +37,23 @@ function cacheScope(): string | undefined {
 
 // `--image <name>` (e.g. api) names the registry image for the derived tag set. It
 // is consumed here, not forwarded, since it is not a `docker buildx build` flag.
+// A missing value is rejected so a trailing `--image` never silently disables
+// tagging, and `--image --push` never swallows the next flag as the name.
 function takeImageName(): string | undefined {
   const inline = passthrough.findIndex((arg) => arg.startsWith('--image='));
-  if (inline !== -1) return passthrough.splice(inline, 1)[0]?.slice('--image='.length);
+  if (inline !== -1) {
+    const value = passthrough.splice(inline, 1)[0].slice('--image='.length);
+    if (!value) throw new Error('--image requires a non-empty value (e.g. --image api).');
+    return value;
+  }
   const flag = passthrough.indexOf('--image');
-  if (flag !== -1) return passthrough.splice(flag, 2)[1];
+  if (flag !== -1) {
+    const value = passthrough[flag + 1];
+    if (!value || value.startsWith('-'))
+      throw new Error('--image requires a value (e.g. --image api).');
+    passthrough.splice(flag, 2);
+    return value;
+  }
   return undefined;
 }
 
@@ -51,16 +63,15 @@ function sanitizeTag(value: string): string {
   return value.replace(/[^A-Za-z0-9_.-]/g, '-');
 }
 
-// Derive the tag set from the environment (REGISTRY_* bases plus the GITHUB_SHA /
-// BUILD_NUMBER / GITHUB_REF_NAME commit identity) so adding a registry is a config
-// change, not a code change. With no REGISTRY_* set (the PR validation path) emit a
-// single local tag so a --load build has a reference to load. See the README for
-// the full tag scheme.
+// Derive the tag set from the environment (IMAGE_REGISTRIES bases plus the
+// GITHUB_SHA / BUILD_NUMBER / GITHUB_REF_NAME commit identity) so adding a registry
+// is a config change, not a code change. IMAGE_REGISTRIES is a space-separated list
+// read by name — not a prefix scan of the environment — so a stray credential
+// variable is never mistaken for a registry base and logged. With it unset (the PR
+// validation path) emit a single local tag so a --load build has a reference to
+// load. See the README for the full tag scheme.
 function perCommitTags(image: string): string[] {
-  const registries = Object.keys(process.env)
-    .filter((key) => key.startsWith('REGISTRY_'))
-    .map((key) => process.env[key])
-    .filter((value): value is string => Boolean(value));
+  const registries = (process.env.IMAGE_REGISTRIES ?? '').split(/\s+/).filter(Boolean);
   if (registries.length === 0) return [`${image}:ci`];
 
   const suffixes: string[] = [];
