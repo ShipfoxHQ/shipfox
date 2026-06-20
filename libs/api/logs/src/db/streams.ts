@@ -1,4 +1,4 @@
-import {and, asc, eq, isNull, lt, sql} from 'drizzle-orm';
+import {and, asc, eq, isNull, lt, notInArray, sql} from 'drizzle-orm';
 import type {AttemptStream, StreamCloseReason} from '#core/entities/attempt-stream.js';
 import {LeaseStreamMismatchError} from '#core/errors.js';
 import {db, type Transaction} from './db.js';
@@ -244,4 +244,77 @@ export async function listStaleUncompactedStreams(params: {
     .limit(params.limit);
 
   return rows.map(toAttemptStream);
+}
+
+/**
+ * Closed streams past the retention horizon, oldest first, for the retention sweep to delete.
+ * `excludeIds` carries the ids the current run already failed or skipped (raced) so they are
+ * stepped over instead of re-selected at the front, which would starve the younger healthy
+ * streams behind them. Excluding by id (the exact PK) avoids the precision trap of paginating
+ * on a `timestamptz` cursor: `closed_at` has microsecond precision the round-tripped JS `Date`
+ * loses, so a `(closed_at, id)` cursor would re-match the row it just produced. Rides the
+ * partial index `logs_attempt_streams_retention_idx`. No `object_key` filter: retention
+ * deletes compacted and never-compacted streams alike. `skipLocked`
+ * steps over a row a compaction publish is mid-transaction on; correctness comes from the
+ * guarded `deleteExpiredStream`, not this lock (a bare select releases it immediately).
+ */
+export async function listExpiredClosedStreams(params: {
+  retentionDays: number;
+  limit: number;
+  excludeIds?: string[] | undefined;
+}): Promise<AttemptStream[]> {
+  const rows = await db()
+    .select()
+    .from(attemptStreams)
+    .where(
+      and(
+        eq(attemptStreams.state, 'closed'),
+        lt(attemptStreams.closedAt, sql`now() - make_interval(days => ${params.retentionDays})`),
+        params.excludeIds && params.excludeIds.length > 0
+          ? notInArray(attemptStreams.id, params.excludeIds)
+          : undefined,
+      ),
+    )
+    .orderBy(asc(attemptStreams.closedAt), asc(attemptStreams.id))
+    .limit(params.limit)
+    .for('update', {skipLocked: true});
+
+  return rows.map(toAttemptStream);
+}
+
+/**
+ * Hard-deletes one expired stream row (chunks cascade), guarded on the `object_key` the sweep
+ * observed at select time. If compaction published an object in between, `object_key` no longer
+ * matches and 0 rows delete, so that just-published object is never orphaned — the stream is
+ * left for the next run, which re-reads the fresh key. Returns the deleted row's `job_id` for
+ * the accounting-prune check.
+ */
+export async function deleteExpiredStream(
+  tx: Transaction,
+  params: {streamId: string; observedObjectKey: string | null},
+): Promise<{deleted: boolean; jobId: string | null}> {
+  const [row] = await tx
+    .delete(attemptStreams)
+    .where(
+      and(
+        eq(attemptStreams.id, params.streamId),
+        params.observedObjectKey === null
+          ? isNull(attemptStreams.objectKey)
+          : eq(attemptStreams.objectKey, params.observedObjectKey),
+      ),
+    )
+    .returning({jobId: attemptStreams.jobId});
+
+  return {deleted: Boolean(row), jobId: row?.jobId ?? null};
+}
+
+/** True when a job has no remaining streams, so retention may prune its accounting row. */
+export async function accountingHasNoStreams(tx: Transaction, jobId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({id: attemptStreams.id})
+    .from(attemptStreams)
+    .where(eq(attemptStreams.jobId, jobId))
+    .limit(1);
+
+  return !row;
 }

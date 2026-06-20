@@ -1,4 +1,4 @@
-import {and, eq, isNull, sql} from 'drizzle-orm';
+import {and, eq, isNull, lt, sql} from 'drizzle-orm';
 import type {Transaction} from './db.js';
 import {jobAccounting} from './schema/job-accounting.js';
 
@@ -57,4 +57,28 @@ export async function isJobCapped(tx: Transaction, jobId: string): Promise<boole
     .where(eq(jobAccounting.jobId, jobId));
 
   return Boolean(row?.cappedAt);
+}
+
+/**
+ * Prunes a job's accounting row, but only once it has had no budget activity for the full
+ * retention horizon. `job_accounting` is live cap state: a still-active job re-touches
+ * `updated_at` on every append, so the guard keeps retention from deleting a live budget row
+ * (which would reset the job's cap on its next append). Callers gate this on the job also
+ * having zero remaining streams.
+ */
+export async function deleteJobAccounting(
+  tx: Transaction,
+  params: {jobId: string; retentionDays: number},
+): Promise<{deleted: boolean}> {
+  const [row] = await tx
+    .delete(jobAccounting)
+    .where(
+      and(
+        eq(jobAccounting.jobId, params.jobId),
+        lt(jobAccounting.updatedAt, sql`now() - make_interval(days => ${params.retentionDays})`),
+      ),
+    )
+    .returning({jobId: jobAccounting.jobId});
+
+  return {deleted: Boolean(row)};
 }

@@ -1,8 +1,10 @@
 import type {Readable} from 'node:stream';
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  ListObjectsV2Command,
   S3Client,
 } from '@aws-sdk/client-s3';
 import {Upload} from '@aws-sdk/lib-storage';
@@ -176,4 +178,53 @@ export async function presignedGetUrl(objectKey: string): Promise<{url: string; 
     {expiresIn: ttlSeconds},
   );
   return {url, expiresAt};
+}
+
+/**
+ * Deletes every object under `prefix` (pass the per-attempt prefix WITH a trailing slash so
+ * attempt `1` never matches attempt `10`). Retention uses this instead of deleting the single
+ * recorded `object_key` so it also reclaims the complete leaves a losing or crashed compaction
+ * attempt left under the same prefix. Lists in pages and batch-deletes up to 1000 keys per
+ * request (one `ListObjectsV2` page never exceeds that). A prefix with nothing under it is a
+ * no-op; an empty-string prefix is rejected, since it would match every key in the bucket.
+ * `DeleteObjects` treats a missing key as success, so re-running is idempotent; a partial
+ * failure throws so the caller keeps the stream row and retries on the next run.
+ */
+export async function deleteObjectsByPrefix(prefix: string): Promise<void> {
+  // An empty prefix matches every key, so listing and deleting it would wipe the whole bucket.
+  // No legitimate caller passes one; fail loud rather than silently target everything.
+  if (prefix === '') {
+    throw new Error(
+      'deleteObjectsByPrefix refuses an empty prefix (it would target the whole bucket)',
+    );
+  }
+  const client = s3Client();
+  let continuationToken: string | undefined;
+  do {
+    const listed = await client.send(
+      new ListObjectsV2Command({
+        Bucket: config.LOG_STORAGE_S3_BUCKET,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      }),
+    );
+    const objects = (listed.Contents ?? []).flatMap((object) =>
+      object.Key ? [{Key: object.Key}] : [],
+    );
+    if (objects.length > 0) {
+      const deleted = await client.send(
+        new DeleteObjectsCommand({
+          Bucket: config.LOG_STORAGE_S3_BUCKET,
+          Delete: {Objects: objects, Quiet: true},
+        }),
+      );
+      if (deleted.Errors && deleted.Errors.length > 0) {
+        const [first] = deleted.Errors;
+        throw new Error(
+          `Failed to delete ${deleted.Errors.length} object(s) under ${prefix}: ${first?.Key} ${first?.Message}`,
+        );
+      }
+    }
+    continuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
+  } while (continuationToken);
 }
