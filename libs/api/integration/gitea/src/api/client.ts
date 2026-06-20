@@ -41,6 +41,10 @@ export interface GiteaFileContent {
   size: number;
 }
 
+export interface GiteaWebhook {
+  id: string;
+}
+
 export interface GiteaApiClient {
   listOrgRepositories(input: {
     org: string;
@@ -56,6 +60,8 @@ export interface GiteaApiClient {
     path: string;
     ref: string;
   }): Promise<GiteaFileContent>;
+  organizationExists(input: {org: string}): Promise<boolean>;
+  createOrgPushWebhook(input: {org: string}): Promise<GiteaWebhook>;
 }
 
 export function createGiteaApiClient(): GiteaApiClient {
@@ -187,22 +193,75 @@ class HttpGiteaApiClient implements GiteaApiClient {
     };
   }
 
+  async organizationExists(input: {org: string}): Promise<boolean> {
+    const response = await this.requestRaw(`orgs/${encodeURIComponent(input.org)}`);
+    if (response.ok) return true;
+    if (response.status === 404) return false;
+    throw giteaHttpError(response);
+  }
+
+  async createOrgPushWebhook(input: {org: string}): Promise<GiteaWebhook> {
+    const response = await this.requestRaw(`orgs/${encodeURIComponent(input.org)}/hooks`, {
+      method: 'POST',
+      body: {
+        type: 'gitea',
+        active: true,
+        events: ['push'],
+        config: {
+          url: config.GITEA_WEBHOOK_TARGET_URL,
+          content_type: 'json',
+          secret: config.GITEA_WEBHOOK_SECRET,
+        },
+      },
+    });
+    if (!response.ok) throw giteaHttpError(response);
+
+    const data = await response.json();
+    if (!isRecord(data) || typeof data.id !== 'number') {
+      throw new GiteaIntegrationProviderError(
+        'malformed-provider-response',
+        'Gitea webhook response did not include a numeric id',
+      );
+    }
+    return {id: String(data.id)};
+  }
+
   private async request(
     path: string,
     searchParams: Record<string, string> = {},
     options: {notFoundReason?: NotFoundReason} = {},
   ): Promise<Response> {
+    const response = await this.requestRaw(path, {searchParams});
+    if (!response.ok)
+      throw giteaHttpError(response, options.notFoundReason ?? 'repository-not-found');
+    return response;
+  }
+
+  private async requestRaw(
+    path: string,
+    options: {method?: string; searchParams?: Record<string, string>; body?: unknown} = {},
+  ): Promise<Response> {
     const url = new URL(`${this.baseApiUrl()}/${path}`);
-    for (const [key, value] of Object.entries(searchParams)) {
+    for (const [key, value] of Object.entries(options.searchParams ?? {})) {
       url.searchParams.set(key, value);
     }
 
-    let response: Response;
+    const headers: Record<string, string> = {
+      authorization: this.authHeader(),
+      accept: 'application/json',
+    };
+    const init: RequestInit = {
+      method: options.method ?? 'GET',
+      headers,
+      signal: AbortSignal.timeout(config.GITEA_REQUEST_TIMEOUT_MS),
+    };
+    if (options.body !== undefined) {
+      headers['content-type'] = 'application/json';
+      init.body = JSON.stringify(options.body);
+    }
+
     try {
-      response = await fetch(url, {
-        headers: {authorization: this.authHeader(), accept: 'application/json'},
-        signal: AbortSignal.timeout(config.GITEA_REQUEST_TIMEOUT_MS),
-      });
+      return await fetch(url, init);
     } catch (error) {
       // A bare `fetch` has no request timeout, so an unresponsive Gitea would
       // otherwise hold the worker open indefinitely; the AbortSignal.timeout
@@ -218,10 +277,6 @@ class HttpGiteaApiClient implements GiteaApiClient {
         `Gitea request failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-
-    if (!response.ok)
-      throw giteaHttpError(response, options.notFoundReason ?? 'repository-not-found');
-    return response;
   }
 
   private baseApiUrl(): string {

@@ -969,21 +969,33 @@ importers:
 
   libs/api/integration/gitea:
     dependencies:
+      '@shipfox/api-auth-context':
+        specifier: workspace:*
+        version: link:../../auth-context
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../core-dto
       '@shipfox/api-integration-gitea-dto':
         specifier: workspace:*
         version: link:../gitea-dto
+      '@shipfox/api-workspaces':
+        specifier: workspace:*
+        version: link:../../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle
+      '@shipfox/node-fastify':
+        specifier: workspace:*
+        version: link:../../../shared/node/fastify
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../../shared/node/postgres
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -1006,8 +1018,24 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      fastify-type-provider-zod:
+        specifier: ^6.0.0
+        version: 6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3)
+      fishery:
+        specifier: ^2.2.2
+        version: 2.4.0
 
   libs/api/integration/gitea-dto:
+    dependencies:
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../core-dto
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*

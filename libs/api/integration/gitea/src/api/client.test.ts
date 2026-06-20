@@ -336,4 +336,65 @@ describe('HttpGiteaApiClient', () => {
 
     await expect(result).rejects.toMatchObject({reason: 'timeout'});
   });
+
+  it('reports an existing organization as present', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({username: 'shipfox'}));
+    const client = createGiteaApiClient();
+
+    const exists = await client.organizationExists({org: 'shipfox'});
+
+    expect(exists).toBe(true);
+    expect(requestedUrl().pathname).toBe('/api/v1/orgs/shipfox');
+  });
+
+  it('reports a missing organization as absent', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({}, {status: 404}));
+    const client = createGiteaApiClient();
+
+    const exists = await client.organizationExists({org: 'ghost'});
+
+    expect(exists).toBe(false);
+  });
+
+  it('surfaces a non-404 error while checking an organization', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({}, {status: 403}));
+    const client = createGiteaApiClient();
+
+    const result = client.organizationExists({org: 'shipfox'});
+
+    await expect(result).rejects.toMatchObject({reason: 'access-denied'});
+  });
+
+  it('registers an org push webhook and returns its id as a string', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({id: 99}, {status: 201}));
+    const client = createGiteaApiClient();
+
+    const webhook = await client.createOrgPushWebhook({org: 'shipfox'});
+
+    expect(webhook).toEqual({id: '99'});
+    const url = requestedUrl();
+    expect(url.pathname).toBe('/api/v1/orgs/shipfox/hooks');
+    const init = requestInit();
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>)['content-type']).toBe('application/json');
+    expect(JSON.parse(String(init.body))).toEqual({
+      type: 'gitea',
+      active: true,
+      events: ['push'],
+      config: {
+        url: 'https://api.example.com/webhooks/integrations/gitea',
+        content_type: 'json',
+        secret: 'test-webhook-secret',
+      },
+    });
+  });
+
+  it('rejects a webhook response without a numeric id', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({id: 'not-a-number'}, {status: 201}));
+    const client = createGiteaApiClient();
+
+    const result = client.createOrgPushWebhook({org: 'shipfox'});
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
 });

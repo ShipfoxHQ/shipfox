@@ -1,0 +1,169 @@
+import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
+import type {FastifyInstance, FastifyRequest} from 'fastify';
+import type {GiteaApiClient} from '#api/client.js';
+import {createGiteaIntegrationProvider} from '#index.js';
+
+vi.mock('@shipfox/api-workspaces', () => ({
+  requireMembership: vi.fn(({workspaceId}) =>
+    Promise.resolve({
+      workspaceId,
+      workspace: {
+        id: workspaceId,
+        name: 'Workspace',
+        status: 'active',
+        settings: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      userId: 'user-1',
+      role: 'admin',
+    }),
+  ),
+}));
+
+const {requireMembership} = await import('@shipfox/api-workspaces');
+const requireMembershipMock = vi.mocked(requireMembership);
+
+const fakeUserAuth: AuthMethod = {
+  name: AUTH_USER,
+  authenticate: (request: FastifyRequest) => {
+    if (request.headers.authorization !== 'Bearer user') {
+      throw new ClientError('Invalid user token', 'unauthorized', {status: 401});
+    }
+
+    setUserContext(
+      request,
+      buildUserContext({userId: 'user-1', email: 'user@example.com', memberships: []}),
+    );
+    return Promise.resolve();
+  },
+};
+
+function giteaClient(overrides: Partial<GiteaApiClient> = {}): GiteaApiClient {
+  return {
+    listOrgRepositories: vi.fn(() => Promise.reject(new Error('not used'))),
+    getRepository: vi.fn(() => Promise.reject(new Error('not used'))),
+    resolveRef: vi.fn(() => Promise.reject(new Error('not used'))),
+    listTree: vi.fn(() => Promise.reject(new Error('not used'))),
+    fetchFileContent: vi.fn(() => Promise.reject(new Error('not used'))),
+    organizationExists: vi.fn(() => Promise.resolve(true)),
+    createOrgPushWebhook: vi.fn(() => Promise.resolve({id: 'hook-1'})),
+    ...overrides,
+  };
+}
+
+interface CreateTestAppOptions {
+  gitea?: GiteaApiClient;
+  existingConnection?: IntegrationConnection<'gitea'> | undefined;
+}
+
+async function createTestApp(options: CreateTestAppOptions = {}): Promise<FastifyInstance> {
+  const provider = createGiteaIntegrationProvider({
+    gitea: options.gitea ?? giteaClient(),
+    getExistingGiteaConnection: vi.fn(() => Promise.resolve(options.existingConnection)),
+    connectGiteaConnection: vi.fn((input) =>
+      Promise.resolve({
+        id: crypto.randomUUID(),
+        workspaceId: input.workspaceId,
+        provider: 'gitea',
+        externalAccountId: input.org,
+        displayName: input.displayName,
+        lifecycleStatus: 'active',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    ),
+  });
+  const app = await createApp({
+    auth: [fakeUserAuth],
+    routes: provider.routes,
+    swagger: false,
+  });
+  await app.ready();
+  return app;
+}
+
+describe('Gitea connection routes', () => {
+  beforeEach(async () => {
+    await closeApp();
+  });
+
+  afterEach(async () => {
+    await closeApp();
+  });
+
+  it('requires auth to connect an org', async () => {
+    const app = await createTestApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/gitea/connections',
+      payload: {workspace_id: crypto.randomUUID(), org: 'shipfox'},
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('connects an org, registers a webhook, and returns the connection DTO', async () => {
+    const gitea = giteaClient({createOrgPushWebhook: vi.fn(() => Promise.resolve({id: '77'}))});
+    const app = await createTestApp({gitea});
+    const workspaceId = crypto.randomUUID();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/gitea/connections',
+      headers: {authorization: 'Bearer user'},
+      payload: {workspace_id: workspaceId, org: 'shipfox'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().provider).toBe('gitea');
+    expect(res.json().external_account_id).toBe('shipfox');
+    expect(res.json().lifecycle_status).toBe('active');
+    expect(gitea.createOrgPushWebhook).toHaveBeenCalledWith({org: 'shipfox'});
+    expect(requireMembershipMock).toHaveBeenCalledWith(expect.objectContaining({workspaceId}));
+  });
+
+  it('returns 404 when the org does not exist', async () => {
+    const app = await createTestApp({
+      gitea: giteaClient({organizationExists: vi.fn(() => Promise.resolve(false))}),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/gitea/connections',
+      headers: {authorization: 'Bearer user'},
+      payload: {workspace_id: crypto.randomUUID(), org: 'ghost'},
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('gitea-organization-not-found');
+  });
+
+  it('returns 409 when the org is already linked to another workspace', async () => {
+    const app = await createTestApp({
+      existingConnection: {
+        id: crypto.randomUUID(),
+        workspaceId: crypto.randomUUID(),
+        provider: 'gitea',
+        externalAccountId: 'shipfox',
+        displayName: 'Gitea shipfox',
+        lifecycleStatus: 'active',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/gitea/connections',
+      headers: {authorization: 'Bearer user'},
+      payload: {workspace_id: crypto.randomUUID(), org: 'shipfox'},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('gitea-org-already-linked');
+  });
+});
