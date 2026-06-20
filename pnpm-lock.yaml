@@ -969,6 +969,9 @@ importers:
 
   libs/api/integration/gitea:
     dependencies:
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../core-dto
       '@shipfox/api-integration-gitea-dto':
         specifier: workspace:*
         version: link:../gitea-dto

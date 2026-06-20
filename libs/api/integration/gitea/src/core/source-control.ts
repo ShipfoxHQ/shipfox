@@ -1,0 +1,223 @@
+import {Buffer} from 'node:buffer';
+import {
+  buildProviderRepositoryId,
+  type CheckoutSpec,
+  type CreateCheckoutSpecInput,
+  type FetchFileInput,
+  type FilePage,
+  type FileSnapshot,
+  type IntegrationConnection,
+  type ListFilesInput,
+  type ListRepositoriesInput,
+  MAX_REPOSITORY_FILE_BYTES,
+  parseProviderRepositoryId,
+  type RepositoryPage,
+  type RepositorySnapshot,
+  type RepositoryVisibility,
+  type ResolveRepositoryInput,
+  type SourceControlProvider,
+} from '@shipfox/api-integration-core-dto';
+import {giteaProviderKind} from '@shipfox/api-integration-gitea-dto';
+import type {GiteaApiClient, GiteaRepository} from '#api/client.js';
+import {config} from '#config.js';
+import {GiteaIntegrationProviderError} from './errors.js';
+
+type GiteaIntegrationConnection = IntegrationConnection<'gitea'>;
+
+const TRAILING_SLASHES_RE = /\/+$/;
+const SEARCH_PAGE_SIZE = 100;
+const SEARCH_MAX_PAGES_PER_REQUEST = 5;
+
+export class GiteaSourceControlProvider
+  implements SourceControlProvider<GiteaIntegrationConnection>
+{
+  constructor(private readonly gitea: GiteaApiClient) {}
+
+  async listRepositories(
+    input: ListRepositoriesInput<GiteaIntegrationConnection>,
+  ): Promise<RepositoryPage> {
+    const org = input.connection.externalAccountId;
+    const needle = input.search?.trim().toLowerCase();
+
+    if (!needle) {
+      const page = await this.gitea.listOrgRepositories({
+        org,
+        limit: input.limit,
+        cursor: input.cursor,
+      });
+      return {
+        repositories: page.repositories.map(toRepositorySnapshot),
+        nextCursor: page.nextCursor,
+      };
+    }
+
+    const matches: RepositorySnapshot[] = [];
+    let cursor = input.cursor;
+    let pagesScanned = 0;
+    while (matches.length < input.limit && pagesScanned < SEARCH_MAX_PAGES_PER_REQUEST) {
+      const page = await this.gitea.listOrgRepositories({org, limit: SEARCH_PAGE_SIZE, cursor});
+      pagesScanned += 1;
+      for (const repo of page.repositories) {
+        if (repo.fullName.toLowerCase().includes(needle)) {
+          matches.push(toRepositorySnapshot(repo));
+        }
+      }
+      cursor = page.nextCursor ?? undefined;
+      if (!cursor) break;
+    }
+
+    return {
+      repositories: matches.slice(0, input.limit),
+      nextCursor: cursor ?? null,
+    };
+  }
+
+  async resolveRepository(
+    input: ResolveRepositoryInput<GiteaIntegrationConnection>,
+  ): Promise<RepositorySnapshot> {
+    const {owner, repo} = parseGiteaRepositoryLocator(
+      input.externalRepositoryId,
+      input.connection.externalAccountId,
+    );
+    return toRepositorySnapshot(await this.gitea.getRepository({owner, repo}));
+  }
+
+  async listFiles(input: ListFilesInput<GiteaIntegrationConnection>): Promise<FilePage> {
+    const {owner, repo} = parseGiteaRepositoryLocator(
+      input.externalRepositoryId,
+      input.connection.externalAccountId,
+    );
+    const sha = await this.gitea.resolveRef({owner, repo, ref: input.ref});
+    const tree = await this.gitea.listTree({owner, repo, sha});
+    if (tree.truncated) {
+      throw new GiteaIntegrationProviderError(
+        'too-many-files',
+        `Gitea repository tree for ${input.externalRepositoryId} is too large to enumerate`,
+      );
+    }
+
+    const prefix = input.prefix.replace(TRAILING_SLASHES_RE, '');
+    const matched = tree.blobs
+      .filter((blob) => prefixMatches(blob.path, prefix))
+      .sort((a, b) => a.path.localeCompare(b.path));
+    const offset = parseOffset(input.cursor);
+    const page = matched.slice(offset, offset + input.limit);
+    const consumed = offset + page.length;
+
+    return {
+      files: page.map((blob) => ({path: blob.path, type: 'file', size: blob.size})),
+      nextCursor: consumed < matched.length ? String(consumed) : null,
+    };
+  }
+
+  async fetchFile(input: FetchFileInput<GiteaIntegrationConnection>): Promise<FileSnapshot> {
+    const {owner, repo} = parseGiteaRepositoryLocator(
+      input.externalRepositoryId,
+      input.connection.externalAccountId,
+    );
+    const file = await this.gitea.fetchFileContent({owner, repo, path: input.path, ref: input.ref});
+
+    if (
+      file.size > MAX_REPOSITORY_FILE_BYTES ||
+      Buffer.byteLength(file.content, 'utf8') > MAX_REPOSITORY_FILE_BYTES
+    ) {
+      throw new GiteaIntegrationProviderError(
+        'content-too-large',
+        'Gitea file content is larger than the supported limit',
+      );
+    }
+
+    return {
+      path: file.path,
+      ref: input.ref,
+      content: file.content,
+    };
+  }
+
+  async createCheckoutSpec(
+    input: CreateCheckoutSpecInput<GiteaIntegrationConnection>,
+  ): Promise<CheckoutSpec> {
+    const {owner, repo} = parseGiteaRepositoryLocator(
+      input.externalRepositoryId,
+      input.connection.externalAccountId,
+    );
+    const repository = await this.gitea.getRepository({owner, repo});
+    const ref = input.ref?.trim() || repository.defaultBranch;
+
+    return {
+      // The provider's own clone URL respects a Gitea instance whose external
+      // clone host differs from the API base; it is credential-free, so the
+      // CheckoutSpec "no auth material in repositoryUrl" contract still holds.
+      repositoryUrl: repository.cloneUrl,
+      ref,
+      // Gitea has no per-repo, auto-expiring token like a GitHub App installation
+      // token, so checkout reuses the long-lived service credential. `expiresAt`
+      // is the runner's lease/refresh window, not the token's real expiry: this
+      // credential does not actually expire and stays valid if it leaks.
+      credentials: {
+        username: config.GITEA_SERVICE_USERNAME,
+        token: config.GITEA_SERVICE_TOKEN,
+        expiresAt: new Date(Date.now() + config.GITEA_CHECKOUT_TTL_SECONDS * 1000),
+      },
+    };
+  }
+}
+
+function toRepositorySnapshot(repository: GiteaRepository): RepositorySnapshot {
+  return {
+    externalRepositoryId: buildProviderRepositoryId(
+      giteaProviderKind,
+      `${repository.ownerLogin}/${repository.name}`,
+    ),
+    owner: repository.ownerLogin,
+    name: repository.name,
+    fullName: repository.fullName,
+    defaultBranch: repository.defaultBranch,
+    visibility: toRepositoryVisibility(repository),
+    cloneUrl: repository.cloneUrl,
+    htmlUrl: repository.htmlUrl,
+  };
+}
+
+function toRepositoryVisibility(repository: GiteaRepository): RepositoryVisibility {
+  return repository.private ? 'private' : 'public';
+}
+
+function parseGiteaRepositoryLocator(
+  externalRepositoryId: string,
+  expectedOwner: string,
+): {owner: string; repo: string} {
+  const value = parseProviderRepositoryId(externalRepositoryId, giteaProviderKind);
+  const separatorIndex = value.indexOf('/');
+  const owner = separatorIndex > 0 ? value.slice(0, separatorIndex) : '';
+  const repo = separatorIndex > 0 ? value.slice(separatorIndex + 1) : '';
+  if (!owner || !repo || repo.includes('/')) {
+    throw new GiteaIntegrationProviderError(
+      'repository-not-found',
+      `Gitea repository id ${externalRepositoryId} must follow the form ${giteaProviderKind}:<owner>/<repo>`,
+    );
+  }
+  // The service token is instance-wide, so the adapter must scope every request
+  // to the connection's own account itself; without this an external id naming
+  // another org would read its private repos and mint checkout credentials for
+  // them. Reported as not-found so it does not confirm an out-of-scope repo.
+  if (owner.toLowerCase() !== expectedOwner.toLowerCase()) {
+    throw new GiteaIntegrationProviderError(
+      'repository-not-found',
+      `Gitea repository id ${externalRepositoryId} is not in the ${expectedOwner} account`,
+    );
+  }
+
+  return {owner, repo};
+}
+
+function prefixMatches(path: string, prefix: string): boolean {
+  if (!prefix) return true;
+  return path === prefix || path.startsWith(`${prefix}/`);
+}
+
+function parseOffset(cursor: string | undefined): number {
+  if (!cursor) return 0;
+  const offset = Number.parseInt(cursor, 10);
+  return Number.isNaN(offset) || offset < 0 ? 0 : offset;
+}
