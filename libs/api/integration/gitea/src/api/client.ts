@@ -158,7 +158,15 @@ class HttpGiteaApiClient implements GiteaApiClient {
       );
     }
 
-    const size = typeof data.size === 'number' ? data.size : 0;
+    // A well-formed Gitea file response always carries a numeric size; coercing a
+    // missing size to 0 would skip the limit guard below and decode unbounded content.
+    if (typeof data.size !== 'number') {
+      throw new GiteaIntegrationProviderError(
+        'malformed-provider-response',
+        'Gitea file response did not include a numeric size',
+      );
+    }
+    const size = data.size;
     if (size > MAX_REPOSITORY_FILE_BYTES) {
       throw new GiteaIntegrationProviderError(
         'content-too-large',

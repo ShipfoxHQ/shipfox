@@ -282,6 +282,22 @@ describe('HttpGiteaApiClient', () => {
     await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
   });
 
+  it('maps a file response missing a numeric size to malformed-provider-response', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({type: 'file', encoding: 'base64', path: 'a', content: ''}),
+    );
+    const client = createGiteaApiClient();
+
+    const result = client.fetchFileContent({
+      owner: 'shipfox',
+      repo: 'platform',
+      path: 'a',
+      ref: 'main',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+
   it('maps a 404 on the contents endpoint to file-not-found', async () => {
     fetchMock.mockResolvedValue(jsonResponse({}, {status: 404}));
     const client = createGiteaApiClient();
