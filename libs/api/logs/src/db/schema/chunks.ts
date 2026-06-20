@@ -15,8 +15,7 @@ import {bytea, pgTable} from './common.js';
  *            └────────────┘                              advance committed_length
  *
  * `origin` is `runner` for bytes from the runner's spool and `control` for a
- * server-injected tombstone; it is distinct from the stream's `kind`
- * (log_stream | agent_session). `stream_offset` is the runner-axis position of a
+ * server-injected tombstone. `stream_offset` is the runner-axis position of a
  * runner chunk; for a server `control` chunk it is informational. `seq`
  * (insertion order) is the read axis the reader walks, so server records
  * interleave correctly with runner bytes.

@@ -3,7 +3,6 @@ CREATE TABLE "logs_attempt_streams" (
 	"job_id" uuid NOT NULL,
 	"step_id" uuid NOT NULL,
 	"attempt" integer NOT NULL,
-	"kind" text NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"run_id" uuid NOT NULL,
@@ -12,7 +11,6 @@ CREATE TABLE "logs_attempt_streams" (
 	"close_reason" text,
 	"declared_total_bytes" bigint,
 	"truncated" boolean DEFAULT false NOT NULL,
-	"capped" boolean DEFAULT false NOT NULL,
 	"object_key" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -49,7 +47,7 @@ CREATE TABLE "logs_outbox" (
 );
 --> statement-breakpoint
 ALTER TABLE "logs_chunks" ADD CONSTRAINT "logs_chunks_stream_id_logs_attempt_streams_id_fk" FOREIGN KEY ("stream_id") REFERENCES "public"."logs_attempt_streams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "logs_attempt_streams_identity_unique" ON "logs_attempt_streams" USING btree ("job_id","step_id","attempt","kind");--> statement-breakpoint
+CREATE UNIQUE INDEX "logs_attempt_streams_identity_unique" ON "logs_attempt_streams" USING btree ("job_id","step_id","attempt");--> statement-breakpoint
 CREATE INDEX "logs_attempt_streams_open_by_job_idx" ON "logs_attempt_streams" USING btree ("job_id") WHERE "state" = 'open';--> statement-breakpoint
 CREATE INDEX "logs_attempt_streams_retention_idx" ON "logs_attempt_streams" USING btree ("closed_at") WHERE "state" = 'closed';--> statement-breakpoint
 CREATE INDEX "logs_attempt_streams_uncompacted_idx" ON "logs_attempt_streams" USING btree ("closed_at") WHERE "state" = 'closed' and "object_key" is null;--> statement-breakpoint

@@ -29,22 +29,14 @@ This adds:
 - the `logs.stream.closed` publisher and the job-terminated subscriber that force-closes
   abandoned streams
 
-## Stream kinds
+## Streams
 
-Every stream has a `kind`, part of its identity `(job, step, attempt, kind)`:
+One stream per `(job, step, attempt)`, scoped by `job_id` (from the lease), so a lease can
+only ever reach its own job's streams. There is no per-producer `kind` on the stream: every
+record a step emits lives in this one stream, and a reader filters by the record's `type`
+(see below) at read time without needing to know anything about the producer.
 
-- **`log_stream`** — process output (stdout/stderr) framed as the log record contract below.
-- **`agent_session`** — a verbatim, format-agnostic agent-session capture (a pi session, a
-  Claude Agent SDK transcript, or a Codex SDK rollout). The server stores the bytes opaquely
-  and never interprets them.
-
-A step may carry both kinds at once; they are independent streams with independent offsets.
-`kind` is **producer-declared**: the lease scopes a runner to its own job, not to a step type,
-so the server does not check that an `agent_session` belongs to an agent step. Treat `kind` as
-declared by the runner, not as authoritative step semantics; recognizing the session type (and
-handling an unrecognizable one) is the reader's job.
-
-## The `log_stream` record contract
+## The log record contract
 
 One JSON object per line. The shared envelope is `{v, ts}`. The pipe rides on `stream` for
 output; control records are flat by `type`:
@@ -61,16 +53,15 @@ output; control records are flat by `type`:
 
 ### Write-path protection
 
-Three layers stop a runner from writing what its kind does not allow:
+Two layers stop a runner from writing what it should not:
 
 1. **Lease scope** — the lease binds writes to the job's own `(step, attempt)`, so cross-job
    injection is structurally impossible.
-2. **Kind-scoped validator** — the append route dispatches by `kind`: `log_stream` validates each
-   line against the **appendable** record union; `agent_session` validates each line as JSON.
-3. **Distinct ingest and read unions** — the server-only `capped`/`runner_lost` tombstones are
-   members of the read union only, not the appendable union, so a forged tombstone append is
-   rejected (400). A forged tombstone that is otherwise a valid record is logged as a narrowed
-   audit warning (no payload, no token).
+2. **Distinct ingest and read unions** — every line is validated against the **appendable**
+   record union. The server-only `capped`/`runner_lost` tombstones are members of the read union
+   only, not the appendable union, so a forged tombstone append is rejected (400). A forged
+   tombstone that is otherwise a valid record is logged as a narrowed audit warning (no payload,
+   no token).
 
 ### Multi-level named groups
 
@@ -80,40 +71,25 @@ or `null` at the root). Nesting is capped at depth 32; past the cap a group is f
 output and counted so its matching `::endgroup::` never pops a real parent. The tree is
 recoverable from the ids, parent links, and the tombstone position at truncation.
 
-## Agent session capture
+## Agent-session capture (future)
 
-`agent_session` bytes are stored verbatim. Ingest checks only what the reader depends on: each
-append body is **whole, newline-terminated lines**, decodes as **fatal UTF-8**, and each line is
-**well-formed JSON** within `LOG_MAX_SESSION_LINE_BYTES`. "Valid JSON" means a well-formed JSON
-value, not a recognizable message of any SDK.
-
-Because every body is whole lines, `committed_length` always lands on a line boundary and no JSON
-line spans two stored chunks. A live reader can poll chunks by `seq`, split each on `\n`, and parse
-each piece as a complete event. The version and SDK identity live in the session header (the first
-line); the server never stores them separately.
-
-The append route is shared by both kinds (`kind` is a query param), so its body limit
-(`LOG_APPEND_BODY_LIMIT_BYTES`) is one value for both. Keep the invariant
-`LOG_APPEND_BODY_LIMIT_BYTES >= LOG_MAX_SESSION_LINE_BYTES >= the largest legitimate line`; the
-store fails fast at startup if the body limit is below the line cap.
+Agent-session capture is a separate, not-yet-built feature. When it lands, an agent step's session
+events ride this **same** stream as ordinary records, distinguished by their own record `type`(s);
+a reader filters by `type` and re-joins those records to reconstruct the session. There is no
+separate stream and no stream `kind` — one stream per `(job, step, attempt)`, read without knowing
+any kind.
 
 ## Budget and terminal state
 
-One shared, job-wide, generous accrual budget covers all log types of a job. When the job's stored
-bytes cross the budget, the job is capped and further appends are dropped. The cap is signaled
-differently per kind:
+One shared, job-wide, generous accrual budget covers a job's logs. When the job's stored bytes
+cross the budget, the job is capped and further appends are dropped. The append that crosses the
+budget is stored in full, then an in-band `capped` tombstone record is injected once; later appends
+are accepted-and-dropped. The cap is a **job-level** signal — a stream can be byte-complete and
+still sit under a capped job if a sibling step exhausted the shared budget.
 
-- `log_stream`: an in-band `capped` tombstone record.
-- `agent_session`: the row's `capped` flag, set at close from the per-job budget. This is a
-  **job-level** signal ("the job's shared budget was exhausted, so this stream may be incomplete"),
-  not "this stream lost bytes" — a byte-complete session can read `capped` if a sibling stream
-  exhausted the budget.
-
-A stream closes either when the runner declares its end (`end` record, `log_stream` only) or when
-the timeout sweep force-closes a job's abandoned streams. A timeout close sets `truncated`; for a
-`log_stream` it also injects a `runner_lost` tombstone, while an `agent_session` records flags only
-(no in-band tombstone, so the verbatim bytes stay intact). Each close writes one
-`logs.stream.closed` event carrying the stream `kind`, which drives compaction.
+A stream closes either when the runner declares its end (an `end` record) or when the timeout sweep
+force-closes a job's abandoned streams. A timeout close sets `truncated` and injects a `runner_lost`
+tombstone. Each close writes one `logs.stream.closed` event, which drives compaction.
 
 ## Setup
 
@@ -128,5 +104,4 @@ This package is private to the workspace. Add it to another workspace package wi
 ```
 
 Configuration lives in `src/config.ts` (object storage for compacted logs, the per-job budget,
-the close grace period, the append body limit, and the agent-session line cap). See each
-variable's `desc` for what to set.
+the close grace period, and the append body limit). See each variable's `desc` for what to set.

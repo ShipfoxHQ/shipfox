@@ -1,5 +1,4 @@
 import type {Buffer} from 'node:buffer';
-import type {StreamKind} from '@shipfox/api-logs-dto';
 import {closeStream} from '#core/close-stream.js';
 import type {AttemptStream} from '#core/entities/attempt-stream.js';
 import {insertChunk} from '#db/chunks.js';
@@ -10,8 +9,6 @@ export interface ClosedStreamIdentity {
   jobId: string;
   stepId: string;
   attempt: number;
-  /** Defaults to log_stream so existing compaction tests stay terse. */
-  kind?: StreamKind;
   workspaceId: string;
   projectId: string;
   runId: string;
@@ -32,10 +29,7 @@ export function arrangeClosedStream(
   const chunks = options.chunks ?? [];
 
   return db().transaction(async (tx) => {
-    const stream = await getOrCreateAttemptStream(tx, {
-      ...identity,
-      kind: identity.kind ?? 'log_stream',
-    });
+    const stream = await getOrCreateAttemptStream(tx, identity);
 
     let offset = 0;
     for (const data of chunks) {

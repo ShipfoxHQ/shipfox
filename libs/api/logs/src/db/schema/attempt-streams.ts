@@ -1,4 +1,3 @@
-import type {StreamKind} from '@shipfox/api-logs-dto';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {
@@ -15,19 +14,18 @@ import type {AttemptStream} from '#core/entities/attempt-stream.js';
 import {pgTable} from './common.js';
 
 /**
- * One stream per (job, step, attempt, kind). Identity is scoped by `job_id` (from
- * the lease), so a lease can only ever reach its own job's streams — cross-job log
- * injection is structurally impossible. `kind` is part of identity, so a step may
- * carry both a `log_stream` (process output) and an `agent_session` independently.
- * `workspace_id`, `project_id`, and `run_id` are stamped from the lease at create
- * time; they are functionally determined by `job_id` via workflows FKs, so they are
- * denormalized here for self-contained authorization (per-project read filtering,
- * audit) without joining back to workflows. `committed_length` is the offset-CAS
- * axis (raw NDJSON spool bytes the server has durably accepted from the runner).
+ * One stream per (job, step, attempt). Identity is scoped by `job_id` (from the
+ * lease), so a lease can only ever reach its own job's streams — cross-job log
+ * injection is structurally impossible. `workspace_id`, `project_id`, and `run_id`
+ * are stamped from the lease at create time; they are functionally determined by
+ * `job_id` via workflows FKs, so they are denormalized here for self-contained
+ * authorization (per-project read filtering, audit) without joining back to
+ * workflows. `committed_length` is the offset-CAS axis (raw NDJSON spool bytes the
+ * server has durably accepted from the runner).
  *
- * `truncated` and `capped` are out-of-band terminal flags; the `AttemptStream`
- * entity is the canonical reference for what they mean (notably that `capped` is a
- * job-level signal, not a per-stream byte-loss signal).
+ * `truncated` is an out-of-band terminal flag set when the timeout sweep
+ * force-closes a stream the runner never ended; the `AttemptStream` entity is the
+ * canonical reference for what it means.
  *
  * Per-row `committed_length` and `declared_total_bytes` are bounded by the
  * per-job budget, so `mode: 'number'` is safe on the hot path. Any cross-row
@@ -42,7 +40,6 @@ export const attemptStreams = pgTable(
     jobId: uuid('job_id').notNull(),
     stepId: uuid('step_id').notNull(),
     attempt: integer('attempt').notNull(),
-    kind: text('kind', {enum: ['log_stream', 'agent_session']}).notNull(),
     workspaceId: uuid('workspace_id').notNull(),
     projectId: uuid('project_id').notNull(),
     runId: uuid('run_id').notNull(),
@@ -53,7 +50,6 @@ export const attemptStreams = pgTable(
     closeReason: text('close_reason', {enum: ['declared', 'timeout']}),
     declaredTotalBytes: bigint('declared_total_bytes', {mode: 'number'}),
     truncated: boolean('truncated').notNull().default(false),
-    capped: boolean('capped').notNull().default(false),
     objectKey: text('object_key'),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
@@ -64,7 +60,6 @@ export const attemptStreams = pgTable(
       table.jobId,
       table.stepId,
       table.attempt,
-      table.kind,
     ),
     // Timeout-close sweeps an open job's streams by job_id; the partial index keeps
     // it off the closed tail.
@@ -89,7 +84,6 @@ export function toAttemptStream(row: AttemptStreamDb): AttemptStream {
     jobId: row.jobId,
     stepId: row.stepId,
     attempt: row.attempt,
-    kind: row.kind as StreamKind,
     workspaceId: row.workspaceId,
     projectId: row.projectId,
     runId: row.runId,
@@ -98,7 +92,6 @@ export function toAttemptStream(row: AttemptStreamDb): AttemptStream {
     closeReason: row.closeReason,
     declaredTotalBytes: row.declaredTotalBytes,
     truncated: row.truncated,
-    capped: row.capped,
     objectKey: row.objectKey,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

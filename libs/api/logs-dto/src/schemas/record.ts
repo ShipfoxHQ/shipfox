@@ -2,7 +2,7 @@ import {Buffer} from 'node:buffer';
 import {z} from 'zod';
 
 /**
- * NDJSON `log_stream` record contract — one JSON object per line, runner-framed.
+ * NDJSON log record contract — one JSON object per line, runner-framed.
  *
  * `offset` / `committed_length` are byte positions in the raw NDJSON spool stream
  * (envelope included) — the offset-CAS axis the runner tracks. The per-job accrual
@@ -13,11 +13,10 @@ import {z} from 'zod';
  * <= MAX_RECORD_NAME_BYTES, the group ids are <= MAX_RECORD_GROUP_ID_BYTES, and every
  * other field is fixed-shape.
  *
- * The envelope is `{v, ts}` only (no `src`). The `type:'control'` + `kind` shape is
- * collapsed to one flat `type` discriminator,
- * and the ingest (appendable) and read unions are distinct types: the server-only
- * `capped` / `runner_lost` tombstones are members of the read union only, so a
- * forged tombstone cannot pass append validation.
+ * The envelope is `{v, ts}`, and every record is discriminated by a single flat
+ * `type`. The ingest (appendable) and read unions are distinct types: the server-only
+ * `capped` / `runner_lost` tombstones are members of the read union only, so a forged
+ * tombstone cannot pass append validation.
  */
 
 /** Largest decoded `data` payload per record. Longer lines are split by the runner. */

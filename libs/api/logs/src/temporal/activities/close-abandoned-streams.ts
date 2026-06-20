@@ -3,12 +3,10 @@ import {db} from '#db/db.js';
 import {listOpenStreamsByJob} from '#db/streams.js';
 
 /**
- * Force-closes every stream still open for a terminated job: the runner died, was
- * capped, or its spool failed, so it never sent an end record. Each stream closes in
- * its own transaction through the guarded `closeStream`, so one that the declared
- * path closed in the meantime is skipped (returns null). Both kinds are marked
- * `truncated`; `closeStream` then injects a `runner_lost` tombstone for a
- * `log_stream` and sets the out-of-band `capped` flag for an `agent_session`.
+ * Job termination does not guarantee the runner flushed an end record: it may have
+ * died, been capped, or lost its spool. Each stream closes in its own transaction
+ * through the guarded `closeStream`, so a declared-close race is skipped instead of
+ * writing a duplicate event or tombstone.
  */
 export async function closeAbandonedStreamsActivity(params: {
   jobId: string;

@@ -1,5 +1,5 @@
 {
-  "id": "f32bc501-f178-452e-9bf7-739c380ef262",
+  "id": "d0be3be6-ed44-4c17-92c3-f5ad1d87e9a5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -30,12 +30,6 @@
         "attempt": {
           "name": "attempt",
           "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -90,13 +84,6 @@
           "notNull": true,
           "default": false
         },
-        "capped": {
-          "name": "capped",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "object_key": {
           "name": "object_key",
           "type": "text",
@@ -142,12 +129,6 @@
             },
             {
               "expression": "attempt",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "kind",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

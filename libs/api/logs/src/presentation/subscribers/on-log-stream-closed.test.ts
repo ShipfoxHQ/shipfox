@@ -19,7 +19,6 @@ function buildPayload(streamId: string): LogStreamClosedEvent {
     stepId: crypto.randomUUID(),
     attempt: 1,
     streamId,
-    kind: 'log_stream',
   };
 }
 
