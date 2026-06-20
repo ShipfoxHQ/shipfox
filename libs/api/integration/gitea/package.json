@@ -37,6 +37,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-integration-gitea-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",

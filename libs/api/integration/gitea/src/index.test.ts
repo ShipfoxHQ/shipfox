@@ -1,14 +1,12 @@
-import {createGiteaIntegrationProvider} from '#index.js';
+import {createGiteaIntegrationProvider, GiteaSourceControlProvider} from '#index.js';
 
 describe('createGiteaIntegrationProvider', () => {
-  it('returns the empty gitea provider scaffold', () => {
+  it('exposes the gitea source-control adapter', () => {
     const provider = createGiteaIntegrationProvider();
 
-    expect(provider).toEqual({
-      provider: 'gitea',
-      displayName: 'Gitea',
-      adapters: {},
-      routes: [],
-    });
+    expect(provider.provider).toBe('gitea');
+    expect(provider.displayName).toBe('Gitea');
+    expect(provider.routes).toEqual([]);
+    expect(provider.adapters.source_control).toBeInstanceOf(GiteaSourceControlProvider);
   });
 });

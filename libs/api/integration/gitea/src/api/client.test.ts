@@ -1,0 +1,268 @@
+import {Buffer} from 'node:buffer';
+import {GiteaIntegrationProviderError} from '#core/errors.js';
+import {createGiteaApiClient} from './client.js';
+
+const REPOSITORY = {
+  id: 7,
+  owner: {login: 'shipfox'},
+  name: 'platform',
+  full_name: 'shipfox/platform',
+  default_branch: 'main',
+  private: true,
+  clone_url: 'https://gitea.example.com/shipfox/platform.git',
+  html_url: 'https://gitea.example.com/shipfox/platform',
+};
+
+function jsonResponse(
+  body: unknown,
+  init: {status?: number; headers?: Record<string, string>} = {},
+): Response {
+  return new Response(JSON.stringify(body), {
+    status: init.status ?? 200,
+    headers: {'content-type': 'application/json', ...init.headers},
+  });
+}
+
+describe('HttpGiteaApiClient', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function requestedUrl(call = 0): URL {
+    return new URL(String(fetchMock.mock.calls[call]?.[0]));
+  }
+
+  function requestInit(call = 0): RequestInit {
+    return fetchMock.mock.calls[call]?.[1] as RequestInit;
+  }
+
+  it('lists org repositories with basic auth and a page cursor from the link header', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse([REPOSITORY], {
+        headers: {
+          link: '<https://gitea.example.com/api/v1/orgs/shipfox/repos?page=3&limit=50>; rel="next"',
+        },
+      }),
+    );
+    const client = createGiteaApiClient();
+
+    const result = await client.listOrgRepositories({org: 'shipfox', limit: 50, cursor: '2'});
+
+    expect(result.repositories[0]?.fullName).toBe('shipfox/platform');
+    expect(result.nextCursor).toBe('3');
+    const url = requestedUrl();
+    expect(url.pathname).toBe('/api/v1/orgs/shipfox/repos');
+    expect(url.searchParams.get('page')).toBe('2');
+    expect(url.searchParams.get('limit')).toBe('50');
+    expect((requestInit().headers as Record<string, string>).authorization).toBe(
+      `Basic ${Buffer.from('shipfox-bot:test-service-token').toString('base64')}`,
+    );
+  });
+
+  it('returns no next cursor when the link header has no next relation', async () => {
+    fetchMock.mockResolvedValue(jsonResponse([REPOSITORY]));
+    const client = createGiteaApiClient();
+
+    const result = await client.listOrgRepositories({org: 'shipfox', limit: 50});
+
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it('gets a single repository', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(REPOSITORY));
+    const client = createGiteaApiClient();
+
+    const result = await client.getRepository({owner: 'shipfox', repo: 'platform'});
+
+    expect(result).toEqual({
+      ownerLogin: 'shipfox',
+      name: 'platform',
+      fullName: 'shipfox/platform',
+      defaultBranch: 'main',
+      private: true,
+      cloneUrl: 'https://gitea.example.com/shipfox/platform.git',
+      htmlUrl: 'https://gitea.example.com/shipfox/platform',
+    });
+    expect(requestedUrl().pathname).toBe('/api/v1/repos/shipfox/platform');
+  });
+
+  it('resolves a ref to its head commit sha', async () => {
+    fetchMock.mockResolvedValue(jsonResponse([{sha: 'abc123'}, {sha: 'older'}]));
+    const client = createGiteaApiClient();
+
+    const sha = await client.resolveRef({owner: 'shipfox', repo: 'platform', ref: 'main'});
+
+    expect(sha).toBe('abc123');
+    const url = requestedUrl();
+    expect(url.pathname).toBe('/api/v1/repos/shipfox/platform/commits');
+    expect(url.searchParams.get('sha')).toBe('main');
+    expect(url.searchParams.get('limit')).toBe('1');
+  });
+
+  it('rejects a ref that resolves to no commit', async () => {
+    fetchMock.mockResolvedValue(jsonResponse([]));
+    const client = createGiteaApiClient();
+
+    const result = client.resolveRef({owner: 'shipfox', repo: 'platform', ref: 'missing'});
+
+    await expect(result).rejects.toMatchObject({reason: 'repository-not-found'});
+  });
+
+  it('lists the recursive tree, keeping blobs and dropping subtrees', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        tree: [
+          {path: 'README.md', type: 'blob', size: 12},
+          {path: 'src', type: 'tree'},
+          {path: 'src/index.ts', type: 'blob', size: 34},
+        ],
+        truncated: false,
+      }),
+    );
+    const client = createGiteaApiClient();
+
+    const result = await client.listTree({owner: 'shipfox', repo: 'platform', sha: 'abc123'});
+
+    expect(result.blobs).toEqual([
+      {path: 'README.md', size: 12},
+      {path: 'src/index.ts', size: 34},
+    ]);
+    expect(result.truncated).toBe(false);
+    const url = requestedUrl();
+    expect(url.pathname).toBe('/api/v1/repos/shipfox/platform/git/trees/abc123');
+    expect(url.searchParams.get('recursive')).toBe('true');
+  });
+
+  it('reports a truncated tree', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({tree: [], truncated: true}));
+    const client = createGiteaApiClient();
+
+    const result = await client.listTree({owner: 'shipfox', repo: 'platform', sha: 'abc123'});
+
+    expect(result.truncated).toBe(true);
+  });
+
+  it('fetches and base64-decodes file content', async () => {
+    const content = 'name: CI\n';
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        type: 'file',
+        encoding: 'base64',
+        path: '.shipfox/workflows/ci.yml',
+        size: content.length,
+        content: Buffer.from(content).toString('base64'),
+      }),
+    );
+    const client = createGiteaApiClient();
+
+    const result = await client.fetchFileContent({
+      owner: 'shipfox',
+      repo: 'platform',
+      path: '.shipfox/workflows/ci.yml',
+      ref: 'main',
+    });
+
+    expect(result.content).toBe(content);
+    const url = requestedUrl();
+    expect(url.pathname).toBe('/api/v1/repos/shipfox/platform/contents/.shipfox/workflows/ci.yml');
+    expect(url.searchParams.get('ref')).toBe('main');
+  });
+
+  it('rejects a content response that is a directory listing', async () => {
+    fetchMock.mockResolvedValue(jsonResponse([{type: 'file', path: 'a'}]));
+    const client = createGiteaApiClient();
+
+    const result = client.fetchFileContent({
+      owner: 'shipfox',
+      repo: 'platform',
+      path: 'src',
+      ref: 'main',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'repository-not-found'});
+  });
+
+  it('rejects file content larger than the supported limit before decoding', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        type: 'file',
+        encoding: 'base64',
+        path: 'big.bin',
+        size: 1_000_001,
+        content: '',
+      }),
+    );
+    const client = createGiteaApiClient();
+
+    const result = client.fetchFileContent({
+      owner: 'shipfox',
+      repo: 'platform',
+      path: 'big.bin',
+      ref: 'main',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'content-too-large'});
+  });
+
+  it.each([
+    [401, 'access-denied'],
+    [403, 'access-denied'],
+    [404, 'repository-not-found'],
+    [429, 'rate-limited'],
+    [500, 'provider-unavailable'],
+    [503, 'provider-unavailable'],
+  ])('maps HTTP %s to the %s reason', async (status, reason) => {
+    fetchMock.mockResolvedValue(jsonResponse({}, {status}));
+    const client = createGiteaApiClient();
+
+    const result = client.getRepository({owner: 'shipfox', repo: 'platform'});
+
+    await expect(result).rejects.toBeInstanceOf(GiteaIntegrationProviderError);
+    await expect(result).rejects.toMatchObject({reason});
+  });
+
+  it('carries retry-after seconds on a rate-limited response', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({}, {status: 429, headers: {'retry-after': '42'}}));
+    const client = createGiteaApiClient();
+
+    const result = client.getRepository({owner: 'shipfox', repo: 'platform'});
+
+    await expect(result).rejects.toMatchObject({reason: 'rate-limited', retryAfterSeconds: 42});
+  });
+
+  it('treats an exhausted rate-limit budget on a 403 as rate-limited', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({}, {status: 403, headers: {'x-ratelimit-remaining': '0'}}),
+    );
+    const client = createGiteaApiClient();
+
+    const result = client.getRepository({owner: 'shipfox', repo: 'platform'});
+
+    await expect(result).rejects.toMatchObject({reason: 'rate-limited'});
+  });
+
+  it('maps a network failure to provider-unavailable', async () => {
+    fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+    const client = createGiteaApiClient();
+
+    const result = client.getRepository({owner: 'shipfox', repo: 'platform'});
+
+    await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
+  });
+
+  it('maps a malformed repository payload to provider-unavailable', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({name: 'platform'}));
+    const client = createGiteaApiClient();
+
+    const result = client.getRepository({owner: 'shipfox', repo: 'platform'});
+
+    await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
+  });
+});
