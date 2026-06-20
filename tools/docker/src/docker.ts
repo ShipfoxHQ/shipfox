@@ -66,7 +66,7 @@ function sanitizeTag(value: string): string {
 // Derive the tag set from the environment (IMAGE_REGISTRIES bases plus the
 // GITHUB_SHA / BUILD_NUMBER / GITHUB_REF_NAME commit identity) so adding a registry
 // is a config change, not a code change. IMAGE_REGISTRIES is a space-separated list
-// read by name — not a prefix scan of the environment — so a stray credential
+// read by name (not a prefix scan of the environment), so a stray credential
 // variable is never mistaken for a registry base and logged. With it unset (the PR
 // validation path) emit a single local tag so a --load build has a reference to
 // load. See the README for the full tag scheme.

@@ -85,7 +85,7 @@ jobs:
       # On a PR, validate that each Dockerfile still builds. Single-arch with --load
       # (a multi-arch build cannot load) and no push; guarded with success() so it
       # runs only after the checks, tests, and E2E above pass, reusing the dist/
-      # already built by "Run verification". On main these steps are skipped — the
+      # already built by "Run verification". On main these steps are skipped: the
       # publish-images job does the real multi-arch push, so the test job stays
       # least-privileged (no packages: write).
       - name: Set up Docker Buildx
