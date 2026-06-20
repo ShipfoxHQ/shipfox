@@ -5,7 +5,7 @@
   "version": "0.3.1",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/shared/node/postgres"
   },
   "type": "module",

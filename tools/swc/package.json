@@ -3,7 +3,7 @@
   "version": "1.2.5",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "tools/swc"
   },
   "license": "MIT",

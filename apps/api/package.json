@@ -2,7 +2,7 @@
   "name": "@shipfox/api",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "apps/api"
   },
   "license": "MIT",

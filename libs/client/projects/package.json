@@ -4,7 +4,7 @@
   "version": "0.0.2",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "libs/client/projects"
   },
   "private": true,

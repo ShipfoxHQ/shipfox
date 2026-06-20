@@ -2,7 +2,7 @@
   "name": "@shipfox/e2e-client-runners",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "e2e/client/runners"
   },
   "license": "MIT",
