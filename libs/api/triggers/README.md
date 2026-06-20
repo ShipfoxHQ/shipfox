@@ -13,14 +13,15 @@ Register the module with the API module runner:
 ```ts
 import {triggersModule} from '@shipfox/api-triggers';
 import {createApp, listen} from '@shipfox/node-fastify';
-import {initializeModules} from '@shipfox/node-module';
+import {initializeModules, startModuleWorkers} from '@shipfox/node-module';
 
-const {auth, routes} = await initializeModules({
+const {auth, routes, workers} = await initializeModules({
   modules: [triggersModule /* and other modules */],
 });
 
 await createApp({auth, routes});
 await listen();
+startModuleWorkers({workers});
 ```
 
 This adds:
@@ -30,6 +31,8 @@ This adds:
 - subscribers for `DEFINITION_RESOLVED`, `DEFINITION_DELETED`, and
   `INTEGRATION_EVENT_RECEIVED`
 - the `triggers` outbox publisher
+- the hourly `triggers-prune-trigger-events` Temporal cron, which deletes old
+  rows from `triggers_received_events`
 
 A workflow YAML opts into triggers like this:
 
@@ -72,8 +75,9 @@ The matching HTTP contract lives in
 [`@shipfox/api-triggers-dto`](../triggers-dto). Import Zod schemas and DTO
 types from there when you call the route from the client.
 
-The package does not read any environment variables of its own. It depends
-on the API database connection from `@shipfox/node-postgres`.
+The package reads `TRIGGER_EVENT_RETENTION_DAYS` to decide how many days of
+received trigger events to keep before the maintenance cron deletes them.
+It also depends on the API database connection from `@shipfox/node-postgres`.
 
 ## Routes
 
