@@ -1,5 +1,9 @@
 import type {IntegrationEventReceivedEvent} from '@shipfox/api-integration-core-dto';
 import type {DomainEvent} from '@shipfox/node-outbox';
+import {eq} from 'drizzle-orm';
+import {db} from '#db/db.js';
+import {triggersDecisions} from '#db/schema/decisions.js';
+import {triggersReceivedEvents} from '#db/schema/received-events.js';
 import {triggerSubscriptionFactory} from '#test/index.js';
 
 const runWorkflow = vi.fn();
@@ -157,5 +161,197 @@ describe('onIntegrationEventReceived (triggers)', () => {
     await dispatch({workspaceId, event: 'pull_request'});
 
     expect(runWorkflow).not.toHaveBeenCalled();
+  });
+});
+
+describe('onIntegrationEventReceived trigger history', () => {
+  beforeEach(() => {
+    runWorkflow.mockReset();
+  });
+
+  async function receivedEvent(eventRef: string) {
+    const [row] = await db()
+      .select()
+      .from(triggersReceivedEvents)
+      .where(eq(triggersReceivedEvents.eventRef, eventRef));
+    return row;
+  }
+
+  function decisionsForEvent(receivedEventId: string) {
+    return db()
+      .select()
+      .from(triggersDecisions)
+      .where(eq(triggersDecisions.receivedEventId, receivedEventId));
+  }
+
+  test('records a discarded event when no subscription matches', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventId = crypto.randomUUID();
+
+    await dispatch({workspaceId, event: 'pull_request'}, eventId);
+
+    const event = await receivedEvent(eventId);
+    if (!event) throw new Error('received event not found');
+    expect(event.origin).toBe('integration');
+    expect(event.outcome).toBe('discarded');
+    expect(event.matchedCount).toBe(0);
+    expect(event.processedAt).toBeInstanceOf(Date);
+    expect(await decisionsForEvent(event.id)).toHaveLength(0);
+  });
+
+  test('records a routed event with a triggered decision per matched subscription', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventId = crypto.randomUUID();
+    const subA = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    const subB = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    const runs: {id: string; name: string}[] = [];
+    runWorkflow.mockImplementation(() => {
+      const run = {id: crypto.randomUUID(), name: 'Build and test'};
+      runs.push(run);
+      return run;
+    });
+
+    await dispatch({workspaceId}, eventId);
+
+    const event = await receivedEvent(eventId);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('routed');
+    expect(event.matchedCount).toBe(2);
+    expect(event.processedAt).toBeInstanceOf(Date);
+    const decisions = await decisionsForEvent(event.id);
+    expect(decisions).toHaveLength(2);
+    expect(decisions.every((d) => d.decision === 'triggered')).toBe(true);
+    expect(decisions.map((d) => d.subscriptionId).sort()).toEqual([subA.id, subB.id].sort());
+    expect(decisions.map((d) => d.runId).sort()).toEqual(runs.map((r) => r.id).sort());
+    expect(decisions.every((d) => d.runName === 'Build and test')).toBe(true);
+  });
+
+  test('records a failed event, stops the loop at the first throw, and re-throws', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventId = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    runWorkflow.mockRejectedValue(new Error('runWorkflow boom'));
+
+    await expect(dispatch({workspaceId}, eventId)).rejects.toThrow('runWorkflow boom');
+
+    // Every match would throw, so one call proves the loop stops at the first failure.
+    expect(runWorkflow).toHaveBeenCalledTimes(1);
+    const event = await receivedEvent(eventId);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('failed');
+    expect(event.matchedCount).toBe(2);
+    expect(event.processedAt).toBeNull();
+    const decisions = await decisionsForEvent(event.id);
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]?.decision).toBe('errored');
+    expect(decisions[0]?.reason).toContain('runWorkflow boom');
+  });
+
+  test('replaying the same event does not duplicate rows and reuses the idempotency key', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventId = crypto.randomUUID();
+    const subscription = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Build and test'});
+
+    await dispatch({workspaceId}, eventId);
+    await dispatch({workspaceId}, eventId);
+
+    const events = await db()
+      .select()
+      .from(triggersReceivedEvents)
+      .where(eq(triggersReceivedEvents.eventRef, eventId));
+    expect(events).toHaveLength(1);
+    const event = events[0];
+    if (!event) throw new Error('received event not found');
+    expect(await decisionsForEvent(event.id)).toHaveLength(1);
+    // `runWorkflow` is mocked here; run-row dedup depends on stable keys at its boundary.
+    const keys = runWorkflow.mock.calls.map(([params]) => params.triggerIdempotencyKey);
+    expect(keys).toEqual([`${subscription.id}:${eventId}`, `${subscription.id}:${eventId}`]);
+  });
+
+  test('records a triggered and an errored decision for a mixed-outcome fan-out', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventId = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    const run = {id: crypto.randomUUID(), name: 'Build and test'};
+    runWorkflow.mockResolvedValueOnce(run).mockRejectedValueOnce(new Error('second boom'));
+
+    await expect(dispatch({workspaceId}, eventId)).rejects.toThrow('second boom');
+
+    const event = await receivedEvent(eventId);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('failed');
+    expect(event.matchedCount).toBe(2);
+    const decisions = await decisionsForEvent(event.id);
+    expect(decisions).toHaveLength(2);
+    const triggered = decisions.find((d) => d.decision === 'triggered');
+    const errored = decisions.find((d) => d.decision === 'errored');
+    expect(triggered?.runId).toBe(run.id);
+    expect(errored?.reason).toContain('second boom');
+  });
+
+  test('converges a failed event to routed when a later replay succeeds', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventId = crypto.randomUUID();
+    const subscription = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    const run = {id: crypto.randomUUID(), name: 'Build and test'};
+    runWorkflow.mockRejectedValueOnce(new Error('transient boom')).mockResolvedValue(run);
+
+    await expect(dispatch({workspaceId}, eventId)).rejects.toThrow('transient boom');
+    await dispatch({workspaceId}, eventId);
+
+    const event = await receivedEvent(eventId);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('routed');
+    expect(event.matchedCount).toBe(1);
+    expect(event.processedAt).toBeInstanceOf(Date);
+    const decisions = await decisionsForEvent(event.id);
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]?.subscriptionId).toBe(subscription.id);
+    expect(decisions[0]?.decision).toBe('triggered');
+    expect(decisions[0]?.runId).toBe(run.id);
+    expect(decisions[0]?.reason).toBeNull();
   });
 });

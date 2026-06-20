@@ -1,0 +1,101 @@
+import {logger} from '@shipfox/node-opentelemetry';
+import type {TriggerEventOrigin} from '#core/entities/received-event.js';
+import type {TriggerSubscription} from '#core/entities/subscription.js';
+import {
+  insertReceivedEvent,
+  markReceivedEventDiscarded,
+  markReceivedEventFailed,
+  markReceivedEventRouted,
+  upsertErroredDecision,
+  upsertTriggeredDecision,
+} from '#db/event-history.js';
+
+const MAX_REASON_LENGTH = 2000;
+
+// A bounded, deterministic reason string safe to persist: error messages can be
+// long or carry untrusted data, so cap the length and never serialize the object.
+export function toReason(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.slice(0, MAX_REASON_LENGTH);
+}
+
+export interface TriggerRun {
+  id: string;
+  name: string;
+}
+
+export interface TriggerHistoryRecorder {
+  triggered(subscription: TriggerSubscription, run: TriggerRun): Promise<void>;
+  errored(subscription: TriggerSubscription, reason: string): Promise<void>;
+  discarded(): Promise<void>;
+  routed(matchedCount: number): Promise<void>;
+  failed(matchedCount: number): Promise<void>;
+}
+
+export interface BeginTriggerHistoryParams {
+  eventRef: string;
+  origin: TriggerEventOrigin;
+  workspaceId: string;
+  source: string;
+  event: string;
+  deliveryId: string | null;
+  connectionId: string | null;
+  payload: Record<string, unknown> | null;
+  receivedAt: Date;
+}
+
+// History writes are best-effort and log stable ids only, never payloads or tokens.
+// If the parent insert fails there is no row to attach to, so later calls no-op.
+export async function beginTriggerHistory(
+  params: BeginTriggerHistoryParams,
+): Promise<TriggerHistoryRecorder> {
+  const receivedEventId = await safe(params.eventRef, 'insert-received-event', () =>
+    insertReceivedEvent(params),
+  );
+
+  const record = async (
+    label: string,
+    write: (receivedEventId: string) => Promise<unknown>,
+    subscriptionId?: string,
+  ): Promise<void> => {
+    if (receivedEventId === undefined) return;
+    await safe(params.eventRef, label, () => write(receivedEventId), subscriptionId);
+  };
+
+  return {
+    triggered: (subscription, run) =>
+      record(
+        'triggered-decision',
+        (id) => upsertTriggeredDecision({receivedEventId: id, subscription, run}),
+        subscription.id,
+      ),
+    errored: (subscription, reason) =>
+      record(
+        'errored-decision',
+        (id) => upsertErroredDecision({receivedEventId: id, subscription, reason}),
+        subscription.id,
+      ),
+    discarded: () => record('discard-event', (id) => markReceivedEventDiscarded(id)),
+    routed: (matchedCount) =>
+      record('route-event', (id) => markReceivedEventRouted(id, matchedCount)),
+    failed: (matchedCount) =>
+      record('fail-event', (id) => markReceivedEventFailed(id, matchedCount)),
+  };
+}
+
+async function safe<T>(
+  eventRef: string,
+  label: string,
+  fn: () => Promise<T>,
+  subscriptionId?: string,
+): Promise<T | undefined> {
+  try {
+    return await fn();
+  } catch (error) {
+    logger().warn(
+      {err: error, label, eventRef, ...(subscriptionId ? {subscriptionId} : {})},
+      'trigger history write failed; ignored (best-effort)',
+    );
+    return undefined;
+  }
+}
