@@ -1,8 +1,9 @@
-import {and, eq, sql} from 'drizzle-orm';
+import {and, asc, eq, isNull, lt, sql} from 'drizzle-orm';
 import type {AttemptStream, StreamCloseReason} from '#core/entities/attempt-stream.js';
 import {LeaseStreamMismatchError} from '#core/errors.js';
 import {db, type Transaction} from './db.js';
 import {attemptStreams, toAttemptStream} from './schema/attempt-streams.js';
+import {logChunks} from './schema/chunks.js';
 
 export interface AttemptStreamIdentity {
   jobId: string;
@@ -159,6 +160,69 @@ export async function listOpenStreamsByJob(jobId: string): Promise<AttemptStream
     .select()
     .from(attemptStreams)
     .where(and(eq(attemptStreams.jobId, jobId), eq(attemptStreams.state, 'open')));
+
+  return rows.map(toAttemptStream);
+}
+
+/** For compaction, which is driven by the closed event that carries the stream id. */
+export async function getAttemptStreamById(streamId: string): Promise<AttemptStream | null> {
+  const [row] = await db().select().from(attemptStreams).where(eq(attemptStreams.id, streamId));
+  return row ? toAttemptStream(row) : null;
+}
+
+/**
+ * Final compaction step: records the object key and deletes the now-cold chunk rows in one
+ * transaction. The guard is `state='closed' AND object_key IS NULL`, so the publish is a
+ * single winner even when two compaction attempts (e.g. a heartbeat-timed-out run and its
+ * retry) race: each uploads to its own key, and only the first to land here writes a key and
+ * drops the chunks. A 0-row result means the row was either hard-deleted by retention or
+ * already published by another attempt; the caller re-reads to tell those apart and deletes
+ * its own now-orphaned upload either way. Returns whether this attempt won the publish.
+ */
+export async function setObjectKeyAndDeleteChunks(
+  tx: Transaction,
+  params: {streamId: string; objectKey: string},
+): Promise<{updated: boolean}> {
+  const updated = await tx
+    .update(attemptStreams)
+    .set({objectKey: params.objectKey, updatedAt: sql`now()`})
+    .where(
+      and(
+        eq(attemptStreams.id, params.streamId),
+        eq(attemptStreams.state, 'closed'),
+        isNull(attemptStreams.objectKey),
+      ),
+    )
+    .returning({id: attemptStreams.id});
+
+  if (updated.length === 0) return {updated: false};
+
+  await tx.delete(logChunks).where(eq(logChunks.streamId, params.streamId));
+  return {updated: true};
+}
+
+/**
+ * Closed streams that never got an object key and have sat that way past the stale
+ * window: the reconcile cron re-drives compaction for these. Hits the partial index
+ * `logs_attempt_streams_uncompacted_idx`; ordered by `closed_at` so the oldest backlog
+ * drains first, bounded by `limit` per tick.
+ */
+export async function listStaleUncompactedStreams(params: {
+  olderThanSeconds: number;
+  limit: number;
+}): Promise<AttemptStream[]> {
+  const rows = await db()
+    .select()
+    .from(attemptStreams)
+    .where(
+      and(
+        eq(attemptStreams.state, 'closed'),
+        isNull(attemptStreams.objectKey),
+        lt(attemptStreams.closedAt, sql`now() - make_interval(secs => ${params.olderThanSeconds})`),
+      ),
+    )
+    .orderBy(asc(attemptStreams.closedAt))
+    .limit(params.limit);
 
   return rows.map(toAttemptStream);
 }

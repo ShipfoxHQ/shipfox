@@ -13,6 +13,10 @@ export const config = createConfig({
     desc: 'Name of the bucket that stores compacted log objects. Defaults to shipfox-logs (created by dev/garage/bootstrap.sh); create the bucket and set this for production.',
     default: 'shipfox-logs',
   }),
+  LOG_STORAGE_S3_PREFIX: str({
+    desc: 'Key prefix under which compacted log objects are stored in the bucket. Set this to host several modules in one bucket, each under its own prefix. Use a value without a leading or trailing slash. Defaults to logs.',
+    default: 'logs',
+  }),
   LOG_STORAGE_S3_ACCESS_KEY_ID: str({
     desc: 'Access key id used to authenticate to the object store. Defaults to the local-development Garage key; set real credentials for production.',
     default: 'GK000000000000000000000000',
@@ -36,5 +40,9 @@ export const config = createConfig({
   LOG_STREAM_CLOSE_GRACE_SECONDS: num({
     desc: 'How long to wait after a job reaches a terminal state before force-closing any of its log streams the runner never ended itself (it died, was capped, or its log spool failed). The wait lets a last in-flight chunk land before the stream is marked truncated. Defaults to 120 seconds.',
     default: 120,
+  }),
+  LOG_COMPACTION_RECONCILE_STALE_SECONDS: num({
+    desc: 'How long a closed log stream may stay uncompacted before the reconcile cron re-drives it. The event-triggered compaction normally runs within seconds of close; this backstop only re-drives streams whose compaction never started or permanently failed. Defaults to 900 seconds (15 minutes).',
+    default: 900,
   }),
 });
