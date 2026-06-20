@@ -18,6 +18,7 @@ export type {
   GiteaTree,
   GiteaTreeBlob,
   GiteaWebhook,
+  GiteaWebhookRegistration,
 } from '#api/client.js';
 export {createGiteaApiClient} from '#api/client.js';
 export type {ConnectGiteaConnectionInput} from '#core/connect.js';

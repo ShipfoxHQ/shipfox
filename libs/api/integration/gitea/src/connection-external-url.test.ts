@@ -10,6 +10,7 @@ function giteaClient(): GiteaApiClient {
     fetchFileContent: vi.fn(() => Promise.reject(new Error('not used'))),
     organizationExists: vi.fn(() => Promise.reject(new Error('not used'))),
     createOrgPushWebhook: vi.fn(() => Promise.reject(new Error('not used'))),
+    deleteOrgWebhook: vi.fn(() => Promise.reject(new Error('not used'))),
   };
 }
 

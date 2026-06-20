@@ -11,7 +11,8 @@ function giteaClient(overrides: Partial<GiteaApiClient> = {}): GiteaApiClient {
     listTree: vi.fn(() => Promise.reject(new Error('not used'))),
     fetchFileContent: vi.fn(() => Promise.reject(new Error('not used'))),
     organizationExists: vi.fn(() => Promise.resolve(true)),
-    createOrgPushWebhook: vi.fn(() => Promise.resolve({id: 'hook-1'})),
+    createOrgPushWebhook: vi.fn(() => Promise.resolve({id: 'hook-1', reused: false})),
+    deleteOrgWebhook: vi.fn(() => Promise.resolve()),
     ...overrides,
   };
 }
@@ -88,7 +89,9 @@ describe('handleGiteaConnect', () => {
   });
 
   it('registers a push webhook and persists the connection for a new org', async () => {
-    const gitea = giteaClient({createOrgPushWebhook: vi.fn(() => Promise.resolve({id: '77'}))});
+    const gitea = giteaClient({
+      createOrgPushWebhook: vi.fn(() => Promise.resolve({id: '77', reused: false})),
+    });
     const workspaceId = crypto.randomUUID();
     const connected = connection({workspaceId, externalAccountId: 'shipfox'});
     const connectGiteaConnection = vi.fn(() => Promise.resolve(connected));
@@ -109,5 +112,88 @@ describe('handleGiteaConnect', () => {
       webhookId: '77',
     });
     expect(result).toBe(connected);
+  });
+
+  it('canonicalizes org case so a case variant cannot bypass the cross-tenant guard', async () => {
+    const gitea = giteaClient();
+    const existing = connection({workspaceId: 'workspace-a', externalAccountId: 'acme'});
+    const getExistingGiteaConnection = vi.fn(() => Promise.resolve(existing));
+    const connectGiteaConnection = vi.fn();
+
+    const result = handleGiteaConnect({
+      gitea,
+      workspaceId: 'workspace-b',
+      org: 'Acme',
+      getExistingGiteaConnection,
+      connectGiteaConnection,
+    });
+
+    await expect(result).rejects.toBeInstanceOf(GiteaOrgAlreadyLinkedError);
+    expect(gitea.organizationExists).toHaveBeenCalledWith({org: 'acme'});
+    expect(getExistingGiteaConnection).toHaveBeenCalledWith({org: 'acme'});
+    expect(gitea.createOrgPushWebhook).not.toHaveBeenCalled();
+    expect(connectGiteaConnection).not.toHaveBeenCalled();
+  });
+
+  it('persists the canonical lowercase org for a new connection', async () => {
+    const gitea = giteaClient({
+      createOrgPushWebhook: vi.fn(() => Promise.resolve({id: '5', reused: false})),
+    });
+    const workspaceId = crypto.randomUUID();
+    const connected = connection({workspaceId, externalAccountId: 'shipfox'});
+    const connectGiteaConnection = vi.fn(() => Promise.resolve(connected));
+
+    await handleGiteaConnect({
+      gitea,
+      workspaceId,
+      org: 'ShipFox',
+      getExistingGiteaConnection: vi.fn(() => Promise.resolve(undefined)),
+      connectGiteaConnection,
+    });
+
+    expect(gitea.createOrgPushWebhook).toHaveBeenCalledWith({org: 'shipfox'});
+    expect(connectGiteaConnection).toHaveBeenCalledWith({
+      workspaceId,
+      org: 'shipfox',
+      displayName: 'Gitea shipfox',
+      webhookId: '5',
+    });
+  });
+
+  it('deletes the freshly created webhook when persistence rolls back', async () => {
+    const gitea = giteaClient({
+      createOrgPushWebhook: vi.fn(() => Promise.resolve({id: '99', reused: false})),
+    });
+    const failure = new GiteaOrgAlreadyLinkedError('shipfox');
+    const connectGiteaConnection = vi.fn(() => Promise.reject(failure));
+
+    const result = handleGiteaConnect({
+      gitea,
+      workspaceId: crypto.randomUUID(),
+      org: 'shipfox',
+      getExistingGiteaConnection: vi.fn(() => Promise.resolve(undefined)),
+      connectGiteaConnection,
+    });
+
+    await expect(result).rejects.toBe(failure);
+    expect(gitea.deleteOrgWebhook).toHaveBeenCalledWith({org: 'shipfox', webhookId: '99'});
+  });
+
+  it('leaves a reused webhook in place when persistence rolls back', async () => {
+    const gitea = giteaClient({
+      createOrgPushWebhook: vi.fn(() => Promise.resolve({id: '99', reused: true})),
+    });
+    const connectGiteaConnection = vi.fn(() => Promise.reject(new Error('db down')));
+
+    const result = handleGiteaConnect({
+      gitea,
+      workspaceId: crypto.randomUUID(),
+      org: 'shipfox',
+      getExistingGiteaConnection: vi.fn(() => Promise.resolve(undefined)),
+      connectGiteaConnection,
+    });
+
+    await expect(result).rejects.toThrow('db down');
+    expect(gitea.deleteOrgWebhook).not.toHaveBeenCalled();
   });
 });

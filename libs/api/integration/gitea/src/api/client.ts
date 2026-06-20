@@ -45,6 +45,13 @@ export interface GiteaWebhook {
   id: string;
 }
 
+export interface GiteaWebhookRegistration extends GiteaWebhook {
+  // True when an existing org hook for the configured target URL was reused
+  // instead of creating a new one. Callers use this to avoid deleting a hook
+  // they did not create when compensating for a failed connection.
+  reused: boolean;
+}
+
 export interface GiteaApiClient {
   listOrgRepositories(input: {
     org: string;
@@ -61,7 +68,8 @@ export interface GiteaApiClient {
     ref: string;
   }): Promise<GiteaFileContent>;
   organizationExists(input: {org: string}): Promise<boolean>;
-  createOrgPushWebhook(input: {org: string}): Promise<GiteaWebhook>;
+  createOrgPushWebhook(input: {org: string}): Promise<GiteaWebhookRegistration>;
+  deleteOrgWebhook(input: {org: string; webhookId: string}): Promise<void>;
 }
 
 export function createGiteaApiClient(): GiteaApiClient {
@@ -200,7 +208,13 @@ class HttpGiteaApiClient implements GiteaApiClient {
     throw giteaHttpError(response);
   }
 
-  async createOrgPushWebhook(input: {org: string}): Promise<GiteaWebhook> {
+  async createOrgPushWebhook(input: {org: string}): Promise<GiteaWebhookRegistration> {
+    // An org needs at most one push hook to our single GITEA_WEBHOOK_TARGET_URL.
+    // Reuse an existing one so a retried or re-attempted connect cannot stack
+    // duplicate hooks that deliver the same push events.
+    const existingId = await this.findOrgPushWebhookId(input.org);
+    if (existingId !== undefined) return {id: existingId, reused: true};
+
     const response = await this.requestRaw(`orgs/${encodeURIComponent(input.org)}/hooks`, {
       method: 'POST',
       body: {
@@ -223,7 +237,37 @@ class HttpGiteaApiClient implements GiteaApiClient {
         'Gitea webhook response did not include a numeric id',
       );
     }
-    return {id: String(data.id)};
+    return {id: String(data.id), reused: false};
+  }
+
+  async deleteOrgWebhook(input: {org: string; webhookId: string}): Promise<void> {
+    const response = await this.requestRaw(
+      `orgs/${encodeURIComponent(input.org)}/hooks/${encodeURIComponent(input.webhookId)}`,
+      {method: 'DELETE'},
+    );
+    // A hook that is already gone (404) satisfies the intended end state.
+    if (!response.ok && response.status !== 404) throw giteaHttpError(response);
+  }
+
+  private async findOrgPushWebhookId(org: string): Promise<string | undefined> {
+    const response = await this.requestRaw(`orgs/${encodeURIComponent(org)}/hooks`, {
+      searchParams: {limit: '50'},
+    });
+    if (!response.ok) throw giteaHttpError(response);
+
+    const data = await response.json();
+    if (!Array.isArray(data)) return undefined;
+    for (const hook of data) {
+      if (
+        isRecord(hook) &&
+        typeof hook.id === 'number' &&
+        isRecord(hook.config) &&
+        hook.config.url === config.GITEA_WEBHOOK_TARGET_URL
+      ) {
+        return String(hook.id);
+      }
+    }
+    return undefined;
   }
 
   private async request(

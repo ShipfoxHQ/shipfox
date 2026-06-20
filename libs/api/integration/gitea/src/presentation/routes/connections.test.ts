@@ -49,7 +49,8 @@ function giteaClient(overrides: Partial<GiteaApiClient> = {}): GiteaApiClient {
     listTree: vi.fn(() => Promise.reject(new Error('not used'))),
     fetchFileContent: vi.fn(() => Promise.reject(new Error('not used'))),
     organizationExists: vi.fn(() => Promise.resolve(true)),
-    createOrgPushWebhook: vi.fn(() => Promise.resolve({id: 'hook-1'})),
+    createOrgPushWebhook: vi.fn(() => Promise.resolve({id: 'hook-1', reused: false})),
+    deleteOrgWebhook: vi.fn(() => Promise.resolve()),
     ...overrides,
   };
 }
@@ -107,7 +108,9 @@ describe('Gitea connection routes', () => {
   });
 
   it('connects an org, registers a webhook, and returns the connection DTO', async () => {
-    const gitea = giteaClient({createOrgPushWebhook: vi.fn(() => Promise.resolve({id: '77'}))});
+    const gitea = giteaClient({
+      createOrgPushWebhook: vi.fn(() => Promise.resolve({id: '77', reused: false})),
+    });
     const app = await createTestApp({gitea});
     const workspaceId = crypto.randomUUID();
 
