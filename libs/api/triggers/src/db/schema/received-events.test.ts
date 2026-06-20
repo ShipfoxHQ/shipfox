@@ -1,3 +1,4 @@
+import {eq} from 'drizzle-orm';
 import {db} from '../db.js';
 import {
   type TriggerReceivedEventDb,
@@ -73,7 +74,7 @@ describe('toTriggerReceivedEvent', () => {
 });
 
 describe('triggers_received_events schema', () => {
-  test('applies outcome, matched_count, and created_at defaults on insert', async () => {
+  test('applies defaults and maps an inserted row', async () => {
     const values: TriggerReceivedEventInsertDb = {
       eventRef: crypto.randomUUID(),
       origin: 'integration',
@@ -83,11 +84,30 @@ describe('triggers_received_events schema', () => {
       receivedAt: new Date(),
     };
 
-    const [row] = await db().insert(triggersReceivedEvents).values(values).returning();
+    const [inserted] = await db()
+      .insert(triggersReceivedEvents)
+      .values(values)
+      .returning({id: triggersReceivedEvents.id});
+    if (!inserted) throw new Error('insert returned no rows');
+    const [row] = await db()
+      .select()
+      .from(triggersReceivedEvents)
+      .where(eq(triggersReceivedEvents.id, inserted.id));
+    if (!row) throw new Error('select returned no rows');
+    const result = toTriggerReceivedEvent(row);
 
-    expect(row?.outcome).toBe('received');
-    expect(row?.matchedCount).toBe(0);
-    expect(row?.createdAt).toBeInstanceOf(Date);
+    expect(row.outcome).toBe('received');
+    expect(row.matchedCount).toBe(0);
+    expect(row.createdAt).toBeInstanceOf(Date);
+    expect(result).toMatchObject({
+      eventRef: values.eventRef,
+      origin: 'integration',
+      workspaceId: values.workspaceId,
+      source: 'github',
+      event: 'push',
+      outcome: 'received',
+      matchedCount: 0,
+    });
   });
 
   test('rejects a duplicate event_ref', async () => {

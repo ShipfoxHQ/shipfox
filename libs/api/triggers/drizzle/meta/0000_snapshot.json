@@ -27,8 +27,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "definition_id": {
-          "name": "definition_id",
+        "workflow_definition_id": {
+          "name": "workflow_definition_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true

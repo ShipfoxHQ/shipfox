@@ -2,7 +2,7 @@ CREATE TABLE "triggers_decisions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"received_event_id" uuid NOT NULL,
 	"subscription_id" uuid NOT NULL,
-	"definition_id" uuid NOT NULL,
+	"workflow_definition_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"decision" text NOT NULL,
 	"run_id" uuid,

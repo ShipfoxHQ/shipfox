@@ -12,7 +12,7 @@ export const triggersDecisions = pgTable(
       .notNull()
       .references(() => triggersReceivedEvents.id, {onDelete: 'cascade'}),
     subscriptionId: uuid('subscription_id').notNull(),
-    definitionId: uuid('definition_id').notNull(),
+    workflowDefinitionId: uuid('workflow_definition_id').notNull(),
     projectId: uuid('project_id').notNull(),
     decision: text('decision', {enum: triggerDecisionOutcomes}).notNull(),
     runId: uuid('run_id'),
@@ -37,7 +37,7 @@ export function toTriggerDecision(row: TriggerDecisionDb): TriggerDecision {
     id: row.id,
     receivedEventId: row.receivedEventId,
     subscriptionId: row.subscriptionId,
-    definitionId: row.definitionId,
+    workflowDefinitionId: row.workflowDefinitionId,
     projectId: row.projectId,
     decision: row.decision,
     runId: row.runId,

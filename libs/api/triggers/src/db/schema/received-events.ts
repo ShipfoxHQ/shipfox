@@ -11,6 +11,9 @@ export const triggersReceivedEvents = pgTable(
   'received_events',
   {
     id: uuidv7PrimaryKey(),
+    // Globally-unique idempotency key (the outbox event id), not the provider
+    // delivery id: delivery ids are only unique per provider and would collide
+    // across workspaces under the global event_ref unique index below.
     eventRef: text('event_ref').notNull(),
     origin: text('origin', {enum: triggerEventOrigins}).notNull(),
     workspaceId: uuid('workspace_id').notNull(),
