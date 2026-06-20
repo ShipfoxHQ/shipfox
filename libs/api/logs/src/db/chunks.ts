@@ -1,5 +1,5 @@
-import type {Buffer} from 'node:buffer';
-import {and, asc, eq, gt, sql} from 'drizzle-orm';
+import {Buffer} from 'node:buffer';
+import {and, asc, eq, gt, lte, sql} from 'drizzle-orm';
 import {db, type Transaction} from './db.js';
 import {type ChunkOrigin, logChunks} from './schema/chunks.js';
 
@@ -44,6 +44,74 @@ export async function readChunksKeyset(params: {
     .orderBy(asc(logChunks.seq))
     .limit(params.limit);
   return rows;
+}
+
+export interface ChunkPage {
+  /** Concatenated chunk bytes for the page, in `seq` order: ready-to-serve NDJSON. */
+  data: Buffer;
+  /** The last `seq` included; the next read passes this as `afterSeq`. */
+  nextSeq: number;
+  /** Whether at least one more chunk exists past `nextSeq`. */
+  hasMore: boolean;
+}
+
+// Caps the per-read metadata scan so a stream with pathologically many tiny chunks
+// can't make one read walk the whole stream; the client re-polls (hasMore) past it.
+const CHUNK_PAGE_SCAN_CAP = 4096;
+
+/**
+ * A byte-bounded page of a stream's chunk bytes in `seq` order, for the inline read path.
+ * Walking by `seq` (not the runner byte offset) is what makes server-injected control
+ * tombstones interleave with runner bytes exactly as compaction concatenates them, so the
+ * inline NDJSON is byte-identical to the compacted object.
+ *
+ * Returns at most ~`maxBytes`, but always at least one whole chunk so the cursor advances
+ * even when a single chunk exceeds `maxBytes`. The cheap `(seq, byte_len)` scan picks the
+ * prefix first, so the heavy `data` column is only materialized for the chunks actually
+ * returned.
+ */
+export async function readChunkPageBySeq(params: {
+  streamId: string;
+  afterSeq: number;
+  maxBytes: number;
+}): Promise<ChunkPage> {
+  const meta = await db()
+    .select({seq: logChunks.seq, byteLen: logChunks.byteLen})
+    .from(logChunks)
+    .where(and(eq(logChunks.streamId, params.streamId), gt(logChunks.seq, params.afterSeq)))
+    .orderBy(asc(logChunks.seq))
+    .limit(CHUNK_PAGE_SCAN_CAP + 1);
+
+  if (meta.length === 0) {
+    return {data: Buffer.alloc(0), nextSeq: params.afterSeq, hasMore: false};
+  }
+
+  let accumulatedBytes = 0;
+  let includedCount = 0;
+  let nextSeq = params.afterSeq;
+  for (const row of meta) {
+    if (includedCount > 0 && accumulatedBytes + row.byteLen > params.maxBytes) break;
+    accumulatedBytes += row.byteLen;
+    nextSeq = row.seq;
+    includedCount += 1;
+    if (includedCount >= CHUNK_PAGE_SCAN_CAP) break;
+  }
+
+  const hasMore = includedCount < meta.length;
+
+  const rows = await db()
+    .select({data: logChunks.data})
+    .from(logChunks)
+    .where(
+      and(
+        eq(logChunks.streamId, params.streamId),
+        gt(logChunks.seq, params.afterSeq),
+        lte(logChunks.seq, nextSeq),
+      ),
+    )
+    .orderBy(asc(logChunks.seq));
+
+  return {data: Buffer.concat(rows.map((row) => row.data)), nextSeq, hasMore};
 }
 
 export interface ChunkStats {

@@ -1,6 +1,12 @@
 import type {Readable} from 'node:stream';
-import {DeleteObjectCommand, HeadBucketCommand, S3Client} from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadBucketCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import {Upload} from '@aws-sdk/lib-storage';
+import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
 import {config} from '#config.js';
 import {type LogObjectKeyParams, logObjectKey} from '#core/entities/log-object.js';
 
@@ -149,4 +155,21 @@ export async function putCompactedObject(params: PutCompactedObjectParams): Prom
  */
 export async function deleteObject(key: string): Promise<void> {
   await s3Client().send(new DeleteObjectCommand({Bucket: config.LOG_STORAGE_S3_BUCKET, Key: key}));
+}
+
+/**
+ * Presigns a GET for a compacted log object so the browser can fetch it directly,
+ * bypassing API egress. `getSignedUrl` only computes a signature locally (no network
+ * call), so the fail-fast `s3Client()` is fine here. `expiresAt` mirrors the URL's
+ * `LOG_READ_URL_TTL_SECONDS` lifetime so the caller can hand the client an absolute
+ * deadline without re-deriving it.
+ */
+export async function presignedGetUrl(objectKey: string): Promise<{url: string; expiresAt: Date}> {
+  const ttlSeconds = config.LOG_READ_URL_TTL_SECONDS;
+  const url = await getSignedUrl(
+    s3Client(),
+    new GetObjectCommand({Bucket: config.LOG_STORAGE_S3_BUCKET, Key: objectKey}),
+    {expiresIn: ttlSeconds},
+  );
+  return {url, expiresAt: new Date(Date.now() + ttlSeconds * 1000)};
 }

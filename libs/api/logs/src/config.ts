@@ -49,4 +49,29 @@ export const config = createConfig({
     desc: 'Maximum size of a single log append request body, in bytes. The runner flushes at most a few hundred KB per request and each record caps at 16 KiB, so 1 MiB is generous headroom. This also bounds how far a job can overshoot its log budget: the one append that crosses the budget is stored in full before the job is capped. Defaults to 1 MiB.',
     default: 1_048_576,
   }),
+  LOG_READ_URL_TTL_SECONDS: num({
+    desc: 'Lifetime, in seconds, of a presigned GET URL handed out for a compacted (cold) log read. The browser must finish fetching the object before it expires; raise it for slow links or large logs. Must be between 1 and 604800 (7 days, the longest a presigned URL can live). Defaults to 3600 (one hour).',
+    default: 3600,
+  }),
+  LOG_READ_INLINE_MAX_BYTES: num({
+    desc: 'Maximum number of stored log bytes returned in a single inline (hot) read response. A long-running step can buffer far more than this in Postgres before compaction, so a read is capped here and the client re-polls (following has_more) to drain the backlog before it tails. Bounds per-request memory. Must be at least 1. Defaults to 1 MiB.',
+    default: 1_048_576,
+  }),
 });
+
+// SigV4 caps a presigned URL's lifetime at 7 days, so a larger TTL would fail at signing
+// time on every cold read. Reject out-of-range values at startup rather than per request.
+const MAX_PRESIGN_TTL_SECONDS = 604_800;
+if (
+  config.LOG_READ_URL_TTL_SECONDS < 1 ||
+  config.LOG_READ_URL_TTL_SECONDS > MAX_PRESIGN_TTL_SECONDS
+) {
+  throw new Error(
+    `LOG_READ_URL_TTL_SECONDS must be between 1 and ${MAX_PRESIGN_TTL_SECONDS}; got ${config.LOG_READ_URL_TTL_SECONDS}`,
+  );
+}
+if (config.LOG_READ_INLINE_MAX_BYTES < 1) {
+  throw new Error(
+    `LOG_READ_INLINE_MAX_BYTES must be at least 1; got ${config.LOG_READ_INLINE_MAX_BYTES}`,
+  );
+}

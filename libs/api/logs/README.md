@@ -3,7 +3,8 @@
 Shipfox API Logs is the server-side store for step logs. It accepts an append-only
 byte stream from the runner under an offset protocol, enforces a per-job storage
 budget, keeps the hot bytes in PostgreSQL, and closes streams when a step ends or its
-runner is lost. It owns its tables and its append route.
+runner is lost. It serves those logs back on a session-authed read endpoint, and owns its
+tables and routes.
 
 ## Example
 
@@ -26,6 +27,8 @@ This adds:
 
 - log database migrations from `libs/api/logs/drizzle`
 - the append route under `/runs/jobs/current/steps/:stepId/logs` (lease-authed)
+- the read route under `/steps/:stepId/attempts/:attempt/logs` (session-authed): inline NDJSON
+  while the stream is hot, a presigned object URL once it is compacted
 - the `logs.stream.closed` publisher and the job-terminated subscriber that force-closes
   abandoned streams
 
@@ -71,6 +74,21 @@ or `null` at the root). Nesting is capped at depth 32; past the cap a group is f
 output and counted so its matching `::endgroup::` never pops a real parent. The tree is
 recoverable from the ids, parent links, and the tombstone position at truncation.
 
+## Read path
+
+A session-authed `GET /steps/:stepId/attempts/:attempt/logs?cursor=N` serves one endpoint for both
+the live tail and the full history. It is workspace-scoped through the stream row's denormalized
+`workspace_id`; a 404 covers both a missing stream and a cross-workspace step, so existence never
+leaks.
+
+- **Hot (open, or closed but not yet compacted)** — inline NDJSON read from the Postgres chunks,
+  walked by chunk `seq` so server control tombstones interleave with runner bytes exactly as
+  compaction concatenates them, making the inline bytes byte-identical to the decompressed object.
+  Pages are bounded by `LOG_READ_INLINE_MAX_BYTES`; the client follows `has_more`/`next_cursor` to
+  drain the backlog, then tails from the last cursor.
+- **Cold (compacted, `object_key` set)** — a presigned GET URL (`LOG_READ_URL_TTL_SECONDS`) so the
+  browser fetches the object directly and API egress is bypassed.
+
 ## Agent-session capture (future)
 
 Agent-session capture is a separate, not-yet-built feature. When it lands, an agent step's session
@@ -104,4 +122,5 @@ This package is private to the workspace. Add it to another workspace package wi
 ```
 
 Configuration lives in `src/config.ts` (object storage for compacted logs, the per-job budget,
-the close grace period, and the append body limit). See each variable's `desc` for what to set.
+the close grace period, the append body limit, and the read path's presigned-URL TTL and inline
+page cap). See each variable's `desc` for what to set.
