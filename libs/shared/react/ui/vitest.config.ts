@@ -17,6 +17,14 @@ export default defineConfig(
       projects: [
         {
           extends: true,
+          test: {
+            name: 'node',
+            environment: 'node',
+            include: ['src/**/*.test.ts'],
+          },
+        },
+        {
+          extends: true,
           plugins: [
             storybookTest({configDir: path.join(dirname, '.storybook')}),
             argosVitestPlugin({

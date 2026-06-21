@@ -1,9 +1,12 @@
 import type {Meta, StoryObj} from '@storybook/react';
 import {Code} from '#components/typography/index.js';
 import {Badge} from './badge.js';
+import {IconBadge} from './icon-badge.js';
 import {StatusBadge} from './status-badge.js';
+import {UserBadge} from './user-badge.js';
 
 const variants = ['neutral', 'info', 'feature', 'success', 'warning', 'error'] as const;
+const iconBadgeVariants = ['neutral', 'info', 'feature', 'success', 'warning', 'error'] as const;
 const sizes = ['2xs', 'xs'] as const;
 
 const meta = {
@@ -54,6 +57,26 @@ export const AllVariants: Story = {
               {variant}
             </StatusBadge>
           ))}
+        </div>
+      </div>
+
+      <div>
+        <Code variant="label" className="mb-16 text-foreground-neutral-subtle">
+          Icon badge
+        </Code>
+        <div className="flex gap-16">
+          {iconBadgeVariants.map((variant) => (
+            <IconBadge key={variant} variant={variant} name="check" />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <Code variant="label" className="mb-16 text-foreground-neutral-subtle">
+          User badge
+        </Code>
+        <div className="flex gap-16">
+          <UserBadge name="Ada Lovelace" avatarFallback="Ada Lovelace" />
         </div>
       </div>
 

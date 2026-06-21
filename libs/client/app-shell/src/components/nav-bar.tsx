@@ -15,7 +15,7 @@ export function NavBar() {
       <Link
         to="/"
         aria-label="Shipfox home"
-        className="rounded-6 focus-visible:outline-none focus-visible:shadow-button-secondary-focus"
+        className="rounded-6 focus-visible:outline-none focus-visible:shadow-button-neutral-focus"
       >
         <Logo variant="wordmark" />
       </Link>

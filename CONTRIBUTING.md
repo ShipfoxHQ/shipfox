@@ -211,6 +211,7 @@ GitHub check.
 | Build name | Source | Captured |
 | --- | --- | --- |
 | `react-ui` | `@shipfox/react-ui` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/shared/react/ui/.storybook/preview.tsx` as `parameters.argos.modes`) |
+| `client-workflows` | `@shipfox/client-workflows` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/client/workflows/.storybook/preview.tsx` as `parameters.argos.modes`) |
 | `client-auth` | `@shipfox/e2e-client-auth` Playwright specs via `@argos-ci/playwright` reporter | explicit `argosScreenshot()` calls at user-visible checkpoints |
 
 The goal is review-grade signal on UI drift, not 100% state coverage. Capture the

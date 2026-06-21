@@ -1,5 +1,5 @@
 import {AuthShell, useAuthState, useRefreshAuth} from '@shipfox/client-auth';
-import {Alert, Button, ShipfoxLoader, Text, toast} from '@shipfox/react-ui';
+import {Alert, Button, formatDate, ShipfoxLoader, Text, toast} from '@shipfox/react-ui';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useCallback, useEffect, useRef} from 'react';
 import {completeInvitationAcceptance} from '#complete-acceptance.js';
@@ -293,16 +293,4 @@ function notifyOnce(key: string, fn: () => void): void {
   }
   toastedTerminals.add(key);
   fn();
-}
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return iso;
-  }
 }

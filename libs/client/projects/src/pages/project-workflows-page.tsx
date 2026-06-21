@@ -10,6 +10,8 @@ import {
   Icon,
   type IconName,
   LoadErrorState,
+  RelativeTime,
+  RelativeTimeProvider,
   Sheet,
   SheetBody,
   SheetContent,
@@ -31,7 +33,6 @@ import {SourceStrip} from '#components/source-strip.js';
 import {useDefinitionsInfiniteQuery} from '#hooks/api/definitions.js';
 import {useProjectQuery} from '#hooks/api/projects.js';
 import {useFireManualWorkflowMutation} from '#hooks/api/workflow-runs.js';
-import {RelativeTime, RelativeTimeProvider} from '#lib/relative-time.js';
 
 export function ProjectWorkflowsPage({projectId}: {projectId: string}) {
   return (

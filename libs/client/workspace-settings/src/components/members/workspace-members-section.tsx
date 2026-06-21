@@ -10,6 +10,7 @@ import {
   EmptyState,
   FormField,
   FormFieldInput,
+  formatDate,
   Header,
   Icon,
   Modal,
@@ -474,18 +475,6 @@ function TableSkeleton({rows, cols}: {rows: number; cols: number}) {
       ))}
     </div>
   );
-}
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return iso;
-  }
 }
 
 function removeMemberErrorMessage(error: unknown): string {
