@@ -4,7 +4,6 @@ import type {
   PublishSourcePushFn,
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-core-dto';
-import {giteaProviderKind, giteaPushPayloadSchema} from '@shipfox/api-integration-gitea-dto';
 import {
   defineRoute,
   type RouteGroup,
@@ -15,7 +14,11 @@ import {
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {config} from '#config.js';
-import {handleGiteaPush} from '#core/webhook.js';
+import {
+  GiteaWebhookMalformedJsonError,
+  GiteaWebhookMalformedPushPayloadError,
+  handleGiteaWebhook,
+} from '#core/webhook.js';
 
 const SIGNATURE_HEADER = 'x-gitea-signature';
 const EVENT_HEADER = 'x-gitea-event';
@@ -65,47 +68,34 @@ export function createGiteaWebhookRoutes(options: CreateGiteaWebhookRoutesOption
         return {error: 'invalid signature'};
       }
 
-      if (event !== 'push') {
+      try {
         await options.coreDb().transaction(async (tx) => {
-          await options.recordDeliveryOnly({
+          await handleGiteaWebhook({
             tx,
-            provider: giteaProviderKind,
             deliveryId,
+            event,
+            rawBody,
+            publishSourcePush: options.publishSourcePush,
+            recordDeliveryOnly: options.recordDeliveryOnly,
+            getIntegrationConnectionById: options.getIntegrationConnectionById,
           });
         });
-        reply.code(204);
-        return null;
-      }
-
-      let parsedJson: unknown;
-      try {
-        parsedJson = JSON.parse(rawBody);
       } catch (error) {
-        logger().warn({deliveryId, err: error}, 'gitea webhook payload JSON parse failed');
-        reply.code(400);
-        return {error: 'malformed JSON'};
+        if (error instanceof GiteaWebhookMalformedJsonError) {
+          logger().warn({deliveryId, err: error}, 'gitea webhook payload JSON parse failed');
+          reply.code(400);
+          return {error: 'malformed JSON'};
+        }
+        if (error instanceof GiteaWebhookMalformedPushPayloadError) {
+          logger().warn(
+            {deliveryId, issues: error.issues},
+            'gitea webhook push payload failed schema validation',
+          );
+          reply.code(400);
+          return {error: 'malformed push payload'};
+        }
+        throw error;
       }
-
-      const validated = giteaPushPayloadSchema.safeParse(parsedJson);
-      if (!validated.success) {
-        logger().warn(
-          {deliveryId, issues: validated.error.issues},
-          'gitea webhook push payload failed schema validation',
-        );
-        reply.code(400);
-        return {error: 'malformed push payload'};
-      }
-
-      await options.coreDb().transaction(async (tx) => {
-        await handleGiteaPush({
-          tx,
-          deliveryId,
-          payload: validated.data,
-          publishSourcePush: options.publishSourcePush,
-          recordDeliveryOnly: options.recordDeliveryOnly,
-          getIntegrationConnectionById: options.getIntegrationConnectionById,
-        });
-      });
 
       reply.code(204);
       return null;

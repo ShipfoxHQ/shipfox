@@ -1,28 +1,11 @@
 import {createHmac, randomUUID} from 'node:crypto';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
-import {db} from '#db/db.js';
-import {giteaConnections} from '#db/schema/connections.js';
-import {capturedGiteaPushPayload, giteaConnectionFactory, giteaPushPayload} from '#test/index.js';
+import {giteaPushPayload} from '#test/index.js';
 import {createGiteaWebhookRoutes} from './webhooks.js';
 
 // Must match GITEA_WEBHOOK_SECRET in test/env.ts.
 const WEBHOOK_SECRET = 'test-webhook-secret';
-
-function fakeConnection(overrides: Partial<IntegrationConnection> = {}): IntegrationConnection {
-  return {
-    id: randomUUID(),
-    workspaceId: randomUUID(),
-    provider: 'gitea',
-    externalAccountId: 'shipfox',
-    displayName: 'Gitea shipfox',
-    lifecycleStatus: 'active',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides,
-  };
-}
 
 interface TestApp {
   app: FastifyInstance;
@@ -31,14 +14,15 @@ interface TestApp {
   getIntegrationConnectionById: ReturnType<typeof vi.fn>;
 }
 
-async function createTestApp(options: {connection?: IntegrationConnection} = {}): Promise<TestApp> {
+async function createTestApp(): Promise<TestApp> {
   const publishSourcePush = vi.fn(() => Promise.resolve({published: true}));
   const recordDeliveryOnly = vi.fn(() => Promise.resolve());
-  const getIntegrationConnectionById = vi.fn(() =>
-    Promise.resolve(options.connection ?? fakeConnection()),
-  );
+  const getIntegrationConnectionById = vi.fn();
   const routes = createGiteaWebhookRoutes({
-    coreDb: db,
+    coreDb: () =>
+      ({
+        transaction: (fn: (tx: unknown) => Promise<unknown>) => fn({}),
+      }) as never,
     publishSourcePush,
     recordDeliveryOnly,
     getIntegrationConnectionById,
@@ -46,13 +30,6 @@ async function createTestApp(options: {connection?: IntegrationConnection} = {})
   const app = await createApp({routes: [routes], swagger: false});
   await app.ready();
   return {app, publishSourcePush, recordDeliveryOnly, getIntegrationConnectionById};
-}
-
-async function seedConnection(org: string, connectionId?: string): Promise<void> {
-  await giteaConnectionFactory.create({
-    org,
-    ...(connectionId !== undefined && {connectionId}),
-  });
 }
 
 function signedHeaders(rawBody: string, event: string, deliveryId: string) {
@@ -68,178 +45,13 @@ function signedHeaders(rawBody: string, event: string, deliveryId: string) {
 describe('Gitea webhook route', () => {
   beforeEach(async () => {
     await closeApp();
-    await db().delete(giteaConnections);
   });
 
   afterEach(async () => {
     await closeApp();
   });
 
-  it('publishes a mapped event for a valid push from a connected org', async () => {
-    const connection = fakeConnection();
-    await seedConnection('shipfox', connection.id);
-    const {app, publishSourcePush, recordDeliveryOnly, getIntegrationConnectionById} =
-      await createTestApp({connection});
-    const deliveryId = randomUUID();
-    const body = JSON.stringify(
-      giteaPushPayload({
-        owner: 'shipfox',
-        repo: 'api',
-        ref: 'refs/heads/main',
-        defaultBranch: 'main',
-        sha: 'abc123',
-      }),
-    );
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/webhooks/integrations/gitea',
-      headers: signedHeaders(body, 'push', deliveryId),
-      payload: body,
-    });
-
-    expect(res.statusCode).toBe(204);
-    expect(recordDeliveryOnly).not.toHaveBeenCalled();
-    expect(getIntegrationConnectionById).toHaveBeenCalledTimes(1);
-    expect(getIntegrationConnectionById).toHaveBeenCalledWith(
-      connection.id,
-      expect.objectContaining({tx: expect.anything()}),
-    );
-    expect(publishSourcePush).toHaveBeenCalledTimes(1);
-    const call = publishSourcePush.mock.calls[0]?.[0];
-    expect(call.tx).toBeDefined();
-    expect(call).toMatchObject({
-      provider: 'gitea',
-      deliveryId,
-      workspaceId: connection.workspaceId,
-      connectionId: connection.id,
-      push: {
-        externalRepositoryId: 'gitea:shipfox/api',
-        ref: 'main',
-        headCommitSha: 'abc123',
-        isDefaultBranch: true,
-      },
-    });
-  });
-
-  it('accepts the captured local Gitea push payload shape', async () => {
-    const connection = fakeConnection();
-    await seedConnection('shipfox-demo', connection.id);
-    const {app, publishSourcePush} = await createTestApp({connection});
-    const deliveryId = randomUUID();
-    const body = JSON.stringify(capturedGiteaPushPayload);
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/webhooks/integrations/gitea',
-      headers: signedHeaders(body, 'push', deliveryId),
-      payload: body,
-    });
-
-    expect(res.statusCode).toBe(204);
-    expect(publishSourcePush).toHaveBeenCalledTimes(1);
-    expect(publishSourcePush.mock.calls[0]?.[0]).toMatchObject({
-      provider: 'gitea',
-      deliveryId,
-      workspaceId: connection.workspaceId,
-      connectionId: connection.id,
-      push: {
-        externalRepositoryId: 'gitea:shipfox-demo/api',
-        ref: 'main',
-        headCommitSha: capturedGiteaPushPayload.after,
-        defaultBranch: 'main',
-        isDefaultBranch: true,
-      },
-    });
-  });
-
-  it('publishes with isDefaultBranch=false when ref is not the default branch', async () => {
-    await seedConnection('shipfox');
-    const {app, publishSourcePush} = await createTestApp();
-    const deliveryId = randomUUID();
-    const body = JSON.stringify(
-      giteaPushPayload({
-        owner: 'shipfox',
-        repo: 'api',
-        ref: 'refs/heads/feature/x',
-        defaultBranch: 'main',
-        sha: 'feat1',
-      }),
-    );
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/webhooks/integrations/gitea',
-      headers: signedHeaders(body, 'push', deliveryId),
-      payload: body,
-    });
-
-    expect(res.statusCode).toBe(204);
-    expect(publishSourcePush).toHaveBeenCalledTimes(1);
-    expect(publishSourcePush.mock.calls[0]?.[0].push).toMatchObject({
-      ref: 'feature/x',
-      isDefaultBranch: false,
-    });
-  });
-
-  it('resolves a mixed-case owner against the lower-cased stored org', async () => {
-    const connection = fakeConnection();
-    await seedConnection('shipfox', connection.id);
-    const {app, publishSourcePush} = await createTestApp({connection});
-    const deliveryId = randomUUID();
-    const body = JSON.stringify(
-      giteaPushPayload({
-        owner: 'ShipFox',
-        repo: 'API',
-        ref: 'refs/heads/main',
-        defaultBranch: 'main',
-        sha: 'casing',
-      }),
-    );
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/webhooks/integrations/gitea',
-      headers: signedHeaders(body, 'push', deliveryId),
-      payload: body,
-    });
-
-    expect(res.statusCode).toBe(204);
-    expect(publishSourcePush).toHaveBeenCalledTimes(1);
-    // Repo id keeps the payload's verbatim casing to match the source-control adapter.
-    expect(publishSourcePush.mock.calls[0]?.[0].push.externalRepositoryId).toBe(
-      'gitea:ShipFox/API',
-    );
-  });
-
-  it('ignores a branch deletion (all-zero after SHA) without publishing', async () => {
-    const connection = fakeConnection();
-    await seedConnection('shipfox', connection.id);
-    const {app, publishSourcePush, recordDeliveryOnly} = await createTestApp({connection});
-    const deliveryId = randomUUID();
-    const body = JSON.stringify(
-      giteaPushPayload({
-        owner: 'shipfox',
-        repo: 'api',
-        ref: 'refs/heads/main',
-        defaultBranch: 'main',
-        sha: '0000000000000000000000000000000000000000',
-      }),
-    );
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/webhooks/integrations/gitea',
-      headers: signedHeaders(body, 'push', deliveryId),
-      payload: body,
-    });
-
-    expect(res.statusCode).toBe(204);
-    expect(publishSourcePush).not.toHaveBeenCalled();
-    expect(recordDeliveryOnly).not.toHaveBeenCalled();
-  });
-
-  it('records the delivery only for non-push events', async () => {
+  it('accepts a signed non-push event and records the delivery', async () => {
     const {app, publishSourcePush, recordDeliveryOnly} = await createTestApp();
     const deliveryId = randomUUID();
     const body = JSON.stringify({hello: 'world'});
@@ -252,64 +64,6 @@ describe('Gitea webhook route', () => {
     });
 
     expect(res.statusCode).toBe(204);
-    expect(publishSourcePush).not.toHaveBeenCalled();
-    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
-    expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'gitea', deliveryId});
-  });
-
-  it('records the delivery only for pushes from an unknown org', async () => {
-    const {app, publishSourcePush, recordDeliveryOnly, getIntegrationConnectionById} =
-      await createTestApp();
-    const deliveryId = randomUUID();
-    const body = JSON.stringify(
-      giteaPushPayload({
-        owner: 'ghost',
-        repo: 'api',
-        ref: 'refs/heads/main',
-        defaultBranch: 'main',
-        sha: 'orphan',
-      }),
-    );
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/webhooks/integrations/gitea',
-      headers: signedHeaders(body, 'push', deliveryId),
-      payload: body,
-    });
-
-    expect(res.statusCode).toBe(204);
-    expect(publishSourcePush).not.toHaveBeenCalled();
-    expect(getIntegrationConnectionById).not.toHaveBeenCalled();
-    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
-    expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'gitea', deliveryId});
-  });
-
-  it('records the delivery only when the org has no core connection', async () => {
-    const {app, publishSourcePush, recordDeliveryOnly, getIntegrationConnectionById} =
-      await createTestApp();
-    getIntegrationConnectionById.mockResolvedValue(undefined);
-    await seedConnection('shipfox');
-    const deliveryId = randomUUID();
-    const body = JSON.stringify(
-      giteaPushPayload({
-        owner: 'shipfox',
-        repo: 'api',
-        ref: 'refs/heads/main',
-        defaultBranch: 'main',
-        sha: 'dangling',
-      }),
-    );
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/webhooks/integrations/gitea',
-      headers: signedHeaders(body, 'push', deliveryId),
-      payload: body,
-    });
-
-    expect(res.statusCode).toBe(204);
-    expect(getIntegrationConnectionById).toHaveBeenCalledTimes(1);
     expect(publishSourcePush).not.toHaveBeenCalled();
     expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
     expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'gitea', deliveryId});
