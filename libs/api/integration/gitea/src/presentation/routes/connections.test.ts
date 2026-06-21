@@ -74,6 +74,11 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
         updatedAt: new Date(),
       }),
     ),
+    // Provider-level mounting includes webhook routes; these tests exercise only connections.
+    coreDb: vi.fn() as never,
+    publishSourcePush: vi.fn() as never,
+    recordDeliveryOnly: vi.fn() as never,
+    getIntegrationConnectionById: vi.fn() as never,
   });
   const app = await createApp({
     auth: [fakeUserAuth],

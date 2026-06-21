@@ -38,6 +38,10 @@ export {
   rawBodyPlugin,
   WEBHOOK_BODY_LIMIT,
 } from './webhook-raw-body.js';
+export {
+  type VerifyHexHmacSignatureParams,
+  verifyHexHmacSignature,
+} from './webhook-signature.js';
 
 let _app: FastifyInstance | undefined;
 

@@ -1,5 +1,11 @@
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {
+  GetIntegrationConnectionByIdFn,
+  IntegrationConnection,
+  PublishSourcePushFn,
+  RecordDeliveryOnlyFn,
+} from '@shipfox/api-integration-core-dto';
 import {giteaProviderKind} from '@shipfox/api-integration-gitea-dto';
+import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createGiteaApiClient, type GiteaApiClient} from '#api/client.js';
 import type {ConnectGiteaConnectionInput} from '#core/connect.js';
 import {giteaConnectionExternalUrl} from '#core/connection-url.js';
@@ -7,6 +13,7 @@ import {GiteaSourceControlProvider} from '#core/source-control.js';
 import {closeDb, db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {createGiteaConnectionRoutes} from '#presentation/routes/connections.js';
+import {createGiteaWebhookRoutes} from '#presentation/routes/webhooks.js';
 
 export type {
   GiteaApiClient,
@@ -41,6 +48,10 @@ export interface CreateGiteaIntegrationProviderOptions {
   connectGiteaConnection: (
     input: ConnectGiteaConnectionInput,
   ) => Promise<IntegrationConnection<'gitea'>>;
+  coreDb: () => NodePgDatabase<Record<string, unknown>>;
+  publishSourcePush: PublishSourcePushFn;
+  recordDeliveryOnly: RecordDeliveryOnlyFn;
+  getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
 }
 
 export function createGiteaIntegrationProvider(options: CreateGiteaIntegrationProviderOptions) {
@@ -60,6 +71,12 @@ export function createGiteaIntegrationProvider(options: CreateGiteaIntegrationPr
         gitea,
         getExistingGiteaConnection: options.getExistingGiteaConnection,
         connectGiteaConnection: options.connectGiteaConnection,
+      }),
+      createGiteaWebhookRoutes({
+        coreDb: options.coreDb,
+        publishSourcePush: options.publishSourcePush,
+        recordDeliveryOnly: options.recordDeliveryOnly,
+        getIntegrationConnectionById: options.getIntegrationConnectionById,
       }),
     ],
   };
