@@ -1659,6 +1659,9 @@ importers:
       '@shipfox/api-workflows':
         specifier: workspace:*
         version: link:../workflows
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../shared/common/config
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
@@ -1677,6 +1680,12 @@ importers:
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../shared/node/postgres
+      '@shipfox/node-temporal':
+        specifier: workspace:*
+        version: link:../../shared/node/temporal
+      '@temporalio/workflow':
+        specifier: ^1.16.1
+        version: 1.17.2
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
@@ -1699,6 +1708,21 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../tools/vitest
+      '@temporalio/activity':
+        specifier: ^1.16.1
+        version: 1.17.2
+      '@temporalio/client':
+        specifier: ^1.16.1
+        version: 1.17.2
+      '@temporalio/common':
+        specifier: ^1.16.1
+        version: 1.17.2
+      '@temporalio/testing':
+        specifier: ^1.16.1
+        version: 1.17.2(@swc/helpers@0.5.23)(tslib@2.8.1)
+      '@temporalio/worker':
+        specifier: ^1.16.1
+        version: 1.17.2(@swc/helpers@0.5.23)(tslib@2.8.1)
       '@types/pg':
         specifier: ^8.15.5
         version: 8.20.0
