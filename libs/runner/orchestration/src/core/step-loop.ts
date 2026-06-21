@@ -3,8 +3,20 @@ import type {NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {executeAgentStep} from '@shipfox/runner-agent';
 import {executeRunStep, executeSetupStep, type StepResult} from '@shipfox/runner-execution';
-import {createStepLogStream, type StepLogStream} from '@shipfox/runner-logs';
-import {appendStepLogs, HTTPError, reportStep, requestNextStep} from '@shipfox/runner-protocol';
+import {
+  createSessionLogStream,
+  createStepLogStream,
+  type LogStreamLifecycle,
+  type SessionLogStream,
+  type StepLogStream,
+} from '@shipfox/runner-logs';
+import {
+  appendStepLogs,
+  HTTPError,
+  type LogAppendFn,
+  reportStep,
+  requestNextStep,
+} from '@shipfox/runner-protocol';
 import type {KyInstance} from 'ky';
 
 // Reporting a step before pulling the next one is the safety invariant: a lost report is
@@ -29,9 +41,10 @@ export async function runJobSteps(params: {
   // against an unprepared cwd. The guard and its rollout rationale live in `executeStep`.
   let workspacePrepared = false;
 
-  // The most recent run step's stream, kept until the next iteration settles it (or the
-  // finally does at job end). The step loop is sequential, so at most one tail drains.
-  let activeStream: StepLogStream | undefined;
+  // The most recent step's stream (run output or agent session), kept until the next
+  // iteration settles it (or the finally does at job end). The step loop is sequential, so
+  // at most one tail drains.
+  let activeStream: LogStreamLifecycle | undefined;
 
   try {
     while (!signal.aborted) {
@@ -129,8 +142,7 @@ export async function pullNextStep(params: {
 
 export interface StepExecution {
   result: StepResult;
-  /** The run step's log stream, when one was opened; settle it after reporting. */
-  stream?: StepLogStream | undefined;
+  stream?: LogStreamLifecycle | undefined;
   /** True when a setup step succeeded, unlocking the run steps that follow it. */
   preparedWorkspace: boolean;
 }
@@ -153,7 +165,7 @@ export async function executeStep(params: {
   const {step, attempt, cwd, leaseClient, secrets, signal, workspacePrepared, jobId, stepLabel} =
     params;
 
-  let stream: StepLogStream | undefined;
+  let stream: LogStreamLifecycle | undefined;
   try {
     if (step.type === 'setup') {
       const result = await executeSetupStep({cwd, leaseClient, signal});
@@ -175,29 +187,57 @@ export async function executeStep(params: {
       };
     }
 
-    // Agent steps run the embedded pi harness; they capture their own summary and do not
-    // stream output through the log pipeline (run steps below do).
+    // Both step kinds capture to the same per-attempt stream contract (one stream per
+    // job/step/attempt). The append port is bound to the lease client, step, and attempt.
+    const append: LogAppendFn = ({offset, body, signal: appendSignal}) =>
+      appendStepLogs(leaseClient, {
+        stepId: step.id,
+        attempt,
+        offset,
+        body,
+        ...(appendSignal ? {signal: appendSignal} : {}),
+      });
+
+    // Agent steps run the embedded pi harness and forward every session entry into the log
+    // pipeline as opaque `agent_session` records. Capture is best-effort: if the spool cannot
+    // be opened, run the agent without it rather than failing the step.
     if (step.type === 'agent') {
-      const result = await executeAgentStep(step, {signal, cwd});
-      return {result, preparedWorkspace: false};
+      let sessionStream: SessionLogStream | undefined;
+      try {
+        sessionStream = createSessionLogStream({
+          logsDir: join(cwd, 'logs'),
+          stepId: step.id,
+          attempt,
+          secrets,
+          append,
+        });
+      } catch (error) {
+        logger().error(
+          {err: error, jobId, stepId: step.id, attempt},
+          'Failed to open agent session capture; running the step without it',
+        );
+      }
+      stream = sessionStream;
+      const result = await executeAgentStep(step, {
+        signal,
+        cwd,
+        ...(sessionStream
+          ? {onSessionEntry: (line: string) => sessionStream?.writeEntry(line)}
+          : {}),
+      });
+      return {result, stream, preparedWorkspace: false};
     }
 
     // Log capture is best-effort: if the spool cannot be opened (e.g. a broken logs dir),
     // abandon capture and run the step without a stream rather than failing the step itself.
+    let stepStream: StepLogStream | undefined;
     try {
-      stream = createStepLogStream({
+      stepStream = createStepLogStream({
         logsDir: join(cwd, 'logs'),
         stepId: step.id,
         attempt,
         secrets,
-        append: ({offset, body, signal: appendSignal}) =>
-          appendStepLogs(leaseClient, {
-            stepId: step.id,
-            attempt,
-            offset,
-            body,
-            ...(appendSignal ? {signal: appendSignal} : {}),
-          }),
+        append,
       });
     } catch (error) {
       logger().error(
@@ -205,11 +245,12 @@ export async function executeStep(params: {
         'Failed to open log capture; running the step without it',
       );
     }
+    stream = stepStream;
 
     const result = await executeRunStep(step, {
       signal,
       cwd,
-      onOutput: (chunk, source) => stream?.write(chunk, source),
+      onOutput: (chunk, source) => stepStream?.write(chunk, source),
     });
     return {result, stream, preparedWorkspace: false};
   } catch (error) {
@@ -236,7 +277,7 @@ export async function reportStepResult(params: {
   step: StepDto;
   attempt: number;
   result: StepResult;
-  stream: StepLogStream | undefined;
+  stream: LogStreamLifecycle | undefined;
   jobId: string;
   stepLabel: string;
   signal: AbortSignal;
@@ -272,7 +313,7 @@ export async function reportStepResult(params: {
 // Closes (idempotent), drains (bounded; an abort cuts it short), and disposes a stream.
 // A no-op when there is no stream, so callers can settle unconditionally.
 export async function settleStream(params: {
-  stream: StepLogStream | undefined;
+  stream: LogStreamLifecycle | undefined;
   signal: AbortSignal;
 }): Promise<void> {
   const {stream, signal} = params;

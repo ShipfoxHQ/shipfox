@@ -2814,6 +2814,9 @@ importers:
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../../api/workflows-dto
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../shared/node/opentelemetry
       '@shipfox/runner-execution':
         specifier: workspace:*
         version: link:../execution

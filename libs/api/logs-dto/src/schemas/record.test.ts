@@ -23,6 +23,15 @@ const recordsByType: Array<{record: LogRecord; appendable: boolean}> = [
   {record: {v: 1, ts, type: 'group_end', group_id: 'g1'}, appendable: true},
   {record: {v: 1, ts, type: 'end', total_bytes: 1048576}, appendable: true},
   {record: {v: 1, ts, type: 'gap', dropped_bytes: 4096}, appendable: true},
+  {
+    record: {
+      v: 1,
+      ts,
+      type: 'agent_session',
+      data: '{"type":"message","id":"a","parentId":null,"timestamp":"t"}',
+    },
+    appendable: true,
+  },
   {record: {v: 1, ts, type: 'capped'}, appendable: false},
   {record: {v: 1, ts, type: 'runner_lost'}, appendable: false},
 ];
@@ -78,6 +87,20 @@ describe('logRecordSchema (read union)', () => {
     expect(() =>
       logRecordSchema.parse({v: 1, ts, type: 'output', stream: 'stdout', data: ''}),
     ).toThrow();
+  });
+
+  it('accepts an agent_session record whose data far exceeds the output byte cap', () => {
+    const data = 'x'.repeat(MAX_RECORD_DATA_BYTES * 4);
+
+    const parsed = logRecordSchema.parse({v: 1, ts, type: 'agent_session', data});
+
+    expect(Buffer.byteLength((parsed as {data: string}).data, 'utf8')).toBe(
+      MAX_RECORD_DATA_BYTES * 4,
+    );
+  });
+
+  it('rejects an empty agent_session record', () => {
+    expect(() => logRecordSchema.parse({v: 1, ts, type: 'agent_session', data: ''})).toThrow();
   });
 
   it('accepts a null parent_group_id at the top level', () => {

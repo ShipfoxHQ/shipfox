@@ -1,10 +1,13 @@
+import {join} from 'node:path';
 import {
   AuthStorage,
   type CreateAgentSessionOptions,
   createAgentSession,
   ModelRegistry,
+  SessionManager,
 } from '@earendil-works/pi-coding-agent';
 import {AgentConfigError} from '#core/errors.js';
+import {type SessionForwarder, startSessionForwarder} from '#core/session-forwarder.js';
 
 type PiThinkingLevel = NonNullable<CreateAgentSessionOptions['thinkingLevel']>;
 
@@ -18,6 +21,12 @@ export interface AgentInvocation {
   readonly thinking: string;
   readonly prompt: string;
   readonly signal: AbortSignal;
+  /**
+   * Forwards each verbatim pi session entry line as it is persisted, in order. Best-effort
+   * observability: when absent (or the session is not persisted), forwarding is skipped and
+   * the step is unaffected.
+   */
+  readonly onSessionEntry?: (line: string) => void;
 }
 
 /**
@@ -29,7 +38,7 @@ export interface AgentInvocation {
  * observability and never sent to the API, so it is optional.
  */
 export async function runAgent(invocation: AgentInvocation): Promise<{summary?: string}> {
-  const {cwd, model: modelId, provider, thinking, prompt, signal} = invocation;
+  const {cwd, model: modelId, provider, thinking, prompt, signal, onSessionEntry} = invocation;
 
   // A listener added to an already-aborted signal never fires, so an abort that lands
   // before this point (or during the awaits below) would leave pi running and burning
@@ -56,6 +65,9 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
     thinkingLevel: thinking as PiThinkingLevel,
     authStorage,
     modelRegistry,
+    // Keep the session JSONL inside the job workspace so it forwards from a deterministic path
+    // and is cleaned up with the workspace; pi's default lives under ~/.pi, outside it.
+    sessionManager: SessionManager.create(cwd, join(cwd, 'logs', 'agent-sessions')),
   });
 
   // session.abort() returns a promise; a rejected abort must not become an unhandled
@@ -70,12 +82,24 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   }
 
   signal.addEventListener('abort', abortSession, {once: true});
+  const forwarder = startForwarding(session.sessionFile, onSessionEntry);
   try {
     await session.prompt(prompt);
     return {};
   } finally {
+    // A final synchronous read forwards every entry written before the caller closes the log
+    // stream, so all session records precede its end marker.
+    forwarder?.stop();
     signal.removeEventListener('abort', abortSession);
   }
+}
+
+function startForwarding(
+  sessionFile: string | undefined,
+  onSessionEntry: ((line: string) => void) | undefined,
+): SessionForwarder | undefined {
+  if (onSessionEntry === undefined || sessionFile === undefined) return undefined;
+  return startSessionForwarder({filePath: sessionFile, onEntry: onSessionEntry});
 }
 
 type ResolvedModel = NonNullable<ReturnType<ModelRegistry['find']>>;

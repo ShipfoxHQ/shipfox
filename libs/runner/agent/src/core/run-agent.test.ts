@@ -18,8 +18,12 @@ vi.mock('@earendil-works/pi-coding-agent', () => ({
       hasConfiguredAuth: hasConfiguredAuthMock,
     }),
   },
+  SessionManager: {create: () => ({})},
 }));
 
+import {appendFileSync, mkdtempSync, rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {AgentConfigError} from '#core/errors.js';
 import {type AgentInvocation, runAgent} from '#core/run-agent.js';
 
@@ -64,6 +68,34 @@ describe('runAgent', () => {
     );
     expect(promptMock).toHaveBeenCalledWith('Fix it.');
     expect(result).toEqual({});
+  });
+
+  it('forwards each persisted session entry to onSessionEntry in order', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'shipfox-run-agent-'));
+    const sessionFile = join(dir, 'session.jsonl');
+    // pi persists entries to the session file during the turn; the final read on completion
+    // forwards everything written before the prompt resolved.
+    promptMock.mockImplementation(() => {
+      appendFileSync(sessionFile, '{"type":"session"}\n{"type":"message","id":"a"}\n');
+      return Promise.resolve();
+    });
+    createAgentSessionMock.mockResolvedValue({
+      session: {prompt: promptMock, abort: abortMock, messages: [], sessionFile},
+    });
+    const entries: string[] = [];
+
+    await runAgent(invocation({onSessionEntry: (line) => entries.push(line)}));
+
+    expect(entries).toEqual(['{"type":"session"}', '{"type":"message","id":"a"}']);
+    rmSync(dir, {recursive: true, force: true});
+  });
+
+  it('skips forwarding when the session is not persisted (no session file)', async () => {
+    const entries: string[] = [];
+
+    await runAgent(invocation({onSessionEntry: (line) => entries.push(line)}));
+
+    expect(entries).toEqual([]);
   });
 
   it('throws an AgentConfigError naming the provider when it is unknown', async () => {
@@ -120,9 +152,7 @@ describe('runAgent', () => {
 
   it('aborts the pi session when the signal fires', async () => {
     const ac = new AbortController();
-    let resolvePrompt: () => void = () => {
-      // replaced by the mock implementation below
-    };
+    let resolvePrompt: () => void = () => undefined;
     promptMock.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
@@ -141,9 +171,7 @@ describe('runAgent', () => {
 
   it('aborts the session and skips the prompt when the signal fires during session creation', async () => {
     const ac = new AbortController();
-    let resolveCreate: (value: {session: unknown}) => void = () => {
-      // replaced by the mock implementation below
-    };
+    let resolveCreate: (value: {session: unknown}) => void = () => undefined;
     createAgentSessionMock.mockImplementation(
       () =>
         new Promise((resolve) => {

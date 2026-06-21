@@ -1,4 +1,4 @@
-import type {Buffer} from 'node:buffer';
+import {Buffer} from 'node:buffer';
 import {parseAppendableLogRecordLine, parseLogRecordLine} from '@shipfox/api-logs-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
@@ -70,6 +70,17 @@ function parseAppendBody(body: Buffer): ParsedBody {
     }
     if (record.type === 'end') {
       declaredTotalBytes = record.total_bytes;
+    }
+    // An agent_session line is one whole entry in one record; bound its size here (the DTO
+    // schema leaves `data` uncapped because it cannot read this runtime config). An over-cap
+    // line is rejected so a single entry can never blow the request body or the spool window.
+    if (
+      record.type === 'agent_session' &&
+      Buffer.byteLength(line, 'utf8') > config.LOG_MAX_SESSION_LINE_BYTES
+    ) {
+      throw new MalformedLogChunkError(
+        `agent_session line exceeds ${config.LOG_MAX_SESSION_LINE_BYTES} bytes`,
+      );
     }
   }
 

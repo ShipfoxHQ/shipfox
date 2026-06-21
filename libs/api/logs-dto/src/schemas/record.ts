@@ -17,6 +17,10 @@ import {z} from 'zod';
  * `type`. The ingest (appendable) and read unions are distinct types: the server-only
  * `capped` / `runner_lost` tombstones are members of the read union only, so a forged
  * tombstone cannot pass append validation.
+ *
+ * The `agent_session` record carries one verbatim agent session entry line in `data`,
+ * forwarded opaquely by the runner. Its per-line size is bounded by the server's
+ * configurable `LOG_MAX_SESSION_LINE_BYTES` in the write path, not by this schema.
  */
 
 /** Largest decoded `data` payload per record. Longer lines are split by the runner. */
@@ -81,6 +85,16 @@ const logGap = z.object({
   dropped_bytes: z.number().int().nonnegative(),
 });
 
+// One verbatim agent session entry line, forwarded opaquely by the runner. `data` is
+// intentionally uncapped here: the per-line byte limit is the server's configurable
+// LOG_MAX_SESSION_LINE_BYTES (a Zod schema cannot read runtime config, and a static cap
+// would collide with the body-limit invariant), enforced in the append write path.
+const logAgentSession = z.object({
+  ...envelope,
+  type: z.literal('agent_session'),
+  data: z.string().min(1, {message: 'agent_session data must not be empty'}),
+});
+
 // Server-only tombstones: NOT members of the appendable union.
 const logCapped = z.object({...envelope, type: z.literal('capped')});
 const logRunnerLost = z.object({...envelope, type: z.literal('runner_lost')});
@@ -92,6 +106,7 @@ export const appendableLogRecordSchema = z.discriminatedUnion('type', [
   logGroupEnd,
   logEnd,
   logGap,
+  logAgentSession,
 ]);
 
 /** Full read union: appendable records plus the server-only tombstones. */
@@ -101,6 +116,7 @@ export const logRecordSchema = z.discriminatedUnion('type', [
   logGroupEnd,
   logEnd,
   logGap,
+  logAgentSession,
   logCapped,
   logRunnerLost,
 ]);

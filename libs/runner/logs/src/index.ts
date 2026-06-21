@@ -1,4 +1,10 @@
 export type {OutputSource} from '#core/framing.js';
+export type {LogStreamLifecycle} from '#core/lifecycle.js';
+export {
+  createSessionLogStream,
+  type SessionLogStream,
+  type SessionLogStreamOptions,
+} from '#core/session-log-stream.js';
 export {
   createStepLogStream,
   type StepLogStream,

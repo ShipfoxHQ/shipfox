@@ -45,11 +45,12 @@ One JSON object per line. The shared envelope is `{v, ts}`. The pipe rides on `s
 output; control records are flat by `type`:
 
 ```ts
-{v: 1, ts, type: 'output',      stream: 'stdout' | 'stderr', data}     // <= 16 KiB data
-{v: 1, ts, type: 'group_start', group_id, parent_group_id, name}      // name <= 1 KiB
-{v: 1, ts, type: 'group_end',   group_id}
-{v: 1, ts, type: 'end',         total_bytes}
-{v: 1, ts, type: 'gap',         dropped_bytes}
+{v: 1, ts, type: 'output',        stream: 'stdout' | 'stderr', data}   // <= 16 KiB data
+{v: 1, ts, type: 'group_start',   group_id, parent_group_id, name}     // name <= 1 KiB
+{v: 1, ts, type: 'group_end',     group_id}
+{v: 1, ts, type: 'end',           total_bytes}
+{v: 1, ts, type: 'gap',           dropped_bytes}
+{v: 1, ts, type: 'agent_session', data}                               // one verbatim entry, <= LOG_MAX_SESSION_LINE_BYTES
 {v: 1, ts, type: 'capped'}        // server-only
 {v: 1, ts, type: 'runner_lost'}   // server-only
 ```
@@ -89,13 +90,17 @@ leaks.
 - **Cold (compacted, `object_key` set)** — a presigned GET URL (`LOG_READ_URL_TTL_SECONDS`) so the
   browser fetches the object directly and API egress is bypassed.
 
-## Agent-session capture (future)
+## Agent-session capture
 
-Agent-session capture is a separate, not-yet-built feature. When it lands, an agent step's session
-events ride this **same** stream as ordinary records, distinguished by their own record `type`(s);
-a reader filters by `type` and re-joins those records to reconstruct the session. There is no
-separate stream and no stream `kind` — one stream per `(job, step, attempt)`, read without knowing
-any kind.
+An agent step forwards each agent session entry as one `agent_session` record on this **same**
+stream, distinguished by its `type`; a reader filters by `type` and `JSON.parse`s each record's
+`data` (one verbatim session entry line) to reconstruct the session. There is no separate stream
+and no stream `kind` — one stream per `(job, step, attempt)`, read without knowing any kind.
+
+The runner forwards entries opaquely and never splits one across records, so a record always
+carries a whole entry. Per-entry size is bounded by `LOG_MAX_SESSION_LINE_BYTES` (a larger line is
+rejected with 400, and the runner drops it with a `gap`); the request body limit
+(`LOG_APPEND_BODY_LIMIT_BYTES`) must hold a full line plus framing, enforced by a startup invariant.
 
 ## Budget and terminal state
 
