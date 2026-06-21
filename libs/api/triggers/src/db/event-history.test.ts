@@ -112,6 +112,20 @@ describe('received-event outcome transitions', () => {
     expect(row?.processedAt).toBeInstanceOf(Date);
   });
 
+  it('does not downgrade a routed event to discarded', async () => {
+    const id = await insertReceivedEvent(buildEventParams());
+    await markReceivedEventRouted(id, 1);
+
+    await markReceivedEventDiscarded(id);
+
+    const [row] = await db()
+      .select()
+      .from(triggersReceivedEvents)
+      .where(eq(triggersReceivedEvents.id, id));
+    expect(row?.outcome).toBe('routed');
+    expect(row?.matchedCount).toBe(1);
+  });
+
   it('marks an event failed without setting processed_at (transient, retried)', async () => {
     const id = await insertReceivedEvent(buildEventParams());
 

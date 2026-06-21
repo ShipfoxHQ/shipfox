@@ -121,6 +121,16 @@ describe('toReason', () => {
     expect(reason).toBe('plain string failure');
   });
 
+  test('falls back when a non-Error throwable cannot be stringified', () => {
+    const reason = toReason({
+      toString() {
+        throw new Error('string conversion failed');
+      },
+    });
+
+    expect(reason).toBe('[unprintable thrown value]');
+  });
+
   test('passes a short Error message through verbatim', () => {
     const reason = toReason(new Error('definition deleted'));
 

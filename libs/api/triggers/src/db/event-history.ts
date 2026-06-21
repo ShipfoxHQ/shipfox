@@ -51,7 +51,7 @@ export async function markReceivedEventDiscarded(id: string): Promise<void> {
   await db()
     .update(triggersReceivedEvents)
     .set({outcome: 'discarded', matchedCount: 0, processedAt: new Date()})
-    .where(eq(triggersReceivedEvents.id, id));
+    .where(and(eq(triggersReceivedEvents.id, id), ne(triggersReceivedEvents.outcome, 'routed')));
 }
 
 export async function markReceivedEventRouted(id: string, matchedCount: number): Promise<void> {

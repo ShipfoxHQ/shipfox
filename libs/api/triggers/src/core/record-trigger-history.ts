@@ -15,7 +15,12 @@ const MAX_REASON_LENGTH = 2000;
 // A bounded, deterministic reason string safe to persist: error messages can be
 // long or carry untrusted data, so cap the length and never serialize the object.
 export function toReason(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
+  let message: string;
+  try {
+    message = error instanceof Error ? error.message : String(error);
+  } catch {
+    message = '[unprintable thrown value]';
+  }
   return message.slice(0, MAX_REASON_LENGTH);
 }
 
