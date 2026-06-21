@@ -328,7 +328,7 @@ export async function refreshAccessToken(params: {
   }
 
   const user = await findUserById({id: current.userId});
-  if (!user || user.status !== 'active') {
+  if (user?.status !== 'active') {
     await revokeRefreshTokenByHash({hashedToken: currentHashedToken});
     throw new TokenInvalidError('Refresh token is invalid or expired');
   }
@@ -385,7 +385,7 @@ export async function confirmEmailVerification(params: {
   }
 
   const user = await markEmailVerified({userId: consumed.userId});
-  if (!user || user.status !== 'active') {
+  if (user?.status !== 'active') {
     throw new TokenInvalidError('Verification token is invalid or expired');
   }
 
@@ -415,7 +415,7 @@ export async function resendEmailVerification(params: {
 
 export async function requestPasswordReset(params: {email: string}): Promise<void> {
   const user = await findUserByEmail({email: params.email});
-  if (!user || user.status !== 'active') {
+  if (user?.status !== 'active') {
     return;
   }
 
@@ -452,7 +452,7 @@ export async function confirmPasswordReset(params: {
 
   const hashedPassword = await hashPassword({password: params.newPassword});
   const user = await updateUserPassword({userId: consumed.userId, hashedPassword});
-  if (!user || user.status !== 'active') {
+  if (user?.status !== 'active') {
     throw new TokenInvalidError('Reset token is invalid or expired');
   }
 
