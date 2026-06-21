@@ -247,6 +247,37 @@ export async function listStaleUncompactedStreams(params: {
 }
 
 /**
+ * Open streams whose `created_at` is older than the reap window: the reaper cron force-closes
+ * these so a stream the one-shot job-terminated sweep missed (one created after that sweep ran,
+ * by a still-valid lease) still re-enters the closed -> compact -> retention lifecycle. Safe to
+ * close because an append needs a live lease and a lease is minted at-or-before the stream's
+ * `created_at`, so past `created_at + leaseTTL` no further append can land. Hits the partial
+ * index `logs_attempt_streams_open_age_idx`; ordered by `created_at` so the oldest leak drains
+ * first, bounded by `limit` per tick.
+ */
+export async function listStaleOpenStreams(params: {
+  olderThanSeconds: number;
+  limit: number;
+}): Promise<AttemptStream[]> {
+  const rows = await db()
+    .select()
+    .from(attemptStreams)
+    .where(
+      and(
+        eq(attemptStreams.state, 'open'),
+        lt(
+          attemptStreams.createdAt,
+          sql`now() - make_interval(secs => ${params.olderThanSeconds})`,
+        ),
+      ),
+    )
+    .orderBy(asc(attemptStreams.createdAt))
+    .limit(params.limit);
+
+  return rows.map(toAttemptStream);
+}
+
+/**
  * Lists expired closed streams for retention. `excludeIds` keeps failed or raced rows from
  * starving younger rows in the same run, and avoids cursoring on `closed_at`, whose microsecond
  * precision would be lost through JS `Date`.

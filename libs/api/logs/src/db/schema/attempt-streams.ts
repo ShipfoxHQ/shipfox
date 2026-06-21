@@ -68,6 +68,10 @@ export const attemptStreams = pgTable(
     // Timeout-close sweeps an open job's streams by job_id; the partial index keeps
     // it off the closed tail.
     index('logs_attempt_streams_open_by_job_idx').on(table.jobId).where(sql`"state" = 'open'`),
+    // The reaper cron sweeps open streams by age (created_at) to force-close ones left open
+    // past the lease window; partial so it stays off the closed tail. created_at is immutable,
+    // so this index is touched only at stream creation and close, never on the append path.
+    index('logs_attempt_streams_open_age_idx').on(table.createdAt).where(sql`"state" = 'open'`),
     // Retention scans closed streams by close age; partial so it never carries the
     // open (in-flight) set.
     index('logs_attempt_streams_retention_idx').on(table.closedAt).where(sql`"state" = 'closed'`),

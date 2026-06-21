@@ -45,6 +45,10 @@ export const config = createConfig({
     desc: 'How long a closed log stream may stay uncompacted before the reconcile cron re-drives it. The event-triggered compaction normally runs within seconds of close; this backstop only re-drives streams whose compaction never started or permanently failed. Defaults to 900 seconds (15 minutes).',
     default: 900,
   }),
+  LOG_STREAM_REAP_AFTER_SECONDS: num({
+    desc: 'How long a log stream may stay open before the reaper cron force-closes it as abandoned. This is the backstop for a stream a runner started after its job already went terminal (the one-shot close sweep had already run); the reaper marks it truncated so it re-enters the compaction and retention lifecycle. Must be greater than AUTH_JOB_LEASE_TOKEN_EXPIRES_IN (the job lease lifetime, default 90 minutes) so a still-valid lease can never be force-closed mid-append, which would silently truncate live logs. Defaults to 7200 seconds (2 hours).',
+    default: 7200,
+  }),
   LOG_APPEND_BODY_LIMIT_BYTES: num({
     desc: 'Maximum size of a single log append request body, in bytes. The runner flushes at most a few hundred KB per request and each record caps at 16 KiB, so 1 MiB is generous headroom. This also bounds how far a job can overshoot its log budget: the one append that crosses the budget is stored in full before the job is capped. Defaults to 1 MiB.',
     default: 1_048_576,
@@ -85,5 +89,19 @@ if (config.LOG_READ_INLINE_MAX_BYTES < 1) {
 if (!Number.isInteger(config.LOG_RETENTION_DAYS) || config.LOG_RETENTION_DAYS < 1) {
   throw new Error(
     `LOG_RETENTION_DAYS (${config.LOG_RETENTION_DAYS}) must be a whole number of days >= 1.`,
+  );
+}
+
+// The reaper force-closes any open stream older than this. The value MUST exceed the job lease
+// lifetime, or it would close streams a still-leased runner is appending to and truncate live
+// logs. Logs cannot read the auth config to check the exact relation, so enforce an absolute
+// floor at the default lease TTL (90 minutes): below it, a misconfig is closing live streams.
+const JOB_LEASE_TTL_DEFAULT_SECONDS = 5400;
+if (
+  !Number.isFinite(config.LOG_STREAM_REAP_AFTER_SECONDS) ||
+  config.LOG_STREAM_REAP_AFTER_SECONDS < JOB_LEASE_TTL_DEFAULT_SECONDS
+) {
+  throw new Error(
+    `LOG_STREAM_REAP_AFTER_SECONDS (${config.LOG_STREAM_REAP_AFTER_SECONDS}) must be at least ${JOB_LEASE_TTL_DEFAULT_SECONDS} seconds (the default job lease TTL) and greater than your AUTH_JOB_LEASE_TOKEN_EXPIRES_IN.`,
   );
 }

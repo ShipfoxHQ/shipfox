@@ -1,5 +1,5 @@
 {
-  "id": "d0be3be6-ed44-4c17-92c3-f5ad1d87e9a5",
+  "id": "7c2a5e18-c354-4792-a7b0-cc2cb07cc196",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -165,6 +165,22 @@
           "columns": [
             {
               "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"state\" = 'open'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "logs_attempt_streams_open_age_idx": {
+          "name": "logs_attempt_streams_open_age_idx",
+          "columns": [
+            {
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

@@ -41,6 +41,14 @@ export const logsModule: ShipfoxModule = {
           id: 'logs-retention-sweep',
           cronSchedule: '0 * * * *',
         },
+        // Backstop for the one-shot job-terminated close: force-closes streams left open past the
+        // lease window (tune LOG_STREAM_REAP_AFTER_SECONDS). Runs every 10 minutes so a leak burst
+        // cannot pile up, on an offset minute so it does not land on retention's top-of-hour run.
+        {
+          name: 'reapStaleOpenStreamsCron',
+          id: 'logs-reap-stale-open-streams',
+          cronSchedule: '5,15,25,35,45,55 * * * *',
+        },
       ],
     },
     // Compaction runs on its own queue so long uploads cannot starve the lifecycle sweep.
