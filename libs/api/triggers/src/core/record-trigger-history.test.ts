@@ -100,6 +100,11 @@ describe('a per-write failure after a successful insert is swallowed', () => {
       recorder.triggered(subscription, {id: crypto.randomUUID(), name: 'r'}),
     ).resolves.toBeUndefined();
     await expect(recorder.routed(1)).resolves.toBeUndefined();
+
+    // Prove the post-insert writes were actually attempted (not skipped by the
+    // missing-id no-op), so the assertions exercise the swallow path they claim to.
+    expect(upsertTriggeredDecision).toHaveBeenCalledTimes(1);
+    expect(markReceivedEventRouted).toHaveBeenCalledTimes(1);
   });
 });
 

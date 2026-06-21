@@ -10,8 +10,8 @@ import {findMatchingSubscriptions} from '#db/subscriptions.js';
 // payload through untouched. The module knows nothing about github, gitlab, etc.
 // History is best-effort, but `runWorkflow` errors still re-throw so the outbox retries.
 // A transient failure converges to `routed` on replay; a permanent one (e.g. a deleted
-// definition) re-throws every retry, so the event stays `failed` — the recorded outcome
-// tracking reality, not a stuck state to recover from here.
+// definition) re-throws every retry, so the event stays `failed`. The recorded outcome
+// tracks reality; it is not a stuck state to recover from here.
 export async function onIntegrationEventReceived(
   envelope: IntegrationEventReceivedEvent,
   event: DomainEvent<IntegrationEventReceivedEvent>,
