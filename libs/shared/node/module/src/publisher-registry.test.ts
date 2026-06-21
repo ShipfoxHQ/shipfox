@@ -7,6 +7,7 @@ import {getEventSchema, registerPublisher, resetPublishers} from './publisher-re
 const table = createOutboxTable(pgTableCreator((name) => name));
 const db = (() => undefined) as unknown as () => NodePgDatabase<Record<string, unknown>>;
 const fooSchema = z.object({id: z.string()});
+const CONFLICTING_SCHEMA = /Conflicting outbox event schema/;
 
 describe('getEventSchema', () => {
   beforeEach(() => {
@@ -47,5 +48,24 @@ describe('getEventSchema', () => {
     resetPublishers();
 
     expect(getEventSchema('foo.created')).toBeUndefined();
+  });
+
+  it('throws when two publishers register a different schema for the same event type', () => {
+    const otherSchema = z.object({id: z.string()});
+    registerPublisher({name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
+
+    const register = () =>
+      registerPublisher({name: 'bar', table, db, eventSchemas: {'foo.created': otherSchema}});
+
+    expect(register).toThrow(CONFLICTING_SCHEMA);
+  });
+
+  it('allows re-registering the identical schema for an event type', () => {
+    registerPublisher({name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
+
+    const register = () =>
+      registerPublisher({name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
+
+    expect(register).not.toThrow();
   });
 });

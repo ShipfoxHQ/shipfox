@@ -58,4 +58,20 @@ describe('workflowsWorkflowRunTerminatedSchema', () => {
 
     expect(parse).toThrow();
   });
+
+  it('rejects a status outside the terminal set', () => {
+    const input = {...validRunTerminated, status: 'running'};
+
+    const parse = () => workflowsWorkflowRunTerminatedSchema.parse(input);
+
+    expect(parse).toThrow();
+  });
+
+  it('strips unknown keys (tolerant of forward-compatible producer additions)', () => {
+    const input = {...validRunTerminated, addedLater: 'ignored'};
+
+    const result = workflowsWorkflowRunTerminatedSchema.parse(input);
+
+    expect(result).toEqual(validRunTerminated);
+  });
 });
