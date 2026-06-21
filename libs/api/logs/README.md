@@ -105,8 +105,11 @@ budget is stored in full, then an in-band `capped` tombstone record is injected 
 are accepted-and-dropped. The cap is a **job-level** signal — a stream can be byte-complete and
 still sit under a capped job if a sibling step exhausted the shared budget.
 
-A stream closes either when the runner declares its end (an `end` record) or when the timeout sweep
-force-closes a job's abandoned streams. A timeout close sets `truncated` and injects a `runner_lost`
+A stream closes on one of three triggers: the runner declares its end (an `end` record); the
+job-terminated sweep force-closes a job's abandoned streams when the job goes terminal; or the
+reaper cron force-closes any stream still open past the lease window (`LOG_STREAM_REAP_AFTER_SECONDS`),
+the backstop for a stream the one-shot sweep missed (one whose first append landed after the sweep
+ran). Both force-close paths are timeout closes: they set `truncated` and inject a `runner_lost`
 tombstone. Each close writes one `logs.stream.closed` event, which drives compaction.
 
 ## Setup
