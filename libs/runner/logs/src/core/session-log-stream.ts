@@ -1,9 +1,10 @@
-import {redactSecrets, secretWireForms} from '@shipfox/redact';
+import {redactSecrets} from '@shipfox/redact';
 import type {LogAppendFn} from '@shipfox/runner-protocol';
 import {config} from '#config.js';
 import {type FramedOutput, StreamFramer} from '#core/framing.js';
 import type {LogStreamLifecycle} from '#core/lifecycle.js';
 import {createRecordSink} from '#core/record-sink.js';
+import {buildSecretVariants} from '#core/secrets.js';
 
 export interface SessionLogStreamOptions {
   logsDir: string;
@@ -92,14 +93,4 @@ export function createSessionLogStream(options: SessionLogStreamOptions): Sessio
       sink.dispose();
     },
   };
-}
-
-// One deduped, longest-first variant set (registered-secret masking), built exactly like
-// LogTransformer's. Longest-first so a secret that is a prefix of another is masked whole.
-function buildSecretVariants(secrets: string[]): string[] {
-  const variants = new Set<string>();
-  for (const secret of secrets) {
-    for (const form of secretWireForms(secret)) variants.add(form);
-  }
-  return [...variants].sort((a, b) => b.length - a.length);
 }

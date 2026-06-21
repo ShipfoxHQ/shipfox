@@ -71,3 +71,28 @@ describe('LOG_STREAM_REAP_AFTER_SECONDS validation', () => {
     expect(config.LOG_STREAM_REAP_AFTER_SECONDS).toBe(600);
   });
 });
+
+describe('LOG_MAX_SESSION_LINE_BYTES validation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('fails startup when the session line cap exceeds the append body limit', async () => {
+    vi.stubEnv('LOG_APPEND_BODY_LIMIT_BYTES', '1024');
+    vi.stubEnv('LOG_MAX_SESSION_LINE_BYTES', '2048');
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('LOG_APPEND_BODY_LIMIT_BYTES');
+  });
+
+  it('accepts a session line cap equal to the append body limit', async () => {
+    vi.stubEnv('LOG_APPEND_BODY_LIMIT_BYTES', '2048');
+    vi.stubEnv('LOG_MAX_SESSION_LINE_BYTES', '2048');
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.LOG_MAX_SESSION_LINE_BYTES).toBe(2048);
+  });
+});

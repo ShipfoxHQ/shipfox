@@ -40,7 +40,7 @@ export const config = createConfig({
     default: 5000,
   }),
   SHIPFOX_AGENT_SESSION_FLUSH_BYTES: num({
-    desc: `Upload window and per-entry drop threshold for agent-session logs, in bytes. One agent session entry rides one record; an entry whose encoded record exceeds this is dropped with a gap marker instead of forwarded. Must be between ${MIN_AGENT_SESSION_FLUSH_BYTES} and ${MAX_AGENT_SESSION_FLUSH_BYTES}, and no larger than the server's LOG_APPEND_BODY_LIMIT_BYTES (a body over that limit 413s and stops capture for the attempt). Defaults to 4 MiB.`,
+    desc: `Upload window and per-entry drop threshold for agent-session logs, in bytes. One agent session entry rides one record; an entry whose encoded record exceeds this is dropped with a gap marker instead of forwarded. Must be between ${MIN_AGENT_SESSION_FLUSH_BYTES} and ${MAX_AGENT_SESSION_FLUSH_BYTES}, and no larger than the server's LOG_MAX_SESSION_LINE_BYTES (the binding ceiling: a kept entry above it is rejected with 400, which ends capture for the attempt; the server keeps that cap at or below its LOG_APPEND_BODY_LIMIT_BYTES). Defaults to 4 MiB.`,
     default: 4_194_304,
   }),
 });

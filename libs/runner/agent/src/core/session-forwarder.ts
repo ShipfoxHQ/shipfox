@@ -4,6 +4,10 @@ import {logger} from '@shipfox/node-opentelemetry';
 
 const DEFAULT_POLL_INTERVAL_MS = 250;
 
+// A 0x0a byte only ever terminates an entry: it never appears inside a multi-byte UTF-8
+// sequence, so the bytes up to a newline are always a whole entry that decodes cleanly.
+const NEWLINE = 0x0a;
+
 export interface SessionForwarderOptions {
   filePath: string;
   onEntry: (line: string) => void;
@@ -19,9 +23,10 @@ export interface SessionForwarder {
  *
  * pi persists each session entry synchronously (appendFileSync) and may defer the first write
  * until the first assistant message, then bulk-write several lines at once — a byte-offset
- * reader handles both, where a line-index reader would not. pi runs in-process and always
- * terminates an entry with `\n`, so a read of `offset..EOF` ends on a line boundary and never
- * tears a multi-byte character; a partial-line buffer guards the contract anyway.
+ * reader handles both, where a line-index reader would not. A poll can observe a partial write
+ * (a large entry spans several write() syscalls), so the carry buffer holds raw bytes, not a
+ * decoded string: bytes are split on the newline and only whole lines are decoded, so a read
+ * that ends mid-codepoint never turns the split character into U+FFFD.
  *
  * Capture is best-effort: a missing file (not yet written, or removed on workspace cleanup)
  * or a read error stops forwarding quietly without ever throwing into the caller.
@@ -29,7 +34,7 @@ export interface SessionForwarder {
 export function startSessionForwarder(options: SessionForwarderOptions): SessionForwarder {
   const intervalMs = options.intervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   let offset = 0;
-  let pending = '';
+  let pending = Buffer.alloc(0);
   let stopped = false;
 
   function drainNewBytes(): void {
@@ -53,17 +58,19 @@ export function startSessionForwarder(options: SessionForwarderOptions): Session
       const buffer = Buffer.allocUnsafe(length);
       const read = readSync(fd, buffer, 0, length, offset);
       offset += read;
-      pending += buffer.subarray(0, read).toString('utf8');
+      // Concat copies the read bytes, so carrying a partial trailing line into the next poll
+      // (and decoding only whole lines below) keeps a mid-codepoint split intact.
+      pending = Buffer.concat([pending, buffer.subarray(0, read)]);
     } finally {
       closeSync(fd);
     }
 
-    let newline = pending.indexOf('\n');
+    let newline = pending.indexOf(NEWLINE);
     while (newline !== -1) {
-      const line = pending.slice(0, newline);
-      pending = pending.slice(newline + 1);
+      const line = pending.subarray(0, newline).toString('utf8');
+      pending = pending.subarray(newline + 1);
       if (line.length > 0) options.onEntry(line);
-      newline = pending.indexOf('\n');
+      newline = pending.indexOf(NEWLINE);
     }
   }
 

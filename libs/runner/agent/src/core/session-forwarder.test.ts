@@ -79,6 +79,26 @@ describe('startSessionForwarder', () => {
     forwarder.stop();
   });
 
+  it('reassembles a multi-byte character split across two reads', async () => {
+    const lines: string[] = [];
+    const entry = '{"emoji":"😀 héllo"}';
+    const bytes = Buffer.from(`${entry}\n`, 'utf8');
+    const splitInsideCodepoint = Buffer.byteLength('{"emoji":"', 'utf8') + 1;
+    writeFileSync(file, '');
+    const forwarder = startSessionForwarder({
+      filePath: file,
+      onEntry: (l) => lines.push(l),
+      intervalMs: 5,
+    });
+
+    appendFileSync(file, bytes.subarray(0, splitInsideCodepoint));
+    await delay(20);
+    appendFileSync(file, bytes.subarray(splitInsideCodepoint));
+
+    await vi.waitFor(() => expect(lines).toEqual([entry]));
+    forwarder.stop();
+  });
+
   it('does a final read on stop so trailing entries are forwarded', () => {
     const lines: string[] = [];
     const intervalTooLongForTest = 1_000_000;

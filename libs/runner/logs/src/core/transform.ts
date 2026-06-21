@@ -1,7 +1,8 @@
 import {TextDecoder} from 'node:util';
-import {redactSecrets, secretWireForms} from '@shipfox/redact';
+import {redactSecrets} from '@shipfox/redact';
 import {type OutputSource, PIPES} from '#core/framing.js';
 import {couldBeMarker, parseMarker} from '#core/markers.js';
+import {buildSecretVariants} from '#core/secrets.js';
 
 /** What the transform hands the framer: masked output text, or a swallowed group marker. */
 export type TransformEvent =
@@ -39,14 +40,10 @@ export class LogTransformer {
   private readonly sources: Record<OutputSource, SourceState>;
 
   constructor(secrets: string[]) {
-    // One deduped, longest-first variant set shared across pipes (secrets are global). The
-    // per-pipe decoder and line buffer are independent: stdout and stderr are separate byte
-    // streams that must never complete each other's partial sequences or split secrets.
-    const variantSet = new Set<string>();
-    for (const secret of secrets) {
-      for (const form of secretWireForms(secret)) variantSet.add(form);
-    }
-    this.variants = [...variantSet].sort((a, b) => b.length - a.length);
+    // The variant set is shared across pipes (secrets are global), but the per-pipe decoder and
+    // line buffer are independent: stdout and stderr are separate byte streams that must never
+    // complete each other's partial sequences or split secrets.
+    this.variants = buildSecretVariants(secrets);
     this.maxVariantLen = this.variants.reduce((max, form) => Math.max(max, form.length), 0);
     this.sources = {
       stdout: {decoder: newDecoder(), buffer: ''},

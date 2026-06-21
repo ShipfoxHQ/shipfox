@@ -83,6 +83,12 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
 
   signal.addEventListener('abort', abortSession, {once: true});
   const forwarder = startForwarding(session.sessionFile, onSessionEntry);
+  // pi may not settle session.prompt() promptly on abort (step.ts races the call), so the
+  // finally below can be delayed indefinitely. Stop the forwarder on abort too, or its poll
+  // timer leaks past workspace teardown. stop() is idempotent, so the finally re-calling it is
+  // safe, and the early stop still does its final drain.
+  const stopForwarder = () => forwarder?.stop();
+  signal.addEventListener('abort', stopForwarder, {once: true});
   try {
     await session.prompt(prompt);
     return {};
@@ -91,6 +97,7 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
     // stream, so all session records precede its end marker.
     forwarder?.stop();
     signal.removeEventListener('abort', abortSession);
+    signal.removeEventListener('abort', stopForwarder);
   }
 }
 
