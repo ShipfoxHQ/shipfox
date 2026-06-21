@@ -2,6 +2,7 @@ import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {RelativeTimeProvider} from '@shipfox/react-ui';
 import {useWorkflowRunQuery} from '#hooks/api/workflow-runs.js';
+import {WorkflowJobsGraph} from '../workflow-jobs-graph/index.js';
 import {WorkflowRunHeader} from './workflow-run-header.js';
 import {
   WorkflowRunNotFound,
@@ -49,7 +50,9 @@ function RunViewContent({query}: {query: ReturnType<typeof useWorkflowRunQuery>}
     <>
       <WorkflowRunHeader run={query.data} />
       {query.isError ? <WorkflowRunStaleError query={query} /> : null}
-      <div className="min-h-0 flex-1 bg-background-neutral-base" />
+      <div className="min-h-0 flex-1 overflow-auto bg-background-neutral-base p-16">
+        <WorkflowJobsGraph run={query.data} />
+      </div>
     </>
   );
 }

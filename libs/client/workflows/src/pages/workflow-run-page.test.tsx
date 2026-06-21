@@ -57,7 +57,7 @@ function createRunsListFetch() {
       );
     }
     if (url.pathname === `/workflows/runs/${RUN_ID}`) {
-      return Promise.resolve(jsonResponse(runDto()));
+      return Promise.resolve(jsonResponse({...runDto(), jobs: []}));
     }
 
     return Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}));

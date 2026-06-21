@@ -11,9 +11,8 @@ import {
 
 // A job may exchange its lease for checkout credentials only while it is
 // actively running. Gating on a positive allowlist (rather than a terminal
-// denylist) fails closed: a job that is still pending, paused for a manual
-// gate, or already finished mints nothing, and any future non-terminal status
-// cannot silently slip through.
+// denylist) fails closed: a job that is still pending or already finished mints
+// nothing, and any future non-terminal status cannot silently slip through.
 const ACTIVE_JOB_STATUSES: ReadonlySet<JobStatus> = new Set(['running']);
 
 export interface CheckoutIntent {

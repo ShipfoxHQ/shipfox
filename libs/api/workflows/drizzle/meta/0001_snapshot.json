@@ -726,16 +726,7 @@
     "public.workflows_job_status": {
       "name": "workflows_job_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "waiting_for_dependencies",
-        "ready",
-        "running",
-        "succeeded",
-        "failed",
-        "cancelled",
-        "awaiting_manual"
-      ]
+      "values": ["pending", "running", "succeeded", "failed", "cancelled"]
     },
     "public.workflows_step_status": {
       "name": "workflows_step_status",

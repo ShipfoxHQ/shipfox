@@ -51,8 +51,6 @@ describe('resolveCheckoutIntent', () => {
 
   it.each([
     'pending',
-    'ready',
-    'awaiting_manual',
   ] as const)('throws JobNotActiveError when the job is %s (not yet running)', async (status) => {
     const project = projectFactory.build();
     mockGetProjectById.mockResolvedValue(project);
