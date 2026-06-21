@@ -1,6 +1,7 @@
 import type {AuthMethod, RouteExport} from '@shipfox/node-fastify';
 import type {OutboxTable} from '@shipfox/node-outbox';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
+import type {ZodType} from 'zod';
 import type {ModuleSubscriber} from './subscriber.js';
 
 export interface ModuleDatabase {
@@ -21,6 +22,13 @@ export interface ModulePublisher {
   name: string;
   table: OutboxTable;
   db: () => NodePgDatabase<Record<string, unknown>>;
+  /**
+   * Optional schemas for events this publisher writes. Omitted entries preserve
+   * the historical unchecked payload path; new entries should live in the
+   * producing module's `*-dto` package so payload types and validation share one
+   * contract.
+   */
+  eventSchemas?: Record<string, ZodType>;
 }
 
 export interface WorkflowStart {

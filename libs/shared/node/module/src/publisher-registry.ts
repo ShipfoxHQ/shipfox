@@ -1,11 +1,13 @@
 import type {DomainEvent, OutboxTable} from '@shipfox/node-outbox';
 import {asc, inArray, isNull, sql} from 'drizzle-orm';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
+import type {ZodType} from 'zod';
 
 interface PublisherSource {
   name: string;
   table: OutboxTable;
   db: () => NodePgDatabase<Record<string, unknown>>;
+  eventSchemas?: Record<string, ZodType>;
 }
 
 export interface DrainedEvent {
@@ -20,6 +22,18 @@ const BATCH_SIZE = 100;
 
 export function registerPublisher(config: PublisherSource): void {
   _sources.push(config);
+}
+
+/**
+ * Event types are namespaced per module, so the registry treats the first schema
+ * match as the event owner instead of resolving collisions.
+ */
+export function getEventSchema(type: string): ZodType | undefined {
+  for (const source of _sources) {
+    const schema = source.eventSchemas?.[type];
+    if (schema) return schema;
+  }
+  return undefined;
 }
 
 export async function drainAll(): Promise<DrainedEvent[]> {

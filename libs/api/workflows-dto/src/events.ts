@@ -1,3 +1,5 @@
+import {z} from 'zod';
+
 export const WORKFLOWS_WORKFLOW_RUN_CREATED = 'workflows.workflow_run.created' as const;
 // Terminal fact for a workflow run, written in the same transaction as the status flip.
 export const WORKFLOWS_WORKFLOW_RUN_TERMINATED = 'workflows.workflow_run.terminated' as const;
@@ -23,22 +25,30 @@ export interface WorkflowsWorkflowRunCreatedEvent {
   definitionId: string;
 }
 
-export interface WorkflowsWorkflowRunTerminatedEvent {
-  runId: string;
-  projectId: string;
-  status: 'succeeded' | 'failed' | 'cancelled';
-}
+// Keep outbox terminal statuses narrower than runStatusSchema, which also
+// carries pending/running.
+export const terminalStatusSchema = z.enum(['succeeded', 'failed', 'cancelled']);
+
+export const workflowsWorkflowRunTerminatedSchema = z.object({
+  runId: z.string(),
+  projectId: z.string(),
+  status: terminalStatusSchema,
+});
+export type WorkflowsWorkflowRunTerminatedEvent = z.infer<
+  typeof workflowsWorkflowRunTerminatedSchema
+>;
 
 export interface WorkflowsJobTimedOutEvent {
   jobId: string;
   runId: string;
 }
 
-export interface WorkflowsJobTerminatedEvent {
-  jobId: string;
-  runId: string;
-  status: 'succeeded' | 'failed' | 'cancelled';
-}
+export const workflowsJobTerminatedSchema = z.object({
+  jobId: z.string(),
+  runId: z.string(),
+  status: terminalStatusSchema,
+});
+export type WorkflowsJobTerminatedEvent = z.infer<typeof workflowsJobTerminatedSchema>;
 
 export interface WorkflowsJobStepsSettledEvent {
   jobId: string;
@@ -63,3 +73,8 @@ export interface WorkflowsEventMap {
   [WORKFLOWS_JOB_STEPS_SETTLED]: WorkflowsJobStepsSettledEvent;
   [WORKFLOWS_STEP_RESTART_ENQUEUED]: WorkflowsStepRestartEnqueuedEvent;
 }
+
+export const workflowsEventSchemas = {
+  [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: workflowsWorkflowRunTerminatedSchema,
+  [WORKFLOWS_JOB_TERMINATED]: workflowsJobTerminatedSchema,
+};

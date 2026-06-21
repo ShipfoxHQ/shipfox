@@ -1,3 +1,5 @@
+import {z} from 'zod';
+
 export const INTEGRATION_EVENT_RECEIVED = 'integrations.event.received' as const;
 
 export interface IntegrationEventReceivedEvent {
@@ -13,13 +15,14 @@ export interface IntegrationEventReceivedEvent {
 // A source-control push, normalized by the producing provider. Carried both as the
 // generic `INTEGRATION_EVENT_RECEIVED` envelope payload (consumed opaquely by triggers)
 // and nested inside `INTEGRATION_SOURCE_COMMIT_PUSHED` (consumed by domain modules).
-export interface SourcePushPayload {
-  externalRepositoryId: string;
-  ref: string;
-  headCommitSha: string;
-  defaultBranch: string;
-  isDefaultBranch: boolean;
-}
+export const sourcePushSchema = z.object({
+  externalRepositoryId: z.string(),
+  ref: z.string(),
+  headCommitSha: z.string(),
+  defaultBranch: z.string(),
+  isDefaultBranch: z.boolean(),
+});
+export type SourcePushPayload = z.infer<typeof sourcePushSchema>;
 
 export const INTEGRATION_SOURCE_COMMIT_PUSHED =
   'integrations.source_control.commit_pushed' as const;
@@ -27,14 +30,17 @@ export const INTEGRATION_SOURCE_COMMIT_PUSHED =
 // Typed, provider-agnostic source-control event. The producing provider owns the
 // translation from its raw webhook into this shape, so domain consumers never decode
 // provider payloads. `isDefaultBranch` is a fact; the branch policy lives in the consumer.
-export interface IntegrationSourceCommitPushedEvent {
-  provider: string;
-  workspaceId: string;
-  connectionId: string;
-  deliveryId: string;
-  receivedAt: string;
-  push: SourcePushPayload;
-}
+export const integrationSourceCommitPushedSchema = z.object({
+  provider: z.string(),
+  workspaceId: z.string(),
+  connectionId: z.string(),
+  deliveryId: z.string(),
+  receivedAt: z.string(),
+  push: sourcePushSchema,
+});
+export type IntegrationSourceCommitPushedEvent = z.infer<
+  typeof integrationSourceCommitPushedSchema
+>;
 
 export interface SentryIssuePayload {
   action: SentryIssueAction;
@@ -69,3 +75,7 @@ export interface IntegrationsEventMap {
   [INTEGRATION_EVENT_RECEIVED]: IntegrationEventReceivedEvent;
   [INTEGRATION_SOURCE_COMMIT_PUSHED]: IntegrationSourceCommitPushedEvent;
 }
+
+export const integrationsEventSchemas = {
+  [INTEGRATION_SOURCE_COMMIT_PUSHED]: integrationSourceCommitPushedSchema,
+};
