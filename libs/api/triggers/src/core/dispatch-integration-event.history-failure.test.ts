@@ -1,5 +1,3 @@
-import type {IntegrationEventReceivedEvent} from '@shipfox/api-integration-core-dto';
-import type {DomainEvent} from '@shipfox/node-outbox';
 import {triggerSubscriptionFactory} from '#test/index.js';
 
 const runWorkflow = vi.fn();
@@ -18,10 +16,10 @@ vi.mock('#db/event-history.js', () => ({
   upsertErroredDecision: vi.fn(),
 }));
 
-// Import after mocks so the subscriber sees the spies.
-const {onIntegrationEventReceived} = await import('./on-integration-event-received.js');
+// Import after mocks so the code under test sees the spies.
+const {dispatchIntegrationEvent} = await import('./dispatch-integration-event.js');
 
-describe('onIntegrationEventReceived resilience to history-write failure', () => {
+describe('dispatchIntegrationEvent resilience to history-write failure', () => {
   beforeEach(() => {
     runWorkflow.mockReset();
     insertReceivedEvent.mockReset();
@@ -37,23 +35,19 @@ describe('onIntegrationEventReceived resilience to history-write failure', () =>
       event: 'push',
       config: {},
     });
-    const envelope: IntegrationEventReceivedEvent = {
-      source: 'github',
-      event: 'push',
-      workspaceId,
-      connectionId: crypto.randomUUID(),
-      deliveryId: crypto.randomUUID(),
-      receivedAt: new Date().toISOString(),
-      payload: {ref: 'main'},
-    };
-    const event: DomainEvent<IntegrationEventReceivedEvent> = {
-      id: crypto.randomUUID(),
-      type: 'integrations.event.received',
-      createdAt: new Date(),
-      payload: envelope,
-    };
 
-    await expect(onIntegrationEventReceived(envelope, event)).resolves.toBeUndefined();
+    await expect(
+      dispatchIntegrationEvent({
+        eventRef: crypto.randomUUID(),
+        workspaceId,
+        source: 'github',
+        event: 'push',
+        connectionId: crypto.randomUUID(),
+        deliveryId: crypto.randomUUID(),
+        receivedAt: new Date(),
+        payload: {ref: 'main'},
+      }),
+    ).resolves.toBeUndefined();
 
     expect(runWorkflow).toHaveBeenCalledTimes(1);
   });
