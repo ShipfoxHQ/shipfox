@@ -274,6 +274,40 @@ describe('GitHub webhook route', () => {
     expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'github', deliveryId});
   });
 
+  it.each([
+    'disabled',
+    'error',
+  ] as const)('records the delivery only when the connection is %s', async (lifecycleStatus) => {
+    const installationId = 7782;
+    const connection = fakeConnection({lifecycleStatus});
+    const {app, publishSourcePush, recordDeliveryOnly, getIntegrationConnectionById} =
+      await createTestApp({connection});
+    await seedInstallation(installationId, connection.id);
+    const deliveryId = randomUUID();
+    const body = JSON.stringify(
+      githubPushPayload({
+        installationId,
+        repositoryId: 302,
+        ref: 'refs/heads/main',
+        defaultBranch: 'main',
+        sha: 'inactive',
+      }),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/github',
+      headers: signedHeaders(body, 'push', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(getIntegrationConnectionById).toHaveBeenCalledTimes(1);
+    expect(publishSourcePush).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
+    expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'github', deliveryId});
+  });
+
   it('ignores pushes whose payload has no installation id', async () => {
     const {app, publishSourcePush, recordDeliveryOnly} = await createTestApp();
     const deliveryId = randomUUID();

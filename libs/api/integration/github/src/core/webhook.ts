@@ -29,6 +29,7 @@ export type HandleGithubPushOutcome =
   | 'duplicate'
   | 'deleted'
   | 'unknown-installation'
+  | 'inactive-connection'
   | 'no-installation-id';
 
 function isBranchDeletion(after: string): boolean {
@@ -80,6 +81,28 @@ export async function handleGithubPush(
       deliveryId: params.deliveryId,
     });
     return {outcome: 'unknown-installation'};
+  }
+
+  if (connection.lifecycleStatus !== 'active') {
+    const logContext = {
+      deliveryId: params.deliveryId,
+      installationId,
+      connectionId: connection.id,
+      workspaceId: connection.workspaceId,
+      lifecycleStatus: connection.lifecycleStatus,
+    };
+    // `disabled` is an expected steady state; only `error` is anomalous.
+    if (connection.lifecycleStatus === 'error') {
+      logger().warn(logContext, 'github webhook: connection in error state, dropping');
+    } else {
+      logger().info(logContext, 'github webhook: connection disabled, dropping');
+    }
+    await params.recordDeliveryOnly({
+      tx: params.tx,
+      provider: GITHUB_SOURCE,
+      deliveryId: params.deliveryId,
+    });
+    return {outcome: 'inactive-connection'};
   }
 
   const ref = stripRefsHeads(params.payload.ref);
