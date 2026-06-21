@@ -17,6 +17,11 @@ function createProvider() {
     gitea: giteaClient(),
     getExistingGiteaConnection: vi.fn(() => Promise.resolve(undefined)),
     connectGiteaConnection: vi.fn() as never,
+    // Provider-level mounting includes webhook routes; this test exercises only URLs.
+    coreDb: vi.fn() as never,
+    publishSourcePush: vi.fn() as never,
+    recordDeliveryOnly: vi.fn() as never,
+    getIntegrationConnectionById: vi.fn() as never,
   });
 }
 

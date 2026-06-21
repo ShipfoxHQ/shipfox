@@ -32,16 +32,13 @@ function isBranchDeletion(after: string): boolean {
 export async function handleGiteaPush(
   params: HandleGiteaPushParams,
 ): Promise<{outcome: HandleGiteaPushOutcome}> {
-  // A branch deletion is not a commit. Dropping it here, before `publishSourcePush`,
-  // emits neither the typed source-commit event (projects) nor the generic
-  // `INTEGRATION_EVENT_RECEIVED` envelope (triggers), so a deletion triggers nothing.
+  // Dropping deletes before `publishSourcePush` avoids project and trigger fan-out.
   if (isBranchDeletion(params.payload.after)) {
     return {outcome: 'deleted'};
   }
 
   const owner = params.payload.repository.owner.username;
-  // The connect flow stores the org lower-cased (Gitea routes org names
-  // case-insensitively), so match it case-insensitively here.
+  // Gitea org routes are case-insensitive, and the connect flow stores them lower-cased.
   const giteaConnection = await getGiteaConnectionByOrg(owner.toLowerCase(), {tx: params.tx});
   if (!giteaConnection) {
     logger().warn(
@@ -75,8 +72,7 @@ export async function handleGiteaPush(
   const ref = stripRefsHeads(params.payload.ref);
   const defaultBranch = params.payload.repository.default_branch;
   const push: SourcePushPayload = {
-    // Built from owner/name (not full_name) to byte-match the source-control
-    // adapter's repository id, so a pushed repo resolves to its bound project.
+    // Match the source-control adapter's owner/name repository id.
     externalRepositoryId: buildProviderRepositoryId(
       giteaProviderKind,
       `${owner}/${params.payload.repository.name}`,

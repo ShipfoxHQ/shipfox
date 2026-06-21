@@ -4,18 +4,12 @@ import {closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
 import {db} from '#db/db.js';
 import {giteaConnections} from '#db/schema/connections.js';
-import {giteaConnectionFactory, giteaPushPayload} from '#test/index.js';
+import {capturedGiteaPushPayload, giteaConnectionFactory, giteaPushPayload} from '#test/index.js';
 import {createGiteaWebhookRoutes} from './webhooks.js';
 
 // Must match GITEA_WEBHOOK_SECRET in test/env.ts.
 const WEBHOOK_SECRET = 'test-webhook-secret';
 
-// The route persists through injected core functions (publishSourcePush,
-// recordDeliveryOnly, getIntegrationConnectionById) that @shipfox/api-integration-core
-// owns and wires in production. gitea only orchestrates them, so here we fake that
-// interface with spies and assert the route's own behavior: signature/payload
-// validation, org resolution, and which core function it calls with what arguments.
-// The persistence itself (outbox + delivery rows, dedup) is tested in core.
 function fakeConnection(overrides: Partial<IntegrationConnection> = {}): IntegrationConnection {
   return {
     id: randomUUID(),
@@ -123,6 +117,37 @@ describe('Gitea webhook route', () => {
         externalRepositoryId: 'gitea:shipfox/api',
         ref: 'main',
         headCommitSha: 'abc123',
+        isDefaultBranch: true,
+      },
+    });
+  });
+
+  it('accepts the captured local Gitea push payload shape', async () => {
+    const connection = fakeConnection();
+    await seedConnection('shipfox-demo', connection.id);
+    const {app, publishSourcePush} = await createTestApp({connection});
+    const deliveryId = randomUUID();
+    const body = JSON.stringify(capturedGiteaPushPayload);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/gitea',
+      headers: signedHeaders(body, 'push', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(publishSourcePush).toHaveBeenCalledTimes(1);
+    expect(publishSourcePush.mock.calls[0]?.[0]).toMatchObject({
+      provider: 'gitea',
+      deliveryId,
+      workspaceId: connection.workspaceId,
+      connectionId: connection.id,
+      push: {
+        externalRepositoryId: 'gitea:shipfox-demo/api',
+        ref: 'main',
+        headCommitSha: capturedGiteaPushPayload.after,
+        defaultBranch: 'main',
         isDefaultBranch: true,
       },
     });

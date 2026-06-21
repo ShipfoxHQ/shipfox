@@ -74,8 +74,7 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
         updatedAt: new Date(),
       }),
     ),
-    // The webhook route group is also mounted by the provider; these tests only
-    // exercise the connection route, so its core dependencies are inert stubs.
+    // Provider-level mounting includes webhook routes; these tests exercise only connections.
     coreDb: vi.fn() as never,
     publishSourcePush: vi.fn() as never,
     recordDeliveryOnly: vi.fn() as never,
