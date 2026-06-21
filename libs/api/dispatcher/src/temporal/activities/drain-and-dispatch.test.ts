@@ -129,4 +129,47 @@ describe('drainAndDispatch', () => {
 
     expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', [event.id]);
   });
+
+  it('isolates a poison row: dispatches valid siblings in the same drain, leaves the invalid one undispatched', async () => {
+    const error = {issues: [{path: ['jobId'], code: 'invalid_type', message: 'expected string'}]};
+    const validJob: DomainEvent = {
+      id: crypto.randomUUID(),
+      type: 'workflows.job.terminated',
+      createdAt: new Date(),
+      payload: {jobId: 'job-1', runId: 'run-1', status: 'succeeded'},
+    };
+    const poison: DomainEvent = {
+      id: crypto.randomUUID(),
+      type: 'workflows.job.terminated',
+      createdAt: new Date(),
+      payload: {jobId: 123},
+    };
+    const validPush: DomainEvent = {
+      id: crypto.randomUUID(),
+      type: 'integrations.source_control.commit_pushed',
+      createdAt: new Date(),
+      payload: {deliveryId: 'delivery-1'},
+    };
+    const handler = vi.fn().mockResolvedValue(undefined);
+    mocks.drainAll.mockResolvedValueOnce([
+      {id: validJob.id, source: 'workflows', event: validJob},
+      {id: poison.id, source: 'workflows', event: poison},
+      {id: validPush.id, source: 'integrations', event: validPush},
+    ]);
+    mocks.getEventSchema
+      .mockReturnValueOnce({safeParse: () => ({success: true, data: validJob.payload})})
+      .mockReturnValueOnce({safeParse: () => ({success: false, error})})
+      .mockReturnValueOnce({safeParse: () => ({success: true, data: validPush.payload})});
+    mocks.getSubscribers.mockReturnValue([handler]);
+
+    await drainAndDispatch();
+
+    expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', [validJob.id]);
+    expect(mocks.markDispatched).toHaveBeenCalledWith('integrations', [validPush.id]);
+    expect(mocks.markDispatched).toHaveBeenCalledTimes(2);
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(mocks.captureException).toHaveBeenCalledWith(error, {
+      extra: {eventType: poison.type, eventId: poison.id, issues: error.issues},
+    });
+  });
 });

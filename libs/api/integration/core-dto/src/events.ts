@@ -78,4 +78,4 @@ export interface IntegrationsEventMap {
 
 export const integrationsEventSchemas = {
   [INTEGRATION_SOURCE_COMMIT_PUSHED]: integrationSourceCommitPushedSchema,
-};
+} satisfies Partial<Record<keyof IntegrationsEventMap, z.ZodType>>;

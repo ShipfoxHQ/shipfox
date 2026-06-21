@@ -77,4 +77,4 @@ export interface WorkflowsEventMap {
 export const workflowsEventSchemas = {
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: workflowsWorkflowRunTerminatedSchema,
   [WORKFLOWS_JOB_TERMINATED]: workflowsJobTerminatedSchema,
-};
+} satisfies Partial<Record<keyof WorkflowsEventMap, z.ZodType>>;
