@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import {runWorkflow, type WorkflowRun} from '@shipfox/api-workflows';
 import {getTriggerSubscriptionById} from '#db/subscriptions.js';
 import {readConfigInputs} from './config.js';
@@ -6,6 +7,7 @@ import {
   TriggerSubscriptionNotManualError,
   TriggerWorkspaceMismatchError,
 } from './errors.js';
+import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 
 export interface FireManualSubscriptionParams {
   subscriptionId: string;
@@ -31,16 +33,42 @@ export async function fireManualSubscription(
     );
   }
 
-  return await runWorkflow({
+  // Manual fires have no upstream event id. Use the run id after success; failed
+  // attempts need a synthesized ref because there is no run to key on.
+  const historyBase = {
+    origin: 'manual' as const,
     workspaceId: subscription.workspaceId,
-    projectId: subscription.projectId,
-    definitionId: subscription.workflowDefinitionId,
-    triggerPayload: {
-      source: 'manual',
-      event: 'fire',
-      subscriptionId: subscription.id,
-      userId: params.userId,
-    },
-    inputs: params.inputs ?? readConfigInputs(subscription),
-  });
+    source: subscription.source,
+    event: subscription.event,
+    deliveryId: null,
+    connectionId: null,
+    payload: null,
+    receivedAt: new Date(),
+  };
+
+  let run: WorkflowRun;
+  try {
+    run = await runWorkflow({
+      workspaceId: subscription.workspaceId,
+      projectId: subscription.projectId,
+      definitionId: subscription.workflowDefinitionId,
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: subscription.id,
+        userId: params.userId,
+      },
+      inputs: params.inputs ?? readConfigInputs(subscription),
+    });
+  } catch (error) {
+    const failure = await beginTriggerHistory({...historyBase, eventRef: randomUUID()});
+    await failure.errored(subscription, toReason(error));
+    await failure.failed(1);
+    throw error;
+  }
+
+  const history = await beginTriggerHistory({...historyBase, eventRef: run.id});
+  await history.triggered(subscription, run);
+  await history.routed(1);
+  return run;
 }

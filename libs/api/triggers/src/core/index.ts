@@ -1,4 +1,8 @@
 export {readConfigInputs} from './config.js';
+export {
+  type DispatchIntegrationEventParams,
+  dispatchIntegrationEvent,
+} from './dispatch-integration-event.js';
 export type {TriggerSubscription} from './entities/subscription.js';
 export {
   ManualTriggerNotFoundError,
