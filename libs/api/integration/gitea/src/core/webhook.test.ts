@@ -294,6 +294,42 @@ describe('handleGiteaWebhook', () => {
     });
   });
 
+  it.each([
+    'disabled',
+    'error',
+  ] as const)('records the delivery only when the connection is %s', async (lifecycleStatus) => {
+    const connection = fakeConnection({lifecycleStatus});
+    await seedConnection('shipfox', connection.id);
+    const handlers = deps({connection});
+    const deliveryId = randomUUID();
+    const rawBody = JSON.stringify(
+      giteaPushPayload({
+        owner: 'shipfox',
+        repo: 'api',
+        ref: 'refs/heads/main',
+        defaultBranch: 'main',
+        sha: 'inactive',
+      }),
+    );
+
+    const result = await handleGiteaWebhook({
+      tx: db(),
+      deliveryId,
+      event: 'push',
+      rawBody,
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('inactive-connection');
+    expect(handlers.getIntegrationConnectionById).toHaveBeenCalledTimes(1);
+    expect(handlers.publishSourcePush).not.toHaveBeenCalled();
+    expect(handlers.recordDeliveryOnly).toHaveBeenCalledTimes(1);
+    expect(handlers.recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({
+      provider: 'gitea',
+      deliveryId,
+    });
+  });
+
   it('rejects malformed JSON', async () => {
     const handlers = deps();
 

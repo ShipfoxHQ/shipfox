@@ -51,7 +51,12 @@ export interface HandleGiteaPushParams {
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
 }
 
-export type HandleGiteaPushOutcome = 'published' | 'duplicate' | 'deleted' | 'unknown-org';
+export type HandleGiteaPushOutcome =
+  | 'published'
+  | 'duplicate'
+  | 'deleted'
+  | 'unknown-org'
+  | 'inactive-connection';
 export type HandleGiteaWebhookOutcome = HandleGiteaPushOutcome | 'recorded-only';
 
 function isBranchDeletion(after: string): boolean {
@@ -118,6 +123,28 @@ export async function handleGiteaPush(
       deliveryId: params.deliveryId,
     });
     return {outcome: 'unknown-org'};
+  }
+
+  if (connection.lifecycleStatus !== 'active') {
+    const logContext = {
+      deliveryId: params.deliveryId,
+      org: owner,
+      connectionId: connection.id,
+      workspaceId: connection.workspaceId,
+      lifecycleStatus: connection.lifecycleStatus,
+    };
+    // `disabled` is an expected steady state; only `error` is anomalous.
+    if (connection.lifecycleStatus === 'error') {
+      logger().warn(logContext, 'gitea webhook: connection in error state, dropping');
+    } else {
+      logger().info(logContext, 'gitea webhook: connection disabled, dropping');
+    }
+    await params.recordDeliveryOnly({
+      tx: params.tx,
+      provider: giteaProviderKind,
+      deliveryId: params.deliveryId,
+    });
+    return {outcome: 'inactive-connection'};
   }
 
   const ref = stripRefsHeads(params.payload.ref);

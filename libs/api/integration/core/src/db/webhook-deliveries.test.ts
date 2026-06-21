@@ -171,6 +171,21 @@ describe('publishSourcePush', () => {
     expect(await deliveriesFor(params.provider, params.deliveryId)).toHaveLength(1);
     expect(await outboxFor(params.deliveryId)).toHaveLength(2);
   });
+
+  it('does not publish when the delivery was already recorded (record-only first)', async () => {
+    const params = buildSourcePushParams();
+    await recordDeliveryOnly({
+      tx: db(),
+      provider: params.provider,
+      deliveryId: params.deliveryId,
+    });
+
+    const result = await db().transaction((tx) => publishSourcePush({tx, ...params}));
+
+    expect(result.published).toBe(false);
+    expect(await deliveriesFor(params.provider, params.deliveryId)).toHaveLength(1);
+    expect(await outboxFor(params.deliveryId)).toHaveLength(0);
+  });
 });
 
 describe('publishSourceCommitPushed', () => {
