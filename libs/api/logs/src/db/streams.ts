@@ -247,13 +247,9 @@ export async function listStaleUncompactedStreams(params: {
 }
 
 /**
- * Open streams whose `created_at` is older than the reap window: the reaper cron force-closes
- * these so a stream the one-shot job-terminated sweep missed (one created after that sweep ran,
- * by a still-valid lease) still re-enters the closed -> compact -> retention lifecycle. Safe to
- * close because an append needs a live lease and a lease is minted at-or-before the stream's
- * `created_at`, so past `created_at + leaseTTL` no further append can land. Hits the partial
- * index `logs_attempt_streams_open_age_idx`; ordered by `created_at` so the oldest leak drains
- * first, bounded by `limit` per tick.
+ * Lists open streams old enough to force-close. The age check is safe only when
+ * `olderThanSeconds` exceeds the lease TTL: leases are minted before a stream can
+ * be created, so no valid append can arrive after `created_at + leaseTTL`.
  */
 export async function listStaleOpenStreams(params: {
   olderThanSeconds: number;

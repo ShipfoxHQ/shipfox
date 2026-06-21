@@ -92,16 +92,14 @@ if (!Number.isInteger(config.LOG_RETENTION_DAYS) || config.LOG_RETENTION_DAYS < 
   );
 }
 
-// The reaper force-closes any open stream older than this. The value MUST exceed the job lease
-// lifetime, or it would close streams a still-leased runner is appending to and truncate live
-// logs. Logs cannot read the auth config to check the exact relation, so enforce an absolute
-// floor at the default lease TTL (90 minutes): below it, a misconfig is closing live streams.
-const JOB_LEASE_TTL_DEFAULT_SECONDS = 5400;
+// Logs cannot import auth config, so this floor prevents a reaper value below the
+// default job lease TTL from truncating live appends.
+const MIN_STREAM_REAP_AFTER_SECONDS = 5400;
 if (
   !Number.isFinite(config.LOG_STREAM_REAP_AFTER_SECONDS) ||
-  config.LOG_STREAM_REAP_AFTER_SECONDS < JOB_LEASE_TTL_DEFAULT_SECONDS
+  config.LOG_STREAM_REAP_AFTER_SECONDS < MIN_STREAM_REAP_AFTER_SECONDS
 ) {
   throw new Error(
-    `LOG_STREAM_REAP_AFTER_SECONDS (${config.LOG_STREAM_REAP_AFTER_SECONDS}) must be at least ${JOB_LEASE_TTL_DEFAULT_SECONDS} seconds (the default job lease TTL) and greater than your AUTH_JOB_LEASE_TOKEN_EXPIRES_IN.`,
+    `LOG_STREAM_REAP_AFTER_SECONDS (${config.LOG_STREAM_REAP_AFTER_SECONDS}) must be at least ${MIN_STREAM_REAP_AFTER_SECONDS} seconds (the default job lease TTL) and greater than your AUTH_JOB_LEASE_TOKEN_EXPIRES_IN.`,
   );
 }

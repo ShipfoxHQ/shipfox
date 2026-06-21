@@ -7,10 +7,8 @@ import {endLine, ndjsonBody, outputLine} from '#test/fixtures/ndjson.js';
 import {findStream, listChunks, listStreamClosedEvents} from '#test/queries.js';
 import {reapStaleOpenStreamsActivity} from './reap-stale-open-streams.js';
 
-// The reaper calls `closeStream` per stream; mock the module so one test can make a single
-// stream's close fail (its only realistic poison is a DB error, which has no other seam). Every
-// other case re-points the mock at the real implementation in `beforeEach`, so it survives the
-// suite's `vi.restoreAllMocks()`.
+// Mock closeStream so the failure-path test can make one row fail while every
+// other test still uses the real implementation.
 const {closeStreamMock} = vi.hoisted(() => ({closeStreamMock: vi.fn()}));
 
 vi.mock('#core/close-stream.js', async (importOriginal) => {
@@ -36,8 +34,7 @@ function newCtx(): Ctx {
   };
 }
 
-// The reap window is LOG_STREAM_REAP_AFTER_SECONDS (default 7200s); 3 hours clears it.
-async function backdateCreatedAt(streamId: string): Promise<void> {
+async function backdateCreatedAtPastReapWindow(streamId: string): Promise<void> {
   await db()
     .update(attemptStreams)
     .set({createdAt: sql`now() - interval '3 hours'`})
@@ -63,7 +60,7 @@ describe('reapStaleOpenStreamsActivity', () => {
     const ctx = newCtx();
     await appendLogs({...ctx, attempt: 1, offset: 0, body: ndjsonBody(outputLine('partial\n'))});
     const open = await findStream({...ctx, attempt: 1});
-    await backdateCreatedAt(open?.id as string);
+    await backdateCreatedAtPastReapWindow(open?.id as string);
 
     const {reaped, failed} = await reapStaleOpenStreamsActivity();
 
@@ -101,7 +98,7 @@ describe('reapStaleOpenStreamsActivity', () => {
       body: ndjsonBody(outputLine('done\n'), endLine(5)),
     });
     const closed = await findStream({...ctx, attempt: 1});
-    await backdateCreatedAt(closed?.id as string);
+    await backdateCreatedAtPastReapWindow(closed?.id as string);
 
     const {reaped} = await reapStaleOpenStreamsActivity();
 
@@ -136,8 +133,8 @@ describe('reapStaleOpenStreamsActivity', () => {
     });
     const poison = await findStream({...poisonCtx, attempt: 1});
     const healthy = await findStream({...healthyCtx, attempt: 1});
-    await backdateCreatedAt(poison?.id as string);
-    await backdateCreatedAt(healthy?.id as string);
+    await backdateCreatedAtPastReapWindow(poison?.id as string);
+    await backdateCreatedAtPastReapWindow(healthy?.id as string);
     closeStreamMock.mockImplementation((tx: Transaction, params: CloseStreamParams) =>
       params.streamId === poison?.id
         ? Promise.reject(new Error('induced close failure'))

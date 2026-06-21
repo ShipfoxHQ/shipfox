@@ -5,7 +5,6 @@ const {reapStaleOpenStreamsActivity} = proxyActivities<ReturnType<typeof createL
   startToCloseTimeout: '5 minutes',
 });
 
-/** Cron-scheduled backstop that force-closes open streams left open past the lease window. */
 export async function reapStaleOpenStreamsCron(): Promise<void> {
   const {reaped, failed} = await reapStaleOpenStreamsActivity();
   if (reaped > 0 || failed > 0) {
