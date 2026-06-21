@@ -4,6 +4,53 @@ function encodeSecret(secret: string): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
+const UNIT_SECONDS: Record<string, number> = {
+  sec: 1,
+  secs: 1,
+  second: 1,
+  seconds: 1,
+  s: 1,
+  minute: 60,
+  minutes: 60,
+  min: 60,
+  mins: 60,
+  m: 60,
+  hour: 3600,
+  hours: 3600,
+  hr: 3600,
+  hrs: 3600,
+  h: 3600,
+  day: 86_400,
+  days: 86_400,
+  d: 86_400,
+  week: 604_800,
+  weeks: 604_800,
+  w: 604_800,
+  year: 31_557_600,
+  years: 31_557_600,
+  yr: 31_557_600,
+  yrs: 31_557_600,
+  y: 31_557_600,
+};
+
+const DURATION_PATTERN = /^(\d+(?:\.\d+)?) ?([a-z]+)$/i;
+
+/**
+ * Converts a jose timespan string (the same `expiresIn` values {@link signHs256} accepts, e.g.
+ * `90m`, `7d`, `3600s`) into whole seconds, so callers can reason about a token's lifetime
+ * without minting one. Units and rounding mirror jose's own parser. Throws on an unrecognized
+ * format, which a bare number (`5400`) is, exactly as jose rejects it.
+ */
+export function durationToSeconds(value: string): number {
+  const match = DURATION_PATTERN.exec(value.trim());
+  const [, amount, unit] = match ?? [];
+  const unitSeconds = unit === undefined ? undefined : UNIT_SECONDS[unit.toLowerCase()];
+  if (amount === undefined || unitSeconds === undefined) {
+    throw new TypeError(`Invalid duration: "${value}"`);
+  }
+  return Math.round(Number.parseFloat(amount) * unitSeconds);
+}
+
 export interface SignHs256Params {
   payload: Record<string, unknown>;
   secret: string;
