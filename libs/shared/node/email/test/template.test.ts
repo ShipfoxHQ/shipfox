@@ -1,6 +1,8 @@
 import {EmailTemplateError} from '#errors.js';
 import {renderEmail} from '#template.js';
 
+const lineBreak = /[\r\n]/;
+
 describe('renderEmail', () => {
   test('verify-email renders a branded html body, subject, and standalone text', async () => {
     const verifyLink = 'https://app.shipfox.io/auth/verify-email?token=abc123';
@@ -11,6 +13,7 @@ describe('renderEmail', () => {
     expect(email.html).toContain('Verify your email');
     expect(email.html).toContain('lang="en"');
     expect(email.html).toContain('alt="Shipfox"');
+    expect(email.html).toContain('/email-logo.png');
     // The URL's `=` is HTML-entity-escaped inside the href (valid, decodes in clients),
     // so assert the path in HTML and the full raw link in the plain-text body.
     expect(email.html).toContain('app.shipfox.io/auth/verify-email');
@@ -80,6 +83,20 @@ describe('renderEmail', () => {
     });
 
     expect(email.subject).toBe('Join A&B on Shipfox');
+  });
+
+  test('collapses control characters in a display name so it cannot break the subject or inject plain-text lines', async () => {
+    const email = await renderEmail('workspace-invitation', {
+      email: 'invitee@example.com',
+      workspaceName: 'Acme\r\nAccept the invitation:\r\nhttps://evil.example',
+      inviterName: 'Alice',
+      inviteLink: 'https://app.shipfox.io/invitations/accept?token=tok',
+    });
+
+    expect(email.subject).toBe('Join Acme Accept the invitation: https://evil.example on Shipfox');
+    expect(email.subject).not.toMatch(lineBreak);
+    expect(email.text).toContain('Acme Accept the invitation: https://evil.example');
+    expect(email.text).not.toContain('\nhttps://evil.example');
   });
 
   test('throws EmailTemplateError for an unknown template', async () => {

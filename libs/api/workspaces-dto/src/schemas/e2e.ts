@@ -1,12 +1,12 @@
 import {z} from 'zod';
 import {invitationDtoSchema} from './invitation.js';
-import {workspaceResponseSchema} from './workspace.js';
+import {displayNameSchema, workspaceResponseSchema} from './workspace.js';
 
 export const e2eCreateWorkspaceBodySchema = z.object({
   user_id: z.string().uuid(),
   user_email: z.string().email().optional(),
   user_name: z.string().nullable().optional(),
-  name: z.string().min(1).max(255),
+  name: displayNameSchema,
 });
 
 export type E2eCreateWorkspaceBodyDto = z.infer<typeof e2eCreateWorkspaceBodySchema>;

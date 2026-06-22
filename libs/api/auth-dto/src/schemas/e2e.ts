@@ -1,12 +1,12 @@
 import {z} from 'zod';
-import {emailSchema, loginResponseSchema, passwordSchema} from './auth.js';
+import {displayNameSchema, emailSchema, loginResponseSchema, passwordSchema} from './auth.js';
 import {userDtoSchema} from './user.js';
 
 export const e2eCreateUserBodySchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   verified: z.boolean(),
-  name: z.string().min(1).max(255).optional(),
+  name: displayNameSchema.optional(),
 });
 
 export type E2eCreateUserBodyDto = z.infer<typeof e2eCreateUserBodySchema>;
