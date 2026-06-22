@@ -20,3 +20,9 @@ export interface TriggerReceivedEvent {
   processedAt: Date | null;
   createdAt: Date;
 }
+
+/**
+ * Trigger event shape for list read models.
+ * It omits payload because webhook bodies can be large/untrusted and only detail views render them.
+ */
+export type TriggerReceivedEventSummary = Omit<TriggerReceivedEvent, 'payload'>;

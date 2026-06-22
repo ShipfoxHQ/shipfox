@@ -3,8 +3,8 @@
 Shipfox API Triggers decides when a workflow run starts. It projects the
 `triggers` map from each workflow YAML into an indexed subscription table,
 matches incoming integration events against those subscriptions, and starts
-a workflow run for every match. It also exposes the HTTP route that fires
-manual runs.
+a workflow run for every match. It also exposes HTTP routes that fire manual
+runs and inspect received trigger events.
 
 ## Example
 
@@ -28,6 +28,7 @@ This adds:
 
 - triggers database migrations from `libs/api/triggers/drizzle`
 - the `POST /workflow-definitions/:definitionId/fire-manual` route
+- the `GET /trigger-events` and `GET /trigger-events/:id` inspection routes
 - subscribers for `DEFINITION_RESOLVED`, `DEFINITION_DELETED`, and
   `INTEGRATION_EVENT_RECEIVED`
 - the `triggers` outbox publisher
@@ -81,14 +82,16 @@ It also depends on the API database connection from `@shipfox/node-postgres`.
 
 ## Routes
 
-The route is mounted by the host app under the `/workflow-definitions`
-prefix.
+The routes are mounted by the host app under the `/workflow-definitions` and
+`/trigger-events` prefixes.
 
 | Method | Path | Auth | Result |
 | --- | --- | --- | --- |
-| `POST` | `/:definitionId/fire-manual` | bearer token | Fires the workflow's manual trigger and returns the new `run_id`. Optional `inputs` in the body are forwarded to the run. |
+| `POST` | `/workflow-definitions/:definitionId/fire-manual` | bearer token | Fires the workflow's manual trigger and returns the new `run_id`. Optional `inputs` in the body are forwarded to the run. |
+| `GET` | `/trigger-events?workspace_id=:workspaceId` | bearer token | Lists received trigger events for a workspace, newest first. Supports source, event, outcome, received-at window, limit, and cursor filters. |
+| `GET` | `/trigger-events/:id` | bearer token | Returns one received trigger event with its full payload and routing decisions. Cross-workspace ids return `404`. |
 
-The route is keyed by workflow definition id, not subscription id. The
+The manual route is keyed by workflow definition id, not subscription id. The
 server resolves the manual subscription for the workflow internally; the
 "at most one manual trigger per workflow" invariant from the parser keeps
 that lookup unambiguous. Integration sources (github, etc.) fire through
