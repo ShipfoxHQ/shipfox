@@ -11,9 +11,9 @@ function Collapsible({...props}: ComponentProps<typeof CollapsiblePrimitive.Root
 function CollapsibleTrigger({
   className,
   ...props
-}: ComponentProps<typeof CollapsiblePrimitive.CollapsibleTrigger>) {
+}: ComponentProps<typeof CollapsiblePrimitive.Trigger>) {
   return (
-    <CollapsiblePrimitive.CollapsibleTrigger
+    <CollapsiblePrimitive.Trigger
       data-slot="collapsible-trigger"
       className={cn('outline-none', className)}
       {...props}
@@ -24,9 +24,9 @@ function CollapsibleTrigger({
 function CollapsibleContent({
   className,
   ...props
-}: ComponentProps<typeof CollapsiblePrimitive.CollapsibleContent>) {
+}: ComponentProps<typeof CollapsiblePrimitive.Content>) {
   return (
-    <CollapsiblePrimitive.CollapsibleContent
+    <CollapsiblePrimitive.Content
       data-slot="collapsible-content"
       className={cn(
         // Radix publishes the measured height on the element as a CSS variable;

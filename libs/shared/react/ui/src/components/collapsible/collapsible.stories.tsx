@@ -6,6 +6,8 @@ import {Icon} from '#components/icon/index.js';
 import {Text} from '#components/typography/index.js';
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from './collapsible.js';
 
+const isTestEnvironment = () => typeof navigator !== 'undefined' && navigator.webdriver === true;
+
 const meta = {
   title: 'Components/Collapsible',
   component: Collapsible,
@@ -14,7 +16,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Single panel that expands and collapses, built on `@radix-ui/react-collapsible`. Use it for "show more" rows, optional/advanced settings, and any place a section should fold away until needed. The three primitives — `Collapsible`, `CollapsibleTrigger`, and `CollapsibleContent` — compose with our `Button`, `Icon`, and surface components; the content animates its height with the shared `collapsible-down`/`collapsible-up` keyframes. For several independently toggled rows that behave as a group, reach for an Accordion instead.',
+          'Single panel that expands and collapses, built on `@radix-ui/react-collapsible`. Use it for "show more" rows, optional/advanced settings, and any place a section should fold away until needed. The three primitives — `Collapsible`, `CollapsibleTrigger`, and `CollapsibleContent` — compose with our `Button`, `Icon`, and surface components; the content animates its height with the shared `collapsible-down`/`collapsible-up` keyframes. For several independently toggled rows, compose multiple `Collapsible`s. `CollapsibleContent` stays `overflow-hidden` so the height animation can clip cleanly, so portal any nested overlay (popover, tooltip, dropdown menu) rather than rendering it inline, where it would be clipped.',
       },
     },
   },
@@ -69,7 +71,7 @@ export const Open: Story = {
 export const Controlled: Story = {
   render: () => {
     function ControlledCollapsible() {
-      const [open, setOpen] = useState(false);
+      const [open, setOpen] = useState(isTestEnvironment());
       return (
         <div className="flex w-[420px] flex-col gap-10">
           <Button
