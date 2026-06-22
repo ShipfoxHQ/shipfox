@@ -4,6 +4,7 @@ export * from './badge/index.js';
 export * from './button/index.js';
 export * from './card/index.js';
 export * from './code-block/index.js';
+export * from './collapsible/index.js';
 export * from './combobox/index.js';
 export * from './command/index.js';
 export * from './dot/index.js';
