@@ -41,6 +41,7 @@ export const CommonIcons: Story = {
         'sentry',
         'slack',
         'stripe',
+        'gitea',
       ].map((name) => (
         <div key={name} className="flex flex-col items-center gap-8 text-foreground-neutral-base">
           <Icon name={name} size={24} />

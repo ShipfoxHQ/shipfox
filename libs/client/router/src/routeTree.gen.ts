@@ -30,6 +30,7 @@ import { Route as WorkspacesWidLayoutSettingsIntegrationsRouteImport } from './r
 import { Route as WorkspacesWidLayoutProjectsNewRouteImport } from './routes/workspaces/$wid/_layout/projects/new'
 import { Route as WorkspacesWidLayoutIntegrationsSentryRouteImport } from './routes/workspaces/$wid/_layout/integrations/sentry'
 import { Route as WorkspacesWidLayoutIntegrationsGithubRouteImport } from './routes/workspaces/$wid/_layout/integrations/github'
+import { Route as WorkspacesWidLayoutIntegrationsGiteaRouteImport } from './routes/workspaces/$wid/_layout/integrations/gitea'
 import { Route as WorkspacesWidLayoutIntegrationsDebugRouteImport } from './routes/workspaces/$wid/_layout/integrations/debug'
 import { Route as WorkspacesWidLayoutProjectsPidLayoutRouteImport } from './routes/workspaces/$wid/_layout/projects/$pid/_layout'
 import { Route as WorkspacesWidLayoutProjectsPidLayoutIndexRouteImport } from './routes/workspaces/$wid/_layout/projects/$pid/_layout/index'
@@ -154,6 +155,12 @@ const WorkspacesWidLayoutIntegrationsGithubRoute =
     path: '/integrations/github',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
+const WorkspacesWidLayoutIntegrationsGiteaRoute =
+  WorkspacesWidLayoutIntegrationsGiteaRouteImport.update({
+    id: '/integrations/gitea',
+    path: '/integrations/gitea',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
 const WorkspacesWidLayoutIntegrationsDebugRoute =
   WorkspacesWidLayoutIntegrationsDebugRouteImport.update({
     id: '/integrations/debug',
@@ -206,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/setup/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
   '/workspaces/$wid/': typeof WorkspacesWidLayoutIndexRoute
   '/workspaces/$wid/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
+  '/workspaces/$wid/integrations/gitea': typeof WorkspacesWidLayoutIntegrationsGiteaRoute
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
@@ -234,6 +242,7 @@ export interface FileRoutesByTo {
   '/setup/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
   '/workspaces/$wid': typeof WorkspacesWidLayoutIndexRoute
   '/workspaces/$wid/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
+  '/workspaces/$wid/integrations/gitea': typeof WorkspacesWidLayoutIntegrationsGiteaRoute
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
@@ -263,6 +272,7 @@ export interface FileRoutesById {
   '/setup/_layout/workspaces/new': typeof SetupLayoutWorkspacesNewRoute
   '/workspaces/$wid/_layout/': typeof WorkspacesWidLayoutIndexRoute
   '/workspaces/$wid/_layout/integrations/debug': typeof WorkspacesWidLayoutIntegrationsDebugRoute
+  '/workspaces/$wid/_layout/integrations/gitea': typeof WorkspacesWidLayoutIntegrationsGiteaRoute
   '/workspaces/$wid/_layout/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/_layout/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/_layout/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
@@ -294,6 +304,7 @@ export interface FileRouteTypes {
     | '/setup/workspaces/new'
     | '/workspaces/$wid/'
     | '/workspaces/$wid/integrations/debug'
+    | '/workspaces/$wid/integrations/gitea'
     | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/integrations/sentry'
     | '/workspaces/$wid/projects/new'
@@ -322,6 +333,7 @@ export interface FileRouteTypes {
     | '/setup/workspaces/new'
     | '/workspaces/$wid'
     | '/workspaces/$wid/integrations/debug'
+    | '/workspaces/$wid/integrations/gitea'
     | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/integrations/sentry'
     | '/workspaces/$wid/projects/new'
@@ -350,6 +362,7 @@ export interface FileRouteTypes {
     | '/setup/_layout/workspaces/new'
     | '/workspaces/$wid/_layout/'
     | '/workspaces/$wid/_layout/integrations/debug'
+    | '/workspaces/$wid/_layout/integrations/gitea'
     | '/workspaces/$wid/_layout/integrations/github'
     | '/workspaces/$wid/_layout/integrations/sentry'
     | '/workspaces/$wid/_layout/projects/new'
@@ -528,6 +541,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWidLayoutIntegrationsGithubRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
+    '/workspaces/$wid/_layout/integrations/gitea': {
+      id: '/workspaces/$wid/_layout/integrations/gitea'
+      path: '/integrations/gitea'
+      fullPath: '/workspaces/$wid/integrations/gitea'
+      preLoaderRoute: typeof WorkspacesWidLayoutIntegrationsGiteaRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
     '/workspaces/$wid/_layout/integrations/debug': {
       id: '/workspaces/$wid/_layout/integrations/debug'
       path: '/integrations/debug'
@@ -612,6 +632,7 @@ const WorkspacesWidLayoutProjectsPidLayoutRouteWithChildren =
 interface WorkspacesWidLayoutRouteChildren {
   WorkspacesWidLayoutIndexRoute: typeof WorkspacesWidLayoutIndexRoute
   WorkspacesWidLayoutIntegrationsDebugRoute: typeof WorkspacesWidLayoutIntegrationsDebugRoute
+  WorkspacesWidLayoutIntegrationsGiteaRoute: typeof WorkspacesWidLayoutIntegrationsGiteaRoute
   WorkspacesWidLayoutIntegrationsGithubRoute: typeof WorkspacesWidLayoutIntegrationsGithubRoute
   WorkspacesWidLayoutIntegrationsSentryRoute: typeof WorkspacesWidLayoutIntegrationsSentryRoute
   WorkspacesWidLayoutProjectsNewRoute: typeof WorkspacesWidLayoutProjectsNewRoute
@@ -627,6 +648,8 @@ const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
   WorkspacesWidLayoutIndexRoute: WorkspacesWidLayoutIndexRoute,
   WorkspacesWidLayoutIntegrationsDebugRoute:
     WorkspacesWidLayoutIntegrationsDebugRoute,
+  WorkspacesWidLayoutIntegrationsGiteaRoute:
+    WorkspacesWidLayoutIntegrationsGiteaRoute,
   WorkspacesWidLayoutIntegrationsGithubRoute:
     WorkspacesWidLayoutIntegrationsGithubRoute,
   WorkspacesWidLayoutIntegrationsSentryRoute:

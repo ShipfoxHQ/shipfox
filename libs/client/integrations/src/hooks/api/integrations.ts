@@ -7,6 +7,10 @@ import type {
 } from '@shipfox/api-integration-core-dto';
 import type {CreateDebugConnectionBodyDto} from '@shipfox/api-integration-debug-dto';
 import type {
+  CreateGiteaConnectionBodyDto,
+  CreateGiteaConnectionResponseDto,
+} from '@shipfox/api-integration-gitea-dto';
+import type {
   CreateGithubInstallBodyDto,
   CreateGithubInstallResponseDto,
 } from '@shipfox/api-integration-github-dto';
@@ -92,6 +96,13 @@ export async function listSourceConnections({
 
 export async function createDebugConnection(body: CreateDebugConnectionBodyDto) {
   return await apiRequest<IntegrationConnectionDto>('/integrations/debug/connections', {
+    method: 'POST',
+    body,
+  });
+}
+
+export async function createGiteaConnection(body: CreateGiteaConnectionBodyDto) {
+  return await apiRequest<CreateGiteaConnectionResponseDto>('/integrations/gitea/connections', {
     method: 'POST',
     body,
   });
@@ -196,4 +207,8 @@ export function useRepositoriesInfiniteQuery(
 
 export function useCreateDebugConnectionMutation() {
   return useMutation({mutationFn: createDebugConnection});
+}
+
+export function useCreateGiteaConnectionMutation() {
+  return useMutation({mutationFn: createGiteaConnection});
 }
