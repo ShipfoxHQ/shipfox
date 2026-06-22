@@ -2571,6 +2571,12 @@ importers:
 
   libs/client/triggers:
     dependencies:
+      '@shipfox/api-triggers-dto':
+        specifier: workspace:*
+        version: link:../../api/triggers-dto
+      '@shipfox/client-api':
+        specifier: workspace:*
+        version: link:../api
       '@shipfox/client-integrations':
         specifier: workspace:*
         version: link:../integrations
@@ -2580,6 +2586,9 @@ importers:
       '@swc/helpers':
         specifier: ^0.5.17
         version: 0.5.23
+      '@tanstack/react-query':
+        specifier: ^5.101.0
+        version: 5.101.0(react@19.2.7)
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
