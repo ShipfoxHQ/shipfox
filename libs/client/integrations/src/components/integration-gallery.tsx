@@ -24,6 +24,7 @@ import {
   useIntegrationConnectionsQuery,
   useIntegrationProvidersQuery,
 } from '#hooks/api/integrations.js';
+import {IntegrationIcon} from '#integration-icon.js';
 import {PROVIDER_CATALOG} from '#provider-catalog.js';
 
 export interface IntegrationGalleryProps {
@@ -48,8 +49,6 @@ const lifecyclePills: Record<
   disabled: {variant: 'neutral', label: 'Disabled', iconLeft: 'errorWarningLine'},
   error: {variant: 'error', label: 'Error'},
 };
-
-const FALLBACK_ICON: IconName = 'componentLine';
 
 // Shared so the live grid and its loading skeleton can never drift to a
 // different column rule. Container-driven (auto-fill) columns work in both the
@@ -179,14 +178,13 @@ function InstalledRow({
   connection: IntegrationConnectionDto;
   providerLabel: string;
 }) {
-  const iconName = PROVIDER_CATALOG[connection.provider]?.iconName ?? FALLBACK_ICON;
   const pill = lifecyclePills[connection.lifecycle_status];
   const muted = connection.lifecycle_status === 'disabled';
 
   return (
     <li className="flex items-center gap-12 px-16 py-10 transition-colors hover:bg-background-components-hover">
-      <Icon
-        name={iconName}
+      <IntegrationIcon
+        source={connection.provider}
         className={cn(
           'size-24 shrink-0',
           muted ? 'text-foreground-neutral-disabled' : 'text-foreground-neutral-base',
@@ -262,7 +260,10 @@ function AvailableCard({
     >
       <Card className="h-full gap-8 p-16 transition-colors hover:bg-background-components-hover">
         <div className="flex min-w-0 items-center gap-12">
-          <Icon name={catalog.iconName} className="size-24 shrink-0 text-foreground-neutral-base" />
+          <IntegrationIcon
+            source={provider.provider}
+            className="size-24 shrink-0 text-foreground-neutral-base"
+          />
           <Text size="md" bold className="truncate">
             {provider.display_name}
           </Text>

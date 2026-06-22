@@ -1,0 +1,61 @@
+{
+  "name": "@shipfox/client-triggers",
+  "license": "MIT",
+  "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/platform.git",
+    "directory": "libs/client/triggers"
+  },
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "imports": {
+    "#*": "./src/*"
+  },
+  "exports": {
+    ".": {
+      "development": {
+        "types": "./src/index.ts",
+        "default": "./src/index.ts"
+      },
+      "default": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "shipfox-swc",
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "test": "shipfox-vitest-run",
+    "test:watch": "shipfox-vitest-watch",
+    "type": "shipfox-tsc-check",
+    "type:emit": "shipfox-tsc-emit"
+  },
+  "dependencies": {
+    "@shipfox/client-integrations": "workspace:*",
+    "@shipfox/react-ui": "workspace:*",
+    "@swc/helpers": "^0.5.17"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/swc": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.1.11",
+    "@types/react-dom": "^19.1.7",
+    "jsdom": "^29.0.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  }
+}
