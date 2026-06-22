@@ -23,9 +23,21 @@ describe('triggerEventsQueryKeys', () => {
       'trigger-events',
       'list',
       workspaceId,
+      50,
       {source: null, event: null, outcome: null, from: null, to: null},
     ]);
     expect(key.slice(0, 3)).toEqual(triggerEventsQueryKeys.lists(workspaceId));
+  });
+
+  test('keeps distinct page limits on distinct keys', () => {
+    const workspaceId = '11111111-1111-4111-8111-111111111111';
+
+    const defaultLimit = triggerEventsQueryKeys.list(workspaceId, {});
+    const compactLimit = triggerEventsQueryKeys.list(workspaceId, {}, 25);
+
+    expect(defaultLimit).not.toEqual(compactLimit);
+    expect(defaultLimit[3]).toBe(50);
+    expect(compactLimit[3]).toBe(25);
   });
 
   test('normalizes absent filter fields to null so empty variants share a key', () => {
@@ -48,7 +60,7 @@ describe('triggerEventsQueryKeys', () => {
 
     const key = triggerEventsQueryKeys.list(workspaceId, {outcome: []});
 
-    expect(key[3]).toMatchObject({outcome: null});
+    expect(key[4]).toMatchObject({outcome: null});
   });
 
   test('sorts and de-duplicates outcome so filter order does not split the cache', () => {
@@ -58,7 +70,7 @@ describe('triggerEventsQueryKeys', () => {
     const b = triggerEventsQueryKeys.list(workspaceId, {outcome: ['failed', 'routed', 'failed']});
 
     expect(a).toEqual(b);
-    expect(a[3]).toMatchObject({outcome: ['failed', 'routed']});
+    expect(a[4]).toMatchObject({outcome: ['failed', 'routed']});
   });
 
   test('keeps distinct filters on distinct keys', () => {

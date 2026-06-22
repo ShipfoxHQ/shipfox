@@ -29,9 +29,10 @@ function normalizeTriggerEventFiltersForQueryKey(filters: TriggerEventFilters) {
 export const triggerEventsQueryKeys = {
   all: ['trigger-events'] as const,
   lists: (workspaceId: string) => [...triggerEventsQueryKeys.all, 'list', workspaceId] as const,
-  list: (workspaceId: string, filters: TriggerEventFilters) =>
+  list: (workspaceId: string, filters: TriggerEventFilters, limit = 50) =>
     [
       ...triggerEventsQueryKeys.lists(workspaceId),
+      limit,
       normalizeTriggerEventFiltersForQueryKey(filters),
     ] as const,
   detail: (id: string) => [...triggerEventsQueryKeys.all, 'detail', id] as const,
@@ -79,7 +80,7 @@ export function useTriggerEventsInfiniteQuery(
 ) {
   return useInfiniteQuery({
     queryKey: workspaceId
-      ? triggerEventsQueryKeys.list(workspaceId, filters)
+      ? triggerEventsQueryKeys.list(workspaceId, filters, limit)
       : [...triggerEventsQueryKeys.all, 'list'],
     enabled: Boolean(workspaceId),
     initialPageParam: undefined as string | undefined,
