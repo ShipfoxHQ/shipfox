@@ -1,4 +1,5 @@
 export {getInitial, getPlaceholderImageUrl} from './avatar.js';
+export {copyTextToClipboard} from './clipboard.js';
 export {cn} from './cn.js';
 export {formatDate, formatTimestamp} from './datetime.js';
 export {debounce} from './debounce.js';
