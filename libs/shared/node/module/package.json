@@ -42,7 +42,8 @@
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-outbox": "workspace:*",
     "@shipfox/node-temporal": "workspace:*",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

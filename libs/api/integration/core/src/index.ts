@@ -1,5 +1,6 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {integrationsEventSchemas} from '@shipfox/api-integration-core-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {IntegrationProvider} from '#core/entities/provider.js';
@@ -136,7 +137,9 @@ export async function createIntegrationsContext(
       ...parts.flatMap((part) => (part.database ? [part.database] : [])),
     ],
     routes: createIntegrationRoutes(registry, sourceControl),
-    publishers: [{name: 'integrations', table: integrationsOutbox, db}],
+    publishers: [
+      {name: 'integrations', table: integrationsOutbox, db, eventSchemas: integrationsEventSchemas},
+    ],
     workers: [
       {
         taskQueue: INTEGRATIONS_MAINTENANCE_TASK_QUEUE,

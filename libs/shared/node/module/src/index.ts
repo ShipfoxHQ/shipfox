@@ -6,6 +6,7 @@ export {initializeModules, startModuleWorkers} from './initialize.js';
 export type {DrainedEvent} from './publisher-registry.js';
 export {
   drainAll,
+  getEventSchema,
   markDispatched,
   registerPublisher,
   resetPublishers,

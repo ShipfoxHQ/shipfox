@@ -5,6 +5,7 @@ import {
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_WORKFLOW_RUN_CREATED,
   type WorkflowsEventMap,
+  workflowsEventSchemas,
 } from '@shipfox/api-workflows-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, workflowsOutbox} from '#db/index.js';
@@ -31,7 +32,9 @@ export const workflowsModule: ShipfoxModule = {
   name: 'workflows',
   database: {db, migrationsPath},
   routes,
-  publishers: [{name: 'workflows', table: workflowsOutbox, db}],
+  publishers: [
+    {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
+  ],
   subscribers: [
     subscriber(WORKFLOWS_WORKFLOW_RUN_CREATED, onWorkflowRunCreated),
     subscriber(WORKFLOWS_JOB_STEPS_SETTLED, onJobStepsSettled),

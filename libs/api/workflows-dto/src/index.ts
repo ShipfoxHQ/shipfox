@@ -58,4 +58,5 @@ export {
   type WorkflowsStepRestartEnqueuedEvent,
   type WorkflowsWorkflowRunCreatedEvent,
   type WorkflowsWorkflowRunTerminatedEvent,
+  workflowsEventSchemas,
 } from './events.js';
