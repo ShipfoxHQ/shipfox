@@ -1,4 +1,4 @@
-import {runWorkflow} from '@shipfox/api-workflows';
+import {isPermanentRunWorkflowError, runWorkflow} from '@shipfox/api-workflows';
 import {findMatchingSubscriptions} from '#db/subscriptions.js';
 import {readConfigInputs} from './config.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
@@ -17,10 +17,14 @@ export interface DispatchIntegrationEventParams {
 // Source-agnostic dispatcher: any inbound integration event fans out to every
 // workspace subscription registered for its (source, event), passing the raw
 // payload through untouched. The module knows nothing about github, gitlab, etc.
-// History is best-effort, but `runWorkflow` errors still re-throw so the outbox retries.
-// A transient failure converges to `routed` on replay; a permanent one (e.g. a deleted
-// definition) re-throws every retry, so the event stays `failed`. The recorded outcome
-// tracks reality; it is not a stuck state to recover from here.
+//
+// Continue-on-error: every matched subscription is attempted so one broken subscription
+// cannot starve its siblings. A permanent failure (deleted definition, project mismatch)
+// is recorded and skipped; a transient one is recorded and re-thrown so the outbox replays
+// the whole event and converges (succeeded siblings dedup on the idempotency key). The event
+// reaches a terminal outcome only when no transient error remains: `routed` if any run was
+// created, otherwise `errored`. History is best-effort; the thrown transient error, not the
+// recorded outcome, is what drives the retry.
 export async function dispatchIntegrationEvent(
   params: DispatchIntegrationEventParams,
 ): Promise<void> {
@@ -47,6 +51,10 @@ export async function dispatchIntegrationEvent(
     return;
   }
 
+  let triggeredCount = 0;
+  let sawTransientError = false;
+  let firstTransientError: unknown;
+
   for (const subscription of subscriptions) {
     try {
       const run = await runWorkflow({
@@ -63,12 +71,27 @@ export async function dispatchIntegrationEvent(
         triggerIdempotencyKey: `${subscription.id}:${params.eventRef}`,
       });
       await history.triggered(subscription, run);
+      triggeredCount += 1;
     } catch (error) {
       await history.errored(subscription, toReason(error));
-      await history.failed(subscriptions.length);
-      throw error;
+      // Track presence with a flag, not `firstTransientError === undefined`: a thrown
+      // value of `undefined` is still a transient failure and must drive the replay.
+      if (!isPermanentRunWorkflowError(error) && !sawTransientError) {
+        sawTransientError = true;
+        firstTransientError = error;
+      }
     }
   }
 
-  await history.routed(subscriptions.length);
+  if (sawTransientError) {
+    await history.failed(subscriptions.length);
+    throw firstTransientError;
+  }
+
+  if (triggeredCount > 0) {
+    await history.routed(subscriptions.length);
+    return;
+  }
+
+  await history.allErrored(subscriptions.length);
 }

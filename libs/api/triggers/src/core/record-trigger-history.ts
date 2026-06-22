@@ -4,6 +4,7 @@ import type {TriggerSubscription} from '#core/entities/subscription.js';
 import {
   insertReceivedEvent,
   markReceivedEventDiscarded,
+  markReceivedEventErrored,
   markReceivedEventFailed,
   markReceivedEventRouted,
   upsertErroredDecision,
@@ -35,6 +36,7 @@ export interface TriggerHistoryRecorder {
   discarded(): Promise<void>;
   routed(matchedCount: number): Promise<void>;
   failed(matchedCount: number): Promise<void>;
+  allErrored(matchedCount: number): Promise<void>;
 }
 
 export interface BeginTriggerHistoryParams {
@@ -85,6 +87,8 @@ export async function beginTriggerHistory(
       record('route-event', (id) => markReceivedEventRouted(id, matchedCount)),
     failed: (matchedCount) =>
       record('fail-event', (id) => markReceivedEventFailed(id, matchedCount)),
+    allErrored: (matchedCount) =>
+      record('all-errored-event', (id) => markReceivedEventErrored(id, matchedCount)),
   };
 }
 

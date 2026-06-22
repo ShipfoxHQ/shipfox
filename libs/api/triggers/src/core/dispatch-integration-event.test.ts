@@ -6,9 +6,33 @@ import {triggerSubscriptionFactory} from '#test/index.js';
 
 const runWorkflow = vi.fn();
 
-vi.mock('@shipfox/api-workflows', () => ({
-  runWorkflow: (...args: unknown[]) => runWorkflow(...args),
-}));
+// Mock the package root but keep real-enough permanent-error classes + the classifier, so the
+// dispatcher's permanent/transient branching is exercised without loading the workflows module graph.
+vi.mock('@shipfox/api-workflows', () => {
+  class DefinitionNotFoundError extends Error {
+    constructor(definitionId: string) {
+      super(`Definition not found: ${definitionId}`);
+      this.name = 'DefinitionNotFoundError';
+    }
+  }
+  class ProjectMismatchError extends Error {
+    constructor(definitionProjectId: string, requestProjectId: string) {
+      super(
+        `Definition belongs to project ${definitionProjectId}, but request targets project ${requestProjectId}`,
+      );
+      this.name = 'ProjectMismatchError';
+    }
+  }
+  return {
+    runWorkflow: (...args: unknown[]) => runWorkflow(...args),
+    DefinitionNotFoundError,
+    ProjectMismatchError,
+    isPermanentRunWorkflowError: (error: unknown) =>
+      error instanceof DefinitionNotFoundError || error instanceof ProjectMismatchError,
+  };
+});
+
+import {DefinitionNotFoundError, ProjectMismatchError} from '@shipfox/api-workflows';
 
 // Import after mocks so the core dispatcher sees the spy.
 const {dispatchIntegrationEvent} = await import('./dispatch-integration-event.js');
@@ -223,7 +247,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
     expect(decisions.every((d) => d.runName === 'Build and test')).toBe(true);
   });
 
-  test('records a failed event, stops the loop at the first throw, and re-throws', async () => {
+  test('continues the fan-out past a transient error, records a failed event, and re-throws', async () => {
     const workspaceId = crypto.randomUUID();
     const eventRef = crypto.randomUUID();
     await triggerSubscriptionFactory.create({
@@ -242,17 +266,205 @@ describe('dispatchIntegrationEvent trigger history', () => {
 
     await expect(dispatch({workspaceId, eventRef})).rejects.toThrow('runWorkflow boom');
 
-    // Every match would throw, so one call proves the loop stops at the first failure.
-    expect(runWorkflow).toHaveBeenCalledTimes(1);
+    expect(runWorkflow).toHaveBeenCalledTimes(2);
     const event = await receivedEvent(eventRef);
     if (!event) throw new Error('received event not found');
     expect(event.outcome).toBe('failed');
     expect(event.matchedCount).toBe(2);
     expect(event.processedAt).toBeNull();
     const decisions = await decisionsForEvent(event.id);
-    expect(decisions).toHaveLength(1);
-    expect(decisions[0]?.decision).toBe('errored');
-    expect(decisions[0]?.reason).toContain('runWorkflow boom');
+    expect(decisions).toHaveLength(2);
+    expect(decisions.every((d) => d.decision === 'errored')).toBe(true);
+    expect(decisions.every((d) => d.reason?.includes('runWorkflow boom'))).toBe(true);
+  });
+
+  test('re-throws the first transient error, not a later one', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    let attempt = 0;
+    runWorkflow.mockImplementation(() => {
+      attempt += 1;
+      throw new Error(attempt === 1 ? 'first transient' : 'second transient');
+    });
+
+    await expect(dispatch({workspaceId, eventRef})).rejects.toThrow('first transient');
+
+    expect(runWorkflow).toHaveBeenCalledTimes(2);
+  });
+
+  test('treats a thrown undefined as a transient failure and re-throws it', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    runWorkflow.mockRejectedValue(undefined);
+
+    await expect(dispatch({workspaceId, eventRef})).rejects.toBeUndefined();
+
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('failed');
+    expect(event.processedAt).toBeNull();
+  });
+
+  test('runs every sibling and routes when one subscription is permanently broken', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    const poison = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    const healthy = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    const run = {id: crypto.randomUUID(), name: 'Build and test'};
+    runWorkflow.mockImplementation(({projectId}: {projectId: string}) => {
+      if (projectId === poison.projectId) throw new DefinitionNotFoundError('def-gone');
+      return run;
+    });
+
+    await dispatch({workspaceId, eventRef});
+
+    expect(runWorkflow).toHaveBeenCalledTimes(2);
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('routed');
+    expect(event.matchedCount).toBe(2);
+    expect(event.processedAt).toBeInstanceOf(Date);
+    const decisions = await decisionsForEvent(event.id);
+    const errored = decisions.find((d) => d.subscriptionId === poison.id);
+    const triggered = decisions.find((d) => d.subscriptionId === healthy.id);
+    expect(errored?.decision).toBe('errored');
+    expect(errored?.reason).toContain('Definition not found');
+    expect(triggered?.decision).toBe('triggered');
+    expect(triggered?.runId).toBe(run.id);
+  });
+
+  test('marks the event errored when every subscription errors permanently', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    runWorkflow.mockImplementation(() => {
+      throw new ProjectMismatchError('proj-a', 'proj-b');
+    });
+
+    await dispatch({workspaceId, eventRef});
+
+    expect(runWorkflow).toHaveBeenCalledTimes(2);
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('errored');
+    expect(event.matchedCount).toBe(2);
+    expect(event.processedAt).toBeInstanceOf(Date);
+    const decisions = await decisionsForEvent(event.id);
+    expect(decisions).toHaveLength(2);
+    expect(decisions.every((d) => d.decision === 'errored')).toBe(true);
+  });
+
+  test('records failed (not errored) when a permanent and a transient error mix in one attempt', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    const permanent = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    runWorkflow.mockImplementation(({projectId}: {projectId: string}) => {
+      if (projectId === permanent.projectId) throw new DefinitionNotFoundError('def-gone');
+      throw new Error('transient boom');
+    });
+
+    await expect(dispatch({workspaceId, eventRef})).rejects.toThrow('transient boom');
+
+    expect(runWorkflow).toHaveBeenCalledTimes(2);
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('failed');
+    expect(event.processedAt).toBeNull();
+    const decisions = await decisionsForEvent(event.id);
+    expect(decisions).toHaveLength(2);
+    expect(decisions.every((d) => d.decision === 'errored')).toBe(true);
+  });
+
+  test('promotes to routed across replay when a prior run survives a later definition deletion', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    const ranThenDeleted = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    const transient = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    const run = {id: crypto.randomUUID(), name: 'Build and test'};
+
+    runWorkflow.mockImplementation(({projectId}: {projectId: string}) => {
+      if (projectId === ranThenDeleted.projectId) return run;
+      throw new Error('transient boom');
+    });
+    await expect(dispatch({workspaceId, eventRef})).rejects.toThrow('transient boom');
+
+    // A later permanent failure must not downgrade a run recorded during a prior
+    // transiently failed attempt.
+    runWorkflow.mockImplementation(() => {
+      throw new DefinitionNotFoundError('def-gone');
+    });
+    await dispatch({workspaceId, eventRef});
+
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('routed');
+    expect(event.processedAt).toBeInstanceOf(Date);
+    const decisions = await decisionsForEvent(event.id);
+    const survived = decisions.find((d) => d.subscriptionId === ranThenDeleted.id);
+    const stillBroken = decisions.find((d) => d.subscriptionId === transient.id);
+    expect(survived?.decision).toBe('triggered');
+    expect(survived?.runId).toBe(run.id);
+    expect(stillBroken?.decision).toBe('errored');
   });
 
   test('replaying the same event does not duplicate rows and reuses the idempotency key', async () => {
@@ -302,6 +514,7 @@ describe('dispatchIntegrationEvent trigger history', () => {
 
     await expect(dispatch({workspaceId, eventRef})).rejects.toThrow('second boom');
 
+    expect(runWorkflow).toHaveBeenCalledTimes(2);
     const event = await receivedEvent(eventRef);
     if (!event) throw new Error('received event not found');
     expect(event.outcome).toBe('failed');

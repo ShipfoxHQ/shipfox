@@ -7,9 +7,23 @@ import {TriggerSubscriptionNotManualError} from './errors.js';
 
 const runWorkflow = vi.fn();
 
-vi.mock('@shipfox/api-workflows', () => ({
-  runWorkflow: (...args: unknown[]) => runWorkflow(...args),
-}));
+// Keep real-enough permanent-error classes + the classifier so the manual path's
+// permanent/transient branching is exercised without loading the workflows module graph.
+vi.mock('@shipfox/api-workflows', () => {
+  class DefinitionNotFoundError extends Error {
+    constructor(definitionId: string) {
+      super(`Definition not found: ${definitionId}`);
+      this.name = 'DefinitionNotFoundError';
+    }
+  }
+  return {
+    runWorkflow: (...args: unknown[]) => runWorkflow(...args),
+    DefinitionNotFoundError,
+    isPermanentRunWorkflowError: (error: unknown) => error instanceof DefinitionNotFoundError,
+  };
+});
+
+import {DefinitionNotFoundError} from '@shipfox/api-workflows';
 
 // Import after mocks so the function under test sees the spy.
 const {fireManualSubscription} = await import('./fire-manual.js');
@@ -92,6 +106,34 @@ describe('fireManualSubscription (trigger history)', () => {
     expect(decisions).toHaveLength(1);
     expect(decisions[0]?.decision).toBe('errored');
     expect(decisions[0]?.reason).toContain('manual boom');
+  });
+
+  test('records an errored (terminal) manual event when runWorkflow fails permanently', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {},
+    });
+    runWorkflow.mockRejectedValue(new DefinitionNotFoundError('def-gone'));
+
+    await expect(
+      fireManualSubscription({
+        subscriptionId: subscription.id,
+        callerWorkspaceId: subscription.workspaceId,
+        userId: crypto.randomUUID(),
+      }),
+    ).rejects.toThrow('Definition not found');
+
+    const events = await eventsForWorkspace(subscription.workspaceId);
+    expect(events).toHaveLength(1);
+    const event = events[0];
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('errored');
+    expect(event.matchedCount).toBe(1);
+    expect(event.processedAt).toBeInstanceOf(Date);
+    const decisions = await decisionsForEvent(event.id);
+    expect(decisions[0]?.decision).toBe('errored');
+    expect(decisions[0]?.reason).toContain('Definition not found');
   });
 
   test('does not record a received event when the subscription is not a manual trigger', async () => {

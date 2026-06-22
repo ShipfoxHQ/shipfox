@@ -115,6 +115,18 @@ describe('GET /trigger-events', () => {
     expect(eventIds(res)).toEqual([discarded.id]);
   });
 
+  test('filters and serializes the errored outcome', async () => {
+    const errored = await receivedEventFactory.create({workspaceId, outcome: 'errored'});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/trigger-events?workspace_id=${workspaceId}&outcome=errored`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(eventIds(res)).toEqual([errored.id]);
+  });
+
   test('treats a blank outcome as no filter', async () => {
     const {routed, discarded, failed} = await seedOutcomes(workspaceId);
 

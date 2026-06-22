@@ -1,7 +1,13 @@
 export const triggerEventOrigins = ['integration', 'manual'] as const;
 export type TriggerEventOrigin = (typeof triggerEventOrigins)[number];
 
-export const triggerEventOutcomes = ['received', 'routed', 'discarded', 'failed'] as const;
+export const triggerEventOutcomes = [
+  'received',
+  'routed',
+  'discarded',
+  'failed',
+  'errored',
+] as const;
 export type TriggerEventOutcome = (typeof triggerEventOutcomes)[number];
 
 export interface TriggerReceivedEvent {

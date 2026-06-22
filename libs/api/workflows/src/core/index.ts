@@ -9,6 +9,7 @@ export type {Step, StepStatus} from './entities/step.js';
 export type {TriggerPayload, WorkflowRun, WorkflowRunStatus} from './entities/workflow-run.js';
 export {
   DefinitionNotFoundError,
+  isPermanentRunWorkflowError,
   JobNotFoundError,
   ProjectMismatchError,
   StepNotFoundError,
