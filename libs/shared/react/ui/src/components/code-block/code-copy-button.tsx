@@ -1,6 +1,6 @@
 'use client';
 
-import type {ComponentProps} from 'react';
+import type {ComponentProps, MouseEvent} from 'react';
 import {useEffect, useRef, useState} from 'react';
 import {useCopyToClipboard} from '#hooks/useCopyToClipboard.js';
 import {cn} from '#utils/cn.js';
@@ -21,6 +21,7 @@ export function CodeCopyButton({
   timeout = 2000,
   children,
   className,
+  onClick,
   ...props
 }: CodeCopyButtonProps) {
   const [isCopied, setIsCopied] = useState(false);
@@ -50,7 +51,8 @@ export function CodeCopyButton({
     };
   }, []);
 
-  const handleClick = async () => {
+  const handleClick = async (event: MouseEvent<HTMLButtonElement>) => {
+    onClick?.(event);
     try {
       await copy();
     } catch (error) {
@@ -60,14 +62,14 @@ export function CodeCopyButton({
 
   return (
     <button
+      {...props}
       type="button"
       aria-label={isCopied ? 'Copied' : 'Copy to clipboard'}
+      onClick={handleClick}
       className={cn(
-        'flex shrink-0 cursor-pointer items-center justify-center rounded-6 bg-transparent text-foreground-neutral-muted transition-colors hover:bg-background-components-hover active:bg-background-components-pressed p-4',
+        'flex shrink-0 cursor-pointer items-center justify-center rounded-6 bg-transparent text-foreground-neutral-muted transition-colors hover:bg-background-components-hover active:bg-background-components-pressed p-4 outline-none focus-visible:shadow-button-neutral-focus',
         className,
       )}
-      onClick={handleClick}
-      {...props}
     >
       {children ?? <Icon name={isCopied ? 'check' : 'copy'} className="size-16" />}
     </button>

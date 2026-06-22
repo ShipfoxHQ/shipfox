@@ -79,6 +79,7 @@ function CodeTabsContent({
               value={code}
               className={cn(
                 'relative px-8 py-4 text-xs leading-20 font-medium text-foreground-neutral-muted transition-colors',
+                'outline-none focus-visible:shadow-border-interactive-with-active focus-visible:rounded-2',
                 'data-[state=active]:text-foreground-neutral-base',
                 'hover:text-foreground-neutral-base',
                 'data-[state=active]:z-10',

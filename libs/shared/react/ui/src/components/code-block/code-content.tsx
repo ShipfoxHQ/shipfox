@@ -23,6 +23,7 @@ export function CodeContent({
   if (shouldShowHighlighted) {
     return (
       <div
+        {...props}
         className={cn(
           'shiki-override w-full overflow-x-auto font-code [&_pre]:m-0 [&_pre]:p-0 [&_pre]:bg-transparent [&_pre]:font-code [&_code]:font-code [&_code]:bg-transparent [&_code]:text-xs [&_code]:leading-20 [&_code]:text-foreground-neutral-base [&_code]:grid',
           lineNumbers &&
@@ -30,9 +31,8 @@ export function CodeContent({
           '[&_.line]:block [&_.line]:px-12 [&_.line]:w-full [&_.line]:relative [&_.line]:font-code [&_.line]:text-xs [&_.line]:leading-20 [&_.line]:min-h-[1.25rem]',
           className,
         )}
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki outputs HTML for syntax highlighting
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: only Shiki-generated markup is rendered here.
         dangerouslySetInnerHTML={{__html: highlightedCode}}
-        {...props}
       />
     );
   }

@@ -11,6 +11,11 @@ import {CodeCopyButton} from './code-copy-button.js';
 
 export type BundledLanguage = string;
 
+/**
+ * One file in a `CodeBlock`. `filename` is the selection identity used to match
+ * the active tab and resolve the copied snippet, so it must be unique within a
+ * single `CodeBlock`. `language` is only the Shiki highlighting language.
+ */
 export type CodeBlockData = {
   language: string;
   filename: string;
@@ -44,7 +49,7 @@ export function CodeBlock({
   data,
   ...props
 }: CodeBlockProps) {
-  const [internalValue, setInternalValue] = useState(defaultValue ?? '');
+  const [internalValue, setInternalValue] = useState(defaultValue ?? data[0]?.filename ?? '');
   const isControlled = controlledValue !== undefined;
   const value = isControlled ? controlledValue : internalValue;
 
@@ -94,8 +99,8 @@ export function CodeBlockFiles({className, children, ...props}: CodeBlockFilesPr
 
   return (
     <div className={cn('flex grow flex-row items-center gap-12', className)} {...props}>
-      {data.map((item, index) => (
-        <div key={item.language || index}>{children(item)}</div>
+      {data.map((item) => (
+        <div key={item.filename}>{children(item)}</div>
       ))}
     </div>
   );
@@ -140,7 +145,7 @@ export function CodeBlockCopyButton({
   ...props
 }: CodeBlockCopyButtonProps) {
   const {data, value} = useContext(CodeBlockContext);
-  const code = data.find((item) => item.language === value)?.code ?? '';
+  const code = data.find((item) => item.filename === value)?.code ?? '';
 
   return (
     <CodeCopyButton
@@ -168,13 +173,14 @@ function CodeBlockFallback({children, className, ...props}: CodeBlockFallbackPro
       {...(props as HTMLAttributes<HTMLPreElement>)}
     >
       <code>
-        {lines.map((line) => {
+        {lines.map((line, index) => {
           const isDiffRemove = line.trim().startsWith('-');
           const isDiffAdd = line.trim().startsWith('+');
           const diffClass = isDiffRemove ? 'diff remove' : isDiffAdd ? 'diff add' : '';
+          const key = `${index}-${line}`;
 
           return (
-            <span className={cn('line', diffClass)} key={line}>
+            <span className={cn('line', diffClass)} key={key}>
               {line}
             </span>
           );
@@ -193,8 +199,8 @@ export function CodeBlockBody({children, ...props}: CodeBlockBodyProps) {
 
   return (
     <div {...props}>
-      {data.map((item, index) => (
-        <div key={item.language || index}>{children(item)}</div>
+      {data.map((item) => (
+        <div key={item.filename}>{children(item)}</div>
       ))}
     </div>
   );
@@ -232,10 +238,8 @@ export function CodeBlockItem({
           lineNumbers &&
             '[&_code]:[counter-reset:line] [&_code]:[counter-increment:line_0] [&_.line]:before:content-[counter(line)] [&_.line]:before:inline-block [&_.line]:before:[counter-increment:line] [&_.line]:before:w-16 [&_.line]:before:mr-16 [&_.line]:before:text-xs [&_.line]:before:text-right [&_.line]:before:text-foreground-neutral-subtle [&_.line]:before:font-code [&_.line]:before:select-none',
           '[&_.line.diff]:after:absolute [&_.line.diff]:after:left-0 [&_.line.diff]:after:top-0 [&_.line.diff]:after:bottom-0 [&_.line.diff]:after:w-1',
-          '[&_.line.diff.add]:bg-emerald-50 [&_.line.diff.add]:text-green-700 [&_.line.diff.add]:after:bg-emerald-500',
-          '[&_.line.diff.remove]:bg-rose-50 [&_.line.diff.remove]:text-red-700 [&_.line.diff.remove]:after:bg-rose-500',
-          'dark:[&_.line.diff.add]:bg-emerald-500/10 dark:[&_.line.diff.add]:text-emerald-400',
-          'dark:[&_.line.diff.remove]:bg-rose-500/10 dark:[&_.line.diff.remove]:text-rose-400',
+          '[&_.line.diff.add]:bg-tag-success-bg [&_.line.diff.add]:text-tag-success-text [&_.line.diff.add]:after:bg-tag-success-icon',
+          '[&_.line.diff.remove]:bg-tag-error-bg [&_.line.diff.remove]:text-tag-error-text [&_.line.diff.remove]:after:bg-tag-error-icon',
         )}
       >
         {children}

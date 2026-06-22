@@ -1,6 +1,5 @@
 'use client';
 
-import {useState} from 'react';
 import {copyTextToClipboard} from '#utils/clipboard.js';
 
 interface UseCopyToClipboardParams {
@@ -9,14 +8,10 @@ interface UseCopyToClipboardParams {
 }
 
 export function useCopyToClipboard({text, onCopy}: UseCopyToClipboardParams) {
-  const [copied, setCopied] = useState(false);
-
   const copy = async () => {
     await copyTextToClipboard(text);
-
-    if (onCopy) onCopy(text);
-    setCopied(true);
+    onCopy?.(text);
   };
 
-  return {copy, copied};
+  return {copy};
 }

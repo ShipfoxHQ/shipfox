@@ -46,19 +46,19 @@ export const Default: Story = {
         code: exampleCode,
       },
     ],
-    defaultValue: 'yaml',
+    defaultValue: '.github/workflows/<workflow-name>.yml',
   },
   render: (args) => (
     <CodeBlock {...args}>
       <CodeBlockHeader>
         <CodeBlockFiles>
-          {(item) => <CodeBlockFilename value={item.language}>{item.filename}</CodeBlockFilename>}
+          {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
         </CodeBlockFiles>
         <CodeBlockCopyButton />
       </CodeBlockHeader>
       <CodeBlockBody>
         {(item) => (
-          <CodeBlockItem value={item.language}>
+          <CodeBlockItem value={item.filename}>
             <CodeBlockContent language={item.language}>{item.code}</CodeBlockContent>
           </CodeBlockItem>
         )}
@@ -76,19 +76,19 @@ export const WithDiff: Story = {
         code: diffCode,
       },
     ],
-    defaultValue: 'yaml',
+    defaultValue: '.github/workflows/<workflow-name>.yml',
   },
   render: (args) => (
     <CodeBlock {...args}>
       <CodeBlockHeader>
         <CodeBlockFiles>
-          {(item) => <CodeBlockFilename value={item.language}>{item.filename}</CodeBlockFilename>}
+          {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
         </CodeBlockFiles>
         <CodeBlockCopyButton />
       </CodeBlockHeader>
       <CodeBlockBody>
         {(item) => (
-          <CodeBlockItem value={item.language}>
+          <CodeBlockItem value={item.filename}>
             <CodeBlockContent language={item.language}>{item.code}</CodeBlockContent>
           </CodeBlockItem>
         )}
@@ -106,19 +106,19 @@ export const WithFooterRunning: Story = {
         code: diffCode,
       },
     ],
-    defaultValue: 'yaml',
+    defaultValue: '.github/workflows/<workflow-name>.yml',
   },
   render: (args) => (
     <CodeBlock {...args}>
       <CodeBlockHeader>
         <CodeBlockFiles>
-          {(item) => <CodeBlockFilename value={item.language}>{item.filename}</CodeBlockFilename>}
+          {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
         </CodeBlockFiles>
         <CodeBlockCopyButton />
       </CodeBlockHeader>
       <CodeBlockBody>
         {(item) => (
-          <CodeBlockItem value={item.language}>
+          <CodeBlockItem value={item.filename}>
             <CodeBlockContent language={item.language}>{item.code}</CodeBlockContent>
           </CodeBlockItem>
         )}
@@ -141,19 +141,19 @@ export const WithFooterDone: Story = {
         code: diffCode,
       },
     ],
-    defaultValue: 'yaml',
+    defaultValue: '.github/workflows/<workflow-name>.yml',
   },
   render: (args) => (
     <CodeBlock {...args}>
       <CodeBlockHeader>
         <CodeBlockFiles>
-          {(item) => <CodeBlockFilename value={item.language}>{item.filename}</CodeBlockFilename>}
+          {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
         </CodeBlockFiles>
         <CodeBlockCopyButton />
       </CodeBlockHeader>
       <CodeBlockBody>
         {(item) => (
-          <CodeBlockItem value={item.language}>
+          <CodeBlockItem value={item.filename}>
             <CodeBlockContent language={item.language}>{item.code}</CodeBlockContent>
           </CodeBlockItem>
         )}
@@ -245,19 +245,19 @@ export const WithoutLineNumbers: Story = {
         code: exampleCode,
       },
     ],
-    defaultValue: 'yaml',
+    defaultValue: '.github/workflows/<workflow-name>.yml',
   },
   render: (args) => (
     <CodeBlock {...args}>
       <CodeBlockHeader>
         <CodeBlockFiles>
-          {(item) => <CodeBlockFilename value={item.language}>{item.filename}</CodeBlockFilename>}
+          {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
         </CodeBlockFiles>
         <CodeBlockCopyButton />
       </CodeBlockHeader>
       <CodeBlockBody>
         {(item) => (
-          <CodeBlockItem value={item.language} lineNumbers={false}>
+          <CodeBlockItem value={item.filename} lineNumbers={false}>
             <CodeBlockContent language={item.language}>{item.code}</CodeBlockContent>
           </CodeBlockItem>
         )}
@@ -289,7 +289,6 @@ export const Snippet: Story = {
 
 const syntaxHighlightingCode = {
   'index.ts': `export function hello(name: string = 'World'): void {
-  // Say hello to the provided name
   console.log(\`Hello, \${name}!\`);
 }
 
