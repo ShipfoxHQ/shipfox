@@ -53,6 +53,7 @@ export function LogRow({
   ...props
 }: LogRowProps) {
   const context = useLogRowsContext();
+  const onTimestampsClick = context.onTimestampsClick;
   const resolvedWrap = wrap ?? context.wrap;
   const showTime = context.timestamps !== 'off';
   const timeText = timestamp
@@ -94,20 +95,24 @@ export function LogRow({
           </span>
         )}
         {showTime &&
-          (context.onTimestampsClick ? (
-            <button
-              type="button"
+          (onTimestampsClick ? (
+            // biome-ignore lint/a11y/noStaticElementInteractions: kept a span (not a button) so the timestamp stays part of a multi-line text selection; switching format is a pointer convenience.
+            // biome-ignore lint/a11y/useKeyWithClickEvents: the accessible way to switch timestamp format is a toolbar control, not this inline cell.
+            <span
               data-slot="log-row-time"
-              onClick={context.onTimestampsClick}
-              aria-label="Switch timestamp format"
-              className="w-80 flex-none cursor-pointer select-none px-4 text-left text-foreground-neutral-muted tabular-nums transition-colors hover:text-foreground-neutral-base"
+              onClick={() => {
+                // Ignore the click that ends a drag-selection so timestamps stay copyable.
+                if (window.getSelection()?.isCollapsed === false) return;
+                onTimestampsClick();
+              }}
+              className="w-80 flex-none cursor-pointer px-4 text-foreground-neutral-muted tabular-nums"
             >
               {timeText}
-            </button>
+            </span>
           ) : (
             <span
               data-slot="log-row-time"
-              className="w-80 flex-none select-none px-4 text-foreground-neutral-muted tabular-nums"
+              className="w-80 flex-none px-4 text-foreground-neutral-muted tabular-nums"
             >
               {timeText}
             </span>

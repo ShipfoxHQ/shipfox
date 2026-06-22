@@ -2,6 +2,7 @@ import type {Meta, StoryObj} from '@storybook/react';
 import {type ReactNode, useState} from 'react';
 import {Badge} from '#components/badge/index.js';
 import {Button} from '#components/button/index.js';
+import {Icon} from '#components/icon/index.js';
 import {Code} from '#components/typography/index.js';
 import {cn} from '#utils/cn.js';
 import {type LogTimestampMode, toggleTimestampUnit} from './format-timestamp.js';
@@ -37,6 +38,7 @@ type Story = StoryObj<typeof meta>;
 const origin = new Date('2026-06-22T14:32:00.000Z');
 const at = (offsetSeconds: number) => new Date(origin.getTime() + offsetSeconds * 1000);
 const ESC = String.fromCharCode(27);
+const ansiBuild = `${ESC}[32m✓${ESC}[0m built ${ESC}[34m1284${ESC}[0m modules · ${ESC}[1;31m1 error${ESC}[0m`;
 
 const Glyph = ({className, children}: {className: string; children: string}) => (
   <span className={className}>{children}</span>
@@ -60,15 +62,36 @@ export const Playground: Story = {
           <LogContent variant="code">transforming (1284) src/index.tsx</LogContent>
         </LogRow>
         <LogRow lineNumber={35} timestamp={at(9.4)}>
+          <LogContent variant="code" ansi>
+            {ansiBuild}
+          </LogContent>
+        </LogRow>
+        <LogRow lineNumber={36} timestamp={at(9.7)} tone="warning">
+          <LogContent variant="code">WARN deprecated glob@7 — upgrade to glob@10</LogContent>
+        </LogRow>
+        <LogRow lineNumber={37} timestamp={at(9.9)} tone="error">
+          <LogContent variant="code">
+            ERROR TypeError: Cannot read properties of undefined (reading "id") at withRetry
+            (src/api/retry.ts:42:18)
+          </LogContent>
+        </LogRow>
+        <LogRow lineNumber={38} timestamp={at(10.1)} tone="accent">
+          <LogHeader end={<>$0.084 · 2.1s</>}>
+            <Glyph className="text-purple-500 dark:text-purple-400">{'✦'}</Glyph>
+            <Badge variant="feature">Assistant</Badge>
+          </LogHeader>
+          <LogContent>Patched the off-by-one in withRetry().</LogContent>
+        </LogRow>
+        <LogRow lineNumber={39} timestamp={at(10.3)} selected>
+          <LogContent variant="code">dist/assets/index-a3f9b1c2.js</LogContent>
+        </LogRow>
+        <LogRow lineNumber={40} timestamp={at(10.5)} indent={16}>
           <LogContent variant="code">
             <Glyph className="font-bold text-green-500 dark:text-green-400">{'✓ '}</Glyph>
             1284 modules transformed
           </LogContent>
         </LogRow>
-        <LogRow lineNumber={36} timestamp={at(9.7)} selected>
-          <LogContent variant="code">dist/assets/index-a3f9b1c2.js</LogContent>
-        </LogRow>
-        <LogRow lineNumber={37} timestamp={at(10)}>
+        <LogRow lineNumber={41} timestamp={at(10.7)}>
           <LogContent variant="code" className="text-foreground-neutral-muted">
             built in 412ms
           </LogContent>
@@ -322,17 +345,20 @@ export const Interactive: Story = {
                   <button
                     type="button"
                     aria-pressed={wrapped}
-                    aria-label={wrapped ? 'Collapse line' : 'Expand line'}
+                    aria-label={wrapped ? 'Collapse line' : 'Wrap line'}
                     onClick={() => wrap.toggleLine(line.id)}
                     className={cn(
-                      'flex-none rounded-4 px-6 text-xs transition-opacity',
-                      'opacity-70 group-hover/log-row:opacity-100 focus-visible:opacity-100',
+                      'flex-none rounded-4 p-2 transition-opacity',
+                      'opacity-0 group-hover/log-row:opacity-100 focus-visible:opacity-100',
                       overridden
                         ? 'text-foreground-highlight-interactive opacity-100'
-                        : 'text-foreground-neutral-muted',
+                        : 'text-foreground-neutral-muted hover:text-foreground-neutral-base',
                     )}
                   >
-                    {wrapped ? 'collapse' : 'expand'}
+                    <Icon
+                      name="chevronRight"
+                      className={cn('size-12 transition-transform', wrapped && 'rotate-90')}
+                    />
                   </button>
                 </div>
               </LogRow>
