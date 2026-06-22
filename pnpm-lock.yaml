@@ -3248,8 +3248,8 @@ importers:
         specifier: workspace:*
         version: link:../opentelemetry
       nodemailer:
-        specifier: ^8.0.7
-        version: 8.0.10
+        specifier: ^9.0.0
+        version: 9.0.1
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -9478,8 +9478,8 @@ packages:
     resolution: {integrity: sha512-GYVXHE2KnrzAfsAjl4uP++evGFCrAU1jta4ubEjIG7YWt/64Gqv66a30yKwWczVjA6j3bM4nBwH7Pk1JmDHaxQ==}
     engines: {node: '>=18'}
 
-  nodemailer@8.0.10:
-    resolution: {integrity: sha512-BLFuSth7QtHOkBzyqTehWWyub0NTRDuK2Q2SQfnGLsrJnzyU+Yeh4WpV1eZGuARFj1xQJHIdnTuJZLP+b9R1GQ==}
+  nodemailer@9.0.1:
+    resolution: {integrity: sha512-Gwv8SQewT616ZM/URn0H54b8PWo/Wum7md3EW2aWy1lO27+WZCX+Xyak3J+NlmHUjDh5ME+uesJUDRbR3Ye8Bw==}
     engines: {node: '>=6.0.0'}
 
   normalize-url@8.1.1:
@@ -16602,7 +16602,7 @@ snapshots:
 
   node-releases@2.0.46: {}
 
-  nodemailer@8.0.10: {}
+  nodemailer@9.0.1: {}
 
   normalize-url@8.1.1: {}
 

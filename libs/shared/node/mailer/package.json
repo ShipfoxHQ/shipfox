@@ -38,7 +38,7 @@
   },
   "dependencies": {
     "@shipfox/node-opentelemetry": "workspace:*",
-    "nodemailer": "^8.0.7"
+    "nodemailer": "^9.0.0"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
