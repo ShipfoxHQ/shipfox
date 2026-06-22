@@ -6,15 +6,12 @@ import type {LogTimestampMode} from './format-timestamp.js';
 import {LogRowsContextProvider} from './log-context.js';
 
 export interface LogRowsProps extends ComponentProps<'div'> {
-  /** Time-column mode shared by every row. */
   timestamps?: LogTimestampMode;
-  /** Default soft-wrap applied to rows that do not override it. */
   wrap?: boolean;
-  /** Show the line-number gutter across the list. */
   showLineNumbers?: boolean;
-  /** Baseline that relative timestamps are measured from. */
+  /** Baseline for relative timestamps; without one, relative mode falls back to absolute time. */
   timestampOrigin?: Date;
-  /** When set, the timestamp column becomes a button that calls this (e.g. to switch rel/abs for all rows). */
+  /** Adds a pointer shortcut to each timestamp cell, commonly used to switch rel/abs for all rows. */
   onTimestampsClick?: () => void;
 }
 

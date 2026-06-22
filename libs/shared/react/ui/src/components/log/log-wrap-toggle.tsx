@@ -5,17 +5,15 @@ import {cn} from '#utils/cn.js';
 import {Icon} from '../icon/index.js';
 
 export interface LogWrapToggleProps extends Omit<ComponentProps<'button'>, 'aria-pressed'> {
-  /** Whether the line is currently wrapped — drives the chevron and the label. */
+  /** Current row wrap state; drives `aria-pressed`, the label, and the chevron. */
   wrapped: boolean;
   /** Whether this line overrides the container's wrap, pinning the control on. */
   overridden?: boolean;
 }
 
 /**
- * A per-line wrap affordance: a chevron button that reveals on row hover (it
- * reads the `group/log-row` set by `LogRow`) and stays pinned when the line
- * overrides the container's wrap. Compose it into a `LogRow` body and wire
- * `onClick` to your wrap store — it holds no wrap state of its own.
+ * Per-line wrap affordance. It reads the `group/log-row` set by `LogRow`, stays
+ * pinned for overridden lines, and holds no wrap state of its own.
  */
 export function LogWrapToggle({
   className,

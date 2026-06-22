@@ -30,7 +30,7 @@ export interface LogRowProps extends ComponentProps<'div'> {
   /** Row time; the container's mode formats it. `null` renders a blank cell. */
   timestamp?: Date | null;
   tone?: LogRowTone;
-  /** Extra left padding (px) added on top of the body's base inset for nesting — pass `depth * step`. */
+  /** Extra left padding in pixels, added on top of the body's base inset. */
   indent?: number;
   selected?: boolean;
   /** Override the container's soft-wrap for this row. */

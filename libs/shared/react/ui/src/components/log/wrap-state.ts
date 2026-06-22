@@ -1,14 +1,13 @@
 /**
  * Pure state for interactive line wrapping: one global default plus the set of
- * lines that deliberately differ from it. Kept free of React so the transitions
- * can be unit-tested and, if a consumer prefers, driven from their own reducer
- * or persisted to a URL. `useLogWrap` is the ergonomic React wrapper.
+ * lines that deliberately differ from it. Kept free of React so consumers can
+ * drive it from their own reducer or persist it outside component state.
+ * `useLogWrap` is the ergonomic React wrapper.
  */
 
 export type LogLineId = string | number;
 
 export interface WrapState {
-  /** Wrap default applied to every line that has no override. */
   readonly globalWrap: boolean;
   /** Lines whose wrap deliberately differs from the global default. */
   readonly exceptions: ReadonlySet<LogLineId>;
@@ -27,7 +26,6 @@ export function resolveRowWrap(state: WrapState, id: LogLineId): boolean | undef
   return state.exceptions.has(id) ? !state.globalWrap : undefined;
 }
 
-/** Flip one line's override against the global default (or clear it). */
 export function toggleLineWrap(state: WrapState, id: LogLineId): WrapState {
   const exceptions = new Set(state.exceptions);
   if (exceptions.has(id)) exceptions.delete(id);
@@ -44,7 +42,6 @@ export function setGlobalWrap(state: WrapState, globalWrap: boolean): WrapState 
   return {globalWrap, exceptions: new Set()};
 }
 
-/** Flip the global default, clearing every per-line override so it wins. */
 export function toggleGlobalWrap(state: WrapState): WrapState {
   return {globalWrap: !state.globalWrap, exceptions: new Set()};
 }

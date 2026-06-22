@@ -142,7 +142,6 @@ export const LineNumbers: Story = {
   ),
 };
 
-/** The container's `timestamps` mode formats every row's `timestamp` Date. */
 export const Timestamps: Story = {
   render: () => (
     <div className="grid max-w-5xl gap-16 md:grid-cols-3">
@@ -165,7 +164,6 @@ export const Timestamps: Story = {
   ),
 };
 
-/** Each `tone` is a distinct hue — a left accent bar plus a background tint. */
 export const Tones: Story = {
   render: () => (
     <div className="max-w-3xl">
@@ -207,7 +205,6 @@ export const Selected: Story = {
   ),
 };
 
-/** `indent` adds left padding for nested content — pass `depth * step`. */
 export const Indent: Story = {
   render: () => (
     <div className="max-w-3xl">
@@ -366,7 +363,6 @@ export const Interactive: Story = {
   },
 };
 
-/** Rows carry a hover state so the pointer's target line is always clear. */
 export const Hover: Story = {
   parameters: {pseudo: {hover: ['.story-hovered']}},
   render: () => (

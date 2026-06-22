@@ -12,7 +12,6 @@ import {
 } from './wrap-state.js';
 
 export interface UseLogWrapResult {
-  /** Wrap default for the list; pass to `LogRows.wrap`. */
   globalWrap: boolean;
   /** How many lines currently differ from the global default. */
   overriddenCount: number;
@@ -20,7 +19,6 @@ export interface UseLogWrapResult {
   rowWrap: (id: LogLineId) => boolean | undefined;
   /** Whether a line currently overrides the global default. */
   isOverridden: (id: LogLineId) => boolean;
-  /** Toggle one line's wrap against the global default. */
   toggleLine: (id: LogLineId) => void;
   /** Flip the global default, clearing every per-line override. */
   toggleGlobal: () => void;
@@ -33,7 +31,7 @@ export interface UseLogWrapResult {
  * lines that deliberately differ from it. A global change clears the per-line
  * overrides, so the global control always wins. State is keyed by line id, so a
  * per-line choice survives the row scrolling out of and back into a virtualized
- * window. Keep the four primitives stateless and drive them from this hook.
+ * window.
  */
 export function useLogWrap(defaultWrap = false): UseLogWrapResult {
   const [state, setState] = useState<WrapState>(() => createWrapState(defaultWrap));
