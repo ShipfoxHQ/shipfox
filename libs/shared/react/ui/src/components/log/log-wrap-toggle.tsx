@@ -23,7 +23,6 @@ export function LogWrapToggle({
 }: LogWrapToggleProps) {
   return (
     <button
-      type="button"
       data-slot="log-wrap-toggle"
       aria-pressed={wrapped}
       aria-label={wrapped ? 'Collapse line' : 'Wrap line'}
@@ -36,6 +35,7 @@ export function LogWrapToggle({
         className,
       )}
       {...props}
+      type="button"
     >
       <Icon
         name="chevronRight"

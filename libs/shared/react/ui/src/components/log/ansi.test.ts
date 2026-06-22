@@ -81,6 +81,15 @@ describe('parseAnsi', () => {
     expect(result[0]?.className).toBe('italic underline');
   });
 
+  test('an unsupported extended color clears the previous color instead of leaking it', () => {
+    const result = parseAnsi(`${ESC}[31mred${ESC}[38;5;200mreset`);
+
+    expect(result.map((span) => [span.text, span.className])).toEqual([
+      ['red', 'text-red-400'],
+      ['reset', ''],
+    ]);
+  });
+
   test('leaves a non-SGR escape sequence untouched as text', () => {
     const result = parseAnsi(`${ESC}[2Kdone`);
 

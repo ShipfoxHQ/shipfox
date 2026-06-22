@@ -143,8 +143,11 @@ function applyCodes(style: AnsiStyle, raw: string): AnsiStyle {
     else if (FOREGROUND[code]) next.fg = FOREGROUND[code];
     else if (BACKGROUND[code]) next.bg = BACKGROUND[code];
     else if (code === 38 || code === 48) {
-      // Extended color: drop the unsupported color but consume its operands so
+      // Extended color: 256/truecolor is unsupported, so clear the channel it
+      // sets rather than leak the previous color, and consume its operands so
       // the trailing numbers never render as literal text.
+      if (code === 38) next.fg = undefined;
+      else next.bg = undefined;
       const mode = codes[i + 1];
       if (mode === 5) i += 2;
       else if (mode === 2) i += 4;
