@@ -34,12 +34,6 @@ const at = (offsetSeconds: number) => new Date(origin.getTime() + offsetSeconds 
 
 const ansiBuild = `${String.fromCharCode(27)}[32m✓${String.fromCharCode(27)}[0m built ${String.fromCharCode(27)}[34m1284${String.fromCharCode(27)}[0m modules · ${String.fromCharCode(27)}[1;31m1 error${String.fromCharCode(27)}[0m`;
 
-const YouChip = () => (
-  <span className="rounded-4 bg-primary-400 px-6 text-[10px] font-bold uppercase tracking-wide text-white">
-    You
-  </span>
-);
-
 const Glyph = ({className, children}: {className: string; children: string}) => (
   <span className={className}>{children}</span>
 );
@@ -88,18 +82,19 @@ export const AgentTurn: Story = {
   render: () => (
     <div className="max-w-3xl">
       <LogRows timestamps="abs" origin={origin}>
-        <LogRow tone="accent" lineNumber={57} timestamp={at(11)}>
+        <LogRow tone="info" lineNumber={57} timestamp={at(11)}>
+          <LogHeader>
+            <Glyph className="text-blue-500 dark:text-blue-400">{'❯'}</Glyph>
+            <Badge variant="info">You</Badge>
+          </LogHeader>
+          <LogContent>Make sure the 503 retry test passes.</LogContent>
+        </LogRow>
+        <LogRow tone="accent" lineNumber={58} timestamp={at(13)}>
           <LogHeader end={<>claude-sonnet-4-5 · $0.084 · 2.1s</>}>
             <Glyph className="text-purple-500 dark:text-purple-400">{'✦'}</Glyph>
             <Badge variant="feature">Assistant</Badge>
           </LogHeader>
           <LogContent>Fixed the off-by-one in withRetry().</LogContent>
-        </LogRow>
-        <LogRow tone="accent" lineNumber={58} timestamp={at(12)}>
-          <LogHeader>
-            <YouChip />
-          </LogHeader>
-          <LogContent>Now make sure the 503 retry test passes.</LogContent>
         </LogRow>
       </LogRows>
     </div>
