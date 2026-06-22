@@ -9,6 +9,8 @@ export interface LogRowsProps extends ComponentProps<'div'> {
   timestamps?: LogTimestampMode;
   wrap?: boolean;
   showLineNumbers?: boolean;
+  /** Pixels of body inset per nesting depth level; a row at level `n` insets `n * indentStep`. */
+  indentStep?: number;
   /** Baseline for relative timestamps; without one, relative mode falls back to absolute time. */
   timestampOrigin?: Date;
   /** Adds a pointer shortcut to each timestamp cell, commonly used to switch rel/abs for all rows. */
@@ -26,13 +28,14 @@ export function LogRows({
   timestamps = 'off',
   wrap = false,
   showLineNumbers = true,
+  indentStep = 16,
   timestampOrigin,
   onTimestampsClick,
   ...props
 }: LogRowsProps) {
   return (
     <LogRowsContextProvider
-      value={{timestamps, wrap, showLineNumbers, timestampOrigin, onTimestampsClick}}
+      value={{timestamps, wrap, showLineNumbers, indentStep, timestampOrigin, onTimestampsClick}}
     >
       <div
         data-slot="log-rows"

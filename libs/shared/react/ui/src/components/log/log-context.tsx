@@ -12,6 +12,8 @@ export interface LogRowsContextValue {
   timestamps: LogTimestampMode;
   wrap: boolean;
   showLineNumbers: boolean;
+  /** Pixels of body inset per nesting depth level; rows pass a level, not px. */
+  indentStep: number;
   timestampOrigin?: Date | undefined;
   /** When set, the timestamp column renders as a button that calls this. */
   onTimestampsClick?: (() => void) | undefined;
@@ -21,6 +23,7 @@ export const defaultLogRowsContext: LogRowsContextValue = {
   timestamps: 'off',
   wrap: false,
   showLineNumbers: true,
+  indentStep: 16,
 };
 
 const LogRowsContext = createContext<LogRowsContextValue>(defaultLogRowsContext);
