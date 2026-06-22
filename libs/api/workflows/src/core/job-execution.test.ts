@@ -486,7 +486,7 @@ describe('step attempts', () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
     const stepId = steps[0]?.id as string;
     await nextStepForJob(jobId);
-    // Simulate a rewind having bumped the current attempt to 2.
+
     await db()
       .update(stepsTable)
       .set({currentAttempt: 2, status: 'running'})
@@ -510,7 +510,6 @@ describe('step attempts', () => {
     const stepId = steps[0]?.id as string;
     await nextStepForJob(jobId);
     await recordStepResult({jobId, stepId, status: 'succeeded', exitCode: 0});
-    // Simulate a rewind bump on the terminal step.
     await db().update(stepsTable).set({currentAttempt: 2}).where(eq(stepsTable.id, stepId));
 
     const outcome = await recordStepResult({
@@ -813,7 +812,6 @@ describe('durable gate restart', () => {
     await runStep(jobId, producer, 0);
     await runStep(jobId, build, 0); // build passes (its attempt 3)
 
-    // deploy runs for the first time with an inflated current_attempt of 3.
     expect((await getStepsByJobId(jobId)).find((s) => s.id === deploy)?.currentAttempt).toBe(3);
     const deployFail = await runStep(jobId, deploy, 1);
 

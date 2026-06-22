@@ -57,10 +57,9 @@ export interface RecordStepResultParams {
   stepId: string;
   status: 'succeeded' | 'failed';
   error?: Record<string, unknown> | null;
-  // Structured runner output for audit/history on the attempt row. The current
-  // step projection keeps status/error only.
+  // Structured runner output is audit/history on the attempt row; the current
+  // step projection keeps only status/error.
   output?: Record<string, unknown> | null;
-  // Process exit code reported by the runner.
   exitCode?: number | null;
   // The attempt the runner was dispatched. Omitted = "the step's current
   // attempt" (back-compat for callers that don't track attempts yet).

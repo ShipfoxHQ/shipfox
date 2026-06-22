@@ -137,6 +137,8 @@ describe('onSourceCommitPushed', () => {
     expect(rows).toHaveLength(1);
   });
 
+  // The source/event filter is the subscription itself, so this module should
+  // only receive the typed source-control event.
   it('registers the projects module on INTEGRATION_SOURCE_COMMIT_PUSHED', () => {
     const module = createProjectsModule({sourceControl: {} as never});
 

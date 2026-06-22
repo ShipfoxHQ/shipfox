@@ -83,8 +83,7 @@ export async function runJob(
 
   try {
     const leaseClient = createLeaseClient(job.lease_token);
-    // The log mask set is the runner's own credentials: the long-lived runner token and
-    // this job's lease token. Both can reach a step's environment, so they are scrubbed from
+    // Both runner credentials can reach a step's environment, so scrub them from
     // captured output before it touches the spool.
     const secrets = [runnerToken(), job.lease_token];
     await runJobSteps({jobId: job.job_id, leaseClient, secrets, signal: ac.signal, cwd});
