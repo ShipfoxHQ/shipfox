@@ -6,11 +6,6 @@ export type GiteaConnectFormErrorMapping =
   | {kind: 'field'; field: GiteaConnectField; message: string}
   | {kind: 'form'; message: string};
 
-/**
- * Maps the codes thrown by `POST /integrations/gitea/connections` to a field- or
- * form-level message. The two organization-scoped codes route to the `org`
- * field; everything else (provider/rate-limit/transport errors) is form-level.
- */
 export function giteaConnectErrorToFormError(error: unknown): GiteaConnectFormErrorMapping {
   const code = error instanceof ApiError ? error.code : undefined;
 
