@@ -17,6 +17,7 @@ export * from './kbd/index.js';
 export * from './label/index.js';
 export * from './load-error-state/index.js';
 export * from './loader/index.js';
+export * from './log/index.js';
 export * from './logo/index.js';
 export * from './modal/index.js';
 export * from './popover/index.js';

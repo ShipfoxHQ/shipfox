@@ -1,0 +1,130 @@
+'use client';
+
+import {cva, type VariantProps} from 'class-variance-authority';
+import type {ComponentProps} from 'react';
+import {cn} from '#utils/cn.js';
+import {formatLogTimestamp} from './format-timestamp.js';
+import {LogRowContextProvider, useLogRowsContext} from './log-context.js';
+
+const logRowTone = cva('', {
+  variants: {
+    tone: {
+      default: '',
+      error: 'bg-red-50 dark:bg-red-500/10 shadow-[inset_2px_0_0_var(--color-red-500)]',
+      warning: 'bg-orange-50 dark:bg-orange-500/10 shadow-[inset_2px_0_0_var(--color-orange-500)]',
+      success: 'bg-green-50 dark:bg-green-500/10 shadow-[inset_2px_0_0_var(--color-green-500)]',
+      info: 'bg-blue-50 dark:bg-blue-500/10 shadow-[inset_2px_0_0_var(--color-blue-500)]',
+      // Reserve brand orange for the `selected` affordance; the agent/highlight
+      // tone reads violet, matching the agent mock and staying clear of warning.
+      accent: 'bg-purple-50 dark:bg-purple-500/10 shadow-[inset_2px_0_0_var(--color-purple-500)]',
+    },
+  },
+  defaultVariants: {tone: 'default'},
+});
+
+export type LogRowTone = NonNullable<VariantProps<typeof logRowTone>['tone']>;
+
+export interface LogRowProps extends ComponentProps<'div'> {
+  /** Gutter number; `null` renders a blank cell (used by markers). */
+  lineNumber?: number | null;
+  /** Row time; the container's mode formats it. `null` renders a blank cell. */
+  timestamp?: Date | null;
+  tone?: LogRowTone;
+  /** Extra left padding in pixels, added on top of the body's base inset. */
+  indent?: number;
+  selected?: boolean;
+  /** Override the container's soft-wrap for this row. */
+  wrap?: boolean;
+}
+
+/**
+ * Primitive row renderer. It owns the gutter, timestamp, tone, indent, and wrap
+ * context, but does not inspect or reshape its children.
+ */
+export function LogRow({
+  className,
+  children,
+  lineNumber = null,
+  timestamp = null,
+  tone = 'default',
+  indent = 0,
+  selected = false,
+  wrap,
+  ...props
+}: LogRowProps) {
+  const context = useLogRowsContext();
+  const onTimestampsClick = context.onTimestampsClick;
+  const resolvedWrap = wrap ?? context.wrap;
+  const showTime = context.timestamps !== 'off';
+  const timeText = timestamp
+    ? formatLogTimestamp(timestamp, {
+        mode: context.timestamps,
+        timestampOrigin: context.timestampOrigin,
+      })
+    : '';
+
+  return (
+    <LogRowContextProvider value={{wrap: resolvedWrap}}>
+      <div
+        data-slot="log-row"
+        data-selected={selected || undefined}
+        data-wrap={resolvedWrap}
+        aria-current={selected || undefined}
+        className={cn(
+          'group/log-row flex items-start transition-colors',
+          'hover:bg-neutral-500/[0.06]',
+          logRowTone({tone}),
+          // Selected keeps its pressed tint while hovered so the cursor row
+          // stays distinct from a plain hover.
+          selected &&
+            'bg-background-neutral-pressed shadow-[inset_2px_0_0_var(--color-primary-400)] hover:bg-background-neutral-pressed',
+          className,
+        )}
+        {...props}
+      >
+        {context.showLineNumbers && (
+          <span
+            data-slot="log-row-gutter"
+            aria-hidden="true"
+            className={cn(
+              'w-44 flex-none select-none px-12 text-right tabular-nums',
+              selected ? 'text-foreground-neutral-base' : 'text-foreground-neutral-subtle',
+            )}
+          >
+            {lineNumber ?? ''}
+          </span>
+        )}
+        {showTime &&
+          (onTimestampsClick ? (
+            // biome-ignore lint/a11y/noStaticElementInteractions: kept a span (not a button) so the timestamp stays part of a multi-line text selection; switching format is a pointer convenience.
+            // biome-ignore lint/a11y/useKeyWithClickEvents: the accessible way to switch timestamp format is a toolbar control, not this inline cell.
+            <span
+              data-slot="log-row-time"
+              onClick={() => {
+                // Ignore the click that ends a drag-selection so timestamps stay copyable.
+                if (window.getSelection()?.isCollapsed === false) return;
+                onTimestampsClick();
+              }}
+              className="w-80 flex-none cursor-pointer px-4 text-foreground-neutral-muted tabular-nums transition-colors hover:text-foreground-neutral-base"
+            >
+              {timeText}
+            </span>
+          ) : (
+            <span
+              data-slot="log-row-time"
+              className="w-80 flex-none px-4 text-foreground-neutral-muted tabular-nums"
+            >
+              {timeText}
+            </span>
+          ))}
+        <div
+          data-slot="log-row-body"
+          className="min-w-0 flex-1 overflow-hidden pr-12"
+          style={{paddingLeft: 12 + indent}}
+        >
+          {children}
+        </div>
+      </div>
+    </LogRowContextProvider>
+  );
+}
