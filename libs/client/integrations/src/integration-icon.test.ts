@@ -1,0 +1,17 @@
+import {FALLBACK_INTEGRATION_ICON, getIntegrationIcon} from './integration-icon.js';
+
+describe('getIntegrationIcon', () => {
+  it('resolves cataloged providers to the icon they declare', () => {
+    expect(getIntegrationIcon('github')).toBe('github');
+    expect(getIntegrationIcon('sentry')).toBe('sentry');
+  });
+
+  it('falls back for sources missing from the catalog', () => {
+    expect(getIntegrationIcon('gitlab')).toBe(FALLBACK_INTEGRATION_ICON);
+    expect(getIntegrationIcon('mystery')).toBe(FALLBACK_INTEGRATION_ICON);
+  });
+
+  it.each([['' as const], [null], [undefined]])('falls back for an empty source (%s)', (source) => {
+    expect(getIntegrationIcon(source)).toBe(FALLBACK_INTEGRATION_ICON);
+  });
+});

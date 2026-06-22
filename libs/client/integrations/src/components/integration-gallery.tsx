@@ -185,6 +185,7 @@ function InstalledRow({
     <li className="flex items-center gap-12 px-16 py-10 transition-colors hover:bg-background-components-hover">
       <IntegrationIcon
         source={connection.provider}
+        aria-hidden
         className={cn(
           'size-24 shrink-0',
           muted ? 'text-foreground-neutral-disabled' : 'text-foreground-neutral-base',
@@ -262,6 +263,7 @@ function AvailableCard({
         <div className="flex min-w-0 items-center gap-12">
           <IntegrationIcon
             source={provider.provider}
+            aria-hidden
             className="size-24 shrink-0 text-foreground-neutral-base"
           />
           <Text size="md" bold className="truncate">
