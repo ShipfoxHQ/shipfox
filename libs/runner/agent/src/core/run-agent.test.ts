@@ -18,8 +18,12 @@ vi.mock('@earendil-works/pi-coding-agent', () => ({
       hasConfiguredAuth: hasConfiguredAuthMock,
     }),
   },
+  SessionManager: {create: () => ({})},
 }));
 
+import {appendFileSync, mkdtempSync, rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {AgentConfigError} from '#core/errors.js';
 import {type AgentInvocation, runAgent} from '#core/run-agent.js';
 
@@ -36,6 +40,9 @@ function invocation(overrides: Partial<AgentInvocation> = {}): AgentInvocation {
 }
 
 describe('runAgent', () => {
+  // Tracked so the temp dir is removed in afterEach even if an assertion throws first.
+  let sessionDir: string | undefined;
+
   beforeEach(() => {
     createAgentSessionMock.mockReset();
     findMock.mockReset();
@@ -52,6 +59,11 @@ describe('runAgent', () => {
     });
   });
 
+  afterEach(() => {
+    if (sessionDir) rmSync(sessionDir, {recursive: true, force: true});
+    sessionDir = undefined;
+  });
+
   it('resolves the configured model under the requested provider and runs the prompt', async () => {
     const model = {provider: 'openai', id: 'gpt-5.1'};
     findMock.mockReturnValue(model);
@@ -64,6 +76,33 @@ describe('runAgent', () => {
     );
     expect(promptMock).toHaveBeenCalledWith('Fix it.');
     expect(result).toEqual({});
+  });
+
+  it('forwards each persisted session entry to onSessionEntry in order', async () => {
+    sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-run-agent-'));
+    const sessionFile = join(sessionDir, 'session.jsonl');
+    // pi persists entries to the session file during the turn; the final read on completion
+    // forwards everything written before the prompt resolved.
+    promptMock.mockImplementation(() => {
+      appendFileSync(sessionFile, '{"type":"session"}\n{"type":"message","id":"a"}\n');
+      return Promise.resolve();
+    });
+    createAgentSessionMock.mockResolvedValue({
+      session: {prompt: promptMock, abort: abortMock, messages: [], sessionFile},
+    });
+    const entries: string[] = [];
+
+    await runAgent(invocation({onSessionEntry: (line) => entries.push(line)}));
+
+    expect(entries).toEqual(['{"type":"session"}', '{"type":"message","id":"a"}']);
+  });
+
+  it('skips forwarding when the session is not persisted (no session file)', async () => {
+    const entries: string[] = [];
+
+    await runAgent(invocation({onSessionEntry: (line) => entries.push(line)}));
+
+    expect(entries).toEqual([]);
   });
 
   it('throws an AgentConfigError naming the provider when it is unknown', async () => {
@@ -120,9 +159,7 @@ describe('runAgent', () => {
 
   it('aborts the pi session when the signal fires', async () => {
     const ac = new AbortController();
-    let resolvePrompt: () => void = () => {
-      // replaced by the mock implementation below
-    };
+    let resolvePrompt: () => void = () => undefined;
     promptMock.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
@@ -141,9 +178,7 @@ describe('runAgent', () => {
 
   it('aborts the session and skips the prompt when the signal fires during session creation', async () => {
     const ac = new AbortController();
-    let resolveCreate: (value: {session: unknown}) => void = () => {
-      // replaced by the mock implementation below
-    };
+    let resolveCreate: (value: {session: unknown}) => void = () => undefined;
     createAgentSessionMock.mockImplementation(
       () =>
         new Promise((resolve) => {

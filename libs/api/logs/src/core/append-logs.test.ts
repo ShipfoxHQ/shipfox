@@ -8,6 +8,7 @@ import {
   outputLine,
   outputOfBytes,
   recordLine,
+  sessionLine,
 } from '#test/fixtures/ndjson.js';
 import {findAccounting, findStream, listChunks, listStreamClosedEvents} from '#test/queries.js';
 
@@ -99,6 +100,36 @@ describe('appendLogs', () => {
     });
   });
 
+  describe('agent_session', () => {
+    it('stores a session line verbatim as one runner chunk and leaves the stream open', async () => {
+      const ctx = newCtx();
+      // Small enough to stay under the tiny test budget (100 bytes) so capped stays false.
+      const body = ndjsonBody(sessionLine('{"type":"x"}'));
+
+      const result = await appendLogs({...ctx, attempt: 1, offset: 0, body});
+
+      expect(result).toEqual({committedLength: body.length, capped: false});
+      const stream = await findStream({...ctx, attempt: 1});
+      expect(stream?.state).toBe('open');
+      const chunks = await listChunks(stream?.id as string);
+      expect(chunks).toHaveLength(1);
+      expect(chunks[0]?.origin).toBe('runner');
+      expect(chunks[0]?.data).toEqual(body);
+    });
+
+    it('rejects a session line over LOG_MAX_SESSION_LINE_BYTES before any stream is created', async () => {
+      const ctx = newCtx();
+      const body = ndjsonBody(sessionLine('x'.repeat(600)));
+
+      const error = await appendLogs({...ctx, attempt: 1, offset: 0, body}).catch(
+        (e: unknown) => e,
+      );
+
+      expect(error).toBeInstanceOf(MalformedLogChunkError);
+      expect(await findStream({...ctx, attempt: 1})).toBeNull();
+    });
+  });
+
   describe('budget accounting', () => {
     it('charges the raw stored bytes, envelope and control records included', async () => {
       const ctx = newCtx();
@@ -148,7 +179,8 @@ describe('appendLogs', () => {
 
       expect(result).toEqual({committedLength: first.length + straggler.length, capped: true});
       const stream = await findStream({...ctx, attempt: 1});
-      expect(await listChunks(stream?.id as string)).toHaveLength(2); // runner + tombstone, no straggler
+      const chunks = await listChunks(stream?.id as string);
+      expect(chunks.map((c) => c.origin)).toEqual(['runner', 'control']);
     });
 
     it('does not cap when stored bytes land exactly on the budget', async () => {
@@ -375,7 +407,8 @@ describe('appendLogs', () => {
 
     it('rejects an invalid NDJSON record', async () => {
       const ctx = newCtx();
-      const body = ndjsonBody(recordLine({type: 'output', stream: 'stdout'})); // missing data
+      const recordWithoutData = recordLine({type: 'output', stream: 'stdout'});
+      const body = ndjsonBody(recordWithoutData);
 
       const error = await appendLogs({...ctx, attempt: 1, offset: 0, body}).catch(
         (e: unknown) => e,

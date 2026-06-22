@@ -5,7 +5,6 @@ import {
   MAX_RECORD_NAME_BYTES,
 } from '@shipfox/api-logs-dto';
 
-/** A pipe origin for captured output. */
 export type OutputSource = 'stdout' | 'stderr';
 
 export const PIPES: readonly OutputSource[] = ['stdout', 'stderr'];
@@ -44,6 +43,10 @@ function gapRecord(args: {ts: number; droppedBytes: number}): AppendableLogRecor
 
 function endRecord(args: {ts: number; totalBytes: number}): AppendableLogRecord {
   return {v: 1, ts: args.ts, type: 'end', total_bytes: args.totalBytes};
+}
+
+function agentSessionRecord(args: {ts: number; data: string}): AppendableLogRecord {
+  return {v: 1, ts: args.ts, type: 'agent_session', data: args.data};
 }
 
 export interface FramedOutput {
@@ -140,5 +143,17 @@ export class StreamFramer {
 
   frameEnd(totalBytes: number): Buffer {
     return encodeRecord(endRecord({ts: this.now(), totalBytes}));
+  }
+
+  // One verbatim agent session entry per record — never split (splitting would break the
+  // entry's JSON). The caller drops an over-cap line before this runs. payloadBytes counts
+  // the entry's bytes toward the stream's end total, like output `data`. An empty line frames
+  // nothing (the DTO requires `data` non-empty), so it is never emitted as a record.
+  frameAgentSession(line: string): FramedOutput {
+    if (line.length === 0) return EMPTY_FRAME;
+    return {
+      bytes: encodeRecord(agentSessionRecord({ts: this.now(), data: line})),
+      payloadBytes: Buffer.byteLength(line, 'utf8'),
+    };
   }
 }

@@ -15,6 +15,17 @@ const MIN_FLUSH_BYTES = MAX_RECORD_DATA_BYTES * 6 + 1024;
 // must lower SHIPFOX_LOG_FLUSH_BYTES below it too.
 const MAX_FLUSH_BYTES = 1024 * 1024;
 
+// The agent-session stream forwards one whole entry per record, so its flush window doubles
+// as the read window and the runner's per-entry drop threshold: a record larger than it is
+// dropped with a gap, never sent. The ceiling matches the server's DEFAULT
+// LOG_MAX_SESSION_LINE_BYTES (4 MiB). A window above the server's per-line cap would let an
+// entry sized between the two slip past the runner's drop and be rejected 400 by the server,
+// which stops the upload for the whole attempt (terminal) instead of dropping just that entry.
+// The runner cannot read the server config, so the documented default is the safe ceiling.
+// Bounded here so a misconfig fails fast at startup.
+const MIN_AGENT_SESSION_FLUSH_BYTES = 64 * 1024;
+const MAX_AGENT_SESSION_FLUSH_BYTES = 4 * 1024 * 1024;
+
 export const config = createConfig({
   SHIPFOX_LOG_FLUSH_INTERVAL_MS: num({
     desc: 'How often the runner uploads buffered step logs, in milliseconds. This bounds how much recent output is lost if the runner machine dies mid-step.',
@@ -32,6 +43,10 @@ export const config = createConfig({
     desc: 'How long, in milliseconds, the runner waits at the end of a job for in-flight log uploads to finish before deleting the workspace. Bounds shutdown when the API is slow or unreachable.',
     default: 5000,
   }),
+  SHIPFOX_AGENT_SESSION_FLUSH_BYTES: num({
+    desc: `Upload window and per-entry drop threshold for agent-session logs, in bytes. One agent session entry rides one record; an entry whose encoded record exceeds this is dropped with a gap marker instead of forwarded. Must be between ${MIN_AGENT_SESSION_FLUSH_BYTES} and ${MAX_AGENT_SESSION_FLUSH_BYTES}, and no larger than the server's LOG_MAX_SESSION_LINE_BYTES (the binding ceiling: a kept entry above it is rejected with 400, which ends capture for the attempt; the server keeps that cap at or below its LOG_APPEND_BODY_LIMIT_BYTES). Defaults to 4 MiB.`,
+    default: 4_194_304,
+  }),
 });
 
 // envalid's num has no range support, so enforce the flush-window bounds here: an out-of-range
@@ -43,5 +58,14 @@ if (
 ) {
   throw new Error(
     `SHIPFOX_LOG_FLUSH_BYTES must be between ${MIN_FLUSH_BYTES} and ${MAX_FLUSH_BYTES} bytes; got ${config.SHIPFOX_LOG_FLUSH_BYTES}.`,
+  );
+}
+
+if (
+  config.SHIPFOX_AGENT_SESSION_FLUSH_BYTES < MIN_AGENT_SESSION_FLUSH_BYTES ||
+  config.SHIPFOX_AGENT_SESSION_FLUSH_BYTES > MAX_AGENT_SESSION_FLUSH_BYTES
+) {
+  throw new Error(
+    `SHIPFOX_AGENT_SESSION_FLUSH_BYTES must be between ${MIN_AGENT_SESSION_FLUSH_BYTES} and ${MAX_AGENT_SESSION_FLUSH_BYTES} bytes; got ${config.SHIPFOX_AGENT_SESSION_FLUSH_BYTES}.`,
   );
 }

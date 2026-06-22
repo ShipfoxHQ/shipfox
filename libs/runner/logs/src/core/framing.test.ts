@@ -22,6 +22,38 @@ function outputData(records: LogRecord[]): string {
     .join('');
 }
 
+describe('StreamFramer.frameAgentSession', () => {
+  it('frames one verbatim entry line into a single agent_session record', () => {
+    const framer = new StreamFramer(() => 1000);
+    const line = '{"type":"message","id":"a","parentId":null}';
+
+    const framed = framer.frameAgentSession(line);
+    const [record] = parseRecords(framed.bytes);
+
+    expect(record).toEqual({v: 1, ts: 1000, type: 'agent_session', data: line});
+    expect(framed.payloadBytes).toBe(Buffer.byteLength(line, 'utf8'));
+  });
+
+  it('does not split a line larger than the output data cap (one entry, one record)', () => {
+    const framer = new StreamFramer(() => 1);
+    const line = 'x'.repeat(MAX_RECORD_DATA_BYTES * 3);
+
+    const records = parseRecords(framer.frameAgentSession(line).bytes);
+
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({type: 'agent_session', data: line});
+  });
+
+  it('frames nothing for an empty line (data would fail the DTO non-empty constraint)', () => {
+    const framer = new StreamFramer(() => 1);
+
+    const framed = framer.frameAgentSession('');
+
+    expect(framed.bytes.length).toBe(0);
+    expect(framed.payloadBytes).toBe(0);
+  });
+});
+
 describe('StreamFramer.frameOutputText', () => {
   it('frames text into a single output record with its stream pipe and stamped ts', () => {
     const framer = new StreamFramer(() => 1000);

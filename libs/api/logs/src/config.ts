@@ -32,8 +32,8 @@ export const config = createConfig({
     default: true,
   }),
   LOG_BUDGET_BASE_BYTES: num({
-    desc: 'Base of the per-job log accrual budget, in stored bytes (raw NDJSON the server keeps, framing included). A job may always store this much before the time-based rate is added. Defaults to 5 MiB.',
-    default: 5_242_880,
+    desc: 'Base of the per-job log accrual budget, in stored bytes (raw NDJSON the server keeps, framing included). A job may always store this much before the time-based rate is added. Sized to hold a few inline agent_session entries (such as base64 images) before the shared per-job cap trips. Defaults to 32 MiB.',
+    default: 33_554_432,
   }),
   LOG_BUDGET_RATE_BYTES_PER_MINUTE: num({
     desc: 'Stored bytes added to the per-job log budget for each minute since the first log append. Defaults to 1 MiB per minute.',
@@ -52,8 +52,12 @@ export const config = createConfig({
     default: 7200,
   }),
   LOG_APPEND_BODY_LIMIT_BYTES: num({
-    desc: 'Maximum size of a single log append request body, in bytes. The runner flushes at most a few hundred KB per request and each record caps at 16 KiB, so 1 MiB is generous headroom. This also bounds how far a job can overshoot its log budget: the one append that crosses the budget is stored in full before the job is capped. Defaults to 1 MiB.',
-    default: 1_048_576,
+    desc: 'Maximum size of a single log append request body, in bytes. Output records cap at 16 KiB each, but one agent_session record carries a whole session entry (which can inline base64 images), so the body must hold a full LOG_MAX_SESSION_LINE_BYTES line plus framing. This also bounds how far a job can overshoot its log budget: the one append that crosses the budget is stored in full before the job is capped. Defaults to 8 MiB.',
+    default: 8_388_608,
+  }),
+  LOG_MAX_SESSION_LINE_BYTES: num({
+    desc: 'Maximum size of one agent_session log line (a verbatim agent session entry), in bytes. A larger line is rejected with 400, and the runner drops it with a gap marker instead of sending it. Sized generously for entries that inline large content such as base64 images. Must be at most LOG_APPEND_BODY_LIMIT_BYTES, since a line that cannot fit in one request body could never be accepted. Defaults to 4 MiB.',
+    default: 4_194_304,
   }),
   LOG_READ_URL_TTL_SECONDS: num({
     desc: 'Lifetime, in seconds, of a presigned GET URL handed out for a compacted (cold) log read. The browser must finish fetching the object before it expires; raise it for slow links or large logs. Must be between 1 and 604800 (7 days, the longest a presigned URL can live). Defaults to 3600 (one hour).',
@@ -83,6 +87,15 @@ if (
 if (config.LOG_READ_INLINE_MAX_BYTES < 1) {
   throw new Error(
     `LOG_READ_INLINE_MAX_BYTES must be at least 1; got ${config.LOG_READ_INLINE_MAX_BYTES}`,
+  );
+}
+
+// A whole agent_session line is one record in one body. If the body limit is below the
+// line cap, a legitimate large session line could never fit in one request body — Fastify
+// would 413 it before the per-line validator runs. Fail fast at startup instead.
+if (config.LOG_APPEND_BODY_LIMIT_BYTES < config.LOG_MAX_SESSION_LINE_BYTES) {
+  throw new Error(
+    `LOG_APPEND_BODY_LIMIT_BYTES (${config.LOG_APPEND_BODY_LIMIT_BYTES}) must be >= LOG_MAX_SESSION_LINE_BYTES (${config.LOG_MAX_SESSION_LINE_BYTES}).`,
   );
 }
 

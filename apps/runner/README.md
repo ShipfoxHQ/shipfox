@@ -54,3 +54,4 @@ configured root is empty, the filesystem root (`/`), or a home directory.
 | `SHIPFOX_LOG_FLUSH_BYTES` | `262144` | Backlog size that triggers an early log upload before the interval elapses, so bursts do not wait for the timer. |
 | `SHIPFOX_LOG_SPOOL_MAX_BYTES` | `67108864` | Max not-yet-acknowledged log bytes kept on disk per step attempt. Beyond this, output is dropped and a gap marker is recorded. |
 | `SHIPFOX_LOG_DRAIN_TIMEOUT_MS` | `5000` | How long the runner waits at job end for in-flight log uploads before deleting the workspace. |
+| `SHIPFOX_AGENT_SESSION_FLUSH_BYTES` | `4194304` | Upload window and per-entry drop threshold for agent-session logs. Entries over this encoded-record size are dropped with a gap marker instead of forwarded. |

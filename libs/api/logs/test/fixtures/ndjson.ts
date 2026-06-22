@@ -12,6 +12,10 @@ export function endLine(totalBytes: number): string {
   return recordLine({type: 'end', total_bytes: totalBytes});
 }
 
+export function sessionLine(data: string): string {
+  return recordLine({type: 'agent_session', data});
+}
+
 export function groupStartLine(
   groupId: string,
   name: string,
