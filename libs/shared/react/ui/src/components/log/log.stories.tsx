@@ -1,16 +1,13 @@
 import type {Meta, StoryObj} from '@storybook/react';
-import {type ReactNode, useState} from 'react';
+import {type ReactNode, useRef, useState} from 'react';
 import {Badge} from '#components/badge/index.js';
-import {Button} from '#components/button/index.js';
 import {Icon} from '#components/icon/index.js';
 import {Code} from '#components/typography/index.js';
 import {cn} from '#utils/cn.js';
-import {type LogTimestampMode, toggleTimestampUnit} from './format-timestamp.js';
 import {LogContent} from './log-content.js';
 import {LogHeader} from './log-header.js';
 import {LogRow, type LogRowTone} from './log-row.js';
 import {LogRows} from './log-rows.js';
-import {useLogWrap} from './use-log-wrap.js';
 
 const meta = {
   title: 'Components/Log',
@@ -272,17 +269,17 @@ export const Wrapping: Story = {
 };
 
 /**
- * Tying the controls together with `useLogWrap` and a clickable timestamp.
+ * Controls linked to the component: the Storybook Controls panel drives the
+ * globals (`timestamps`, `wrap`, `showLineNumbers`) straight through `{...args}`.
  *
- * Click any timestamp to switch rel/abs for every row. Per-line wrap stays off
- * the text so copy/paste is untouched: the explicit toggle is the hover button
- * (and a future keyboard shortcut), with Alt/Option-click on the line as a
- * power gesture — plain clicks and drag-selection are left alone. The global
- * Wrap toggle clears every per-line override, and overrides are keyed by line
- * id, so they survive a row leaving and re-entering a virtualized window.
+ * Per-line wrap is layered on top and stays off the text so copy/paste is
+ * untouched: the chevron is the explicit toggle, with Alt/Option-click on the
+ * line as a power gesture. Toggling the global `wrap` control clears every
+ * per-line override, so the global always wins.
  */
 export const Interactive: Story = {
-  render: () => {
+  args: {timestamps: 'rel'},
+  render: (args) => {
     const lines: {id: number; ts: number; text: string; tone?: LogRowTone}[] = [
       {id: 1, ts: 0.12, text: 'pnpm vitest run --reporter=verbose --coverage'},
       {
@@ -300,48 +297,50 @@ export const Interactive: Story = {
       },
       {id: 5, ts: 2.95, text: 'done in 412ms'},
     ];
-    const [timestamps, setTimestamps] = useState<LogTimestampMode>('rel');
-    const wrap = useLogWrap(false);
+    const [exceptions, setExceptions] = useState<ReadonlySet<number>>(() => new Set());
+
+    // Toggling the global `wrap` control clears the per-line overrides so the
+    // global wins. Adjusted during render — React's reset-on-prop-change pattern.
+    const lastWrap = useRef(args.wrap);
+    if (lastWrap.current !== args.wrap) {
+      lastWrap.current = args.wrap;
+      if (exceptions.size > 0) setExceptions(new Set());
+    }
+
+    const toggleLine = (id: number) =>
+      setExceptions((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
 
     return (
       <div className="flex max-w-2xl flex-col gap-8">
-        <div className="flex items-center gap-12">
-          <Button
-            size="xs"
-            variant={wrap.globalWrap ? 'secondary' : 'transparentMuted'}
-            aria-pressed={wrap.globalWrap}
-            onClick={wrap.toggleGlobal}
-          >
-            Wrap: {wrap.globalWrap ? 'on' : 'off'}
-          </Button>
-          <Code variant="label" className="text-foreground-neutral-muted">
-            click a timestamp to switch rel/abs · ⌥-click or the hover button to wrap a line
-          </Code>
-        </div>
-        <LogRows
-          timestamps={timestamps}
-          timestampOrigin={origin}
-          wrap={wrap.globalWrap}
-          onTimestampsClick={() => setTimestamps(toggleTimestampUnit)}
-        >
+        <Code variant="label" className="text-foreground-neutral-muted">
+          Globals come from the Controls panel · the chevron (or ⌥-click) wraps one line ·{' '}
+          {exceptions.size} overridden
+        </Code>
+        <LogRows {...args} timestampOrigin={origin}>
           {lines.map((line) => {
-            const wrapped = wrap.rowWrap(line.id) ?? wrap.globalWrap;
-            const overridden = wrap.isOverridden(line.id);
+            const overridden = exceptions.has(line.id);
+            const rowWrap = overridden ? !args.wrap : undefined;
+            const wrapped = rowWrap ?? args.wrap;
             return (
               <LogRow
                 key={line.id}
                 lineNumber={line.id}
                 timestamp={at(line.ts)}
                 tone={line.tone}
-                wrap={wrap.rowWrap(line.id)}
+                wrap={rowWrap}
               >
                 <div className="flex items-start gap-8">
-                  {/* biome-ignore lint/a11y/noStaticElementInteractions: Alt-click is a pointer-only shortcut; the hover button is the accessible toggle and plain clicks/selection are deliberately untouched so copy still works. */}
-                  {/* biome-ignore lint/a11y/useKeyWithClickEvents: the keyboard path is the hover button (and a future cursor shortcut), not the text. */}
+                  {/* biome-ignore lint/a11y/noStaticElementInteractions: Alt-click is a pointer-only shortcut; the chevron is the accessible toggle and plain clicks/selection are deliberately untouched so copy still works. */}
+                  {/* biome-ignore lint/a11y/useKeyWithClickEvents: the keyboard path is the chevron button, not the text. */}
                   <span
                     className="min-w-0 flex-1"
                     onClick={(event) => {
-                      if (event.altKey) wrap.toggleLine(line.id);
+                      if (event.altKey) toggleLine(line.id);
                     }}
                   >
                     <LogContent variant="code">{line.text}</LogContent>
@@ -350,10 +349,10 @@ export const Interactive: Story = {
                     type="button"
                     aria-pressed={wrapped}
                     aria-label={wrapped ? 'Collapse line' : 'Wrap line'}
-                    onClick={() => wrap.toggleLine(line.id)}
+                    onClick={() => toggleLine(line.id)}
                     className={cn(
                       'flex-none rounded-4 p-2 transition-opacity',
-                      'opacity-0 group-hover/log-row:opacity-100 focus-visible:opacity-100',
+                      'opacity-60 group-hover/log-row:opacity-100 focus-visible:opacity-100',
                       overridden
                         ? 'text-foreground-highlight-interactive opacity-100'
                         : 'text-foreground-neutral-muted hover:text-foreground-neutral-base',
