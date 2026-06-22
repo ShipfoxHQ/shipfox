@@ -181,13 +181,16 @@ export const Wrap: Story = {
       'ERROR  TypeError: Cannot read properties of undefined (reading "id") at withRetry (src/api/retry.ts:42:18) at async runStep (src/runner/step.ts:118:7)';
     return (
       <div className="flex max-w-3xl flex-col gap-16">
-        <div className="flex flex-col gap-8">
+        <div className="flex max-w-md flex-col gap-8">
           <Code variant="label" className="text-foreground-neutral-subtle">
-            wrap=false (scroll)
+            wrap=false — the line scrolls; a right fade marks the truncation
           </Code>
           <LogRows wrap={false}>
             <LogRow lineNumber={120} tone="error">
               <LogContent variant="code">{long}</LogContent>
+            </LogRow>
+            <LogRow lineNumber={121}>
+              <LogContent variant="code">resuming after the failure</LogContent>
             </LogRow>
           </LogRows>
         </div>

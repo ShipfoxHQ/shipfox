@@ -29,20 +29,17 @@ export interface LogRowProps extends ComponentProps<'div'> {
   lineNumber?: number | null;
   /** Row time; the container's mode formats it. `null` renders a blank cell. */
   timestamp?: Date | null;
-  /** Left accent bar + background tint. */
   tone?: LogRowTone;
-  /** Left padding of the body in px — pass `depth * step` for nested content. */
+  /** Left padding of the body in pixels. */
   indent?: number;
-  /** Cursor / active row for keyboard traversal. */
   selected?: boolean;
   /** Override the container's soft-wrap for this row. */
   wrap?: boolean;
 }
 
 /**
- * The structure for a single row: a line-number gutter, an optional timestamp
- * column, and a body that holds an optional `LogHeader` and a `LogContent`. It
- * owns tone, indent and wrap — pure layout that never inspects its children.
+ * Primitive row renderer. It owns the gutter, timestamp, tone, indent, and wrap
+ * context, but does not inspect or reshape its children.
  */
 export function LogRow({
   className,
@@ -99,7 +96,7 @@ export function LogRow({
         )}
         <div
           data-slot="log-row-body"
-          className={cn('min-w-0 flex-1 pr-12', resolvedWrap ? '' : 'overflow-x-auto scrollbar')}
+          className="min-w-0 flex-1 overflow-hidden pr-12"
           style={{paddingLeft: indent || 12}}
         >
           {children}

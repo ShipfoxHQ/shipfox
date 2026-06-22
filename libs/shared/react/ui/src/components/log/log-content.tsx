@@ -28,9 +28,14 @@ export interface LogContentProps
 
 /**
  * Body content for prose or terminal-style output. The code variant preserves
- * whitespace and can parse ANSI SGR escapes when `ansi` is enabled. When the
- * code variant soft-wraps, continuation lines get a hanging indent so a wrapped
- * line reads as one logical line rather than a blank-gutter marker row.
+ * whitespace and can parse ANSI SGR escapes when `ansi` is enabled.
+ *
+ * When the code variant soft-wraps, continuation lines get a hanging indent so
+ * a wrapped line reads as one logical line rather than a blank-gutter marker
+ * row. When it does not wrap, the line scrolls horizontally and a right-edge
+ * fade marks any line that runs past the edge, so a truncated line is never
+ * silently clipped. Both cues are pure CSS and self-revealing: a line that
+ * fits, or does not wrap, is left untouched.
  */
 export function LogContent({
   className,
@@ -44,13 +49,11 @@ export function LogContent({
   const rowContext = useLogRowContext();
   const resolvedWrap = wrap ?? rowContext?.wrap ?? rowsContext.wrap;
 
-  // The hanging indent only affects lines after the first, so a line that does
-  // not wrap is untouched — the inset appears exactly when wrapping happens.
   const codeStyling =
     variant === 'code'
       ? resolvedWrap
         ? 'whitespace-pre-wrap break-words pl-[2ch] [text-indent:-2ch]'
-        : 'whitespace-pre'
+        : 'w-full overflow-x-auto scrollbar whitespace-pre [mask-image:linear-gradient(to_right,#000_calc(100%_-_1.5rem),transparent)]'
       : '';
 
   const body =
