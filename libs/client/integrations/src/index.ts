@@ -5,6 +5,7 @@ export * from './components/repository-picker.js';
 export * from './hooks/api/integrations.js';
 export * from './integration-icon.js';
 export * from './pages/debug-install-page.js';
+export * from './pages/gitea-install-page.js';
 export * from './pages/github-install-page.js';
 export * from './pages/integration-gallery-page.js';
 export * from './pages/sentry-callback-page.js';

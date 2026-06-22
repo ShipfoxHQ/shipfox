@@ -4,6 +4,7 @@ import type {IconName} from '@shipfox/react-ui';
 // against TanStack Router's route tree.
 export type ProviderSetupPath =
   | '/workspaces/$wid/integrations/github'
+  | '/workspaces/$wid/integrations/gitea'
   | '/workspaces/$wid/integrations/debug'
   | '/workspaces/$wid/integrations/sentry';
 
@@ -29,6 +30,11 @@ export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
     kind: 'redirect-install',
     iconName: 'sentry',
     setupPath: '/workspaces/$wid/integrations/sentry',
+  },
+  gitea: {
+    kind: 'direct-connect',
+    iconName: 'gitea',
+    setupPath: '/workspaces/$wid/integrations/gitea',
   },
   debug: {
     kind: 'direct-connect',
