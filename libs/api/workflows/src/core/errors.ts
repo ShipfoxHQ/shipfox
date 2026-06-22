@@ -16,6 +16,16 @@ export class ProjectMismatchError extends Error {
   }
 }
 
+/**
+ * True when a `runWorkflow` failure can never succeed on retry: the definition is gone or
+ * the subscription points at the wrong project. Callers (e.g. the trigger dispatcher) use this
+ * to skip a permanently-broken target instead of retrying it forever. Every other failure is
+ * treated as transient so at-least-once delivery can converge.
+ */
+export function isPermanentRunWorkflowError(error: unknown): boolean {
+  return error instanceof DefinitionNotFoundError || error instanceof ProjectMismatchError;
+}
+
 export class JobNotFoundError extends Error {
   constructor(jobId: string) {
     super(`Job not found or has no steps: ${jobId}`);

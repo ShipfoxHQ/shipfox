@@ -5,6 +5,7 @@ import {
   type InsertReceivedEventParams,
   insertReceivedEvent,
   markReceivedEventDiscarded,
+  markReceivedEventErrored,
   markReceivedEventFailed,
   markReceivedEventRouted,
   upsertErroredDecision,
@@ -151,6 +152,81 @@ describe('received-event outcome transitions', () => {
       .from(triggersReceivedEvents)
       .where(eq(triggersReceivedEvents.id, id));
     expect(row?.outcome).toBe('routed');
+    expect(row?.processedAt).toBeInstanceOf(Date);
+  });
+
+  it('marks an event errored with processed_at when no run was created', async () => {
+    const id = await insertReceivedEvent(buildEventParams());
+
+    await markReceivedEventErrored(id, 2);
+
+    const [row] = await db()
+      .select()
+      .from(triggersReceivedEvents)
+      .where(eq(triggersReceivedEvents.id, id));
+    expect(row?.outcome).toBe('errored');
+    expect(row?.matchedCount).toBe(2);
+    expect(row?.processedAt).toBeInstanceOf(Date);
+  });
+
+  it('promotes to routed instead of errored when a triggered decision exists (cross-attempt run)', async () => {
+    const id = await insertReceivedEvent(buildEventParams());
+    await upsertTriggeredDecision({
+      receivedEventId: id,
+      subscription: buildSubscription(),
+      run: {id: crypto.randomUUID(), name: 'Build and test'},
+    });
+
+    await markReceivedEventErrored(id, 2);
+
+    const [row] = await db()
+      .select()
+      .from(triggersReceivedEvents)
+      .where(eq(triggersReceivedEvents.id, id));
+    expect(row?.outcome).toBe('routed');
+    expect(row?.matchedCount).toBe(2);
+    expect(row?.processedAt).toBeInstanceOf(Date);
+  });
+
+  it('does not downgrade a routed event to errored', async () => {
+    const id = await insertReceivedEvent(buildEventParams());
+    await markReceivedEventRouted(id, 1);
+
+    await markReceivedEventErrored(id, 1);
+
+    const [row] = await db()
+      .select()
+      .from(triggersReceivedEvents)
+      .where(eq(triggersReceivedEvents.id, id));
+    expect(row?.outcome).toBe('routed');
+  });
+
+  it('does not downgrade an errored event to failed (a late transient write loses)', async () => {
+    const id = await insertReceivedEvent(buildEventParams());
+    await markReceivedEventErrored(id, 1);
+
+    await markReceivedEventFailed(id, 1);
+
+    const [row] = await db()
+      .select()
+      .from(triggersReceivedEvents)
+      .where(eq(triggersReceivedEvents.id, id));
+    expect(row?.outcome).toBe('errored');
+    expect(row?.processedAt).toBeInstanceOf(Date);
+  });
+
+  it('promotes a transient failed event to errored on the all-permanent replay', async () => {
+    const id = await insertReceivedEvent(buildEventParams());
+    await markReceivedEventFailed(id, 2);
+
+    await markReceivedEventErrored(id, 2);
+
+    const [row] = await db()
+      .select()
+      .from(triggersReceivedEvents)
+      .where(eq(triggersReceivedEvents.id, id));
+    expect(row?.outcome).toBe('errored');
+    expect(row?.matchedCount).toBe(2);
     expect(row?.processedAt).toBeInstanceOf(Date);
   });
 });

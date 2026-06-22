@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {runWorkflow, type WorkflowRun} from '@shipfox/api-workflows';
+import {isPermanentRunWorkflowError, runWorkflow, type WorkflowRun} from '@shipfox/api-workflows';
 import {getTriggerSubscriptionById} from '#db/subscriptions.js';
 import {readConfigInputs} from './config.js';
 import {
@@ -63,7 +63,13 @@ export async function fireManualSubscription(
   } catch (error) {
     const failure = await beginTriggerHistory({...historyBase, eventRef: randomUUID()});
     await failure.errored(subscription, toReason(error));
-    await failure.failed(1);
+    // Manual fires do not replay, so permanent workflow errors can close history
+    // immediately while preserving the thrown error for callers.
+    if (isPermanentRunWorkflowError(error)) {
+      await failure.allErrored(1);
+    } else {
+      await failure.failed(1);
+    }
     throw error;
   }
 

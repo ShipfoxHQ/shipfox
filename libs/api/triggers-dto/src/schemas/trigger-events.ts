@@ -3,7 +3,13 @@ import {z} from 'zod';
 export const triggerEventOriginSchema = z.enum(['integration', 'manual']);
 export type TriggerEventOriginDto = z.infer<typeof triggerEventOriginSchema>;
 
-export const triggerEventOutcomeSchema = z.enum(['received', 'routed', 'discarded', 'failed']);
+export const triggerEventOutcomeSchema = z.enum([
+  'received',
+  'routed',
+  'discarded',
+  'failed',
+  'errored',
+]);
 export type TriggerEventOutcomeDto = z.infer<typeof triggerEventOutcomeSchema>;
 
 export const triggerDecisionOutcomeSchema = z.enum(['triggered', 'errored']);

@@ -7,6 +7,7 @@ const upsertTriggeredDecision = vi.fn();
 
 vi.mock('@shipfox/api-workflows', () => ({
   runWorkflow: (...args: unknown[]) => runWorkflow(...args),
+  isPermanentRunWorkflowError: () => false,
 }));
 
 vi.mock('#db/event-history.js', () => ({
@@ -14,6 +15,7 @@ vi.mock('#db/event-history.js', () => ({
   markReceivedEventDiscarded: vi.fn(),
   markReceivedEventRouted: (...args: unknown[]) => markReceivedEventRouted(...args),
   markReceivedEventFailed: vi.fn(),
+  markReceivedEventErrored: vi.fn(),
   upsertTriggeredDecision: (...args: unknown[]) => upsertTriggeredDecision(...args),
   upsertErroredDecision: vi.fn(),
 }));
@@ -50,6 +52,7 @@ describe('trigger history is best-effort and never blocks triggering', () => {
     await expect(recorder.discarded()).resolves.toBeUndefined();
     await expect(recorder.routed(1)).resolves.toBeUndefined();
     await expect(recorder.failed(1)).resolves.toBeUndefined();
+    await expect(recorder.allErrored(1)).resolves.toBeUndefined();
   });
 
   test('fireManualSubscription still returns the run when history recording fails', async () => {

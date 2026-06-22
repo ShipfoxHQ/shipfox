@@ -1,4 +1,4 @@
-import {and, eq, ne, notInArray} from 'drizzle-orm';
+import {and, eq, ne, notInArray, sql} from 'drizzle-orm';
 import type {TriggerEventOrigin} from '#core/entities/received-event.js';
 import type {TriggerSubscription} from '#core/entities/subscription.js';
 import {db} from './db.js';
@@ -51,7 +51,12 @@ export async function markReceivedEventDiscarded(id: string): Promise<void> {
   await db()
     .update(triggersReceivedEvents)
     .set({outcome: 'discarded', matchedCount: 0, processedAt: new Date()})
-    .where(and(eq(triggersReceivedEvents.id, id), ne(triggersReceivedEvents.outcome, 'routed')));
+    .where(
+      and(
+        eq(triggersReceivedEvents.id, id),
+        notInArray(triggersReceivedEvents.outcome, ['routed', 'errored']),
+      ),
+    );
 }
 
 export async function markReceivedEventRouted(id: string, matchedCount: number): Promise<void> {
@@ -67,6 +72,32 @@ export async function markReceivedEventFailed(id: string, matchedCount: number):
   await db()
     .update(triggersReceivedEvents)
     .set({outcome: 'failed', matchedCount})
+    .where(
+      and(
+        eq(triggersReceivedEvents.id, id),
+        notInArray(triggersReceivedEvents.outcome, ['routed', 'discarded', 'errored']),
+      ),
+    );
+}
+
+// Terminal outcome for a fan-out that produced no new run this pass. The CASE is a
+// cross-attempt safety net: under at-least-once delivery a prior attempt may already have
+// created a run (its decision row is `triggered`, which is never downgraded), so promote the
+// event to `routed` rather than falsely record `errored`. Guarded so it never downgrades a
+// terminal success.
+export async function markReceivedEventErrored(id: string, matchedCount: number): Promise<void> {
+  await db()
+    .update(triggersReceivedEvents)
+    .set({
+      outcome: sql`CASE WHEN EXISTS (
+        SELECT 1
+        FROM ${triggersDecisions}
+        WHERE ${triggersDecisions.receivedEventId} = ${triggersReceivedEvents.id}
+          AND ${triggersDecisions.decision} = 'triggered'
+      ) THEN 'routed' ELSE 'errored' END`,
+      matchedCount,
+      processedAt: new Date(),
+    })
     .where(
       and(
         eq(triggersReceivedEvents.id, id),

@@ -5,6 +5,7 @@ const insertReceivedEvent = vi.fn();
 
 vi.mock('@shipfox/api-workflows', () => ({
   runWorkflow: (...args: unknown[]) => runWorkflow(...args),
+  isPermanentRunWorkflowError: () => false,
 }));
 
 vi.mock('#db/event-history.js', () => ({
@@ -12,6 +13,7 @@ vi.mock('#db/event-history.js', () => ({
   markReceivedEventDiscarded: vi.fn(),
   markReceivedEventRouted: vi.fn(),
   markReceivedEventFailed: vi.fn(),
+  markReceivedEventErrored: vi.fn(),
   upsertTriggeredDecision: vi.fn(),
   upsertErroredDecision: vi.fn(),
 }));
