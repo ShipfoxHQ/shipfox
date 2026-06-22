@@ -53,11 +53,15 @@ const Section = ({label, children}: {label: string; children: ReactNode}) => (
   </div>
 );
 
-/** Interactive surface — flip the args to explore timestamps, wrap, and the gutter. */
+/**
+ * Controls-driven surface — flip the args to explore timestamps, wrap, and the
+ * gutter. The click- and hook-driven behaviors (switch timestamps, per-line
+ * wrap) live in the `Interactive` story, since they own state the args cannot.
+ */
 export const Playground: Story = {
   render: (args) => (
     <div className="max-w-3xl">
-      <LogRows {...args} timestampOrigin={origin} className="max-h-72">
+      <LogRows {...args} timestampOrigin={origin} className="max-h-360">
         <LogRow lineNumber={34} timestamp={at(9)}>
           <LogContent variant="code">transforming (1284) src/index.tsx</LogContent>
         </LogRow>
