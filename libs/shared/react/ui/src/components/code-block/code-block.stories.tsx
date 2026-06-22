@@ -56,9 +56,6 @@ const sourceFile: CodeBlockData = {
 }`,
 };
 
-// CodeBlock is a compound component; the header/body/footer assembly is the same
-// for every snippet. Sharing it here lets each story vary only the capability it
-// demonstrates instead of repeating the wiring a consumer writes once.
 function CodeBlockShowcase({
   data,
   lineNumbers,
@@ -115,8 +112,6 @@ export const WithoutLineNumbers: Story = {
   render: () => <CodeBlockShowcase data={[workflowFile]} lineNumbers={false} />,
 };
 
-// The status footer is one capability with two states, so both are shown
-// together: an in-progress (shimmering) message and a settled success message.
 export const Footer: Story = {
   render: () => (
     <div className="flex flex-col gap-16">
