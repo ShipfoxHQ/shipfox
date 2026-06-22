@@ -56,7 +56,10 @@ export function LogRow({
   const resolvedWrap = wrap ?? context.wrap;
   const showTime = context.timestamps !== 'off';
   const timeText = timestamp
-    ? formatLogTimestamp(timestamp, {mode: context.timestamps, origin: context.origin})
+    ? formatLogTimestamp(timestamp, {
+        mode: context.timestamps,
+        timestampOrigin: context.timestampOrigin,
+      })
     : '';
 
   return (

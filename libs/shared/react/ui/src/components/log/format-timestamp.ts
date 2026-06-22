@@ -1,4 +1,3 @@
-/** Time-column mode shared across a `LogRows` list. */
 export type LogTimestampMode = 'off' | 'rel' | 'abs';
 
 const absoluteFormatter = new Intl.DateTimeFormat(undefined, {
@@ -12,16 +11,18 @@ const absoluteFormatter = new Intl.DateTimeFormat(undefined, {
  * Formats a row's time for the gutter column.
  *
  * `abs` renders the wall-clock `HH:MM:SS`. `rel` renders a signed offset from
- * `origin` (`+0.412`, `+1:05.300`); without an `origin` there is no baseline to
+ * `timestampOrigin` (`+0.412`, `+1:05.300`); without one there is no baseline to
  * subtract, so it falls back to the absolute clock rather than render blank.
  * `off` returns '' because the column is hidden upstream.
  */
 export function formatLogTimestamp(
   date: Date,
-  {mode, origin}: {mode: LogTimestampMode; origin?: Date | undefined},
+  {mode, timestampOrigin}: {mode: LogTimestampMode; timestampOrigin?: Date | undefined},
 ): string {
   if (mode === 'off') return '';
-  if (mode === 'rel' && origin) return formatOffset(date.getTime() - origin.getTime());
+  if (mode === 'rel' && timestampOrigin) {
+    return formatOffset(date.getTime() - timestampOrigin.getTime());
+  }
   return absoluteFormatter.format(date);
 }
 

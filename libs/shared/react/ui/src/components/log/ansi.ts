@@ -8,12 +8,11 @@
  * leaked into the rendered text. Extended color codes (`38;5;n`, `38;2;r;g;b`)
  * are parsed and skipped rather than mis-rendered.
  *
- * The parser is intentionally pure (no React) so it can be unit-tested in a
- * node environment; `LogContent` maps the returned spans to elements.
+ * The parser is intentionally pure (no React) so `LogContent` can decide how
+ * returned spans become elements.
  */
 
 export interface AnsiSpan {
-  /** The run of text that shares one style. */
   text: string;
   /** Space-joined utility classes for the run; '' when unstyled. */
   className: string;

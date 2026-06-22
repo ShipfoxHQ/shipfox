@@ -51,7 +51,7 @@ const Section = ({label, children}: {label: string; children: ReactNode}) => (
 export const Playground: Story = {
   render: (args) => (
     <div className="max-w-3xl">
-      <LogRows {...args} origin={origin} className="max-h-72">
+      <LogRows {...args} timestampOrigin={origin} className="max-h-72">
         <LogRow lineNumber={34} timestamp={at(9)}>
           <LogContent variant="code">transforming (1284) src/index.tsx</LogContent>
         </LogRow>
@@ -119,7 +119,7 @@ export const Timestamps: Story = {
     <div className="grid max-w-5xl gap-16 md:grid-cols-3">
       {(['off', 'rel', 'abs'] as const).map((mode) => (
         <Section key={mode} label={`timestamps="${mode}"`}>
-          <LogRows timestamps={mode} origin={origin}>
+          <LogRows timestamps={mode} timestampOrigin={origin}>
             <LogRow lineNumber={17} timestamp={at(0.412)}>
               <LogContent variant="code">resolving dependencies</LogContent>
             </LogRow>
@@ -353,7 +353,7 @@ export const Header: Story = {
 export const Composition: Story = {
   render: () => (
     <div className="max-w-3xl">
-      <LogRows timestamps="abs" origin={origin} className="max-h-96">
+      <LogRows timestamps="abs" timestampOrigin={origin} className="max-h-96">
         <LogRow lineNumber={41} timestamp={at(8.12)}>
           <LogContent variant="code">
             <Glyph className="text-green-500 dark:text-green-400">{'$ '}</Glyph>pnpm vitest run

@@ -13,7 +13,7 @@ describe('formatLogTimestamp', () => {
   test('formats a sub-minute relative offset with millisecond precision', () => {
     const date = new Date('2026-06-22T14:32:00.412Z');
 
-    const result = formatLogTimestamp(date, {mode: 'rel', origin});
+    const result = formatLogTimestamp(date, {mode: 'rel', timestampOrigin: origin});
 
     expect(result).toBe('+0.412');
   });
@@ -21,7 +21,7 @@ describe('formatLogTimestamp', () => {
   test('formats a multi-minute relative offset as m:ss.mmm', () => {
     const date = new Date('2026-06-22T14:33:05.300Z');
 
-    const result = formatLogTimestamp(date, {mode: 'rel', origin});
+    const result = formatLogTimestamp(date, {mode: 'rel', timestampOrigin: origin});
 
     expect(result).toBe('+1:05.300');
   });
@@ -29,7 +29,7 @@ describe('formatLogTimestamp', () => {
   test('signs a negative relative offset', () => {
     const date = new Date('2026-06-22T14:31:59.500Z');
 
-    const result = formatLogTimestamp(date, {mode: 'rel', origin});
+    const result = formatLogTimestamp(date, {mode: 'rel', timestampOrigin: origin});
 
     expect(result).toBe('-0.500');
   });

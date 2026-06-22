@@ -12,7 +12,7 @@ export interface LogRowsContextValue {
   timestamps: LogTimestampMode;
   wrap: boolean;
   showLineNumbers: boolean;
-  origin?: Date | undefined;
+  timestampOrigin?: Date | undefined;
 }
 
 export const defaultLogRowsContext: LogRowsContextValue = {

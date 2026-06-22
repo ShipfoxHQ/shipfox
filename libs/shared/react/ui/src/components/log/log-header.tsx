@@ -2,14 +2,12 @@ import type {ComponentProps, ReactNode} from 'react';
 import {cn} from '#utils/cn.js';
 
 export interface LogHeaderProps extends ComponentProps<'div'> {
-  /** Right-aligned slot — usage, model name, duration. */
+  /** Right-aligned metadata slot, such as usage, model name, or duration. */
   end?: ReactNode;
 }
 
 /**
- * An optional header line inside a row's body: a left cluster (badge, glyph,
- * label) and a right-aligned `end` slot. Pure flex layout — you decide what
- * goes in. Omit it for plain output lines.
+ * Optional header line inside a row body. Omit it for plain output lines.
  */
 export function LogHeader({className, children, end, ...props}: LogHeaderProps) {
   return (

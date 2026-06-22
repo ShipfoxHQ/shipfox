@@ -13,7 +13,7 @@ export interface LogRowsProps extends ComponentProps<'div'> {
   /** Show the line-number gutter across the list. */
   showLineNumbers?: boolean;
   /** Baseline that relative timestamps are measured from. */
-  origin?: Date;
+  timestampOrigin?: Date;
 }
 
 /**
@@ -27,11 +27,11 @@ export function LogRows({
   timestamps = 'off',
   wrap = false,
   showLineNumbers = true,
-  origin,
+  timestampOrigin,
   ...props
 }: LogRowsProps) {
   return (
-    <LogRowsContextProvider value={{timestamps, wrap, showLineNumbers, origin}}>
+    <LogRowsContextProvider value={{timestamps, wrap, showLineNumbers, timestampOrigin}}>
       <div
         data-slot="log-rows"
         role="log"
