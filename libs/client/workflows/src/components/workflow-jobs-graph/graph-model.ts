@@ -45,12 +45,6 @@ export interface WorkflowJobGraphModel {
   nodes: WorkflowJobGraphNode[];
   edges: WorkflowJobGraphEdge[];
   columns: WorkflowJobGraphNode[][];
-  warnings: Array<{
-    kind: 'large-graph';
-    nodeCount: number;
-    columnCount: number;
-    maxColumnHeight: number;
-  }>;
 }
 
 export function buildWorkflowJobGraphModel({
@@ -98,18 +92,6 @@ export function buildWorkflowJobGraphModel({
   const grouped = groupColumns(nodesWithoutRows);
   const nodes = grouped.flat();
   const edges = buildEdges(sortedJobs, byName);
-  const maxColumnHeight = Math.max(0, ...grouped.map((column) => column.length));
-  const warnings =
-    nodes.length > 40 || grouped.length > 12 || maxColumnHeight > 12
-      ? [
-          {
-            kind: 'large-graph' as const,
-            nodeCount: nodes.length,
-            columnCount: grouped.length,
-            maxColumnHeight,
-          },
-        ]
-      : [];
 
   return {
     trigger: {
@@ -123,7 +105,6 @@ export function buildWorkflowJobGraphModel({
     nodes,
     edges,
     columns: grouped,
-    warnings,
   };
 }
 

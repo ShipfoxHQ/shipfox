@@ -1,4 +1,4 @@
-import {Badge, Code, cn, Dot, Text} from '@shipfox/react-ui';
+import {Code, cn, Dot, Text, Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui';
 import type {KeyboardEventHandler, Ref} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import type {WorkflowGraphTriggerNode, WorkflowJobGraphNode} from './graph-model.js';
@@ -35,12 +35,13 @@ export function WorkflowJobNode({
   ref?: Ref<HTMLButtonElement>;
 }) {
   const visual = getWorkflowStatusVisual(node.sourceStatus);
+  const dependencyText = dependencyLabel(node.dependencies);
   const accessibleLabel =
-    node.dependencies.length > 0
-      ? `${node.label}, ${visual.label}, needs ${node.dependencies.join(', ')}`
+    dependencyText !== undefined
+      ? `${node.label}, ${visual.label}, ${dependencyText.full}`
       : `${node.label}, ${visual.label}`;
 
-  return (
+  const button = (
     <button
       ref={ref}
       type="button"
@@ -73,19 +74,40 @@ export function WorkflowJobNode({
         </Code>
       </div>
       <div className="flex min-w-0 items-center gap-6">
-        <Badge variant={visual.badge} iconLeft={visual.icon} size="2xs" className="self-start">
+        <Text size="xs" className="shrink-0 text-foreground-neutral-subtle">
           {visual.label}
-        </Badge>
-        {node.dependencies.length > 0 ? (
-          <Code
-            variant="label"
-            className="min-w-0 flex-1 truncate text-foreground-neutral-muted"
-            title={`needs ${node.dependencies.join(', ')}`}
-          >
-            needs {node.dependencies.join(', ')}
-          </Code>
+        </Text>
+        {dependencyText ? (
+          <>
+            <span aria-hidden="true" className="text-foreground-neutral-muted">
+              /
+            </span>
+            <Code
+              variant="label"
+              className="min-w-0 flex-1 truncate text-foreground-neutral-muted"
+              title={dependencyText.full}
+            >
+              {dependencyText.short}
+            </Code>
+          </>
         ) : null}
       </div>
     </button>
   );
+
+  if (!dependencyText) return button;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent>{dependencyText.full}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function dependencyLabel(dependencies: readonly string[]) {
+  if (dependencies.length === 0) return undefined;
+  const full = `Depends on ${dependencies.join(', ')}`;
+  const short = dependencies.length === 1 ? full : `${dependencies.length} dependencies`;
+  return {full, short};
 }

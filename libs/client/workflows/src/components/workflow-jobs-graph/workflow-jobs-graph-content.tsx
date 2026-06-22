@@ -1,4 +1,4 @@
-import {Text} from '@shipfox/react-ui';
+import {EmptyState} from '@shipfox/react-ui';
 import type {KeyboardEvent} from 'react';
 import {useRef} from 'react';
 import type {WorkflowJobGraphModel, WorkflowJobGraphNavigationKey} from './graph-model.js';
@@ -25,14 +25,13 @@ export function WorkflowJobsGraphContent({
 
   if (model.nodes.length === 0) {
     return (
-      <div className="flex min-h-160 flex-col items-center justify-center gap-6 px-16 py-24">
-        <Text size="sm" bold className="text-foreground-neutral-base">
-          No jobs yet
-        </Text>
-        <Text size="xs" className="text-foreground-neutral-muted">
-          This run has not materialized jobs.
-        </Text>
-      </div>
+      <EmptyState
+        className="min-h-160 px-16 py-24"
+        icon="componentLine"
+        title="No jobs yet"
+        description="This run has not materialized jobs."
+        variant="compact"
+      />
     );
   }
 

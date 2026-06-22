@@ -30,11 +30,6 @@ export function WorkflowJobsGraphView({
             {model.nodes.length} {model.nodes.length === 1 ? 'job' : 'jobs'}
           </Text>
         </div>
-        {model.warnings.length > 0 ? (
-          <Text size="xs" className="shrink-0 text-foreground-neutral-muted">
-            Large graph
-          </Text>
-        ) : null}
       </div>
       <WorkflowJobsGraphContent
         model={model}

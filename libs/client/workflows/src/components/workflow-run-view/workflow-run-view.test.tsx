@@ -16,7 +16,9 @@ describe('WorkflowRunView', () => {
 
     expect(await screen.findByRole('region', {name: 'Jobs graph'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'build, Succeeded'})).toBeInTheDocument();
-    expect(screen.getByRole('button', {name: 'deploy, Running, needs build'})).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {name: 'deploy, Running, Depends on build'}),
+    ).toBeInTheDocument();
   });
 
   test('shows the not-found surface when the run 404s', async () => {

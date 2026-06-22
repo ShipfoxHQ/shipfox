@@ -61,7 +61,7 @@ describe('WorkflowJobsGraph', () => {
 
     expect(screen.getByRole('button', {name: 'build, Failed'})).toBeInTheDocument();
     expect(
-      screen.getByRole('button', {name: 'deploy, Cancelled, needs build'}),
+      screen.getByRole('button', {name: 'deploy, Cancelled, Depends on build'}),
     ).toBeInTheDocument();
   });
 
@@ -90,7 +90,9 @@ describe('WorkflowJobsGraph', () => {
       />,
     );
 
-    expect(screen.getByRole('button', {name: 'deploy, Running, needs build'})).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {name: 'deploy, Running, Depends on build'}),
+    ).toBeInTheDocument();
   });
 
   test('moves selection and focus with graph keyboard navigation', async () => {
@@ -107,7 +109,7 @@ describe('WorkflowJobsGraph', () => {
     );
 
     const build = screen.getByRole('button', {name: 'build, Pending'});
-    const deploy = screen.getByRole('button', {name: 'deploy, Pending, needs build'});
+    const deploy = screen.getByRole('button', {name: 'deploy, Pending, Depends on build'});
     build.focus();
 
     await user.keyboard('{ArrowRight}');

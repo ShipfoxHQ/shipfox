@@ -142,19 +142,6 @@ describe('buildWorkflowJobGraphModel', () => {
       statusLabel: 'Cancelled',
     });
   });
-
-  test('emits a large graph warning for wide and tall valid graphs', () => {
-    const jobs = Array.from({length: 42}, (_, index) =>
-      makeJob({name: `job-${String(index + 1).padStart(2, '0')}`, position: index}),
-    );
-    const run = makeRun({jobs});
-
-    const result = buildWorkflowJobGraphModel({run});
-
-    expect(result.warnings).toEqual([
-      {kind: 'large-graph', nodeCount: 42, columnCount: 1, maxColumnHeight: 42},
-    ]);
-  });
 });
 
 function nodeByLabel(result: ReturnType<typeof buildWorkflowJobGraphModel>, label: string) {
