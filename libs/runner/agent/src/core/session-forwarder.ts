@@ -45,6 +45,13 @@ export function startSessionForwarder(options: SessionForwarderOptions): Session
       // File not present yet (pi defers the first write) or removed on cleanup.
       return;
     }
+    // A file shorter than the byte offset was truncated or replaced (e.g. log rotation): the
+    // offset now points past the end, so reset and re-read the new content from the start
+    // instead of silently skipping it. pi only ever appends, so this is a defensive guard.
+    if (size < offset) {
+      offset = 0;
+      pending = Buffer.alloc(0);
+    }
     if (size <= offset) return;
 
     let fd: number;
@@ -80,7 +87,7 @@ export function startSessionForwarder(options: SessionForwarderOptions): Session
       drainNewBytes();
     } catch (err) {
       // Never let a tail read crash the runner; capture is best-effort.
-      logger().warn({err: String(err), filePath: options.filePath}, 'Agent session tail failed');
+      logger().warn({err, filePath: options.filePath}, 'Agent session tail failed');
     }
   }
 
@@ -98,7 +105,7 @@ export function startSessionForwarder(options: SessionForwarderOptions): Session
       try {
         drainNewBytes();
       } catch (err) {
-        logger().warn({err: String(err), filePath: options.filePath}, 'Agent session tail failed');
+        logger().warn({err, filePath: options.filePath}, 'Agent session tail failed');
       }
     },
   };

@@ -16,11 +16,15 @@ const MIN_FLUSH_BYTES = MAX_RECORD_DATA_BYTES * 6 + 1024;
 const MAX_FLUSH_BYTES = 1024 * 1024;
 
 // The agent-session stream forwards one whole entry per record, so its flush window doubles
-// as the read window and the runner's per-entry drop threshold. It is sized far above the
-// output window (entries can inline base64 images) and must stay <= the server's
-// LOG_APPEND_BODY_LIMIT_BYTES. Bounded here so a misconfig fails fast at startup.
+// as the read window and the runner's per-entry drop threshold: a record larger than it is
+// dropped with a gap, never sent. The ceiling matches the server's DEFAULT
+// LOG_MAX_SESSION_LINE_BYTES (4 MiB). A window above the server's per-line cap would let an
+// entry sized between the two slip past the runner's drop and be rejected 400 by the server,
+// which stops the upload for the whole attempt (terminal) instead of dropping just that entry.
+// The runner cannot read the server config, so the documented default is the safe ceiling.
+// Bounded here so a misconfig fails fast at startup.
 const MIN_AGENT_SESSION_FLUSH_BYTES = 64 * 1024;
-const MAX_AGENT_SESSION_FLUSH_BYTES = 16 * 1024 * 1024;
+const MAX_AGENT_SESSION_FLUSH_BYTES = 4 * 1024 * 1024;
 
 export const config = createConfig({
   SHIPFOX_LOG_FLUSH_INTERVAL_MS: num({

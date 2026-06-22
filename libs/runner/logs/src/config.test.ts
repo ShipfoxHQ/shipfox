@@ -6,7 +6,7 @@ describe('SHIPFOX_AGENT_SESSION_FLUSH_BYTES validation', () => {
 
   it.each([
     '65535',
-    '16777217',
+    '4194305',
   ])('fails startup when SHIPFOX_AGENT_SESSION_FLUSH_BYTES is %s', async (value) => {
     vi.stubEnv('SHIPFOX_AGENT_SESSION_FLUSH_BYTES', value);
     vi.resetModules();
@@ -16,7 +16,7 @@ describe('SHIPFOX_AGENT_SESSION_FLUSH_BYTES validation', () => {
 
   it.each([
     '65536',
-    '16777216',
+    '4194304',
   ])('accepts boundary value %s for SHIPFOX_AGENT_SESSION_FLUSH_BYTES', async (value) => {
     vi.stubEnv('SHIPFOX_AGENT_SESSION_FLUSH_BYTES', value);
     vi.resetModules();

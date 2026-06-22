@@ -43,6 +43,15 @@ describe('StreamFramer.frameAgentSession', () => {
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({type: 'agent_session', data: line});
   });
+
+  it('frames nothing for an empty line (data would fail the DTO non-empty constraint)', () => {
+    const framer = new StreamFramer(() => 1);
+
+    const framed = framer.frameAgentSession('');
+
+    expect(framed.bytes.length).toBe(0);
+    expect(framed.payloadBytes).toBe(0);
+  });
 });
 
 describe('StreamFramer.frameOutputText', () => {

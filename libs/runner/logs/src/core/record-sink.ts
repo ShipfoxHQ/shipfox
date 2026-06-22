@@ -83,7 +83,7 @@ export function createRecordSink(options: RecordSinkOptions): RecordSink {
     if (failed) return;
     failed = true;
     logger().error(
-      {err: String(err), stepId: options.stepId, attempt: options.attempt},
+      {err, stepId: options.stepId, attempt: options.attempt},
       'Log spool write failed; abandoning log capture for this step',
     );
     uploader.stop();

@@ -99,6 +99,24 @@ describe('startSessionForwarder', () => {
     forwarder.stop();
   });
 
+  it('re-reads from the start when the file is truncated to a shorter length', async () => {
+    const lines: string[] = [];
+    writeFileSync(file, '{"first":1}\n'); // 12 bytes
+    const forwarder = startSessionForwarder({
+      filePath: file,
+      onEntry: (l) => lines.push(l),
+      intervalMs: 5,
+    });
+    await vi.waitFor(() => expect(lines).toEqual(['{"first":1}']));
+
+    // Replace with strictly shorter content: the offset (12) now points past the new end,
+    // so the tailer must reset and forward the new file instead of silently skipping it.
+    writeFileSync(file, '{"b":2}\n'); // 8 bytes
+    await vi.waitFor(() => expect(lines).toEqual(['{"first":1}', '{"b":2}']));
+
+    forwarder.stop();
+  });
+
   it('does a final read on stop so trailing entries are forwarded', () => {
     const lines: string[] = [];
     const intervalTooLongForTest = 1_000_000;

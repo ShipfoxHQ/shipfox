@@ -40,6 +40,9 @@ function invocation(overrides: Partial<AgentInvocation> = {}): AgentInvocation {
 }
 
 describe('runAgent', () => {
+  // Tracked so the temp dir is removed in afterEach even if an assertion throws first.
+  let sessionDir: string | undefined;
+
   beforeEach(() => {
     createAgentSessionMock.mockReset();
     findMock.mockReset();
@@ -54,6 +57,11 @@ describe('runAgent', () => {
     createAgentSessionMock.mockResolvedValue({
       session: {prompt: promptMock, abort: abortMock, messages: []},
     });
+  });
+
+  afterEach(() => {
+    if (sessionDir) rmSync(sessionDir, {recursive: true, force: true});
+    sessionDir = undefined;
   });
 
   it('resolves the configured model under the requested provider and runs the prompt', async () => {
@@ -71,8 +79,8 @@ describe('runAgent', () => {
   });
 
   it('forwards each persisted session entry to onSessionEntry in order', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'shipfox-run-agent-'));
-    const sessionFile = join(dir, 'session.jsonl');
+    sessionDir = mkdtempSync(join(tmpdir(), 'shipfox-run-agent-'));
+    const sessionFile = join(sessionDir, 'session.jsonl');
     // pi persists entries to the session file during the turn; the final read on completion
     // forwards everything written before the prompt resolved.
     promptMock.mockImplementation(() => {
@@ -87,7 +95,6 @@ describe('runAgent', () => {
     await runAgent(invocation({onSessionEntry: (line) => entries.push(line)}));
 
     expect(entries).toEqual(['{"type":"session"}', '{"type":"message","id":"a"}']);
-    rmSync(dir, {recursive: true, force: true});
   });
 
   it('skips forwarding when the session is not persisted (no session file)', async () => {

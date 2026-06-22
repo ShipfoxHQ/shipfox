@@ -480,6 +480,30 @@ describe('runJobSteps', () => {
     expect(sessionStream.dispose).toHaveBeenCalled();
   });
 
+  it('runs and reports an agent step when opening the session stream fails (capture abandoned)', async () => {
+    const setup = buildSetupStep();
+    const agent = buildAgentStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    // Opening the session spool throws (e.g. a broken logs dir): capture must be abandoned, not
+    // fatal to the step, and the agent runs without a session sink (no onSessionEntry).
+    createSessionLogStreamMock.mockImplementationOnce(() => {
+      throw new Error('logs dir is a file');
+    });
+    executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+
+    expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {signal: ac.signal, cwd: '/work'});
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({stepId: agent.id, status: 'succeeded'}),
+    );
+  });
+
   it('does not report the agent step when the signal aborts mid-run', async () => {
     const setup = buildSetupStep();
     const agent = buildAgentStep();
