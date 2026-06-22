@@ -143,7 +143,13 @@ export function CodeTabs({
   const firstKey = useMemo(() => Object.keys(codes)[0] ?? '', [codes]);
   const [internalValue, setInternalValue] = useState(defaultValue ?? firstKey);
   const isControlled = controlledValue !== undefined;
-  const value = isControlled ? controlledValue : internalValue;
+  // When uncontrolled, the selected tab can disappear if `codes` changes
+  // (dynamic/async sources). Fall back to the first key so a tab is always active.
+  const value = isControlled
+    ? controlledValue
+    : Object.hasOwn(codes, internalValue)
+      ? internalValue
+      : firstKey;
 
   const onValueChange = useCallback(
     (next: string) => {

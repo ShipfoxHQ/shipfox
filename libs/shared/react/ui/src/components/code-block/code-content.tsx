@@ -52,7 +52,10 @@ export function CodeContent({
         {lines.map((line, index) => {
           const key = `${index}-${line}`;
           return (
-            <span className="line px-12 w-full relative font-code text-xs leading-20" key={key}>
+            <span
+              className="line px-12 w-full relative font-code text-xs leading-20 min-h-[1.25rem]"
+              key={key}
+            >
               {line}
             </span>
           );

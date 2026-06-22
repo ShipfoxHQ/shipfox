@@ -53,6 +53,7 @@ export function useShikiHighlight({
         }
       } catch {
         if (!cancelled) {
+          setHighlightedCode('');
           setIsLoading(false);
         }
       }
@@ -126,6 +127,7 @@ export function useShikiHighlightMultiple({
         }
       } catch {
         if (!cancelled) {
+          setHighlightedCodes({});
           setIsLoading(false);
         }
       }

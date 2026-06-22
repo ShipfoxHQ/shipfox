@@ -130,7 +130,7 @@ export function CodeBlockFilename({className, value, children, ...props}: CodeBl
   );
 }
 
-export type CodeBlockCopyButtonProps = ComponentProps<'button'> & {
+export type CodeBlockCopyButtonProps = Omit<ComponentProps<'button'>, 'onCopy'> & {
   onCopy?: () => void;
   onError?: (error: Error) => void;
   timeout?: number;
