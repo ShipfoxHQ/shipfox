@@ -41,6 +41,13 @@ export const logsModule: ShipfoxModule = {
           id: 'logs-retention-sweep',
           cronSchedule: '0 * * * *',
         },
+        // Offset from retention's top-of-hour sweep; stale-stream age is governed by
+        // LOG_STREAM_REAP_AFTER_SECONDS.
+        {
+          name: 'reapStaleOpenStreamsCron',
+          id: 'logs-reap-stale-open-streams',
+          cronSchedule: '5,15,25,35,45,55 * * * *',
+        },
       ],
     },
     // Compaction runs on its own queue so long uploads cannot starve the lifecycle sweep.

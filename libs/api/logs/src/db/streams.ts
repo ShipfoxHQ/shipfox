@@ -247,6 +247,33 @@ export async function listStaleUncompactedStreams(params: {
 }
 
 /**
+ * Lists open streams old enough to force-close. The age check is safe only when
+ * `olderThanSeconds` exceeds the lease TTL: leases are minted before a stream can
+ * be created, so no valid append can arrive after `created_at + leaseTTL`.
+ */
+export async function listStaleOpenStreams(params: {
+  olderThanSeconds: number;
+  limit: number;
+}): Promise<AttemptStream[]> {
+  const rows = await db()
+    .select()
+    .from(attemptStreams)
+    .where(
+      and(
+        eq(attemptStreams.state, 'open'),
+        lt(
+          attemptStreams.createdAt,
+          sql`now() - make_interval(secs => ${params.olderThanSeconds})`,
+        ),
+      ),
+    )
+    .orderBy(asc(attemptStreams.createdAt))
+    .limit(params.limit);
+
+  return rows.map(toAttemptStream);
+}
+
+/**
  * Lists expired closed streams for retention. `excludeIds` keeps failed or raced rows from
  * starving younger rows in the same run, and avoids cursoring on `closed_at`, whose microsecond
  * precision would be lost through JS `Date`.

@@ -9,3 +9,6 @@ export const LOGS_COMPACTION_TASK_QUEUE = 'logs-compaction';
 export const RETENTION_BATCH_LIMIT = 200;
 export const RETENTION_TIME_BUDGET_MS = 4 * 60_000;
 export const RETENTION_MAX_ITERATIONS = 1_000;
+
+// Bounded per tick; remaining stale open streams are picked up on the next cron run.
+export const REAP_BATCH_LIMIT = 100;

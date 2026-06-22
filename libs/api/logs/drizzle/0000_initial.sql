@@ -50,6 +50,7 @@ ALTER TABLE "logs_chunks" ADD CONSTRAINT "logs_chunks_stream_id_logs_attempt_str
 CREATE UNIQUE INDEX "logs_attempt_streams_identity_unique" ON "logs_attempt_streams" USING btree ("job_id","step_id","attempt");--> statement-breakpoint
 CREATE INDEX "logs_attempt_streams_step_attempt_idx" ON "logs_attempt_streams" USING btree ("step_id","attempt");--> statement-breakpoint
 CREATE INDEX "logs_attempt_streams_open_by_job_idx" ON "logs_attempt_streams" USING btree ("job_id") WHERE "state" = 'open';--> statement-breakpoint
+CREATE INDEX "logs_attempt_streams_open_age_idx" ON "logs_attempt_streams" USING btree ("created_at") WHERE "state" = 'open';--> statement-breakpoint
 CREATE INDEX "logs_attempt_streams_retention_idx" ON "logs_attempt_streams" USING btree ("closed_at") WHERE "state" = 'closed';--> statement-breakpoint
 CREATE INDEX "logs_attempt_streams_uncompacted_idx" ON "logs_attempt_streams" USING btree ("closed_at") WHERE "state" = 'closed' and "object_key" is null;--> statement-breakpoint
 CREATE INDEX "logs_chunks_stream_seq_idx" ON "logs_chunks" USING btree ("stream_id","seq");--> statement-breakpoint

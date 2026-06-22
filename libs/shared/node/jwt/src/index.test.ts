@@ -1,6 +1,6 @@
 import {generateKeyPair, SignJWT, UnsecuredJWT} from 'jose';
 import {z} from 'zod';
-import {signHs256, verifyHs256} from './index.js';
+import {durationToSeconds, signHs256, verifyHs256} from './index.js';
 
 const SECRET = 'test-secret-do-not-use-in-prod';
 
@@ -190,5 +190,39 @@ describe('signHs256 / verifyHs256', () => {
     const claims = await verifyHs256({token, secret: SECRET, schema: simpleClaimsSchema});
 
     expect(claims.a).toBe(1);
+  });
+});
+
+describe('durationToSeconds', () => {
+  test.each([
+    ['90m', 5400],
+    ['2h', 7200],
+    ['3600s', 3600],
+    ['7d', 604_800],
+    ['1w', 604_800],
+    ['1.5h', 5400],
+    ['45 s', 45],
+  ])('parses %s to %d seconds', (value, expected) => {
+    expect(durationToSeconds(value)).toBe(expected);
+  });
+
+  test.each([
+    '5400',
+    'soon',
+    '',
+    'm',
+    '1 fortnight',
+  ])('throws on the invalid duration %j', (value) => {
+    expect(() => durationToSeconds(value)).toThrow();
+  });
+
+  // Pins the parser to jose: the lifetime it reports must match the one jose actually stamps,
+  // so a caller can size a window against a token's TTL without minting one.
+  test.each(['90m', '2h', '7d'])('matches the exp jose stamps for %s', async (value) => {
+    const token = await signHs256({payload: {a: 1}, secret: SECRET, expiresIn: value});
+
+    const claims = await verifyHs256({token, secret: SECRET, schema: simpleClaimsSchema});
+
+    expect(claims.exp - claims.iat).toBe(durationToSeconds(value));
   });
 });
