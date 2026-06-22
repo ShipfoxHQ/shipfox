@@ -16,8 +16,8 @@ export async function completeInvitationAcceptance(params: {
   refreshAuth: () => Promise<unknown>;
   navigate: (opts: NavigateOptions) => Promise<void> | void;
 }): Promise<void> {
-  // Codex F2: signAccessToken embeds memberships at issue time. Refresh first
-  // so the next render's AuthGuard sees the new workspace.
+  // Access tokens embed memberships at issue time. Refresh first so the next
+  // render's AuthGuard sees the new workspace.
   try {
     await params.refreshAuth();
   } catch {

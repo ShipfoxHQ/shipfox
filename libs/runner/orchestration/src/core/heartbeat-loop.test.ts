@@ -49,15 +49,12 @@ describe('startHeartbeatLoop', () => {
 
     const handle = startHeartbeatLoop('job-1', ac, {intervalMs: 100, maxStaleMs: 10_000});
 
-    // First tick fires
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
 
-    // Advancing time further does NOT start a second call while the first is in flight
     await vi.advanceTimersByTimeAsync(500);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
 
-    // Resolve the first call → next tick scheduled
     resolve?.({cancel: false});
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(2);
@@ -82,16 +79,13 @@ describe('startHeartbeatLoop', () => {
 
     const handle = startHeartbeatLoop('job-1', ac, {intervalMs: 100, maxStaleMs: 200});
 
-    // First tick fires; heartbeat hangs.
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
     expect(receivedSignal?.aborted).toBe(false);
 
-    // maxStaleMs elapses → in-flight call aborted, next tick scheduled.
     await vi.advanceTimersByTimeAsync(200);
     expect(receivedSignal?.aborted).toBe(true);
 
-    // Next tick fires after another intervalMs.
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(2);
 
@@ -111,7 +105,6 @@ describe('startHeartbeatLoop', () => {
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
     expect(ac.signal.aborted).toBe(true);
 
-    // No further ticks even after additional time.
     await vi.advanceTimersByTimeAsync(500);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
 

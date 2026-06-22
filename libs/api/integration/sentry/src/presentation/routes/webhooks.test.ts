@@ -689,7 +689,6 @@ describe('Sentry webhook route', () => {
     });
 
     expect(res.statusCode).toBe(204);
-    // No re-exchange and the stored hash is untouched (no clobber).
     expect(sentry.exchangeAuthorizationCode).not.toHaveBeenCalled();
     expect((await readInstallation(installationUuid))?.codeHash).toBe('pre-existing');
     expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);

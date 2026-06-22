@@ -1,7 +1,6 @@
 import type {FastifyOtelInstrumentationOpts} from '@fastify/otel';
 import {isUuid} from '@shipfox/regex';
 
-// Pure integers (numeric IDs)
 const NUMERIC_SEGMENT = /^\d+$/;
 
 export const normalizeRoutePath = (path: string): string =>

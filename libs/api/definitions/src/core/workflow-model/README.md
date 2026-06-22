@@ -67,8 +67,8 @@ console.log(model.jobs[0]?.steps[0]?.command.value);
 The model does not own project ids, commit shas, refs, dates, database rows, or
 file paths. Those fields belong to `WorkflowDefinition`.
 
-Trigger filters stay as source strings in this module for now. A later change
-will type-check them when event schemas define the expression context.
+Trigger filters stay as source strings in this module until event schemas define
+the expression context needed to type-check them.
 
 Run-step gate expressions are different. They have a small local result context,
 so this module can parse and type-check `success_if` now. The accepted model

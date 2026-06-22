@@ -3,15 +3,15 @@
 import {useSyncExternalStore} from 'react';
 import {useTheme} from './useTheme.js';
 
+const noop = () => undefined;
+
 export function useResolvedTheme(): 'light' | 'dark' {
   const {theme} = useTheme();
 
   const systemTheme = useSyncExternalStore<'light' | 'dark'>(
     (callback) => {
       if (typeof window === 'undefined' || theme !== 'system') {
-        return () => {
-          // No-op unsubscribe
-        };
+        return noop;
       }
       const mql = window.matchMedia('(prefers-color-scheme: dark)');
       mql.addEventListener('change', callback);
@@ -25,12 +25,11 @@ export function useResolvedTheme(): 'light' | 'dark' {
           ? 'dark'
           : 'light'
         : 'light',
-    (): 'light' | 'dark' => 'light', // Server snapshot
+    (): 'light' | 'dark' => 'light',
   );
 
   if (theme === 'system') {
     return systemTheme;
   }
-  // TypeScript should narrow theme to 'light' | 'dark' here
   return theme as 'light' | 'dark';
 }

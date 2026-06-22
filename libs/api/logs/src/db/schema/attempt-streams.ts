@@ -84,7 +84,6 @@ export const attemptStreams = pgTable(
 export type AttemptStreamDb = typeof attemptStreams.$inferSelect;
 export type AttemptStreamInsertDb = typeof attemptStreams.$inferInsert;
 
-/** Maps a persisted row to the `AttemptStream` domain entity. */
 export function toAttemptStream(row: AttemptStreamDb): AttemptStream {
   return {
     id: row.id,

@@ -48,9 +48,9 @@ export function readStepGate(config: Record<string, unknown>): StepGate | undefi
 // could trigger a restart.
 //
 // NOTE: callers run this inside the FOR UPDATE transaction, so the eval holds the
-// job's step-row locks. The context is a single scalar (`exit_code`) today, so
-// this is cheap — but do not widen the context (or add CEL call sites) inside the
-// lock without an eval budget. `language` is assumed CEL (the only language the
+// job's step-row locks. The context is a single scalar (`exit_code`), so this is
+// cheap — but do not widen the context (or add CEL call sites) inside the lock
+// without an eval budget. `language` is assumed CEL (the only language the
 // materializer writes); the evaluator reads only `.source`.
 export function evaluateGate(gate: StepGate | undefined, result: StepResult): GateOutcome {
   if (!gate?.successIf) return {kind: 'no-gate'};
@@ -73,7 +73,7 @@ export function evaluateGate(gate: StepGate | undefined, result: StepResult): Ga
 
 // Build the audit payload recorded on the step attempt for a gate evaluation.
 // Includes the evaluated `exit_code` so the gate decision is reconstructable from
-// the attempt row alone (PR E / audit), independent of the column shape.
+// the attempt row alone, independent of the column shape.
 export function gateResultPayload(
   outcome: GateOutcome,
   exitCode: number | null | undefined,

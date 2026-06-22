@@ -130,7 +130,6 @@ describe('jwt-auth', () => {
     expect(res.json().client.email).toBe(email);
   });
 
-  // Keep helper imports referenced
   test('helpers remain available', () => {
     expect(typeof findUserById).toBe('function');
   });

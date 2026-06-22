@@ -13,7 +13,6 @@ describe('config', () => {
       TEST_STRING: str(),
     };
 
-    // Set test environment variable
     process.env.TEST_STRING = 'test-value';
 
     const config = createConfig(schema);
@@ -26,7 +25,6 @@ describe('config', () => {
       TEST_NUMBER: num(),
     };
 
-    // Set test environment variable
     process.env.TEST_NUMBER = '42';
 
     const config = createConfig(schema);
@@ -39,7 +37,6 @@ describe('config', () => {
       TEST_BOOL: bool(),
     };
 
-    // Set test environment variable
     process.env.TEST_BOOL = 'true';
 
     const config = createConfig(schema);

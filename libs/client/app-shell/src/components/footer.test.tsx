@@ -4,7 +4,7 @@ import {Footer} from './footer.js';
 const OPERATIONAL_REGEX = /operational/i;
 
 describe('Footer', () => {
-  test('renders Docs and Support links; right side empty in v1', () => {
+  test('renders Docs and Support links without a status badge', () => {
     render(<Footer />);
 
     expect(screen.getByRole('link', {name: 'Docs'})).toHaveAttribute(
@@ -15,7 +15,6 @@ describe('Footer', () => {
       'href',
       'mailto:support@shipfox.io',
     );
-    // Status badge intentionally omitted in v1 (would lie about state).
     expect(screen.queryByText(OPERATIONAL_REGEX)).not.toBeInTheDocument();
   });
 });

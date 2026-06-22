@@ -56,8 +56,7 @@ export interface DecideStepTransitionInput {
 // a further restart is refused. Bounds runaway restart loops.
 export const DEFAULT_RESTART_ATTEMPT_CAP = 3;
 
-// The semantic outcome of a step report, independent of persistence. The restart
-// variants are typed now but only produced once durable restart lands (PR E).
+// The semantic outcome of a step report, independent of persistence.
 export type StepTransitionDecision =
   | {kind: 'complete-step'; stepId: string; attempt: number}
   // The step succeeds and is the last to finish; apply re-derives the job's

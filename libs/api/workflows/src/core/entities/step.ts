@@ -17,8 +17,7 @@ export interface Step {
   version: number;
   // Execution-attempt identity for the current projection: which attempt the
   // status/output/error above reflect. Distinct from `version` (the optimistic
-  // row counter). Starts at 1; bumped only when a step is rewound by a durable
-  // restart (PR E).
+  // row counter). Starts at 1; bumped only when a step is rewound by a durable restart.
   currentAttempt: number;
   createdAt: Date;
   updatedAt: Date;

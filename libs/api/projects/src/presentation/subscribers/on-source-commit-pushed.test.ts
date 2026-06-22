@@ -137,8 +137,6 @@ describe('onSourceCommitPushed', () => {
     expect(rows).toHaveLength(1);
   });
 
-  // The source/event filter is now the subscription itself (projects only receives the
-  // typed source event), so this registration replaces the old non-github/non-push tests.
   it('registers the projects module on INTEGRATION_SOURCE_COMMIT_PUSHED', () => {
     const module = createProjectsModule({sourceControl: {} as never});
 

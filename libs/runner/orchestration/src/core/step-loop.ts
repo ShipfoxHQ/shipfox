@@ -38,7 +38,7 @@ export async function runJobSteps(params: {
 
   // The setup step (position 0) prepares the workspace; every run step assumes it ran.
   // A run step pulled before a successful setup is failed cleanly rather than spawned
-  // against an unprepared cwd. The guard and its rollout rationale live in `executeStep`.
+  // against an unprepared cwd.
   let workspacePrepared = false;
 
   // The most recent step's stream (run output or agent session), kept until the next
@@ -175,8 +175,7 @@ export async function executeStep(params: {
     if (!workspacePrepared) {
       // Invariant violation (a run or agent step before setup prepared the cwd), not a
       // setup-phase failure, so no `reason`. step.type is not 'setup' so the server
-      // derives category 'user'. Only reachable for a setup-less in-flight job hitting a
-      // new runner during the rollout window.
+      // derives category 'user'.
       return {
         result: {
           success: false,

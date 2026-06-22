@@ -1,7 +1,5 @@
 # syntax=docker/dockerfile:1
 
-# Production image for @shipfox/runner.
-#
 # "Build outside Docker, ingest dist": `shipfox-docker --setup-context` prunes
 # the workspace and overlays the turbo-cached dist/. The build stage installs
 # the pruned workspace and runs `pnpm deploy` to extract @shipfox/runner's
@@ -9,17 +7,10 @@
 # ships only that, so the dev-only tools/* workspace packages (biome, vitest,
 # the swc/playwright toolchains) never reach the image. Docker never compiles
 # TypeScript.
-#
-# Build context is this package directory; the build tool writes the pruned
-# workspace under out/ (out/json = manifests + lockfile, out/full = full source
-# with each package's prebuilt dist/ overlaid).
 
 ARG NODE_VERSION=24.16.0
 ARG PNPM_VERSION=11.6.0
 
-# Build stage: install the pruned workspace, then deploy only @shipfox/runner's
-# production closure into /prod. Workspace dependencies are copied in as real
-# directories (with their prebuilt dist/), and dev-only packages are dropped.
 # The official node image (Debian/glibc) carries corepack and a clean pnpm store.
 # The runner's prod closure is JS + wasm plus pi's lazily-loaded optional clipboard
 # native addon (glibc prebuilds, never loaded on the headless runner path), so /prod
@@ -123,7 +114,7 @@ COPY --from=build /prod ./
 
 USER shipfox
 
-# OCI metadata. The build/promotion workflows pass revision/created as build args.
+# The build/promotion workflows pass revision/created as build args.
 ARG IMAGE_SOURCE="https://github.com/ShipfoxHQ/shipfox"
 ARG IMAGE_REVISION
 ARG IMAGE_CREATED

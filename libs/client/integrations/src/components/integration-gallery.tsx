@@ -79,9 +79,9 @@ export function IntegrationGallery({
   );
 
   const allConnections = connectionsQuery.data?.connections ?? [];
-  // Filter in memory (Eng review P1): the all-status `connections(wid,'all')`
-  // cache key must stay shared; passing capability into the hook would collide
-  // with the active-only `source_control` key used elsewhere.
+  // The all-status `connections(wid,'all')` cache key must stay shared; passing
+  // capability into the hook would collide with the active-only `source_control`
+  // key used elsewhere.
   const connections = capability
     ? allConnections.filter((connection) => connection.capabilities.includes(capability))
     : allConnections;

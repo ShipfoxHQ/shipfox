@@ -2,6 +2,8 @@
 
 import {useEffect, useState} from 'react';
 
+const noop = () => undefined;
+
 class MediaQueryManager {
   private queries = new Map<string, MediaQueryList>();
   private listeners = new Map<string, Set<() => void>>();
@@ -21,9 +23,7 @@ class MediaQueryManager {
 
   subscribe(query: string, callback: () => void): () => void {
     if (typeof window === 'undefined') {
-      return () => {
-        // Cleanup function for SSR - no-op
-      };
+      return noop;
     }
 
     if (!this.queries.has(query)) {
@@ -35,9 +35,7 @@ class MediaQueryManager {
     const listeners = this.listeners.get(query);
 
     if (!mediaQuery || !listeners) {
-      return () => {
-        // Cleanup function - no-op if query wasn't found
-      };
+      return noop;
     }
 
     listeners.add(callback);

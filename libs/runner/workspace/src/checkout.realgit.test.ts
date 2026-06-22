@@ -33,7 +33,6 @@ beforeEach(async () => {
   await git(['add', '.'], sourceRepo);
   await git(['commit', '-m', 'initial'], sourceRepo);
 
-  // The per-job directory the workspace manager prepares: present and empty.
   cwd = join(workdir, 'job-1');
   await mkdir(cwd, {recursive: true});
 });

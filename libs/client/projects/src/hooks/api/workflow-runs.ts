@@ -32,9 +32,7 @@ function normalizeFilters(filters: WorkflowRunFilters) {
  * Fire the manual trigger of a workflow definition.
  *
  * The server resolves the manual subscription by definition id (workflows
- * may declare at most one manual trigger). `inputs` are forwarded to the
- * run; the Run button passes none today, but the same call shape will
- * carry a user-supplied payload when the input dialog ships.
+ * may declare at most one manual trigger). `inputs` are forwarded to the run.
  */
 export async function fireManualWorkflow({
   definitionId,

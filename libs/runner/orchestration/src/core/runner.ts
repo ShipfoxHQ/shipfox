@@ -83,9 +83,9 @@ export async function runJob(
 
   try {
     const leaseClient = createLeaseClient(job.lease_token);
-    // The v1 log mask set is the runner's own credentials: the long-lived runner token and
+    // The log mask set is the runner's own credentials: the long-lived runner token and
     // this job's lease token. Both can reach a step's environment, so they are scrubbed from
-    // captured output before it touches the spool. The set grows as step-level secrets land.
+    // captured output before it touches the spool.
     const secrets = [runnerToken(), job.lease_token];
     await runJobSteps({jobId: job.job_id, leaseClient, secrets, signal: ac.signal, cwd});
     logger().info({jobId: job.job_id}, 'Job step loop finished');
@@ -98,7 +98,6 @@ export async function runJob(
   } finally {
     heartbeatLoop.stop();
     if (currentJobAbortController === ac) currentJobAbortController = undefined;
-    // Clean up the per-job workspace on every exit path.
     await cleanupWorkspace(cwd);
   }
 }

@@ -23,7 +23,6 @@ export function InvitationAcceptPage() {
   const accept = useAcceptInvitation();
   const hasKickedAccept = useRef(false);
 
-  // Missing token → toast + bounce home.
   useEffect(() => {
     if (!token) {
       toast.error('This invitation link is missing a token.');
@@ -169,7 +168,6 @@ export function InvitationAcceptPage() {
     );
   }
 
-  // data.status === 'pending'
   const inviterLine =
     data.invited_by_display != null
       ? `Invited by ${data.invited_by_display} to join as ${data.email}.`
@@ -196,7 +194,6 @@ export function InvitationAcceptPage() {
     );
   }
 
-  // Authenticated branch — check email match.
   const viewerEmail = auth.user?.email?.toLowerCase();
   const inviteeEmail = data.email.toLowerCase();
   if (viewerEmail !== inviteeEmail) {

@@ -28,9 +28,9 @@ export const stepAttempts = pgTable(
     output: jsonb('output').$type<Record<string, unknown>>(),
     error: jsonb('error').$type<Record<string, unknown>>(),
     exitCode: integer('exit_code'),
-    // Gate evaluation payload for this attempt (populated in PR D).
+    // Gate evaluation payload for this attempt.
     gateResult: jsonb('gate_result').$type<Record<string, unknown>>(),
-    // Why this attempt triggered a restart (populated in PR E).
+    // Why this attempt triggered a restart.
     restartReason: text('restart_reason'),
     startedAt: timestamp('started_at', {withTimezone: true}).notNull().defaultNow(),
     finishedAt: timestamp('finished_at', {withTimezone: true}),

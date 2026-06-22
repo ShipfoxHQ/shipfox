@@ -48,8 +48,8 @@ function renderPage() {
 }
 
 const INTEGRATIONS_LINK_RE = /Integrations/;
-// The provider is named once (icon + account name); the meta line carries the
-// date only, so it no longer repeats "GitHub".
+// The provider is named once (icon + account name); the meta line carries only
+// the date.
 const ADDED_META_RE = /^Added /;
 
 describe('IntegrationsSettingsPage', () => {

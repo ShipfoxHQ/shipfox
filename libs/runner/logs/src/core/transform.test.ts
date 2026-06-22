@@ -13,7 +13,7 @@ function outputText(events: TransformEvent[]): string {
     .join('');
 }
 
-describe('LogTransformer decoding (relocated from StreamFramer)', () => {
+describe('LogTransformer decoding', () => {
   it('reassembles a multi-byte char split across two pushes on the same pipe', () => {
     const transformer = new LogTransformer([]);
     const euro = Buffer.from('€', 'utf8'); // 0xE2 0x82 0xAC

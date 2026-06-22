@@ -25,8 +25,7 @@ export function ProjectSwitcher({workspaceId, activeProjectId, onSelect}: Projec
   const projects = query.data?.pages.flatMap((page) => page.projects) ?? [];
 
   // Eagerly fetch additional pages once the popover opens; the switcher should
-  // show the full list, not just the first page. (Lazy-fetch + cursor pagination
-  // are deferred — see TODOS.md "Project switcher lazy-fetch + pagination".)
+  // show the full list, not just the first page.
   useEffect(() => {
     if (query.hasNextPage && !query.isFetchingNextPage) {
       query.fetchNextPage();

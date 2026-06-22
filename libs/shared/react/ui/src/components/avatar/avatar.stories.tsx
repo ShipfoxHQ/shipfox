@@ -76,7 +76,6 @@ export const Default: Story = {
   ),
 };
 
-// AvatarGroup Stories
 const avatarGroupMeta = {
   title: 'Components/AvatarGroup',
   component: AvatarGroup,

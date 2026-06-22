@@ -16,15 +16,13 @@ import {
 /**
  * Slim provenance strip at the top of the Workflows page.
  *
- * Replaces the old "Source identity" sidebar Card. Shows enough for
- * an operator to recognize the GitOps loop at a glance: provider icon,
+ * Shows enough for an operator to recognize the GitOps loop at a glance: provider icon,
  * connection display name, repo id chip, sync status pill.
  *
  * We cannot cheaply resolve `external_repository_id` → `owner/repo`
  * (no by-id endpoint; `listRepositories` is paginated by connection).
- * Until the backend exposes `repository_full_name` on `ProjectDto.source`
- * (filed in TODOS as a follow-up), the strip surfaces the raw id as a
- * `<Code>` chip with a tooltip carrying the full string.
+ * The strip surfaces the raw id as a `<Code>` chip with a tooltip carrying the
+ * full string.
  */
 
 export function SourceStrip({
@@ -76,7 +74,6 @@ export function SourceStrip({
 
 function providerIconName(provider: string | undefined): IconName {
   if (provider === 'github') return 'github' as IconName;
-  // Future: gitlab, bitbucket. Until then, neutral fallback.
   return 'componentLine' as IconName;
 }
 

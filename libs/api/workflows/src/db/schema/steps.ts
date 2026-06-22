@@ -28,7 +28,7 @@ export const steps = pgTable(
     position: integer('position').notNull(),
     version: integer('version').notNull().default(1),
     // Execution-attempt identity (which attempt the projection reflects), NOT the
-    // optimistic `version` counter. Starts at 1; bumped only on rewind (PR E).
+    // optimistic `version` counter. Starts at 1; bumped only on rewind.
     currentAttempt: integer('current_attempt').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
