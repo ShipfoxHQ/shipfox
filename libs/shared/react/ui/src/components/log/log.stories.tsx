@@ -1,6 +1,6 @@
 import type {Meta, StoryObj} from '@storybook/react';
-import {type ReactNode, useRef, useState} from 'react';
-import {useArgs} from 'storybook/preview-api';
+import type {ReactNode} from 'react';
+import {useArgs, useRef, useState} from 'storybook/preview-api';
 import {Badge} from '#components/badge/index.js';
 import {Icon} from '#components/icon/index.js';
 import {Code} from '#components/typography/index.js';
@@ -358,10 +358,9 @@ export const Interactive: Story = {
                     aria-label={wrapped ? 'Collapse line' : 'Wrap line'}
                     onClick={() => toggleLine(line.id)}
                     className={cn(
-                      'flex h-20 w-20 flex-none items-center justify-center rounded-4 transition-opacity',
-                      'opacity-60 group-hover/log-row:opacity-100 focus-visible:opacity-100',
+                      'flex h-20 w-20 flex-none items-center justify-center rounded-4 transition-colors',
                       overridden
-                        ? 'text-foreground-highlight-interactive opacity-100'
+                        ? 'text-foreground-highlight-interactive'
                         : 'text-foreground-neutral-muted hover:text-foreground-neutral-base',
                     )}
                   >
