@@ -1,4 +1,5 @@
 import type {Meta, StoryObj} from '@storybook/react';
+import type {ReactNode} from 'react';
 import {Badge} from '#components/badge/index.js';
 import {Code} from '#components/typography/index.js';
 import {LogContent} from './log-content.js';
@@ -31,14 +32,23 @@ type Story = StoryObj<typeof meta>;
 
 const origin = new Date('2026-06-22T14:32:00.000Z');
 const at = (offsetSeconds: number) => new Date(origin.getTime() + offsetSeconds * 1000);
-
-const ansiBuild = `${String.fromCharCode(27)}[32m✓${String.fromCharCode(27)}[0m built ${String.fromCharCode(27)}[34m1284${String.fromCharCode(27)}[0m modules · ${String.fromCharCode(27)}[1;31m1 error${String.fromCharCode(27)}[0m`;
+const ESC = String.fromCharCode(27);
 
 const Glyph = ({className, children}: {className: string; children: string}) => (
   <span className={className}>{children}</span>
 );
 
-export const Default: Story = {
+const Section = ({label, children}: {label: string; children: ReactNode}) => (
+  <div className="flex flex-col gap-8">
+    <Code variant="label" className="text-foreground-neutral-subtle">
+      {label}
+    </Code>
+    {children}
+  </div>
+);
+
+/** Interactive surface — flip the args to explore timestamps, wrap, and the gutter. */
+export const Playground: Story = {
   render: (args) => (
     <div className="max-w-3xl">
       <LogRows {...args} origin={origin} className="max-h-72">
@@ -64,71 +74,69 @@ export const Default: Story = {
   ),
 };
 
-export const OutputLine: Story = {
+/**
+ * The gutter. `lineNumber` numbers a row; `null` leaves a blank cell so a marker
+ * still aligns. `showLineNumbers={false}` drops the column entirely.
+ */
+export const LineNumbers: Story = {
   render: () => (
-    <div className="max-w-3xl">
-      <LogRows timestamps="abs" origin={origin}>
-        <LogRow lineNumber={42} timestamp={at(9)}>
-          <LogContent variant="code" ansi>
-            {ansiBuild}
-          </LogContent>
-        </LogRow>
-      </LogRows>
+    <div className="flex max-w-3xl flex-col gap-16">
+      <Section label="showLineNumbers (default) · lineNumber={null} leaves a blank cell">
+        <LogRows>
+          <LogRow lineNumber={1}>
+            <LogContent variant="code">resolving dependencies</LogContent>
+          </LogRow>
+          <LogRow lineNumber={2}>
+            <LogContent variant="code">linking 318 packages</LogContent>
+          </LogRow>
+          <LogRow lineNumber={null}>
+            <LogContent variant="code" className="text-foreground-neutral-muted">
+              lineNumber=null — a marker row keeps the gutter blank
+            </LogContent>
+          </LogRow>
+          <LogRow lineNumber={3}>
+            <LogContent variant="code">done</LogContent>
+          </LogRow>
+        </LogRows>
+      </Section>
+      <Section label="showLineNumbers={false}">
+        <LogRows showLineNumbers={false}>
+          <LogRow lineNumber={1}>
+            <LogContent variant="code">no gutter column</LogContent>
+          </LogRow>
+          <LogRow lineNumber={2}>
+            <LogContent variant="code">content starts at the left edge</LogContent>
+          </LogRow>
+        </LogRows>
+      </Section>
     </div>
   ),
 };
 
-export const AgentTurn: Story = {
+/** The container's `timestamps` mode formats every row's `timestamp` Date. */
+export const Timestamps: Story = {
   render: () => (
-    <div className="max-w-3xl">
-      <LogRows timestamps="abs" origin={origin}>
-        <LogRow tone="info" lineNumber={57} timestamp={at(11)}>
-          <LogHeader>
-            <Glyph className="text-blue-500 dark:text-blue-400">{'❯'}</Glyph>
-            <Badge variant="info">You</Badge>
-          </LogHeader>
-          <LogContent>Make sure the 503 retry test passes.</LogContent>
-        </LogRow>
-        <LogRow tone="accent" lineNumber={58} timestamp={at(13)}>
-          <LogHeader end={<>claude-sonnet-4-5 · $0.084 · 2.1s</>}>
-            <Glyph className="text-purple-500 dark:text-purple-400">{'✦'}</Glyph>
-            <Badge variant="feature">Assistant</Badge>
-          </LogHeader>
-          <LogContent>Fixed the off-by-one in withRetry().</LogContent>
-        </LogRow>
-      </LogRows>
+    <div className="grid max-w-5xl gap-16 md:grid-cols-3">
+      {(['off', 'rel', 'abs'] as const).map((mode) => (
+        <Section key={mode} label={`timestamps="${mode}"`}>
+          <LogRows timestamps={mode} origin={origin}>
+            <LogRow lineNumber={17} timestamp={at(0.412)}>
+              <LogContent variant="code">resolving dependencies</LogContent>
+            </LogRow>
+            <LogRow lineNumber={18} timestamp={at(0.53)}>
+              <LogContent variant="code">linking 318 packages</LogContent>
+            </LogRow>
+            <LogRow lineNumber={19} timestamp={at(65.3)}>
+              <LogContent variant="code">done</LogContent>
+            </LogRow>
+          </LogRows>
+        </Section>
+      ))}
     </div>
   ),
 };
 
-export const TimelineMarker: Story = {
-  render: () => (
-    <div className="max-w-3xl">
-      <LogRows>
-        <LogRow lineNumber={88}>
-          <LogContent variant="code">writing dist/assets/index-a3f9b1c2.js</LogContent>
-        </LogRow>
-        <LogRow tone="warning">
-          <LogContent>
-            <span className="inline-flex w-full items-center gap-8 text-orange-600 dark:text-orange-300">
-              {'⚠'} <b>18,432 bytes dropped</b>
-              <span className="h-px flex-1 border-t border-dashed border-current opacity-40" />
-            </span>
-          </LogContent>
-        </LogRow>
-        <LogRow tone="error">
-          <LogContent>
-            <span className="inline-flex items-center gap-8 font-bold text-red-600 dark:text-red-400">
-              {'■'} Runner lost
-              <span className="font-normal opacity-80">— log incomplete</span>
-            </span>
-          </LogContent>
-        </LogRow>
-      </LogRows>
-    </div>
-  ),
-};
-
+/** Each `tone` is a distinct hue — a left accent bar plus a background tint. */
 export const Tones: Story = {
   render: () => (
     <div className="max-w-3xl">
@@ -145,41 +153,69 @@ export const Tones: Story = {
   ),
 };
 
-export const Timestamps: Story = {
+/**
+ * `selected` marks the cursor row for keyboard traversal. Its brand-orange bar
+ * is the one orange in the system, so it always wins over a row's `tone`.
+ */
+export const Selected: Story = {
   render: () => (
-    <div className="grid max-w-5xl gap-16 md:grid-cols-3">
-      {(['off', 'rel', 'abs'] as const).map((mode) => (
-        <div key={mode} className="flex flex-col gap-8">
-          <Code variant="label" className="text-foreground-neutral-subtle">
-            timestamps="{mode}"
-          </Code>
-          <LogRows timestamps={mode} origin={origin}>
-            <LogRow lineNumber={17} timestamp={at(0.412)}>
-              <LogContent variant="code">resolving dependencies</LogContent>
-            </LogRow>
-            <LogRow lineNumber={18} timestamp={at(0.53)}>
-              <LogContent variant="code">linking 318 packages</LogContent>
-            </LogRow>
-            <LogRow lineNumber={19} timestamp={at(65.3)}>
-              <LogContent variant="code">done</LogContent>
-            </LogRow>
-          </LogRows>
-        </div>
-      ))}
+    <div className="max-w-3xl">
+      <LogRows>
+        <LogRow lineNumber={11}>
+          <LogContent variant="code">a normal row</LogContent>
+        </LogRow>
+        <LogRow lineNumber={12} selected>
+          <LogContent variant="code">selected — the cursor row (j / k)</LogContent>
+        </LogRow>
+        <LogRow lineNumber={13}>
+          <LogContent variant="code">another normal row</LogContent>
+        </LogRow>
+        <LogRow lineNumber={14} tone="error" selected>
+          <LogContent variant="code">selected keeps the orange bar over a tone tint</LogContent>
+        </LogRow>
+      </LogRows>
     </div>
   ),
 };
 
-export const Wrap: Story = {
+/** `indent` adds left padding for nested content — pass `depth * step`. */
+export const Indent: Story = {
+  render: () => (
+    <div className="max-w-3xl">
+      <LogRows>
+        <LogRow lineNumber={1} indent={0}>
+          <LogContent variant="code">depth 0 — build</LogContent>
+        </LogRow>
+        <LogRow lineNumber={2} indent={16}>
+          <LogContent variant="code">depth 1 — typecheck</LogContent>
+        </LogRow>
+        <LogRow lineNumber={3} indent={32}>
+          <LogContent variant="code">depth 2 — transform module</LogContent>
+        </LogRow>
+        <LogRow lineNumber={4} indent={48}>
+          <LogContent variant="code">depth 3 — emit chunk</LogContent>
+        </LogRow>
+        <LogRow lineNumber={5} indent={16}>
+          <LogContent variant="code">depth 1 — bundle</LogContent>
+        </LogRow>
+      </LogRows>
+    </div>
+  ),
+};
+
+/**
+ * `wrap` chooses between soft-wrap and horizontal scroll. Both states make a
+ * long line legible without hiding it: wrapped continuations hang-indent under
+ * the first line; a non-wrapping line scrolls and fades at the truncated edge.
+ * A line that fits is untouched either way.
+ */
+export const Wrapping: Story = {
   render: () => {
     const long =
       'ERROR  TypeError: Cannot read properties of undefined (reading "id") at withRetry (src/api/retry.ts:42:18) at async runStep (src/runner/step.ts:118:7)';
     return (
-      <div className="flex max-w-3xl flex-col gap-16">
-        <div className="flex max-w-md flex-col gap-8">
-          <Code variant="label" className="text-foreground-neutral-subtle">
-            wrap=false — the line scrolls; a right fade marks the truncation
-          </Code>
+      <div className="flex max-w-md flex-col gap-16">
+        <Section label="wrap=false — the line scrolls; a right fade marks the truncation">
           <LogRows wrap={false}>
             <LogRow lineNumber={120} tone="error">
               <LogContent variant="code">{long}</LogContent>
@@ -188,11 +224,8 @@ export const Wrap: Story = {
               <LogContent variant="code">resuming after the failure</LogContent>
             </LogRow>
           </LogRows>
-        </div>
-        <div className="flex max-w-md flex-col gap-8">
-          <Code variant="label" className="text-foreground-neutral-subtle">
-            wrap=true — continuation lines hang-indent under the first
-          </Code>
+        </Section>
+        <Section label="wrap=true — continuation lines hang-indent under the first">
           <LogRows wrap>
             <LogRow lineNumber={120} tone="error">
               <LogContent variant="code">{long}</LogContent>
@@ -201,19 +234,62 @@ export const Wrap: Story = {
               <LogContent variant="code">resuming after the failure</LogContent>
             </LogRow>
           </LogRows>
-        </div>
+        </Section>
       </div>
     );
   },
 };
 
-export const AnsiOutput: Story = {
+/**
+ * `LogContent` selects body typography. `text` is prose in the display font;
+ * `code` is monospace with whitespace preserved. Either accepts arbitrary
+ * children, and the code variant can parse ANSI from a string.
+ */
+export const Content: Story = {
+  render: () => (
+    <div className="max-w-3xl">
+      <LogRows>
+        <LogRow lineNumber={1}>
+          <LogContent variant="text">
+            variant="text" — prose in the display font that wraps like normal copy.
+          </LogContent>
+        </LogRow>
+        <LogRow lineNumber={2}>
+          <LogContent variant="code">variant="code" — monospace output</LogContent>
+        </LogRow>
+        <LogRow lineNumber={3}>
+          <LogContent variant="code">{'  whitespace   and\ttabs   are preserved'}</LogContent>
+        </LogRow>
+        <LogRow lineNumber={4}>
+          <LogContent variant="code" ansi>
+            {`${ESC}[32m✓${ESC}[0m code + ansi — escapes become themed spans`}
+          </LogContent>
+        </LogRow>
+        <LogRow lineNumber={5}>
+          <LogContent>
+            <span className="inline-flex items-center gap-6">
+              arbitrary children — <Badge variant="neutral">any node</Badge>
+            </span>
+          </LogContent>
+        </LogRow>
+      </LogRows>
+    </div>
+  ),
+};
+
+/**
+ * `LogContent variant="code" ansi` parses SGR escapes into themed spans:
+ * the 16 colors, their bright variants, bold / dim / italic / underline, and
+ * backgrounds. Reset and default codes clear styling; unknown codes are dropped.
+ */
+export const Ansi: Story = {
   render: () => {
-    const e = String.fromCharCode(27);
     const lines = [
-      `${e}[32m✓${e}[0m ${e}[1mbuild${e}[0m succeeded in ${e}[34m412ms${e}[0m`,
-      `${e}[33mWARN${e}[0m ${e}[2mdeprecated${e}[0m glob@7 · ${e}[4mupgrade to glob@10${e}[0m`,
-      `${e}[1;31mFAIL${e}[0m client.test.ts ${e}[31m> retries on 503${e}[0m`,
+      `${ESC}[31mred${ESC}[0m ${ESC}[32mgreen${ESC}[0m ${ESC}[33myellow${ESC}[0m ${ESC}[34mblue${ESC}[0m ${ESC}[35mmagenta${ESC}[0m ${ESC}[36mcyan${ESC}[0m`,
+      `${ESC}[91mbright red${ESC}[0m ${ESC}[92mbright green${ESC}[0m ${ESC}[96mbright cyan${ESC}[0m`,
+      `${ESC}[1mbold${ESC}[0m ${ESC}[2mdim${ESC}[0m ${ESC}[3mitalic${ESC}[0m ${ESC}[4munderline${ESC}[0m`,
+      `${ESC}[42;30m black on green ${ESC}[0m then ${ESC}[1;31mbold red${ESC}[39m default again${ESC}[0m`,
+      `${ESC}[32m✓${ESC}[0m built ${ESC}[34m1284${ESC}[0m modules · ${ESC}[1;31m1 error${ESC}[0m`,
     ];
     return (
       <div className="max-w-3xl">
@@ -231,7 +307,50 @@ export const AnsiOutput: Story = {
   },
 };
 
-export const Interleaved: Story = {
+/**
+ * `LogHeader` is an optional band inside a row body: a left cluster plus an
+ * optional right-aligned `end` slot. It is pure layout — supply the glyphs,
+ * badges, and meta yourself.
+ */
+export const Header: Story = {
+  render: () => (
+    <div className="max-w-3xl">
+      <LogRows>
+        <LogRow lineNumber={1}>
+          <LogHeader>
+            <Glyph className="text-purple-500 dark:text-purple-400">{'✦'}</Glyph>
+            <Badge variant="feature">Assistant</Badge>
+          </LogHeader>
+        </LogRow>
+        <LogRow lineNumber={2}>
+          <LogHeader end={<>claude-sonnet-4-5 · $0.084 · 2.1s</>}>
+            <Glyph className="text-purple-500 dark:text-purple-400">{'✦'}</Glyph>
+            <Badge variant="feature">Assistant</Badge>
+          </LogHeader>
+        </LogRow>
+        <LogRow lineNumber={3}>
+          <LogHeader end={<>64 lines</>}>
+            <Glyph className="text-blue-500 dark:text-blue-400">{'⚙'}</Glyph>
+            <span className="font-bold text-blue-600 dark:text-blue-400">read_file</span>
+          </LogHeader>
+        </LogRow>
+        <LogRow lineNumber={4}>
+          <LogHeader end={<>exit 0</>}>
+            <Badge variant="success">bash</Badge>
+          </LogHeader>
+          <LogContent variant="code">$ pnpm build</LogContent>
+        </LogRow>
+      </LogRows>
+    </div>
+  ),
+};
+
+/**
+ * Composition is the API. The library ships no record components — output
+ * lines, agent turns, tool results, and timeline markers are all assembled from
+ * the four primitives, interleaved in one stream.
+ */
+export const Composition: Story = {
   render: () => (
     <div className="max-w-3xl">
       <LogRows timestamps="abs" origin={origin} className="max-h-96">
@@ -247,14 +366,14 @@ export const Interleaved: Story = {
           </LogHeader>
           <LogContent>Re-running the failing shard.</LogContent>
         </LogRow>
-        <LogRow lineNumber={43} timestamp={at(9.22)}>
+        <LogRow lineNumber={43} timestamp={at(9.22)} indent={16}>
           <LogContent variant="code">
             <Glyph className="text-blue-500 dark:text-blue-400">{'⚙ '}</Glyph>
             <span className="font-bold text-blue-600 dark:text-blue-400">read_file</span>
             <span className="text-foreground-neutral-muted"> src/api/client.ts</span>
           </LogContent>
         </LogRow>
-        <LogRow lineNumber={44} timestamp={at(9.54)}>
+        <LogRow lineNumber={44} timestamp={at(9.54)} indent={16}>
           <LogContent variant="code" className="text-foreground-neutral-muted">
             <Glyph className="font-bold text-green-500 dark:text-green-400">{'✓ '}</Glyph>
             read_file · 64 lines
@@ -275,50 +394,6 @@ export const Interleaved: Story = {
           </LogContent>
         </LogRow>
       </LogRows>
-    </div>
-  ),
-};
-
-export const Slots: Story = {
-  render: () => (
-    <div className="flex max-w-3xl flex-col gap-16">
-      <div className="flex flex-col gap-8">
-        <Code variant="label" className="text-foreground-neutral-subtle">
-          LogHeader
-        </Code>
-        <LogRows>
-          <LogRow lineNumber={1}>
-            <LogHeader end={<>claude-sonnet-4-5 · $0.084</>}>
-              <Glyph className="text-purple-500 dark:text-purple-400">{'✦'}</Glyph>
-              <Badge variant="feature">Assistant</Badge>
-            </LogHeader>
-          </LogRow>
-          <LogRow lineNumber={2}>
-            <LogHeader end={<>64 lines</>}>
-              <Glyph className="text-blue-500 dark:text-blue-400">{'⚙'}</Glyph>
-              <span className="font-bold text-blue-600 dark:text-blue-400">read_file</span>
-            </LogHeader>
-          </LogRow>
-        </LogRows>
-      </div>
-      <div className="flex flex-col gap-8">
-        <Code variant="label" className="text-foreground-neutral-subtle">
-          LogContent
-        </Code>
-        <LogRows>
-          <LogRow lineNumber={1}>
-            <LogContent variant="text">Prose body — wraps like normal text.</LogContent>
-          </LogRow>
-          <LogRow lineNumber={2}>
-            <LogContent variant="code">mono · whitespace preserved</LogContent>
-          </LogRow>
-          <LogRow lineNumber={3}>
-            <LogContent variant="code" ansi>
-              {`${String.fromCharCode(27)}[32m✓${String.fromCharCode(27)}[0m code + ansi`}
-            </LogContent>
-          </LogRow>
-        </LogRows>
-      </div>
     </div>
   ),
 };

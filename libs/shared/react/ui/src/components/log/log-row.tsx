@@ -30,7 +30,7 @@ export interface LogRowProps extends ComponentProps<'div'> {
   /** Row time; the container's mode formats it. `null` renders a blank cell. */
   timestamp?: Date | null;
   tone?: LogRowTone;
-  /** Left padding of the body in pixels. */
+  /** Extra left padding (px) added on top of the body's base inset for nesting — pass `depth * step`. */
   indent?: number;
   selected?: boolean;
   /** Override the container's soft-wrap for this row. */
@@ -97,7 +97,7 @@ export function LogRow({
         <div
           data-slot="log-row-body"
           className="min-w-0 flex-1 overflow-hidden pr-12"
-          style={{paddingLeft: indent || 12}}
+          style={{paddingLeft: 12 + indent}}
         >
           {children}
         </div>
