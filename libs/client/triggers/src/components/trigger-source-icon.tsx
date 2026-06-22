@@ -2,12 +2,6 @@ import {getIntegrationIcon} from '@shipfox/client-integrations';
 import {Icon, type IconName} from '@shipfox/react-ui';
 import type {ComponentProps} from 'react';
 
-/**
- * Icons for the trigger sources the integration catalog does not own. Integration
- * sources (github, sentry, …) resolve through {@link getIntegrationIcon}; these are
- * the system sources a run can carry instead — a person firing it (`manual`) or a
- * schedule (`cron`).
- */
 const SYSTEM_TRIGGER_SOURCE_ICONS: Record<string, IconName> = {
   manual: 'cursorLine',
   cron: 'timeLine',
