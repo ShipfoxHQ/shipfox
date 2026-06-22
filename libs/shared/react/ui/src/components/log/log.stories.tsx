@@ -141,16 +141,18 @@ export const TimelineMarker: Story = {
   ),
 };
 
-/** The five tones — a left accent bar plus a background tint. */
+/** Each tone is a distinct hue — a left accent bar plus a background tint. */
 export const Tones: Story = {
   render: () => (
     <div className="max-w-3xl">
       <LogRows>
-        {(['default', 'info', 'accent', 'warning', 'error'] as const).map((tone, index) => (
-          <LogRow key={tone} lineNumber={index + 1} tone={tone}>
-            <LogContent variant="code">tone="{tone}"</LogContent>
-          </LogRow>
-        ))}
+        {(['default', 'info', 'accent', 'success', 'warning', 'error'] as const).map(
+          (tone, index) => (
+            <LogRow key={tone} lineNumber={index + 1} tone={tone}>
+              <LogContent variant="code">tone="{tone}"</LogContent>
+            </LogRow>
+          ),
+        )}
       </LogRows>
     </div>
   ),

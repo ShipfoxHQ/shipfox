@@ -12,9 +12,11 @@ const logRowTone = cva('', {
       default: '',
       error: 'bg-red-50 dark:bg-red-500/10 shadow-[inset_2px_0_0_var(--color-red-500)]',
       warning: 'bg-orange-50 dark:bg-orange-500/10 shadow-[inset_2px_0_0_var(--color-orange-500)]',
+      success: 'bg-green-50 dark:bg-green-500/10 shadow-[inset_2px_0_0_var(--color-green-500)]',
       info: 'bg-blue-50 dark:bg-blue-500/10 shadow-[inset_2px_0_0_var(--color-blue-500)]',
-      accent:
-        'bg-primary-50 dark:bg-primary-500/10 shadow-[inset_2px_0_0_var(--color-primary-400)]',
+      // Reserve brand orange for the `selected` affordance; the agent/highlight
+      // tone reads violet, matching the agent mock and staying clear of warning.
+      accent: 'bg-purple-50 dark:bg-purple-500/10 shadow-[inset_2px_0_0_var(--color-purple-500)]',
     },
   },
   defaultVariants: {tone: 'default'},
