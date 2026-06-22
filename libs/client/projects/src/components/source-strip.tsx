@@ -14,17 +14,11 @@ import {
 } from '@shipfox/react-ui';
 
 /**
- * Slim provenance strip at the top of the Workflows page.
- *
- * Shows enough for an operator to recognize the GitOps loop at a glance: provider icon,
- * connection display name, repo id chip, sync status pill.
- *
  * We cannot cheaply resolve `external_repository_id` → `owner/repo`
  * (no by-id endpoint; `listRepositories` is paginated by connection).
  * The strip surfaces the raw id as a `<Code>` chip with a tooltip carrying the
  * full string.
  */
-
 export function SourceStrip({
   connectionId,
   externalRepositoryId,

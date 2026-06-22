@@ -36,8 +36,8 @@ export async function runJobSteps(params: {
 }): Promise<void> {
   const {jobId, leaseClient, secrets, signal, cwd} = params;
 
-  // The setup step (position 0) prepares the workspace; every run step assumes it ran.
-  // A run step pulled before a successful setup is failed cleanly rather than spawned
+  // The setup step prepares the workspace; every run step assumes it ran. A run
+  // step pulled before a successful setup is failed cleanly rather than spawned
   // against an unprepared cwd.
   let workspacePrepared = false;
 

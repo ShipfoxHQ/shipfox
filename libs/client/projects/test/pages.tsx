@@ -94,9 +94,9 @@ function createTestRouter(path: string, element: ReactElement) {
         return element;
       }
 
-      // Production redirects the project-detail URL to the Runs tab. The harness
-      // only needs to prove navigation landed there (e.g. create-project duplicate
-      // recovery), so it renders a minimal stand-in rather than depending on that package.
+      // The harness only needs to prove project-detail navigation landed on the
+      // Runs surface, so it renders a minimal stand-in rather than depending on
+      // @shipfox/client-workflows.
       return <h1>Runs</h1>;
     },
   });

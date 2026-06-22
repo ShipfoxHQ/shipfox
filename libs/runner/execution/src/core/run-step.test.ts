@@ -7,7 +7,6 @@ import {executeRunStep, type OutputSink} from '#core/run-step.js';
 const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
 const ESRCH_REGEX = /ESRCH/;
 
-// Collects what the durable pipeline receives from captured step output.
 function collectOutput(): {sink: OutputSink; text: () => string; sources: () => string[]} {
   const chunks: Buffer[] = [];
   const sources: string[] = [];
