@@ -57,6 +57,7 @@
     "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-jwt": "workspace:*",
+    "@shipfox/node-email": "workspace:*",
     "@shipfox/node-mailer": "workspace:*",
     "@shipfox/node-module": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",

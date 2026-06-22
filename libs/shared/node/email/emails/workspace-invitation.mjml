@@ -1,0 +1,61 @@
+<mjml lang="en">
+  <mj-head>
+    <mj-title>Join {{workspaceName}} on Shipfox</mj-title>
+    <mj-preview>{{inviterName}} invited you to {{workspaceName}} on Shipfox.</mj-preview>
+    <mj-include path="./partials/head-styles.mjml" />
+  </mj-head>
+  <mj-body background-color="#ffffff" width="600px">
+    <mj-section padding="40px 24px 0 24px">
+      <mj-column>
+        <mj-include path="./partials/header.mjml" />
+        <mj-text
+          align="center"
+          font-size="24px"
+          line-height="32px"
+          font-weight="600"
+          letter-spacing="-0.01em"
+          color="#0f0f10"
+          padding-bottom="24px"
+        >
+          You're invited to join {{workspaceName}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="0 24px">
+      <mj-column>
+        <mj-text padding-bottom="24px">
+          <strong>{{inviterName}}</strong> has invited you to join the
+          <strong>{{workspaceName}}</strong> workspace on <strong>Shipfox</strong>.
+        </mj-text>
+        <mj-button
+          background-color="#1a1a1b"
+          color="#ffffff"
+          href="{{inviteLink}}"
+          font-weight="600"
+          font-size="16px"
+          border-radius="6px"
+          inner-padding="12px 24px"
+          padding-bottom="24px"
+        >
+          Accept invitation
+        </mj-button>
+        <mj-text color="#52525b" font-size="14px" line-height="20px" padding-bottom="8px">
+          Or copy and paste this link into your browser:
+        </mj-text>
+        <mj-text color="#0f0f10" font-size="14px" line-height="20px">
+          <a href="{{inviteLink}}" style="color: #0f0f10; word-break: break-all;">{{inviteLink}}</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="0 24px 40px 24px">
+      <mj-column>
+        <mj-include path="./partials/footer.mjml" />
+        <mj-text color="#52525b" font-size="14px" line-height="20px">
+          This invitation was sent to <strong>{{email}}</strong>. If you weren't expecting it, you can safely ignore this email.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

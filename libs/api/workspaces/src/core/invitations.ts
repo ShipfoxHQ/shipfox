@@ -1,4 +1,5 @@
 import type {UserContextMembership} from '@shipfox/api-auth-context';
+import {renderEmail} from '@shipfox/node-email';
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {config, mailer} from '#config.js';
 import {
@@ -35,7 +36,7 @@ export async function createWorkspaceInvitation(params: {
   invitedByDisplay?: string | null;
   invitedByMemberships: ReadonlyArray<UserContextMembership>;
 }): Promise<Invitation> {
-  await requireWorkspaceMembership({
+  const {workspace} = await requireWorkspaceMembership({
     workspaceId: params.workspaceId,
     userId: params.invitedByUserId,
     memberships: params.invitedByMemberships,
@@ -52,12 +53,13 @@ export async function createWorkspaceInvitation(params: {
   });
 
   const link = `${config.CLIENT_BASE_URL}/invitations/accept?token=${rawToken}`;
-  await mailer.send({
-    to: params.email,
-    subject: 'You have been invited to a workspace',
-    text: `Click to accept: ${link}`,
-    html: `<p>Click to accept: <a href="${link}">${link}</a></p>`,
+  const email = await renderEmail('workspace-invitation', {
+    email: params.email,
+    workspaceName: workspace.name,
+    inviterName: params.invitedByDisplay ?? 'A teammate',
+    inviteLink: link,
   });
+  await mailer.send({to: params.email, ...email});
 
   return invitation;
 }

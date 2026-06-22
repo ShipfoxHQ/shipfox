@@ -8,6 +8,7 @@ import {
   TokenExpiredError,
   TokenInvalidError as WorkspacesTokenInvalidError,
 } from '@shipfox/api-workspaces';
+import {renderEmail} from '@shipfox/node-email';
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {config, mailer} from '#config.js';
 import {
@@ -95,12 +96,8 @@ async function createRefreshSession(user: User): Promise<string> {
 
 async function sendVerificationEmail(user: User, rawToken: string): Promise<void> {
   const link = `${config.CLIENT_BASE_URL}/auth/verify-email?token=${rawToken}`;
-  await mailer.send({
-    to: user.email,
-    subject: 'Verify your email',
-    text: `Click to verify your email: ${link}`,
-    html: `<p>Click to verify your email: <a href="${link}">${link}</a></p>`,
-  });
+  const email = await renderEmail('verify-email', {verifyLink: link});
+  await mailer.send({to: user.email, ...email});
 }
 
 async function createAndSendEmailVerification(user: User): Promise<void> {
@@ -427,12 +424,11 @@ export async function requestPasswordReset(params: {email: string}): Promise<voi
   });
 
   const link = `${config.CLIENT_BASE_URL}/auth/reset?token=${rawToken}`;
-  await mailer.send({
-    to: user.email,
-    subject: 'Reset your password',
-    text: `Click to reset your password: ${link}`,
-    html: `<p>Click to reset your password: <a href="${link}">${link}</a></p>`,
+  const email = await renderEmail('reset-password', {
+    resetLink: link,
+    expiresInHours: RESET_TTL_HOURS,
   });
+  await mailer.send({to: user.email, ...email});
 }
 
 export interface ConfirmPasswordResetResult {

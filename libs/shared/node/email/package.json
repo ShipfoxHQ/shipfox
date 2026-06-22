@@ -1,16 +1,20 @@
 {
-  "name": "@shipfox/api-workspaces",
+  "name": "@shipfox/node-email",
   "license": "MIT",
-  "version": "0.0.0",
+  "private": false,
+  "version": "0.1.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "libs/api/workspaces"
+    "directory": "libs/shared/node/email"
   },
-  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "emails"
+  ],
   "imports": {
     "#test/*": "./test/*",
     "#*": "./src/*"
@@ -37,18 +41,8 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/api-auth-context": "workspace:*",
-    "@shipfox/api-workspaces-dto": "workspace:*",
-    "@shipfox/config": "workspace:*",
-    "@shipfox/node-drizzle": "workspace:*",
-    "@shipfox/node-fastify": "workspace:*",
-    "@shipfox/node-email": "workspace:*",
-    "@shipfox/node-mailer": "workspace:*",
-    "@shipfox/node-module": "workspace:*",
-    "@shipfox/node-postgres": "workspace:*",
-    "@shipfox/node-tokens": "workspace:*",
-    "drizzle-orm": "^0.45.2",
-    "zod": "^4.4.3"
+    "handlebars": "^4.7.8",
+    "mjml": "^4.15.3"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -56,10 +50,6 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@types/pg": "^8.15.5",
-    "drizzle-kit": "^0.31.10",
-    "fastify": "^5.3.3",
-    "fastify-type-provider-zod": "^6.0.0",
-    "fishery": "^2.2.2"
+    "@types/mjml": "^4.7.4"
   }
 }
