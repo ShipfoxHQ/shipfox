@@ -20,6 +20,9 @@ export interface Job {
   createdAt: Date;
   updatedAt: Date;
   timedOutAt: Date | null;
+  queuedAt: Date | null;
+  startedAt: Date | null;
+  finishedAt: Date | null;
 }
 
 export type TerminalJobStatus = Extract<JobStatus, 'succeeded' | 'failed' | 'cancelled'>;

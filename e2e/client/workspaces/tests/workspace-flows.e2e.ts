@@ -233,8 +233,9 @@ test('routes a returning user with workspaces straight to /workspaces/$wid', asy
   const wsA = await workspaces.create({userId: user.user.id, name: 'Alpha Workspace'});
   await auth.loginAs(page, user);
 
-  // Record every URL the page transits through. Asserting only the final URL
-  // would let a brief flash through onboarding slip past Playwright auto-wait.
+  // Capture transient redirects while auth refresh resolves memberships;
+  // asserting only the final URL would let a brief setup-page flash slip past
+  // Playwright auto-wait.
   const urlsSeen: string[] = [];
   page.on('framenavigated', (frame) => {
     if (frame === page.mainFrame()) {

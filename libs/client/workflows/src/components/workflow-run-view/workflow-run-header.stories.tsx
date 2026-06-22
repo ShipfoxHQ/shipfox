@@ -17,6 +17,8 @@ function makeRun(overrides: Partial<RunResponseDto> = {}): RunResponseDto {
     inputs: null,
     created_at: new Date(Date.now() - 180_000).toISOString(),
     updated_at: new Date(Date.now() - 60_000).toISOString(),
+    started_at: null,
+    finished_at: null,
     ...overrides,
   };
 }

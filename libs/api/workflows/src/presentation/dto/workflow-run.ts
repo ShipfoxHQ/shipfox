@@ -14,5 +14,7 @@ export function toRunDto(run: WorkflowRun): RunDto {
     inputs: run.inputs,
     created_at: run.createdAt.toISOString(),
     updated_at: run.updatedAt.toISOString(),
+    started_at: run.startedAt?.toISOString() ?? null,
+    finished_at: run.finishedAt?.toISOString() ?? null,
   };
 }

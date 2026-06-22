@@ -29,6 +29,8 @@ export {
   getWorkflowRunById,
   listWorkflowRuns,
   listWorkflowRunsByProject,
+  recordJobQueuedAt,
+  recordJobStartedAt,
   resolveJobAfterLeaseExpiry,
   updateJobStatus,
   updateWorkflowRunStatus,

@@ -1,22 +1,26 @@
 import {verifyJobLeaseToken} from '@shipfox/api-auth';
-import {RUNNER_JOB_LEASE_EXPIRED} from '@shipfox/api-runners-dto';
+import {
+  RUNNER_JOB_CLAIMED,
+  RUNNER_JOB_LEASE_EXPIRED,
+  RUNNER_JOB_QUEUED,
+} from '@shipfox/api-runners-dto';
 import {eq, sql} from 'drizzle-orm';
 import {claimJob, detectAndExpireStuckJobs} from '#core/jobs.js';
 import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
 import {db} from './db.js';
 import {
   claimPendingJob,
+  enqueueJob,
   expireStuckJobs,
   recordHeartbeat,
   releaseJob,
   requestJobCancellation,
-  scheduleJob,
 } from './jobs.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobs} from './schema/pending-jobs.js';
 import {runningJobs} from './schema/running-jobs.js';
 
-describe('scheduleJob', () => {
+describe('enqueueJob', () => {
   beforeEach(async () => {
     await db().execute(
       sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_outbox CASCADE`,
@@ -29,7 +33,7 @@ describe('scheduleJob', () => {
     const workspaceId = crypto.randomUUID();
     const projectId = crypto.randomUUID();
 
-    await scheduleJob({workspaceId, jobId, runId, projectId});
+    await enqueueJob({workspaceId, jobId, runId, projectId});
 
     const rows = await db().select().from(pendingJobs);
     expect(rows).toHaveLength(1);
@@ -49,11 +53,47 @@ describe('scheduleJob', () => {
       jobId,
     };
 
-    await scheduleJob(params);
-    await expect(scheduleJob(params)).resolves.toBeUndefined();
+    await enqueueJob(params);
+    await expect(enqueueJob(params)).resolves.toBeUndefined();
 
     const rows = await db().select().from(pendingJobs);
     expect(rows).toHaveLength(1);
+  });
+
+  it('emits runners.job.queued carrying the pending row created_at', async () => {
+    const jobId = crypto.randomUUID();
+    const runId = crypto.randomUUID();
+
+    await enqueueJob({
+      workspaceId: crypto.randomUUID(),
+      jobId,
+      runId,
+      projectId: crypto.randomUUID(),
+    });
+
+    const [pending] = await db().select().from(pendingJobs);
+    const outbox = await db().select().from(runnersOutbox);
+    expect(outbox).toHaveLength(1);
+    expect(outbox[0]?.eventType).toBe(RUNNER_JOB_QUEUED);
+    const payload = outbox[0]?.payload as {jobId: string; runId: string; queuedAt: string};
+    expect(payload.jobId).toBe(jobId);
+    expect(payload.runId).toBe(runId);
+    expect(new Date(payload.queuedAt).getTime()).toBe(pending?.createdAt.getTime());
+  });
+
+  it('does not double-emit queued when the same jobId is re-enqueued (idempotency regression)', async () => {
+    const params = {
+      workspaceId: crypto.randomUUID(),
+      runId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      jobId: crypto.randomUUID(),
+    };
+
+    await enqueueJob(params);
+    await enqueueJob(params);
+
+    expect(await db().select().from(pendingJobs)).toHaveLength(1);
+    expect(await db().select().from(runnersOutbox)).toHaveLength(1);
   });
 });
 
@@ -63,11 +103,61 @@ describe('claimPendingJob', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_tokens CASCADE`,
+      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_tokens, runners_outbox CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     const runnerToken = await runnerTokenFactory.create({workspaceId});
     runnerTokenId = runnerToken.id;
+  });
+
+  it('emits runners.job.claimed carrying the claim instant on a real claim', async () => {
+    const created = await pendingJobFactory.create({workspaceId});
+
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+
+    const [running] = await db()
+      .select()
+      .from(runningJobs)
+      .where(eq(runningJobs.jobId, claimed?.jobId as string));
+    const outbox = await db()
+      .select()
+      .from(runnersOutbox)
+      .where(eq(runnersOutbox.eventType, RUNNER_JOB_CLAIMED));
+    expect(outbox).toHaveLength(1);
+    const payload = outbox[0]?.payload as {jobId: string; runId: string; claimedAt: string};
+    expect(payload.jobId).toBe(created.jobId);
+    expect(payload.runId).toBe(created.runId);
+    expect(new Date(payload.claimedAt).getTime()).toBe(running?.startedAt.getTime());
+  });
+
+  it('emits no claimed event when there is nothing to claim', async () => {
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+
+    expect(claimed).toBeNull();
+    expect(
+      await db()
+        .select()
+        .from(runnersOutbox)
+        .where(eq(runnersOutbox.eventType, RUNNER_JOB_CLAIMED)),
+    ).toHaveLength(0);
+  });
+
+  it('emits no claimed event when dropping an orphan pending row', async () => {
+    const created = await pendingJobFactory.create({workspaceId});
+    await claimPendingJob({workspaceId, runnerTokenId});
+    await db().insert(pendingJobs).values({
+      workspaceId,
+      jobId: created.jobId,
+      runId: created.runId,
+      projectId: created.projectId,
+    });
+    // Clear the initial claim's events so this assertion only covers the orphan claim.
+    await db().delete(runnersOutbox);
+
+    const second = await claimPendingJob({workspaceId, runnerTokenId});
+
+    expect(second).toBeNull();
+    expect(await db().select().from(runnersOutbox)).toHaveLength(0);
   });
 
   it('returns the job ids when a job is available', async () => {
@@ -227,11 +317,12 @@ describe('releaseJob', () => {
   it('deletes the running row and writes no outbox event', async () => {
     await pendingJobFactory.create({workspaceId});
     const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+    const before = await db().select().from(runnersOutbox);
 
     await releaseJob({jobId: claimed?.jobId as string});
 
     expect(await db().select().from(runningJobs)).toHaveLength(0);
-    expect(await db().select().from(runnersOutbox)).toHaveLength(0);
+    expect(await db().select().from(runnersOutbox)).toHaveLength(before.length);
   });
 
   it('is a no-op when the job is absent (idempotent)', async () => {
@@ -426,6 +517,8 @@ describe('detectAndExpireStuckJobs', () => {
   async function outboxForJobs(jobIds: string[]) {
     const all = await db().select().from(runnersOutbox);
     return all.filter((row) => {
+      // The same job ids can also have queued and claimed events from setup.
+      if (row.eventType !== RUNNER_JOB_LEASE_EXPIRED) return false;
       const payload = row.payload as {jobId?: string};
       return payload.jobId !== undefined && jobIds.includes(payload.jobId);
     });

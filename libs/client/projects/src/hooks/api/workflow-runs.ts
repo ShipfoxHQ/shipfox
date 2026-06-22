@@ -32,7 +32,8 @@ function normalizeFilters(filters: WorkflowRunFilters) {
  * Fire the manual trigger of a workflow definition.
  *
  * The server resolves the manual subscription by definition id (workflows
- * may declare at most one manual trigger). `inputs` are forwarded to the run.
+ * may declare at most one manual trigger). `inputs` are forwarded to the
+ * run when provided.
  */
 export async function fireManualWorkflow({
   definitionId,
@@ -106,6 +107,8 @@ function buildTempRun({
     inputs: null,
     created_at: createdAt,
     updated_at: createdAt,
+    started_at: null,
+    finished_at: null,
   };
 }
 

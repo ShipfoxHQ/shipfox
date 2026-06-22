@@ -12,7 +12,10 @@ CREATE TABLE "workflows_jobs" (
 	"version" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"timed_out_at" timestamp with time zone
+	"timed_out_at" timestamp with time zone,
+	"queued_at" timestamp with time zone,
+	"started_at" timestamp with time zone,
+	"finished_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "workflows_outbox" (
@@ -52,7 +55,9 @@ CREATE TABLE "workflows_workflow_runs" (
 	"trigger_idempotency_key" text,
 	"version" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"started_at" timestamp with time zone,
+	"finished_at" timestamp with time zone
 );
 --> statement-breakpoint
 ALTER TABLE "workflows_jobs" ADD CONSTRAINT "workflows_jobs_run_id_workflows_workflow_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."workflows_workflow_runs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

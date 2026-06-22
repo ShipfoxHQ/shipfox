@@ -40,5 +40,7 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
     version: 1,
     createdAt: new Date(),
     updatedAt: new Date(),
+    startedAt: null,
+    finishedAt: null,
   };
 });

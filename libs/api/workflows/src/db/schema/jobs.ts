@@ -31,6 +31,12 @@ export const jobs = pgTable(
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
     timedOutAt: timestamp('timed_out_at', {withTimezone: true}),
+    // Lifecycle timing. queued_at/started_at are projected from the runners module
+    // (RUNNER_JOB_QUEUED/STARTED) and so lag the row until the outbox drains;
+    // finished_at is stamped in-module at the terminal transition.
+    queuedAt: timestamp('queued_at', {withTimezone: true}),
+    startedAt: timestamp('started_at', {withTimezone: true}),
+    finishedAt: timestamp('finished_at', {withTimezone: true}),
   },
   (table) => [index('workflows_jobs_run_id_idx').on(table.runId)],
 );
@@ -51,5 +57,8 @@ export function toJob(row: JobDb): Job {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     timedOutAt: row.timedOutAt,
+    queuedAt: row.queuedAt,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
   };
 }

@@ -758,6 +758,115 @@ describe('workflow run queries', () => {
     });
   });
 
+  describe('run and job lifecycle timing', () => {
+    test('run: stamps started_at on running and preserves it through the terminal transition', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+
+      const running = await updateWorkflowRunStatus({
+        runId: run.id,
+        status: 'running',
+        expectedVersion: 1,
+      });
+
+      expect(running.startedAt).not.toBeNull();
+      expect(running.finishedAt).toBeNull();
+
+      const finished = await updateWorkflowRunStatus({
+        runId: run.id,
+        status: 'succeeded',
+        expectedVersion: 2,
+      });
+
+      expect(finished.finishedAt).not.toBeNull();
+      expect(finished.startedAt?.getTime()).toBe(running.startedAt?.getTime());
+    });
+
+    test('run: cancelled straight from pending has no start but a finish', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+
+      const cancelled = await updateWorkflowRunStatus({
+        runId: run.id,
+        status: 'cancelled',
+        expectedVersion: 1,
+      });
+
+      expect(cancelled.startedAt).toBeNull();
+      expect(cancelled.finishedAt).not.toBeNull();
+    });
+
+    test('job: stamps finished_at on a terminal transition', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      const job = (await getJobsByRunId(run.id))[0];
+
+      const finished = await updateJobStatus({
+        jobId: job?.id as string,
+        status: 'succeeded',
+        expectedVersion: 1,
+      });
+
+      expect(finished.finishedAt).not.toBeNull();
+    });
+
+    test('job: leaves finished_at null on a non-terminal transition', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      const job = (await getJobsByRunId(run.id))[0];
+
+      const running = await updateJobStatus({
+        jobId: job?.id as string,
+        status: 'running',
+        expectedVersion: 1,
+      });
+
+      expect(running.finishedAt).toBeNull();
+    });
+
+    test('job: failJobAsTimedOut stamps finished_at alongside timed_out_at', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      const job = (await getJobsByRunId(run.id))[0];
+
+      const updated = await failJobAsTimedOut({
+        jobId: job?.id as string,
+        runId: run.id,
+        expectedVersion: 1,
+      });
+
+      expect(updated.finishedAt).not.toBeNull();
+      expect(updated.timedOutAt).not.toBeNull();
+    });
+
+    test('run: re-entering running keeps the first started_at (coalesce, not a fresh clock)', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      const firstRunning = await updateWorkflowRunStatus({
+        runId: run.id,
+        status: 'running',
+        expectedVersion: 1,
+      });
+
+      const secondRunning = await updateWorkflowRunStatus({
+        runId: run.id,
+        status: 'running',
+        expectedVersion: 2,
+      });
+
+      expect(secondRunning.startedAt?.getTime()).toBe(firstRunning.startedAt?.getTime());
+    });
+
+    test('job: cancelled straight from pending has a finish but no start or queue time', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      const job = (await getJobsByRunId(run.id))[0];
+
+      const cancelled = await updateJobStatus({
+        jobId: job?.id as string,
+        status: 'cancelled',
+        expectedVersion: 1,
+      });
+
+      expect(cancelled.finishedAt).not.toBeNull();
+      expect(cancelled.startedAt).toBeNull();
+      expect(cancelled.queuedAt).toBeNull();
+    });
+  });
+
   describe('job terminal event (WORKFLOWS_JOB_TERMINATED)', () => {
     async function seedPendingJob() {
       const run = await createTestRun({workspaceId, projectId, definitionId});
@@ -921,8 +1030,8 @@ describe('workflow run queries', () => {
       const runJobs = await getJobsByRunId(run.id);
       const job = runJobs[0];
 
-      // Defensive: simulate a separate writer that bumped version + status
-      // without setting timed_out_at.
+      // Simulate a separate writer that bumped version and status without
+      // setting timed_out_at.
       await db()
         .update(jobs)
         .set({status: 'failed', version: 5})
@@ -960,7 +1069,6 @@ describe('workflow run queries', () => {
       const jobId = runJobs[0]?.id ?? '';
       await bulkUpdateStepStatuses({jobId, status: 'succeeded'});
 
-      // 3 user steps + the synthetic setup step.
       const jobSteps = await getStepsByJobId(jobId);
       expect(jobSteps).toHaveLength(4);
       for (const step of jobSteps) {
