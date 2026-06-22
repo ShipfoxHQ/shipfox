@@ -15,7 +15,7 @@ function CollapsibleTrigger({
   return (
     <CollapsiblePrimitive.Trigger
       data-slot="collapsible-trigger"
-      className={cn('outline-none', className)}
+      className={cn('outline-none focus-visible:shadow-button-neutral-focus', className)}
       {...props}
     />
   );
