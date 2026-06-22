@@ -87,7 +87,7 @@ export const Playground: Story = {
         <LogRow lineNumber={39} timestamp={at(10.3)} selected>
           <LogContent variant="code">dist/assets/index-a3f9b1c2.js</LogContent>
         </LogRow>
-        <LogRow lineNumber={40} timestamp={at(10.5)} indent={16}>
+        <LogRow lineNumber={40} timestamp={at(10.5)} indent={1}>
           <LogContent variant="code">
             <Glyph className="font-bold text-green-500 dark:text-green-400">{'✓ '}</Glyph>
             1284 modules transformed
@@ -212,16 +212,16 @@ export const Indent: Story = {
         <LogRow lineNumber={1} indent={0}>
           <LogContent variant="code">depth 0 — build</LogContent>
         </LogRow>
-        <LogRow lineNumber={2} indent={16}>
+        <LogRow lineNumber={2} indent={1}>
           <LogContent variant="code">depth 1 — typecheck</LogContent>
         </LogRow>
-        <LogRow lineNumber={3} indent={32}>
+        <LogRow lineNumber={3} indent={2}>
           <LogContent variant="code">depth 2 — transform module</LogContent>
         </LogRow>
-        <LogRow lineNumber={4} indent={48}>
+        <LogRow lineNumber={4} indent={3}>
           <LogContent variant="code">depth 3 — emit chunk</LogContent>
         </LogRow>
-        <LogRow lineNumber={5} indent={16}>
+        <LogRow lineNumber={5} indent={1}>
           <LogContent variant="code">depth 1 — bundle</LogContent>
         </LogRow>
       </LogRows>
@@ -508,14 +508,14 @@ export const Composition: Story = {
           </LogHeader>
           <LogContent>Re-running the failing shard.</LogContent>
         </LogRow>
-        <LogRow lineNumber={43} timestamp={at(9.22)} indent={16}>
+        <LogRow lineNumber={43} timestamp={at(9.22)} indent={1}>
           <LogContent variant="code">
             <Glyph className="text-blue-500 dark:text-blue-400">{'⚙ '}</Glyph>
             <span className="font-bold text-blue-600 dark:text-blue-400">read_file</span>
             <span className="text-foreground-neutral-muted"> src/api/client.ts</span>
           </LogContent>
         </LogRow>
-        <LogRow lineNumber={44} timestamp={at(9.54)} indent={16}>
+        <LogRow lineNumber={44} timestamp={at(9.54)} indent={1}>
           <LogContent variant="code" className="text-foreground-neutral-muted">
             <Glyph className="font-bold text-green-500 dark:text-green-400">{'✓ '}</Glyph>
             read_file · 64 lines

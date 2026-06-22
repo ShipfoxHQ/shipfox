@@ -31,7 +31,9 @@ function CollapsibleContent({
       className={cn(
         // Radix publishes the measured height on the element as a CSS variable;
         // the tw-animate-css keyframes read it to animate between 0 and auto.
-        'overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down',
+        // `motion-safe:` gates the keyframes so they never run under
+        // `prefers-reduced-motion: reduce` (open/close is instant there).
+        'overflow-hidden motion-safe:data-[state=closed]:animate-collapsible-up motion-safe:data-[state=open]:animate-collapsible-down',
         className,
       )}
       {...props}
