@@ -8,6 +8,7 @@ const ignoredRadixActWarningComponents = new Set([
   'FocusScope',
   'Menu',
   'MenuSub',
+  'Popper',
   'PopperContent',
   'Presence',
 ]);
@@ -29,7 +30,7 @@ function installRadixActWarningFilter() {
   }
 
   globalState.__shipfoxRadixActWarningFilterInstalled = true;
-  // biome-ignore lint/suspicious/noConsole: Storybook browser tests patch console.error to suppress known Radix internals only.
+  // biome-ignore lint/suspicious/noConsole: Storybook browser tests must keep actionable console errors while filtering known Radix act warnings.
   const originalError = console.error;
 
   console.error = (...args) => {
