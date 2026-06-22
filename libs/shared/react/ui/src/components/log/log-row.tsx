@@ -67,12 +67,16 @@ export function LogRow({
       <div
         data-slot="log-row"
         data-selected={selected || undefined}
+        data-wrap={resolvedWrap}
         aria-current={selected || undefined}
         className={cn(
-          'flex items-start',
+          'group/log-row flex items-start transition-colors',
+          'hover:bg-neutral-500/[0.06]',
           logRowTone({tone}),
+          // Selected keeps its pressed tint while hovered so the cursor row
+          // stays distinct from a plain hover.
           selected &&
-            'bg-background-neutral-pressed shadow-[inset_2px_0_0_var(--color-primary-400)]',
+            'bg-background-neutral-pressed shadow-[inset_2px_0_0_var(--color-primary-400)] hover:bg-background-neutral-pressed',
           className,
         )}
         {...props}

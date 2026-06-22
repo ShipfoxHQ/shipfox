@@ -10,3 +10,5 @@ export {
 export {LogHeader, type LogHeaderProps} from './log-header.js';
 export {LogRow, type LogRowProps, type LogRowTone} from './log-row.js';
 export {LogRows, type LogRowsProps} from './log-rows.js';
+export {type UseLogWrapResult, useLogWrap} from './use-log-wrap.js';
+export type {LogLineId} from './wrap-state.js';

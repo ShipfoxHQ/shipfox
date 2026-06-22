@@ -1,11 +1,14 @@
 import type {Meta, StoryObj} from '@storybook/react';
 import type {ReactNode} from 'react';
 import {Badge} from '#components/badge/index.js';
+import {Button} from '#components/button/index.js';
 import {Code} from '#components/typography/index.js';
+import {cn} from '#utils/cn.js';
 import {LogContent} from './log-content.js';
 import {LogHeader} from './log-header.js';
-import {LogRow} from './log-row.js';
+import {LogRow, type LogRowTone} from './log-row.js';
 import {LogRows} from './log-rows.js';
+import {useLogWrap} from './use-log-wrap.js';
 
 const meta = {
   title: 'Components/Log',
@@ -238,6 +241,106 @@ export const Wrapping: Story = {
       </div>
     );
   },
+};
+
+/**
+ * Interactive wrapping with `useLogWrap`. The toolbar toggle sets the global
+ * default; a per-line action (revealed on row hover) overrides one line — to
+ * read a long error in full, say. Flipping the global toggle clears every
+ * override, so the global control always wins, and the state is keyed by line
+ * id so an override survives a row leaving and re-entering a virtualized window.
+ */
+export const WrapControls: Story = {
+  render: () => {
+    const lines: {id: number; text: string; tone?: LogRowTone}[] = [
+      {id: 1, text: 'pnpm vitest run --reporter=verbose --coverage'},
+      {
+        id: 2,
+        tone: 'error',
+        text: 'ERROR  TypeError: Cannot read properties of undefined (reading "id") at withRetry (src/api/retry.ts:42:18) at async runStep (src/runner/step.ts:118:7)',
+      },
+      {id: 3, text: 'compiled 1284 modules in 1.2s'},
+      {
+        id: 4,
+        tone: 'warning',
+        text: 'WARN  deprecated glob@7 — upgrade to glob@10 to avoid the slow recursive walk on large repositories',
+      },
+      {id: 5, text: 'done in 412ms'},
+    ];
+    const wrap = useLogWrap(false);
+
+    return (
+      <div className="flex max-w-2xl flex-col gap-8">
+        <div className="flex items-center gap-12">
+          <Button
+            size="xs"
+            variant={wrap.globalWrap ? 'secondary' : 'transparentMuted'}
+            aria-pressed={wrap.globalWrap}
+            onClick={wrap.toggleGlobal}
+          >
+            Wrap: {wrap.globalWrap ? 'on' : 'off'}
+          </Button>
+          <Code variant="label" className="text-foreground-neutral-muted">
+            {wrap.overriddenCount} overridden — toggling global resets them
+          </Code>
+        </div>
+        <LogRows wrap={wrap.globalWrap}>
+          {lines.map((line) => {
+            const wrapped = wrap.rowWrap(line.id) ?? wrap.globalWrap;
+            const overridden = wrap.isOverridden(line.id);
+            return (
+              <LogRow
+                key={line.id}
+                lineNumber={line.id}
+                tone={line.tone}
+                wrap={wrap.rowWrap(line.id)}
+              >
+                <div className="flex items-start gap-8">
+                  <span className="min-w-0 flex-1">
+                    <LogContent variant="code">{line.text}</LogContent>
+                  </span>
+                  <button
+                    type="button"
+                    aria-pressed={wrapped}
+                    onClick={() => wrap.toggleLine(line.id)}
+                    className={cn(
+                      'flex-none rounded-4 px-6 text-xs transition-opacity',
+                      'opacity-70 group-hover/log-row:opacity-100 focus-visible:opacity-100',
+                      overridden
+                        ? 'text-foreground-highlight-interactive opacity-100'
+                        : 'text-foreground-neutral-muted',
+                    )}
+                  >
+                    {wrapped ? 'collapse' : 'expand'}
+                  </button>
+                </div>
+              </LogRow>
+            );
+          })}
+        </LogRows>
+      </div>
+    );
+  },
+};
+
+/** Rows carry a hover state so the pointer's target line is always clear. */
+export const Hover: Story = {
+  parameters: {pseudo: {hover: ['.story-hovered']}},
+  render: () => (
+    <div className="max-w-3xl">
+      <LogRows>
+        <LogRow lineNumber={1}>
+          <LogContent variant="code">a resting row</LogContent>
+        </LogRow>
+        <LogRow lineNumber={2} className="story-hovered">
+          <LogContent variant="code">hovered — the row tints to mark the pointer target</LogContent>
+        </LogRow>
+        <LogRow lineNumber={3} className="story-hovered" selected>
+          <LogContent variant="code">selected + hovered — the cursor row stays distinct</LogContent>
+        </LogRow>
+      </LogRows>
+    </div>
+  ),
 };
 
 /**
