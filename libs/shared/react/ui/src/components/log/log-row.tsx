@@ -105,7 +105,7 @@ export function LogRow({
                 if (window.getSelection()?.isCollapsed === false) return;
                 onTimestampsClick();
               }}
-              className="w-80 flex-none cursor-pointer px-4 text-foreground-neutral-muted tabular-nums"
+              className="w-80 flex-none cursor-pointer px-4 text-foreground-neutral-muted tabular-nums transition-colors hover:text-foreground-neutral-base"
             >
               {timeText}
             </span>
