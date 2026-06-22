@@ -80,13 +80,6 @@ export const Open: Story = {
   },
 };
 
-/**
- * Folding log groups use `rail={false}` around nested `LogRow`s. Past a sane
- * depth the app renderer should flatten; the primitive leaves indent unbounded.
- *
- * The leading plain row and numbered headers make the shared `LogRowFrame`
- * alignment visible across both row types.
- */
 export const Group: Story = {
   render: () => (
     <div className="max-w-2xl">
@@ -126,7 +119,6 @@ export const Group: Story = {
   ),
 };
 
-/** The `trailing` slot can hold an interactive control; clicking it must not toggle the section. */
 export const Trailing: Story = {
   render: () => (
     <div className="max-w-2xl">
@@ -162,7 +154,6 @@ export const Trailing: Story = {
   },
 };
 
-/** `selected` marks the cursor row for keyboard traversal; the header carries `aria-current`. */
 export const Selected: Story = {
   render: () => (
     <div className="max-w-2xl">
@@ -183,7 +174,6 @@ export const Selected: Story = {
   },
 };
 
-/** `chevron="none"` drops the glyph; the caller supplies another open/closed cue (here, the summary). */
 export const ChevronNone: Story = {
   render: () => (
     <div className="max-w-2xl">
