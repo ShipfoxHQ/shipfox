@@ -1,5 +1,9 @@
 export {type AnsiSpan, parseAnsi} from './ansi.js';
-export {formatLogTimestamp, type LogTimestampMode} from './format-timestamp.js';
+export {
+  formatLogTimestamp,
+  type LogTimestampMode,
+  toggleTimestampUnit,
+} from './format-timestamp.js';
 export {LogContent, type LogContentProps} from './log-content.js';
 export {
   type LogRowContextValue,

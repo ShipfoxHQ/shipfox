@@ -26,6 +26,13 @@ export function formatLogTimestamp(
   return absoluteFormatter.format(date);
 }
 
+/** Flips the visible timestamp unit (relative ↔ absolute); leaves `off` unchanged. */
+export function toggleTimestampUnit(mode: LogTimestampMode): LogTimestampMode {
+  if (mode === 'rel') return 'abs';
+  if (mode === 'abs') return 'rel';
+  return mode;
+}
+
 function formatOffset(deltaMs: number): string {
   const sign = deltaMs < 0 ? '-' : '+';
   const totalSeconds = Math.abs(deltaMs) / 1000;

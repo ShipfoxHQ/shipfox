@@ -1,4 +1,4 @@
-import {formatLogTimestamp} from './format-timestamp.js';
+import {formatLogTimestamp, toggleTimestampUnit} from './format-timestamp.js';
 
 const origin = new Date('2026-06-22T14:32:00.000Z');
 const CLOCK_PATTERN = /^\d{2}:\d{2}:\d{2}$/;
@@ -48,5 +48,19 @@ describe('formatLogTimestamp', () => {
     const result = formatLogTimestamp(date, {mode: 'abs'});
 
     expect(result).toMatch(CLOCK_PATTERN);
+  });
+});
+
+describe('toggleTimestampUnit', () => {
+  test('flips relative to absolute', () => {
+    expect(toggleTimestampUnit('rel')).toBe('abs');
+  });
+
+  test('flips absolute to relative', () => {
+    expect(toggleTimestampUnit('abs')).toBe('rel');
+  });
+
+  test('leaves off unchanged', () => {
+    expect(toggleTimestampUnit('off')).toBe('off');
   });
 });

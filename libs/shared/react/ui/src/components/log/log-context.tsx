@@ -13,6 +13,8 @@ export interface LogRowsContextValue {
   wrap: boolean;
   showLineNumbers: boolean;
   timestampOrigin?: Date | undefined;
+  /** When set, the timestamp column renders as a button that calls this. */
+  onTimestampsClick?: (() => void) | undefined;
 }
 
 export const defaultLogRowsContext: LogRowsContextValue = {

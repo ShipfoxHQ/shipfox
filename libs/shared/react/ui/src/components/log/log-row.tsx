@@ -93,14 +93,25 @@ export function LogRow({
             {lineNumber ?? ''}
           </span>
         )}
-        {showTime && (
-          <span
-            data-slot="log-row-time"
-            className="w-80 flex-none select-none px-4 text-foreground-neutral-muted tabular-nums"
-          >
-            {timeText}
-          </span>
-        )}
+        {showTime &&
+          (context.onTimestampsClick ? (
+            <button
+              type="button"
+              data-slot="log-row-time"
+              onClick={context.onTimestampsClick}
+              aria-label="Switch timestamp format"
+              className="w-80 flex-none cursor-pointer select-none px-4 text-left text-foreground-neutral-muted tabular-nums transition-colors hover:text-foreground-neutral-base"
+            >
+              {timeText}
+            </button>
+          ) : (
+            <span
+              data-slot="log-row-time"
+              className="w-80 flex-none select-none px-4 text-foreground-neutral-muted tabular-nums"
+            >
+              {timeText}
+            </span>
+          ))}
         <div
           data-slot="log-row-body"
           className="min-w-0 flex-1 overflow-hidden pr-12"

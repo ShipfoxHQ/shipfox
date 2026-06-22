@@ -1,9 +1,10 @@
 import type {Meta, StoryObj} from '@storybook/react';
-import type {ReactNode} from 'react';
+import {type ReactNode, useState} from 'react';
 import {Badge} from '#components/badge/index.js';
 import {Button} from '#components/button/index.js';
 import {Code} from '#components/typography/index.js';
 import {cn} from '#utils/cn.js';
+import {type LogTimestampMode, toggleTimestampUnit} from './format-timestamp.js';
 import {LogContent} from './log-content.js';
 import {LogHeader} from './log-header.js';
 import {LogRow, type LogRowTone} from './log-row.js';
@@ -244,29 +245,35 @@ export const Wrapping: Story = {
 };
 
 /**
- * Interactive wrapping with `useLogWrap`. The toolbar toggle sets the global
- * default; a per-line action (revealed on row hover) overrides one line — to
- * read a long error in full, say. Flipping the global toggle clears every
- * override, so the global control always wins, and the state is keyed by line
- * id so an override survives a row leaving and re-entering a virtualized window.
+ * Tying the controls together with `useLogWrap` and a clickable timestamp.
+ *
+ * Click any timestamp to switch rel/abs for every row. Per-line wrap stays off
+ * the text so copy/paste is untouched: the explicit toggle is the hover button
+ * (and a future keyboard shortcut), with Alt/Option-click on the line as a
+ * power gesture — plain clicks and drag-selection are left alone. The global
+ * Wrap toggle clears every per-line override, and overrides are keyed by line
+ * id, so they survive a row leaving and re-entering a virtualized window.
  */
-export const WrapControls: Story = {
+export const Interactive: Story = {
   render: () => {
-    const lines: {id: number; text: string; tone?: LogRowTone}[] = [
-      {id: 1, text: 'pnpm vitest run --reporter=verbose --coverage'},
+    const lines: {id: number; ts: number; text: string; tone?: LogRowTone}[] = [
+      {id: 1, ts: 0.12, text: 'pnpm vitest run --reporter=verbose --coverage'},
       {
         id: 2,
+        ts: 1.04,
         tone: 'error',
         text: 'ERROR  TypeError: Cannot read properties of undefined (reading "id") at withRetry (src/api/retry.ts:42:18) at async runStep (src/runner/step.ts:118:7)',
       },
-      {id: 3, text: 'compiled 1284 modules in 1.2s'},
+      {id: 3, ts: 1.22, text: 'compiled 1284 modules in 1.2s'},
       {
         id: 4,
+        ts: 2.31,
         tone: 'warning',
         text: 'WARN  deprecated glob@7 — upgrade to glob@10 to avoid the slow recursive walk on large repositories',
       },
-      {id: 5, text: 'done in 412ms'},
+      {id: 5, ts: 2.95, text: 'done in 412ms'},
     ];
+    const [timestamps, setTimestamps] = useState<LogTimestampMode>('rel');
     const wrap = useLogWrap(false);
 
     return (
@@ -281,10 +288,15 @@ export const WrapControls: Story = {
             Wrap: {wrap.globalWrap ? 'on' : 'off'}
           </Button>
           <Code variant="label" className="text-foreground-neutral-muted">
-            {wrap.overriddenCount} overridden — toggling global resets them
+            click a timestamp to switch rel/abs · ⌥-click or the hover button to wrap a line
           </Code>
         </div>
-        <LogRows wrap={wrap.globalWrap}>
+        <LogRows
+          timestamps={timestamps}
+          timestampOrigin={origin}
+          wrap={wrap.globalWrap}
+          onTimestampsClick={() => setTimestamps(toggleTimestampUnit)}
+        >
           {lines.map((line) => {
             const wrapped = wrap.rowWrap(line.id) ?? wrap.globalWrap;
             const overridden = wrap.isOverridden(line.id);
@@ -292,16 +304,25 @@ export const WrapControls: Story = {
               <LogRow
                 key={line.id}
                 lineNumber={line.id}
+                timestamp={at(line.ts)}
                 tone={line.tone}
                 wrap={wrap.rowWrap(line.id)}
               >
                 <div className="flex items-start gap-8">
-                  <span className="min-w-0 flex-1">
+                  {/* biome-ignore lint/a11y/noStaticElementInteractions: Alt-click is a pointer-only shortcut; the hover button is the accessible toggle and plain clicks/selection are deliberately untouched so copy still works. */}
+                  {/* biome-ignore lint/a11y/useKeyWithClickEvents: the keyboard path is the hover button (and a future cursor shortcut), not the text. */}
+                  <span
+                    className="min-w-0 flex-1"
+                    onClick={(event) => {
+                      if (event.altKey) wrap.toggleLine(line.id);
+                    }}
+                  >
                     <LogContent variant="code">{line.text}</LogContent>
                   </span>
                   <button
                     type="button"
                     aria-pressed={wrapped}
+                    aria-label={wrapped ? 'Collapse line' : 'Expand line'}
                     onClick={() => wrap.toggleLine(line.id)}
                     className={cn(
                       'flex-none rounded-4 px-6 text-xs transition-opacity',

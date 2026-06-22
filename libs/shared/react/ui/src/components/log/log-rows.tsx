@@ -14,6 +14,8 @@ export interface LogRowsProps extends ComponentProps<'div'> {
   showLineNumbers?: boolean;
   /** Baseline that relative timestamps are measured from. */
   timestampOrigin?: Date;
+  /** When set, the timestamp column becomes a button that calls this (e.g. to switch rel/abs for all rows). */
+  onTimestampsClick?: () => void;
 }
 
 /**
@@ -28,10 +30,13 @@ export function LogRows({
   wrap = false,
   showLineNumbers = true,
   timestampOrigin,
+  onTimestampsClick,
   ...props
 }: LogRowsProps) {
   return (
-    <LogRowsContextProvider value={{timestamps, wrap, showLineNumbers, timestampOrigin}}>
+    <LogRowsContextProvider
+      value={{timestamps, wrap, showLineNumbers, timestampOrigin, onTimestampsClick}}
+    >
       <div
         data-slot="log-rows"
         role="log"
