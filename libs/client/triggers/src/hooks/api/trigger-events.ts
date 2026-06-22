@@ -14,16 +14,7 @@ export interface TriggerEventFilters {
   to?: string | undefined;
 }
 
-/**
- * Normalize filters into a stable, order-insensitive shape for the cache key.
- *
- * react-query keys one cache per filter combination by structural equality, so
- * two filter objects that mean the same thing must serialize identically.
- * `outcome` is sorted and de-duplicated (a set the caller can pass in any order)
- * and every absent field collapses to `null` so `{}` and `{source: undefined}`
- * share a cache entry.
- */
-function normalizeFilters(filters: TriggerEventFilters) {
+function normalizeTriggerEventFiltersForQueryKey(filters: TriggerEventFilters) {
   const outcome =
     filters.outcome && filters.outcome.length > 0 ? [...new Set(filters.outcome)].sort() : null;
   return {
@@ -39,7 +30,10 @@ export const triggerEventsQueryKeys = {
   all: ['trigger-events'] as const,
   lists: (workspaceId: string) => [...triggerEventsQueryKeys.all, 'list', workspaceId] as const,
   list: (workspaceId: string, filters: TriggerEventFilters) =>
-    [...triggerEventsQueryKeys.lists(workspaceId), normalizeFilters(filters)] as const,
+    [
+      ...triggerEventsQueryKeys.lists(workspaceId),
+      normalizeTriggerEventFiltersForQueryKey(filters),
+    ] as const,
   detail: (id: string) => [...triggerEventsQueryKeys.all, 'detail', id] as const,
 };
 
@@ -71,8 +65,11 @@ export async function listTriggerEvents({
   });
 }
 
-export async function getTriggerEvent(id: string) {
-  return await apiRequest<TriggerEventDetailResponseDto>(`/trigger-events/${id}`);
+export async function getTriggerEvent({id, signal}: {id: string; signal?: AbortSignal}) {
+  return await apiRequest<TriggerEventDetailResponseDto>(
+    `/trigger-events/${encodeURIComponent(id)}`,
+    {signal},
+  );
 }
 
 export function useTriggerEventsInfiniteQuery(
@@ -103,6 +100,6 @@ export function useTriggerEventQuery(id: string | undefined) {
   return useQuery({
     queryKey: id ? triggerEventsQueryKeys.detail(id) : [...triggerEventsQueryKeys.all, 'detail'],
     enabled: Boolean(id),
-    queryFn: () => getTriggerEvent(id ?? ''),
+    queryFn: ({signal}) => getTriggerEvent({id: id ?? '', signal}),
   });
 }

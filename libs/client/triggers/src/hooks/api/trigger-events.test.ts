@@ -135,6 +135,16 @@ describe('listTriggerEvents', () => {
     expect(url.searchParams.has('outcome')).toBe(false);
   });
 
+  test('sorts and de-duplicates the serialized outcome param', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({trigger_events: [], next_cursor: null}));
+    configureApiClient({fetchImpl});
+
+    await listTriggerEvents({workspaceId, filters: {outcome: ['routed', 'failed', 'routed']}});
+
+    const url = new URL(requestFrom(fetchImpl).url);
+    expect(url.searchParams.get('outcome')).toBe('failed,routed');
+  });
+
   test('returns the parsed list response', async () => {
     const page = {
       trigger_events: [],
@@ -158,7 +168,7 @@ describe('getTriggerEvent', () => {
     const fetchImpl = vi.fn(async () => jsonResponse({id, decisions: []}));
     configureApiClient({fetchImpl});
 
-    await getTriggerEvent(id);
+    await getTriggerEvent({id});
 
     const url = new URL(requestFrom(fetchImpl).url);
     expect(url.pathname).toBe(`/trigger-events/${id}`);
