@@ -2,6 +2,7 @@ import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {index, integer, jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import {
   type TriggerReceivedEvent,
+  type TriggerReceivedEventSummary,
   triggerEventOrigins,
   triggerEventOutcomes,
 } from '#core/entities/received-event.js';
@@ -58,4 +59,26 @@ export function toTriggerReceivedEvent(row: TriggerReceivedEventDb): TriggerRece
     processedAt: row.processedAt,
     createdAt: row.createdAt,
   };
+}
+
+export const triggerReceivedEventSummaryColumns = {
+  id: triggersReceivedEvents.id,
+  eventRef: triggersReceivedEvents.eventRef,
+  origin: triggersReceivedEvents.origin,
+  workspaceId: triggersReceivedEvents.workspaceId,
+  source: triggersReceivedEvents.source,
+  event: triggersReceivedEvents.event,
+  deliveryId: triggersReceivedEvents.deliveryId,
+  connectionId: triggersReceivedEvents.connectionId,
+  outcome: triggersReceivedEvents.outcome,
+  matchedCount: triggersReceivedEvents.matchedCount,
+  receivedAt: triggersReceivedEvents.receivedAt,
+  processedAt: triggersReceivedEvents.processedAt,
+  createdAt: triggersReceivedEvents.createdAt,
+} as const satisfies Record<keyof TriggerReceivedEventSummary, unknown>;
+
+export function toTriggerReceivedEventSummary(
+  row: Omit<TriggerReceivedEventDb, 'payload'>,
+): TriggerReceivedEventSummary {
+  return {...row};
 }

@@ -4,3 +4,23 @@ export {
   fireManualTriggerBodySchema,
   fireManualTriggerResponseSchema,
 } from './fire-manual.js';
+export {
+  type TriggerDecisionDto,
+  type TriggerDecisionOutcomeDto,
+  type TriggerEventDetailResponseDto,
+  type TriggerEventDto,
+  type TriggerEventListItemDto,
+  type TriggerEventListQueryDto,
+  type TriggerEventListResponseDto,
+  type TriggerEventOriginDto,
+  type TriggerEventOutcomeDto,
+  triggerDecisionDtoSchema,
+  triggerDecisionOutcomeSchema,
+  triggerEventDetailResponseSchema,
+  triggerEventDtoSchema,
+  triggerEventListItemDtoSchema,
+  triggerEventListQuerySchema,
+  triggerEventListResponseSchema,
+  triggerEventOriginSchema,
+  triggerEventOutcomeSchema,
+} from './trigger-events.js';
