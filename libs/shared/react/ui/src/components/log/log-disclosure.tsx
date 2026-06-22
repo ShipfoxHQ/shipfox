@@ -38,11 +38,12 @@ export function LogDisclosure({indent = 0, children, ...props}: LogDisclosurePro
 }
 
 /**
- * Enforces an accessible name through either visible `children` or an explicit
- * `aria-label`.
+ * Requires either `children` or an explicit `aria-label`. `NonNullable` rejects
+ * omitted/`null`/`undefined` children so a bare trigger forces `aria-label`; the
+ * type still cannot catch children that render no text (icon-only), which need it too.
  */
 type AccessibleName =
-  | {children: ReactNode; 'aria-label'?: string}
+  | {children: NonNullable<ReactNode>; 'aria-label'?: string}
   | {children?: undefined; 'aria-label': string};
 
 export type LogDisclosureTriggerProps = AccessibleName & {
