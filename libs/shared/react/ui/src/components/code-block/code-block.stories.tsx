@@ -1,5 +1,7 @@
 import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {Meta, StoryObj} from '@storybook/react';
+import type {ReactNode} from 'react';
+import type {CodeBlockData} from './index.js';
 import {
   CodeBlock,
   CodeBlockBody,
@@ -10,7 +12,6 @@ import {
   CodeBlockFooter,
   CodeBlockHeader,
   CodeBlockItem,
-  CodeTabs,
 } from './index.js';
 
 const meta = {
@@ -24,305 +25,115 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const exampleCode = `jobs:
+const workflowFile: CodeBlockData = {
+  language: 'yaml',
+  filename: '.github/workflows/<workflow-name>.yml',
+  code: `jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Build
-        run: npm run build`;
+        run: npm run build`,
+};
 
-const diffCode = `jobs:
+const diffFile: CodeBlockData = {
+  language: 'yaml',
+  filename: '.github/workflows/<workflow-name>.yml',
+  code: `jobs:
   build:
         - runs-on: ubuntu-latest
-        + runs-on: shipfox-2vcpu-ubuntu-2404`;
-
-export const Default: Story = {
-  args: {
-    data: [
-      {
-        language: 'yaml',
-        filename: '.github/workflows/<workflow-name>.yml',
-        code: exampleCode,
-      },
-    ],
-    defaultValue: '.github/workflows/<workflow-name>.yml',
-  },
-  render: (args) => (
-    <CodeBlock {...args}>
-      <CodeBlockHeader>
-        <CodeBlockFiles>
-          {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
-        </CodeBlockFiles>
-        <CodeBlockCopyButton />
-      </CodeBlockHeader>
-      <CodeBlockBody>
-        {(item) => (
-          <CodeBlockItem value={item.filename}>
-            <CodeBlockContent language={item.language}>{item.code}</CodeBlockContent>
-          </CodeBlockItem>
-        )}
-      </CodeBlockBody>
-    </CodeBlock>
-  ),
+        + runs-on: shipfox-2vcpu-ubuntu-2404`,
 };
 
-export const WithDiff: Story = {
-  args: {
-    data: [
-      {
-        language: 'yaml',
-        filename: '.github/workflows/<workflow-name>.yml',
-        code: diffCode,
-      },
-    ],
-    defaultValue: '.github/workflows/<workflow-name>.yml',
-  },
-  render: (args) => (
-    <CodeBlock {...args}>
-      <CodeBlockHeader>
-        <CodeBlockFiles>
-          {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
-        </CodeBlockFiles>
-        <CodeBlockCopyButton />
-      </CodeBlockHeader>
-      <CodeBlockBody>
-        {(item) => (
-          <CodeBlockItem value={item.filename}>
-            <CodeBlockContent language={item.language}>{item.code}</CodeBlockContent>
-          </CodeBlockItem>
-        )}
-      </CodeBlockBody>
-    </CodeBlock>
-  ),
-};
-
-export const WithFooterRunning: Story = {
-  args: {
-    data: [
-      {
-        language: 'yaml',
-        filename: '.github/workflows/<workflow-name>.yml',
-        code: diffCode,
-      },
-    ],
-    defaultValue: '.github/workflows/<workflow-name>.yml',
-  },
-  render: (args) => (
-    <CodeBlock {...args}>
-      <CodeBlockHeader>
-        <CodeBlockFiles>
-          {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
-        </CodeBlockFiles>
-        <CodeBlockCopyButton />
-      </CodeBlockHeader>
-      <CodeBlockBody>
-        {(item) => (
-          <CodeBlockItem value={item.filename}>
-            <CodeBlockContent language={item.language}>{item.code}</CodeBlockContent>
-          </CodeBlockItem>
-        )}
-      </CodeBlockBody>
-      <CodeBlockFooter
-        state="running"
-        message="Waiting for Shipfox runner event…"
-        description="This usually takes 30-60 seconds after you commit the workflow file."
-      />
-    </CodeBlock>
-  ),
-};
-
-export const WithFooterDone: Story = {
-  args: {
-    data: [
-      {
-        language: 'yaml',
-        filename: '.github/workflows/<workflow-name>.yml',
-        code: diffCode,
-      },
-    ],
-    defaultValue: '.github/workflows/<workflow-name>.yml',
-  },
-  render: (args) => (
-    <CodeBlock {...args}>
-      <CodeBlockHeader>
-        <CodeBlockFiles>
-          {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
-        </CodeBlockFiles>
-        <CodeBlockCopyButton />
-      </CodeBlockHeader>
-      <CodeBlockBody>
-        {(item) => (
-          <CodeBlockItem value={item.filename}>
-            <CodeBlockContent language={item.language}>{item.code}</CodeBlockContent>
-          </CodeBlockItem>
-        )}
-      </CodeBlockBody>
-      <CodeBlockFooter state="done" message="Runner connected!" />
-    </CodeBlock>
-  ),
-};
-
-const multipleFilesCode = {
-  'src/utils/format.ts': `export function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).format(date);
-}
-
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
+const sourceFile: CodeBlockData = {
+  language: 'typescript',
+  filename: 'src/runner.ts',
+  code: `export async function startRunner(config: RunnerConfig): Promise<Runner> {
+  const runner = await provision(config);
+  await runner.waitUntilReady();
+  return runner;
 }`,
-  'src/api/client.ts': `import type {User} from './types';
+};
 
-export class ApiClient {
-  private baseUrl: string;
-
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
-  }
-
-  async getUser(id: string): Promise<User> {
-    const response = await fetch(\`\${this.baseUrl}/users/\${id}\`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch user');
-    }
-    return response.json();
-  }
-}`,
-  'src/components/Button.tsx': `import type {ComponentProps} from 'react';
-
-export function Button({
-  children,
-  variant = 'primary',
-  ...props
-}: ComponentProps<'button'> & {
-  variant?: 'primary' | 'secondary';
+// CodeBlock is a compound component; the header/body/footer assembly is the same
+// for every snippet. Sharing it here lets each story vary only the capability it
+// demonstrates instead of repeating the wiring a consumer writes once.
+function CodeBlockShowcase({
+  data,
+  lineNumbers,
+  syntaxHighlighting,
+  footer,
+}: {
+  data: CodeBlockData[];
+  lineNumbers?: boolean;
+  syntaxHighlighting?: boolean;
+  footer?: ReactNode;
 }) {
   return (
-    <button
-      className={\`btn btn-\${variant}\`}
-      {...props}
-    >
-      {children}
-    </button>
+    <CodeBlock data={data}>
+      <CodeBlockHeader>
+        <CodeBlockFiles>
+          {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
+        </CodeBlockFiles>
+        <CodeBlockCopyButton />
+      </CodeBlockHeader>
+      <CodeBlockBody>
+        {(item) => (
+          <CodeBlockItem value={item.filename} lineNumbers={lineNumbers}>
+            <CodeBlockContent language={item.language} syntaxHighlighting={syntaxHighlighting}>
+              {item.code}
+            </CodeBlockContent>
+          </CodeBlockItem>
+        )}
+      </CodeBlockBody>
+      {footer}
+    </CodeBlock>
   );
-}`,
+}
+
+export const Basic: Story = {
+  render: () => <CodeBlockShowcase data={[workflowFile]} />,
 };
 
-export const MultipleFiles: Story = {
-  args: {
-    data: [],
-    defaultValue: '',
-  },
+export const SyntaxHighlighting: Story = {
+  // Shiki loads and highlights asynchronously; wait for it so the snapshot
+  // captures the highlighted output rather than the plain fallback.
   play: async (ctx) => {
     await document.fonts.ready;
     await new Promise((resolve) => setTimeout(resolve, 150));
-    await argosScreenshot(ctx, 'CodeBlock MultipleFiles');
+    await argosScreenshot(ctx, 'CodeBlock SyntaxHighlighting');
   },
-  render: () => (
-    <CodeTabs
-      codes={multipleFilesCode}
-      defaultValue="src/api/client.ts"
-      syntaxHighlighting={true}
-      lang="typescript"
-      lineNumbers={true}
-    />
-  ),
+  render: () => <CodeBlockShowcase data={[sourceFile]} syntaxHighlighting />,
+};
+
+export const DiffHighlighting: Story = {
+  render: () => <CodeBlockShowcase data={[diffFile]} />,
 };
 
 export const WithoutLineNumbers: Story = {
-  args: {
-    data: [
-      {
-        language: 'yaml',
-        filename: '.github/workflows/<workflow-name>.yml',
-        code: exampleCode,
-      },
-    ],
-    defaultValue: '.github/workflows/<workflow-name>.yml',
-  },
-  render: (args) => (
-    <CodeBlock {...args}>
-      <CodeBlockHeader>
-        <CodeBlockFiles>
-          {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
-        </CodeBlockFiles>
-        <CodeBlockCopyButton />
-      </CodeBlockHeader>
-      <CodeBlockBody>
-        {(item) => (
-          <CodeBlockItem value={item.filename} lineNumbers={false}>
-            <CodeBlockContent language={item.language}>{item.code}</CodeBlockContent>
-          </CodeBlockItem>
-        )}
-      </CodeBlockBody>
-    </CodeBlock>
-  ),
+  render: () => <CodeBlockShowcase data={[workflowFile]} lineNumbers={false} />,
 };
 
-const npmCode = `npm install @shipfox/tooling`;
-const yarnCode = `yarn add @shipfox/tooling`;
-const pnpmCode = `pnpm add @shipfox/tooling`;
-
-export const Snippet: Story = {
-  args: {
-    data: [],
-    defaultValue: '',
-  },
+// The status footer is one capability with two states, so both are shown
+// together: an in-progress (shimmering) message and a settled success message.
+export const Footer: Story = {
   render: () => (
-    <CodeTabs
-      codes={{
-        npm: npmCode,
-        yarn: yarnCode,
-        pnpm: pnpmCode,
-      }}
-      defaultValue="npm"
-    />
+    <div className="flex flex-col gap-16">
+      <CodeBlockShowcase
+        data={[diffFile]}
+        footer={
+          <CodeBlockFooter
+            state="running"
+            message="Waiting for Shipfox runner event…"
+            description="This usually takes 30-60 seconds after you commit the workflow file."
+          />
+        }
+      />
+      <CodeBlockShowcase
+        data={[diffFile]}
+        footer={<CodeBlockFooter state="done" message="Runner connected!" />}
+      />
+    </div>
   ),
-};
-
-const syntaxHighlightingCode = {
-  'index.ts': `export function hello(name: string = 'World'): void {
-  console.log(\`Hello, \${name}!\`);
-}
-
-export function greetEveryone(names: string[]): void {
-  for (const name of names) {
-    hello(name);
-  }
-}
-
-export type Greeting = {
-  language: string;
-  message: string;
-};
-
-export const greetings: Greeting[] = [
-  { language: 'en', message: 'Hello' },
-  { language: 'fr', message: 'Bonjour' },
-  { language: 'es', message: 'Hola' },
-  { language: 'de', message: 'Hallo' },
-];
-
-export function printGreetings(): void {
-  for (const { language, message } of greetings) {
-    console.log(\`\${message}, \${language}!\`);
-  }
-}`,
-};
-
-export const SyntaxHighlighting: StoryObj<typeof CodeTabs> = {
-  args: {
-    codes: syntaxHighlightingCode,
-    defaultValue: 'index.ts',
-    syntaxHighlighting: true,
-    lang: 'typescript',
-  },
-  render: (args) => <CodeTabs {...args} />,
 };
