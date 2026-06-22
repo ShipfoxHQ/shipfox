@@ -1,5 +1,6 @@
 import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {Meta, StoryObj} from '@storybook/react';
+import {waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
 import type {CodeBlockData} from './index.js';
 import {
@@ -94,11 +95,17 @@ export const Basic: Story = {
 };
 
 export const SyntaxHighlighting: Story = {
-  // Shiki loads and highlights asynchronously; wait for it so the snapshot
-  // captures the highlighted output rather than the plain fallback.
+  // Cold CI can snapshot the plain fallback before Shiki's dynamic import finishes.
   play: async (ctx) => {
     await document.fonts.ready;
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await waitFor(
+      () => {
+        if (!ctx.canvasElement.querySelector('.shiki-override')) {
+          throw new Error('Shiki highlighting has not rendered yet');
+        }
+      },
+      {timeout: 10_000},
+    );
     await argosScreenshot(ctx, 'CodeBlock SyntaxHighlighting');
   },
   render: () => <CodeBlockShowcase data={[sourceFile]} syntaxHighlighting />,
