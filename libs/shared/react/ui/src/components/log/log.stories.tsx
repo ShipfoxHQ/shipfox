@@ -44,7 +44,6 @@ const Glyph = ({className, children}: {className: string; children: string}) => 
   <span className={className}>{children}</span>
 );
 
-/** A controllable surface — flip the args to explore timestamps, wrap, gutter. */
 export const Default: Story = {
   render: (args) => (
     <div className="max-w-3xl">
@@ -71,7 +70,6 @@ export const Default: Story = {
   ),
 };
 
-/** Output line — was `OutputLogRow`, now just markup. */
 export const OutputLine: Story = {
   render: () => (
     <div className="max-w-3xl">
@@ -86,7 +84,6 @@ export const OutputLine: Story = {
   ),
 };
 
-/** Agent turn — was `AgentSessionLogRow`. A header band over a prose body. */
 export const AgentTurn: Story = {
   render: () => (
     <div className="max-w-3xl">
@@ -109,10 +106,6 @@ export const AgentTurn: Story = {
   ),
 };
 
-/**
- * Timeline marker — was `TimelineMarkerLogRow`. The library ships no marker;
- * the app composes one from a toned row with a blank gutter.
- */
 export const TimelineMarker: Story = {
   render: () => (
     <div className="max-w-3xl">
@@ -141,7 +134,6 @@ export const TimelineMarker: Story = {
   ),
 };
 
-/** Each tone is a distinct hue — a left accent bar plus a background tint. */
 export const Tones: Story = {
   render: () => (
     <div className="max-w-3xl">
@@ -158,7 +150,6 @@ export const Tones: Story = {
   ),
 };
 
-/** Timestamp column modes, provided by the container to every row. */
 export const Timestamps: Story = {
   render: () => (
     <div className="grid max-w-5xl gap-16 md:grid-cols-3">
@@ -184,7 +175,6 @@ export const Timestamps: Story = {
   ),
 };
 
-/** Soft-wrap versus the default horizontal scroll under a sticky gutter. */
 export const Wrap: Story = {
   render: () => {
     const long =
@@ -201,13 +191,16 @@ export const Wrap: Story = {
             </LogRow>
           </LogRows>
         </div>
-        <div className="flex flex-col gap-8">
+        <div className="flex max-w-md flex-col gap-8">
           <Code variant="label" className="text-foreground-neutral-subtle">
-            wrap=true
+            wrap=true — continuation lines hang-indent under the first
           </Code>
           <LogRows wrap>
             <LogRow lineNumber={120} tone="error">
               <LogContent variant="code">{long}</LogContent>
+            </LogRow>
+            <LogRow lineNumber={121}>
+              <LogContent variant="code">resuming after the failure</LogContent>
             </LogRow>
           </LogRows>
         </div>
@@ -216,7 +209,6 @@ export const Wrap: Story = {
   },
 };
 
-/** ANSI SGR escapes parsed into themed spans by `LogContent variant="code" ansi`. */
 export const AnsiOutput: Story = {
   render: () => {
     const e = String.fromCharCode(27);
@@ -241,7 +233,6 @@ export const AnsiOutput: Story = {
   },
 };
 
-/** A full interleaved stream: CI output and agent records share one renderer. */
 export const Interleaved: Story = {
   render: () => (
     <div className="max-w-3xl">
@@ -290,7 +281,6 @@ export const Interleaved: Story = {
   ),
 };
 
-/** The two body slots in isolation: `LogHeader` and `LogContent` variants. */
 export const Slots: Story = {
   render: () => (
     <div className="flex max-w-3xl flex-col gap-16">

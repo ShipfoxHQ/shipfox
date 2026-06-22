@@ -19,18 +19,18 @@ const logContentVariants = cva('block leading-20', {
 export interface LogContentProps
   extends Omit<ComponentProps<'span'>, 'children'>,
     VariantProps<typeof logContentVariants> {
-  /** Body content; a string for text / code, or any element. */
   children?: ReactNode;
-  /** Parse SGR escape codes from a string child (code variant). */
+  /** Only string children are parsed; custom elements pass through unchanged. */
   ansi?: boolean;
   /** Override soft-wrap for this content. */
   wrap?: boolean;
 }
 
 /**
- * The body. `variant` selects typography: `text` for prose, `code` for
- * monospace output with whitespace preserved (and optional ANSI parsing). It
- * also takes arbitrary children, so anything custom drops straight in.
+ * Body content for prose or terminal-style output. The code variant preserves
+ * whitespace and can parse ANSI SGR escapes when `ansi` is enabled. When the
+ * code variant soft-wraps, continuation lines get a hanging indent so a wrapped
+ * line reads as one logical line rather than a blank-gutter marker row.
  */
 export function LogContent({
   className,
@@ -44,8 +44,14 @@ export function LogContent({
   const rowContext = useLogRowContext();
   const resolvedWrap = wrap ?? rowContext?.wrap ?? rowsContext.wrap;
 
-  const whitespace =
-    variant === 'code' ? (resolvedWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre') : '';
+  // The hanging indent only affects lines after the first, so a line that does
+  // not wrap is untouched — the inset appears exactly when wrapping happens.
+  const codeStyling =
+    variant === 'code'
+      ? resolvedWrap
+        ? 'whitespace-pre-wrap break-words pl-[2ch] [text-indent:-2ch]'
+        : 'whitespace-pre'
+      : '';
 
   const body =
     ansi && typeof children === 'string'
@@ -59,7 +65,7 @@ export function LogContent({
   return (
     <span
       data-slot="log-content"
-      className={cn(logContentVariants({variant}), whitespace, className)}
+      className={cn(logContentVariants({variant}), codeStyling, className)}
       {...props}
     >
       {body}
