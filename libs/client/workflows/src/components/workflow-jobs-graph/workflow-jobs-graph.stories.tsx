@@ -55,6 +55,12 @@ export const BranchAndJoin: Story = {
   },
 };
 
+export const UnevenJoinFromSharedTrigger: Story = {
+  args: {
+    run: unevenJoinRun(),
+  },
+};
+
 export const TwoRunningJobs: Story = {
   args: {
     run: makeRun({
@@ -66,7 +72,7 @@ export const TwoRunningJobs: Story = {
   },
 };
 
-export const FailedDependencyCancelsDownstream: Story = {
+export const UpstreamFailureCancelsDownstream: Story = {
   args: {
     run: makeRun({
       jobs: [
@@ -132,6 +138,28 @@ function linearJobs(count: number): RunJobDetailDto[] {
   );
 }
 
+function unevenJoinRun(): RunDetailResponseDto {
+  const packageJob = makeJob({name: 'package', position: 0, status: 'succeeded'});
+  const securityScan = makeJob({name: 'security-scan', position: 1, status: 'succeeded'});
+  const smokeTests = makeJob({
+    name: 'smoke-tests',
+    position: 2,
+    dependencies: ['package'],
+    status: 'running',
+  });
+  const deploy = makeJob({
+    name: 'deploy',
+    position: 3,
+    dependencies: ['smoke-tests', 'security-scan'],
+  });
+
+  return makeRun({
+    jobs: [packageJob, securityScan, smokeTests, deploy],
+    trigger_source: 'manual',
+    trigger_event: 'release',
+  });
+}
+
 function makeRun(overrides: Partial<RunDetailResponseDto> = {}): RunDetailResponseDto {
   return {
     id: '11111111-1111-4111-8111-111111111111',
@@ -145,6 +173,8 @@ function makeRun(overrides: Partial<RunDetailResponseDto> = {}): RunDetailRespon
     inputs: null,
     created_at: '2026-06-21T12:00:00.000Z',
     updated_at: '2026-06-21T12:01:00.000Z',
+    started_at: '2026-06-21T12:00:10.000Z',
+    finished_at: null,
     jobs: [],
     ...overrides,
   };
@@ -162,6 +192,9 @@ function makeJob(overrides: Partial<RunJobDetailDto> & {name: string}): RunJobDe
     position: jobSequence,
     created_at: '2026-06-21T12:00:00.000Z',
     updated_at: '2026-06-21T12:01:00.000Z',
+    queued_at: null,
+    started_at: null,
+    finished_at: null,
     steps: [],
     ...rest,
   };

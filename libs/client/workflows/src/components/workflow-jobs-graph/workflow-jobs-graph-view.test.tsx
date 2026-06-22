@@ -93,6 +93,26 @@ describe('WorkflowJobsGraph', () => {
     expect(
       screen.getByRole('button', {name: 'deploy, Running, Depends on build'}),
     ).toBeInTheDocument();
+    expect(screen.getByText('Depends on 1 job')).toBeInTheDocument();
+  });
+
+  test('summarizes multiple dependencies visually and keeps names accessible', () => {
+    render(
+      <WorkflowJobsGraph
+        run={makeRun({
+          jobs: [
+            makeJob({name: 'build'}),
+            makeJob({name: 'lint', position: 1}),
+            makeJob({name: 'deploy', position: 2, dependencies: ['build', 'lint']}),
+          ],
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', {name: 'deploy, Pending, Depends on build, lint'}),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Depends on 2 jobs')).toBeInTheDocument();
   });
 
   test('moves selection and focus with graph keyboard navigation', async () => {
@@ -118,6 +138,31 @@ describe('WorkflowJobsGraph', () => {
     expect(deploy).toHaveAttribute('aria-pressed', 'true');
     expect(build).toHaveAttribute('aria-pressed', 'false');
   });
+
+  test('routes skipped-column join edges away from intermediate nodes', () => {
+    const packageJob = makeJob({name: 'package', position: 0, status: 'succeeded'});
+    const securityScan = makeJob({name: 'security-scan', position: 1, status: 'succeeded'});
+    const smokeTests = makeJob({
+      name: 'smoke-tests',
+      position: 2,
+      dependencies: ['package'],
+      status: 'running',
+    });
+    const deploy = makeJob({
+      name: 'deploy',
+      position: 3,
+      dependencies: ['smoke-tests', 'security-scan'],
+    });
+
+    const {container} = render(
+      <WorkflowJobsGraph run={makeRun({jobs: [packageJob, securityScan, smokeTests, deploy]})} />,
+    );
+
+    const skippedJoinEdge = container.querySelector(
+      `[data-edge-id="${securityScan.id}:${deploy.id}"]`,
+    );
+    expect(skippedJoinEdge).toHaveAttribute('d', 'M 440 151 H 756 V 55 H 792');
+  });
 });
 
 function makeRun(overrides: Partial<RunDetailResponseDto> = {}): RunDetailResponseDto {
@@ -133,6 +178,8 @@ function makeRun(overrides: Partial<RunDetailResponseDto> = {}): RunDetailRespon
     inputs: null,
     created_at: '2026-06-21T12:00:00.000Z',
     updated_at: '2026-06-21T12:01:00.000Z',
+    started_at: '2026-06-21T12:00:10.000Z',
+    finished_at: null,
     jobs: [],
     ...overrides,
   };
@@ -151,6 +198,9 @@ function makeJob(overrides: Partial<RunJobDetailDto> & {name: string}): RunJobDe
     position: jobSequence,
     created_at: '2026-06-21T12:00:00.000Z',
     updated_at: '2026-06-21T12:01:00.000Z',
+    queued_at: null,
+    started_at: null,
+    finished_at: null,
     steps: [],
     ...rest,
   };

@@ -119,14 +119,16 @@ function GraphEdges({model}: {model: WorkflowJobGraphModel}) {
   return (
     <svg className="pointer-events-none absolute inset-0 size-full" aria-hidden="true">
       {model.edges.map((edge) => {
-        const from = edge.from === 'trigger' ? triggerPoint() : jobRightPoint(byId.get(edge.from));
-        const to = jobLeftPoint(byId.get(edge.to));
+        const fromNode = byId.get(edge.from);
+        const toNode = byId.get(edge.to);
+        const from = edge.from === 'trigger' ? triggerPoint() : jobRightPoint(fromNode);
+        const to = jobLeftPoint(toNode);
         if (!from || !to) return null;
-        const midX = from.x + (to.x - from.x) / 2;
         return (
           <g key={edge.id} className="text-foreground-neutral-muted">
             <path
-              d={`M ${from.x} ${from.y} H ${midX} V ${to.y} H ${to.x}`}
+              data-edge-id={edge.id}
+              d={edgePath({from, fromNode, to, toNode})}
               fill="none"
               stroke="currentColor"
               strokeWidth="1"
@@ -144,6 +146,26 @@ function GraphEdges({model}: {model: WorkflowJobGraphModel}) {
       })}
     </svg>
   );
+}
+
+function edgePath({
+  from,
+  fromNode,
+  to,
+  toNode,
+}: {
+  from: {x: number; y: number};
+  fromNode: {column: number} | undefined;
+  to: {x: number; y: number};
+  toNode: {column: number} | undefined;
+}) {
+  if (fromNode && toNode && toNode.column - fromNode.column > 1 && from.y !== to.y) {
+    const targetLaneX = to.x - COLUMN_GAP / 2;
+    return `M ${from.x} ${from.y} H ${targetLaneX} V ${to.y} H ${to.x}`;
+  }
+
+  const midX = from.x + (to.x - from.x) / 2;
+  return `M ${from.x} ${from.y} H ${midX} V ${to.y} H ${to.x}`;
 }
 
 function triggerPoint() {

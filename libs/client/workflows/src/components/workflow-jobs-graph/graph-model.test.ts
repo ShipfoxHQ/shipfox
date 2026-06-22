@@ -161,6 +161,8 @@ function makeRun(overrides: Partial<RunDetailResponseDto> = {}): RunDetailRespon
     inputs: null,
     created_at: '2026-06-21T12:00:00.000Z',
     updated_at: '2026-06-21T12:01:00.000Z',
+    started_at: '2026-06-21T12:00:10.000Z',
+    finished_at: null,
     jobs: [],
     ...overrides,
   };
@@ -179,6 +181,9 @@ function makeJob(overrides: Partial<RunJobDetailDto> & {name: string}): RunJobDe
     position: jobSequence,
     created_at: '2026-06-21T12:00:00.000Z',
     updated_at: '2026-06-21T12:01:00.000Z',
+    queued_at: null,
+    started_at: null,
+    finished_at: null,
     steps: [],
     ...rest,
   };
