@@ -358,9 +358,10 @@ export const Interactive: Story = {
                     aria-label={wrapped ? 'Collapse line' : 'Wrap line'}
                     onClick={() => toggleLine(line.id)}
                     className={cn(
-                      'flex h-20 w-20 flex-none items-center justify-center rounded-4 transition-colors',
+                      'flex h-20 w-20 flex-none items-center justify-center rounded-4 transition',
+                      'opacity-0 group-hover/log-row:opacity-100 focus-visible:opacity-100',
                       overridden
-                        ? 'text-foreground-highlight-interactive'
+                        ? 'text-foreground-highlight-interactive opacity-100'
                         : 'text-foreground-neutral-muted hover:text-foreground-neutral-base',
                     )}
                   >
