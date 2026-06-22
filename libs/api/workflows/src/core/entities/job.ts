@@ -1,12 +1,4 @@
-export type JobStatus =
-  | 'pending'
-  | 'waiting_for_dependencies'
-  | 'ready'
-  | 'running'
-  | 'succeeded'
-  | 'failed'
-  | 'cancelled'
-  | 'awaiting_manual';
+export type JobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
 export interface Job {
   id: string;

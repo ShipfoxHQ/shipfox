@@ -173,7 +173,6 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   test.each([
     'pending',
-    'awaiting_manual',
   ] as const)('returns 409 and mints nothing when the job is %s (not yet running)', async (status) => {
     const project = projectFactory.build();
     mockGetProjectById.mockResolvedValue(project);

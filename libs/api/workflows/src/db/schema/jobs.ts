@@ -6,13 +6,10 @@ import {workflowRuns} from './workflow-runs.js';
 
 export const jobStatusEnum = pgEnum('workflows_job_status', [
   'pending',
-  'waiting_for_dependencies',
-  'ready',
   'running',
   'succeeded',
   'failed',
   'cancelled',
-  'awaiting_manual',
 ]);
 
 export const jobs = pgTable(

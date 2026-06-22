@@ -1,4 +1,4 @@
-CREATE TYPE "public"."workflows_job_status" AS ENUM('pending', 'waiting_for_dependencies', 'ready', 'running', 'succeeded', 'failed', 'cancelled', 'awaiting_manual');--> statement-breakpoint
+CREATE TYPE "public"."workflows_job_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."workflows_step_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."workflows_run_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TABLE "workflows_jobs" (

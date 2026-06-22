@@ -1,0 +1,192 @@
+import {EmptyState} from '@shipfox/react-ui';
+import type {KeyboardEvent} from 'react';
+import {useRef} from 'react';
+import type {WorkflowJobGraphModel, WorkflowJobGraphNavigationKey} from './graph-model.js';
+import {nextWorkflowJobGraphNodeId} from './graph-model.js';
+import {TriggerNode, WorkflowJobNode} from './workflow-job-node.js';
+
+const NODE_WIDTH = 208;
+const NODE_HEIGHT = 78;
+const COLUMN_GAP = 72;
+const ROW_GAP = 18;
+const TRIGGER_WIDTH = 144;
+const PADDING = 16;
+
+export function WorkflowJobsGraphContent({
+  model,
+  selectedJobId,
+  onSelectJob,
+}: {
+  model: WorkflowJobGraphModel;
+  selectedJobId?: string | undefined;
+  onSelectJob: (jobId: string | undefined) => void;
+}) {
+  const nodeRefs = useRef(new Map<string, HTMLButtonElement>());
+
+  if (model.nodes.length === 0) {
+    return (
+      <EmptyState
+        className="min-h-160 px-16 py-24"
+        icon="componentLine"
+        title="No jobs yet"
+        description="This run has not materialized jobs."
+        variant="compact"
+      />
+    );
+  }
+
+  const maxRows = Math.max(1, ...model.columns.map((column) => column.length));
+  const contentWidth =
+    PADDING * 2 +
+    TRIGGER_WIDTH +
+    COLUMN_GAP +
+    model.columns.length * NODE_WIDTH +
+    Math.max(0, model.columns.length - 1) * COLUMN_GAP;
+  const contentHeight = PADDING * 2 + maxRows * NODE_HEIGHT + Math.max(0, maxRows - 1) * ROW_GAP;
+
+  function setNodeRef(jobId: string) {
+    return (element: HTMLButtonElement | null) => {
+      if (element) {
+        nodeRefs.current.set(jobId, element);
+      } else {
+        nodeRefs.current.delete(jobId);
+      }
+    };
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    const key = navigationKey(event.key);
+    if (!key) return;
+
+    const currentNodeId = event.currentTarget.dataset.jobId;
+    if (!currentNodeId) return;
+
+    const nextNodeId = nextWorkflowJobGraphNodeId({model, currentNodeId, key});
+    if (!nextNodeId) return;
+
+    event.preventDefault();
+    onSelectJob(nextNodeId);
+    nodeRefs.current.get(nextNodeId)?.focus();
+  }
+
+  return (
+    <div className="min-h-0 overflow-auto bg-background-neutral-base">
+      <div className="relative" style={{width: contentWidth, minHeight: contentHeight}}>
+        <GraphEdges model={model} />
+        <div className="absolute" style={{left: PADDING, top: PADDING}}>
+          <TriggerNode trigger={model.trigger} />
+        </div>
+        {model.columns.map((column, columnIndex) => (
+          <div
+            key={column.map((node) => node.id).join(':')}
+            className="absolute flex flex-col gap-18"
+            style={{left: jobLeft(columnIndex), top: PADDING}}
+          >
+            {column.map((node) => (
+              <WorkflowJobNode
+                key={node.id}
+                node={node}
+                selected={node.id === selectedJobId}
+                ref={setNodeRef(node.id)}
+                onSelect={() => onSelectJob(node.id === selectedJobId ? undefined : node.id)}
+                onKeyDown={handleKeyDown}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function navigationKey(key: string): WorkflowJobGraphNavigationKey | undefined {
+  if (
+    key === 'ArrowRight' ||
+    key === 'ArrowLeft' ||
+    key === 'ArrowDown' ||
+    key === 'ArrowUp' ||
+    key === 'j' ||
+    key === 'k'
+  ) {
+    return key;
+  }
+  return undefined;
+}
+
+function GraphEdges({model}: {model: WorkflowJobGraphModel}) {
+  const byId = new Map(model.nodes.map((node) => [node.id, node]));
+
+  return (
+    <svg className="pointer-events-none absolute inset-0 size-full" aria-hidden="true">
+      {model.edges.map((edge) => {
+        const fromNode = byId.get(edge.from);
+        const toNode = byId.get(edge.to);
+        const from = edge.from === 'trigger' ? triggerPoint() : jobRightPoint(fromNode);
+        const to = jobLeftPoint(toNode);
+        if (!from || !to) return null;
+        return (
+          <g key={edge.id} className="text-foreground-neutral-muted">
+            <path
+              data-edge-id={edge.id}
+              d={edgePath({from, fromNode, to, toNode})}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1"
+            />
+            <path
+              d={`M ${to.x - 4} ${to.y - 4} L ${to.x} ${to.y} L ${to.x - 4} ${to.y + 4}`}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function edgePath({
+  from,
+  fromNode,
+  to,
+  toNode,
+}: {
+  from: {x: number; y: number};
+  fromNode: {column: number} | undefined;
+  to: {x: number; y: number};
+  toNode: {column: number} | undefined;
+}) {
+  if (fromNode && toNode && toNode.column - fromNode.column > 1 && from.y !== to.y) {
+    const targetLaneX = to.x - COLUMN_GAP / 2;
+    return `M ${from.x} ${from.y} H ${targetLaneX} V ${to.y} H ${to.x}`;
+  }
+
+  const midX = from.x + (to.x - from.x) / 2;
+  return `M ${from.x} ${from.y} H ${midX} V ${to.y} H ${to.x}`;
+}
+
+function triggerPoint() {
+  return {x: PADDING + TRIGGER_WIDTH, y: PADDING + NODE_HEIGHT / 2};
+}
+
+function jobLeft(column: number): number {
+  // Dependency depths are contiguous, so a node's depth matches its rendered column index.
+  return PADDING + TRIGGER_WIDTH + COLUMN_GAP + column * (NODE_WIDTH + COLUMN_GAP);
+}
+
+function jobTop(row: number): number {
+  return PADDING + row * (NODE_HEIGHT + ROW_GAP);
+}
+
+function jobLeftPoint(node: {column: number; row: number} | undefined) {
+  if (!node) return undefined;
+  return {x: jobLeft(node.column), y: jobTop(node.row) + NODE_HEIGHT / 2};
+}
+
+function jobRightPoint(node: {column: number; row: number} | undefined) {
+  if (!node) return undefined;
+  return {x: jobLeft(node.column) + NODE_WIDTH, y: jobTop(node.row) + NODE_HEIGHT / 2};
+}
