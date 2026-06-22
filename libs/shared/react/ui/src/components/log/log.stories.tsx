@@ -1,9 +1,11 @@
 import type {Meta, StoryObj} from '@storybook/react';
 import {type ReactNode, useRef, useState} from 'react';
+import {useArgs} from 'storybook/preview-api';
 import {Badge} from '#components/badge/index.js';
 import {Icon} from '#components/icon/index.js';
 import {Code} from '#components/typography/index.js';
 import {cn} from '#utils/cn.js';
+import {toggleTimestampUnit} from './format-timestamp.js';
 import {LogContent} from './log-content.js';
 import {LogHeader} from './log-header.js';
 import {LogRow, type LogRowTone} from './log-row.js';
@@ -297,6 +299,7 @@ export const Interactive: Story = {
       },
       {id: 5, ts: 2.95, text: 'done in 412ms'},
     ];
+    const [, updateArgs] = useArgs();
     const [exceptions, setExceptions] = useState<ReadonlySet<number>>(() => new Set());
 
     // Toggling the global `wrap` control clears the per-line overrides so the
@@ -321,7 +324,11 @@ export const Interactive: Story = {
           Globals come from the Controls panel · the chevron (or ⌥-click) wraps one line ·{' '}
           {exceptions.size} overridden
         </Code>
-        <LogRows {...args} timestampOrigin={origin}>
+        <LogRows
+          {...args}
+          timestampOrigin={origin}
+          onTimestampsClick={() => updateArgs({timestamps: toggleTimestampUnit(args.timestamps)})}
+        >
           {lines.map((line) => {
             const overridden = exceptions.has(line.id);
             const rowWrap = overridden ? !args.wrap : undefined;
@@ -351,7 +358,7 @@ export const Interactive: Story = {
                     aria-label={wrapped ? 'Collapse line' : 'Wrap line'}
                     onClick={() => toggleLine(line.id)}
                     className={cn(
-                      'flex-none rounded-4 p-2 transition-opacity',
+                      'flex h-20 w-20 flex-none items-center justify-center rounded-4 transition-opacity',
                       'opacity-60 group-hover/log-row:opacity-100 focus-visible:opacity-100',
                       overridden
                         ? 'text-foreground-highlight-interactive opacity-100'
@@ -360,7 +367,7 @@ export const Interactive: Story = {
                   >
                     <Icon
                       name="chevronRight"
-                      className={cn('size-12 transition-transform', wrapped && 'rotate-90')}
+                      className={cn('size-16 transition-transform', wrapped && 'rotate-90')}
                     />
                   </button>
                 </div>
