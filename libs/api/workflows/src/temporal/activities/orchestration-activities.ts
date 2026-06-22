@@ -1,4 +1,4 @@
-import {releaseJob, scheduleJob} from '@shipfox/api-runners';
+import {enqueueJob, releaseJob} from '@shipfox/api-runners';
 import {ApplicationFailure} from '@temporalio/common';
 import type {JobStatus} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus, RuntimeDagJob} from '#core/entities/runtime-dag.js';
@@ -142,7 +142,7 @@ export async function enqueueJobForRunner(params: {
   runId: string;
   projectId: string;
 }): Promise<void> {
-  await scheduleJob({
+  await enqueueJob({
     workspaceId: params.workspaceId,
     jobId: params.jobId,
     runId: params.runId,

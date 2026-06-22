@@ -37,7 +37,8 @@ describe('ProjectsHubPage', () => {
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
 
-    // The top nav owns workspace identity; the page title stays in-content.
+    // The page-level "Projects" title belongs in content because the top nav owns
+    // workspace identity.
     expect(await screen.findByRole('heading', {name: 'Projects'})).toBeInTheDocument();
     expect(screen.getByRole('link', {name: NEW_PROJECT_REGEX})).toHaveAttribute(
       'href',

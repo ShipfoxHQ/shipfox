@@ -11,11 +11,10 @@ export const WORKFLOWS_JOB_TERMINATED = 'workflows.job.terminated' as const;
 // on-job-steps-settled subscriber can raise the Temporal JOB_FINISHED_SIGNAL. Fires
 // before the job row is terminal; observe WORKFLOWS_JOB_TERMINATED for the outcome.
 export const WORKFLOWS_JOB_STEPS_SETTLED = 'workflows.job.steps_settled' as const;
-// Written in the same transaction as a durable gate restart (the failed attempt
-// + the rewind of the projection from `restart_from`). The pull-based runner
-// re-dispatches the rewound step on its next pull, so this audit event is not
-// required to advance execution. Consumers must be idempotent: the outbox is
-// at-least-once.
+// Written in the same transaction as a durable gate restart: the failed attempt
+// plus the rewind of the projection from `restart_from`. The pull-based runner
+// re-dispatches the rewound step on its next pull, so consumers must treat this
+// at-least-once outbox event as idempotent audit data.
 export const WORKFLOWS_STEP_RESTART_ENQUEUED = 'workflows.step.restart_enqueued' as const;
 
 export interface WorkflowsWorkflowRunCreatedEvent {

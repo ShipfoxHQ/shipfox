@@ -91,6 +91,8 @@ describe('GET /api/workflows/runs', () => {
     expect(body.runs[0].project_id).toBe(projectId);
     expect(body.runs[0].name).toBeDefined();
     expect(body.runs[0].trigger_source).toBe('manual');
+    // The runs list carries run-level timing (null until the run starts).
+    expect(body.runs[0]).toMatchObject({started_at: null, finished_at: null});
     expect(body.next_cursor).toBeNull();
     expect(body.filtered_total_count).toBe(2);
   });

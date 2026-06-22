@@ -353,6 +353,14 @@ export async function updateWorkflowRunStatus(
         status: params.status,
         version: sql`${workflowRuns.version} + 1`,
         updatedAt: new Date(),
+        // Preserve the original start time if a retried transition re-enters `running`.
+        // Both endpoints use the DB clock (`now()`): the runner module shares this
+        // Postgres instance, so every timing column sits on one clock and a duration is
+        // never subtracted across hosts.
+        ...(params.status === 'running'
+          ? {startedAt: sql`coalesce(${workflowRuns.startedAt}, now())`}
+          : {}),
+        ...(isWorkflowRunTerminal(params.status) ? {finishedAt: sql`now()`} : {}),
       })
       .where(
         and(eq(workflowRuns.id, params.runId), eq(workflowRuns.version, params.expectedVersion)),
@@ -411,6 +419,8 @@ async function updateJobStatusAtVersion(
       version: sql`${jobs.version} + 1`,
       updatedAt: new Date(),
       ...(params.markTimedOut ? {timedOutAt: new Date()} : {}),
+      // DB clock so finished_at shares the runner-sourced queued_at/started_at clock.
+      ...(isJobTerminal(params.status) ? {finishedAt: sql`now()`} : {}),
     })
     .where(and(eq(jobs.id, params.jobId), eq(jobs.version, params.expectedVersion)))
     .returning();
@@ -459,6 +469,24 @@ export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Jo
       `Optimistic lock failure: job ${params.jobId} version ${params.expectedVersion}`,
     );
   });
+}
+
+// Project the runner-owned queue/claim moments onto the durable job row. `coalesce`
+// makes redelivery and out-of-order delivery first-write-wins, so the at-least-once
+// outbox can replay these freely. Eventually consistent by design: the column stays
+// null until the runner event drains.
+export async function recordJobQueuedAt(params: {jobId: string; queuedAt: Date}): Promise<void> {
+  await db()
+    .update(jobs)
+    .set({queuedAt: sql`coalesce(${jobs.queuedAt}, ${params.queuedAt})`})
+    .where(eq(jobs.id, params.jobId));
+}
+
+export async function recordJobStartedAt(params: {jobId: string; startedAt: Date}): Promise<void> {
+  await db()
+    .update(jobs)
+    .set({startedAt: sql`coalesce(${jobs.startedAt}, ${params.startedAt})`})
+    .where(eq(jobs.id, params.jobId));
 }
 
 export interface FailJobAsTimedOutParams {

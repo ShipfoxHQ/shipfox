@@ -83,6 +83,8 @@ function spawnAndCapture(scriptPath: string, options: RunStepOptions): Promise<S
       options.onOutput?.(chunk, 'stderr');
     });
 
+    let abortRequested = options.signal?.aborted === true;
+
     const killGroup = () => {
       if (child.pid !== undefined) {
         try {
@@ -99,7 +101,10 @@ function spawnAndCapture(scriptPath: string, options: RunStepOptions): Promise<S
       if (options.signal.aborted) {
         killGroup();
       } else {
-        onAbort = () => killGroup();
+        onAbort = () => {
+          abortRequested = true;
+          killGroup();
+        };
         options.signal.addEventListener('abort', onAbort, {once: true});
       }
     }
@@ -113,6 +118,22 @@ function spawnAndCapture(scriptPath: string, options: RunStepOptions): Promise<S
 
     child.on('close', (code, signal) => {
       cleanupAbortListener();
+      // Only report an abort kill when the child was actually terminated by a signal
+      // (code === null). If abort fired in the exit→close race but the process had
+      // already exited on its own, `code` is set — fall through to report its real
+      // outcome rather than masking a genuine success/failure as a kill.
+      if (abortRequested && code === null) {
+        resolve({
+          success: false,
+          error: {
+            message: `Killed by signal ${signal ?? 'SIGKILL'}`,
+            exit_code: null,
+            signal: signal ?? 'SIGKILL',
+          },
+          exit_code: null,
+        });
+        return;
+      }
       if (code === 0) {
         resolve({success: true, error: null, exit_code: 0});
         return;

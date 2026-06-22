@@ -122,8 +122,8 @@ if (setupIndex !== -1) {
 const imageName = takeImageName();
 const registries = readRegistries();
 
-// An --image with no registry configured validates the Dockerfile locally: build
-// one arch and --load it instead of pushing a multi-arch index.
+// When --image is passed without registries, build one arch and --load it
+// locally instead of pushing a multi-arch index.
 const validateOnly = imageName !== undefined && registries.length === 0;
 
 const args: string[] = [];

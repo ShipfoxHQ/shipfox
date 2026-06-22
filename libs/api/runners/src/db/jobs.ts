@@ -1,5 +1,10 @@
-import {RUNNER_JOB_LEASE_EXPIRED, type RunnersEventMap} from '@shipfox/api-runners-dto';
-import {writeOutboxEvents} from '@shipfox/node-outbox';
+import {
+  RUNNER_JOB_CLAIMED,
+  RUNNER_JOB_LEASE_EXPIRED,
+  RUNNER_JOB_QUEUED,
+  type RunnersEventMap,
+} from '@shipfox/api-runners-dto';
+import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
 import {and, asc, eq, inArray, lt, sql} from 'drizzle-orm';
 import {RunningJobNotFoundError} from '#core/errors.js';
 import {db} from './db.js';
@@ -7,7 +12,7 @@ import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobs} from './schema/pending-jobs.js';
 import {runningJobs} from './schema/running-jobs.js';
 
-export interface ScheduleJobParams {
+export interface EnqueueJobParams {
   workspaceId: string;
   jobId: string;
   runId: string;
@@ -21,16 +26,33 @@ export interface ScheduleJobParams {
 // past the claim: once the job has moved to `runners_running_jobs`, a retry
 // can reinsert an orphan pending row, which a later `claimPendingJob` drops
 // via the running-job unique constraint (onConflictDoNothing) instead of failing.
-export async function scheduleJob(params: ScheduleJobParams): Promise<void> {
-  await db()
-    .insert(pendingJobs)
-    .values({
-      workspaceId: params.workspaceId,
-      jobId: params.jobId,
-      runId: params.runId,
-      projectId: params.projectId,
-    })
-    .onConflictDoNothing({target: pendingJobs.jobId});
+export async function enqueueJob(params: EnqueueJobParams): Promise<void> {
+  await db().transaction(async (tx) => {
+    const [inserted] = await tx
+      .insert(pendingJobs)
+      .values({
+        workspaceId: params.workspaceId,
+        jobId: params.jobId,
+        runId: params.runId,
+        projectId: params.projectId,
+      })
+      .onConflictDoNothing({target: pendingJobs.jobId})
+      .returning({createdAt: pendingJobs.createdAt});
+
+    // A retry that hits the conflict inserts nothing: the first enqueue already
+    // emitted the queued event (durably, in the outbox), so re-emitting would
+    // only add a redundant row the subscriber coalesces away. Skip it.
+    if (!inserted) return;
+
+    await writeOutboxEvent<RunnersEventMap>(tx, runnersOutbox, {
+      type: RUNNER_JOB_QUEUED,
+      payload: {
+        jobId: params.jobId,
+        runId: params.runId,
+        queuedAt: inserted.createdAt.toISOString(),
+      },
+    });
+  });
 }
 
 export interface ClaimedJob {
@@ -74,9 +96,22 @@ export async function claimPendingJob(params: {
         runnerTokenId: params.runnerTokenId,
       })
       .onConflictDoNothing({target: runningJobs.jobId})
-      .returning({jobId: runningJobs.jobId});
+      .returning({claimedAt: runningJobs.startedAt});
 
-    if (inserted.length === 0) return null;
+    const claimed = inserted[0];
+    if (!claimed) return null;
+
+    // The running-row insert is the runner claiming the job. Emit in the same tx; the
+    // payload carries the row's own claim instant so a consumer records the true time,
+    // not the outbox drain time.
+    await writeOutboxEvent<RunnersEventMap>(tx, runnersOutbox, {
+      type: RUNNER_JOB_CLAIMED,
+      payload: {
+        jobId: row.jobId,
+        runId: row.runId,
+        claimedAt: claimed.claimedAt.toISOString(),
+      },
+    });
 
     return {
       jobId: row.jobId,

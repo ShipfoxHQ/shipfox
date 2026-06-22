@@ -38,6 +38,9 @@ export const workflowRuns = pgTable(
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
+    // Execution window, stamped in-module at the run's status transitions.
+    startedAt: timestamp('started_at', {withTimezone: true}),
+    finishedAt: timestamp('finished_at', {withTimezone: true}),
   },
   (table) => [
     uniqueIndex('workflows_wr_trigger_idempotency_key_unique').on(table.triggerIdempotencyKey),
@@ -82,5 +85,7 @@ export function toWorkflowRun(row: WorkflowRunDb): WorkflowRun {
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
   };
 }

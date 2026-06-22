@@ -33,6 +33,8 @@ function makeRun(status: RunStatusDto, name: string, minutesAgo: number): RunDto
     inputs: null,
     created_at: new Date(Date.now() - minutesAgo * 120_000).toISOString(),
     updated_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
+    started_at: null,
+    finished_at: null,
   };
 }
 

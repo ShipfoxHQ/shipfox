@@ -4,12 +4,11 @@ import {expect, test} from './test.js';
 
 const ADDED_DATE_RE = /^Added /u;
 
-// The e2e API may only enable Debug. Stub the providers list so the multi-tile
-// grid renders deterministically and the screenshot guards the GitHub/Sentry
-// tiles regardless of provider config. Typed against the real response DTO so a
-// contract change fails `turbo type` — e2e packages depend on *-dto packages
-// for types only (the runtime schema would load the package's dist, which
-// self-references src and is not loadable under the test runner).
+// The e2e API may only enable Debug, so stub the providers list to keep the
+// multi-tile grid deterministic. Typed against the real response DTO so a
+// contract change fails `turbo type`; e2e packages depend on *-dto packages
+// for types only because the runtime schema would load package dist, which
+// self-references src under the test runner.
 const CATALOGUE_PROVIDERS: ListIntegrationProvidersResponseDto = {
   providers: [
     {provider: 'github', display_name: 'GitHub', capabilities: ['source_control']},
@@ -40,8 +39,6 @@ test('settings catalogue lists available providers with an empty installed state
   });
   await auth.loginAs(page, user);
 
-  // Register the providers stub before navigating: the gallery fires its
-  // queries on mount.
   await stubProviders(page);
 
   await page.goto(`/workspaces/${workspace.id}/settings/integrations`);
@@ -79,9 +76,9 @@ test('settings catalogue shows a connected provider after Debug connect', async 
   await expect(installed.getByText('Debug', {exact: true})).toBeVisible();
   await expect(installed.getByText('Connected')).toBeVisible();
 
-  // `Added <date>` is server-generated, so it would drift the Argos baseline
-  // every day. Pin it to a fixed string before the snapshot, keeping the row
-  // anchored to the real Debug connection otherwise.
+  // `Added <date>` is server-generated, so it would drift the Argos baseline.
+  // Pin only that text and keep the rest of the row anchored to the real Debug
+  // connection.
   await installed.getByText(ADDED_DATE_RE).evaluate((element) => {
     element.textContent = 'Added Jan 15, 2026';
   });

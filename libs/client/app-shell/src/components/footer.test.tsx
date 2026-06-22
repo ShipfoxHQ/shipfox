@@ -15,6 +15,7 @@ describe('Footer', () => {
       'href',
       'mailto:support@shipfox.io',
     );
+    // A status badge would imply live status, but the footer only has static links.
     expect(screen.queryByText(OPERATIONAL_REGEX)).not.toBeInTheDocument();
   });
 });

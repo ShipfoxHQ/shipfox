@@ -15,7 +15,11 @@ export {
   runnerTokenDtoSchema,
 } from '#schemas/index.js';
 export {
+  RUNNER_JOB_CLAIMED,
   RUNNER_JOB_LEASE_EXPIRED,
+  RUNNER_JOB_QUEUED,
+  type RunnerJobClaimedEvent,
   type RunnerJobLeaseExpiredEvent,
+  type RunnerJobQueuedEvent,
   type RunnersEventMap,
 } from './events.js';

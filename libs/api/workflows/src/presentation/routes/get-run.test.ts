@@ -104,6 +104,9 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(body.jobs[0].steps[0].name).toBe('Set up job');
     expect(body.jobs[0].steps[1].name).toBe('Install');
     expect(body.jobs[0].steps[2].name).toBeNull();
+    // Timing fields flow through the read model (null on a fresh, unstamped run).
+    expect(body).toMatchObject({started_at: null, finished_at: null});
+    expect(body.jobs[0]).toMatchObject({queued_at: null, started_at: null, finished_at: null});
   });
 
   test('exposes per-step error and cancelled status after a failed per-step report', async () => {

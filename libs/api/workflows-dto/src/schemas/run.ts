@@ -64,6 +64,8 @@ export const runDtoSchema = z.object({
   inputs: z.record(z.string(), z.unknown()).nullable(),
   created_at: z.string(),
   updated_at: z.string(),
+  started_at: z.string().nullable(),
+  finished_at: z.string().nullable(),
 });
 
 export type RunDto = z.infer<typeof runDtoSchema>;
