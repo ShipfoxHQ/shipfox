@@ -13,6 +13,8 @@ const at = (offsetSeconds: number) => new Date(origin.getTime() + offsetSeconds 
 const THINKING_REGEX = /thinking/i;
 const TOOL_RESULT_REGEX = /tool result/i;
 const COPY_REGEX = /copy/i;
+const EXPAND_REGEX = /expand/i;
+const COLLAPSE_REGEX = /collapse/i;
 
 const meta = {
   title: 'Components/Log/Disclosure',
@@ -33,7 +35,6 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-/** Collapsed disclosure: the header shows its label, the collapsed-only summary, and a trailing slot. */
 export const Disclosure: Story = {
   render: () => (
     <div className="max-w-2xl">
@@ -53,7 +54,6 @@ export const Disclosure: Story = {
   ),
 };
 
-/** Open disclosure with the left rail. The summary is hidden once expanded. */
 export const Open: Story = {
   render: () => (
     <div className="max-w-2xl">
@@ -81,35 +81,40 @@ export const Open: Story = {
 };
 
 /**
- * Folding log groups: `rail={false}` and nested `LogRow`s carrying their own
- * indent. The header takes a `timestamp` like any row. Past a sane depth the app
- * renderer should flatten — the primitive itself leaves indent unbounded.
+ * Folding log groups use `rail={false}` around nested `LogRow`s. Past a sane
+ * depth the app renderer should flatten; the primitive leaves indent unbounded.
+ *
+ * The leading plain row and numbered headers make the shared `LogRowFrame`
+ * alignment visible across both row types.
  */
 export const Group: Story = {
   render: () => (
     <div className="max-w-2xl">
       <LogRows timestamps="rel" timestampOrigin={origin}>
+        <LogRow lineNumber={1} timestamp={at(0)}>
+          <LogContent variant="code">$ turbo build</LogContent>
+        </LogRow>
         <LogDisclosure defaultOpen indent={0}>
-          <LogDisclosureTrigger timestamp={at(0)} trailing={<>732ms</>}>
+          <LogDisclosureTrigger lineNumber={2} timestamp={at(0.05)} trailing={<>732ms</>}>
             Build
           </LogDisclosureTrigger>
           <LogDisclosureContent rail={false}>
             <LogDisclosure defaultOpen indent={1}>
-              <LogDisclosureTrigger timestamp={at(0.1)} trailing={<>213ms</>}>
+              <LogDisclosureTrigger lineNumber={3} timestamp={at(0.1)} trailing={<>213ms</>}>
                 Typecheck
               </LogDisclosureTrigger>
               <LogDisclosureContent rail={false}>
-                <LogRow indent={2} timestamp={at(0.2)}>
+                <LogRow lineNumber={4} indent={2} timestamp={at(0.2)}>
                   <LogContent variant="code">tsc --noEmit</LogContent>
                 </LogRow>
               </LogDisclosureContent>
             </LogDisclosure>
             <LogDisclosure indent={1}>
-              <LogDisclosureTrigger timestamp={at(0.4)} trailing={<>519ms</>}>
+              <LogDisclosureTrigger lineNumber={5} timestamp={at(0.4)} trailing={<>519ms</>}>
                 Bundle
               </LogDisclosureTrigger>
               <LogDisclosureContent rail={false}>
-                <LogRow indent={2} timestamp={at(0.5)}>
+                <LogRow lineNumber={6} indent={2} timestamp={at(0.5)}>
                   <LogContent variant="code">transforming (1284) src/index.tsx</LogContent>
                 </LogRow>
               </LogDisclosureContent>
@@ -196,7 +201,6 @@ export const ChevronNone: Story = {
   ),
 };
 
-/** Click the header to toggle: `aria-expanded` flips and the collapsed-only summary hides. */
 export const Toggle: Story = {
   render: () => (
     <div className="max-w-2xl">
@@ -227,7 +231,6 @@ export const Toggle: Story = {
   },
 };
 
-/** Controlled open state, driven from outside the component. */
 export const Controlled: Story = {
   render: () => {
     function ControlledDisclosure() {
@@ -257,5 +260,23 @@ export const Controlled: Story = {
     }
 
     return <ControlledDisclosure />;
+  },
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+    const trigger = canvas.getByRole('button', {name: THINKING_REGEX});
+
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(canvas.getByRole('button', {name: EXPAND_REGEX})).toBeVisible();
+
+    await user.click(canvas.getByRole('button', {name: EXPAND_REGEX}));
+
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(canvas.getByRole('button', {name: COLLAPSE_REGEX})).toBeVisible();
+
+    await user.click(trigger);
+
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(canvas.getByRole('button', {name: EXPAND_REGEX})).toBeVisible();
   },
 };

@@ -37,8 +37,10 @@ export function LogDisclosure({indent = 0, children, ...props}: LogDisclosurePro
   );
 }
 
-// Either a visible text label (`children`) or an explicit `aria-label` must be
-// present, enforced by the type rather than left to documentation.
+/**
+ * Enforces an accessible name through either visible `children` or an explicit
+ * `aria-label`.
+ */
 type AccessibleName =
   | {children: ReactNode; 'aria-label'?: string}
   | {children?: undefined; 'aria-label': string};
@@ -81,7 +83,15 @@ export function LogDisclosureTrigger({
       <div className="flex items-center gap-8">
         <CollapsibleTrigger
           aria-label={ariaLabel}
-          className={cn('group/disc flex min-w-0 flex-1 items-center gap-6 text-left', className)}
+          className={cn(
+            'group/disc flex min-w-0 flex-1 items-center gap-6 text-left',
+            // The row body clips with `overflow-hidden`, which crops the default
+            // outset focus ring top and bottom. Draw it inset (never clipped) and
+            // force it: tailwind-merge can't strip the base `shadow-button-neutral-focus`
+            // (it misreads the token as a shadow color), so `!` wins the cascade.
+            'focus-visible:shadow-[inset_0_0_0_2px_var(--color-primary-500)]!',
+            className,
+          )}
         >
           {chevron === 'leading' && (
             <Icon
@@ -117,18 +127,30 @@ export interface LogDisclosureContentProps extends ComponentProps<typeof Collaps
  * The collapsible body. Inherits no `forceMount`, so a closed section keeps its
  * subtree out of the DOM. Any overlay (popover, tooltip, dropdown) rendered
  * inside must portal, since `CollapsibleContent` is `overflow-hidden`.
+ *
+ * In rail mode (`rail` default `true`), `className` styles the visible rail body,
+ * not the outer `overflow-hidden` `CollapsibleContent`.
  */
-export function LogDisclosureContent({rail = true, children, ...props}: LogDisclosureContentProps) {
+export function LogDisclosureContent({
+  rail = true,
+  className,
+  children,
+  ...props
+}: LogDisclosureContentProps) {
   const indent = useContext(LogDisclosureIndentContext);
 
   if (!rail) {
-    return <CollapsibleContent {...props}>{children}</CollapsibleContent>;
+    return (
+      <CollapsibleContent className={className} {...props}>
+        {children}
+      </CollapsibleContent>
+    );
   }
 
   return (
     <CollapsibleContent {...props}>
       <LogRowFrame indent={indent}>
-        <div className="border-l border-border-neutral-base pl-8">{children}</div>
+        <div className={cn('border-l border-border-neutral-base pl-8', className)}>{children}</div>
       </LogRowFrame>
     </CollapsibleContent>
   );
