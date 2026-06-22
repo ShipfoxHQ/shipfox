@@ -2,14 +2,27 @@ import type {QueryLoadErrorQuery} from '@shipfox/client-ui';
 import {Alert, Button, EmptyState, Skeleton, Text} from '@shipfox/react-ui';
 
 export function WorkflowRunSkeleton() {
-  // Mirror the run header bar so the loading state lands in the same place as the loaded header.
   return (
     <section
       aria-label="Loading workflow run"
-      className="flex w-full items-center gap-12 border-b border-border-neutral-base bg-background-subtle-base px-16 py-12"
+      className="border-b border-border-neutral-base bg-background-subtle-base px-16 py-12"
     >
-      <Skeleton className="h-24 w-160 rounded-6" />
-      <Skeleton className="h-20 w-72 rounded-6" />
+      <div className="flex min-w-0 flex-wrap items-center gap-x-12 gap-y-8">
+        <div className="flex min-w-0 items-center gap-8">
+          <Skeleton className="size-8 rounded-full" />
+          <Skeleton className="h-24 w-180 rounded-6" />
+        </div>
+        <Skeleton className="h-24 w-88 rounded-6" />
+        <span
+          aria-hidden="true"
+          className="hidden h-20 w-px shrink-0 bg-border-neutral-base sm:block"
+        />
+        <Skeleton className="h-20 w-64 rounded-4" />
+        <Skeleton className="h-20 w-112 rounded-4" />
+        <span className="min-w-0 flex-1" />
+        <Skeleton className="h-20 w-88 rounded-4" />
+        <Skeleton className="h-20 w-88 rounded-4" />
+      </div>
     </section>
   );
 }

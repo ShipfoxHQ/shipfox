@@ -1,9 +1,8 @@
 import type {RunDto, RunStatusDto} from '@shipfox/api-workflows-dto';
+import {runTriggerLabel} from '../workflow-run-display.js';
 import type {RunsListStatusFilter} from './types.js';
 
-export function runTriggerLabel(run: RunDto): string {
-  return [run.trigger_source, run.trigger_event].filter(Boolean).join(' / ');
-}
+export {runTriggerLabel};
 
 export function runMatchesSearch(run: RunDto, query: string): boolean {
   const needle = query.trim().toLowerCase();
