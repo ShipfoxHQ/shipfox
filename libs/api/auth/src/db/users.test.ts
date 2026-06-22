@@ -69,7 +69,6 @@ describe('users db', () => {
     expect(verified?.emailVerifiedAt).toBeInstanceOf(Date);
   });
 
-  // Ensure the imported hashOpaqueToken is recognized by the linter as used.
   test('opaque token helpers remain available', () => {
     expect(typeof hashOpaqueToken).toBe('function');
   });

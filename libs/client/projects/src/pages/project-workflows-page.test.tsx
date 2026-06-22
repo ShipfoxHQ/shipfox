@@ -24,7 +24,6 @@ describe('ProjectWorkflowsPage', () => {
     expect(await screen.findByText('Acme GitHub')).toBeInTheDocument();
     expect(screen.getAllByText('platform')[0]).toBeInTheDocument();
     expect(screen.getAllByText('succeeded')[0]).toBeInTheDocument();
-    // Legacy "Source identity" sidebar is gone.
     expect(screen.queryByRole('heading', {name: 'Source identity'})).not.toBeInTheDocument();
   });
 
@@ -86,8 +85,6 @@ describe('ProjectWorkflowsPage', () => {
       <ProjectWorkflowsPage projectId={PROJECT_ID} />,
     );
 
-    // The row carries the click handler now (no separate Details button).
-    // Find the row containing the workflow name and click it.
     const workflowName = (await screen.findAllByText('Deploy production'))[0];
     if (!workflowName) throw new Error('Workflow row was not rendered');
     fireEvent.click(workflowName);

@@ -161,17 +161,15 @@ describe('workflow run queries', () => {
     test('rolls back outbox event when transaction fails', async () => {
       const marker = crypto.randomUUID();
 
-      try {
-        await db().transaction(async (tx) => {
-          await tx.insert(workflowsOutbox).values({
-            eventType: WORKFLOWS_WORKFLOW_RUN_CREATED,
-            payload: {runId: marker, projectId, definitionId},
-          });
-          throw new Error('Simulated failure');
+      const transaction = db().transaction(async (tx) => {
+        await tx.insert(workflowsOutbox).values({
+          eventType: WORKFLOWS_WORKFLOW_RUN_CREATED,
+          payload: {runId: marker, projectId, definitionId},
         });
-      } catch {
-        // expected
-      }
+        throw new Error('Simulated failure');
+      });
+
+      await expect(transaction).rejects.toThrow('Simulated failure');
 
       const leaked = await db()
         .select()
@@ -923,8 +921,8 @@ describe('workflow run queries', () => {
       const runJobs = await getJobsByRunId(run.id);
       const job = runJobs[0];
 
-      // Defensive: simulate a hypothetical separate writer (no realistic path
-      // today) that bumped version + status without setting timed_out_at.
+      // Defensive: simulate a separate writer that bumped version + status
+      // without setting timed_out_at.
       await db()
         .update(jobs)
         .set({status: 'failed', version: 5})

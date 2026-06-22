@@ -37,8 +37,7 @@ describe('ProjectsHubPage', () => {
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
 
-    // Regression: the page-level "Projects" title is now an in-content H2 (the
-    // top nav owns identity); the old workspace-name/email subtitle is gone.
+    // The top nav owns workspace identity; the page title stays in-content.
     expect(await screen.findByRole('heading', {name: 'Projects'})).toBeInTheDocument();
     expect(screen.getByRole('link', {name: NEW_PROJECT_REGEX})).toHaveAttribute(
       'href',

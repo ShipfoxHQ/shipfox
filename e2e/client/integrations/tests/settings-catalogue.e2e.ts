@@ -4,8 +4,7 @@ import {expect, test} from './test.js';
 
 const ADDED_DATE_RE = /^Added /u;
 
-// The settings catalogue's Available grid is the surface PR #179 shipped, but
-// the e2e API may only enable Debug. Stub the providers list so the multi-tile
+// The e2e API may only enable Debug. Stub the providers list so the multi-tile
 // grid renders deterministically and the screenshot guards the GitHub/Sentry
 // tiles regardless of provider config. Typed against the real response DTO so a
 // contract change fails `turbo type` — e2e packages depend on *-dto packages
@@ -81,8 +80,7 @@ test('settings catalogue shows a connected provider after Debug connect', async 
   await expect(installed.getByText('Connected')).toBeVisible();
 
   // `Added <date>` is server-generated, so it would drift the Argos baseline
-  // every day. Pin it to a fixed string before the snapshot (repo convention:
-  // see e2e/client/runners/tests/runner-token-flows.e2e.ts), keeping the row
+  // every day. Pin it to a fixed string before the snapshot, keeping the row
   // anchored to the real Debug connection otherwise.
   await installed.getByText(ADDED_DATE_RE).evaluate((element) => {
     element.textContent = 'Added Jan 15, 2026';

@@ -4,12 +4,8 @@ import {githubProviderModule} from '#providers/github.js';
 import {sentryProviderModule} from '#providers/sentry.js';
 import type {IntegrationModuleParts} from '#providers/types.js';
 
-/**
- * Every integration the core module can compose. To add a provider, add its
- * file under `#providers/` and append it here — nothing else in this package
- * needs to change. Order is significant: databases are migrated in this order,
- * so list a provider before any that depend on its tables.
- */
+// Order is significant: databases are migrated in this order, so list a provider
+// before any that depend on its tables.
 const providerModules = [
   debugProviderModule,
   githubProviderModule,

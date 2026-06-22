@@ -1,14 +1,10 @@
 # syntax=docker/dockerfile:1
 
-# Production image for @shipfox/client: nginx serving the prebuilt Vite SPA.
-#
 # Unlike the api/runner images there is no prune and no node_modules: the client
 # is a static artifact built outside Docker by `turbo build` (dist/). Docker only
 # assembles. The API endpoint is NOT baked at build time; an entrypoint script
 # rewrites /config.js from environment at container start, so one image serves
 # any self-hosted deployment without a rebuild.
-#
-# Build context is this package directory; the build serves dist/ over nginx.
 
 ARG NGINX_VERSION=1.29
 
@@ -27,7 +23,7 @@ RUN chmod +x /docker-entrypoint.d/*.sh
 # copy last.
 COPY dist/ /usr/share/nginx/html/
 
-# OCI metadata. The build/promotion workflows pass revision/created as build args.
+# The build/promotion workflows pass revision/created as build args.
 ARG IMAGE_SOURCE="https://github.com/ShipfoxHQ/shipfox"
 ARG IMAGE_REVISION
 ARG IMAGE_CREATED

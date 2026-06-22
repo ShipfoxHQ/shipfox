@@ -25,14 +25,11 @@ import {
   log,
 } from "@shipfox/tool-utils";
 
-// Resolve paths
 const projectRoot = getProjectRootPath(import.meta.url);
 const workspaceRoot = getWorkspaceRootPath();
 const swcBin = getProjectBinaryPath("swc", import.meta.url);
 
-// Build a safe shell command
 const cmd = buildShellCommand([swcBin, "-d", "dist", "src"]);
 
-// Log
 log.info("Build started");
 ```

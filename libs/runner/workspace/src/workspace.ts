@@ -54,7 +54,6 @@ export function resolveWorkspaceRoot(root: string | undefined): string {
   return resolved;
 }
 
-/** Resolves the workspace root from this package's own configuration. */
 export function resolveWorkspaceRootFromEnv(): string {
   return resolveWorkspaceRoot(config.SHIPFOX_RUNNER_WORKSPACE_ROOT);
 }

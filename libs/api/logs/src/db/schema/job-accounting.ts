@@ -27,7 +27,6 @@ export const jobAccounting = pgTable('job_accounting', {
 export type JobAccountingDb = typeof jobAccounting.$inferSelect;
 export type JobAccountingInsertDb = typeof jobAccounting.$inferInsert;
 
-/** Maps a persisted row to the `JobAccounting` domain entity. */
 export function toJobAccounting(row: JobAccountingDb): JobAccounting {
   return {
     jobId: row.jobId,

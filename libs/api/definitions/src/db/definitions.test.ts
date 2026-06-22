@@ -547,17 +547,15 @@ describe('definition queries', () => {
     });
 
     test('rolls back the outbox event when the transaction fails', async () => {
-      try {
-        await db().transaction(async (tx) => {
-          await tx.insert(definitionsOutbox).values({
-            eventType: DEFINITION_RESOLVED,
-            payload: {definitionId: 'test', projectId, configPath: 'test'},
-          });
-          throw new Error('Simulated failure');
+      const transaction = db().transaction(async (tx) => {
+        await tx.insert(definitionsOutbox).values({
+          eventType: DEFINITION_RESOLVED,
+          payload: {definitionId: 'test', projectId, configPath: 'test'},
         });
-      } catch {
-        // expected
-      }
+        throw new Error('Simulated failure');
+      });
+
+      await expect(transaction).rejects.toThrow('Simulated failure');
 
       const outboxRows = await listOutboxRowsForProject(projectId);
 

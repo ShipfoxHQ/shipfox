@@ -50,7 +50,6 @@ async function loadSentryModuleParts(): Promise<IntegrationModuleParts> {
         {tx},
       );
 
-      // Promotes the verified-unclaimed row to claimed by setting connection_id.
       await upsertSentryInstallation(
         {
           connectionId: connection.id,

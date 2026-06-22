@@ -11,8 +11,7 @@ import {
 import {z} from 'zod';
 
 // Each feature module owns the config fragment it needs; the composition root
-// merges them into the one schema validated at boot. Add a key by editing its
-// module's fragment, not here.
+// merges them into the one schema validated at boot.
 const appConfigShape = {
   ...apiConfigShape,
   environment: z
@@ -30,8 +29,6 @@ export function loadAppConfig(): ConfigResult<AppConfig> {
   });
 }
 
-/** Reads the validated config outside React (boot wiring, monitoring init). */
 export const getAppConfig = (): AppConfig => getLoadedConfig<AppConfig>();
 
-/** Reads the validated config inside React components. */
 export const useAppConfig = (): AppConfig => useConfig<AppConfig>();

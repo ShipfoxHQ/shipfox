@@ -387,8 +387,8 @@ describe('step attempts', () => {
   test('reporting creates a missing running attempt before finalization', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
     const stepId = steps[0]?.id as string;
-    // Migration boundary: a step may already be running before PR B's attempt
-    // rows exist. Reporting should backfill the attempt row and finalize it.
+    // A step may already be running before its attempt row exists. Reporting
+    // should backfill the attempt row and finalize it.
     await db().update(stepsTable).set({status: 'running'}).where(eq(stepsTable.id, stepId));
 
     const outcome = await recordStepResult({
@@ -510,7 +510,7 @@ describe('step attempts', () => {
     const stepId = steps[0]?.id as string;
     await nextStepForJob(jobId);
     await recordStepResult({jobId, stepId, status: 'succeeded', exitCode: 0});
-    // Simulate a later rewind bump on the now-terminal step.
+    // Simulate a rewind bump on the terminal step.
     await db().update(stepsTable).set({currentAttempt: 2}).where(eq(stepsTable.id, stepId));
 
     const outcome = await recordStepResult({
@@ -813,7 +813,7 @@ describe('durable gate restart', () => {
     await runStep(jobId, producer, 0);
     await runStep(jobId, build, 0); // build passes (its attempt 3)
 
-    // deploy now runs for the FIRST time with an inflated current_attempt of 3.
+    // deploy runs for the first time with an inflated current_attempt of 3.
     expect((await getStepsByJobId(jobId)).find((s) => s.id === deploy)?.currentAttempt).toBe(3);
     const deployFail = await runStep(jobId, deploy, 1);
 

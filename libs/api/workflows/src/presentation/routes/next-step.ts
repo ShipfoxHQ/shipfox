@@ -28,8 +28,7 @@ export const nextStepRoute = defineRoute({
 
     if (next.kind === 'step') {
       // The runner echoes this back on report so a stale report from a superseded
-      // attempt is ignored. It is 1 until a durable restart (PR E) bumps the
-      // step's current attempt.
+      // attempt is ignored.
       return {kind: 'step' as const, step: toStepDto(next.step), attempt: next.step.currentAttempt};
     }
     return {kind: 'done' as const, status: next.status};

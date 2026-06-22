@@ -98,7 +98,6 @@ test('persists the active workspace across reload and via /', async ({page, auth
 
   await page.goto('/');
   await expect(page).toHaveURL(workspaceUrlRe(wsB.id));
-  // Sanity: never landed on wsA.
   expect(page.url()).not.toMatch(workspaceUrlRe(wsA.id));
 });
 
@@ -153,7 +152,6 @@ test('creates a second workspace from the switcher mid-session', async ({
   expect(newWid).toBeTruthy();
   expect(newWid).not.toBe(wsA.id);
 
-  // Switcher now lists both workspaces.
   await page.getByLabel('Switch workspace').click();
   await expect(page.getByRole('option', {name: workspaceAName})).toBeVisible();
   await expect(page.getByRole('option', {name: workspaceBName})).toBeVisible();
@@ -235,10 +233,8 @@ test('routes a returning user with workspaces straight to /workspaces/$wid', asy
   const wsA = await workspaces.create({userId: user.user.id, name: 'Alpha Workspace'});
   await auth.loginAs(page, user);
 
-  // Record every URL the page transits through. The PR #23 regression was a
-  // brief flash of /setup/workspaces/new while auth-refresh resolved
-  // memberships; asserting only the final URL would let that flash slip
-  // past Playwright auto-wait.
+  // Record every URL the page transits through. Asserting only the final URL
+  // would let a brief flash through onboarding slip past Playwright auto-wait.
   const urlsSeen: string[] = [];
   page.on('framenavigated', (frame) => {
     if (frame === page.mainFrame()) {
