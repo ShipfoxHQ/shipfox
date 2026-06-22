@@ -1,8 +1,8 @@
 import type {RunDto} from '@shipfox/api-workflows-dto';
 import {Code, cn, Dot, RelativeTime} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
+import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {runTriggerLabel} from './run-display.js';
-import {getStatusVisual} from './status-visuals.js';
 
 export function WorkflowRunRowList({
   runs,
@@ -44,7 +44,7 @@ export function WorkflowRunRow({
   projectId: string;
   selected: boolean;
 }) {
-  const visual = getStatusVisual(run.status);
+  const visual = getWorkflowStatusVisual(run.status);
   const triggerLabel = runTriggerLabel(run);
 
   const body = (

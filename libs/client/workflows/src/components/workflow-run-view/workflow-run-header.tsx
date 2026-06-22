@@ -1,9 +1,9 @@
 import type {RunResponseDto} from '@shipfox/api-workflows-dto';
 import {Badge, RelativeTime, Text} from '@shipfox/react-ui';
-import {getStatusVisual} from '#components/workflow-runs-list/status-visuals.js';
+import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 
 export function WorkflowRunHeader({run}: {run: RunResponseDto}) {
-  const status = getStatusVisual(run.status);
+  const status = getWorkflowStatusVisual(run.status);
 
   return (
     <header className="flex w-full items-center gap-12 border-b border-border-neutral-base bg-background-subtle-base px-16 py-12">

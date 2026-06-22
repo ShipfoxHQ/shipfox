@@ -1,7 +1,7 @@
 import {Badge, Code, cn, Dot, Text} from '@shipfox/react-ui';
 import type {KeyboardEventHandler, Ref} from 'react';
+import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import type {WorkflowGraphTriggerNode, WorkflowJobGraphNode} from './graph-model.js';
-import {getJobStatusVisual} from './status-visuals.js';
 
 export function TriggerNode({trigger}: {trigger: WorkflowGraphTriggerNode}) {
   return (
@@ -34,7 +34,7 @@ export function WorkflowJobNode({
   onKeyDown: KeyboardEventHandler<HTMLButtonElement>;
   ref?: Ref<HTMLButtonElement>;
 }) {
-  const visual = getJobStatusVisual(node.sourceStatus);
+  const visual = getWorkflowStatusVisual(node.sourceStatus);
   const accessibleLabel =
     node.dependencies.length > 0
       ? `${node.label}, ${visual.label}, needs ${node.dependencies.join(', ')}`

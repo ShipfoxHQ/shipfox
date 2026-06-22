@@ -1,17 +1,17 @@
-import type {JobStatusDto} from '@shipfox/api-workflows-dto';
+import type {JobStatusDto, RunStatusDto} from '@shipfox/api-workflows-dto';
 import type {BadgeVariant, DotVariant, IconName} from '@shipfox/react-ui';
 
-export type WorkflowJobStatusKind = JobStatusDto;
+export type WorkflowStatus = JobStatusDto | RunStatusDto;
 
-export interface JobStatusVisual {
-  kind: WorkflowJobStatusKind;
+export interface WorkflowStatusVisual {
+  kind: WorkflowStatus;
   label: string;
   dot: DotVariant;
   badge: BadgeVariant;
   icon: IconName;
 }
 
-export function getJobStatusVisual(status: JobStatusDto): JobStatusVisual {
+export function getWorkflowStatusVisual(status: WorkflowStatus): WorkflowStatusVisual {
   switch (status) {
     case 'pending':
       return {
@@ -22,13 +22,7 @@ export function getJobStatusVisual(status: JobStatusDto): JobStatusVisual {
         icon: 'circleDottedLine',
       };
     case 'running':
-      return {
-        kind: 'running',
-        label: 'Running',
-        dot: 'info',
-        badge: 'info',
-        icon: 'circleDottedLine',
-      };
+      return {kind: 'running', label: 'Running', dot: 'info', badge: 'info', icon: 'spinner'};
     case 'succeeded':
       return {
         kind: 'succeeded',
