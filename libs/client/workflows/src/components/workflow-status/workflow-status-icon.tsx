@@ -43,10 +43,10 @@ const dotSizeClass: Record<number, string> = {
   14: 'size-14',
 };
 
-// Pending is a bold neutral ring: a filled disc with a small transparent center punched out
-// by a radial mask. It carries the same weight as the solid discs while reading as
-// "not started" - much bolder than a dotted outline.
-const PENDING_RING_MASK = 'radial-gradient(circle closest-side, transparent 0 40%, #000 44%)';
+// Pending is a neutral ring: a filled disc with a transparent center punched out by a radial
+// mask. Reads as "not started" and stays visually consistent with the solid discs - much
+// bolder than a dotted outline. Tune the mask stops to make the band thicker or thinner.
+const PENDING_RING_MASK = 'radial-gradient(circle closest-side, transparent 0 52%, #000 56%)';
 
 export interface WorkflowStatusIconProps {
   status: WorkflowStatus;
