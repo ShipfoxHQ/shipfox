@@ -429,9 +429,18 @@ src/metrics/
 
 Instance instruments are created at the top of `instance.ts` and exported, then
 imported and recorded where the event occurs. Creating them at import time is
-safe: `instanceMetrics.getMeter` returns a no-op meter until an app starts
-instrumentation, so tests that merely import the module record nothing and bind
-nothing.
+safe for tests: `instanceMetrics.getMeter` returns a no-op meter until an app
+starts instrumentation, so a test that merely imports the module records nothing
+and binds nothing.
+
+That same lazy resolution is a production trap. The metrics API has no proxy
+meter (unlike traces, which back-fill), so an instrument created before the app
+registers the global meter provider stays a no-op forever and never exports. The
+app must therefore start instance instrumentation **before** the module graph
+loads — preload it via `--import`, not from inside `run()`. See
+`apps/api/src/instrumentation.ts` (wired into the Dockerfile CMD and the dev
+script). A new app that calls `startInstanceInstrumentation` in-process after
+importing its feature modules will silently emit nothing.
 
 Service gauges are different. Reaching `getServiceMetricsProvider()` binds the
 metrics port, so it must never run at import time — it would break any unit test
