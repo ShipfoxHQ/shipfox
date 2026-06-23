@@ -1,6 +1,7 @@
 import {logger} from '@shipfox/node-opentelemetry';
 import {db} from '#db/db.js';
 import {listStaleOpenStreams} from '#db/streams.js';
+import {recordAppendedCount, streamClosedCount} from '#metrics/instance.js';
 import {closeStream} from './close-stream.js';
 
 export interface ReapStaleOpenStreamsResult {
@@ -44,7 +45,11 @@ export async function reapStaleOpenStreams(
       const closed = await db().transaction((tx) =>
         closeStream(tx, {streamId: stream.id, reason: 'timeout'}),
       );
-      if (closed) result.reaped += 1;
+      if (closed) {
+        result.reaped += 1;
+        recordAppendedCount.add(1, {kind: 'runner_lost'});
+        streamClosedCount.add(1, {reason: 'timeout'});
+      }
     } catch (error) {
       result.failed += 1;
       logger().error({err: error, streamId: stream.id}, 'Failed to reap stale open log stream');

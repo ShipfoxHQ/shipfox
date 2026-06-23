@@ -1,4 +1,4 @@
-import {and, asc, eq, isNull, lt, notInArray, sql} from 'drizzle-orm';
+import {and, asc, eq, getTableColumns, isNull, lt, notInArray, sql} from 'drizzle-orm';
 import type {AttemptStream, StreamCloseReason} from '#core/entities/attempt-stream.js';
 import {LeaseStreamMismatchError} from '#core/errors.js';
 import {db, type Transaction} from './db.js';
@@ -60,18 +60,21 @@ export async function getStreamByStepAttempt(lookup: {
   return row ? toAttemptStream(row) : null;
 }
 
+export interface GetOrCreateAttemptStreamResult {
+  stream: AttemptStream;
+  created: boolean;
+}
+
 /**
  * Loads the stream for `(job, step, attempt)`, creating it on first append.
  * Scoped by `jobId` from the lease, so a lease never reaches another job's stream.
- * A single upsert with `RETURNING` (the touch-update yields the row on conflict)
- * avoids a separate read on the hot path. On conflict, asserts the lease's
- * `(workspaceId, projectId, runId)` still match the stamped row; a mismatch
- * implies a forged or cross-job-confused lease and is rejected.
+ * The create path reports whether the row was inserted so callers can record
+ * first-open side effects only after their enclosing transaction commits.
  */
-export async function getOrCreateAttemptStream(
+export async function getOrCreateAttemptStreamWithStatus(
   tx: Transaction,
   identity: AttemptStreamIdentity,
-): Promise<AttemptStream> {
+): Promise<GetOrCreateAttemptStreamResult> {
   const [row] = await tx
     .insert(attemptStreams)
     .values(identity)
@@ -79,9 +82,11 @@ export async function getOrCreateAttemptStream(
       target: [attemptStreams.jobId, attemptStreams.stepId, attemptStreams.attempt],
       set: {updatedAt: sql`now()`},
     })
-    .returning();
+    // Postgres sets `xmax` only on the conflict-update path, so this keeps
+    // first-open detection in the single upsert round trip.
+    .returning({...getTableColumns(attemptStreams), created: sql<boolean>`xmax = 0`});
 
-  if (!row) throw new Error('attempt stream missing after upsert');
+  if (!row) throw new Error('attempt stream missing after get-or-create');
   if (
     row.workspaceId !== identity.workspaceId ||
     row.projectId !== identity.projectId ||
@@ -89,7 +94,15 @@ export async function getOrCreateAttemptStream(
   ) {
     throw new LeaseStreamMismatchError();
   }
-  return toAttemptStream(row);
+  return {stream: toAttemptStream(row), created: row.created};
+}
+
+export async function getOrCreateAttemptStream(
+  tx: Transaction,
+  identity: AttemptStreamIdentity,
+): Promise<AttemptStream> {
+  const result = await getOrCreateAttemptStreamWithStatus(tx, identity);
+  return result.stream;
 }
 
 export type CasOutcome = 'extended' | 'retry' | 'gap';
@@ -271,6 +284,15 @@ export async function listStaleOpenStreams(params: {
     .limit(params.limit);
 
   return rows.map(toAttemptStream);
+}
+
+export async function getOpenStreamCount(): Promise<bigint> {
+  const [row] = await db()
+    .select({value: sql<bigint>`count(*)`.mapWith(BigInt)})
+    .from(attemptStreams)
+    .where(eq(attemptStreams.state, 'open'));
+
+  return row?.value ?? 0n;
 }
 
 /**

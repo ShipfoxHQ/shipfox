@@ -1,5 +1,10 @@
 import {Buffer} from 'node:buffer';
-import {parseAppendableLogRecordLine, parseLogRecordLine} from '@shipfox/api-logs-dto';
+import {
+  type AppendableLogRecord,
+  type LogRecord,
+  parseAppendableLogRecordLine,
+  parseLogRecordLine,
+} from '@shipfox/api-logs-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {accrueStoredBytes, claimCap, ensureJobAccounting, isJobCapped} from '#db/accounting.js';
@@ -8,9 +13,15 @@ import {db, type Transaction} from '#db/db.js';
 import {
   casExtendCommittedLength,
   getAttemptStream,
-  getOrCreateAttemptStream,
+  getOrCreateAttemptStreamWithStatus,
   setDeclaredTotalBytes,
 } from '#db/streams.js';
+import {
+  type LogRecordMetricKind,
+  recordAppendedCount,
+  streamClosedCount,
+  streamOpenedCount,
+} from '#metrics/instance.js';
 import {allowedBudget} from './budget.js';
 import {closeStream, controlTombstone} from './close-stream.js';
 import {MalformedLogChunkError, OffsetGapError} from './errors.js';
@@ -33,6 +44,7 @@ export interface AppendLogsResult {
 
 interface ParsedBody {
   declaredTotalBytes?: number;
+  recordCounts: Partial<Record<AppendableLogRecord['type'], number>>;
 }
 
 /**
@@ -48,7 +60,7 @@ interface ParsedBody {
  * its type via `forgedType` for the narrowed audit warn.
  */
 function parseAppendBody(body: Buffer): ParsedBody {
-  if (body.length === 0) return {};
+  if (body.length === 0) return {recordCounts: {}};
 
   const text = body.toString('utf8');
   if (!text.endsWith('\n')) {
@@ -58,6 +70,7 @@ function parseAppendBody(body: Buffer): ParsedBody {
   lines.pop();
 
   let declaredTotalBytes: number | undefined;
+  const recordCounts: Partial<Record<AppendableLogRecord['type'], number>> = {};
   for (const line of lines) {
     let record: ReturnType<typeof parseAppendableLogRecordLine>;
     try {
@@ -68,6 +81,7 @@ function parseAppendBody(body: Buffer): ParsedBody {
         detectForgedType(line),
       );
     }
+    recordCounts[record.type] = (recordCounts[record.type] ?? 0) + 1;
     if (record.type === 'end') {
       declaredTotalBytes = record.total_bytes;
     }
@@ -84,7 +98,7 @@ function parseAppendBody(body: Buffer): ParsedBody {
     }
   }
 
-  return declaredTotalBytes === undefined ? {} : {declaredTotalBytes};
+  return declaredTotalBytes === undefined ? {recordCounts} : {declaredTotalBytes, recordCounts};
 }
 
 /**
@@ -131,6 +145,7 @@ interface StoreChunkResult extends AppendLogsResult {
    * not whole and must not be declared-closed.
    */
   stored: boolean;
+  recordCounts: Partial<Record<LogRecord['type'], number>>;
 }
 
 /**
@@ -147,7 +162,7 @@ async function storeChunk(
 
   // Already capped: accept-and-drop. committed_length has advanced so the runner
   // drains its spool cleanly instead of retry-looping; nothing is stored.
-  if (!accrued) return {committedLength, capped: true, stored: false};
+  if (!accrued) return {committedLength, capped: true, stored: false, recordCounts: {}};
 
   await insertChunk(tx, {
     streamId,
@@ -165,7 +180,9 @@ async function storeChunk(
     ratePerMinuteBytes: config.LOG_BUDGET_RATE_BYTES_PER_MINUTE,
     elapsedMs: Date.now() - accrued.startedAt.getTime(),
   });
-  if (accrued.used <= allowed) return {committedLength, capped: false, stored: true};
+  if (accrued.used <= allowed) {
+    return {committedLength, capped: false, stored: true, recordCounts: {}};
+  }
 
   // Over budget. No hard ceiling: this crossing append is stored in full (overshoot
   // bounded by one body). Claim the cap once and inject an in-band `capped` tombstone
@@ -181,7 +198,12 @@ async function storeChunk(
       origin: 'control',
     });
   }
-  return {committedLength, capped: true, stored: true};
+  return {
+    committedLength,
+    capped: true,
+    stored: true,
+    recordCounts: won ? {capped: 1} : {},
+  };
 }
 
 /**
@@ -210,11 +232,16 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
   }
   const {declaredTotalBytes} = parsed;
   const byteLen = params.body.length;
+  const metrics = {
+    recordCounts: {} as Partial<Record<LogRecordMetricKind, number>>,
+    streamClosedReason: undefined as 'declared' | undefined,
+    streamOpened: false,
+  };
 
-  return await db().transaction(async (tx) => {
+  const result = await db().transaction(async (tx) => {
     if (byteLen === 0) return readHeartbeat(tx, params);
 
-    const stream = await getOrCreateAttemptStream(tx, {
+    const {created, stream} = await getOrCreateAttemptStreamWithStatus(tx, {
       jobId: params.jobId,
       stepId: params.stepId,
       attempt: params.attempt,
@@ -222,6 +249,7 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
       projectId: params.projectId,
       runId: params.runId,
     });
+    metrics.streamOpened = created;
 
     // Closed stream (the runner's end already landed, or the job-terminated sweep ran):
     // accept-and-drop so a late chunk can never race compaction. committed_length is
@@ -240,13 +268,17 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
       return {committedLength: cas.committedLength, capped: await isJobCapped(tx, params.jobId)};
     }
 
-    const {stored, ...result} = await storeChunk(tx, {
+    const {recordCounts, stored, ...result} = await storeChunk(tx, {
       params,
       streamId: stream.id,
       byteLen,
       committedLength: cas.committedLength,
       declaredTotalBytes,
     });
+    if (stored) {
+      addRecordCounts(metrics.recordCounts, parsed.recordCounts);
+    }
+    addRecordCounts(metrics.recordCounts, recordCounts);
 
     // The runner's end record was committed in this append (offset-CAS guarantees
     // everything before it is already committed), so the stream is whole. Declared-close
@@ -255,9 +287,29 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
     // already capped persists nothing, so the stream is not whole and stays open for the
     // timeout sweep to close it as truncated.
     if (declaredTotalBytes !== undefined && stored) {
-      await closeStream(tx, {streamId: stream.id, reason: 'declared'});
+      const closed = await closeStream(tx, {streamId: stream.id, reason: 'declared'});
+      if (closed) metrics.streamClosedReason = 'declared';
     }
 
     return result;
   });
+
+  if (metrics.streamOpened) streamOpenedCount.add(1);
+  for (const [kind, count] of Object.entries(metrics.recordCounts)) {
+    if (count > 0) recordAppendedCount.add(count, {kind: kind as LogRecordMetricKind});
+  }
+  if (metrics.streamClosedReason) {
+    streamClosedCount.add(1, {reason: metrics.streamClosedReason});
+  }
+
+  return result;
+}
+
+function addRecordCounts(
+  target: Partial<Record<LogRecordMetricKind, number>>,
+  source: Partial<Record<LogRecordMetricKind, number>>,
+): void {
+  for (const [kind, count] of Object.entries(source)) {
+    target[kind as LogRecordMetricKind] = (target[kind as LogRecordMetricKind] ?? 0) + (count ?? 0);
+  }
 }
