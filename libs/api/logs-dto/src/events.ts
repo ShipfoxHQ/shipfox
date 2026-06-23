@@ -1,13 +1,15 @@
 import {z} from 'zod';
 
+const nonEmptyStringSchema = z.string().nonempty();
+
 export const LOG_STREAM_CLOSED = 'logs.stream.closed' as const;
 
 export const logStreamClosedEventSchema = z.object({
-  workspaceId: z.string(),
-  jobId: z.string(),
-  stepId: z.string(),
+  workspaceId: nonEmptyStringSchema,
+  jobId: nonEmptyStringSchema,
+  stepId: nonEmptyStringSchema,
   attempt: z.number(),
-  streamId: z.string(),
+  streamId: nonEmptyStringSchema,
 });
 export type LogStreamClosedEvent = z.infer<typeof logStreamClosedEventSchema>;
 

@@ -1,26 +1,29 @@
 import {z} from 'zod';
 
+const nonEmptyStringSchema = z.string().nonempty();
+const isoDateTimeSchema = z.string().datetime();
+
 export const RUNNER_JOB_LEASE_EXPIRED = 'runners.job.lease_expired' as const;
 export const RUNNER_JOB_QUEUED = 'runners.job.queued' as const;
 export const RUNNER_JOB_CLAIMED = 'runners.job.claimed' as const;
 
 export const runnerJobLeaseExpiredEventSchema = z.object({
-  jobId: z.string(),
-  runId: z.string(),
+  jobId: nonEmptyStringSchema,
+  runId: nonEmptyStringSchema,
 });
 export type RunnerJobLeaseExpiredEvent = z.infer<typeof runnerJobLeaseExpiredEventSchema>;
 
 export const runnerJobQueuedEventSchema = z.object({
-  jobId: z.string(),
-  runId: z.string(),
-  queuedAt: z.string(),
+  jobId: nonEmptyStringSchema,
+  runId: nonEmptyStringSchema,
+  queuedAt: isoDateTimeSchema,
 });
 export type RunnerJobQueuedEvent = z.infer<typeof runnerJobQueuedEventSchema>;
 
 export const runnerJobClaimedEventSchema = z.object({
-  jobId: z.string(),
-  runId: z.string(),
-  claimedAt: z.string(),
+  jobId: nonEmptyStringSchema,
+  runId: nonEmptyStringSchema,
+  claimedAt: isoDateTimeSchema,
 });
 export type RunnerJobClaimedEvent = z.infer<typeof runnerJobClaimedEventSchema>;
 

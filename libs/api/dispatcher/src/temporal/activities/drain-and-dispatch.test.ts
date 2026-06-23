@@ -108,22 +108,20 @@ describe('drainAndDispatch', () => {
 
     expect(mocks.getSubscribers).not.toHaveBeenCalled();
     expect(mocks.markDispatched).not.toHaveBeenCalled();
-    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith(
-      'definitions',
-      event.id,
-      expect.objectContaining({
-        kind: 'validation',
-        eventType: event.type,
-        eventId: event.id,
-        issues: expect.arrayContaining([
-          expect.objectContaining({
-            path: ['definitionId'],
-            code: expect.any(String),
-            message: expect.any(String),
-          }),
-        ]),
-      }),
-    );
+    const failureContext = mocks.recordDispatchFailure.mock.calls[0]?.[2];
+    expect(failureContext).toEqual({
+      kind: 'validation',
+      eventType: event.type,
+      eventId: event.id,
+      issues: expect.arrayContaining([
+        expect.objectContaining({
+          path: ['definitionId'],
+          code: expect.any(String),
+          message: expect.any(String),
+        }),
+      ]),
+    });
+    expect(JSON.stringify(failureContext)).not.toContain('raw-secret');
     const captureOptions = mocks.captureException.mock.calls[0]?.[1];
     expect(captureOptions).toEqual({
       extra: expect.objectContaining({

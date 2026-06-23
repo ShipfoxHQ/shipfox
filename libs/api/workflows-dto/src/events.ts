@@ -1,5 +1,7 @@
 import {z} from 'zod';
 
+const nonEmptyStringSchema = z.string().nonempty();
+
 export const WORKFLOWS_WORKFLOW_RUN_CREATED = 'workflows.workflow_run.created' as const;
 // Terminal fact for a workflow run, written in the same transaction as the status flip.
 export const WORKFLOWS_WORKFLOW_RUN_TERMINATED = 'workflows.workflow_run.terminated' as const;
@@ -18,10 +20,10 @@ export const WORKFLOWS_JOB_STEPS_SETTLED = 'workflows.job.steps_settled' as cons
 export const WORKFLOWS_STEP_RESTART_ENQUEUED = 'workflows.step.restart_enqueued' as const;
 
 export const workflowsWorkflowRunCreatedSchema = z.object({
-  runId: z.string(),
-  workspaceId: z.string(),
-  projectId: z.string(),
-  definitionId: z.string(),
+  runId: nonEmptyStringSchema,
+  workspaceId: nonEmptyStringSchema,
+  projectId: nonEmptyStringSchema,
+  definitionId: nonEmptyStringSchema,
 });
 export type WorkflowsWorkflowRunCreatedEvent = z.infer<typeof workflowsWorkflowRunCreatedSchema>;
 
@@ -30,8 +32,8 @@ export type WorkflowsWorkflowRunCreatedEvent = z.infer<typeof workflowsWorkflowR
 export const terminalStatusSchema = z.enum(['succeeded', 'failed', 'cancelled']);
 
 export const workflowsWorkflowRunTerminatedSchema = z.object({
-  runId: z.string(),
-  projectId: z.string(),
+  runId: nonEmptyStringSchema,
+  projectId: nonEmptyStringSchema,
   status: terminalStatusSchema,
 });
 export type WorkflowsWorkflowRunTerminatedEvent = z.infer<
@@ -39,14 +41,14 @@ export type WorkflowsWorkflowRunTerminatedEvent = z.infer<
 >;
 
 export const workflowsJobTimedOutSchema = z.object({
-  jobId: z.string(),
-  runId: z.string(),
+  jobId: nonEmptyStringSchema,
+  runId: nonEmptyStringSchema,
 });
 export type WorkflowsJobTimedOutEvent = z.infer<typeof workflowsJobTimedOutSchema>;
 
 export const workflowsJobTerminatedSchema = z.object({
-  jobId: z.string(),
-  runId: z.string(),
+  jobId: nonEmptyStringSchema,
+  runId: nonEmptyStringSchema,
   status: terminalStatusSchema,
 });
 export type WorkflowsJobTerminatedEvent = z.infer<typeof workflowsJobTerminatedSchema>;
@@ -54,18 +56,18 @@ export type WorkflowsJobTerminatedEvent = z.infer<typeof workflowsJobTerminatedS
 const settledStatusSchema = z.enum(['succeeded', 'failed']);
 
 export const workflowsJobStepsSettledSchema = z.object({
-  jobId: z.string(),
-  runId: z.string(),
+  jobId: nonEmptyStringSchema,
+  runId: nonEmptyStringSchema,
   status: settledStatusSchema,
 });
 export type WorkflowsJobStepsSettledEvent = z.infer<typeof workflowsJobStepsSettledSchema>;
 
 export const workflowsStepRestartEnqueuedSchema = z.object({
-  jobId: z.string(),
-  runId: z.string(),
-  failedStepId: z.string(),
+  jobId: nonEmptyStringSchema,
+  runId: nonEmptyStringSchema,
+  failedStepId: nonEmptyStringSchema,
   failedStepAttempt: z.number(),
-  restartFromStepId: z.string(),
+  restartFromStepId: nonEmptyStringSchema,
   reason: z.string(),
 });
 export type WorkflowsStepRestartEnqueuedEvent = z.infer<typeof workflowsStepRestartEnqueuedSchema>;

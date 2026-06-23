@@ -2,15 +2,17 @@ import {z} from 'zod';
 
 export const INTEGRATION_EVENT_RECEIVED = 'integrations.event.received' as const;
 
+const nonEmptyStringSchema = z.string().nonempty();
+const isoDateTimeSchema = z.string().datetime();
 const requiredUnknownSchema = z.custom<unknown>((value) => value !== undefined);
 
 export const integrationEventReceivedSchema = z.object({
-  source: z.string(),
-  event: z.string(),
-  workspaceId: z.string(),
-  connectionId: z.string(),
-  deliveryId: z.string(),
-  receivedAt: z.string(),
+  source: nonEmptyStringSchema,
+  event: nonEmptyStringSchema,
+  workspaceId: nonEmptyStringSchema,
+  connectionId: nonEmptyStringSchema,
+  deliveryId: nonEmptyStringSchema,
+  receivedAt: isoDateTimeSchema,
   payload: requiredUnknownSchema,
 });
 export type IntegrationEventReceivedEvent = z.infer<typeof integrationEventReceivedSchema>;
@@ -19,10 +21,10 @@ export type IntegrationEventReceivedEvent = z.infer<typeof integrationEventRecei
 // generic `INTEGRATION_EVENT_RECEIVED` envelope payload (consumed opaquely by triggers)
 // and nested inside `INTEGRATION_SOURCE_COMMIT_PUSHED` (consumed by domain modules).
 export const sourcePushSchema = z.object({
-  externalRepositoryId: z.string(),
-  ref: z.string(),
-  headCommitSha: z.string(),
-  defaultBranch: z.string(),
+  externalRepositoryId: nonEmptyStringSchema,
+  ref: nonEmptyStringSchema,
+  headCommitSha: nonEmptyStringSchema,
+  defaultBranch: nonEmptyStringSchema,
   isDefaultBranch: z.boolean(),
 });
 export type SourcePushPayload = z.infer<typeof sourcePushSchema>;
@@ -34,11 +36,11 @@ export const INTEGRATION_SOURCE_COMMIT_PUSHED =
 // translation from its raw webhook into this shape, so domain consumers never decode
 // provider payloads. `isDefaultBranch` is a fact; the branch policy lives in the consumer.
 export const integrationSourceCommitPushedSchema = z.object({
-  provider: z.string(),
-  workspaceId: z.string(),
-  connectionId: z.string(),
-  deliveryId: z.string(),
-  receivedAt: z.string(),
+  provider: nonEmptyStringSchema,
+  workspaceId: nonEmptyStringSchema,
+  connectionId: nonEmptyStringSchema,
+  deliveryId: nonEmptyStringSchema,
+  receivedAt: isoDateTimeSchema,
   push: sourcePushSchema,
 });
 export type IntegrationSourceCommitPushedEvent = z.infer<
