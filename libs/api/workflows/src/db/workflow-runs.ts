@@ -112,6 +112,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         stepValues.push({
           jobId: jobRow.id,
           name: step.sourceName,
+          displayName: step.displayName,
           status: step.status,
           type: step.type,
           config: step.config,
@@ -696,12 +697,20 @@ export async function insertRunningStepAttempt(
   params: InsertRunningStepAttemptParams,
   tx: Tx,
 ): Promise<void> {
+  const [{nextExecutionOrder} = {nextExecutionOrder: 1}] = await tx
+    .select({
+      nextExecutionOrder: sql<number>`coalesce(max(${stepAttempts.executionOrder}), 0) + 1`,
+    })
+    .from(stepAttempts)
+    .where(eq(stepAttempts.jobId, params.jobId));
+
   await tx
     .insert(stepAttempts)
     .values({
       jobId: params.jobId,
       stepId: params.stepId,
       attempt: params.attempt,
+      executionOrder: nextExecutionOrder,
       status: 'running',
     })
     .onConflictDoNothing({target: [stepAttempts.stepId, stepAttempts.attempt]});
@@ -822,7 +831,7 @@ export async function getStepAttempts(jobId: string): Promise<StepAttempt[]> {
     .select()
     .from(stepAttempts)
     .where(eq(stepAttempts.jobId, jobId))
-    .orderBy(asc(stepAttempts.stepId), asc(stepAttempts.attempt));
+    .orderBy(asc(stepAttempts.executionOrder));
   return rows.map(toStepAttempt);
 }
 
@@ -832,7 +841,7 @@ export async function getStepAttemptsByJobIds(jobIds: string[]): Promise<StepAtt
     .select()
     .from(stepAttempts)
     .where(inArray(stepAttempts.jobId, jobIds))
-    .orderBy(asc(stepAttempts.stepId), asc(stepAttempts.attempt));
+    .orderBy(asc(stepAttempts.jobId), asc(stepAttempts.executionOrder));
   return rows.map(toStepAttempt);
 }
 

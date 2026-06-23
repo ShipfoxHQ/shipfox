@@ -43,6 +43,7 @@ export const stepDtoSchema = z.object({
   id: z.string().uuid(),
   job_id: z.string().uuid(),
   name: z.string().nullable(),
+  display_name: z.string(),
   status: z.string(),
   type: z.string(),
   config: z.record(z.string(), z.unknown()),
@@ -63,6 +64,7 @@ export const stepAttemptDtoSchema = z.object({
   step_id: z.string().uuid(),
   job_id: z.string().uuid(),
   attempt: z.number().int().positive(),
+  execution_order: z.number().int().positive(),
   status: z.string(),
   exit_code: z.number().int().nullable(),
   // `output`, `error`, and `gate_result` are opaque audit blobs: the raw jsonb

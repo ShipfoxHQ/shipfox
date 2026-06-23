@@ -3,6 +3,8 @@ import type {WorkflowModel} from '@shipfox/api-definitions';
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelStep = WorkflowModelJob['steps'][number];
 
+const FIRST_LINE_PATTERN = /\r?\n/;
+
 export interface MaterializedWorkflowJob {
   readonly sourceName: string;
   readonly dependencies: readonly string[];
@@ -13,6 +15,7 @@ export interface MaterializedWorkflowJob {
 
 export interface MaterializedWorkflowStep {
   readonly sourceName: string | null;
+  readonly displayName: string;
   readonly status: 'pending';
   readonly type: WorkflowModelStep['kind'] | 'setup';
   readonly config: Readonly<Record<string, unknown>>;
@@ -25,6 +28,7 @@ export interface MaterializedWorkflowStep {
 // until the lease/timeout fires. Its config is credential-free.
 const SETUP_STEP: MaterializedWorkflowStep = {
   sourceName: 'Set up job',
+  displayName: 'Set up job',
   status: 'pending',
   type: 'setup',
   config: {},
@@ -45,6 +49,7 @@ export function materializeWorkflowModel(model: WorkflowModel): readonly Materia
       SETUP_STEP,
       ...job.steps.map((step, stepPosition) => ({
         sourceName: step.sourceName ?? null,
+        displayName: step.sourceName ?? stepDisplayName(step),
         status: 'pending' as const,
         type: step.kind,
         config: stepConfig(step),
@@ -67,6 +72,21 @@ function dependencySourceNames(
   });
 }
 
+function stepDisplayName(step: WorkflowModelStep): string {
+  switch (step.kind) {
+    case 'run':
+      return firstLine(step.command.value);
+    case 'agent':
+      return `${step.model} · ${firstLine(step.prompt)}`;
+    default:
+      return assertNever(step);
+  }
+}
+
+function firstLine(value: string): string {
+  return value.split(FIRST_LINE_PATTERN, 1)[0]?.trim() || value.trim();
+}
+
 function stepConfig(step: WorkflowModelStep): Record<string, unknown> {
   const gate = step.gate === undefined ? {} : {gate: stepGateConfig(step.gate)};
   return step.kind === 'run'
@@ -78,6 +98,10 @@ function stepConfig(step: WorkflowModelStep): Record<string, unknown> {
         prompt: step.prompt,
         ...gate,
       };
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled workflow step kind: ${JSON.stringify(value)}`);
 }
 
 function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<string, unknown> {

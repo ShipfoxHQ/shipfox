@@ -284,6 +284,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "execution_order": {
+          "name": "execution_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "status": {
           "name": "status",
           "type": "workflows_step_status",
@@ -385,6 +391,11 @@
           "name": "workflows_step_attempts_step_id_attempt_uq",
           "nullsNotDistinct": false,
           "columns": ["step_id", "attempt"]
+        },
+        "workflows_step_attempts_job_id_execution_order_uq": {
+          "name": "workflows_step_attempts_job_id_execution_order_uq",
+          "nullsNotDistinct": false,
+          "columns": ["job_id", "execution_order"]
         }
       },
       "policies": {},
@@ -392,6 +403,10 @@
         "workflows_step_attempts_attempt_positive_ck": {
           "name": "workflows_step_attempts_attempt_positive_ck",
           "value": "\"workflows_step_attempts\".\"attempt\" > 0"
+        },
+        "workflows_step_attempts_execution_order_positive_ck": {
+          "name": "workflows_step_attempts_execution_order_positive_ck",
+          "value": "\"workflows_step_attempts\".\"execution_order\" > 0"
         },
         "workflows_step_attempts_status_not_pending_ck": {
           "name": "workflows_step_attempts_status_not_pending_ck",
@@ -422,6 +437,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
         "status": {
           "name": "status",

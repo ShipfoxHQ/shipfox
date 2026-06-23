@@ -39,6 +39,7 @@ describe('materializeWorkflowModel', () => {
 
     const setupStep = {
       sourceName: 'Set up job',
+      displayName: 'Set up job',
       status: 'pending',
       type: 'setup',
       config: {},
@@ -55,6 +56,7 @@ describe('materializeWorkflowModel', () => {
           setupStep,
           {
             sourceName: 'install',
+            displayName: 'install',
             status: 'pending',
             type: 'run',
             config: {run: 'npm install'},
@@ -62,6 +64,7 @@ describe('materializeWorkflowModel', () => {
           },
           {
             sourceName: null,
+            displayName: 'npm run build',
             status: 'pending',
             type: 'run',
             config: {
@@ -84,6 +87,7 @@ describe('materializeWorkflowModel', () => {
           setupStep,
           {
             sourceName: null,
+            displayName: 'npm test',
             status: 'pending',
             type: 'run',
             config: {run: 'npm test'},
@@ -126,6 +130,7 @@ describe('materializeWorkflowModel', () => {
 
     expect(rows[0]?.steps[2]).toEqual({
       sourceName: 'implement',
+      displayName: 'implement',
       status: 'pending',
       type: 'agent',
       config: {
@@ -138,6 +143,7 @@ describe('materializeWorkflowModel', () => {
     });
     expect(rows[0]?.steps[3]).toEqual({
       sourceName: null,
+      displayName: 'gpt-5.1 · Review it.',
       status: 'pending',
       type: 'agent',
       config: {
@@ -160,7 +166,14 @@ describe('materializeWorkflowModel', () => {
     const rows = materializeWorkflowModel(model);
 
     expect(rows[0]?.steps).toEqual([
-      {sourceName: 'Set up job', status: 'pending', type: 'setup', config: {}, position: 0},
+      {
+        sourceName: 'Set up job',
+        displayName: 'Set up job',
+        status: 'pending',
+        type: 'setup',
+        config: {},
+        position: 0,
+      },
     ]);
   });
 

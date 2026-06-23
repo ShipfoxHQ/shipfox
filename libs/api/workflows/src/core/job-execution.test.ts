@@ -244,7 +244,7 @@ describe('nextStepForJob concurrency', () => {
     const running = (await getStepsByJobId(jobId)).filter((s) => s.status === 'running');
     expect(running).toHaveLength(1);
     // The onConflictDoNothing backstop keeps a single attempt row under contention.
-    expect(await getStepAttempts(jobId)).toHaveLength(1);
+    expect(await getStepAttempts(jobId)).toMatchObject([{executionOrder: 1}]);
   });
 });
 
@@ -336,7 +336,12 @@ describe('step attempts', () => {
 
     const attempts = await getStepAttempts(jobId);
     expect(attempts).toHaveLength(1);
-    expect(attempts[0]).toMatchObject({stepId: steps[0]?.id, attempt: 1, status: 'running'});
+    expect(attempts[0]).toMatchObject({
+      stepId: steps[0]?.id,
+      attempt: 1,
+      executionOrder: 1,
+      status: 'running',
+    });
   });
 
   test('re-delivery does not open a second attempt row', async () => {
@@ -453,6 +458,49 @@ describe('step attempts', () => {
           jobId,
           stepId: steps[0]?.id as string,
           attempt: 0,
+          executionOrder: 1,
+          status: 'running',
+        }),
+    ).rejects.toThrow();
+  });
+
+  test('rejects non-positive execution order rows at the database boundary', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+
+    await expect(
+      db()
+        .insert(stepAttemptsTable)
+        .values({
+          jobId,
+          stepId: steps[0]?.id as string,
+          attempt: 1,
+          executionOrder: 0,
+          status: 'running',
+        }),
+    ).rejects.toThrow();
+  });
+
+  test('rejects duplicate execution order rows for the same job', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+
+    await db()
+      .insert(stepAttemptsTable)
+      .values({
+        jobId,
+        stepId: steps[0]?.id as string,
+        attempt: 1,
+        executionOrder: 1,
+        status: 'running',
+      });
+
+    await expect(
+      db()
+        .insert(stepAttemptsTable)
+        .values({
+          jobId,
+          stepId: steps[1]?.id as string,
+          attempt: 1,
+          executionOrder: 1,
           status: 'running',
         }),
     ).rejects.toThrow();
@@ -468,6 +516,7 @@ describe('step attempts', () => {
           jobId,
           stepId: steps[0]?.id as string,
           attempt: 1,
+          executionOrder: 1,
           status: 'pending',
         }),
     ).rejects.toThrow();
@@ -711,6 +760,18 @@ describe('durable gate restart', () => {
 
     expect(done).toEqual({jobFinished: true, status: 'succeeded'});
     expect((await getStepsByJobId(jobId)).map((s) => s.status)).toEqual(['succeeded', 'succeeded']);
+    expect(
+      (await getStepAttempts(jobId)).map((attempt) => ({
+        stepId: attempt.stepId,
+        attempt: attempt.attempt,
+        executionOrder: attempt.executionOrder,
+      })),
+    ).toEqual([
+      {stepId: producer, attempt: 1, executionOrder: 1},
+      {stepId: reviewer, attempt: 1, executionOrder: 2},
+      {stepId: producer, attempt: 2, executionOrder: 3},
+      {stepId: reviewer, attempt: 2, executionOrder: 4},
+    ]);
   });
 
   test('a permanently-failing gate terminates via the attempt cap (no infinite loop)', async () => {

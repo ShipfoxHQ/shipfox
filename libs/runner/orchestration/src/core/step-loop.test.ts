@@ -560,10 +560,14 @@ function buildAgentStep(overrides: Partial<StepDto> = {}): StepDto {
 }
 
 function buildStep(overrides: Partial<StepDto> = {}): StepDto {
+  const displayName =
+    overrides.display_name ??
+    (typeof overrides.name === 'string' && overrides.name.trim() ? overrides.name : 'test-step');
   return {
     id: '00000000-0000-0000-0000-000000000001',
     job_id: JOB_ID,
     name: 'test-step',
+    display_name: displayName,
     status: 'running',
     type: 'run',
     config: {run: 'echo test'},

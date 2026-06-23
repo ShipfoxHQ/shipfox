@@ -35,6 +35,7 @@ CREATE TABLE "workflows_steps" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"job_id" uuid NOT NULL,
 	"name" text,
+	"display_name" text NOT NULL,
 	"status" "workflows_step_status" DEFAULT 'pending' NOT NULL,
 	"type" text NOT NULL,
 	"config" jsonb NOT NULL,
