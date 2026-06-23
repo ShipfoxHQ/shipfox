@@ -1,9 +1,9 @@
 'use client';
 
 import {cva, type VariantProps} from 'class-variance-authority';
-import {addDays, differenceInDays, format} from 'date-fns';
+import {format, isValid} from 'date-fns';
 import type {ComponentProps, MouseEvent, ReactNode} from 'react';
-import {useMemo, useState} from 'react';
+import {useState} from 'react';
 import type {DateRange as DayPickerDateRange} from 'react-day-picker';
 import {Calendar} from '#components/calendar/index.js';
 import {Icon} from '#components/icon/index.js';
@@ -78,25 +78,17 @@ export function DateTimeRangePicker({
   const [open, setOpen] = useState(false);
 
   const isDisabled = disabled || state === 'disabled';
-  const startDate = dateRange?.start;
-  const endDate = dateRange?.end;
+  const startDate = dateRange?.start && isValid(dateRange.start) ? dateRange.start : undefined;
+  const endDate = dateRange?.end && isValid(dateRange.end) ? dateRange.end : undefined;
   const hasRange = Boolean(startDate && endDate);
 
   const displayValue =
-    hasRange && startDate && endDate
-      ? `${format(startDate, dateFormat)} - ${format(endDate, dateFormat)}`
-      : '';
+    startDate && endDate ? `${format(startDate, dateFormat)} - ${format(endDate, dateFormat)}` : '';
 
   const dayPickerRange: DayPickerDateRange | undefined =
     startDate || endDate ? {from: startDate, to: endDate} : undefined;
 
   const defaultMonth = startDate ?? new Date();
-
-  const disabledDates = useMemo(() => {
-    if (!startDate || maxRangeDays === undefined) return undefined;
-
-    return (date: Date) => differenceInDays(date, startDate) > maxRangeDays;
-  }, [startDate, maxRangeDays]);
 
   const handleSelect = (selectedRange: DayPickerDateRange | undefined) => {
     if (!selectedRange) {
@@ -105,15 +97,9 @@ export function DateTimeRangePicker({
     }
 
     const {from, to} = selectedRange;
-    let finalEndDate = to;
+    onDateRangeSelect?.({start: from, end: to});
 
-    if (from && to && maxRangeDays !== undefined && differenceInDays(to, from) > maxRangeDays) {
-      finalEndDate = addDays(from, maxRangeDays);
-    }
-
-    onDateRangeSelect?.({start: from, end: finalEndDate});
-
-    if (closeOnSelect && from && finalEndDate) {
+    if (closeOnSelect && from && to) {
       setOpen(false);
     }
   };
@@ -180,7 +166,7 @@ export function DateTimeRangePicker({
           type="button"
           onClick={handleClear}
           className={cn(
-            'flex items-center justify-center shrink-0 transition-colors hover:text-foreground-neutral-base cursor-pointer',
+            'flex items-center justify-center shrink-0 cursor-pointer',
             size === 'small' ? 'size-28' : 'size-32',
             hasRange && onClear && !isDisabled ? 'visible' : 'invisible',
           )}
@@ -211,7 +197,7 @@ export function DateTimeRangePicker({
           selected={dayPickerRange}
           onSelect={handleSelect}
           numberOfMonths={numberOfMonths}
-          disabled={disabledDates}
+          {...(maxRangeDays !== undefined ? {max: maxRangeDays} : {})}
           formatters={{
             formatWeekdayName: (date) => format(date, 'EEEEE'),
           }}

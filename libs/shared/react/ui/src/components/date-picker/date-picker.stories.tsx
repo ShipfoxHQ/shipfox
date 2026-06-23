@@ -1,11 +1,17 @@
+import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {Meta, StoryObj} from '@storybook/react';
+import {screen, within} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type {ComponentProps} from 'react';
 import {useState} from 'react';
+import {Icon} from '#components/icon/index.js';
 import {Label} from '#components/label/index.js';
 import {DatePicker} from './date-picker.js';
 
 // Pin a fixed date so the filled-state snapshots stay deterministic across days.
 const fixedDate = new Date(2025, 5, 15);
+
+const OPEN_CALENDAR_REGEX = /open calendar/i;
 
 const meta = {
   title: 'Components/DatePicker',
@@ -109,4 +115,33 @@ export const WithThreshold: Story = {
   render: (args) => (
     <ControlledPicker {...args} maxDisabledOffsetDays={30} closeOnSelect initialDate={fixedDate} />
   ),
+};
+
+export const WithRightIcon: Story = {
+  render: (args) => (
+    <ControlledPicker
+      {...args}
+      rightIcon={<Icon name="arrowDownSLine" className="size-16 text-foreground-neutral-muted" />}
+    />
+  ),
+};
+
+export const Open: Story = {
+  play: async (ctx) => {
+    const {canvasElement, step} = ctx;
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+
+    await step('Open the calendar', async () => {
+      await user.click(canvas.getByRole('button', {name: OPEN_CALENDAR_REGEX}));
+    });
+
+    await step('Wait for the calendar to render', async () => {
+      await screen.findByRole('dialog');
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+
+    await argosScreenshot(ctx, 'DatePicker Open');
+  },
+  render: (args) => <ControlledPicker {...args} initialDate={fixedDate} />,
 };

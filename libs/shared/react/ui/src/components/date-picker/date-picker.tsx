@@ -1,13 +1,14 @@
 'use client';
 
 import {cva, type VariantProps} from 'class-variance-authority';
-import {addDays, format, subDays} from 'date-fns';
+import {format, isValid} from 'date-fns';
 import type {ComponentProps, MouseEvent, ReactNode} from 'react';
 import {useMemo, useState} from 'react';
 import {Calendar} from '#components/calendar/index.js';
 import {Icon} from '#components/icon/index.js';
 import {Popover, PopoverContent, PopoverTrigger} from '#components/popover/index.js';
 import {cn} from '#utils/cn.js';
+import {buildOffsetDisabledMatcher} from './offset-disabled.js';
 
 export const datePickerVariants = cva(
   'relative flex items-center rounded-6 shadow-button-neutral transition-[background-color,box-shadow] outline-none',
@@ -69,17 +70,14 @@ export function DatePicker({
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const isDisabled = disabled || state === 'disabled';
-  const displayValue = date ? format(date, dateFormat) : '';
-  const defaultMonth = date ?? new Date();
+  const validDate = date && isValid(date) ? date : undefined;
+  const displayValue = validDate ? format(validDate, dateFormat) : '';
+  const defaultMonth = validDate ?? new Date();
 
-  const disabledDates = useMemo(() => {
-    if (!maxDisabledOffsetDays) return undefined;
-    const today = new Date();
-    const minDate = subDays(today, maxDisabledOffsetDays);
-    const maxDate = addDays(today, maxDisabledOffsetDays);
-
-    return (candidate: Date) => candidate < minDate || candidate > maxDate;
-  }, [maxDisabledOffsetDays]);
+  const disabledDates = useMemo(
+    () => buildOffsetDisabledMatcher({reference: new Date(), maxOffsetDays: maxDisabledOffsetDays}),
+    [maxDisabledOffsetDays],
+  );
 
   const handleSelect = (selectedDate: Date | undefined) => {
     onDateSelect?.(selectedDate);
@@ -178,7 +176,7 @@ export function DatePicker({
         <Calendar
           mode="single"
           defaultMonth={defaultMonth}
-          selected={date}
+          selected={validDate}
           onSelect={handleSelect}
           disabled={disabledDates}
           formatters={{

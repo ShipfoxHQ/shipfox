@@ -1,4 +1,7 @@
+import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {Meta, StoryObj} from '@storybook/react';
+import {screen, within} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type {ComponentProps} from 'react';
 import {useState} from 'react';
 import {Icon} from '#components/icon/index.js';
@@ -9,6 +12,8 @@ const seededRange: DateRange = {
   start: new Date(2024, 0, 8),
   end: new Date(2024, 0, 15),
 };
+
+const OPEN_CALENDAR_REGEX = /open calendar/i;
 
 const meta = {
   title: 'Components/DateTimeRangePicker',
@@ -118,4 +123,24 @@ export const WithRightIcon: Story = {
 
 export const LimitedRange: Story = {
   render: (args) => <ControlledPicker {...args} maxRangeDays={7} closeOnSelect />,
+};
+
+export const Open: Story = {
+  play: async (ctx) => {
+    const {canvasElement, step} = ctx;
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+
+    await step('Open the calendar', async () => {
+      await user.click(canvas.getByRole('button', {name: OPEN_CALENDAR_REGEX}));
+    });
+
+    await step('Wait for the calendar to render', async () => {
+      await screen.findByRole('dialog');
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+
+    await argosScreenshot(ctx, 'DateTimeRangePicker Open');
+  },
+  render: (args) => <ControlledPicker {...args} initialRange={seededRange} />,
 };

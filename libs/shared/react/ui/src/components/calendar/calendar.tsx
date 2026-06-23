@@ -46,7 +46,7 @@ export function Calendar({className, classNames, showOutsideDays = true, ...prop
           'text-foreground-neutral-subtle text-xs font-medium w-36 h-32 flex items-center justify-center',
         week: 'flex mt-8 gap-8',
         day: cn(
-          'relative text-center size-36 p-0 text-sm font-normal [&:last-child[data-selected=true]_button]:rounded-r-md group/day aspect-square select-none',
+          'relative text-center size-36 p-0 text-sm font-normal group/day aspect-square select-none',
           '[&:last-child[data-selected=true]_button]:rounded-r-6',
           props.showWeekNumber
             ? '[&:nth-child(2)[data-selected=true]_button]:rounded-l-6'
@@ -70,7 +70,7 @@ export function Calendar({className, classNames, showOutsideDays = true, ...prop
         today: cn(
           'relative font-medium rounded-6',
           'after:absolute after:bottom-[6px] after:left-1/2 after:-translate-x-1/2',
-          'after:size-[3px] after:rounded-full after:bg-[var(--color-primary-400)]',
+          'after:size-[3px] after:rounded-full after:bg-foreground-highlight-interactive',
         ),
         outside: 'day-outside text-foreground-neutral-muted',
         disabled: 'text-foreground-neutral-disabled opacity-30 cursor-not-allowed',
