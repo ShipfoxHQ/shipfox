@@ -9,9 +9,15 @@ import {
 import type {TriggerEventFilters} from '#hooks/api/trigger-events.js';
 import {getTriggerOutcomeVisual} from './trigger-outcome.js';
 
-// The event-level taxonomy is the four DESIGN.md §9 states; `errored` is decision-level
-// and never offered as a filter chip.
-const OUTCOME_FILTERS: TriggerEventOutcomeDto[] = ['received', 'routed', 'discarded', 'failed'];
+// The four DESIGN.md §9 event-level states. `errored` has no chip of its own: the row
+// summary already renders it as "Failed", so the Failed chip selects both `failed` and
+// `errored` (otherwise filtering Failed would silently hide events the list shows as failed).
+const OUTCOME_FILTERS: {outcome: TriggerEventOutcomeDto; selects: TriggerEventOutcomeDto[]}[] = [
+  {outcome: 'received', selects: ['received']},
+  {outcome: 'routed', selects: ['routed']},
+  {outcome: 'discarded', selects: ['discarded']},
+  {outcome: 'failed', selects: ['failed', 'errored']},
+];
 
 function toOptions(facets: TriggerEventFacetItemDto[] | undefined): ComboboxOption[] {
   return (facets ?? []).map((facet) => ({
@@ -47,10 +53,14 @@ export function EventsFilterBar({
 
   const selectedOutcomes = new Set(filters.outcome ?? []);
 
-  function toggleOutcome(outcome: TriggerEventOutcomeDto) {
+  function isFilterActive(selects: TriggerEventOutcomeDto[]): boolean {
+    return selects.some((outcome) => selectedOutcomes.has(outcome));
+  }
+
+  function toggleFilter(selects: TriggerEventOutcomeDto[]) {
     const next = new Set(selectedOutcomes);
-    if (next.has(outcome)) next.delete(outcome);
-    else next.add(outcome);
+    if (isFilterActive(selects)) for (const outcome of selects) next.delete(outcome);
+    else for (const outcome of selects) next.add(outcome);
     onFiltersChange({outcome: next.size > 0 ? [...next] : undefined});
   }
 
@@ -96,8 +106,8 @@ export function EventsFilterBar({
       />
       <fieldset className="flex items-center gap-6">
         <legend className="sr-only">Filter by outcome</legend>
-        {OUTCOME_FILTERS.map((outcome) => {
-          const active = selectedOutcomes.has(outcome);
+        {OUTCOME_FILTERS.map(({outcome, selects}) => {
+          const active = isFilterActive(selects);
           return (
             <Button
               key={outcome}
@@ -105,7 +115,7 @@ export function EventsFilterBar({
               size="2xs"
               variant={active ? 'primary' : 'transparent'}
               aria-pressed={active}
-              onClick={() => toggleOutcome(outcome)}
+              onClick={() => toggleFilter(selects)}
             >
               {getTriggerOutcomeVisual(outcome).label}
             </Button>

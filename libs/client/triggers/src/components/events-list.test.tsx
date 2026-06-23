@@ -89,4 +89,28 @@ describe('EventsList', () => {
 
     expect(onFiltersChange).toHaveBeenCalledWith({outcome: ['routed']});
   });
+
+  test('un-toggling the last active outcome chip clears the filter to undefined', async () => {
+    const onFiltersChange = vi.fn();
+    renderList(makeProps({filters: {outcome: ['routed']}, onFiltersChange}));
+
+    await userEvent.click(screen.getByRole('button', {name: 'Routed'}));
+
+    expect(onFiltersChange).toHaveBeenCalledWith({outcome: undefined});
+  });
+
+  test('the Failed chip folds errored in with failed', async () => {
+    const onFiltersChange = vi.fn();
+    renderList(makeProps({onFiltersChange}));
+
+    await userEvent.click(screen.getByRole('button', {name: 'Failed'}));
+
+    expect(onFiltersChange).toHaveBeenCalledWith({outcome: ['failed', 'errored']});
+  });
+
+  test('an errored-only filter shows the Failed chip as active', () => {
+    renderList(makeProps({filters: {outcome: ['errored']}}));
+
+    expect(screen.getByRole('button', {name: 'Failed'})).toHaveAttribute('aria-pressed', 'true');
+  });
 });

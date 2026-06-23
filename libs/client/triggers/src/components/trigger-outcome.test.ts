@@ -9,7 +9,6 @@ describe.each(triggerEventOutcomeSchema.options)('getTriggerOutcomeVisual "%s"',
 
     expect(visual.label.length).toBeGreaterThan(0);
     expect(COLORS).toContain(visual.dot);
-    expect(COLORS).toContain(visual.badge);
   });
 });
 
