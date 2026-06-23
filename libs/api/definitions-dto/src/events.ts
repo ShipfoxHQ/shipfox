@@ -1,22 +1,16 @@
 import {z} from 'zod';
+import {triggerDtoSchema} from '#schemas/trigger.js';
 
 export const DEFINITION_RESOLVED = 'definitions.definition.resolved' as const;
 export const DEFINITION_DELETED = 'definitions.definition.deleted' as const;
 export const DEFINITION_INVALID = 'definitions.definition.invalid' as const;
-
-const triggerEventSchema = z.object({
-  source: z.string(),
-  event: z.string(),
-  with: z.record(z.string(), z.unknown()).optional(),
-  filter: z.string().optional(),
-});
 
 export const definitionResolvedEventSchema = z.object({
   definitionId: z.string(),
   projectId: z.string(),
   workspaceId: z.string(),
   configPath: z.string().nullable(),
-  triggers: z.record(z.string(), triggerEventSchema),
+  triggers: z.record(z.string(), triggerDtoSchema),
 });
 export type DefinitionResolvedEvent = z.infer<typeof definitionResolvedEventSchema>;
 

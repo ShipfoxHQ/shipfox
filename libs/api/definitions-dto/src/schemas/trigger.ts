@@ -1,6 +1,9 @@
-export interface TriggerDto {
-  source: string;
-  event: string;
-  with?: Record<string, unknown>;
-  filter?: string;
-}
+import {z} from 'zod';
+
+export const triggerDtoSchema = z.object({
+  source: z.string(),
+  event: z.string(),
+  with: z.record(z.string(), z.unknown()).optional(),
+  filter: z.string().optional(),
+});
+export type TriggerDto = z.infer<typeof triggerDtoSchema>;
