@@ -6,7 +6,7 @@ import type {ComponentProps} from 'react';
 import {useState} from 'react';
 import {Icon} from '#components/icon/index.js';
 import {Label} from '#components/label/index.js';
-import {type DateRange, DateTimeRangePicker} from './date-time-range-picker.js';
+import {type DateRange, DateRangePicker} from './date-range-picker.js';
 
 const seededRange: DateRange = {
   start: new Date(2024, 0, 8),
@@ -16,8 +16,8 @@ const seededRange: DateRange = {
 const OPEN_CALENDAR_REGEX = /open calendar/i;
 
 const meta = {
-  title: 'Components/DateTimeRangePicker',
-  component: DateTimeRangePicker,
+  title: 'Components/DateRangePicker',
+  component: DateRangePicker,
   tags: ['autodocs'],
   argTypes: {
     variant: {
@@ -38,7 +38,7 @@ const meta = {
     size: 'base',
     state: 'default',
   },
-} satisfies Meta<typeof DateTimeRangePicker>;
+} satisfies Meta<typeof DateRangePicker>;
 
 export default meta;
 
@@ -48,12 +48,12 @@ function ControlledPicker({
   initialRange,
   ...props
 }: {initialRange?: DateRange} & Omit<
-  ComponentProps<typeof DateTimeRangePicker>,
+  ComponentProps<typeof DateRangePicker>,
   'dateRange' | 'onDateRangeSelect' | 'onClear'
 >) {
   const [range, setRange] = useState<DateRange | undefined>(initialRange);
   return (
-    <DateTimeRangePicker
+    <DateRangePicker
       {...props}
       dateRange={range}
       onDateRangeSelect={setRange}
@@ -140,7 +140,7 @@ export const Open: Story = {
       await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
-    await argosScreenshot(ctx, 'DateTimeRangePicker Open');
+    await argosScreenshot(ctx, 'DateRangePicker Open');
   },
   render: (args) => <ControlledPicker {...args} initialRange={seededRange} />,
 };

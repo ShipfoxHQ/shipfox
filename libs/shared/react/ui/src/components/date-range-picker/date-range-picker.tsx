@@ -10,7 +10,7 @@ import {Icon} from '#components/icon/index.js';
 import {Popover, PopoverContent, PopoverTrigger} from '#components/popover/index.js';
 import {cn} from '#utils/cn.js';
 
-export const dateTimeRangePickerVariants = cva(
+export const dateRangePickerVariants = cva(
   'min-w-240 relative flex items-center rounded-6 shadow-button-neutral transition-[background-color,box-shadow] outline-none',
   {
     variants: {
@@ -42,8 +42,8 @@ export type DateRange = {
   end?: Date | undefined;
 };
 
-export type DateTimeRangePickerProps = Omit<ComponentProps<'input'>, 'size' | 'type'> &
-  VariantProps<typeof dateTimeRangePickerVariants> & {
+export type DateRangePickerProps = Omit<ComponentProps<'input'>, 'size' | 'type'> &
+  VariantProps<typeof dateRangePickerVariants> & {
     dateRange?: DateRange;
     onDateRangeSelect?: (range: DateRange | undefined) => void;
     placeholder?: string;
@@ -56,7 +56,7 @@ export type DateTimeRangePickerProps = Omit<ComponentProps<'input'>, 'size' | 't
     maxRangeDays?: number;
   };
 
-export function DateTimeRangePicker({
+export function DateRangePicker({
   className,
   variant,
   size,
@@ -74,7 +74,7 @@ export function DateTimeRangePicker({
   maxRangeDays,
   ref,
   ...props
-}: DateTimeRangePickerProps) {
+}: DateRangePickerProps) {
   const [open, setOpen] = useState(false);
 
   const isDisabled = disabled || state === 'disabled';
@@ -115,7 +115,7 @@ export function DateTimeRangePicker({
       <div
         className={cn(
           open && 'shadow-border-interactive-with-active',
-          dateTimeRangePickerVariants({variant, size, state: isDisabled ? 'disabled' : state}),
+          dateRangePickerVariants({variant, size, state: isDisabled ? 'disabled' : state}),
           className,
         )}
       >

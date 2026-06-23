@@ -264,7 +264,7 @@ The system ships with batteries — use them. Inventory in this workspace:
 
 `alert`, `badge`, `button`, `card`, `icon`, `input`, `label`, `loader`, `radio-group`, `skeleton`, `theme`, `toast`, `tooltip`, `typography`.
 
-The broader `@shipfox/react-ui` catalog adds: `avatar`, `button-group`, `calendar`, `checkbox`, `code-block`, `combobox`, `command`, `confetti`, `count-up`, `dashboard`, `date-picker`, `date-time-range-picker`, `dot-grid`, `dropdown-menu`, `dynamic-item`, `empty-state`, `form`, `inline-tips`, `interval-selector`, `item`, `kbd`, `modal`, `moving-border`, `popover`, `scroll-area`, `search`, `select`, `sheet`, `shiny-text`, `shipql-editor`, `slider`, `switch`, `table`, `tabs`, `textarea`. When a surface needs one of these, copy it over from the broader catalog rather than rebuilding.
+The broader `@shipfox/react-ui` catalog adds: `avatar`, `button-group`, `calendar`, `checkbox`, `code-block`, `combobox`, `command`, `confetti`, `count-up`, `dashboard`, `date-picker`, `date-range-picker`, `dot-grid`, `dropdown-menu`, `dynamic-item`, `empty-state`, `form`, `inline-tips`, `interval-selector`, `item`, `kbd`, `modal`, `moving-border`, `popover`, `scroll-area`, `search`, `select`, `sheet`, `shiny-text`, `shipql-editor`, `slider`, `switch`, `table`, `tabs`, `textarea`. When a surface needs one of these, copy it over from the broader catalog rather than rebuilding.
 
 ### Buttons (the one most people get wrong)
 

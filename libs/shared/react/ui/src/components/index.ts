@@ -9,7 +9,7 @@ export * from './collapsible/index.js';
 export * from './combobox/index.js';
 export * from './command/index.js';
 export * from './date-picker/index.js';
-export * from './date-time-range-picker/index.js';
+export * from './date-range-picker/index.js';
 export * from './dot/index.js';
 export * from './dropdown-menu/index.js';
 export * from './empty-state/index.js';
