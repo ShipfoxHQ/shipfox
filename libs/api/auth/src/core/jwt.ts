@@ -1,6 +1,7 @@
 import {workspaceRoleSchema} from '@shipfox/api-workspaces-dto';
 import {signHs256, verifyHs256} from '@shipfox/node-jwt';
 import {z} from 'zod';
+import {tokenIssuedCount, tokenVerifiedCount} from '#metrics/index.js';
 
 export const tokenMembershipSchema = z.object({
   workspaceId: z.string().uuid(),
@@ -35,7 +36,7 @@ export interface VerifyUserTokenParams {
 }
 
 export async function signUserToken(params: SignUserTokenParams): Promise<string> {
-  return await signHs256({
+  const token = await signHs256({
     payload: {
       email: params.email,
       name: params.name ?? null,
@@ -45,12 +46,21 @@ export async function signUserToken(params: SignUserTokenParams): Promise<string
     expiresIn: params.expiresIn,
     subject: params.userId,
   });
+  tokenIssuedCount.add(1, {token_type: 'session'});
+  return token;
 }
 
 export async function verifyUserToken(params: VerifyUserTokenParams): Promise<UserTokenClaims> {
-  return await verifyHs256({
-    token: params.token,
-    secret: params.secret,
-    schema: userTokenClaimsSchema,
-  });
+  try {
+    const claims = await verifyHs256({
+      token: params.token,
+      secret: params.secret,
+      schema: userTokenClaimsSchema,
+    });
+    tokenVerifiedCount.add(1, {token_type: 'session', outcome: 'ok'});
+    return claims;
+  } catch (error) {
+    tokenVerifiedCount.add(1, {token_type: 'session', outcome: 'rejected'});
+    throw error;
+  }
 }
