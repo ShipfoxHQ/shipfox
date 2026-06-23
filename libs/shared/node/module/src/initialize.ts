@@ -92,6 +92,24 @@ function moduleMigrationTableName(moduleName: string, index: number): string {
 }
 
 /**
+ * Service metrics must register after the app starts the service metrics
+ * provider and initializes modules. Keeping this separate prevents tests that
+ * import modules from binding the metrics port, and isolates registration
+ * failures from the boot path.
+ */
+export function registerModuleMetrics(options: {modules: ShipfoxModule[]}): void {
+  for (const mod of options.modules) {
+    if (!mod.metrics) continue;
+    try {
+      logger().info({module: mod.name}, 'Registering module metrics');
+      mod.metrics();
+    } catch (error) {
+      logger().warn({err: error, module: mod.name}, 'Failed to register module metrics');
+    }
+  }
+}
+
+/**
  * Creates Temporal workers for all module-declared workers and starts their workflows.
  * Call this after `initializeModules` so that all publishers/subscribers are registered.
  */

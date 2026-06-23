@@ -12,6 +12,7 @@ import {
   claimPendingJob,
   enqueueJob,
   expireStuckJobs,
+  getJobQueueDepth,
   recordHeartbeat,
   releaseJob,
   requestJobCancellation,
@@ -678,5 +679,35 @@ describe('detectAndExpireStuckJobs', () => {
       0,
     );
     expect(await claimPendingJob({workspaceId, runnerTokenId})).toBeNull();
+  });
+});
+
+describe('getJobQueueDepth', () => {
+  let workspaceId: string;
+  let runnerTokenId: string;
+
+  beforeEach(async () => {
+    await db().execute(
+      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_tokens, runners_outbox CASCADE`,
+    );
+    workspaceId = crypto.randomUUID();
+    const runnerToken = await runnerTokenFactory.create({workspaceId});
+    runnerTokenId = runnerToken.id;
+  });
+
+  it('reports zero on an empty queue', async () => {
+    const depth = await getJobQueueDepth();
+
+    expect(depth).toEqual({pending: 0, running: 0});
+  });
+
+  it('counts pending and running jobs separately', async () => {
+    await pendingJobFactory.create({workspaceId});
+    await pendingJobFactory.create({workspaceId});
+    await claimPendingJob({workspaceId, runnerTokenId});
+
+    const depth = await getJobQueueDepth();
+
+    expect(depth).toEqual({pending: 1, running: 1});
   });
 });

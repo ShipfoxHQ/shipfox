@@ -1,10 +1,11 @@
 # Shipfox Module
 
-Module setup helpers for Shipfox API services. A module can list its database, auth methods, routes, outbox publishers, event handlers, and Temporal workers in one object.
+Module setup helpers for Shipfox API services. A module can list its database, auth methods, routes, outbox publishers, event handlers, service metrics, and Temporal workers in one object.
 
 ## What it does
 
 - **`initializeModules({modules})`**: Sets up modules in array order.
+- **`registerModuleMetrics({modules})`**: Registers service-level metrics for modules that declare a metrics hook.
 - **`startModuleWorkers({workers})`**: Creates Temporal workers and starts declared workflows.
 - **`ShipfoxModule`**: Module contract used by API packages.
 - **Publisher registry**: Adds outbox tables, drains pending events, and marks events as sent.
@@ -14,12 +15,14 @@ Module setup helpers for Shipfox API services. A module can list its database, a
 
 ```ts
 import {createApp, listen} from '@shipfox/node-fastify';
-import {initializeModules, startModuleWorkers} from '@shipfox/node-module';
+import {initializeModules, registerModuleMetrics, startModuleWorkers} from '@shipfox/node-module';
 import {authModule} from '@shipfox/api-auth';
 
+const modules = [authModule];
 const {auth, routes, workers} = await initializeModules({
-  modules: [authModule],
+  modules,
 });
+registerModuleMetrics({modules});
 
 await createApp({auth, routes});
 await listen();
@@ -27,7 +30,7 @@ await listen();
 startModuleWorkers({workers});
 ```
 
-`initializeModules` runs module migrations first. It exposes auth methods and routes after that. Put modules with shared database needs earlier in the array.
+`initializeModules` runs module migrations first. It exposes auth methods and routes after that. Put modules with shared database needs earlier in the array. Call `registerModuleMetrics` once after instrumentation has started and migrations have run, so observable gauges can query shared storage safely.
 
 ## Module Shape
 
@@ -49,6 +52,7 @@ export const exampleModule: ShipfoxModule = {
   database: {db, migrationsPath},
   auth: [authMethod],
   routes: [routes],
+  metrics: registerExampleServiceMetrics,
   publishers: [{name: 'example', table: outbox, db}],
   subscribers: [subscriber('example.created', handleExampleCreated)],
   workers: [{taskQueue: 'example', workflowsPath, activities, workflows: []}],

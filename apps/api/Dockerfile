@@ -50,9 +50,11 @@ LABEL org.opencontainers.image.title="@shipfox/api" \
       org.opencontainers.image.revision=$IMAGE_REVISION \
       org.opencontainers.image.created=$IMAGE_CREATED
 
-# --enable-source-maps maps stack traces back to TypeScript; --import preloads
-# Sentry (error-monitoring/init) before the app graph loads. OpenTelemetry is
-# started in-process by run(), so it needs no preload flag. The flags stay on the
-# entrypoint command (not NODE_OPTIONS) so they apply to the app only, not to any
-# other node process run inside the container.
-CMD ["node", "--enable-source-maps", "--import", "@shipfox/node-error-monitoring/init", "./dist/index.js"]
+# --enable-source-maps maps stack traces back to TypeScript. The two --import
+# flags preload OpenTelemetry then Sentry before the app graph loads.
+# instrumentation.js must run first: the metrics API has no proxy meter, so any
+# instrument created at import time binds to a no-op provider unless the SDK has
+# already registered the global meter provider. The flags stay on the entrypoint
+# command (not NODE_OPTIONS) so they apply to the app only, not to any other node
+# process run inside the container.
+CMD ["node", "--enable-source-maps", "--import", "./dist/instrumentation.js", "--import", "@shipfox/node-error-monitoring/init", "./dist/index.js"]

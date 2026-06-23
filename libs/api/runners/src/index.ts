@@ -4,6 +4,7 @@ import {runnersEventSchemas} from '@shipfox/api-runners-dto';
 import {WORKFLOWS_JOB_TIMED_OUT, type WorkflowsEventMap} from '@shipfox/api-workflows-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, runnersOutbox} from '#db/index.js';
+import {registerRunnersServiceMetrics} from '#metrics/index.js';
 import {createRunnerTokenAuthMethod, onWorkflowsJobTimedOut, routes} from '#presentation/index.js';
 import {createRunnersMaintenanceActivities} from '#temporal/activities/index.js';
 import {RUNNERS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
@@ -20,6 +21,7 @@ export const runnersModule: ShipfoxModule = {
   database: {db, migrationsPath},
   auth: [createRunnerTokenAuthMethod()],
   routes,
+  metrics: registerRunnersServiceMetrics,
   publishers: [{name: 'runners', table: runnersOutbox, db, eventSchemas: runnersEventSchemas}],
   subscribers: [subscriber(WORKFLOWS_JOB_TIMED_OUT, onWorkflowsJobTimedOut)],
   workers: [

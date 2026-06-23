@@ -9,21 +9,13 @@ import {triggersModule} from '@shipfox/api-triggers';
 import {setSourceControl, workflowsModule} from '@shipfox/api-workflows';
 import {workspacesModule} from '@shipfox/api-workspaces';
 import {createApp, listen} from '@shipfox/node-fastify';
-import {initializeModules, startModuleWorkers} from '@shipfox/node-module';
-import {
-  logger,
-  startInstanceInstrumentation,
-  startServiceMetrics,
-} from '@shipfox/node-opentelemetry';
+import {initializeModules, registerModuleMetrics, startModuleWorkers} from '@shipfox/node-module';
+import {logger, startServiceMetrics} from '@shipfox/node-opentelemetry';
 import {createPostgresClient} from '@shipfox/node-postgres';
 import {config} from '../config.js';
 import {createE2eAdminAuthMethod, createE2eRouteGroup} from './e2e.js';
 
 export async function run(): Promise<void> {
-  await startInstanceInstrumentation({
-    serviceName: 'api',
-    instrumentations: {fastify: true, http: true, pg: true},
-  });
   startServiceMetrics({serviceName: 'api'});
 
   createPostgresClient();
@@ -35,20 +27,21 @@ export async function run(): Promise<void> {
   const projectsModule = createProjectsModule({sourceControl: integrations.sourceControl});
   const definitionsModule = createDefinitionsModule({sourceControl: integrations.sourceControl});
 
-  const {auth, routes, e2eRoutes, workers} = await initializeModules({
-    modules: [
-      authModule,
-      workspacesModule,
-      integrations.module,
-      projectsModule,
-      definitionsModule,
-      workflowsModule,
-      runnersModule,
-      logsModule,
-      triggersModule,
-      dispatcherModule,
-    ],
-  });
+  const modules = [
+    authModule,
+    workspacesModule,
+    integrations.module,
+    projectsModule,
+    definitionsModule,
+    workflowsModule,
+    runnersModule,
+    logsModule,
+    triggersModule,
+    dispatcherModule,
+  ];
+  const {auth, routes, e2eRoutes, workers} = await initializeModules({modules});
+  // Gauge callbacks query migrated tables, so register them after module initialization.
+  registerModuleMetrics({modules});
   // Boot-time provider tasks (post-migration). No-op when no enabled provider contributes
   // one; failures are isolated and logged, never thrown, so they cannot gate boot.
   await integrations.runStartupTasks();

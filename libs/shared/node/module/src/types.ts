@@ -49,6 +49,13 @@ export interface ModuleWorker {
   workflows: WorkflowStart[];
 }
 
+/**
+ * Hook for observable gauges over shared service state. Implementations must
+ * fetch the service metrics provider inside the callback so ordinary module
+ * imports do not bind the metrics port.
+ */
+export type ModuleMetricsRegistration = () => void;
+
 export interface ShipfoxModule {
   name: string;
   database?: ModuleDatabase | ModuleDatabase[];
@@ -58,4 +65,5 @@ export interface ShipfoxModule {
   publishers?: ModulePublisher[];
   subscribers?: ModuleSubscriber[];
   workers?: ModuleWorker[];
+  metrics?: ModuleMetricsRegistration;
 }

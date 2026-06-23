@@ -5,8 +5,9 @@ import {
   type RunnersEventMap,
 } from '@shipfox/api-runners-dto';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
-import {and, asc, eq, inArray, lt, sql} from 'drizzle-orm';
+import {and, asc, count, eq, inArray, lt, sql} from 'drizzle-orm';
 import {RunningJobNotFoundError} from '#core/errors.js';
+import {jobEnqueuedCount, jobLeaseExpiredCount} from '#metrics/instance.js';
 import {db} from './db.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobs} from './schema/pending-jobs.js';
@@ -27,7 +28,7 @@ export interface EnqueueJobParams {
 // can reinsert an orphan pending row, which a later `claimPendingJob` drops
 // via the running-job unique constraint (onConflictDoNothing) instead of failing.
 export async function enqueueJob(params: EnqueueJobParams): Promise<void> {
-  await db().transaction(async (tx) => {
+  const enqueued = await db().transaction(async (tx) => {
     const [inserted] = await tx
       .insert(pendingJobs)
       .values({
@@ -42,7 +43,7 @@ export async function enqueueJob(params: EnqueueJobParams): Promise<void> {
     // A retry that hits the conflict inserts nothing: the first enqueue already
     // emitted the queued event (durably, in the outbox), so re-emitting would
     // only add a redundant row the subscriber coalesces away. Skip it.
-    if (!inserted) return;
+    if (!inserted) return false;
 
     await writeOutboxEvent<RunnersEventMap>(tx, runnersOutbox, {
       type: RUNNER_JOB_QUEUED,
@@ -52,7 +53,10 @@ export async function enqueueJob(params: EnqueueJobParams): Promise<void> {
         queuedAt: inserted.createdAt.toISOString(),
       },
     });
+    return true;
   });
+
+  if (enqueued) jobEnqueuedCount.add(1);
 }
 
 export interface ClaimedJob {
@@ -157,7 +161,7 @@ export async function expireStuckJobs(params: {
   thresholdSeconds: number;
   limit?: number;
 }): Promise<Array<{jobId: string; runId: string}>> {
-  return await db().transaction(async (tx) => {
+  const reaped = await db().transaction(async (tx) => {
     const cutoff = sql`now() - (${params.thresholdSeconds} || ' seconds')::interval`;
 
     const staleIds = tx
@@ -168,31 +172,41 @@ export async function expireStuckJobs(params: {
       .limit(params.limit ?? 100)
       .for('update', {skipLocked: true});
 
-    const reaped = await tx
+    const deleted = await tx
       .delete(runningJobs)
       .where(and(inArray(runningJobs.id, staleIds), lt(runningJobs.lastHeartbeatAt, cutoff)))
       .returning({jobId: runningJobs.jobId, runId: runningJobs.runId});
 
-    if (reaped.length === 0) return [];
+    if (deleted.length === 0) return [];
 
     await tx.delete(pendingJobs).where(
       inArray(
         pendingJobs.jobId,
-        reaped.map((row) => row.jobId),
+        deleted.map((row) => row.jobId),
       ),
     );
 
     await writeOutboxEvents<RunnersEventMap>(
       tx,
       runnersOutbox,
-      reaped.map((row) => ({
+      deleted.map((row) => ({
         type: RUNNER_JOB_LEASE_EXPIRED,
         payload: {jobId: row.jobId, runId: row.runId},
       })),
     );
 
-    return reaped;
+    return deleted;
   });
+
+  if (reaped.length > 0) jobLeaseExpiredCount.add(reaped.length);
+
+  return reaped;
+}
+
+export async function getJobQueueDepth(): Promise<{pending: number; running: number}> {
+  const [pending] = await db().select({value: count()}).from(pendingJobs);
+  const [running] = await db().select({value: count()}).from(runningJobs);
+  return {pending: pending?.value ?? 0, running: running?.value ?? 0};
 }
 
 export async function recordHeartbeat(params: {
