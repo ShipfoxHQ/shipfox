@@ -1,7 +1,16 @@
 import type {Meta, StoryObj} from '@storybook/react';
 import {useState} from 'react';
+import {expect, screen, userEvent, within} from 'storybook/test';
 import {Label} from '../label/index.js';
-import {Combobox, type ComboboxOption} from './combobox.js';
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxInput,
+  ComboboxList,
+  type ComboboxOption,
+  ComboboxRoot,
+  ComboboxTrigger,
+} from './combobox.js';
 
 const sampleItems: ComboboxOption[] = [
   {value: 'apache', label: 'apache'},
@@ -19,6 +28,10 @@ const sampleItems: ComboboxOption[] = [
   {value: 'apitable', label: 'apitable'},
   {value: 'apollographql', label: 'apollographql'},
   {value: 'aptos', label: 'aptos'},
+  {
+    value: 'release-production-multi-region-canary',
+    label: 'release-production-multi-region-canary',
+  },
 ];
 
 const meta = {
@@ -33,8 +46,26 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+async function clickCommandOption(user: ReturnType<typeof userEvent.setup>, label: string) {
+  const matches = await screen.findAllByText(label);
+  const item = matches
+    .map((match) => match.closest('[cmdk-item]'))
+    .find((match): match is HTMLElement => match instanceof HTMLElement);
+
+  if (!item) {
+    throw new Error(`Command option not found: ${label}`);
+  }
+
+  await user.click(item);
+}
+
 export const Default: Story = {
   args: {} as never,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByText('Type to search...')).toBeVisible();
+  },
   render: () => {
     const [value, setValue] = useState('');
 
@@ -49,6 +80,153 @@ export const Default: Story = {
           placeholder="Type to search..."
           searchPlaceholder="Search repositories..."
           emptyState="No repository found."
+        />
+      </div>
+    );
+  },
+};
+
+export const MultiSelect: Story = {
+  args: {} as never,
+  play: async ({canvasElement, step}) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+
+    await step('Select two repositories', async () => {
+      await user.click(canvas.getByRole('combobox'));
+      await clickCommandOption(user, 'apache');
+      await clickCommandOption(user, 'apollo');
+      await within(canvasElement).findByLabelText('Remove apache');
+      await within(canvasElement).findByLabelText('Remove apollo');
+    });
+
+    await step('Toggle one selected repository off', async () => {
+      await clickCommandOption(user, 'apache');
+      await canvas.findByLabelText('Remove apollo');
+    });
+
+    await step('Remove a chip', async () => {
+      await user.click(canvas.getByLabelText('Remove apollo'));
+    });
+  },
+  render: () => {
+    const [value, setValue] = useState<string[]>([]);
+
+    return (
+      <div className="w-[80vw] md:w-500">
+        <Label htmlFor="combobox-multi">Repositories</Label>
+        <Combobox
+          id="combobox-multi"
+          multiple
+          options={sampleItems}
+          value={value}
+          onValueChange={setValue}
+          maxVisibleChips={2}
+          placeholder="Select repositories..."
+          searchPlaceholder="Search repositories..."
+          emptyState="No repository found."
+        />
+      </div>
+    );
+  },
+};
+
+export const PrimitiveComposition: Story = {
+  args: {} as never,
+  render: () => {
+    const [value, setValue] = useState<string[]>(['apache', 'apollo']);
+
+    return (
+      <div className="w-[80vw] md:w-500">
+        <Label htmlFor="combobox-primitives">Primitive composition</Label>
+        <ComboboxRoot
+          multiple
+          options={sampleItems}
+          value={value}
+          onValueChange={setValue}
+          maxVisibleChips={2}
+        >
+          <ComboboxTrigger id="combobox-primitives" placeholder="Pick repositories..." />
+          <ComboboxContent>
+            <ComboboxInput placeholder="Search repositories..." />
+            <ComboboxList emptyState="No repositories match." />
+          </ComboboxContent>
+        </ComboboxRoot>
+      </div>
+    );
+  },
+};
+
+export const MeasuredOverflow: Story = {
+  args: {} as never,
+  play: async ({canvasElement, step}) => {
+    const canvas = within(canvasElement);
+
+    await step('Summarize overflowed chips', async () => {
+      await canvas.findByLabelText('3 more selected');
+    });
+  },
+  render: () => {
+    const [value, setValue] = useState<string[]>([
+      'apache',
+      'apache-superset',
+      'release-production-multi-region-canary',
+      'apollo',
+      'apify',
+    ]);
+
+    return (
+      <div className="w-280">
+        <Label htmlFor="combobox-overflow">Measured overflow</Label>
+        <Combobox
+          id="combobox-overflow"
+          multiple
+          options={sampleItems}
+          value={value}
+          onValueChange={setValue}
+          placeholder="Select repositories..."
+          searchPlaceholder="Search repositories..."
+        />
+      </div>
+    );
+  },
+};
+
+export const ClearAllAndBackspace: Story = {
+  args: {} as never,
+  play: async ({canvasElement, step}) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+
+    await step('Clear every selected value', async () => {
+      await user.click(canvas.getByLabelText('Clear selected options'));
+      await canvas.findByPlaceholderText('Select repositories...');
+    });
+
+    await step('Backspace removes the last chip', async () => {
+      await user.click(canvas.getByRole('combobox'));
+      await clickCommandOption(user, 'apache');
+      await clickCommandOption(user, 'apollo');
+      await user.click(canvas.getByRole('textbox'));
+      await user.keyboard('{Backspace}');
+      await canvas.findByLabelText('Remove apache');
+    });
+  },
+  render: () => {
+    const [value, setValue] = useState<string[]>(['apache', 'apollo']);
+
+    return (
+      <div className="w-[80vw] md:w-500">
+        <Label htmlFor="combobox-clear">Clear and backspace</Label>
+        <Combobox
+          id="combobox-clear"
+          multiple
+          options={sampleItems}
+          value={value}
+          onValueChange={setValue}
+          maxVisibleChips={2}
+          placeholder="Select repositories..."
+          searchPlaceholder="Search repositories..."
         />
       </div>
     );
@@ -114,16 +292,18 @@ export const LoadingState: Story = {
 export const DisabledState: Story = {
   args: {} as never,
   render: () => {
-    const [value, setValue] = useState('apache');
+    const [value, setValue] = useState<string[]>(['apache', 'apollo']);
 
     return (
       <div className="w-[80vw] md:w-500">
         <Label htmlFor="combobox-disabled">Disabled</Label>
         <Combobox
           id="combobox-disabled"
+          multiple
           options={sampleItems}
           value={value}
           onValueChange={setValue}
+          maxVisibleChips={2}
           disabled
           placeholder="Disabled input"
           searchPlaceholder="Search repositories..."
