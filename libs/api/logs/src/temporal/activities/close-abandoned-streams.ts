@@ -21,7 +21,7 @@ export async function closeAbandonedStreamsActivity(params: {
     );
     if (result) {
       closed += 1;
-      recordAppendedCount.add(1, {kind: 'system'});
+      recordAppendedCount.add(1, {kind: 'runner_lost'});
       streamClosedCount.add(1, {reason: 'timeout'});
     }
   }
