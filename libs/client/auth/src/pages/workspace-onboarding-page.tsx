@@ -1,4 +1,5 @@
 import {createWorkspaceBodySchema} from '@shipfox/api-workspaces-dto';
+import {displayNameFieldError} from '@shipfox/client-ui';
 import {
   Alert,
   Button,
@@ -49,7 +50,7 @@ export function WorkspaceOnboardingPage() {
     onSubmit: async ({value}) => {
       setFormError(undefined);
       try {
-        const body = createWorkspaceBodySchema.parse({name: value.name.trim()});
+        const body = createWorkspaceBodySchema.parse({name: value.name});
         const created = await createWorkspace.mutateAsync(body);
         toast.success('Workspace created.');
         // Pin the new workspace as the last-active one so a page refresh and
@@ -106,8 +107,18 @@ export function WorkspaceOnboardingPage() {
                 <form.Field
                   name="name"
                   validators={{
-                    onBlur: createWorkspaceBodySchema.shape.name,
-                    onSubmit: createWorkspaceBodySchema.shape.name,
+                    onBlur: ({value}) =>
+                      displayNameFieldError(
+                        value,
+                        'Workspace name',
+                        createWorkspaceBodySchema.shape.name,
+                      ),
+                    onSubmit: ({value}) =>
+                      displayNameFieldError(
+                        value,
+                        'Workspace name',
+                        createWorkspaceBodySchema.shape.name,
+                      ),
                   }}
                 >
                   {(field) => (

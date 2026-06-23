@@ -102,7 +102,7 @@ describe('project routes', () => {
       headers: {authorization: 'Bearer user'},
       payload: {
         workspace_id: workspaceId,
-        name: 'Platform',
+        name: '  Platform  ',
         source: {
           connection_id: sourceConnectionId,
           external_repository_id: 'debug:platform',
@@ -116,6 +116,29 @@ describe('project routes', () => {
       connection_id: sourceConnectionId,
       external_repository_id: 'debug:platform',
     });
+  });
+
+  test.each([
+    ['blank after trimming', '   '],
+    ['with control characters', 'Plat\nform'],
+    ['with format characters', 'Plat\u202eform'],
+  ])('rejects a project name %s before resolving the repository', async (_case, name) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/projects',
+      headers: {authorization: 'Bearer user'},
+      payload: {
+        workspace_id: workspaceId,
+        name,
+        source: {
+          connection_id: sourceConnectionId,
+          external_repository_id: 'debug:platform',
+        },
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(sourceControl.resolveRepository).not.toHaveBeenCalled();
   });
 
   test('lists projects for a workspace with source references', async () => {

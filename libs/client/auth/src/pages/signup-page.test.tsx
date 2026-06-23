@@ -16,21 +16,32 @@ describe('SignupPage', () => {
 
   test('shows check-email state after success', async () => {
     const user = pageUserFactory.build({email: 'new@example.com', name: 'New User'});
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401}),
-      )
-      .mockResolvedValueOnce(jsonResponse({user}, {status: 201}));
+    let signupBody: unknown;
+    const fetchImpl = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url === 'https://api.example.test/auth/me') {
+        return jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401});
+      }
+      if (url === 'https://api.example.test/auth/signup' && input instanceof Request) {
+        signupBody = await input.json();
+        return jsonResponse({user}, {status: 201});
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
     configureApiClient({fetchImpl});
 
     renderAuthPage('/auth/signup', <SignupPage />);
-    fireEvent.change(await screen.findByLabelText('Name'), {target: {value: 'New User'}});
+    fireEvent.change(await screen.findByLabelText('Name'), {target: {value: '  New User  '}});
     fireEvent.change(screen.getByLabelText('Email'), {target: {value: 'new@example.com'}});
     fireEvent.change(screen.getByLabelText('Password'), {target: {value: 'long secure password'}});
     fireEvent.click(screen.getByRole('button', {name: 'Create account'}));
 
     expect(await screen.findByRole('heading', {name: 'Check your email'})).toBeInTheDocument();
+    expect(signupBody).toEqual({
+      email: 'new@example.com',
+      password: 'long secure password',
+      name: 'New User',
+    });
     expect(screen.getByText(SUBMITTED_EMAIL_RE)).toBeInTheDocument();
     expect(screen.getByRole('button', {name: RESEND_COUNTDOWN_RE})).toHaveAttribute(
       'aria-disabled',
@@ -112,11 +123,51 @@ describe('SignupPage', () => {
     configureApiClient({fetchImpl});
 
     renderAuthPage('/auth/signup', <SignupPage />);
+    fireEvent.change(await screen.findByLabelText('Name'), {target: {value: 'New User'}});
     fireEvent.change(await screen.findByLabelText('Email'), {target: {value: 'new@example.com'}});
     fireEvent.change(screen.getByLabelText('Password'), {target: {value: 'long secure password'}});
     fireEvent.click(screen.getByRole('button', {name: 'Create account'}));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Email already exists');
+  });
+
+  test('validates the name locally', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401}),
+      );
+    configureApiClient({fetchImpl});
+
+    renderAuthPage('/auth/signup', <SignupPage />);
+    fireEvent.change(await screen.findByLabelText('Name'), {target: {value: 'New\u202eUser'}});
+    fireEvent.change(screen.getByLabelText('Email'), {target: {value: 'new@example.com'}});
+    fireEvent.change(screen.getByLabelText('Password'), {target: {value: 'long secure password'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Create account'}));
+
+    expect(
+      await screen.findByText(
+        'Name cannot include line breaks, tabs, or hidden formatting characters.',
+      ),
+    ).toBeInTheDocument();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  test('requires the name locally', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401}),
+      );
+    configureApiClient({fetchImpl});
+
+    renderAuthPage('/auth/signup', <SignupPage />);
+    fireEvent.change(await screen.findByLabelText('Email'), {target: {value: 'new@example.com'}});
+    fireEvent.change(screen.getByLabelText('Password'), {target: {value: 'long secure password'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Create account'}));
+
+    expect(await screen.findByText('Name is required.')).toBeInTheDocument();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   test('enables resend after the signup cooldown expires', async () => {
@@ -132,6 +183,7 @@ describe('SignupPage', () => {
     configureApiClient({fetchImpl});
 
     renderAuthPage('/auth/signup', <SignupPage />);
+    fireEvent.change(await screen.findByLabelText('Name'), {target: {value: 'New User'}});
     fireEvent.change(await screen.findByLabelText('Email'), {target: {value: 'new@example.com'}});
     fireEvent.change(screen.getByLabelText('Password'), {target: {value: 'long secure password'}});
     fireEvent.click(screen.getByRole('button', {name: 'Create account'}));
@@ -166,6 +218,7 @@ describe('SignupPage', () => {
     configureApiClient({fetchImpl});
 
     renderAuthPage('/auth/signup', <SignupPage />);
+    fireEvent.change(await screen.findByLabelText('Name'), {target: {value: 'New User'}});
     fireEvent.change(await screen.findByLabelText('Email'), {target: {value: 'new@example.com'}});
     fireEvent.change(screen.getByLabelText('Password'), {target: {value: 'long secure password'}});
     fireEvent.click(screen.getByRole('button', {name: 'Create account'}));
@@ -199,6 +252,7 @@ describe('SignupPage', () => {
     configureApiClient({fetchImpl});
 
     renderAuthPage('/auth/signup', <SignupPage />);
+    fireEvent.change(await screen.findByLabelText('Name'), {target: {value: 'New User'}});
     fireEvent.change(await screen.findByLabelText('Email'), {target: {value: 'new@example.com'}});
     fireEvent.change(screen.getByLabelText('Password'), {target: {value: 'long secure password'}});
     fireEvent.click(screen.getByRole('button', {name: 'Create account'}));
@@ -223,6 +277,7 @@ describe('SignupPage', () => {
     configureApiClient({fetchImpl});
 
     renderAuthPage('/auth/signup', <SignupPage />);
+    fireEvent.change(await screen.findByLabelText('Name'), {target: {value: 'New User'}});
     fireEvent.change(await screen.findByLabelText('Email'), {target: {value: 'new@example.com'}});
     fireEvent.change(screen.getByLabelText('Password'), {target: {value: 'long secure password'}});
     fireEvent.click(screen.getByRole('button', {name: 'Create account'}));

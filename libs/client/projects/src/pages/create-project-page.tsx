@@ -7,6 +7,7 @@ import {
   useRepositoriesInfiniteQuery,
   useSourceConnectionsQuery,
 } from '@shipfox/client-integrations';
+import {displayNameFieldError} from '@shipfox/client-ui';
 import {
   Alert,
   Button,
@@ -15,16 +16,17 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  FormField,
+  FormFieldInput,
   FullPageLoader,
   Header,
-  Input,
-  Label,
   Text,
   toast,
 } from '@shipfox/react-ui';
+import {useForm} from '@tanstack/react-form';
 import {useQueryClient} from '@tanstack/react-query';
 import {Link, Navigate, useNavigate} from '@tanstack/react-router';
-import {type FormEvent, useEffect, useRef, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {projectsQueryKeys, useCreateProjectMutation} from '#hooks/api/projects.js';
 import {projectErrorCopy} from '#project-error.js';
 
@@ -74,13 +76,24 @@ export function CreateProjectPage() {
   );
 
   const [nameTouched, setNameTouched] = useState(false);
-  const [name, setName] = useState('');
   const defaultProjectName = projectNameFromRepository(
     selectedRepository?.name ?? selectedRepositoryId ?? '',
   );
-  const projectName = nameTouched ? name : defaultProjectName;
 
   const [formError, setFormError] = useState<string | undefined>();
+
+  const form = useForm({
+    defaultValues: {name: defaultProjectName},
+    onSubmit: async ({value}) => {
+      await createProjectFromForm(nameTouched ? value.name : defaultProjectName);
+    },
+  });
+
+  useEffect(() => {
+    if (!nameTouched && form.state.values.name !== defaultProjectName) {
+      form.setFieldValue('name', defaultProjectName);
+    }
+  }, [defaultProjectName, form, nameTouched]);
 
   function selectConnection(connectionId: string) {
     setSelectedConnectionId(connectionId);
@@ -99,8 +112,7 @@ export function CreateProjectPage() {
     return <Navigate to="/workspaces/$wid/integrations" params={{wid: workspace.id}} replace />;
   }
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function createProjectFromForm(projectName: string) {
     setFormError(undefined);
     if (!workspace) {
       setFormError('Workspace is still loading. Try again in a moment.');
@@ -117,16 +129,11 @@ export function CreateProjectPage() {
       errorRef.current?.focus();
       return;
     }
-    if (!projectName.trim()) {
-      setFormError('Project name is required.');
-      errorRef.current?.focus();
-      return;
-    }
 
     try {
       const projectBody = createProjectBodySchema.parse({
         workspace_id: workspace.id,
-        name: projectName.trim(),
+        name: projectName,
         source: {
           connection_id: selectedConnection.id,
           external_repository_id: selectedRepository.external_repository_id,
@@ -184,7 +191,11 @@ export function CreateProjectPage() {
       ) : null}
 
       <form
-        onSubmit={onSubmit}
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void form.handleSubmit();
+        }}
         noValidate
         aria-labelledby="create-project-title"
         className="grid items-start gap-24 lg:grid-cols-[minmax(0,1fr)_360px]"
@@ -253,18 +264,31 @@ export function CreateProjectPage() {
               repositoryFullName={selectedRepository?.full_name}
             />
 
-            <div className="flex flex-col gap-8">
-              <Label htmlFor="project-name">Project name</Label>
-              <Input
-                id="project-name"
-                value={projectName}
-                onChange={(event) => {
-                  setNameTouched(true);
-                  setName(event.target.value);
-                }}
-                placeholder="Platform"
-              />
-            </div>
+            <form.Field
+              name="name"
+              validators={{
+                onBlur: ({value}) =>
+                  displayNameFieldError(value, 'Project name', createProjectBodySchema.shape.name),
+                onSubmit: ({value}) =>
+                  displayNameFieldError(value, 'Project name', createProjectBodySchema.shape.name),
+              }}
+            >
+              {(field) => (
+                <FormField label="Project name" id="project-name" error={fieldError(field)}>
+                  <FormFieldInput
+                    name="name"
+                    type="text"
+                    value={field.state.value}
+                    onChange={(event) => {
+                      setNameTouched(true);
+                      field.handleChange(event.target.value);
+                    }}
+                    onBlur={field.handleBlur}
+                    placeholder="Platform"
+                  />
+                </FormField>
+              )}
+            </form.Field>
           </CardContent>
 
           <Button
@@ -333,4 +357,19 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
     return () => clearTimeout(handle);
   }, [value, delayMs]);
   return debounced;
+}
+
+interface FieldLike {
+  state: {meta: {errors: Array<unknown>; isBlurred: boolean}};
+}
+
+function fieldError(field: FieldLike): string | undefined {
+  if (!field.state.meta.isBlurred && field.state.meta.errors.length === 0) return undefined;
+  const first = field.state.meta.errors[0];
+  if (!first) return undefined;
+  if (typeof first === 'string') return first;
+  if (typeof first === 'object' && first !== null && 'message' in first) {
+    return String((first as {message: unknown}).message);
+  }
+  return undefined;
 }

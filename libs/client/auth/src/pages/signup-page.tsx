@@ -1,4 +1,5 @@
 import {signupBodySchema} from '@shipfox/api-auth-dto';
+import {displayNameFieldError} from '@shipfox/client-ui';
 import {
   Alert,
   Button,
@@ -58,15 +59,13 @@ export function SignupPage() {
     defaultValues: {email: authFormDraft.email, password: authFormDraft.password, name: ''},
     onSubmit: async ({value}) => {
       setFormError(undefined);
-      const trimmedName = value.name.trim();
-      const body = {
-        email: value.email,
-        password: value.password,
-        ...(trimmedName ? {name: trimmedName} : {}),
-        ...(invitationToken ? {invitation_token: invitationToken} : {}),
-      };
-
       try {
+        const body = signupBodySchema.parse({
+          email: value.email,
+          password: value.password,
+          name: value.name,
+          ...(invitationToken ? {invitation_token: invitationToken} : {}),
+        });
         const result = await signup.mutateAsync(body);
         skipDraftPersistRef.current = true;
         setAuthFormDraft(initialAuthFormDraft);
@@ -257,8 +256,9 @@ export function SignupPage() {
         <form.Field
           name="name"
           validators={{
-            onBlur: ({value}) =>
-              value.trim().length === 0 || value.length <= 255 ? undefined : 'Name is too long.',
+            onBlur: ({value}) => displayNameFieldError(value, 'Name', signupBodySchema.shape.name),
+            onSubmit: ({value}) =>
+              displayNameFieldError(value, 'Name', signupBodySchema.shape.name),
           }}
         >
           {(field) => (
