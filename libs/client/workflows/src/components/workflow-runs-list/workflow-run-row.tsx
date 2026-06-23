@@ -1,7 +1,8 @@
 import type {RunDto} from '@shipfox/api-workflows-dto';
-import {Code, cn, Dot, RelativeTime} from '@shipfox/react-ui';
+import {Code, cn, RelativeTime} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
+import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import {runTriggerLabel} from './run-display.js';
 
 export function WorkflowRunRowList({
@@ -57,14 +58,14 @@ export function WorkflowRunRow({
       ) : null}
 
       <div className="flex min-w-0 items-center gap-7">
-        <Dot variant={visual.dot} ripple={run.status === 'running'} />
+        <WorkflowStatusIcon status={run.status} size={14} />
         <span className="sr-only">{visual.label}</span>
         <Code variant="label" bold className="truncate text-foreground-neutral-base">
           {run.name}
         </Code>
       </div>
 
-      <div className="flex min-w-0 items-center gap-6 pl-13">
+      <div className="flex min-w-0 items-center gap-6 pl-21">
         {triggerLabel ? (
           <Code variant="label" className="min-w-0 flex-1 truncate text-foreground-neutral-subtle">
             {triggerLabel}

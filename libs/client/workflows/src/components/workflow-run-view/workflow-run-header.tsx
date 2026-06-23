@@ -1,6 +1,7 @@
 import type {RunResponseDto} from '@shipfox/api-workflows-dto';
 import {Badge, RelativeTime, Text} from '@shipfox/react-ui';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
+import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 
 export function WorkflowRunHeader({run}: {run: RunResponseDto}) {
   const status = getWorkflowStatusVisual(run.status);
@@ -10,7 +11,8 @@ export function WorkflowRunHeader({run}: {run: RunResponseDto}) {
       <Text size="lg" bold className="min-w-0 truncate">
         {run.name}
       </Text>
-      <Badge variant={status.badge} iconLeft={status.icon} className="shrink-0">
+      <Badge variant={status.badge} className="shrink-0">
+        <WorkflowStatusIcon status={run.status} size={12} ripple={false} />
         {status.label}
       </Badge>
 

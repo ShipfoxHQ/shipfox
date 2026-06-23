@@ -1,6 +1,7 @@
-import {Code, cn, Dot, Text, Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui';
+import {Code, cn, Text, Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui';
 import type {KeyboardEventHandler, Ref} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
+import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {WorkflowGraphTriggerNode, WorkflowJobGraphNode} from './graph-model.js';
 
 export function TriggerNode({trigger}: {trigger: WorkflowGraphTriggerNode}) {
@@ -63,7 +64,7 @@ export function WorkflowJobNode({
         />
       ) : null}
       <div className="flex min-w-0 items-center gap-8">
-        <Dot variant={visual.dot} ripple={node.statusKind === 'running'} />
+        <WorkflowStatusIcon status={node.sourceStatus} size={14} />
         <span className="sr-only">{visual.label}</span>
         <Code variant="label" bold className="truncate text-foreground-neutral-base">
           {node.label}
