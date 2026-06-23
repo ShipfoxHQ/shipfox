@@ -35,6 +35,7 @@ const sampleItems: ComboboxOption[] = [
 ];
 
 const repositoriesLabel = /repositories/i;
+const moreSelectedLabel = /more selected/i;
 
 const meta = {
   title: 'Components/Combobox',
@@ -169,7 +170,7 @@ export const MeasuredOverflow: Story = {
     const canvas = within(canvasElement);
 
     await step('Summarize overflowed chips', async () => {
-      await canvas.findByLabelText('3 more selected');
+      await canvas.findByRole('img', {name: moreSelectedLabel});
     });
   },
   render: () => {

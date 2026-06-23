@@ -354,14 +354,33 @@ function ComboboxTrigger({
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-4 text-left">
           {triggerContent}
         </div>
-        {context.isLoading ? (
-          <Icon name="spinner" className="size-16 text-foreground-neutral-base shrink-0 mt-2" />
-        ) : (
-          <Icon
-            name="expandUpDownLine"
-            className="size-16 text-foreground-neutral-muted shrink-0 mt-2"
-          />
-        )}
+        <div className="mt-2 flex shrink-0 items-center gap-4">
+          {context.selectedValues.length > 1 && (
+            <button
+              type="button"
+              aria-label="Clear selected options"
+              disabled={isDisabled}
+              className={cn(
+                'inline-flex size-16 shrink-0 items-center justify-center rounded-4',
+                'text-foreground-neutral-muted transition-colors hover:text-foreground-neutral-base',
+                'focus-visible:shadow-border-interactive-with-active outline-none',
+                'disabled:pointer-events-none disabled:text-foreground-neutral-disabled',
+              )}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                context.clearValues();
+              }}
+            >
+              <Icon name="closeLine" className="size-14" />
+            </button>
+          )}
+          {context.isLoading ? (
+            <Icon name="spinner" className="size-16 text-foreground-neutral-base" />
+          ) : (
+            <Icon name="expandUpDownLine" className="size-16 text-foreground-neutral-muted" />
+          )}
+        </div>
       </div>
     </PopoverTrigger>
   );
@@ -599,26 +618,6 @@ function ComboboxChips({className, ...props}: ComboboxChipsProps) {
         >
           +{hiddenCount}
         </span>
-      )}
-      {context.selectedValues.length > 1 && (
-        <button
-          type="button"
-          aria-label="Clear selected options"
-          disabled={context.disabled}
-          className={cn(
-            'inline-flex size-20 shrink-0 items-center justify-center rounded-4',
-            'text-foreground-neutral-muted transition-colors hover:text-foreground-neutral-base',
-            'focus-visible:shadow-border-interactive-with-active outline-none',
-            'disabled:pointer-events-none disabled:text-foreground-neutral-disabled',
-          )}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            context.clearValues();
-          }}
-        >
-          <Icon name="closeLine" className="size-14" />
-        </button>
       )}
       {context.maxVisibleChips === 'auto' && (
         <div
