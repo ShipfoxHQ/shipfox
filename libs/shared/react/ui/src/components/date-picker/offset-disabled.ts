@@ -10,6 +10,8 @@ import {differenceInCalendarDays} from 'date-fns';
  *
  * Returns `undefined` when `maxOffsetDays` is unset, meaning no day is
  * disabled. `0` is a valid bound that restricts selection to `reference` only.
+ * A negative value is treated as unset (rather than disabling every day) so
+ * misuse degrades to an unrestricted picker instead of an unusable one.
  */
 export function buildOffsetDisabledMatcher({
   reference,
@@ -18,6 +20,6 @@ export function buildOffsetDisabledMatcher({
   reference: Date;
   maxOffsetDays: number | undefined;
 }): ((date: Date) => boolean) | undefined {
-  if (maxOffsetDays === undefined) return undefined;
+  if (maxOffsetDays === undefined || maxOffsetDays < 0) return undefined;
   return (date: Date) => Math.abs(differenceInCalendarDays(date, reference)) > maxOffsetDays;
 }

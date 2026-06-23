@@ -80,7 +80,7 @@ export function DateRangePicker({
   const isDisabled = disabled || state === 'disabled';
   const startDate = dateRange?.start && isValid(dateRange.start) ? dateRange.start : undefined;
   const endDate = dateRange?.end && isValid(dateRange.end) ? dateRange.end : undefined;
-  const hasRange = Boolean(startDate && endDate);
+  const hasSelection = Boolean(startDate || endDate);
 
   const displayValue =
     startDate && endDate ? `${format(startDate, dateFormat)} - ${format(endDate, dateFormat)}` : '';
@@ -88,7 +88,7 @@ export function DateRangePicker({
   const dayPickerRange: DayPickerDateRange | undefined =
     startDate || endDate ? {from: startDate, to: endDate} : undefined;
 
-  const defaultMonth = startDate ?? new Date();
+  const defaultMonth = startDate ?? endDate ?? new Date();
 
   const handleSelect = (selectedRange: DayPickerDateRange | undefined) => {
     if (!selectedRange) {
@@ -158,8 +158,11 @@ export function DateRangePicker({
             'disabled:text-foreground-neutral-disabled disabled:cursor-not-allowed',
             size === 'small' ? 'py-4' : 'py-6',
           )}
-          onClick={() => !isDisabled && setOpen(true)}
           {...props}
+          onClick={(event) => {
+            props.onClick?.(event);
+            if (!isDisabled) setOpen(true);
+          }}
         />
 
         <button
@@ -168,7 +171,7 @@ export function DateRangePicker({
           className={cn(
             'flex items-center justify-center shrink-0 cursor-pointer',
             size === 'small' ? 'size-28' : 'size-32',
-            hasRange && onClear && !isDisabled ? 'visible' : 'invisible',
+            hasSelection && onClear && !isDisabled ? 'visible' : 'invisible',
           )}
           aria-label="Clear date range"
         >
@@ -178,7 +181,7 @@ export function DateRangePicker({
           />
         </button>
 
-        {rightIcon && !hasRange && (
+        {rightIcon && !hasSelection && (
           <div
             className={cn(
               'flex items-center justify-center shrink-0',

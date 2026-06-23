@@ -3,7 +3,7 @@
 import {cva, type VariantProps} from 'class-variance-authority';
 import {format, isValid} from 'date-fns';
 import type {ComponentProps, MouseEvent, ReactNode} from 'react';
-import {useMemo, useState} from 'react';
+import {useState} from 'react';
 import {Calendar} from '#components/calendar/index.js';
 import {Icon} from '#components/icon/index.js';
 import {Popover, PopoverContent, PopoverTrigger} from '#components/popover/index.js';
@@ -74,10 +74,10 @@ export function DatePicker({
   const displayValue = validDate ? format(validDate, dateFormat) : '';
   const defaultMonth = validDate ?? new Date();
 
-  const disabledDates = useMemo(
-    () => buildOffsetDisabledMatcher({reference: new Date(), maxOffsetDays: maxDisabledOffsetDays}),
-    [maxDisabledOffsetDays],
-  );
+  const disabledDates = buildOffsetDisabledMatcher({
+    reference: new Date(),
+    maxOffsetDays: maxDisabledOffsetDays,
+  });
 
   const handleSelect = (selectedDate: Date | undefined) => {
     onDateSelect?.(selectedDate);
@@ -140,8 +140,11 @@ export function DatePicker({
             'disabled:text-foreground-neutral-disabled disabled:cursor-not-allowed',
             size === 'small' ? 'py-4' : 'py-6',
           )}
-          onClick={() => !isDisabled && setOpen(true)}
           {...props}
+          onClick={(event) => {
+            props.onClick?.(event);
+            if (!isDisabled) setOpen(true);
+          }}
         />
 
         <button

@@ -11,6 +11,12 @@ describe('buildOffsetDisabledMatcher', () => {
     expect(matcher).toBeUndefined();
   });
 
+  it('treats a negative offset as unset rather than disabling every day', () => {
+    const matcher = buildOffsetDisabledMatcher({reference, maxOffsetDays: -1});
+
+    expect(matcher).toBeUndefined();
+  });
+
   it('treats 0 as a real bound that restricts selection to the reference day', () => {
     const matcher = buildOffsetDisabledMatcher({reference, maxOffsetDays: 0});
 

@@ -13,13 +13,13 @@ export function Calendar({className, classNames, showOutsideDays = true, ...prop
       showOutsideDays={showOutsideDays}
       className={cn('transition-colors', className)}
       classNames={{
-        months: 'flex flex-col sm:flex-row gap-0',
+        months: 'relative flex flex-col sm:flex-row gap-0',
         month:
           'space-y-16 relative p-16 border-r border-border-neutral-base-component last:border-r-0',
         month_caption:
           'flex items-center justify-center mb-8 px-4 relative h-32 bg-background-field-base rounded-8 shadow-tooltip',
         caption_label: 'text-sm font-medium text-foreground-neutral-base',
-        nav: 'flex items-center gap-4 fixed left-0 top-16 w-full z-10',
+        nav: 'flex items-center gap-4 absolute left-0 top-16 w-full z-10',
         button_previous: cn(
           'size-32 bg-transparent p-0 absolute left-16 top-0 cursor-pointer',
           'inline-flex items-center justify-center rounded-6',
