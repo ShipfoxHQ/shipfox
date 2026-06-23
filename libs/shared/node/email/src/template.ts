@@ -12,10 +12,9 @@ import {renderText, type TemplateName, type TemplateVariables} from './text.js';
 // (dev/test) or from the compiled bundle (prod).
 const emailsDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'emails');
 
-// The logo is hosted by the client app (apps/client/public/email-logo.png) and
-// served from its own origin, so the embedded URL follows the deployment's
-// CLIENT_BASE_URL instead of a third-party CDN. Computed once: config is fixed
-// at startup.
+// The logo asset is served by the client app at /email-logo.png
+// (apps/client/public/email-logo.png), so its URL is built from the deployment's
+// CLIENT_BASE_URL and resolved once at module load.
 const logoUrl = new URL('/email-logo.png', config.CLIENT_BASE_URL).toString();
 
 // Subjects are plain text, not HTML, so compile them with `noEscape` to keep a
