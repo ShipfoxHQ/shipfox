@@ -33,6 +33,34 @@ describe('job-lease-token', () => {
     expect(verified?.exp).toBeGreaterThan(verified?.iat ?? 0);
   });
 
+  test('returns claims when metric recording fails after successful verification', async () => {
+    vi.resetModules();
+    vi.doMock('@shipfox/node-opentelemetry', () => ({
+      instanceMetrics: {
+        getMeter: () => ({
+          createCounter: () => ({
+            add: () => {
+              throw new Error('metrics unavailable');
+            },
+          }),
+        }),
+      },
+    }));
+
+    try {
+      const tokenModule = await import('./job-lease-token.js');
+      const input = claims();
+
+      const token = await tokenModule.issueJobLeaseToken(input);
+      const verified = await tokenModule.verifyJobLeaseToken(token);
+
+      expect(verified?.jobId).toBe(input.jobId);
+    } finally {
+      vi.doUnmock('@shipfox/node-opentelemetry');
+      vi.resetModules();
+    }
+  });
+
   test('accepts UUIDv7 ids (job/run primary keys are uuidv7)', async () => {
     const input = {
       jobId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d0e',

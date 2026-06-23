@@ -32,6 +32,7 @@ import {
   markEmailVerified,
   updateUserPassword,
 } from '#db/users.js';
+import {type AuthTokenRefreshOutcome, recordTokenRefreshed} from '#metrics/index.js';
 import type {RefreshToken} from './entities/refresh-token.js';
 import type {User} from './entities/user.js';
 import {
@@ -62,6 +63,10 @@ function hoursFromNow(hours: number): Date {
 
 function daysFromNow(days: number): Date {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
+
+function recordRefreshOutcome(outcome: AuthTokenRefreshOutcome): void {
+  recordTokenRefreshed(outcome);
 }
 
 async function signAccessToken(user: User): Promise<string> {
@@ -321,12 +326,14 @@ export async function refreshAccessToken(params: {
   const currentHashedToken = hashOpaqueToken(params.refreshToken);
   const current = await findRefreshTokenByHash({hashedToken: currentHashedToken});
   if (!current) {
+    recordRefreshOutcome('rejected');
     throw new TokenInvalidError('Refresh token is invalid or expired');
   }
 
   const user = await findUserById({id: current.userId});
   if (user?.status !== 'active') {
     await revokeRefreshTokenByHash({hashedToken: currentHashedToken});
+    recordRefreshOutcome('rejected');
     throw new TokenInvalidError('Refresh token is invalid or expired');
   }
 
@@ -335,9 +342,11 @@ export async function refreshAccessToken(params: {
   if (current.rotatedAt) {
     if (isWithinRotationGrace(current)) {
       const token = await signAccessToken(user);
+      recordRefreshOutcome('grace');
       return {token, refreshToken: undefined, user};
     }
     await revokeRefreshTokensForUser({userId: user.id});
+    recordRefreshOutcome('rejected');
     throw new TokenInvalidError('Refresh token reused after rotation');
   }
 
@@ -353,13 +362,16 @@ export async function refreshAccessToken(params: {
   if (!rotated) {
     const latest = await findRefreshTokenByHash({hashedToken: currentHashedToken});
     if (!latest || !isWithinRotationGrace(latest)) {
+      recordRefreshOutcome('rejected');
       throw new TokenInvalidError('Refresh token is invalid or expired');
     }
     const token = await signAccessToken(user);
+    recordRefreshOutcome('grace');
     return {token, refreshToken: undefined, user};
   }
 
   const token = await signAccessToken(user);
+  recordRefreshOutcome('rotated');
   return {token, refreshToken: nextRefreshToken, user};
 }
 
