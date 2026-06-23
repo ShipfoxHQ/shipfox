@@ -7,7 +7,7 @@ import {WorkflowRunSummary} from './workflow-run-summary.js';
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
 
 describe('WorkflowRunSummary', () => {
-  test('renders identity, status, trigger metadata, and timestamps', async () => {
+  test('renders identity, status, trigger metadata, and trigger time', async () => {
     renderSummary();
 
     const summary = await screen.findByRole('region', {name: 'deploy-web'});
@@ -15,8 +15,8 @@ describe('WorkflowRunSummary', () => {
     expect(within(summary).getByRole('heading', {name: 'deploy-web'})).toBeInTheDocument();
     expect(within(summary).getAllByText('Running')).not.toHaveLength(0);
     expect(within(summary).getByText('manual / fire')).toBeInTheDocument();
-    expect(within(summary).getByText('Created')).toBeInTheDocument();
-    expect(within(summary).getByText('Updated')).toBeInTheDocument();
+    expect(within(summary).getByText('Triggered')).toBeInTheDocument();
+    expect(within(summary).queryByText('Updated')).not.toBeInTheDocument();
   });
 
   test('keeps the full run id reachable from the keyboard', async () => {

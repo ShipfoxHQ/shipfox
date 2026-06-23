@@ -23,9 +23,9 @@ describe('toWorkflowRunSummary', () => {
       id: '66666666-6666-4666-8666-666666666666',
       shortId: '66666666',
       name: 'deploy-web',
+      triggerSource: 'manual',
       triggerLabel: 'manual / fire',
-      createdAt: '2026-05-07T01:01:00.000Z',
-      updatedAt: '2026-05-07T01:02:00.000Z',
+      triggeredAt: '2026-05-07T01:01:00.000Z',
     });
     expect(model.status.label).toBe('Running');
     expect(model.status.badge).toBe('info');

@@ -8,9 +8,9 @@ export interface WorkflowRunSummaryModel {
   shortId: string;
   name: string;
   status: WorkflowStatusVisual;
+  triggerSource: string;
   triggerLabel: string | undefined;
-  createdAt: string;
-  updatedAt: string;
+  triggeredAt: string;
 }
 
 export function runShortId(id: string): string {
@@ -25,8 +25,8 @@ export function toWorkflowRunSummary(run: RunResponseDto): WorkflowRunSummaryMod
     shortId: runShortId(run.id),
     name: run.name,
     status: getWorkflowStatusVisual(run.status),
+    triggerSource: run.trigger_source,
     triggerLabel: triggerLabel || undefined,
-    createdAt: run.created_at,
-    updatedAt: run.updated_at,
+    triggeredAt: run.created_at,
   };
 }

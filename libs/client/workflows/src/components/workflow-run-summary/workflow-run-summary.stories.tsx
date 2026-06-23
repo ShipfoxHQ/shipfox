@@ -69,7 +69,7 @@ export const EmptyTriggerPayload: Story = {
 export const LongRunName: Story = {
   args: {
     run: makeRun({
-      name: 'release-production-multi-region-with-canary-and-smoke-tests-and-more',
+      name: 'release-production-multi-region-with-canary-and-smoke-tests-and-progressive-delivery-observability-and-post-deploy-validation-for-enterprise-workspaces',
     }),
   },
 };
