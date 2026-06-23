@@ -1,8 +1,8 @@
-import {createConfig, str} from '@shipfox/config';
+import {createConfig, url} from '@shipfox/config';
 
 export const config = createConfig({
-  CLIENT_BASE_URL: str({
-    desc: 'Base URL of the client app. Branded emails embed the Shipfox logo from this origin (served by the client app at /email-logo.png), so it must be a URL email clients can reach. Set it to your deployment domain.',
-    default: 'http://localhost:3000',
+  CLIENT_BASE_URL: url({
+    desc: 'Base URL of the client app. Branded emails load the Shipfox logo from it. Set it to the full URL of your deployment.',
+    default: 'http://localhost:5173',
   }),
 });

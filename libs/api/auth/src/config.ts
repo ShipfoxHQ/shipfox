@@ -30,7 +30,7 @@ export const config = createConfig({
   }),
   CLIENT_BASE_URL: str({
     desc: 'Base URL of the client app. Used to build links in emails such as password resets.',
-    default: 'http://localhost:3000',
+    default: 'http://localhost:5173',
   }),
   MAILER_TRANSPORT: str({
     desc: 'How emails are delivered. Use console to print them to the log, or smtp to send them through an SMTP server.',
