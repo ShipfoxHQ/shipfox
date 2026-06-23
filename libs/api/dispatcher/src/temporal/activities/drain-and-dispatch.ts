@@ -22,7 +22,7 @@ export async function drainAndDispatch(): Promise<void> {
     const validation = validatePayload(row);
     if (!validation.success) {
       await recordDispatchFailure(row.source, row.id, validation.failure);
-      recordFailureMetric(validation.failure.kind);
+      recordFailureMetric(row.source, validation.failure.kind);
       continue;
     }
 
@@ -49,13 +49,13 @@ export async function drainAndDispatch(): Promise<void> {
       dispatched.set(row.source, ids);
     } else if (dispatchFailure) {
       await recordDispatchFailure(row.source, row.id, dispatchFailure);
-      recordFailureMetric(dispatchFailure.kind);
+      recordFailureMetric(row.source, dispatchFailure.kind);
     }
   }
 
   for (const [source, ids] of dispatched) {
     await markDispatched(source, ids);
-    eventDispatchedCount.add(ids.length, {outcome: 'succeeded'});
+    eventDispatchedCount.add(ids.length, {module: source, outcome: 'succeeded'});
   }
 }
 
@@ -99,7 +99,7 @@ function failureFromHandler(row: DrainedEvent, error: unknown): OutboxDispatchFa
   };
 }
 
-function recordFailureMetric(reason: OutboxDispatchFailure['kind']): void {
-  eventDispatchedCount.add(1, {outcome: 'failed'});
-  dispatchFailureCount.add(1, {reason});
+function recordFailureMetric(source: string, reason: OutboxDispatchFailure['kind']): void {
+  eventDispatchedCount.add(1, {module: source, outcome: 'failed'});
+  dispatchFailureCount.add(1, {module: source, reason});
 }

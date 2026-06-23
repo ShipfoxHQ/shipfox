@@ -114,8 +114,14 @@ describe('drainAndDispatch', () => {
       errorName: 'Error',
       errorMessage: 'subscriber failed',
     });
-    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'failed'});
-    expect(mocks.dispatchFailureAdd).toHaveBeenCalledWith(1, {reason: 'handler'});
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {
+      module: 'projects',
+      outcome: 'failed',
+    });
+    expect(mocks.dispatchFailureAdd).toHaveBeenCalledWith(1, {
+      module: 'projects',
+      reason: 'handler',
+    });
     expect(mocks.markDispatched).not.toHaveBeenCalled();
   });
 
@@ -162,8 +168,14 @@ describe('drainAndDispatch', () => {
       }),
     });
     expect(JSON.stringify(captureOptions)).not.toContain('raw-secret');
-    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'failed'});
-    expect(mocks.dispatchFailureAdd).toHaveBeenCalledWith(1, {reason: 'validation'});
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {
+      module: 'definitions',
+      outcome: 'failed',
+    });
+    expect(mocks.dispatchFailureAdd).toHaveBeenCalledWith(1, {
+      module: 'definitions',
+      reason: 'validation',
+    });
   });
 
   it('passes the parsed payload to handlers when validation succeeds', async () => {
@@ -185,7 +197,10 @@ describe('drainAndDispatch', () => {
       expect.objectContaining({type: event.type, payload: parsed}),
     );
     expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', [event.id]);
-    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'succeeded'});
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {
+      module: 'workflows',
+      outcome: 'succeeded',
+    });
     expect(mocks.recordDispatchFailure).not.toHaveBeenCalled();
   });
 
@@ -204,7 +219,10 @@ describe('drainAndDispatch', () => {
     await drainAndDispatch();
 
     expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', [event.id]);
-    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'succeeded'});
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {
+      module: 'workflows',
+      outcome: 'succeeded',
+    });
     expect(mocks.recordDispatchFailure).not.toHaveBeenCalled();
   });
 
@@ -261,9 +279,22 @@ describe('drainAndDispatch', () => {
       },
     });
     expect(mocks.drainBatchRecord).toHaveBeenCalledWith(3);
-    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'failed'});
-    expect(mocks.dispatchFailureAdd).toHaveBeenCalledWith(1, {reason: 'validation'});
-    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'succeeded'});
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {
+      module: 'workflows',
+      outcome: 'failed',
+    });
+    expect(mocks.dispatchFailureAdd).toHaveBeenCalledWith(1, {
+      module: 'workflows',
+      reason: 'validation',
+    });
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {
+      module: 'workflows',
+      outcome: 'succeeded',
+    });
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {
+      module: 'integrations',
+      outcome: 'succeeded',
+    });
     expect(mocks.eventDispatchedAdd).toHaveBeenCalledTimes(3);
   });
 
@@ -295,8 +326,14 @@ describe('drainAndDispatch', () => {
       errorName: 'Error',
       errorMessage: 'second handler failed',
     });
-    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'failed'});
-    expect(mocks.dispatchFailureAdd).toHaveBeenCalledWith(1, {reason: 'handler'});
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {
+      module: 'workflows',
+      outcome: 'failed',
+    });
+    expect(mocks.dispatchFailureAdd).toHaveBeenCalledWith(1, {
+      module: 'workflows',
+      reason: 'handler',
+    });
     expect(mocks.markDispatched).not.toHaveBeenCalled();
   });
 });
