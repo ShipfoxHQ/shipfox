@@ -1,5 +1,6 @@
 import type {
   TriggerEventDetailResponseDto,
+  TriggerEventFacetsResponseDto,
   TriggerEventListResponseDto,
   TriggerEventOutcomeDto,
 } from '@shipfox/api-triggers-dto';
@@ -36,6 +37,7 @@ export const triggerEventsQueryKeys = {
       normalizeTriggerEventFiltersForQueryKey(filters),
     ] as const,
   detail: (id: string) => [...triggerEventsQueryKeys.all, 'detail', id] as const,
+  facets: (workspaceId: string) => [...triggerEventsQueryKeys.all, 'facets', workspaceId] as const,
 };
 
 export async function listTriggerEvents({
@@ -102,5 +104,31 @@ export function useTriggerEventQuery(id: string | undefined) {
     queryKey: id ? triggerEventsQueryKeys.detail(id) : [...triggerEventsQueryKeys.all, 'detail'],
     enabled: Boolean(id),
     queryFn: ({signal}) => getTriggerEvent({id: id ?? '', signal}),
+  });
+}
+
+export async function getTriggerEventFacets({
+  workspaceId,
+  signal,
+}: {
+  workspaceId: string;
+  signal?: AbortSignal;
+}) {
+  const params = new URLSearchParams({workspace_id: workspaceId});
+  return await apiRequest<TriggerEventFacetsResponseDto>(
+    `/trigger-events/facets?${params.toString()}`,
+    {signal},
+  );
+}
+
+export function useTriggerEventFacetsQuery(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: workspaceId
+      ? triggerEventsQueryKeys.facets(workspaceId)
+      : [...triggerEventsQueryKeys.all, 'facets'],
+    enabled: Boolean(workspaceId),
+    queryFn: ({signal}) => getTriggerEventFacets({workspaceId: workspaceId ?? '', signal}),
+    // Distinct values change slowly; avoid refetching on every page mount.
+    staleTime: 5 * 60 * 1000,
   });
 }

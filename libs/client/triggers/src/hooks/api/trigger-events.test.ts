@@ -1,5 +1,10 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {getTriggerEvent, listTriggerEvents, triggerEventsQueryKeys} from './trigger-events.js';
+import {
+  getTriggerEvent,
+  getTriggerEventFacets,
+  listTriggerEvents,
+  triggerEventsQueryKeys,
+} from './trigger-events.js';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -86,6 +91,16 @@ describe('triggerEventsQueryKeys', () => {
     const id = '22222222-2222-4222-8222-222222222222';
 
     expect(triggerEventsQueryKeys.detail(id)).toEqual(['trigger-events', 'detail', id]);
+  });
+
+  test('facets key carries the workspace id', () => {
+    const workspaceId = '11111111-1111-4111-8111-111111111111';
+
+    expect(triggerEventsQueryKeys.facets(workspaceId)).toEqual([
+      'trigger-events',
+      'facets',
+      workspaceId,
+    ]);
   });
 });
 
@@ -184,6 +199,25 @@ describe('getTriggerEvent', () => {
 
     const url = new URL(requestFrom(fetchImpl).url);
     expect(url.pathname).toBe(`/trigger-events/${id}`);
+    expect(requestFrom(fetchImpl).method).toBe('GET');
+  });
+});
+
+describe('getTriggerEventFacets', () => {
+  beforeEach(() => {
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: undefined});
+  });
+
+  test('requests the workspace facets', async () => {
+    const workspaceId = '11111111-1111-4111-8111-111111111111';
+    const fetchImpl = vi.fn(async () => jsonResponse({sources: [], events: []}));
+    configureApiClient({fetchImpl});
+
+    await getTriggerEventFacets({workspaceId});
+
+    const url = new URL(requestFrom(fetchImpl).url);
+    expect(url.pathname).toBe('/trigger-events/facets');
+    expect(url.searchParams.get('workspace_id')).toBe(workspaceId);
     expect(requestFrom(fetchImpl).method).toBe('GET');
   });
 });

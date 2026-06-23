@@ -12,6 +12,9 @@ export function SettingsNav({workspaceId}: {workspaceId: string}) {
   const isIntegrationsActive = Boolean(
     matchRoute({to: '/workspaces/$wid/settings/integrations', params: {wid: workspaceId}}),
   );
+  const isEventsActive = Boolean(
+    matchRoute({to: '/workspaces/$wid/settings/events', params: {wid: workspaceId}}),
+  );
 
   return (
     <nav aria-label="Workspace settings" className="flex flex-col gap-4">
@@ -55,6 +58,20 @@ export function SettingsNav({workspaceId}: {workspaceId: string}) {
         >
           <Icon name="plugLine" className="size-16" />
           Integrations
+        </Link>
+      </Button>
+      <Button
+        asChild
+        variant={isEventsActive ? 'secondary' : 'transparent'}
+        className="w-full justify-start"
+      >
+        <Link
+          to="/workspaces/$wid/settings/events"
+          params={{wid: workspaceId}}
+          aria-current={isEventsActive ? 'page' : undefined}
+        >
+          <Icon name="pulseLine" className="size-16" />
+          Events
         </Link>
       </Button>
     </nav>

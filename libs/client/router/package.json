@@ -35,6 +35,7 @@
     "@shipfox/client-app-shell": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/client-integrations": "workspace:*",
+    "@shipfox/client-triggers": "workspace:*",
     "@shipfox/client-invitations": "workspace:*",
     "@shipfox/client-projects": "workspace:*",
     "@shipfox/client-workflows": "workspace:*",
