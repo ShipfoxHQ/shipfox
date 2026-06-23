@@ -25,6 +25,14 @@ export default defineConfig(
         },
         {
           extends: true,
+          test: {
+            name: 'dom',
+            environment: 'jsdom',
+            include: ['src/**/*.test.tsx'],
+          },
+        },
+        {
+          extends: true,
           plugins: [
             storybookTest({configDir: path.join(dirname, '.storybook')}),
             argosVitestPlugin({

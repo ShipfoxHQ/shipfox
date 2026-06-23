@@ -1,4 +1,10 @@
 export {
+  mergeLogRead,
+  parseLogNdjson,
+  type StepLogSnapshot,
+  stepLogRefetchInterval,
+} from '#core/log-read.js';
+export {
   buildLogTree,
   type GroupLogNode,
   type LogNode,
@@ -7,3 +13,8 @@ export {
   type OutputLogNode,
 } from '#core/log-tree.js';
 export * from './components/index.js';
+export {
+  readStepAttemptLogsPage,
+  stepLogsQueryKeys,
+  useStepAttemptLogsQuery,
+} from './hooks/api/step-logs.js';
