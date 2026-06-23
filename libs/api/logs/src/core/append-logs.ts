@@ -33,8 +33,9 @@ export interface AppendLogsResult {
 }
 
 interface ParsedBody {
+  agentSessionRecordCount: number;
   declaredTotalBytes?: number;
-  recordCount: number;
+  processRecordCount: number;
 }
 
 /**
@@ -50,7 +51,7 @@ interface ParsedBody {
  * its type via `forgedType` for the narrowed audit warn.
  */
 function parseAppendBody(body: Buffer): ParsedBody {
-  if (body.length === 0) return {recordCount: 0};
+  if (body.length === 0) return {agentSessionRecordCount: 0, processRecordCount: 0};
 
   const text = body.toString('utf8');
   if (!text.endsWith('\n')) {
@@ -59,8 +60,9 @@ function parseAppendBody(body: Buffer): ParsedBody {
   const lines = text.split('\n');
   lines.pop();
 
+  let agentSessionRecordCount = 0;
   let declaredTotalBytes: number | undefined;
-  let recordCount = 0;
+  let processRecordCount = 0;
   for (const line of lines) {
     let record: ReturnType<typeof parseAppendableLogRecordLine>;
     try {
@@ -71,7 +73,11 @@ function parseAppendBody(body: Buffer): ParsedBody {
         detectForgedType(line),
       );
     }
-    recordCount += 1;
+    if (record.type === 'agent_session') {
+      agentSessionRecordCount += 1;
+    } else {
+      processRecordCount += 1;
+    }
     if (record.type === 'end') {
       declaredTotalBytes = record.total_bytes;
     }
@@ -88,7 +94,9 @@ function parseAppendBody(body: Buffer): ParsedBody {
     }
   }
 
-  return declaredTotalBytes === undefined ? {recordCount} : {declaredTotalBytes, recordCount};
+  return declaredTotalBytes === undefined
+    ? {agentSessionRecordCount, processRecordCount}
+    : {agentSessionRecordCount, declaredTotalBytes, processRecordCount};
 }
 
 /**
@@ -218,6 +226,7 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
   const {declaredTotalBytes} = parsed;
   const byteLen = params.body.length;
   const metrics = {
+    agentSessionRecordCount: 0,
     processRecordCount: 0,
     streamClosedReason: undefined as 'declared' | undefined,
     streamOpened: false,
@@ -261,7 +270,10 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
       committedLength: cas.committedLength,
       declaredTotalBytes,
     });
-    if (stored) metrics.processRecordCount += parsed.recordCount;
+    if (stored) {
+      metrics.agentSessionRecordCount += parsed.agentSessionRecordCount;
+      metrics.processRecordCount += parsed.processRecordCount;
+    }
     metrics.systemRecordCount += systemRecordCount;
 
     // The runner's end record was committed in this append (offset-CAS guarantees
@@ -281,6 +293,9 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
   if (metrics.streamOpened) streamOpenedCount.add(1);
   if (metrics.processRecordCount > 0) {
     recordAppendedCount.add(metrics.processRecordCount, {kind: 'process'});
+  }
+  if (metrics.agentSessionRecordCount > 0) {
+    recordAppendedCount.add(metrics.agentSessionRecordCount, {kind: 'agent_session'});
   }
   if (metrics.systemRecordCount > 0) {
     recordAppendedCount.add(metrics.systemRecordCount, {kind: 'system'});
