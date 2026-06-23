@@ -29,6 +29,8 @@ export {
   runListResponseSchema,
   runResponseSchema,
   runStatusSchema,
+  type WorkflowSourceSnapshotDto,
+  workflowSourceSnapshotSchema,
 } from './run.js';
 export {
   type RunDetailResponseDto,

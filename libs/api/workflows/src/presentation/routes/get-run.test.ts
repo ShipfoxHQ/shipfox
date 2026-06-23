@@ -97,6 +97,7 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.id).toBe(run.id);
+    expect(body.source_snapshot).toBeNull();
     expect(body.jobs).toHaveLength(1);
     expect(body.jobs[0].name).toBe('build');
     // Synthetic setup step at position 0, then the two user steps.
@@ -107,6 +108,38 @@ describe('GET /api/workflows/runs/:id', () => {
     // Timing fields flow through the read model (null on a fresh, unstamped run).
     expect(body).toMatchObject({started_at: null, finished_at: null});
     expect(body.jobs[0]).toMatchObject({queued_at: null, started_at: null, finished_at: null});
+  });
+
+  test('returns run source snapshot when present', async () => {
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+    const sourceContent = `name: Source View
+jobs:
+  build:
+    steps:
+      - run: echo source
+`;
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model: workflowModel({name: 'Source View'}),
+      sourceSnapshot: {content: sourceContent, format: 'yaml'},
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().source_snapshot).toEqual({content: sourceContent, format: 'yaml'});
   });
 
   test('exposes per-step error and cancelled status after a failed per-step report', async () => {

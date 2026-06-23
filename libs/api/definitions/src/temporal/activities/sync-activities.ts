@@ -117,6 +117,7 @@ function createFetchAndApplyActivity(sourceControl: IntegrationSourceControlServ
           name: entry.name,
           document: entry.definition.document,
           model: entry.definition.model,
+          sourceSnapshot: entry.definition.sourceSnapshot,
           contentHash: entry.contentHash,
         })),
       });

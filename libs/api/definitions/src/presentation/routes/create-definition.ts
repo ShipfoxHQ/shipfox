@@ -42,6 +42,7 @@ export const createDefinitionRoute = defineRoute({
       name: parsed.document.name,
       document: parsed.document,
       model: parsed.model,
+      sourceSnapshot: parsed.sourceSnapshot,
       sha,
       ref,
     });

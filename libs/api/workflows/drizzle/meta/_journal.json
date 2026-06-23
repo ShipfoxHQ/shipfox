@@ -15,6 +15,13 @@
       "when": 1781129096855,
       "tag": "0001_step_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781631593340,
+      "tag": "0002_add_run_source_snapshot",
+      "breakpoints": true
     }
   ]
 }

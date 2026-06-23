@@ -24,7 +24,14 @@ import {
 } from '#presentation/index.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
 
-export type {Job, RunWorkflowParams, Step, TriggerPayload, WorkflowRun} from '#core/index.js';
+export type {
+  Job,
+  RunWorkflowParams,
+  Step,
+  TriggerPayload,
+  WorkflowRun,
+  WorkflowSourceSnapshot,
+} from '#core/index.js';
 export {
   DefinitionNotFoundError,
   isPermanentRunWorkflowError,
