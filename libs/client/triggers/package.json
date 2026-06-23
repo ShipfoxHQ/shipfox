@@ -36,9 +36,12 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-triggers-dto": "workspace:*",
+    "@shipfox/client-api": "workspace:*",
     "@shipfox/client-integrations": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
-    "@swc/helpers": "^0.5.17"
+    "@swc/helpers": "^0.5.17",
+    "@tanstack/react-query": "^5.101.0"
   },
   "peerDependencies": {
     "react": "^19.0.0",
