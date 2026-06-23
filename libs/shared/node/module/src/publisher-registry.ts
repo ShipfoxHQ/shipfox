@@ -1,5 +1,5 @@
 import type {DomainEvent, OutboxTable} from '@shipfox/node-outbox';
-import {and, asc, eq, inArray, isNull, lte, sql} from 'drizzle-orm';
+import {and, asc, eq, getTableName, inArray, isNull, lte, sql} from 'drizzle-orm';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import type {ZodType} from 'zod';
 
@@ -36,6 +36,18 @@ export type OutboxDispatchFailure =
       errorName: string;
       errorMessage: string;
     };
+
+export interface PruneDispatchedOutboxRowsOptions {
+  retentionDays: number;
+  batchSize: number;
+  maxBatchesPerSource: number;
+}
+
+export interface PrunedOutboxSource {
+  source: string;
+  deleted: number;
+  capped: boolean;
+}
 
 const _sources: PublisherSource[] = [];
 const _schemasByType = new Map<string, ZodType>();
@@ -147,9 +159,75 @@ export async function recordDispatchFailure(
     );
 }
 
+export async function pruneDispatchedOutboxRows(
+  options: PruneDispatchedOutboxRowsOptions,
+): Promise<PrunedOutboxSource[]> {
+  assertPositiveInteger(options.retentionDays, 'retentionDays');
+  assertPositiveInteger(options.batchSize, 'batchSize');
+  assertPositiveInteger(options.maxBatchesPerSource, 'maxBatchesPerSource');
+
+  const results: PrunedOutboxSource[] = [];
+
+  for (const source of _sources) {
+    let deleted = 0;
+    let capped = false;
+
+    for (let batch = 0; batch < options.maxBatchesPerSource; batch += 1) {
+      const batchDeleted = await deleteDispatchedBatch(source, options);
+      deleted += batchDeleted;
+
+      if (batchDeleted < options.batchSize) {
+        capped = false;
+        break;
+      }
+
+      capped = batch === options.maxBatchesPerSource - 1;
+    }
+
+    results.push({source: source.name, deleted, capped});
+  }
+
+  return results;
+}
+
 export function resetPublishers(): void {
   _sources.length = 0;
   _schemasByType.clear();
+}
+
+async function deleteDispatchedBatch(
+  source: PublisherSource,
+  options: PruneDispatchedOutboxRowsOptions,
+): Promise<number> {
+  const result = await source.db().execute<{deleted: number}>(
+    sql`
+      WITH deleted AS (
+        SELECT id
+        FROM ${sql.raw(quoteIdentifier(getTableName(source.table)))}
+        WHERE dispatched_at < now() - (${options.retentionDays} * interval '1 day')
+        ORDER BY dispatched_at, id
+        LIMIT ${options.batchSize}
+      ),
+      removed AS (
+        DELETE FROM ${sql.raw(quoteIdentifier(getTableName(source.table)))}
+        WHERE id IN (SELECT id FROM deleted)
+        RETURNING id
+      )
+      SELECT count(*)::int AS deleted FROM removed
+    `,
+  );
+
+  return result.rows[0]?.deleted ?? 0;
+}
+
+function assertPositiveInteger(value: number, name: string): void {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+}
+
+function quoteIdentifier(identifier: string): string {
+  return `"${identifier.replaceAll('"', '""')}"`;
 }
 
 function nextDispatchAtSql(table: OutboxTable) {

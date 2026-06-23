@@ -1,4 +1,4 @@
-import {pgTableCreator} from 'drizzle-orm/pg-core';
+import {getTableConfig, pgTableCreator} from 'drizzle-orm/pg-core';
 import {createOutboxTable} from './schema.js';
 import {writeOutboxEvent, writeOutboxEvents} from './write.js';
 
@@ -16,6 +16,18 @@ describe('createOutboxTable', () => {
     expect(outboxTable.lastDispatchError.name).toBe('last_dispatch_error');
     expect(outboxTable.lastDispatchFailedAt.name).toBe('last_dispatch_failed_at');
     expect(outboxTable.deadLetteredAt.name).toBe('dead_lettered_at');
+  });
+
+  it('indexes dispatched rows for retention pruning', () => {
+    const retentionIndex = getTableConfig(outboxTable).indexes.find(
+      (index) => index.config.name === 'outbox_dispatched_retention_idx',
+    );
+
+    expect(retentionIndex).toBeDefined();
+    expect(
+      retentionIndex?.config.columns.map((column) => ('name' in column ? column.name : null)),
+    ).toEqual(['dispatched_at', 'id']);
+    expect(retentionIndex?.config.where).toBeDefined();
   });
 });
 

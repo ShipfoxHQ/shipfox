@@ -1,7 +1,11 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {ShipfoxModule} from '@shipfox/node-module';
-import {DISPATCHER_TASK_QUEUE, DISPATCHER_WORKFLOW_ID} from '#core/constants.js';
+import {
+  DISPATCHER_TASK_QUEUE,
+  DISPATCHER_WORKFLOW_ID,
+  OUTBOX_RETENTION_WORKFLOW_ID,
+} from '#core/constants.js';
 import {createActivities} from '#temporal/index.js';
 
 // Temporal's webpack bundler requires a compiled .js file. Whether running from
@@ -16,7 +20,14 @@ export const dispatcherModule: ShipfoxModule = {
       taskQueue: DISPATCHER_TASK_QUEUE,
       workflowsPath,
       activities: createActivities,
-      workflows: [{name: 'outboxDispatcherWorkflow', id: DISPATCHER_WORKFLOW_ID}],
+      workflows: [
+        {name: 'outboxDispatcherWorkflow', id: DISPATCHER_WORKFLOW_ID},
+        {
+          name: 'outboxRetentionWorkflow',
+          id: OUTBOX_RETENTION_WORKFLOW_ID,
+          cronSchedule: '0 0 * * *',
+        },
+      ],
     },
   ],
 };

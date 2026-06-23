@@ -60,3 +60,5 @@ CREATE INDEX "logs_attempt_streams_retention_idx" ON "logs_attempt_streams" USIN
 CREATE INDEX "logs_attempt_streams_uncompacted_idx" ON "logs_attempt_streams" USING btree ("closed_at") WHERE "state" = 'closed' and "object_key" is null;--> statement-breakpoint
 CREATE INDEX "logs_chunks_stream_seq_idx" ON "logs_chunks" USING btree ("stream_id","seq");--> statement-breakpoint
 CREATE INDEX "logs_outbox_pending_idx" ON "logs_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;
+--> statement-breakpoint
+CREATE INDEX "logs_outbox_dispatched_retention_idx" ON "logs_outbox" USING btree ("dispatched_at","id") WHERE "dispatched_at" IS NOT NULL;

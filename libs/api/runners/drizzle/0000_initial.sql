@@ -34,6 +34,8 @@ CREATE TABLE "runners_running_jobs" (
 	CONSTRAINT "runners_running_jobs_job_id_unique" UNIQUE("job_id")
 );
 --> statement-breakpoint
-CREATE INDEX "runners_outbox_pending_idx" ON "runners_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "runners_outbox_pending_idx" ON "runners_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;
+--> statement-breakpoint
+CREATE INDEX "runners_outbox_dispatched_retention_idx" ON "runners_outbox" USING btree ("dispatched_at","id") WHERE "dispatched_at" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "runners_pending_jobs_created_idx" ON "runners_pending_jobs" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "runners_running_jobs_last_heartbeat_at_idx" ON "runners_running_jobs" USING btree ("last_heartbeat_at");

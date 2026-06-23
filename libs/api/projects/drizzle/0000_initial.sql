@@ -30,5 +30,7 @@ CREATE TABLE "projects_integration_event_dedup" (
 --> statement-breakpoint
 CREATE UNIQUE INDEX "projects_source_unique" ON "projects_projects" USING btree ("source_connection_id","source_external_repository_id");--> statement-breakpoint
 CREATE INDEX "projects_workspace_created_id_idx" ON "projects_projects" USING btree ("workspace_id","created_at","id");--> statement-breakpoint
-CREATE INDEX "projects_outbox_pending_idx" ON "projects_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "projects_outbox_pending_idx" ON "projects_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;
+--> statement-breakpoint
+CREATE INDEX "projects_outbox_dispatched_retention_idx" ON "projects_outbox" USING btree ("dispatched_at","id") WHERE "dispatched_at" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "projects_integration_event_dedup_received_at_idx" ON "projects_integration_event_dedup" USING btree ("received_at");

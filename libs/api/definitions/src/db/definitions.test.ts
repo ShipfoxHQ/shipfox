@@ -4,6 +4,7 @@ import {
   drainAll,
   markDispatched,
   type OutboxDispatchFailure,
+  pruneDispatchedOutboxRows,
   recordDispatchFailure,
   registerPublisher,
   resetPublishers,
@@ -22,6 +23,8 @@ import {
 } from './definitions.js';
 import {workflowDefinitions} from './schema/definitions.js';
 import {definitionsOutbox} from './schema/outbox.js';
+
+const MS_PER_DAY = 24 * 60 * 60 * 1_000;
 
 function definitionFields(name = 'Test Workflow'): WorkflowDefinitionPayload {
   const document = {
@@ -43,6 +46,25 @@ function eventsForProject(events: DrainedEvent[], projectId: string) {
     const payload = event.event.payload as {projectId?: unknown};
     return payload.projectId === projectId;
   });
+}
+
+async function insertOutboxRow(params: {
+  projectId: string;
+  marker: string;
+  dispatchedAt?: Date | null;
+  deadLetteredAt?: Date | null;
+}) {
+  const id = crypto.randomUUID();
+  await db()
+    .insert(definitionsOutbox)
+    .values({
+      id,
+      eventType: DEFINITION_RESOLVED,
+      payload: {projectId: params.projectId, marker: params.marker},
+      dispatchedAt: params.dispatchedAt ?? null,
+      deadLetteredAt: params.deadLetteredAt ?? null,
+    });
+  return id;
 }
 
 describe('definition queries', () => {
@@ -865,6 +887,86 @@ describe('definition queries', () => {
       expect(rows[0]?.dispatchAttempts).toBe(1);
       expect(rows[0]?.dispatchedAt).toBeInstanceOf(Date);
       expect(finalDrain).toHaveLength(0);
+    });
+
+    test('pruneDispatchedOutboxRows deletes only dispatched rows older than retention', async () => {
+      const oldDispatchedAt = new Date(Date.now() - 8 * MS_PER_DAY);
+      const recentDispatchedAt = new Date(Date.now() - 6 * MS_PER_DAY);
+      await insertOutboxRow({projectId, marker: 'old-dispatched', dispatchedAt: oldDispatchedAt});
+      await insertOutboxRow({
+        projectId,
+        marker: 'recent-dispatched',
+        dispatchedAt: recentDispatchedAt,
+      });
+      await insertOutboxRow({projectId, marker: 'old-pending'});
+      await insertOutboxRow({
+        projectId,
+        marker: 'dead-lettered',
+        deadLetteredAt: oldDispatchedAt,
+      });
+
+      const result = await pruneDispatchedOutboxRows({
+        retentionDays: 7,
+        batchSize: 10,
+        maxBatchesPerSource: 2,
+      });
+
+      const remaining = await listOutboxRowsForProject(projectId);
+      const markers = remaining.map((row) => (row.payload as {marker: string}).marker).sort();
+      expect(result).toEqual([{source: 'definitions', deleted: 1, capped: false}]);
+      expect(markers).toEqual(['dead-lettered', 'old-pending', 'recent-dispatched']);
+    });
+
+    test('pruneDispatchedOutboxRows continues across batches', async () => {
+      const oldDispatchedAt = new Date(Date.now() - 8 * MS_PER_DAY);
+      await insertOutboxRow({projectId, marker: 'old-1', dispatchedAt: oldDispatchedAt});
+      await insertOutboxRow({projectId, marker: 'old-2', dispatchedAt: oldDispatchedAt});
+      await insertOutboxRow({projectId, marker: 'old-3', dispatchedAt: oldDispatchedAt});
+
+      const result = await pruneDispatchedOutboxRows({
+        retentionDays: 7,
+        batchSize: 2,
+        maxBatchesPerSource: 2,
+      });
+
+      const remaining = await listOutboxRowsForProject(projectId);
+      expect(result).toEqual([{source: 'definitions', deleted: 3, capped: false}]);
+      expect(remaining).toHaveLength(0);
+    });
+
+    test('pruneDispatchedOutboxRows reports capped sources', async () => {
+      const oldDispatchedAt = new Date(Date.now() - 8 * MS_PER_DAY);
+      await insertOutboxRow({projectId, marker: 'old-1', dispatchedAt: oldDispatchedAt});
+      await insertOutboxRow({projectId, marker: 'old-2', dispatchedAt: oldDispatchedAt});
+      await insertOutboxRow({projectId, marker: 'old-3', dispatchedAt: oldDispatchedAt});
+
+      const result = await pruneDispatchedOutboxRows({
+        retentionDays: 7,
+        batchSize: 2,
+        maxBatchesPerSource: 1,
+      });
+
+      const remaining = await listOutboxRowsForProject(projectId);
+      expect(result).toEqual([{source: 'definitions', deleted: 2, capped: true}]);
+      expect(remaining).toHaveLength(1);
+    });
+
+    test('pruneDispatchedOutboxRows returns zero when no rows are eligible', async () => {
+      await insertOutboxRow({
+        projectId,
+        marker: 'recent-dispatched',
+        dispatchedAt: new Date(Date.now() - 6 * MS_PER_DAY),
+      });
+
+      const result = await pruneDispatchedOutboxRows({
+        retentionDays: 7,
+        batchSize: 10,
+        maxBatchesPerSource: 2,
+      });
+
+      const remaining = await listOutboxRowsForProject(projectId);
+      expect(result).toEqual([{source: 'definitions', deleted: 0, capped: false}]);
+      expect(remaining).toHaveLength(1);
     });
   });
 });
