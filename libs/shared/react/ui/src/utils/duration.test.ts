@@ -1,4 +1,4 @@
-import {humanDuration} from './duration.js';
+import {formatDuration, humanDuration} from './duration.js';
 
 describe('humanDuration', () => {
   test('returns seconds under a minute', () => {
@@ -78,5 +78,42 @@ describe('humanDuration', () => {
   test('returns empty string for unparseable input', () => {
     expect(humanDuration('not-a-date')).toBe('');
     expect(humanDuration('2026-05-13T00:00:00.000Z', 'nope')).toBe('');
+  });
+});
+
+describe('formatDuration', () => {
+  test.each([
+    [0, '0ms'],
+    [-10, '0ms'],
+    [412, '412ms'],
+    [2100, '2.1s'],
+    [59_000, '59s'],
+    [63_000, '1m 3s'],
+    [120_000, '2m'],
+    [3_600_000, '1h'],
+    [3_720_000, '1h 2m'],
+  ])('formats %i ms as %s', (ms, expected) => {
+    const result = formatDuration(ms);
+
+    expect(result).toBe(expected);
+  });
+
+  test.each([
+    [59_950, '1m'],
+    [59_999, '1m'],
+    [119_999, '2m'],
+    [3_599_999, '1h'],
+  ])('carries a rounded-up remainder instead of rendering 60 (%i → %s)', (ms, expected) => {
+    const result = formatDuration(ms);
+
+    expect(result).toBe(expected);
+  });
+
+  test('carries a sub-1000 fractional value up to 1s instead of 1000ms', () => {
+    expect(formatDuration(999.6)).toBe('1s');
+  });
+
+  test('collapses a non-finite value to 0ms', () => {
+    expect(formatDuration(Number.POSITIVE_INFINITY)).toBe('0ms');
   });
 });

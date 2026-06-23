@@ -1,0 +1,134 @@
+import type {LogRecord} from '@shipfox/api-logs-dto';
+import type {Meta, StoryObj} from '@storybook/react';
+import {LogView} from './log-view.js';
+
+const ESC = String.fromCharCode(27);
+const origin = new Date('2026-06-23T10:00:00.000Z').getTime();
+const at = (offsetSeconds: number) => origin + offsetSeconds * 1000;
+
+const out = (data: string, offset: number, stream: 'stdout' | 'stderr' = 'stdout'): LogRecord => ({
+  v: 1,
+  ts: at(offset),
+  type: 'output',
+  stream,
+  data,
+});
+const groupStart = (
+  groupId: string,
+  name: string,
+  offset: number,
+  parentGroupId: string | null = null,
+): LogRecord => ({
+  v: 1,
+  ts: at(offset),
+  type: 'group_start',
+  group_id: groupId,
+  parent_group_id: parentGroupId,
+  name,
+});
+const groupEnd = (groupId: string, offset: number): LogRecord => ({
+  v: 1,
+  ts: at(offset),
+  type: 'group_end',
+  group_id: groupId,
+});
+
+const showcaseRecords: LogRecord[] = [
+  out('$ pnpm build && pnpm test\n', 0),
+  groupStart('g1', 'Install dependencies', 1),
+  out('Resolving packages...\n', 2),
+  out('Linking 318 packages\n', 3),
+  groupEnd('g1', 4),
+  groupStart('g2', 'Build', 5),
+  out(`${ESC}[32m✓${ESC}[0m built ${ESC}[34m1284${ESC}[0m modules\n`, 6),
+  out('warn: deprecated glob@7, upgrade to glob@10\n', 7, 'stderr'),
+  groupEnd('g2', 8),
+  groupStart('g3', 'Test', 9),
+  out('running 42 tests\n', 10),
+  out('FAIL client.test.ts > retries on 503\n', 11, 'stderr'),
+  groupEnd('g3', 12),
+  {v: 1, ts: at(13), type: 'gap', dropped_bytes: 2048},
+  {v: 1, ts: at(14), type: 'end', total_bytes: 15_360},
+];
+
+// A pipeline nested three levels deep: Deploy > Build > Compile, and Deploy >
+// Test > {unit, e2e}. The e2e leaf writes to stderr, so its error bubbles up to
+// Test and the top-level pipeline (visible as an inset bar when those groups are
+// collapsed); the Build branch stays clean. Closed inner groups carry a duration.
+const nestedRecords: LogRecord[] = [
+  groupStart('g1', 'Deploy pipeline', 0),
+  out('$ ./deploy.sh\n', 0.1),
+  groupStart('g2', 'Build', 1, 'g1'),
+  out('resolving workspace graph\n', 1.2),
+  groupStart('g3', 'Compile @app/web', 2, 'g2'),
+  out(`${ESC}[32m✓${ESC}[0m built ${ESC}[34m842${ESC}[0m modules\n`, 3),
+  groupEnd('g3', 4),
+  groupStart('g4', 'Compile @app/api', 4.2, 'g2'),
+  out('tsc --build\n', 5),
+  out('✓ 1.1k files emitted\n', 6),
+  groupEnd('g4', 7),
+  groupEnd('g2', 7.5),
+  groupStart('g5', 'Test', 8, 'g1'),
+  groupStart('g6', 'unit', 8.2, 'g5'),
+  out('running 128 tests\n', 9),
+  out('✓ 128 passed\n', 10),
+  groupEnd('g6', 11),
+  groupStart('g7', 'e2e', 11.2, 'g5'),
+  out('running 12 specs\n', 12),
+  out('FAIL checkout.spec.ts > applies coupon at checkout\n', 13, 'stderr'),
+  groupEnd('g7', 14),
+  groupEnd('g5', 14.5),
+  groupEnd('g1', 15),
+  {v: 1, ts: at(15.2), type: 'end', total_bytes: 9_216},
+];
+
+const meta = {
+  title: 'Logs/LogView',
+  component: LogView,
+  parameters: {layout: 'padded'},
+  tags: ['autodocs'],
+  argTypes: {
+    timestamps: {control: 'inline-radio', options: ['off', 'rel', 'abs']},
+    wrap: {control: 'boolean'},
+    showLineNumbers: {control: 'boolean'},
+  },
+  args: {
+    timestamps: 'off',
+    wrap: false,
+    showLineNumbers: true,
+  },
+} satisfies Meta<typeof LogView>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Showcase: Story = {
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={showcaseRecords} />
+    </div>
+  ),
+};
+
+/**
+ * Groups nested three levels deep (Deploy > Build > Compile, Deploy > Test >
+ * unit/e2e). Each level indents; the failing `e2e` leaf bubbles its error up to
+ * `Test` and `Deploy pipeline`. Collapse any group to see its "N lines" summary,
+ * duration, and (for a branch with a failure) the inset error bar.
+ */
+export const NestedGroups: Story = {
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={nestedRecords} />
+    </div>
+  ),
+};
+
+export const Empty: Story = {
+  args: {showLineNumbers: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={[]} />
+    </div>
+  ),
+};

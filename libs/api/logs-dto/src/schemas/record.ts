@@ -1,4 +1,3 @@
-import {Buffer} from 'node:buffer';
 import {z} from 'zod';
 
 /**
@@ -36,10 +35,15 @@ export const MAX_RECORD_NAME_BYTES = 1024;
  */
 export const MAX_RECORD_GROUP_ID_BYTES = 256;
 
+// UTF-8 byte length without node:buffer, so this shared DTO stays browser-safe (the
+// client log viewer imports these types too). Identical to Buffer.byteLength(x, 'utf8').
+const utf8Encoder = new TextEncoder();
+const utf8ByteLength = (value: string): number => utf8Encoder.encode(value).length;
+
 const groupId = z
   .string()
   .min(1, {message: 'group id must not be empty'})
-  .refine((value) => Buffer.byteLength(value, 'utf8') <= MAX_RECORD_GROUP_ID_BYTES, {
+  .refine((value) => utf8ByteLength(value) <= MAX_RECORD_GROUP_ID_BYTES, {
     message: `group id exceeds ${MAX_RECORD_GROUP_ID_BYTES} bytes`,
   });
 
@@ -56,7 +60,7 @@ const logOutput = z.object({
   data: z
     .string()
     .min(1, {message: 'output data must not be empty'})
-    .refine((value) => Buffer.byteLength(value, 'utf8') <= MAX_RECORD_DATA_BYTES, {
+    .refine((value) => utf8ByteLength(value) <= MAX_RECORD_DATA_BYTES, {
       message: `data exceeds ${MAX_RECORD_DATA_BYTES} payload bytes`,
     }),
 });
@@ -66,7 +70,7 @@ const logGroupStart = z.object({
   type: z.literal('group_start'),
   group_id: groupId,
   parent_group_id: groupId.nullable(),
-  name: z.string().refine((value) => Buffer.byteLength(value, 'utf8') <= MAX_RECORD_NAME_BYTES, {
+  name: z.string().refine((value) => utf8ByteLength(value) <= MAX_RECORD_NAME_BYTES, {
     message: `group name exceeds ${MAX_RECORD_NAME_BYTES} bytes`,
   }),
 });
@@ -124,7 +128,6 @@ export const logRecordSchema = z.discriminatedUnion('type', [
 export type AppendableLogRecord = z.infer<typeof appendableLogRecordSchema>;
 export type LogRecord = z.infer<typeof logRecordSchema>;
 
-/** Parses one NDJSON line against the full read union. Throws on invalid JSON or an unknown record. */
 export function parseLogRecordLine(line: string): LogRecord {
   return logRecordSchema.parse(JSON.parse(line));
 }
