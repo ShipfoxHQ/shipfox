@@ -8,6 +8,7 @@
 "@shipfox/api-projects": patch
 "@shipfox/client-auth": patch
 "@shipfox/client-projects": patch
+"@shipfox/regex": minor
 ---
 
-Tightens signup, workspace, and project display-name validation with shared trimming, control-character rejection, length limits, and contextual client form errors.
+Tightens signup, workspace, and project display-name validation with shared trimming, control and format-character rejection, length limits, and contextual client form errors.

@@ -89,12 +89,14 @@ describe('CreateProjectPage', () => {
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
     expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
     fireEvent.change(await screen.findByLabelText('Project name'), {
-      target: {value: 'Bad\tName'},
+      target: {value: 'Bad\u202eName'},
     });
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
     expect(
-      await screen.findByText('Project name cannot include line breaks or tabs.'),
+      await screen.findByText(
+        'Project name cannot include line breaks, tabs, or hidden formatting characters.',
+      ),
     ).toBeInTheDocument();
     expect(projectPostCount(fetchImpl)).toBe(0);
   });

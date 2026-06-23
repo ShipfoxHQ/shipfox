@@ -49,6 +49,7 @@ describe('POST /auth/signup', () => {
     ['missing', undefined],
     ['blank after trimming', '   '],
     ['with control characters', 'New\nUser'],
+    ['with format characters', 'New\u202eUser'],
   ])('rejects a %s display name', async (_case, name) => {
     const email = uniqueEmail('signup-name-invalid');
     const payload: {email: string; password: string; name?: string} = {email, password};

@@ -140,12 +140,16 @@ describe('SignupPage', () => {
     configureApiClient({fetchImpl});
 
     renderAuthPage('/auth/signup', <SignupPage />);
-    fireEvent.change(await screen.findByLabelText('Name'), {target: {value: 'New\tUser'}});
+    fireEvent.change(await screen.findByLabelText('Name'), {target: {value: 'New\u202eUser'}});
     fireEvent.change(screen.getByLabelText('Email'), {target: {value: 'new@example.com'}});
     fireEvent.change(screen.getByLabelText('Password'), {target: {value: 'long secure password'}});
     fireEvent.click(screen.getByRole('button', {name: 'Create account'}));
 
-    expect(await screen.findByText('Name cannot include line breaks or tabs.')).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        'Name cannot include line breaks, tabs, or hidden formatting characters.',
+      ),
+    ).toBeInTheDocument();
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 

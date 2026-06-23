@@ -139,12 +139,14 @@ describe('WorkspaceOnboardingPage', () => {
       </AuthGuard>,
     );
     fireEvent.change(await screen.findByLabelText('Workspace name'), {
-      target: {value: 'Acme\tLabs'},
+      target: {value: 'Acme\u202eLabs'},
     });
     fireEvent.click(screen.getByRole('button', {name: 'Create workspace'}));
 
     expect(
-      await screen.findByText('Workspace name cannot include line breaks or tabs.'),
+      await screen.findByText(
+        'Workspace name cannot include line breaks, tabs, or hidden formatting characters.',
+      ),
     ).toBeInTheDocument();
     expect(workspacePostCount(fetchImpl)).toBe(0);
   });

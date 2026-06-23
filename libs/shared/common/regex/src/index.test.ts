@@ -1,6 +1,8 @@
 import {
   ALNUM_SLUG_RE,
   createShipfoxTokenPrefixRegexes,
+  DISPLAY_NAME_DISALLOWED_CHARACTER_RE,
+  hasDisplayNameDisallowedCharacter,
   isAlnumSlug,
   isLowercaseAlphaSlug,
   isLowercaseSha256Hex,
@@ -91,6 +93,30 @@ describe('LOWERCASE_SHA256_HEX_RE', () => {
   });
 });
 
+describe('display name character matcher', () => {
+  it.each([
+    ['newline', 'Acme\nPlatform'],
+    ['tab', 'Acme\tPlatform'],
+    ['NUL', 'Acme\0Platform'],
+    ['escape', 'Acme\u001b[31mPlatform'],
+    ['right-to-left override', 'Acme\u202ePlatform'],
+    ['zero-width joiner', 'Acme\u200dPlatform'],
+  ])('matches a %s character', (_name, value) => {
+    const result = hasDisplayNameDisallowedCharacter(value);
+
+    expect(result).toBe(true);
+  });
+
+  it.each([
+    'Acme Platform',
+    'Équipe Renard 🚀',
+  ])('does not match visible display name %s', (value) => {
+    const result = hasDisplayNameDisallowedCharacter(value);
+
+    expect(result).toBe(false);
+  });
+});
+
 describe('createShipfoxTokenPrefixRegexes', () => {
   it('matches unqualified and environment-qualified token prefixes', () => {
     const regexes = createShipfoxTokenPrefixRegexes(['k', 'rt', 'pr']);
@@ -123,6 +149,7 @@ describe('exported regexes', () => {
     ['LOWERCASE_ALPHA_SLUG_RE', LOWERCASE_ALPHA_SLUG_RE, 'github'],
     ['ALNUM_SLUG_RE', ALNUM_SLUG_RE, 'GitHub'],
     ['LOWERCASE_SHA256_HEX_RE', LOWERCASE_SHA256_HEX_RE, 'a'.repeat(64)],
+    ['DISPLAY_NAME_DISALLOWED_CHARACTER_RE', DISPLAY_NAME_DISALLOWED_CHARACTER_RE, '\u202e'],
   ])('%s is stable across repeated test calls', (_name, regex, value) => {
     const first = regex.test(value);
     const second = regex.test(value);

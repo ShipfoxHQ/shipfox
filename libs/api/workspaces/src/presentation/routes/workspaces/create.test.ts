@@ -64,6 +64,7 @@ describe('POST /workspaces', () => {
   test.each([
     ['blank after trimming', '   '],
     ['with control characters', 'Test\nWorkspace'],
+    ['with format characters', 'Test\u202eWorkspace'],
   ])('invalid body with %s returns 400', async (_case, name) => {
     const res = await app.inject({
       method: 'POST',

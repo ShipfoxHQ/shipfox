@@ -121,6 +121,7 @@ describe('project routes', () => {
   test.each([
     ['blank after trimming', '   '],
     ['with control characters', 'Plat\nform'],
+    ['with format characters', 'Plat\u202eform'],
   ])('rejects a project name %s before resolving the repository', async (_case, name) => {
     const res = await app.inject({
       method: 'POST',

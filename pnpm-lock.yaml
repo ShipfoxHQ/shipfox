@@ -566,6 +566,9 @@ importers:
 
   libs/api/common-dto:
     dependencies:
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../shared/common/regex
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -2133,6 +2136,9 @@ importers:
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../shared/common/regex
       '@swc/helpers':
         specifier: ^0.5.17
         version: 0.5.23
@@ -2504,6 +2510,9 @@ importers:
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../shared/common/regex
       '@swc/helpers':
         specifier: ^0.5.17
         version: 0.5.23

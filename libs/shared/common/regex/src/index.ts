@@ -2,6 +2,7 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 export const LOWERCASE_ALPHA_SLUG_RE = /^[a-z][a-z0-9_-]*$/;
 export const ALNUM_SLUG_RE = /^[a-z0-9][a-z0-9_-]*$/i;
 export const LOWERCASE_SHA256_HEX_RE = /^[0-9a-f]{64}$/;
+export const DISPLAY_NAME_DISALLOWED_CHARACTER_RE = /[\p{Cc}\p{Cf}]/u;
 
 export interface ShipfoxTokenPrefixRegexes {
   unqualified: RegExp;
@@ -22,6 +23,10 @@ export function isAlnumSlug(value: string): boolean {
 
 export function isLowercaseSha256Hex(value: string): boolean {
   return LOWERCASE_SHA256_HEX_RE.test(value);
+}
+
+export function hasDisplayNameDisallowedCharacter(value: string): boolean {
+  return DISPLAY_NAME_DISALLOWED_CHARACTER_RE.test(value);
 }
 
 export function createShipfoxTokenPrefixRegexes(

@@ -38,6 +38,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/regex": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

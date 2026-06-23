@@ -22,6 +22,7 @@ import {
   Text,
   toast,
 } from '@shipfox/react-ui';
+import {DISPLAY_NAME_DISALLOWED_CHARACTER_RE} from '@shipfox/regex';
 import {useForm} from '@tanstack/react-form';
 import {useQueryClient} from '@tanstack/react-query';
 import {Link, Navigate, useNavigate} from '@tanstack/react-router';
@@ -30,7 +31,6 @@ import {projectsQueryKeys, useCreateProjectMutation} from '#hooks/api/projects.j
 import {projectErrorCopy} from '#project-error.js';
 
 const REPOSITORY_NAME_SPLIT_RE = /[/-]/;
-const CONTROL_CHARACTER_RE = /\p{Cc}/u;
 
 export function CreateProjectPage() {
   const workspace = useMaybeActiveWorkspace();
@@ -384,7 +384,9 @@ function displayNameFieldError(
   schema: DisplayNameSchema,
 ): string | undefined {
   if (schema.safeParse(value).success) return undefined;
-  if (CONTROL_CHARACTER_RE.test(value)) return `${label} cannot include line breaks or tabs.`;
+  if (DISPLAY_NAME_DISALLOWED_CHARACTER_RE.test(value)) {
+    return `${label} cannot include line breaks, tabs, or hidden formatting characters.`;
+  }
   const trimmed = value.trim();
   if (trimmed.length === 0) return `${label} is required.`;
   if (trimmed.length > 255) return `${label} must be 255 characters or fewer.`;

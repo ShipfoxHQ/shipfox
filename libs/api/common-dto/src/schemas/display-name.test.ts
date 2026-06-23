@@ -30,10 +30,12 @@ describe('displayNameSchema', () => {
     ['tab', 'Acme\tPlatform'],
     ['NUL', 'Acme\0Platform'],
     ['escape', 'Acme\u001b[31mPlatform'],
-  ])('rejects a %s control character', (_name, value) => {
+    ['right-to-left override', 'Acme\u202ePlatform'],
+    ['zero-width joiner', 'Acme\u200dPlatform'],
+  ])('rejects a %s character', (_name, value) => {
     const parse = () => displayNameSchema.parse(value);
 
-    expect(parse).toThrow('must not contain control characters');
+    expect(parse).toThrow('must not contain control or format characters');
   });
 
   it('rejects values longer than 255 characters after trimming', () => {
