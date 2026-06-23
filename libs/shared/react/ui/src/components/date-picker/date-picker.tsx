@@ -63,7 +63,7 @@ export function DatePicker({
   rightIcon,
   onClear,
   disabled,
-  closeOnSelect = false,
+  closeOnSelect = true,
   maxDisabledOffsetDays,
   ref,
   ...props

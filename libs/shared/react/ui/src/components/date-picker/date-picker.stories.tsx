@@ -113,7 +113,7 @@ export const DateFormats: Story = {
 
 export const WithThreshold: Story = {
   render: (args) => (
-    <ControlledPicker {...args} maxDisabledOffsetDays={30} closeOnSelect initialDate={fixedDate} />
+    <ControlledPicker {...args} maxDisabledOffsetDays={30} initialDate={fixedDate} />
   ),
 };
 

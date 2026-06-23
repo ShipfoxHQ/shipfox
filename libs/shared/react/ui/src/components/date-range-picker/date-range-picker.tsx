@@ -1,7 +1,7 @@
 'use client';
 
 import {cva, type VariantProps} from 'class-variance-authority';
-import {format, isValid} from 'date-fns';
+import {format, isSameDay, isValid} from 'date-fns';
 import type {ComponentProps, MouseEvent, ReactNode} from 'react';
 import {useState} from 'react';
 import type {DateRange as DayPickerDateRange} from 'react-day-picker';
@@ -70,7 +70,7 @@ export function DateRangePicker({
   onClear,
   disabled,
   numberOfMonths = 2,
-  closeOnSelect = false,
+  closeOnSelect = true,
   maxRangeDays,
   ref,
   ...props
@@ -99,7 +99,10 @@ export function DateRangePicker({
     const {from, to} = selectedRange;
     onDateRangeSelect?.({start: from, end: to});
 
-    if (closeOnSelect && from && to) {
+    // react-day-picker reports {from, to} both set to the clicked day on the opening
+    // click, so the range is only complete once the second click lands on a different
+    // day. Close then, not on the first click.
+    if (closeOnSelect && from && to && !isSameDay(from, to)) {
       setOpen(false);
     }
   };

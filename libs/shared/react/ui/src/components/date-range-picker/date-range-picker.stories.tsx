@@ -122,7 +122,7 @@ export const WithRightIcon: Story = {
 };
 
 export const LimitedRange: Story = {
-  render: (args) => <ControlledPicker {...args} maxRangeDays={7} closeOnSelect />,
+  render: (args) => <ControlledPicker {...args} maxRangeDays={7} />,
 };
 
 export const Open: Story = {
