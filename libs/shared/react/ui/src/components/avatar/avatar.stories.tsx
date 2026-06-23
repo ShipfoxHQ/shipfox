@@ -1,7 +1,7 @@
 import type {Meta, StoryObj} from '@storybook/react';
 import {Code} from '../typography/index.js';
-import {Avatar} from './avatar';
-import {AvatarGroup, AvatarGroupTooltip} from './avatar-group';
+import {Avatar} from './avatar.js';
+import {AvatarGroup, AvatarGroupTooltip} from './avatar-group.js';
 
 // In Playwright (Argos CI) navigator.webdriver is true. DiceBear image fetches
 // are unreliable in CI — skip them so screenshots are deterministic.

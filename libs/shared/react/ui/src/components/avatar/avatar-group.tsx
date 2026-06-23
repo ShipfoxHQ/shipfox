@@ -11,7 +11,7 @@ import {
   useMemo,
 } from 'react';
 import {cn} from '#utils/cn.js';
-import {TooltipContent, TooltipProvider, TooltipTrigger} from '../tooltip/tooltip';
+import {TooltipContent, TooltipProvider, TooltipTrigger} from '../tooltip/tooltip.js';
 
 const avatarGroupVariants = cva('flex items-start', {
   variants: {

@@ -4,7 +4,7 @@ import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import {cva, type VariantProps} from 'class-variance-authority';
 import type {ComponentProps} from 'react';
 import {cn} from '#utils/cn.js';
-import {Icon, type IconName} from '../icon';
+import {Icon, type IconName} from '../icon/index.js';
 
 function DropdownMenu({...props}: ComponentProps<typeof DropdownMenuPrimitive.Root>) {
   return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />;

@@ -11,9 +11,9 @@ import {
   CommandList,
   CommandTrigger,
   type CommandTriggerProps,
-} from '../command';
-import {Icon} from '../icon';
-import {Popover, PopoverContent, PopoverTrigger} from '../popover';
+} from '../command/index.js';
+import {Icon} from '../icon/index.js';
+import {Popover, PopoverContent, PopoverTrigger} from '../popover/index.js';
 import {ScrollArea} from '../scroll-area/index.js';
 
 export type ComboboxOption = {

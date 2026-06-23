@@ -5,7 +5,7 @@ import {cva, type VariantProps} from 'class-variance-authority';
 import type {ComponentProps, ReactNode} from 'react';
 import {getInitial, getPlaceholderImageUrl} from '#utils/avatar.js';
 import {cn} from '#utils/cn.js';
-import {Icon, type IconName} from '../icon/icon';
+import {Icon, type IconName} from '../icon/icon.js';
 
 export const avatarVariants = cva(
   'relative flex shrink-0 overflow-hidden bg-background-button-neutral-default text-foreground-neutral-base ring-1 ring-border-neutral-base-component ring-offset-1 ring-offset-background-neutral-base shadow-button-neutral',
