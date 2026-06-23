@@ -15,7 +15,7 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from './sheet';
+} from './sheet.js';
 
 const isTestEnvironment = () => typeof navigator !== 'undefined' && navigator.webdriver === true;
 
