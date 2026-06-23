@@ -2699,6 +2699,9 @@ importers:
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api
+      '@shipfox/client-triggers':
+        specifier: workspace:*
+        version: link:../triggers
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui
