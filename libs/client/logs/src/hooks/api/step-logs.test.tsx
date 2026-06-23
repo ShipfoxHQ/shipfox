@@ -131,6 +131,24 @@ describe('useStepAttemptLogsQuery', () => {
     expect(result.current.data?.records).toMatchObject([{type: 'output', data: 'alpha\n'}]);
   });
 
+  test('stops polling after a persistent error instead of re-polling the dead cursor', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(inlineBody({ndjson: outputLine('alpha\n', 1), nextCursor: 5, hasMore: true})),
+      )
+      .mockResolvedValue(jsonResponse({code: 'server-error'}, {status: 500}));
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const {result} = renderStepLogsHook();
+    await waitFor(() => expect(result.current.data?.records).toHaveLength(1));
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    const callsWhenErrored = fetchImpl.mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    expect(fetchImpl.mock.calls.length).toBe(callsWhenErrored);
+  });
+
   test('does not poll after a closed drained inline stream loads', async () => {
     const fetchImpl = vi.fn(async () =>
       jsonResponse(inlineBody({ndjson: outputLine('done\n', 1), nextCursor: 1, state: 'closed'})),

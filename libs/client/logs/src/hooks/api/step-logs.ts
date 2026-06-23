@@ -72,8 +72,10 @@ export function useStepAttemptLogsQuery(stepId: string | undefined, attempt: num
 
       return mergeLogRead(previous, {mode: 'inline', response});
     },
-    refetchInterval: (query) => stepLogRefetchInterval(query.state.data),
+    refetchInterval: (query) =>
+      stepLogRefetchInterval(query.state.data, query.state.status === 'error'),
     refetchIntervalInBackground: false,
+    refetchOnMount: (query) => !query.state.data?.complete,
     refetchOnWindowFocus: (query) => !query.state.data?.complete,
     refetchOnReconnect: (query) => !query.state.data?.complete,
   });

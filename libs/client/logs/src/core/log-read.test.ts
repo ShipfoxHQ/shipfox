@@ -64,6 +64,23 @@ describe('parseLogNdjson', () => {
 
     expect(parse).toThrow();
   });
+
+  test('splits records on CRLF line breaks', () => {
+    const first = output('first\n', 1);
+    const second = output('second\n', 2);
+
+    const records = parseLogNdjson(`${JSON.stringify(first)}\r\n${JSON.stringify(second)}\r\n`);
+
+    expect(records).toEqual([first, second]);
+  });
+
+  test('skips blank lines between records', () => {
+    const record = output('only\n', 1);
+
+    const records = parseLogNdjson(`\n${line(record)}\n`);
+
+    expect(records).toEqual([record]);
+  });
 });
 
 describe('mergeLogRead', () => {
@@ -190,6 +207,12 @@ describe('stepLogRefetchInterval', () => {
 
   test('stops polling once the stream is complete', () => {
     const interval = stepLogRefetchInterval(snapshot({state: 'closed', complete: true}));
+
+    expect(interval).toBe(false);
+  });
+
+  test('stops polling after a fetch errors out instead of re-polling the dead cursor', () => {
+    const interval = stepLogRefetchInterval(snapshot({hasMore: true}), true);
 
     expect(interval).toBe(false);
   });

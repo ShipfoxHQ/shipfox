@@ -1,9 +1,4 @@
-export {
-  mergeLogRead,
-  parseLogNdjson,
-  type StepLogSnapshot,
-  stepLogRefetchInterval,
-} from '#core/log-read.js';
+export type {StepLogSnapshot} from '#core/log-read.js';
 export {
   buildLogTree,
   type GroupLogNode,

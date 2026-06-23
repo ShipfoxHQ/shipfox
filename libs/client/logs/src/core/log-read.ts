@@ -65,7 +65,15 @@ export function mergeLogRead(
   };
 }
 
-export function stepLogRefetchInterval(snapshot: StepLogSnapshot | undefined): number | false {
+export function stepLogRefetchInterval(
+  snapshot: StepLogSnapshot | undefined,
+  lastFetchErrored = false,
+): number | false {
+  // A persistent failure (deleted step, 5xx, an unparseable record line) never advances
+  // the cursor, so without this guard the interval re-polls the same dead cursor forever.
+  // Stop once a fetch errors out (React Query's own retry absorbs transient blips first);
+  // refetchOnWindowFocus/Reconnect (gated on !complete) resume it.
+  if (lastFetchErrored) return false;
   if (!snapshot || snapshot.complete) return false;
   return snapshot.hasMore ? STEP_LOG_DRAIN_REFETCH_MS : STEP_LOG_LIVE_REFETCH_MS;
 }
