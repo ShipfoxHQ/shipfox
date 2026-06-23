@@ -41,6 +41,7 @@
   "dependencies": {
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
+    "@shipfox/client-triggers": "workspace:*",
     "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",
