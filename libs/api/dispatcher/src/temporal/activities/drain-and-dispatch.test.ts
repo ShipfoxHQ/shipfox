@@ -211,4 +211,35 @@ describe('drainAndDispatch', () => {
       },
     });
   });
+
+  it('records a row failure and skips dispatch when one of several handlers fails', async () => {
+    const failure = new Error('second handler failed');
+    const rowId = crypto.randomUUID();
+    const parsed = {jobId: 'job-1', runId: 'run-1', status: 'succeeded'};
+    const event: DomainEvent = {
+      id: crypto.randomUUID(),
+      type: 'workflows.job.terminated',
+      createdAt: new Date(),
+      payload: parsed,
+    };
+    const succeedingHandler = vi.fn().mockResolvedValue(undefined);
+    const failingHandler = vi.fn().mockRejectedValueOnce(failure);
+    mocks.drainAll.mockResolvedValueOnce([{id: rowId, source: 'workflows', event}]);
+    mocks.getEventSchema.mockReturnValueOnce({safeParse: () => ({success: true, data: parsed})});
+    mocks.getSubscribers.mockReturnValueOnce([succeedingHandler, failingHandler]);
+
+    await drainAndDispatch();
+
+    expect(succeedingHandler).toHaveBeenCalledTimes(1);
+    expect(failingHandler).toHaveBeenCalledTimes(1);
+    expect(mocks.recordDispatchFailure).toHaveBeenCalledTimes(1);
+    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith('workflows', rowId, {
+      kind: 'handler',
+      eventType: event.type,
+      eventId: rowId,
+      errorName: 'Error',
+      errorMessage: 'second handler failed',
+    });
+    expect(mocks.markDispatched).not.toHaveBeenCalled();
+  });
 });

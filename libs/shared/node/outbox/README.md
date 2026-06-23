@@ -31,7 +31,13 @@ await db.transaction(async (tx) => {
 });
 ```
 
-The table includes a pending-event index on `created_at` for rows where `dispatched_at` is null.
+Each row also carries bounded-retry and dead-letter columns: `dispatch_attempts`,
+`next_dispatch_at`, `last_dispatch_error`, `last_dispatch_failed_at`, and
+`dead_lettered_at`. A dispatcher records failures, backs off `next_dispatch_at`,
+and dead-letters a row once it exhausts its attempts.
+
+The table includes a pending-event index on `(next_dispatch_at, created_at)` for
+rows where `dispatched_at` and `dead_lettered_at` are both null.
 
 ## Development
 
