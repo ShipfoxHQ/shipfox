@@ -5,7 +5,7 @@ import {
 } from '@shipfox/api-auth-dto';
 import {signHs256, verifyHs256} from '@shipfox/node-jwt';
 import {config} from '#config.js';
-import {tokenIssuedCount, tokenVerifiedCount} from '#metrics/index.js';
+import {recordTokenIssued, recordTokenVerified} from '#metrics/index.js';
 
 // `aud`, `iat` and `exp` are set by the codec (jose); callers supply the business ids only.
 export type IssueJobLeaseTokenParams = Omit<JobLeaseTokenClaims, 'aud' | 'iat' | 'exp'>;
@@ -23,7 +23,7 @@ export async function issueJobLeaseToken(claims: IssueJobLeaseTokenParams): Prom
     expiresIn: config.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN,
     audience: JOB_LEASE_TOKEN_AUDIENCE,
   });
-  tokenIssuedCount.add(1, {token_type: 'job_lease'});
+  recordTokenIssued('job_lease');
   return token;
 }
 
@@ -36,10 +36,10 @@ export async function verifyJobLeaseToken(token: string): Promise<JobLeaseTokenC
       schema: jobLeaseTokenClaimsSchema,
       audience: JOB_LEASE_TOKEN_AUDIENCE,
     });
-    tokenVerifiedCount.add(1, {token_type: 'job_lease', outcome: 'ok'});
+    recordTokenVerified('job_lease', 'ok');
     return claims;
   } catch {
-    tokenVerifiedCount.add(1, {token_type: 'job_lease', outcome: 'rejected'});
+    recordTokenVerified('job_lease', 'rejected');
     return null;
   }
 }

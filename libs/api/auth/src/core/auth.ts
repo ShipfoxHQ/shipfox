@@ -32,7 +32,7 @@ import {
   markEmailVerified,
   updateUserPassword,
 } from '#db/users.js';
-import {type AuthTokenRefreshOutcome, tokenRefreshedCount} from '#metrics/index.js';
+import {type AuthTokenRefreshOutcome, recordTokenRefreshed} from '#metrics/index.js';
 import type {RefreshToken} from './entities/refresh-token.js';
 import type {User} from './entities/user.js';
 import {
@@ -66,7 +66,7 @@ function daysFromNow(days: number): Date {
 }
 
 function recordRefreshOutcome(outcome: AuthTokenRefreshOutcome): void {
-  tokenRefreshedCount.add(1, {outcome});
+  recordTokenRefreshed(outcome);
 }
 
 async function signAccessToken(user: User): Promise<string> {

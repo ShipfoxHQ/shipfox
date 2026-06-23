@@ -2,7 +2,7 @@ export {
   type AuthTokenRefreshOutcome,
   type AuthTokenType,
   type AuthTokenVerificationOutcome,
-  tokenIssuedCount,
-  tokenRefreshedCount,
-  tokenVerifiedCount,
+  recordTokenIssued,
+  recordTokenRefreshed,
+  recordTokenVerified,
 } from './instance.js';
