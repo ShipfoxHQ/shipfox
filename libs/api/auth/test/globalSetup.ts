@@ -10,7 +10,7 @@ export async function setup() {
 
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_auth');
   await db().execute(
-    sql`TRUNCATE auth_outbox, auth_email_verifications, auth_password_resets, auth_refresh_tokens, auth_users CASCADE`,
+    sql`TRUNCATE auth_outbox, auth_email_verifications, auth_password_resets, auth_rate_limits, auth_refresh_tokens, auth_users CASCADE`,
   );
 
   closeDb();

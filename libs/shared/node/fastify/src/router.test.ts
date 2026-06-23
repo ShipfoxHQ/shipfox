@@ -156,6 +156,73 @@ describe('route mounting', () => {
     expect(res.json()).toEqual({custom: true});
   });
 
+  test('route preHandler runs after auth and schema validation', async () => {
+    const events: string[] = [];
+    const app = await createApp({
+      auth: [
+        {
+          name: 'token',
+          authenticate: () => {
+            events.push('auth');
+            return Promise.resolve();
+          },
+        },
+      ],
+      routes: [
+        {
+          method: 'POST',
+          path: '/hooked',
+          description: 'Hooked route',
+          auth: 'token',
+          schema: {body: z.object({value: z.string().transform((value) => value.toUpperCase())})},
+          preHandler: (request) => {
+            events.push(`preHandler:${(request.body as {value: string}).value}`);
+          },
+          handler: (request) => {
+            events.push(`handler:${(request.body as {value: string}).value}`);
+            return {value: (request.body as {value: string}).value};
+          },
+        },
+      ],
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/hooked',
+      payload: {value: 'ok'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({value: 'OK'});
+    expect(events).toEqual(['auth', 'preHandler:OK', 'handler:OK']);
+  });
+
+  test('route preHandler can short-circuit before the handler', async () => {
+    let handlerCalled = false;
+    const app = await createApp({
+      routes: [
+        {
+          method: 'GET',
+          path: '/blocked',
+          description: 'Blocked route',
+          preHandler: (_request, reply) => {
+            reply.code(429).send({code: 'blocked'});
+          },
+          handler: () => {
+            handlerCalled = true;
+            return {ok: true};
+          },
+        },
+      ],
+    });
+
+    const res = await app.inject({method: 'GET', url: '/blocked'});
+
+    expect(res.statusCode).toBe(429);
+    expect(res.json()).toEqual({code: 'blocked'});
+    expect(handlerCalled).toBe(false);
+  });
+
   test('global error handler catches unhandled errors', async () => {
     const app = await createApp({
       routes: [

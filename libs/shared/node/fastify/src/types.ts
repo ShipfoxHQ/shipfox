@@ -25,6 +25,11 @@ export interface RouteOptions {
   handlerTimeout?: number;
 }
 
+export type RoutePreHandler = (
+  request: FastifyRequest,
+  reply: FastifyReply,
+) => Promise<unknown> | unknown;
+
 export interface RouteDefinition {
   method: HttpMethod;
   path: string;
@@ -32,6 +37,7 @@ export interface RouteDefinition {
   schema?: RouteSchema;
   auth?: string | string[];
   options?: RouteOptions;
+  preHandler?: RoutePreHandler | RoutePreHandler[];
   handler: (request: FastifyRequest, reply: FastifyReply) => Promise<unknown> | unknown;
   errorHandler?: (error: unknown, request: FastifyRequest, reply: FastifyReply) => unknown;
 }
@@ -81,8 +87,17 @@ type InferSchema<S extends RouteSchema | undefined> = S extends RouteSchema
   : {Body: unknown; Params: unknown; Querystring: unknown};
 
 export function defineRoute<const S extends RouteSchema | undefined>(
-  route: Omit<RouteDefinition, 'handler' | 'schema'> & {
+  route: Omit<RouteDefinition, 'handler' | 'preHandler' | 'schema'> & {
     schema?: S;
+    preHandler?:
+      | ((
+          request: FastifyRequest<InferSchema<S>>,
+          reply: FastifyReply,
+        ) => Promise<unknown> | unknown)
+      | ((
+          request: FastifyRequest<InferSchema<S>>,
+          reply: FastifyReply,
+        ) => Promise<unknown> | unknown)[];
     handler: (
       request: FastifyRequest<InferSchema<S>>,
       reply: FastifyReply,

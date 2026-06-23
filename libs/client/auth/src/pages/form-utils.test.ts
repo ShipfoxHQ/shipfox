@@ -7,6 +7,11 @@ describe('authErrorMessage', () => {
     ['email-not-verified', 'Verify your email before signing in.'],
     ['email-taken', 'An account already exists for this email.'],
     ['token-invalid', 'This link is invalid or expired.'],
+    ['rate-limited', 'Too many attempts. Wait a bit and try again.'],
+    [
+      'auth-rate-limit-unavailable',
+      'Sign-in protection is temporarily unavailable. Try again soon.',
+    ],
     ['network-error', 'We could not reach the API. Check your connection and try again.'],
   ])('maps %s to client copy', (code, message) => {
     const error = new ApiError({code, message: 'Server copy', status: 400});
@@ -17,7 +22,7 @@ describe('authErrorMessage', () => {
   });
 
   test('falls back to API error messages', () => {
-    const error = new ApiError({code: 'rate-limited', message: 'Try later', status: 429});
+    const error = new ApiError({code: 'unknown-api-code', message: 'Try later', status: 429});
 
     const result = authErrorMessage(error);
 

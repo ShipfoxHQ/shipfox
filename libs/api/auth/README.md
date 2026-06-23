@@ -50,6 +50,7 @@ Required environment:
 | `AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS` | `14` | Refresh token and cookie lifetime. |
 | `AUTH_REFRESH_ROTATION_GRACE_SECONDS` | `30` | Grace window for accepting a just-rotated refresh token during concurrent refreshes. |
 | `AUTH_REFRESH_COOKIE_NAME` | `shipfox_refresh_token` | HTTP cookie name for refresh sessions. |
+| `AUTH_RATE_LIMIT_IDENTIFIER_SECRET` | none | Optional secret used to HMAC emails and IP addresses before storing auth rate-limit counters. When unset, the module derives a stable key from `AUTH_JWT_SECRET`. |
 | `CLIENT_BASE_URL` | `http://localhost:5173` | Base URL used in email verification and password reset links. |
 | `MAILER_TRANSPORT` | `console` | Mail transport. Set to `smtp` to send real mail. |
 | `MAILER_FROM` | `noreply@shipfox.local` | Sender used by auth emails. |
@@ -189,6 +190,22 @@ Protected routes use the `Authorization: Bearer <token>` header. The refresh flo
 > [!IMPORTANT]
 > Refresh cookies are set with `secure: true`, `httpOnly: true`, and `sameSite: "lax"`. Local browser tests need HTTPS or a test path that handles secure cookies.
 
+### Rate limiting
+
+The public auth endpoints include an application-layer abuse baseline for open source installs:
+
+| Route | IP bucket | Email bucket |
+| --- | --- | --- |
+| `POST /auth/login` | 60 attempts per 5 minutes | 10 attempts per 15 minutes |
+| `POST /auth/password-reset` | 30 email-send attempts per hour | 3 email-send attempts per hour |
+| `POST /auth/verify-email/resend` | Shared with password reset | Shared with password reset |
+
+Counters are stored in PostgreSQL as fixed windows in `auth_rate_limits`. IP addresses and email addresses are HMAC-SHA256 values before storage; raw identifiers are not persisted. `AUTH_RATE_LIMIT_IDENTIFIER_SECRET` is optional. Set it when you want a dedicated HMAC secret, or leave it unset to derive the key from `AUTH_JWT_SECRET`.
+
+The limiter uses `request.ip`, so production deployments behind a reverse proxy must configure the API app's `API_TRUST_PROXY` setting. Keep the default `false` when clients connect directly. Use a positive hop count such as `1`, or a trusted proxy IP/CIDR such as `10.0.0.0/8`, when proxy headers are controlled by infrastructure you operate.
+
+This app-layer limiter protects semantic auth work such as Argon2 verification and email sending. It is not a volumetric DDoS control. Public production deployments should still use load balancer, CDN, WAF, or firewall rate limits at the network edge.
+
 ## API
 
 The package exports the module entry point:
@@ -217,6 +234,7 @@ The module creates tables with the `auth_` prefix:
 - `auth_refresh_tokens`
 - `auth_email_verifications`
 - `auth_password_resets`
+- `auth_rate_limits`
 
 Passwords use Argon2id. Email verification tokens, password reset tokens, and refresh tokens are opaque tokens stored as hashes.
 
@@ -228,6 +246,7 @@ Passwords use Argon2id. Email verification tokens, password reset tokens, and re
 - Password reset and email verification consume their tokens once.
 - Password change revokes other refresh sessions. It keeps the current session when the current refresh cookie is valid.
 - Password reset requests and verification resend requests do not reveal whether an account exists.
+- Login, password reset, and verification resend requests are rate-limited by IP address and email address.
 
 ## Development
 

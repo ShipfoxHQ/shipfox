@@ -29,6 +29,7 @@ export type {
   RouteExport,
   RouteGroup,
   RouteOptions,
+  RoutePreHandler,
   RouteSchema,
 } from './types.js';
 export {defineRoute, isRouteGroup} from './types.js';

@@ -1,0 +1,293 @@
+import {and, eq, sql} from 'drizzle-orm';
+import {db} from '#db/db.js';
+import {countAuthRateLimitsForIdentifierHmac, pruneExpiredAuthRateLimits} from '#db/rate-limits.js';
+import {authRateLimits} from '#db/schema/rate-limits.js';
+import {
+  AuthRateLimitUnavailableError,
+  checkAuthRateLimit,
+  hashAuthRateLimitIdentifier,
+} from './rate-limit.js';
+
+const HMAC_HEX_PATTERN = /^[a-f0-9]{64}$/;
+
+function identifier(prefix: string): string {
+  return `${prefix}-${crypto.randomUUID()}@example.com`;
+}
+
+async function countRows(params: {
+  action: string;
+  scope: string;
+  identifierHmac: string;
+}): Promise<number> {
+  const rows = await db()
+    .select({count: sql<number>`count(*)::int`})
+    .from(authRateLimits)
+    .where(
+      and(
+        eq(authRateLimits.action, params.action),
+        eq(authRateLimits.scope, params.scope),
+        eq(authRateLimits.identifierHmac, params.identifierHmac),
+      ),
+    );
+
+  return rows[0]?.count ?? 0;
+}
+
+describe('checkAuthRateLimit', () => {
+  it('allows attempts under the limit and rejects the first over-limit attempt', async () => {
+    const email = identifier('limit');
+    const now = new Date('2026-06-23T00:00:10Z');
+
+    await checkAuthRateLimit({
+      action: 'login',
+      scope: 'email',
+      identifier: email,
+      limit: 2,
+      windowSeconds: 60,
+      now,
+    });
+    await checkAuthRateLimit({
+      action: 'login',
+      scope: 'email',
+      identifier: email,
+      limit: 2,
+      windowSeconds: 60,
+      now,
+    });
+    const act = checkAuthRateLimit({
+      action: 'login',
+      scope: 'email',
+      identifier: email,
+      limit: 2,
+      windowSeconds: 60,
+      now,
+    });
+
+    await expect(act).rejects.toMatchObject({
+      name: 'AuthRateLimitExceededError',
+      retryAfterSeconds: 50,
+    });
+  });
+
+  it('resets counters in the next fixed window', async () => {
+    const email = identifier('window-reset');
+    const firstWindow = new Date('2026-06-23T00:00:10Z');
+    const secondWindow = new Date('2026-06-23T00:01:01Z');
+
+    await checkAuthRateLimit({
+      action: 'login',
+      scope: 'email',
+      identifier: email,
+      limit: 1,
+      windowSeconds: 60,
+      now: firstWindow,
+    });
+    const result = checkAuthRateLimit({
+      action: 'login',
+      scope: 'email',
+      identifier: email,
+      limit: 1,
+      windowSeconds: 60,
+      now: secondWindow,
+    });
+
+    await expect(result).resolves.toBeUndefined();
+  });
+
+  it('keeps actions and scopes separated', async () => {
+    const value = identifier('separated');
+    const now = new Date('2026-06-23T00:02:10Z');
+
+    await checkAuthRateLimit({
+      action: 'login',
+      scope: 'ip',
+      identifier: value,
+      limit: 1,
+      windowSeconds: 60,
+      now,
+    });
+    const emailScope = checkAuthRateLimit({
+      action: 'login',
+      scope: 'email',
+      identifier: value,
+      limit: 1,
+      windowSeconds: 60,
+      now,
+    });
+    const otherAction = checkAuthRateLimit({
+      action: 'email-send',
+      scope: 'ip',
+      identifier: value,
+      limit: 1,
+      windowSeconds: 60,
+      now,
+    });
+
+    await expect(emailScope).resolves.toBeUndefined();
+    await expect(otherAction).resolves.toBeUndefined();
+  });
+
+  it('uses atomic concurrent upserts', async () => {
+    const email = identifier('concurrent');
+    const now = new Date('2026-06-23T00:03:10Z');
+    const identifierHmac = hashAuthRateLimitIdentifier({
+      action: 'login',
+      scope: 'email',
+      identifier: email,
+    });
+
+    await Promise.all(
+      Array.from({length: 20}, () =>
+        checkAuthRateLimit({
+          action: 'login',
+          scope: 'email',
+          identifier: email,
+          limit: 100,
+          windowSeconds: 60,
+          now,
+        }),
+      ),
+    );
+    const rows = await db()
+      .select({count: authRateLimits.count})
+      .from(authRateLimits)
+      .where(eq(authRateLimits.identifierHmac, identifierHmac));
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.count).toBe(20);
+  });
+
+  it('fails closed when the limiter query times out', async () => {
+    const email = identifier('timeout');
+
+    await db().transaction(async (tx) => {
+      await tx.execute(sql`LOCK TABLE auth_rate_limits IN ACCESS EXCLUSIVE MODE`);
+      const act = checkAuthRateLimit({
+        action: 'login',
+        scope: 'email',
+        identifier: email,
+        limit: 1,
+        windowSeconds: 60,
+        timeoutMs: 10,
+      });
+
+      await expect(act).rejects.toBeInstanceOf(AuthRateLimitUnavailableError);
+    });
+  });
+
+  it('prunes expired counters', async () => {
+    const expiredIdentifierHmac = hashAuthRateLimitIdentifier({
+      action: 'login',
+      scope: 'email',
+      identifier: identifier('expired'),
+    });
+    const activeIdentifierHmac = hashAuthRateLimitIdentifier({
+      action: 'login',
+      scope: 'email',
+      identifier: identifier('active'),
+    });
+    const now = new Date('2026-06-23T00:04:00Z');
+    await db()
+      .insert(authRateLimits)
+      .values([
+        {
+          action: 'login',
+          scope: 'email',
+          identifierHmac: expiredIdentifierHmac,
+          windowStart: new Date('2026-06-22T23:00:00Z'),
+          count: 1,
+          expiresAt: new Date('2026-06-22T23:15:00Z'),
+        },
+        {
+          action: 'login',
+          scope: 'email',
+          identifierHmac: activeIdentifierHmac,
+          windowStart: new Date('2026-06-23T00:00:00Z'),
+          count: 1,
+          expiresAt: new Date('2026-06-23T00:15:00Z'),
+        },
+      ]);
+
+    const result = await pruneExpiredAuthRateLimits({now, minIntervalMs: 0});
+    const expiredRows = await countAuthRateLimitsForIdentifierHmac({
+      identifierHmac: expiredIdentifierHmac,
+    });
+    const activeRows = await countAuthRateLimitsForIdentifierHmac({
+      identifierHmac: activeIdentifierHmac,
+    });
+
+    expect(result).toBeGreaterThanOrEqual(1);
+    expect(expiredRows).toBe(0);
+    expect(activeRows).toBe(1);
+  });
+
+  it('stores only HMAC identifiers, not raw emails or IPs', async () => {
+    const email = identifier('privacy');
+    const ip = '203.0.113.42';
+    const emailHmac = hashAuthRateLimitIdentifier({
+      action: 'login',
+      scope: 'email',
+      identifier: email,
+    });
+    const ipHmac = hashAuthRateLimitIdentifier({
+      action: 'login',
+      scope: 'ip',
+      identifier: ip,
+    });
+
+    await checkAuthRateLimit({
+      action: 'login',
+      scope: 'email',
+      identifier: email,
+      limit: 1,
+      windowSeconds: 60,
+    });
+    await checkAuthRateLimit({
+      action: 'login',
+      scope: 'ip',
+      identifier: ip,
+      limit: 1,
+      windowSeconds: 60,
+    });
+    const stored = await db()
+      .select({
+        identifierHmac: authRateLimits.identifierHmac,
+      })
+      .from(authRateLimits)
+      .where(eq(authRateLimits.action, 'login'));
+
+    expect(stored.map((row) => row.identifierHmac)).toContain(emailHmac);
+    expect(stored.map((row) => row.identifierHmac)).toContain(ipHmac);
+    expect(await countRows({action: 'login', scope: 'email', identifierHmac: emailHmac})).toBe(1);
+    expect(JSON.stringify(stored)).not.toContain(email);
+    expect(JSON.stringify(stored)).not.toContain(ip);
+    expect(emailHmac).toMatch(HMAC_HEX_PATTERN);
+    expect(ipHmac).toMatch(HMAC_HEX_PATTERN);
+  });
+
+  it('reports blocked attempts with non-PII context', async () => {
+    const email = identifier('blocked-context');
+
+    await checkAuthRateLimit({
+      action: 'login',
+      scope: 'email',
+      identifier: email,
+      limit: 1,
+      windowSeconds: 60,
+    });
+    const act = checkAuthRateLimit({
+      action: 'login',
+      scope: 'email',
+      identifier: email,
+      limit: 1,
+      windowSeconds: 60,
+    });
+
+    await expect(act).rejects.toMatchObject({
+      name: 'AuthRateLimitExceededError',
+      action: 'login',
+      scope: 'email',
+      identifierHmacPrefix: expect.not.stringContaining(email),
+    });
+  });
+});

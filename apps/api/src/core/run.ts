@@ -15,7 +15,7 @@ import type {ModuleWorker} from '@shipfox/node-module';
 import {initializeModules, registerModuleMetrics, startModuleWorkers} from '@shipfox/node-module';
 import {logger, startServiceMetrics} from '@shipfox/node-opentelemetry';
 import {createPostgresClient} from '@shipfox/node-postgres';
-import {config} from '../config.js';
+import {config, parseApiTrustProxy} from '../config.js';
 import {createE2eAdminAuthMethod, createE2eRouteGroup} from './e2e.js';
 
 const WORKER_FAILURE_HTTP_SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -60,6 +60,7 @@ export async function run(): Promise<void> {
   await createApp({
     auth: [...auth, ...e2eAuth],
     routes: [...routes, ...mountedE2eRoutes],
+    fastifyOptions: {trustProxy: parseApiTrustProxy(config.API_TRUST_PROXY)},
   });
   logger().info('Starting module workers');
   await startModuleWorkers({workers, onWorkerFailure: handleModuleWorkerFailure});
