@@ -1,19 +1,27 @@
 import type {JobStatusDto} from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
-import {screen} from '@testing-library/react';
+import {screen, within} from '@testing-library/react';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {WorkflowRunView} from './workflow-run-view.js';
 
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
 
 describe('WorkflowRunView', () => {
-  test('renders the jobs graph when a run loads', async () => {
+  test('renders the run summary and jobs graph when a run loads', async () => {
     configureApiClient({
       fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(runDetailDto()))),
     });
 
     renderView();
 
+    const summary = await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(within(summary).getByRole('heading', {name: 'deploy-web'})).toBeInTheDocument();
+    expect(within(summary).getAllByText('Running')).not.toHaveLength(0);
+    expect(within(summary).getByText('manual / fire')).toBeInTheDocument();
+    expect(within(summary).getByRole('button', {name: `Copy run id ${RUN_ID}`})).toHaveTextContent(
+      '66666666',
+    );
     expect(await screen.findByRole('region', {name: 'Jobs graph'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'build, Succeeded'})).toBeInTheDocument();
     expect(
@@ -63,6 +71,8 @@ function runDetailDto() {
     inputs: null,
     created_at: '2026-05-07T01:01:00.000Z',
     updated_at: '2026-05-07T01:02:00.000Z',
+    started_at: null,
+    finished_at: null,
     jobs: [
       jobDto({id: '77777777-7777-4777-8777-777777777777', name: 'build', status: 'succeeded'}),
       jobDto({
