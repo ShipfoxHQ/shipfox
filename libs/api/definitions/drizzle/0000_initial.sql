@@ -37,7 +37,12 @@ CREATE TABLE "definitions_outbox" (
 	"event_type" text NOT NULL,
 	"payload" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"dispatched_at" timestamp with time zone
+	"dispatched_at" timestamp with time zone,
+	"dispatch_attempts" integer DEFAULT 0 NOT NULL,
+	"next_dispatch_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"last_dispatch_error" jsonb,
+	"last_dispatch_failed_at" timestamp with time zone,
+	"dead_lettered_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX "definitions_wd_project_id_config_path_unique" ON "definitions_workflow_definitions" USING btree ("project_id","config_path") WHERE "config_path" IS NOT NULL;
@@ -52,4 +57,4 @@ CREATE UNIQUE INDEX "definitions_sync_states_source_unique" ON "definitions_sync
 --> statement-breakpoint
 CREATE INDEX "definitions_sync_states_failed_idx" ON "definitions_sync_states" USING btree ("updated_at") WHERE "status" = 'failed';
 --> statement-breakpoint
-CREATE INDEX "definitions_outbox_pending_idx" ON "definitions_outbox" USING btree ("created_at") WHERE "dispatched_at" IS NULL;
+CREATE INDEX "definitions_outbox_pending_idx" ON "definitions_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;

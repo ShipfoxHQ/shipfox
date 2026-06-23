@@ -1,5 +1,5 @@
 import type {DomainEvent, OutboxTable} from '@shipfox/node-outbox';
-import {asc, inArray, isNull, sql} from 'drizzle-orm';
+import {and, asc, eq, inArray, isNull, lte, sql} from 'drizzle-orm';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import type {ZodType} from 'zod';
 
@@ -16,10 +16,32 @@ export interface DrainedEvent {
   event: DomainEvent;
 }
 
+export interface OutboxDispatchIssue {
+  path: Array<string | number>;
+  code: string;
+  message: string;
+}
+
+export type OutboxDispatchFailure =
+  | {
+      kind: 'validation';
+      eventType: string;
+      eventId: string;
+      issues: OutboxDispatchIssue[];
+    }
+  | {
+      kind: 'handler';
+      eventType: string;
+      eventId: string;
+      errorName: string;
+      errorMessage: string;
+    };
+
 const _sources: PublisherSource[] = [];
 const _schemasByType = new Map<string, ZodType>();
 
 const BATCH_SIZE = 100;
+const MAX_DISPATCH_ATTEMPTS = 5;
 
 export function registerPublisher(config: PublisherSource): void {
   _sources.push(config);
@@ -50,8 +72,14 @@ export async function drainAll(): Promise<DrainedEvent[]> {
       .db()
       .select()
       .from(source.table)
-      .where(isNull(source.table.dispatchedAt))
-      .orderBy(asc(source.table.createdAt))
+      .where(
+        and(
+          isNull(source.table.dispatchedAt),
+          isNull(source.table.deadLetteredAt),
+          lte(source.table.nextDispatchAt, sql`now()`),
+        ),
+      )
+      .orderBy(asc(source.table.nextDispatchAt), asc(source.table.createdAt))
       .limit(BATCH_SIZE);
 
     for (const row of rows) {
@@ -81,10 +109,55 @@ export async function markDispatched(source: string, ids: string[]): Promise<voi
     .db()
     .update(config.table)
     .set({dispatchedAt: sql`now()`})
-    .where(inArray(config.table.id, ids));
+    .where(
+      and(
+        inArray(config.table.id, ids),
+        isNull(config.table.dispatchedAt),
+        isNull(config.table.deadLetteredAt),
+      ),
+    );
+}
+
+export async function recordDispatchFailure(
+  source: string,
+  id: string,
+  failure: OutboxDispatchFailure,
+): Promise<void> {
+  const config = _sources.find((s) => s.name === source);
+  if (!config) return;
+
+  await config
+    .db()
+    .update(config.table)
+    .set({
+      dispatchAttempts: sql`${config.table.dispatchAttempts} + 1`,
+      nextDispatchAt: nextDispatchAtSql(config.table),
+      lastDispatchError: failure,
+      lastDispatchFailedAt: sql`now()`,
+      deadLetteredAt: sql`CASE WHEN ${config.table.dispatchAttempts} >= ${
+        MAX_DISPATCH_ATTEMPTS - 1
+      } THEN now() ELSE ${config.table.deadLetteredAt} END`,
+    })
+    .where(
+      and(
+        eq(config.table.id, id),
+        isNull(config.table.dispatchedAt),
+        isNull(config.table.deadLetteredAt),
+      ),
+    );
 }
 
 export function resetPublishers(): void {
   _sources.length = 0;
   _schemasByType.clear();
+}
+
+function nextDispatchAtSql(table: OutboxTable) {
+  return sql`CASE
+    WHEN ${table.dispatchAttempts} = 0 THEN now() + interval '10 seconds'
+    WHEN ${table.dispatchAttempts} = 1 THEN now() + interval '1 minute'
+    WHEN ${table.dispatchAttempts} = 2 THEN now() + interval '5 minutes'
+    WHEN ${table.dispatchAttempts} = 3 THEN now() + interval '30 minutes'
+    ELSE now()
+  END`;
 }

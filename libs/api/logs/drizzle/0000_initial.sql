@@ -43,7 +43,12 @@ CREATE TABLE "logs_outbox" (
 	"event_type" text NOT NULL,
 	"payload" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"dispatched_at" timestamp with time zone
+	"dispatched_at" timestamp with time zone,
+	"dispatch_attempts" integer DEFAULT 0 NOT NULL,
+	"next_dispatch_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"last_dispatch_error" jsonb,
+	"last_dispatch_failed_at" timestamp with time zone,
+	"dead_lettered_at" timestamp with time zone
 );
 --> statement-breakpoint
 ALTER TABLE "logs_chunks" ADD CONSTRAINT "logs_chunks_stream_id_logs_attempt_streams_id_fk" FOREIGN KEY ("stream_id") REFERENCES "public"."logs_attempt_streams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -54,4 +59,4 @@ CREATE INDEX "logs_attempt_streams_open_age_idx" ON "logs_attempt_streams" USING
 CREATE INDEX "logs_attempt_streams_retention_idx" ON "logs_attempt_streams" USING btree ("closed_at") WHERE "state" = 'closed';--> statement-breakpoint
 CREATE INDEX "logs_attempt_streams_uncompacted_idx" ON "logs_attempt_streams" USING btree ("closed_at") WHERE "state" = 'closed' and "object_key" is null;--> statement-breakpoint
 CREATE INDEX "logs_chunks_stream_seq_idx" ON "logs_chunks" USING btree ("stream_id","seq");--> statement-breakpoint
-CREATE INDEX "logs_outbox_pending_idx" ON "logs_outbox" USING btree ("created_at") WHERE "dispatched_at" IS NULL;
+CREATE INDEX "logs_outbox_pending_idx" ON "logs_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;
