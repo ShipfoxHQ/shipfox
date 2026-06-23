@@ -203,11 +203,6 @@ export async function expireStuckJobs(params: {
   return reaped;
 }
 
-/**
- * Point-in-time queue depth: how many jobs are pending versus running right now.
- * Backs the `runners_pending_jobs` / `runners_running_jobs` service gauges, which
- * read shared state rather than counting events, so this is a plain aggregate.
- */
 export async function getJobQueueDepth(): Promise<{pending: number; running: number}> {
   const [pending] = await db().select({value: count()}).from(pendingJobs);
   const [running] = await db().select({value: count()}).from(runningJobs);

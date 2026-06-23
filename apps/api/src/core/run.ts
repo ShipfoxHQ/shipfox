@@ -16,10 +16,6 @@ import {config} from '../config.js';
 import {createE2eAdminAuthMethod, createE2eRouteGroup} from './e2e.js';
 
 export async function run(): Promise<void> {
-  // Instance instrumentation is started in instrumentation.ts, preloaded via the
-  // entrypoint's --import flag so the metrics meter provider is registered before
-  // any feature module creates its instruments. Service metrics use a dedicated
-  // provider and their registration is order-safe, so they stay here.
   startServiceMetrics({serviceName: 'api'});
 
   createPostgresClient();
@@ -44,8 +40,7 @@ export async function run(): Promise<void> {
     dispatcherModule,
   ];
   const {auth, routes, e2eRoutes, workers} = await initializeModules({modules});
-  // Register service metrics after migrations so gauge callbacks can query the
-  // database; the provider was started above with startServiceMetrics.
+  // Gauge callbacks query migrated tables, so register them after module initialization.
   registerModuleMetrics({modules});
   // Boot-time provider tasks (post-migration). No-op when no enabled provider contributes
   // one; failures are isolated and logged, never thrown, so they cannot gate boot.

@@ -50,19 +50,9 @@ export interface ModuleWorker {
 }
 
 /**
- * Registers a module's service-level metrics (observable gauges over shared
- * state). Invoked once at app startup by `registerModuleMetrics`, after
- * `startServiceMetrics` has created the provider. The callback must fetch its
- * own meter via `getServiceMetricsProvider().getMeter(name)` and attach the
- * gauge callbacks; it must not run at import time, because reaching the
- * provider binds the metrics port and would break unit tests that only import
- * the module. Instance metrics (counters/histograms) need no registration:
- * they are created lazily by `instanceMetrics.getMeter` and recorded inline.
- *
- * This should be side-effect-only wiring that does not normally throw. If it
- * does, `registerModuleMetrics` isolates and logs the failure so one module
- * cannot gate boot or block others, rather than relying on every callback to be
- * infallible.
+ * Hook for observable gauges over shared service state. Implementations must
+ * fetch the service metrics provider inside the callback so ordinary module
+ * imports do not bind the metrics port.
  */
 export type ModuleMetricsRegistration = () => void;
 
