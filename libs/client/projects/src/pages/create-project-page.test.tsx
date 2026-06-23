@@ -48,6 +48,39 @@ describe('CreateProjectPage', () => {
     });
   });
 
+  test('uses the current repository-derived name when submitted before touching the field', async () => {
+    let createProjectBody: unknown;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (request.url.includes('/integration-connections?')) {
+        return jsonResponse({connections: [connectionDto()]});
+      }
+      if (request.url.includes(`/integration-connections/${CONNECTION_ID}/repositories`)) {
+        return jsonResponse({repositories: [repositoryDto()], next_cursor: null});
+      }
+      if (request.url.endsWith('/projects') && request.method === 'POST') {
+        createProjectBody = await request.json();
+        return jsonResponse(projectDto({id: '44444444-4444-4444-8444-444444444444'}));
+      }
+      return jsonResponse(projectDto({id: '44444444-4444-4444-8444-444444444444'}));
+    });
+    configureApiClient({fetchImpl});
+
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
+    expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
+
+    expect(await screen.findByRole('heading', {name: 'Runs'})).toBeInTheDocument();
+    expect(createProjectBody).toEqual({
+      workspace_id: PROJECT_TEST_WID,
+      name: 'Platform',
+      source: {
+        connection_id: CONNECTION_ID,
+        external_repository_id: 'platform',
+      },
+    });
+  });
+
   test('with multiple connections: hides repo picker until a connection is selected', async () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       const request = input as Request;

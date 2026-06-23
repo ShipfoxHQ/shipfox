@@ -7,6 +7,7 @@ import {
   useRepositoriesInfiniteQuery,
   useSourceConnectionsQuery,
 } from '@shipfox/client-integrations';
+import {displayNameFieldError} from '@shipfox/client-ui';
 import {
   Alert,
   Button,
@@ -22,7 +23,6 @@ import {
   Text,
   toast,
 } from '@shipfox/react-ui';
-import {DISPLAY_NAME_DISALLOWED_CHARACTER_RE} from '@shipfox/regex';
 import {useForm} from '@tanstack/react-form';
 import {useQueryClient} from '@tanstack/react-query';
 import {Link, Navigate, useNavigate} from '@tanstack/react-router';
@@ -85,7 +85,7 @@ export function CreateProjectPage() {
   const form = useForm({
     defaultValues: {name: defaultProjectName},
     onSubmit: async ({value}) => {
-      await createProjectFromForm(value.name);
+      await createProjectFromForm(nameTouched ? value.name : defaultProjectName);
     },
   });
 
@@ -363,10 +363,6 @@ interface FieldLike {
   state: {meta: {errors: Array<unknown>; isBlurred: boolean}};
 }
 
-interface DisplayNameSchema {
-  safeParse: (value: string) => {success: boolean};
-}
-
 function fieldError(field: FieldLike): string | undefined {
   if (!field.state.meta.isBlurred && field.state.meta.errors.length === 0) return undefined;
   const first = field.state.meta.errors[0];
@@ -376,19 +372,4 @@ function fieldError(field: FieldLike): string | undefined {
     return String((first as {message: unknown}).message);
   }
   return undefined;
-}
-
-function displayNameFieldError(
-  value: string,
-  label: string,
-  schema: DisplayNameSchema,
-): string | undefined {
-  if (schema.safeParse(value).success) return undefined;
-  if (DISPLAY_NAME_DISALLOWED_CHARACTER_RE.test(value)) {
-    return `${label} cannot include line breaks, tabs, or hidden formatting characters.`;
-  }
-  const trimmed = value.trim();
-  if (trimmed.length === 0) return `${label} is required.`;
-  if (trimmed.length > 255) return `${label} must be 255 characters or fewer.`;
-  return `${label} is invalid.`;
 }

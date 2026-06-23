@@ -1,4 +1,5 @@
 import {createWorkspaceBodySchema} from '@shipfox/api-workspaces-dto';
+import {displayNameFieldError} from '@shipfox/client-ui';
 import {
   Alert,
   Button,
@@ -20,7 +21,6 @@ import {useState} from 'react';
 import {useCreateWorkspaceAuth} from '#hooks/api/workspace-auth.js';
 import {lastWorkspaceIdAtom} from '#state/last-workspace.js';
 import {workspaceOnboardingErrorToFormError} from './form-errors.js';
-import {displayNameFieldError} from './form-utils.js';
 
 const previewMetrics = [
   {label: 'Runs', value: '--'},

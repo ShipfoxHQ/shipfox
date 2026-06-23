@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@shipfox/client-api": "workspace:*",
+    "@shipfox/regex": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17"
   },

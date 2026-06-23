@@ -6,6 +6,7 @@
 "@shipfox/api-auth": patch
 "@shipfox/api-workspaces": patch
 "@shipfox/api-projects": patch
+"@shipfox/client-ui": patch
 "@shipfox/client-auth": patch
 "@shipfox/client-projects": patch
 "@shipfox/regex": minor

@@ -2133,12 +2133,12 @@ importers:
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api
+      '@shipfox/client-ui':
+        specifier: workspace:*
+        version: link:../ui
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
-      '@shipfox/regex':
-        specifier: workspace:*
-        version: link:../../shared/common/regex
       '@swc/helpers':
         specifier: ^0.5.17
         version: 0.5.23
@@ -2510,9 +2510,6 @@ importers:
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
-      '@shipfox/regex':
-        specifier: workspace:*
-        version: link:../../shared/common/regex
       '@swc/helpers':
         specifier: ^0.5.17
         version: 0.5.23
@@ -2772,6 +2769,9 @@ importers:
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../shared/common/regex
       '@swc/helpers':
         specifier: ^0.5.17
         version: 0.5.23

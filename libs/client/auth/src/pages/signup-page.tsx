@@ -1,4 +1,5 @@
 import {signupBodySchema} from '@shipfox/api-auth-dto';
+import {displayNameFieldError} from '@shipfox/client-ui';
 import {
   Alert,
   Button,
@@ -24,7 +25,7 @@ import {
   parseNextResendAvailableAt,
 } from './email-verification-resend-model.js';
 import {signupErrorToFormError} from './form-errors.js';
-import {authErrorMessage, displayNameFieldError} from './form-utils.js';
+import {authErrorMessage} from './form-utils.js';
 import {
   extractInvitationToken,
   pendingInvitation,
