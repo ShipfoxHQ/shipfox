@@ -1,7 +1,7 @@
 import type {RemixiconComponentType} from '@remixicon/react';
 import type {ComponentProps} from 'react';
 
-export function InfoTooltipFillIcon(_props: ComponentProps<RemixiconComponentType>) {
+export function InfoTooltipFillIcon(props: ComponentProps<RemixiconComponentType>) {
   return (
     <svg
       width="25"
@@ -9,6 +9,7 @@ export function InfoTooltipFillIcon(_props: ComponentProps<RemixiconComponentTyp
       viewBox="0 0 25 24"
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
+      {...props}
     >
       <title>Info Tooltip Fill</title>
       <path

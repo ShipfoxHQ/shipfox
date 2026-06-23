@@ -7,14 +7,7 @@ type StripeLogoProps = ComponentProps<RemixiconComponentType> & {
 
 export function StripeLogo({color = '#6772E5', ...props}: StripeLogoProps) {
   return (
-    <svg
-      viewBox="0 0 28 28"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      focusable="false"
-      {...props}
-    >
+    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
       <title>Stripe Logo</title>
       <path
         fillRule="evenodd"

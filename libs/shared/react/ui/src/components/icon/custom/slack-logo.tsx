@@ -5,14 +5,7 @@ type SlackLogoProps = ComponentProps<RemixiconComponentType>;
 
 export function SlackLogo(props: SlackLogoProps) {
   return (
-    <svg
-      viewBox="0 0 28 28"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      focusable="false"
-      {...props}
-    >
+    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
       <title>Slack Logo</title>
       <path
         d="M6.66988 17.376C6.66988 18.8336 5.4918 20.0117 4.03416 20.0117C2.57653 20.0117 1.39844 18.8336 1.39844 17.376C1.39844 15.9183 2.57653 14.7402 4.03416 14.7402H6.66988V17.376ZM7.98775 17.376C7.98775 15.9183 9.16583 14.7402 10.6235 14.7402C12.0811 14.7402 13.2592 15.9183 13.2592 17.376V23.9653C13.2592 25.4229 12.0811 26.601 10.6235 26.601C9.16583 26.601 7.98775 25.4229 7.98775 23.9653V17.376Z"

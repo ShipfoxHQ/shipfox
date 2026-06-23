@@ -1,7 +1,7 @@
 import type {RemixiconComponentType} from '@remixicon/react';
 import type {ComponentProps} from 'react';
 
-export function XCircleSolidIcon(_props: ComponentProps<RemixiconComponentType>) {
+export function XCircleSolidIcon(props: ComponentProps<RemixiconComponentType>) {
   return (
     <svg
       width="19"
@@ -9,6 +9,7 @@ export function XCircleSolidIcon(_props: ComponentProps<RemixiconComponentType>)
       viewBox="0 0 19 18"
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
+      {...props}
     >
       <title>X Circle Solid</title>
       <g clipPath="url(#clip0_6552_160759)">
