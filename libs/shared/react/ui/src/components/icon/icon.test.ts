@@ -72,6 +72,12 @@ describe('custom icons', () => {
     expect(markup).not.toContain('size="32"');
   });
 
+  it.each(customIcons)('defaults unlabeled custom icons to decorative for $name', ({Component}) => {
+    const markup = renderToStaticMarkup(createElement(Component, {size: 24}));
+
+    expect(markup).toContain('aria-hidden="true"');
+  });
+
   it('leaves title text controlled by the caller', () => {
     const markup = renderToStaticMarkup(
       createElement(Icon, {
