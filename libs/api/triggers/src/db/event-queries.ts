@@ -1,4 +1,5 @@
-import {and, asc, desc, eq, gte, inArray, lt, lte, or, type SQL} from 'drizzle-orm';
+import {paginateTimestampIdRows, timestampIdCursorWhere} from '@shipfox/node-drizzle';
+import {and, asc, desc, eq, gte, inArray, lte, type SQL} from 'drizzle-orm';
 import type {TriggerDecision} from '#core/entities/decision.js';
 import type {
   TriggerEventOutcome,
@@ -39,23 +40,14 @@ export interface ListTriggerEventsResult {
   nextCursor: TriggerEventCursor | null;
 }
 
-// Keyset on (received_at desc, id desc). The list index covers received_at; id breaks
-// the rare equal-timestamp tie so pages never overlap or skip a row.
-function cursorWhere(cursor: TriggerEventCursor | undefined): SQL | undefined {
-  if (!cursor) return undefined;
-  return or(
-    lt(triggersReceivedEvents.receivedAt, cursor.receivedAt),
-    and(
-      eq(triggersReceivedEvents.receivedAt, cursor.receivedAt),
-      lt(triggersReceivedEvents.id, cursor.id),
-    ),
-  );
-}
-
 function listConditions(params: ListTriggerEventsParams): SQL[] {
   const {workspaceId, cursor, filters} = params;
   const conditions: SQL[] = [eq(triggersReceivedEvents.workspaceId, workspaceId)];
-  const cursorCondition = cursorWhere(cursor);
+  const cursorCondition = timestampIdCursorWhere({
+    timestampColumn: triggersReceivedEvents.receivedAt,
+    idColumn: triggersReceivedEvents.id,
+    cursor: cursor ? {createdAt: cursor.receivedAt, id: cursor.id} : undefined,
+  });
   if (cursorCondition) conditions.push(cursorCondition);
   if (filters?.source) conditions.push(eq(triggersReceivedEvents.source, filters.source));
   if (filters?.event) conditions.push(eq(triggersReceivedEvents.event, filters.event));
@@ -76,13 +68,13 @@ export async function listTriggerEvents(
     .orderBy(desc(triggersReceivedEvents.receivedAt), desc(triggersReceivedEvents.id))
     .limit(params.limit + 1);
 
-  const hasMore = rows.length > params.limit;
-  const pageRows = hasMore ? rows.slice(0, params.limit) : rows;
-  const last = pageRows.at(-1);
+  const page = paginateTimestampIdRows({rows, limit: params.limit, timestampKey: 'receivedAt'});
 
   return {
-    events: pageRows.map(toTriggerReceivedEventSummary),
-    nextCursor: hasMore && last ? {receivedAt: last.receivedAt, id: last.id} : null,
+    events: page.pageRows.map(toTriggerReceivedEventSummary),
+    nextCursor: page.nextCursor
+      ? {receivedAt: page.nextCursor.createdAt, id: page.nextCursor.id}
+      : null,
   };
 }
 

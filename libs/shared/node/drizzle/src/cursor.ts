@@ -1,6 +1,13 @@
+import {and, eq, lt, or, type SQL, type SQLWrapper} from 'drizzle-orm';
+
 export interface TimestampIdCursor {
   createdAt: Date;
   id: string;
+}
+
+export interface TimestampIdPage<TRow> {
+  pageRows: TRow[];
+  nextCursor: TimestampIdCursor | null;
 }
 
 export interface StringIdCursor {
@@ -20,6 +27,33 @@ export function decodeTimestampIdCursor(cursor: string | undefined): TimestampId
   const createdAt = new Date(createdAtRaw);
   if (Number.isNaN(createdAt.getTime())) return undefined;
   return {createdAt, id};
+}
+
+export function timestampIdCursorWhere(params: {
+  timestampColumn: SQLWrapper;
+  idColumn: SQLWrapper;
+  cursor: TimestampIdCursor | undefined;
+}): SQL | undefined {
+  const {timestampColumn, idColumn, cursor} = params;
+  if (!cursor) return undefined;
+  return or(
+    lt(timestampColumn, cursor.createdAt),
+    and(eq(timestampColumn, cursor.createdAt), lt(idColumn, cursor.id)),
+  );
+}
+
+export function paginateTimestampIdRows<
+  TTimestampKey extends string,
+  TRow extends {id: string} & Record<TTimestampKey, Date>,
+>(params: {rows: TRow[]; limit: number; timestampKey: TTimestampKey}): TimestampIdPage<TRow> {
+  const hasMore = params.rows.length > params.limit;
+  const pageRows = hasMore ? params.rows.slice(0, params.limit) : params.rows;
+  const last = pageRows.at(-1);
+
+  return {
+    pageRows,
+    nextCursor: hasMore && last ? {createdAt: last[params.timestampKey], id: last.id} : null,
+  };
 }
 
 export function encodeStringIdCursor(cursor: StringIdCursor): string {

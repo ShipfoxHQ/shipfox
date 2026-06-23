@@ -8,8 +8,13 @@ import {
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   type WorkflowsEventMap,
 } from '@shipfox/api-workflows-dto';
+import {
+  paginateTimestampIdRows,
+  type TimestampIdCursor,
+  timestampIdCursorWhere,
+} from '@shipfox/node-drizzle';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {and, asc, count, desc, eq, gte, inArray, lt, lte, or, type SQL, sql} from 'drizzle-orm';
+import {and, asc, count, desc, eq, gte, inArray, lte, type SQL, sql} from 'drizzle-orm';
 import {isJobTerminal, type Job, type JobStatus} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
@@ -140,10 +145,7 @@ export async function getWorkflowRunById(id: string): Promise<WorkflowRun | unde
   return toWorkflowRun(row);
 }
 
-export interface WorkflowRunCursor {
-  createdAt: Date;
-  id: string;
-}
+export type WorkflowRunCursor = TimestampIdCursor;
 
 export interface WorkflowRunFilters {
   status?: WorkflowRunStatus | undefined;
@@ -167,14 +169,6 @@ export interface ListWorkflowRunsResult {
   filteredTotalCount: number | null;
 }
 
-function cursorWhere(cursor: WorkflowRunCursor | undefined): SQL | undefined {
-  if (!cursor) return undefined;
-  return or(
-    lt(workflowRuns.createdAt, cursor.createdAt),
-    and(eq(workflowRuns.createdAt, cursor.createdAt), lt(workflowRuns.id, cursor.id)),
-  );
-}
-
 export function buildWorkflowRunListConditions(params: {
   projectId: string;
   filters?: WorkflowRunFilters | undefined;
@@ -183,7 +177,11 @@ export function buildWorkflowRunListConditions(params: {
 }): SQL[] {
   const filters = params.filters;
   const conditions: SQL[] = [eq(workflowRuns.projectId, params.projectId)];
-  const cursorCondition = cursorWhere(params.cursor);
+  const cursorCondition = timestampIdCursorWhere({
+    timestampColumn: workflowRuns.createdAt,
+    idColumn: workflowRuns.id,
+    cursor: params.cursor,
+  });
   if (cursorCondition) conditions.push(cursorCondition);
   if (filters?.status && params.omit !== 'status') {
     conditions.push(eq(workflowRuns.status, filters.status));
@@ -227,13 +225,11 @@ export async function listWorkflowRuns(
     totalCount = value;
   }
 
-  const hasMore = rows.length > params.limit;
-  const pageRows = hasMore ? rows.slice(0, params.limit) : rows;
-  const last = pageRows.at(-1);
+  const page = paginateTimestampIdRows({rows, limit: params.limit, timestampKey: 'createdAt'});
 
   return {
-    runs: pageRows.map(toWorkflowRun),
-    nextCursor: hasMore && last ? {createdAt: last.createdAt, id: last.id} : null,
+    runs: page.pageRows.map(toWorkflowRun),
+    nextCursor: page.nextCursor,
     filteredTotalCount: totalCount,
   };
 }
