@@ -78,6 +78,7 @@ type ComboboxContextValue = {
   disabled: boolean;
   isLoading: boolean;
   maxVisibleChips: number | 'auto';
+  listId: string;
   open: boolean;
   setOpen: (open: boolean) => void;
   searchValue: string;
@@ -105,6 +106,9 @@ function useComboboxContext() {
 function ComboboxRoot(props: ComboboxRootProps) {
   const {options, children, disabled = false, isLoading = false, maxVisibleChips = 'auto'} = props;
   const multiple = props.multiple === true;
+  const propsRef = React.useRef(props);
+  propsRef.current = props;
+  const listId = React.useId();
   const [open, setOpen] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState('');
   const [internalSingleValue, setInternalSingleValue] = React.useState(
@@ -126,16 +130,22 @@ function ComboboxRoot(props: ComboboxRootProps) {
     ? ''
     : ((props as SingleControlledComboboxRootProps | SingleUncontrolledComboboxRootProps).value ??
       internalSingleValue);
-  const selectedValues = multiple
-    ? ((props as MultiControlledComboboxRootProps | MultiUncontrolledComboboxRootProps).value ??
-      internalMultiValue)
-    : selectedValue
-      ? [selectedValue]
-      : [];
+  const controlledMultiValue = multiple
+    ? (props as MultiControlledComboboxRootProps | MultiUncontrolledComboboxRootProps).value
+    : undefined;
+  const selectedValues = React.useMemo<string[]>(
+    () =>
+      multiple
+        ? (controlledMultiValue ?? internalMultiValue)
+        : selectedValue
+          ? [selectedValue]
+          : [],
+    [multiple, controlledMultiValue, internalMultiValue, selectedValue],
+  );
 
   const updateSingleValue = React.useCallback(
     (nextValue: string) => {
-      const singleProps = props as
+      const singleProps = propsRef.current as
         | SingleControlledComboboxRootProps
         | SingleUncontrolledComboboxRootProps;
 
@@ -146,12 +156,12 @@ function ComboboxRoot(props: ComboboxRootProps) {
         singleProps.onValueChange?.(nextValue);
       }
     },
-    [multiple, props],
+    [multiple],
   );
 
   const updateMultiValue = React.useCallback(
     (nextValues: string[]) => {
-      const multiProps = props as
+      const multiProps = propsRef.current as
         | MultiControlledComboboxRootProps
         | MultiUncontrolledComboboxRootProps;
 
@@ -162,7 +172,7 @@ function ComboboxRoot(props: ComboboxRootProps) {
         multiProps.onValueChange?.(nextValues);
       }
     },
-    [multiple, props],
+    [multiple],
   );
 
   const getLabel = React.useCallback(
@@ -225,6 +235,7 @@ function ComboboxRoot(props: ComboboxRootProps) {
       disabled,
       isLoading,
       maxVisibleChips,
+      listId,
       open,
       setOpen,
       searchValue,
@@ -244,6 +255,7 @@ function ComboboxRoot(props: ComboboxRootProps) {
       disabled,
       isLoading,
       maxVisibleChips,
+      listId,
       open,
       searchValue,
       selectedValue,
@@ -280,10 +292,23 @@ function ComboboxTrigger({
   disabled,
   onClick,
   onKeyDown,
+  id,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledby,
+  'aria-describedby': ariaDescribedby,
   ...props
 }: ComboboxTriggerProps) {
   const context = useComboboxContext();
   const isDisabled = disabled || context.disabled;
+  // Route the label/name onto the labelable widget: the <button> for single-select,
+  // the inline <input> for multi-select. The multi wrapper is a presentational <div>,
+  // which `htmlFor` cannot name, so the input must carry id/aria-* instead.
+  const labelProps = {
+    id,
+    'aria-label': ariaLabel,
+    'aria-labelledby': ariaLabelledby,
+    'aria-describedby': ariaDescribedby,
+  };
 
   if (!context.multiple) {
     const triggerContent = children ?? (context.selectedValue ? <ComboboxValue /> : undefined);
@@ -299,6 +324,7 @@ function ComboboxTrigger({
           isLoading={context.isLoading}
           onClick={onClick}
           onKeyDown={onKeyDown}
+          {...labelProps}
           {...props}
         >
           {triggerContent}
@@ -307,15 +333,13 @@ function ComboboxTrigger({
     );
   }
 
-  const triggerContent = children ?? <ComboboxValue placeholder={placeholder} />;
+  const triggerContent = children ?? (
+    <ComboboxValue placeholder={placeholder} inputProps={labelProps} />
+  );
 
   return (
     <PopoverTrigger asChild>
       <div
-        role="combobox"
-        aria-expanded={context.open}
-        aria-disabled={isDisabled || undefined}
-        tabIndex={isDisabled ? -1 : 0}
         data-slot="combobox-trigger"
         data-disabled={isDisabled || undefined}
         className={cn(
@@ -325,26 +349,6 @@ function ComboboxTrigger({
           'data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:bg-background-neutral-disabled data-disabled:shadow-none data-disabled:text-foreground-neutral-disabled',
           className,
         )}
-        onClick={(event) => {
-          onClick?.(event as unknown as React.MouseEvent<HTMLButtonElement>);
-          if (!event.defaultPrevented && !isDisabled) {
-            context.setOpen(true);
-          }
-        }}
-        onKeyDown={(event) => {
-          onKeyDown?.(event as unknown as React.KeyboardEvent<HTMLButtonElement>);
-          if (event.defaultPrevented || isDisabled) {
-            return;
-          }
-
-          if (
-            event.target === event.currentTarget &&
-            (event.key === 'Enter' || event.key === ' ')
-          ) {
-            event.preventDefault();
-            context.setOpen(true);
-          }
-        }}
         {...(props as Omit<React.ComponentProps<'div'>, 'onClick' | 'onKeyDown'>)}
       >
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-4 text-left">
@@ -365,16 +369,17 @@ function ComboboxTrigger({
 
 type ComboboxValueProps = {
   placeholder?: string;
+  inputProps?: ComboboxChipsInputProps;
 };
 
-function ComboboxValue({placeholder = 'Select option...'}: ComboboxValueProps) {
+function ComboboxValue({placeholder = 'Select option...', inputProps}: ComboboxValueProps) {
   const context = useComboboxContext();
 
   if (context.multiple) {
     return (
       <>
         <ComboboxChips />
-        <ComboboxChipsInput placeholder={placeholder} />
+        <ComboboxChipsInput placeholder={placeholder} {...inputProps} />
       </>
     );
   }
@@ -395,17 +400,21 @@ function ComboboxContent({
   children,
   ...props
 }: ComboboxContentProps) {
+  const context = useComboboxContext();
   return (
     <PopoverContent
       className={cn('w-(--radix-popover-trigger-width) p-0', className)}
       align={align}
       sideOffset={sideOffset}
+      // Multi-select types in the trigger's inline combobox input, so keep focus there
+      // instead of letting the popover steal it on open.
+      onOpenAutoFocus={context.multiple ? (event) => event.preventDefault() : undefined}
       onWheel={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
       {...props}
     >
-      <Command shouldFilter={false}>{children}</Command>
+      <Command shouldFilter={!context.multiple}>{children}</Command>
     </PopoverContent>
   );
 }
@@ -441,7 +450,14 @@ function ComboboxList({
   ...props
 }: ComboboxListProps) {
   const context = useComboboxContext();
-  const filteredOptions = React.useMemo(() => {
+  // Single-select delegates filtering to cmdk (fuzzy + ranked) via shouldFilter.
+  // Multi-select drives its own substring filter because its search input lives in
+  // the trigger, outside the cmdk Command that owns single-select filtering.
+  const visibleOptions = React.useMemo(() => {
+    if (!context.multiple) {
+      return context.options;
+    }
+
     const normalizedSearch = context.searchValue.trim().toLowerCase();
     if (!normalizedSearch) {
       return context.options;
@@ -452,21 +468,26 @@ function ComboboxList({
         option.label.toLowerCase().includes(normalizedSearch) ||
         option.value.toLowerCase().includes(normalizedSearch),
     );
-  }, [context.options, context.searchValue]);
+  }, [context.multiple, context.options, context.searchValue]);
 
   return (
     <ScrollArea>
-      <CommandList className={cn('max-h-300', className)} {...props}>
-        {children ??
-          (filteredOptions.length > 0 ? (
+      <CommandList
+        id={context.listId}
+        aria-multiselectable={context.multiple || undefined}
+        className={cn('max-h-300', className)}
+        {...props}
+      >
+        {children ?? (
+          <>
+            <ComboboxEmpty>{emptyState}</ComboboxEmpty>
             <CommandGroup>
-              {filteredOptions.map((option) => (
+              {visibleOptions.map((option) => (
                 <ComboboxItem key={option.value} option={option} />
               ))}
             </CommandGroup>
-          ) : (
-            <ComboboxEmpty>{emptyState}</ComboboxEmpty>
-          ))}
+          </>
+        )}
       </CommandList>
     </ScrollArea>
   );
@@ -502,8 +523,9 @@ function ComboboxItem({
   return (
     <CommandItem
       value={itemValue}
+      keywords={[label]}
       disabled={isDisabled}
-      aria-checked={selected}
+      aria-checked={context.multiple ? selected : undefined}
       data-state={selected ? 'checked' : 'unchecked'}
       className={className}
       onSelect={() => {
@@ -525,6 +547,28 @@ const chipClassName = cn(
   'inline-flex h-20 max-w-160 items-center gap-4 rounded-4 border border-tag-neutral-border',
   'bg-tag-neutral-bg px-6 text-xs font-medium leading-20 text-tag-neutral-text',
 );
+
+const chipTrailingClassName = 'inline-flex size-12 shrink-0 items-center justify-center rounded-2';
+
+const overflowBadgeClassName = cn(chipClassName, 'max-w-none shrink-0');
+
+type ComboboxChipShapeProps = React.ComponentProps<'span'> & {
+  label: string;
+  trailing: React.ReactNode;
+};
+
+// Shared chip geometry. The visible chip and the offscreen measurement clone both
+// render through this so their widths can never drift apart and break the overflow
+// partition, which measures the clone to decide how many real chips fit.
+const ComboboxChipShape = React.forwardRef<HTMLSpanElement, ComboboxChipShapeProps>(
+  ({label, trailing, className, ...props}, ref) => (
+    <span ref={ref} className={cn(chipClassName, className)} {...props}>
+      <span className="truncate">{label}</span>
+      {trailing}
+    </span>
+  ),
+);
+ComboboxChipShape.displayName = 'ComboboxChipShape';
 
 type ComboboxChipsProps = React.ComponentProps<'div'>;
 
@@ -550,7 +594,7 @@ function ComboboxChips({className, ...props}: ComboboxChipsProps) {
       {hiddenCount > 0 && (
         <span
           role="img"
-          className={cn(chipClassName, 'max-w-none shrink-0')}
+          className={overflowBadgeClassName}
           aria-label={`${hiddenCount} more selected`}
         >
           +{hiddenCount}
@@ -576,26 +620,30 @@ function ComboboxChips({className, ...props}: ComboboxChipsProps) {
           <Icon name="closeLine" className="size-14" />
         </button>
       )}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -left-[9999px] top-0 flex items-center gap-4 opacity-0"
-      >
-        {context.selectedValues.map((value) => (
-          <span
-            key={value}
-            ref={(node) => {
-              measureNodes.current.set(value, node);
-            }}
-            className={chipClassName}
-          >
-            <span className="truncate">{context.getLabel(value)}</span>
-            <Icon name="closeLine" className="size-12 shrink-0" />
+      {context.maxVisibleChips === 'auto' && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -left-[9999px] top-0 flex items-center gap-4 opacity-0"
+        >
+          {context.selectedValues.map((value) => (
+            <ComboboxChipShape
+              key={value}
+              ref={(node) => {
+                measureNodes.current.set(value, node);
+              }}
+              label={context.getLabel(value)}
+              trailing={
+                <span className={chipTrailingClassName}>
+                  <Icon name="closeLine" className="size-12" />
+                </span>
+              }
+            />
+          ))}
+          <span ref={overflowRef} className={overflowBadgeClassName}>
+            +{context.selectedValues.length}
           </span>
-        ))}
-        <span ref={overflowRef} className={cn(chipClassName, 'max-w-none shrink-0')}>
-          +{context.selectedValues.length}
-        </span>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -609,27 +657,32 @@ function ComboboxChip({value, className, ...props}: ComboboxChipProps) {
   const label = context.getLabel(value);
 
   return (
-    <span data-slot="combobox-chip" className={cn(chipClassName, className)} {...props}>
-      <span className="truncate">{label}</span>
-      <button
-        type="button"
-        aria-label={`Remove ${label}`}
-        disabled={context.disabled}
-        className={cn(
-          'inline-flex size-12 shrink-0 items-center justify-center rounded-2',
-          'text-tag-neutral-icon transition-colors hover:opacity-70',
-          'focus-visible:shadow-border-interactive-with-active outline-none',
-          'disabled:pointer-events-none disabled:text-foreground-neutral-disabled',
-        )}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          context.removeValue(value);
-        }}
-      >
-        <Icon name="closeLine" className="size-12" />
-      </button>
-    </span>
+    <ComboboxChipShape
+      data-slot="combobox-chip"
+      label={label}
+      className={className}
+      trailing={
+        <button
+          type="button"
+          aria-label={`Remove ${label}`}
+          disabled={context.disabled}
+          className={cn(
+            chipTrailingClassName,
+            'text-tag-neutral-icon transition-colors hover:opacity-70',
+            'focus-visible:shadow-border-interactive-with-active outline-none',
+            'disabled:pointer-events-none disabled:text-foreground-neutral-disabled',
+          )}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            context.removeValue(value);
+          }}
+        >
+          <Icon name="closeLine" className="size-12" />
+        </button>
+      }
+      {...props}
+    />
   );
 }
 
@@ -639,13 +692,17 @@ function ComboboxChipsInput({
   className,
   placeholder,
   onKeyDown,
-  onFocus,
   ...props
 }: ComboboxChipsInputProps) {
   const context = useComboboxContext();
 
   return (
     <input
+      role="combobox"
+      aria-expanded={context.open}
+      aria-controls={context.listId}
+      aria-haspopup="listbox"
+      aria-autocomplete="list"
       value={context.searchValue}
       placeholder={context.selectedValues.length === 0 ? placeholder : undefined}
       disabled={context.disabled}
@@ -658,12 +715,6 @@ function ComboboxChipsInput({
       onChange={(event) => {
         context.setSearchValue(event.target.value);
         context.setOpen(true);
-      }}
-      onFocus={(event) => {
-        onFocus?.(event);
-        if (!event.defaultPrevented) {
-          context.setOpen(true);
-        }
       }}
       onKeyDown={(event) => {
         onKeyDown?.(event);
@@ -858,7 +909,7 @@ export function Combobox({
         {...triggerProps}
       />
       <ComboboxContent className={popoverClassName} align={align} sideOffset={sideOffset}>
-        <ComboboxInput placeholder={searchPlaceholder} />
+        {!multiple && <ComboboxInput placeholder={searchPlaceholder} />}
         <ComboboxList emptyState={emptyState} />
       </ComboboxContent>
     </ComboboxRoot>

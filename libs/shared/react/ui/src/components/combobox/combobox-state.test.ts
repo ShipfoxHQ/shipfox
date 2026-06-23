@@ -114,4 +114,31 @@ describe('combobox state helpers', () => {
 
     expect(result).toEqual({visibleValues: ['apache', 'apollo'], hiddenCount: 1});
   });
+
+  it('returns an empty partition when there are no values', () => {
+    const result = partitionComboboxChipsByWidth({
+      values: [],
+      valueWidths: new Map(),
+      availableWidth: 200,
+      overflowChipWidth: 24,
+      gapWidth: 4,
+    });
+
+    expect(result).toEqual({visibleValues: [], hiddenCount: 0});
+  });
+
+  it('hides every chip when no width is available', () => {
+    const result = partitionComboboxChipsByWidth({
+      values: ['apache', 'apollo'],
+      valueWidths: new Map([
+        ['apache', 50],
+        ['apollo', 50],
+      ]),
+      availableWidth: 0,
+      overflowChipWidth: 24,
+      gapWidth: 4,
+    });
+
+    expect(result).toEqual({visibleValues: [], hiddenCount: 2});
+  });
 });
