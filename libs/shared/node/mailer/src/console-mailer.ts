@@ -18,7 +18,6 @@ export function createConsoleMailer(options: ConsoleMailerOptions): Mailer {
           to: message.to,
           subject: message.subject,
           text: message.text,
-          html: message.html,
         },
         'mailer.send',
       );

@@ -48,7 +48,7 @@ Required environment:
 | `AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS` | `14` | Refresh token and cookie lifetime. |
 | `AUTH_REFRESH_ROTATION_GRACE_SECONDS` | `30` | Grace window for accepting a just-rotated refresh token during concurrent refreshes. |
 | `AUTH_REFRESH_COOKIE_NAME` | `shipfox_refresh_token` | HTTP cookie name for refresh sessions. |
-| `CLIENT_BASE_URL` | `http://localhost:3000` | Base URL used in email verification and password reset links. |
+| `CLIENT_BASE_URL` | `http://localhost:5173` | Base URL used in email verification and password reset links. |
 | `MAILER_TRANSPORT` | `console` | Mail transport. Set to `smtp` to send real mail. |
 | `MAILER_FROM` | `noreply@shipfox.local` | Sender used by auth emails. |
 | `SMTP_HOST` | none | Required when `MAILER_TRANSPORT=smtp`. |

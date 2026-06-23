@@ -79,6 +79,53 @@ describe('invitations core', () => {
     expect(captured[0]?.to).toBe(email);
   });
 
+  test('createWorkspaceInvitation sends a branded email with the workspace name and inviter', async () => {
+    const inviter = userFactory.build();
+    const workspace = await workspaceFactory.create();
+    await createMembership({
+      userId: inviter.userId,
+      userEmail: inviter.email,
+      userName: inviter.name,
+      workspaceId: workspace.id,
+    });
+    const email = `invitee-${crypto.randomUUID()}@example.com`;
+
+    await createWorkspaceInvitation({
+      workspaceId: workspace.id,
+      email,
+      invitedByUserId: inviter.userId,
+      invitedByDisplay: 'Dana Scully',
+      invitedByMemberships: [{workspaceId: workspace.id, role: 'admin'}],
+    });
+
+    const message = captured[0];
+    expect(message?.subject).toBe(`Join ${workspace.name} on Shipfox`);
+    expect(message?.text).toContain(workspace.name);
+    expect(message?.html).toContain('Dana Scully');
+    expect(message?.text).toContain('Dana Scully has invited you');
+  });
+
+  test('createWorkspaceInvitation falls back to "A teammate" when no inviter display is given', async () => {
+    const inviter = userFactory.build();
+    const workspace = await workspaceFactory.create();
+    await createMembership({
+      userId: inviter.userId,
+      userEmail: inviter.email,
+      userName: inviter.name,
+      workspaceId: workspace.id,
+    });
+    const email = `invitee-${crypto.randomUUID()}@example.com`;
+
+    await createWorkspaceInvitation({
+      workspaceId: workspace.id,
+      email,
+      invitedByUserId: inviter.userId,
+      invitedByMemberships: [{workspaceId: workspace.id, role: 'admin'}],
+    });
+
+    expect(captured[0]?.text).toContain('A teammate has invited you');
+  });
+
   test('createWorkspaceInvitation rejects duplicate open invitations', async () => {
     const inviter = userFactory.build();
     const workspace = await workspaceFactory.create();

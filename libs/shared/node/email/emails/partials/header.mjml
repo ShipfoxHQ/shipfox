@@ -1,0 +1,6 @@
+<mj-image
+  width="50px"
+  alt="Shipfox"
+  padding="0 0 24px 0"
+  src="{{logoUrl}}"
+/>
