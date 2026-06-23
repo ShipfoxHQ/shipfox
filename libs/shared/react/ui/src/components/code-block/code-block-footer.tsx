@@ -45,11 +45,7 @@ export function CodeBlockFooter({
         autoPlay={!isTest}
       />
     ) : (
-      <Icon
-        name="checkCircleSolid"
-        className="size-20 text-foreground-neutral-base"
-        aria-hidden="true"
-      />
+      <Icon name="checkCircleSolid" className="size-20" aria-hidden="true" />
     ));
 
   if (asChild || children) {
