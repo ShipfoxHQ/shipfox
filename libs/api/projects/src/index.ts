@@ -5,6 +5,7 @@ import {
   INTEGRATION_SOURCE_COMMIT_PUSHED,
   type IntegrationsEventMap,
 } from '@shipfox/api-integration-core-dto';
+import {projectsEventSchemas} from '@shipfox/api-projects-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, projectsOutbox} from '#db/index.js';
 import {createProjectRoutes} from '#presentation/index.js';
@@ -46,7 +47,7 @@ export function createProjectsModule({sourceControl}: CreateProjectsModuleOption
     name: 'projects',
     database: {db, migrationsPath},
     routes: createProjectRoutes(sourceControl),
-    publishers: [{name: 'projects', table: projectsOutbox, db}],
+    publishers: [{name: 'projects', table: projectsOutbox, db, eventSchemas: projectsEventSchemas}],
     subscribers: [subscriber(INTEGRATION_SOURCE_COMMIT_PUSHED, onSourceCommitPushed)],
     workers: [
       {

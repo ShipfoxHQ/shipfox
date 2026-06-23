@@ -1,5 +1,6 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {runnersEventSchemas} from '@shipfox/api-runners-dto';
 import {WORKFLOWS_JOB_TIMED_OUT, type WorkflowsEventMap} from '@shipfox/api-workflows-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, runnersOutbox} from '#db/index.js';
@@ -19,7 +20,7 @@ export const runnersModule: ShipfoxModule = {
   database: {db, migrationsPath},
   auth: [createRunnerTokenAuthMethod()],
   routes,
-  publishers: [{name: 'runners', table: runnersOutbox, db}],
+  publishers: [{name: 'runners', table: runnersOutbox, db, eventSchemas: runnersEventSchemas}],
   subscribers: [subscriber(WORKFLOWS_JOB_TIMED_OUT, onWorkflowsJobTimedOut)],
   workers: [
     {

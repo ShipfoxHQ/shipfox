@@ -1,6 +1,10 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {DEFINITION_RESOLVED, type DefinitionsEventMap} from '@shipfox/api-definitions-dto';
+import {
+  DEFINITION_RESOLVED,
+  type DefinitionsEventMap,
+  definitionsEventSchemas,
+} from '@shipfox/api-definitions-dto';
 import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
 import {
   PROJECT_SOURCE_BOUND,
@@ -42,7 +46,9 @@ export function createDefinitionsModule({
     name: 'definitions',
     database: {db, migrationsPath},
     routes,
-    publishers: [{name: 'definitions', table: definitionsOutbox, db}],
+    publishers: [
+      {name: 'definitions', table: definitionsOutbox, db, eventSchemas: definitionsEventSchemas},
+    ],
     subscribers: [
       subscriber(DEFINITION_RESOLVED, (_payload, event) => {
         logger().info({event}, 'Definition resolved');

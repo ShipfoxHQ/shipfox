@@ -47,6 +47,7 @@ export {
   stepErrorReasonSchema,
 } from '#schemas/index.js';
 export {
+  terminalStatusSchema,
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_JOB_TIMED_OUT,
@@ -61,4 +62,10 @@ export {
   type WorkflowsWorkflowRunCreatedEvent,
   type WorkflowsWorkflowRunTerminatedEvent,
   workflowsEventSchemas,
+  workflowsJobStepsSettledSchema,
+  workflowsJobTerminatedSchema,
+  workflowsJobTimedOutSchema,
+  workflowsStepRestartEnqueuedSchema,
+  workflowsWorkflowRunCreatedSchema,
+  workflowsWorkflowRunTerminatedSchema,
 } from './events.js';

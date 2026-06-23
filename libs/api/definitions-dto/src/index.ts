@@ -21,4 +21,8 @@ export {
   type DefinitionInvalidEvent,
   type DefinitionResolvedEvent,
   type DefinitionsEventMap,
+  definitionDeletedEventSchema,
+  definitionInvalidEventSchema,
+  definitionResolvedEventSchema,
+  definitionsEventSchemas,
 } from './events.js';

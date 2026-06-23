@@ -22,4 +22,8 @@ export {
   type RunnerJobLeaseExpiredEvent,
   type RunnerJobQueuedEvent,
   type RunnersEventMap,
+  runnerJobClaimedEventSchema,
+  runnerJobLeaseExpiredEventSchema,
+  runnerJobQueuedEventSchema,
+  runnersEventSchemas,
 } from './events.js';
