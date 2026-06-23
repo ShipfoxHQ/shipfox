@@ -44,7 +44,12 @@ const presignedBody = () => ({
   truncated: false,
 });
 
-function renderStepLogsHook(stepId: string | undefined = STEP_ID, attempt: number | undefined = 1) {
+function renderStepLogsHook(
+  params: {stepId: string | undefined; attempt: number | undefined} = {
+    stepId: STEP_ID,
+    attempt: 1,
+  },
+) {
   const queryClient = new QueryClient({
     defaultOptions: {queries: {retry: false}},
   });
@@ -52,7 +57,7 @@ function renderStepLogsHook(stepId: string | undefined = STEP_ID, attempt: numbe
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 
-  return renderHook(() => useStepAttemptLogsQuery(stepId, attempt), {wrapper});
+  return renderHook(() => useStepAttemptLogsQuery(params.stepId, params.attempt), {wrapper});
 }
 
 function requestsFrom(fetchImpl: ReturnType<typeof vi.fn>): Request[] {
@@ -70,7 +75,7 @@ describe('useStepAttemptLogsQuery', () => {
     const fetchImpl = vi.fn(async () => jsonResponse(inlineBody({ndjson: '', nextCursor: 0})));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
-    renderStepLogsHook(undefined, undefined);
+    renderStepLogsHook({stepId: undefined, attempt: undefined});
 
     expect(fetchImpl).not.toHaveBeenCalled();
   });
