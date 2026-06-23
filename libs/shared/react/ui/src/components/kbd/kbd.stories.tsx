@@ -1,5 +1,5 @@
 import type {Meta, StoryObj} from '@storybook/react';
-import {Kbd, KbdGroup} from './kbd';
+import {Kbd, KbdGroup} from './kbd.js';
 
 const meta = {
   title: 'Components/Kbd',

@@ -4,8 +4,8 @@ import {cva, type VariantProps} from 'class-variance-authority';
 import {Command as CommandPrimitive} from 'cmdk';
 import {type ComponentProps, forwardRef, useCallback, useState} from 'react';
 import {cn} from '#utils/cn.js';
-import {Icon} from '../icon';
-import {Kbd} from '../kbd';
+import {Icon} from '../icon/index.js';
+import {Kbd} from '../kbd/index.js';
 
 const commandTriggerVariants = cva(
   [

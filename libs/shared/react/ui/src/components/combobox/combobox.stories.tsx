@@ -1,7 +1,7 @@
 import type {Meta, StoryObj} from '@storybook/react';
 import {useState} from 'react';
 import {Label} from '../label/index.js';
-import {Combobox, type ComboboxOption} from './combobox';
+import {Combobox, type ComboboxOption} from './combobox.js';
 
 const sampleItems: ComboboxOption[] = [
   {value: 'apache', label: 'apache'},

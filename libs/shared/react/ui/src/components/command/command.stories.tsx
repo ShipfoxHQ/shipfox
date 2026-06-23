@@ -1,7 +1,7 @@
 import type {Meta, StoryObj} from '@storybook/react';
 import {useState} from 'react';
-import {Icon} from '../icon';
-import {Popover, PopoverContent, PopoverTrigger} from '../popover';
+import {Icon} from '../icon/index.js';
+import {Popover, PopoverContent, PopoverTrigger} from '../popover/index.js';
 import {
   Command,
   CommandEmpty,
@@ -12,7 +12,7 @@ import {
   CommandSeparator,
   CommandShortcut,
   CommandTrigger,
-} from './command';
+} from './command.js';
 
 const meta = {
   title: 'Components/Command',

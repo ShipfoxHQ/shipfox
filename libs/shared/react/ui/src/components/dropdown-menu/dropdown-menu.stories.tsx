@@ -2,8 +2,8 @@ import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {Meta, StoryObj} from '@storybook/react';
 import {screen} from '@testing-library/react';
 import {useState} from 'react';
-import {Avatar} from '../avatar';
-import {Button} from '../button';
+import {Avatar} from '../avatar/index.js';
+import {Button} from '../button/index.js';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -18,7 +18,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from './dropdown-menu';
+} from './dropdown-menu.js';
 
 const isTestEnvironment = () => typeof navigator !== 'undefined' && navigator.webdriver === true;
 const hideTriggerInTests = () =>
