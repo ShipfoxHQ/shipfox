@@ -2,7 +2,12 @@ import {createOutboxTable} from '@shipfox/node-outbox';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {pgTableCreator} from 'drizzle-orm/pg-core';
 import {z} from 'zod';
-import {getEventSchema, registerPublisher, resetPublishers} from './publisher-registry.js';
+import {
+  getEventSchema,
+  pruneDispatchedOutboxRows,
+  registerPublisher,
+  resetPublishers,
+} from './publisher-registry.js';
 
 const table = createOutboxTable(pgTableCreator((name) => name));
 const db = (() => undefined) as unknown as () => NodePgDatabase<Record<string, unknown>>;
@@ -67,5 +72,36 @@ describe('getEventSchema', () => {
       registerPublisher({name: 'foo', table, db, eventSchemas: {'foo.created': fooSchema}});
 
     expect(register).not.toThrow();
+  });
+});
+
+describe('pruneDispatchedOutboxRows', () => {
+  beforeEach(() => {
+    resetPublishers();
+  });
+
+  afterEach(() => {
+    resetPublishers();
+  });
+
+  it.each([
+    ['retentionDays', {retentionDays: 0, batchSize: 5_000, maxBatchesPerSource: 200}],
+    ['batchSize', {retentionDays: 7, batchSize: 0, maxBatchesPerSource: 200}],
+    ['maxBatchesPerSource', {retentionDays: 7, batchSize: 5_000, maxBatchesPerSource: 0}],
+    ['retentionDays', {retentionDays: 7.5, batchSize: 5_000, maxBatchesPerSource: 200}],
+  ])('rejects a non-positive-integer %s before touching the database', async (name, options) => {
+    const prune = pruneDispatchedOutboxRows(options);
+
+    await expect(prune).rejects.toThrow(`${name} must be a positive integer`);
+  });
+
+  it('returns no results when no publishers are registered', async () => {
+    const results = await pruneDispatchedOutboxRows({
+      retentionDays: 7,
+      batchSize: 5_000,
+      maxBatchesPerSource: 200,
+    });
+
+    expect(results).toEqual([]);
   });
 });

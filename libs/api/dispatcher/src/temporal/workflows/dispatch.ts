@@ -6,7 +6,7 @@ const {drainAndDispatch} = proxyActivities<ReturnType<typeof createActivities>>(
 });
 
 const {pruneOutboxRetention} = proxyActivities<ReturnType<typeof createActivities>>({
-  startToCloseTimeout: '30s',
+  startToCloseTimeout: '5m',
 });
 
 export async function outboxDispatcherWorkflow(): Promise<void> {
