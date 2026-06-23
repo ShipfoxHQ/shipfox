@@ -55,8 +55,8 @@ export async function drainAndDispatch(): Promise<void> {
 }
 
 /**
- * Invalid rows stay undispatched until they exhaust the bounded drain retry policy.
- * Log Zod issue paths instead of raw payloads because deterministic failures recur.
+ * Invalid rows stay undispatched until the bounded retry policy dead-letters them.
+ * Only log Zod issue paths so recurring validation failures do not repeatedly emit raw payloads.
  */
 function validatePayload(
   row: DrainedEvent,
