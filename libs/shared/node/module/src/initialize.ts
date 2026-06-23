@@ -92,6 +92,25 @@ function moduleMigrationTableName(moduleName: string, index: number): string {
 }
 
 /**
+ * Registers service-level metrics for every module that declares a `metrics`
+ * callback. Call this once at app startup, after `startServiceMetrics` so the
+ * provider exists, and after `initializeModules` so migrations have run before
+ * any gauge callback can query the database.
+ *
+ * Kept separate from `initializeModules` on purpose: reaching the service
+ * metrics provider binds the metrics port, so registration must only happen in
+ * a process that actually serves metrics, never as a side effect of the init
+ * path that unit tests exercise.
+ */
+export function registerModuleMetrics(options: {modules: ShipfoxModule[]}): void {
+  for (const mod of options.modules) {
+    if (!mod.metrics) continue;
+    logger().info({module: mod.name}, 'Registering module metrics');
+    mod.metrics();
+  }
+}
+
+/**
  * Creates Temporal workers for all module-declared workers and starts their workflows.
  * Call this after `initializeModules` so that all publishers/subscribers are registered.
  */

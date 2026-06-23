@@ -9,7 +9,7 @@ import {triggersModule} from '@shipfox/api-triggers';
 import {setSourceControl, workflowsModule} from '@shipfox/api-workflows';
 import {workspacesModule} from '@shipfox/api-workspaces';
 import {createApp, listen} from '@shipfox/node-fastify';
-import {initializeModules, startModuleWorkers} from '@shipfox/node-module';
+import {initializeModules, registerModuleMetrics, startModuleWorkers} from '@shipfox/node-module';
 import {
   logger,
   startInstanceInstrumentation,
@@ -35,20 +35,22 @@ export async function run(): Promise<void> {
   const projectsModule = createProjectsModule({sourceControl: integrations.sourceControl});
   const definitionsModule = createDefinitionsModule({sourceControl: integrations.sourceControl});
 
-  const {auth, routes, e2eRoutes, workers} = await initializeModules({
-    modules: [
-      authModule,
-      workspacesModule,
-      integrations.module,
-      projectsModule,
-      definitionsModule,
-      workflowsModule,
-      runnersModule,
-      logsModule,
-      triggersModule,
-      dispatcherModule,
-    ],
-  });
+  const modules = [
+    authModule,
+    workspacesModule,
+    integrations.module,
+    projectsModule,
+    definitionsModule,
+    workflowsModule,
+    runnersModule,
+    logsModule,
+    triggersModule,
+    dispatcherModule,
+  ];
+  const {auth, routes, e2eRoutes, workers} = await initializeModules({modules});
+  // Register service metrics after migrations so gauge callbacks can query the
+  // database; the provider was started above with startServiceMetrics.
+  registerModuleMetrics({modules});
   // Boot-time provider tasks (post-migration). No-op when no enabled provider contributes
   // one; failures are isolated and logged, never thrown, so they cannot gate boot.
   await integrations.runStartupTasks();

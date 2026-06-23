@@ -387,6 +387,110 @@ validation/known errors to 4xx codes, and logs + reports unknown errors to
 Sentry as a 500 `server-error`. Anything that reaches it untyped becomes an
 opaque 500 — so translate errors you can describe before they get here.
 
+## Metrics & observability
+
+Metrics are emitted through OpenTelemetry and scraped by Prometheus. All the
+plumbing — the SDK, the Prometheus exporters, the meter providers — lives in
+`@shipfox/node-opentelemetry`; an app turns it on once at startup (the API does
+this in `apps/api/src/core/run.ts`) and feature packages only define and record
+instruments. Never add a metrics SDK or exporter to a feature package.
+
+The worked example is `libs/api/runners/src/metrics`. Copy its shape.
+
+### Two planes: instance vs service
+
+There are two separate meter providers on two ports, and the choice between
+them is about *what the number means*, not convenience.
+
+- **Instance metrics** (`instanceMetrics.getMeter(name)`, port 9464) are
+  counters and histograms recorded inline as an event happens — a job claimed,
+  a request served, a duration observed. Each pod exposes its own values and
+  Prometheus sums across pods. This is the default; reach for it first.
+- **Service metrics** (`getServiceMetricsProvider().getMeter(name)`, port 9474)
+  are observable gauges that read shared state — a queue depth, a backlog size,
+  a current count — through a callback that runs on each scrape. They live on a
+  separate provider because every pod reading the same database row would report
+  the same value, and Prometheus must not sum those copies. Use a service gauge
+  only for point-in-time state derived from shared storage.
+
+If you are counting things that happen, you want an instance counter. If you are
+reporting how many things currently exist, you want a service gauge.
+
+### Package layout
+
+Each feature package that emits metrics owns a `src/metrics/` folder:
+
+```text
+src/metrics/
+  instance.ts   Counters and histograms, created at module load, recorded inline.
+  service.ts    register<Module>ServiceMetrics(): observable gauges (omit if none).
+  index.ts      Re-exports the above.
+```
+
+Instance instruments are created at the top of `instance.ts` and exported, then
+imported and recorded where the event occurs. Creating them at import time is
+safe: `instanceMetrics.getMeter` returns a no-op meter until an app starts
+instrumentation, so tests that merely import the module record nothing and bind
+nothing.
+
+Service gauges are different. Reaching `getServiceMetricsProvider()` binds the
+metrics port, so it must never run at import time — it would break any unit test
+that imports the module. Fetch the meter, create the gauges, and attach their
+callbacks **inside** an exported `register<Module>ServiceMetrics()` function.
+Wire that function to the module via the `metrics` hook:
+
+```ts
+export const runnersModule: ShipfoxModule = {
+  name: 'runners',
+  // ...
+  metrics: registerRunnersServiceMetrics,
+};
+```
+
+`registerModuleMetrics` (called once from the app bootstrap, after
+`startServiceMetrics` and `initializeModules`) invokes every module's hook. A
+package with no shared-state gauge omits `metrics` entirely.
+
+### Naming
+
+Snake_case, prefixed with the module name: `runners_job_claimed`,
+`runners_pending_jobs`, `runners_claim_duration`. The prefix is the namespace —
+it keeps `workflows_*` and `runners_*` from colliding in one Prometheus tenant.
+
+Do not hand-append `_total` to counters or unit suffixes to histograms: the
+Prometheus exporter derives `_total`, `_milliseconds`, and friends from the
+instrument kind and its `unit`. Set `unit: 'ms'` and `advice.explicitBucketBoundaries`
+on histograms; the name stays unit-free.
+
+### Cardinality is the one rule that matters
+
+A metric label multiplies into one time series per distinct value. Labels must
+be **bounded and low-cardinality**: an outcome, a reason, a type, a conclusion,
+a provider, an OS — values you could list on one hand or one page.
+
+Never label a metric with an unbounded identifier: no `jobId`, `runId`,
+`workspaceId`, `organizationId`, `userId`, raw URL, or error message. One job ID
+in a label is one new time series per job forever; it melts Prometheus and the
+bill. When you need per-entity detail, that is what logs and traces are for —
+put the ID in a `logger()` field, not a metric label.
+
+Type the label set so the shape is enforced at every call site:
+
+```ts
+const jobClaimedCount = meter.createCounter<{outcome: 'claimed' | 'empty'}>(
+  'runners_job_claimed',
+  {description: 'Job-claim attempts by outcome'},
+);
+```
+
+### Where recording lives
+
+Metrics are observability, like logging, so they are allowed in `core` and `db`
+— record where the event is known most precisely, not only at the HTTP edge.
+Keep recording out of pure row-to-domain mappers and DTO converters. A service
+gauge's callback queries through the same `db/` functions the rest of the
+package uses; it does not reach for raw Drizzle.
+
 ## Unit Testing Strategy (Client Apps)
 
 The detailed client testing strategy lives in

@@ -1,5 +1,6 @@
 import {issueJobLeaseToken} from '@shipfox/api-auth';
 import {claimPendingJob, expireStuckJobs} from '#db/jobs.js';
+import {jobClaimedCount} from '#metrics/instance.js';
 
 export interface ClaimJobResult {
   jobId: string;
@@ -12,7 +13,11 @@ export async function claimJob(params: {
   runnerTokenId: string;
 }): Promise<ClaimJobResult | null> {
   const claimed = await claimPendingJob(params);
-  if (!claimed) return null;
+  if (!claimed) {
+    jobClaimedCount.add(1, {outcome: 'empty'});
+    return null;
+  }
+  jobClaimedCount.add(1, {outcome: 'claimed'});
 
   const leaseToken = await issueJobLeaseToken({
     jobId: claimed.jobId,

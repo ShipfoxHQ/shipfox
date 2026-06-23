@@ -49,6 +49,18 @@ export interface ModuleWorker {
   workflows: WorkflowStart[];
 }
 
+/**
+ * Registers a module's service-level metrics (observable gauges over shared
+ * state). Invoked once at app startup by `registerModuleMetrics`, after
+ * `startServiceMetrics` has created the provider. The callback must fetch its
+ * own meter via `getServiceMetricsProvider().getMeter(name)` and attach the
+ * gauge callbacks; it must not run at import time, because reaching the
+ * provider binds the metrics port and would break unit tests that only import
+ * the module. Instance metrics (counters/histograms) need no registration —
+ * they are created lazily by `instanceMetrics.getMeter` and recorded inline.
+ */
+export type ModuleMetricsRegistration = () => void;
+
 export interface ShipfoxModule {
   name: string;
   database?: ModuleDatabase | ModuleDatabase[];
@@ -58,4 +70,5 @@ export interface ShipfoxModule {
   publishers?: ModulePublisher[];
   subscribers?: ModuleSubscriber[];
   workers?: ModuleWorker[];
+  metrics?: ModuleMetricsRegistration;
 }

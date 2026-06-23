@@ -2,7 +2,7 @@ export type {
   InitializedModules,
   InitializeModulesOptions,
 } from './initialize.js';
-export {initializeModules, startModuleWorkers} from './initialize.js';
+export {initializeModules, registerModuleMetrics, startModuleWorkers} from './initialize.js';
 export type {
   DrainedEvent,
   OutboxDispatchFailure,
@@ -24,6 +24,7 @@ export type {ModuleSubscriber} from './subscriber.js';
 export {subscriberFactory} from './subscriber.js';
 export type {
   ModuleDatabase,
+  ModuleMetricsRegistration,
   ModulePublisher,
   ModuleWorker,
   ShipfoxModule,
