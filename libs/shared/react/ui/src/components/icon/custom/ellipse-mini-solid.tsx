@@ -1,18 +1,16 @@
-import type {RemixiconComponentType} from '@remixicon/react';
-import type {ComponentProps} from 'react';
+import {type CustomIconProps, SvgIcon} from './svg-icon-props.js';
 
-export function EllipseMiniSolidIcon(props: ComponentProps<RemixiconComponentType>) {
+export function EllipseMiniSolidIcon(props: CustomIconProps) {
   return (
-    <svg
-      width="25"
-      height="24"
+    <SvgIcon
       viewBox="0 0 25 24"
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
+      defaultWidth={25}
+      defaultHeight={24}
       {...props}
     >
-      <title>Ellipse Mini Solid</title>
       <circle cx="12.2" cy="12.2" r="3.2" />
-    </svg>
+    </SvgIcon>
   );
 }

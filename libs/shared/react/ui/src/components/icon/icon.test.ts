@@ -1,28 +1,47 @@
+import type {RemixiconComponentType} from '@remixicon/react';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
+import {
+  BadgeIcon,
+  CheckCircleSolidIcon,
+  CircleDottedLineIcon,
+  ComponentFillIcon,
+  ComponentLineIcon,
+  EllipseMiniSolidIcon,
+  GiteaLogo,
+  InfoTooltipFillIcon,
+  ResizeIcon,
+  SentryLogo,
+  ShipfoxLogo,
+  SlackLogo,
+  SpinnerIcon,
+  StripeLogo,
+  ThunderIcon,
+  XCircleSolidIcon,
+} from './custom/index.js';
 import {Icon, type IconName} from './icon.js';
 
-const customIconNames = [
-  'badge',
-  'checkCircleSolid',
-  'circleDottedLine',
-  'componentFill',
-  'componentLine',
-  'ellipseMiniSolid',
-  'gitea',
-  'infoTooltipFill',
-  'resize',
-  'sentry',
-  'shipfox',
-  'slack',
-  'spinner',
-  'stripe',
-  'thunder',
-  'xCircleSolid',
-] as const satisfies IconName[];
+const customIcons = [
+  {name: 'badge', Component: BadgeIcon},
+  {name: 'checkCircleSolid', Component: CheckCircleSolidIcon},
+  {name: 'circleDottedLine', Component: CircleDottedLineIcon},
+  {name: 'componentFill', Component: ComponentFillIcon},
+  {name: 'componentLine', Component: ComponentLineIcon},
+  {name: 'ellipseMiniSolid', Component: EllipseMiniSolidIcon},
+  {name: 'gitea', Component: GiteaLogo},
+  {name: 'infoTooltipFill', Component: InfoTooltipFillIcon},
+  {name: 'resize', Component: ResizeIcon},
+  {name: 'sentry', Component: SentryLogo},
+  {name: 'shipfox', Component: ShipfoxLogo},
+  {name: 'slack', Component: SlackLogo},
+  {name: 'spinner', Component: SpinnerIcon},
+  {name: 'stripe', Component: StripeLogo},
+  {name: 'thunder', Component: ThunderIcon},
+  {name: 'xCircleSolid', Component: XCircleSolidIcon},
+] as const satisfies readonly {name: IconName; Component: RemixiconComponentType}[];
 
 describe('custom icons', () => {
-  it.each(customIconNames)('forwards base icon props for %s', (name) => {
+  it.each(customIcons)('forwards base icon props for $name', ({name}) => {
     const markup = renderToStaticMarkup(
       createElement(Icon, {
         name,
@@ -37,5 +56,33 @@ describe('custom icons', () => {
     expect(markup).toContain('class="custom-icon"');
     expect(markup).toContain('aria-label="Custom icon"');
     expect(markup).not.toContain('aria-hidden');
+    expect(markup).not.toContain('<title>');
+  });
+
+  it.each(customIcons)('maps direct size props for $name', ({Component}) => {
+    const markup = renderToStaticMarkup(
+      createElement(Component, {
+        size: 32,
+        'aria-hidden': true,
+      }),
+    );
+
+    expect(markup).toContain('width="32"');
+    expect(markup).toContain('height="32"');
+    expect(markup).not.toContain('size="32"');
+  });
+
+  it('leaves title text controlled by the caller', () => {
+    const markup = renderToStaticMarkup(
+      createElement(Icon, {
+        name: 'infoTooltipFill',
+        title: 'Caller tooltip',
+        'aria-label': 'Caller label',
+      }),
+    );
+
+    expect(markup).toContain('title="Caller tooltip"');
+    expect(markup).toContain('aria-label="Caller label"');
+    expect(markup).not.toContain('<title>');
   });
 });

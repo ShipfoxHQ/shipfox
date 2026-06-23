@@ -1,12 +1,8 @@
-import type {RemixiconComponentType} from '@remixicon/react';
-import type {ComponentProps} from 'react';
+import {type CustomIconProps, SvgIcon} from './svg-icon-props.js';
 
-type SlackLogoProps = ComponentProps<RemixiconComponentType>;
-
-export function SlackLogo(props: SlackLogoProps) {
+export function SlackLogo(props: CustomIconProps) {
   return (
-    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
-      <title>Slack Logo</title>
+    <SvgIcon viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
       <path
         d="M6.66988 17.376C6.66988 18.8336 5.4918 20.0117 4.03416 20.0117C2.57653 20.0117 1.39844 18.8336 1.39844 17.376C1.39844 15.9183 2.57653 14.7402 4.03416 14.7402H6.66988V17.376ZM7.98775 17.376C7.98775 15.9183 9.16583 14.7402 10.6235 14.7402C12.0811 14.7402 13.2592 15.9183 13.2592 17.376V23.9653C13.2592 25.4229 12.0811 26.601 10.6235 26.601C9.16583 26.601 7.98775 25.4229 7.98775 23.9653V17.376Z"
         fill="#E01E5A"
@@ -23,6 +19,6 @@ export function SlackLogo(props: SlackLogoProps) {
         d="M17.3715 21.3295C18.8267 21.3295 20.0028 22.5076 20.0028 23.9653C20.0028 25.4229 18.8267 26.601 17.3715 26.601C15.9163 26.601 14.7402 25.4229 14.7402 23.9653V21.3295H17.3715ZM17.3715 20.0117C15.9163 20.0117 14.7402 18.8336 14.7402 17.376C14.7402 15.9183 15.9163 14.7402 17.3715 14.7402H23.9697C25.4249 14.7402 26.601 15.9183 26.601 17.376C26.601 18.8336 25.4249 20.0117 23.9697 20.0117H17.3715Z"
         fill="#ECB22E"
       />
-    </svg>
+    </SvgIcon>
   );
 }
