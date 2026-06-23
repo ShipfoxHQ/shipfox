@@ -3,11 +3,12 @@ export type {
   InitializeModulesOptions,
 } from './initialize.js';
 export {initializeModules, startModuleWorkers} from './initialize.js';
-export type {DrainedEvent} from './publisher-registry.js';
+export type {DrainedEvent, OutboxDispatchFailure} from './publisher-registry.js';
 export {
   drainAll,
   getEventSchema,
   markDispatched,
+  recordDispatchFailure,
   registerPublisher,
   resetPublishers,
 } from './publisher-registry.js';

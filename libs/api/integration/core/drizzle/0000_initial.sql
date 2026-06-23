@@ -14,7 +14,12 @@ CREATE TABLE "integrations_outbox" (
 	"event_type" text NOT NULL,
 	"payload" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"dispatched_at" timestamp with time zone
+	"dispatched_at" timestamp with time zone,
+	"dispatch_attempts" integer DEFAULT 0 NOT NULL,
+	"next_dispatch_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"last_dispatch_error" jsonb,
+	"last_dispatch_failed_at" timestamp with time zone,
+	"dead_lettered_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "integrations_webhook_deliveries" (
@@ -26,5 +31,5 @@ CREATE TABLE "integrations_webhook_deliveries" (
 --> statement-breakpoint
 CREATE UNIQUE INDEX "integrations_connections_workspace_external_unique" ON "integrations_connections" USING btree ("workspace_id","provider","external_account_id");--> statement-breakpoint
 CREATE INDEX "integrations_connections_workspace_id_idx" ON "integrations_connections" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "integrations_outbox_pending_idx" ON "integrations_outbox" USING btree ("created_at") WHERE "dispatched_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "integrations_outbox_pending_idx" ON "integrations_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "integrations_webhook_deliveries_received_at_idx" ON "integrations_webhook_deliveries" USING btree ("received_at");

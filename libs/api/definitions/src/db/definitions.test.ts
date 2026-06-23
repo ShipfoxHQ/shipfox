@@ -3,6 +3,8 @@ import {
   type DrainedEvent,
   drainAll,
   markDispatched,
+  type OutboxDispatchFailure,
+  recordDispatchFailure,
   registerPublisher,
   resetPublishers,
 } from '@shipfox/node-module';
@@ -652,6 +654,136 @@ describe('definition queries', () => {
       const secondDrain = eventsForProject(await drainAll(), projectId);
 
       expect(secondDrain).toHaveLength(0);
+    });
+
+    test('drainAll skips rows scheduled for a future retry', async () => {
+      await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'retry.yml',
+        name: 'Retry',
+        ...definitionFields(),
+      });
+      const events = eventsForProject(await drainAll(), projectId);
+      await db()
+        .update(definitionsOutbox)
+        .set({nextDispatchAt: sql`now() + interval '1 hour'`})
+        .where(sql`${definitionsOutbox.id} = ${events[0]?.id as string}`);
+
+      const secondDrain = eventsForProject(await drainAll(), projectId);
+
+      expect(secondDrain).toHaveLength(0);
+    });
+
+    test('recordDispatchFailure increments attempts, stores sanitized error metadata, and delays retry', async () => {
+      const failure: OutboxDispatchFailure = {
+        kind: 'validation',
+        eventType: DEFINITION_RESOLVED,
+        eventId: crypto.randomUUID(),
+        issues: [{path: ['definitionId'], code: 'invalid_type', message: 'expected string'}],
+      };
+      await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'failure.yml',
+        name: 'Failure',
+        ...definitionFields(),
+      });
+      const before = new Date();
+      const events = eventsForProject(await drainAll(), projectId);
+
+      await recordDispatchFailure('definitions', events[0]?.id as string, failure);
+
+      const after = new Date();
+      const rows = await listOutboxRowsForProject(projectId);
+      const secondDrain = eventsForProject(await drainAll(), projectId);
+      expect(rows[0]?.dispatchAttempts).toBe(1);
+      expect(rows[0]?.lastDispatchError).toEqual(failure);
+      expect(rows[0]?.lastDispatchFailedAt).toBeInstanceOf(Date);
+      expect(rows[0]?.nextDispatchAt.getTime()).toBeGreaterThanOrEqual(before.getTime() + 9_000);
+      expect(rows[0]?.nextDispatchAt.getTime()).toBeLessThanOrEqual(after.getTime() + 11_000);
+      expect(rows[0]?.deadLetteredAt).toBeNull();
+      expect(rows[0]?.dispatchedAt).toBeNull();
+      expect(secondDrain).toHaveLength(0);
+    });
+
+    test('recordDispatchFailure dead-letters on the fifth failed attempt and excludes the row from future drains', async () => {
+      const failure: OutboxDispatchFailure = {
+        kind: 'handler',
+        eventType: DEFINITION_RESOLVED,
+        eventId: crypto.randomUUID(),
+        errorName: 'Error',
+        errorMessage: 'subscriber failed',
+      };
+      await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'poison.yml',
+        name: 'Poison',
+        ...definitionFields(),
+      });
+      const events = eventsForProject(await drainAll(), projectId);
+      await db()
+        .update(definitionsOutbox)
+        .set({dispatchAttempts: 4})
+        .where(sql`${definitionsOutbox.id} = ${events[0]?.id as string}`);
+
+      await recordDispatchFailure('definitions', events[0]?.id as string, failure);
+
+      const rows = await listOutboxRowsForProject(projectId);
+      const secondDrain = eventsForProject(await drainAll(), projectId);
+      expect(rows[0]?.dispatchAttempts).toBe(5);
+      expect(rows[0]?.lastDispatchError).toEqual(failure);
+      expect(rows[0]?.deadLetteredAt).toBeInstanceOf(Date);
+      expect(rows[0]?.dispatchedAt).toBeNull();
+      expect(secondDrain).toHaveLength(0);
+    });
+
+    test('markDispatched leaves dead-lettered rows inspectable as undispatched', async () => {
+      await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'dead.yml',
+        name: 'Dead',
+        ...definitionFields(),
+      });
+      const events = eventsForProject(await drainAll(), projectId);
+      await db()
+        .update(definitionsOutbox)
+        .set({deadLetteredAt: sql`now()`})
+        .where(sql`${definitionsOutbox.id} = ${events[0]?.id as string}`);
+
+      await markDispatched('definitions', [events[0]?.id as string]);
+
+      const rows = await listOutboxRowsForProject(projectId);
+      expect(rows[0]?.dispatchedAt).toBeNull();
+      expect(rows[0]?.deadLetteredAt).toBeInstanceOf(Date);
+    });
+
+    test('recordDispatchFailure does not mutate already-dispatched rows', async () => {
+      const failure: OutboxDispatchFailure = {
+        kind: 'handler',
+        eventType: DEFINITION_RESOLVED,
+        eventId: crypto.randomUUID(),
+        errorName: 'Error',
+        errorMessage: 'subscriber failed',
+      };
+      await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'dispatched.yml',
+        name: 'Dispatched',
+        ...definitionFields(),
+      });
+      const events = eventsForProject(await drainAll(), projectId);
+      await markDispatched('definitions', [events[0]?.id as string]);
+
+      await recordDispatchFailure('definitions', events[0]?.id as string, failure);
+
+      const rows = await listOutboxRowsForProject(projectId);
+      expect(rows[0]?.dispatchAttempts).toBe(0);
+      expect(rows[0]?.lastDispatchError).toBeNull();
+      expect(rows[0]?.dispatchedAt).toBeInstanceOf(Date);
     });
   });
 });

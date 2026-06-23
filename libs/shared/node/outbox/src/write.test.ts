@@ -9,6 +9,16 @@ interface TestEventMap {
   'thing.deleted': {id: string; reason: string};
 }
 
+describe('createOutboxTable', () => {
+  it('exposes dispatch retry and dead-letter columns', () => {
+    expect(outboxTable.dispatchAttempts.name).toBe('dispatch_attempts');
+    expect(outboxTable.nextDispatchAt.name).toBe('next_dispatch_at');
+    expect(outboxTable.lastDispatchError.name).toBe('last_dispatch_error');
+    expect(outboxTable.lastDispatchFailedAt.name).toBe('last_dispatch_failed_at');
+    expect(outboxTable.deadLetteredAt.name).toBe('dead_lettered_at');
+  });
+});
+
 function fakeTx() {
   const values = vi.fn().mockResolvedValue(undefined);
   const insert = vi.fn(() => ({values}));

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getEventSchema: vi.fn(),
   getSubscribers: vi.fn(),
   markDispatched: vi.fn(),
+  recordDispatchFailure: vi.fn(),
   errorLog: vi.fn(),
 }));
 
@@ -19,6 +20,7 @@ vi.mock('@shipfox/node-module', () => ({
   getEventSchema: mocks.getEventSchema,
   getSubscribers: mocks.getSubscribers,
   markDispatched: mocks.markDispatched,
+  recordDispatchFailure: mocks.recordDispatchFailure,
 }));
 
 vi.mock('@shipfox/node-opentelemetry', () => ({
@@ -34,11 +36,13 @@ describe('drainAndDispatch', () => {
     mocks.getEventSchema.mockReset();
     mocks.getSubscribers.mockReset();
     mocks.markDispatched.mockReset();
+    mocks.recordDispatchFailure.mockReset();
     mocks.errorLog.mockReset();
   });
 
-  it('logs payload context and captures failed subscriber exceptions', async () => {
+  it('logs sanitized context, captures failed subscriber exceptions, and records a row failure', async () => {
     const failure = new Error('subscriber failed');
+    const rowId = crypto.randomUUID();
     const event: DomainEvent = {
       id: crypto.randomUUID(),
       type: 'projects.project.source_bound',
@@ -48,7 +52,7 @@ describe('drainAndDispatch', () => {
         workspaceId: crypto.randomUUID(),
       },
     };
-    mocks.drainAll.mockResolvedValueOnce([{id: crypto.randomUUID(), source: 'projects', event}]);
+    mocks.drainAll.mockResolvedValueOnce([{id: rowId, source: 'projects', event}]);
     mocks.getSubscribers.mockReturnValueOnce([vi.fn().mockRejectedValueOnce(failure)]);
 
     await drainAndDispatch();
@@ -56,23 +60,34 @@ describe('drainAndDispatch', () => {
     expect(mocks.errorLog).toHaveBeenCalledWith(
       {
         err: failure,
+        kind: 'handler',
         eventType: event.type,
-        eventId: expect.any(String),
-        eventPayload: event.payload,
+        eventId: rowId,
+        errorName: 'Error',
+        errorMessage: 'subscriber failed',
       },
       'Handler failed for outbox event',
     );
     expect(mocks.captureException).toHaveBeenCalledWith(failure, {
       extra: {
+        kind: 'handler',
         eventType: event.type,
-        eventId: expect.any(String),
-        eventPayload: event.payload,
+        eventId: rowId,
+        errorName: 'Error',
+        errorMessage: 'subscriber failed',
       },
+    });
+    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith('projects', rowId, {
+      kind: 'handler',
+      eventType: event.type,
+      eventId: rowId,
+      errorName: 'Error',
+      errorMessage: 'subscriber failed',
     });
     expect(mocks.markDispatched).not.toHaveBeenCalled();
   });
 
-  it('rejects a malformed payload at the drain: skips handlers and leaves the row undispatched', async () => {
+  it('rejects a malformed payload at the drain: skips handlers and records a row failure', async () => {
     const error = {issues: [{path: ['jobId'], code: 'invalid_type', message: 'expected string'}]};
     const event: DomainEvent = {
       id: crypto.randomUUID(),
@@ -87,8 +102,19 @@ describe('drainAndDispatch', () => {
 
     expect(mocks.getSubscribers).not.toHaveBeenCalled();
     expect(mocks.markDispatched).not.toHaveBeenCalled();
+    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith('workflows', event.id, {
+      kind: 'validation',
+      eventType: event.type,
+      eventId: event.id,
+      issues: error.issues,
+    });
     expect(mocks.captureException).toHaveBeenCalledWith(error, {
-      extra: {eventType: event.type, eventId: event.id, issues: error.issues},
+      extra: {
+        kind: 'validation',
+        eventType: event.type,
+        eventId: event.id,
+        issues: error.issues,
+      },
     });
   });
 
@@ -111,6 +137,7 @@ describe('drainAndDispatch', () => {
       expect.objectContaining({type: event.type, payload: parsed}),
     );
     expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', [event.id]);
+    expect(mocks.recordDispatchFailure).not.toHaveBeenCalled();
   });
 
   it('validates and dispatches a valid event that has no subscribers', async () => {
@@ -128,9 +155,10 @@ describe('drainAndDispatch', () => {
     await drainAndDispatch();
 
     expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', [event.id]);
+    expect(mocks.recordDispatchFailure).not.toHaveBeenCalled();
   });
 
-  it('isolates a poison row: dispatches valid siblings in the same drain, leaves the invalid one undispatched', async () => {
+  it('isolates a poison row: dispatches valid siblings in the same drain and records the invalid one', async () => {
     const error = {issues: [{path: ['jobId'], code: 'invalid_type', message: 'expected string'}]};
     const validJob: DomainEvent = {
       id: crypto.randomUUID(),
@@ -168,8 +196,19 @@ describe('drainAndDispatch', () => {
     expect(mocks.markDispatched).toHaveBeenCalledWith('integrations', [validPush.id]);
     expect(mocks.markDispatched).toHaveBeenCalledTimes(2);
     expect(handler).toHaveBeenCalledTimes(2);
+    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith('workflows', poison.id, {
+      kind: 'validation',
+      eventType: poison.type,
+      eventId: poison.id,
+      issues: error.issues,
+    });
     expect(mocks.captureException).toHaveBeenCalledWith(error, {
-      extra: {eventType: poison.type, eventId: poison.id, issues: error.issues},
+      extra: {
+        kind: 'validation',
+        eventType: poison.type,
+        eventId: poison.id,
+        issues: error.issues,
+      },
     });
   });
 });
