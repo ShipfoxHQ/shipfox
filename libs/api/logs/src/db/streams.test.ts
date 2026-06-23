@@ -32,7 +32,7 @@ describe('getOpenStreamCount', () => {
   it('reports zero when no streams are open', async () => {
     const count = await getOpenStreamCount();
 
-    expect(count).toBe(0);
+    expect(count).toBe(0n);
   });
 
   it('counts only streams that are still open', async () => {
@@ -48,6 +48,6 @@ describe('getOpenStreamCount', () => {
 
     const count = await getOpenStreamCount();
 
-    expect(count).toBe(1);
+    expect(count).toBe(1n);
   });
 });

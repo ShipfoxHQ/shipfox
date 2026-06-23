@@ -10,8 +10,14 @@ export function registerLogsServiceMetrics(): void {
 
   meter.addBatchObservableCallback(
     async (observer) => {
-      observer.observe(openStreams, await getOpenStreamCount());
+      observer.observe(openStreams, toSafeGaugeNumber(await getOpenStreamCount()));
     },
     [openStreams],
   );
+}
+
+function toSafeGaugeNumber(value: bigint): number {
+  // OpenTelemetry gauges accept numbers; clamp unrepresentable DB counts rather than round them.
+  if (value <= BigInt(Number.MAX_SAFE_INTEGER)) return Number(value);
+  return Number.MAX_SAFE_INTEGER;
 }

@@ -1,4 +1,4 @@
-import {and, asc, count, eq, isNull, lt, notInArray, sql} from 'drizzle-orm';
+import {and, asc, eq, getTableColumns, isNull, lt, notInArray, sql} from 'drizzle-orm';
 import type {AttemptStream, StreamCloseReason} from '#core/entities/attempt-stream.js';
 import {LeaseStreamMismatchError} from '#core/errors.js';
 import {db, type Transaction} from './db.js';
@@ -75,29 +75,16 @@ export async function getOrCreateAttemptStreamWithStatus(
   tx: Transaction,
   identity: AttemptStreamIdentity,
 ): Promise<GetOrCreateAttemptStreamResult> {
-  const [inserted] = await tx
+  const [row] = await tx
     .insert(attemptStreams)
     .values(identity)
-    .onConflictDoNothing({
+    .onConflictDoUpdate({
       target: [attemptStreams.jobId, attemptStreams.stepId, attemptStreams.attempt],
+      set: {updatedAt: sql`now()`},
     })
-    .returning();
-
-  const row =
-    inserted ??
-    (
-      await tx
-        .update(attemptStreams)
-        .set({updatedAt: sql`now()`})
-        .where(
-          and(
-            eq(attemptStreams.jobId, identity.jobId),
-            eq(attemptStreams.stepId, identity.stepId),
-            eq(attemptStreams.attempt, identity.attempt),
-          ),
-        )
-        .returning()
-    )[0];
+    // Postgres sets `xmax` only on the conflict-update path, so this keeps
+    // first-open detection in the single upsert round trip.
+    .returning({...getTableColumns(attemptStreams), created: sql<boolean>`xmax = 0`});
 
   if (!row) throw new Error('attempt stream missing after get-or-create');
   if (
@@ -107,7 +94,7 @@ export async function getOrCreateAttemptStreamWithStatus(
   ) {
     throw new LeaseStreamMismatchError();
   }
-  return {stream: toAttemptStream(row), created: Boolean(inserted)};
+  return {stream: toAttemptStream(row), created: row.created};
 }
 
 export async function getOrCreateAttemptStream(
@@ -299,13 +286,13 @@ export async function listStaleOpenStreams(params: {
   return rows.map(toAttemptStream);
 }
 
-export async function getOpenStreamCount(): Promise<number> {
+export async function getOpenStreamCount(): Promise<bigint> {
   const [row] = await db()
-    .select({value: count()})
+    .select({value: sql<bigint>`count(*)`.mapWith(BigInt)})
     .from(attemptStreams)
     .where(eq(attemptStreams.state, 'open'));
 
-  return row?.value ?? 0;
+  return row?.value ?? 0n;
 }
 
 /**
