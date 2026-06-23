@@ -20,6 +20,7 @@ import {useState} from 'react';
 import {useCreateWorkspaceAuth} from '#hooks/api/workspace-auth.js';
 import {lastWorkspaceIdAtom} from '#state/last-workspace.js';
 import {workspaceOnboardingErrorToFormError} from './form-errors.js';
+import {displayNameFieldError} from './form-utils.js';
 
 const previewMetrics = [
   {label: 'Runs', value: '--'},
@@ -49,7 +50,7 @@ export function WorkspaceOnboardingPage() {
     onSubmit: async ({value}) => {
       setFormError(undefined);
       try {
-        const body = createWorkspaceBodySchema.parse({name: value.name.trim()});
+        const body = createWorkspaceBodySchema.parse({name: value.name});
         const created = await createWorkspace.mutateAsync(body);
         toast.success('Workspace created.');
         // Pin the new workspace as the last-active one so a page refresh and
@@ -106,8 +107,18 @@ export function WorkspaceOnboardingPage() {
                 <form.Field
                   name="name"
                   validators={{
-                    onBlur: createWorkspaceBodySchema.shape.name,
-                    onSubmit: createWorkspaceBodySchema.shape.name,
+                    onBlur: ({value}) =>
+                      displayNameFieldError(
+                        value,
+                        'Workspace name',
+                        createWorkspaceBodySchema.shape.name,
+                      ),
+                    onSubmit: ({value}) =>
+                      displayNameFieldError(
+                        value,
+                        'Workspace name',
+                        createWorkspaceBodySchema.shape.name,
+                      ),
                   }}
                 >
                   {(field) => (

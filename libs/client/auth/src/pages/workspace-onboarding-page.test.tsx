@@ -18,7 +18,8 @@ describe('WorkspaceOnboardingPage', () => {
   test('creates a workspace before showing the signed-in app', async () => {
     const user = pageUserFactory.build({email: 'workspace@example.com'});
     let didCreateWorkspace = false;
-    const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+    let createWorkspaceBody: unknown;
+    const fetchImpl = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
       const url = requestUrl(input);
       const method = input instanceof Request ? input.method : 'GET';
       if (url.endsWith('/auth/refresh')) {
@@ -45,6 +46,7 @@ describe('WorkspaceOnboardingPage', () => {
       }
       if (url.endsWith('/workspaces') && method === 'POST') {
         didCreateWorkspace = true;
+        createWorkspaceBody = input instanceof Request ? await input.json() : undefined;
         return jsonResponse(
           {
             id: '33333333-3333-4333-8333-333333333333',
@@ -71,14 +73,15 @@ describe('WorkspaceOnboardingPage', () => {
       </AuthGuard>,
     );
     fireEvent.change(await screen.findByLabelText('Workspace name'), {
-      target: {value: 'Acme'},
+      target: {value: '  Acme  '},
     });
     fireEvent.click(screen.getByRole('button', {name: 'Create workspace'}));
 
     await waitFor(() => expect(didCreateWorkspace).toBe(true));
+    expect(createWorkspaceBody).toEqual({name: 'Acme'});
   });
 
-  test('validates the workspace name locally', async () => {
+  test('requires the workspace name locally', async () => {
     const user = pageUserFactory.build({email: 'workspace@example.com'});
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       const url = requestUrl(input);
@@ -105,6 +108,52 @@ describe('WorkspaceOnboardingPage', () => {
     );
     fireEvent.click(await screen.findByRole('button', {name: 'Create workspace'}));
 
+    expect(await screen.findByText('Workspace name is required.')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText('Workspace name')).toBeInvalid());
+    expect(workspacePostCount(fetchImpl)).toBe(0);
+  });
+
+  test('rejects control characters in the workspace name locally', async () => {
+    const user = pageUserFactory.build({email: 'workspace@example.com'});
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) {
+        return Promise.resolve(jsonResponse({token: 'access-token', user}));
+      }
+      if (url.endsWith('/workspaces')) {
+        return Promise.resolve(jsonResponse({memberships: []}));
+      }
+
+      return Promise.resolve(
+        jsonResponse({code: 'not-found', message: 'Not found'}, {status: 404}),
+      );
+    });
+    configureApiClient({fetchImpl});
+
+    renderAuthPage(
+      '/',
+      <AuthGuard>
+        <WorkspaceGuard>
+          <h1>Authenticated home</h1>
+        </WorkspaceGuard>
+      </AuthGuard>,
+    );
+    fireEvent.change(await screen.findByLabelText('Workspace name'), {
+      target: {value: 'Acme\tLabs'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Create workspace'}));
+
+    expect(
+      await screen.findByText('Workspace name cannot include line breaks or tabs.'),
+    ).toBeInTheDocument();
+    expect(workspacePostCount(fetchImpl)).toBe(0);
   });
 });
+
+function workspacePostCount(fetchImpl: ReturnType<typeof vi.fn>): number {
+  return fetchImpl.mock.calls.filter(([input]) => {
+    const url = requestUrl(input as RequestInfo | URL);
+    const method = input instanceof Request ? input.method : 'GET';
+    return url.endsWith('/workspaces') && method === 'POST';
+  }).length;
+}

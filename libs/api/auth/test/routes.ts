@@ -162,7 +162,7 @@ export async function signup(
   return await app.inject({
     method: 'POST',
     url: '/auth/signup',
-    payload: params,
+    payload: {name: 'Test User', ...params},
   });
 }
 

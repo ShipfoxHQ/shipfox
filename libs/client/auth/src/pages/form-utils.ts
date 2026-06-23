@@ -1,5 +1,11 @@
 import {ApiError} from '@shipfox/client-api';
 
+const CONTROL_CHARACTER_RE = /\p{Cc}/u;
+
+interface DisplayNameSchema {
+  safeParse: (value: string) => {success: boolean};
+}
+
 export function authErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
 
@@ -20,4 +26,17 @@ export function authErrorMessage(error: unknown): string {
   }
 
   return error.message || 'Something went wrong. Try again.';
+}
+
+export function displayNameFieldError(
+  value: string,
+  label: string,
+  schema: DisplayNameSchema,
+): string | undefined {
+  if (schema.safeParse(value).success) return undefined;
+  if (CONTROL_CHARACTER_RE.test(value)) return `${label} cannot include line breaks or tabs.`;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return `${label} is required.`;
+  if (trimmed.length > 255) return `${label} must be 255 characters or fewer.`;
+  return `${label} is invalid.`;
 }

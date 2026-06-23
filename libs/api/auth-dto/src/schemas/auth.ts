@@ -1,3 +1,4 @@
+import {displayNameSchema} from '@shipfox/api-common-dto';
 import {z} from 'zod';
 import {userDtoSchema} from './user.js';
 
@@ -10,21 +11,10 @@ export const emailSchema = z
   .max(254)
   .transform((value) => value.toLowerCase());
 
-// A single-line display name, not free-form text. Control characters (newlines,
-// tabs, etc.) are rejected because the name flows into many output contexts
-// (emails, logs, the UI) where an embedded control character can corrupt
-// formatting or be used to inject content. Email is one such sink: a raw newline
-// there can fold the subject line or add extra lines to the plain-text body.
-export const displayNameSchema = z
-  .string()
-  .min(1)
-  .max(255)
-  .regex(/^\P{Cc}+$/u, 'must not contain control characters');
-
 export const signupBodySchema = z.object({
   email: emailSchema,
   password: passwordSchema,
-  name: displayNameSchema.optional(),
+  name: displayNameSchema,
   invitation_token: z.string().min(1).max(256).optional(),
 });
 

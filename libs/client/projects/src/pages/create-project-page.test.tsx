@@ -1,5 +1,5 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {fireEvent, screen} from '@testing-library/react';
+import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {CreateProjectPage} from './create-project-page.js';
 
@@ -10,22 +10,20 @@ const DEBUG_RADIO_LABEL_RE = /^Debug debug · debug$/;
 
 describe('CreateProjectPage', () => {
   test('with a single connection: pre-selects, renders repos, creates a project', async () => {
-    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+    let createProjectBody: unknown;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const request = input as Request;
       if (request.url.includes('/integration-connections?')) {
-        return Promise.resolve(jsonResponse({connections: [connectionDto()]}));
+        return jsonResponse({connections: [connectionDto()]});
       }
       if (request.url.includes(`/integration-connections/${CONNECTION_ID}/repositories`)) {
-        return Promise.resolve(jsonResponse({repositories: [repositoryDto()], next_cursor: null}));
+        return jsonResponse({repositories: [repositoryDto()], next_cursor: null});
       }
-      if (request.url.endsWith('/projects')) {
-        return Promise.resolve(
-          jsonResponse(projectDto({id: '44444444-4444-4444-8444-444444444444'})),
-        );
+      if (request.url.endsWith('/projects') && request.method === 'POST') {
+        createProjectBody = await request.json();
+        return jsonResponse(projectDto({id: '44444444-4444-4444-8444-444444444444'}));
       }
-      return Promise.resolve(
-        jsonResponse(projectDto({id: '44444444-4444-4444-8444-444444444444'})),
-      );
+      return jsonResponse(projectDto({id: '44444444-4444-4444-8444-444444444444'}));
     });
     configureApiClient({fetchImpl});
 
@@ -33,9 +31,21 @@ describe('CreateProjectPage', () => {
     expect(await screen.findByRole('radio', {name: DEBUG_RADIO_LABEL_RE})).toBeChecked();
     expect((await screen.findAllByText('Debug')).length).toBeGreaterThan(0);
     expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getByLabelText('Project name')).toHaveValue('Platform'));
+    fireEvent.change(screen.getByLabelText('Project name'), {
+      target: {value: '  Launch Pad  '},
+    });
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
 
     expect(await screen.findByRole('heading', {name: 'Runs'})).toBeInTheDocument();
+    expect(createProjectBody).toEqual({
+      workspace_id: PROJECT_TEST_WID,
+      name: 'Launch Pad',
+      source: {
+        connection_id: CONNECTION_ID,
+        external_repository_id: 'platform',
+      },
+    });
   });
 
   test('with multiple connections: hides repo picker until a connection is selected', async () => {
@@ -61,6 +71,32 @@ describe('CreateProjectPage', () => {
     fireEvent.click(screen.getByRole('radio', {name: DEBUG_RADIO_LABEL_RE}));
 
     expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
+  });
+
+  test('rejects invalid custom project names locally', async () => {
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (request.url.includes('/integration-connections?')) {
+        return Promise.resolve(jsonResponse({connections: [connectionDto()]}));
+      }
+      if (request.url.includes(`/integration-connections/${CONNECTION_ID}/repositories`)) {
+        return Promise.resolve(jsonResponse({repositories: [repositoryDto()], next_cursor: null}));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    configureApiClient({fetchImpl});
+
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
+    expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
+    fireEvent.change(await screen.findByLabelText('Project name'), {
+      target: {value: 'Bad\tName'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
+
+    expect(
+      await screen.findByText('Project name cannot include line breaks or tabs.'),
+    ).toBeInTheDocument();
+    expect(projectPostCount(fetchImpl)).toBe(0);
   });
 
   test('with a single connection: shows workspace-scoped "Add another integration" link', async () => {
@@ -197,4 +233,11 @@ function projectDto({id}: {id: string}) {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
+}
+
+function projectPostCount(fetchImpl: ReturnType<typeof vi.fn>): number {
+  return fetchImpl.mock.calls.filter(([input]) => {
+    const request = input as Request;
+    return request.url.endsWith('/projects') && request.method === 'POST';
+  }).length;
 }

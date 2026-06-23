@@ -1,6 +1,7 @@
+import {displayNameSchema} from '@shipfox/api-common-dto';
 import {z} from 'zod';
 import {invitationDtoSchema} from './invitation.js';
-import {displayNameSchema, workspaceResponseSchema} from './workspace.js';
+import {workspaceResponseSchema} from './workspace.js';
 
 export const e2eCreateWorkspaceBodySchema = z.object({
   user_id: z.string().uuid(),

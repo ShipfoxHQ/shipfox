@@ -47,7 +47,7 @@ describe('POST /workspaces', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/workspaces',
-      payload: {name: 'Test Workspace'},
+      payload: {name: '  Test Workspace  '},
     });
 
     expect(res.statusCode).toBe(201);
@@ -59,6 +59,19 @@ describe('POST /workspaces', () => {
     const membership = await findMembership({userId, workspaceId: body.id});
     expect(membership).toBeDefined();
     expect(membership?.userName).toBe('Caller Person');
+  });
+
+  test.each([
+    ['blank after trimming', '   '],
+    ['with control characters', 'Test\nWorkspace'],
+  ])('invalid body with %s returns 400', async (_case, name) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/workspaces',
+      payload: {name},
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 
   test('missing name returns 400', async () => {

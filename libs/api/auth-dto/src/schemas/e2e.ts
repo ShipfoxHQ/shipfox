@@ -1,5 +1,6 @@
+import {displayNameSchema} from '@shipfox/api-common-dto';
 import {z} from 'zod';
-import {displayNameSchema, emailSchema, loginResponseSchema, passwordSchema} from './auth.js';
+import {emailSchema, loginResponseSchema, passwordSchema} from './auth.js';
 import {userDtoSchema} from './user.js';
 
 export const e2eCreateUserBodySchema = z.object({

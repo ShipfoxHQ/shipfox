@@ -541,6 +541,9 @@ importers:
 
   libs/api/auth-dto:
     dependencies:
+      '@shipfox/api-common-dto':
+        specifier: workspace:*
+        version: link:../common-dto
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -560,6 +563,31 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../../../tools/typescript
+
+  libs/api/common-dto:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
 
   libs/api/definitions:
     dependencies:
@@ -1500,6 +1528,9 @@ importers:
 
   libs/api/projects-dto:
     dependencies:
+      '@shipfox/api-common-dto':
+        specifier: workspace:*
+        version: link:../common-dto
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -1979,6 +2010,9 @@ importers:
 
   libs/api/workspaces-dto:
     dependencies:
+      '@shipfox/api-common-dto':
+        specifier: workspace:*
+        version: link:../common-dto
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -2473,6 +2507,9 @@ importers:
       '@swc/helpers':
         specifier: ^0.5.17
         version: 0.5.23
+      '@tanstack/react-form':
+        specifier: ^1.32.0
+        version: 1.33.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/react-query':
         specifier: ^5.101.0
         version: 5.101.0(react@19.2.7)

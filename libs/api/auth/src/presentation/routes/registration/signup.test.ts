@@ -35,13 +35,34 @@ describe('POST /auth/signup', () => {
     const res = await signup(app, {
       email: email.toUpperCase(),
       password,
-      name: 'New User',
+      name: '  New User  ',
     });
 
     expect(res.statusCode).toBe(201);
     expect(res.json().user.email).toBe(email);
+    expect(res.json().user.name).toBe('New User');
     expect(res.json().user.email_verified_at).toBeNull();
     expect(latestMailTo(email).subject).toBe('Verify your email');
+  });
+
+  test.each([
+    ['missing', undefined],
+    ['blank after trimming', '   '],
+    ['with control characters', 'New\nUser'],
+  ])('rejects a %s display name', async (_case, name) => {
+    const email = uniqueEmail('signup-name-invalid');
+    const payload: {email: string; password: string; name?: string} = {email, password};
+    if (name !== undefined) {
+      payload.name = name;
+    }
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/signup',
+      payload,
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 
   test('transforms duplicate email into 409', async () => {
@@ -161,6 +182,7 @@ describe('POST /auth/signup', () => {
       payload: {
         email,
         password,
+        name: 'Invitee',
         invitation_token: `invite-${crypto.randomUUID()}`,
       },
     });
@@ -242,6 +264,7 @@ describe('POST /auth/signup', () => {
       payload: {
         email,
         password,
+        name: 'Invitee',
         invitation_token: `invite-${crypto.randomUUID()}`,
       },
     });
