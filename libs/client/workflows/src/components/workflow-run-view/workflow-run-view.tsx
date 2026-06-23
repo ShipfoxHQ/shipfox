@@ -1,9 +1,11 @@
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {RelativeTimeProvider} from '@shipfox/react-ui';
+import {useState} from 'react';
 import {useWorkflowRunQuery} from '#hooks/api/workflow-runs.js';
 import {WorkflowJobsGraph} from '../workflow-jobs-graph/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
+import {WorkflowStepList} from '../workflow-step-list/index.js';
 import {
   WorkflowRunNotFound,
   WorkflowRunSkeleton,
@@ -32,6 +34,8 @@ export function WorkflowRunView({runId}: WorkflowRunViewProps) {
 }
 
 function RunViewContent({query}: {query: ReturnType<typeof useWorkflowRunQuery>}) {
+  const [selectedJobId, setSelectedJobId] = useState<string | undefined>();
+
   if (query.isPending) return <WorkflowRunSkeleton />;
 
   // Only show the full error placeholder when nothing ever loaded. A refetch that fails after
@@ -46,12 +50,20 @@ function RunViewContent({query}: {query: ReturnType<typeof useWorkflowRunQuery>}
 
   if (query.data === undefined) return <WorkflowRunSkeleton />;
 
+  const selectedJob =
+    query.data.jobs.find((job) => job.id === selectedJobId) ?? query.data.jobs.at(0);
+
   return (
     <>
       <WorkflowRunSummary run={query.data} />
       {query.isError ? <WorkflowRunStaleError query={query} /> : null}
-      <div className="min-h-0 flex-1 overflow-auto bg-background-neutral-base p-16">
-        <WorkflowJobsGraph run={query.data} />
+      <div className="flex min-h-0 flex-1 flex-col gap-16 overflow-auto bg-background-neutral-base p-16">
+        <WorkflowJobsGraph
+          run={query.data}
+          selectedJobId={selectedJob?.id}
+          onSelectedJobChange={setSelectedJobId}
+        />
+        {selectedJob ? <WorkflowStepList job={selectedJob} className="max-h-[50vh]" /> : null}
       </div>
     </>
   );

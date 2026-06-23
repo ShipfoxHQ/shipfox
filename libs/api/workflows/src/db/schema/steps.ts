@@ -20,6 +20,7 @@ export const steps = pgTable(
       .notNull()
       .references(() => jobs.id),
     name: text('name'),
+    displayName: text('display_name').notNull(),
     status: stepStatusEnum('status').notNull().default('pending'),
     type: text('type').notNull(),
     config: jsonb('config').notNull().$type<Record<string, unknown>>(),
@@ -44,6 +45,7 @@ export function toStep(row: StepDb): Step {
     id: row.id,
     jobId: row.jobId,
     name: row.name,
+    displayName: row.displayName,
     status: row.status,
     type: row.type,
     config: row.config as Record<string, unknown>,

@@ -3,6 +3,7 @@ CREATE TABLE "workflows_step_attempts" (
 	"step_id" uuid NOT NULL,
 	"job_id" uuid NOT NULL,
 	"attempt" integer NOT NULL,
+	"execution_order" integer NOT NULL,
 	"status" "workflows_step_status" NOT NULL,
 	"output" jsonb,
 	"error" jsonb,
@@ -13,7 +14,9 @@ CREATE TABLE "workflows_step_attempts" (
 	"finished_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "workflows_step_attempts_step_id_attempt_uq" UNIQUE("step_id","attempt"),
+	CONSTRAINT "workflows_step_attempts_job_id_execution_order_uq" UNIQUE("job_id","execution_order"),
 	CONSTRAINT "workflows_step_attempts_attempt_positive_ck" CHECK ("workflows_step_attempts"."attempt" > 0),
+	CONSTRAINT "workflows_step_attempts_execution_order_positive_ck" CHECK ("workflows_step_attempts"."execution_order" > 0),
 	CONSTRAINT "workflows_step_attempts_status_not_pending_ck" CHECK ("workflows_step_attempts"."status" <> 'pending')
 );
 --> statement-breakpoint

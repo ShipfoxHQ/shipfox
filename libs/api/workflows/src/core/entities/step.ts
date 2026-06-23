@@ -8,6 +8,7 @@ export interface Step {
   id: string;
   jobId: string;
   name: string | null;
+  displayName: string;
   status: StepStatus;
   type: string;
   config: Record<string, unknown>;
@@ -31,6 +32,7 @@ export interface StepAttempt {
   stepId: string;
   jobId: string;
   attempt: number;
+  executionOrder: number;
   status: StepAttemptStatus;
   output: Record<string, unknown> | null;
   error: Record<string, unknown> | null;

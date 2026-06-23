@@ -26,6 +26,18 @@ describe('WorkflowJobsGraph', () => {
     expect(build).toHaveAttribute('aria-pressed', 'false');
   });
 
+  test('supports an initially selected job', () => {
+    const buildJob = makeJob({name: 'build'});
+    render(
+      <WorkflowJobsGraph run={makeRun({jobs: [buildJob]})} defaultSelectedJobId={buildJob.id} />,
+    );
+
+    expect(screen.getByRole('button', {name: 'build, Pending'})).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
   test('renders two running jobs at the same time', () => {
     render(
       <WorkflowJobsGraph

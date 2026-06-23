@@ -6,6 +6,7 @@ function step(overrides: Partial<Step> & {type: string}): Step {
     id: '00000000-0000-0000-0000-000000000001',
     jobId: '00000000-0000-0000-0000-0000000000aa',
     name: null,
+    displayName: 'step',
     status: 'failed',
     config: {},
     output: null,

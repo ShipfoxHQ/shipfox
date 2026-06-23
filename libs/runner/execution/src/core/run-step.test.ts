@@ -174,10 +174,12 @@ describe('executeRunStep', () => {
 function buildStep(
   overrides: Partial<{type: string; name: string | null; config: Record<string, unknown>}> = {},
 ): StepDto {
+  const name = overrides.name ?? 'test-step';
   return {
     id: '00000000-0000-0000-0000-000000000001',
     job_id: '00000000-0000-0000-0000-000000000002',
-    name: overrides.name ?? 'test-step',
+    name,
+    display_name: name ?? 'test-step',
     status: 'running',
     type: overrides.type ?? 'run',
     config: overrides.config ?? {run: 'echo test'},

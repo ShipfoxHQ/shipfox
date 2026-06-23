@@ -1,4 +1,4 @@
-import type {JobStatusDto} from '@shipfox/api-workflows-dto';
+import type {JobStatusDto, RunStepDetailDto, StepAttemptDto} from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {screen, within} from '@testing-library/react';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
@@ -7,7 +7,7 @@ import {WorkflowRunView} from './workflow-run-view.js';
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
 
 describe('WorkflowRunView', () => {
-  test('renders the run summary and jobs graph when a run loads', async () => {
+  test('renders the run summary, jobs graph, and selected job step attempts when a run loads', async () => {
     configureApiClient({
       fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(runDetailDto()))),
     });
@@ -26,6 +26,10 @@ describe('WorkflowRunView', () => {
     expect(screen.getByRole('button', {name: 'build, Succeeded'})).toBeInTheDocument();
     expect(
       screen.getByRole('button', {name: 'deploy, Running, Depends on build'}),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('region', {name: 'Step attempts'})).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {name: '1. checkout, Succeeded, attempt 1'}),
     ).toBeInTheDocument();
   });
 
@@ -74,7 +78,12 @@ function runDetailDto() {
     started_at: null,
     finished_at: null,
     jobs: [
-      jobDto({id: '77777777-7777-4777-8777-777777777777', name: 'build', status: 'succeeded'}),
+      jobDto({
+        id: '77777777-7777-4777-8777-777777777777',
+        name: 'build',
+        status: 'succeeded',
+        steps: [stepDto({name: 'checkout', status: 'succeeded'})],
+      }),
       jobDto({
         id: '88888888-8888-4888-8888-888888888888',
         name: 'deploy',
@@ -92,12 +101,14 @@ function jobDto({
   status,
   position = 0,
   dependencies = [],
+  steps = [],
 }: {
   id: string;
   name: string;
   status: JobStatusDto;
   position?: number;
   dependencies?: string[];
+  steps?: RunStepDetailDto[];
 }) {
   return {
     id,
@@ -108,6 +119,51 @@ function jobDto({
     position,
     created_at: '2026-05-07T01:01:00.000Z',
     updated_at: '2026-05-07T01:02:00.000Z',
-    steps: [],
+    steps,
+  };
+}
+
+function stepDto(overrides: Partial<RunStepDetailDto> = {}): RunStepDetailDto {
+  const stepId = overrides.id ?? '99999999-9999-4999-8999-999999999999';
+  const attempt = attemptDto({
+    step_id: stepId,
+    job_id: overrides.job_id ?? '77777777-7777-4777-8777-777777777777',
+    status: overrides.status ?? 'succeeded',
+  });
+
+  return {
+    id: stepId,
+    job_id: '77777777-7777-4777-8777-777777777777',
+    name: 'checkout',
+    display_name: overrides.display_name ?? overrides.name ?? 'checkout',
+    status: 'succeeded',
+    type: 'run',
+    config: {},
+    error: null,
+    position: 0,
+    current_attempt: 1,
+    created_at: '2026-05-07T01:01:00.000Z',
+    updated_at: '2026-05-07T01:02:00.000Z',
+    attempts: [attempt],
+    ...overrides,
+  };
+}
+
+function attemptDto(overrides: Partial<StepAttemptDto> = {}): StepAttemptDto {
+  return {
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    step_id: '99999999-9999-4999-8999-999999999999',
+    job_id: '77777777-7777-4777-8777-777777777777',
+    attempt: 1,
+    execution_order: 1,
+    status: 'succeeded',
+    exit_code: 0,
+    output: null,
+    error: null,
+    gate_result: null,
+    restart_reason: null,
+    started_at: '2026-05-07T01:01:10.000Z',
+    finished_at: '2026-05-07T01:01:20.000Z',
+    ...overrides,
   };
 }
