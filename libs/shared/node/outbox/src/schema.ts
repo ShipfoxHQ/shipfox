@@ -26,6 +26,9 @@ export function createOutboxTable(pgTable: ReturnType<typeof pgTableCreator>) {
       index(`${tableName}_pending_idx`)
         .on(table.nextDispatchAt, table.createdAt)
         .where(sql`"dispatched_at" IS NULL AND "dead_lettered_at" IS NULL`),
+      index(`${tableName}_dispatched_retention_idx`)
+        .on(table.dispatchedAt, table.id)
+        .where(sql`"dispatched_at" IS NOT NULL`),
     ],
   );
 }

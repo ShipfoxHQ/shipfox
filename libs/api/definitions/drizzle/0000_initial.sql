@@ -58,3 +58,5 @@ CREATE UNIQUE INDEX "definitions_sync_states_source_unique" ON "definitions_sync
 CREATE INDEX "definitions_sync_states_failed_idx" ON "definitions_sync_states" USING btree ("updated_at") WHERE "status" = 'failed';
 --> statement-breakpoint
 CREATE INDEX "definitions_outbox_pending_idx" ON "definitions_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;
+--> statement-breakpoint
+CREATE INDEX "definitions_outbox_dispatched_retention_idx" ON "definitions_outbox" USING btree ("dispatched_at","id") WHERE "dispatched_at" IS NOT NULL;

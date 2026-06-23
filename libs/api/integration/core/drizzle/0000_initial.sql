@@ -31,5 +31,7 @@ CREATE TABLE "integrations_webhook_deliveries" (
 --> statement-breakpoint
 CREATE UNIQUE INDEX "integrations_connections_workspace_external_unique" ON "integrations_connections" USING btree ("workspace_id","provider","external_account_id");--> statement-breakpoint
 CREATE INDEX "integrations_connections_workspace_id_idx" ON "integrations_connections" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "integrations_outbox_pending_idx" ON "integrations_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "integrations_outbox_pending_idx" ON "integrations_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;
+--> statement-breakpoint
+CREATE INDEX "integrations_outbox_dispatched_retention_idx" ON "integrations_outbox" USING btree ("dispatched_at","id") WHERE "dispatched_at" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "integrations_webhook_deliveries_received_at_idx" ON "integrations_webhook_deliveries" USING btree ("received_at");
