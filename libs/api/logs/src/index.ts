@@ -4,6 +4,7 @@ import {LOG_STREAM_CLOSED, type LogsEventMap, logsEventSchemas} from '@shipfox/a
 import {WORKFLOWS_JOB_TERMINATED, type WorkflowsEventMap} from '@shipfox/api-workflows-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, logsOutbox, migrationsPath} from '#db/index.js';
+import {registerLogsServiceMetrics} from '#metrics/service.js';
 import {logsRoutes} from '#presentation/routes/index.js';
 import {onJobTerminated} from '#presentation/subscribers/on-job-terminated.js';
 import {onLogStreamClosed} from '#presentation/subscribers/on-log-stream-closed.js';
@@ -21,6 +22,7 @@ export const logsModule: ShipfoxModule = {
   name: 'logs',
   database: {db, migrationsPath},
   routes: logsRoutes,
+  metrics: registerLogsServiceMetrics,
   // `logs.stream.closed` is written by the close paths: the job-terminated subscriber
   // force-closes streams the runner never ended, and the closed event drives compaction.
   publishers: [{name: 'logs', table: logsOutbox, db, eventSchemas: logsEventSchemas}],

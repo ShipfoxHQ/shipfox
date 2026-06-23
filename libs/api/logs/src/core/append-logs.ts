@@ -8,9 +8,10 @@ import {db, type Transaction} from '#db/db.js';
 import {
   casExtendCommittedLength,
   getAttemptStream,
-  getOrCreateAttemptStream,
+  getOrCreateAttemptStreamWithStatus,
   setDeclaredTotalBytes,
 } from '#db/streams.js';
+import {recordAppendedCount, streamClosedCount, streamOpenedCount} from '#metrics/instance.js';
 import {allowedBudget} from './budget.js';
 import {closeStream, controlTombstone} from './close-stream.js';
 import {MalformedLogChunkError, OffsetGapError} from './errors.js';
@@ -33,6 +34,7 @@ export interface AppendLogsResult {
 
 interface ParsedBody {
   declaredTotalBytes?: number;
+  recordCount: number;
 }
 
 /**
@@ -48,7 +50,7 @@ interface ParsedBody {
  * its type via `forgedType` for the narrowed audit warn.
  */
 function parseAppendBody(body: Buffer): ParsedBody {
-  if (body.length === 0) return {};
+  if (body.length === 0) return {recordCount: 0};
 
   const text = body.toString('utf8');
   if (!text.endsWith('\n')) {
@@ -58,6 +60,7 @@ function parseAppendBody(body: Buffer): ParsedBody {
   lines.pop();
 
   let declaredTotalBytes: number | undefined;
+  let recordCount = 0;
   for (const line of lines) {
     let record: ReturnType<typeof parseAppendableLogRecordLine>;
     try {
@@ -68,6 +71,7 @@ function parseAppendBody(body: Buffer): ParsedBody {
         detectForgedType(line),
       );
     }
+    recordCount += 1;
     if (record.type === 'end') {
       declaredTotalBytes = record.total_bytes;
     }
@@ -84,7 +88,7 @@ function parseAppendBody(body: Buffer): ParsedBody {
     }
   }
 
-  return declaredTotalBytes === undefined ? {} : {declaredTotalBytes};
+  return declaredTotalBytes === undefined ? {recordCount} : {declaredTotalBytes, recordCount};
 }
 
 /**
@@ -131,6 +135,7 @@ interface StoreChunkResult extends AppendLogsResult {
    * not whole and must not be declared-closed.
    */
   stored: boolean;
+  systemRecordCount: number;
 }
 
 /**
@@ -147,7 +152,7 @@ async function storeChunk(
 
   // Already capped: accept-and-drop. committed_length has advanced so the runner
   // drains its spool cleanly instead of retry-looping; nothing is stored.
-  if (!accrued) return {committedLength, capped: true, stored: false};
+  if (!accrued) return {committedLength, capped: true, stored: false, systemRecordCount: 0};
 
   await insertChunk(tx, {
     streamId,
@@ -165,7 +170,9 @@ async function storeChunk(
     ratePerMinuteBytes: config.LOG_BUDGET_RATE_BYTES_PER_MINUTE,
     elapsedMs: Date.now() - accrued.startedAt.getTime(),
   });
-  if (accrued.used <= allowed) return {committedLength, capped: false, stored: true};
+  if (accrued.used <= allowed) {
+    return {committedLength, capped: false, stored: true, systemRecordCount: 0};
+  }
 
   // Over budget. No hard ceiling: this crossing append is stored in full (overshoot
   // bounded by one body). Claim the cap once and inject an in-band `capped` tombstone
@@ -181,7 +188,7 @@ async function storeChunk(
       origin: 'control',
     });
   }
-  return {committedLength, capped: true, stored: true};
+  return {committedLength, capped: true, stored: true, systemRecordCount: won ? 1 : 0};
 }
 
 /**
@@ -210,11 +217,17 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
   }
   const {declaredTotalBytes} = parsed;
   const byteLen = params.body.length;
+  const metrics = {
+    processRecordCount: 0,
+    streamClosedReason: undefined as 'declared' | undefined,
+    streamOpened: false,
+    systemRecordCount: 0,
+  };
 
-  return await db().transaction(async (tx) => {
+  const result = await db().transaction(async (tx) => {
     if (byteLen === 0) return readHeartbeat(tx, params);
 
-    const stream = await getOrCreateAttemptStream(tx, {
+    const {created, stream} = await getOrCreateAttemptStreamWithStatus(tx, {
       jobId: params.jobId,
       stepId: params.stepId,
       attempt: params.attempt,
@@ -222,6 +235,7 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
       projectId: params.projectId,
       runId: params.runId,
     });
+    metrics.streamOpened = created;
 
     // Closed stream (the runner's end already landed, or the job-terminated sweep ran):
     // accept-and-drop so a late chunk can never race compaction. committed_length is
@@ -240,13 +254,15 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
       return {committedLength: cas.committedLength, capped: await isJobCapped(tx, params.jobId)};
     }
 
-    const {stored, ...result} = await storeChunk(tx, {
+    const {stored, systemRecordCount, ...result} = await storeChunk(tx, {
       params,
       streamId: stream.id,
       byteLen,
       committedLength: cas.committedLength,
       declaredTotalBytes,
     });
+    if (stored) metrics.processRecordCount += parsed.recordCount;
+    metrics.systemRecordCount += systemRecordCount;
 
     // The runner's end record was committed in this append (offset-CAS guarantees
     // everything before it is already committed), so the stream is whole. Declared-close
@@ -255,9 +271,23 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
     // already capped persists nothing, so the stream is not whole and stays open for the
     // timeout sweep to close it as truncated.
     if (declaredTotalBytes !== undefined && stored) {
-      await closeStream(tx, {streamId: stream.id, reason: 'declared'});
+      const closed = await closeStream(tx, {streamId: stream.id, reason: 'declared'});
+      if (closed) metrics.streamClosedReason = 'declared';
     }
 
     return result;
   });
+
+  if (metrics.streamOpened) streamOpenedCount.add(1);
+  if (metrics.processRecordCount > 0) {
+    recordAppendedCount.add(metrics.processRecordCount, {kind: 'process'});
+  }
+  if (metrics.systemRecordCount > 0) {
+    recordAppendedCount.add(metrics.systemRecordCount, {kind: 'system'});
+  }
+  if (metrics.streamClosedReason) {
+    streamClosedCount.add(1, {reason: metrics.streamClosedReason});
+  }
+
+  return result;
 }

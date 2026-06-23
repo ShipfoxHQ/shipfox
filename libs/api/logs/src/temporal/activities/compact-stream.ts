@@ -4,6 +4,7 @@ import {compactedGzipStream} from '#core/compaction.js';
 import {chunkStats} from '#db/chunks.js';
 import {db} from '#db/db.js';
 import {getAttemptStreamById, setObjectKeyAndDeleteChunks} from '#db/streams.js';
+import {type CompactionMetricOutcome, compactionCount} from '#metrics/instance.js';
 
 export type CompactStreamResult =
   | {outcome: 'gone'}
@@ -31,9 +32,7 @@ export type CompactStreamResult =
  * check (count, maxSeq, and byte total) guards a read bug from publishing a truncated object
  * before the only copy of the source is gone (S3 part checksums cover byte transfer).
  */
-export async function compactStreamActivity(params: {
-  streamId: string;
-}): Promise<CompactStreamResult> {
+async function compactStream(params: {streamId: string}): Promise<CompactStreamResult> {
   const stream = await getAttemptStreamById(params.streamId);
   if (!stream) return {outcome: 'gone'};
   if (stream.objectKey) return {outcome: 'already-compacted'};
@@ -82,4 +81,17 @@ export async function compactStreamActivity(params: {
     chunkCount: stats.chunkCount,
     uncompressedBytes: stats.uncompressedBytes,
   };
+}
+
+export async function compactStreamActivity(params: {
+  streamId: string;
+}): Promise<CompactStreamResult> {
+  let outcome: CompactionMetricOutcome = 'failed';
+  try {
+    const result = await compactStream(params);
+    outcome = result.outcome;
+    return result;
+  } finally {
+    compactionCount.add(1, {outcome});
+  }
 }
