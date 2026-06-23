@@ -21,12 +21,6 @@ describe('getWorkflowStatusVisual', () => {
   test('returns the shared running visual', () => {
     const visual = getWorkflowStatusVisual('running');
 
-    expect(visual).toEqual({
-      kind: 'running',
-      label: 'Running',
-      dot: 'info',
-      badge: 'info',
-      icon: 'spinner',
-    });
+    expect(visual).toEqual({kind: 'running', label: 'Running', dot: 'info', badge: 'info'});
   });
 });

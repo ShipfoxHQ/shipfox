@@ -1,8 +1,4 @@
 import type {JobStatusDto, RunDetailResponseDto, RunJobDetailDto} from '@shipfox/api-workflows-dto';
-import {
-  getWorkflowStatusVisual,
-  type WorkflowStatus,
-} from '#components/workflow-status/status-visuals.js';
 
 export interface WorkflowGraphTriggerNode {
   id: 'trigger';
@@ -18,8 +14,6 @@ export interface WorkflowJobGraphNode {
   label: string;
   position: number;
   sourceStatus: JobStatusDto;
-  statusKind: WorkflowStatus;
-  statusLabel: string;
   column: number;
   row: number;
   dependencies: string[];
@@ -74,20 +68,15 @@ export function buildWorkflowJobGraphModel({
     return column;
   }
 
-  const nodesWithoutRows = sortedJobs.map((job) => {
-    const visual = getWorkflowStatusVisual(job.status);
-    return {
-      id: job.id,
-      label: job.name,
-      position: job.position,
-      sourceStatus: job.status,
-      statusKind: visual.kind,
-      statusLabel: visual.label,
-      column: columnFor(job),
-      row: 0,
-      dependencies: job.dependencies,
-    };
-  });
+  const nodesWithoutRows = sortedJobs.map((job) => ({
+    id: job.id,
+    label: job.name,
+    position: job.position,
+    sourceStatus: job.status,
+    column: columnFor(job),
+    row: 0,
+    dependencies: job.dependencies,
+  }));
 
   const grouped = groupColumns(nodesWithoutRows);
   const nodes = grouped.flat();

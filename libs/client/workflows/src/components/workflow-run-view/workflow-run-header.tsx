@@ -10,7 +10,7 @@ export function WorkflowRunHeader({run}: {run: RunResponseDto}) {
       <Text size="lg" bold className="min-w-0 truncate">
         {run.name}
       </Text>
-      <Badge variant={status.badge} iconLeft={status.icon} className="shrink-0">
+      <Badge variant={status.badge} className="shrink-0">
         {status.label}
       </Badge>
 

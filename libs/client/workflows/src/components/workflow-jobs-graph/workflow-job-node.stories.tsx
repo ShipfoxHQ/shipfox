@@ -1,7 +1,6 @@
 import type {JobStatusDto} from '@shipfox/api-workflows-dto';
 import type {Meta, StoryObj} from '@storybook/react';
 import type {KeyboardEventHandler} from 'react';
-import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import type {WorkflowJobGraphNode} from './graph-model.js';
 import {WorkflowJobNode} from './workflow-job-node.js';
 
@@ -85,14 +84,11 @@ function makeNode({
   position: number;
   dependencies: string[];
 }): WorkflowJobGraphNode {
-  const visual = getWorkflowStatusVisual(status);
   return {
     id,
     label,
     position,
     sourceStatus: status,
-    statusKind: visual.kind,
-    statusLabel: visual.label,
     column: 0,
     row: position,
     dependencies,
