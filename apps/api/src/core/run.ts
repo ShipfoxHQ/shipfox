@@ -10,20 +10,16 @@ import {setSourceControl, workflowsModule} from '@shipfox/api-workflows';
 import {workspacesModule} from '@shipfox/api-workspaces';
 import {createApp, listen} from '@shipfox/node-fastify';
 import {initializeModules, registerModuleMetrics, startModuleWorkers} from '@shipfox/node-module';
-import {
-  logger,
-  startInstanceInstrumentation,
-  startServiceMetrics,
-} from '@shipfox/node-opentelemetry';
+import {logger, startServiceMetrics} from '@shipfox/node-opentelemetry';
 import {createPostgresClient} from '@shipfox/node-postgres';
 import {config} from '../config.js';
 import {createE2eAdminAuthMethod, createE2eRouteGroup} from './e2e.js';
 
 export async function run(): Promise<void> {
-  await startInstanceInstrumentation({
-    serviceName: 'api',
-    instrumentations: {fastify: true, http: true, pg: true},
-  });
+  // Instance instrumentation is started in instrumentation.ts, preloaded via the
+  // entrypoint's --import flag so the metrics meter provider is registered before
+  // any feature module creates its instruments. Service metrics use a dedicated
+  // provider and their registration is order-safe, so they stay here.
   startServiceMetrics({serviceName: 'api'});
 
   createPostgresClient();
