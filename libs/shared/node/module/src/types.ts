@@ -56,8 +56,13 @@ export interface ModuleWorker {
  * own meter via `getServiceMetricsProvider().getMeter(name)` and attach the
  * gauge callbacks; it must not run at import time, because reaching the
  * provider binds the metrics port and would break unit tests that only import
- * the module. Instance metrics (counters/histograms) need no registration —
+ * the module. Instance metrics (counters/histograms) need no registration:
  * they are created lazily by `instanceMetrics.getMeter` and recorded inline.
+ *
+ * This should be side-effect-only wiring that does not normally throw. If it
+ * does, `registerModuleMetrics` isolates and logs the failure so one module
+ * cannot gate boot or block others, rather than relying on every callback to be
+ * infallible.
  */
 export type ModuleMetricsRegistration = () => void;
 

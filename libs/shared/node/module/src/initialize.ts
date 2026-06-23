@@ -101,12 +101,20 @@ function moduleMigrationTableName(moduleName: string, index: number): string {
  * metrics provider binds the metrics port, so registration must only happen in
  * a process that actually serves metrics, never as a side effect of the init
  * path that unit tests exercise.
+ *
+ * Failures are isolated and logged, never thrown: metrics are observability, not
+ * critical path, so a module whose registration throws loses its metrics but
+ * cannot gate boot or stop later modules from registering theirs.
  */
 export function registerModuleMetrics(options: {modules: ShipfoxModule[]}): void {
   for (const mod of options.modules) {
     if (!mod.metrics) continue;
-    logger().info({module: mod.name}, 'Registering module metrics');
-    mod.metrics();
+    try {
+      logger().info({module: mod.name}, 'Registering module metrics');
+      mod.metrics();
+    } catch (error) {
+      logger().warn({err: error, module: mod.name}, 'Failed to register module metrics');
+    }
   }
 }
 
