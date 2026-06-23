@@ -8,6 +8,7 @@ import {
 } from '#core/rate-limit.js';
 import {db} from '#db/db.js';
 import {countAuthRateLimitsForIdentifierHmac} from '#db/rate-limits.js';
+import {authRateLimits} from '#db/schema/rate-limits.js';
 import {
   capturedMail,
   createAuthTestApp,
@@ -55,6 +56,11 @@ async function countBucket(params: {
   });
 
   return await countAuthRateLimitsForIdentifierHmac({identifierHmac});
+}
+
+function windowStartFor(now: Date, windowSeconds: number): Date {
+  const windowMs = windowSeconds * 1000;
+  return new Date(Math.floor(now.getTime() / windowMs) * windowMs);
 }
 
 type LoggerInstance = NonNullable<NonNullable<AppConfig['fastifyOptions']>['loggerInstance']>;
@@ -197,9 +203,30 @@ describe('auth rate-limit routes', () => {
 
   it('fails closed when limiter storage is unavailable', async () => {
     const ip = uniqueIp();
+    const identifierHmac = hashAuthRateLimitIdentifier({
+      action: 'login',
+      scope: 'ip',
+      identifier: ip,
+    });
+    const windowStart = windowStartFor(new Date(), 5 * 60);
+    await db()
+      .insert(authRateLimits)
+      .values({
+        action: 'login',
+        scope: 'ip',
+        identifierHmac,
+        windowStart,
+        count: 1,
+        expiresAt: new Date(windowStart.getTime() + 5 * 60 * 1000),
+      });
 
     await db().transaction(async (tx) => {
-      await tx.execute(sql`LOCK TABLE auth_rate_limits IN ACCESS EXCLUSIVE MODE`);
+      await tx.execute(sql`
+        SELECT 1
+        FROM auth_rate_limits
+        WHERE identifier_hmac = ${identifierHmac}
+        FOR UPDATE
+      `);
       const res = await app.inject({
         method: 'POST',
         url: '/auth/login',

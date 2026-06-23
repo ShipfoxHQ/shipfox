@@ -28,7 +28,7 @@ export interface RouteOptions {
 export type RoutePreHandler = (
   request: FastifyRequest,
   reply: FastifyReply,
-) => Promise<unknown> | unknown;
+) => Promise<unknown> | undefined;
 
 export interface RouteDefinition {
   method: HttpMethod;
@@ -93,11 +93,11 @@ export function defineRoute<const S extends RouteSchema | undefined>(
       | ((
           request: FastifyRequest<InferSchema<S>>,
           reply: FastifyReply,
-        ) => Promise<unknown> | unknown)
+        ) => Promise<unknown> | undefined)
       | ((
           request: FastifyRequest<InferSchema<S>>,
           reply: FastifyReply,
-        ) => Promise<unknown> | unknown)[];
+        ) => Promise<unknown> | undefined)[];
     handler: (
       request: FastifyRequest<InferSchema<S>>,
       reply: FastifyReply,

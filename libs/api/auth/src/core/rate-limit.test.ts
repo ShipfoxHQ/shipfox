@@ -159,15 +159,37 @@ describe('checkAuthRateLimit', () => {
 
   it('fails closed when the limiter query times out', async () => {
     const email = identifier('timeout');
+    const now = new Date('2026-06-23T00:03:30Z');
+    const identifierHmac = hashAuthRateLimitIdentifier({
+      action: 'login',
+      scope: 'email',
+      identifier: email,
+    });
+    await db()
+      .insert(authRateLimits)
+      .values({
+        action: 'login',
+        scope: 'email',
+        identifierHmac,
+        windowStart: new Date('2026-06-23T00:03:00Z'),
+        count: 1,
+        expiresAt: new Date('2026-06-23T00:04:00Z'),
+      });
 
     await db().transaction(async (tx) => {
-      await tx.execute(sql`LOCK TABLE auth_rate_limits IN ACCESS EXCLUSIVE MODE`);
+      await tx.execute(sql`
+        SELECT 1
+        FROM auth_rate_limits
+        WHERE identifier_hmac = ${identifierHmac}
+        FOR UPDATE
+      `);
       const act = checkAuthRateLimit({
         action: 'login',
         scope: 'email',
         identifier: email,
         limit: 1,
         windowSeconds: 60,
+        now,
         timeoutMs: 10,
       });
 
