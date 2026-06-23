@@ -22,12 +22,12 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// Captures both surface sizes that share the tuned glyph scale.
+// Every state at the surface size (14px) plus a compact size, sharing the tuned glyph scale.
 export const AllStates: Story = {
   render: () => (
     <div className="flex flex-col gap-32">
       <Scale label="DAG node / run row (14px)" size={14} />
-      <Scale label="Run-header pill (12px, ripple off)" size={12} ripple={false} />
+      <Scale label="Compact (12px)" size={12} />
     </div>
   ),
 };

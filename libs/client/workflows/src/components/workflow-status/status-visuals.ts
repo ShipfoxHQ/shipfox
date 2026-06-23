@@ -1,5 +1,5 @@
 import type {JobStatusDto, RunStatusDto} from '@shipfox/api-workflows-dto';
-import type {BadgeVariant, DotVariant, IconName} from '@shipfox/react-ui';
+import type {BadgeVariant, DotVariant} from '@shipfox/react-ui';
 
 export type WorkflowStatus = JobStatusDto | RunStatusDto;
 
@@ -8,41 +8,24 @@ export interface WorkflowStatusVisual {
   label: string;
   dot: DotVariant;
   badge: BadgeVariant;
-  icon: IconName;
 }
 
-// Keep a concrete icon for every status because the run-header pill reads this value directly,
-// while WorkflowStatusIcon replaces running with the live Dot.
+// The status -> visual mapping shared by the run-header pill (color + label) and
+// WorkflowStatusIcon (which renders the glyph per kind). The exhaustive switch turns any new
+// status the API grows into (DESIGN.md section 9) into a compile error; reserve the `warning`
+// tone for the queued/awaiting-* states when they land.
 export function getWorkflowStatusVisual(status: WorkflowStatus): WorkflowStatusVisual {
   switch (status) {
     case 'pending':
-      return {
-        kind: 'pending',
-        label: 'Pending',
-        dot: 'neutral',
-        badge: 'neutral',
-        icon: 'circleDottedLine',
-      };
+      return {kind: 'pending', label: 'Pending', dot: 'neutral', badge: 'neutral'};
     case 'running':
-      return {kind: 'running', label: 'Running', dot: 'info', badge: 'info', icon: 'circleFill'};
+      return {kind: 'running', label: 'Running', dot: 'info', badge: 'info'};
     case 'succeeded':
-      return {
-        kind: 'succeeded',
-        label: 'Succeeded',
-        dot: 'success',
-        badge: 'success',
-        icon: 'checkCircleSolid',
-      };
+      return {kind: 'succeeded', label: 'Succeeded', dot: 'success', badge: 'success'};
     case 'failed':
-      return {kind: 'failed', label: 'Failed', dot: 'error', badge: 'error', icon: 'xCircleSolid'};
+      return {kind: 'failed', label: 'Failed', dot: 'error', badge: 'error'};
     case 'cancelled':
-      return {
-        kind: 'cancelled',
-        label: 'Cancelled',
-        dot: 'neutral',
-        badge: 'neutral',
-        icon: 'forbid2Fill',
-      };
+      return {kind: 'cancelled', label: 'Cancelled', dot: 'neutral', badge: 'neutral'};
   }
 
   const exhaustive: never = status;

@@ -1,7 +1,6 @@
 import type {RunDto} from '@shipfox/api-workflows-dto';
 import {Code, cn, RelativeTime} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
-import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import {runTriggerLabel} from './run-display.js';
 
@@ -45,7 +44,6 @@ export function WorkflowRunRow({
   projectId: string;
   selected: boolean;
 }) {
-  const visual = getWorkflowStatusVisual(run.status);
   const triggerLabel = runTriggerLabel(run);
 
   const body = (
@@ -59,7 +57,6 @@ export function WorkflowRunRow({
 
       <div className="flex min-w-0 items-center gap-7">
         <WorkflowStatusIcon status={run.status} size={14} />
-        <span className="sr-only">{visual.label}</span>
         <Code variant="label" bold className="truncate text-foreground-neutral-base">
           {run.name}
         </Code>

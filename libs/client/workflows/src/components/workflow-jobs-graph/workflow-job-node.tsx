@@ -64,8 +64,7 @@ export function WorkflowJobNode({
         />
       ) : null}
       <div className="flex min-w-0 items-center gap-8">
-        <WorkflowStatusIcon status={node.sourceStatus} size={14} />
-        <span className="sr-only">{visual.label}</span>
+        <WorkflowStatusIcon status={node.sourceStatus} size={14} tooltip={false} />
         <Code variant="label" bold className="truncate text-foreground-neutral-base">
           {node.label}
         </Code>
