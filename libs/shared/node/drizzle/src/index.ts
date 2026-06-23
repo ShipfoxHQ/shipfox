@@ -6,7 +6,10 @@ export {
   decodeTimestampIdCursor,
   encodeStringIdCursor,
   encodeTimestampIdCursor,
+  paginateTimestampIdRows,
   type StringIdCursor,
   type TimestampIdCursor,
+  type TimestampIdPage,
+  timestampIdCursorWhere,
 } from './cursor.js';
 export {uuidv7PrimaryKey} from './schema.js';
