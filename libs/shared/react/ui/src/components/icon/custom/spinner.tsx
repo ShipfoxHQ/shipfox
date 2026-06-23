@@ -1,9 +1,8 @@
 'use client';
 
-import type {RemixiconComponentType} from '@remixicon/react';
 import {motion, type SVGMotionProps, type Variants} from 'framer-motion';
-import type {ComponentProps} from 'react';
 import {cn} from '#utils/cn.js';
+import {type CustomIconProps, svgAriaHidden} from './svg-icon-props.js';
 
 const SEGMENT_COUNT = 8;
 const DURATION = 1.2;
@@ -37,7 +36,7 @@ function getSegmentVariants(segment: number): Variants {
   return segmentVariants[`segment${segment}`] ?? {};
 }
 
-export function SpinnerIcon(props: ComponentProps<RemixiconComponentType>) {
+export function SpinnerIcon(props: CustomIconProps) {
   const {className, size, ...restProps} = props;
 
   const iconSize = size ?? 24;
@@ -52,10 +51,10 @@ export function SpinnerIcon(props: ComponentProps<RemixiconComponentType>) {
     initial: 'initial',
     animate: 'animate',
     ...(restProps as unknown as SVGMotionProps<SVGSVGElement>),
+    'aria-hidden': svgAriaHidden(props),
   };
   return (
     <motion.svg {...svgProps}>
-      <title>Spinner</title>
       <motion.path
         d="M10.583 1.91667C10.583 1.41041 10.9934 1 11.4997 1C12.0059 1 12.4163 1.41041 12.4163 1.91667V5.58333C12.4163 6.08959 12.0059 6.5 11.4997 6.5C10.9934 6.5 10.583 6.08959 10.583 5.58333V1.91667Z"
         fill="currentColor"
