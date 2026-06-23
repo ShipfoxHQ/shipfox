@@ -138,8 +138,7 @@ describe('buildWorkflowJobGraphModel', () => {
     const result = buildWorkflowJobGraphModel({run});
 
     expect(nodeByLabel(result, 'deploy')).toMatchObject({
-      statusKind: 'cancelled',
-      statusLabel: 'Cancelled',
+      sourceStatus: 'cancelled',
     });
   });
 });

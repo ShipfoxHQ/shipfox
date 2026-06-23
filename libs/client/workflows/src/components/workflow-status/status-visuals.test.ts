@@ -10,9 +10,6 @@ const EXPECTED_LABELS: Record<RunStatusDto, string> = {
   cancelled: 'Cancelled',
 };
 
-// The glyph WorkflowStatusIcon renders per state. `running` is a fallback (the component
-// draws the live Dot instead), but every state still maps to a concrete circular glyph so
-// the shape channel is locked, not just the label.
 const EXPECTED_ICONS: Record<RunStatusDto, IconName> = {
   pending: 'circleDottedLine',
   running: 'circleFill',

@@ -1,8 +1,7 @@
 import {cn, Dot, type DotVariant, Icon, type IconName} from '@shipfox/react-ui';
 import {getWorkflowStatusVisual, type WorkflowStatus} from './status-visuals.js';
 
-// Mirrors the `--tag-*-icon` tone used by IconBadge/StatusBadge, so a status glyph
-// carries the same saturated accent its badge would. Drives the glyph via currentColor.
+// Status glyphs use the same saturated accent tokens as IconBadge/StatusBadge.
 const toneByVariant: Record<DotVariant, string> = {
   neutral: 'text-tag-neutral-icon',
   info: 'text-tag-blue-icon',
@@ -15,7 +14,7 @@ const toneByVariant: Record<DotVariant, string> = {
 // The source glyphs fill their viewBoxes by different amounts (the solid discs ~90-95%,
 // forbid2Fill ~83%, the dotted ring ~75%), so one numeric size renders visibly different
 // diameters. These multipliers land every disc/ring at the same optical diameter as the
-// running Dot. Tuned against the story below; nudge here if a glyph reads heavy or light.
+// running Dot.
 const glyphScale: Partial<Record<IconName, number>> = {
   checkCircleSolid: 1.12,
   xCircleSolid: 1.06,
@@ -23,8 +22,10 @@ const glyphScale: Partial<Record<IconName, number>> = {
   circleDottedLine: 1.3,
 };
 
-// Dot sizes itself from a Tailwind size-* class. Only the two sizes the app uses are
-// mapped; both are literal strings so Tailwind's scanner emits them.
+// Fixed layout box shared by the running Dot and the glyph wrapper, so every state occupies
+// the same width and the glyphs (plus the text after them) stay aligned down a row list, even
+// though the scaled glyph boxes differ. Only the two sizes the app uses are mapped; both are
+// literal strings so Tailwind's scanner emits them.
 const dotSizeClass: Record<number, string> = {
   12: 'size-12',
   14: 'size-14',
@@ -39,12 +40,7 @@ export interface WorkflowStatusIconProps {
   className?: string;
 }
 
-/**
- * The job/run/step state indicator: an icon-in-circle glyph whose shape (not just color)
- * names the state. Running is a live `Dot` (filled disc + external ripple halo); the other
- * states are self-contained glyphs in the saturated `--tag-*-icon` tone, with `cancelled`
- * dimmed. Decorative: callers render the textual status label themselves (e.g. `sr-only`).
- */
+/** Decorative status glyph. Callers must render the textual status label separately. */
 export function WorkflowStatusIcon({
   status,
   size = 14,
@@ -67,7 +63,8 @@ export function WorkflowStatusIcon({
     <span
       aria-hidden="true"
       className={cn(
-        'inline-flex shrink-0',
+        'inline-flex shrink-0 items-center justify-center',
+        dotSizeClass[size] ?? 'size-14',
         toneByVariant[visual.dot],
         visual.kind === 'cancelled' && 'opacity-70',
         className,

@@ -22,20 +22,16 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// Every state in one row at both the surfaces' sizes, so the optical diameters can be
-// compared at a glance: each shape must read as the same-size disc, and pending vs
-// cancelled (the states that used to collapse) must be unmistakable. Argos captures
-// this in light and dark.
+// Captures both surface sizes that share the tuned glyph scale.
 export const AllStates: Story = {
   render: () => (
     <div className="flex flex-col gap-32">
-      <Scale label="DAG node / run row — 14px" size={14} />
-      <Scale label="Run-header pill — 12px (ripple off)" size={12} ripple={false} />
+      <Scale label="DAG node / run row (14px)" size={14} />
+      <Scale label="Run-header pill (12px, ripple off)" size={12} ripple={false} />
     </div>
   ),
 };
 
-// The node layout in miniature: the glyph leads, the mono job name is the anchor.
 export const InContext: Story = {
   render: () => (
     <div className="grid grid-cols-2 gap-12">

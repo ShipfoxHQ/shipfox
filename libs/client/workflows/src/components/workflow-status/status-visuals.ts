@@ -11,15 +11,8 @@ export interface WorkflowStatusVisual {
   icon: IconName;
 }
 
-// `icon` is the self-contained circular glyph the standalone `WorkflowStatusIcon`
-// renders (shape + the saturated `--tag-*-icon` tone). It also feeds the run-header
-// pill. `running` carries a filled-circle fallback because `WorkflowStatusIcon`
-// renders the live `Dot` (disc + ripple) for it instead of this glyph.
-//
-// When the API status enum grows to the DESIGN.md section-9 states, the exhaustive
-// switch below turns each new value into a compile error. Reserve the warning tone
-// (`dot`/`badge: 'warning'`) with an alert glyph for `queued`/`awaiting-runner`/
-// `awaiting-manual` so they stay visually consistent.
+// Keep a concrete icon for every status because the run-header pill reads this value directly,
+// while WorkflowStatusIcon replaces running with the live Dot.
 export function getWorkflowStatusVisual(status: WorkflowStatus): WorkflowStatusVisual {
   switch (status) {
     case 'pending':
