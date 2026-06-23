@@ -1,7 +1,17 @@
 import {createConsoleMailer} from '#console-mailer.js';
 import type {MailMessage} from '#mailer.js';
 
+const loggerInfo = vi.hoisted(() => vi.fn());
+
+vi.mock('@shipfox/node-opentelemetry', () => ({
+  logger: () => ({info: loggerInfo}),
+}));
+
 describe('console mailer', () => {
+  beforeEach(() => {
+    loggerInfo.mockClear();
+  });
+
   test('captures sent messages when capture array is provided', async () => {
     const capture: MailMessage[] = [];
     const mailer = createConsoleMailer({from: 'noreply@shipfox.test', capture});
@@ -20,6 +30,28 @@ describe('console mailer', () => {
       text: 'Hello Alice',
       html: '<p>Hello Alice</p>',
     });
+  });
+
+  test('logs the text body without the unreadable html body', async () => {
+    const mailer = createConsoleMailer({from: 'noreply@shipfox.test'});
+
+    await mailer.send({
+      to: 'alice@example.com',
+      subject: 'Welcome',
+      text: 'Hello Alice',
+      html: '<p>Hello Alice</p>',
+    });
+
+    expect(loggerInfo).toHaveBeenCalledWith(
+      {
+        mailer: 'console',
+        from: 'noreply@shipfox.test',
+        to: 'alice@example.com',
+        subject: 'Welcome',
+        text: 'Hello Alice',
+      },
+      'mailer.send',
+    );
   });
 
   test('resolves successfully without capture array', async () => {
