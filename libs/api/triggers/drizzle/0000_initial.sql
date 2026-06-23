@@ -63,6 +63,8 @@ CREATE INDEX "triggers_outbox_dispatched_retention_idx" ON "triggers_outbox" USI
 CREATE UNIQUE INDEX "triggers_received_events_event_ref_unique" ON "triggers_received_events" USING btree ("event_ref");--> statement-breakpoint
 CREATE INDEX "triggers_received_events_workspace_received_idx" ON "triggers_received_events" USING btree ("workspace_id","received_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "triggers_received_events_prune_idx" ON "triggers_received_events" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "triggers_received_events_workspace_source_idx" ON "triggers_received_events" USING btree ("workspace_id","source");--> statement-breakpoint
+CREATE INDEX "triggers_received_events_workspace_event_idx" ON "triggers_received_events" USING btree ("workspace_id","event");--> statement-breakpoint
 CREATE UNIQUE INDEX "triggers_subscriptions_definition_name_unique" ON "triggers_subscriptions" USING btree ("workflow_definition_id","name");--> statement-breakpoint
 CREATE INDEX "triggers_subscriptions_match_idx" ON "triggers_subscriptions" USING btree ("workspace_id","source","event");--> statement-breakpoint
 CREATE INDEX "triggers_subscriptions_definition_idx" ON "triggers_subscriptions" USING btree ("workflow_definition_id");

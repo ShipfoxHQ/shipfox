@@ -1,5 +1,6 @@
 import {paginateTimestampIdRows, timestampIdCursorWhere} from '@shipfox/node-drizzle';
-import {and, asc, desc, eq, gte, inArray, lte, type SQL} from 'drizzle-orm';
+import {and, asc, count, desc, eq, gte, inArray, lte, type SQL} from 'drizzle-orm';
+import type {PgColumn} from 'drizzle-orm/pg-core';
 import type {TriggerDecision} from '#core/entities/decision.js';
 import type {
   TriggerEventOutcome,
@@ -85,6 +86,43 @@ export async function getTriggerEventById(id: string): Promise<TriggerReceivedEv
     .where(eq(triggersReceivedEvents.id, id))
     .limit(1);
   return row ? toTriggerReceivedEvent(row) : undefined;
+}
+
+export interface TriggerEventFacet {
+  value: string;
+  count: number;
+}
+
+export interface ListTriggerEventFacetsResult {
+  sources: TriggerEventFacet[];
+  events: TriggerEventFacet[];
+}
+
+// Distinct filter values for a workspace, capped so one noisy integration can't flood
+// the dropdown. Workspace-unfiltered by design: a stable option list, not one that
+// shifts as the other filters change. The (workspace_id, source) / (workspace_id, event)
+// indexes back the group-by. Ties break on the value so the order is deterministic.
+const FACET_LIMIT = 50;
+
+async function listFacet(workspaceId: string, column: PgColumn): Promise<TriggerEventFacet[]> {
+  const rows = await db()
+    .select({value: column, count: count()})
+    .from(triggersReceivedEvents)
+    .where(eq(triggersReceivedEvents.workspaceId, workspaceId))
+    .groupBy(column)
+    .orderBy(desc(count()), asc(column))
+    .limit(FACET_LIMIT);
+  return rows.map((row) => ({value: row.value as string, count: Number(row.count)}));
+}
+
+export async function listTriggerEventFacets(params: {
+  workspaceId: string;
+}): Promise<ListTriggerEventFacetsResult> {
+  const [sources, events] = await Promise.all([
+    listFacet(params.workspaceId, triggersReceivedEvents.source),
+    listFacet(params.workspaceId, triggersReceivedEvents.event),
+  ]);
+  return {sources, events};
 }
 
 // `received_event_id` is a globally-unique uuid, so the parent-event lookup is the

@@ -4,11 +4,14 @@ import {fileURLToPath} from 'node:url';
 export {closeDb, db, schema} from './db.js';
 export {
   getTriggerEventById,
+  type ListTriggerEventFacetsResult,
   type ListTriggerEventsParams,
   type ListTriggerEventsResult,
   listDecisionsByReceivedEventId,
+  listTriggerEventFacets,
   listTriggerEvents,
   type TriggerEventCursor,
+  type TriggerEventFacet,
   type TriggerEventListFilters,
 } from './event-queries.js';
 export {triggersOutbox} from './schema/outbox.js';

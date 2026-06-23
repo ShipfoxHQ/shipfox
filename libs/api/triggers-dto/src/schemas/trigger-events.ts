@@ -109,3 +109,20 @@ export const triggerEventDetailResponseSchema = triggerEventDtoSchema.extend({
   decisions: z.array(triggerDecisionDtoSchema),
 });
 export type TriggerEventDetailResponseDto = z.infer<typeof triggerEventDetailResponseSchema>;
+
+export const triggerEventFacetsQuerySchema = z.object({
+  workspace_id: z.string().uuid(),
+});
+export type TriggerEventFacetsQueryDto = z.infer<typeof triggerEventFacetsQuerySchema>;
+
+export const triggerEventFacetItemSchema = z.object({
+  value: z.string(),
+  count: z.number().int().nonnegative(),
+});
+export type TriggerEventFacetItemDto = z.infer<typeof triggerEventFacetItemSchema>;
+
+export const triggerEventFacetsResponseSchema = z.object({
+  sources: z.array(triggerEventFacetItemSchema),
+  events: z.array(triggerEventFacetItemSchema),
+});
+export type TriggerEventFacetsResponseDto = z.infer<typeof triggerEventFacetsResponseSchema>;
