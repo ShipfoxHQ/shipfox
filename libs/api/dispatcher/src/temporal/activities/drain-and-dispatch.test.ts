@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   markDispatched: vi.fn(),
   recordDispatchFailure: vi.fn(),
   errorLog: vi.fn(),
+  eventDispatchedAdd: vi.fn(),
+  dispatchFailureAdd: vi.fn(),
+  drainBatchRecord: vi.fn(),
 }));
 
 vi.mock('@shipfox/node-error-monitoring', () => ({
@@ -25,6 +28,19 @@ vi.mock('@shipfox/node-module', () => ({
 }));
 
 vi.mock('@shipfox/node-opentelemetry', () => ({
+  instanceMetrics: {
+    getMeter: () => ({
+      createCounter: (name: string) => {
+        if (name === 'dispatcher_event_dispatched') return {add: mocks.eventDispatchedAdd};
+        if (name === 'dispatcher_dispatch_failure') return {add: mocks.dispatchFailureAdd};
+        throw new Error(`Unexpected counter: ${name}`);
+      },
+      createHistogram: (name: string) => {
+        if (name === 'dispatcher_drain_batch') return {record: mocks.drainBatchRecord};
+        throw new Error(`Unexpected histogram: ${name}`);
+      },
+    }),
+  },
   logger: () => ({
     error: mocks.errorLog,
   }),
@@ -39,6 +55,19 @@ describe('drainAndDispatch', () => {
     mocks.markDispatched.mockReset();
     mocks.recordDispatchFailure.mockReset();
     mocks.errorLog.mockReset();
+    mocks.eventDispatchedAdd.mockReset();
+    mocks.dispatchFailureAdd.mockReset();
+    mocks.drainBatchRecord.mockReset();
+  });
+
+  it('records an empty drain batch tick', async () => {
+    mocks.drainAll.mockResolvedValueOnce([]);
+
+    await drainAndDispatch();
+
+    expect(mocks.drainBatchRecord).toHaveBeenCalledWith(0);
+    expect(mocks.eventDispatchedAdd).not.toHaveBeenCalled();
+    expect(mocks.dispatchFailureAdd).not.toHaveBeenCalled();
   });
 
   it('logs sanitized context, captures failed subscriber exceptions, and records a row failure', async () => {
@@ -85,6 +114,8 @@ describe('drainAndDispatch', () => {
       errorName: 'Error',
       errorMessage: 'subscriber failed',
     });
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'failed'});
+    expect(mocks.dispatchFailureAdd).toHaveBeenCalledWith(1, {reason: 'handler'});
     expect(mocks.markDispatched).not.toHaveBeenCalled();
   });
 
@@ -131,6 +162,8 @@ describe('drainAndDispatch', () => {
       }),
     });
     expect(JSON.stringify(captureOptions)).not.toContain('raw-secret');
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'failed'});
+    expect(mocks.dispatchFailureAdd).toHaveBeenCalledWith(1, {reason: 'validation'});
   });
 
   it('passes the parsed payload to handlers when validation succeeds', async () => {
@@ -152,6 +185,7 @@ describe('drainAndDispatch', () => {
       expect.objectContaining({type: event.type, payload: parsed}),
     );
     expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', [event.id]);
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'succeeded'});
     expect(mocks.recordDispatchFailure).not.toHaveBeenCalled();
   });
 
@@ -170,6 +204,7 @@ describe('drainAndDispatch', () => {
     await drainAndDispatch();
 
     expect(mocks.markDispatched).toHaveBeenCalledWith('workflows', [event.id]);
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'succeeded'});
     expect(mocks.recordDispatchFailure).not.toHaveBeenCalled();
   });
 
@@ -225,6 +260,11 @@ describe('drainAndDispatch', () => {
         issues: error.issues,
       },
     });
+    expect(mocks.drainBatchRecord).toHaveBeenCalledWith(3);
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'failed'});
+    expect(mocks.dispatchFailureAdd).toHaveBeenCalledWith(1, {reason: 'validation'});
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'succeeded'});
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledTimes(3);
   });
 
   it('records a row failure and skips dispatch when one of several handlers fails', async () => {
@@ -255,6 +295,8 @@ describe('drainAndDispatch', () => {
       errorName: 'Error',
       errorMessage: 'second handler failed',
     });
+    expect(mocks.eventDispatchedAdd).toHaveBeenCalledWith(1, {outcome: 'failed'});
+    expect(mocks.dispatchFailureAdd).toHaveBeenCalledWith(1, {reason: 'handler'});
     expect(mocks.markDispatched).not.toHaveBeenCalled();
   });
 });

@@ -9,9 +9,11 @@ import {
   recordDispatchFailure,
 } from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
+import {dispatchFailureCount, drainBatchSize, eventDispatchedCount} from '#metrics/index.js';
 
 export async function drainAndDispatch(): Promise<void> {
   const rows = await drainAll();
+  drainBatchSize.record(rows.length);
   if (rows.length === 0) return;
 
   const dispatched = new Map<string, string[]>();
@@ -20,6 +22,7 @@ export async function drainAndDispatch(): Promise<void> {
     const validation = validatePayload(row);
     if (!validation.success) {
       await recordDispatchFailure(row.source, row.id, validation.failure);
+      recordFailureMetric(validation.failure.kind);
       continue;
     }
 
@@ -46,11 +49,13 @@ export async function drainAndDispatch(): Promise<void> {
       dispatched.set(row.source, ids);
     } else if (dispatchFailure) {
       await recordDispatchFailure(row.source, row.id, dispatchFailure);
+      recordFailureMetric(dispatchFailure.kind);
     }
   }
 
   for (const [source, ids] of dispatched) {
     await markDispatched(source, ids);
+    eventDispatchedCount.add(ids.length, {outcome: 'succeeded'});
   }
 }
 
@@ -92,4 +97,9 @@ function failureFromHandler(row: DrainedEvent, error: unknown): OutboxDispatchFa
     errorName: error instanceof Error ? error.name : 'NonErrorThrown',
     errorMessage: error instanceof Error ? error.message : String(error),
   };
+}
+
+function recordFailureMetric(reason: OutboxDispatchFailure['kind']): void {
+  eventDispatchedCount.add(1, {outcome: 'failed'});
+  dispatchFailureCount.add(1, {reason});
 }
