@@ -159,8 +159,7 @@ export async function createIntegrationsContext(
 
   async function runStartupTasks(): Promise<void> {
     for (const task of parts.flatMap((part) => part.startupTasks ?? [])) {
-      // A provider convenience must never gate API boot. Mirrors startModuleWorkers, which
-      // catches per-worker errors and logs instead of throwing.
+      // A provider convenience must never gate API boot.
       try {
         await task();
       } catch (error) {

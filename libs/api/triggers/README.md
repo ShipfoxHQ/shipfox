@@ -20,8 +20,8 @@ const {auth, routes, workers} = await initializeModules({
 });
 
 await createApp({auth, routes});
-await listen();
 await startModuleWorkers({workers});
+await listen();
 ```
 
 This adds:

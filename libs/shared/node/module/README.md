@@ -6,7 +6,7 @@ Module setup helpers for Shipfox API services. A module can list its database, a
 
 - **`initializeModules({modules})`**: Sets up modules in array order.
 - **`registerModuleMetrics({modules})`**: Registers service-level metrics for modules that declare a metrics hook.
-- **`startModuleWorkers({workers})`**: Creates Temporal workers and starts declared workflows.
+- **`startModuleWorkers({workers})`**: Creates Temporal workers and starts declared workflows before the app is marked ready.
 - **`ShipfoxModule`**: Module contract used by API packages.
 - **Publisher registry**: Adds outbox tables, drains pending events, and marks events as sent.
 - **Subscriber registry**: Adds and reads in-process event handlers by event type.
@@ -25,12 +25,12 @@ const {auth, routes, workers} = await initializeModules({
 registerModuleMetrics({modules});
 
 await createApp({auth, routes});
+await startModuleWorkers({workers});
 await listen();
-
-startModuleWorkers({workers});
 ```
 
 `initializeModules` runs module migrations first. It exposes auth methods and routes after that. Put modules with shared database needs earlier in the array. Call `registerModuleMetrics` once after instrumentation has started and migrations have run, so observable gauges can query shared storage safely.
+Worker startup failures reject `startModuleWorkers`, so call it before serving traffic when workers are required for app health.
 
 ## Module Shape
 

@@ -1,6 +1,7 @@
 export type {
   InitializedModules,
   InitializeModulesOptions,
+  StartModuleWorkersOptions,
 } from './initialize.js';
 export {initializeModules, registerModuleMetrics, startModuleWorkers} from './initialize.js';
 export type {
