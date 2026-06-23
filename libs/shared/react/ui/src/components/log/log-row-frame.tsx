@@ -58,7 +58,7 @@ export function LogRowFrame({
           // row always wins the background it shares with a tone tint.
           className,
           selected &&
-            'bg-background-neutral-pressed shadow-[inset_2px_0_0_var(--color-primary-400)] hover:bg-background-neutral-pressed',
+            'bg-background-neutral-pressed shadow-[inset_2px_0_0_var(--foreground-highlight-interactive)] hover:bg-background-neutral-pressed',
         )}
         {...props}
       >
