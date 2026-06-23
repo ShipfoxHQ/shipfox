@@ -1,3 +1,4 @@
+import {DEFINITION_RESOLVED, definitionsEventSchemas} from '@shipfox/api-definitions-dto';
 import type {DomainEvent} from '@shipfox/node-outbox';
 import {drainAndDispatch} from './drain-and-dispatch.js';
 
@@ -87,35 +88,51 @@ describe('drainAndDispatch', () => {
     expect(mocks.markDispatched).not.toHaveBeenCalled();
   });
 
-  it('rejects a malformed payload at the drain: skips handlers and records a row failure', async () => {
-    const error = {issues: [{path: ['jobId'], code: 'invalid_type', message: 'expected string'}]};
+  it('rejects a malformed schema-covered payload without capturing raw payload data', async () => {
     const event: DomainEvent = {
       id: crypto.randomUUID(),
-      type: 'workflows.job.terminated',
+      type: DEFINITION_RESOLVED,
       createdAt: new Date(),
-      payload: {jobId: 123},
+      payload: {
+        projectId: crypto.randomUUID(),
+        workspaceId: crypto.randomUUID(),
+        configPath: null,
+        triggers: {},
+        secret: 'raw-secret',
+      },
     };
-    mocks.drainAll.mockResolvedValueOnce([{id: event.id, source: 'workflows', event}]);
-    mocks.getEventSchema.mockReturnValueOnce({safeParse: () => ({success: false, error})});
+    mocks.drainAll.mockResolvedValueOnce([{id: event.id, source: 'definitions', event}]);
+    mocks.getEventSchema.mockReturnValueOnce(definitionsEventSchemas[DEFINITION_RESOLVED]);
 
     await drainAndDispatch();
 
     expect(mocks.getSubscribers).not.toHaveBeenCalled();
     expect(mocks.markDispatched).not.toHaveBeenCalled();
-    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith('workflows', event.id, {
-      kind: 'validation',
-      eventType: event.type,
-      eventId: event.id,
-      issues: error.issues,
-    });
-    expect(mocks.captureException).toHaveBeenCalledWith(error, {
-      extra: {
+    expect(mocks.recordDispatchFailure).toHaveBeenCalledWith(
+      'definitions',
+      event.id,
+      expect.objectContaining({
         kind: 'validation',
         eventType: event.type,
         eventId: event.id,
-        issues: error.issues,
-      },
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            path: ['definitionId'],
+            code: expect.any(String),
+            message: expect.any(String),
+          }),
+        ]),
+      }),
+    );
+    const captureOptions = mocks.captureException.mock.calls[0]?.[1];
+    expect(captureOptions).toEqual({
+      extra: expect.objectContaining({
+        kind: 'validation',
+        eventType: event.type,
+        eventId: event.id,
+      }),
     });
+    expect(JSON.stringify(captureOptions)).not.toContain('raw-secret');
   });
 
   it('passes the parsed payload to handlers when validation succeeds', async () => {

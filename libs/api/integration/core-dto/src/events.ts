@@ -2,15 +2,18 @@ import {z} from 'zod';
 
 export const INTEGRATION_EVENT_RECEIVED = 'integrations.event.received' as const;
 
-export interface IntegrationEventReceivedEvent {
-  source: string;
-  event: string;
-  workspaceId: string;
-  connectionId: string;
-  deliveryId: string;
-  receivedAt: string;
-  payload: unknown;
-}
+const requiredUnknownSchema = z.custom<unknown>((value) => value !== undefined);
+
+export const integrationEventReceivedSchema = z.object({
+  source: z.string(),
+  event: z.string(),
+  workspaceId: z.string(),
+  connectionId: z.string(),
+  deliveryId: z.string(),
+  receivedAt: z.string(),
+  payload: requiredUnknownSchema,
+});
+export type IntegrationEventReceivedEvent = z.infer<typeof integrationEventReceivedSchema>;
 
 // A source-control push, normalized by the producing provider. Carried both as the
 // generic `INTEGRATION_EVENT_RECEIVED` envelope payload (consumed opaquely by triggers)
@@ -77,5 +80,6 @@ export interface IntegrationsEventMap {
 }
 
 export const integrationsEventSchemas = {
+  [INTEGRATION_EVENT_RECEIVED]: integrationEventReceivedSchema,
   [INTEGRATION_SOURCE_COMMIT_PUSHED]: integrationSourceCommitPushedSchema,
-} satisfies Partial<Record<keyof IntegrationsEventMap, z.ZodType>>;
+} satisfies Record<keyof IntegrationsEventMap, z.ZodType>;

@@ -22,4 +22,6 @@ export {
   LOG_STREAM_CLOSED,
   type LogStreamClosedEvent,
   type LogsEventMap,
+  logStreamClosedEventSchema,
+  logsEventSchemas,
 } from './events.js';

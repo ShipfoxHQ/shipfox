@@ -17,12 +17,13 @@ export const WORKFLOWS_JOB_STEPS_SETTLED = 'workflows.job.steps_settled' as cons
 // at-least-once outbox event as idempotent audit data.
 export const WORKFLOWS_STEP_RESTART_ENQUEUED = 'workflows.step.restart_enqueued' as const;
 
-export interface WorkflowsWorkflowRunCreatedEvent {
-  runId: string;
-  workspaceId: string;
-  projectId: string;
-  definitionId: string;
-}
+export const workflowsWorkflowRunCreatedSchema = z.object({
+  runId: z.string(),
+  workspaceId: z.string(),
+  projectId: z.string(),
+  definitionId: z.string(),
+});
+export type WorkflowsWorkflowRunCreatedEvent = z.infer<typeof workflowsWorkflowRunCreatedSchema>;
 
 // Keep outbox terminal statuses narrower than runStatusSchema, which also
 // carries pending/running.
@@ -37,10 +38,11 @@ export type WorkflowsWorkflowRunTerminatedEvent = z.infer<
   typeof workflowsWorkflowRunTerminatedSchema
 >;
 
-export interface WorkflowsJobTimedOutEvent {
-  jobId: string;
-  runId: string;
-}
+export const workflowsJobTimedOutSchema = z.object({
+  jobId: z.string(),
+  runId: z.string(),
+});
+export type WorkflowsJobTimedOutEvent = z.infer<typeof workflowsJobTimedOutSchema>;
 
 export const workflowsJobTerminatedSchema = z.object({
   jobId: z.string(),
@@ -49,20 +51,24 @@ export const workflowsJobTerminatedSchema = z.object({
 });
 export type WorkflowsJobTerminatedEvent = z.infer<typeof workflowsJobTerminatedSchema>;
 
-export interface WorkflowsJobStepsSettledEvent {
-  jobId: string;
-  runId: string;
-  status: 'succeeded' | 'failed';
-}
+const settledStatusSchema = z.enum(['succeeded', 'failed']);
 
-export interface WorkflowsStepRestartEnqueuedEvent {
-  jobId: string;
-  runId: string;
-  failedStepId: string;
-  failedStepAttempt: number;
-  restartFromStepId: string;
-  reason: string;
-}
+export const workflowsJobStepsSettledSchema = z.object({
+  jobId: z.string(),
+  runId: z.string(),
+  status: settledStatusSchema,
+});
+export type WorkflowsJobStepsSettledEvent = z.infer<typeof workflowsJobStepsSettledSchema>;
+
+export const workflowsStepRestartEnqueuedSchema = z.object({
+  jobId: z.string(),
+  runId: z.string(),
+  failedStepId: z.string(),
+  failedStepAttempt: z.number(),
+  restartFromStepId: z.string(),
+  reason: z.string(),
+});
+export type WorkflowsStepRestartEnqueuedEvent = z.infer<typeof workflowsStepRestartEnqueuedSchema>;
 
 export interface WorkflowsEventMap {
   [WORKFLOWS_WORKFLOW_RUN_CREATED]: WorkflowsWorkflowRunCreatedEvent;
@@ -74,6 +80,10 @@ export interface WorkflowsEventMap {
 }
 
 export const workflowsEventSchemas = {
+  [WORKFLOWS_WORKFLOW_RUN_CREATED]: workflowsWorkflowRunCreatedSchema,
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: workflowsWorkflowRunTerminatedSchema,
+  [WORKFLOWS_JOB_TIMED_OUT]: workflowsJobTimedOutSchema,
   [WORKFLOWS_JOB_TERMINATED]: workflowsJobTerminatedSchema,
-} satisfies Partial<Record<keyof WorkflowsEventMap, z.ZodType>>;
+  [WORKFLOWS_JOB_STEPS_SETTLED]: workflowsJobStepsSettledSchema,
+  [WORKFLOWS_STEP_RESTART_ENQUEUED]: workflowsStepRestartEnqueuedSchema,
+} satisfies Record<keyof WorkflowsEventMap, z.ZodType>;

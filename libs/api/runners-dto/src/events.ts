@@ -1,33 +1,37 @@
+import {z} from 'zod';
+
 export const RUNNER_JOB_LEASE_EXPIRED = 'runners.job.lease_expired' as const;
 export const RUNNER_JOB_QUEUED = 'runners.job.queued' as const;
 export const RUNNER_JOB_CLAIMED = 'runners.job.claimed' as const;
 
-export interface RunnerJobLeaseExpiredEvent {
-  jobId: string;
-  runId: string;
-}
+export const runnerJobLeaseExpiredEventSchema = z.object({
+  jobId: z.string(),
+  runId: z.string(),
+});
+export type RunnerJobLeaseExpiredEvent = z.infer<typeof runnerJobLeaseExpiredEventSchema>;
 
-export interface RunnerJobQueuedEvent {
-  jobId: string;
-  runId: string;
-  /**
-   * ISO 8601 timestamp from `runners_pending_jobs.created_at`, not the outbox drain time.
-   */
-  queuedAt: string;
-}
+export const runnerJobQueuedEventSchema = z.object({
+  jobId: z.string(),
+  runId: z.string(),
+  queuedAt: z.string(),
+});
+export type RunnerJobQueuedEvent = z.infer<typeof runnerJobQueuedEventSchema>;
 
-export interface RunnerJobClaimedEvent {
-  jobId: string;
-  runId: string;
-  /**
-   * ISO 8601 timestamp of the runner's claim (`runners_running_jobs.started_at`), not the
-   * outbox drain time.
-   */
-  claimedAt: string;
-}
+export const runnerJobClaimedEventSchema = z.object({
+  jobId: z.string(),
+  runId: z.string(),
+  claimedAt: z.string(),
+});
+export type RunnerJobClaimedEvent = z.infer<typeof runnerJobClaimedEventSchema>;
 
 export interface RunnersEventMap {
   [RUNNER_JOB_LEASE_EXPIRED]: RunnerJobLeaseExpiredEvent;
   [RUNNER_JOB_QUEUED]: RunnerJobQueuedEvent;
   [RUNNER_JOB_CLAIMED]: RunnerJobClaimedEvent;
 }
+
+export const runnersEventSchemas = {
+  [RUNNER_JOB_LEASE_EXPIRED]: runnerJobLeaseExpiredEventSchema,
+  [RUNNER_JOB_QUEUED]: runnerJobQueuedEventSchema,
+  [RUNNER_JOB_CLAIMED]: runnerJobClaimedEventSchema,
+} satisfies Record<keyof RunnersEventMap, z.ZodType>;
