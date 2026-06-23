@@ -2,15 +2,11 @@ import type {Meta, StoryObj} from '@storybook/react';
 import {useState} from 'react';
 import {expect, screen, userEvent, within} from 'storybook/test';
 import {Label} from '../label/index.js';
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxInput,
-  ComboboxList,
-  type ComboboxOption,
-  ComboboxRoot,
-  ComboboxTrigger,
-} from './combobox.js';
+import {Combobox} from './combobox.js';
+import {ComboboxContent, ComboboxInput, ComboboxList} from './combobox-content.js';
+import {ComboboxRoot} from './combobox-root.js';
+import type {ComboboxOption} from './combobox-state.js';
+import {ComboboxTrigger} from './combobox-trigger.js';
 
 const sampleItems: ComboboxOption[] = [
   {value: 'apache', label: 'apache'},
@@ -52,7 +48,7 @@ type Story = StoryObj<typeof meta>;
 async function clickCommandOption(user: ReturnType<typeof userEvent.setup>, label: string) {
   const matches = await screen.findAllByText(label);
   const item = matches
-    .map((match) => match.closest('[cmdk-item]'))
+    .map((match) => match.closest('[role="option"]'))
     .find((match): match is HTMLElement => match instanceof HTMLElement);
 
   if (!item) {
@@ -164,33 +160,71 @@ export const PrimitiveComposition: Story = {
   },
 };
 
-export const MeasuredOverflow: Story = {
+const overflowValues = [
+  'apache',
+  'apache-superset',
+  'release-production-multi-region-canary',
+  'apollo',
+  'apify',
+];
+
+export const GrowingChips: Story = {
   args: {} as never,
   play: async ({canvasElement, step}) => {
     const canvas = within(canvasElement);
 
-    await step('Summarize overflowed chips', async () => {
-      await canvas.findByRole('img', {name: moreSelectedLabel});
+    await step('Every chip is shown; the field grows instead of collapsing', async () => {
+      await canvas.findByLabelText('Remove apache');
+      await canvas.findByLabelText('Remove apify');
+      await canvas.findByLabelText('Remove release-production-multi-region-canary');
+      expect(canvas.queryByRole('img', {name: moreSelectedLabel})).toBeNull();
     });
   },
   render: () => {
-    const [value, setValue] = useState<string[]>([
-      'apache',
-      'apache-superset',
-      'release-production-multi-region-canary',
-      'apollo',
-      'apify',
-    ]);
+    const [value, setValue] = useState<string[]>(overflowValues);
 
     return (
       <div className="w-280">
-        <Label htmlFor="combobox-overflow">Measured overflow</Label>
+        <Label htmlFor="combobox-growing">Growing (default)</Label>
         <Combobox
-          id="combobox-overflow"
+          id="combobox-growing"
           multiple
           options={sampleItems}
           value={value}
           onValueChange={setValue}
+          placeholder="Select repositories..."
+          searchPlaceholder="Search repositories..."
+        />
+      </div>
+    );
+  },
+};
+
+export const CompactChips: Story = {
+  args: {} as never,
+  play: async ({canvasElement, step}) => {
+    const canvas = within(canvasElement);
+
+    await step('maxVisibleChips collapses the rest into a "+N" summary', async () => {
+      await canvas.findByLabelText('Remove apache');
+      await canvas.findByLabelText('Remove apache-superset');
+      await canvas.findByRole('img', {name: moreSelectedLabel});
+      expect(canvas.queryByLabelText('Remove apify')).toBeNull();
+    });
+  },
+  render: () => {
+    const [value, setValue] = useState<string[]>(overflowValues);
+
+    return (
+      <div className="w-280">
+        <Label htmlFor="combobox-compact">Compact (maxVisibleChips=2)</Label>
+        <Combobox
+          id="combobox-compact"
+          multiple
+          options={sampleItems}
+          value={value}
+          onValueChange={setValue}
+          maxVisibleChips={2}
           placeholder="Select repositories..."
           searchPlaceholder="Search repositories..."
         />
@@ -313,6 +347,77 @@ export const UncontrolledMulti: Story = {
       />
     </div>
   ),
+};
+
+export const KeyboardNavMulti: Story = {
+  args: {} as never,
+  play: async ({canvasElement, step}) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+    const combobox = canvas.getByRole('combobox', {name: repositoriesLabel});
+
+    await step('Arrow down then Enter selects the highlighted option', async () => {
+      await user.click(combobox);
+      await user.keyboard('{ArrowDown}{Enter}');
+      await canvas.findByLabelText('Remove apache-superset');
+    });
+
+    await step('Arrow up then Enter selects the previous option, popup stays open', async () => {
+      await user.keyboard('{ArrowUp}{Enter}');
+      await canvas.findByLabelText('Remove apache');
+    });
+  },
+  render: () => {
+    const [value, setValue] = useState<string[]>([]);
+
+    return (
+      <div className="w-[80vw] md:w-500">
+        <Label htmlFor="combobox-keyboard">Repositories</Label>
+        <Combobox
+          id="combobox-keyboard"
+          multiple
+          options={sampleItems}
+          value={value}
+          onValueChange={setValue}
+          maxVisibleChips={3}
+          placeholder="Select repositories..."
+          searchPlaceholder="Search repositories..."
+        />
+      </div>
+    );
+  },
+};
+
+export const KeyboardNavSingle: Story = {
+  args: {} as never,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+
+    await user.click(canvas.getByLabelText('Repository'));
+    const combobox = await screen.findByRole('combobox');
+    await user.type(combobox, 'apoll');
+    await user.keyboard('{Enter}');
+
+    await canvas.findByText('apollo');
+  },
+  render: () => {
+    const [value, setValue] = useState('');
+
+    return (
+      <div className="w-[80vw] md:w-500">
+        <Label htmlFor="combobox-single-kbd">Repository</Label>
+        <Combobox
+          id="combobox-single-kbd"
+          options={sampleItems}
+          value={value}
+          onValueChange={setValue}
+          placeholder="Select a repository..."
+          searchPlaceholder="Search repositories..."
+        />
+      </div>
+    );
+  },
 };
 
 export const EmptyState: Story = {

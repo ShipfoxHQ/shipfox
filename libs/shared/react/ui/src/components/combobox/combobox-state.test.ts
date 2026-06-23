@@ -1,8 +1,9 @@
 import {
   type ComboboxOption,
   clearMultiComboboxValues,
+  filterComboboxOptions,
+  getNextActiveComboboxValue,
   partitionComboboxChipsByCount,
-  partitionComboboxChipsByWidth,
   removeMultiComboboxValue,
   resolveComboboxLabel,
   toggleMultiComboboxValue,
@@ -72,73 +73,37 @@ describe('combobox state helpers', () => {
     expect(result).toEqual({visibleValues: [], hiddenCount: 2});
   });
 
-  it('partitions chips by measured width and reserves room for overflow', () => {
-    const result = partitionComboboxChipsByWidth({
-      values: ['apache', 'apollo', 'apify'],
-      valueWidths: new Map([
-        ['apache', 50],
-        ['apollo', 50],
-        ['apify', 50],
-      ]),
-      availableWidth: 130,
-      overflowChipWidth: 24,
-      gapWidth: 4,
-    });
+  it('returns all options for an empty search', () => {
+    const result = filterComboboxOptions(options, '   ');
 
-    expect(result).toEqual({visibleValues: ['apache'], hiddenCount: 2});
+    expect(result).toEqual(options);
   });
 
-  it('shows every measured chip when they all fit', () => {
-    const result = partitionComboboxChipsByWidth({
-      values: ['apache', 'apollo'],
-      valueWidths: new Map([
-        ['apache', 50],
-        ['apollo', 50],
-      ]),
-      availableWidth: 104,
-      overflowChipWidth: 24,
-      gapWidth: 4,
-    });
+  it('matches the search against both label and value, case-insensitively', () => {
+    const items: ComboboxOption[] = [
+      {value: 'apache', label: 'Apache HTTP'},
+      {value: 'apollo', label: 'Apollo'},
+    ];
 
-    expect(result).toEqual({visibleValues: ['apache', 'apollo'], hiddenCount: 0});
+    const byLabel = filterComboboxOptions(items, 'HTTP');
+    const byValue = filterComboboxOptions(items, 'APOL');
+
+    expect(byLabel).toEqual([{value: 'apache', label: 'Apache HTTP'}]);
+    expect(byValue).toEqual([{value: 'apollo', label: 'Apollo'}]);
   });
 
-  it('falls back to a deterministic count when a chip width is unavailable', () => {
-    const result = partitionComboboxChipsByWidth({
-      values: ['apache', 'apollo', 'apify'],
-      valueWidths: new Map([['apache', 50]]),
-      availableWidth: 200,
-      overflowChipWidth: 24,
-      gapWidth: 4,
-    });
+  it('moves the active value and clamps at both ends', () => {
+    const values = ['apache', 'apollo', 'apify'];
 
-    expect(result).toEqual({visibleValues: ['apache', 'apollo'], hiddenCount: 1});
+    expect(getNextActiveComboboxValue(values, null, 1)).toBe('apache');
+    expect(getNextActiveComboboxValue(values, null, -1)).toBe('apify');
+    expect(getNextActiveComboboxValue(values, 'apache', 1)).toBe('apollo');
+    expect(getNextActiveComboboxValue(values, 'apache', -1)).toBe('apache');
+    expect(getNextActiveComboboxValue(values, 'apify', 1)).toBe('apify');
   });
 
-  it('returns an empty partition when there are no values', () => {
-    const result = partitionComboboxChipsByWidth({
-      values: [],
-      valueWidths: new Map(),
-      availableWidth: 200,
-      overflowChipWidth: 24,
-      gapWidth: 4,
-    });
-
-    expect(result).toEqual({visibleValues: [], hiddenCount: 0});
-  });
-
-  it('hides every chip when no width is available', () => {
-    const result = partitionComboboxChipsByWidth({
-      values: ['apache', 'apollo'],
-      valueWidths: new Map([
-        ['apache', 50],
-        ['apollo', 50],
-      ]),
-      availableWidth: 0,
-      overflowChipWidth: 24,
-      gapWidth: 4,
-    });
-
-    expect(result).toEqual({visibleValues: [], hiddenCount: 2});
+  it('resets an unknown active value to the first entry and yields null for an empty list', () => {
+    expect(getNextActiveComboboxValue(['apache', 'apollo'], 'gone', 1)).toBe('apache');
+    expect(getNextActiveComboboxValue([], null, 1)).toBeNull();
   });
 });

@@ -36,62 +36,58 @@ export function resolveComboboxLabel(options: ComboboxOption[], value: string): 
   return options.find((option) => option.value === value)?.label ?? value;
 }
 
+/**
+ * Case-insensitive substring filter over both label and value. An empty (or
+ * whitespace-only) search returns every option in their original order.
+ */
+export function filterComboboxOptions(options: ComboboxOption[], search: string): ComboboxOption[] {
+  const normalizedSearch = search.trim().toLowerCase();
+  if (!normalizedSearch) {
+    return options;
+  }
+
+  return options.filter(
+    (option) =>
+      option.label.toLowerCase().includes(normalizedSearch) ||
+      option.value.toLowerCase().includes(normalizedSearch),
+  );
+}
+
+/**
+ * Move the keyboard-active value one step through `values`, clamping at both ends
+ * (no wrap-around). With no active value, `1` lands on the first entry and `-1` on
+ * the last. An unknown active value resets to the first entry.
+ */
+export function getNextActiveComboboxValue(
+  values: string[],
+  activeValue: string | null,
+  direction: 1 | -1,
+): string | null {
+  if (values.length === 0) {
+    return null;
+  }
+  if (activeValue === null) {
+    return (direction > 0 ? values[0] : values[values.length - 1]) ?? null;
+  }
+
+  const index = values.indexOf(activeValue);
+  if (index === -1) {
+    return values[0] ?? null;
+  }
+
+  const nextIndex = index + direction;
+  if (nextIndex < 0 || nextIndex >= values.length) {
+    return activeValue;
+  }
+  return values[nextIndex] ?? null;
+}
+
 export function partitionComboboxChipsByCount(
   values: string[],
   maxVisibleChips: number,
 ): ComboboxChipPartition {
   const visibleCount = Math.max(0, Math.floor(maxVisibleChips));
   const visibleValues = values.slice(0, visibleCount);
-
-  return {
-    visibleValues,
-    hiddenCount: values.length - visibleValues.length,
-  };
-}
-
-export function partitionComboboxChipsByWidth({
-  values,
-  valueWidths,
-  availableWidth,
-  overflowChipWidth,
-  gapWidth,
-}: {
-  values: string[];
-  valueWidths: Map<string, number>;
-  availableWidth: number;
-  overflowChipWidth: number;
-  gapWidth: number;
-}): ComboboxChipPartition {
-  if (values.length === 0) {
-    return {visibleValues: [], hiddenCount: 0};
-  }
-
-  if (availableWidth <= 0) {
-    return {visibleValues: [], hiddenCount: values.length};
-  }
-
-  const visibleValues: string[] = [];
-  let usedWidth = 0;
-
-  for (const value of values) {
-    const valueWidth = valueWidths.get(value);
-    if (valueWidth === undefined) {
-      return partitionComboboxChipsByCount(values, 2);
-    }
-
-    const nextVisibleCount = visibleValues.length + 1;
-    const hiddenCountAfterNext = values.length - nextVisibleCount;
-    const nextGapWidth = visibleValues.length > 0 ? gapWidth : 0;
-    const reservedOverflowWidth = hiddenCountAfterNext > 0 ? overflowChipWidth + gapWidth : 0;
-    const nextUsedWidth = usedWidth + nextGapWidth + valueWidth;
-
-    if (nextUsedWidth + reservedOverflowWidth > availableWidth) {
-      break;
-    }
-
-    visibleValues.push(value);
-    usedWidth = nextUsedWidth;
-  }
 
   return {
     visibleValues,
