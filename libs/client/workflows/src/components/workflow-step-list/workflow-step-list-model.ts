@@ -21,7 +21,6 @@ export interface WorkflowStepAttemptModel extends WorkflowStepAttempt {
 export interface WorkflowStepModel extends Omit<WorkflowStep, 'attempts'> {
   index: number;
   label: string;
-  statusVisual: WorkflowStepStatusVisual;
   attempts: WorkflowStepAttemptModel[];
 }
 
@@ -76,7 +75,6 @@ function toStepModel(step: WorkflowStep, index: number): WorkflowStepModel {
     ...step,
     index: index + 1,
     label: stepLabel(step, index),
-    statusVisual: getStepStatusVisual(step.status),
     attempts,
   };
 }

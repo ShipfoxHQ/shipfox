@@ -215,7 +215,7 @@ describe('buildWorkflowStepListModel', () => {
 
     const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
 
-    expect(result.entries[0]?.step.error).toEqual({
+    expect(result.entries[0]?.step.error).toStrictEqual({
       message: 'Checkout failed',
       exitCode: null,
       signal: undefined,
