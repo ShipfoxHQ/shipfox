@@ -28,7 +28,7 @@ describe('WorkflowRunView', () => {
     expect(within(summary).getByRole('button', {name: `Copy run id ${RUN_ID}`})).toHaveTextContent(
       '66666666',
     );
-    expect(await screen.findByRole('region', {name: 'Jobs graph'})).toBeInTheDocument();
+    expect(await screen.findByRole('region', {name: 'Workflow jobs'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'build, Succeeded'})).toBeInTheDocument();
     expect(
       screen.getByRole('button', {name: 'deploy, Running, Depends on build'}),

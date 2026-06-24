@@ -4,10 +4,10 @@ import userEvent from '@testing-library/user-event';
 import {WorkflowJobsGraph} from './workflow-jobs-graph.js';
 
 describe('WorkflowJobsGraph', () => {
-  test('renders a labelled graph region and trigger', () => {
+  test('renders a graph region and trigger', () => {
     render(<WorkflowJobsGraph run={makeRun({jobs: [makeJob({name: 'build'})]})} />);
 
-    expect(screen.getByRole('region', {name: 'Jobs graph'})).toBeInTheDocument();
+    expect(screen.getByRole('region', {name: 'Workflow jobs'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'manual / fire'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'build, Pending'})).toBeInTheDocument();
   });
