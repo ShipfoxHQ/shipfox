@@ -1,4 +1,3 @@
-import {type RunResponseDto, runStatusSchema} from '@shipfox/api-workflows-dto';
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {
   Badge,
@@ -12,17 +11,18 @@ import {
 } from '@shipfox/react-ui';
 import type {Ref} from 'react';
 import {useId} from 'react';
+import {WORKFLOW_RUN_STATUSES, type WorkflowRun} from '#core/workflow-run.js';
 import {Identifier} from '../identifier/index.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '../workflow-status/workflow-status-icon.js';
 import {toWorkflowRunSummary} from './workflow-run-summary-model.js';
 
 const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
-  ...runStatusSchema.options.map((status) => getWorkflowStatusVisual(status).label.length),
+  ...WORKFLOW_RUN_STATUSES.map((status) => getWorkflowStatusVisual(status).label.length),
 );
 
 export interface WorkflowRunSummaryProps {
-  run: RunResponseDto;
+  run: WorkflowRun;
   sourceAvailable?: boolean | undefined;
   sourceOpen?: boolean | undefined;
   sourcePanelId?: string | undefined;

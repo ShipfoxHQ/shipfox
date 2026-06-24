@@ -1,20 +1,20 @@
-import type {RunDto, RunStatusDto} from '@shipfox/api-workflows-dto';
+import type {WorkflowRun, WorkflowRunStatus} from '#core/workflow-run.js';
 import {runTriggerLabel} from '../workflow-run-display.js';
 import type {RunsListStatusFilter} from './types.js';
 
 export {runTriggerLabel};
 
-export function runMatchesSearch(run: RunDto, query: string): boolean {
+export function runMatchesSearch(run: WorkflowRun, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (needle === '') return true;
   const haystack = `${run.id} ${run.name} ${run.status} ${runTriggerLabel(run)}`.toLowerCase();
   return haystack.includes(needle);
 }
 
-const IN_PROGRESS_STATUSES: ReadonlySet<RunStatusDto> = new Set(['pending', 'running']);
+const IN_PROGRESS_STATUSES: ReadonlySet<WorkflowRunStatus> = new Set(['pending', 'running']);
 
 export function runMatchesStatusFilter(
-  status: RunStatusDto,
+  status: WorkflowRunStatus,
   filter: RunsListStatusFilter,
 ): boolean {
   if (filter === 'all') return true;

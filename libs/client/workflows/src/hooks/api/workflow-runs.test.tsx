@@ -1,0 +1,121 @@
+import type {RunDetailResponseDto, RunListResponseDto} from '@shipfox/api-workflows-dto';
+import {configureApiClient} from '@shipfox/client-api';
+import {type InfiniteData, QueryClient, QueryClientProvider} from '@tanstack/react-query';
+import {cleanup, renderHook, waitFor} from '@testing-library/react';
+import type {ReactNode} from 'react';
+import {
+  workflowJobDto,
+  workflowRunDetailDto,
+  workflowRunDto,
+  workflowRunListResponseDto,
+} from '#test/fixtures/workflow-run.js';
+import {
+  useWorkflowRunQuery,
+  useWorkflowRunsInfiniteQuery,
+  workflowRunsQueryKeys,
+} from './workflow-runs.js';
+
+const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
+const RUN_ID = '66666666-6666-4666-8666-666666666666';
+
+function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
+  return new Response(JSON.stringify(body), {
+    headers: {'content-type': 'application/json'},
+    status: 200,
+    ...init,
+  });
+}
+
+function renderWithQueryClient<T>(callback: () => T) {
+  const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+  const wrapper = ({children}: {children: ReactNode}) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+
+  return {queryClient, ...renderHook(callback, {wrapper})};
+}
+
+describe('workflow run API hooks', () => {
+  afterEach(() => {
+    cleanup();
+    configureApiClient({baseUrl: '', fetchImpl: undefined});
+  });
+
+  test('maps list DTO pages to workflow run models while keeping the cache DTO-shaped', async () => {
+    const body = workflowRunListResponseDto({
+      runs: [
+        workflowRunDto({
+          id: RUN_ID,
+          trigger_source: 'github',
+          trigger_event: 'push',
+          updated_at: '2026-05-07T01:02:00.000Z',
+        }),
+      ],
+      next_cursor: 'cursor-2',
+      filtered_total_count: 8,
+    });
+    const fetchImpl = vi.fn(async () => jsonResponse(body));
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const {result, queryClient} = renderWithQueryClient(() =>
+      useWorkflowRunsInfiniteQuery(PROJECT_ID, {}),
+    );
+
+    await waitFor(() =>
+      expect(result.current.data?.pages[0]?.runs[0]?.triggerSource).toBe('github'),
+    );
+    expect(result.current.data?.pages[0]?.runs[0]).toMatchObject({
+      id: RUN_ID,
+      triggerSource: 'github',
+      triggerEvent: 'push',
+      triggerLabel: 'github / push',
+      updatedAt: '2026-05-07T01:02:00.000Z',
+      isTemporary: false,
+    });
+    expect(result.current.data?.pages[0]?.nextCursor).toBe('cursor-2');
+    expect(result.current.data?.pages[0]?.filteredTotalCount).toBe(8);
+
+    const cached = queryClient.getQueryData<InfiniteData<RunListResponseDto, string | undefined>>(
+      workflowRunsQueryKeys.list(PROJECT_ID, {}),
+    );
+    expect(cached?.pages[0]?.runs[0]).toMatchObject({
+      trigger_source: 'github',
+      trigger_event: 'push',
+      updated_at: '2026-05-07T01:02:00.000Z',
+    });
+    expect(cached?.pages[0]).not.toHaveProperty('nextCursor');
+  });
+
+  test('maps detail DTOs to nested workflow run detail models while keeping the cache DTO-shaped', async () => {
+    const body = workflowRunDetailDto({
+      id: RUN_ID,
+      trigger_source: 'manual',
+      trigger_event: 'fire',
+      jobs: [workflowJobDto({run_id: RUN_ID, name: 'build'})],
+    });
+    const fetchImpl = vi.fn(async () => jsonResponse(body));
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const {result, queryClient} = renderWithQueryClient(() => useWorkflowRunQuery(RUN_ID));
+
+    await waitFor(() => expect(result.current.data?.triggerSource).toBe('manual'));
+    expect(result.current.data).toMatchObject({
+      id: RUN_ID,
+      triggerSource: 'manual',
+      triggerEvent: 'fire',
+      triggerLabel: 'manual / fire',
+      jobs: [{name: 'build', runId: RUN_ID}],
+    });
+
+    const cached = queryClient.getQueryData<RunDetailResponseDto>(
+      workflowRunsQueryKeys.detail(RUN_ID),
+    );
+    expect(cached).toMatchObject({
+      id: RUN_ID,
+      trigger_source: 'manual',
+      trigger_event: 'fire',
+      jobs: [{name: 'build', run_id: RUN_ID}],
+    });
+    expect(cached).not.toHaveProperty('triggerSource');
+  });
+});

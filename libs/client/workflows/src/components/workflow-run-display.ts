@@ -1,5 +1,5 @@
-import type {RunDto} from '@shipfox/api-workflows-dto';
+import type {WorkflowRun} from '#core/workflow-run.js';
 
-export function runTriggerLabel(run: RunDto): string {
-  return [run.trigger_source, run.trigger_event].filter(Boolean).join(' / ');
+export function runTriggerLabel(run: Pick<WorkflowRun, 'triggerLabel'>): string {
+  return run.triggerLabel;
 }

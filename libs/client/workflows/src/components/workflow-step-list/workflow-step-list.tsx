@@ -1,4 +1,3 @@
-import type {RunJobDetailDto} from '@shipfox/api-workflows-dto';
 import {
   type BadgeVariant,
   cn,
@@ -12,6 +11,7 @@ import {
 } from '@shipfox/react-ui';
 import type {ReactNode} from 'react';
 import {useId, useMemo, useState} from 'react';
+import type {WorkflowJob} from '#core/workflow-run.js';
 import {
   buildWorkflowStepListModel,
   humanizeStatus,
@@ -20,7 +20,7 @@ import {
 } from './workflow-step-list-model.js';
 
 export interface WorkflowStepListProps {
-  job: RunJobDetailDto;
+  job: WorkflowJob;
   selectedStepId?: string | undefined;
   defaultSelectedStepId?: string | undefined;
   onSelectedStepChange?: ((stepId: string | undefined) => void) | undefined;

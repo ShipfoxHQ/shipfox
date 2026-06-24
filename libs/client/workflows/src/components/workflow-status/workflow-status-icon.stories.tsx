@@ -1,10 +1,10 @@
-import type {RunStatusDto} from '@shipfox/api-workflows-dto';
 import {Code, Text} from '@shipfox/react-ui';
 import type {Meta, StoryObj} from '@storybook/react';
+import type {WorkflowRunStatus} from '#core/workflow-run.js';
 import {getWorkflowStatusVisual} from './status-visuals.js';
 import {WorkflowStatusIcon} from './workflow-status-icon.js';
 
-const statuses: RunStatusDto[] = ['pending', 'running', 'succeeded', 'failed', 'cancelled'];
+const statuses: WorkflowRunStatus[] = ['pending', 'running', 'succeeded', 'failed', 'cancelled'];
 
 const meta = {
   title: 'Workflows/StatusIcon',

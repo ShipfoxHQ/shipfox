@@ -1,7 +1,7 @@
-import type {JobStatusDto, RunStatusDto} from '@shipfox/api-workflows-dto';
 import type {BadgeVariant, DotVariant} from '@shipfox/react-ui';
+import type {WorkflowStatus} from '#core/workflow-run.js';
 
-export type WorkflowStatus = JobStatusDto | RunStatusDto;
+export type {WorkflowStatus};
 
 export interface WorkflowStatusVisual {
   kind: WorkflowStatus;

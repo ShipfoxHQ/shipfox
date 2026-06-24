@@ -1,4 +1,3 @@
-import type {WorkflowSourceSnapshotDto} from '@shipfox/api-workflows-dto';
 import {
   Button,
   CodeBlock,
@@ -14,6 +13,7 @@ import {
 } from '@shipfox/react-ui';
 import type {KeyboardEvent, PointerEvent as ReactPointerEvent} from 'react';
 import {useRef, useState} from 'react';
+import type {WorkflowSourceSnapshot} from '#core/workflow-run.js';
 
 const WORKFLOW_SOURCE_FILENAME = 'workflow.yaml';
 
@@ -34,7 +34,7 @@ function clampWidth(value: number) {
 
 export interface WorkflowSourcePanelProps {
   id: string;
-  source: WorkflowSourceSnapshotDto | null;
+  source: WorkflowSourceSnapshot | null;
   open: boolean;
   onClose: () => void;
   className?: string | undefined;
@@ -168,7 +168,7 @@ function WorkflowSourcePanelContent({
   source,
   onClose,
 }: {
-  source: WorkflowSourceSnapshotDto;
+  source: WorkflowSourceSnapshot;
   onClose: () => void;
 }) {
   const data = [

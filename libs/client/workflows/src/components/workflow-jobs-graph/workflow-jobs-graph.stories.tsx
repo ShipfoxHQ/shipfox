@@ -1,9 +1,9 @@
-import type {RunDetailResponseDto, RunJobDetailDto} from '@shipfox/api-workflows-dto';
+import type {RunJobDetailDto} from '@shipfox/api-workflows-dto';
 import type {Meta, StoryObj} from '@storybook/react';
 import {within} from 'storybook/test';
+import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
+import {workflowJob, workflowRunDetail} from '#test/fixtures/workflow-run.js';
 import {WorkflowJobsGraph} from './workflow-jobs-graph.js';
-
-let jobSequence = 0;
 
 const meta = {
   title: 'Workflows/JobsGraph',
@@ -127,7 +127,7 @@ export const LargeWideAndTall: Story = {
   },
 };
 
-function linearJobs(count: number): RunJobDetailDto[] {
+function linearJobs(count: number): WorkflowJob[] {
   return Array.from({length: count}, (_, index) =>
     makeJob({
       name: `job-${String(index + 1).padStart(2, '0')}`,
@@ -138,7 +138,7 @@ function linearJobs(count: number): RunJobDetailDto[] {
   );
 }
 
-function unevenJoinRun(): RunDetailResponseDto {
+function unevenJoinRun(): WorkflowRunDetail {
   const packageJob = makeJob({name: 'package', position: 0, status: 'succeeded'});
   const securityScan = makeJob({name: 'security-scan', position: 1, status: 'succeeded'});
   const smokeTests = makeJob({
@@ -155,47 +155,26 @@ function unevenJoinRun(): RunDetailResponseDto {
 
   return makeRun({
     jobs: [packageJob, securityScan, smokeTests, deploy],
-    trigger_source: 'manual',
-    trigger_event: 'release',
+    triggerSource: 'manual',
+    triggerEvent: 'release',
+    triggerLabel: 'manual / release',
   });
 }
 
-function makeRun(overrides: Partial<RunDetailResponseDto> = {}): RunDetailResponseDto {
+function makeRun(overrides: Partial<WorkflowRunDetail> = {}): WorkflowRunDetail {
   return {
-    id: '11111111-1111-4111-8111-111111111111',
-    project_id: '22222222-2222-4222-8222-222222222222',
-    definition_id: '33333333-3333-4333-8333-333333333333',
-    name: 'Deploy',
-    status: 'running',
-    trigger_source: 'manual',
-    trigger_event: 'fire',
-    trigger_payload: {},
-    inputs: null,
-    created_at: '2026-06-21T12:00:00.000Z',
-    updated_at: '2026-06-21T12:01:00.000Z',
-    started_at: '2026-06-21T12:00:10.000Z',
-    finished_at: null,
-    jobs: [],
+    ...workflowRunDetail({
+      name: 'Deploy',
+      status: 'running',
+      trigger_source: 'manual',
+      trigger_event: 'fire',
+      started_at: '2026-06-21T12:00:10.000Z',
+      jobs: [],
+    }),
     ...overrides,
   };
 }
 
-function makeJob(overrides: Partial<RunJobDetailDto> & {name: string}): RunJobDetailDto {
-  jobSequence += 1;
-  const {name, ...rest} = overrides;
-  return {
-    id: `44444444-4444-4444-8444-${String(jobSequence).padStart(12, '0')}`,
-    run_id: '11111111-1111-4111-8111-111111111111',
-    name,
-    status: 'pending',
-    dependencies: [],
-    position: jobSequence,
-    created_at: '2026-06-21T12:00:00.000Z',
-    updated_at: '2026-06-21T12:01:00.000Z',
-    queued_at: null,
-    started_at: null,
-    finished_at: null,
-    steps: [],
-    ...rest,
-  };
+function makeJob(overrides: Partial<RunJobDetailDto> & {name: string}): WorkflowJob {
+  return workflowJob(overrides);
 }

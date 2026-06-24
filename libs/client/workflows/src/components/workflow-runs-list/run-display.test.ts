@@ -1,41 +1,21 @@
-import type {RunDto} from '@shipfox/api-workflows-dto';
+import {workflowRun} from '#test/fixtures/workflow-run.js';
 import {runMatchesSearch, runMatchesStatusFilter, runTriggerLabel} from './run-display.js';
-
-function runDto(overrides: Partial<RunDto> = {}): RunDto {
-  return {
-    id: 'abcd1234-5678-4abc-8def-000000000000',
-    project_id: '44444444-4444-4444-8444-444444444444',
-    definition_id: '55555555-5555-4555-8555-555555555555',
-    name: 'Deploy production',
-    status: 'running',
-    trigger_source: 'github',
-    trigger_event: 'push',
-    trigger_payload: {},
-    inputs: null,
-    source_snapshot: null,
-    created_at: '2026-05-07T01:01:00.000Z',
-    updated_at: '2026-05-07T01:02:00.000Z',
-    started_at: null,
-    finished_at: null,
-    ...overrides,
-  };
-}
 
 describe('runTriggerLabel', () => {
   test('joins trigger source and event with a slash', () => {
-    const label = runTriggerLabel(runDto({trigger_source: 'github', trigger_event: 'push'}));
+    const label = runTriggerLabel(workflowRun({trigger_source: 'github', trigger_event: 'push'}));
 
     expect(label).toBe('github / push');
   });
 
   test('drops an empty trigger event so the label has no dangling separator', () => {
-    const label = runTriggerLabel(runDto({trigger_source: 'manual', trigger_event: ''}));
+    const label = runTriggerLabel(workflowRun({trigger_source: 'manual', trigger_event: ''}));
 
     expect(label).toBe('manual');
   });
 
   test('yields an empty label when neither source nor event is set', () => {
-    const label = runTriggerLabel(runDto({trigger_source: '', trigger_event: ''}));
+    const label = runTriggerLabel(workflowRun({trigger_source: '', trigger_event: ''}));
 
     expect(label).toBe('');
   });
@@ -43,13 +23,19 @@ describe('runTriggerLabel', () => {
 
 describe('runMatchesSearch', () => {
   test('matches every run on a blank query', () => {
-    const matches = runMatchesSearch(runDto(), '   ');
+    const matches = runMatchesSearch(workflowRun(), '   ');
 
     expect(matches).toBe(true);
   });
 
   test('matches case-insensitively across id, name, status, and trigger', () => {
-    const run = runDto({id: 'ABCD1234-X', name: 'Deploy Production', status: 'running'});
+    const run = workflowRun({
+      id: 'ABCD1234-X',
+      name: 'Deploy Production',
+      status: 'running',
+      trigger_source: 'github',
+      trigger_event: 'push',
+    });
 
     expect(runMatchesSearch(run, 'abcd1234-x')).toBe(true);
     expect(runMatchesSearch(run, 'deploy production')).toBe(true);
@@ -58,7 +44,7 @@ describe('runMatchesSearch', () => {
   });
 
   test('returns false when nothing in the run contains the query', () => {
-    const matches = runMatchesSearch(runDto(), 'no-such-run');
+    const matches = runMatchesSearch(workflowRun(), 'no-such-run');
 
     expect(matches).toBe(false);
   });

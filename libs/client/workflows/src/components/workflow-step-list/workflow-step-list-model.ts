@@ -1,13 +1,12 @@
 import {
-  type RunJobDetailDto,
-  type RunStepDetailDto,
-  runStatusSchema,
-} from '@shipfox/api-workflows-dto';
-import {
   getWorkflowStatusVisual,
-  type WorkflowStatus,
   type WorkflowStatusVisual,
 } from '#components/workflow-status/status-visuals.js';
+import {
+  isWorkflowStatus as isKnownWorkflowStatus,
+  type WorkflowJob,
+  type WorkflowStep,
+} from '#core/workflow-run.js';
 
 export interface WorkflowStepStatusVisual extends Omit<WorkflowStatusVisual, 'kind'> {
   kind: string;
@@ -61,7 +60,7 @@ export interface WorkflowStepListModel {
   entries: WorkflowStepListEntryModel[];
 }
 
-export function buildWorkflowStepListModel({job}: {job: RunJobDetailDto}): WorkflowStepListModel {
+export function buildWorkflowStepListModel({job}: {job: WorkflowJob}): WorkflowStepListModel {
   const steps = [...job.steps].sort(compareSteps).map(toStepModel);
   const entries = steps.flatMap(toStepEntries).sort(compareEntries);
 
@@ -76,7 +75,7 @@ export function buildWorkflowStepListModel({job}: {job: RunJobDetailDto}): Workf
 export function getStepStatusVisual(status: string): WorkflowStepStatusVisual {
   const normalized = normalizeStatus(status);
 
-  if (isWorkflowStatus(normalized)) {
+  if (isKnownWorkflowStatus(normalized)) {
     const visual = getWorkflowStatusVisual(normalized);
     return {...visual, ripple: normalized === 'running'};
   }
@@ -97,15 +96,15 @@ export function humanizeStatus(status: string): string {
   return firstLetter === undefined ? 'Unknown' : firstLetter.toUpperCase() + words.slice(1);
 }
 
-function toStepModel(step: RunStepDetailDto, index: number): WorkflowStepModel {
+function toStepModel(step: WorkflowStep, index: number): WorkflowStepModel {
   const attempts = [...step.attempts].sort(compareAttempts).map((attempt) => ({
     id: attempt.id,
     attempt: attempt.attempt,
-    executionOrder: attempt.execution_order,
+    executionOrder: attempt.executionOrder,
     status: getStepStatusVisual(attempt.status),
-    exitCode: attempt.exit_code ?? undefined,
-    restartReason: attempt.restart_reason ?? undefined,
-    startedAt: attempt.started_at,
+    exitCode: attempt.exitCode ?? undefined,
+    restartReason: attempt.restartReason ?? undefined,
+    startedAt: attempt.startedAt,
   }));
   const latestAttempt = attempts.at(-1);
 
@@ -115,7 +114,7 @@ function toStepModel(step: RunStepDetailDto, index: number): WorkflowStepModel {
     label: stepLabel(step, index),
     status: getStepStatusVisual(step.status),
     type: step.type,
-    currentAttempt: step.current_attempt,
+    currentAttempt: step.currentAttempt,
     attemptCount: attempts.length,
     latestAttempt,
     attempts,
@@ -129,8 +128,8 @@ function toStepModel(step: RunStepDetailDto, index: number): WorkflowStepModel {
   };
 }
 
-function stepLabel(step: RunStepDetailDto, index: number): string {
-  const displayName = step.display_name.trim();
+function stepLabel(step: WorkflowStep, index: number): string {
+  const displayName = step.displayName.trim();
   if (displayName) return displayName;
 
   const name = step.name?.trim();
@@ -152,7 +151,7 @@ function toStepEntries(step: WorkflowStepModel): WorkflowStepListEntryModel[] {
   }));
 }
 
-function compareSteps(left: RunStepDetailDto, right: RunStepDetailDto): number {
+function compareSteps(left: WorkflowStep, right: WorkflowStep): number {
   return (
     left.position - right.position ||
     (left.name ?? '').localeCompare(right.name ?? '') ||
@@ -161,8 +160,8 @@ function compareSteps(left: RunStepDetailDto, right: RunStepDetailDto): number {
 }
 
 function compareAttempts(
-  left: RunStepDetailDto['attempts'][number],
-  right: RunStepDetailDto['attempts'][number],
+  left: WorkflowStep['attempts'][number],
+  right: WorkflowStep['attempts'][number],
 ) {
   return left.attempt - right.attempt || left.id.localeCompare(right.id);
 }
@@ -181,8 +180,4 @@ function compareEntries(
 
 function normalizeStatus(status: string): string {
   return status.trim().toLowerCase().replace(/-/g, '_');
-}
-
-function isWorkflowStatus(status: string): status is WorkflowStatus {
-  return (runStatusSchema.options as readonly string[]).includes(status);
 }
