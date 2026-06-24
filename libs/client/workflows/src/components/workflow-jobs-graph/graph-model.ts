@@ -1,22 +1,14 @@
-import type {WorkflowJob, WorkflowJobStatus, WorkflowRunDetail} from '#core/workflow-run.js';
+import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
 
-export interface WorkflowGraphTriggerNode {
+export interface WorkflowGraphTriggerNode extends Pick<WorkflowRunDetail, 'triggerLabel'> {
   id: 'trigger';
-  source: string;
-  event: string;
-  label: string;
   column: 0;
   row: 0;
 }
 
-export interface WorkflowJobGraphNode {
-  id: string;
-  label: string;
-  position: number;
-  sourceStatus: WorkflowJobStatus;
+export interface WorkflowJobGraphNode extends WorkflowJob {
   column: number;
   row: number;
-  dependencies: string[];
 }
 
 export type WorkflowJobGraphNavigationKey =
@@ -65,13 +57,9 @@ export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): Wor
   }
 
   const nodesWithoutRows = sortedJobs.map((job) => ({
-    id: job.id,
-    label: job.name,
-    position: job.position,
-    sourceStatus: job.status,
+    ...job,
     column: columnFor(job),
     row: 0,
-    dependencies: job.dependencies,
   }));
 
   const grouped = groupColumns(nodesWithoutRows);
@@ -81,9 +69,7 @@ export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): Wor
   return {
     trigger: {
       id: 'trigger',
-      source: run.triggerSource,
-      event: run.triggerEvent,
-      label: run.triggerLabel || 'trigger',
+      triggerLabel: run.triggerLabel,
       column: 0,
       row: 0,
     },
@@ -116,7 +102,7 @@ function groupColumns(nodes: WorkflowJobGraphNode[]): WorkflowJobGraphNode[][] {
         .sort(
           (left, right) =>
             left.position - right.position ||
-            left.label.localeCompare(right.label) ||
+            left.name.localeCompare(right.name) ||
             left.id.localeCompare(right.id),
         )
         .map((node, row) => ({...node, row})),

@@ -6,6 +6,7 @@ import {
   isWorkflowStatus as isKnownWorkflowStatus,
   type WorkflowJob,
   type WorkflowStep,
+  type WorkflowStepAttempt,
 } from '#core/workflow-run.js';
 
 export interface WorkflowStepStatusVisual extends Omit<WorkflowStatusVisual, 'kind'> {
@@ -13,50 +14,22 @@ export interface WorkflowStepStatusVisual extends Omit<WorkflowStatusVisual, 'ki
   ripple: boolean;
 }
 
-export interface WorkflowStepAttemptModel {
-  id: string;
-  attempt: number;
-  executionOrder: number;
-  status: WorkflowStepStatusVisual;
-  exitCode: number | undefined;
-  restartReason: string | undefined;
-  startedAt: string;
+export interface WorkflowStepAttemptModel extends WorkflowStepAttempt {
+  statusVisual: WorkflowStepStatusVisual;
 }
 
-export interface WorkflowStepModel {
-  id: string;
+export interface WorkflowStepModel extends Omit<WorkflowStep, 'attempts'> {
   index: number;
   label: string;
-  status: WorkflowStepStatusVisual;
-  type: string;
-  currentAttempt: number;
-  attemptCount: number;
-  latestAttempt: WorkflowStepAttemptModel | undefined;
+  statusVisual: WorkflowStepStatusVisual;
   attempts: WorkflowStepAttemptModel[];
-  error:
-    | {
-        message: string;
-        category: 'setup' | 'user' | undefined;
-        reason: string | undefined;
-      }
-    | undefined;
 }
 
-export interface WorkflowStepListEntryModel {
-  id: string;
-  stepId: string;
-  index: number;
-  label: string;
-  status: WorkflowStepStatusVisual;
-  attempt: WorkflowStepAttemptModel;
-  attemptCount: number;
-  error: WorkflowStepModel['error'];
+export interface WorkflowStepListEntryModel extends WorkflowStepAttemptModel {
+  step: WorkflowStepModel;
 }
 
 export interface WorkflowStepListModel {
-  jobId: string;
-  jobName: string;
-  stepCount: number;
   entries: WorkflowStepListEntryModel[];
 }
 
@@ -65,9 +38,6 @@ export function buildWorkflowStepListModel({job}: {job: WorkflowJob}): WorkflowS
   const entries = steps.flatMap(toStepEntries).sort(compareEntries);
 
   return {
-    jobId: job.id,
-    jobName: job.name,
-    stepCount: steps.length,
     entries,
   };
 }
@@ -98,33 +68,16 @@ export function humanizeStatus(status: string): string {
 
 function toStepModel(step: WorkflowStep, index: number): WorkflowStepModel {
   const attempts = [...step.attempts].sort(compareAttempts).map((attempt) => ({
-    id: attempt.id,
-    attempt: attempt.attempt,
-    executionOrder: attempt.executionOrder,
-    status: getStepStatusVisual(attempt.status),
-    exitCode: attempt.exitCode ?? undefined,
-    restartReason: attempt.restartReason ?? undefined,
-    startedAt: attempt.startedAt,
+    ...attempt,
+    statusVisual: getStepStatusVisual(attempt.status),
   }));
-  const latestAttempt = attempts.at(-1);
 
   return {
-    id: step.id,
+    ...step,
     index: index + 1,
     label: stepLabel(step, index),
-    status: getStepStatusVisual(step.status),
-    type: step.type,
-    currentAttempt: step.currentAttempt,
-    attemptCount: attempts.length,
-    latestAttempt,
+    statusVisual: getStepStatusVisual(step.status),
     attempts,
-    error: step.error
-      ? {
-          message: step.error.message,
-          category: step.error.category,
-          reason: step.error.reason,
-        }
-      : undefined,
   };
 }
 
@@ -140,14 +93,8 @@ function stepLabel(step: WorkflowStep, index: number): string {
 
 function toStepEntries(step: WorkflowStepModel): WorkflowStepListEntryModel[] {
   return step.attempts.map((attempt) => ({
-    id: attempt.id,
-    stepId: step.id,
-    index: step.index,
-    label: step.label,
-    status: attempt.status,
-    attempt,
-    attemptCount: step.attemptCount,
-    error: step.error,
+    ...attempt,
+    step,
   }));
 }
 
@@ -171,9 +118,9 @@ function compareEntries(
   right: WorkflowStepListEntryModel,
 ): number {
   return (
-    left.attempt.executionOrder - right.attempt.executionOrder ||
-    left.index - right.index ||
-    left.attempt.attempt - right.attempt.attempt ||
+    left.executionOrder - right.executionOrder ||
+    left.step.index - right.step.index ||
+    left.attempt - right.attempt ||
     left.id.localeCompare(right.id)
   );
 }

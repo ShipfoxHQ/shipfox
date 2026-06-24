@@ -62,7 +62,7 @@ export function WorkflowStepList({
           Step attempts
         </Text>
         <Text size="xs" className="min-w-0 truncate text-foreground-neutral-subtle">
-          {model.jobName}
+          {job.name}
         </Text>
       </div>
 
@@ -84,7 +84,7 @@ export function WorkflowStepList({
               hasExpandedContent={renderExpandedStep !== undefined}
               onSelect={() => selectStep(entry.id)}
               expandedContent={
-                entry.id === selected ? renderExpandedStep?.({stepId: entry.stepId}) : null
+                entry.id === selected ? renderExpandedStep?.({stepId: entry.step.id}) : null
               }
             />
           ))}
@@ -107,7 +107,7 @@ function WorkflowStepRow({
   onSelect: () => void;
   expandedContent: ReactNode;
 }) {
-  const shouldShowLabelTooltip = entry.label.length > 32;
+  const shouldShowLabelTooltip = entry.step.label.length > 32;
   const button = (
     <button
       type="button"
@@ -128,19 +128,23 @@ function WorkflowStepRow({
         )}
       />
       <Text size="xs" className="w-20 shrink-0 text-right font-code text-foreground-neutral-muted">
-        {entry.index}
+        {entry.step.index}
       </Text>
-      <Dot variant={entry.status.dot} ripple={entry.status.ripple} className="size-8 shrink-0" />
+      <Dot
+        variant={entry.statusVisual.dot}
+        ripple={entry.statusVisual.ripple}
+        className="size-8 shrink-0"
+      />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-8">
           <Text size="sm" bold className="truncate text-foreground-neutral-base">
-            {entry.label}
+            {entry.step.label}
           </Text>
-          {entry.attemptCount > 1 ? <WorkflowAttemptChip attempt={entry.attempt} /> : null}
+          {entry.step.attempts.length > 1 ? <WorkflowAttemptChip attempt={entry} /> : null}
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2">
           <Text size="xs" className="text-foreground-neutral-subtle">
-            {entry.status.label}
+            {entry.statusVisual.label}
           </Text>
         </div>
       </div>
@@ -153,7 +157,7 @@ function WorkflowStepRow({
         <Tooltip>
           <TooltipTrigger asChild>{button}</TooltipTrigger>
           <TooltipContent>
-            <span className="block max-w-320 break-words">{entry.label}</span>
+            <span className="block max-w-320 break-words">{entry.step.label}</span>
           </TooltipContent>
         </Tooltip>
       ) : (
@@ -183,7 +187,7 @@ function WorkflowAttemptChip({attempt}: {attempt: WorkflowStepAttemptModel}) {
       <span
         className={cn(
           'inline-flex h-18 min-w-24 items-center justify-center rounded-4 border px-5 font-code text-xs leading-16 text-foreground-neutral-base',
-          attemptChipClasses[attempt.status.badge ?? 'neutral'],
+          attemptChipClasses[attempt.statusVisual.badge ?? 'neutral'],
         )}
       >
         #{attempt.attempt}
@@ -194,10 +198,10 @@ function WorkflowAttemptChip({attempt}: {attempt: WorkflowStepAttemptModel}) {
 
 function entryAccessibleLabel(entry: WorkflowStepListEntryModel): string {
   const parts = [
-    `${entry.index}. ${entry.label}`,
-    entry.status.label,
-    `attempt ${entry.attempt.attempt}`,
+    `${entry.step.index}. ${entry.step.label}`,
+    entry.statusVisual.label,
+    `attempt ${entry.attempt}`,
   ];
-  if (entry.error?.category) parts.push(humanizeStatus(entry.error.category));
+  if (entry.step.error?.category) parts.push(humanizeStatus(entry.step.error.category));
   return parts.join(', ');
 }

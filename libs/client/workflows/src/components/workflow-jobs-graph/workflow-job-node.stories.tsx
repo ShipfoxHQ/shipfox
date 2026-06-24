@@ -1,6 +1,7 @@
 import type {Meta, StoryObj} from '@storybook/react';
 import type {KeyboardEventHandler} from 'react';
 import type {WorkflowJobStatus} from '#core/workflow-run.js';
+import {workflowJob} from '#test/fixtures/workflow-run.js';
 import type {WorkflowJobGraphNode} from './graph-model.js';
 import {WorkflowJobNode} from './workflow-job-node.js';
 
@@ -62,7 +63,7 @@ export const AllStatuses: Story = {
         <WorkflowJobNode
           key={node.id}
           node={node}
-          selected={node.sourceStatus === 'running'}
+          selected={node.status === 'running'}
           onSelect={() => undefined}
           onKeyDown={ignoreKeyDown}
         />
@@ -85,12 +86,8 @@ function makeNode({
   dependencies: string[];
 }): WorkflowJobGraphNode {
   return {
-    id,
-    label,
-    position,
-    sourceStatus: status,
+    ...workflowJob({id, name: label, status, position, dependencies}),
     column: 0,
     row: position,
-    dependencies,
   };
 }

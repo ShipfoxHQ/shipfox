@@ -5,18 +5,15 @@ import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-ic
 import type {WorkflowGraphTriggerNode, WorkflowJobGraphNode} from './graph-model.js';
 
 export function TriggerNode({trigger}: {trigger: WorkflowGraphTriggerNode}) {
+  const label = trigger.triggerLabel || 'trigger';
+
   return (
     <div className="flex h-78 w-144 flex-col justify-center gap-6 rounded-8 border border-border-neutral-base bg-background-components-base px-12 text-left">
       <Text size="xs" className="text-foreground-neutral-muted">
         Trigger
       </Text>
-      <Code
-        variant="label"
-        bold
-        className="truncate text-foreground-neutral-base"
-        title={trigger.label}
-      >
-        {trigger.label}
+      <Code variant="label" bold className="truncate text-foreground-neutral-base" title={label}>
+        {label}
       </Code>
     </div>
   );
@@ -35,13 +32,13 @@ export function WorkflowJobNode({
   onKeyDown: KeyboardEventHandler<HTMLButtonElement>;
   ref?: Ref<HTMLButtonElement>;
 }) {
-  const visual = getWorkflowStatusVisual(node.sourceStatus);
+  const visual = getWorkflowStatusVisual(node.status);
   const dependencyText = dependencyLabel(node.dependencies);
-  const shouldShowTooltip = node.label.length > 24 || dependencyText !== undefined;
+  const shouldShowTooltip = node.name.length > 24 || dependencyText !== undefined;
   const accessibleLabel =
     dependencyText !== undefined
-      ? `${node.label}, ${visual.label}, ${dependencyText.full}`
-      : `${node.label}, ${visual.label}`;
+      ? `${node.name}, ${visual.label}, ${dependencyText.full}`
+      : `${node.name}, ${visual.label}`;
 
   const button = (
     <button
@@ -64,9 +61,9 @@ export function WorkflowJobNode({
         />
       ) : null}
       <div className="flex min-w-0 items-center gap-8">
-        <WorkflowStatusIcon status={node.sourceStatus} size={14} tooltip={false} />
+        <WorkflowStatusIcon status={node.status} size={14} tooltip={false} />
         <Code variant="label" bold className="truncate text-foreground-neutral-base">
-          {node.label}
+          {node.name}
         </Code>
       </div>
       <div className="flex min-w-0 flex-col">
@@ -89,7 +86,7 @@ export function WorkflowJobNode({
       <TooltipTrigger asChild>{button}</TooltipTrigger>
       <TooltipContent>
         <div className="flex max-w-320 flex-col gap-2">
-          <span>{node.label}</span>
+          <span>{node.name}</span>
           {dependencyText ? <span className="opacity-70">{dependencyText.full}</span> : null}
         </div>
       </TooltipContent>
