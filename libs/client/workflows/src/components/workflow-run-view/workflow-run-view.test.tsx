@@ -5,7 +5,7 @@ import type {
   StepAttemptDto,
 } from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
-import {screen, within} from '@testing-library/react';
+import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {WorkflowRunView} from './workflow-run-view.js';
@@ -141,14 +141,14 @@ describe('WorkflowRunView', () => {
 
     await user.click(sourceButton);
 
-    const sourcePanel = screen.getByRole('region', {name: 'Workflow source'});
+    const sourcePanel = screen.getByRole('dialog', {name: 'Workflow source'});
     expect(sourceButton).toHaveAttribute('aria-expanded', 'true');
     expect(sourcePanel).toHaveAttribute('id', panelId);
     expect(sourcePanel).toHaveTextContent('pnpm test');
 
     await user.click(screen.getByRole('button', {name: 'Close source'}));
 
-    expect(sourceButton).toHaveFocus();
+    await waitFor(() => expect(sourceButton).toHaveFocus());
     expect(sourceButton).toHaveAttribute('aria-expanded', 'false');
     expect(deployNode).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('region', {name: 'Step attempts'})).toBeInTheDocument();
