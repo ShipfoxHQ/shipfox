@@ -6,7 +6,7 @@ import {nextWorkflowJobGraphNodeId} from './graph-model.js';
 import {TriggerNode, WorkflowJobNode} from './workflow-job-node.js';
 
 const NODE_WIDTH = 208;
-const NODE_HEIGHT = 78;
+const NODE_HEIGHT = 48;
 const COLUMN_GAP = 72;
 const ROW_GAP = 18;
 const TRIGGER_WIDTH = 36;

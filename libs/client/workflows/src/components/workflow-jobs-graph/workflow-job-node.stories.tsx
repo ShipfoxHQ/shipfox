@@ -92,5 +92,6 @@ function makeNode({
     column: 0,
     row: position,
     dependencies,
+    currentDependencyCount: dependencies.length,
   };
 }
