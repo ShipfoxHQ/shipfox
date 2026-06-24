@@ -1,4 +1,6 @@
+import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {Meta, StoryObj} from '@storybook/react';
+import {screen, waitFor} from '@testing-library/react';
 import {WorkflowSourcePanel} from './workflow-source-panel.js';
 
 const meta = {
@@ -44,9 +46,36 @@ jobs:
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Open: Story = {};
+export const Open: Story = {
+  play: async (ctx) => {
+    await screen.findByRole('dialog', {name: 'Workflow source'});
+    await document.fonts.ready;
+    await waitFor(
+      () => {
+        if (!document.querySelector('.shiki-override')) {
+          throw new Error('Shiki highlighting has not rendered yet');
+        }
+      },
+      {timeout: 10_000},
+    );
+    await argosScreenshot(ctx, 'Workflow Source Panel Open');
+  },
+};
 
 export const LongSource: Story = {
+  play: async (ctx) => {
+    await screen.findByRole('dialog', {name: 'Workflow source'});
+    await document.fonts.ready;
+    await waitFor(
+      () => {
+        if (!document.querySelector('.shiki-override')) {
+          throw new Error('Shiki highlighting has not rendered yet');
+        }
+      },
+      {timeout: 10_000},
+    );
+    await argosScreenshot(ctx, 'Workflow Source Panel Long Source');
+  },
   args: {
     source: {
       format: 'yaml',

@@ -66,7 +66,9 @@ function RunViewContent({query}: {query: ReturnType<typeof useWorkflowRunQuery>}
 
   function closeSourcePanel() {
     setSourcePanelOpen(false);
-    sourceButtonRef.current?.focus();
+    window.setTimeout(() => {
+      sourceButtonRef.current?.focus();
+    }, 0);
   }
 
   return (
