@@ -19,6 +19,7 @@ import {
   failJobAsTimedOut,
   getJobsByRunId,
   getStepsByJobId,
+  getWorkflowExecutionDepth,
   getWorkflowRunById,
   listWorkflowRunsByProject,
   resolveJobAfterLeaseExpiry,
@@ -666,6 +667,46 @@ jobs:
       expect(jobSteps[1]?.position).toBe(1);
       expect(jobSteps[2]?.position).toBe(2);
       expect(jobSteps[3]?.position).toBe(3);
+    });
+  });
+
+  describe('getWorkflowExecutionDepth', () => {
+    test('counts running runs and jobs for a workspace', async () => {
+      const runningRun = await createTestRun({workspaceId, projectId, definitionId});
+      const pendingRun = await createTestRun({workspaceId, projectId, definitionId});
+      const otherWorkspaceRun = await createTestRun({
+        workspaceId: crypto.randomUUID(),
+        projectId: crypto.randomUUID(),
+        definitionId: crypto.randomUUID(),
+      });
+      const [runningJob] = await getJobsByRunId(runningRun.id);
+      const [otherWorkspaceJob] = await getJobsByRunId(otherWorkspaceRun.id);
+      if (!runningJob || !otherWorkspaceJob) throw new Error('Expected workflow jobs');
+      await updateWorkflowRunStatus({
+        runId: runningRun.id,
+        status: 'running',
+        expectedVersion: runningRun.version,
+      });
+      await updateWorkflowRunStatus({
+        runId: otherWorkspaceRun.id,
+        status: 'running',
+        expectedVersion: otherWorkspaceRun.version,
+      });
+      await updateJobStatus({
+        jobId: runningJob.id,
+        status: 'running',
+        expectedVersion: runningJob.version,
+      });
+      await updateJobStatus({
+        jobId: otherWorkspaceJob.id,
+        status: 'running',
+        expectedVersion: otherWorkspaceJob.version,
+      });
+
+      const depth = await getWorkflowExecutionDepth({workspaceId});
+
+      expect(pendingRun.status).toBe('pending');
+      expect(depth).toEqual({runningRuns: 1, runningJobs: 1});
     });
   });
 

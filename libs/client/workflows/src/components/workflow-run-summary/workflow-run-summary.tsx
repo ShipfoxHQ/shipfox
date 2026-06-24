@@ -14,7 +14,6 @@ import type {Ref} from 'react';
 import {useId} from 'react';
 import {Identifier} from '../identifier/index.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
-import {WorkflowStatusIcon} from '../workflow-status/workflow-status-icon.js';
 import {toWorkflowRunSummary} from './workflow-run-summary-model.js';
 
 const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
@@ -48,14 +47,11 @@ export function WorkflowRunSummary({
     >
       <div className="flex min-w-0 items-center gap-x-12 overflow-hidden">
         <div className="flex min-w-0 items-center gap-8">
-          <span className="inline-flex shrink-0 items-center gap-6">
-            <WorkflowStatusIcon status={model.status.kind} size={12} tooltip={false} />
-            <Badge variant={model.status.badge} size="xs">
-              <span className="text-center" style={{width: `${STATUS_BADGE_LABEL_WIDTH_CH}ch`}}>
-                {model.status.label}
-              </span>
-            </Badge>
-          </span>
+          <Badge variant={model.status.badge} size="xs">
+            <span className="text-center" style={{width: `${STATUS_BADGE_LABEL_WIDTH_CH}ch`}}>
+              {model.status.label}
+            </span>
+          </Badge>
           <Tooltip>
             <TooltipTrigger asChild>
               <Header id={headingId} variant="h3" className="min-w-0 truncate">
