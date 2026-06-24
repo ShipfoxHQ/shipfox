@@ -5,6 +5,10 @@ import {
   insertRunningStepAttempt,
   markStepRunning,
 } from '#db/workflow-runs.js';
+import {
+  recordWorkflowJobStepsSettled,
+  recordWorkflowStepRestartEnqueued,
+} from '#metrics/instance.js';
 import type {RuntimeCompletionStatus} from './entities/runtime-dag.js';
 import type {Step} from './entities/step.js';
 import {
@@ -15,6 +19,7 @@ import {
 } from './errors.js';
 import {
   applyStepTransition,
+  type StepProgressionMetrics,
   type StepProgressionOutcome,
 } from './step-transition/apply-step-transition.js';
 import {
@@ -68,17 +73,24 @@ export interface RecordStepResultParams {
 
 export type RecordStepResultOutcome = StepProgressionOutcome;
 
+interface RecordStepResultTransactionResult {
+  outcome: RecordStepResultOutcome;
+  metrics: StepProgressionMetrics;
+}
+
 function outcomeFromSteps(steps: Step[]): RecordStepResultOutcome {
   return steps.every((step) => isTerminal(step.status))
     ? {jobFinished: true, status: deriveCompletion(steps)}
     : {jobFinished: false};
 }
 
-export function recordStepResult(params: RecordStepResultParams): Promise<RecordStepResultOutcome> {
+export async function recordStepResult(
+  params: RecordStepResultParams,
+): Promise<RecordStepResultOutcome> {
   // One transaction keeps the attempt finalize, the step result, and any sibling
   // cancellations atomic, so a crashed-then-retried report can never leave
   // siblings stranded once the step itself is terminal.
-  return withTransaction(async (tx) => {
+  const progression = await withTransaction<RecordStepResultTransactionResult>(async (tx) => {
     const steps = await getStepsByJobIdForUpdate(params.jobId, tx);
     const target = steps.find((step) => step.id === params.stepId);
 
@@ -97,10 +109,10 @@ export function recordStepResult(params: RecordStepResultParams): Promise<Record
     if (reported < current) {
       // A stale report from a superseded attempt (e.g. after a rewind bumped the
       // current attempt). No-op: leave the projection untouched.
-      return outcomeFromSteps(steps);
+      return {outcome: outcomeFromSteps(steps), metrics: {}};
     }
     // A terminal target is a duplicate report, left untouched.
-    if (isTerminal(target.status)) return outcomeFromSteps(steps);
+    if (isTerminal(target.status)) return {outcome: outcomeFromSteps(steps), metrics: {}};
     // A result may only land on a step that was actually handed out.
     if (target.status === 'pending') {
       throw new StepNotRunningError(params.stepId, params.jobId);
@@ -144,4 +156,11 @@ export function recordStepResult(params: RecordStepResultParams): Promise<Record
       tx,
     );
   });
+
+  if (progression.metrics.jobStepsSettledStatus) {
+    recordWorkflowJobStepsSettled(progression.metrics.jobStepsSettledStatus);
+  }
+  if (progression.metrics.stepRestartEnqueued) recordWorkflowStepRestartEnqueued();
+
+  return progression.outcome;
 }
