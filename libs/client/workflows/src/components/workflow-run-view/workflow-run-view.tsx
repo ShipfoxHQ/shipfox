@@ -41,7 +41,7 @@ function RunViewContent({query}: {query: ReturnType<typeof useWorkflowRunQuery>}
   const sourcePanelId = useId();
   const sourceButtonRef = useRef<HTMLButtonElement>(null);
   const sourceAvailable =
-    query.data?.source_snapshot !== null && query.data?.source_snapshot !== undefined;
+    query.data?.sourceSnapshot !== null && query.data?.sourceSnapshot !== undefined;
 
   useEffect(() => {
     if (!sourceAvailable) setSourcePanelOpen(false);
@@ -63,7 +63,7 @@ function RunViewContent({query}: {query: ReturnType<typeof useWorkflowRunQuery>}
 
   const selectedJob =
     query.data.jobs.find((job) => job.id === selectedJobId) ?? query.data.jobs.at(0);
-  const sourceSnapshot = query.data.source_snapshot;
+  const sourceSnapshot = query.data.sourceSnapshot;
 
   function closeSourcePanel() {
     setSourcePanelOpen(false);

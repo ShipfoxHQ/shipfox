@@ -5,6 +5,8 @@ import {
   type StepAttemptDto,
 } from '@shipfox/api-workflows-dto';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
+import type {WorkflowJob} from '#core/workflow-run.js';
+import {workflowJob, workflowStepAttemptDto, workflowStepDto} from '#test/fixtures/workflow-run.js';
 import {
   buildWorkflowStepListModel,
   getStepStatusVisual,
@@ -34,7 +36,11 @@ describe('buildWorkflowStepListModel', () => {
 
     const result = buildWorkflowStepListModel({job: makeJob({steps: [second, first, unnamed]})});
 
-    expect(result.entries.map((entry) => entry.label)).toEqual(['npm test', 'deploy', 'Step 3']);
+    expect(result.entries.map((entry) => entry.step.label)).toEqual([
+      'npm test',
+      'deploy',
+      'Step 3',
+    ]);
   });
 
   test('uses backend display labels for unnamed setup, run, and agent steps', () => {
@@ -63,7 +69,7 @@ describe('buildWorkflowStepListModel', () => {
 
     const result = buildWorkflowStepListModel({job: makeJob({steps: [setup, run, agent]})});
 
-    expect(result.entries.map((entry) => entry.label)).toEqual([
+    expect(result.entries.map((entry) => entry.step.label)).toEqual([
       'Set up job',
       'pnpm test',
       'claude-opus-4-8 · Fix the failing tests.',
@@ -75,7 +81,7 @@ describe('buildWorkflowStepListModel', () => {
 
     const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
 
-    expect(result.entries[0]?.label).toBe('lint');
+    expect(result.entries[0]?.step.label).toBe('lint');
   });
 
   test('uses a generic fallback when display name and source name are empty', () => {
@@ -88,7 +94,7 @@ describe('buildWorkflowStepListModel', () => {
 
     const result = buildWorkflowStepListModel({job: makeJob({steps: [custom]})});
 
-    expect(result.entries[0]?.label).toBe('Step 1');
+    expect(result.entries[0]?.step.label).toBe('Step 1');
   });
 
   test('omits steps without attempts from the flat attempt list', () => {
@@ -97,7 +103,7 @@ describe('buildWorkflowStepListModel', () => {
 
     const result = buildWorkflowStepListModel({job: makeJob({steps: [attempted, pending]})});
 
-    expect(result.entries.map((entry) => entry.label)).toEqual(['build']);
+    expect(result.entries.map((entry) => entry.step.label)).toEqual(['build']);
   });
 
   test('has no active entry when no attempt is running', () => {
@@ -160,7 +166,7 @@ describe('buildWorkflowStepListModel', () => {
     });
   });
 
-  test('computes attempt count and latest attempt from typed attempt fields', () => {
+  test('preserves sorted attempt fields and visual status', () => {
     const step = makeStep({
       attempts: [
         makeAttempt({attempt: 2, execution_order: 2, status: 'succeeded'}),
@@ -171,9 +177,10 @@ describe('buildWorkflowStepListModel', () => {
     const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
 
     expect(result.entries).toHaveLength(2);
-    expect(result.entries.map((entry) => entry.attempt?.attempt)).toEqual([1, 2]);
+    expect(result.entries.map((entry) => entry.attempt)).toEqual([1, 2]);
     expect(result.entries[1]).toMatchObject({
-      attempt: {attempt: 2, status: {label: 'Succeeded'}},
+      attempt: 2,
+      statusVisual: {label: 'Succeeded'},
     });
   });
 
@@ -209,7 +216,7 @@ describe('buildWorkflowStepListModel', () => {
       job: makeJob({steps: [step1, step2, step3, step4]}),
     });
 
-    expect(result.entries.map((entry) => `${entry.label}#${entry.attempt.attempt}`)).toEqual([
+    expect(result.entries.map((entry) => `${entry.step.label}#${entry.attempt}`)).toEqual([
       'step-1#1',
       'step-2#1',
       'step-3#1',
@@ -229,7 +236,7 @@ describe('buildWorkflowStepListModel', () => {
 
     const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
 
-    expect(result.entries[1]?.attempt).toMatchObject({restartReason: 'gate-opened'});
+    expect(result.entries[1]).toMatchObject({restartReason: 'gate-opened'});
   });
 
   test('exposes typed step error metadata without parsing opaque attempt blobs', () => {
@@ -251,14 +258,19 @@ describe('buildWorkflowStepListModel', () => {
 
     const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
 
-    expect(result.entries[0]?.error).toEqual({
+    expect(result.entries[0]?.step.error).toStrictEqual({
       message: 'Checkout failed',
+      exitCode: null,
+      signal: undefined,
       category: 'setup',
       reason: 'checkout_failed',
     });
-    expect(result.entries[0]?.attempt).not.toHaveProperty('error');
-    expect(result.entries[0]?.attempt).not.toHaveProperty('output');
-    expect(result.entries[0]?.attempt).not.toHaveProperty('gateResult');
+    expect(result.entries[0]?.error).toEqual({message: 'Opaque nested value', exitCode: 127});
+    expect(result.entries[0]?.output).toEqual({tail: 'do not parse'});
+    expect(result.entries[0]?.gateResult).toEqual({
+      kind: 'unknown',
+      data: {status: 'do not parse'},
+    });
   });
 
   test('does not infer setup classification from step names', () => {
@@ -270,71 +282,18 @@ describe('buildWorkflowStepListModel', () => {
 
     const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
 
-    expect(result.entries[0]?.error).toBeUndefined();
+    expect(result.entries[0]?.step.error).toBeNull();
   });
 });
 
-function makeJob(overrides: Partial<RunJobDetailDto> = {}): RunJobDetailDto {
-  return {
-    id: '44444444-4444-4444-8444-000000000001',
-    run_id: '11111111-1111-4111-8111-111111111111',
-    name: 'build',
-    status: 'pending',
-    dependencies: [],
-    position: 0,
-    created_at: '2026-06-21T12:00:00.000Z',
-    updated_at: '2026-06-21T12:01:00.000Z',
-    queued_at: null,
-    started_at: null,
-    finished_at: null,
-    steps: [],
-    ...overrides,
-  };
+function makeJob(overrides: Partial<RunJobDetailDto> = {}): WorkflowJob {
+  return workflowJob(overrides);
 }
 
-let stepSequence = 0;
 function makeStep(overrides: Partial<RunStepDetailDto> = {}): RunStepDetailDto {
-  stepSequence += 1;
-  const displayName =
-    overrides.display_name ??
-    (typeof overrides.name === 'string' && overrides.name.trim() ? overrides.name : 'build');
-  return {
-    id: `55555555-5555-4555-8555-${String(stepSequence).padStart(12, '0')}`,
-    job_id: '44444444-4444-4444-8444-000000000001',
-    name: 'build',
-    display_name: displayName,
-    source_location: null,
-    status: 'pending',
-    type: 'run',
-    config: {},
-    error: null,
-    position: 0,
-    current_attempt: 1,
-    created_at: '2026-06-21T12:00:00.000Z',
-    updated_at: '2026-06-21T12:01:00.000Z',
-    attempts: [],
-    ...overrides,
-  };
+  return workflowStepDto(overrides);
 }
 
-let attemptSequence = 0;
 function makeAttempt(overrides: Partial<StepAttemptDto> = {}): StepAttemptDto {
-  attemptSequence += 1;
-  return {
-    id: `66666666-6666-4666-8666-${String(attemptSequence).padStart(12, '0')}`,
-    step_id: '55555555-5555-4555-8555-000000000001',
-    job_id: '44444444-4444-4444-8444-000000000001',
-    attempt: 1,
-    execution_order: attemptSequence,
-    status: 'pending',
-    exit_code: null,
-    output: null,
-    error: null,
-    gate_result: null,
-    restart_reason: null,
-    restart_result: null,
-    started_at: '2026-06-21T12:00:00.000Z',
-    finished_at: null,
-    ...overrides,
-  };
+  return workflowStepAttemptDto(overrides);
 }

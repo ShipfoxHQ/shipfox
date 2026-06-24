@@ -1,9 +1,8 @@
-import type {RunDto} from '@shipfox/api-workflows-dto';
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {Code, cn, RelativeTime} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
-import {runTriggerLabel} from './run-display.js';
+import type {WorkflowRun} from '#core/workflow-run.js';
 
 export function WorkflowRunRowList({
   runs,
@@ -11,7 +10,7 @@ export function WorkflowRunRowList({
   projectId,
   selectedRunId,
 }: {
-  runs: RunDto[];
+  runs: WorkflowRun[];
   workspaceId: string;
   projectId: string;
   selectedRunId?: string | undefined;
@@ -40,13 +39,11 @@ export function WorkflowRunRow({
   projectId,
   selected,
 }: {
-  run: RunDto;
+  run: WorkflowRun;
   workspaceId: string;
   projectId: string;
   selected: boolean;
 }) {
-  const triggerLabel = runTriggerLabel(run);
-
   const body = (
     <>
       {selected ? (
@@ -64,10 +61,10 @@ export function WorkflowRunRow({
       </div>
 
       <div className="flex min-w-0 items-center gap-7">
-        {triggerLabel ? (
+        {run.triggerLabel ? (
           <>
             <TriggerSourceIcon
-              source={run.trigger_source}
+              source={run.triggerSource}
               aria-hidden
               className="size-14 shrink-0 text-foreground-neutral-muted"
             />
@@ -75,7 +72,7 @@ export function WorkflowRunRow({
               variant="label"
               className="min-w-0 flex-1 truncate text-foreground-neutral-subtle"
             >
-              {triggerLabel}
+              {run.triggerLabel}
             </Code>
           </>
         ) : (
@@ -85,7 +82,7 @@ export function WorkflowRunRow({
           </span>
         )}
         <Code variant="label" className="shrink-0 text-foreground-neutral-disabled">
-          <RelativeTime value={run.updated_at} />
+          <RelativeTime value={run.updatedAt} />
         </Code>
       </div>
     </>
@@ -94,7 +91,7 @@ export function WorkflowRunRow({
   // Optimistic manual runs (temp-<uuid>) have no detail page until the canonical row
   // replaces them on the next poll, so they render non-interactively instead of as a link
   // that would navigate to a run id the detail route rejects.
-  if (run.id.startsWith('temp-')) {
+  if (run.isTemporary) {
     return (
       <div className="relative flex w-full flex-col gap-3 rounded-8 border border-transparent px-10 py-7 text-left">
         {body}

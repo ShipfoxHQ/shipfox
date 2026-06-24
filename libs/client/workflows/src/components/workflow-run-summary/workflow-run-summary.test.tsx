@@ -1,6 +1,6 @@
-import type {RunResponseDto} from '@shipfox/api-workflows-dto';
 import {fireEvent, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {workflowRun} from '#test/fixtures/workflow-run.js';
 import {renderProjectPage} from '#test/pages.js';
 import {WorkflowRunSummary} from './workflow-run-summary.js';
 
@@ -110,29 +110,23 @@ describe('WorkflowRunSummary', () => {
 });
 
 function renderSummary(
-  overrides: Partial<RunResponseDto> = {},
+  overrides: Parameters<typeof workflowRun>[0] = {},
   props: Omit<Parameters<typeof WorkflowRunSummary>[0], 'run'> = {},
 ) {
+  const run = workflowRun({
+    id: RUN_ID,
+    project_id: '44444444-4444-4444-8444-444444444444',
+    definition_id: '55555555-5555-4555-8555-555555555555',
+    name: 'deploy-web',
+    status: 'running',
+    trigger_source: 'manual',
+    trigger_event: 'fire',
+    created_at: '2026-05-07T01:01:00.000Z',
+    updated_at: '2026-05-07T01:02:00.000Z',
+    ...overrides,
+  });
+
   renderProjectPage('/workspaces/ws-demo/projects/proj-demo/runs/run-demo', () => (
-    <WorkflowRunSummary
-      run={{
-        id: RUN_ID,
-        project_id: '44444444-4444-4444-8444-444444444444',
-        definition_id: '55555555-5555-4555-8555-555555555555',
-        name: 'deploy-web',
-        status: 'running',
-        trigger_source: 'manual',
-        trigger_event: 'fire',
-        trigger_payload: {},
-        inputs: null,
-        source_snapshot: null,
-        created_at: '2026-05-07T01:01:00.000Z',
-        updated_at: '2026-05-07T01:02:00.000Z',
-        started_at: null,
-        finished_at: null,
-        ...overrides,
-      }}
-      {...props}
-    />
+    <WorkflowRunSummary run={run} {...props} />
   ));
 }

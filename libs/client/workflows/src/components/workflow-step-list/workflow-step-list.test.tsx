@@ -2,6 +2,8 @@ import type {RunJobDetailDto, RunStepDetailDto, StepAttemptDto} from '@shipfox/a
 import {Text} from '@shipfox/react-ui';
 import {render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type {WorkflowJob} from '#core/workflow-run.js';
+import {workflowJob, workflowStepAttemptDto, workflowStepDto} from '#test/fixtures/workflow-run.js';
 import {WorkflowStepList} from './workflow-step-list.js';
 
 const LOGS_FOR_RE = /^logs for /u;
@@ -184,7 +186,7 @@ describe('WorkflowStepList', () => {
     await user.click(deploy);
     rerender(
       <WorkflowStepList
-        job={{...job, updated_at: '2026-06-21T12:02:00.000Z'}}
+        job={{...job, updatedAt: '2026-06-21T12:02:00.000Z'}}
         autoSelectActiveAttempt
         renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
       />,
@@ -290,67 +292,14 @@ describe('WorkflowStepList', () => {
   });
 });
 
-function makeJob(overrides: Partial<RunJobDetailDto> = {}): RunJobDetailDto {
-  return {
-    id: '44444444-4444-4444-8444-000000000001',
-    run_id: '11111111-1111-4111-8111-111111111111',
-    name: 'build',
-    status: 'pending',
-    dependencies: [],
-    position: 0,
-    created_at: '2026-06-21T12:00:00.000Z',
-    updated_at: '2026-06-21T12:01:00.000Z',
-    queued_at: null,
-    started_at: null,
-    finished_at: null,
-    steps: [],
-    ...overrides,
-  };
+function makeJob(overrides: Partial<RunJobDetailDto> = {}): WorkflowJob {
+  return workflowJob(overrides);
 }
 
-let stepSequence = 0;
 function makeStep(overrides: Partial<RunStepDetailDto> = {}): RunStepDetailDto {
-  stepSequence += 1;
-  const displayName =
-    overrides.display_name ??
-    (typeof overrides.name === 'string' && overrides.name.trim() ? overrides.name : 'build');
-  return {
-    id: `55555555-5555-4555-8555-${String(stepSequence).padStart(12, '0')}`,
-    job_id: '44444444-4444-4444-8444-000000000001',
-    name: 'build',
-    display_name: displayName,
-    source_location: null,
-    status: 'pending',
-    type: 'run',
-    config: {},
-    error: null,
-    position: 0,
-    current_attempt: 1,
-    created_at: '2026-06-21T12:00:00.000Z',
-    updated_at: '2026-06-21T12:01:00.000Z',
-    attempts: [],
-    ...overrides,
-  };
+  return workflowStepDto(overrides);
 }
 
-let attemptSequence = 0;
 function makeAttempt(overrides: Partial<StepAttemptDto> = {}): StepAttemptDto {
-  attemptSequence += 1;
-  return {
-    id: `66666666-6666-4666-8666-${String(attemptSequence).padStart(12, '0')}`,
-    step_id: '55555555-5555-4555-8555-000000000001',
-    job_id: '44444444-4444-4444-8444-000000000001',
-    attempt: 1,
-    execution_order: attemptSequence,
-    status: 'pending',
-    exit_code: null,
-    output: null,
-    error: null,
-    gate_result: null,
-    restart_reason: null,
-    restart_result: null,
-    started_at: '2026-06-21T12:00:00.000Z',
-    finished_at: null,
-    ...overrides,
-  };
+  return workflowStepAttemptDto(overrides);
 }

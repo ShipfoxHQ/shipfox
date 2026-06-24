@@ -9,24 +9,26 @@ import type {WorkflowGraphTriggerNode, WorkflowJobGraphNode} from './graph-model
 const TRIGGER_SIZE = 36;
 
 export function TriggerNode({trigger}: {trigger: WorkflowGraphTriggerNode}) {
+  const label = trigger.triggerLabel || 'trigger';
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
           type="button"
-          aria-label={trigger.label}
+          aria-label={label}
           className="flex items-center justify-center rounded-full border border-border-neutral-base bg-background-components-base transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
           style={{width: TRIGGER_SIZE, height: TRIGGER_SIZE}}
         >
           <TriggerSourceIcon
-            source={trigger.source}
+            source={trigger.triggerSource}
             aria-hidden
             className="size-14 shrink-0 text-foreground-neutral-muted"
           />
         </button>
       </TooltipTrigger>
       <TooltipContent>
-        <span>{trigger.label}</span>
+        <span>{label}</span>
       </TooltipContent>
     </Tooltip>
   );
@@ -45,12 +47,12 @@ export function WorkflowJobNode({
   onKeyDown: KeyboardEventHandler<HTMLButtonElement>;
   ref?: Ref<HTMLButtonElement>;
 }) {
-  const visual = getWorkflowStatusVisual(node.sourceStatus);
+  const visual = getWorkflowStatusVisual(node.status);
   const dependencyText = dependencyLabel(node.currentDependencyCount);
   const accessibleLabel =
     dependencyText !== undefined
-      ? `${node.label}, ${visual.label}, ${dependencyText.accessible}`
-      : `${node.label}, ${visual.label}`;
+      ? `${node.name}, ${visual.label}, ${dependencyText.accessible}`
+      : `${node.name}, ${visual.label}`;
 
   return (
     <button
@@ -73,8 +75,8 @@ export function WorkflowJobNode({
         />
       ) : null}
       <div className="flex min-w-0 flex-1 items-center gap-8">
-        <WorkflowStatusIcon status={node.sourceStatus} size={14} tooltip={false} />
-        <JobLabel label={node.label} />
+        <WorkflowStatusIcon status={node.status} size={14} tooltip={false} />
+        <JobLabel label={node.name} />
       </div>
       {dependencyText ? (
         <Tooltip>

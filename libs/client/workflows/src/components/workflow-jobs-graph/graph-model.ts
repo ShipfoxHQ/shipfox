@@ -1,22 +1,15 @@
-import type {JobStatusDto, RunDetailResponseDto, RunJobDetailDto} from '@shipfox/api-workflows-dto';
+import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
 
-export interface WorkflowGraphTriggerNode {
+export interface WorkflowGraphTriggerNode
+  extends Pick<WorkflowRunDetail, 'triggerLabel' | 'triggerSource'> {
   id: 'trigger';
-  source: string;
-  event: string;
-  label: string;
   column: 0;
   row: 0;
 }
 
-export interface WorkflowJobGraphNode {
-  id: string;
-  label: string;
-  position: number;
-  sourceStatus: JobStatusDto;
+export interface WorkflowJobGraphNode extends WorkflowJob {
   column: number;
   row: number;
-  dependencies: string[];
   currentDependencyCount: number;
 }
 
@@ -42,16 +35,12 @@ export interface WorkflowJobGraphModel {
   columns: WorkflowJobGraphNode[][];
 }
 
-export function buildWorkflowJobGraphModel({
-  run,
-}: {
-  run: RunDetailResponseDto;
-}): WorkflowJobGraphModel {
+export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): WorkflowJobGraphModel {
   const sortedJobs = [...run.jobs].sort(compareJobs);
   const byName = new Map(sortedJobs.map((job) => [job.name, job]));
   const columnMemo = new Map<string, number>();
 
-  function columnFor(job: RunJobDetailDto, visiting = new Set<string>()): number {
+  function columnFor(job: WorkflowJob, visiting = new Set<string>()): number {
     const cached = columnMemo.get(job.id);
     if (cached !== undefined) return cached;
     if (visiting.has(job.id)) return 0;
@@ -61,7 +50,7 @@ export function buildWorkflowJobGraphModel({
 
     const dependencyColumns = job.dependencies
       .map((dependencyName) => byName.get(dependencyName))
-      .filter((dependency): dependency is RunJobDetailDto => dependency !== undefined)
+      .filter((dependency): dependency is WorkflowJob => dependency !== undefined)
       .map((dependency) => columnFor(dependency, nextVisiting));
 
     const column = dependencyColumns.length === 0 ? 0 : Math.max(...dependencyColumns) + 1;
@@ -70,13 +59,9 @@ export function buildWorkflowJobGraphModel({
   }
 
   const nodesWithoutRows = sortedJobs.map((job) => ({
-    id: job.id,
-    label: job.name,
-    position: job.position,
-    sourceStatus: job.status,
+    ...job,
     column: columnFor(job),
     row: 0,
-    dependencies: job.dependencies,
     currentDependencyCount: currentDependencyCount(job, byName),
   }));
 
@@ -87,9 +72,8 @@ export function buildWorkflowJobGraphModel({
   return {
     trigger: {
       id: 'trigger',
-      source: run.trigger_source,
-      event: run.trigger_event,
-      label: triggerLabel(run),
+      triggerLabel: run.triggerLabel,
+      triggerSource: run.triggerSource,
       column: 0,
       row: 0,
     },
@@ -99,7 +83,7 @@ export function buildWorkflowJobGraphModel({
   };
 }
 
-function compareJobs(left: RunJobDetailDto, right: RunJobDetailDto): number {
+function compareJobs(left: WorkflowJob, right: WorkflowJob): number {
   return (
     left.position - right.position ||
     left.name.localeCompare(right.name) ||
@@ -122,7 +106,7 @@ function groupColumns(nodes: WorkflowJobGraphNode[]): WorkflowJobGraphNode[][] {
         .sort(
           (left, right) =>
             left.position - right.position ||
-            left.label.localeCompare(right.label) ||
+            left.name.localeCompare(right.name) ||
             left.id.localeCompare(right.id),
         )
         .map((node, row) => ({...node, row})),
@@ -130,8 +114,8 @@ function groupColumns(nodes: WorkflowJobGraphNode[]): WorkflowJobGraphNode[][] {
 }
 
 function buildEdges(
-  jobs: readonly RunJobDetailDto[],
-  byName: ReadonlyMap<string, RunJobDetailDto>,
+  jobs: readonly WorkflowJob[],
+  byName: ReadonlyMap<string, WorkflowJob>,
 ): WorkflowJobGraphEdge[] {
   const triggerEdges = jobs
     .filter((job) => job.dependencies.length === 0)
@@ -161,8 +145,8 @@ function buildEdges(
 }
 
 function currentDependencyCount(
-  job: RunJobDetailDto,
-  byName: ReadonlyMap<string, RunJobDetailDto>,
+  job: WorkflowJob,
+  byName: ReadonlyMap<string, WorkflowJob>,
 ): number {
   return job.dependencies.filter((dependencyName) => {
     const dependency = byName.get(dependencyName);
@@ -204,11 +188,4 @@ function nodeInAdjacentColumn(
   const column = model.columns[current.column + offset];
   if (!column || column.length === 0) return undefined;
   return column[Math.min(current.row, column.length - 1)];
-}
-
-function triggerLabel(run: Pick<RunDetailResponseDto, 'trigger_source' | 'trigger_event'>): string {
-  if (!run.trigger_source && !run.trigger_event) return 'trigger';
-  if (!run.trigger_source) return run.trigger_event;
-  if (!run.trigger_event) return run.trigger_source;
-  return `${run.trigger_source} / ${run.trigger_event}`;
 }

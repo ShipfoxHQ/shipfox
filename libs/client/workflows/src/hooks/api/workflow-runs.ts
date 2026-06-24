@@ -1,13 +1,22 @@
-import type {
-  RunDetailResponseDto,
-  RunListResponseDto,
-  RunStatusDto,
-} from '@shipfox/api-workflows-dto';
+import type {RunDetailResponseDto, RunListResponseDto} from '@shipfox/api-workflows-dto';
 import {apiRequest} from '@shipfox/client-api';
-import {keepPreviousData, useInfiniteQuery, useQuery} from '@tanstack/react-query';
+import {
+  type InfiniteData,
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+} from '@tanstack/react-query';
+import {
+  isWorkflowRunTerminal,
+  toWorkflowRunDetail,
+  toWorkflowRunListPage,
+  type WorkflowRunDetail,
+  type WorkflowRunListPage,
+  type WorkflowRunStatus,
+} from '#core/workflow-run.js';
 
 export interface WorkflowRunFilters {
-  status?: RunStatusDto | undefined;
+  status?: WorkflowRunStatus | undefined;
   definitionId?: string | undefined;
   triggerSource?: string | undefined;
   createdFrom?: string | undefined;
@@ -40,7 +49,7 @@ function appendFilters(params: URLSearchParams, filters: WorkflowRunFilters) {
   if (filters.createdTo) params.set('created_to', filters.createdTo);
 }
 
-export async function listWorkflowRuns({
+async function listWorkflowRunsDto({
   projectId,
   filters,
   limit = 50,
@@ -59,9 +68,17 @@ export async function listWorkflowRuns({
   return await apiRequest<RunListResponseDto>(`/workflows/runs?${params.toString()}`, {signal});
 }
 
-const TERMINAL_RUN_STATUSES = new Set<RunStatusDto>(['succeeded', 'failed', 'cancelled']);
 const ACTIVE_POLL_MS = 4_000;
 const IDLE_POLL_MS = 30_000;
+
+function toWorkflowRunInfiniteData(
+  data: InfiniteData<RunListResponseDto, string | undefined>,
+): InfiniteData<WorkflowRunListPage, string | undefined> {
+  return {
+    ...data,
+    pages: data.pages.map(toWorkflowRunListPage),
+  };
+}
 
 export function useWorkflowRunsInfiniteQuery(
   projectId: string | undefined,
@@ -86,8 +103,9 @@ export function useWorkflowRunsInfiniteQuery(
     enabled: Boolean(projectId),
     initialPageParam: undefined as string | undefined,
     queryFn: ({pageParam, signal}) =>
-      listWorkflowRuns({projectId: projectId ?? '', filters, limit, cursor: pageParam, signal}),
+      listWorkflowRunsDto({projectId: projectId ?? '', filters, limit, cursor: pageParam, signal}),
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+    select: toWorkflowRunInfiniteData,
     placeholderData: keepPreviousData,
     staleTime: 2_000,
     refetchOnWindowFocus: true,
@@ -95,7 +113,7 @@ export function useWorkflowRunsInfiniteQuery(
       const data = query.state.data;
       if (!data || data.pages.length > 1) return false;
       const hasActive = data.pages.some((page) =>
-        page.runs.some((run) => !TERMINAL_RUN_STATUSES.has(run.status)),
+        page.runs.some((run) => !isWorkflowRunTerminal(run.status)),
       );
       return hasActive ? ACTIVE_POLL_MS : IDLE_POLL_MS;
     },
@@ -103,7 +121,7 @@ export function useWorkflowRunsInfiniteQuery(
   });
 }
 
-export async function getWorkflowRun({runId, signal}: {runId: string; signal?: AbortSignal}) {
+async function getWorkflowRunDto({runId, signal}: {runId: string; signal?: AbortSignal}) {
   return await apiRequest<RunDetailResponseDto>(`/workflows/runs/${runId}`, {signal});
 }
 
@@ -115,13 +133,14 @@ export function useWorkflowRunQuery(runId: string | undefined) {
       ? workflowRunsQueryKeys.detail(runId)
       : [...workflowRunsQueryKeys.all, 'detail'],
     enabled: Boolean(runId),
-    queryFn: ({signal}) => getWorkflowRun({runId: runId ?? '', signal}),
+    queryFn: ({signal}) => getWorkflowRunDto({runId: runId ?? '', signal}),
+    select: toWorkflowRunDetail,
     staleTime: 2_000,
     refetchOnWindowFocus: true,
     refetchInterval: (query) => {
-      const status = query.state.data?.status;
+      const status: WorkflowRunDetail['status'] | undefined = query.state.data?.status;
       if (!status) return false;
-      return TERMINAL_RUN_STATUSES.has(status) ? false : ACTIVE_POLL_MS;
+      return isWorkflowRunTerminal(status) ? false : ACTIVE_POLL_MS;
     },
     refetchIntervalInBackground: false,
   });

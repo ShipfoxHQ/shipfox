@@ -1,5 +1,5 @@
-import type {RunDto} from '@shipfox/api-workflows-dto';
 import {useMemo} from 'react';
+import type {WorkflowRun} from '#core/workflow-run.js';
 import {useWorkflowRunsInfiniteQuery} from '#hooks/api/workflow-runs.js';
 import type {WorkflowRunsListProps} from './types.js';
 import {WorkflowRunsListView} from './workflow-runs-list-view.js';
@@ -11,7 +11,7 @@ export function WorkflowRunsList({
   className,
 }: WorkflowRunsListProps) {
   const query = useWorkflowRunsInfiniteQuery(projectId, {});
-  const runs = useMemo<RunDto[]>(
+  const runs = useMemo<WorkflowRun[]>(
     () => query.data?.pages.flatMap((page) => page.runs) ?? [],
     [query.data],
   );

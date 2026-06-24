@@ -1,7 +1,7 @@
-import type {RunDetailResponseDto} from '@shipfox/api-workflows-dto';
+import type {WorkflowRunDetail} from '#core/workflow-run.js';
 
 export interface WorkflowJobsGraphProps {
-  run: RunDetailResponseDto;
+  run: WorkflowRunDetail;
   selectedJobId?: string | undefined;
   defaultSelectedJobId?: string | undefined;
   onSelectedJobChange?: ((jobId: string | undefined) => void) | undefined;

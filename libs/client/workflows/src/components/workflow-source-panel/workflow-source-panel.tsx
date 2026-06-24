@@ -1,4 +1,3 @@
-import type {WorkflowSourceSnapshotDto} from '@shipfox/api-workflows-dto';
 import {
   Button,
   CodeBlock,
@@ -15,6 +14,7 @@ import {
   SheetContent,
   SheetTitle,
 } from '@shipfox/react-ui';
+import type {WorkflowSourceSnapshot} from '#core/workflow-run.js';
 
 const WORKFLOW_SOURCE_FILENAME = 'workflow.yaml';
 const WORKFLOW_SOURCE_CODE_THEMES = {
@@ -24,7 +24,7 @@ const WORKFLOW_SOURCE_CODE_THEMES = {
 
 export interface WorkflowSourcePanelProps {
   id: string;
-  source: WorkflowSourceSnapshotDto | null;
+  source: WorkflowSourceSnapshot | null;
   open: boolean;
   onClose: () => void;
   className?: string | undefined;
@@ -66,7 +66,7 @@ export function WorkflowSourcePanel({
   );
 }
 
-function WorkflowSourcePanelContent({source}: {source: WorkflowSourceSnapshotDto}) {
+function WorkflowSourcePanelContent({source}: {source: WorkflowSourceSnapshot}) {
   const data = [
     {
       language: 'yaml',

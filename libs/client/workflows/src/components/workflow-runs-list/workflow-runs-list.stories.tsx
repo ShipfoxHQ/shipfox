@@ -1,6 +1,7 @@
-import type {RunDto, RunStatusDto} from '@shipfox/api-workflows-dto';
 import type {Meta, StoryObj} from '@storybook/react';
 import {expect, userEvent, within} from 'storybook/test';
+import type {WorkflowRun, WorkflowRunStatus} from '#core/workflow-run.js';
+import {sequencedWorkflowRun} from '#test/fixtures/workflow-run.js';
 import type {WorkflowRunsListQuery} from './types.js';
 import {WorkflowRunsListView} from './workflow-runs-list-view.js';
 
@@ -18,27 +19,11 @@ function makeQuery(overrides: Partial<WorkflowRunsListQuery> = {}): WorkflowRuns
   };
 }
 
-let seq = 0;
-function makeRun(status: RunStatusDto, name: string, minutesAgo: number): RunDto {
-  seq += 1;
-  return {
-    id: `run-${String(seq).padStart(8, '0')}`,
-    project_id: 'proj-demo',
-    definition_id: 'def-demo',
-    name,
-    status,
-    trigger_source: status === 'pending' ? '' : 'github',
-    trigger_event: status === 'pending' ? '' : 'push',
-    trigger_payload: {},
-    inputs: null,
-    created_at: new Date(Date.now() - minutesAgo * 120_000).toISOString(),
-    updated_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
-    started_at: null,
-    finished_at: null,
-  };
+function makeRun(status: WorkflowRunStatus, name: string, minutesAgo: number): WorkflowRun {
+  return sequencedWorkflowRun(status, name, minutesAgo);
 }
 
-const SAMPLE_RUNS: RunDto[] = [
+const SAMPLE_RUNS: WorkflowRun[] = [
   makeRun('running', 'deploy-web', 1),
   makeRun('failed', 'integration-tests', 4),
   makeRun('succeeded', 'build-image', 12),

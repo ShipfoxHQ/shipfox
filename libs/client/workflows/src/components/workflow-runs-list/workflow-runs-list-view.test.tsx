@@ -1,6 +1,7 @@
-import type {RunDto, RunStatusDto} from '@shipfox/api-workflows-dto';
 import {screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type {WorkflowRun, WorkflowRunStatus} from '#core/workflow-run.js';
+import {workflowRun} from '#test/fixtures/workflow-run.js';
 import {PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import type {WorkflowRunsListQuery} from './types.js';
 import {WorkflowRunsListView} from './workflow-runs-list-view.js';
@@ -81,7 +82,7 @@ describe('WorkflowRunsListView', () => {
   });
 });
 
-function renderListView(runs: RunDto[]) {
+function renderListView(runs: WorkflowRun[]) {
   renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs`, () => (
     <WorkflowRunsListView
       runs={runs}
@@ -92,8 +93,8 @@ function renderListView(runs: RunDto[]) {
   ));
 }
 
-function run(status: RunStatusDto, name: string, id = `run-${name}`): RunDto {
-  return {
+function run(status: WorkflowRunStatus, name: string, id = `run-${name}`): WorkflowRun {
+  return workflowRun({
     id,
     project_id: PROJECT_ID,
     definition_id: '55555555-5555-4555-8555-555555555555',
@@ -101,12 +102,7 @@ function run(status: RunStatusDto, name: string, id = `run-${name}`): RunDto {
     status,
     trigger_source: 'github',
     trigger_event: 'push',
-    trigger_payload: {},
-    inputs: null,
-    source_snapshot: null,
     created_at: '2026-05-07T01:01:00.000Z',
     updated_at: '2026-05-07T01:02:00.000Z',
-    started_at: null,
-    finished_at: null,
-  };
+  });
 }

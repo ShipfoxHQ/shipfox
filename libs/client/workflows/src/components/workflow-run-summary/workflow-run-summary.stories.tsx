@@ -1,5 +1,6 @@
-import type {RunResponseDto, RunStatusDto} from '@shipfox/api-workflows-dto';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
+import type {WorkflowRunStatus} from '#core/workflow-run.js';
+import {workflowRun} from '#test/fixtures/workflow-run.js';
 import {WorkflowRunSummary} from './workflow-run-summary.js';
 
 const withFrame: Decorator = (Story) => (
@@ -24,7 +25,7 @@ const meta = {
     },
   },
   decorators: [withFrame],
-  args: {run: makeRun()},
+  args: {run: workflowRun({status: 'succeeded'})},
 } satisfies Meta<typeof WorkflowRunSummary>;
 
 export default meta;
@@ -34,14 +35,23 @@ export const Default: Story = {};
 
 export const WithSourceButton: Story = {
   args: {
-    run: makeRun({source_snapshot: {format: 'yaml', content: 'jobs:\n  build:\n    steps: []'}}),
+    run: workflowRun({
+      status: 'succeeded',
+      source_snapshot: {format: 'yaml', content: 'jobs:\n  build:\n    steps: []'},
+    }),
     sourceAvailable: true,
     sourceOpen: false,
     sourcePanelId: 'workflow-source-panel',
   },
 };
 
-const ALL_STATUSES: RunStatusDto[] = ['pending', 'running', 'succeeded', 'failed', 'cancelled'];
+const ALL_STATUSES: WorkflowRunStatus[] = [
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+];
 
 export const Statuses: Story = {
   render: () => (
@@ -49,7 +59,7 @@ export const Statuses: Story = {
       {ALL_STATUSES.map((status, index) => (
         <WorkflowRunSummary
           key={status}
-          run={makeRun({
+          run={workflowRun({
             id: `11111111-1111-4111-8111-${String(index + 2).padStart(12, '0')}`,
             status,
             name: `${status}-pipeline`,
@@ -62,7 +72,8 @@ export const Statuses: Story = {
 
 export const MissingTriggerMetadata: Story = {
   args: {
-    run: makeRun({
+    run: workflowRun({
+      status: 'succeeded',
       trigger_source: '',
       trigger_event: '',
     }),
@@ -71,13 +82,14 @@ export const MissingTriggerMetadata: Story = {
 
 export const EmptyTriggerPayload: Story = {
   args: {
-    run: makeRun({trigger_payload: {}}),
+    run: workflowRun({status: 'succeeded', trigger_payload: {}}),
   },
 };
 
 export const LongRunName: Story = {
   args: {
-    run: makeRun({
+    run: workflowRun({
+      status: 'succeeded',
       name: 'release-production-multi-region-with-canary-and-smoke-tests-and-progressive-delivery-observability-and-post-deploy-validation-for-enterprise-workspaces',
     }),
   },
@@ -85,29 +97,10 @@ export const LongRunName: Story = {
 
 export const LongTriggerMetadata: Story = {
   args: {
-    run: makeRun({
+    run: workflowRun({
+      status: 'succeeded',
       trigger_source: 'github-enterprise-cloud-production-organization',
       trigger_event: 'workflow_dispatch_with_release_candidate_payload',
     }),
   },
 };
-
-function makeRun(overrides: Partial<RunResponseDto> = {}): RunResponseDto {
-  return {
-    id: '11111111-1111-4111-8111-000000000001',
-    project_id: '22222222-2222-4222-8222-222222222222',
-    definition_id: '33333333-3333-4333-8333-333333333333',
-    name: 'deploy-web',
-    status: 'succeeded',
-    trigger_source: 'manual',
-    trigger_event: 'fire',
-    trigger_payload: {},
-    inputs: null,
-    source_snapshot: null,
-    created_at: '2026-06-21T12:00:00.000Z',
-    updated_at: '2026-06-21T12:01:00.000Z',
-    started_at: null,
-    finished_at: null,
-    ...overrides,
-  };
-}

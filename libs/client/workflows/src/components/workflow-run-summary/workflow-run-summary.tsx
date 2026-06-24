@@ -1,4 +1,3 @@
-import {type RunResponseDto, runStatusSchema} from '@shipfox/api-workflows-dto';
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {
   Badge,
@@ -12,16 +11,16 @@ import {
 } from '@shipfox/react-ui';
 import type {Ref} from 'react';
 import {useId} from 'react';
+import {WORKFLOW_RUN_STATUSES, type WorkflowRun} from '#core/workflow-run.js';
 import {Identifier} from '../identifier/index.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
-import {toWorkflowRunSummary} from './workflow-run-summary-model.js';
 
 const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
-  ...runStatusSchema.options.map((status) => getWorkflowStatusVisual(status).label.length),
+  ...WORKFLOW_RUN_STATUSES.map((status) => getWorkflowStatusVisual(status).label.length),
 );
 
 export interface WorkflowRunSummaryProps {
-  run: RunResponseDto;
+  run: WorkflowRun;
   sourceAvailable?: boolean | undefined;
   sourceOpen?: boolean | undefined;
   sourcePanelId?: string | undefined;
@@ -38,7 +37,7 @@ export function WorkflowRunSummary({
   onSourceToggle,
 }: WorkflowRunSummaryProps) {
   const headingId = useId();
-  const model = toWorkflowRunSummary(run);
+  const status = getWorkflowStatusVisual(run.status);
 
   return (
     <section
@@ -47,20 +46,20 @@ export function WorkflowRunSummary({
     >
       <div className="flex min-w-0 items-center gap-x-12 overflow-hidden">
         <div className="flex min-w-0 items-center gap-8">
-          <Badge variant={model.status.badge} size="xs">
+          <Badge variant={status.badge} size="xs">
             <span className="text-center" style={{width: `${STATUS_BADGE_LABEL_WIDTH_CH}ch`}}>
-              {model.status.label}
+              {status.label}
             </span>
           </Badge>
           <Tooltip>
             <TooltipTrigger asChild>
               <Header id={headingId} variant="h3" className="min-w-0 truncate">
-                {model.name}
+                {run.name}
               </Header>
             </TooltipTrigger>
             <TooltipContent>
               <Text as="span" size="xs" className="max-w-[360px] break-words">
-                {model.name}
+                {run.name}
               </Text>
             </TooltipContent>
           </Tooltip>
@@ -71,26 +70,26 @@ export function WorkflowRunSummary({
           className="hidden h-20 w-px shrink-0 bg-border-neutral-base sm:block"
         />
 
-        <Identifier display={model.shortId} value={model.id} label="run id" />
+        <Identifier display={run.shortId} value={run.id} label="run id" />
 
-        {model.triggerLabel ? (
+        {run.triggerLabel ? (
           <span className="min-w-0 flex-1">
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-flex max-w-full min-w-0 items-center gap-4 text-foreground-neutral-subtle">
                   <TriggerSourceIcon
-                    source={model.triggerSource}
+                    source={run.triggerSource}
                     aria-hidden="true"
                     className="size-14 shrink-0"
                   />
                   <Text as="span" size="sm" className="min-w-0 truncate">
-                    {model.triggerLabel}
+                    {run.triggerLabel}
                   </Text>
                 </span>
               </TooltipTrigger>
               <TooltipContent>
                 <Text as="span" size="xs" className="max-w-[360px] break-words">
-                  {model.triggerLabel}
+                  {run.triggerLabel}
                 </Text>
               </TooltipContent>
             </Tooltip>
@@ -102,7 +101,7 @@ export function WorkflowRunSummary({
         <div className="shrink-0 whitespace-nowrap text-foreground-neutral-muted">
           <Text as="span" size="xs" className="inline-flex items-center gap-4 whitespace-nowrap">
             Triggered
-            <RelativeTime value={model.triggeredAt} className="font-code text-xs leading-20" />
+            <RelativeTime value={run.createdAt} className="font-code text-xs leading-20" />
           </Text>
         </div>
 
