@@ -1,30 +1,21 @@
 'use client';
 
-import * as React from 'react';
-import {cn} from '#utils/cn.js';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandTrigger,
-  type CommandTriggerProps,
-} from '../command/index.js';
-import {Icon} from '../icon/index.js';
-import {Popover, PopoverContent, PopoverTrigger} from '../popover/index.js';
-import {ScrollArea} from '../scroll-area/index.js';
+import type * as React from 'react';
+import type {CommandTriggerProps} from '../command/index.js';
+import {ComboboxContent, ComboboxInput, ComboboxList} from './combobox-content.js';
+import {ComboboxRoot} from './combobox-root.js';
+import type {ComboboxOption} from './combobox-state.js';
+import {ComboboxTrigger} from './combobox-trigger.js';
 
-export type ComboboxOption = {
-  value: string;
-  label: string;
-};
+export type {ComboboxOption};
 
-export type ComboboxProps = Omit<CommandTriggerProps, 'children' | 'placeholder'> & {
+type ComboboxTriggerPassthroughProps = Omit<
+  CommandTriggerProps,
+  'children' | 'disabled' | 'placeholder' | 'value' | 'defaultValue' | 'onChange'
+>;
+
+type ComboboxBaseProps = ComboboxTriggerPassthroughProps & {
   options: ComboboxOption[];
-  value?: string;
-  onValueChange?: (value: string) => void;
   placeholder?: string;
   emptyState?: string | React.ReactNode;
   searchPlaceholder?: string;
@@ -32,12 +23,50 @@ export type ComboboxProps = Omit<CommandTriggerProps, 'children' | 'placeholder'
   popoverClassName?: string;
   align?: 'start' | 'center' | 'end';
   sideOffset?: number;
+  disabled?: boolean;
   isLoading?: boolean;
+  maxVisibleChips?: number;
 };
+
+type SingleControlledComboboxProps = ComboboxBaseProps & {
+  multiple?: false;
+  value: string;
+  defaultValue?: never;
+  onValueChange?: (value: string) => void;
+};
+
+type SingleUncontrolledComboboxProps = ComboboxBaseProps & {
+  multiple?: false;
+  value?: never;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
+};
+
+type MultiControlledComboboxProps = ComboboxBaseProps & {
+  multiple: true;
+  value: string[];
+  defaultValue?: never;
+  onValueChange?: (value: string[]) => void;
+};
+
+type MultiUncontrolledComboboxProps = ComboboxBaseProps & {
+  multiple: true;
+  value?: never;
+  defaultValue?: string[];
+  onValueChange?: (value: string[]) => void;
+};
+
+export type ComboboxProps =
+  | SingleControlledComboboxProps
+  | SingleUncontrolledComboboxProps
+  | MultiControlledComboboxProps
+  | MultiUncontrolledComboboxProps;
 
 export function Combobox({
   options,
+  multiple,
   value,
+  defaultValue,
   onValueChange,
   placeholder = 'Select option...',
   emptyState = 'No option found.',
@@ -49,78 +78,62 @@ export function Combobox({
   variant,
   size,
   isLoading = false,
+  disabled = false,
+  maxVisibleChips,
   ...triggerProps
 }: ComboboxProps) {
-  const [open, setOpen] = React.useState(false);
-  const [internalValue, setInternalValue] = React.useState('');
-
-  const isControlled = value !== undefined;
-  const currentValue = isControlled ? value : internalValue;
-
-  const handleValueChange = React.useCallback(
-    (newValue: string) => {
-      if (!isControlled) {
-        setInternalValue(newValue);
-      }
-      onValueChange?.(newValue);
-    },
-    [isControlled, onValueChange],
+  const children = (
+    <>
+      <ComboboxTrigger
+        variant={variant}
+        size={size}
+        placeholder={placeholder}
+        className={className}
+        {...triggerProps}
+      />
+      <ComboboxContent className={popoverClassName} align={align} sideOffset={sideOffset}>
+        {!multiple && <ComboboxInput placeholder={searchPlaceholder} />}
+        <ComboboxList emptyState={emptyState} />
+      </ComboboxContent>
+    </>
   );
 
-  const selectedOption = options.find((option) => option.value === currentValue);
+  const rootBaseProps = {
+    options,
+    disabled,
+    isLoading,
+    children,
+    ...(maxVisibleChips === undefined ? {} : {maxVisibleChips}),
+  };
+
+  if (multiple) {
+    const multiValueChangeProps = onValueChange === undefined ? {} : {onValueChange};
+
+    if (value !== undefined) {
+      return <ComboboxRoot {...rootBaseProps} multiple value={value} {...multiValueChangeProps} />;
+    }
+
+    const multiDefaultValueProps = defaultValue === undefined ? {} : {defaultValue};
+
+    return (
+      <ComboboxRoot
+        {...rootBaseProps}
+        multiple
+        {...multiDefaultValueProps}
+        {...multiValueChangeProps}
+      />
+    );
+  }
+
+  const singleValueChangeProps = onValueChange === undefined ? {} : {onValueChange};
+
+  if (value !== undefined) {
+    return <ComboboxRoot {...rootBaseProps} value={value} {...singleValueChangeProps} />;
+  }
+
+  const singleDefaultValueProps = defaultValue === undefined ? {} : {defaultValue};
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <CommandTrigger
-          variant={variant}
-          size={size}
-          placeholder={placeholder}
-          className={className}
-          isLoading={isLoading}
-          {...triggerProps}
-        >
-          {selectedOption?.label}
-        </CommandTrigger>
-      </PopoverTrigger>
-      <PopoverContent
-        className={cn('w-(--radix-popover-trigger-width) p-0', popoverClassName)}
-        align={align}
-        sideOffset={sideOffset}
-        onWheel={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchMove={(e) => e.stopPropagation()}
-      >
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
-          <ScrollArea>
-            <CommandList className="max-h-300">
-              <CommandEmpty>{emptyState}</CommandEmpty>
-              <CommandGroup>
-                {options.map((option) => (
-                  <CommandItem
-                    key={option.value}
-                    value={option.value}
-                    onSelect={(selectedValue) => {
-                      handleValueChange(currentValue === selectedValue ? '' : selectedValue);
-                      setOpen(false);
-                    }}
-                  >
-                    <Icon
-                      name="check"
-                      className={cn(
-                        'size-16 mr-8',
-                        currentValue === option.value ? 'opacity-100' : 'opacity-0',
-                      )}
-                    />
-                    {option.label}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </ScrollArea>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <ComboboxRoot {...rootBaseProps} {...singleDefaultValueProps} {...singleValueChangeProps} />
   );
 }
