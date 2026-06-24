@@ -1,21 +1,35 @@
+import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {Code, cn, Text, Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui';
 import type {KeyboardEventHandler, Ref} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {WorkflowGraphTriggerNode, WorkflowJobGraphNode} from './graph-model.js';
 
+const TRIGGER_SIZE = 36;
+
 export function TriggerNode({trigger}: {trigger: WorkflowGraphTriggerNode}) {
   const label = trigger.triggerLabel || 'trigger';
 
   return (
-    <div className="flex h-78 w-144 flex-col justify-center gap-6 rounded-8 border border-border-neutral-base bg-background-components-base px-12 text-left">
-      <Text size="xs" className="text-foreground-neutral-muted">
-        Trigger
-      </Text>
-      <Code variant="label" bold className="truncate text-foreground-neutral-base" title={label}>
-        {label}
-      </Code>
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className="flex items-center justify-center rounded-full border border-border-neutral-base bg-background-components-base transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
+          style={{width: TRIGGER_SIZE, height: TRIGGER_SIZE}}
+        >
+          <TriggerSourceIcon
+            source={trigger.triggerSource}
+            aria-hidden
+            className="size-14 shrink-0 text-foreground-neutral-muted"
+          />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <span>{label}</span>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

@@ -7,6 +7,7 @@ import {WorkflowJobsGraph} from '../workflow-jobs-graph/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
 import {WorkflowSourcePanel} from '../workflow-source-panel/index.js';
 import {WorkflowStepList} from '../workflow-step-list/index.js';
+import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 import {
   WorkflowRunNotFound,
   WorkflowRunSkeleton,
@@ -87,7 +88,20 @@ function RunViewContent({query}: {query: ReturnType<typeof useWorkflowRunQuery>}
             selectedJobId={selectedJob?.id}
             onSelectedJobChange={setSelectedJobId}
           />
-          {selectedJob ? <WorkflowStepList job={selectedJob} className="max-h-[50vh]" /> : null}
+          {selectedJob ? (
+            <WorkflowStepList
+              job={selectedJob}
+              className="max-h-[50vh]"
+              autoSelectActiveAttempt
+              renderExpandedStep={({stepId, attempt, attemptStatus}) => (
+                <StepAttemptLogPanel
+                  stepId={stepId}
+                  attempt={attempt}
+                  attemptStatus={attemptStatus}
+                />
+              )}
+            />
+          ) : null}
         </div>
       </div>
       <WorkflowSourcePanel

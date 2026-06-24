@@ -10,43 +10,86 @@ import {
   TooltipTrigger,
 } from '@shipfox/react-ui';
 import type {ReactNode} from 'react';
-import {useId, useMemo, useState} from 'react';
+import {useEffect, useId, useMemo, useState} from 'react';
 import type {WorkflowJob} from '#core/workflow-run.js';
 import {
   buildWorkflowStepListModel,
   humanizeStatus,
   type WorkflowStepAttemptModel,
   type WorkflowStepListEntryModel,
+  type WorkflowStepListModel,
 } from './workflow-step-list-model.js';
+
+export interface WorkflowStepExpandedContext {
+  stepId: string;
+  attempt: number;
+  attemptId: string;
+  attemptStatus: string;
+}
 
 export interface WorkflowStepListProps {
   job: WorkflowJob;
-  selectedStepId?: string | undefined;
-  defaultSelectedStepId?: string | undefined;
-  onSelectedStepChange?: ((stepId: string | undefined) => void) | undefined;
-  renderExpandedStep?: ((context: {stepId: string}) => ReactNode) | undefined;
+  selectedAttemptId?: string | undefined;
+  defaultSelectedAttemptId?: string | undefined;
+  onSelectedAttemptChange?: ((attemptId: string | undefined) => void) | undefined;
+  autoSelectActiveAttempt?: boolean | undefined;
+  renderExpandedStep?: ((context: WorkflowStepExpandedContext) => ReactNode) | undefined;
   className?: string | undefined;
 }
 
 export function WorkflowStepList({
   job,
-  selectedStepId,
-  defaultSelectedStepId,
-  onSelectedStepChange,
+  selectedAttemptId,
+  defaultSelectedAttemptId,
+  onSelectedAttemptChange,
+  autoSelectActiveAttempt = false,
   renderExpandedStep,
   className,
 }: WorkflowStepListProps) {
-  const titleId = useId();
   const model = useMemo(() => buildWorkflowStepListModel({job}), [job]);
-  const [localSelectedStepId, setLocalSelectedStepId] = useState<string | undefined>(
-    defaultSelectedStepId,
-  );
-  const selected = selectedStepId ?? localSelectedStepId;
 
-  function selectStep(stepId: string) {
-    const nextStepId = stepId === selected ? undefined : stepId;
-    setLocalSelectedStepId(nextStepId);
-    onSelectedStepChange?.(nextStepId);
+  return (
+    <WorkflowStepListContent
+      key={model.jobId}
+      model={model}
+      selectedAttemptId={selectedAttemptId}
+      defaultSelectedAttemptId={defaultSelectedAttemptId}
+      onSelectedAttemptChange={onSelectedAttemptChange}
+      autoSelectActiveAttempt={autoSelectActiveAttempt}
+      renderExpandedStep={renderExpandedStep}
+      className={className}
+    />
+  );
+}
+
+function WorkflowStepListContent({
+  model,
+  selectedAttemptId,
+  defaultSelectedAttemptId,
+  onSelectedAttemptChange,
+  autoSelectActiveAttempt,
+  renderExpandedStep,
+  className,
+}: Omit<WorkflowStepListProps, 'job'> & {model: WorkflowStepListModel}) {
+  const titleId = useId();
+  const [localSelectedAttemptId, setLocalSelectedAttemptId] = useState<string | undefined>(
+    defaultSelectedAttemptId,
+  );
+  const [userSelectedAttempt, setUserSelectedAttempt] = useState(false);
+  const autoSelectedAttemptId =
+    autoSelectActiveAttempt && !userSelectedAttempt ? model.activeEntryId : undefined;
+  const selected = selectedAttemptId ?? localSelectedAttemptId ?? autoSelectedAttemptId;
+
+  useEffect(() => {
+    setLocalSelectedAttemptId(defaultSelectedAttemptId);
+    setUserSelectedAttempt(false);
+  }, [defaultSelectedAttemptId]);
+
+  function selectAttempt(attemptId: string) {
+    const nextAttemptId = attemptId === selected ? undefined : attemptId;
+    setUserSelectedAttempt(true);
+    setLocalSelectedAttemptId(nextAttemptId);
+    onSelectedAttemptChange?.(nextAttemptId);
   }
 
   return (
@@ -62,7 +105,7 @@ export function WorkflowStepList({
           Step attempts
         </Text>
         <Text size="xs" className="min-w-0 truncate text-foreground-neutral-subtle">
-          {job.name}
+          {model.jobName}
         </Text>
       </div>
 
@@ -82,9 +125,16 @@ export function WorkflowStepList({
               entry={entry}
               selected={entry.id === selected}
               hasExpandedContent={renderExpandedStep !== undefined}
-              onSelect={() => selectStep(entry.id)}
+              onSelect={() => selectAttempt(entry.id)}
               expandedContent={
-                entry.id === selected ? renderExpandedStep?.({stepId: entry.step.id}) : null
+                entry.id === selected
+                  ? renderExpandedStep?.({
+                      stepId: entry.step.id,
+                      attempt: entry.attempt,
+                      attemptId: entry.id,
+                      attemptStatus: entry.statusVisual.kind,
+                    })
+                  : null
               }
             />
           ))}
@@ -108,10 +158,14 @@ function WorkflowStepRow({
   expandedContent: ReactNode;
 }) {
   const shouldShowLabelTooltip = entry.step.label.length > 32;
+  const buttonId = useId();
+  const panelId = useId();
   const button = (
     <button
+      id={buttonId}
       type="button"
       aria-expanded={selected && hasExpandedContent}
+      {...(hasExpandedContent ? {'aria-controls': panelId} : {})}
       aria-label={entryAccessibleLabel(entry)}
       onClick={onSelect}
       className={cn(
@@ -164,9 +218,13 @@ function WorkflowStepRow({
         button
       )}
       {selected && expandedContent ? (
-        <div className="border-t border-border-neutral-base bg-background-neutral-base px-44 py-12">
+        <section
+          id={panelId}
+          aria-labelledby={buttonId}
+          className="border-t border-border-neutral-base bg-background-neutral-base px-44 py-12"
+        >
           {expandedContent}
-        </div>
+        </section>
       ) : null}
     </li>
   );

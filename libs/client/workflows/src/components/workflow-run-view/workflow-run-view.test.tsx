@@ -39,6 +39,54 @@ describe('WorkflowRunView', () => {
     ).toBeInTheDocument();
   });
 
+  test('renders active step attempt logs inline when the selected job is running', async () => {
+    const stepId = '99999999-9999-4999-8999-000000000001';
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.pathname === `/steps/${stepId}/attempts/1/logs`) {
+        return Promise.resolve(jsonResponse(inlineLogBody(outputLine('live output\n'), 1)));
+      }
+      return Promise.resolve(
+        jsonResponse(
+          runDetailDto({
+            jobs: [
+              jobDto({
+                id: '77777777-7777-4777-8777-777777777777',
+                name: 'build',
+                status: 'running',
+                steps: [
+                  stepDto({
+                    id: stepId,
+                    name: 'test',
+                    status: 'running',
+                    attempts: [
+                      attemptDto({
+                        id: 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001',
+                        step_id: stepId,
+                        status: 'running',
+                        exit_code: null,
+                        finished_at: null,
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ),
+      );
+    });
+    configureApiClient({fetchImpl: fetchImpl as typeof fetch});
+
+    renderView();
+
+    expect(await screen.findByText('live output')).toBeInTheDocument();
+    const logRequest = fetchImpl.mock.calls
+      .map((call) => new URL((call[0] as Request).url))
+      .find((url) => url.pathname === `/steps/${stepId}/attempts/1/logs`);
+    expect(logRequest?.searchParams.get('cursor')).toBe('0');
+  });
+
   test('shows the not-found surface when the run 404s', async () => {
     configureApiClient({
       fetchImpl: vi.fn(() => Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}))),
@@ -125,8 +173,27 @@ function renderView() {
   ));
 }
 
+function requestUrl(input: RequestInfo | URL): URL {
+  if (input instanceof Request) return new URL(input.url);
+  return new URL(String(input));
+}
+
 function runDetailDto(overrides: Partial<RunDetailResponseDto> = {}) {
   return {...baseRunDetailDto(), ...overrides};
+}
+
+const outputLine = (data: string, ts = 1): string =>
+  `${JSON.stringify({v: 1, ts, type: 'output', stream: 'stdout', data})}\n`;
+
+function inlineLogBody(ndjson: string, nextCursor: number) {
+  return {
+    mode: 'inline',
+    ndjson,
+    next_cursor: nextCursor,
+    has_more: false,
+    state: 'closed',
+    truncated: false,
+  };
 }
 
 function baseRunDetailDto(): RunDetailResponseDto {

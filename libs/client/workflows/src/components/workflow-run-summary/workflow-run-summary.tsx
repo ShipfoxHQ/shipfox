@@ -14,7 +14,6 @@ import {useId} from 'react';
 import {WORKFLOW_RUN_STATUSES, type WorkflowRun} from '#core/workflow-run.js';
 import {Identifier} from '../identifier/index.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
-import {WorkflowStatusIcon} from '../workflow-status/workflow-status-icon.js';
 
 const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
   ...WORKFLOW_RUN_STATUSES.map((status) => getWorkflowStatusVisual(status).label.length),
@@ -47,17 +46,23 @@ export function WorkflowRunSummary({
     >
       <div className="flex min-w-0 items-center gap-x-12 overflow-hidden">
         <div className="flex min-w-0 items-center gap-8">
-          <span className="inline-flex shrink-0 items-center gap-6">
-            <WorkflowStatusIcon status={status.kind} size={12} tooltip={false} />
-            <Badge variant={status.badge} size="xs">
-              <span className="text-center" style={{width: `${STATUS_BADGE_LABEL_WIDTH_CH}ch`}}>
-                {status.label}
-              </span>
-            </Badge>
-          </span>
-          <Header id={headingId} variant="h3" className="min-w-0 truncate">
-            {run.name}
-          </Header>
+          <Badge variant={status.badge} size="xs">
+            <span className="text-center" style={{width: `${STATUS_BADGE_LABEL_WIDTH_CH}ch`}}>
+              {status.label}
+            </span>
+          </Badge>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Header id={headingId} variant="h3" className="min-w-0 truncate">
+                {run.name}
+              </Header>
+            </TooltipTrigger>
+            <TooltipContent>
+              <Text as="span" size="xs" className="max-w-[360px] break-words">
+                {run.name}
+              </Text>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         <span
@@ -68,25 +73,27 @@ export function WorkflowRunSummary({
         <Identifier display={run.shortId} value={run.id} label="run id" />
 
         {run.triggerLabel ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex min-w-0 flex-1 items-center gap-4 text-foreground-neutral-subtle">
-                <TriggerSourceIcon
-                  source={run.triggerSource}
-                  aria-hidden="true"
-                  className="size-14 shrink-0"
-                />
-                <Text as="span" size="sm" className="min-w-0 truncate">
+          <span className="min-w-0 flex-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex max-w-full min-w-0 items-center gap-4 text-foreground-neutral-subtle">
+                  <TriggerSourceIcon
+                    source={run.triggerSource}
+                    aria-hidden="true"
+                    className="size-14 shrink-0"
+                  />
+                  <Text as="span" size="sm" className="min-w-0 truncate">
+                    {run.triggerLabel}
+                  </Text>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <Text as="span" size="xs" className="max-w-[360px] break-words">
                   {run.triggerLabel}
                 </Text>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              <Text as="span" size="xs" className="max-w-[360px] break-words">
-                {run.triggerLabel}
-              </Text>
-            </TooltipContent>
-          </Tooltip>
+              </TooltipContent>
+            </Tooltip>
+          </span>
         ) : (
           <span className="min-w-0 flex-1" />
         )}

@@ -9,7 +9,7 @@ const NODE_WIDTH = 208;
 const NODE_HEIGHT = 78;
 const COLUMN_GAP = 72;
 const ROW_GAP = 18;
-const TRIGGER_WIDTH = 144;
+const TRIGGER_WIDTH = 36;
 const PADDING = 16;
 
 export function WorkflowJobsGraphContent({
@@ -73,7 +73,10 @@ export function WorkflowJobsGraphContent({
     <div className="min-h-0 overflow-auto bg-background-neutral-base">
       <div className="relative" style={{width: contentWidth, minHeight: contentHeight}}>
         <GraphEdges model={model} />
-        <div className="absolute" style={{left: PADDING, top: PADDING}}>
+        <div
+          className="absolute"
+          style={{left: PADDING, top: PADDING + (NODE_HEIGHT - TRIGGER_WIDTH) / 2}}
+        >
           <TriggerNode trigger={model.trigger} />
         </div>
         {model.columns.map((column, columnIndex) => (
@@ -132,14 +135,6 @@ function GraphEdges({model}: {model: WorkflowJobGraphModel}) {
               fill="none"
               stroke="currentColor"
               strokeWidth="1"
-            />
-            <path
-              d={`M ${to.x - 4} ${to.y - 4} L ${to.x} ${to.y} L ${to.x - 4} ${to.y + 4}`}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-              strokeLinecap="round"
-              strokeLinejoin="round"
             />
           </g>
         );

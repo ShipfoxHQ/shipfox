@@ -10,7 +10,7 @@ describe('WorkflowJobsGraph', () => {
     render(<WorkflowJobsGraph run={makeRun({jobs: [makeJob({name: 'build'})]})} />);
 
     expect(screen.getByRole('region', {name: 'Jobs graph'})).toBeInTheDocument();
-    expect(screen.getByText('manual / fire')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'manual / fire'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'build, Pending'})).toBeInTheDocument();
   });
 
@@ -175,7 +175,7 @@ describe('WorkflowJobsGraph', () => {
     const skippedJoinEdge = container.querySelector(
       `[data-edge-id="${securityScan.id}:${deploy.id}"]`,
     );
-    expect(skippedJoinEdge).toHaveAttribute('d', 'M 440 151 H 756 V 55 H 792');
+    expect(skippedJoinEdge).toHaveAttribute('d', 'M 332 151 H 648 V 55 H 684');
   });
 });
 

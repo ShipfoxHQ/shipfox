@@ -19,6 +19,16 @@ export type StepProgressionOutcome =
   | {jobFinished: false}
   | {jobFinished: true; status: 'succeeded' | 'failed'};
 
+export interface StepProgressionMetrics {
+  jobStepsSettledStatus?: 'succeeded' | 'failed';
+  stepRestartEnqueued?: boolean;
+}
+
+export interface StepProgressionResult {
+  outcome: StepProgressionOutcome;
+  metrics: StepProgressionMetrics;
+}
+
 export interface ApplyStepTransitionContext {
   jobId: string;
   result: StepResult;
@@ -35,7 +45,7 @@ export async function applyStepTransition(
   decision: StepTransitionDecision,
   ctx: ApplyStepTransitionContext,
   tx: Tx,
-): Promise<StepProgressionOutcome> {
+): Promise<StepProgressionResult> {
   switch (decision.kind) {
     case 'complete-step':
     case 'complete-job': {
@@ -115,7 +125,7 @@ export async function applyStepTransition(
       });
       // The job stays running; the next pull re-dispatches restart_from. Do not
       // derive completion or emit a completion event.
-      return {jobFinished: false};
+      return {outcome: {jobFinished: false}, metrics: {stepRestartEnqueued: true}};
     }
   }
 
@@ -126,7 +136,10 @@ export async function applyStepTransition(
   if (after.every((step) => isTerminal(step.status))) {
     const status = deriveCompletion(after);
     await writeJobStepsSettledOutbox(tx, {jobId: ctx.jobId, status});
-    return {jobFinished: true, status};
+    return {
+      outcome: {jobFinished: true, status},
+      metrics: {jobStepsSettledStatus: status},
+    };
   }
-  return {jobFinished: false};
+  return {outcome: {jobFinished: false}, metrics: {}};
 }

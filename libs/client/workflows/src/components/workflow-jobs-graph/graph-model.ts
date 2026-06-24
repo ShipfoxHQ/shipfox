@@ -1,6 +1,7 @@
 import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
 
-export interface WorkflowGraphTriggerNode extends Pick<WorkflowRunDetail, 'triggerLabel'> {
+export interface WorkflowGraphTriggerNode
+  extends Pick<WorkflowRunDetail, 'triggerLabel' | 'triggerSource'> {
   id: 'trigger';
   column: 0;
   row: 0;
@@ -70,6 +71,7 @@ export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): Wor
     trigger: {
       id: 'trigger',
       triggerLabel: run.triggerLabel,
+      triggerSource: run.triggerSource,
       column: 0,
       row: 0,
     },

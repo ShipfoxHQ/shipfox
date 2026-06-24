@@ -9,7 +9,9 @@ export {
 } from '#core/log-tree.js';
 export * from './components/index.js';
 export {
+  isMissingStepLogStreamError,
   readStepAttemptLogsPage,
   stepLogsQueryKeys,
+  type UseStepAttemptLogsQueryOptions,
   useStepAttemptLogsQuery,
 } from './hooks/api/step-logs.js';

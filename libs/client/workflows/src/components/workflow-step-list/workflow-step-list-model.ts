@@ -29,6 +29,10 @@ export interface WorkflowStepListEntryModel extends WorkflowStepAttemptModel {
 }
 
 export interface WorkflowStepListModel {
+  jobId: string;
+  jobName: string;
+  stepCount: number;
+  activeEntryId: string | undefined;
   entries: WorkflowStepListEntryModel[];
 }
 
@@ -37,6 +41,10 @@ export function buildWorkflowStepListModel({job}: {job: WorkflowJob}): WorkflowS
   const entries = steps.flatMap(toStepEntries).sort(compareEntries);
 
   return {
+    jobId: job.id,
+    jobName: job.name,
+    stepCount: steps.length,
+    activeEntryId: latestRunningEntryId(entries),
     entries,
   };
 }
@@ -121,6 +129,14 @@ function compareEntries(
     left.attempt - right.attempt ||
     left.id.localeCompare(right.id)
   );
+}
+
+function latestRunningEntryId(entries: readonly WorkflowStepListEntryModel[]): string | undefined {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry?.statusVisual.kind === 'running') return entry.id;
+  }
+  return undefined;
 }
 
 function normalizeStatus(status: string): string {
