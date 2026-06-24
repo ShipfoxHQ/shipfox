@@ -201,7 +201,7 @@ describe('buildWorkflowStepListModel', () => {
         makeAttempt({
           error: {message: 'Opaque nested value', exitCode: 127},
           output: {tail: 'do not parse'},
-          gate_result: {status: 'do not parse'},
+          gate_result: {kind: 'unknown', data: {status: 'do not parse'}},
         }),
       ],
     });
@@ -289,6 +289,7 @@ function makeAttempt(overrides: Partial<StepAttemptDto> = {}): StepAttemptDto {
     error: null,
     gate_result: null,
     restart_reason: null,
+    restart_result: null,
     started_at: '2026-06-21T12:00:00.000Z',
     finished_at: null,
     ...overrides,
