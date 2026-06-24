@@ -19,6 +19,7 @@ import {
   failJobAsTimedOut,
   getJobsByRunId,
   getStepsByJobId,
+  getWorkflowExecutionDepth,
   getWorkflowRunById,
   listWorkflowRunsByProject,
   resolveJobAfterLeaseExpiry,
@@ -666,6 +667,15 @@ jobs:
       expect(jobSteps[1]?.position).toBe(1);
       expect(jobSteps[2]?.position).toBe(2);
       expect(jobSteps[3]?.position).toBe(3);
+    });
+  });
+
+  describe('getWorkflowExecutionDepth', () => {
+    test('returns non-negative running run and job counts', async () => {
+      const depth = await getWorkflowExecutionDepth();
+
+      expect(depth.runningRuns).toBeGreaterThanOrEqual(0);
+      expect(depth.runningJobs).toBeGreaterThanOrEqual(0);
     });
   });
 

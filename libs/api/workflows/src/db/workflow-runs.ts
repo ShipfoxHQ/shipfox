@@ -14,7 +14,7 @@ import {
   timestampIdCursorWhere,
 } from '@shipfox/node-drizzle';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {and, asc, count, desc, eq, gte, inArray, lte, type SQL, sql} from 'drizzle-orm';
+import {and, asc, count, desc, eq, gte, inArray, isNull, lte, type SQL, sql} from 'drizzle-orm';
 import {isJobTerminal, type Job, type JobStatus} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
@@ -28,6 +28,17 @@ import {
 import {JobNotFoundError} from '#core/errors.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import {materializeWorkflowModel} from '#core/workflow-runtime/index.js';
+import {
+  recordWorkflowJobLeaseExpiryResolved,
+  recordWorkflowJobQueued,
+  recordWorkflowJobStarted,
+  recordWorkflowJobStatusChanged,
+  recordWorkflowJobStepsSettled,
+  recordWorkflowJobTimedOut,
+  recordWorkflowRunCreated,
+  recordWorkflowRunStatusChanged,
+  recordWorkflowStepRestartEnqueued,
+} from '#metrics/instance.js';
 import {db, type Tx} from './db.js';
 import {jobs, toJob} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
@@ -50,7 +61,7 @@ export interface CreateWorkflowRunParams {
 export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
   const materializedJobs = materializeWorkflowModel(params.model);
 
-  return await db().transaction(async (tx) => {
+  const result = await db().transaction(async (tx) => {
     const insertResult = await tx
       .insert(workflowRuns)
       .values({
@@ -86,7 +97,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
           `Idempotency conflict but existing run missing for key ${params.triggerIdempotencyKey}`,
         );
       }
-      return toWorkflowRun(existingRow);
+      return {run: toWorkflowRun(existingRow), created: false};
     }
 
     let jobRows: (typeof jobs.$inferSelect)[] = [];
@@ -139,8 +150,12 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       },
     });
 
-    return toWorkflowRun(runRow);
+    return {run: toWorkflowRun(runRow), created: true};
   });
+
+  if (result.created) recordWorkflowRunCreated(result.run.triggerSource);
+
+  return result.run;
 }
 
 export async function getWorkflowRunById(id: string): Promise<WorkflowRun | undefined> {
@@ -303,6 +318,23 @@ export async function getWorkflowRunAggregates(params: {
   };
 }
 
+export interface WorkflowExecutionDepth {
+  runningRuns: number;
+  runningJobs: number;
+}
+
+export async function getWorkflowExecutionDepth(): Promise<WorkflowExecutionDepth> {
+  const [runRows, jobRows] = await Promise.all([
+    db().select({value: count()}).from(workflowRuns).where(eq(workflowRuns.status, 'running')),
+    db().select({value: count()}).from(jobs).where(eq(jobs.status, 'running')),
+  ]);
+
+  return {
+    runningRuns: runRows[0]?.value ?? 0,
+    runningJobs: jobRows[0]?.value ?? 0,
+  };
+}
+
 export async function getJobsByRunId(runId: string): Promise<Job[]> {
   const rows = await db()
     .select()
@@ -347,7 +379,7 @@ export interface UpdateWorkflowRunStatusParams {
 export async function updateWorkflowRunStatus(
   params: UpdateWorkflowRunStatusParams,
 ): Promise<WorkflowRun> {
-  return await db().transaction(async (tx) => {
+  const result = await db().transaction(async (tx) => {
     const rows = await tx
       .update(workflowRuns)
       .set({
@@ -380,7 +412,9 @@ export async function updateWorkflowRunStatus(
         .where(eq(workflowRuns.id, params.runId))
         .limit(1);
       const existingRow = existing[0];
-      if (existingRow && existingRow.status === params.status) return toWorkflowRun(existingRow);
+      if (existingRow && existingRow.status === params.status) {
+        return {run: toWorkflowRun(existingRow), changed: false};
+      }
       throw new Error(
         `Optimistic lock failure: run ${params.runId} version ${params.expectedVersion}`,
       );
@@ -397,8 +431,12 @@ export async function updateWorkflowRunStatus(
       });
     }
 
-    return run;
+    return {run, changed: true};
   });
+
+  if (result.changed) recordWorkflowRunStatusChanged(result.run.status);
+
+  return result.run;
 }
 
 export interface UpdateJobStatusAtVersionParams {
@@ -412,7 +450,7 @@ export interface UpdateJobStatusAtVersionParams {
 async function updateJobStatusAtVersion(
   tx: Tx,
   params: UpdateJobStatusAtVersionParams,
-): Promise<Job | null> {
+): Promise<{job: Job; changed: boolean} | null> {
   const rows = await tx
     .update(jobs)
     .set({
@@ -440,7 +478,7 @@ async function updateJobStatusAtVersion(
     });
   }
 
-  return job;
+  return {job, changed: true};
 }
 
 export interface UpdateJobStatusParams {
@@ -450,7 +488,7 @@ export interface UpdateJobStatusParams {
 }
 
 export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Job> {
-  return await db().transaction(async (tx) => {
+  const result = await db().transaction(async (tx) => {
     const updated = await updateJobStatusAtVersion(tx, {
       jobId: params.jobId,
       status: params.status,
@@ -465,29 +503,39 @@ export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Jo
     // instead of throwing an optimistic-lock error that would wedge the workflow.
     const existing = await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1);
     const row = existing[0];
-    if (row && row.status === params.status) return toJob(row);
+    if (row && row.status === params.status) return {job: toJob(row), changed: false};
     throw new Error(
       `Optimistic lock failure: job ${params.jobId} version ${params.expectedVersion}`,
     );
   });
+
+  if (result.changed) recordWorkflowJobStatusChanged(result.job.status);
+
+  return result.job;
 }
 
-// Project the runner-owned queue/claim moments onto the durable job row. `coalesce`
-// makes redelivery and out-of-order delivery first-write-wins, so the at-least-once
-// outbox can replay these freely. Eventually consistent by design: the column stays
-// null until the runner event drains.
+// Project the runner-owned queue/claim moments onto the durable job row. The null
+// guard makes redelivery and out-of-order delivery first-write-wins, so the
+// at-least-once outbox can replay these freely. Eventually consistent by design:
+// the column stays null until the runner event drains.
 export async function recordJobQueuedAt(params: {jobId: string; queuedAt: Date}): Promise<void> {
-  await db()
+  const updated = await db()
     .update(jobs)
-    .set({queuedAt: sql`coalesce(${jobs.queuedAt}, ${params.queuedAt})`})
-    .where(eq(jobs.id, params.jobId));
+    .set({queuedAt: params.queuedAt})
+    .where(and(eq(jobs.id, params.jobId), isNull(jobs.queuedAt)))
+    .returning({id: jobs.id});
+
+  if (updated.length > 0) recordWorkflowJobQueued();
 }
 
 export async function recordJobStartedAt(params: {jobId: string; startedAt: Date}): Promise<void> {
-  await db()
+  const updated = await db()
     .update(jobs)
-    .set({startedAt: sql`coalesce(${jobs.startedAt}, ${params.startedAt})`})
-    .where(eq(jobs.id, params.jobId));
+    .set({startedAt: params.startedAt})
+    .where(and(eq(jobs.id, params.jobId), isNull(jobs.startedAt)))
+    .returning({id: jobs.id});
+
+  if (updated.length > 0) recordWorkflowJobStarted();
 }
 
 export interface FailJobAsTimedOutParams {
@@ -500,7 +548,7 @@ export interface FailJobAsTimedOutParams {
 // `timed_out_at` proves an earlier attempt of this same activity already
 // finalized — return its version without writing a second outbox event.
 export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promise<Job> {
-  return await db().transaction(async (tx) => {
+  const result = await db().transaction(async (tx) => {
     const updated = await updateJobStatusAtVersion(tx, {
       jobId: params.jobId,
       status: 'failed',
@@ -512,7 +560,7 @@ export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promis
       const existing = await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1);
       const row = existing[0];
       if (row && row.timedOutAt !== null) {
-        return toJob(row);
+        return {job: toJob(row), changed: false};
       }
       throw new Error(
         `Optimistic lock failure: job ${params.jobId} version ${params.expectedVersion}`,
@@ -526,6 +574,13 @@ export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promis
 
     return updated;
   });
+
+  if (result.changed) {
+    recordWorkflowJobStatusChanged(result.job.status);
+    recordWorkflowJobTimedOut();
+  }
+
+  return result.job;
 }
 
 /**
@@ -550,8 +605,9 @@ export async function resolveJobAfterLeaseExpiry(params: {
   jobId: string;
   expectedVersion: number;
 }): Promise<{status: RuntimeCompletionStatus; jobVersion: number}> {
-  return await db().transaction(async (tx) => {
+  const result = await db().transaction(async (tx) => {
     const jobSteps = await getStepsByJobIdForUpdate(params.jobId, tx);
+    let changedJob: Job | null = null;
 
     // A job with no steps is malformed, not a runner-died-mid-job failure. Surface
     // it loudly instead of silently marking the job failed and hiding the bad state.
@@ -561,25 +617,32 @@ export async function resolveJobAfterLeaseExpiry(params: {
     }
 
     if (jobSteps.every((step) => isTerminal(step.status))) {
-      await updateJobStatusAtVersion(tx, {
+      const updated = await updateJobStatusAtVersion(tx, {
         jobId: params.jobId,
         status: deriveCompletion(jobSteps),
         expectedVersion: params.expectedVersion,
       });
+      changedJob = updated?.changed ? updated.job : null;
     } else {
-      await updateJobStatusAtVersion(tx, {
+      const updated = await updateJobStatusAtVersion(tx, {
         jobId: params.jobId,
         status: 'failed',
         expectedVersion: params.expectedVersion,
       });
+      changedJob = updated?.changed ? updated.job : null;
       await bulkUpdateStepStatuses({jobId: params.jobId, status: 'cancelled'}, tx);
     }
 
     const row = (await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1))[0];
     if (!row) throw new Error(`Job not found resolving lease expiry: ${params.jobId}`);
     const status: RuntimeCompletionStatus = row.status === 'succeeded' ? 'succeeded' : 'failed';
-    return {status, jobVersion: row.version};
+    return {status, jobVersion: row.version, changedJob};
   });
+
+  recordWorkflowJobLeaseExpiryResolved(result.status);
+  if (result.changedJob) recordWorkflowJobStatusChanged(result.changedJob.status);
+
+  return {status: result.status, jobVersion: result.jobVersion};
 }
 
 // Enqueue the steps-settled signal in the same transaction as the final per-step
@@ -604,6 +667,7 @@ export async function writeJobStepsSettledOutbox(
     type: WORKFLOWS_JOB_STEPS_SETTLED,
     payload: {jobId: params.jobId, runId, status: params.status},
   });
+  recordWorkflowJobStepsSettled(params.status);
 }
 
 export interface BulkUpdateStepStatusesParams {
@@ -816,6 +880,7 @@ export async function writeStepRestartEnqueuedOutbox(
       reason: params.reason,
     },
   });
+  recordWorkflowStepRestartEnqueued();
 }
 
 // Count a single step's own attempts. Used to bound the restart cap on the

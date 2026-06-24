@@ -11,6 +11,7 @@ export type {
   ListWorkflowRunsResult,
   UpdateJobStatusParams,
   UpdateWorkflowRunStatusParams,
+  WorkflowExecutionDepth,
   WorkflowRunAggregates,
   WorkflowRunFilters,
 } from './workflow-runs.js';
@@ -25,6 +26,7 @@ export {
   getStepsByJobId,
   getStepsByJobIdForUpdate,
   getStepsByJobIds,
+  getWorkflowExecutionDepth,
   getWorkflowRunAggregates,
   getWorkflowRunById,
   listWorkflowRuns,
