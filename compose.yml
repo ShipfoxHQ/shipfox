@@ -47,7 +47,7 @@ services:
       retries: 10
 
   garage-init:
-    image: alpine:3.23
+    image: alpine:3.24
     depends_on:
       garage:
         condition: service_healthy
@@ -96,7 +96,7 @@ services:
       start_period: 30s
 
   gitea-init:
-    image: alpine:3.23
+    image: alpine:3.24
     depends_on:
       gitea:
         condition: service_healthy
