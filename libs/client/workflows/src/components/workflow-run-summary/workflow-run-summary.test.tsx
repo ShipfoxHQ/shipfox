@@ -1,5 +1,5 @@
 import type {RunResponseDto} from '@shipfox/api-workflows-dto';
-import {screen, within} from '@testing-library/react';
+import {fireEvent, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {renderProjectPage} from '#test/pages.js';
 import {WorkflowRunSummary} from './workflow-run-summary.js';
@@ -44,7 +44,33 @@ describe('WorkflowRunSummary', () => {
     expect(copyButton).toBeInTheDocument();
     expect(copyButton).toHaveTextContent('66666666');
     expect(copyButton).not.toHaveTextContent('Copied');
-    expect(await screen.findByText('Copied')).toBeInTheDocument();
+    expect(await screen.findByRole('status')).toHaveTextContent('Copied');
+
+    await waitFor(
+      () => {
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      },
+      {timeout: 3000},
+    );
+    expect(screen.getByRole('button', {name: `Copy run id ${RUN_ID}`})).toBeInTheDocument();
+  });
+
+  test('dismisses copy feedback on scroll', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {writeText: vi.fn().mockResolvedValue(undefined)},
+    });
+    renderSummary();
+
+    await user.click(await screen.findByRole('button', {name: `Copy run id ${RUN_ID}`}));
+    expect(await screen.findByRole('status')).toHaveTextContent('Copied');
+
+    fireEvent.scroll(window);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
   });
 
   test('omits empty trigger metadata', () => {
