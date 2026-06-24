@@ -1,4 +1,5 @@
 import type {RunJobDetailDto, RunStepDetailDto, StepAttemptDto} from '@shipfox/api-workflows-dto';
+import {LogView, type LogViewProps} from '@shipfox/client-logs';
 import {Text} from '@shipfox/react-ui';
 import type {Meta, StoryObj} from '@storybook/react';
 import {WorkflowStepList} from './workflow-step-list.js';
@@ -135,11 +136,63 @@ export const CollapsedAndExpanded: Story = {
     return (
       <WorkflowStepList
         job={makeJob({steps: [build, deploy]})}
-        defaultSelectedStepId={deployAttempt.id}
+        defaultSelectedAttemptId={deployAttempt.id}
         renderExpandedStep={({stepId}) => (
           <Text size="sm" className="text-foreground-neutral-subtle">
             Slot content for {stepId}
           </Text>
+        )}
+      />
+    );
+  },
+};
+
+const activeLogRecords: LogViewProps['records'] = [
+  {
+    v: 1,
+    ts: Date.parse('2026-06-21T12:00:00.000Z'),
+    type: 'output',
+    stream: 'stdout',
+    data: '$ pnpm test --filter=@shipfox/client-workflows\n',
+  },
+  {
+    v: 1,
+    ts: Date.parse('2026-06-21T12:00:01.000Z'),
+    type: 'output',
+    stream: 'stdout',
+    data: 'workflow-step-list.test.tsx 18 tests passed\n',
+  },
+  {
+    v: 1,
+    ts: Date.parse('2026-06-21T12:00:02.000Z'),
+    type: 'output',
+    stream: 'stdout',
+    data: 'step-attempt-log-panel.test.tsx running smart-tail checks\n',
+  },
+  {
+    v: 1,
+    ts: Date.parse('2026-06-21T12:00:03.000Z'),
+    type: 'output',
+    stream: 'stdout',
+    data: 'waiting for live log chunks...\n',
+  },
+];
+
+export const ActiveExpandedLogs: Story = {
+  render: () => {
+    const attempt = makeAttempt({status: 'running'});
+    const step = makeStep({
+      name: 'pnpm test --filter=@shipfox/client-workflows',
+      status: 'running',
+      attempts: [attempt],
+    });
+
+    return (
+      <WorkflowStepList
+        job={makeJob({steps: [step]})}
+        autoSelectActiveAttempt
+        renderExpandedStep={() => (
+          <LogView records={activeLogRecords} className="max-h-[280px] rounded-8" />
         )}
       />
     );
@@ -324,7 +377,7 @@ export const ExpandedSlot: Story = {
     return (
       <WorkflowStepList
         job={makeJob({steps: [step]})}
-        defaultSelectedStepId={attempt.id}
+        defaultSelectedAttemptId={attempt.id}
         renderExpandedStep={({stepId}) => (
           <Text size="sm" className="text-foreground-neutral-subtle">
             Injected detail placeholder for {stepId}

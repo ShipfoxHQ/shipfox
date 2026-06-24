@@ -100,6 +100,49 @@ describe('buildWorkflowStepListModel', () => {
     expect(result.entries.map((entry) => entry.label)).toEqual(['build']);
   });
 
+  test('has no active entry when no attempt is running', () => {
+    const step = makeStep({
+      attempts: [
+        makeAttempt({attempt: 1, status: 'failed'}),
+        makeAttempt({attempt: 2, status: 'succeeded'}),
+      ],
+    });
+
+    const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
+
+    expect(result.activeEntryId).toBeUndefined();
+  });
+
+  test('uses the latest running attempt by execution order as the active entry', () => {
+    const earlier = makeAttempt({status: 'running', execution_order: 2});
+    const later = makeAttempt({status: 'running', execution_order: 4});
+    const finished = makeAttempt({status: 'succeeded', execution_order: 5});
+
+    const result = buildWorkflowStepListModel({
+      job: makeJob({
+        steps: [
+          makeStep({name: 'install', status: 'running', attempts: [earlier]}),
+          makeStep({name: 'deploy', position: 1, status: 'running', attempts: [later]}),
+          makeStep({name: 'notify', position: 2, status: 'succeeded', attempts: [finished]}),
+        ],
+      }),
+    });
+
+    expect(result.entries.map((entry) => entry.id)).toEqual([earlier.id, later.id, finished.id]);
+    expect(result.activeEntryId).toBe(later.id);
+  });
+
+  test('breaks active running-attempt execution-order ties by sorted entry order', () => {
+    const first = makeAttempt({attempt: 1, execution_order: 7, status: 'running'});
+    const second = makeAttempt({attempt: 2, execution_order: 7, status: 'running'});
+    const step = makeStep({attempts: [second, first]});
+
+    const result = buildWorkflowStepListModel({job: makeJob({steps: [step]})});
+
+    expect(result.entries.map((entry) => entry.id)).toEqual([first.id, second.id]);
+    expect(result.activeEntryId).toBe(second.id);
+  });
+
   test.each(
     runStatusSchema.options,
   )('maps the %s step status through the shared visual', (status) => {

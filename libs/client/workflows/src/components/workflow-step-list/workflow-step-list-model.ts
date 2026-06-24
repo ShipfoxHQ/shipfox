@@ -58,6 +58,7 @@ export interface WorkflowStepListModel {
   jobId: string;
   jobName: string;
   stepCount: number;
+  activeEntryId: string | undefined;
   entries: WorkflowStepListEntryModel[];
 }
 
@@ -69,6 +70,7 @@ export function buildWorkflowStepListModel({job}: {job: RunJobDetailDto}): Workf
     jobId: job.id,
     jobName: job.name,
     stepCount: steps.length,
+    activeEntryId: latestRunningEntryId(entries),
     entries,
   };
 }
@@ -177,6 +179,14 @@ function compareEntries(
     left.attempt.attempt - right.attempt.attempt ||
     left.id.localeCompare(right.id)
   );
+}
+
+function latestRunningEntryId(entries: readonly WorkflowStepListEntryModel[]): string | undefined {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry?.status.kind === 'running') return entry.id;
+  }
+  return undefined;
 }
 
 function normalizeStatus(status: string): string {

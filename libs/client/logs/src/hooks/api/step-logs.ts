@@ -1,7 +1,12 @@
 import type {ReadLogsResponseDto} from '@shipfox/api-logs-dto';
-import {apiRequest} from '@shipfox/client-api';
+import {ApiError, apiRequest} from '@shipfox/client-api';
 import {useQuery, useQueryClient} from '@tanstack/react-query';
-import {mergeLogRead, type StepLogSnapshot, stepLogRefetchInterval} from '#core/log-read.js';
+import {
+  mergeLogRead,
+  STEP_LOG_LIVE_REFETCH_MS,
+  type StepLogSnapshot,
+  stepLogRefetchInterval,
+} from '#core/log-read.js';
 
 export const stepLogsQueryKeys = {
   all: ['step-logs'] as const,
@@ -45,13 +50,29 @@ async function readPresignedLogObject(url: string, signal?: AbortSignal): Promis
   return await response.text();
 }
 
-export function useStepAttemptLogsQuery(stepId: string | undefined, attempt: number | undefined) {
+export function isMissingStepLogStreamError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404 && error.code === 'not-found';
+}
+
+export interface UseStepAttemptLogsQueryOptions {
+  retryMissingStream?: boolean;
+  initialErrorRetryCount?: number;
+  initialErrorRetryDelayMs?: number;
+}
+
+export function useStepAttemptLogsQuery(
+  stepId: string | undefined,
+  attempt: number | undefined,
+  options: UseStepAttemptLogsQueryOptions = {},
+) {
   const queryClient = useQueryClient();
   const enabled = Boolean(stepId && attempt && Number.isInteger(attempt) && attempt > 0);
   const queryKey =
     enabled && stepId && attempt
       ? stepLogsQueryKeys.detail(stepId, attempt)
       : [...stepLogsQueryKeys.all, 'detail'];
+  const initialErrorRetryCount = options.initialErrorRetryCount ?? 0;
+  const initialErrorRetryDelayMs = options.initialErrorRetryDelayMs ?? STEP_LOG_LIVE_REFETCH_MS;
 
   return useQuery({
     queryKey,
@@ -72,8 +93,24 @@ export function useStepAttemptLogsQuery(stepId: string | undefined, attempt: num
 
       return mergeLogRead(previous, {mode: 'inline', response});
     },
-    refetchInterval: (query) =>
-      stepLogRefetchInterval(query.state.data, query.state.status === 'error'),
+    retry: (failureCount, error) => {
+      if (initialErrorRetryCount <= 0) return false;
+      if (queryClient.getQueryData<StepLogSnapshot>(queryKey) !== undefined) return false;
+      if (options.retryMissingStream && isMissingStepLogStreamError(error)) return false;
+      return failureCount < initialErrorRetryCount;
+    },
+    retryDelay: initialErrorRetryDelayMs,
+    refetchInterval: (query) => {
+      if (
+        options.retryMissingStream &&
+        query.state.data === undefined &&
+        isMissingStepLogStreamError(query.state.error)
+      ) {
+        return STEP_LOG_LIVE_REFETCH_MS;
+      }
+
+      return stepLogRefetchInterval(query.state.data, query.state.status === 'error');
+    },
     refetchIntervalInBackground: false,
     refetchOnMount: (query) => !query.state.data?.complete,
     refetchOnWindowFocus: (query) => !query.state.data?.complete,
