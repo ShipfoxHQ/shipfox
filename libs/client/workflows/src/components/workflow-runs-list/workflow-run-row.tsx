@@ -3,7 +3,6 @@ import {Code, cn, RelativeTime} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {WorkflowRun} from '#core/workflow-run.js';
-import {runTriggerLabel} from './run-display.js';
 
 export function WorkflowRunRowList({
   runs,
@@ -45,8 +44,6 @@ export function WorkflowRunRow({
   projectId: string;
   selected: boolean;
 }) {
-  const triggerLabel = runTriggerLabel(run);
-
   const body = (
     <>
       {selected ? (
@@ -64,7 +61,7 @@ export function WorkflowRunRow({
       </div>
 
       <div className="flex min-w-0 items-center gap-7">
-        {triggerLabel ? (
+        {run.triggerLabel ? (
           <>
             <TriggerSourceIcon
               source={run.triggerSource}
@@ -75,7 +72,7 @@ export function WorkflowRunRow({
               variant="label"
               className="min-w-0 flex-1 truncate text-foreground-neutral-subtle"
             >
-              {triggerLabel}
+              {run.triggerLabel}
             </Code>
           </>
         ) : (

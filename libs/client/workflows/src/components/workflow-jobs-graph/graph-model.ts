@@ -83,7 +83,7 @@ export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): Wor
       id: 'trigger',
       source: run.triggerSource,
       event: run.triggerEvent,
-      label: triggerLabel(run),
+      label: run.triggerLabel || 'trigger',
       column: 0,
       row: 0,
     },
@@ -188,11 +188,4 @@ function nodeInAdjacentColumn(
   const column = model.columns[current.column + offset];
   if (!column || column.length === 0) return undefined;
   return column[Math.min(current.row, column.length - 1)];
-}
-
-function triggerLabel(run: Pick<WorkflowRunDetail, 'triggerSource' | 'triggerEvent'>): string {
-  if (!run.triggerSource && !run.triggerEvent) return 'trigger';
-  if (!run.triggerSource) return run.triggerEvent;
-  if (!run.triggerEvent) return run.triggerSource;
-  return `${run.triggerSource} / ${run.triggerEvent}`;
 }

@@ -1,25 +1,5 @@
 import {workflowRun} from '#test/fixtures/workflow-run.js';
-import {runMatchesSearch, runMatchesStatusFilter, runTriggerLabel} from './run-display.js';
-
-describe('runTriggerLabel', () => {
-  test('joins trigger source and event with a slash', () => {
-    const label = runTriggerLabel(workflowRun({trigger_source: 'github', trigger_event: 'push'}));
-
-    expect(label).toBe('github / push');
-  });
-
-  test('drops an empty trigger event so the label has no dangling separator', () => {
-    const label = runTriggerLabel(workflowRun({trigger_source: 'manual', trigger_event: ''}));
-
-    expect(label).toBe('manual');
-  });
-
-  test('yields an empty label when neither source nor event is set', () => {
-    const label = runTriggerLabel(workflowRun({trigger_source: '', trigger_event: ''}));
-
-    expect(label).toBe('');
-  });
-});
+import {runMatchesSearch, runMatchesStatusFilter} from './run-display.js';
 
 describe('runMatchesSearch', () => {
   test('matches every run on a blank query', () => {
