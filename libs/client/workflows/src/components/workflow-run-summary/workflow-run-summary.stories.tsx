@@ -32,6 +32,15 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
+export const WithSourceButton: Story = {
+  args: {
+    run: makeRun({source_snapshot: {format: 'yaml', content: 'jobs:\n  build:\n    steps: []'}}),
+    sourceAvailable: true,
+    sourceOpen: false,
+    sourcePanelId: 'workflow-source-panel',
+  },
+};
+
 const ALL_STATUSES: RunStatusDto[] = ['pending', 'running', 'succeeded', 'failed', 'cancelled'];
 
 export const Statuses: Story = {
@@ -94,6 +103,7 @@ function makeRun(overrides: Partial<RunResponseDto> = {}): RunResponseDto {
     trigger_event: 'fire',
     trigger_payload: {},
     inputs: null,
+    source_snapshot: null,
     created_at: '2026-06-21T12:00:00.000Z',
     updated_at: '2026-06-21T12:01:00.000Z',
     started_at: null,

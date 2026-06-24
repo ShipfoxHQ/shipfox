@@ -2,6 +2,7 @@ import {type RunResponseDto, runStatusSchema} from '@shipfox/api-workflows-dto';
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {
   Badge,
+  Button,
   Header,
   RelativeTime,
   Text,
@@ -9,6 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@shipfox/react-ui';
+import type {Ref} from 'react';
 import {useId} from 'react';
 import {Identifier} from '../identifier/index.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
@@ -19,7 +21,23 @@ const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
   ...runStatusSchema.options.map((status) => getWorkflowStatusVisual(status).label.length),
 );
 
-export function WorkflowRunSummary({run}: {run: RunResponseDto}) {
+export interface WorkflowRunSummaryProps {
+  run: RunResponseDto;
+  sourceAvailable?: boolean | undefined;
+  sourceOpen?: boolean | undefined;
+  sourcePanelId?: string | undefined;
+  sourceButtonRef?: Ref<HTMLButtonElement> | undefined;
+  onSourceToggle?: (() => void) | undefined;
+}
+
+export function WorkflowRunSummary({
+  run,
+  sourceAvailable = false,
+  sourceOpen = false,
+  sourcePanelId,
+  sourceButtonRef,
+  onSourceToggle,
+}: WorkflowRunSummaryProps) {
   const headingId = useId();
   const model = toWorkflowRunSummary(run);
 
@@ -80,6 +98,21 @@ export function WorkflowRunSummary({run}: {run: RunResponseDto}) {
             <RelativeTime value={model.triggeredAt} className="font-code text-xs leading-20" />
           </Text>
         </div>
+
+        {sourceAvailable ? (
+          <Button
+            ref={sourceButtonRef}
+            type="button"
+            variant="transparentMuted"
+            size="sm"
+            iconLeft="bookOpen"
+            aria-controls={sourcePanelId}
+            aria-expanded={sourceOpen}
+            onClick={onSourceToggle}
+          >
+            Source
+          </Button>
+        ) : null}
       </div>
     </section>
   );

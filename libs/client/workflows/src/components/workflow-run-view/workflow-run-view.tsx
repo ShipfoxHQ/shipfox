@@ -1,10 +1,11 @@
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {RelativeTimeProvider} from '@shipfox/react-ui';
-import {useState} from 'react';
+import {useEffect, useId, useRef, useState} from 'react';
 import {useWorkflowRunQuery} from '#hooks/api/workflow-runs.js';
 import {WorkflowJobsGraph} from '../workflow-jobs-graph/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
+import {WorkflowSourcePanel} from '../workflow-source-panel/index.js';
 import {WorkflowStepList} from '../workflow-step-list/index.js';
 import {
   WorkflowRunNotFound,
@@ -26,7 +27,7 @@ export function WorkflowRunView({runId}: WorkflowRunViewProps) {
 
   return (
     <RelativeTimeProvider>
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1">
         <RunViewContent query={runQuery} />
       </div>
     </RelativeTimeProvider>
@@ -35,6 +36,15 @@ export function WorkflowRunView({runId}: WorkflowRunViewProps) {
 
 function RunViewContent({query}: {query: ReturnType<typeof useWorkflowRunQuery>}) {
   const [selectedJobId, setSelectedJobId] = useState<string | undefined>();
+  const [sourcePanelOpen, setSourcePanelOpen] = useState(false);
+  const sourcePanelId = useId();
+  const sourceButtonRef = useRef<HTMLButtonElement>(null);
+  const sourceAvailable =
+    query.data?.source_snapshot !== null && query.data?.source_snapshot !== undefined;
+
+  useEffect(() => {
+    if (!sourceAvailable) setSourcePanelOpen(false);
+  }, [sourceAvailable]);
 
   if (query.isPending) return <WorkflowRunSkeleton />;
 
@@ -52,19 +62,40 @@ function RunViewContent({query}: {query: ReturnType<typeof useWorkflowRunQuery>}
 
   const selectedJob =
     query.data.jobs.find((job) => job.id === selectedJobId) ?? query.data.jobs.at(0);
+  const sourceSnapshot = query.data.source_snapshot;
+
+  function closeSourcePanel() {
+    setSourcePanelOpen(false);
+    sourceButtonRef.current?.focus();
+  }
 
   return (
     <>
-      <WorkflowRunSummary run={query.data} />
-      {query.isError ? <WorkflowRunStaleError query={query} /> : null}
-      <div className="flex min-h-0 flex-1 flex-col gap-16 overflow-auto bg-background-neutral-base p-16">
-        <WorkflowJobsGraph
+      <div className="flex min-w-0 flex-1 flex-col">
+        <WorkflowRunSummary
           run={query.data}
-          selectedJobId={selectedJob?.id}
-          onSelectedJobChange={setSelectedJobId}
+          sourceAvailable={sourceAvailable}
+          sourceOpen={sourcePanelOpen}
+          sourcePanelId={sourcePanelId}
+          sourceButtonRef={sourceButtonRef}
+          onSourceToggle={() => setSourcePanelOpen((open) => !open)}
         />
-        {selectedJob ? <WorkflowStepList job={selectedJob} className="max-h-[50vh]" /> : null}
+        {query.isError ? <WorkflowRunStaleError query={query} /> : null}
+        <div className="flex min-h-0 flex-1 flex-col gap-16 overflow-auto bg-background-neutral-base p-16">
+          <WorkflowJobsGraph
+            run={query.data}
+            selectedJobId={selectedJob?.id}
+            onSelectedJobChange={setSelectedJobId}
+          />
+          {selectedJob ? <WorkflowStepList job={selectedJob} className="max-h-[50vh]" /> : null}
+        </div>
       </div>
+      <WorkflowSourcePanel
+        id={sourcePanelId}
+        source={sourceSnapshot}
+        open={sourcePanelOpen && sourceAvailable}
+        onClose={closeSourcePanel}
+      />
     </>
   );
 }
