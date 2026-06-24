@@ -56,9 +56,18 @@ export function WorkflowRunSummary({
               </span>
             </Badge>
           </span>
-          <Header id={headingId} variant="h3" className="min-w-0 truncate">
-            {model.name}
-          </Header>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Header id={headingId} variant="h3" className="min-w-0 truncate">
+                {model.name}
+              </Header>
+            </TooltipTrigger>
+            <TooltipContent>
+              <Text as="span" size="xs" className="max-w-[360px] break-words">
+                {model.name}
+              </Text>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         <span
@@ -69,25 +78,27 @@ export function WorkflowRunSummary({
         <Identifier display={model.shortId} value={model.id} label="run id" />
 
         {model.triggerLabel ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex min-w-0 flex-1 items-center gap-4 text-foreground-neutral-subtle">
-                <TriggerSourceIcon
-                  source={model.triggerSource}
-                  aria-hidden="true"
-                  className="size-14 shrink-0"
-                />
-                <Text as="span" size="sm" className="min-w-0 truncate">
+          <span className="min-w-0 flex-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex max-w-full min-w-0 items-center gap-4 text-foreground-neutral-subtle">
+                  <TriggerSourceIcon
+                    source={model.triggerSource}
+                    aria-hidden="true"
+                    className="size-14 shrink-0"
+                  />
+                  <Text as="span" size="sm" className="min-w-0 truncate">
+                    {model.triggerLabel}
+                  </Text>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <Text as="span" size="xs" className="max-w-[360px] break-words">
                   {model.triggerLabel}
                 </Text>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              <Text as="span" size="xs" className="max-w-[360px] break-words">
-                {model.triggerLabel}
-              </Text>
-            </TooltipContent>
-          </Tooltip>
+              </TooltipContent>
+            </Tooltip>
+          </span>
         ) : (
           <span className="min-w-0 flex-1" />
         )}
