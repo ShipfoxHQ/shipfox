@@ -17,6 +17,11 @@ export interface InitializedModules {
   workers: ModuleWorker[];
 }
 
+export interface StartModuleWorkersOptions {
+  workers: ModuleWorker[];
+  onWorkerFailure?: (error: unknown, worker: ModuleWorker) => void | Promise<void>;
+}
+
 /**
  * Initializes modules in array order. Modules are processed sequentially
  * so migration order is deterministic — list modules with shared dependencies first.
@@ -113,7 +118,7 @@ export function registerModuleMetrics(options: {modules: ShipfoxModule[]}): void
  * Creates Temporal workers for all module-declared workers and starts their workflows.
  * Call this after `initializeModules` so that all publishers/subscribers are registered.
  */
-export async function startModuleWorkers(options: {workers: ModuleWorker[]}): Promise<void> {
+export async function startModuleWorkers(options: StartModuleWorkersOptions): Promise<void> {
   if (options.workers.length === 0) return;
 
   await createTemporalClient();
@@ -143,15 +148,23 @@ export async function startModuleWorkers(options: {workers: ModuleWorker[]}): Pr
       }
 
       worker.run().catch((error) => {
+        if (options.onWorkerFailure) {
+          void Promise.resolve(options.onWorkerFailure(error, workerDef)).catch((handlerError) => {
+            logger().error(
+              {err: handlerError, workerErr: error, taskQueue: workerDef.taskQueue},
+              'Module worker failure handler failed',
+            );
+          });
+          return;
+        }
         logger().error({err: error, taskQueue: workerDef.taskQueue}, 'Worker stopped unexpectedly');
       });
 
       logger().info({taskQueue: workerDef.taskQueue}, 'Module worker started');
     } catch (error) {
-      logger().warn(
-        {err: error, taskQueue: workerDef.taskQueue},
-        'Failed to start module worker, will retry on next restart',
-      );
+      throw new Error(`Failed to start module worker for task queue ${workerDef.taskQueue}`, {
+        cause: error,
+      });
     }
   }
 }
