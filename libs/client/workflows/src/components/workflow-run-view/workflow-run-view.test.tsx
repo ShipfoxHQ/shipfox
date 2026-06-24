@@ -1,6 +1,12 @@
-import type {JobStatusDto, RunStepDetailDto, StepAttemptDto} from '@shipfox/api-workflows-dto';
+import type {
+  JobStatusDto,
+  RunDetailResponseDto,
+  RunStepDetailDto,
+  StepAttemptDto,
+} from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {screen, within} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {WorkflowRunView} from './workflow-run-view.js';
 
@@ -54,6 +60,63 @@ describe('WorkflowRunView', () => {
       await screen.findByRole('button', {name: 'Retry loading workflow run'}),
     ).toBeInTheDocument();
   });
+
+  test('opens and closes workflow source without resetting the selected job', async () => {
+    const user = userEvent.setup();
+    configureApiClient({
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            runDetailDto({
+              source_snapshot: {
+                format: 'yaml',
+                content: 'jobs:\n  build:\n    steps:\n      - run: pnpm test',
+              },
+            }),
+          ),
+        ),
+      ),
+    });
+
+    renderView();
+
+    const deployNode = await screen.findByRole('button', {
+      name: 'deploy, Running, Depends on build',
+    });
+    await user.click(deployNode);
+    expect(deployNode).toHaveAttribute('aria-pressed', 'true');
+
+    const sourceButton = screen.getByRole('button', {name: 'Source'});
+    const panelId = sourceButton.getAttribute('aria-controls');
+    expect(panelId).toBeTruthy();
+    expect(sourceButton).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(sourceButton);
+
+    const sourcePanel = screen.getByRole('region', {name: 'Workflow source'});
+    expect(sourceButton).toHaveAttribute('aria-expanded', 'true');
+    expect(sourcePanel).toHaveAttribute('id', panelId);
+    expect(sourcePanel).toHaveTextContent('pnpm test');
+
+    await user.click(screen.getByRole('button', {name: 'Close source'}));
+
+    expect(sourceButton).toHaveFocus();
+    expect(sourceButton).toHaveAttribute('aria-expanded', 'false');
+    expect(deployNode).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('region', {name: 'Step attempts'})).toBeInTheDocument();
+  });
+
+  test('does not render a source control when the run has no source snapshot', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(runDetailDto({source_snapshot: null})))),
+    });
+
+    renderView();
+
+    await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(screen.queryByRole('button', {name: 'Source'})).not.toBeInTheDocument();
+  });
 });
 
 function renderView() {
@@ -62,7 +125,11 @@ function renderView() {
   ));
 }
 
-function runDetailDto() {
+function runDetailDto(overrides: Partial<RunDetailResponseDto> = {}) {
+  return {...baseRunDetailDto(), ...overrides};
+}
+
+function baseRunDetailDto(): RunDetailResponseDto {
   return {
     id: RUN_ID,
     project_id: '44444444-4444-4444-8444-444444444444',
@@ -73,6 +140,7 @@ function runDetailDto() {
     trigger_event: 'fire',
     trigger_payload: {},
     inputs: null,
+    source_snapshot: null,
     created_at: '2026-05-07T01:01:00.000Z',
     updated_at: '2026-05-07T01:02:00.000Z',
     started_at: null,
@@ -119,6 +187,9 @@ function jobDto({
     position,
     created_at: '2026-05-07T01:01:00.000Z',
     updated_at: '2026-05-07T01:02:00.000Z',
+    queued_at: null,
+    started_at: null,
+    finished_at: null,
     steps,
   };
 }

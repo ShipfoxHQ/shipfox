@@ -50,9 +50,41 @@ describe('WorkflowRunSummary', () => {
 
     expect(screen.queryByText('manual / fire')).not.toBeInTheDocument();
   });
+
+  test('renders source control only when source is available', async () => {
+    const user = userEvent.setup();
+    const onSourceToggle = vi.fn();
+    renderSummary(
+      {source_snapshot: {format: 'yaml', content: 'name: deploy-web'}},
+      {
+        sourceAvailable: true,
+        sourceOpen: false,
+        sourcePanelId: 'workflow-source-panel',
+        onSourceToggle,
+      },
+    );
+
+    const sourceButton = await screen.findByRole('button', {name: 'Source'});
+    await user.click(sourceButton);
+
+    expect(sourceButton).toHaveAttribute('aria-controls', 'workflow-source-panel');
+    expect(sourceButton).toHaveAttribute('aria-expanded', 'false');
+    expect(onSourceToggle).toHaveBeenCalledTimes(1);
+  });
+
+  test('omits source control when source is unavailable', async () => {
+    renderSummary();
+
+    await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(screen.queryByRole('button', {name: 'Source'})).not.toBeInTheDocument();
+  });
 });
 
-function renderSummary(overrides: Partial<RunResponseDto> = {}) {
+function renderSummary(
+  overrides: Partial<RunResponseDto> = {},
+  props: Omit<Parameters<typeof WorkflowRunSummary>[0], 'run'> = {},
+) {
   renderProjectPage('/workspaces/ws-demo/projects/proj-demo/runs/run-demo', () => (
     <WorkflowRunSummary
       run={{
@@ -72,6 +104,7 @@ function renderSummary(overrides: Partial<RunResponseDto> = {}) {
         finished_at: null,
         ...overrides,
       }}
+      {...props}
     />
   ));
 }
