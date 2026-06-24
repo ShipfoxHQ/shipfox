@@ -133,14 +133,6 @@ function GraphEdges({model}: {model: WorkflowJobGraphModel}) {
               stroke="currentColor"
               strokeWidth="1"
             />
-            <path
-              d={`M ${to.x - 4} ${to.y - 4} L ${to.x} ${to.y} L ${to.x - 4} ${to.y + 4}`}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
           </g>
         );
       })}
