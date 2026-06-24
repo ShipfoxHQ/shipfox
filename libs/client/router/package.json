@@ -41,7 +41,7 @@
     "@shipfox/client-workspace-settings": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",
-    "@tanstack/react-router": "^1.170.15",
+    "@tanstack/react-router": "^1.170.16",
     "jotai": "^2.19.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

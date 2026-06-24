@@ -51,7 +51,7 @@
     "@tanstack/react-query": "^5.101.0"
   },
   "peerDependencies": {
-    "@tanstack/react-router": "^1.170.15",
+    "@tanstack/react-router": "^1.170.16",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -62,7 +62,7 @@
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vite": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@tanstack/react-router": "^1.170.15",
+    "@tanstack/react-router": "^1.170.16",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@types/react": "^19.1.11",
