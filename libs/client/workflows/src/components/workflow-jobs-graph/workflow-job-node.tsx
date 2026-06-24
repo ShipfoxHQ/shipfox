@@ -1,5 +1,6 @@
 import {Badge, Code, cn, Text, Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui';
 import type {KeyboardEventHandler, Ref} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {WorkflowGraphTriggerNode, WorkflowJobGraphNode} from './graph-model.js';
@@ -37,13 +38,12 @@ export function WorkflowJobNode({
 }) {
   const visual = getWorkflowStatusVisual(node.sourceStatus);
   const dependencyText = dependencyLabel(node.currentDependencyCount);
-  const shouldShowTooltip = node.label.length > 24 || dependencyText !== undefined;
   const accessibleLabel =
     dependencyText !== undefined
       ? `${node.label}, ${visual.label}, ${dependencyText.accessible}`
       : `${node.label}, ${visual.label}`;
 
-  const button = (
+  return (
     <button
       ref={ref}
       type="button"
@@ -65,36 +65,57 @@ export function WorkflowJobNode({
       ) : null}
       <div className="flex min-w-0 flex-1 items-center gap-8">
         <WorkflowStatusIcon status={node.sourceStatus} size={14} tooltip={false} />
-        <Code variant="label" bold className="min-w-0 truncate text-foreground-neutral-base">
-          {node.label}
-        </Code>
+        <JobLabel label={node.label} />
       </div>
       {dependencyText ? (
-        <Badge
-          variant="neutral"
-          size="2xs"
-          iconLeft="gitBranchLine"
-          aria-hidden="true"
-          className="font-code"
-        >
-          {dependencyText.count}
-        </Badge>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span aria-hidden="true" className="shrink-0">
+              <Badge variant="neutral" size="2xs" iconLeft="nodeTree" className="font-code">
+                {dependencyText.count}
+              </Badge>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{dependencyText.tooltip}</TooltipContent>
+        </Tooltip>
       ) : null}
     </button>
   );
+}
 
-  if (!shouldShowTooltip) return button;
+function JobLabel({label}: {label: string}) {
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
+
+  useEffect(() => {
+    const element = labelRef.current;
+    if (!element) return;
+    if (label.length === 0) {
+      setIsTruncated(false);
+      return;
+    }
+
+    const updateTruncation = () => {
+      setIsTruncated(element.scrollWidth > element.clientWidth);
+    };
+    updateTruncation();
+
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(updateTruncation);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [label]);
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent>
-        <div className="flex max-w-320 flex-col gap-2">
-          <span>{node.label}</span>
-          <span className="opacity-70">{visual.label}</span>
-          {dependencyText ? <span className="opacity-70">{dependencyText.tooltip}</span> : null}
-        </div>
-      </TooltipContent>
+      <TooltipTrigger asChild>
+        <span ref={labelRef} className="block min-w-0 truncate">
+          <Code as="span" variant="label" bold className="text-foreground-neutral-base">
+            {label}
+          </Code>
+        </span>
+      </TooltipTrigger>
+      {isTruncated ? <TooltipContent>{label}</TooltipContent> : null}
     </Tooltip>
   );
 }
