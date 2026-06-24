@@ -1,5 +1,10 @@
 import {isPermanentRunWorkflowError, runWorkflow} from '@shipfox/api-workflows';
 import {findMatchingSubscriptions} from '#db/subscriptions.js';
+import {
+  eventOutcomeCount,
+  eventReceivedCount,
+  subscriptionTriggeredCount,
+} from '#metrics/instance.js';
 import {readConfigInputs} from './config.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 
@@ -28,6 +33,8 @@ export interface DispatchIntegrationEventParams {
 export async function dispatchIntegrationEvent(
   params: DispatchIntegrationEventParams,
 ): Promise<void> {
+  eventReceivedCount.add(1, {source: params.source});
+
   const history = await beginTriggerHistory({
     eventRef: params.eventRef,
     origin: 'integration',
@@ -47,6 +54,7 @@ export async function dispatchIntegrationEvent(
   });
 
   if (subscriptions.length === 0) {
+    eventOutcomeCount.add(1, {source: params.source, outcome: 'discarded'});
     await history.discarded();
     return;
   }
@@ -72,6 +80,7 @@ export async function dispatchIntegrationEvent(
       });
       await history.triggered(subscription, run);
       triggeredCount += 1;
+      subscriptionTriggeredCount.add(1, {source: params.source});
     } catch (error) {
       await history.errored(subscription, toReason(error));
       // Track presence with a flag, not `firstTransientError === undefined`: a thrown
@@ -84,14 +93,17 @@ export async function dispatchIntegrationEvent(
   }
 
   if (sawTransientError) {
+    eventOutcomeCount.add(1, {source: params.source, outcome: 'failed'});
     await history.failed(subscriptions.length);
     throw firstTransientError;
   }
 
   if (triggeredCount > 0) {
+    eventOutcomeCount.add(1, {source: params.source, outcome: 'routed'});
     await history.routed(subscriptions.length);
     return;
   }
 
+  eventOutcomeCount.add(1, {source: params.source, outcome: 'errored'});
   await history.allErrored(subscriptions.length);
 }
