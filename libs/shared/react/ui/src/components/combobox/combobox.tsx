@@ -3,9 +3,11 @@
 import type * as React from 'react';
 import type {CommandTriggerProps} from '../command/index.js';
 import {ComboboxContent, ComboboxInput, ComboboxList} from './combobox-content.js';
-import {ComboboxRoot, type ComboboxRootProps} from './combobox-root.js';
+import {ComboboxRoot} from './combobox-root.js';
 import type {ComboboxOption} from './combobox-state.js';
 import {ComboboxTrigger} from './combobox-trigger.js';
+
+export type {ComboboxOption};
 
 type ComboboxTriggerPassthroughProps = Omit<
   CommandTriggerProps,
@@ -79,19 +81,8 @@ export function Combobox({
   maxVisibleChips,
   ...triggerProps
 }: ComboboxProps) {
-  const rootProps = {
-    options,
-    disabled,
-    isLoading,
-    maxVisibleChips,
-    multiple,
-    value,
-    defaultValue,
-    onValueChange,
-  } as ComboboxRootProps;
-
-  return (
-    <ComboboxRoot {...rootProps}>
+  const children = (
+    <>
       <ComboboxTrigger
         variant={variant}
         size={size}
@@ -104,6 +95,45 @@ export function Combobox({
         {!multiple && <ComboboxInput placeholder={searchPlaceholder} />}
         <ComboboxList emptyState={emptyState} />
       </ComboboxContent>
-    </ComboboxRoot>
+    </>
+  );
+
+  const rootBaseProps = {
+    options,
+    disabled,
+    isLoading,
+    children,
+    ...(maxVisibleChips === undefined ? {} : {maxVisibleChips}),
+  };
+
+  if (multiple) {
+    const multiValueChangeProps = onValueChange === undefined ? {} : {onValueChange};
+
+    if (value !== undefined) {
+      return <ComboboxRoot {...rootBaseProps} multiple value={value} {...multiValueChangeProps} />;
+    }
+
+    const multiDefaultValueProps = defaultValue === undefined ? {} : {defaultValue};
+
+    return (
+      <ComboboxRoot
+        {...rootBaseProps}
+        multiple
+        {...multiDefaultValueProps}
+        {...multiValueChangeProps}
+      />
+    );
+  }
+
+  const singleValueChangeProps = onValueChange === undefined ? {} : {onValueChange};
+
+  if (value !== undefined) {
+    return <ComboboxRoot {...rootBaseProps} value={value} {...singleValueChangeProps} />;
+  }
+
+  const singleDefaultValueProps = defaultValue === undefined ? {} : {defaultValue};
+
+  return (
+    <ComboboxRoot {...rootBaseProps} {...singleDefaultValueProps} {...singleValueChangeProps} />
   );
 }

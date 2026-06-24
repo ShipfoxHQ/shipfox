@@ -1,6 +1,6 @@
 'use client';
 
-import type * as React from 'react';
+import * as React from 'react';
 import {cn} from '#utils/cn.js';
 import {
   CommandTrigger,
@@ -9,7 +9,7 @@ import {
 } from '../command/index.js';
 import {Icon} from '../icon/index.js';
 import {PopoverTrigger} from '../popover/index.js';
-import {activeDescendantId, useComboboxContext} from './combobox-context.js';
+import {activeDescendantId, ComboboxContext, useComboboxContext} from './combobox-context.js';
 import {partitionComboboxChipsByCount} from './combobox-state.js';
 
 export type ComboboxTriggerProps = Omit<CommandTriggerProps, 'children' | 'placeholder'> & {
@@ -43,6 +43,10 @@ export function ComboboxTrigger({
     'aria-labelledby': ariaLabelledby,
     'aria-describedby': ariaDescribedby,
   };
+  const triggerContext = React.useMemo(
+    () => (isDisabled === context.disabled ? context : {...context, disabled: isDisabled}),
+    [context, isDisabled],
+  );
 
   if (!context.multiple) {
     const triggerContent = children ?? (context.selectedValue ? <ComboboxValue /> : undefined);
@@ -67,8 +71,17 @@ export function ComboboxTrigger({
     );
   }
 
+  const inputProps = {
+    ...labelProps,
+    ...(onClick === undefined
+      ? {}
+      : {onClick: onClick as unknown as React.MouseEventHandler<HTMLInputElement>}),
+    ...(onKeyDown === undefined
+      ? {}
+      : {onKeyDown: onKeyDown as unknown as React.KeyboardEventHandler<HTMLInputElement>}),
+  };
   const triggerContent = children ?? (
-    <ComboboxValue placeholder={placeholder} inputProps={labelProps} />
+    <ComboboxValue placeholder={placeholder} inputProps={inputProps} />
   );
 
   return (
@@ -85,36 +98,38 @@ export function ComboboxTrigger({
         )}
         {...(props as Omit<React.ComponentProps<'div'>, 'onClick' | 'onKeyDown'>)}
       >
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-4 text-left">
-          {triggerContent}
-        </div>
-        <div className="mt-2 flex shrink-0 items-center gap-4">
-          {context.selectedValues.length > 1 && (
-            <button
-              type="button"
-              aria-label="Clear selected options"
-              disabled={isDisabled}
-              className={cn(
-                'inline-flex size-16 shrink-0 items-center justify-center rounded-4',
-                'text-foreground-neutral-muted transition-colors hover:text-foreground-neutral-base',
-                'focus-visible:shadow-border-interactive-with-active outline-none',
-                'disabled:pointer-events-none disabled:text-foreground-neutral-disabled',
-              )}
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                context.clearValues();
-              }}
-            >
-              <Icon name="closeLine" className="size-14" />
-            </button>
-          )}
-          {context.isLoading ? (
-            <Icon name="spinner" className="size-16 text-foreground-neutral-base" />
-          ) : (
-            <Icon name="expandUpDownLine" className="size-16 text-foreground-neutral-muted" />
-          )}
-        </div>
+        <ComboboxContext.Provider value={triggerContext}>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-4 text-left">
+            {triggerContent}
+          </div>
+          <div className="mt-2 flex shrink-0 items-center gap-4">
+            {context.selectedValues.length > 1 && (
+              <button
+                type="button"
+                aria-label="Clear selected options"
+                disabled={isDisabled}
+                className={cn(
+                  'inline-flex size-16 shrink-0 items-center justify-center rounded-4',
+                  'text-foreground-neutral-muted transition-colors hover:text-foreground-neutral-base',
+                  'focus-visible:shadow-border-interactive-with-active outline-none',
+                  'disabled:pointer-events-none disabled:text-foreground-neutral-disabled',
+                )}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  context.clearValues();
+                }}
+              >
+                <Icon name="closeLine" className="size-14" />
+              </button>
+            )}
+            {context.isLoading ? (
+              <Icon name="spinner" className="size-16 text-foreground-neutral-base" />
+            ) : (
+              <Icon name="expandUpDownLine" className="size-16 text-foreground-neutral-muted" />
+            )}
+          </div>
+        </ComboboxContext.Provider>
       </div>
     </PopoverTrigger>
   );
@@ -179,12 +194,9 @@ export function ComboboxChips({className, ...props}: ComboboxChipsProps) {
         <ComboboxChip key={value} value={value} />
       ))}
       {hiddenCount > 0 && (
-        <span
-          role="img"
-          className={overflowBadgeClassName}
-          aria-label={`${hiddenCount} more selected`}
-        >
-          +{hiddenCount}
+        <span className={overflowBadgeClassName}>
+          <span aria-hidden="true">+{hiddenCount}</span>
+          <span className="sr-only">{hiddenCount} more selected</span>
         </span>
       )}
     </div>

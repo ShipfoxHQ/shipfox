@@ -59,6 +59,8 @@ export type ComboboxRootProps =
 export function ComboboxRoot(props: ComboboxRootProps) {
   const {options, children, disabled = false, isLoading = false, maxVisibleChips} = props;
   const multiple = props.multiple === true;
+  // Selection callbacks are intentionally stable; read the latest controlled props
+  // through a ref so `onValueChange` updates do not force the whole context to churn.
   const propsRef = React.useRef(props);
   propsRef.current = props;
   const listId = React.useId();
@@ -189,6 +191,10 @@ export function ComboboxRoot(props: ComboboxRootProps) {
 
   const onListKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (disabled) {
+        return;
+      }
+
       const values = visibleOptions.map((option) => option.value);
 
       switch (event.key) {
@@ -240,7 +246,7 @@ export function ComboboxRoot(props: ComboboxRootProps) {
         default:
       }
     },
-    [open, searchValue, activeValue, visibleOptions, selectValue],
+    [disabled, open, searchValue, activeValue, visibleOptions, selectValue],
   );
 
   // Keep the active option valid. Preserve the user's highlight as long as it still

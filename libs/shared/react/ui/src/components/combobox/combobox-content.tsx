@@ -121,12 +121,20 @@ const optionClassName = cn(
   'aria-disabled:pointer-events-none aria-disabled:text-foreground-neutral-disabled',
 );
 
-type ComboboxItemProps = Omit<React.ComponentProps<'div'>, 'onSelect'> & {
-  option?: ComboboxOption;
-  value?: string;
+type ComboboxItemBaseProps = Omit<React.ComponentProps<'div'>, 'onSelect'> & {
   disabled?: boolean;
   onSelect?: (value: string) => void;
 };
+
+type ComboboxItemProps =
+  | (ComboboxItemBaseProps & {
+      option: ComboboxOption;
+      value?: never;
+    })
+  | (ComboboxItemBaseProps & {
+      option?: never;
+      value: string;
+    });
 
 export function ComboboxItem({
   option,
@@ -138,12 +146,7 @@ export function ComboboxItem({
   ...props
 }: ComboboxItemProps) {
   const context = useComboboxContext();
-  const itemValue = option?.value ?? value;
-
-  if (!itemValue) {
-    throw new Error('ComboboxItem requires either an option or a value.');
-  }
-
+  const itemValue = option ? option.value : value;
   const label =
     option?.label ?? (typeof children === 'string' ? children : context.getLabel(itemValue));
   const selected = context.isSelected(itemValue);
@@ -163,7 +166,7 @@ export function ComboboxItem({
       data-active={active || undefined}
       data-state={selected ? 'checked' : 'unchecked'}
       className={cn(optionClassName, className)}
-      onPointerMove={() => {
+      onPointerEnter={() => {
         if (!isDisabled) {
           context.setActiveValue(itemValue);
         }

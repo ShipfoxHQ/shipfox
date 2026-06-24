@@ -3,7 +3,7 @@ import {useState} from 'react';
 import {expect, screen, userEvent, within} from 'storybook/test';
 import {Label} from '../label/index.js';
 import {Combobox} from './combobox.js';
-import {ComboboxContent, ComboboxInput, ComboboxList} from './combobox-content.js';
+import {ComboboxContent, ComboboxList} from './combobox-content.js';
 import {ComboboxRoot} from './combobox-root.js';
 import type {ComboboxOption} from './combobox-state.js';
 import {ComboboxTrigger} from './combobox-trigger.js';
@@ -151,7 +151,6 @@ export const PrimitiveComposition: Story = {
         >
           <ComboboxTrigger id="combobox-primitives" placeholder="Pick repositories..." />
           <ComboboxContent>
-            <ComboboxInput placeholder="Search repositories..." />
             <ComboboxList emptyState="No repositories match." />
           </ComboboxContent>
         </ComboboxRoot>
@@ -177,7 +176,7 @@ export const GrowingChips: Story = {
       await canvas.findByLabelText('Remove apache');
       await canvas.findByLabelText('Remove apify');
       await canvas.findByLabelText('Remove release-production-multi-region-canary');
-      expect(canvas.queryByRole('img', {name: moreSelectedLabel})).toBeNull();
+      expect(canvas.queryByText(moreSelectedLabel)).toBeNull();
     });
   },
   render: () => {
@@ -208,7 +207,8 @@ export const CompactChips: Story = {
     await step('maxVisibleChips collapses the rest into a "+N" summary', async () => {
       await canvas.findByLabelText('Remove apache');
       await canvas.findByLabelText('Remove apache-superset');
-      await canvas.findByRole('img', {name: moreSelectedLabel});
+      await canvas.findByText('+3');
+      await canvas.findByText(moreSelectedLabel);
       expect(canvas.queryByLabelText('Remove apify')).toBeNull();
     });
   },
