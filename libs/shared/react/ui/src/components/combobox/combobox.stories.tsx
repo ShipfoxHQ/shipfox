@@ -32,6 +32,7 @@ const sampleItems: ComboboxOption[] = [
 
 const repositoriesLabel = /repositories/i;
 const moreSelectedLabel = /more selected/i;
+const emptyStateSupportText = /Repository list is limited to 100/i;
 
 const meta = {
   title: 'Components/Combobox',
@@ -422,6 +423,13 @@ export const KeyboardNavSingle: Story = {
 
 export const EmptyState: Story = {
   args: {} as never,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+
+    await user.click(canvas.getByText('abcxyz'));
+    await screen.findByText(emptyStateSupportText);
+  },
   render: () => {
     const [value, setValue] = useState('abcxyz');
 
