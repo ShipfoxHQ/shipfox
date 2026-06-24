@@ -12,6 +12,7 @@ export type {
   UpdateJobStatusParams,
   UpdateWorkflowRunStatusParams,
   WorkflowExecutionDepth,
+  WorkflowExecutionDepthParams,
   WorkflowRunAggregates,
   WorkflowRunFilters,
 } from './workflow-runs.js';

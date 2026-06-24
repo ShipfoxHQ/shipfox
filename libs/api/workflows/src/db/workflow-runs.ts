@@ -33,11 +33,9 @@ import {
   recordWorkflowJobQueued,
   recordWorkflowJobStarted,
   recordWorkflowJobStatusChanged,
-  recordWorkflowJobStepsSettled,
   recordWorkflowJobTimedOut,
   recordWorkflowRunCreated,
   recordWorkflowRunStatusChanged,
-  recordWorkflowStepRestartEnqueued,
 } from '#metrics/instance.js';
 import {db, type Tx} from './db.js';
 import {jobs, toJob} from './schema/jobs.js';
@@ -323,10 +321,37 @@ export interface WorkflowExecutionDepth {
   runningJobs: number;
 }
 
-export async function getWorkflowExecutionDepth(): Promise<WorkflowExecutionDepth> {
+export interface WorkflowExecutionDepthParams {
+  workspaceId?: string;
+}
+
+export async function getWorkflowExecutionDepth(
+  params: WorkflowExecutionDepthParams = {},
+): Promise<WorkflowExecutionDepth> {
+  const runConditions = [eq(workflowRuns.status, 'running')];
+  const jobConditions = [eq(jobs.status, 'running')];
+  if (params.workspaceId) {
+    runConditions.push(eq(workflowRuns.workspaceId, params.workspaceId));
+    jobConditions.push(eq(workflowRuns.workspaceId, params.workspaceId));
+  }
+
+  const jobQuery = params.workspaceId
+    ? db()
+        .select({value: count()})
+        .from(jobs)
+        .innerJoin(workflowRuns, eq(jobs.runId, workflowRuns.id))
+        .where(and(...jobConditions))
+    : db()
+        .select({value: count()})
+        .from(jobs)
+        .where(and(...jobConditions));
+
   const [runRows, jobRows] = await Promise.all([
-    db().select({value: count()}).from(workflowRuns).where(eq(workflowRuns.status, 'running')),
-    db().select({value: count()}).from(jobs).where(eq(jobs.status, 'running')),
+    db()
+      .select({value: count()})
+      .from(workflowRuns)
+      .where(and(...runConditions)),
+    jobQuery,
   ]);
 
   return {
@@ -667,7 +692,6 @@ export async function writeJobStepsSettledOutbox(
     type: WORKFLOWS_JOB_STEPS_SETTLED,
     payload: {jobId: params.jobId, runId, status: params.status},
   });
-  recordWorkflowJobStepsSettled(params.status);
 }
 
 export interface BulkUpdateStepStatusesParams {
@@ -880,7 +904,6 @@ export async function writeStepRestartEnqueuedOutbox(
       reason: params.reason,
     },
   });
-  recordWorkflowStepRestartEnqueued();
 }
 
 // Count a single step's own attempts. Used to bound the restart cap on the
