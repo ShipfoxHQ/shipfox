@@ -12,6 +12,9 @@ export function TriggerNode({trigger}: {trigger: WorkflowGraphTriggerNode}) {
     <Tooltip>
       <TooltipTrigger asChild>
         <div
+          role="button"
+          tabIndex={0}
+          aria-label={trigger.label}
           className="flex items-center justify-center rounded-full border border-border-neutral-base bg-background-components-base"
           style={{width: TRIGGER_SIZE, height: TRIGGER_SIZE}}
         >
