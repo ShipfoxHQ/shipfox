@@ -4,6 +4,7 @@ import * as React from 'react';
 import {Popover} from '../popover/index.js';
 import {ComboboxContext, type ComboboxContextValue, comboboxOptionId} from './combobox-context.js';
 import {
+  assertValidComboboxOptions,
   type ComboboxOption,
   clearMultiComboboxValues,
   filterComboboxOptions,
@@ -58,6 +59,7 @@ export type ComboboxRootProps =
 
 export function ComboboxRoot(props: ComboboxRootProps) {
   const {options, children, disabled = false, isLoading = false, maxVisibleChips} = props;
+  assertValidComboboxOptions(options);
   const multiple = props.multiple === true;
   // Selection callbacks are intentionally stable; read the latest controlled props
   // through a ref so `onValueChange` updates do not force the whole context to churn.
@@ -75,12 +77,19 @@ export function ComboboxRoot(props: ComboboxRootProps) {
   );
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
-      if (!disabled) {
-        setOpen(nextOpen);
+      if (disabled && nextOpen) {
+        return;
       }
+      setOpen(nextOpen);
     },
     [disabled],
   );
+
+  React.useEffect(() => {
+    if (disabled) {
+      setOpen(false);
+    }
+  }, [disabled]);
 
   const selectedValue = multiple
     ? ''
@@ -201,7 +210,7 @@ export function ComboboxRoot(props: ComboboxRootProps) {
         case 'ArrowDown':
           event.preventDefault();
           if (!open) {
-            setOpen(true);
+            handleOpenChange(true);
             return;
           }
           setActiveValue(getNextActiveComboboxValue(values, activeValue, 1));
@@ -209,7 +218,7 @@ export function ComboboxRoot(props: ComboboxRootProps) {
         case 'ArrowUp':
           event.preventDefault();
           if (!open) {
-            setOpen(true);
+            handleOpenChange(true);
             return;
           }
           setActiveValue(getNextActiveComboboxValue(values, activeValue, -1));
@@ -240,13 +249,13 @@ export function ComboboxRoot(props: ComboboxRootProps) {
         case 'Escape':
           if (open) {
             event.preventDefault();
-            setOpen(false);
+            handleOpenChange(false);
           }
           return;
         default:
       }
     },
-    [disabled, open, searchValue, activeValue, visibleOptions, selectValue],
+    [disabled, open, searchValue, activeValue, visibleOptions, selectValue, handleOpenChange],
   );
 
   // Keep the active option valid. Preserve the user's highlight as long as it still
@@ -284,7 +293,7 @@ export function ComboboxRoot(props: ComboboxRootProps) {
       maxVisibleChips,
       listId,
       open,
-      setOpen,
+      setOpen: handleOpenChange,
       searchValue,
       setSearchValue,
       visibleOptions,
@@ -320,6 +329,7 @@ export function ComboboxRoot(props: ComboboxRootProps) {
       removeLastValue,
       clearValues,
       onListKeyDown,
+      handleOpenChange,
     ],
   );
 

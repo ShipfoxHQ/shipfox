@@ -142,6 +142,7 @@ export function ComboboxItem({
   children,
   className,
   disabled,
+  onMouseDown,
   onSelect,
   ...props
 }: ComboboxItemProps) {
@@ -170,6 +171,13 @@ export function ComboboxItem({
         if (!isDisabled) {
           context.setActiveValue(itemValue);
         }
+      }}
+      onMouseDown={(event) => {
+        onMouseDown?.(event);
+        if (event.defaultPrevented) {
+          return;
+        }
+        event.preventDefault();
       }}
       onClick={() => {
         if (isDisabled) {

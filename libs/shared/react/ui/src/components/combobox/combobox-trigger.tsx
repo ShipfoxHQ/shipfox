@@ -1,6 +1,6 @@
 'use client';
 
-import * as React from 'react';
+import type * as React from 'react';
 import {cn} from '#utils/cn.js';
 import {
   CommandTrigger,
@@ -9,10 +9,13 @@ import {
 } from '../command/index.js';
 import {Icon} from '../icon/index.js';
 import {PopoverTrigger} from '../popover/index.js';
-import {activeDescendantId, ComboboxContext, useComboboxContext} from './combobox-context.js';
+import {activeDescendantId, useComboboxContext} from './combobox-context.js';
 import {partitionComboboxChipsByCount} from './combobox-state.js';
 
-export type ComboboxTriggerProps = Omit<CommandTriggerProps, 'children' | 'placeholder'> & {
+export type ComboboxTriggerProps = Omit<
+  CommandTriggerProps,
+  'children' | 'disabled' | 'placeholder'
+> & {
   children?: React.ReactNode;
   placeholder?: string;
 };
@@ -23,7 +26,6 @@ export function ComboboxTrigger({
   className,
   variant,
   size,
-  disabled,
   onClick,
   onKeyDown,
   id,
@@ -33,7 +35,6 @@ export function ComboboxTrigger({
   ...props
 }: ComboboxTriggerProps) {
   const context = useComboboxContext();
-  const isDisabled = disabled || context.disabled;
   // Route the label/name onto the labelable widget: the <button> for single-select,
   // the inline <input> for multi-select. The multi wrapper is a presentational <div>,
   // which `htmlFor` cannot name, so the input must carry id/aria-* instead.
@@ -43,10 +44,6 @@ export function ComboboxTrigger({
     'aria-labelledby': ariaLabelledby,
     'aria-describedby': ariaDescribedby,
   };
-  const triggerContext = React.useMemo(
-    () => (isDisabled === context.disabled ? context : {...context, disabled: isDisabled}),
-    [context, isDisabled],
-  );
 
   if (!context.multiple) {
     const triggerContent = children ?? (context.selectedValue ? <ComboboxValue /> : undefined);
@@ -54,16 +51,16 @@ export function ComboboxTrigger({
     return (
       <PopoverTrigger asChild>
         <CommandTrigger
+          {...props}
           variant={variant}
           size={size}
           placeholder={placeholder}
           className={className}
-          disabled={isDisabled}
+          disabled={context.disabled}
           isLoading={context.isLoading}
           onClick={onClick}
           onKeyDown={onKeyDown}
           {...labelProps}
-          {...props}
         >
           {triggerContent}
         </CommandTrigger>
@@ -87,8 +84,9 @@ export function ComboboxTrigger({
   return (
     <PopoverTrigger asChild>
       <div
+        {...(props as Omit<React.ComponentProps<'div'>, 'onClick' | 'onKeyDown'>)}
         data-slot="combobox-trigger"
-        data-disabled={isDisabled || undefined}
+        data-disabled={context.disabled || undefined}
         className={cn(
           commandTriggerVariants({variant, size}),
           size === 'small' ? 'min-h-28' : 'min-h-32',
@@ -96,40 +94,37 @@ export function ComboboxTrigger({
           'data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:bg-background-neutral-disabled data-disabled:shadow-none data-disabled:text-foreground-neutral-disabled',
           className,
         )}
-        {...(props as Omit<React.ComponentProps<'div'>, 'onClick' | 'onKeyDown'>)}
       >
-        <ComboboxContext.Provider value={triggerContext}>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-4 text-left">
-            {triggerContent}
-          </div>
-          <div className="mt-2 flex shrink-0 items-center gap-4">
-            {context.selectedValues.length > 1 && (
-              <button
-                type="button"
-                aria-label="Clear selected options"
-                disabled={isDisabled}
-                className={cn(
-                  'inline-flex size-16 shrink-0 items-center justify-center rounded-4',
-                  'text-foreground-neutral-muted transition-colors hover:text-foreground-neutral-base',
-                  'focus-visible:shadow-border-interactive-with-active outline-none',
-                  'disabled:pointer-events-none disabled:text-foreground-neutral-disabled',
-                )}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  context.clearValues();
-                }}
-              >
-                <Icon name="closeLine" className="size-14" />
-              </button>
-            )}
-            {context.isLoading ? (
-              <Icon name="spinner" className="size-16 text-foreground-neutral-base" />
-            ) : (
-              <Icon name="expandUpDownLine" className="size-16 text-foreground-neutral-muted" />
-            )}
-          </div>
-        </ComboboxContext.Provider>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-4 text-left">
+          {triggerContent}
+        </div>
+        <div className="mt-2 flex shrink-0 items-center gap-4">
+          {context.selectedValues.length > 1 && (
+            <button
+              type="button"
+              aria-label="Clear selected options"
+              disabled={context.disabled}
+              className={cn(
+                'inline-flex size-16 shrink-0 items-center justify-center rounded-4',
+                'text-foreground-neutral-muted transition-colors hover:text-foreground-neutral-base',
+                'focus-visible:shadow-border-interactive-with-active outline-none',
+                'disabled:pointer-events-none disabled:text-foreground-neutral-disabled',
+              )}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                context.clearValues();
+              }}
+            >
+              <Icon name="closeLine" className="size-14" />
+            </button>
+          )}
+          {context.isLoading ? (
+            <Icon name="spinner" className="size-16 text-foreground-neutral-base" />
+          ) : (
+            <Icon name="expandUpDownLine" className="size-16 text-foreground-neutral-muted" />
+          )}
+        </div>
       </div>
     </PopoverTrigger>
   );

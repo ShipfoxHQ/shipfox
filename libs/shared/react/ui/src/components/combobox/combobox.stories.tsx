@@ -300,6 +300,7 @@ export const TypeToFilterMulti: Story = {
       await user.type(combobox, 'apify');
       await clickCommandOption(user, 'apify');
       await canvas.findByLabelText('Remove apify');
+      await expect(combobox).toHaveFocus();
     });
   },
   render: () => {

@@ -11,7 +11,7 @@ export type {ComboboxOption};
 
 type ComboboxTriggerPassthroughProps = Omit<
   CommandTriggerProps,
-  'children' | 'placeholder' | 'value' | 'defaultValue' | 'onChange'
+  'children' | 'disabled' | 'placeholder' | 'value' | 'defaultValue' | 'onChange'
 >;
 
 type ComboboxBaseProps = ComboboxTriggerPassthroughProps & {
@@ -23,6 +23,7 @@ type ComboboxBaseProps = ComboboxTriggerPassthroughProps & {
   popoverClassName?: string;
   align?: 'start' | 'center' | 'end';
   sideOffset?: number;
+  disabled?: boolean;
   isLoading?: boolean;
   maxVisibleChips?: number;
 };
@@ -88,7 +89,6 @@ export function Combobox({
         size={size}
         placeholder={placeholder}
         className={className}
-        disabled={disabled}
         {...triggerProps}
       />
       <ComboboxContent className={popoverClassName} align={align} sideOffset={sideOffset}>

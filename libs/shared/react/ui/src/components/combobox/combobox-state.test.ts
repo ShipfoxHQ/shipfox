@@ -1,4 +1,5 @@
 import {
+  assertValidComboboxOptions,
   type ComboboxOption,
   clearMultiComboboxValues,
   filterComboboxOptions,
@@ -17,6 +18,14 @@ const options: ComboboxOption[] = [
 ];
 
 describe('combobox state helpers', () => {
+  it('rejects empty option values', () => {
+    const invalidOptions: ComboboxOption[] = [{value: '', label: 'Empty'}];
+
+    expect(() => assertValidComboboxOptions(invalidOptions)).toThrow(
+      'ComboboxOption values must be non-empty.',
+    );
+  });
+
   it('sets an unselected single value', () => {
     const result = toggleSingleComboboxValue('', 'apache');
 

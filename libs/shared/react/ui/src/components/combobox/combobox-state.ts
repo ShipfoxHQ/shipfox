@@ -1,5 +1,6 @@
 /**
- * Option values must be unique within a combobox. Duplicate values are unsupported;
+ * Option values must be non-empty and unique within a combobox. Empty values
+ * conflict with the single-select clear value. Duplicate values are unsupported;
  * label lookup uses the first matching option.
  */
 export type ComboboxOption = {
@@ -11,6 +12,16 @@ export type ComboboxChipPartition = {
   visibleValues: string[];
   hiddenCount: number;
 };
+
+export function assertValidComboboxOptions(options: ComboboxOption[]): void {
+  const invalidOption = options.find((option) => option.value === '');
+
+  if (invalidOption) {
+    throw new Error(
+      `ComboboxOption values must be non-empty. Received an empty value for "${invalidOption.label}".`,
+    );
+  }
+}
 
 export function toggleSingleComboboxValue(currentValue: string, selectedValue: string): string {
   return currentValue === selectedValue ? '' : selectedValue;
