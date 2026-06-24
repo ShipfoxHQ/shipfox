@@ -1,6 +1,11 @@
 import {triggerEventOutcomeSchema} from '@shipfox/api-triggers-dto';
 import {z} from 'zod';
 
+const stringListSearchSchema = z
+  .preprocess((value) => (typeof value === 'string' ? [value] : value), z.array(z.string()))
+  .optional()
+  .catch(undefined);
+
 /**
  * URL search params for the Events page. Reuses the DTO outcome enum so the page and the
  * read API share one source of truth, and matches the `TriggerEventFilters` shape the data
@@ -8,8 +13,8 @@ import {z} from 'zod';
  * the bad param rather than throwing inside the router's `validateSearch`.
  */
 export const triggerEventsSearchSchema = z.object({
-  source: z.string().optional().catch(undefined),
-  event: z.string().optional().catch(undefined),
+  source: stringListSearchSchema,
+  event: stringListSearchSchema,
   outcome: z.array(triggerEventOutcomeSchema).optional().catch(undefined),
   // The read API requires ISO datetimes (`z.string().datetime()`); validate the same here so
   // a hand-edited or stale URL with a non-ISO date drops the param rather than forwarding it

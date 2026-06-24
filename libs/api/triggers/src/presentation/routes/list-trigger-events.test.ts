@@ -68,6 +68,32 @@ describe('GET /trigger-events', () => {
     expect(eventIds(res)).toEqual([gitea.id]);
   });
 
+  test('filters by repeated source keys (IN-list)', async () => {
+    const gitea = await receivedEventFactory.create({workspaceId, source: 'gitea'});
+    const github = await receivedEventFactory.create({workspaceId, source: 'github'});
+    await receivedEventFactory.create({workspaceId, source: 'manual'});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/trigger-events?workspace_id=${workspaceId}&source=gitea&source=github`,
+    });
+
+    expect(eventIds(res).sort()).toEqual([gitea.id, github.id].sort());
+  });
+
+  test('filters by comma-separated sources', async () => {
+    const gitea = await receivedEventFactory.create({workspaceId, source: 'gitea'});
+    const github = await receivedEventFactory.create({workspaceId, source: 'github'});
+    await receivedEventFactory.create({workspaceId, source: 'manual'});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/trigger-events?workspace_id=${workspaceId}&source=gitea,github`,
+    });
+
+    expect(eventIds(res).sort()).toEqual([gitea.id, github.id].sort());
+  });
+
   test('filters by event', async () => {
     const pullRequest = await receivedEventFactory.create({workspaceId, event: 'pull_request'});
     await receivedEventFactory.create({workspaceId, event: 'push'});
@@ -78,6 +104,32 @@ describe('GET /trigger-events', () => {
     });
 
     expect(eventIds(res)).toEqual([pullRequest.id]);
+  });
+
+  test('filters by repeated event keys (IN-list)', async () => {
+    const pullRequest = await receivedEventFactory.create({workspaceId, event: 'pull_request'});
+    const push = await receivedEventFactory.create({workspaceId, event: 'push'});
+    await receivedEventFactory.create({workspaceId, event: 'release'});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/trigger-events?workspace_id=${workspaceId}&event=pull_request&event=push`,
+    });
+
+    expect(eventIds(res).sort()).toEqual([pullRequest.id, push.id].sort());
+  });
+
+  test('filters by comma-separated events', async () => {
+    const pullRequest = await receivedEventFactory.create({workspaceId, event: 'pull_request'});
+    const push = await receivedEventFactory.create({workspaceId, event: 'push'});
+    await receivedEventFactory.create({workspaceId, event: 'release'});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/trigger-events?workspace_id=${workspaceId}&event=pull_request,push`,
+    });
+
+    expect(eventIds(res).sort()).toEqual([pullRequest.id, push.id].sort());
   });
 
   test('filters by repeated outcome keys (IN-list)', async () => {

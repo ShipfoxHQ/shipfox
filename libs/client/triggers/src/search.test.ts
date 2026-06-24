@@ -3,16 +3,16 @@ import {validateTriggerEventsSearch} from './search.js';
 describe('validateTriggerEventsSearch', () => {
   test('passes through a full valid search', () => {
     const search = validateTriggerEventsSearch({
-      source: 'github',
-      event: 'push',
+      source: ['github', 'gitea'],
+      event: ['push', 'pull_request'],
       outcome: ['routed', 'failed'],
       from: '2026-06-01T00:00:00.000Z',
       to: '2026-06-22T00:00:00.000Z',
     });
 
     expect(search).toEqual({
-      source: 'github',
-      event: 'push',
+      source: ['github', 'gitea'],
+      event: ['push', 'pull_request'],
       outcome: ['routed', 'failed'],
       from: '2026-06-01T00:00:00.000Z',
       to: '2026-06-22T00:00:00.000Z',
@@ -25,6 +25,13 @@ describe('validateTriggerEventsSearch', () => {
 
   test('keeps a valid single-outcome filter', () => {
     expect(validateTriggerEventsSearch({outcome: ['discarded']}).outcome).toEqual(['discarded']);
+  });
+
+  test('normalizes scalar source and event params from existing URLs', () => {
+    const search = validateTriggerEventsSearch({source: 'github', event: 'push'});
+
+    expect(search.source).toEqual(['github']);
+    expect(search.event).toEqual(['push']);
   });
 
   test('drops an outcome array containing an unknown value', () => {

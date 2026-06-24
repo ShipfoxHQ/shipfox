@@ -22,8 +22,8 @@ export interface TriggerEventCursor {
 }
 
 export interface TriggerEventListFilters {
-  source?: string | undefined;
-  event?: string | undefined;
+  source?: string[] | undefined;
+  event?: string[] | undefined;
   outcomes?: TriggerEventOutcome[] | undefined;
   from?: Date | undefined;
   to?: Date | undefined;
@@ -50,8 +50,9 @@ function listConditions(params: ListTriggerEventsParams): SQL[] {
     cursor: cursor ? {createdAt: cursor.receivedAt, id: cursor.id} : undefined,
   });
   if (cursorCondition) conditions.push(cursorCondition);
-  if (filters?.source) conditions.push(eq(triggersReceivedEvents.source, filters.source));
-  if (filters?.event) conditions.push(eq(triggersReceivedEvents.event, filters.event));
+  if (filters?.source?.length)
+    conditions.push(inArray(triggersReceivedEvents.source, filters.source));
+  if (filters?.event?.length) conditions.push(inArray(triggersReceivedEvents.event, filters.event));
   if (filters?.outcomes?.length)
     conditions.push(inArray(triggersReceivedEvents.outcome, filters.outcomes));
   if (filters?.from) conditions.push(gte(triggersReceivedEvents.receivedAt, filters.from));
