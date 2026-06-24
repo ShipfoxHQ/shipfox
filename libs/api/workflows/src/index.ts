@@ -14,6 +14,7 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, workflowsOutbox} from '#db/index.js';
+import {registerWorkflowsServiceMetrics} from '#metrics/index.js';
 import {
   onJobStepsSettled,
   onRunnerJobClaimed,
@@ -51,6 +52,7 @@ export const workflowsModule: ShipfoxModule = {
   name: 'workflows',
   database: {db, migrationsPath},
   routes,
+  metrics: registerWorkflowsServiceMetrics,
   publishers: [
     {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
   ],
