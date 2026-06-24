@@ -30,6 +30,18 @@ describe('WorkflowSourcePanel', () => {
     expect(document.getElementById('workflow-source-panel')).toHaveAttribute('aria-hidden', 'true');
     expect(screen.queryByRole('button', {name: 'Close source'})).not.toBeInTheDocument();
   });
+
+  test('widens the panel from the resize separator with the keyboard', async () => {
+    const user = userEvent.setup();
+    renderPanel({open: true});
+
+    const handle = await screen.findByRole('separator', {name: 'Resize source panel'});
+    const initialWidth = Number(handle.getAttribute('aria-valuenow'));
+    handle.focus();
+    await user.keyboard('{ArrowLeft}');
+
+    expect(Number(handle.getAttribute('aria-valuenow'))).toBeGreaterThan(initialWidth);
+  });
 });
 
 function renderPanel({open, onClose = vi.fn()}: {open: boolean; onClose?: () => void}) {
