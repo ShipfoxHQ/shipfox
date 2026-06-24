@@ -42,7 +42,9 @@ describe('WorkflowRunSummary', () => {
     expect(writeText).toHaveBeenCalledWith(RUN_ID);
     const copyButton = screen.getByRole('button', {name: `Copied run id ${RUN_ID}`});
     expect(copyButton).toBeInTheDocument();
-    expect(within(copyButton).getByText('Copied')).toBeInTheDocument();
+    expect(copyButton).toHaveTextContent('66666666');
+    expect(copyButton).not.toHaveTextContent('Copied');
+    expect(await screen.findByText('Copied')).toBeInTheDocument();
   });
 
   test('omits empty trigger metadata', () => {

@@ -1,6 +1,6 @@
 import {
   Code,
-  Icon,
+  cn,
   Text,
   Tooltip,
   TooltipContent,
@@ -8,6 +8,7 @@ import {
   useCopyToClipboard,
 } from '@shipfox/react-ui';
 import {useEffect, useRef, useState} from 'react';
+import {createPortal} from 'react-dom';
 
 export function Identifier({
   display,
@@ -19,11 +20,18 @@ export function Identifier({
   label?: string | undefined;
 }) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  const [feedbackPosition, setFeedbackPosition] = useState<{
+    left: number;
+    top: number;
+    placement: 'top' | 'bottom';
+  } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const {copy} = useCopyToClipboard({
     text: value,
     onCopy: () => {
-      setTemporaryCopyState('copied', 1500);
+      setTemporaryCopyState('copied', 2500);
     },
   });
 
@@ -34,10 +42,22 @@ export function Identifier({
   }, []);
 
   function setTemporaryCopyState(state: 'copied' | 'failed', timeout: number) {
+    const rect = buttonRef.current?.getBoundingClientRect();
     setCopyState(state);
+    setTooltipOpen(false);
+    setFeedbackPosition(
+      rect
+        ? {
+            left: rect.left + rect.width / 2,
+            top: rect.top > 32 ? rect.top : rect.bottom,
+            placement: rect.top > 32 ? 'top' : 'bottom',
+          }
+        : null,
+    );
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       setCopyState('idle');
+      setFeedbackPosition(null);
     }, timeout);
   }
 
@@ -56,50 +76,62 @@ export function Identifier({
         ? `Could not copy ${label} ${value}`
         : `Copy ${label} ${value}`;
 
+  const feedback =
+    copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Could not copy' : null;
+
+  const feedbackElement =
+    feedback && feedbackPosition && typeof document !== 'undefined'
+      ? createPortal(
+          <Text
+            as="span"
+            role="status"
+            size="xs"
+            style={{
+              left: feedbackPosition.left,
+              top: feedbackPosition.top,
+              transform:
+                feedbackPosition.placement === 'top'
+                  ? 'translate(-50%, calc(-100% - 8px))'
+                  : 'translate(-50%, 8px)',
+            }}
+            className={cn(
+              'pointer-events-none fixed z-50 whitespace-nowrap rounded-8 bg-background-components-base px-8 py-4 font-medium shadow-tooltip',
+              copyState === 'failed'
+                ? 'text-foreground-highlight-error'
+                : 'text-foreground-neutral-base',
+            )}
+          >
+            {feedback}
+          </Text>,
+          document.body,
+        )
+      : null;
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={ariaLabel}
-          onClick={() => {
-            void handleCopy();
-          }}
-          className="inline-flex min-w-0 items-center gap-4 rounded-4 text-foreground-neutral-muted outline-none transition-colors hover:text-foreground-neutral-base focus-visible:ring-2 focus-visible:ring-background-accent-blue-base focus-visible:ring-offset-2 focus-visible:ring-offset-background-subtle-base"
-        >
-          {copyState === 'copied' ? (
-            <Icon
-              name="check"
-              aria-hidden="true"
-              className="size-12 shrink-0 text-foreground-neutral-base"
-            />
-          ) : null}
-          <Code as="span" variant="label" className="truncate">
-            {display}
-          </Code>
-          {copyState === 'copied' ? (
-            <Text as="span" size="xs" className="shrink-0 text-foreground-neutral-base">
-              Copied
-            </Text>
-          ) : null}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <span className="flex max-w-[360px] flex-col gap-2">
-          {copyState === 'idle' ? null : (
-            <Text
-              as="span"
-              size="xs"
-              className={copyState === 'failed' ? 'text-foreground-highlight-error' : undefined}
-            >
-              {copyState === 'copied' ? 'Copied' : 'Could not copy'}
-            </Text>
-          )}
-          <Code as="span" variant="label" className="truncate">
+    <>
+      <Tooltip open={copyState === 'idle' ? tooltipOpen : false} onOpenChange={setTooltipOpen}>
+        <TooltipTrigger asChild>
+          <button
+            ref={buttonRef}
+            type="button"
+            aria-label={ariaLabel}
+            onClick={() => {
+              void handleCopy();
+            }}
+            className="inline-flex min-w-0 items-center gap-4 rounded-4 text-foreground-neutral-muted outline-none transition-colors hover:text-foreground-neutral-base focus-visible:ring-2 focus-visible:ring-background-accent-blue-base focus-visible:ring-offset-2 focus-visible:ring-offset-background-subtle-base"
+          >
+            <Code as="span" variant="label" className="truncate">
+              {display}
+            </Code>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <Code as="span" variant="label" className="block max-w-[360px] truncate">
             {value}
           </Code>
-        </span>
-      </TooltipContent>
-    </Tooltip>
+        </TooltipContent>
+      </Tooltip>
+      {feedbackElement}
+    </>
   );
 }
