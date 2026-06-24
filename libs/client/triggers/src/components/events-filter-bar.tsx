@@ -9,8 +9,8 @@ import {
 import type {TriggerEventFilters} from '#hooks/api/trigger-events.js';
 import {getTriggerOutcomeVisual} from './trigger-outcome.js';
 
-// The four DESIGN.md §9 event-level states. `errored` has no chip of its own: the row
-// summary already renders it as "Failed", so the Failed chip selects both `failed` and
+// The four DESIGN.md §9 event-level states. `errored` has no option of its own: the row
+// summary already renders it as "Failed", so the Failed option selects both `failed` and
 // `errored` (otherwise filtering Failed would silently hide events the list shows as failed).
 const OUTCOME_FILTERS: {outcome: TriggerEventOutcomeDto; selects: TriggerEventOutcomeDto[]}[] = [
   {outcome: 'received', selects: ['received']},
@@ -18,6 +18,11 @@ const OUTCOME_FILTERS: {outcome: TriggerEventOutcomeDto; selects: TriggerEventOu
   {outcome: 'discarded', selects: ['discarded']},
   {outcome: 'failed', selects: ['failed', 'errored']},
 ];
+
+const OUTCOME_OPTIONS: ComboboxOption[] = OUTCOME_FILTERS.map(({outcome}) => ({
+  value: outcome,
+  label: getTriggerOutcomeVisual(outcome).label,
+}));
 
 function toOptions(facets: TriggerEventFacetItemDto[] | undefined): ComboboxOption[] {
   return (facets ?? []).map((facet) => ({
@@ -57,11 +62,15 @@ export function EventsFilterBar({
     return selects.some((outcome) => selectedOutcomes.has(outcome));
   }
 
-  function toggleFilter(selects: TriggerEventOutcomeDto[]) {
-    const next = new Set(selectedOutcomes);
-    if (isFilterActive(selects)) for (const outcome of selects) next.delete(outcome);
-    else for (const outcome of selects) next.add(outcome);
-    onFiltersChange({outcome: next.size > 0 ? [...next] : undefined});
+  const outcomeValue = OUTCOME_FILTERS.filter(({selects}) => isFilterActive(selects)).map(
+    ({outcome}) => outcome,
+  );
+
+  function handleOutcomeValue(values: string[]) {
+    const next = OUTCOME_FILTERS.filter(({outcome}) => values.includes(outcome)).flatMap(
+      ({selects}) => selects,
+    );
+    onFiltersChange({outcome: next.length > 0 ? next : undefined});
   }
 
   function handleDateRange(range: DateRange | undefined) {
@@ -87,41 +96,39 @@ export function EventsFilterBar({
         placeholder="Any date"
       />
       <Combobox
+        multiple
+        size="small"
         options={toOptions(sources)}
-        value={filters.source ?? ''}
-        onValueChange={(value) => onFiltersChange({source: value || undefined})}
+        value={filters.source ?? []}
+        onValueChange={(value) => onFiltersChange({source: value.length > 0 ? value : undefined})}
         placeholder="All sources"
-        searchPlaceholder="Filter sources..."
         emptyState="No sources yet"
         className="w-160"
+        maxVisibleChips={1}
       />
       <Combobox
+        multiple
+        size="small"
         options={toOptions(events)}
-        value={filters.event ?? ''}
-        onValueChange={(value) => onFiltersChange({event: value || undefined})}
+        value={filters.event ?? []}
+        onValueChange={(value) => onFiltersChange({event: value.length > 0 ? value : undefined})}
         placeholder="All events"
-        searchPlaceholder="Filter events..."
         emptyState="No events yet"
         className="w-160"
+        maxVisibleChips={1}
       />
-      <fieldset className="flex items-center gap-6">
-        <legend className="sr-only">Filter by outcome</legend>
-        {OUTCOME_FILTERS.map(({outcome, selects}) => {
-          const active = isFilterActive(selects);
-          return (
-            <Button
-              key={outcome}
-              type="button"
-              size="2xs"
-              variant={active ? 'primary' : 'transparent'}
-              aria-pressed={active}
-              onClick={() => toggleFilter(selects)}
-            >
-              {getTriggerOutcomeVisual(outcome).label}
-            </Button>
-          );
-        })}
-      </fieldset>
+      <Combobox
+        multiple
+        size="small"
+        aria-label="Filter by outcome"
+        options={OUTCOME_OPTIONS}
+        value={outcomeValue}
+        onValueChange={handleOutcomeValue}
+        placeholder="All outcomes"
+        emptyState="No outcomes"
+        className="w-220"
+        maxVisibleChips={2}
+      />
       {hasActiveFilters ? (
         <Button
           type="button"

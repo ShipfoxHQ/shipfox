@@ -54,6 +54,13 @@ function renderList(props: EventsListProps) {
   );
 }
 
+async function selectOutcome(label: string) {
+  const user = userEvent.setup();
+
+  await user.click(screen.getByRole('combobox', {name: 'Filter by outcome'}));
+  await user.click(await screen.findByRole('option', {name: label}));
+}
+
 describe('EventsList', () => {
   test('renders a row per event with its match summary', () => {
     renderList(makeProps());
@@ -81,36 +88,36 @@ describe('EventsList', () => {
     expect(onFiltersChange).toHaveBeenCalledWith(expect.objectContaining({outcome: undefined}));
   });
 
-  test('toggling an outcome chip reports the filter patch', async () => {
+  test('selecting an outcome reports the filter patch', async () => {
     const onFiltersChange = vi.fn();
     renderList(makeProps({onFiltersChange}));
 
-    await userEvent.click(screen.getByRole('button', {name: 'Routed'}));
+    await selectOutcome('Routed');
 
     expect(onFiltersChange).toHaveBeenCalledWith({outcome: ['routed']});
   });
 
-  test('un-toggling the last active outcome chip clears the filter to undefined', async () => {
+  test('removing the last active outcome clears the filter to undefined', async () => {
     const onFiltersChange = vi.fn();
     renderList(makeProps({filters: {outcome: ['routed']}, onFiltersChange}));
 
-    await userEvent.click(screen.getByRole('button', {name: 'Routed'}));
+    await userEvent.click(screen.getByLabelText('Remove Routed'));
 
     expect(onFiltersChange).toHaveBeenCalledWith({outcome: undefined});
   });
 
-  test('the Failed chip folds errored in with failed', async () => {
+  test('the Failed option folds errored in with failed', async () => {
     const onFiltersChange = vi.fn();
     renderList(makeProps({onFiltersChange}));
 
-    await userEvent.click(screen.getByRole('button', {name: 'Failed'}));
+    await selectOutcome('Failed');
 
     expect(onFiltersChange).toHaveBeenCalledWith({outcome: ['failed', 'errored']});
   });
 
-  test('an errored-only filter shows the Failed chip as active', () => {
+  test('an errored-only filter shows Failed as selected', () => {
     renderList(makeProps({filters: {outcome: ['errored']}}));
 
-    expect(screen.getByRole('button', {name: 'Failed'})).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('Remove Failed')).toBeInTheDocument();
   });
 });
