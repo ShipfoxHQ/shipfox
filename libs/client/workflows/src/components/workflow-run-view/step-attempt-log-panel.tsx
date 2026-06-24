@@ -1,20 +1,35 @@
 import {isMissingStepLogStreamError, LogView, useStepAttemptLogsQuery} from '@shipfox/client-logs';
-import {Alert, Button, Icon, Text} from '@shipfox/react-ui';
+import {Alert, Button, Icon, LogContent, LogRow, LogRows, ShinyText, Text} from '@shipfox/react-ui';
 import {type UIEvent, useEffect, useRef} from 'react';
 
 const TAIL_FOLLOW_THRESHOLD_PX = 24;
+const INITIAL_LOG_ERROR_RETRY_COUNT = 5;
+const INITIAL_LOG_ERROR_RETRY_DELAY_MS = 1_500;
+const logSurfaceClasses = 'max-h-[40vh] rounded-8 md:max-h-[280px]';
 
 export interface StepAttemptLogPanelProps {
   stepId: string;
   attempt: number;
   attemptStatus: string;
+  initialErrorRetryCount?: number | undefined;
+  initialErrorRetryDelayMs?: number | undefined;
 }
 
-export function StepAttemptLogPanel({stepId, attempt, attemptStatus}: StepAttemptLogPanelProps) {
+export function StepAttemptLogPanel({
+  stepId,
+  attempt,
+  attemptStatus,
+  initialErrorRetryCount = INITIAL_LOG_ERROR_RETRY_COUNT,
+  initialErrorRetryDelayMs = INITIAL_LOG_ERROR_RETRY_DELAY_MS,
+}: StepAttemptLogPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const shouldFollowTailRef = useRef(true);
   const retryMissingStream = attemptStatus === 'running';
-  const query = useStepAttemptLogsQuery(stepId, attempt, {retryMissingStream});
+  const query = useStepAttemptLogsQuery(stepId, attempt, {
+    retryMissingStream,
+    initialErrorRetryCount,
+    initialErrorRetryDelayMs,
+  });
   const records = query.data?.records ?? [];
   const recordCount = records.length;
   const missingActiveStream =
@@ -44,25 +59,11 @@ export function StepAttemptLogPanel({stepId, attempt, attemptStatus}: StepAttemp
   }
 
   if (query.isPending) {
-    return (
-      <div role="status" aria-label="Loading step logs" className="flex items-center gap-6 py-8">
-        <Icon name="loader4Line" className="size-14 motion-safe:animate-spin" aria-hidden="true" />
-        <Text size="xs" className="text-foreground-neutral-subtle">
-          Loading logs
-        </Text>
-      </div>
-    );
+    return <StepLogsLoadingSurface label="Loading logs" />;
   }
 
   if (missingActiveStream) {
-    return (
-      <div role="status" aria-label="Waiting for logs" className="flex items-center gap-6 py-8">
-        <Icon name="loader4Line" className="size-14 motion-safe:animate-spin" aria-hidden="true" />
-        <Text size="xs" className="text-foreground-neutral-subtle">
-          Waiting for logs
-        </Text>
-      </div>
-    );
+    return <StepLogsLoadingSurface label="Waiting for logs" />;
   }
 
   if (initialError) {
@@ -87,11 +88,29 @@ export function StepAttemptLogPanel({stepId, attempt, attemptStatus}: StepAttemp
           </div>
         </Alert>
       ) : null}
-      <LogView
-        records={records}
-        className="max-h-[40vh] rounded-8 md:max-h-[280px]"
-        onScroll={handleLogScroll}
-      />
+      <LogView records={records} className={logSurfaceClasses} onScroll={handleLogScroll} />
+    </div>
+  );
+}
+
+function StepLogsLoadingSurface({label}: {label: string}) {
+  return (
+    <div role="status" aria-label={label}>
+      <LogRows className={logSurfaceClasses}>
+        <LogRow lineNumber={null}>
+          <LogContent
+            variant="code"
+            className="flex min-w-0 items-center gap-6 text-foreground-neutral-subtle"
+          >
+            <Icon
+              name="loader4Line"
+              className="size-14 shrink-0 motion-safe:animate-spin"
+              aria-hidden="true"
+            />
+            <ShinyText text={label} speed={3} className="text-foreground-neutral-subtle" />
+          </LogContent>
+        </LogRow>
+      </LogRows>
     </div>
   );
 }

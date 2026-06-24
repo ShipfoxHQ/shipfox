@@ -75,6 +75,7 @@ function renderPanel(
 describe('StepAttemptLogPanel', () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     configureApiClient({baseUrl: '', fetchImpl: undefined});
   });
@@ -88,15 +89,34 @@ describe('StepAttemptLogPanel', () => {
     renderPanel();
 
     expect(await screen.findByRole('status', {name: 'Waiting for logs'})).toBeInTheDocument();
+    expect(screen.getByRole('log')).toHaveTextContent('Waiting for logs');
   });
 
-  test('shows a compact retry state for an initial server error', async () => {
+  test('keeps the log loading surface through transient initial server errors', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({code: 'server-error'}, {status: 500}))
+      .mockResolvedValueOnce(jsonResponse(inlineBody(outputLine('eventual logs\n'), 1)));
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl,
+    });
+
+    renderPanel({attemptStatus: 'failed', initialErrorRetryCount: 1, initialErrorRetryDelayMs: 10});
+    expect(screen.getByRole('status', {name: 'Loading logs'})).toBeInTheDocument();
+    expect(screen.getByRole('log')).toHaveTextContent('Loading logs');
+
+    expect(await screen.findByText('eventual logs')).toBeInTheDocument();
+  });
+
+  test('shows a compact retry state after the initial error retry budget is exhausted', async () => {
     configureApiClient({
       baseUrl: 'https://api.example.test',
       fetchImpl: vi.fn(async () => jsonResponse({code: 'server-error'}, {status: 500})),
     });
 
-    renderPanel({attemptStatus: 'failed'});
+    renderPanel({attemptStatus: 'failed', initialErrorRetryCount: 1, initialErrorRetryDelayMs: 10});
+    expect(screen.getByRole('status', {name: 'Loading logs'})).toBeInTheDocument();
 
     expect(await screen.findByText('Could not load logs.')).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'Retry'})).toBeInTheDocument();
@@ -110,7 +130,7 @@ describe('StepAttemptLogPanel', () => {
 
     renderPanel({attemptStatus: 'succeeded'});
 
-    expect(await screen.findByRole('log')).toHaveTextContent('hello');
+    expect(await screen.findByText('hello')).toBeInTheDocument();
   });
 
   test('keeps stale logs visible when a refresh fails', async () => {

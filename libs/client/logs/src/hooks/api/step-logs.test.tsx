@@ -141,6 +141,26 @@ describe('useStepAttemptLogsQuery', () => {
     expect(result.current.data?.records).toMatchObject([{type: 'output', data: 'alpha\n'}]);
   });
 
+  test('retries transient initial errors before surfacing a failure', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({code: 'server-error'}, {status: 500}))
+      .mockResolvedValueOnce(jsonResponse({code: 'server-error'}, {status: 500}))
+      .mockResolvedValueOnce(
+        jsonResponse(inlineBody({ndjson: outputLine('eventual logs\n', 1), nextCursor: 5})),
+      );
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const {result} = renderStepLogsHook(
+      {stepId: STEP_ID, attempt: 1},
+      {initialErrorRetryCount: 2, initialErrorRetryDelayMs: 10},
+    );
+
+    await waitFor(() => expect(result.current.data?.records).toHaveLength(1));
+    expect(result.current.data?.records).toMatchObject([{type: 'output', data: 'eventual logs\n'}]);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
   test('stops polling after a persistent error instead of re-polling the dead cursor', async () => {
     const fetchImpl = vi
       .fn()

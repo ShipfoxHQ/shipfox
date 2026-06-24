@@ -56,6 +56,8 @@ export function isMissingStepLogStreamError(error: unknown): boolean {
 
 export interface UseStepAttemptLogsQueryOptions {
   retryMissingStream?: boolean;
+  initialErrorRetryCount?: number;
+  initialErrorRetryDelayMs?: number;
 }
 
 export function useStepAttemptLogsQuery(
@@ -69,6 +71,8 @@ export function useStepAttemptLogsQuery(
     enabled && stepId && attempt
       ? stepLogsQueryKeys.detail(stepId, attempt)
       : [...stepLogsQueryKeys.all, 'detail'];
+  const initialErrorRetryCount = options.initialErrorRetryCount ?? 0;
+  const initialErrorRetryDelayMs = options.initialErrorRetryDelayMs ?? STEP_LOG_LIVE_REFETCH_MS;
 
   return useQuery({
     queryKey,
@@ -89,6 +93,13 @@ export function useStepAttemptLogsQuery(
 
       return mergeLogRead(previous, {mode: 'inline', response});
     },
+    retry: (failureCount, error) => {
+      if (initialErrorRetryCount <= 0) return false;
+      if (queryClient.getQueryData<StepLogSnapshot>(queryKey) !== undefined) return false;
+      if (options.retryMissingStream && isMissingStepLogStreamError(error)) return false;
+      return failureCount < initialErrorRetryCount;
+    },
+    retryDelay: initialErrorRetryDelayMs,
     refetchInterval: (query) => {
       if (
         options.retryMissingStream &&
