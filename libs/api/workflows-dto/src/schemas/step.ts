@@ -39,11 +39,24 @@ export const stepErrorDtoSchema = z
 
 export type StepErrorDtoShape = z.infer<typeof stepErrorDtoSchema>;
 
+export const stepSourceLocationSchema = z
+  .object({
+    start_line: z.number().int().positive(),
+    end_line: z.number().int().positive(),
+  })
+  .refine((value) => value.end_line >= value.start_line, {
+    message: 'end_line must be greater than or equal to start_line',
+    path: ['end_line'],
+  });
+
+export type StepSourceLocationDto = z.infer<typeof stepSourceLocationSchema>;
+
 export const stepDtoSchema = z.object({
   id: z.string().uuid(),
   job_id: z.string().uuid(),
   name: z.string().nullable(),
   display_name: z.string(),
+  source_location: stepSourceLocationSchema.nullable(),
   status: z.string(),
   type: z.string(),
   config: z.record(z.string(), z.unknown()),

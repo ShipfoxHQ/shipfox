@@ -47,6 +47,7 @@ export {
   stepErrorReasonSchema,
 } from '#schemas/index.js';
 export {type WorkflowSourceSnapshotDto, workflowSourceSnapshotSchema} from '#schemas/run.js';
+export {type StepSourceLocationDto, stepSourceLocationSchema} from '#schemas/step.js';
 export {
   terminalStatusSchema,
   WORKFLOWS_JOB_STEPS_SETTLED,

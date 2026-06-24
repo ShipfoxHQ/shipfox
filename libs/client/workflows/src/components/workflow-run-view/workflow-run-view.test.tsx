@@ -207,6 +207,7 @@ function stepDto(overrides: Partial<RunStepDetailDto> = {}): RunStepDetailDto {
     job_id: '77777777-7777-4777-8777-777777777777',
     name: 'checkout',
     display_name: overrides.display_name ?? overrides.name ?? 'checkout',
+    source_location: null,
     status: 'succeeded',
     type: 'run',
     config: {},

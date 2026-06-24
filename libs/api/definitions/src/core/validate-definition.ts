@@ -1,7 +1,7 @@
 import {InvalidWorkflowDocumentError} from '@shipfox/workflow-document';
 import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
 import {InvalidWorkflowModelError, normalizeWorkflowDocument} from './workflow-model/index.js';
-import {InvalidWorkflowYamlError, parseWorkflowYaml} from './workflow-yaml/index.js';
+import {InvalidWorkflowYamlError, parseWorkflowYamlWithLocations} from './workflow-yaml/index.js';
 
 export type ValidationError = {message: string; path?: string | undefined};
 
@@ -11,8 +11,8 @@ export type ValidationResult =
 
 export function validateDefinition(yamlContent: string): ValidationResult {
   try {
-    const document = parseWorkflowYaml(yamlContent);
-    const model = normalizeWorkflowDocument(document);
+    const {document, stepSourceLocations} = parseWorkflowYamlWithLocations(yamlContent);
+    const model = normalizeWorkflowDocument(document, {stepSourceLocations});
     return {valid: true, definition: {document, model}};
   } catch (error) {
     return {valid: false, errors: validationErrorsFor(error)};

@@ -188,6 +188,7 @@ function makeStep(overrides: Partial<RunStepDetailDto> = {}): RunStepDetailDto {
     job_id: '44444444-4444-4444-8444-000000000001',
     name: 'build',
     display_name: displayName,
+    source_location: null,
     status: 'pending',
     type: 'run',
     config: {},

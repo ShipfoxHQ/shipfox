@@ -17,6 +17,7 @@ import type {
   WorkflowModelStep,
   WorkflowModelStepGate,
   WorkflowModelTrigger,
+  WorkflowStepSourceLocationMap,
 } from '../entities/workflow-model.js';
 import {
   InvalidWorkflowModelError,
@@ -29,11 +30,14 @@ const nonStableIdPattern = /[^a-z0-9]+/g;
 const edgeDashPattern = /^-+|-+$/g;
 const manualTriggerSource = 'manual';
 
-export function normalizeWorkflowDocument(document: WorkflowDocument): WorkflowModel {
+export function normalizeWorkflowDocument(
+  document: WorkflowDocument,
+  options: {stepSourceLocations?: WorkflowStepSourceLocationMap | undefined} = {},
+): WorkflowModel {
   const issues: WorkflowModelValidationIssue[] = [];
   const jobIdBySourceName = mapJobIds(document, issues);
   const triggers = normalizeTriggers(document, issues);
-  const jobs = normalizeJobs(document, jobIdBySourceName, issues);
+  const jobs = normalizeJobs(document, jobIdBySourceName, issues, options.stepSourceLocations);
   const dependencies = normalizeDependencies(document.jobs, jobIdBySourceName, issues);
 
   validateCycles(document.jobs, jobIdBySourceName, issues);
@@ -134,6 +138,7 @@ function normalizeJobs(
   document: WorkflowDocument,
   jobIdBySourceName: ReadonlyMap<string, string>,
   issues: WorkflowModelValidationIssue[],
+  stepSourceLocations: WorkflowStepSourceLocationMap | undefined,
 ): readonly WorkflowModelJob[] {
   return Object.entries(document.jobs).flatMap(([sourceName, job]) => {
     const id = jobIdBySourceName.get(sourceName);
@@ -180,9 +185,12 @@ function normalizeJobs(
         issues,
       });
 
+      const sourceLocation = stepSourceLocations?.get(sourceName)?.get(index);
+
       const stepBase = {
         id: stepId,
         ...(stepSourceName === undefined ? {} : {sourceName: stepSourceName}),
+        ...(sourceLocation === undefined ? {} : {sourceLocation}),
         ...(gate === undefined ? {} : {gate}),
       };
 

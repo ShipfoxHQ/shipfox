@@ -1,11 +1,31 @@
 import {parseWorkflowDocument, type WorkflowDocument} from '@shipfox/workflow-document';
 import yaml from 'js-yaml';
+import type {WorkflowStepSourceLocationMap} from '../entities/workflow-model.js';
 import {
   InvalidWorkflowYamlError,
   type WorkflowYamlLocation,
 } from './invalid-workflow-yaml-error.js';
+import {extractWorkflowStepSourceLocations} from './source-locations.js';
+
+export interface ParsedWorkflowYaml {
+  document: WorkflowDocument;
+  stepSourceLocations: WorkflowStepSourceLocationMap;
+}
 
 export function parseWorkflowYaml(source: string): WorkflowDocument {
+  return parseWorkflowDocument(loadWorkflowYaml(source));
+}
+
+export function parseWorkflowYamlWithLocations(source: string): ParsedWorkflowYaml {
+  const parsed = loadWorkflowYaml(source);
+
+  return {
+    document: parseWorkflowDocument(parsed),
+    stepSourceLocations: extractWorkflowStepSourceLocations(source),
+  };
+}
+
+function loadWorkflowYaml(source: string): Record<string, unknown> {
   let parsed: unknown;
   try {
     parsed = yaml.load(source);
@@ -21,7 +41,7 @@ export function parseWorkflowYaml(source: string): WorkflowDocument {
     throw new InvalidWorkflowYamlError('non-object-root', 'Workflow YAML must parse to an object.');
   }
 
-  return parseWorkflowDocument(parsed);
+  return parsed;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

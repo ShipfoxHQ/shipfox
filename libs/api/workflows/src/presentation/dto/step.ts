@@ -53,6 +53,7 @@ export function toStepDto(step: Step): StepDto {
     job_id: step.jobId,
     name: step.name,
     display_name: step.displayName,
+    source_location: toStepSourceLocationDto(step.sourceLocation),
     status: step.status,
     type: step.type,
     config: step.config,
@@ -61,6 +62,16 @@ export function toStepDto(step: Step): StepDto {
     current_attempt: step.currentAttempt,
     created_at: step.createdAt.toISOString(),
     updated_at: step.updatedAt.toISOString(),
+  };
+}
+
+function toStepSourceLocationDto(
+  sourceLocation: Step['sourceLocation'],
+): StepDto['source_location'] {
+  if (sourceLocation === null) return null;
+  return {
+    start_line: sourceLocation.startLine,
+    end_line: sourceLocation.endLine,
   };
 }
 

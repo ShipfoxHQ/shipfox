@@ -116,6 +116,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
           jobId: jobRow.id,
           name: step.sourceName,
           displayName: step.displayName,
+          sourceLocation: step.sourceLocation,
           status: step.status,
           type: step.type,
           config: step.config,

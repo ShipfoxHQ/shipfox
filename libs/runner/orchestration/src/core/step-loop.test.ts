@@ -568,6 +568,7 @@ function buildStep(overrides: Partial<StepDto> = {}): StepDto {
     job_id: JOB_ID,
     name: 'test-step',
     display_name: displayName,
+    source_location: null,
     status: 'running',
     type: 'run',
     config: {run: 'echo test'},

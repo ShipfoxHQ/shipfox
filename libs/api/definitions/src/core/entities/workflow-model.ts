@@ -32,6 +32,7 @@ interface WorkflowModelStepBase {
   readonly id: string;
   readonly sourceName?: string;
   readonly gate?: WorkflowModelStepGate;
+  readonly sourceLocation?: WorkflowSourceLocation;
 }
 
 export interface WorkflowModelRunStep extends WorkflowModelStepBase {
@@ -46,6 +47,16 @@ export interface WorkflowModelAgentStep extends WorkflowModelStepBase {
   readonly thinking: AgentThinking;
   readonly prompt: string;
 }
+
+export interface WorkflowSourceLocation {
+  readonly startLine: number;
+  readonly endLine: number;
+}
+
+export type WorkflowStepSourceLocationMap = ReadonlyMap<
+  string,
+  ReadonlyMap<number, WorkflowSourceLocation>
+>;
 
 export interface WorkflowModelRunCommand {
   readonly kind: 'shell';

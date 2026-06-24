@@ -6,6 +6,7 @@ function step(overrides: Partial<Step> & {id: string; position: number}): Step {
     jobId: 'job-1',
     name: null,
     displayName: 'step',
+    sourceLocation: null,
     status: 'pending',
     type: 'run',
     config: {},

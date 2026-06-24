@@ -329,6 +329,39 @@ describe('workflow run queries', () => {
       expect(jobSteps[2]?.name).toBeNull();
     });
 
+    test('stores source locations for authored steps', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              steps: [
+                {run: 'npm install', sourceLocation: {startLine: 5, endLine: 6}},
+                {run: 'npm test', sourceLocation: {startLine: 7, endLine: 10}},
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByRunId(run.id);
+      const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
+
+      expect(jobSteps.map((step) => step.sourceLocation)).toEqual([
+        null,
+        {startLine: 5, endLine: 6},
+        {startLine: 7, endLine: 10},
+      ]);
+    });
+
     test('stores frozen step config', async () => {
       const run = await createWorkflowRun({
         workspaceId,
