@@ -17,6 +17,7 @@ export interface WorkflowJobGraphNode {
   column: number;
   row: number;
   dependencies: string[];
+  currentDependencyCount: number;
 }
 
 export type WorkflowJobGraphNavigationKey =
@@ -76,6 +77,7 @@ export function buildWorkflowJobGraphModel({
     column: columnFor(job),
     row: 0,
     dependencies: job.dependencies,
+    currentDependencyCount: currentDependencyCount(job, byName),
   }));
 
   const grouped = groupColumns(nodesWithoutRows);
@@ -156,6 +158,16 @@ function buildEdges(
   );
 
   return [...triggerEdges, ...dependencyEdges];
+}
+
+function currentDependencyCount(
+  job: RunJobDetailDto,
+  byName: ReadonlyMap<string, RunJobDetailDto>,
+): number {
+  return job.dependencies.filter((dependencyName) => {
+    const dependency = byName.get(dependencyName);
+    return dependency?.status === 'pending' || dependency?.status === 'running';
+  }).length;
 }
 
 export function nextWorkflowJobGraphNodeId({

@@ -30,9 +30,7 @@ describe('WorkflowRunView', () => {
     );
     expect(await screen.findByRole('region', {name: 'Jobs graph'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'build, Succeeded'})).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', {name: 'deploy, Running, Depends on build'}),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'deploy, Running'})).toBeInTheDocument();
     expect(screen.getByRole('region', {name: 'Step attempts'})).toBeInTheDocument();
     expect(
       screen.getByRole('button', {name: '1. checkout, Succeeded, attempt 1'}),
@@ -80,9 +78,7 @@ describe('WorkflowRunView', () => {
 
     renderView();
 
-    const deployNode = await screen.findByRole('button', {
-      name: 'deploy, Running, Depends on build',
-    });
+    const deployNode = await screen.findByRole('button', {name: 'deploy, Running'});
     await user.click(deployNode);
     expect(deployNode).toHaveAttribute('aria-pressed', 'true');
 
