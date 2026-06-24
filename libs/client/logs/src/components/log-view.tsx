@@ -2,7 +2,7 @@
 
 import type {LogRecord} from '@shipfox/api-logs-dto';
 import {LogContent, LogRow, LogRows, type LogTimestampMode} from '@shipfox/react-ui';
-import {type ReactNode, useMemo} from 'react';
+import {type ReactNode, type UIEventHandler, useMemo} from 'react';
 import {
   assertNever,
   buildLogTree,
@@ -19,6 +19,8 @@ export interface LogViewProps {
   timestamps?: LogTimestampMode;
   wrap?: boolean;
   showLineNumbers?: boolean;
+  className?: string | undefined;
+  onScroll?: UIEventHandler<HTMLDivElement> | undefined;
 }
 
 export function LogView({
@@ -26,6 +28,8 @@ export function LogView({
   timestamps = 'off',
   wrap = false,
   showLineNumbers = true,
+  className,
+  onScroll,
 }: LogViewProps) {
   const tree = useMemo(() => buildLogTree(records), [records]);
   const isEmpty = tree.nodes.length === 0;
@@ -35,6 +39,8 @@ export function LogView({
       timestamps={timestamps}
       wrap={wrap}
       showLineNumbers={showLineNumbers}
+      className={className}
+      onScroll={onScroll}
       {...(tree.originTs != null ? {timestampOrigin: new Date(tree.originTs)} : {})}
     >
       {isEmpty ? (

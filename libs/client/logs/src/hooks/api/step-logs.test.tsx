@@ -2,7 +2,8 @@ import {configureApiClient} from '@shipfox/client-api';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {cleanup, renderHook, waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
-import {useStepAttemptLogsQuery} from './step-logs.js';
+import {STEP_LOG_DRAIN_REFETCH_MS, STEP_LOG_LIVE_REFETCH_MS} from '#core/log-read.js';
+import {type UseStepAttemptLogsQueryOptions, useStepAttemptLogsQuery} from './step-logs.js';
 
 const STEP_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -49,6 +50,7 @@ function renderStepLogsHook(
     stepId: STEP_ID,
     attempt: 1,
   },
+  options: UseStepAttemptLogsQueryOptions = {},
 ) {
   const queryClient = new QueryClient({
     defaultOptions: {queries: {retry: false}},
@@ -57,7 +59,9 @@ function renderStepLogsHook(
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 
-  return renderHook(() => useStepAttemptLogsQuery(params.stepId, params.attempt), {wrapper});
+  return renderHook(() => useStepAttemptLogsQuery(params.stepId, params.attempt, options), {
+    wrapper,
+  });
 }
 
 function requestsFrom(fetchImpl: ReturnType<typeof vi.fn>): Request[] {
@@ -67,6 +71,7 @@ function requestsFrom(fetchImpl: ReturnType<typeof vi.fn>): Request[] {
 describe('useStepAttemptLogsQuery', () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     configureApiClient({baseUrl: '', fetchImpl: undefined});
   });
@@ -152,6 +157,41 @@ describe('useStepAttemptLogsQuery', () => {
     await new Promise((resolve) => setTimeout(resolve, 350));
 
     expect(fetchImpl.mock.calls.length).toBe(callsWhenErrored);
+  });
+
+  test('keeps polling a missing stream when requested and merges the later response', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({code: 'not-found'}, {status: 404}))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          inlineBody({ndjson: outputLine('stream created\n', 1), nextCursor: 5, hasMore: true}),
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(inlineBody({ndjson: outputLine('next line\n', 2), nextCursor: 6})),
+      );
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const {result} = renderStepLogsHook({stepId: STEP_ID, attempt: 1}, {retryMissingStream: true});
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    await waitFor(() => expect(result.current.data?.records).toHaveLength(2), {
+      timeout: STEP_LOG_LIVE_REFETCH_MS + STEP_LOG_DRAIN_REFETCH_MS + 1_500,
+    });
+    expect(result.current.data?.records.map((record) => record.type)).toEqual(['output', 'output']);
+    const urls = requestsFrom(fetchImpl).map((request) => new URL(request.url));
+    expect(urls.map((url) => url.searchParams.get('cursor'))).toEqual(['0', '0', '5']);
+  });
+
+  test('does not keep polling server errors when missing-stream retry is requested', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({code: 'server-error'}, {status: 500}));
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const {result} = renderStepLogsHook({stepId: STEP_ID, attempt: 1}, {retryMissingStream: true});
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, STEP_LOG_LIVE_REFETCH_MS + 100));
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   test('does not poll after a closed drained inline stream loads', async () => {

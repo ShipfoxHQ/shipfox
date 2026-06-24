@@ -4,6 +4,8 @@ import {render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {WorkflowStepList} from './workflow-step-list.js';
 
+const LOGS_FOR_RE = /^logs for /u;
+
 describe('WorkflowStepList', () => {
   test('renders a labelled flat step list', () => {
     render(
@@ -41,32 +43,39 @@ describe('WorkflowStepList', () => {
     expect(build).toHaveAttribute('aria-expanded', 'false');
   });
 
-  test('renders expanded slot content with the selected step id', async () => {
+  test('renders expanded slot content with the selected attempt context', async () => {
     const user = userEvent.setup();
-    const step = makeStep({name: 'deploy', attempts: [makeAttempt()]});
+    const attempt = makeAttempt({status: 'running'});
+    const step = makeStep({name: 'deploy', status: 'running', attempts: [attempt]});
     render(
       <WorkflowStepList
         job={makeJob({steps: [step]})}
-        renderExpandedStep={({stepId}) => <Text size="sm">slot for {stepId}</Text>}
+        renderExpandedStep={({stepId, attempt, attemptId, attemptStatus}) => (
+          <Text size="sm">
+            slot for {stepId} attempt {attempt} id {attemptId} status {attemptStatus}
+          </Text>
+        )}
       />,
     );
-    const deploy = screen.getByRole('button', {name: '1. deploy, Pending, attempt 1'});
+    const deploy = screen.getByRole('button', {name: '1. deploy, Running, attempt 1'});
 
     await user.click(deploy);
 
     expect(deploy).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByText(`slot for ${step.id}`)).toBeInTheDocument();
+    expect(
+      screen.getByText(`slot for ${step.id} attempt 1 id ${attempt.id} status running`),
+    ).toBeInTheDocument();
   });
 
   test('reports selection changes including collapse', async () => {
     const user = userEvent.setup();
-    const onSelectedStepChange = vi.fn();
+    const onSelectedAttemptChange = vi.fn();
     const attempt = makeAttempt();
     const step = makeStep({name: 'deploy', attempts: [attempt]});
     render(
       <WorkflowStepList
         job={makeJob({steps: [step]})}
-        onSelectedStepChange={onSelectedStepChange}
+        onSelectedAttemptChange={onSelectedAttemptChange}
       />,
     );
     const deploy = screen.getByRole('button', {name: '1. deploy, Pending, attempt 1'});
@@ -74,8 +83,130 @@ describe('WorkflowStepList', () => {
     await user.click(deploy);
     await user.click(deploy);
 
-    expect(onSelectedStepChange).toHaveBeenNthCalledWith(1, attempt.id);
-    expect(onSelectedStepChange).toHaveBeenNthCalledWith(2, undefined);
+    expect(onSelectedAttemptChange).toHaveBeenNthCalledWith(1, attempt.id);
+    expect(onSelectedAttemptChange).toHaveBeenNthCalledWith(2, undefined);
+  });
+
+  test('opens a default selected attempt', () => {
+    const attempt = makeAttempt();
+    const step = makeStep({name: 'deploy', attempts: [attempt]});
+    render(
+      <WorkflowStepList
+        job={makeJob({steps: [step]})}
+        defaultSelectedAttemptId={attempt.id}
+        renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
+      />,
+    );
+
+    expect(screen.getByRole('button', {name: '1. deploy, Pending, attempt 1'})).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByText(`logs for ${attempt.id}`)).toBeInTheDocument();
+  });
+
+  test('auto-opens the latest running attempt', () => {
+    const installAttempt = makeAttempt({status: 'running', execution_order: 2});
+    const deployAttempt = makeAttempt({status: 'running', execution_order: 4});
+    const finishedAttempt = makeAttempt({status: 'succeeded', execution_order: 5});
+    render(
+      <WorkflowStepList
+        job={makeJob({
+          steps: [
+            makeStep({
+              name: 'install',
+              status: 'running',
+              attempts: [installAttempt],
+            }),
+            makeStep({
+              name: 'deploy',
+              position: 1,
+              status: 'running',
+              attempts: [deployAttempt],
+            }),
+            makeStep({
+              name: 'notify',
+              position: 2,
+              status: 'succeeded',
+              attempts: [finishedAttempt],
+            }),
+          ],
+        })}
+        autoSelectActiveAttempt
+        renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
+      />,
+    );
+
+    expect(screen.getByRole('button', {name: '1. install, Running, attempt 1'})).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(screen.getByRole('button', {name: '2. deploy, Running, attempt 1'})).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByText(`logs for ${deployAttempt.id}`)).toBeInTheDocument();
+  });
+
+  test('does not auto-open when no attempt is running', () => {
+    render(
+      <WorkflowStepList
+        job={makeJob({
+          steps: [makeStep({name: 'deploy', attempts: [makeAttempt({status: 'succeeded'})]})],
+        })}
+        autoSelectActiveAttempt
+        renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
+      />,
+    );
+
+    expect(screen.getByRole('button', {name: '1. deploy, Succeeded, attempt 1'})).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(screen.queryByText(LOGS_FOR_RE)).not.toBeInTheDocument();
+  });
+
+  test('preserves manual collapse across same-job polling and resets on job change', async () => {
+    const user = userEvent.setup();
+    const attempt = makeAttempt({status: 'running'});
+    const step = makeStep({name: 'deploy', status: 'running', attempts: [attempt]});
+    const job = makeJob({steps: [step]});
+    const {rerender} = render(
+      <WorkflowStepList
+        job={job}
+        autoSelectActiveAttempt
+        renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
+      />,
+    );
+    const deploy = screen.getByRole('button', {name: '1. deploy, Running, attempt 1'});
+    expect(screen.getByText(`logs for ${attempt.id}`)).toBeInTheDocument();
+
+    await user.click(deploy);
+    rerender(
+      <WorkflowStepList
+        job={{...job, updated_at: '2026-06-21T12:02:00.000Z'}}
+        autoSelectActiveAttempt
+        renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
+      />,
+    );
+
+    expect(screen.queryByText(`logs for ${attempt.id}`)).not.toBeInTheDocument();
+
+    const nextAttempt = makeAttempt({status: 'running'});
+    const nextStep = makeStep({name: 'test', status: 'running', attempts: [nextAttempt]});
+    rerender(
+      <WorkflowStepList
+        job={makeJob({
+          id: '44444444-4444-4444-8444-000000000002',
+          name: 'test',
+          steps: [nextStep],
+        })}
+        autoSelectActiveAttempt
+        renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
+      />,
+    );
+
+    expect(screen.getByText(`logs for ${nextAttempt.id}`)).toBeInTheDocument();
   });
 
   test('renders each attempt as its own flat row', () => {
