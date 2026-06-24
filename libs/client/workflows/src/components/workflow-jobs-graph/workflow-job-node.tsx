@@ -14,7 +14,7 @@ export function TriggerNode({trigger}: {trigger: WorkflowGraphTriggerNode}) {
         <button
           type="button"
           aria-label={trigger.label}
-          className="flex items-center justify-center rounded-full border border-border-neutral-base bg-background-components-base"
+          className="flex items-center justify-center rounded-full border border-border-neutral-base bg-background-components-base transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
           style={{width: TRIGGER_SIZE, height: TRIGGER_SIZE}}
         >
           <TriggerSourceIcon
