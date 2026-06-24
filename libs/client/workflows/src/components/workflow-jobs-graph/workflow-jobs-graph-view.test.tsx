@@ -1,15 +1,15 @@
 import type {RunJobDetailDto} from '@shipfox/api-workflows-dto';
-import {render, screen} from '@testing-library/react';
+import {render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
 import {workflowJob, workflowRunDetail} from '#test/fixtures/workflow-run.js';
 import {WorkflowJobsGraph} from './workflow-jobs-graph.js';
 
 describe('WorkflowJobsGraph', () => {
-  test('renders a labelled graph region and trigger', () => {
+  test('renders a graph region and trigger', () => {
     render(<WorkflowJobsGraph run={makeRun({jobs: [makeJob({name: 'build'})]})} />);
 
-    expect(screen.getByRole('region', {name: 'Jobs graph'})).toBeInTheDocument();
+    expect(screen.getByRole('region', {name: 'Workflow jobs'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'manual / fire'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'build, Pending'})).toBeInTheDocument();
   });
@@ -74,9 +74,7 @@ describe('WorkflowJobsGraph', () => {
     );
 
     expect(screen.getByRole('button', {name: 'build, Failed'})).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', {name: 'deploy, Cancelled, Depends on build'}),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'deploy, Cancelled'})).toBeInTheDocument();
   });
 
   test('renders an empty state', () => {
@@ -105,12 +103,14 @@ describe('WorkflowJobsGraph', () => {
     );
 
     expect(
-      screen.getByRole('button', {name: 'deploy, Running, Depends on build'}),
+      screen.getByRole('button', {
+        name: 'deploy, Running, 1 current dependency is still pending or running',
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Depends on 1 job')).toBeInTheDocument();
+    expect(screen.queryByText('Depends on 1 job')).not.toBeInTheDocument();
   });
 
-  test('summarizes multiple dependencies visually and keeps names accessible', () => {
+  test('summarizes multiple current dependencies visually and keeps count accessible', () => {
     render(
       <WorkflowJobsGraph
         run={makeRun({
@@ -123,10 +123,28 @@ describe('WorkflowJobsGraph', () => {
       />,
     );
 
-    expect(
-      screen.getByRole('button', {name: 'deploy, Pending, Depends on build, lint'}),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Depends on 2 jobs')).toBeInTheDocument();
+    const deploy = screen.getByRole('button', {
+      name: 'deploy, Pending, 2 current dependencies are still pending or running',
+    });
+    expect(deploy).toBeInTheDocument();
+    expect(within(deploy).getByText('2')).toBeInTheDocument();
+    expect(screen.queryByText('Depends on 2 jobs')).not.toBeInTheDocument();
+  });
+
+  test('hides the current dependency pill when upstream jobs are resolved', () => {
+    render(
+      <WorkflowJobsGraph
+        run={makeRun({
+          jobs: [
+            makeJob({name: 'build', status: 'succeeded'}),
+            makeJob({name: 'deploy', position: 1, dependencies: ['build']}),
+          ],
+        })}
+      />,
+    );
+
+    const deploy = screen.getByRole('button', {name: 'deploy, Pending'});
+    expect(within(deploy).queryByText('1')).not.toBeInTheDocument();
   });
 
   test('moves selection and focus with graph keyboard navigation', async () => {
@@ -143,7 +161,9 @@ describe('WorkflowJobsGraph', () => {
     );
 
     const build = screen.getByRole('button', {name: 'build, Pending'});
-    const deploy = screen.getByRole('button', {name: 'deploy, Pending, Depends on build'});
+    const deploy = screen.getByRole('button', {
+      name: 'deploy, Pending, 1 current dependency is still pending or running',
+    });
     build.focus();
 
     await user.keyboard('{ArrowRight}');
@@ -175,7 +195,7 @@ describe('WorkflowJobsGraph', () => {
     const skippedJoinEdge = container.querySelector(
       `[data-edge-id="${securityScan.id}:${deploy.id}"]`,
     );
-    expect(skippedJoinEdge).toHaveAttribute('d', 'M 332 151 H 648 V 55 H 684');
+    expect(skippedJoinEdge).toHaveAttribute('d', 'M 332 106 H 648 V 40 H 684');
   });
 });
 

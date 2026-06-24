@@ -143,6 +143,26 @@ describe('buildWorkflowJobGraphModel', () => {
       status: 'cancelled',
     });
   });
+
+  test('counts only pending and running known dependencies as current', () => {
+    const pending = makeJob({name: 'build', status: 'pending'});
+    const running = makeJob({name: 'test', status: 'running', position: 1});
+    const succeeded = makeJob({name: 'lint', status: 'succeeded', position: 2});
+    const failed = makeJob({name: 'security', status: 'failed', position: 3});
+    const cancelled = makeJob({name: 'docs', status: 'cancelled', position: 4});
+    const deploy = makeJob({
+      name: 'deploy',
+      position: 5,
+      dependencies: ['build', 'test', 'lint', 'security', 'docs', 'missing'],
+    });
+    const run = makeRun({jobs: [deploy, cancelled, failed, succeeded, running, pending]});
+
+    const result = buildWorkflowJobGraphModel({run});
+
+    expect(nodeByName(result, 'deploy')).toMatchObject({
+      currentDependencyCount: 2,
+    });
+  });
 });
 
 function nodeByName(result: ReturnType<typeof buildWorkflowJobGraphModel>, name: string) {

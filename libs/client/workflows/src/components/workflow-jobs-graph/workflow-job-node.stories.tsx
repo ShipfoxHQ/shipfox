@@ -89,5 +89,6 @@ function makeNode({
     ...workflowJob({id, name: label, status, position, dependencies}),
     column: 0,
     row: position,
+    currentDependencyCount: dependencies.length,
   };
 }

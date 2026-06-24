@@ -104,7 +104,7 @@ export const Selected: Story = {
   play: async ({canvasElement}) => {
     await within(canvasElement)
       .getByRole('button', {
-        name: 'deploy, Running, Depends on build',
+        name: 'deploy, Running',
       })
       .click();
   },

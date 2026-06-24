@@ -10,6 +10,7 @@ export interface WorkflowGraphTriggerNode
 export interface WorkflowJobGraphNode extends WorkflowJob {
   column: number;
   row: number;
+  currentDependencyCount: number;
 }
 
 export type WorkflowJobGraphNavigationKey =
@@ -61,6 +62,7 @@ export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): Wor
     ...job,
     column: columnFor(job),
     row: 0,
+    currentDependencyCount: currentDependencyCount(job, byName),
   }));
 
   const grouped = groupColumns(nodesWithoutRows);
@@ -140,6 +142,16 @@ function buildEdges(
   );
 
   return [...triggerEdges, ...dependencyEdges];
+}
+
+function currentDependencyCount(
+  job: WorkflowJob,
+  byName: ReadonlyMap<string, WorkflowJob>,
+): number {
+  return job.dependencies.filter((dependencyName) => {
+    const dependency = byName.get(dependencyName);
+    return dependency?.status === 'pending' || dependency?.status === 'running';
+  }).length;
 }
 
 export function nextWorkflowJobGraphNodeId({
