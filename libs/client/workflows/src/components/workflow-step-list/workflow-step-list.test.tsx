@@ -186,7 +186,7 @@ describe('WorkflowStepList', () => {
     await user.click(deploy);
     rerender(
       <WorkflowStepList
-        job={{...job, updated_at: '2026-06-21T12:02:00.000Z'}}
+        job={{...job, updatedAt: '2026-06-21T12:02:00.000Z'}}
         autoSelectActiveAttempt
         renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
       />,
