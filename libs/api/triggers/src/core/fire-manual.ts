@@ -1,6 +1,11 @@
 import {randomUUID} from 'node:crypto';
 import {isPermanentRunWorkflowError, runWorkflow, type WorkflowRun} from '@shipfox/api-workflows';
 import {getTriggerSubscriptionById} from '#db/subscriptions.js';
+import {
+  eventOutcomeCount,
+  eventReceivedCount,
+  subscriptionTriggeredCount,
+} from '#metrics/instance.js';
 import {readConfigInputs} from './config.js';
 import {
   TriggerSubscriptionNotFoundError,
@@ -46,6 +51,8 @@ export async function fireManualSubscription(
     receivedAt: new Date(),
   };
 
+  eventReceivedCount.add(1, {source: 'manual'});
+
   let run: WorkflowRun;
   try {
     run = await runWorkflow({
@@ -63,11 +70,11 @@ export async function fireManualSubscription(
   } catch (error) {
     const failure = await beginTriggerHistory({...historyBase, eventRef: randomUUID()});
     await failure.errored(subscription, toReason(error));
-    // Manual fires do not replay, so permanent workflow errors can close history
-    // immediately while preserving the thrown error for callers.
     if (isPermanentRunWorkflowError(error)) {
+      eventOutcomeCount.add(1, {source: 'manual', outcome: 'errored'});
       await failure.allErrored(1);
     } else {
+      eventOutcomeCount.add(1, {source: 'manual', outcome: 'failed'});
       await failure.failed(1);
     }
     throw error;
@@ -75,6 +82,8 @@ export async function fireManualSubscription(
 
   const history = await beginTriggerHistory({...historyBase, eventRef: run.id});
   await history.triggered(subscription, run);
+  subscriptionTriggeredCount.add(1, {source: 'manual'});
+  eventOutcomeCount.add(1, {source: 'manual', outcome: 'routed'});
   await history.routed(1);
   return run;
 }
