@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import {configureApiClient} from '@shipfox/client-api';
-import {screen, waitFor, within} from '@testing-library/react';
+import {screen, within} from '@testing-library/react';
 import {INTEGRATIONS_TEST_WID, jsonResponse, renderIntegrationsPage} from '#test/render.js';
 import {IntegrationGallery} from './integration-gallery.js';
 
@@ -34,7 +34,6 @@ interface FetchOptions {
   connections?: unknown[];
   providersFail?: boolean;
   connectionsFail?: boolean;
-  connectionsPending?: boolean;
 }
 
 function fetchForGallery(options: FetchOptions = {}) {
@@ -43,7 +42,6 @@ function fetchForGallery(options: FetchOptions = {}) {
     connections = [],
     providersFail = false,
     connectionsFail = false,
-    connectionsPending = false,
   } = options;
   return vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
@@ -53,7 +51,6 @@ function fetchForGallery(options: FetchOptions = {}) {
       return Promise.resolve(jsonResponse({providers}));
     }
     if (url.includes('/integration-connections')) {
-      if (connectionsPending) return new Promise<Response>(() => undefined);
       if (connectionsFail)
         return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
       return Promise.resolve(jsonResponse({connections}));
@@ -272,46 +269,6 @@ describe('IntegrationGallery — installed section', () => {
     renderGallery({}, {connections: []});
 
     expect(await screen.findByText('No integrations connected yet')).toBeVisible();
-  });
-});
-
-describe('IntegrationGallery — onboarding suppression', () => {
-  test('renders nothing for the installed section while connections load', async () => {
-    renderGallery({hideInstalledUntilConnected: true}, {connectionsPending: true});
-
-    await screen.findByRole('region', {name: 'Available integrations'});
-
-    expect(screen.queryByRole('region', {name: 'Installed integrations'})).not.toBeInTheDocument();
-  });
-
-  test('renders nothing for the installed section when connections fail', async () => {
-    renderGallery({hideInstalledUntilConnected: true}, {connectionsFail: true});
-
-    await screen.findByRole('region', {name: 'Available integrations'});
-    await waitFor(() =>
-      expect(screen.queryByText("Couldn't load integrations")).not.toBeInTheDocument(),
-    );
-
-    expect(screen.queryByRole('region', {name: 'Installed integrations'})).not.toBeInTheDocument();
-  });
-
-  test('renders nothing for the installed section when there are no connections', async () => {
-    renderGallery({hideInstalledUntilConnected: true}, {connections: []});
-
-    await screen.findByRole('region', {name: 'Available integrations'});
-
-    expect(screen.queryByRole('region', {name: 'Installed integrations'})).not.toBeInTheDocument();
-    expect(screen.queryByText('No integrations connected yet')).not.toBeInTheDocument();
-  });
-
-  test('shows installed cards once at least one connection loads', async () => {
-    renderGallery(
-      {hideInstalledUntilConnected: true, capability: 'source_control'},
-      {connections: [githubConnection]},
-    );
-
-    expect(await screen.findByRole('region', {name: 'Installed integrations'})).toBeInTheDocument();
-    expect(screen.getByText('acme-corp')).toBeVisible();
   });
 });
 

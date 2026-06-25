@@ -4,7 +4,11 @@ import {Logo} from '@shipfox/react-ui';
 import {Link, useParams} from '@tanstack/react-router';
 import {UserMenu} from './user-menu.js';
 
-export function NavBar() {
+export interface NavBarProps {
+  hideProjectNavigation?: boolean;
+}
+
+export function NavBar({hideProjectNavigation = false}: NavBarProps) {
   const workspace = useActiveWorkspace();
   const params = useParams({strict: false}) as {pid?: string};
   const projectQuery = useProjectQuery(params.pid);
@@ -17,18 +21,29 @@ export function NavBar() {
         aria-label="Shipfox home"
         className="rounded-6 focus-visible:outline-none focus-visible:shadow-button-neutral-focus"
       >
-        <Logo variant="wordmark" />
+        {hideProjectNavigation ? (
+          <>
+            <Logo variant="mark" alt="" className="sm:hidden" />
+            <Logo variant="wordmark" alt="" className="hidden sm:block" />
+          </>
+        ) : (
+          <Logo variant="wordmark" alt="" />
+        )}
       </Link>
       <span className="h-20 w-px bg-border-neutral-base" aria-hidden="true" />
-      <WorkspaceCrumb workspace={workspace} />
-      <span className="text-foreground-neutral-muted" aria-hidden="true">
-        /
-      </span>
-      <ProjectCrumb
-        workspaceId={workspace.id}
-        projectId={project?.id}
-        projectName={project?.name}
-      />
+      <WorkspaceCrumb workspace={workspace} compact={hideProjectNavigation} />
+      {hideProjectNavigation ? undefined : (
+        <>
+          <span className="text-foreground-neutral-muted" aria-hidden="true">
+            /
+          </span>
+          <ProjectCrumb
+            workspaceId={workspace.id}
+            projectId={project?.id}
+            projectName={project?.name}
+          />
+        </>
+      )}
       <div className="flex-1" />
       <UserMenu />
     </header>

@@ -1,5 +1,6 @@
 import {MainLayout} from '@shipfox/client-app-shell';
 import {rememberLastWorkspaceId} from '@shipfox/client-auth';
+import {WorkspaceSetupGuard} from '@shipfox/client-projects';
 import {ShipfoxLoader} from '@shipfox/react-ui';
 import {createFileRoute, redirect} from '@tanstack/react-router';
 
@@ -24,5 +25,13 @@ export const Route = createFileRoute('/workspaces/$wid/_layout')({
       <ShipfoxLoader size={64} animation="circular" color="orange" background="dark" />
     </div>
   ),
-  component: MainLayout,
+  component: WorkspaceLayoutRoute,
 });
+
+function WorkspaceLayoutRoute() {
+  return (
+    <WorkspaceSetupGuard>
+      {({hideProjectNavigation}) => <MainLayout hideProjectNavigation={hideProjectNavigation} />}
+    </WorkspaceSetupGuard>
+  );
+}
