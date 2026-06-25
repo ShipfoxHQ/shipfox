@@ -1,5 +1,10 @@
 export {LogGroup, type LogGroupProps} from './log-group.js';
-export {LogView, type LogViewProps} from './log-view.js';
+export {
+  LogView,
+  type LogViewProps,
+  LogViewSkeleton,
+  type LogViewSkeletonProps,
+} from './log-view.js';
 export {OutputLogRow, type OutputLogRowProps} from './output-log-row.js';
 export {
   CappedMarker,
