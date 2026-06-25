@@ -42,7 +42,6 @@ function connection(
     externalAccountId: INSTALL_UUID,
     displayName: 'Sentry acme',
     lifecycleStatus: 'active',
-    capabilities: [],
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

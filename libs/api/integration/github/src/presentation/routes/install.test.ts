@@ -3,6 +3,7 @@ import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {GithubApiClient} from '#api/client.js';
+import type {ConnectGithubInstallationInput} from '#core/install.js';
 import {verifyGithubInstallState} from '#core/state.js';
 import {createGithubIntegrationProvider} from '#index.js';
 
@@ -68,6 +69,12 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
     fetchRepositoryFile: vi.fn(() => {
       throw new Error('not used');
     }),
+    createInstallationAccessToken: vi.fn(() =>
+      Promise.resolve({
+        token: 'ghs_installationtoken',
+        expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+      }),
+    ),
     ...overrides,
   };
 }
@@ -81,19 +88,20 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
   const provider = createGithubIntegrationProvider({
     github: options.github ?? githubClient(),
     getExistingGithubConnection: vi.fn(() => Promise.resolve(options.existingConnection)),
-    connectGithubInstallation: vi.fn((input) =>
-      Promise.resolve({
+    connectGithubInstallation: vi.fn((input: ConnectGithubInstallationInput) => {
+      const connection: IntegrationConnection<'github'> = {
         id: crypto.randomUUID(),
         workspaceId: input.workspaceId,
         provider: 'github',
         externalAccountId: input.installationId,
         displayName: input.displayName,
         lifecycleStatus: 'active',
-        capabilities: ['source_control'],
         createdAt: new Date(),
         updatedAt: new Date(),
-      }),
-    ),
+      };
+
+      return Promise.resolve(connection);
+    }),
     // Webhook receiver dependencies — install/OAuth tests don't exercise them.
     coreDb: vi.fn() as never,
     publishSourcePush: vi.fn(() => Promise.resolve({published: false})),
@@ -215,7 +223,6 @@ describe('GitHub integration routes', () => {
         externalAccountId: '123',
         displayName: 'GitHub shipfox',
         lifecycleStatus: 'active',
-        capabilities: ['source_control'],
         createdAt: new Date(),
         updatedAt: new Date(),
       },

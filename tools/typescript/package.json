@@ -17,7 +17,10 @@
     "shipfox-tsc-emit": "./bin/tsc-emit.js"
   },
   "scripts": {
-    "build": "shipfox-swc"
+    "build": "shipfox-swc",
+    "test": "node --test test/*.test.mjs",
+    "type": "node ./bin/tsc-check.js",
+    "type:emit": "node ./bin/tsc-emit.js"
   },
   "dependencies": {
     "@shipfox/tool-utils": "workspace:*",

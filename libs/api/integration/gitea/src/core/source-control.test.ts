@@ -33,6 +33,7 @@ function giteaClient(overrides: Partial<GiteaApiClient> = {}): GiteaApiClient {
         size: 58,
       }),
     ),
+    organizationExists: vi.fn(() => Promise.resolve(true)),
     ...overrides,
   };
 }

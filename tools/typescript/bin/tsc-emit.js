@@ -1,3 +1,5 @@
 #!/usr/bin/env node
 
-import '../dist/emit.js';
+import {runCli} from '../dist/emit.js';
+
+runCli();

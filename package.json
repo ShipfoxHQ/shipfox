@@ -9,7 +9,7 @@
   "packageManager": "pnpm@11.7.0",
   "type": "module",
   "scripts": {
-    "release:publish": "turbo build type:emit --filter='./libs/**' --filter='./tools/**' && changeset publish"
+    "release:publish": "turbo type build type:emit --filter='./libs/**' --filter='./tools/**' && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.10",

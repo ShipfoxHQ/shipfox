@@ -33,7 +33,7 @@ function rejects(error: unknown) {
 }
 
 function httpError(status: number, headers: Record<string, string> = {}): HTTPError {
-  return new HTTPError({status, headers: new Headers(headers)});
+  return new HTTPError({status, headers: new Headers(headers)} as never, {} as never, {} as never);
 }
 
 describe('createSentryApiClient.exchangeAuthorizationCode', () => {
@@ -90,7 +90,7 @@ describe('createSentryApiClient.exchangeAuthorizationCode', () => {
   });
 
   it('maps a timeout to timeout', async () => {
-    postMock.mockReturnValue(rejects(new TimeoutError()));
+    postMock.mockReturnValue(rejects(new TimeoutError({} as never)));
     const client = createSentryApiClient();
 
     const result = client.exchangeAuthorizationCode({installationUuid: 'uuid-1', code: 'c'});

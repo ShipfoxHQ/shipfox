@@ -1,5 +1,10 @@
 import {randomUUID} from 'node:crypto';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {
+  GetIntegrationConnectionByIdFn,
+  IntegrationConnection,
+  PublishSourcePushFn,
+  RecordDeliveryOnlyFn,
+} from '@shipfox/api-integration-core-dto';
 import {db} from '#db/db.js';
 import {giteaConnections} from '#db/schema/connections.js';
 import {capturedGiteaPushPayload, giteaConnectionFactory, giteaPushPayload} from '#test/index.js';
@@ -25,12 +30,34 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
 
 function deps(options: {connection?: IntegrationConnection} = {}) {
   return {
-    publishSourcePush: vi.fn(() => Promise.resolve({published: true})),
-    recordDeliveryOnly: vi.fn(() => Promise.resolve()),
-    getIntegrationConnectionById: vi.fn(() =>
+    publishSourcePush: vi.fn<PublishSourcePushFn>(() => Promise.resolve({published: true})),
+    recordDeliveryOnly: vi.fn<RecordDeliveryOnlyFn>(() => Promise.resolve()),
+    getIntegrationConnectionById: vi.fn<GetIntegrationConnectionByIdFn>(() =>
       Promise.resolve(options.connection ?? fakeConnection()),
     ),
   };
+}
+
+function firstPublishSourcePushCall(publishSourcePush: {
+  mock: {calls: Array<Parameters<PublishSourcePushFn>>};
+}): Parameters<PublishSourcePushFn>[0] {
+  const [call] = publishSourcePush.mock.calls;
+  if (!call) {
+    throw new Error('Expected publishSourcePush to be called');
+  }
+
+  return call[0];
+}
+
+function firstRecordDeliveryOnlyCall(recordDeliveryOnly: {
+  mock: {calls: Array<Parameters<RecordDeliveryOnlyFn>>};
+}): Parameters<RecordDeliveryOnlyFn>[0] {
+  const [call] = recordDeliveryOnly.mock.calls;
+  if (!call) {
+    throw new Error('Expected recordDeliveryOnly to be called');
+  }
+
+  return call[0];
 }
 
 async function seedConnection(org: string, connectionId?: string): Promise<void> {
@@ -76,7 +103,7 @@ describe('handleGiteaWebhook', () => {
       expect.objectContaining({tx: expect.anything()}),
     );
     expect(handlers.publishSourcePush).toHaveBeenCalledTimes(1);
-    const call = handlers.publishSourcePush.mock.calls[0]?.[0];
+    const call = firstPublishSourcePushCall(handlers.publishSourcePush);
     expect(call.tx).toBeDefined();
     expect(call).toMatchObject({
       provider: 'gitea',
@@ -108,7 +135,7 @@ describe('handleGiteaWebhook', () => {
 
     expect(result.outcome).toBe('published');
     expect(handlers.publishSourcePush).toHaveBeenCalledTimes(1);
-    expect(handlers.publishSourcePush.mock.calls[0]?.[0]).toMatchObject({
+    expect(firstPublishSourcePushCall(handlers.publishSourcePush)).toMatchObject({
       provider: 'gitea',
       deliveryId,
       workspaceId: connection.workspaceId,
@@ -146,7 +173,7 @@ describe('handleGiteaWebhook', () => {
 
     expect(result.outcome).toBe('published');
     expect(handlers.publishSourcePush).toHaveBeenCalledTimes(1);
-    expect(handlers.publishSourcePush.mock.calls[0]?.[0].push).toMatchObject({
+    expect(firstPublishSourcePushCall(handlers.publishSourcePush).push).toMatchObject({
       ref: 'feature/x',
       isDefaultBranch: false,
     });
@@ -177,7 +204,7 @@ describe('handleGiteaWebhook', () => {
     expect(result.outcome).toBe('published');
     expect(handlers.publishSourcePush).toHaveBeenCalledTimes(1);
     // Repo id keeps the payload's verbatim casing to match the source-control adapter.
-    expect(handlers.publishSourcePush.mock.calls[0]?.[0].push.externalRepositoryId).toBe(
+    expect(firstPublishSourcePushCall(handlers.publishSourcePush).push.externalRepositoryId).toBe(
       'gitea:ShipFox/API',
     );
   });
@@ -224,7 +251,7 @@ describe('handleGiteaWebhook', () => {
     expect(result.outcome).toBe('recorded-only');
     expect(handlers.publishSourcePush).not.toHaveBeenCalled();
     expect(handlers.recordDeliveryOnly).toHaveBeenCalledTimes(1);
-    expect(handlers.recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({
+    expect(firstRecordDeliveryOnlyCall(handlers.recordDeliveryOnly)).toMatchObject({
       provider: 'gitea',
       deliveryId,
     });
@@ -255,7 +282,7 @@ describe('handleGiteaWebhook', () => {
     expect(handlers.publishSourcePush).not.toHaveBeenCalled();
     expect(handlers.getIntegrationConnectionById).not.toHaveBeenCalled();
     expect(handlers.recordDeliveryOnly).toHaveBeenCalledTimes(1);
-    expect(handlers.recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({
+    expect(firstRecordDeliveryOnlyCall(handlers.recordDeliveryOnly)).toMatchObject({
       provider: 'gitea',
       deliveryId,
     });
@@ -288,7 +315,7 @@ describe('handleGiteaWebhook', () => {
     expect(handlers.getIntegrationConnectionById).toHaveBeenCalledTimes(1);
     expect(handlers.publishSourcePush).not.toHaveBeenCalled();
     expect(handlers.recordDeliveryOnly).toHaveBeenCalledTimes(1);
-    expect(handlers.recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({
+    expect(firstRecordDeliveryOnlyCall(handlers.recordDeliveryOnly)).toMatchObject({
       provider: 'gitea',
       deliveryId,
     });
@@ -324,7 +351,7 @@ describe('handleGiteaWebhook', () => {
     expect(handlers.getIntegrationConnectionById).toHaveBeenCalledTimes(1);
     expect(handlers.publishSourcePush).not.toHaveBeenCalled();
     expect(handlers.recordDeliveryOnly).toHaveBeenCalledTimes(1);
-    expect(handlers.recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({
+    expect(firstRecordDeliveryOnlyCall(handlers.recordDeliveryOnly)).toMatchObject({
       provider: 'gitea',
       deliveryId,
     });

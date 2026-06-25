@@ -27,8 +27,18 @@
     },
     "type:emit": {
       "cache": true,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!test/**",
+        "!tsconfig.test.json",
+        "!vitest.config.ts"
+      ],
       "outputs": ["dist/**/*.d.ts", "dist/**/*.d.ts.map"],
-      "dependsOn": ["@shipfox/typescript#build", "^type:emit"]
+      "dependsOn": ["@shipfox/typescript#build", "type", "^type:emit"]
     },
     "test": {
       "cache": true,
