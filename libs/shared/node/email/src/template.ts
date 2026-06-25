@@ -40,7 +40,7 @@ async function getHtmlTemplate(name: TemplateName): Promise<TemplateDelegate> {
     throw new EmailTemplateError(name, `Email template file not found: ${path}`, {cause});
   }
 
-  const {html, errors} = await mjml2html(source, {filePath: path});
+  const {html, errors} = await mjml2html(source, {filePath: path, ignoreIncludes: false});
   if (errors.length > 0) {
     throw new EmailTemplateError(
       name,
