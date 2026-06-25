@@ -13,8 +13,8 @@ import type {EventsListProps} from './types.js';
 
 function hasAnyFilter(filters: TriggerEventFilters): boolean {
   return Boolean(
-    filters.source ||
-      filters.event ||
+    (filters.source && filters.source.length > 0) ||
+      (filters.event && filters.event.length > 0) ||
       filters.from ||
       filters.to ||
       (filters.outcome && filters.outcome.length > 0),

@@ -2,21 +2,10 @@ import type {
   TriggerEventFacetsResponseDto,
   TriggerEventListItemDto,
 } from '@shipfox/api-triggers-dto';
+import type {QueryLoadErrorQuery} from '@shipfox/client-ui';
 import type {TriggerEventFilters} from '#hooks/api/trigger-events.js';
 
-/**
- * Structural stand-in for the react-query results the list view reads. Decouples the view
- * from react-query's generics so a story can fake the loading/error/stale states. `data`
- * is `undefined` until the first successful fetch (the "errored with nothing loaded" gate).
- */
-export interface TriggerEventsListQuery {
-  isPending: boolean;
-  isError: boolean;
-  isFetching: boolean;
-  data: unknown;
-  error: unknown;
-  refetch: () => unknown;
-}
+export type TriggerEventsListQuery = QueryLoadErrorQuery & {isPending: boolean};
 
 export interface EventsListProps {
   events: TriggerEventListItemDto[];

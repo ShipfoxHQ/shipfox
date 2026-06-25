@@ -27,11 +27,16 @@ describe('validateTriggerEventsSearch', () => {
     expect(validateTriggerEventsSearch({outcome: ['discarded']}).outcome).toEqual(['discarded']);
   });
 
-  test('normalizes scalar source and event params from existing URLs', () => {
-    const search = validateTriggerEventsSearch({source: 'github', event: 'push'});
+  test('normalizes scalar filter params from existing URLs', () => {
+    const search = validateTriggerEventsSearch({
+      source: 'github',
+      event: 'push',
+      outcome: 'discarded',
+    });
 
     expect(search.source).toEqual(['github']);
     expect(search.event).toEqual(['push']);
+    expect(search.outcome).toEqual(['discarded']);
   });
 
   test('drops an outcome array containing an unknown value', () => {

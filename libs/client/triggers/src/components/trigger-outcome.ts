@@ -22,6 +22,10 @@ const VISUALS: Record<TriggerEventOutcomeDto, TriggerOutcomeVisual> = {
   errored: {dot: 'error', ripple: false, label: 'Errored'},
 };
 
-export function getTriggerOutcomeVisual(outcome: TriggerEventOutcomeDto): TriggerOutcomeVisual {
-  return VISUALS[outcome];
+const UNKNOWN_VISUAL: TriggerOutcomeVisual = {dot: 'warning', ripple: false, label: 'Unknown'};
+
+export function getTriggerOutcomeVisual(
+  outcome: TriggerEventOutcomeDto | string,
+): TriggerOutcomeVisual {
+  return VISUALS[outcome as TriggerEventOutcomeDto] ?? UNKNOWN_VISUAL;
 }

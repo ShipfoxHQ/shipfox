@@ -88,6 +88,13 @@ describe('EventsList', () => {
     expect(onFiltersChange).toHaveBeenCalledWith(expect.objectContaining({outcome: undefined}));
   });
 
+  test('empty list filters do not count as active filters', () => {
+    renderList(makeProps({filters: {source: [], event: [], outcome: []}}));
+
+    expect(screen.getByText('→ 2 runs')).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Clear filters'})).not.toBeInTheDocument();
+  });
+
   test('selecting an outcome reports the filter patch', async () => {
     const onFiltersChange = vi.fn();
     renderList(makeProps({onFiltersChange}));

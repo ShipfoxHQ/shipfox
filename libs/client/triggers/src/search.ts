@@ -6,6 +6,14 @@ const stringListSearchSchema = z
   .optional()
   .catch(undefined);
 
+const outcomeListSearchSchema = z
+  .preprocess(
+    (value) => (typeof value === 'string' ? [value] : value),
+    z.array(triggerEventOutcomeSchema),
+  )
+  .optional()
+  .catch(undefined);
+
 /**
  * URL search params for the Events page. Reuses the DTO outcome enum so the page and the
  * read API share one source of truth, and matches the `TriggerEventFilters` shape the data
@@ -15,7 +23,7 @@ const stringListSearchSchema = z
 export const triggerEventsSearchSchema = z.object({
   source: stringListSearchSchema,
   event: stringListSearchSchema,
-  outcome: z.array(triggerEventOutcomeSchema).optional().catch(undefined),
+  outcome: outcomeListSearchSchema,
   // The read API requires ISO datetimes (`z.string().datetime()`); validate the same here so
   // a hand-edited or stale URL with a non-ISO date drops the param rather than forwarding it
   // and turning the first fetch into a full-page load error.

@@ -16,7 +16,11 @@ export function triggerEventMatchSummary(
     case 'failed':
     case 'errored':
       return 'Failed';
-    default:
+    case 'received':
       return 'Evaluating…';
+    default: {
+      const _exhaustive: never = event.outcome;
+      return 'Unknown';
+    }
   }
 }
