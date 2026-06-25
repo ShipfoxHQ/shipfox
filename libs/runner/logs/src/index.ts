@@ -7,6 +7,7 @@ export {
 } from '#core/session-log-stream.js';
 export {
   createStepLogStream,
+  type StepLogGroupOptions,
   type StepLogStream,
   type StepLogStreamOptions,
 } from '#core/step-log-stream.js';

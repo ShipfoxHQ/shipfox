@@ -454,6 +454,94 @@ describe('createStepLogStream', () => {
     expect(records.some((r) => r.type === 'gap')).toBe(true);
   });
 
+  it('writes runner-originated groups as control records sharing the user group id space', async () => {
+    const stream = createStepLogStream({
+      logsDir: join(dir, 'logs'),
+      stepId: STEP_ID,
+      attempt: 15,
+      append: hangingAppend,
+      flushIntervalMs: 100000,
+      now: () => 1,
+    });
+
+    stream.writeGroup({
+      name: 'Run npm test',
+      lines: ['npm test', 'shell: bash -e {0}', '::group::not parsed'],
+    });
+    stream.write(Buffer.from('::group::User group\nwork\n::endgroup::\n'), 'stdout');
+    await stream.close();
+    stream.dispose();
+
+    const records = await readRecords(15);
+    expect(groupStarts(records)).toEqual([
+      {id: 'g1', parent: null, name: 'Run npm test'},
+      {id: 'g2', parent: null, name: 'User group'},
+    ]);
+    expect(groupEndIds(records)).toEqual(['g1', 'g2']);
+    expect(
+      records.filter((r) => r.type === 'output').map((r) => (r.type === 'output' ? r.data : '')),
+    ).toEqual(['  npm test\n', '  shell: bash -e {0}\n', '  ::group::not parsed\n', 'work\n']);
+  });
+
+  it('redacts runner-originated group metadata before it reaches the spool', async () => {
+    const secret = 'sf/rt+METADATA=34';
+    const forms = secretWireForms(secret);
+    const stream = createStepLogStream({
+      logsDir: join(dir, 'logs'),
+      stepId: STEP_ID,
+      attempt: 16,
+      append: hangingAppend,
+      secrets: [secret],
+      flushIntervalMs: 100000,
+      now: () => 1,
+    });
+
+    stream.writeGroup({
+      name: `Run ${secret}`,
+      lines: [`token=${secret}`, `encoded=${encodeURIComponent(secret)}`],
+    });
+    stream.writeOutputLine(`Process failed: https://user:${secret}@example.com/repo`, 'stderr');
+    await stream.close();
+    stream.dispose();
+
+    const raw = await readFile(join(dir, 'logs', `${STEP_ID}-16.ndjson`), 'utf8');
+    for (const form of forms) {
+      expect(raw).not.toContain(form);
+    }
+    expect(raw).not.toContain(`user:${secret}@`);
+    expect(raw).toContain('***');
+  });
+
+  it('abandons capture without crashing when a runner-originated metadata write fails', async () => {
+    let appends = 0;
+    const appendSpy = vi.spyOn(AttemptSpool.prototype, 'append').mockImplementation(() => {
+      appends += 1;
+      if (appends >= 2) throw Object.assign(new Error('ENOSPC'), {code: 'ENOSPC'});
+    });
+    const stream = createStepLogStream({
+      logsDir: join(dir, 'logs'),
+      stepId: STEP_ID,
+      attempt: 17,
+      append: hangingAppend,
+      flushIntervalMs: 100000,
+      now: () => 1,
+    });
+
+    expect(() =>
+      stream.writeGroup({
+        name: 'Run test',
+        lines: ['test', 'shell: bash -e {0}'],
+      }),
+    ).not.toThrow();
+    expect(() =>
+      stream.writeOutputLine('Process completed with exit code 1.', 'stderr'),
+    ).not.toThrow();
+    await expect(stream.close()).resolves.toBeDefined();
+    stream.dispose();
+
+    appendSpy.mockRestore();
+  });
+
   describe('nested groups', () => {
     function nestingStream(attempt: number) {
       return createStepLogStream({

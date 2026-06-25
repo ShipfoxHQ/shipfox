@@ -1,8 +1,10 @@
 import {Buffer} from 'node:buffer';
+import {redactSecrets} from '@shipfox/redact';
 import type {LogAppendFn} from '@shipfox/runner-protocol';
 import {type FramedOutput, type OutputSource, StreamFramer} from '#core/framing.js';
 import type {LogStreamLifecycle} from '#core/lifecycle.js';
 import {createRecordSink} from '#core/record-sink.js';
+import {buildSecretVariants} from '#core/secrets.js';
 import {LogTransformer, type TransformEvent} from '#core/transform.js';
 
 const EMPTY_FRAMED: FramedOutput = {bytes: Buffer.alloc(0), payloadBytes: 0};
@@ -29,6 +31,16 @@ export interface StepLogStreamOptions {
 export interface StepLogStream extends LogStreamLifecycle {
   /** Frames and spools a captured output chunk. Safe to call from a pipe handler. */
   write(chunk: Buffer, source: OutputSource): void;
+  /** Frames a runner-originated group using the same group records as `::group::` markers. */
+  writeGroup(options: StepLogGroupOptions): void;
+  /** Frames a runner-originated output line, ensuring it ends with a newline. */
+  writeOutputLine(line: string, source?: OutputSource): void;
+}
+
+export interface StepLogGroupOptions {
+  name: string;
+  lines: readonly string[];
+  source?: OutputSource;
 }
 
 /**
@@ -41,6 +53,7 @@ export interface StepLogStream extends LogStreamLifecycle {
 export function createStepLogStream(options: StepLogStreamOptions): StepLogStream {
   const now = options.now ?? Date.now;
   const framer = new StreamFramer(now);
+  const secretVariants = buildSecretVariants(options.secrets ?? []);
   const transformer = new LogTransformer(options.secrets ?? []);
   const sink = createRecordSink({
     logsDir: options.logsDir,
@@ -98,11 +111,31 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
     return {bytes: framer.frameGroupEnd(groupId), payloadBytes: 0};
   }
 
+  function canWrite(): boolean {
+    return !sink.isClosed() && !sink.isFailed() && !sink.isCapped() && !sink.isStopped();
+  }
+
+  function writeEvents(events: TransformEvent[]): void {
+    if (!canWrite()) return;
+
+    try {
+      for (const event of events) sink.spool(frameEvent(event));
+    } catch (err) {
+      sink.fail(err);
+      return;
+    }
+    sink.notify();
+  }
+
+  function safeText(text: string): string {
+    return redactSecrets(text, secretVariants);
+  }
+
   return {
     write(chunk, source) {
       // Once the server caps the budget the runner stops emitting; the cap
       // tombstone is server-side, so no gap is recorded here.
-      if (sink.isClosed() || sink.isFailed() || sink.isCapped() || sink.isStopped()) return;
+      if (!canWrite()) return;
 
       let events: TransformEvent[];
       try {
@@ -114,13 +147,24 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
         return;
       }
 
-      try {
-        for (const event of events) sink.spool(frameEvent(event));
-      } catch (err) {
-        sink.fail(err);
-        return;
-      }
-      sink.notify();
+      writeEvents(events);
+    },
+
+    writeGroup({name, lines, source = 'stdout'}) {
+      const events: TransformEvent[] = [
+        {type: 'group_start', name: safeText(name)},
+        ...lines.map((line) => ({
+          type: 'output' as const,
+          src: source,
+          data: safeText(indentLine(ensureTrailingNewline(line))),
+        })),
+        {type: 'group_end'},
+      ];
+      writeEvents(events);
+    },
+
+    writeOutputLine(line, source = 'stdout') {
+      writeEvents([{type: 'output', src: source, data: safeText(ensureTrailingNewline(line))}]);
     },
 
     close() {
@@ -144,4 +188,15 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
       sink.dispose();
     },
   };
+}
+
+function ensureTrailingNewline(line: string): string {
+  return line.endsWith('\n') ? line : `${line}\n`;
+}
+
+function indentLine(line: string): string {
+  return line
+    .split('\n')
+    .map((part, index, parts) => (index === parts.length - 1 && part === '' ? '' : `  ${part}`))
+    .join('\n');
 }

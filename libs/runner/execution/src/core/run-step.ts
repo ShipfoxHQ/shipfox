@@ -16,10 +16,25 @@ import type {StepResult} from '#core/step-result.js';
  */
 export type OutputSink = (chunk: Buffer, source: 'stdout' | 'stderr') => void;
 
+export type CommandStartSink = (metadata: CommandStartMetadata) => void;
+
+export interface CommandStartMetadata {
+  readonly command: string;
+  readonly shell: CommandShellMetadata;
+  readonly cwd?: string;
+}
+
+export interface CommandShellMetadata {
+  readonly executable: string;
+  readonly args: readonly string[];
+  readonly display: string;
+}
+
 interface RunStepOptions {
   signal?: AbortSignal;
   cwd?: string;
   onOutput?: OutputSink;
+  onCommandStart?: CommandStartSink;
 }
 
 export function executeRunStep(step: StepDto, options: RunStepOptions = {}): Promise<StepResult> {
@@ -45,27 +60,28 @@ export function executeRunStep(step: StepDto, options: RunStepOptions = {}): Pro
 
 async function runShellCommand(command: string, options: RunStepOptions): Promise<StepResult> {
   const scriptPath = join(tmpdir(), `shipfox-runner-${randomUUID()}.sh`);
+  const metadata = commandStartMetadata({command, scriptPath, cwd: options.cwd});
+  notifyCommandStart(options.onCommandStart, cloneCommandStartMetadata(metadata));
 
   try {
     await writeFile(scriptPath, command, {mode: 0o700});
-    return await spawnAndCapture(scriptPath, options);
+    return await spawnAndCapture(metadata, options);
   } finally {
     await unlink(scriptPath).catch(() => undefined);
   }
 }
 
-function spawnAndCapture(scriptPath: string, options: RunStepOptions): Promise<StepResult> {
+function spawnAndCapture(
+  metadata: CommandStartMetadata,
+  options: RunStepOptions,
+): Promise<StepResult> {
   return new Promise((resolve) => {
-    const shell = findShell();
-    const args =
-      shell === 'bash'
-        ? ['--noprofile', '--norc', '-eo', 'pipefail', scriptPath]
-        : ['-e', scriptPath];
+    const {shell} = metadata;
 
     // detached:true makes the shell a process-group leader so killGroup() can
     // SIGKILL its grandchildren too (Linux does not propagate signals down the
     // parent chain). We don't unref() — output capture still needs `close`.
-    const child = spawn(shell, args, {
+    const child = spawn(shell.executable, shell.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
       cwd: options.cwd,
@@ -170,4 +186,50 @@ function findShell(): string {
   } catch {
     return 'sh';
   }
+}
+
+function commandStartMetadata(args: {
+  command: string;
+  scriptPath: string;
+  cwd: string | undefined;
+}): CommandStartMetadata {
+  const executable = findShell();
+  const shellArgs =
+    executable === 'bash'
+      ? ['--noprofile', '--norc', '-eo', 'pipefail', args.scriptPath]
+      : ['-e', args.scriptPath];
+  const displayArgs = shellArgs.map((arg) => (arg === args.scriptPath ? '{0}' : arg));
+
+  return {
+    command: args.command,
+    shell: {
+      executable,
+      args: shellArgs,
+      display: [executable, ...displayArgs].join(' '),
+    },
+    ...(args.cwd !== undefined ? {cwd: args.cwd} : {}),
+  };
+}
+
+function notifyCommandStart(
+  onCommandStart: CommandStartSink | undefined,
+  metadata: CommandStartMetadata,
+): void {
+  try {
+    onCommandStart?.(metadata);
+  } catch (err) {
+    logger().error({err}, 'Failed to emit command metadata; continuing command execution');
+  }
+}
+
+function cloneCommandStartMetadata(metadata: CommandStartMetadata): CommandStartMetadata {
+  return {
+    command: metadata.command,
+    shell: {
+      executable: metadata.shell.executable,
+      args: [...metadata.shell.args],
+      display: metadata.shell.display,
+    },
+    ...(metadata.cwd !== undefined ? {cwd: metadata.cwd} : {}),
+  };
 }

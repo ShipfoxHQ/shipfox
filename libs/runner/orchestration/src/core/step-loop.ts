@@ -2,7 +2,12 @@ import {join} from 'node:path';
 import type {NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {executeAgentStep} from '@shipfox/runner-agent';
-import {executeRunStep, executeSetupStep, type StepResult} from '@shipfox/runner-execution';
+import {
+  type CommandStartMetadata,
+  executeRunStep,
+  executeSetupStep,
+  type StepResult,
+} from '@shipfox/runner-execution';
 import {
   createSessionLogStream,
   createStepLogStream,
@@ -18,6 +23,8 @@ import {
   requestNextStep,
 } from '@shipfox/runner-protocol';
 import type {KyInstance} from 'ky';
+
+const WHITESPACE_REGEX = /\s+/;
 
 // Reporting a step before pulling the next one is the safety invariant: a lost report is
 // retried in place (next/report are idempotent), so a step is never re-pulled or
@@ -166,6 +173,7 @@ export async function executeStep(params: {
     params;
 
   let stream: LogStreamLifecycle | undefined;
+  let runStream: StepLogStream | undefined;
   try {
     if (step.type === 'setup') {
       const result = await executeSetupStep({cwd, leaseClient, signal});
@@ -245,28 +253,66 @@ export async function executeStep(params: {
       );
     }
     stream = stepStream;
+    runStream = stepStream;
 
     const result = await executeRunStep(step, {
       signal,
       cwd,
+      onCommandStart: (metadata) => writeCommandMetadata(stepStream, metadata),
       onOutput: (chunk, source) => stepStream?.write(chunk, source),
     });
+    writeRunFailureContext(stepStream, result);
     return {result, stream, preparedWorkspace: false};
   } catch (error) {
     logger().error(
       {err: error, jobId, stepId: step.id},
       `Step ${stepLabel} crashed before producing a result`,
     );
+    const result: StepResult = {
+      success: false,
+      error: {message: error instanceof Error ? error.message : String(error)},
+      exit_code: null,
+    };
+    writeRunFailureContext(runStream, result);
     return {
-      result: {
-        success: false,
-        error: {message: error instanceof Error ? error.message : String(error)},
-        exit_code: null,
-      },
+      result,
       stream,
       preparedWorkspace: false,
     };
   }
+}
+
+function writeCommandMetadata(
+  stream: StepLogStream | undefined,
+  metadata: CommandStartMetadata,
+): void {
+  stream?.writeGroup({
+    name: `Run ${summarizeCommand(metadata.command)}`,
+    lines: [
+      metadata.command,
+      `shell: ${metadata.shell.display}`,
+      ...(metadata.cwd !== undefined ? [`working-directory: ${metadata.cwd}`] : []),
+    ],
+    source: 'stdout',
+  });
+}
+
+function writeRunFailureContext(stream: StepLogStream | undefined, result: StepResult): void {
+  if (result.success) return;
+  stream?.writeOutputLine(runFailureContext(result), 'stderr');
+}
+
+function runFailureContext(result: StepResult): string {
+  if (result.error?.signal) return `Process terminated by signal ${result.error.signal}.`;
+  if (result.exit_code !== null) return `Process completed with exit code ${result.exit_code}.`;
+  if (result.error?.message) return `Process failed: ${result.error.message}`;
+  return 'Process failed.';
+}
+
+function summarizeCommand(command: string): string {
+  const summary = command.trim().split(WHITESPACE_REGEX).join(' ');
+  if (summary.length <= 120) return summary;
+  return `${summary.slice(0, 117)}...`;
 }
 
 // Logs the outcome, seals the stream to learn its declared length, and reports the step.
