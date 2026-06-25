@@ -1,5 +1,5 @@
 import type {TriggerEventListItemDto} from '@shipfox/api-triggers-dto';
-import {RelativeTimeProvider} from '@shipfox/react-ui';
+import {Header, RelativeTimeProvider, Text} from '@shipfox/react-ui';
 import {useMemo} from 'react';
 import {EventsList} from '#components/events-list.js';
 import {
@@ -29,19 +29,31 @@ export function EventsPage({workspaceId, filters, onFiltersChange}: EventsPagePr
 
   return (
     <RelativeTimeProvider>
-      <EventsList
-        events={events}
-        query={query}
-        facets={facetsQuery.data}
-        filters={filters}
-        onFiltersChange={onFiltersChange}
-        workspaceId={workspaceId}
-        hasNextPage={query.hasNextPage}
-        isFetchingNextPage={query.isFetchingNextPage}
-        onLoadMore={() => {
-          void query.fetchNextPage();
-        }}
-      />
+      <section className="flex min-w-0 flex-col gap-16" aria-labelledby="trigger-events-heading">
+        <div className="flex flex-col gap-4">
+          <Header id="trigger-events-heading" variant="h3">
+            Events
+          </Header>
+          <Text size="sm" className="text-foreground-neutral-muted">
+            A workspace-wide audit log of trigger events received from integrations, schedules, and
+            manual trigger calls.
+          </Text>
+        </div>
+
+        <EventsList
+          events={events}
+          query={query}
+          facets={facetsQuery.data}
+          filters={filters}
+          onFiltersChange={onFiltersChange}
+          workspaceId={workspaceId}
+          hasNextPage={query.hasNextPage}
+          isFetchingNextPage={query.isFetchingNextPage}
+          onLoadMore={() => {
+            void query.fetchNextPage();
+          }}
+        />
+      </section>
     </RelativeTimeProvider>
   );
 }
