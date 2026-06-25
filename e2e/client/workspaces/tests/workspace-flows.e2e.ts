@@ -25,6 +25,39 @@ async function expectSetupNavigationHidden(page: Page): Promise<void> {
   await expect(page.getByLabel('Switch workspace')).toBeVisible();
 }
 
+async function stubProjectsExist(page: Page, workspaceIds: ReadonlyArray<string>): Promise<void> {
+  const completedWorkspaceIds = new Set(workspaceIds);
+  await page.route('**/projects?*', async (route) => {
+    const url = new URL(route.request().url());
+    const workspaceId = url.searchParams.get('workspace_id');
+    if (!workspaceId || !completedWorkspaceIds.has(workspaceId)) {
+      await route.continue();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        projects: [
+          {
+            id: '00000000-0000-4000-8000-000000000001',
+            workspace_id: workspaceId,
+            name: 'Platform',
+            source: {
+              connection_id: '00000000-0000-4000-8000-000000000002',
+              external_repository_id: 'debug:platform',
+            },
+            created_at: '2026-01-15T12:00:00.000Z',
+            updated_at: '2026-01-15T12:00:00.000Z',
+          },
+        ],
+        next_cursor: null,
+      }),
+    });
+  });
+}
+
 async function completeWorkspaceSetup(page: Page, workspaceId: string): Promise<void> {
   await page.goto(`/workspaces/${workspaceId}/integrations/debug`);
   await expect(page.getByText('Debug source control connected.')).toBeVisible();
@@ -94,6 +127,7 @@ test('switches between workspaces from the top nav', async ({page, auth, workspa
   const wsA = await workspaces.create({userId: user.user.id, name: workspaceAName});
   const wsB = await workspaces.create({userId: user.user.id, name: workspaceBName});
   await auth.loginAs(page, user);
+  await stubProjectsExist(page, [wsA.id, wsB.id]);
 
   await page.goto(`/workspaces/${wsA.id}`);
   await expect(page).toHaveURL(workspaceUrlRe(wsA.id));
@@ -178,6 +212,7 @@ test('creates a second workspace from the switcher mid-session', async ({
   const workspaceBName = 'Beta Workspace';
   const wsA = await workspaces.create({userId: user.user.id, name: workspaceAName});
   await auth.loginAs(page, user);
+  await stubProjectsExist(page, [wsA.id]);
 
   await page.goto(`/workspaces/${wsA.id}`);
   await page.getByLabel('Switch workspace').click();
@@ -211,6 +246,7 @@ test('switcher keeps Create workspace visible when search filters every workspac
   const user = await auth.createUser();
   const wsA = await workspaces.create({userId: user.user.id, name: 'Alpha Workspace'});
   await auth.loginAs(page, user);
+  await stubProjectsExist(page, [wsA.id]);
 
   await page.goto(`/workspaces/${wsA.id}`);
   await page.getByLabel('Switch workspace').click();
@@ -243,6 +279,7 @@ test('switcher list scrolls while Create workspace stays pinned', async ({
     await workspaces.create({userId: user.user.id, name});
   }
   await auth.loginAs(page, user);
+  await stubProjectsExist(page, [first.id]);
 
   await page.goto(`/workspaces/${first.id}`);
   await expect(page).toHaveURL(workspaceUrlRe(first.id));
