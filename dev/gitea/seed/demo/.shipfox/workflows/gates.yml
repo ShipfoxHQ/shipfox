@@ -1,0 +1,47 @@
+name: Gates
+runner: ubuntu-latest
+triggers:
+  on_demand:
+    source: manual
+    event: fire
+  on_push:
+    source: gitea
+    event: push
+    filter: 'event.ref == "refs/heads/main"'
+jobs:
+  gated-retry:
+    steps:
+      - name: first-setup
+        run: mkdir -p .shipfox/demo-gates
+      - name: first-gate
+        run: |
+          marker=.shipfox/demo-gates/first-gate-passed
+          if [ ! -f "$marker" ]; then
+            touch "$marker"
+            echo "First gate fails once"
+            exit 1
+          fi
+          echo "First gate passed"
+        gate:
+          success_if: exit_code == 0
+          on_failure:
+            restart_from: first-setup
+            output: First gate failed once; retrying from first setup.
+      - name: second-setup
+        run: mkdir -p .shipfox/demo-gates
+      - name: second-gate
+        run: |
+          marker=.shipfox/demo-gates/second-gate-passed
+          if [ ! -f "$marker" ]; then
+            touch "$marker"
+            echo "Second gate fails once"
+            exit 1
+          fi
+          echo "Second gate passed"
+        gate:
+          success_if: exit_code == 0
+          on_failure:
+            restart_from: second-setup
+            output: Second gate failed once; retrying from second setup.
+      - name: finish
+        run: echo "Both gates passed; job succeeded"

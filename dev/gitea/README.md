@@ -16,7 +16,7 @@ push webhook, and a few seeded repos carrying the demo workflow and code files u
 | -- | -- |
 | Web / API | `http://localhost:3000` |
 | SSH | `ssh://git@localhost:2222` |
-| Org | `shipfox-demo` |
+| Org | `shipfox` |
 | Repos | `demo`, `api`, `runner` |
 | Bot user | `shipfox-bot` |
 | Bot password (Basic-auth secret) | `shipfox-bot-dev-password` |
@@ -44,7 +44,7 @@ vantage point:
 ## Connecting the org
 
 With `INTEGRATIONS_ENABLE_GITEA_PROVIDER=true` (already set in `apps/api/.env`),
-connect the `shipfox-demo` org through the API to persist the connection. The org
+connect the `shipfox` org through the API to persist the connection. The org
 push webhook is registered by `gitea-init` as admin (the read-only bot cannot manage
 org hooks, so the instance admin owns it). The provider then lists the seeded repos
 and reads their files; a push to Gitea delivers a webhook to the API, verified
