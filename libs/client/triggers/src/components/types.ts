@@ -17,4 +17,6 @@ export interface EventsListProps {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
+  selectedEventId?: string | undefined;
+  onSelectEvent: (eventId: string) => void;
 }

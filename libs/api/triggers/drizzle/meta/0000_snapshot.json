@@ -27,6 +27,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "subscription_name": {
+          "name": "subscription_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "workflow_definition_id": {
           "name": "workflow_definition_id",
           "type": "uuid",

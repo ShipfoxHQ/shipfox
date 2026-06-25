@@ -120,6 +120,7 @@ export async function upsertTriggeredDecision(
     .values({
       receivedEventId: params.receivedEventId,
       subscriptionId: params.subscription.id,
+      subscriptionName: params.subscription.name,
       workflowDefinitionId: params.subscription.workflowDefinitionId,
       projectId: params.subscription.projectId,
       decision: 'triggered',
@@ -146,6 +147,7 @@ export async function upsertErroredDecision(params: UpsertErroredDecisionParams)
     .values({
       receivedEventId: params.receivedEventId,
       subscriptionId: params.subscription.id,
+      subscriptionName: params.subscription.name,
       workflowDefinitionId: params.subscription.workflowDefinitionId,
       projectId: params.subscription.projectId,
       decision: 'errored',

@@ -40,11 +40,13 @@ describe('GET /trigger-events/:id', () => {
     const triggered = await decisionFactory.create({
       receivedEventId: event.id,
       decision: 'triggered',
+      subscriptionName: 'Deploy production',
       runName: 'deploy',
     });
     const errored = await decisionFactory.create({
       receivedEventId: event.id,
       decision: 'errored',
+      subscriptionName: 'Lint checks',
       runId: null,
       runName: null,
       reason: 'boom',
@@ -61,6 +63,9 @@ describe('GET /trigger-events/:id', () => {
       triggered.id,
       errored.id,
     ]);
+    expect(
+      body.decisions.map((decision: {subscription_name: string}) => decision.subscription_name),
+    ).toEqual(['Deploy production', 'Lint checks']);
     expect(body.decisions[1].decision).toBe('errored');
     expect(body.decisions[1].run_id).toBeNull();
     expect(body.decisions[1].reason).toBe('boom');

@@ -42,6 +42,8 @@ function makeProps(overrides: Partial<EventsListProps> = {}): EventsListProps {
     hasNextPage: false,
     isFetchingNextPage: false,
     onLoadMore: vi.fn(),
+    selectedEventId: undefined,
+    onSelectEvent: vi.fn(),
     ...overrides,
   };
 }
@@ -126,5 +128,33 @@ describe('EventsList', () => {
     renderList(makeProps({filters: {outcome: ['errored']}}));
 
     expect(screen.getByLabelText('Remove Failed')).toBeInTheDocument();
+  });
+
+  test('selects an event from the event cell button', async () => {
+    const onSelectEvent = vi.fn();
+    renderList(makeProps({onSelectEvent}));
+
+    await userEvent.click(screen.getByRole('button', {name: 'Open details for github push'}));
+
+    expect(onSelectEvent).toHaveBeenCalledWith('evt-1');
+  });
+
+  test('selects an event when the row is clicked', async () => {
+    const onSelectEvent = vi.fn();
+    renderList(makeProps({onSelectEvent}));
+    const row = screen.getByText('→ 2 runs').closest('tr');
+    if (!row) throw new Error('expected an event row');
+
+    await userEvent.click(row);
+
+    expect(onSelectEvent).toHaveBeenCalledWith('evt-1');
+  });
+
+  test('marks the selected event row', () => {
+    renderList(makeProps({selectedEventId: 'evt-1'}));
+
+    expect(
+      screen.getByRole('button', {name: 'Open details for github push'}).closest('tr'),
+    ).toHaveAttribute('data-selected', 'true');
   });
 });

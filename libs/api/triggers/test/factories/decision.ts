@@ -10,6 +10,7 @@ export const decisionFactory = Factory.define<TriggerDecision>(({onCreate}) => {
       .values({
         receivedEventId: decision.receivedEventId,
         subscriptionId: decision.subscriptionId,
+        subscriptionName: decision.subscriptionName,
         workflowDefinitionId: decision.workflowDefinitionId,
         projectId: decision.projectId,
         decision: decision.decision,
@@ -26,6 +27,7 @@ export const decisionFactory = Factory.define<TriggerDecision>(({onCreate}) => {
     id: crypto.randomUUID(),
     receivedEventId: crypto.randomUUID(),
     subscriptionId: crypto.randomUUID(),
+    subscriptionName: 'Deploy production',
     workflowDefinitionId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     decision: 'triggered',

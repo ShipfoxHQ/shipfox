@@ -31,6 +31,8 @@ export function EventsList({
   hasNextPage,
   isFetchingNextPage,
   onLoadMore,
+  selectedEventId,
+  onSelectEvent,
 }: EventsListProps) {
   const activeFilters = hasAnyFilter(filters);
   const refreshFailed = query.isError && query.data !== undefined;
@@ -79,7 +81,12 @@ export function EventsList({
             </TableHeader>
             <TableBody>
               {events.map((event) => (
-                <TriggerEventRow key={event.id} event={event} />
+                <TriggerEventRow
+                  key={event.id}
+                  event={event}
+                  selected={event.id === selectedEventId}
+                  onSelect={onSelectEvent}
+                />
               ))}
             </TableBody>
           </Table>
