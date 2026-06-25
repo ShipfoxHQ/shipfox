@@ -353,7 +353,7 @@ function RunLink({workspaceId, decision}: {workspaceId: string; decision: Trigge
     <Link
       to="/workspaces/$wid/projects/$pid/runs/$runId"
       params={{wid: workspaceId, pid: decision.project_id, runId: decision.run_id}}
-      className="inline-flex min-w-0 items-center gap-4 self-start rounded-6 text-accent-orange underline-offset-2 hover:underline focus-visible:outline-none focus-visible:shadow-button-neutral-focus"
+      className="inline-flex min-w-0 items-center gap-4 self-start rounded-6 text-foreground-highlight-interactive underline-offset-2 hover:text-foreground-highlight-interactive-hover hover:underline focus-visible:outline-none focus-visible:shadow-button-neutral-focus"
     >
       <Code as="span" variant="label" className="truncate text-current">
         {decision.run_name}
