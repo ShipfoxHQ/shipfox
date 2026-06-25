@@ -162,6 +162,23 @@ describe('executeRunStep', () => {
     expect(output.text()).toContain('still-runs');
   });
 
+  it('isolates command metadata mutation from the spawned shell', async () => {
+    const step = buildStep({config: {run: 'echo safe-spawn'}});
+    const output = collectOutput();
+
+    const result = await executeRunStep(step, {
+      onCommandStart: (metadata) => {
+        const shell = metadata.shell as unknown as {executable: string; args: string[]};
+        shell.executable = 'shipfox-missing-shell';
+        shell.args.splice(0, shell.args.length, '-c', 'exit 42');
+      },
+      onOutput: output.sink,
+    });
+
+    expect(result.success).toBe(true);
+    expect(output.text()).toContain('safe-spawn');
+  });
+
   it('handles multi-line scripts', async () => {
     const step = buildStep({
       config: {run: 'echo first\necho second'},

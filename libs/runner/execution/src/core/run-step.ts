@@ -19,15 +19,15 @@ export type OutputSink = (chunk: Buffer, source: 'stdout' | 'stderr') => void;
 export type CommandStartSink = (metadata: CommandStartMetadata) => void;
 
 export interface CommandStartMetadata {
-  command: string;
-  shell: CommandShellMetadata;
-  cwd?: string;
+  readonly command: string;
+  readonly shell: CommandShellMetadata;
+  readonly cwd?: string;
 }
 
 export interface CommandShellMetadata {
-  executable: string;
-  args: readonly string[];
-  display: string;
+  readonly executable: string;
+  readonly args: readonly string[];
+  readonly display: string;
 }
 
 interface RunStepOptions {
@@ -61,7 +61,7 @@ export function executeRunStep(step: StepDto, options: RunStepOptions = {}): Pro
 async function runShellCommand(command: string, options: RunStepOptions): Promise<StepResult> {
   const scriptPath = join(tmpdir(), `shipfox-runner-${randomUUID()}.sh`);
   const metadata = commandStartMetadata({command, scriptPath, cwd: options.cwd});
-  notifyCommandStart(options.onCommandStart, metadata);
+  notifyCommandStart(options.onCommandStart, cloneCommandStartMetadata(metadata));
 
   try {
     await writeFile(scriptPath, command, {mode: 0o700});
@@ -220,4 +220,16 @@ function notifyCommandStart(
   } catch (err) {
     logger().error({err}, 'Failed to emit command metadata; continuing command execution');
   }
+}
+
+function cloneCommandStartMetadata(metadata: CommandStartMetadata): CommandStartMetadata {
+  return {
+    command: metadata.command,
+    shell: {
+      executable: metadata.shell.executable,
+      args: [...metadata.shell.args],
+      display: metadata.shell.display,
+    },
+    ...(metadata.cwd !== undefined ? {cwd: metadata.cwd} : {}),
+  };
 }
