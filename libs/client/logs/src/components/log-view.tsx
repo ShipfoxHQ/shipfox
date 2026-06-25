@@ -19,6 +19,7 @@ export interface LogViewProps {
   timestamps?: LogTimestampMode;
   wrap?: boolean;
   showLineNumbers?: boolean;
+  defaultGroupsOpen?: boolean;
   className?: string | undefined;
   onScroll?: UIEventHandler<HTMLDivElement> | undefined;
 }
@@ -28,6 +29,7 @@ export function LogView({
   timestamps = 'off',
   wrap = false,
   showLineNumbers = true,
+  defaultGroupsOpen = false,
   className,
   onScroll,
 }: LogViewProps) {
@@ -50,13 +52,18 @@ export function LogView({
           </LogContent>
         </LogRow>
       ) : (
-        renderNodes(tree.nodes, 0, tree)
+        renderNodes(tree.nodes, 0, tree, defaultGroupsOpen)
       )}
     </LogRows>
   );
 }
 
-function renderNodes(nodes: readonly LogNode[], depth: number, tree: LogTree): ReactNode[] {
+function renderNodes(
+  nodes: readonly LogNode[],
+  depth: number,
+  tree: LogTree,
+  defaultGroupsOpen: boolean,
+): ReactNode[] {
   // `node.seq` is the stable, unique render key (see `LogNodeBase`): a concatenated
   // multi-step/retry stream can repeat a `group_id` or a marker's `(type, ts)` at one
   // level, which a key derived from those fields would collide on.
@@ -73,8 +80,14 @@ function renderNodes(nodes: readonly LogNode[], depth: number, tree: LogTree): R
         );
       case 'group':
         return (
-          <LogGroup key={node.seq} node={node} depth={depth} terminated={tree.terminated}>
-            {renderNodes(node.children, depth + 1, tree)}
+          <LogGroup
+            key={node.seq}
+            node={node}
+            depth={depth}
+            terminated={tree.terminated}
+            defaultOpen={defaultGroupsOpen}
+          >
+            {renderNodes(node.children, depth + 1, tree, defaultGroupsOpen)}
           </LogGroup>
         );
       case 'marker':
