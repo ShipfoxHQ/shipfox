@@ -39,12 +39,16 @@ const workflowFile: CodeBlockData = {
 };
 
 const diffFile: CodeBlockData = {
-  language: 'yaml',
-  filename: '.github/workflows/<workflow-name>.yml',
-  code: `jobs:
-  build:
-        - runs-on: ubuntu-latest
-        + runs-on: shipfox-2vcpu-ubuntu-2404`,
+  language: 'diff',
+  filename: '.github/workflows/<workflow-name>.yml.diff',
+  code: `diff --git a/.github/workflows/<workflow-name>.yml b/.github/workflows/<workflow-name>.yml
+--- a/.github/workflows/<workflow-name>.yml
++++ b/.github/workflows/<workflow-name>.yml
+@@ -1,4 +1,4 @@
+ jobs:
+   build:
+-    runs-on: ubuntu-latest
++    runs-on: shipfox-2vcpu-ubuntu-2404`,
 };
 
 const sourceFile: CodeBlockData = {
@@ -118,7 +122,20 @@ export const SyntaxHighlighting: Story = {
 };
 
 export const DiffContent: Story = {
-  render: () => <CodeBlockShowcase data={[diffFile]} />,
+  // Cold CI can snapshot the plain fallback before Shiki's dynamic import finishes.
+  play: async (ctx) => {
+    await document.fonts.ready;
+    await waitFor(
+      () => {
+        if (!ctx.canvasElement.querySelector('.shiki-override')) {
+          throw new Error('Shiki highlighting has not rendered yet');
+        }
+      },
+      {timeout: 10_000},
+    );
+    await argosScreenshot(ctx, 'CodeBlock DiffContent');
+  },
+  render: () => <CodeBlockShowcase data={[diffFile]} syntaxHighlighting />,
 };
 
 export const LineHighlighting: Story = {
@@ -135,7 +152,7 @@ export const Footer: Story = {
   render: () => (
     <div className="flex flex-col gap-16">
       <CodeBlockShowcase
-        data={[diffFile]}
+        data={[workflowFile]}
         footer={
           <CodeBlockFooter
             state="running"
@@ -145,7 +162,7 @@ export const Footer: Story = {
         }
       />
       <CodeBlockShowcase
-        data={[diffFile]}
+        data={[workflowFile]}
         footer={<CodeBlockFooter state="done" message="Runner connected!" />}
       />
     </div>
