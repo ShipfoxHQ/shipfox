@@ -46,12 +46,16 @@ export function WorkflowJobNode({
   selected,
   onSelect,
   onKeyDown,
+  onHoverStart,
+  onHoverEnd,
   ref,
 }: {
   node: WorkflowJobGraphNode;
   selected: boolean;
   onSelect: () => void;
   onKeyDown: KeyboardEventHandler<HTMLButtonElement>;
+  onHoverStart: () => void;
+  onHoverEnd: () => void;
   ref?: Ref<HTMLButtonElement>;
 }) {
   const visual = getWorkflowStatusVisual(node.status);
@@ -70,6 +74,8 @@ export function WorkflowJobNode({
       data-job-id={node.id}
       onClick={onSelect}
       onKeyDown={onKeyDown}
+      onPointerEnter={onHoverStart}
+      onPointerLeave={onHoverEnd}
       className={cn(
         'group relative flex h-48 w-208 items-center gap-8 rounded-8 border border-border-neutral-base bg-background-components-base px-10 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
         selected && 'bg-background-components-hover',

@@ -1,5 +1,5 @@
 import type {RunJobDetailDto} from '@shipfox/api-workflows-dto';
-import {render, screen, within} from '@testing-library/react';
+import {fireEvent, render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
 import {workflowJob, workflowRunDetail} from '#test/fixtures/workflow-run.js';
@@ -171,6 +171,72 @@ describe('WorkflowJobsGraph', () => {
     expect(deploy).toHaveFocus();
     expect(deploy).toHaveAttribute('aria-pressed', 'true');
     expect(build).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('highlights adjacent edges only while hovering a job', async () => {
+    const user = userEvent.setup();
+    const build = makeJob({name: 'build'});
+    const deploy = makeJob({name: 'deploy', position: 1, dependencies: ['build']});
+    const {container} = render(<WorkflowJobsGraph run={makeRun({jobs: [build, deploy]})} />);
+    const triggerEdge = container.querySelector(`[data-edge-id="trigger:${build.id}"]`);
+    const deployEdge = container.querySelector(`[data-edge-id="${build.id}:${deploy.id}"]`);
+    const deployNode = screen.getByRole('button', {
+      name: 'deploy, Pending, 1 current dependency is still pending or running',
+    });
+
+    fireEvent.click(deployNode);
+
+    expect(deployEdge).toHaveAttribute('stroke-width', '1');
+
+    await user.hover(deployNode);
+
+    expect(deployEdge).toHaveAttribute('stroke-width', '1.5');
+    expect(triggerEdge).toHaveAttribute('stroke-width', '1');
+
+    await user.unhover(deployNode);
+
+    expect(deployEdge).toHaveAttribute('stroke-width', '1');
+  });
+
+  test('draws highlighted edges above overlapping normal edges', async () => {
+    const user = userEvent.setup();
+    const build = makeJob({name: 'build', status: 'succeeded'});
+    const lint = makeJob({
+      name: 'lint',
+      position: 1,
+      dependencies: ['build'],
+      status: 'succeeded',
+    });
+    const testJob = makeJob({
+      name: 'test',
+      position: 2,
+      dependencies: ['build'],
+      status: 'running',
+    });
+    const deploy = makeJob({
+      name: 'deploy',
+      position: 3,
+      dependencies: ['lint', 'test'],
+    });
+    const {container} = render(
+      <WorkflowJobsGraph run={makeRun({jobs: [build, lint, testJob, deploy]})} />,
+    );
+    const buildToLintEdge = container.querySelector(`[data-edge-id="${build.id}:${lint.id}"]`);
+    const buildToTestEdge = container.querySelector(`[data-edge-id="${build.id}:${testJob.id}"]`);
+    const testNode = screen.getByRole('button', {
+      name: 'test, Running',
+    });
+
+    await user.hover(testNode);
+
+    expect(buildToTestEdge).toHaveAttribute('stroke-width', '1.5');
+    expect(buildToLintEdge).toHaveAttribute('stroke-width', '1');
+    if (!buildToLintEdge || !buildToTestEdge) {
+      throw new Error('Expected branch edges to render');
+    }
+    expect(buildToLintEdge.compareDocumentPosition(buildToTestEdge)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   test('routes skipped-column join edges away from intermediate nodes', () => {
