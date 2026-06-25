@@ -71,7 +71,7 @@ export function WorkflowRunPage({workspaceId, projectId, runId}: WorkflowRunPage
   }
 
   return (
-    <div className="flex min-h-0 flex-1">
+    <div className="flex min-h-0 flex-1 overflow-hidden">
       <WorkflowRunsList workspaceId={workspaceId} projectId={projectId} selectedRunId={runId} />
       <WorkflowRunView runId={runId} selection={selection} onSelectionChange={onSelectionChange} />
     </div>

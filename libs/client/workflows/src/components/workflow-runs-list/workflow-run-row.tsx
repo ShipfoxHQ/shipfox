@@ -54,14 +54,14 @@ export function WorkflowRunRow({
         />
       ) : null}
 
-      <div className="flex min-w-0 items-center gap-7">
+      <div className="flex min-w-0 items-center gap-8">
         <WorkflowStatusIcon status={run.status} size={14} />
         <Code variant="label" bold className="truncate text-foreground-neutral-base">
           {run.name}
         </Code>
       </div>
 
-      <div className="flex min-w-0 items-center gap-7">
+      <div className="flex min-w-0 items-center gap-8">
         {run.triggerLabel ? (
           <>
             <TriggerSourceIcon
@@ -77,7 +77,7 @@ export function WorkflowRunRow({
             </Code>
           </>
         ) : (
-          <span className="flex min-w-0 flex-1 items-center gap-7 truncate text-foreground-neutral-muted">
+          <span className="flex min-w-0 flex-1 items-center gap-8 truncate text-foreground-neutral-muted">
             <span aria-hidden="true" className="size-14 shrink-0" />
             <span className="sr-only">Run updated </span>
           </span>
@@ -94,7 +94,7 @@ export function WorkflowRunRow({
   // that would navigate to a run id the detail route rejects.
   if (run.isTemporary) {
     return (
-      <div className="relative flex w-full flex-col gap-3 rounded-8 border border-transparent px-10 py-7 text-left">
+      <div className="relative flex w-full flex-col gap-4 rounded-8 border border-transparent px-10 py-8 text-left">
         {body}
       </div>
     );
@@ -110,7 +110,7 @@ export function WorkflowRunRow({
       }
       aria-current={selected ? 'page' : undefined}
       className={cn(
-        'group relative flex w-full flex-col gap-3 rounded-8 border border-transparent px-10 py-7 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
+        'group relative flex w-full flex-col gap-4 rounded-8 border border-transparent px-10 py-8 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
         selected && 'bg-background-components-hover',
       )}
     >

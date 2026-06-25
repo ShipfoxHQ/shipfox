@@ -33,7 +33,7 @@ export function WorkflowRunView({runId, selection, onSelectionChange}: WorkflowR
 
   return (
     <RelativeTimeProvider>
-      <div className="flex min-w-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <RunViewContent
           query={runQuery}
           selection={selection}
@@ -137,28 +137,30 @@ function RunViewContent({
           onSourceToggle={() => setSourcePanelOpen((open) => !open)}
         />
         {query.isError ? <WorkflowRunStaleError query={query} /> : null}
-        <div className="flex min-h-0 flex-1 flex-col gap-16 overflow-auto bg-background-neutral-base p-16">
-          <WorkflowJobsGraph
-            run={query.data}
-            selectedJobId={selectedJob?.id}
-            onSelectedJobChange={selectJob}
-          />
-          {selectedJob ? (
-            <WorkflowStepList
-              job={selectedJob}
-              className="max-h-[50vh]"
-              selectedAttemptId={selectedAttemptId}
-              onSelectedAttemptChange={selectionControlled ? selectAttempt : undefined}
-              autoSelectActiveAttempt
-              renderExpandedStep={({stepId, attempt, attemptStatus}) => (
-                <StepAttemptLogPanel
-                  stepId={stepId}
-                  attempt={attempt}
-                  attemptStatus={attemptStatus}
-                />
-              )}
+        <div className="min-h-0 flex-1 overflow-auto bg-background-neutral-base p-16">
+          <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-16">
+            <WorkflowJobsGraph
+              run={query.data}
+              selectedJobId={selectedJob?.id}
+              onSelectedJobChange={selectJob}
             />
-          ) : null}
+            {selectedJob ? (
+              <WorkflowStepList
+                job={selectedJob}
+                className="max-h-[50vh]"
+                selectedAttemptId={selectedAttemptId}
+                onSelectedAttemptChange={selectionControlled ? selectAttempt : undefined}
+                autoSelectActiveAttempt
+                renderExpandedStep={({stepId, attempt, attemptStatus}) => (
+                  <StepAttemptLogPanel
+                    stepId={stepId}
+                    attempt={attempt}
+                    attemptStatus={attemptStatus}
+                  />
+                )}
+              />
+            ) : null}
+          </div>
         </div>
       </div>
       <WorkflowSourcePanel

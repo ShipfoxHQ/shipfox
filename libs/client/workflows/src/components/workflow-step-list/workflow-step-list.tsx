@@ -171,7 +171,7 @@ function WorkflowStepRow({
       aria-label={entryAccessibleLabel(entry)}
       onClick={onSelect}
       className={cn(
-        'group flex min-h-44 w-full items-center gap-8 px-12 py-6 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
+        'group grid min-h-44 w-full grid-cols-[14px_14px_minmax(0,1fr)] items-center gap-x-8 px-12 py-6 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
         selected && 'bg-background-components-hover',
       )}
     >
@@ -211,9 +211,13 @@ function WorkflowStepRow({
         <section
           id={panelId}
           aria-labelledby={buttonId}
-          className="border-t border-border-neutral-base bg-background-neutral-base px-44 py-12"
+          className="border-t border-border-neutral-base bg-background-neutral-base px-12 py-12"
         >
-          {expandedContent}
+          <div className="grid grid-cols-[14px_14px_minmax(0,1fr)] gap-x-8">
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+            <div className="min-w-0">{expandedContent}</div>
+          </div>
         </section>
       ) : null}
     </li>

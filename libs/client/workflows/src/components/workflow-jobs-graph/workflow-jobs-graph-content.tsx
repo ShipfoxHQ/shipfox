@@ -7,8 +7,8 @@ import {TriggerNode, WorkflowJobNode} from './workflow-job-node.js';
 
 const NODE_WIDTH = 208;
 const NODE_HEIGHT = 48;
-const COLUMN_GAP = 72;
-const ROW_GAP = 18;
+const COLUMN_GAP = 64;
+const ROW_GAP = 20;
 const TRIGGER_WIDTH = 36;
 const PADDING = 16;
 
@@ -82,7 +82,7 @@ export function WorkflowJobsGraphContent({
         {model.columns.map((column, columnIndex) => (
           <div
             key={column.map((node) => node.id).join(':')}
-            className="absolute flex flex-col gap-18"
+            className="absolute flex flex-col gap-20"
             style={{left: jobLeft(columnIndex), top: PADDING}}
           >
             {column.map((node) => (
