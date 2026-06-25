@@ -21,7 +21,7 @@ export function WorkflowRunsListHeader({
   onStatusFilterChange,
 }: WorkflowRunsListHeaderProps) {
   return (
-    <div className="flex flex-col gap-8 border-b border-border-neutral-base px-8 py-12">
+    <div className="flex flex-col gap-8 border-b border-border-neutral-base px-12 py-12">
       <Input
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
@@ -31,7 +31,7 @@ export function WorkflowRunsListHeader({
         iconLeft={<Icon name="searchLine" className="size-14 text-foreground-neutral-muted" />}
       />
 
-      <fieldset className="flex items-center gap-6">
+      <fieldset className="flex items-center gap-8">
         <legend className="sr-only">Run status filter</legend>
         {STATUS_FILTERS.map((filter) => (
           <Button

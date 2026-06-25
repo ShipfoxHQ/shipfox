@@ -30,7 +30,7 @@ export function WorkflowRunsListView({
     <RelativeTimeProvider>
       <aside
         className={cn(
-          'flex w-[280px] shrink-0 flex-col border-r border-border-neutral-base bg-background-subtle-base',
+          'flex w-304 shrink-0 flex-col border-r border-border-neutral-base bg-background-subtle-base',
           className,
         )}
         aria-label="Workflow runs"

@@ -195,7 +195,7 @@ describe('WorkflowJobsGraph', () => {
     const skippedJoinEdge = container.querySelector(
       `[data-edge-id="${securityScan.id}:${deploy.id}"]`,
     );
-    expect(skippedJoinEdge).toHaveAttribute('d', 'M 332 106 H 648 V 40 H 684');
+    expect(skippedJoinEdge).toHaveAttribute('d', 'M 324 108 H 628 V 40 H 660');
   });
 });
 

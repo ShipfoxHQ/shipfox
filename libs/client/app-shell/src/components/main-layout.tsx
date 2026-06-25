@@ -30,7 +30,7 @@ export function MainLayout() {
       <NavBar />
       <ProjectTabs />
       {fullBleed ? (
-        <main className="flex-1 min-h-0 flex flex-col overflow-auto">
+        <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
           <Outlet />
         </main>
       ) : (
