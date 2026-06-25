@@ -27,6 +27,9 @@ describe('CodeBlockContent', () => {
     expect(highlightedLines).toHaveLength(2);
     expect(highlightedLines[0]?.textContent).toContain('two');
     expect(highlightedLines[1]?.textContent).toContain('three');
+    expect(highlightedLines[0]?.classList.contains('text-foreground-highlight-interactive')).toBe(
+      false,
+    );
   });
 
   test('highlights Shiki-rendered lines without re-highlighting on range-only changes', async () => {

@@ -6,6 +6,12 @@ import {
   isCodeBlockLineHighlighted,
 } from './line-highlight.js';
 
+export const CODE_BLOCK_HIGHLIGHTED_LINE_STYLE =
+  'bg-[color-mix(in_srgb,var(--border-highlights-interactive)_7%,transparent)] dark:bg-[color-mix(in_srgb,var(--border-highlights-interactive)_12%,transparent)] shadow-[inset_2px_0_0_color-mix(in_srgb,var(--border-highlights-interactive)_65%,transparent)]';
+
+export const CODE_BLOCK_HIGHLIGHTED_LINE_DESCENDANT_STYLE =
+  '[&_.line.highlighted-line]:bg-[color-mix(in_srgb,var(--border-highlights-interactive)_7%,transparent)] dark:[&_.line.highlighted-line]:bg-[color-mix(in_srgb,var(--border-highlights-interactive)_12%,transparent)] [&_.line.highlighted-line]:shadow-[inset_2px_0_0_color-mix(in_srgb,var(--border-highlights-interactive)_65%,transparent)]';
+
 type CodeContentProps = HTMLAttributes<HTMLElement> & {
   code: string;
   highlightedCode?: string | undefined;
@@ -26,8 +32,6 @@ export function CodeContent({
   ...props
 }: CodeContentProps) {
   const shouldShowHighlighted = syntaxHighlighting && !isLoading && highlightedCode;
-  const lineHighlightClasses =
-    '[&_.line.highlighted-line]:bg-background-highlight-base [&_.line.highlighted-line]:text-foreground-highlight-interactive [&_.line.highlighted-line]:shadow-[inset_2px_0_0_var(--border-highlights-interactive)]';
 
   if (shouldShowHighlighted) {
     const codeHtml = highlightCodeBlockHtmlLines(highlightedCode, highlightedLineRange);
@@ -40,7 +44,7 @@ export function CodeContent({
           lineNumbers &&
             '[&_code]:[counter-reset:line] [&_code]:[counter-increment:line_0] [&_.line]:before:content-[counter(line)] [&_.line]:before:inline-block [&_.line]:before:[counter-increment:line] [&_.line]:before:w-16 [&_.line]:before:mr-16 [&_.line]:before:text-xs [&_.line]:before:text-right [&_.line]:before:text-foreground-neutral-subtle [&_.line]:before:font-code [&_.line]:before:select-none',
           '[&_.line]:block [&_.line]:px-12 [&_.line]:w-full [&_.line]:relative [&_.line]:font-code [&_.line]:text-xs [&_.line]:leading-20 [&_.line]:min-h-[1.25rem]',
-          lineHighlightClasses,
+          CODE_BLOCK_HIGHLIGHTED_LINE_DESCENDANT_STYLE,
           className,
         )}
         // biome-ignore lint/security/noDangerouslySetInnerHtml: only Shiki-generated markup is rendered here.
@@ -68,7 +72,7 @@ export function CodeContent({
               className={cn(
                 'line px-12 w-full relative font-code text-xs leading-20 min-h-[1.25rem]',
                 isCodeBlockLineHighlighted(index + 1, highlightedLineRange) &&
-                  'highlighted-line bg-background-highlight-base text-foreground-highlight-interactive shadow-[inset_2px_0_0_var(--border-highlights-interactive)]',
+                  `highlighted-line ${CODE_BLOCK_HIGHLIGHTED_LINE_STYLE}`,
               )}
               key={key}
             >
