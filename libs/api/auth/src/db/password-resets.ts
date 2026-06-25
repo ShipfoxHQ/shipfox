@@ -1,13 +1,22 @@
+import {AUTH_PASSWORD_RESET_SEND_REQUESTED, type AuthEventMap} from '@shipfox/api-auth-dto';
+import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, eq, gt, isNull, sql} from 'drizzle-orm';
 import type {PasswordReset} from '#core/entities/password-reset.js';
 import {db} from './db.js';
+import {authOutbox} from './schema/outbox.js';
 import {passwordResets, toPasswordReset} from './schema/password-resets.js';
 
-export interface CreatePasswordResetParams {
+interface CreatePasswordResetBaseParams {
   userId: string;
   hashedToken: string;
   expiresAt: Date;
 }
+
+export type CreatePasswordResetParams = CreatePasswordResetBaseParams &
+  (
+    | {sendEmail: {email: string; resetLink: string; expiresInHours: number}; skipEmail?: never}
+    | {sendEmail?: never; skipEmail: true}
+  );
 
 export async function createPasswordReset(
   params: CreatePasswordResetParams,
@@ -29,6 +38,12 @@ export async function createPasswordReset(
 
     const row = rows[0];
     if (!row) throw new Error('Insert returned no rows');
+    if (params.sendEmail) {
+      await writeOutboxEvent<AuthEventMap>(tx, authOutbox, {
+        type: AUTH_PASSWORD_RESET_SEND_REQUESTED,
+        payload: params.sendEmail,
+      });
+    }
     return toPasswordReset(row);
   });
 }

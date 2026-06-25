@@ -14,6 +14,7 @@ describe('email-verifications db', () => {
       userId: user.id,
       hashedToken: hashOpaqueToken(raw),
       expiresAt: new Date(Date.now() + 60_000),
+      skipEmail: true,
     });
 
     const first = await consumeEmailVerification({hashedToken: verification.hashedToken});
@@ -29,6 +30,7 @@ describe('email-verifications db', () => {
       userId: user.id,
       hashedToken: hashOpaqueToken(`expired-v-${crypto.randomUUID()}`),
       expiresAt: new Date(Date.now() - 60_000),
+      skipEmail: true,
     });
 
     const consumed = await consumeEmailVerification({hashedToken: verification.hashedToken});
@@ -42,12 +44,14 @@ describe('email-verifications db', () => {
       userId: user.id,
       hashedToken: hashOpaqueToken(`first-v-${crypto.randomUUID()}`),
       expiresAt: new Date(Date.now() + 60_000),
+      skipEmail: true,
     });
 
     await createEmailVerification({
       userId: user.id,
       hashedToken: hashOpaqueToken(`second-v-${crypto.randomUUID()}`),
       expiresAt: new Date(Date.now() + 60_000),
+      skipEmail: true,
     });
 
     const consumeFirst = await consumeEmailVerification({hashedToken: first.hashedToken});

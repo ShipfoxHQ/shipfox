@@ -473,6 +473,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/node-outbox':
+        specifier: workspace:*
+        version: link:../../shared/node/outbox
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../shared/node/postgres
@@ -1973,6 +1976,9 @@ importers:
       '@shipfox/node-module':
         specifier: workspace:*
         version: link:../../shared/node/module
+      '@shipfox/node-outbox':
+        specifier: workspace:*
+        version: link:../../shared/node/outbox
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../shared/node/postgres

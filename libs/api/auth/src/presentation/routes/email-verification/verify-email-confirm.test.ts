@@ -1,10 +1,11 @@
+import {AUTH_EMAIL_VERIFICATION_SEND_REQUESTED} from '@shipfox/api-auth-dto';
 import type {FastifyInstance} from 'fastify';
 import {
   cookieHeader,
   createAuthTestApp,
   extractToken,
   getSetCookie,
-  latestMailTo,
+  latestEmailLinkTo,
   resetCapturedMail,
   signup,
   uniqueEmail,
@@ -29,7 +30,9 @@ describe('POST /auth/verify-email/confirm', () => {
     const email = uniqueEmail('verify-confirm');
     const password = 'correct horse battery staple';
     await signup(app, {email, password});
-    const token = extractToken(latestMailTo(email).text ?? '');
+    const token = extractToken(
+      await latestEmailLinkTo(email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED),
+    );
 
     const confirm = await app.inject({
       method: 'POST',

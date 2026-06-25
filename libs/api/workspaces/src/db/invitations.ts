@@ -1,3 +1,8 @@
+import {
+  WORKSPACES_INVITATION_SEND_REQUESTED,
+  type WorkspacesEventMap,
+} from '@shipfox/api-workspaces-dto';
+import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, eq, gt, isNull, lt, sql} from 'drizzle-orm';
 import type {Invitation} from '#core/entities/invitation.js';
 import type {Membership} from '#core/entities/membership.js';
@@ -5,8 +10,9 @@ import {OpenInvitationExistsError} from '#core/errors.js';
 import {db} from './db.js';
 import {invitations, toInvitation} from './schema/invitations.js';
 import {memberships, toMembership} from './schema/memberships.js';
+import {workspacesOutbox} from './schema/outbox.js';
 
-export interface CreateInvitationParams {
+interface CreateInvitationBaseParams {
   workspaceId: string;
   email: string;
   hashedToken: string;
@@ -14,6 +20,19 @@ export interface CreateInvitationParams {
   invitedByUserId: string;
   invitedByDisplay?: string | null;
 }
+
+export type CreateInvitationParams = CreateInvitationBaseParams &
+  (
+    | {
+        sendEmail: {
+          workspaceName: string;
+          inviterName: string;
+          inviteLink: string;
+        };
+        skipEmail?: never;
+      }
+    | {sendEmail?: never; skipEmail: true}
+  );
 
 export async function createInvitation(params: CreateInvitationParams): Promise<Invitation> {
   return await db().transaction(async (tx) => {
@@ -58,6 +77,15 @@ export async function createInvitation(params: CreateInvitationParams): Promise<
 
     const row = rows[0];
     if (!row) throw new Error('Insert returned no rows');
+    if (params.sendEmail) {
+      await writeOutboxEvent<WorkspacesEventMap>(tx, workspacesOutbox, {
+        type: WORKSPACES_INVITATION_SEND_REQUESTED,
+        payload: {
+          email: params.email,
+          ...params.sendEmail,
+        },
+      });
+    }
     return toInvitation(row);
   });
 }

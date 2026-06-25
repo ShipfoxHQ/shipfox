@@ -1,11 +1,14 @@
+import {AUTH_EMAIL_VERIFICATION_SEND_REQUESTED} from '@shipfox/api-auth-dto';
 import type {FastifyInstance} from 'fastify';
 import {verifyUserToken} from '#core/jwt.js';
 import {
   acceptWorkspaceInvitationMock,
+  capturedMail,
   createAuthTestApp,
   getSetCookie,
-  latestMailTo,
+  latestEmailLinkTo,
   listMembershipsByUserMock,
+  outboxEventsTo,
   peekInvitationByRawTokenMock,
   ROUTE_TEST_SECRET,
   resetCapturedMail,
@@ -42,7 +45,10 @@ describe('POST /auth/signup', () => {
     expect(res.json().user.email).toBe(email);
     expect(res.json().user.name).toBe('New User');
     expect(res.json().user.email_verified_at).toBeNull();
-    expect(latestMailTo(email).subject).toBe('Verify your email');
+    expect(await latestEmailLinkTo(email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED)).toContain(
+      '/auth/verify-email?token=',
+    );
+    expect(capturedMail()).toHaveLength(0);
   });
 
   test.each([
@@ -156,7 +162,8 @@ describe('POST /auth/signup', () => {
     });
     expect(body.accept_error).toBeUndefined();
     expect(claims.memberships).toEqual([{workspaceId, role: 'admin'}]);
-    expect(() => latestMailTo(email)).toThrow();
+    expect(await outboxEventsTo(email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED)).toHaveLength(0);
+    expect(capturedMail()).toHaveLength(0);
   });
 
   test('returns partial success when invitation acceptance fails after user creation', async () => {

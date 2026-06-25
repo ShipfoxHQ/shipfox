@@ -1,6 +1,13 @@
 import type {OutgoingHttpHeaders} from 'node:http';
+import {
+  AUTH_EMAIL_VERIFICATION_SEND_REQUESTED,
+  type AUTH_PASSWORD_RESET_SEND_REQUESTED,
+} from '@shipfox/api-auth-dto';
 import {createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
+import {and, desc, eq, sql} from 'drizzle-orm';
+import {db} from '#db/db.js';
+import {authOutbox} from '#db/schema/outbox.js';
 import {createJwtAuthMethod} from '#presentation/auth/jwt-auth.js';
 import {authRoutes} from '#presentation/routes/index.js';
 
@@ -94,6 +101,9 @@ const {acceptWorkspaceInvitation, peekInvitationByRawToken, listMembershipsByUse
 );
 
 const TOKEN_RE = /token=([\w\-_=]+)/;
+type AuthEmailEventType =
+  | typeof AUTH_EMAIL_VERIFICATION_SEND_REQUESTED
+  | typeof AUTH_PASSWORD_RESET_SEND_REQUESTED;
 
 export const ROUTE_TEST_SECRET = testConfig.secret;
 export const acceptWorkspaceInvitationMock = vi.mocked(acceptWorkspaceInvitation);
@@ -116,6 +126,16 @@ export function resetCapturedMail(): void {
 
 export function capturedMail(): MailMessage[] {
   return testConfig.captured;
+}
+
+export async function outboxEventsTo(email: string, eventType: AuthEmailEventType) {
+  return await db()
+    .select()
+    .from(authOutbox)
+    .where(
+      and(eq(authOutbox.eventType, eventType), sql`${authOutbox.payload}->>'email' = ${email}`),
+    )
+    .orderBy(desc(authOutbox.createdAt));
 }
 
 export function uniqueEmail(prefix: string): string {
@@ -147,6 +167,19 @@ export function latestMailTo(email: string): MailMessage {
   return message as MailMessage;
 }
 
+export async function latestEmailLinkTo(
+  email: string,
+  eventType: AuthEmailEventType,
+): Promise<string> {
+  const event = (await outboxEventsTo(email, eventType))[0];
+  expect(event).toBeDefined();
+  const payload = event?.payload as {verifyLink?: string; resetLink?: string} | undefined;
+  const link =
+    eventType === AUTH_EMAIL_VERIFICATION_SEND_REQUESTED ? payload?.verifyLink : payload?.resetLink;
+  expect(link).toBeDefined();
+  return link ?? '';
+}
+
 export async function createAuthTestApp(): Promise<FastifyInstance> {
   return await createApp({
     auth: [createJwtAuthMethod()],
@@ -167,7 +200,9 @@ export async function signup(
 }
 
 export async function verifyEmail(app: FastifyInstance, email: string): Promise<void> {
-  const token = extractToken(latestMailTo(email).text ?? '');
+  const token = extractToken(
+    await latestEmailLinkTo(email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED),
+  );
 
   const res = await app.inject({
     method: 'POST',

@@ -1,7 +1,6 @@
 import type {UserContextMembership} from '@shipfox/api-auth-context';
-import {renderEmail} from '@shipfox/node-email';
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
-import {config, mailer} from '#config.js';
+import {config} from '#config.js';
 import {
   type AcceptInvitationResult,
   acceptInvitation,
@@ -29,6 +28,11 @@ function daysFromNow(days: number): Date {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 }
 
+function nonBlankOrFallback(value: string | null | undefined, fallback: string): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : fallback;
+}
+
 export async function createWorkspaceInvitation(params: {
   workspaceId: string;
   email: string;
@@ -50,16 +54,12 @@ export async function createWorkspaceInvitation(params: {
     expiresAt: daysFromNow(INVITATION_TTL_DAYS),
     invitedByUserId: params.invitedByUserId,
     invitedByDisplay: params.invitedByDisplay ?? null,
+    sendEmail: {
+      workspaceName: nonBlankOrFallback(workspace.name, 'your workspace'),
+      inviterName: nonBlankOrFallback(params.invitedByDisplay, 'A teammate'),
+      inviteLink: `${config.CLIENT_BASE_URL}/invitations/accept?token=${rawToken}`,
+    },
   });
-
-  const link = `${config.CLIENT_BASE_URL}/invitations/accept?token=${rawToken}`;
-  const email = await renderEmail('workspace-invitation', {
-    email: params.email,
-    workspaceName: workspace.name,
-    inviterName: params.invitedByDisplay ?? 'A teammate',
-    inviteLink: link,
-  });
-  await mailer.send({to: params.email, ...email});
 
   return invitation;
 }

@@ -1,9 +1,10 @@
+import {AUTH_PASSWORD_RESET_SEND_REQUESTED} from '@shipfox/api-auth-dto';
 import type {FastifyInstance} from 'fastify';
 import {
   createAuthTestApp,
   extractToken,
   getSetCookie,
-  latestMailTo,
+  latestEmailLinkTo,
   login,
   resetCapturedMail,
   signupVerifyLogin,
@@ -31,7 +32,9 @@ describe('POST /auth/password-reset/confirm', () => {
       url: '/auth/password-reset',
       payload: {email: account.email},
     });
-    const resetToken = extractToken(latestMailTo(account.email).text ?? '');
+    const resetToken = extractToken(
+      await latestEmailLinkTo(account.email, AUTH_PASSWORD_RESET_SEND_REQUESTED),
+    );
 
     const confirm = await app.inject({
       method: 'POST',

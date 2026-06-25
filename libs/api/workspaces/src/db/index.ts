@@ -36,6 +36,7 @@ export {
 } from './memberships.js';
 export type {ResolvedApiKey} from './resolve-api-key.js';
 export {resolveApiKeyWithWorkspace} from './resolve-api-key.js';
+export {workspacesOutbox} from './schema/outbox.js';
 export type {CreateWorkspaceParams, UpdateWorkspaceParams} from './workspaces.js';
 export {createWorkspace, getWorkspaceById, updateWorkspace} from './workspaces.js';
 

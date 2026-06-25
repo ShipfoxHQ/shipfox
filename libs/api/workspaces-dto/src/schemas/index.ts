@@ -1,4 +1,11 @@
 export {
+  WORKSPACES_INVITATION_SEND_REQUESTED,
+  type WorkspacesEventMap,
+  type WorkspacesInvitationSendRequestedEvent,
+  workspacesEventSchemas,
+  workspacesInvitationSendRequestedSchema,
+} from '../events.js';
+export {
   type ApiKeyDto,
   apiKeyDtoSchema,
   type CreateApiKeyBodyDto,

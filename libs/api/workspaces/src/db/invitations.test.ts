@@ -32,6 +32,7 @@ describe('invitations db', () => {
       hashedToken: hashOpaqueToken('inv-1'),
       expiresAt: new Date(Date.now() + 86_400_000),
       invitedByUserId: inviter.userId,
+      skipEmail: true,
     });
 
     expect(invitation.workspaceId).toBe(workspace.id);
@@ -48,6 +49,7 @@ describe('invitations db', () => {
       hashedToken: hashOpaqueToken('first'),
       expiresAt: new Date(Date.now() + 86_400_000),
       invitedByUserId: inviter.userId,
+      skipEmail: true,
     });
 
     await expect(
@@ -57,6 +59,7 @@ describe('invitations db', () => {
         hashedToken: hashOpaqueToken('second'),
         expiresAt: new Date(Date.now() + 86_400_000),
         invitedByUserId: inviter.userId,
+        skipEmail: true,
       }),
     ).rejects.toBeInstanceOf(OpenInvitationExistsError);
   });
@@ -80,6 +83,7 @@ describe('invitations db', () => {
       hashedToken: hashOpaqueToken('fresh-inv'),
       expiresAt: new Date(Date.now() + 86_400_000),
       invitedByUserId: inviter.userId,
+      skipEmail: true,
     });
 
     expect(fresh.id).toBeDefined();
@@ -100,6 +104,7 @@ describe('invitations db', () => {
       hashedToken: hashOpaqueToken('inv-accept'),
       expiresAt: new Date(Date.now() + 86_400_000),
       invitedByUserId: inviter.userId,
+      skipEmail: true,
     });
 
     const result = await acceptInvitation({
@@ -125,6 +130,7 @@ describe('invitations db', () => {
       hashedToken: hashOpaqueToken('inv-idem'),
       expiresAt: new Date(Date.now() + 86_400_000),
       invitedByUserId: inviter.userId,
+      skipEmail: true,
     });
 
     const result = await acceptInvitation({invitationId: inv.id, acceptedByUserId: member.userId});
@@ -167,6 +173,7 @@ describe('invitations db', () => {
       hashedToken: hashOpaqueToken('inv-list'),
       expiresAt: new Date(Date.now() + 86_400_000),
       invitedByUserId: inviter.userId,
+      skipEmail: true,
     });
 
     const before = await listOpenInvitationsByWorkspace({workspaceId: workspace.id});
@@ -187,6 +194,7 @@ describe('invitations db', () => {
       hashedToken: tokenHash,
       expiresAt: new Date(Date.now() + 86_400_000),
       invitedByUserId: inviter.userId,
+      skipEmail: true,
     });
 
     const found = await findInvitationByToken({hashedToken: tokenHash});
