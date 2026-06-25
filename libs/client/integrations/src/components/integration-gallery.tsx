@@ -102,7 +102,12 @@ export function IntegrationGallery({
     <div className="flex flex-col gap-24">
       {showInstalled ? (
         <section className="flex flex-col gap-16" aria-label="Installed integrations">
-          <Header variant="h3">Installed integrations</Header>
+          <div className="flex flex-col gap-4">
+            <Header variant="h3">Installed integrations</Header>
+            <Text size="sm" className="text-foreground-neutral-muted">
+              Provider accounts linked to this workspace.
+            </Text>
+          </div>
 
           {connectionsQuery.isPending ? <InstalledSkeleton label="Loading integrations" /> : null}
 
@@ -137,7 +142,12 @@ export function IntegrationGallery({
       ) : null}
 
       <section className="flex flex-col gap-16" aria-label="Available integrations">
-        <Header variant="h3">Available integrations</Header>
+        <div className="flex flex-col gap-4">
+          <Header variant="h3">Available integrations</Header>
+          <Text size="sm" className="text-foreground-neutral-muted">
+            Providers available to connect to this workspace.
+          </Text>
+        </div>
 
         {providersQuery.isPending ? <AvailableSkeleton label="Loading providers" /> : null}
 
