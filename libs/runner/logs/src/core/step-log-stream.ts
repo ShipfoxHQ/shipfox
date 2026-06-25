@@ -4,7 +4,7 @@ import type {LogAppendFn} from '@shipfox/runner-protocol';
 import {type FramedOutput, type OutputSource, StreamFramer} from '#core/framing.js';
 import type {LogStreamLifecycle} from '#core/lifecycle.js';
 import {createRecordSink} from '#core/record-sink.js';
-import {buildSecretVariants} from '#core/secrets.js';
+import {buildSecretVariants, mergeSecretVariants} from '#core/secrets.js';
 import {LogTransformer, type TransformEvent} from '#core/transform.js';
 
 const EMPTY_FRAMED: FramedOutput = {bytes: Buffer.alloc(0), payloadBytes: 0};
@@ -31,6 +31,12 @@ export interface StepLogStreamOptions {
 export interface StepLogStream extends LogStreamLifecycle {
   /** Frames and spools a captured output chunk. Safe to call from a pipe handler. */
   write(chunk: Buffer, source: OutputSource): void;
+  /** Registers additional secrets for subsequent runner metadata and captured output. */
+  addSecrets(secrets: string[]): void;
+  /** Opens a runner-originated group without writing marker text into the output stream. */
+  writeGroupStart(name: string): void;
+  /** Closes the most recent open runner-originated or marker-originated group. */
+  writeGroupEnd(): void;
   /** Frames a runner-originated group using the same group records as `::group::` markers. */
   writeGroup(options: StepLogGroupOptions): void;
   /** Frames a runner-originated output line, ensuring it ends with a newline. */
@@ -53,7 +59,7 @@ export interface StepLogGroupOptions {
 export function createStepLogStream(options: StepLogStreamOptions): StepLogStream {
   const now = options.now ?? Date.now;
   const framer = new StreamFramer(now);
-  const secretVariants = buildSecretVariants(options.secrets ?? []);
+  let secretVariants = buildSecretVariants(options.secrets ?? []);
   const transformer = new LogTransformer(options.secrets ?? []);
   const sink = createRecordSink({
     logsDir: options.logsDir,
@@ -132,6 +138,12 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
   }
 
   return {
+    addSecrets(secrets) {
+      if (secrets.length === 0) return;
+      secretVariants = mergeSecretVariants(secretVariants, secrets);
+      transformer.addSecrets(secrets);
+    },
+
     write(chunk, source) {
       // Once the server caps the budget the runner stops emitting; the cap
       // tombstone is server-side, so no gap is recorded here.
@@ -148,6 +160,14 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
       }
 
       writeEvents(events);
+    },
+
+    writeGroupStart(name) {
+      writeEvents([{type: 'group_start', name: safeText(name)}]);
+    },
+
+    writeGroupEnd() {
+      writeEvents([{type: 'group_end'}]);
     },
 
     writeGroup({name, lines, source = 'stdout'}) {

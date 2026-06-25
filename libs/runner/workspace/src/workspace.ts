@@ -5,6 +5,8 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {isUuid} from '@shipfox/regex';
 import {config} from '#config.js';
 
+const RUNNER_LOGS_DIR = '.shipfox-runner-logs';
+
 /**
  * Thrown when `SHIPFOX_RUNNER_WORKSPACE_ROOT` resolves to a path we refuse to
  * manage per-job directories under (empty, the filesystem root, or a home
@@ -72,6 +74,13 @@ export function jobWorkspacePath(jobId: string, root: string): string {
   return join(root, `job-${jobId}`);
 }
 
+export function jobLogsPath(jobId: string, root: string): string {
+  if (!isUuid(jobId)) {
+    throw new InvalidJobIdError(jobId);
+  }
+  return join(root, RUNNER_LOGS_DIR, `job-${jobId}`);
+}
+
 /**
  * Pre-cleans the per-job directory before creating it, so a directory left by a
  * previous crash is never reused. Run inside the setup step so a prep failure is
@@ -92,5 +101,13 @@ export async function cleanupWorkspace(cwd: string): Promise<void> {
     await rm(cwd, {recursive: true, force: true});
   } catch (err) {
     logger().warn({err, cwd}, 'Failed to clean up job workspace');
+  }
+}
+
+export async function cleanupJobLogs(logsDir: string): Promise<void> {
+  try {
+    await rm(logsDir, {recursive: true, force: true});
+  } catch (err) {
+    logger().warn({err, logsDir}, 'Failed to clean up job logs');
   }
 }

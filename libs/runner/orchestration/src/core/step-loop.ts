@@ -1,4 +1,3 @@
-import {join} from 'node:path';
 import type {LogOutcomeDto, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {executeAgentStep} from '@shipfox/runner-agent';
@@ -6,6 +5,7 @@ import {
   type CommandStartMetadata,
   executeRunStep,
   executeSetupStep,
+  type SetupJobContext,
   type StepResult,
 } from '@shipfox/runner-execution';
 import {
@@ -32,25 +32,27 @@ const WHITESPACE_REGEX = /\s+/;
 // re-executed. The per-attempt log stream is settled before that report so the server can
 // close the durable stream immediately from the reported log outcome.
 //
-// Each run step gets a per-attempt log stream: capture → spool → upload. The prior
+// Each step gets a per-attempt log stream: capture -> spool -> upload. The prior
 // attempt's stream is drained and disposed before the report, and the `finally`
-// drains an aborted last one (bounded) before runJob deletes the workspace the spool lives in.
+// drains an aborted last one (bounded) before runJob deletes the runner-owned spool directory.
 export async function runJobSteps(params: {
   jobId: string;
   leaseClient: KyInstance;
-  /** Secrets masked out of every run step's captured output before it reaches the spool. */
+  /** Secrets masked out of captured output before it reaches the spool. */
   secrets: string[];
   signal: AbortSignal;
   cwd: string;
+  logsDir: string;
+  jobContext: SetupJobContext;
 }): Promise<void> {
-  const {jobId, leaseClient, secrets, signal, cwd} = params;
+  const {jobId, leaseClient, secrets, signal, cwd, logsDir, jobContext} = params;
 
   // The setup step prepares the workspace; every run step assumes it ran. A run
   // step pulled before a successful setup is failed cleanly rather than spawned
   // against an unprepared cwd.
   let workspacePrepared = false;
 
-  // The most recent step's stream (run output or agent session), kept until the next
+  // The most recent step's stream, kept until the next
   // iteration settles it (or the finally does at job end). The step loop is sequential, so
   // at most one tail drains.
   let activeStream: LogStreamLifecycle | undefined;
@@ -83,6 +85,8 @@ export async function runJobSteps(params: {
         workspacePrepared,
         jobId,
         stepLabel,
+        logsDir,
+        jobContext,
       });
       activeStream = execution.stream;
       if (execution.preparedWorkspace) workspacePrepared = true;
@@ -112,7 +116,7 @@ export async function runJobSteps(params: {
       }
     }
   } finally {
-    // Drain the last stream (bounded) before runJob deletes the workspace; an abort
+    // Drain the last stream (bounded) before runJob deletes the log spool; an abort
     // cuts the wait short. Whatever did not drain is timeout-closed server-side.
     await settleStream({stream: activeStream, signal});
   }
@@ -162,12 +166,14 @@ export interface StepExecution {
 
 // Runs one step and always yields a StepResult, never throws: a crash before a result
 // exists (e.g. writing the temp script) becomes a reported failure so the step does not
-// hang `running`. The log stream is opened for run steps only and returned even on a
+// hang `running`. The log stream is returned even on a
 // throw, so the caller can still settle it.
 export async function executeStep(params: {
   step: StepDto;
   attempt: number;
   cwd: string;
+  logsDir: string;
+  jobContext: SetupJobContext;
   leaseClient: KyInstance;
   secrets: string[];
   signal: AbortSignal;
@@ -175,15 +181,65 @@ export async function executeStep(params: {
   jobId: string;
   stepLabel: string;
 }): Promise<StepExecution> {
-  const {step, attempt, cwd, leaseClient, secrets, signal, workspacePrepared, jobId, stepLabel} =
-    params;
+  const {
+    step,
+    attempt,
+    cwd,
+    logsDir,
+    jobContext,
+    leaseClient,
+    secrets,
+    signal,
+    workspacePrepared,
+    jobId,
+    stepLabel,
+  } = params;
 
   let stream: LogStreamLifecycle | undefined;
   let runStream: StepLogStream | undefined;
   try {
+    // Both step kinds capture to the same per-attempt stream contract (one stream per
+    // job/step/attempt). The append port is bound to the lease client, step, and attempt.
+    const append: LogAppendFn = ({offset, body, signal: appendSignal}) =>
+      appendStepLogs(leaseClient, {
+        stepId: step.id,
+        attempt,
+        offset,
+        body,
+        ...(appendSignal ? {signal: appendSignal} : {}),
+      });
+
     if (step.type === 'setup') {
-      const result = await executeSetupStep({cwd, leaseClient, signal});
-      return {result, logOutcome: 'drained', preparedWorkspace: result.success};
+      let setupStream: StepLogStream | undefined;
+      try {
+        setupStream = createStepLogStream({
+          logsDir,
+          stepId: step.id,
+          attempt,
+          secrets,
+          append,
+        });
+      } catch (error) {
+        logger().error(
+          {err: error, jobId, stepId: step.id, attempt},
+          'Failed to open setup log capture; running setup without it',
+        );
+      }
+      stream = setupStream;
+
+      const result = await executeSetupStep({
+        cwd,
+        leaseClient,
+        signal,
+        ...(setupStream ? {log: setupStream} : {}),
+        jobContext,
+      });
+      return {
+        result,
+        stream,
+        logOutcome: setupStream ? undefined : 'abandoned',
+        preparedWorkspace: result.success,
+      };
     }
 
     if (!workspacePrepared) {
@@ -201,17 +257,6 @@ export async function executeStep(params: {
       };
     }
 
-    // Both step kinds capture to the same per-attempt stream contract (one stream per
-    // job/step/attempt). The append port is bound to the lease client, step, and attempt.
-    const append: LogAppendFn = ({offset, body, signal: appendSignal}) =>
-      appendStepLogs(leaseClient, {
-        stepId: step.id,
-        attempt,
-        offset,
-        body,
-        ...(appendSignal ? {signal: appendSignal} : {}),
-      });
-
     // Agent steps run the embedded pi harness and forward every session entry into the log
     // pipeline as opaque `agent_session` records. Capture is best-effort: if the spool cannot
     // be opened, run the agent without it rather than failing the step.
@@ -219,7 +264,7 @@ export async function executeStep(params: {
       let sessionStream: SessionLogStream | undefined;
       try {
         sessionStream = createSessionLogStream({
-          logsDir: join(cwd, 'logs'),
+          logsDir,
           stepId: step.id,
           attempt,
           secrets,
@@ -252,7 +297,7 @@ export async function executeStep(params: {
     let stepStream: StepLogStream | undefined;
     try {
       stepStream = createStepLogStream({
-        logsDir: join(cwd, 'logs'),
+        logsDir,
         stepId: step.id,
         attempt,
         secrets,

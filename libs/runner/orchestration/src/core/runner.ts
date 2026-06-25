@@ -2,7 +2,9 @@ import {setTimeout as setTimeoutPromise} from 'node:timers/promises';
 import {logger} from '@shipfox/node-opentelemetry';
 import {createLeaseClient, requestJob, runnerToken} from '@shipfox/runner-protocol';
 import {
+  cleanupJobLogs,
   cleanupWorkspace,
+  jobLogsPath,
   jobWorkspacePath,
   resolveWorkspaceRootFromEnv,
 } from '@shipfox/runner-workspace';
@@ -66,8 +68,10 @@ export async function runJob(
   // path; the setup step (position 0) creates the directory. An invalid job id is
   // an internal/claim error: bail before starting any per-job resources.
   let cwd: string;
+  let logsDir: string;
   try {
     cwd = jobWorkspacePath(job.job_id, workspaceRoot);
+    logsDir = jobLogsPath(job.job_id, workspaceRoot);
   } catch (error) {
     logger().error({err: error, jobId: job.job_id}, 'Invalid job id; skipping job');
     return;
@@ -86,7 +90,15 @@ export async function runJob(
     // Both runner credentials can reach a step's environment, so scrub them from
     // captured output before it touches the spool.
     const secrets = [runnerToken(), job.lease_token];
-    await runJobSteps({jobId: job.job_id, leaseClient, secrets, signal: ac.signal, cwd});
+    await runJobSteps({
+      jobId: job.job_id,
+      leaseClient,
+      secrets,
+      signal: ac.signal,
+      cwd,
+      logsDir,
+      jobContext: {jobId: job.job_id, runId: job.run_id},
+    });
     logger().info({jobId: job.job_id}, 'Job step loop finished');
   } catch (stepLoopError) {
     // A non-retryable error surfaced (e.g. an unexpected throw from the loop).
@@ -98,6 +110,7 @@ export async function runJob(
     heartbeatLoop.stop();
     if (currentJobAbortController === ac) currentJobAbortController = undefined;
     await cleanupWorkspace(cwd);
+    await cleanupJobLogs(logsDir);
   }
 }
 

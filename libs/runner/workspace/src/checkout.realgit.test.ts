@@ -10,6 +10,8 @@ import {assertGitAvailable, CheckoutError, checkoutRepository} from '#checkout.j
 // present in CI. Only the network/auth/abort paths (which a local remote cannot produce)
 // stay mocked in checkout.test.ts.
 const execFileAsync = promisify(execFile);
+const COMMIT_SHA_RE = /^[0-9a-f]{40}$/;
+const GIT_VERSION_RE = /^git version /;
 
 let workdir: string;
 let sourceRepo: string;
@@ -42,11 +44,16 @@ afterEach(async () => {
 });
 
 describe('checkoutRepository (real git)', () => {
-  it('clones the requested ref into the per-job directory', async () => {
-    await checkoutRepository({repositoryUrl: `file://${sourceRepo}`, ref: 'main', cwd});
+  it('checks out the requested ref into the per-job directory', async () => {
+    const commit = await checkoutRepository({
+      repositoryUrl: `file://${sourceRepo}`,
+      ref: 'main',
+      cwd,
+    });
 
     const readme = await readFile(join(cwd, 'README.md'), 'utf8');
     expect(readme).toBe('# hello\n');
+    expect(commit).toMatch(COMMIT_SHA_RE);
   });
 
   it('never persists the credential to .git/config', async () => {
@@ -95,6 +102,6 @@ describe('checkoutRepository (real git)', () => {
 
 describe('assertGitAvailable (real git)', () => {
   it('resolves when git is on PATH', async () => {
-    await expect(assertGitAvailable()).resolves.toBeUndefined();
+    await expect(assertGitAvailable()).resolves.toMatch(GIT_VERSION_RE);
   });
 });

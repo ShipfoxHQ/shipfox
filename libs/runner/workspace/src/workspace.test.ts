@@ -1,10 +1,12 @@
-import {mkdtemp, rm, stat, writeFile} from 'node:fs/promises';
+import {mkdir, mkdtemp, rm, stat, writeFile} from 'node:fs/promises';
 import {homedir, tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {
+  cleanupJobLogs,
   cleanupWorkspace,
   createJobDir,
   InvalidJobIdError,
+  jobLogsPath,
   jobWorkspacePath,
   resolveWorkspaceRoot,
   UnsafeWorkspaceRootError,
@@ -60,6 +62,24 @@ describe('jobWorkspacePath', () => {
   });
 });
 
+describe('jobLogsPath', () => {
+  const root = '/var/shipfox/work';
+
+  it('names the runner-owned log directory after the job id under the root', () => {
+    const jobId = '55555555-5555-4555-8555-555555555555';
+
+    const logsDir = jobLogsPath(jobId, root);
+
+    expect(logsDir).toBe(join(root, '.shipfox-runner-logs', `job-${jobId}`));
+  });
+
+  it('rejects a job id that is not a UUID', () => {
+    const resolve = () => jobLogsPath('../../etc/passwd', root);
+
+    expect(resolve).toThrow(InvalidJobIdError);
+  });
+});
+
 describe('createJobDir', () => {
   let root: string;
 
@@ -96,6 +116,39 @@ describe('cleanupWorkspace', () => {
     const missing = join(tmpdir(), 'shipfox-job-does-not-exist-xyz');
 
     const result = await cleanupWorkspace(missing);
+
+    expect(result).toBeUndefined();
+  });
+});
+
+describe('cleanupJobLogs', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'shipfox-job-logs-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(root, {recursive: true, force: true});
+  });
+
+  it('removes an existing job log directory without touching the root', async () => {
+    const logsDir = join(root, 'job-33333333-3333-4333-8333-333333333333');
+    await mkdir(logsDir, {recursive: true});
+    await writeFile(join(logsDir, 'setup.ndjson'), '{}\n');
+
+    const result = await cleanupJobLogs(logsDir);
+
+    const readLogsDir = () => stat(logsDir);
+    await expect(readLogsDir()).rejects.toThrow();
+    expect((await stat(root)).isDirectory()).toBe(true);
+    expect(result).toBeUndefined();
+  });
+
+  it('does not throw when the directory is missing', async () => {
+    const missing = join(root, 'shipfox-job-logs-does-not-exist-xyz');
+
+    const result = await cleanupJobLogs(missing);
 
     expect(result).toBeUndefined();
   });
