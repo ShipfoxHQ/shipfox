@@ -2,6 +2,7 @@ import {
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_JOB_TIMED_OUT,
+  WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
   WORKFLOWS_WORKFLOW_RUN_CREATED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
@@ -9,6 +10,7 @@ import {
   workflowsJobStepsSettledSchema,
   workflowsJobTerminatedSchema,
   workflowsJobTimedOutSchema,
+  workflowsStepAttemptTerminatedSchema,
   workflowsStepRestartEnqueuedSchema,
   workflowsWorkflowRunCreatedSchema,
   workflowsWorkflowRunTerminatedSchema,
@@ -51,6 +53,16 @@ const validStepRestartEnqueued = {
   failedStepAttempt: 2,
   restartFromStepId: 'step-0',
   reason: 'gate failed',
+};
+
+const validStepAttemptTerminated = {
+  jobId: 'job-1',
+  runId: 'run-1',
+  workspaceId: 'ws-1',
+  projectId: 'proj-1',
+  stepId: 'step-1',
+  attempt: 1,
+  logOutcome: 'drained',
 };
 
 describe('workflowsJobTerminatedSchema', () => {
@@ -137,6 +149,12 @@ describe.each([
     validStepRestartEnqueued,
     'failedStepAttempt',
   ],
+  [
+    'workflowsStepAttemptTerminatedSchema',
+    workflowsStepAttemptTerminatedSchema,
+    validStepAttemptTerminated,
+    'logOutcome',
+  ],
 ] as const)('%s', (_name, schema, validPayload, requiredKey) => {
   it('parses a valid payload unchanged', () => {
     const result = schema.parse(validPayload);
@@ -167,6 +185,7 @@ describe('workflowsEventSchemas', () => {
         WORKFLOWS_JOB_TERMINATED,
         WORKFLOWS_JOB_STEPS_SETTLED,
         WORKFLOWS_STEP_RESTART_ENQUEUED,
+        WORKFLOWS_STEP_ATTEMPT_TERMINATED,
       ].sort(),
     );
   });

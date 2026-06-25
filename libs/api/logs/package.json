@@ -42,6 +42,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1068.0",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-logs-dto": "workspace:*",
+    "@shipfox/api-workflows": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",

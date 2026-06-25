@@ -103,6 +103,7 @@ describe('api-client auth contexts', () => {
       attempt: 1,
       status: 'succeeded',
       exitCode: 0,
+      logOutcome: 'drained',
     });
 
     expect(result).toEqual({ok: true, cancel: false});

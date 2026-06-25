@@ -1,6 +1,8 @@
 import {
   WORKFLOWS_JOB_STEPS_SETTLED,
+  WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
+  type WorkflowsStepAttemptTerminatedEvent,
   type WorkflowsStepRestartEnqueuedEvent,
 } from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
@@ -8,7 +10,12 @@ import {db} from '#db/db.js';
 import {workflowsOutbox} from '#db/schema/outbox.js';
 import {stepAttempts as stepAttemptsTable} from '#db/schema/step-attempts.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
-import {bulkUpdateStepStatuses, getStepAttempts, getStepsByJobId} from '#db/workflow-runs.js';
+import {
+  bulkUpdateStepStatuses,
+  getStepAttempts,
+  getStepsByJobId,
+  getTerminalStepAttemptLogState,
+} from '#db/workflow-runs.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {
   JobNotFoundError,
@@ -29,6 +36,21 @@ async function jobStepsSettledEvents(jobId: string): Promise<Array<{status: stri
       ),
     );
   return rows.map((row) => row.payload as {status: string});
+}
+
+async function stepAttemptTerminatedEvents(
+  jobId: string,
+): Promise<WorkflowsStepAttemptTerminatedEvent[]> {
+  const rows = await db()
+    .select({payload: workflowsOutbox.payload})
+    .from(workflowsOutbox)
+    .where(
+      and(
+        eq(workflowsOutbox.eventType, WORKFLOWS_STEP_ATTEMPT_TERMINATED),
+        sql`${workflowsOutbox.payload}->>'jobId' = ${jobId}`,
+      ),
+    );
+  return rows.map((row) => row.payload as WorkflowsStepAttemptTerminatedEvent);
 }
 
 describe('nextStepForJob', () => {
@@ -371,6 +393,38 @@ describe('step attempts', () => {
     const [step] = await getStepsByJobId(jobId);
     expect(step?.currentAttempt).toBe(attempts[0]?.attempt);
     expect(step?.status).toBe(attempts[0]?.status);
+  });
+
+  test('reporting stores log outcome and emits the terminal attempt log identity once', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await nextStepForJob(jobId);
+
+    await recordStepResult({
+      jobId,
+      stepId,
+      status: 'failed',
+      error: {message: 'boom'},
+      logOutcome: 'abandoned',
+    });
+    await recordStepResult({
+      jobId,
+      stepId,
+      status: 'failed',
+      error: {message: 'boom'},
+      logOutcome: 'abandoned',
+    });
+
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({attempt: 1, status: 'failed', logOutcome: 'abandoned'});
+    const terminal = await getTerminalStepAttemptLogState({stepId, attempt: 1});
+    expect(terminal).toMatchObject({
+      jobId,
+      stepId,
+      attempt: 1,
+      logOutcome: 'abandoned',
+    });
+    expect(await stepAttemptTerminatedEvents(jobId)).toEqual([terminal]);
   });
 
   test('a failed report finalizes the attempt with its error and exit code', async () => {

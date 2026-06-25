@@ -1,8 +1,10 @@
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {
+  type LogOutcomeDto,
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_JOB_TIMED_OUT,
+  WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
   WORKFLOWS_WORKFLOW_RUN_CREATED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
@@ -13,7 +15,7 @@ import {
   type TimestampIdCursor,
   timestampIdCursorWhere,
 } from '@shipfox/node-drizzle';
-import {writeOutboxEvent} from '@shipfox/node-outbox';
+import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
 import {and, asc, count, desc, eq, gte, inArray, isNull, lte, type SQL, sql} from 'drizzle-orm';
 import {isJobTerminal, type Job, type JobStatus} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
@@ -703,8 +705,12 @@ export async function bulkUpdateStepStatuses(
   params: BulkUpdateStepStatusesParams,
   tx?: Tx,
 ): Promise<void> {
-  const executor = tx ?? db();
-  await executor
+  if (!tx) {
+    await db().transaction((transaction) => bulkUpdateStepStatuses(params, transaction));
+    return;
+  }
+
+  await tx
     .update(steps)
     .set({
       status: params.status,
@@ -725,10 +731,36 @@ export async function bulkUpdateStepStatuses(
   // Only ever called with a terminal sweep status (cancelled on the failed-sibling
   // path, failed on timeout).
   if (params.status === 'failed' || params.status === 'cancelled') {
-    await executor
+    const finalizedAttempts = await tx
       .update(stepAttempts)
-      .set({status: params.status, finishedAt: new Date()})
-      .where(and(eq(stepAttempts.jobId, params.jobId), eq(stepAttempts.status, 'running')));
+      .set({status: params.status, logOutcome: 'abandoned', finishedAt: new Date()})
+      .where(and(eq(stepAttempts.jobId, params.jobId), eq(stepAttempts.status, 'running')))
+      .returning({
+        jobId: stepAttempts.jobId,
+        stepId: stepAttempts.stepId,
+        attempt: stepAttempts.attempt,
+        logOutcome: stepAttempts.logOutcome,
+      });
+
+    if (finalizedAttempts.length > 0) {
+      const identity = await getStepAttemptTerminatedOutboxIdentity(tx, params.jobId);
+      await writeOutboxEvents<WorkflowsEventMap>(
+        tx,
+        workflowsOutbox,
+        finalizedAttempts.map((attempt) => ({
+          type: WORKFLOWS_STEP_ATTEMPT_TERMINATED,
+          payload: {
+            jobId: attempt.jobId,
+            runId: identity.runId,
+            workspaceId: identity.workspaceId,
+            projectId: identity.projectId,
+            stepId: attempt.stepId,
+            attempt: attempt.attempt,
+            logOutcome: attempt.logOutcome ?? 'abandoned',
+          },
+        })),
+      );
+    }
   }
 }
 
@@ -815,6 +847,7 @@ export interface FinishStepAttemptParams {
   error?: Record<string, unknown> | null;
   output?: Record<string, unknown> | null;
   exitCode?: number | null;
+  logOutcome: LogOutcomeDto;
   gateResult?: Record<string, unknown> | null;
   restartReason?: string | null;
 }
@@ -823,13 +856,14 @@ export interface FinishStepAttemptParams {
 // makes this idempotent: a duplicate report finds the attempt already terminal
 // and updates nothing (never-downgrade for the audit row).
 export async function finishStepAttempt(params: FinishStepAttemptParams, tx: Tx): Promise<void> {
-  await tx
+  const rows = await tx
     .update(stepAttempts)
     .set({
       status: params.status,
       output: params.output ?? null,
       error: params.error ?? null,
       exitCode: params.exitCode ?? null,
+      logOutcome: params.logOutcome,
       gateResult: params.gateResult ?? null,
       restartReason: params.restartReason ?? null,
       finishedAt: new Date(),
@@ -840,7 +874,115 @@ export async function finishStepAttempt(params: FinishStepAttemptParams, tx: Tx)
         eq(stepAttempts.attempt, params.attempt),
         eq(stepAttempts.status, 'running'),
       ),
-    );
+    )
+    .returning({
+      jobId: stepAttempts.jobId,
+      stepId: stepAttempts.stepId,
+      attempt: stepAttempts.attempt,
+      logOutcome: stepAttempts.logOutcome,
+    });
+
+  const row = rows[0];
+  if (!row) return;
+
+  await writeStepAttemptTerminatedOutbox(tx, {
+    jobId: row.jobId,
+    stepId: row.stepId,
+    attempt: row.attempt,
+    logOutcome: row.logOutcome ?? params.logOutcome,
+  });
+}
+
+export async function writeStepAttemptTerminatedOutbox(
+  tx: Tx,
+  params: {jobId: string; stepId: string; attempt: number; logOutcome: LogOutcomeDto},
+): Promise<void> {
+  const identity = await getStepAttemptTerminatedOutboxIdentity(tx, params.jobId);
+
+  await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+    type: WORKFLOWS_STEP_ATTEMPT_TERMINATED,
+    payload: {
+      jobId: params.jobId,
+      runId: identity.runId,
+      workspaceId: identity.workspaceId,
+      projectId: identity.projectId,
+      stepId: params.stepId,
+      attempt: params.attempt,
+      logOutcome: params.logOutcome,
+    },
+  });
+}
+
+async function getStepAttemptTerminatedOutboxIdentity(
+  tx: Tx,
+  jobId: string,
+): Promise<{runId: string; workspaceId: string; projectId: string}> {
+  const rows = await tx
+    .select({
+      runId: jobs.runId,
+      workspaceId: workflowRuns.workspaceId,
+      projectId: workflowRuns.projectId,
+    })
+    .from(jobs)
+    .innerJoin(workflowRuns, eq(jobs.runId, workflowRuns.id))
+    .where(eq(jobs.id, jobId))
+    .limit(1);
+  const identity = rows[0];
+  if (!identity) {
+    throw new Error(`Cannot enqueue step-attempt-terminated event: job ${jobId} not found`);
+  }
+
+  return identity;
+}
+
+export interface TerminalStepAttemptLogState {
+  jobId: string;
+  runId: string;
+  workspaceId: string;
+  projectId: string;
+  stepId: string;
+  attempt: number;
+  logOutcome: LogOutcomeDto;
+}
+
+export async function getTerminalStepAttemptLogState(params: {
+  stepId: string;
+  attempt: number;
+}): Promise<TerminalStepAttemptLogState | undefined> {
+  const rows = await db()
+    .select({
+      jobId: stepAttempts.jobId,
+      runId: jobs.runId,
+      workspaceId: workflowRuns.workspaceId,
+      projectId: workflowRuns.projectId,
+      stepId: stepAttempts.stepId,
+      attempt: stepAttempts.attempt,
+      logOutcome: stepAttempts.logOutcome,
+    })
+    .from(stepAttempts)
+    .innerJoin(jobs, eq(stepAttempts.jobId, jobs.id))
+    .innerJoin(workflowRuns, eq(jobs.runId, workflowRuns.id))
+    .where(
+      and(
+        eq(stepAttempts.stepId, params.stepId),
+        eq(stepAttempts.attempt, params.attempt),
+        sql`${stepAttempts.status} <> 'running'`,
+        sql`${stepAttempts.logOutcome} IS NOT NULL`,
+      ),
+    )
+    .limit(1);
+
+  const row = rows[0];
+  if (!row?.logOutcome) return undefined;
+  return {
+    jobId: row.jobId,
+    runId: row.runId,
+    workspaceId: row.workspaceId,
+    projectId: row.projectId,
+    stepId: row.stepId,
+    attempt: row.attempt,
+    logOutcome: row.logOutcome,
+  };
 }
 
 export interface RewindStepsToPendingParams {

@@ -117,6 +117,7 @@ const baseAttempt: StepAttempt = {
   exitCode: 1,
   gateResult: {passed: 'yes'},
   restartReason: null,
+  logOutcome: null,
   startedAt: new Date('2026-01-01T00:00:00.000Z'),
   finishedAt: new Date('2026-01-01T00:01:00.000Z'),
   createdAt: new Date('2026-01-01T00:00:00.000Z'),

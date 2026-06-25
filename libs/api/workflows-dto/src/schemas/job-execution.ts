@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {logOutcomeSchema} from './log-outcome.js';
 import {stepDtoSchema, stepErrorDtoSchema} from './step.js';
 
 /**
@@ -56,6 +57,9 @@ export const reportStepBodySchema = z
       .describe(
         'Structured output captured for attempt history. Large textual logs are stored separately.',
       ),
+    log_outcome: logOutcomeSchema.describe(
+      'Whether the runner drained all locally spooled logs before reporting, or abandoned the log stream for backend closure.',
+    ),
   })
   .refine((body) => (body.status === 'succeeded' ? body.error == null : body.error != null), {
     message: 'succeeded steps must not include an error and failed steps must include one',

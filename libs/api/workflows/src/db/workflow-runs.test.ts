@@ -1,12 +1,13 @@
 import {
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_JOB_TIMED_OUT,
+  WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_WORKFLOW_RUN_CREATED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
 } from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import {JobNotFoundError} from '#core/errors.js';
-import {recordStepResult} from '#core/job-execution.js';
+import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
 import {db} from './db.js';
@@ -18,6 +19,7 @@ import {
   createWorkflowRun,
   failJobAsTimedOut,
   getJobsByRunId,
+  getStepAttempts,
   getStepsByJobId,
   getWorkflowExecutionDepth,
   getWorkflowRunById,
@@ -72,6 +74,19 @@ async function runTerminatedEvents(runId: string) {
       ),
     );
   return rows.map((row) => row.payload as {runId: string; projectId: string; status: string});
+}
+
+async function stepAttemptTerminatedEvents(jobId: string) {
+  const rows = await db()
+    .select({payload: workflowsOutbox.payload})
+    .from(workflowsOutbox)
+    .where(
+      and(
+        eq(workflowsOutbox.eventType, WORKFLOWS_STEP_ATTEMPT_TERMINATED),
+        sql`${workflowsOutbox.payload}->>'jobId' = ${jobId}`,
+      ),
+    );
+  return rows.map((row) => row.payload);
 }
 
 describe('workflow run queries', () => {
@@ -1232,6 +1247,41 @@ jobs:
       const final = await getStepsByJobId(jobId);
       expect(final[0]?.status).toBe('succeeded');
       expect(final[1]?.status).toBe('failed');
+    });
+
+    test('terminal sweeps finalize running attempts as abandoned and emit attempt events', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({jobs: {build: {steps: [{run: 'a'}]}}}),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const runJobs = await getJobsByRunId(run.id);
+      const jobId = runJobs[0]?.id ?? '';
+      await stripSetupStep(jobId);
+      await nextStepForJob(jobId);
+
+      await bulkUpdateStepStatuses({jobId, status: 'cancelled'});
+
+      const [attempt] = await getStepAttempts(jobId);
+      expect(attempt).toMatchObject({status: 'cancelled', logOutcome: 'abandoned'});
+      expect(await stepAttemptTerminatedEvents(jobId)).toMatchObject([
+        {
+          jobId,
+          runId: run.id,
+          workspaceId,
+          projectId,
+          stepId: attempt?.stepId,
+          attempt: 1,
+          logOutcome: 'abandoned',
+        },
+      ]);
     });
   });
 

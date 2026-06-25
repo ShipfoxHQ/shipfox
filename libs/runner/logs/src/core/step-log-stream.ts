@@ -181,7 +181,7 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
     },
 
     async drain(opts = {}) {
-      await sink.drain(opts);
+      return await sink.drain(opts);
     },
 
     dispose() {

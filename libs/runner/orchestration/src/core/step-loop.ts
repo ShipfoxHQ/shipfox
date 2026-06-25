@@ -1,5 +1,5 @@
 import {join} from 'node:path';
-import type {NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
+import type {LogOutcomeDto, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {executeAgentStep} from '@shipfox/runner-agent';
 import {
@@ -11,6 +11,7 @@ import {
 import {
   createSessionLogStream,
   createStepLogStream,
+  type LogDrainOutcome,
   type LogStreamLifecycle,
   type SessionLogStream,
   type StepLogStream,
@@ -28,11 +29,12 @@ const WHITESPACE_REGEX = /\s+/;
 
 // Reporting a step before pulling the next one is the safety invariant: a lost report is
 // retried in place (next/report are idempotent), so a step is never re-pulled or
-// re-executed. An abort mid-step stops without reporting, leaving the job for lease expiry.
+// re-executed. The per-attempt log stream is settled before that report so the server can
+// close the durable stream immediately from the reported log outcome.
 //
 // Each run step gets a per-attempt log stream: capture → spool → upload. The prior
-// attempt's stream is drained and disposed before the next opens, and the `finally`
-// drains the last one (bounded) before runJob deletes the workspace the spool lives in.
+// attempt's stream is drained and disposed before the report, and the `finally`
+// drains an aborted last one (bounded) before runJob deletes the workspace the spool lives in.
 export async function runJobSteps(params: {
   jobId: string;
   leaseClient: KyInstance;
@@ -55,9 +57,8 @@ export async function runJobSteps(params: {
 
   try {
     while (!signal.aborted) {
-      // Settle the previous run step's stream before pulling the next step, not after: a slow
-      // drain must not delay a freshly claimed step (the server marks it running on pull), and
-      // open fds/uploaders must not accumulate across fast retries.
+      // Idempotent cleanup for abort/error paths; the normal report path settles and clears
+      // activeStream before the next iteration reaches this point.
       await settleStream({stream: activeStream, signal});
       activeStream = undefined;
 
@@ -88,12 +89,16 @@ export async function runJobSteps(params: {
 
       if (signal.aborted) return;
 
+      const logOutcome =
+        (await settleStream({stream: activeStream, signal})) ?? execution.logOutcome ?? 'drained';
+      activeStream = undefined;
+
       const {cancel} = await reportStepResult({
         leaseClient,
         step,
         attempt,
         result: execution.result,
-        stream: execution.stream,
+        logOutcome,
         jobId,
         stepLabel,
         signal,
@@ -150,6 +155,7 @@ export async function pullNextStep(params: {
 export interface StepExecution {
   result: StepResult;
   stream?: LogStreamLifecycle | undefined;
+  logOutcome?: LogOutcomeDto | undefined;
   /** True when a setup step succeeded, unlocking the run steps that follow it. */
   preparedWorkspace: boolean;
 }
@@ -177,7 +183,7 @@ export async function executeStep(params: {
   try {
     if (step.type === 'setup') {
       const result = await executeSetupStep({cwd, leaseClient, signal});
-      return {result, preparedWorkspace: result.success};
+      return {result, logOutcome: 'drained', preparedWorkspace: result.success};
     }
 
     if (!workspacePrepared) {
@@ -190,6 +196,7 @@ export async function executeStep(params: {
           error: {message: 'Run step dispatched before setup prepared the workspace'},
           exit_code: null,
         },
+        logOutcome: 'drained',
         preparedWorkspace: false,
       };
     }
@@ -232,7 +239,12 @@ export async function executeStep(params: {
           ? {onSessionEntry: (line: string) => sessionStream?.writeEntry(line)}
           : {}),
       });
-      return {result, stream, preparedWorkspace: false};
+      return {
+        result,
+        stream,
+        logOutcome: sessionStream ? undefined : 'abandoned',
+        preparedWorkspace: false,
+      };
     }
 
     // Log capture is best-effort: if the spool cannot be opened (e.g. a broken logs dir),
@@ -262,7 +274,12 @@ export async function executeStep(params: {
       onOutput: (chunk, source) => stepStream?.write(chunk, source),
     });
     writeRunFailureContext(stepStream, result);
-    return {result, stream, preparedWorkspace: false};
+    return {
+      result,
+      stream,
+      logOutcome: stepStream ? undefined : 'abandoned',
+      preparedWorkspace: false,
+    };
   } catch (error) {
     logger().error(
       {err: error, jobId, stepId: step.id},
@@ -277,6 +294,7 @@ export async function executeStep(params: {
     return {
       result,
       stream,
+      logOutcome: stream ? undefined : step.type === 'setup' ? 'drained' : 'abandoned',
       preparedWorkspace: false,
     };
   }
@@ -322,12 +340,12 @@ export async function reportStepResult(params: {
   step: StepDto;
   attempt: number;
   result: StepResult;
-  stream: LogStreamLifecycle | undefined;
+  logOutcome: LogOutcomeDto;
   jobId: string;
   stepLabel: string;
   signal: AbortSignal;
 }): Promise<{cancel: boolean}> {
-  const {leaseClient, step, attempt, result, stream, jobId, stepLabel, signal} = params;
+  const {leaseClient, step, attempt, result, logOutcome, jobId, stepLabel, signal} = params;
 
   if (result.success) {
     logger().info({jobId, stepId: step.id, stepName: step.name}, `Step ${stepLabel} succeeded`);
@@ -338,10 +356,6 @@ export async function reportStepResult(params: {
     );
   }
 
-  // Seal the stream's end record before reporting so the background uploader can ship it; the
-  // upload drains separately (settleStream), so the report never blocks on it.
-  if (stream) await stream.close();
-
   const report = await reportStep(leaseClient, {
     stepId: step.id,
     attempt,
@@ -349,6 +363,7 @@ export async function reportStepResult(params: {
     // null on success, the error shape on failure — matches reportStepBodySchema's refine.
     error: result.error,
     exitCode: result.exit_code,
+    logOutcome,
     signal,
   });
 
@@ -360,10 +375,11 @@ export async function reportStepResult(params: {
 export async function settleStream(params: {
   stream: LogStreamLifecycle | undefined;
   signal: AbortSignal;
-}): Promise<void> {
+}): Promise<LogDrainOutcome | undefined> {
   const {stream, signal} = params;
-  if (!stream) return;
+  if (!stream) return undefined;
   await stream.close();
-  await stream.drain({signal});
+  const outcome = await stream.drain({signal});
   stream.dispose();
+  return outcome;
 }

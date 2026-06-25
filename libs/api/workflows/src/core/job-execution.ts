@@ -1,3 +1,4 @@
+import type {LogOutcomeDto} from '@shipfox/api-workflows-dto';
 import {withTransaction} from '#db/db.js';
 import {
   countStepAttempts,
@@ -69,6 +70,7 @@ export interface RecordStepResultParams {
   // The attempt the runner was dispatched. Omitted = "the step's current
   // attempt" (back-compat for callers that don't track attempts yet).
   attempt?: number;
+  logOutcome?: LogOutcomeDto;
 }
 
 export type RecordStepResultOutcome = StepProgressionOutcome;
@@ -152,7 +154,12 @@ export async function recordStepResult(
     });
     return applyStepTransition(
       decision,
-      {jobId: params.jobId, result, gateResult: gateResultPayload(gateOutcome, result.exitCode)},
+      {
+        jobId: params.jobId,
+        result,
+        logOutcome: params.logOutcome ?? 'drained',
+        gateResult: gateResultPayload(gateOutcome, result.exitCode),
+      },
       tx,
     );
   });
