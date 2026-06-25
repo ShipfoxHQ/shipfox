@@ -199,12 +199,12 @@ test('accepts an invitation from the public landing page via login', async ({
   await expect(page.getByLabel('Email')).toHaveValue(invitee.email);
 
   await page.getByLabel('Password').fill(invitee.password);
+  await stubProjectExists(page, workspace.id);
   await page.getByRole('button', {name: 'Log in'}).click();
 
   await expect(page).toHaveURL(workspaceUrlRe(workspace.id));
   await expect(page.getByText('You joined Invitation Flow Workspace.')).toBeVisible();
 
-  await stubProjectExists(page, workspace.id);
   await page.goto(`/workspaces/${workspace.id}/settings/members`);
   await expect(page.getByRole('heading', {name: 'Members'})).toBeVisible();
   await expect(page.getByText(owner.email)).toBeVisible();
@@ -255,12 +255,12 @@ test('creates an account from an invitation with the email locked', async ({
 
   await page.getByLabel('Name').fill('Signup Invitee');
   await page.getByLabel('Password').fill('correct horse battery staple');
+  await stubProjectExists(page, workspace.id);
   await page.getByRole('button', {name: 'Create account'}).click();
 
   await expect(page).toHaveURL(workspaceUrlRe(workspace.id));
   await expect(page.getByText('You joined Invitation Signup Workspace.')).toBeVisible();
 
-  await stubProjectExists(page, workspace.id);
   await page.goto(`/workspaces/${workspace.id}/settings/members`);
   await expect(page.getByText(inviteeEmail)).toBeVisible();
   await expect(page.getByText('Signup Invitee')).toBeVisible();

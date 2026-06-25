@@ -11,6 +11,7 @@ export const projectsQueryKeys = {
   list: (workspaceId: string, search?: string) =>
     [...projectsQueryKeys.all, 'list', workspaceId, search ?? ''] as const,
   exists: (workspaceId: string) => [...projectsQueryKeys.all, 'exists', workspaceId] as const,
+  existsDisabled: () => [...projectsQueryKeys.all, 'exists', 'disabled'] as const,
   detail: (projectId: string) => [...projectsQueryKeys.all, 'detail', projectId] as const,
 };
 
@@ -64,7 +65,7 @@ export function useWorkspaceProjectExistenceQuery(workspaceId: string | undefine
   return useQuery({
     queryKey: workspaceId
       ? projectsQueryKeys.exists(workspaceId)
-      : [...projectsQueryKeys.all, 'exists'],
+      : projectsQueryKeys.existsDisabled(),
     enabled: Boolean(workspaceId),
     queryFn: ({signal}) => listProjects({workspaceId: workspaceId ?? '', limit: 1, signal}),
   });

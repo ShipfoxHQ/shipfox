@@ -69,7 +69,9 @@ export function WorkspaceSetupGuard({children}: WorkspaceSetupGuardProps) {
     );
   }
 
-  const hasSourceConnection = (sourceConnectionsQuery.data?.connections.length ?? 0) > 0;
+  if (sourceConnectionsQuery.data === undefined) return <FullPageLoader />;
+
+  const hasSourceConnection = sourceConnectionsQuery.data.connections.length > 0;
 
   if (!hasSourceConnection) {
     if (isIntegrationsPath(pathname, workspace.id)) {

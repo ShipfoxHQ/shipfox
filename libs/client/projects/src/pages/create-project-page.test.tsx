@@ -175,6 +175,14 @@ describe('CreateProjectPage', () => {
           ),
         );
       }
+      if (request.url.includes('/projects?')) {
+        return Promise.resolve(
+          jsonResponse({
+            projects: [projectDto({id: '55555555-5555-4555-8555-555555555555'})],
+            next_cursor: null,
+          }),
+        );
+      }
       if (request.url.includes('/definitions?')) {
         return Promise.resolve(jsonResponse({definitions: [], next_cursor: null, sync: null}));
       }

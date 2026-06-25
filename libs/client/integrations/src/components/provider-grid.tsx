@@ -55,8 +55,6 @@ export function ProviderGrid({
     );
   }
 
-  if (installableProviders.length === 0) return null;
-
   return (
     <ul className={PROVIDER_GRID_CLASS}>
       {installableProviders.map((provider) => (
