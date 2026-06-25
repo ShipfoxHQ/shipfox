@@ -39,9 +39,9 @@ describe('WorkflowRunView', () => {
     expect(await screen.findByRole('region', {name: 'Workflow jobs'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'build, Succeeded'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'deploy, Running'})).toBeInTheDocument();
-    expect(screen.getByRole('region', {name: 'Step attempts'})).toBeInTheDocument();
+    expect(screen.getByRole('region', {name: 'build'})).toBeInTheDocument();
     expect(
-      screen.getByRole('button', {name: '1. checkout, Succeeded, attempt 1'}),
+      screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'}),
     ).toBeInTheDocument();
   });
 
@@ -159,7 +159,7 @@ describe('WorkflowRunView', () => {
     await waitFor(() => expect(sourceButton).toHaveFocus());
     expect(sourceButton).toHaveAttribute('aria-expanded', 'false');
     expect(deployNode).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('region', {name: 'Step attempts'})).toBeInTheDocument();
+    expect(screen.getByRole('region', {name: 'deploy'})).toBeInTheDocument();
   });
 
   test('highlights selected step source lines when the source panel opens', async () => {

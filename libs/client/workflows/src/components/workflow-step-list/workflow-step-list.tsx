@@ -11,7 +11,8 @@ import {
 } from '@shipfox/react-ui';
 import type {ReactNode} from 'react';
 import {useEffect, useId, useMemo, useState} from 'react';
-import type {WorkflowJob} from '#core/workflow-run.js';
+import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
+import {isWorkflowStatus, type WorkflowJob} from '#core/workflow-run.js';
 import {
   buildWorkflowStepListModel,
   humanizeStatus,
@@ -104,11 +105,8 @@ function WorkflowStepListContent({
         className,
       )}
     >
-      <div className="flex min-h-52 flex-col justify-center gap-2 border-b border-border-neutral-base px-16 py-8">
+      <div className="flex min-h-40 items-center border-b border-border-neutral-base px-16 py-8">
         <Text as="h2" id={titleId} size="sm" bold className="text-foreground-neutral-base">
-          Step attempts
-        </Text>
-        <Text size="xs" className="min-w-0 truncate text-foreground-neutral-subtle">
           {model.jobName}
         </Text>
       </div>
@@ -173,7 +171,7 @@ function WorkflowStepRow({
       aria-label={entryAccessibleLabel(entry)}
       onClick={onSelect}
       className={cn(
-        'group flex min-h-56 w-full items-center gap-10 px-12 py-8 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
+        'group flex min-h-44 w-full items-center gap-8 px-12 py-6 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
         selected && 'bg-background-components-hover',
       )}
     >
@@ -185,25 +183,13 @@ function WorkflowStepRow({
           selected && 'rotate-90',
         )}
       />
-      <Text size="xs" className="w-20 shrink-0 text-right font-code text-foreground-neutral-muted">
-        {entry.step.index}
-      </Text>
-      <Dot
-        variant={entry.statusVisual.dot}
-        ripple={entry.statusVisual.ripple}
-        className="size-8 shrink-0"
-      />
+      <WorkflowStepStatusIcon entry={entry} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-8">
           <Text size="sm" bold className="truncate text-foreground-neutral-base">
             {entry.step.label}
           </Text>
           {entry.step.attempts.length > 1 ? <WorkflowAttemptChip attempt={entry} /> : null}
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2">
-          <Text size="xs" className="text-foreground-neutral-subtle">
-            {entry.statusVisual.label}
-          </Text>
         </div>
       </div>
     </button>
@@ -234,6 +220,28 @@ function WorkflowStepRow({
   );
 }
 
+function WorkflowStepStatusIcon({entry}: {entry: WorkflowStepListEntryModel}) {
+  if (isWorkflowStatus(entry.statusVisual.kind)) {
+    return (
+      <WorkflowStatusIcon
+        status={entry.statusVisual.kind}
+        ripple={entry.statusVisual.ripple}
+        size={14}
+      />
+    );
+  }
+
+  return (
+    <span role="img" aria-label={entry.statusVisual.label} className="inline-flex shrink-0">
+      <Dot
+        variant={entry.statusVisual.dot}
+        ripple={entry.statusVisual.ripple}
+        className="size-12 shrink-0"
+      />
+    </span>
+  );
+}
+
 const attemptChipClasses: Record<NonNullable<BadgeVariant>, string> = {
   neutral: 'bg-tag-neutral-bg border-tag-neutral-border',
   info: 'bg-tag-blue-bg border-tag-blue-border',
@@ -259,11 +267,7 @@ function WorkflowAttemptChip({attempt}: {attempt: WorkflowStepAttemptModel}) {
 }
 
 function entryAccessibleLabel(entry: WorkflowStepListEntryModel): string {
-  const parts = [
-    `${entry.step.index}. ${entry.step.label}`,
-    entry.statusVisual.label,
-    `attempt ${entry.attempt}`,
-  ];
+  const parts = [entry.step.label, entry.statusVisual.label, `attempt ${entry.attempt}`];
   if (entry.step.error?.category) parts.push(humanizeStatus(entry.step.error.category));
   return parts.join(', ');
 }
