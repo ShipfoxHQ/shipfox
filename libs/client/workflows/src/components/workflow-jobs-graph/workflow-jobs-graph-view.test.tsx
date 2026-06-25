@@ -1,5 +1,5 @@
 import type {RunJobDetailDto} from '@shipfox/api-workflows-dto';
-import {render, screen, within} from '@testing-library/react';
+import {fireEvent, render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
 import {workflowJob, workflowRunDetail} from '#test/fixtures/workflow-run.js';
@@ -171,6 +171,31 @@ describe('WorkflowJobsGraph', () => {
     expect(deploy).toHaveFocus();
     expect(deploy).toHaveAttribute('aria-pressed', 'true');
     expect(build).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('highlights adjacent edges only while hovering a job', async () => {
+    const user = userEvent.setup();
+    const build = makeJob({name: 'build'});
+    const deploy = makeJob({name: 'deploy', position: 1, dependencies: ['build']});
+    const {container} = render(<WorkflowJobsGraph run={makeRun({jobs: [build, deploy]})} />);
+    const triggerEdge = container.querySelector(`[data-edge-id="trigger:${build.id}"]`);
+    const deployEdge = container.querySelector(`[data-edge-id="${build.id}:${deploy.id}"]`);
+    const deployNode = screen.getByRole('button', {
+      name: 'deploy, Pending, 1 current dependency is still pending or running',
+    });
+
+    fireEvent.click(deployNode);
+
+    expect(deployEdge).toHaveAttribute('stroke-width', '1');
+
+    await user.hover(deployNode);
+
+    expect(deployEdge).toHaveAttribute('stroke-width', '1.5');
+    expect(triggerEdge).toHaveAttribute('stroke-width', '1');
+
+    await user.unhover(deployNode);
+
+    expect(deployEdge).toHaveAttribute('stroke-width', '1');
   });
 
   test('routes skipped-column join edges away from intermediate nodes', () => {

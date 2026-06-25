@@ -1,6 +1,6 @@
-import {EmptyState} from '@shipfox/react-ui';
+import {cn, EmptyState} from '@shipfox/react-ui';
 import type {KeyboardEvent} from 'react';
-import {useRef} from 'react';
+import {useRef, useState} from 'react';
 import type {WorkflowJobGraphModel, WorkflowJobGraphNavigationKey} from './graph-model.js';
 import {nextWorkflowJobGraphNodeId} from './graph-model.js';
 import {TriggerNode, WorkflowJobNode} from './workflow-job-node.js';
@@ -22,6 +22,7 @@ export function WorkflowJobsGraphContent({
   onSelectJob: (jobId: string | undefined) => void;
 }) {
   const nodeRefs = useRef(new Map<string, HTMLButtonElement>());
+  const [hoveredJobId, setHoveredJobId] = useState<string | undefined>();
 
   if (model.nodes.length === 0) {
     return (
@@ -72,7 +73,7 @@ export function WorkflowJobsGraphContent({
   return (
     <div className="min-h-0 overflow-auto bg-background-neutral-base">
       <div className="relative" style={{width: contentWidth, minHeight: contentHeight}}>
-        <GraphEdges model={model} />
+        <GraphEdges model={model} hoveredJobId={hoveredJobId} />
         <div
           className="absolute"
           style={{left: PADDING, top: PADDING + (NODE_HEIGHT - TRIGGER_WIDTH) / 2}}
@@ -93,6 +94,10 @@ export function WorkflowJobsGraphContent({
                 ref={setNodeRef(node.id)}
                 onSelect={() => onSelectJob(node.id === selectedJobId ? undefined : node.id)}
                 onKeyDown={handleKeyDown}
+                onHoverStart={() => setHoveredJobId(node.id)}
+                onHoverEnd={() =>
+                  setHoveredJobId((current) => (current === node.id ? undefined : current))
+                }
               />
             ))}
           </div>
@@ -116,7 +121,13 @@ function navigationKey(key: string): WorkflowJobGraphNavigationKey | undefined {
   return undefined;
 }
 
-function GraphEdges({model}: {model: WorkflowJobGraphModel}) {
+function GraphEdges({
+  model,
+  hoveredJobId,
+}: {
+  model: WorkflowJobGraphModel;
+  hoveredJobId?: string | undefined;
+}) {
   const byId = new Map(model.nodes.map((node) => [node.id, node]));
 
   return (
@@ -127,14 +138,21 @@ function GraphEdges({model}: {model: WorkflowJobGraphModel}) {
         const from = edge.from === 'trigger' ? triggerPoint() : jobRightPoint(fromNode);
         const to = jobLeftPoint(toNode);
         if (!from || !to) return null;
+        const highlighted = edge.from === hoveredJobId || edge.to === hoveredJobId;
         return (
-          <g key={edge.id} className="text-foreground-neutral-muted">
+          <g
+            key={edge.id}
+            className={cn(
+              'text-foreground-neutral-muted transition-colors',
+              highlighted && 'text-foreground-neutral-base',
+            )}
+          >
             <path
               data-edge-id={edge.id}
               d={edgePath({from, fromNode, to, toNode})}
               fill="none"
               stroke="currentColor"
-              strokeWidth="1"
+              strokeWidth={highlighted ? 1.5 : 1}
             />
           </g>
         );
