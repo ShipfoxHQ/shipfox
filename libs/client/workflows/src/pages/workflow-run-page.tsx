@@ -4,6 +4,7 @@ import {WorkflowRunView} from '#components/workflow-run-view/index.js';
 import {WorkflowRunsList} from '#components/workflow-runs-list/workflow-runs-list.js';
 import {
   type WorkflowRunSelectionInput,
+  withoutWorkflowRunSelectionSearch,
   withWorkflowRunSelectionSearch,
   workflowRunSelectionFromSearch,
 } from '#core/workflow-run-url-state.js';
@@ -41,7 +42,8 @@ function useWorkflowRunPageTarget(
     navigate({
       to: '/workspaces/$wid/projects/$pid/runs/$runId',
       params: {wid: workspaceId, pid: projectId, runId: firstRunId},
-      search: true,
+      search: ((previous: Record<string, unknown>) =>
+        withoutWorkflowRunSelectionSearch(previous)) as never,
       replace: true,
     });
   }, [navigate, workspaceId, projectId, runId, isLoaded, firstRunId]);

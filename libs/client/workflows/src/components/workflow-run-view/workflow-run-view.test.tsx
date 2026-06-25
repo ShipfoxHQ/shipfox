@@ -1,21 +1,29 @@
-import type {
-  JobStatusDto,
-  RunDetailResponseDto,
-  RunStepDetailDto,
-  StepAttemptDto,
-} from '@shipfox/api-workflows-dto';
+import type {RunDetailResponseDto} from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {inlineLogBody, outputLine} from '#test/fixtures/logs.js';
+import {
+  workflowJobDto,
+  workflowRunDetailDto,
+  workflowStepAttemptDto,
+  workflowStepDto,
+} from '#test/fixtures/workflow-run.js';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {WorkflowRunView} from './workflow-run-view.js';
 
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
+const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
+const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
+const BUILD_JOB_ID = '77777777-7777-4777-8777-777777777777';
+const DEPLOY_JOB_ID = '88888888-8888-4888-8888-888888888888';
+const CHECKOUT_STEP_ID = '99999999-9999-4999-8999-999999999999';
+const CHECKOUT_ATTEMPT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 describe('WorkflowRunView', () => {
   test('renders the run summary, jobs graph, and selected job step attempts when a run loads', async () => {
     configureApiClient({
-      fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(runDetailDto()))),
+      fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(workflowRunViewDetailDto()))),
     });
 
     renderView();
@@ -46,21 +54,25 @@ describe('WorkflowRunView', () => {
       }
       return Promise.resolve(
         jsonResponse(
-          runDetailDto({
+          workflowRunViewDetailDto({
             jobs: [
-              jobDto({
-                id: '77777777-7777-4777-8777-777777777777',
+              workflowJobDto({
+                id: BUILD_JOB_ID,
+                run_id: RUN_ID,
                 name: 'build',
                 status: 'running',
                 steps: [
-                  stepDto({
+                  workflowStepDto({
                     id: stepId,
+                    job_id: BUILD_JOB_ID,
                     name: 'test',
+                    display_name: 'test',
                     status: 'running',
                     attempts: [
-                      attemptDto({
+                      workflowStepAttemptDto({
                         id: 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001',
                         step_id: stepId,
+                        job_id: BUILD_JOB_ID,
                         status: 'running',
                         exit_code: null,
                         finished_at: null,
@@ -113,7 +125,7 @@ describe('WorkflowRunView', () => {
       fetchImpl: vi.fn(() =>
         Promise.resolve(
           jsonResponse(
-            runDetailDto({
+            workflowRunViewDetailDto({
               source_snapshot: {
                 format: 'yaml',
                 content: 'jobs:\n  build:\n    steps:\n      - run: pnpm test',
@@ -157,20 +169,21 @@ describe('WorkflowRunView', () => {
       fetchImpl: vi.fn(() =>
         Promise.resolve(
           jsonResponse(
-            runDetailDto({
+            workflowRunViewDetailDto({
               source_snapshot: {
                 format: 'yaml',
                 content: 'jobs:\n  deploy:\n    steps:\n      - run: ship',
               },
               jobs: [
-                jobDto({
-                  id: '88888888-8888-4888-8888-888888888888',
+                workflowJobDto({
+                  id: DEPLOY_JOB_ID,
+                  run_id: RUN_ID,
                   name: 'deploy',
                   status: 'running',
                   steps: [
-                    stepDto({
+                    workflowStepDto({
                       id: stepId,
-                      job_id: '88888888-8888-4888-8888-888888888888',
+                      job_id: DEPLOY_JOB_ID,
                       name: 'deploy',
                       display_name: 'deploy',
                       source_location: {start_line: 2, end_line: 3},
@@ -197,7 +210,9 @@ describe('WorkflowRunView', () => {
 
   test('does not render a source control when the run has no source snapshot', async () => {
     configureApiClient({
-      fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(runDetailDto({source_snapshot: null})))),
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(jsonResponse(workflowRunViewDetailDto({source_snapshot: null}))),
+      ),
     });
 
     renderView();
@@ -219,132 +234,53 @@ function requestUrl(input: RequestInfo | URL): URL {
   return new URL(String(input));
 }
 
-function runDetailDto(overrides: Partial<RunDetailResponseDto> = {}) {
-  return {...baseRunDetailDto(), ...overrides};
-}
-
-const outputLine = (data: string, ts = 1): string =>
-  `${JSON.stringify({v: 1, ts, type: 'output', stream: 'stdout', data})}\n`;
-
-function inlineLogBody(ndjson: string, nextCursor: number) {
-  return {
-    mode: 'inline',
-    ndjson,
-    next_cursor: nextCursor,
-    has_more: false,
-    state: 'closed',
-    truncated: false,
-  };
-}
-
-function baseRunDetailDto(): RunDetailResponseDto {
-  return {
+function workflowRunViewDetailDto(
+  overrides: Partial<RunDetailResponseDto> = {},
+): RunDetailResponseDto {
+  return workflowRunDetailDto({
     id: RUN_ID,
-    project_id: '44444444-4444-4444-8444-444444444444',
-    definition_id: '55555555-5555-4555-8555-555555555555',
+    project_id: PROJECT_ID,
+    definition_id: DEFINITION_ID,
     name: 'deploy-web',
     status: 'running',
-    trigger_source: 'manual',
-    trigger_event: 'fire',
     trigger_payload: {},
-    inputs: null,
-    source_snapshot: null,
     created_at: '2026-05-07T01:01:00.000Z',
     updated_at: '2026-05-07T01:02:00.000Z',
-    started_at: null,
-    finished_at: null,
     jobs: [
-      jobDto({
-        id: '77777777-7777-4777-8777-777777777777',
+      workflowJobDto({
+        id: BUILD_JOB_ID,
+        run_id: RUN_ID,
         name: 'build',
         status: 'succeeded',
-        steps: [stepDto({name: 'checkout', status: 'succeeded'})],
+        steps: [
+          workflowStepDto({
+            id: CHECKOUT_STEP_ID,
+            job_id: BUILD_JOB_ID,
+            name: 'checkout',
+            display_name: 'checkout',
+            status: 'succeeded',
+            attempts: [
+              workflowStepAttemptDto({
+                id: CHECKOUT_ATTEMPT_ID,
+                step_id: CHECKOUT_STEP_ID,
+                job_id: BUILD_JOB_ID,
+                status: 'succeeded',
+                exit_code: 0,
+                finished_at: '2026-05-07T01:01:20.000Z',
+              }),
+            ],
+          }),
+        ],
       }),
-      jobDto({
-        id: '88888888-8888-4888-8888-888888888888',
+      workflowJobDto({
+        id: DEPLOY_JOB_ID,
+        run_id: RUN_ID,
         name: 'deploy',
         status: 'running',
         position: 1,
         dependencies: ['build'],
       }),
     ],
-  };
-}
-
-function jobDto({
-  id,
-  name,
-  status,
-  position = 0,
-  dependencies = [],
-  steps = [],
-}: {
-  id: string;
-  name: string;
-  status: JobStatusDto;
-  position?: number;
-  dependencies?: string[];
-  steps?: RunStepDetailDto[];
-}) {
-  return {
-    id,
-    run_id: RUN_ID,
-    name,
-    status,
-    dependencies,
-    position,
-    created_at: '2026-05-07T01:01:00.000Z',
-    updated_at: '2026-05-07T01:02:00.000Z',
-    queued_at: null,
-    started_at: null,
-    finished_at: null,
-    steps,
-  };
-}
-
-function stepDto(overrides: Partial<RunStepDetailDto> = {}): RunStepDetailDto {
-  const stepId = overrides.id ?? '99999999-9999-4999-8999-999999999999';
-  const attempt = attemptDto({
-    step_id: stepId,
-    job_id: overrides.job_id ?? '77777777-7777-4777-8777-777777777777',
-    status: overrides.status ?? 'succeeded',
+    ...overrides,
   });
-
-  return {
-    id: stepId,
-    job_id: '77777777-7777-4777-8777-777777777777',
-    name: 'checkout',
-    display_name: overrides.display_name ?? overrides.name ?? 'checkout',
-    source_location: null,
-    status: 'succeeded',
-    type: 'run',
-    config: {},
-    error: null,
-    position: 0,
-    current_attempt: 1,
-    created_at: '2026-05-07T01:01:00.000Z',
-    updated_at: '2026-05-07T01:02:00.000Z',
-    attempts: [attempt],
-    ...overrides,
-  };
-}
-
-function attemptDto(overrides: Partial<StepAttemptDto> = {}): StepAttemptDto {
-  return {
-    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    step_id: '99999999-9999-4999-8999-999999999999',
-    job_id: '77777777-7777-4777-8777-777777777777',
-    attempt: 1,
-    execution_order: 1,
-    status: 'succeeded',
-    exit_code: 0,
-    output: null,
-    error: null,
-    gate_result: null,
-    restart_reason: null,
-    restart_result: null,
-    started_at: '2026-05-07T01:01:10.000Z',
-    finished_at: '2026-05-07T01:01:20.000Z',
-    ...overrides,
-  };
 }

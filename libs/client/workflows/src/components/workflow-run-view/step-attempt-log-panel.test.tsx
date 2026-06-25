@@ -3,6 +3,7 @@ import {type StepLogSnapshot, stepLogsQueryKeys} from '@shipfox/client-logs';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
+import {inlineLogBody, outputLine} from '#test/fixtures/logs.js';
 import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 
 const STEP_ID = '99999999-9999-4999-8999-999999999999';
@@ -15,18 +16,6 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
     ...init,
   });
 }
-
-const outputLine = (data: string, ts = 1): string =>
-  `${JSON.stringify({v: 1, ts, type: 'output', stream: 'stdout', data})}\n`;
-
-const inlineBody = (ndjson: string, nextCursor: number) => ({
-  mode: 'inline',
-  ndjson,
-  next_cursor: nextCursor,
-  has_more: false,
-  state: 'closed',
-  truncated: false,
-});
 
 const outputRecord = (data: string, ts = 1): TestLogRecord => ({
   v: 1,
@@ -96,7 +85,7 @@ describe('StepAttemptLogPanel', () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({code: 'server-error'}, {status: 500}))
-      .mockResolvedValueOnce(jsonResponse(inlineBody(outputLine('eventual logs\n'), 1)));
+      .mockResolvedValueOnce(jsonResponse(inlineLogBody(outputLine('eventual logs\n'), 1)));
     configureApiClient({
       baseUrl: 'https://api.example.test',
       fetchImpl,
@@ -125,7 +114,7 @@ describe('StepAttemptLogPanel', () => {
   test('renders loaded logs inline', async () => {
     configureApiClient({
       baseUrl: 'https://api.example.test',
-      fetchImpl: vi.fn(async () => jsonResponse(inlineBody(outputLine('hello\n'), 1))),
+      fetchImpl: vi.fn(async () => jsonResponse(inlineLogBody(outputLine('hello\n'), 1))),
     });
 
     renderPanel({attemptStatus: 'succeeded'});
@@ -136,7 +125,7 @@ describe('StepAttemptLogPanel', () => {
   test('keeps stale logs visible when a refresh fails', async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse(inlineBody(outputLine('first\n'), 1)))
+      .mockResolvedValueOnce(jsonResponse(inlineLogBody(outputLine('first\n'), 1)))
       .mockResolvedValueOnce(jsonResponse({code: 'server-error'}, {status: 500}));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
     const {queryClient} = renderPanel({attemptStatus: 'running'});

@@ -1,18 +1,20 @@
-import type {
-  JobStatusDto,
-  RunDetailResponseDto,
-  RunJobDetailDto,
-  RunResponseDto,
-  RunStepDetailDto,
-  StepAttemptDto,
-} from '@shipfox/api-workflows-dto';
+import type {RunDetailResponseDto, RunResponseDto} from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {act, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {inlineLogBody, outputLine} from '#test/fixtures/logs.js';
+import {
+  workflowJobDto,
+  workflowRunDetailDto,
+  workflowRunDto,
+  workflowStepAttemptDto,
+  workflowStepDto,
+} from '#test/fixtures/workflow-run.js';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {WorkflowRunPage} from './workflow-run-page.js';
 
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
+const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
 const SECOND_RUN_ID = '66666666-6666-4666-8666-000000000002';
 const BUILD_JOB_ID = '77777777-7777-4777-8777-777777777777';
@@ -24,6 +26,19 @@ const DEPLOY_ATTEMPT_ONE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001';
 const DEPLOY_ATTEMPT_TWO_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000002';
 const SMOKE_WEB_RE = /smoke-web/u;
 const RUN_DETAIL_PATH_RE = /^\/workflows\/runs\/([^/]+)$/u;
+const RUN_OVERRIDES = {
+  id: RUN_ID,
+  project_id: PROJECT_ID,
+  definition_id: DEFINITION_ID,
+  trigger_payload: {source: 'manual', event: 'fire'},
+  created_at: '2026-05-07T01:01:00.000Z',
+  updated_at: '2026-05-07T01:02:00.000Z',
+} satisfies Partial<RunResponseDto>;
+const SECOND_RUN_OVERRIDES = {
+  ...RUN_OVERRIDES,
+  id: SECOND_RUN_ID,
+  name: 'smoke-web',
+} satisfies Partial<RunResponseDto>;
 
 describe('WorkflowRunPage', () => {
   test('keeps the runs list mounted and only skeletons the run view until a run is selected', async () => {
@@ -40,12 +55,17 @@ describe('WorkflowRunPage', () => {
   test('redirects to the most recent run when opened without a run id', async () => {
     configureApiClient({fetchImpl: createRunsListFetch()});
 
-    renderRunsPath();
+    const {router} = renderRunsPath(
+      `?job=${DEPLOY_JOB_ID}&step=${DEPLOY_STEP_ID}&attempt=${DEPLOY_ATTEMPT_TWO_ID}`,
+    );
 
     // Landing on /runs with runs present redirects to the newest run, so its row becomes the
     // selected (current) row in the rail even though the opened URL carried no run id.
     const selectedRow = await screen.findByRole('link', {current: 'page'});
     expect(selectedRow).toHaveTextContent('deploy-web');
+    expect(currentSearch(router).job).toBeUndefined();
+    expect(currentSearch(router).step).toBeUndefined();
+    expect(currentSearch(router).attempt).toBeUndefined();
   });
 
   test('shows the first-time-use surface when the project has no runs', async () => {
@@ -165,10 +185,10 @@ describe('WorkflowRunPage', () => {
     const user = userEvent.setup();
     configureApiClient({
       fetchImpl: createRunDetailFetch({
-        runs: [runDto({id: RUN_ID}), runDto({id: SECOND_RUN_ID, name: 'smoke-web'})],
+        runs: [workflowRunDto(RUN_OVERRIDES), workflowRunDto(SECOND_RUN_OVERRIDES)],
         details: {
-          [RUN_ID]: runDetailDto(),
-          [SECOND_RUN_ID]: runDetailDto({id: SECOND_RUN_ID, name: 'smoke-web', jobs: []}),
+          [RUN_ID]: defaultRunDetailDto(),
+          [SECOND_RUN_ID]: workflowRunDetailDto({...SECOND_RUN_OVERRIDES, jobs: []}),
         },
       }),
     });
@@ -185,10 +205,13 @@ describe('WorkflowRunPage', () => {
   });
 });
 
-function renderRunsPath() {
-  renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs`, ({runId}) => (
-    <WorkflowRunPage workspaceId={PROJECT_TEST_WID} projectId={PROJECT_ID} runId={runId} />
-  ));
+function renderRunsPath(search = '') {
+  return renderProjectPage(
+    `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs${search}`,
+    ({runId}) => (
+      <WorkflowRunPage workspaceId={PROJECT_TEST_WID} projectId={PROJECT_ID} runId={runId} />
+    ),
+  );
 }
 
 function renderRunPath(search = '') {
@@ -206,11 +229,15 @@ function createRunsListFetch() {
 
     if (url.pathname === '/workflows/runs') {
       return Promise.resolve(
-        jsonResponse({runs: [runDto()], next_cursor: null, filtered_total_count: 1}),
+        jsonResponse({
+          runs: [workflowRunDto(RUN_OVERRIDES)],
+          next_cursor: null,
+          filtered_total_count: 1,
+        }),
       );
     }
     if (url.pathname === `/workflows/runs/${RUN_ID}`) {
-      return Promise.resolve(jsonResponse(runDetailDto({jobs: []})));
+      return Promise.resolve(jsonResponse(workflowRunDetailDto({...RUN_OVERRIDES, jobs: []})));
     }
 
     return Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}));
@@ -218,8 +245,8 @@ function createRunsListFetch() {
 }
 
 function createRunDetailFetch({
-  runs = [runDto()],
-  details = {[RUN_ID]: runDetailDto()},
+  runs = [workflowRunDto(RUN_OVERRIDES)],
+  details = {[RUN_ID]: defaultRunDetailDto()},
 }: {
   runs?: RunResponseDto[];
   details?: Record<string, RunDetailResponseDto>;
@@ -269,37 +296,17 @@ function requestInputUrl(input: RequestInfo | URL) {
   return String(input);
 }
 
-// The newest run the list returns; the page should redirect onto it when opened at /runs.
-function runDto(overrides: Partial<RunResponseDto> = {}): RunResponseDto {
-  return {
-    id: RUN_ID,
-    project_id: PROJECT_ID,
-    definition_id: '55555555-5555-4555-8555-555555555555',
-    name: 'deploy-web',
-    status: 'running',
-    trigger_source: 'manual',
-    trigger_event: 'fire',
-    trigger_payload: {source: 'manual', event: 'fire'},
-    inputs: null,
-    source_snapshot: null,
-    created_at: '2026-05-07T01:01:00.000Z',
-    updated_at: '2026-05-07T01:02:00.000Z',
-    started_at: null,
-    finished_at: null,
-    ...overrides,
-  };
-}
-
-function runDetailDto(overrides: Partial<RunDetailResponseDto> = {}): RunDetailResponseDto {
-  return {
-    ...runDto(),
+function defaultRunDetailDto(overrides: Partial<RunDetailResponseDto> = {}): RunDetailResponseDto {
+  return workflowRunDetailDto({
+    ...RUN_OVERRIDES,
     jobs: [
-      jobDto({
+      workflowJobDto({
         id: BUILD_JOB_ID,
+        run_id: RUN_ID,
         name: 'build',
         status: 'succeeded',
         steps: [
-          stepDto({
+          workflowStepDto({
             id: BUILD_STEP_ID,
             job_id: BUILD_JOB_ID,
             name: 'checkout',
@@ -307,7 +314,7 @@ function runDetailDto(overrides: Partial<RunDetailResponseDto> = {}): RunDetailR
             status: 'succeeded',
             current_attempt: 1,
             attempts: [
-              attemptDto({
+              workflowStepAttemptDto({
                 id: BUILD_ATTEMPT_ID,
                 step_id: BUILD_STEP_ID,
                 job_id: BUILD_JOB_ID,
@@ -317,14 +324,15 @@ function runDetailDto(overrides: Partial<RunDetailResponseDto> = {}): RunDetailR
           }),
         ],
       }),
-      jobDto({
+      workflowJobDto({
         id: DEPLOY_JOB_ID,
+        run_id: RUN_ID,
         name: 'deploy',
         status: 'running',
         position: 1,
         dependencies: ['build'],
         steps: [
-          stepDto({
+          workflowStepDto({
             id: DEPLOY_STEP_ID,
             job_id: DEPLOY_JOB_ID,
             name: 'deploy',
@@ -332,7 +340,7 @@ function runDetailDto(overrides: Partial<RunDetailResponseDto> = {}): RunDetailR
             status: 'running',
             current_attempt: 2,
             attempts: [
-              attemptDto({
+              workflowStepAttemptDto({
                 id: DEPLOY_ATTEMPT_ONE_ID,
                 step_id: DEPLOY_STEP_ID,
                 job_id: DEPLOY_JOB_ID,
@@ -341,7 +349,7 @@ function runDetailDto(overrides: Partial<RunDetailResponseDto> = {}): RunDetailR
                 status: 'failed',
                 exit_code: 1,
               }),
-              attemptDto({
+              workflowStepAttemptDto({
                 id: DEPLOY_ATTEMPT_TWO_ID,
                 step_id: DEPLOY_STEP_ID,
                 job_id: DEPLOY_JOB_ID,
@@ -357,92 +365,7 @@ function runDetailDto(overrides: Partial<RunDetailResponseDto> = {}): RunDetailR
       }),
     ],
     ...overrides,
-  };
-}
-
-function jobDto({
-  id,
-  name,
-  status,
-  position = 0,
-  dependencies = [],
-  steps = [],
-}: {
-  id: string;
-  name: string;
-  status: JobStatusDto;
-  position?: number;
-  dependencies?: string[];
-  steps?: RunStepDetailDto[];
-}): RunJobDetailDto {
-  return {
-    id,
-    run_id: RUN_ID,
-    name,
-    status,
-    dependencies,
-    position,
-    created_at: '2026-05-07T01:01:00.000Z',
-    updated_at: '2026-05-07T01:02:00.000Z',
-    queued_at: null,
-    started_at: null,
-    finished_at: null,
-    steps,
-  };
-}
-
-function stepDto(overrides: Partial<RunStepDetailDto> = {}): RunStepDetailDto {
-  return {
-    id: BUILD_STEP_ID,
-    job_id: BUILD_JOB_ID,
-    name: 'checkout',
-    display_name: 'checkout',
-    source_location: null,
-    status: 'succeeded',
-    type: 'run',
-    config: {},
-    error: null,
-    position: 0,
-    current_attempt: 1,
-    created_at: '2026-05-07T01:01:00.000Z',
-    updated_at: '2026-05-07T01:02:00.000Z',
-    attempts: [],
-    ...overrides,
-  };
-}
-
-function attemptDto(overrides: Partial<StepAttemptDto> = {}): StepAttemptDto {
-  return {
-    id: BUILD_ATTEMPT_ID,
-    step_id: BUILD_STEP_ID,
-    job_id: BUILD_JOB_ID,
-    attempt: 1,
-    execution_order: 1,
-    status: 'succeeded',
-    exit_code: 0,
-    output: null,
-    error: null,
-    gate_result: null,
-    restart_reason: null,
-    restart_result: null,
-    started_at: '2026-05-07T01:01:10.000Z',
-    finished_at: '2026-05-07T01:01:20.000Z',
-    ...overrides,
-  };
-}
-
-const outputLine = (data: string, ts = 1): string =>
-  `${JSON.stringify({v: 1, ts, type: 'output', stream: 'stdout', data})}\n`;
-
-function inlineLogBody(ndjson: string, nextCursor: number) {
-  return {
-    mode: 'inline',
-    ndjson,
-    next_cursor: nextCursor,
-    has_more: false,
-    state: 'closed',
-    truncated: false,
-  };
+  });
 }
 
 function currentSearch({state}: ReturnType<typeof renderRunPath>['router']) {
