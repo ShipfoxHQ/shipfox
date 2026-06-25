@@ -1,7 +1,7 @@
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {Badge, Code, cn, Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui';
 import type {KeyboardEventHandler, Ref} from 'react';
-import {useEffect, useRef, useState} from 'react';
+import {useIsTextTruncated} from '#components/truncation/use-is-text-truncated.js';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {WorkflowGraphTriggerNode, WorkflowJobGraphNode} from './graph-model.js';
@@ -95,27 +95,7 @@ export function WorkflowJobNode({
 }
 
 function JobLabel({label}: {label: string}) {
-  const labelRef = useRef<HTMLSpanElement>(null);
-  const [isTruncated, setIsTruncated] = useState(false);
-
-  useEffect(() => {
-    const element = labelRef.current;
-    if (!element) return;
-    if (label.length === 0) {
-      setIsTruncated(false);
-      return;
-    }
-
-    const updateTruncation = () => {
-      setIsTruncated(element.scrollWidth > element.clientWidth);
-    };
-    updateTruncation();
-
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(updateTruncation);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [label]);
+  const {ref: labelRef, isTruncated} = useIsTextTruncated<HTMLSpanElement>(label);
 
   return (
     <Tooltip>
