@@ -26,8 +26,11 @@ lifecycle rule. `bootstrap.sh` provisions it on the local Garage bucket; set the
 same rule (for example, abort one day after initiation) on any shared or
 production bucket.
 
-## Browser reads (later)
+## Browser reads
 
 The log read path serves compacted objects through presigned URLs fetched
 directly by the browser, so the bucket needs CORS configured to allow the
-dashboard origin. That is set up with the read path (ENG-443), not here.
+dashboard origin. `bootstrap.sh` provisions a read-only browser CORS rule for
+`http://localhost:5173` on the local Garage buckets. Override it with
+`GARAGE_CORS_ALLOWED_ORIGINS` when your local client uses another origin; use a
+comma-separated list for several origins.

@@ -11,6 +11,7 @@ set -eu
 GARAGE_URL="${GARAGE_URL:-http://localhost:3903}"
 ADMIN_TOKEN="${GARAGE_ADMIN_TOKEN:-shipfox-dev-admin-token}"
 S3_ENDPOINT="${GARAGE_S3_ENDPOINT:-http://localhost:3900}"
+CORS_ALLOWED_ORIGINS="${GARAGE_CORS_ALLOWED_ORIGINS:-http://localhost:5173}"
 # Dev bucket plus the test bucket the @shipfox/api-logs suite uploads to against real Garage.
 BUCKETS="shipfox-logs shipfox-logs-test"
 KEY_NAME="local-dev"
@@ -58,13 +59,21 @@ done
 # skipped when the aws CLI or the store's lifecycle API is unavailable (dev then relies on the
 # upload's abort-on-cancel; the rule only matters for a hard crash mid-upload).
 if command -v aws >/dev/null 2>&1; then
+  cors_configuration="$(printf '%s' "$CORS_ALLOWED_ORIGINS" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0)) | {CORSRules: [{AllowedOrigins: ., AllowedMethods: ["GET", "HEAD"], AllowedHeaders: ["*"], ExposeHeaders: ["ETag", "Content-Length", "Content-Type", "Content-Range", "Accept-Ranges"], MaxAgeSeconds: 3600}]}')"
+
   for bucket in $BUCKETS; do
     AWS_ACCESS_KEY_ID="$ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$SECRET_ACCESS_KEY" AWS_REGION=garage \
       aws --endpoint-url "$S3_ENDPOINT" s3api put-bucket-lifecycle-configuration \
       --bucket "$bucket" \
       --lifecycle-configuration '{"Rules":[{"ID":"shipfox-abort-incomplete-multipart","Status":"Enabled","Filter":{"Prefix":""},"AbortIncompleteMultipartUpload":{"DaysAfterInitiation":1}}]}' \
       >/dev/null 2>&1 || echo "Lifecycle rule skipped for '$bucket' (aws CLI or lifecycle API unavailable)."
+
+    AWS_ACCESS_KEY_ID="$ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$SECRET_ACCESS_KEY" AWS_REGION=garage \
+      aws --endpoint-url "$S3_ENDPOINT" s3api put-bucket-cors \
+      --bucket "$bucket" \
+      --cors-configuration "$cors_configuration" \
+      >/dev/null 2>&1 || echo "CORS rule skipped for '$bucket' (aws CLI or CORS API unavailable)."
   done
 fi
 
-echo "Garage ready: buckets [$BUCKETS], key '$KEY_NAME' ($ACCESS_KEY_ID)."
+echo "Garage ready: buckets [$BUCKETS], key '$KEY_NAME' ($ACCESS_KEY_ID), CORS origins [$CORS_ALLOWED_ORIGINS]."
