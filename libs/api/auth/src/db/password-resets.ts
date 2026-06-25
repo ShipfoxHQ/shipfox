@@ -6,12 +6,17 @@ import {db} from './db.js';
 import {authOutbox} from './schema/outbox.js';
 import {passwordResets, toPasswordReset} from './schema/password-resets.js';
 
-export interface CreatePasswordResetParams {
+interface CreatePasswordResetBaseParams {
   userId: string;
   hashedToken: string;
   expiresAt: Date;
-  sendEmail?: {email: string; resetLink: string; expiresInHours: number} | undefined;
 }
+
+export type CreatePasswordResetParams = CreatePasswordResetBaseParams &
+  (
+    | {sendEmail: {email: string; resetLink: string; expiresInHours: number}; skipEmail?: never}
+    | {sendEmail?: never; skipEmail: true}
+  );
 
 export async function createPasswordReset(
   params: CreatePasswordResetParams,

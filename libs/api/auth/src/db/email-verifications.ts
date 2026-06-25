@@ -8,12 +8,17 @@ import {emailVerifications, toEmailVerification} from './schema/email-verificati
 import {authOutbox} from './schema/outbox.js';
 import {toUser, users} from './schema/users.js';
 
-export interface CreateEmailVerificationParams {
+interface CreateEmailVerificationBaseParams {
   userId: string;
   hashedToken: string;
   expiresAt: Date;
-  sendEmail?: {email: string; verifyLink: string} | undefined;
 }
+
+export type CreateEmailVerificationParams = CreateEmailVerificationBaseParams &
+  (
+    | {sendEmail: {email: string; verifyLink: string}; skipEmail?: never}
+    | {sendEmail?: never; skipEmail: true}
+  );
 
 export async function createEmailVerification(
   params: CreateEmailVerificationParams,
@@ -50,7 +55,7 @@ export interface CreateResendEmailVerificationParams {
   hashedToken: string;
   expiresAt: Date;
   cooldownSeconds: number;
-  sendEmail?: {verifyLink: string} | undefined;
+  sendEmail: {verifyLink: string};
   now?: Date | undefined;
 }
 

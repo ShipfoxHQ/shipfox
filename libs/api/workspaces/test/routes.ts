@@ -250,6 +250,7 @@ export async function createExpiredInvite(params: {
     hashedToken: hashOpaqueToken(rawToken),
     expiresAt: new Date(Date.now() - 60_000),
     invitedByUserId: params.invitedByUserId,
+    skipEmail: true,
   });
   return rawToken;
 }

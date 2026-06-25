@@ -12,21 +12,27 @@ import {invitations, toInvitation} from './schema/invitations.js';
 import {memberships, toMembership} from './schema/memberships.js';
 import {workspacesOutbox} from './schema/outbox.js';
 
-export interface CreateInvitationParams {
+interface CreateInvitationBaseParams {
   workspaceId: string;
   email: string;
   hashedToken: string;
   expiresAt: Date;
   invitedByUserId: string;
   invitedByDisplay?: string | null;
-  sendEmail?:
-    | {
-        workspaceName: string;
-        inviterName: string;
-        inviteLink: string;
-      }
-    | undefined;
 }
+
+export type CreateInvitationParams = CreateInvitationBaseParams &
+  (
+    | {
+        sendEmail: {
+          workspaceName: string;
+          inviterName: string;
+          inviteLink: string;
+        };
+        skipEmail?: never;
+      }
+    | {sendEmail?: never; skipEmail: true}
+  );
 
 export async function createInvitation(params: CreateInvitationParams): Promise<Invitation> {
   return await db().transaction(async (tx) => {

@@ -14,6 +14,7 @@ describe('password-resets db', () => {
       userId: user.id,
       hashedToken: hashOpaqueToken(raw),
       expiresAt: new Date(Date.now() + 60_000),
+      skipEmail: true,
     });
 
     const first = await consumePasswordReset({hashedToken: reset.hashedToken});
@@ -29,6 +30,7 @@ describe('password-resets db', () => {
       userId: user.id,
       hashedToken: hashOpaqueToken(`expired-${crypto.randomUUID()}`),
       expiresAt: new Date(Date.now() - 60_000),
+      skipEmail: true,
     });
 
     const consumed = await consumePasswordReset({hashedToken: reset.hashedToken});
@@ -42,12 +44,14 @@ describe('password-resets db', () => {
       userId: user.id,
       hashedToken: hashOpaqueToken(`first-${crypto.randomUUID()}`),
       expiresAt: new Date(Date.now() + 60_000),
+      skipEmail: true,
     });
 
     await createPasswordReset({
       userId: user.id,
       hashedToken: hashOpaqueToken(`second-${crypto.randomUUID()}`),
       expiresAt: new Date(Date.now() + 60_000),
+      skipEmail: true,
     });
 
     const consumeFirst = await consumePasswordReset({hashedToken: first.hashedToken});

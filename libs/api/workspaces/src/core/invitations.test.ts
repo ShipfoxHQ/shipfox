@@ -159,6 +159,31 @@ describe('invitations core', () => {
     expect(payload.inviterName).toBe('A teammate');
   });
 
+  test('createWorkspaceInvitation queues fallbacks for blank display values', async () => {
+    const inviter = userFactory.build();
+    const workspace = await workspaceFactory.create({name: '   '});
+    await createMembership({
+      userId: inviter.userId,
+      userEmail: inviter.email,
+      userName: inviter.name,
+      workspaceId: workspace.id,
+    });
+    const email = `invitee-${crypto.randomUUID()}@example.com`;
+
+    await createWorkspaceInvitation({
+      workspaceId: workspace.id,
+      email,
+      invitedByUserId: inviter.userId,
+      invitedByDisplay: '   ',
+      invitedByMemberships: [{workspaceId: workspace.id, role: 'admin'}],
+    });
+
+    const payload = await latestInvitationPayload(email);
+    expect(captured).toHaveLength(0);
+    expect(payload.workspaceName).toBe('your workspace');
+    expect(payload.inviterName).toBe('A teammate');
+  });
+
   test('createWorkspaceInvitation rejects duplicate open invitations', async () => {
     const inviter = userFactory.build();
     const workspace = await workspaceFactory.create();

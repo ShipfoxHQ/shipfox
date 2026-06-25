@@ -28,6 +28,11 @@ function daysFromNow(days: number): Date {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 }
 
+function nonBlankOrFallback(value: string | null | undefined, fallback: string): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : fallback;
+}
+
 export async function createWorkspaceInvitation(params: {
   workspaceId: string;
   email: string;
@@ -50,8 +55,8 @@ export async function createWorkspaceInvitation(params: {
     invitedByUserId: params.invitedByUserId,
     invitedByDisplay: params.invitedByDisplay ?? null,
     sendEmail: {
-      workspaceName: workspace.name,
-      inviterName: params.invitedByDisplay ?? 'A teammate',
+      workspaceName: nonBlankOrFallback(workspace.name, 'your workspace'),
+      inviterName: nonBlankOrFallback(params.invitedByDisplay, 'A teammate'),
       inviteLink: `${config.CLIENT_BASE_URL}/invitations/accept?token=${rawToken}`,
     },
   });

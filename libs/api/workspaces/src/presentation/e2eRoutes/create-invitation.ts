@@ -32,6 +32,7 @@ export const createE2eInvitationRoute = defineRoute({
       expiresAt: daysFromNow(INVITATION_TTL_DAYS),
       invitedByUserId: request.body.invited_by_user_id,
       invitedByDisplay: request.body.invited_by_display ?? null,
+      skipEmail: true,
     });
 
     reply.code(201);
