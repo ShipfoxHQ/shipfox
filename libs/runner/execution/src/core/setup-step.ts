@@ -57,7 +57,7 @@ export async function executeSetupStep(params: {
   const checkoutFailure = await runCheckoutSetup({cwd, leaseClient, signal, log});
   if (checkoutFailure) return checkoutFailure;
 
-  log?.writeOutputLine('Setup completed successfully.');
+  log?.writeOutputLine('Setup completed successfully. The job is ready to run.');
   return {success: true, error: null, exit_code: 0};
 }
 
@@ -68,9 +68,11 @@ async function checkGit(log: SetupLogSink | undefined): Promise<StepResult | nul
     return null;
   } catch (error) {
     writeRunnerEnvironment(log, 'unavailable');
-    log?.writeOutputLine(
-      `Setup failed during git availability check: ${messageOf(error)}`,
-      'stderr',
+    writeFailure(
+      log,
+      'Setup failed because Git is not available on the runner.',
+      'Install Git in the runner image or use a runner image that includes Git.',
+      error,
     );
     return fail(error, 'git_unavailable');
   }
@@ -84,16 +86,15 @@ async function prepareWorkspace(params: {
   try {
     log?.writeGroup({
       name: 'Prepare workspace',
-      lines: [
-        `workspace: ${cwd}`,
-        'operation: remove any previous job directory and create a clean checkout directory',
-      ],
+      lines: ['Creating a clean working directory for this job.', `Path: ${cwd}`],
     });
     await createJobDir(cwd);
   } catch (error) {
-    log?.writeOutputLine(
-      `Setup failed during workspace preparation: ${messageOf(error)}`,
-      'stderr',
+    writeFailure(
+      log,
+      'Setup failed because the runner could not prepare the workspace.',
+      'Check the runner workspace permissions and available disk space.',
+      error,
     );
     return fail(error, 'workspace_prep_failed');
   }
@@ -128,24 +129,24 @@ async function requestCheckoutCredentials(params: {
   const {leaseClient, signal, log} = params;
   try {
     log?.writeGroup({
-      name: 'Request checkout credentials',
-      lines: ['Requesting checkout credentials'],
+      name: 'Request repository access',
+      lines: ['Requesting short-lived repository access from Shipfox.'],
     });
     const checkout = await requestCheckoutToken(leaseClient, {signal});
     log?.writeGroup({
-      name: 'Checkout authentication',
-      lines: [
-        checkout.auth ? `credential kind: ${checkout.auth.kind}` : 'credential kind: none',
-        checkout.auth?.expires_at ? `expires at: ${checkout.auth.expires_at}` : 'expires at: n/a',
-      ],
+      name: 'Repository access granted',
+      lines: credentialLines(checkout.auth),
     });
     return {ok: true, value: checkout};
   } catch (error) {
-    log?.writeOutputLine(
-      `Setup failed while requesting checkout credentials: ${messageOf(error)}`,
-      'stderr',
+    const reason = classifyCheckoutTokenError(error);
+    writeFailure(
+      log,
+      'Setup failed because Shipfox could not grant repository access.',
+      checkoutTokenFailureHelp(reason),
+      error,
     );
-    return {ok: false, result: fail(error, classifyCheckoutTokenError(error))};
+    return {ok: false, result: fail(error, reason)};
   }
 }
 
@@ -158,8 +159,11 @@ async function checkoutRepositoryForSetup(params: {
   const {cwd, checkout, signal, log} = params;
   try {
     log?.writeGroup({
-      name: 'Checkout repository',
-      lines: [`repository: ${safeRepositoryUrl(checkout.repository_url)}`, `ref: ${checkout.ref}`],
+      name: 'Repository details',
+      lines: [
+        `Repository: ${safeRepositoryUrl(checkout.repository_url)}`,
+        `Requested ref: ${checkout.ref}`,
+      ],
     });
     const commit = await checkoutRepository({
       repositoryUrl: checkout.repository_url,
@@ -171,18 +175,25 @@ async function checkoutRepositoryForSetup(params: {
       onCommandStart: (metadata) => writeCheckoutCommand(log, metadata),
       onOutput: checkoutOutput(log),
     });
-    log?.writeGroup({name: 'Checkout complete', lines: [`checked-out commit: ${commit}`]});
+    log?.writeGroup({name: 'Checkout complete', lines: [`Checked out commit: ${commit}`]});
     return null;
   } catch (error) {
     const reason =
       error instanceof CheckoutError ? CHECKOUT_KIND_REASON[error.kind] : 'checkout_failed';
     if (error instanceof CheckoutError && error.phase) {
-      log?.writeOutputLine(
-        `Setup failed during checkout ${phaseLabel(error.phase)}: ${messageOf(error)}`,
-        'stderr',
+      writeFailure(
+        log,
+        `Setup failed while ${checkoutPhaseAction(error.phase)}.`,
+        checkoutFailureHelp(reason),
+        error,
       );
     } else {
-      log?.writeOutputLine(`Setup failed during checkout: ${messageOf(error)}`, 'stderr');
+      writeFailure(
+        log,
+        'Setup failed while checking out the repository.',
+        checkoutFailureHelp(reason),
+        error,
+      );
     }
     return fail(error, reason);
   }
@@ -246,8 +257,8 @@ function writeJobContext(
 ): void {
   if (!jobContext) return;
   log?.writeGroup({
-    name: 'Job context',
-    lines: [`job id: ${jobContext.jobId}`, `run id: ${jobContext.runId}`],
+    name: 'Job details',
+    lines: [`Job: ${jobContext.jobId}`, `Run: ${jobContext.runId}`],
   });
 }
 
@@ -255,10 +266,10 @@ function writeRunnerEnvironment(log: SetupLogSink | undefined, gitVersion: strin
   log?.writeGroup({
     name: 'Runner environment',
     lines: [
-      `node: ${process.version}`,
-      `os: ${platform()} ${release()}`,
-      `architecture: ${arch()}`,
-      `git: ${gitVersion}`,
+      `Node.js: ${process.version}`,
+      `Operating system: ${platform()} ${release()}`,
+      `CPU architecture: ${arch()}`,
+      `Git: ${gitVersion}`,
       ...buildMetadataLines(),
     ],
   });
@@ -267,9 +278,10 @@ function writeRunnerEnvironment(log: SetupLogSink | undefined, gitVersion: strin
 function buildMetadataLines(): string[] {
   const lines: string[] = [];
   if (process.env.npm_package_version)
-    lines.push(`package version: ${process.env.npm_package_version}`);
-  if (process.env.IMAGE_REVISION) lines.push(`image revision: ${process.env.IMAGE_REVISION}`);
-  if (process.env.BUILD_NUMBER) lines.push(`build number: ${process.env.BUILD_NUMBER}`);
+    lines.push(`Runner package version: ${process.env.npm_package_version}`);
+  if (process.env.IMAGE_REVISION)
+    lines.push(`Runner image revision: ${process.env.IMAGE_REVISION}`);
+  if (process.env.BUILD_NUMBER) lines.push(`Runner build number: ${process.env.BUILD_NUMBER}`);
   return lines;
 }
 
@@ -278,8 +290,8 @@ function writeCheckoutCommand(
   metadata: CheckoutCommandStartMetadata,
 ): void {
   log?.writeGroup({
-    name: `Checkout ${phaseLabel(metadata.phase)}`,
-    lines: [metadata.command, `working-directory: ${metadata.cwd}`],
+    name: checkoutPhaseTitle(metadata.phase),
+    lines: [`Command: ${metadata.command}`, `Working directory: ${metadata.cwd}`],
   });
 }
 
@@ -288,8 +300,77 @@ function checkoutOutput(log: SetupLogSink | undefined): CheckoutOutputSink | und
   return (chunk, source) => log.write(chunk, source);
 }
 
-function phaseLabel(phase: CheckoutPhase): string {
-  return phase.replace('-', ' ');
+function credentialLines(auth: CheckoutTokenResponseDto['auth']): string[] {
+  if (!auth) return ['No repository credential was required.'];
+  return [
+    auth.kind === 'bearer'
+      ? 'Using a short-lived repository token.'
+      : 'Using a short-lived username/password repository credential.',
+    auth.expires_at ? `Expires at: ${auth.expires_at}` : 'No expiration was provided.',
+  ];
+}
+
+function checkoutPhaseTitle(phase: CheckoutPhase): string {
+  switch (phase) {
+    case 'init':
+      return 'Initialize repository';
+    case 'remote':
+      return 'Add repository remote';
+    case 'fetch':
+      return 'Fetch requested ref';
+    case 'checkout':
+      return 'Check out commit';
+    case 'resolve':
+      return 'Read checked-out commit';
+  }
+}
+
+function checkoutPhaseAction(phase: CheckoutPhase): string {
+  switch (phase) {
+    case 'init':
+      return 'initializing the local Git repository';
+    case 'remote':
+      return 'adding the repository remote';
+    case 'fetch':
+      return 'fetching the requested ref';
+    case 'checkout':
+      return 'checking out the fetched commit';
+    case 'resolve':
+      return 'reading the checked-out commit';
+  }
+}
+
+function checkoutTokenFailureHelp(reason: StepErrorReason): string {
+  if (reason === 'checkout_auth_failed') {
+    return 'Check that the runner is connected to this workspace and the job is allowed to read this repository.';
+  }
+  if (reason === 'checkout_unavailable') {
+    return 'Retry the job; Shipfox or the repository provider may be temporarily unavailable.';
+  }
+  return 'Check the repository connection and job permissions in Shipfox, then retry the job.';
+}
+
+function checkoutFailureHelp(reason: StepErrorReason): string {
+  if (reason === 'checkout_auth_failed') {
+    return 'Check the repository connection in Shipfox and confirm it has permission to read this repository.';
+  }
+  if (reason === 'checkout_unavailable') {
+    return 'Check the runner network and DNS access to the Git provider, then retry the job.';
+  }
+  if (reason === 'setup_aborted') {
+    return 'The job was cancelled or timed out before checkout completed.';
+  }
+  return 'Check that the repository URL and requested ref are valid. The git output above may include provider details.';
+}
+
+function writeFailure(
+  log: SetupLogSink | undefined,
+  summary: string,
+  nextStep: string,
+  error: unknown,
+): void {
+  log?.writeOutputLine(`${summary} Details: ${messageOf(error)}`, 'stderr');
+  log?.writeOutputLine(`Next step: ${nextStep}`, 'stderr');
 }
 
 function safeRepositoryUrl(repositoryUrl: string): string {

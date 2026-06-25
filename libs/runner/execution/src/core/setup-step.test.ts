@@ -112,30 +112,32 @@ describe('executeSetupStep', () => {
 
     expect(result.success).toBe(true);
     expect(log.writeGroup).toHaveBeenCalledWith({
-      name: 'Job context',
-      lines: [`job id: ${jobContext.jobId}`, `run id: ${jobContext.runId}`],
+      name: 'Job details',
+      lines: [`Job: ${jobContext.jobId}`, `Run: ${jobContext.runId}`],
     });
     expect(log.writeGroupStart).toHaveBeenCalledWith('Checkout');
     expect(log.writeGroupEnd).toHaveBeenCalledTimes(1);
     expect(log.writeGroup).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'Runner environment',
-        lines: expect.arrayContaining(['git: git version 2.51.0']),
+        lines: expect.arrayContaining(['Git: git version 2.51.0']),
       }),
     );
     expect(log.writeGroup).toHaveBeenCalledWith({
-      name: 'Request checkout credentials',
-      lines: ['Requesting checkout credentials'],
+      name: 'Request repository access',
+      lines: ['Requesting short-lived repository access from Shipfox.'],
     });
     expect(log.writeGroup).toHaveBeenCalledWith({
-      name: 'Checkout authentication',
-      lines: ['credential kind: none', 'expires at: n/a'],
+      name: 'Repository access granted',
+      lines: ['No repository credential was required.'],
     });
     expect(log.writeGroup).toHaveBeenCalledWith({
       name: 'Checkout complete',
-      lines: ['checked-out commit: abc123'],
+      lines: ['Checked out commit: abc123'],
     });
-    expect(log.writeOutputLine).toHaveBeenCalledWith('Setup completed successfully.');
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Setup completed successfully. The job is ready to run.',
+    );
   });
 
   it('routes checkout callbacks to the setup log sink', async () => {
@@ -155,30 +157,48 @@ describe('executeSetupStep', () => {
 
     expect(log.addSecrets).toHaveBeenCalledWith(['tok-123']);
     expect(log.writeGroup).toHaveBeenCalledWith({
-      name: 'Checkout fetch',
-      lines: ['git fetch origin main', `working-directory: ${CWD}`],
+      name: 'Fetch requested ref',
+      lines: ['Command: git fetch origin main', `Working directory: ${CWD}`],
     });
     expect(log.write).toHaveBeenCalledWith(Buffer.from('remote output'), 'stdout');
   });
 
   it('checks git before minting a credential', async () => {
+    const log = fakeLog();
     assertGitAvailableMock.mockRejectedValue(new Error('git is not available on the runner host'));
 
-    const result = await run();
+    const result = await run(log);
 
     expect(requestCheckoutTokenMock).not.toHaveBeenCalled();
     expect(createJobDirMock).not.toHaveBeenCalled();
     expect(result.success).toBe(false);
     expect(result.error?.reason).toBe('git_unavailable');
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Setup failed because Git is not available on the runner. Details: git is not available on the runner host',
+      'stderr',
+    );
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Next step: Install Git in the runner image or use a runner image that includes Git.',
+      'stderr',
+    );
   });
 
   it('reports workspace_prep_failed when creating the directory fails', async () => {
+    const log = fakeLog();
     createJobDirMock.mockRejectedValue(new Error('mkdir denied'));
 
-    const result = await run();
+    const result = await run(log);
 
     expect(requestCheckoutTokenMock).not.toHaveBeenCalled();
     expect(result.error).toEqual({message: 'mkdir denied', reason: 'workspace_prep_failed'});
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Setup failed because the runner could not prepare the workspace. Details: mkdir denied',
+      'stderr',
+    );
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Next step: Check the runner workspace permissions and available disk space.',
+      'stderr',
+    );
   });
 
   it.each([
@@ -245,7 +265,11 @@ describe('executeSetupStep', () => {
     expect(log.writeGroupStart).toHaveBeenCalledWith('Checkout');
     expect(log.writeGroupEnd).toHaveBeenCalledTimes(1);
     expect(log.writeOutputLine).toHaveBeenCalledWith(
-      'Setup failed during checkout fetch: remote rejected',
+      'Setup failed while fetching the requested ref. Details: remote rejected',
+      'stderr',
+    );
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Next step: Check that the repository URL and requested ref are valid. The git output above may include provider details.',
       'stderr',
     );
   });
