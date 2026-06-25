@@ -1,4 +1,5 @@
 export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export type StepAttemptLogOutcome = 'drained' | 'abandoned';
 
 // A step_attempts row exists only once an attempt is dispatched, so it is never
 // 'pending'.
@@ -45,6 +46,7 @@ export interface StepAttempt {
   exitCode: number | null;
   gateResult: Record<string, unknown> | null;
   restartReason: string | null;
+  logOutcome: StepAttemptLogOutcome | null;
   startedAt: Date;
   finishedAt: Date | null;
   createdAt: Date;

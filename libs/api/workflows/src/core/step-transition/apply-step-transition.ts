@@ -1,3 +1,4 @@
+import type {LogOutcomeDto} from '@shipfox/api-workflows-dto';
 import type {Tx} from '#db/db.js';
 import {
   applyStepResult,
@@ -32,6 +33,7 @@ export interface StepProgressionResult {
 export interface ApplyStepTransitionContext {
   jobId: string;
   result: StepResult;
+  logOutcome: LogOutcomeDto;
   // Gate evaluation audit payload to record on the attempt, when a gate ran.
   gateResult?: Record<string, unknown> | null;
 }
@@ -58,6 +60,7 @@ export async function applyStepTransition(
           status: 'succeeded',
           output: ctx.result.output ?? null,
           exitCode: ctx.result.exitCode ?? null,
+          logOutcome: ctx.logOutcome,
           gateResult: ctx.gateResult ?? null,
         },
         tx,
@@ -78,6 +81,7 @@ export async function applyStepTransition(
           output: ctx.result.output ?? null,
           error: decision.failureError,
           exitCode: ctx.result.exitCode ?? null,
+          logOutcome: ctx.logOutcome,
           gateResult: ctx.gateResult ?? null,
         },
         tx,
@@ -107,6 +111,7 @@ export async function applyStepTransition(
           output: ctx.result.output ?? null,
           error: decision.failureError,
           exitCode: ctx.result.exitCode ?? null,
+          logOutcome: ctx.logOutcome,
           gateResult: ctx.gateResult ?? null,
           restartReason: decision.reason,
         },

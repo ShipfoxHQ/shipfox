@@ -1,7 +1,7 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {check, index, integer, jsonb, text, timestamp, unique, uuid} from 'drizzle-orm/pg-core';
-import type {StepAttempt, StepAttemptStatus} from '#core/entities/step.js';
+import type {StepAttempt, StepAttemptLogOutcome, StepAttemptStatus} from '#core/entities/step.js';
 import {pgTable} from './common.js';
 import {jobs} from './jobs.js';
 import {stepStatusEnum, steps} from './steps.js';
@@ -29,6 +29,7 @@ export const stepAttempts = pgTable(
     output: jsonb('output').$type<Record<string, unknown>>(),
     error: jsonb('error').$type<Record<string, unknown>>(),
     exitCode: integer('exit_code'),
+    logOutcome: text('log_outcome').$type<StepAttemptLogOutcome>(),
     gateResult: jsonb('gate_result').$type<Record<string, unknown>>(),
     restartReason: text('restart_reason'),
     startedAt: timestamp('started_at', {withTimezone: true}).notNull().defaultNow(),
@@ -45,6 +46,10 @@ export const stepAttempts = pgTable(
     check('workflows_step_attempts_attempt_positive_ck', sql`${table.attempt} > 0`),
     check('workflows_step_attempts_execution_order_positive_ck', sql`${table.executionOrder} > 0`),
     check('workflows_step_attempts_status_not_pending_ck', sql`${table.status} <> 'pending'`),
+    check(
+      'workflows_step_attempts_log_outcome_ck',
+      sql`${table.logOutcome} IS NULL OR ${table.logOutcome} IN ('drained', 'abandoned')`,
+    ),
   ],
 );
 
@@ -62,6 +67,7 @@ export function toStepAttempt(row: StepAttemptDb): StepAttempt {
     output: (row.output as Record<string, unknown>) ?? null,
     error: (row.error as Record<string, unknown>) ?? null,
     exitCode: row.exitCode ?? null,
+    logOutcome: row.logOutcome ?? null,
     gateResult: (row.gateResult as Record<string, unknown>) ?? null,
     restartReason: row.restartReason ?? null,
     startedAt: row.startedAt,

@@ -40,7 +40,14 @@ export {
   runWorkflow,
 } from '#core/index.js';
 export {setSourceControl} from '#core/source-control.js';
-export {db, migrationsPath, workflowsOutbox} from '#db/index.js';
+export {
+  closeDb,
+  db,
+  getTerminalStepAttemptLogState,
+  migrationsPath,
+  type TerminalStepAttemptLogState,
+  workflowsOutbox,
+} from '#db/index.js';
 export {routes} from '#presentation/index.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');

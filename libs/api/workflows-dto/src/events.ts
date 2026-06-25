@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {logOutcomeSchema} from './schemas/log-outcome.js';
 
 const nonEmptyStringSchema = z.string().nonempty();
 
@@ -18,6 +19,7 @@ export const WORKFLOWS_JOB_STEPS_SETTLED = 'workflows.job.steps_settled' as cons
 // re-dispatches the rewound step on its next pull, so consumers must treat this
 // at-least-once outbox event as idempotent audit data.
 export const WORKFLOWS_STEP_RESTART_ENQUEUED = 'workflows.step.restart_enqueued' as const;
+export const WORKFLOWS_STEP_ATTEMPT_TERMINATED = 'workflows.step_attempt.terminated' as const;
 
 export const workflowsWorkflowRunCreatedSchema = z.object({
   runId: nonEmptyStringSchema,
@@ -72,6 +74,19 @@ export const workflowsStepRestartEnqueuedSchema = z.object({
 });
 export type WorkflowsStepRestartEnqueuedEvent = z.infer<typeof workflowsStepRestartEnqueuedSchema>;
 
+export const workflowsStepAttemptTerminatedSchema = z.object({
+  jobId: nonEmptyStringSchema,
+  runId: nonEmptyStringSchema,
+  workspaceId: nonEmptyStringSchema,
+  projectId: nonEmptyStringSchema,
+  stepId: nonEmptyStringSchema,
+  attempt: z.number().int().positive(),
+  logOutcome: logOutcomeSchema,
+});
+export type WorkflowsStepAttemptTerminatedEvent = z.infer<
+  typeof workflowsStepAttemptTerminatedSchema
+>;
+
 export interface WorkflowsEventMap {
   [WORKFLOWS_WORKFLOW_RUN_CREATED]: WorkflowsWorkflowRunCreatedEvent;
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: WorkflowsWorkflowRunTerminatedEvent;
@@ -79,6 +94,7 @@ export interface WorkflowsEventMap {
   [WORKFLOWS_JOB_TERMINATED]: WorkflowsJobTerminatedEvent;
   [WORKFLOWS_JOB_STEPS_SETTLED]: WorkflowsJobStepsSettledEvent;
   [WORKFLOWS_STEP_RESTART_ENQUEUED]: WorkflowsStepRestartEnqueuedEvent;
+  [WORKFLOWS_STEP_ATTEMPT_TERMINATED]: WorkflowsStepAttemptTerminatedEvent;
 }
 
 export const workflowsEventSchemas = {
@@ -88,4 +104,5 @@ export const workflowsEventSchemas = {
   [WORKFLOWS_JOB_TERMINATED]: workflowsJobTerminatedSchema,
   [WORKFLOWS_JOB_STEPS_SETTLED]: workflowsJobStepsSettledSchema,
   [WORKFLOWS_STEP_RESTART_ENQUEUED]: workflowsStepRestartEnqueuedSchema,
+  [WORKFLOWS_STEP_ATTEMPT_TERMINATED]: workflowsStepAttemptTerminatedSchema,
 } satisfies Record<keyof WorkflowsEventMap, z.ZodType>;

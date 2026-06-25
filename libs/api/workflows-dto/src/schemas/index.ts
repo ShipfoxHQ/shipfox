@@ -14,6 +14,7 @@ export {
   reportStepBodySchema,
   reportStepResponseSchema,
 } from './job-execution.js';
+export {type LogOutcomeDto, logOutcomeSchema} from './log-outcome.js';
 export {
   type RunAggregatesQueryDto,
   type RunAggregatesResponseDto,

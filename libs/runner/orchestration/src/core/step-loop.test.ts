@@ -51,7 +51,10 @@ interface FakeStream {
   dispose: ReturnType<typeof vi.fn>;
 }
 
-function makeFakeStream(label: string): FakeStream {
+function makeFakeStream(
+  label: string,
+  drainOutcome: 'drained' | 'abandoned' = 'drained',
+): FakeStream {
   return {
     write: vi.fn(() => {
       events.push(`write:${label}`);
@@ -69,7 +72,7 @@ function makeFakeStream(label: string): FakeStream {
     }),
     drain: vi.fn(() => {
       events.push(`drain:${label}`);
-      return Promise.resolve();
+      return Promise.resolve(drainOutcome);
     }),
     dispose: vi.fn(() => {
       events.push(`dispose:${label}`);
@@ -130,6 +133,7 @@ describe('runJobSteps', () => {
       status: 'succeeded',
       error: null,
       exitCode: 0,
+      logOutcome: 'drained',
       signal: ac.signal,
     });
     expect(requestNextStepMock).toHaveBeenCalledTimes(3);
@@ -252,7 +256,33 @@ describe('runJobSteps', () => {
     expect(executeRunStepMock).toHaveBeenCalled();
     expect(reportStepMock).toHaveBeenCalledWith(
       leaseClient,
-      expect.objectContaining({stepId: run.id, status: 'succeeded'}),
+      expect.objectContaining({stepId: run.id, status: 'succeeded', logOutcome: 'abandoned'}),
+    );
+  });
+
+  it('drains the stream before reporting and propagates an abandoned drain outcome', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    createStepLogStreamMock.mockReturnValueOnce(makeFakeStream(run.id, 'abandoned'));
+    executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    reportStepMock.mockImplementation((_client, params: {stepId: string; logOutcome: string}) => {
+      events.push(`report:${params.stepId}:${params.logOutcome}`);
+      return Promise.resolve({ok: true, cancel: false});
+    });
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+
+    expect(events.indexOf(`drain:${run.id}`)).toBeLessThan(
+      events.indexOf(`report:${run.id}:abandoned`),
+    );
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({stepId: run.id, status: 'succeeded', logOutcome: 'abandoned'}),
     );
   });
 
@@ -337,6 +367,7 @@ describe('runJobSteps', () => {
       status: 'failed',
       error,
       exitCode: null,
+      logOutcome: 'drained',
       signal: ac.signal,
     });
     expect(executeRunStepMock).not.toHaveBeenCalled();
@@ -361,6 +392,7 @@ describe('runJobSteps', () => {
       status: 'failed',
       error: {message: 'Run step dispatched before setup prepared the workspace'},
       exitCode: null,
+      logOutcome: 'drained',
       signal: ac.signal,
     });
   });
@@ -419,6 +451,7 @@ describe('runJobSteps', () => {
       status: 'failed',
       error,
       exitCode: 1,
+      logOutcome: 'drained',
       signal: ac.signal,
     });
     expect(requestNextStepMock).toHaveBeenCalledTimes(2);
@@ -475,6 +508,7 @@ describe('runJobSteps', () => {
       status: 'failed',
       error: {message: 'ENOSPC: no space left on device'},
       exitCode: null,
+      logOutcome: 'drained',
       signal: ac.signal,
     });
     const stream = createStepLogStreamMock.mock.results[0]?.value as FakeStream;
@@ -532,6 +566,7 @@ describe('runJobSteps', () => {
       status: 'succeeded',
       error: null,
       exitCode: 0,
+      logOutcome: 'drained',
       signal: ac.signal,
     });
   });
@@ -594,7 +629,7 @@ describe('runJobSteps', () => {
     expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {signal: ac.signal, cwd: '/work'});
     expect(reportStepMock).toHaveBeenCalledWith(
       leaseClient,
-      expect.objectContaining({stepId: agent.id, status: 'succeeded'}),
+      expect.objectContaining({stepId: agent.id, status: 'succeeded', logOutcome: 'abandoned'}),
     );
   });
 

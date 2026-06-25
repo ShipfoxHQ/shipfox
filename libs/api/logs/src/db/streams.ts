@@ -202,6 +202,14 @@ export async function getAttemptStreamById(streamId: string): Promise<AttemptStr
   return row ? toAttemptStream(row) : null;
 }
 
+export async function getAttemptStreamByIdInTransaction(
+  tx: Transaction,
+  streamId: string,
+): Promise<AttemptStream | null> {
+  const [row] = await tx.select().from(attemptStreams).where(eq(attemptStreams.id, streamId));
+  return row ? toAttemptStream(row) : null;
+}
+
 /**
  * Final compaction step: records the object key and deletes the now-cold chunk rows in one
  * transaction. The guard is `state='closed' AND object_key IS NULL`, so the publish is a

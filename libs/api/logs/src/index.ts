@@ -1,13 +1,18 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {LOG_STREAM_CLOSED, type LogsEventMap, logsEventSchemas} from '@shipfox/api-logs-dto';
-import {WORKFLOWS_JOB_TERMINATED, type WorkflowsEventMap} from '@shipfox/api-workflows-dto';
+import {
+  WORKFLOWS_JOB_TERMINATED,
+  WORKFLOWS_STEP_ATTEMPT_TERMINATED,
+  type WorkflowsEventMap,
+} from '@shipfox/api-workflows-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, logsOutbox, migrationsPath} from '#db/index.js';
 import {registerLogsServiceMetrics} from '#metrics/service.js';
 import {logsRoutes} from '#presentation/routes/index.js';
 import {onJobTerminated} from '#presentation/subscribers/on-job-terminated.js';
 import {onLogStreamClosed} from '#presentation/subscribers/on-log-stream-closed.js';
+import {onStepAttemptTerminated} from '#presentation/subscribers/on-step-attempt-terminated.js';
 import {createLogsActivities} from '#temporal/activities/index.js';
 import {LOGS_COMPACTION_TASK_QUEUE, LOGS_LIFECYCLE_TASK_QUEUE} from '#temporal/constants.js';
 
@@ -27,6 +32,7 @@ export const logsModule: ShipfoxModule = {
   // force-closes streams the runner never ended, and the closed event drives compaction.
   publishers: [{name: 'logs', table: logsOutbox, db, eventSchemas: logsEventSchemas}],
   subscribers: [
+    subscriber(WORKFLOWS_STEP_ATTEMPT_TERMINATED, onStepAttemptTerminated),
     subscriber(WORKFLOWS_JOB_TERMINATED, onJobTerminated),
     subscriber(LOG_STREAM_CLOSED, onLogStreamClosed),
   ],

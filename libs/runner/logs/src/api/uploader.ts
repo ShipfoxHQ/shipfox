@@ -1,5 +1,6 @@
 import {logger} from '@shipfox/node-opentelemetry';
 import type {LogAppendFn, LogAppendOutcome} from '@shipfox/runner-protocol';
+import type {LogDrainOutcome} from '#core/lifecycle.js';
 
 const EMPTY_BODY = new Uint8Array(0);
 
@@ -74,7 +75,7 @@ export class LogUploader {
   }
 
   /** Drives flushes until caught up, terminal, the signal aborts, or the deadline. */
-  async drain(opts: {signal?: AbortSignal; timeoutMs: number}): Promise<void> {
+  async drain(opts: {signal?: AbortSignal; timeoutMs: number}): Promise<LogDrainOutcome> {
     const deadline = Date.now() + opts.timeoutMs;
     while (!this.terminal() && this.acked < this.spool.length) {
       if (opts.signal?.aborted || Date.now() >= deadline) break;
@@ -83,14 +84,16 @@ export class LogUploader {
       // full transport timeout; racing keeps end-of-job shutdown within the deadline.
       const timedOut = await raceDeadline(this.flush(), deadline - Date.now(), opts.signal);
       if (timedOut) break;
-      if (this.terminal() || this.acked >= this.spool.length) return;
+      if (this.terminal() || this.acked >= this.spool.length) break;
       // The flush did not catch up (transient error): back off, bounded by the deadline.
       const wait = Math.min(this.options.intervalMs, deadline - Date.now());
       if (wait > 0) await delay(wait, opts.signal);
     }
+    const drained = this.capped || this.acked >= this.spool.length;
     // Deadline hit or aborted with a flush still in flight: cut the in-flight append so
     // the caller (dispose) is not left waiting on a stuck transport. No-op once caught up.
-    this.inflight?.abort();
+    if (!drained) this.inflight?.abort();
+    return drained ? 'drained' : 'abandoned';
   }
 
   stop(): void {

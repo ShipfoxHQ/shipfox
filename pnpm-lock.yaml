@@ -1327,6 +1327,9 @@ importers:
       '@shipfox/api-logs-dto':
         specifier: workspace:*
         version: link:../logs-dto
+      '@shipfox/api-workflows':
+        specifier: workspace:*
+        version: link:../workflows
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../workflows-dto

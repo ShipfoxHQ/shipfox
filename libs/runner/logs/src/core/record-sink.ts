@@ -5,6 +5,7 @@ import {AttemptSpool} from '#api/spool.js';
 import {LogUploader} from '#api/uploader.js';
 import {config} from '#config.js';
 import {type FramedOutput, StreamFramer} from '#core/framing.js';
+import type {LogDrainOutcome} from '#core/lifecycle.js';
 
 export interface RecordSinkOptions {
   logsDir: string;
@@ -43,7 +44,7 @@ export interface RecordSink {
    * without waiting for upload.
    */
   closeWithEnd(): {streamLength: number};
-  drain(opts?: {signal?: AbortSignal; timeoutMs?: number}): Promise<void>;
+  drain(opts?: {signal?: AbortSignal; timeoutMs?: number}): Promise<LogDrainOutcome>;
   dispose(): void;
   fail(err: unknown): void;
   isCapped(): boolean;
@@ -166,7 +167,8 @@ export function createRecordSink(options: RecordSinkOptions): RecordSink {
     },
 
     async drain(opts = {}) {
-      await uploader.drain({
+      if (failed) return 'abandoned';
+      return await uploader.drain({
         timeoutMs: opts.timeoutMs ?? config.SHIPFOX_LOG_DRAIN_TIMEOUT_MS,
         ...(opts.signal ? {signal: opts.signal} : {}),
       });

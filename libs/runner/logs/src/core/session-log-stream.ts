@@ -86,7 +86,7 @@ export function createSessionLogStream(options: SessionLogStreamOptions): Sessio
     },
 
     async drain(opts = {}) {
-      await sink.drain(opts);
+      return await sink.drain(opts);
     },
 
     dispose() {

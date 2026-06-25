@@ -10,6 +10,10 @@ function reportUrl(stepId: string): string {
   return `/runs/jobs/current/steps/${stepId}/report`;
 }
 
+function reportPayload(payload: Record<string, unknown>): Record<string, unknown> {
+  return {...payload, log_outcome: 'drained'};
+}
+
 describe('POST /runs/jobs/current/steps/:stepId/report', () => {
   let app: FastifyInstance;
 
@@ -30,7 +34,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     const res = await app.inject({
       method: 'POST',
       url: reportUrl(crypto.randomUUID()),
-      payload: {status: 'succeeded'},
+      payload: reportPayload({status: 'succeeded'}),
     });
 
     expect(res.statusCode).toBe(401);
@@ -46,7 +50,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'succeeded'},
+      payload: reportPayload({status: 'succeeded'}),
     });
 
     expect(res.statusCode).toBe(200);
@@ -63,7 +67,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'succeeded'},
+      payload: reportPayload({status: 'succeeded'}),
     });
 
     expect(res.statusCode).toBe(200);
@@ -79,7 +83,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'failed', error: {message: 'boom'}},
+      payload: reportPayload({status: 'failed', error: {message: 'boom'}}),
     });
 
     expect(res.statusCode).toBe(200);
@@ -99,7 +103,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'failed', error: {message: 'boom', exit_code: 1, signal: 'SIGKILL'}},
+      payload: reportPayload({
+        status: 'failed',
+        error: {message: 'boom', exit_code: 1, signal: 'SIGKILL'},
+      }),
     });
 
     expect(res.statusCode).toBe(200);
@@ -118,7 +125,11 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'succeeded', output: {artifact: 'dist/app.tgz'}, exit_code: 0},
+      payload: reportPayload({
+        status: 'succeeded',
+        output: {artifact: 'dist/app.tgz'},
+        exit_code: 0,
+      }),
     });
 
     expect(res.statusCode).toBe(200);
@@ -136,7 +147,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'failed'},
+      payload: reportPayload({status: 'failed'}),
     });
 
     expect(res.statusCode).toBe(400);
@@ -152,7 +163,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'succeeded', error: {message: 'should not be here'}},
+      payload: reportPayload({status: 'succeeded', error: {message: 'should not be here'}}),
     });
 
     expect(res.statusCode).toBe(400);
@@ -167,14 +178,14 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'succeeded'},
+      payload: reportPayload({status: 'succeeded'}),
     });
 
     const second = await app.inject({
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'succeeded'},
+      payload: reportPayload({status: 'succeeded'}),
     });
 
     expect(first.statusCode).toBe(200);
@@ -193,14 +204,14 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'failed', error: {message: 'boom'}},
+      payload: reportPayload({status: 'failed', error: {message: 'boom'}}),
     });
 
     const res = await app.inject({
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'succeeded'},
+      payload: reportPayload({status: 'succeeded'}),
     });
 
     expect(res.statusCode).toBe(200);
@@ -218,7 +229,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'succeeded'},
+      payload: reportPayload({status: 'succeeded'}),
     });
 
     expect(res.statusCode).toBe(409);
@@ -233,7 +244,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(crypto.randomUUID()),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'succeeded'},
+      payload: reportPayload({status: 'succeeded'}),
     });
 
     expect(res.statusCode).toBe(404);
@@ -250,7 +261,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(b.steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'succeeded'},
+      payload: reportPayload({status: 'succeeded'}),
     });
 
     expect(res.statusCode).toBe(404);
@@ -268,7 +279,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
           method: 'POST',
           url: reportUrl(steps[0]?.id as string),
           headers: {authorization: `Bearer ${token}`},
-          payload: {status: 'succeeded'},
+          payload: reportPayload({status: 'succeeded'}),
         }),
       ),
     );
@@ -291,7 +302,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       method: 'POST',
       url: reportUrl(steps[0]?.id as string),
       headers: {authorization: `Bearer ${token}`},
-      payload: {status: 'succeeded', attempt: 2},
+      payload: reportPayload({status: 'succeeded', attempt: 2}),
     });
 
     expect(res.statusCode).toBe(409);

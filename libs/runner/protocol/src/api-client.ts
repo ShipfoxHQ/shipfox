@@ -8,6 +8,7 @@ import {
 import {
   type CheckoutTokenResponseDto,
   checkoutTokenResponseSchema,
+  type LogOutcomeDto,
   type NextStepResponseDto,
   nextStepResponseSchema,
   type ReportStepResponseDto,
@@ -115,6 +116,7 @@ export async function reportStep(
     status: 'succeeded' | 'failed';
     error?: StepErrorDtoShape;
     exitCode: number | null;
+    logOutcome: LogOutcomeDto;
     signal?: AbortSignal;
   },
 ): Promise<ReportStepResponseDto> {
@@ -123,6 +125,7 @@ export async function reportStep(
     error: params.error ?? undefined,
     attempt: params.attempt,
     exit_code: params.exitCode,
+    log_outcome: params.logOutcome,
   });
 
   const response = await leaseClient.post(`runs/jobs/current/steps/${params.stepId}/report`, {

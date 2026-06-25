@@ -1,5 +1,5 @@
 export type {OutputSource} from '#core/framing.js';
-export type {LogStreamLifecycle} from '#core/lifecycle.js';
+export type {LogDrainOutcome, LogStreamLifecycle} from '#core/lifecycle.js';
 export {
   createSessionLogStream,
   type SessionLogStream,
