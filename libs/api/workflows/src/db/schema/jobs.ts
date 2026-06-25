@@ -1,6 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {index, integer, jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
-import type {Job} from '#core/entities/job.js';
+import {type Job, toJobStatusReason} from '#core/entities/job.js';
 import {pgTable} from './common.js';
 import {workflowRuns} from './workflow-runs.js';
 
@@ -10,6 +10,7 @@ export const jobStatusEnum = pgEnum('workflows_job_status', [
   'succeeded',
   'failed',
   'cancelled',
+  'skipped',
 ]);
 
 export const jobs = pgTable(
@@ -21,6 +22,7 @@ export const jobs = pgTable(
       .references(() => workflowRuns.id),
     name: text('name').notNull(),
     status: jobStatusEnum('status').notNull().default('pending'),
+    statusReason: text('status_reason'),
     dependencies: jsonb('dependencies').notNull().$type<string[]>(),
     runner: jsonb('runner').$type<string[]>(),
     position: integer('position').notNull(),
@@ -47,6 +49,7 @@ export function toJob(row: JobDb): Job {
     runId: row.runId,
     name: row.name,
     status: row.status,
+    statusReason: toJobStatusReason(row.statusReason),
     dependencies: row.dependencies as string[],
     runner: row.runner as string[] | null,
     position: row.position,

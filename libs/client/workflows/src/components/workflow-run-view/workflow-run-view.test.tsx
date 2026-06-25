@@ -97,6 +97,65 @@ describe('WorkflowRunView', () => {
     expect(logRequest?.searchParams.get('cursor')).toBe('0');
   });
 
+  test('renders skipped zero-attempt jobs as skipped instead of missing attempts', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            workflowRunViewDetailDto({
+              jobs: [
+                workflowJobDto({
+                  id: DEPLOY_JOB_ID,
+                  run_id: RUN_ID,
+                  name: 'deploy',
+                  status: 'skipped',
+                  status_reason: 'dependency_not_completed',
+                  steps: [],
+                }),
+              ],
+            }),
+          ),
+        ),
+      ),
+    });
+
+    renderView();
+
+    expect(await screen.findByText('This job was skipped')).toBeInTheDocument();
+    expect(
+      screen.getByText('A required job did not complete, so this job was skipped.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No step attempts yet')).not.toBeInTheDocument();
+  });
+
+  test('renders cancelled zero-attempt jobs separately from skipped jobs', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            workflowRunViewDetailDto({
+              jobs: [
+                workflowJobDto({
+                  id: DEPLOY_JOB_ID,
+                  run_id: RUN_ID,
+                  name: 'deploy',
+                  status: 'cancelled',
+                  steps: [],
+                }),
+              ],
+            }),
+          ),
+        ),
+      ),
+    });
+
+    renderView();
+
+    expect(await screen.findByText('Cancelled before start')).toBeInTheDocument();
+    expect(screen.getByText('This job was cancelled before any step started.')).toBeInTheDocument();
+    expect(screen.queryByText('This job was skipped')).not.toBeInTheDocument();
+  });
+
   test('shows the not-found surface when the run 404s', async () => {
     configureApiClient({
       fetchImpl: vi.fn(() => Promise.resolve(jsonResponse({code: 'not-found'}, {status: 404}))),

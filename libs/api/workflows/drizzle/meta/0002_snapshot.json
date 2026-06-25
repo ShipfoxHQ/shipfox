@@ -35,6 +35,12 @@
           "notNull": true,
           "default": "'pending'"
         },
+        "status_reason": {
+          "name": "status_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "dependencies": {
           "name": "dependencies",
           "type": "jsonb",
@@ -710,7 +716,8 @@
         "succeeded",
         "failed",
         "cancelled",
-        "awaiting_manual"
+        "awaiting_manual",
+        "skipped"
       ]
     },
     "public.workflows_step_status": {

@@ -5,7 +5,14 @@ import {workflowJob} from '#test/fixtures/workflow-run.js';
 import type {WorkflowJobGraphNode} from './graph-model.js';
 import {WorkflowJobNode} from './workflow-job-node.js';
 
-const statuses: WorkflowJobStatus[] = ['pending', 'running', 'succeeded', 'failed', 'cancelled'];
+const statuses: WorkflowJobStatus[] = [
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+  'skipped',
+];
 const ignoreKeyDown: KeyboardEventHandler<HTMLButtonElement> = () => undefined;
 const storyNodes = [
   ...statuses.map((status, index) =>

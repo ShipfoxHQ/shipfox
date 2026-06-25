@@ -35,6 +35,12 @@
           "notNull": true,
           "default": "'pending'"
         },
+        "status_reason": {
+          "name": "status_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "dependencies": {
           "name": "dependencies",
           "type": "jsonb",
@@ -829,7 +835,7 @@
     "public.workflows_job_status": {
       "name": "workflows_job_status",
       "schema": "public",
-      "values": ["pending", "running", "succeeded", "failed", "cancelled"]
+      "values": ["pending", "running", "succeeded", "failed", "cancelled", "skipped"]
     },
     "public.workflows_step_status": {
       "name": "workflows_step_status",

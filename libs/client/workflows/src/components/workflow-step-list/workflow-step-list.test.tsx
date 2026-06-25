@@ -352,6 +352,42 @@ describe('WorkflowStepList', () => {
     expect(screen.getByText('No step attempts yet')).toBeInTheDocument();
   });
 
+  test('renders a skipped empty state with a status glyph', () => {
+    render(
+      <WorkflowStepList
+        job={makeJob({status: 'skipped', status_reason: 'dependency_not_completed', steps: []})}
+        emptyState={{
+          title: 'This job was skipped',
+          description: 'A required job did not complete, so this job was skipped.',
+          status: 'skipped',
+        }}
+      />,
+    );
+
+    expect(screen.getByText('This job was skipped')).toBeInTheDocument();
+    expect(
+      screen.getByText('A required job did not complete, so this job was skipped.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('img', {name: 'Skipped'})).toBeInTheDocument();
+  });
+
+  test('renders a cancelled empty state with distinct copy', () => {
+    render(
+      <WorkflowStepList
+        job={makeJob({status: 'cancelled', steps: []})}
+        emptyState={{
+          title: 'Cancelled before start',
+          description: 'This job was cancelled before any step started.',
+          status: 'cancelled',
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Cancelled before start')).toBeInTheDocument();
+    expect(screen.getByText('This job was cancelled before any step started.')).toBeInTheDocument();
+    expect(screen.getByRole('img', {name: 'Cancelled'})).toBeInTheDocument();
+  });
+
   test('keeps long labels accessible', () => {
     const name = 'release-production-multi-region-with-canary-and-smoke-tests';
     render(

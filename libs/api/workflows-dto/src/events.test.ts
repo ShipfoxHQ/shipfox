@@ -27,6 +27,7 @@ const validJobTerminated = {
   jobId: 'job-1',
   runId: 'run-1',
   status: 'succeeded',
+  statusReason: null,
 };
 
 const validRunTerminated = {
@@ -88,6 +89,18 @@ describe('workflowsJobTerminatedSchema', () => {
     expect(parse).toThrow();
   });
 
+  it('accepts skipped as a job-only terminal status with a reason', () => {
+    const input = {
+      ...validJobTerminated,
+      status: 'skipped',
+      statusReason: 'dependency_not_completed',
+    };
+
+    const result = workflowsJobTerminatedSchema.parse(input);
+
+    expect(result).toEqual(input);
+  });
+
   it('strips unknown keys (tolerant of forward-compatible producer additions)', () => {
     const input = {...validJobTerminated, addedLater: 'ignored'};
 
@@ -114,6 +127,14 @@ describe('workflowsWorkflowRunTerminatedSchema', () => {
 
   it('rejects a status outside the terminal set', () => {
     const input = {...validRunTerminated, status: 'running'};
+
+    const parse = () => workflowsWorkflowRunTerminatedSchema.parse(input);
+
+    expect(parse).toThrow();
+  });
+
+  it('rejects skipped because runs do not have a skipped terminal status', () => {
+    const input = {...validRunTerminated, status: 'skipped'};
 
     const parse = () => workflowsWorkflowRunTerminatedSchema.parse(input);
 

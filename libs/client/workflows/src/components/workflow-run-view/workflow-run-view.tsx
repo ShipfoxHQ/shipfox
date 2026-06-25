@@ -8,7 +8,7 @@ import {useWorkflowRunQuery} from '#hooks/api/workflow-runs.js';
 import {WorkflowJobsGraph} from '../workflow-jobs-graph/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
 import {WorkflowSourcePanel} from '../workflow-source-panel/index.js';
-import {WorkflowStepList} from '../workflow-step-list/index.js';
+import {WorkflowStepList, type WorkflowStepListEmptyState} from '../workflow-step-list/index.js';
 import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 import {resolveWorkflowRunSelection} from './workflow-run-selection.js';
 import {
@@ -151,6 +151,7 @@ function RunViewContent({
                 selectedAttemptId={selectedAttemptId}
                 onSelectedAttemptChange={selectionControlled ? selectAttempt : undefined}
                 autoSelectActiveAttempt
+                emptyState={emptyStateForJob(selectedJob)}
                 renderExpandedStep={({stepId, attempt, attemptStatus}) => (
                   <StepAttemptLogPanel
                     stepId={stepId}
@@ -172,6 +173,43 @@ function RunViewContent({
       />
     </>
   );
+}
+
+function emptyStateForJob(job: WorkflowJob): WorkflowStepListEmptyState | undefined {
+  if (job.status === 'skipped') {
+    return {
+      title: 'This job was skipped',
+      description: skippedJobDescription(job.statusReason),
+      status: 'skipped',
+    };
+  }
+
+  if (job.status === 'cancelled') {
+    return {
+      title: 'Cancelled before start',
+      description: 'This job was cancelled before any step started.',
+      status: 'cancelled',
+    };
+  }
+
+  return undefined;
+}
+
+function skippedJobDescription(reason: WorkflowJob['statusReason']): string {
+  switch (reason) {
+    case 'dependency_not_completed':
+      return 'A required job did not complete, so this job was skipped.';
+    case 'condition_false':
+      return 'The job condition did not match, so this job was skipped.';
+    case 'user_cancelled':
+    case 'run_cancelled':
+    case 'timed_out':
+    case 'runner_lost':
+    case 'step_failed':
+    case 'unknown':
+    case null:
+      return 'This job did not start.';
+  }
 }
 
 function findAttemptSelection(job: WorkflowJob, attemptId: string) {

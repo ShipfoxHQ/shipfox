@@ -154,6 +154,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     'succeeded',
     'failed',
     'cancelled',
+    'skipped',
   ] as const)('returns 409 and mints nothing when the job is %s (terminal)', async (status) => {
     const project = projectFactory.build();
     mockGetProjectById.mockResolvedValue(project);

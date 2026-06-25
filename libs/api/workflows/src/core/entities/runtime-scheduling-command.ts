@@ -6,7 +6,7 @@ export type RuntimeSchedulingCommand<Job extends RuntimeDagJob = RuntimeDagJob> 
       readonly job: Job;
     }
   | {
-      readonly kind: 'cancel-job';
+      readonly kind: 'skip-job';
       readonly job: Job;
     }
   | {

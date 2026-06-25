@@ -98,6 +98,7 @@ export function workflowJobDto(overrides: Partial<RunJobDetailDto> = {}): RunJob
     run_id: RUN_ID,
     name: 'build',
     status: 'pending',
+    status_reason: null,
     dependencies: [],
     position: 0,
     created_at: '2026-06-21T12:00:00.000Z',

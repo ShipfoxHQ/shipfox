@@ -1,10 +1,17 @@
 import {Code, Text} from '@shipfox/react-ui';
 import type {Meta, StoryObj} from '@storybook/react';
-import type {WorkflowRunStatus} from '#core/workflow-run.js';
+import type {WorkflowJobStatus} from '#core/workflow-run.js';
 import {getWorkflowStatusVisual} from './status-visuals.js';
 import {WorkflowStatusIcon} from './workflow-status-icon.js';
 
-const statuses: WorkflowRunStatus[] = ['pending', 'running', 'succeeded', 'failed', 'cancelled'];
+const statuses: WorkflowJobStatus[] = [
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+  'skipped',
+];
 
 const meta = {
   title: 'Workflows/StatusIcon',

@@ -24,7 +24,7 @@ export const jobFactory = Factory.define<Job, JobTransientParams>(({transientPar
     const [job] = await getJobsByRunId(run.id);
     if (!job) throw new Error('jobFactory: run created no jobs');
     await db().update(jobs).set({status}).where(eq(jobs.id, job.id));
-    return {...job, status};
+    return {...job, status, statusReason: null};
   });
 
   return {
@@ -32,6 +32,7 @@ export const jobFactory = Factory.define<Job, JobTransientParams>(({transientPar
     runId: crypto.randomUUID(),
     name: 'build',
     status: 'running',
+    statusReason: null,
     dependencies: [],
     runner: null,
     position: 0,

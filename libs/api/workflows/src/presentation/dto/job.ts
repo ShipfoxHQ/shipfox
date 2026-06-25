@@ -7,6 +7,7 @@ export function toJobDto(job: Job): JobDto {
     run_id: job.runId,
     name: job.name,
     status: job.status,
+    status_reason: job.statusReason,
     dependencies: job.dependencies,
     position: job.position,
     created_at: job.createdAt.toISOString(),

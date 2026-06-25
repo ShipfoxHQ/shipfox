@@ -45,6 +45,12 @@ function finalStatusesFor(jobId: string): string[] {
     .map((c) => c.params.status);
 }
 
+function terminalSetJobCall(jobId: string) {
+  return setJobStatusCalls().find(
+    (call) => call.params.jobId === jobId && call.params.status !== 'running',
+  );
+}
+
 describe('jobOrchestration', () => {
   test('finished signal (succeeded) flips status and releases the lease', async () => {
     setCfg({
@@ -68,6 +74,7 @@ describe('jobOrchestration', () => {
 
     expect(result.status).toBe('failed');
     expect(finalStatusesFor('job-2')).toEqual(['running', 'failed']);
+    expect(terminalSetJobCall('job-2')?.params.statusReason).toBe('step_failed');
     expect(callsNamed('releaseLeaseActivity')).toHaveLength(1);
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
   });

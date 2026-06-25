@@ -125,6 +125,7 @@ async function resolveFinishedJob({
     jobId: input.jobId,
     status,
     version: runningVersion,
+    statusReason: status === 'failed' ? 'step_failed' : null,
   });
   log.info('job terminated', {jobId: input.jobId, terminationReason: 'finished', status});
   await releaseLeaseBestEffort(input.jobId);

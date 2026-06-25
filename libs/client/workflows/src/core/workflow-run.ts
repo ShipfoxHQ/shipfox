@@ -1,5 +1,6 @@
 import type {
   JobStatusDto,
+  JobStatusReasonDto,
   RunDetailResponseDto,
   RunJobDetailDto,
   RunListResponseDto,
@@ -16,6 +17,7 @@ import type {
 
 export type WorkflowRunStatus = RunStatusDto;
 export type WorkflowJobStatus = JobStatusDto;
+export type WorkflowJobStatusReason = JobStatusReasonDto;
 export type WorkflowStatus = WorkflowRunStatus | WorkflowJobStatus;
 export type WorkflowStepErrorReason = StepErrorReason;
 export type WorkflowStepErrorCategory = StepErrorCategory;
@@ -36,7 +38,19 @@ export const TERMINAL_WORKFLOW_RUN_STATUSES = [
   'cancelled',
 ] as const satisfies readonly WorkflowRunStatus[];
 
-const WORKFLOW_STATUSES = new Set<WorkflowStatus>(WORKFLOW_RUN_STATUSES);
+export const WORKFLOW_JOB_STATUSES = [
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+  'skipped',
+] as const satisfies readonly WorkflowJobStatus[];
+
+const WORKFLOW_STATUSES = new Set<WorkflowStatus>([
+  ...WORKFLOW_RUN_STATUSES,
+  ...WORKFLOW_JOB_STATUSES,
+]);
 const TERMINAL_WORKFLOW_RUN_STATUS_SET = new Set<WorkflowRunStatus>(TERMINAL_WORKFLOW_RUN_STATUSES);
 
 export interface WorkflowSourceSnapshot {
@@ -96,6 +110,7 @@ export interface WorkflowJob {
   runId: string;
   name: string;
   status: WorkflowJobStatus;
+  statusReason: WorkflowJobStatusReason | null;
   dependencies: string[];
   position: number;
   createdAt: string;
@@ -206,6 +221,7 @@ export function toWorkflowJob(dto: RunJobDetailDto): WorkflowJob {
     runId: dto.run_id,
     name: dto.name,
     status: dto.status,
+    statusReason: dto.status_reason,
     dependencies: dto.dependencies,
     position: dto.position,
     createdAt: dto.created_at,

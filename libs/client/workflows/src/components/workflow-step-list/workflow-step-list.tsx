@@ -32,12 +32,19 @@ export interface WorkflowStepExpandedContext {
   attemptStatus: string;
 }
 
+export interface WorkflowStepListEmptyState {
+  title: string;
+  description: string;
+  status?: WorkflowJob['status'] | undefined;
+}
+
 export interface WorkflowStepListProps {
   job: WorkflowJob;
   selectedAttemptId?: string | null | undefined;
   defaultSelectedAttemptId?: string | undefined;
   onSelectedAttemptChange?: ((attemptId: string | undefined) => void) | undefined;
   autoSelectActiveAttempt?: boolean | undefined;
+  emptyState?: WorkflowStepListEmptyState | undefined;
   renderExpandedStep?: ((context: WorkflowStepExpandedContext) => ReactNode) | undefined;
   className?: string | undefined;
 }
@@ -48,6 +55,7 @@ export function WorkflowStepList({
   defaultSelectedAttemptId,
   onSelectedAttemptChange,
   autoSelectActiveAttempt = false,
+  emptyState,
   renderExpandedStep,
   className,
 }: WorkflowStepListProps) {
@@ -61,6 +69,7 @@ export function WorkflowStepList({
       defaultSelectedAttemptId={defaultSelectedAttemptId}
       onSelectedAttemptChange={onSelectedAttemptChange}
       autoSelectActiveAttempt={autoSelectActiveAttempt}
+      emptyState={emptyState}
       renderExpandedStep={renderExpandedStep}
       className={className}
     />
@@ -73,6 +82,7 @@ function WorkflowStepListContent({
   defaultSelectedAttemptId,
   onSelectedAttemptChange,
   autoSelectActiveAttempt,
+  emptyState,
   renderExpandedStep,
   className,
 }: Omit<WorkflowStepListProps, 'job'> & {model: WorkflowStepListModel}) {
@@ -123,13 +133,7 @@ function WorkflowStepListContent({
       </div>
 
       {model.entries.length === 0 ? (
-        <EmptyState
-          className="min-h-120 px-16 py-20"
-          icon="componentLine"
-          title="No step attempts yet"
-          description="This job has not recorded step attempts."
-          variant="compact"
-        />
+        <WorkflowStepListEmptyStateView emptyState={emptyState} />
       ) : (
         <Accordion
           type="multiple"
@@ -173,6 +177,43 @@ function WorkflowStepListContent({
         </Accordion>
       )}
     </section>
+  );
+}
+
+function WorkflowStepListEmptyStateView({
+  emptyState = {
+    title: 'No step attempts yet',
+    description: 'This job has not recorded step attempts.',
+  },
+}: {
+  emptyState?: WorkflowStepListEmptyState | undefined;
+}) {
+  if (!emptyState.status) {
+    return (
+      <EmptyState
+        className="min-h-120 px-16 py-20"
+        icon="componentLine"
+        title={emptyState.title}
+        description={emptyState.description}
+        variant="compact"
+      />
+    );
+  }
+
+  return (
+    <div className="flex min-h-120 flex-col items-center justify-center gap-10 px-16 py-20">
+      <div className="flex size-32 items-center justify-center rounded-6 border border-border-neutral-strong bg-background-neutral-base p-8">
+        <WorkflowStatusIcon status={emptyState.status} size={20} tooltip={false} />
+      </div>
+      <div className="text-center">
+        <Text size="sm" className="text-foreground-neutral-subtle">
+          {emptyState.title}
+        </Text>
+        <Text size="xs" className="text-foreground-neutral-muted">
+          {emptyState.description}
+        </Text>
+      </div>
+    </div>
   );
 }
 

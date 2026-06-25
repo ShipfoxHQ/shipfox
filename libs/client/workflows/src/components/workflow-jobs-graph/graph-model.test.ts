@@ -127,11 +127,12 @@ describe('buildWorkflowJobGraphModel', () => {
     expect(rightFromTest).toBe(deploy.id);
   });
 
-  test('keeps downstream cancellation as the persisted status', () => {
+  test('keeps downstream skipped status as the persisted status', () => {
     const build = makeJob({name: 'build', status: 'failed'});
     const deploy = makeJob({
       name: 'deploy',
-      status: 'cancelled',
+      status: 'skipped',
+      status_reason: 'dependency_not_completed',
       position: 1,
       dependencies: ['build'],
     });
@@ -140,7 +141,7 @@ describe('buildWorkflowJobGraphModel', () => {
     const result = buildWorkflowJobGraphModel({run});
 
     expect(nodeByName(result, 'deploy')).toMatchObject({
-      status: 'cancelled',
+      status: 'skipped',
     });
   });
 
@@ -150,12 +151,13 @@ describe('buildWorkflowJobGraphModel', () => {
     const succeeded = makeJob({name: 'lint', status: 'succeeded', position: 2});
     const failed = makeJob({name: 'security', status: 'failed', position: 3});
     const cancelled = makeJob({name: 'docs', status: 'cancelled', position: 4});
+    const skipped = makeJob({name: 'deploy-preview', status: 'skipped', position: 5});
     const deploy = makeJob({
       name: 'deploy',
-      position: 5,
-      dependencies: ['build', 'test', 'lint', 'security', 'docs', 'missing'],
+      position: 6,
+      dependencies: ['build', 'test', 'lint', 'security', 'docs', 'deploy-preview', 'missing'],
     });
-    const run = makeRun({jobs: [deploy, cancelled, failed, succeeded, running, pending]});
+    const run = makeRun({jobs: [deploy, skipped, cancelled, failed, succeeded, running, pending]});
 
     const result = buildWorkflowJobGraphModel({run});
 
