@@ -4,7 +4,27 @@ import {workflowRun} from '#test/fixtures/workflow-run.js';
 import {renderProjectPage} from '#test/pages.js';
 import {WorkflowRunSummary} from './workflow-run-summary.js';
 
+const {useIsTextTruncatedMock} = vi.hoisted(() => ({
+  useIsTextTruncatedMock: vi.fn(),
+}));
+
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
+
+vi.mock('@shipfox/react-ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shipfox/react-ui')>();
+  return {
+    ...actual,
+    useIsTextTruncated: useIsTextTruncatedMock,
+  };
+});
+
+beforeEach(() => {
+  useIsTextTruncatedMock.mockReset();
+  useIsTextTruncatedMock.mockReturnValue({
+    ref: () => undefined,
+    isTruncated: false,
+  });
+});
 
 describe('WorkflowRunSummary', () => {
   test('renders identity, status, trigger metadata, and trigger time', async () => {
@@ -79,6 +99,33 @@ describe('WorkflowRunSummary', () => {
     await screen.findByRole('region', {name: 'deploy-web'});
 
     expect(screen.queryByText('manual / fire')).not.toBeInTheDocument();
+  });
+
+  test('does not show a run name tooltip when the heading is not truncated', async () => {
+    const user = userEvent.setup();
+    useIsTextTruncatedMock.mockReturnValue({
+      ref: () => undefined,
+      isTruncated: false,
+    });
+    renderSummary();
+
+    await user.hover(await screen.findByRole('heading', {name: 'deploy-web'}));
+
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  test('shows the full run name in a tooltip when the heading is truncated', async () => {
+    const user = userEvent.setup();
+    const runName = 'release-production-multi-region-with-canary-and-smoke-tests';
+    useIsTextTruncatedMock.mockReturnValue({
+      ref: () => undefined,
+      isTruncated: true,
+    });
+    renderSummary({name: runName});
+
+    await user.hover(await screen.findByRole('heading', {name: runName}));
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(runName);
   });
 
   test('renders source control only when source is available', async () => {

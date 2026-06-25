@@ -8,6 +8,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  useIsTextTruncated,
 } from '@shipfox/react-ui';
 import type {Ref} from 'react';
 import {useId} from 'react';
@@ -38,6 +39,8 @@ export function WorkflowRunSummary({
 }: WorkflowRunSummaryProps) {
   const headingId = useId();
   const status = getWorkflowStatusVisual(run.status);
+  const {ref: headingTextRef, isTruncated: isHeadingTruncated} =
+    useIsTextTruncated<HTMLSpanElement>(run.name);
 
   return (
     <section
@@ -54,14 +57,18 @@ export function WorkflowRunSummary({
           <Tooltip>
             <TooltipTrigger asChild>
               <Header id={headingId} variant="h3" className="min-w-0 truncate">
-                {run.name}
+                <span ref={headingTextRef} className="block min-w-0 truncate">
+                  {run.name}
+                </span>
               </Header>
             </TooltipTrigger>
-            <TooltipContent>
-              <Text as="span" size="xs" className="max-w-[360px] break-words">
-                {run.name}
-              </Text>
-            </TooltipContent>
+            {isHeadingTruncated ? (
+              <TooltipContent>
+                <Text as="span" size="xs" className="max-w-[360px] break-words">
+                  {run.name}
+                </Text>
+              </TooltipContent>
+            ) : null}
           </Tooltip>
         </div>
 
