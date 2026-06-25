@@ -2,7 +2,7 @@ import {TextDecoder} from 'node:util';
 import {redactSecrets} from '@shipfox/redact';
 import {type OutputSource, PIPES} from '#core/framing.js';
 import {couldBeMarker, parseMarker} from '#core/markers.js';
-import {buildSecretVariants} from '#core/secrets.js';
+import {buildSecretVariants, mergeSecretVariants} from '#core/secrets.js';
 
 /** What the transform hands the framer: masked output text, or a swallowed group marker. */
 export type TransformEvent =
@@ -168,12 +168,6 @@ export class LogTransformer {
     }
     return cut;
   }
-}
-
-function mergeSecretVariants(existing: string[], secrets: string[]): string[] {
-  const variants = new Set(existing);
-  for (const form of buildSecretVariants(secrets)) variants.add(form);
-  return [...variants].sort((a, b) => b.length - a.length);
 }
 
 function newDecoder(): TextDecoder {

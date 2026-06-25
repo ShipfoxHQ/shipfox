@@ -200,16 +200,11 @@ describe('checkoutRepository failure classification', () => {
   });
 
   it('classifies an aborted checkout as aborted with its phase', async () => {
-    queueGitResults([
-      {kind: 'success'},
-      {kind: 'success'},
-      {
-        kind: 'error',
-        error: Object.assign(new Error('The operation was aborted'), {name: 'AbortError'}),
-      },
-    ]);
+    const abortError = Object.assign(new Error('The operation was aborted'), {name: 'AbortError'});
+    queueGitResults([{kind: 'success'}, {kind: 'success'}, {kind: 'error', error: abortError}]);
 
     await expect(checkoutRepository(BASE)).rejects.toMatchObject({kind: 'aborted', phase: 'fetch'});
+    expect('phase' in abortError).toBe(false);
   });
 
   it('redacts the token from a failure message', async () => {

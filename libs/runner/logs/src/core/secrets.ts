@@ -13,3 +13,9 @@ export function buildSecretVariants(secrets: string[]): string[] {
   }
   return [...variants].sort((a, b) => b.length - a.length);
 }
+
+export function mergeSecretVariants(existing: string[], secrets: string[]): string[] {
+  const variants = new Set(existing);
+  for (const form of buildSecretVariants(secrets)) variants.add(form);
+  return [...variants].sort((a, b) => b.length - a.length);
+}

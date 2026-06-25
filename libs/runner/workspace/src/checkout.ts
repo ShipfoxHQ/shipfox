@@ -233,10 +233,7 @@ function runGitCommand(params: {
     child.on('error', (error) => {
       if (settled) return;
       settled = true;
-      if (error instanceof Error && error.name === 'AbortError') {
-        (error as Error & {phase?: CheckoutPhase}).phase = phase;
-      }
-      reject(error);
+      reject(new GitSpawnError(phase, error));
     });
 
     child.on('close', (code, signalName) => {
@@ -249,6 +246,16 @@ function runGitCommand(params: {
       reject(new GitCommandError(phase, stderr, code, signalName));
     });
   });
+}
+
+class GitSpawnError extends Error {
+  constructor(
+    public readonly phase: CheckoutPhase,
+    error: Error,
+  ) {
+    super(error.message, {cause: error});
+    this.name = error.name;
+  }
 }
 
 class GitCommandError extends Error {

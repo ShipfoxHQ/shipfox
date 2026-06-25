@@ -4,7 +4,7 @@ import type {LogAppendFn} from '@shipfox/runner-protocol';
 import {type FramedOutput, type OutputSource, StreamFramer} from '#core/framing.js';
 import type {LogStreamLifecycle} from '#core/lifecycle.js';
 import {createRecordSink} from '#core/record-sink.js';
-import {buildSecretVariants} from '#core/secrets.js';
+import {buildSecretVariants, mergeSecretVariants} from '#core/secrets.js';
 import {LogTransformer, type TransformEvent} from '#core/transform.js';
 
 const EMPTY_FRAMED: FramedOutput = {bytes: Buffer.alloc(0), payloadBytes: 0};
@@ -196,12 +196,6 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
       sink.dispose();
     },
   };
-}
-
-function mergeSecretVariants(existing: string[], secrets: string[]): string[] {
-  const variants = new Set(existing);
-  for (const form of buildSecretVariants(secrets)) variants.add(form);
-  return [...variants].sort((a, b) => b.length - a.length);
 }
 
 function ensureTrailingNewline(line: string): string {
