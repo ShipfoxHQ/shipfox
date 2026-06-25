@@ -6,11 +6,27 @@ triggers:
     event: push
     filter: 'event.ref == "refs/heads/main"'
 jobs:
-  build:
+  prepare:
     steps:
-      - run: node --check src/index.js
-      - run: node --test
+      - name: checkout-summary
+        run: echo "Preparing demo workspace"
+      - name: validate-package
+        run: node --check src/index.js
+  test:
+    needs: prepare
+    steps:
+      - name: unit-tests
+        run: node --test
+      - name: forced-failure
+        run: |
+          echo "Intentional demo failure"
+          exit 1
+      - name: skipped-after-failure
+        run: echo "This step is cancelled after the forced failure"
   deploy:
-    needs: build
+    needs: test
     steps:
-      - run: echo "Deploying demo"
+      - name: package
+        run: echo "Packaging demo"
+      - name: publish
+        run: echo "Deploying demo"
