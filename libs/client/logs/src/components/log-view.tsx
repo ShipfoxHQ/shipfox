@@ -73,13 +73,7 @@ function renderNodes(nodes: readonly LogNode[], depth: number, tree: LogTree): R
         );
       case 'group':
         return (
-          <LogGroup
-            key={node.seq}
-            node={node}
-            depth={depth}
-            terminated={tree.terminated}
-            defaultOpen
-          >
+          <LogGroup key={node.seq} node={node} depth={depth} terminated={tree.terminated}>
             {renderNodes(node.children, depth + 1, tree)}
           </LogGroup>
         );

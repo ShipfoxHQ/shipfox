@@ -113,7 +113,8 @@ export const Showcase: Story = {
 /**
  * Groups nested three levels deep (Deploy > Build > Compile, Deploy > Test >
  * unit/e2e). Each level indents; the failing `e2e` leaf bubbles its error up to
- * `Test` and `Deploy pipeline`. Collapse any group to see its "N lines" summary,
+ * `Test` and `Deploy pipeline`. Expand any group to reveal its nested output; the
+ * collapsed header shows its "N lines" summary,
  * duration, and (for a branch with a failure) the inset error bar.
  */
 export const NestedGroups: Story = {
