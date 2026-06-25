@@ -1,5 +1,10 @@
-import {isMissingStepLogStreamError, LogView, useStepAttemptLogsQuery} from '@shipfox/client-logs';
-import {Alert, Button, Icon, LogContent, LogRow, LogRows, ShinyText, Text} from '@shipfox/react-ui';
+import {
+  isMissingStepLogStreamError,
+  LogView,
+  LogViewSkeleton,
+  useStepAttemptLogsQuery,
+} from '@shipfox/client-logs';
+import {Alert, Button, Text} from '@shipfox/react-ui';
 import {type UIEvent, useEffect, useRef} from 'react';
 
 const TAIL_FOLLOW_THRESHOLD_PX = 24;
@@ -88,7 +93,12 @@ export function StepAttemptLogPanel({
           </div>
         </Alert>
       ) : null}
-      <LogView records={records} className={logSurfaceClasses} onScroll={handleLogScroll} />
+      <LogView
+        records={records}
+        emptyState={query.data?.complete ? 'complete' : 'pending'}
+        className={logSurfaceClasses}
+        onScroll={handleLogScroll}
+      />
     </div>
   );
 }
@@ -96,21 +106,7 @@ export function StepAttemptLogPanel({
 function StepLogsLoadingSurface({label}: {label: string}) {
   return (
     <div role="status" aria-label={label}>
-      <LogRows className={logSurfaceClasses}>
-        <LogRow lineNumber={null}>
-          <LogContent
-            variant="code"
-            className="flex min-w-0 items-center gap-6 text-foreground-neutral-subtle"
-          >
-            <Icon
-              name="loader4Line"
-              className="size-14 shrink-0 motion-safe:animate-spin"
-              aria-hidden="true"
-            />
-            <ShinyText text={label} speed={3} className="text-foreground-neutral-subtle" />
-          </LogContent>
-        </LogRow>
-      </LogRows>
+      <LogViewSkeleton className={logSurfaceClasses} />
     </div>
   );
 }

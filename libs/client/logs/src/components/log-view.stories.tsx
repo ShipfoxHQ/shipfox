@@ -1,6 +1,6 @@
 import type {LogRecord} from '@shipfox/api-logs-dto';
 import type {Meta, StoryObj} from '@storybook/react';
-import {LogView} from './log-view.js';
+import {LogView, LogViewSkeleton} from './log-view.js';
 
 const ESC = String.fromCharCode(27);
 const origin = new Date('2026-06-23T10:00:00.000Z').getTime();
@@ -125,11 +125,41 @@ export const NestedGroups: Story = {
   ),
 };
 
-export const Empty: Story = {
+export const ClosedEmpty: Story = {
   args: {showLineNumbers: true},
   render: (args) => (
     <div className="max-w-3xl">
       <LogView {...args} records={[]} />
+    </div>
+  ),
+};
+
+export const PendingEmpty: Story = {
+  args: {showLineNumbers: true, emptyState: 'pending'},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={[]} />
+    </div>
+  ),
+};
+
+export const MinimalOutput: Story = {
+  args: {showLineNumbers: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={[{v: 1, ts: at(1), type: 'end', total_bytes: 0}]} />
+    </div>
+  ),
+};
+
+export const LoadingSkeleton: Story = {
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogViewSkeleton
+        timestamps={args.timestamps}
+        wrap={args.wrap}
+        showLineNumbers={args.showLineNumbers}
+      />
     </div>
   ),
 };

@@ -75,10 +75,14 @@ describe('StepAttemptLogPanel', () => {
       fetchImpl: vi.fn(async () => jsonResponse({code: 'not-found'}, {status: 404})),
     });
 
-    renderPanel();
+    const {container} = renderPanel();
 
     expect(await screen.findByRole('status', {name: 'Waiting for logs'})).toBeInTheDocument();
-    expect(screen.getByRole('log')).toHaveTextContent('Waiting for logs');
+    expect(screen.queryByRole('log')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-slot="log-rows"]')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
   });
 
   test('keeps the log loading surface through transient initial server errors', async () => {
@@ -91,11 +95,20 @@ describe('StepAttemptLogPanel', () => {
       fetchImpl,
     });
 
-    renderPanel({attemptStatus: 'failed', initialErrorRetryCount: 1, initialErrorRetryDelayMs: 10});
+    const {container} = renderPanel({
+      attemptStatus: 'failed',
+      initialErrorRetryCount: 1,
+      initialErrorRetryDelayMs: 10,
+    });
     expect(screen.getByRole('status', {name: 'Loading logs'})).toBeInTheDocument();
-    expect(screen.getByRole('log')).toHaveTextContent('Loading logs');
+    expect(screen.queryByRole('log')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-slot="log-rows"]')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
 
     expect(await screen.findByText('eventual logs')).toBeInTheDocument();
+    expect(screen.getByRole('log')).toBeInTheDocument();
   });
 
   test('shows a compact retry state after the initial error retry budget is exhausted', async () => {
@@ -120,6 +133,22 @@ describe('StepAttemptLogPanel', () => {
     renderPanel({attemptStatus: 'succeeded'});
 
     expect(await screen.findByText('hello')).toBeInTheDocument();
+  });
+
+  test('renders a terminal closed empty stream as no output', async () => {
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(async () => jsonResponse(inlineLogBody('', 0))),
+    });
+
+    renderPanel({attemptStatus: 'succeeded'});
+
+    expect(await screen.findByText('Step produced no output')).toBeInTheDocument();
+    expect(
+      screen.getByText('This log stream closed without stdout or stderr.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('log')).toBeInTheDocument();
   });
 
   test('keeps stale logs visible when a refresh fails', async () => {

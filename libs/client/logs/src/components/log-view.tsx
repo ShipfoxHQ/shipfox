@@ -1,7 +1,14 @@
 'use client';
 
 import type {LogRecord} from '@shipfox/api-logs-dto';
-import {LogContent, LogRow, LogRows, type LogTimestampMode} from '@shipfox/react-ui';
+import {
+  Icon,
+  LogContent,
+  LogRow,
+  LogRows,
+  type LogTimestampMode,
+  Skeleton,
+} from '@shipfox/react-ui';
 import {type ReactNode, type UIEventHandler, useMemo} from 'react';
 import {
   assertNever,
@@ -19,9 +26,15 @@ export interface LogViewProps {
   timestamps?: LogTimestampMode;
   wrap?: boolean;
   showLineNumbers?: boolean;
+  emptyState?: 'complete' | 'pending';
   defaultGroupsOpen?: boolean;
   className?: string | undefined;
   onScroll?: UIEventHandler<HTMLDivElement> | undefined;
+}
+
+export interface LogViewSkeletonProps
+  extends Pick<LogViewProps, 'timestamps' | 'wrap' | 'showLineNumbers' | 'className'> {
+  rows?: number;
 }
 
 export function LogView({
@@ -29,12 +42,13 @@ export function LogView({
   timestamps = 'off',
   wrap = false,
   showLineNumbers = true,
+  emptyState = 'complete',
   defaultGroupsOpen = false,
   className,
   onScroll,
 }: LogViewProps) {
   const tree = useMemo(() => buildLogTree(records), [records]);
-  const isEmpty = tree.nodes.length === 0;
+  const noOutputState = getNoOutputState(tree, emptyState);
 
   return (
     <LogRows
@@ -45,16 +59,90 @@ export function LogView({
       onScroll={onScroll}
       {...(tree.originTs != null ? {timestampOrigin: new Date(tree.originTs)} : {})}
     >
-      {isEmpty ? (
-        <LogRow lineNumber={null}>
-          <LogContent variant="code" className="text-foreground-neutral-muted">
-            No output
-          </LogContent>
-        </LogRow>
-      ) : (
-        renderNodes(tree.nodes, 0, tree, defaultGroupsOpen)
-      )}
+      {noOutputState ? <NoOutputRow state={noOutputState} /> : null}
+      {renderNodes(tree.nodes, 0, tree, defaultGroupsOpen)}
     </LogRows>
+  );
+}
+
+export function LogViewSkeleton({
+  rows = 5,
+  timestamps = 'off',
+  wrap = false,
+  showLineNumbers = true,
+  className,
+}: LogViewSkeletonProps) {
+  const widths = ['w-[62%]', 'w-[44%]', 'w-[74%]', 'w-[36%]', 'w-[55%]'];
+  const skeletonRows = getSkeletonRows(rows);
+
+  return (
+    <LogRows
+      timestamps={timestamps}
+      wrap={wrap}
+      showLineNumbers={showLineNumbers}
+      className={className}
+      role="presentation"
+      aria-live="off"
+      aria-hidden="true"
+    >
+      {skeletonRows.map((row) => (
+        <LogRow key={row.id} lineNumber={row.lineNumber}>
+          <Skeleton
+            className={`my-4 h-12 ${widths[(row.lineNumber - 1) % widths.length] ?? 'w-[48%]'}`}
+          />
+        </LogRow>
+      ))}
+    </LogRows>
+  );
+}
+
+function getSkeletonRows(rows: number): {id: string; lineNumber: number}[] {
+  return Array.from({length: rows}, (_, index) => {
+    const lineNumber = index + 1;
+    return {id: `log-view-skeleton-row-${lineNumber}`, lineNumber};
+  });
+}
+
+function getNoOutputState(
+  tree: LogTree,
+  emptyState: NonNullable<LogViewProps['emptyState']>,
+): LogViewProps['emptyState'] | null {
+  if (tree.nodes.length === 0) return emptyState;
+
+  if (tree.lineCount !== 0) return null;
+  if (tree.nodes.length !== 1) return null;
+
+  const [node] = tree.nodes;
+  if (node?.kind === 'marker' && node.record.type === 'end') return 'complete';
+
+  return null;
+}
+
+function NoOutputRow({state}: {state: NonNullable<LogViewProps['emptyState']>}) {
+  const copy =
+    state === 'pending'
+      ? {
+          title: 'No output yet',
+          detail: 'New lines will appear here as the step writes them.',
+        }
+      : {
+          title: 'Step produced no output',
+          detail: 'This log stream closed without stdout or stderr.',
+        };
+
+  return (
+    <LogRow lineNumber={null}>
+      <LogContent className="text-foreground-neutral-muted">
+        <span className="inline-flex min-w-0 items-center gap-8">
+          <Icon name="info" className="size-14 flex-none" aria-hidden="true" />
+          <span className="min-w-0">
+            <span className="font-medium">{copy.title}</span>
+            {' · '}
+            <span className="text-foreground-neutral-subtle">{copy.detail}</span>
+          </span>
+        </span>
+      </LogContent>
+    </LogRow>
   );
 }
 
