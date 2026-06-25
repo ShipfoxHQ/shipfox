@@ -107,6 +107,39 @@ describe('WorkflowStepList', () => {
     expect(screen.getByText(`logs for ${attempt.id}`)).toBeInTheDocument();
   });
 
+  test('respects a controlled empty selected attempt', async () => {
+    const user = userEvent.setup();
+    const onSelectedAttemptChange = vi.fn();
+    const attempt = makeAttempt();
+    const step = makeStep({name: 'deploy', attempts: [attempt]});
+    const job = makeJob({steps: [step]});
+    const {rerender} = render(
+      <WorkflowStepList
+        job={job}
+        defaultSelectedAttemptId={attempt.id}
+        selectedAttemptId={attempt.id}
+        onSelectedAttemptChange={onSelectedAttemptChange}
+        renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
+      />,
+    );
+    const deploy = screen.getByRole('button', {name: '1. deploy, Pending, attempt 1'});
+    expect(screen.getByText(`logs for ${attempt.id}`)).toBeInTheDocument();
+
+    rerender(
+      <WorkflowStepList
+        job={job}
+        defaultSelectedAttemptId={attempt.id}
+        selectedAttemptId={null}
+        onSelectedAttemptChange={onSelectedAttemptChange}
+        renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
+      />,
+    );
+    await user.click(deploy);
+
+    expect(screen.queryByText(`logs for ${attempt.id}`)).not.toBeInTheDocument();
+    expect(onSelectedAttemptChange).toHaveBeenCalledWith(attempt.id);
+  });
+
   test('auto-opens the latest running attempt', () => {
     const installAttempt = makeAttempt({status: 'running', execution_order: 2});
     const deployAttempt = makeAttempt({status: 'running', execution_order: 4});

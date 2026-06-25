@@ -29,7 +29,7 @@ export interface WorkflowStepExpandedContext {
 
 export interface WorkflowStepListProps {
   job: WorkflowJob;
-  selectedAttemptId?: string | undefined;
+  selectedAttemptId?: string | null | undefined;
   defaultSelectedAttemptId?: string | undefined;
   onSelectedAttemptChange?: ((attemptId: string | undefined) => void) | undefined;
   autoSelectActiveAttempt?: boolean | undefined;
@@ -78,7 +78,11 @@ function WorkflowStepListContent({
   const [userSelectedAttempt, setUserSelectedAttempt] = useState(false);
   const autoSelectedAttemptId =
     autoSelectActiveAttempt && !userSelectedAttempt ? model.activeEntryId : undefined;
-  const selected = selectedAttemptId ?? localSelectedAttemptId ?? autoSelectedAttemptId;
+  // `undefined` leaves selection uncontrolled; `null` is a controlled collapsed state.
+  const selected =
+    selectedAttemptId !== undefined
+      ? selectedAttemptId
+      : (localSelectedAttemptId ?? autoSelectedAttemptId);
 
   useEffect(() => {
     setLocalSelectedAttemptId(defaultSelectedAttemptId);

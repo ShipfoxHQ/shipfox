@@ -7,6 +7,7 @@ import {
   CodeBlockFilename,
   CodeBlockFiles,
   CodeBlockHeader,
+  type CodeBlockHighlightedLineRange,
   CodeBlockItem,
   cn,
   Sheet,
@@ -27,6 +28,7 @@ export interface WorkflowSourcePanelProps {
   source: WorkflowSourceSnapshot | null;
   open: boolean;
   onClose: () => void;
+  highlightedLineRange?: CodeBlockHighlightedLineRange | null | undefined;
   className?: string | undefined;
 }
 
@@ -35,6 +37,7 @@ export function WorkflowSourcePanel({
   source,
   open,
   onClose,
+  highlightedLineRange,
   className,
 }: WorkflowSourcePanelProps) {
   const sheetOpen = open && source !== null;
@@ -59,14 +62,20 @@ export function WorkflowSourcePanel({
           )}
         >
           <SheetTitle className="sr-only">Workflow source</SheetTitle>
-          <WorkflowSourcePanelContent source={source} />
+          <WorkflowSourcePanelContent source={source} highlightedLineRange={highlightedLineRange} />
         </SheetContent>
       ) : null}
     </Sheet>
   );
 }
 
-function WorkflowSourcePanelContent({source}: {source: WorkflowSourceSnapshot}) {
+function WorkflowSourcePanelContent({
+  source,
+  highlightedLineRange,
+}: {
+  source: WorkflowSourceSnapshot;
+  highlightedLineRange: CodeBlockHighlightedLineRange | null | undefined;
+}) {
   const data = [
     {
       language: 'yaml',
@@ -109,6 +118,7 @@ function WorkflowSourcePanelContent({source}: {source: WorkflowSourceSnapshot}) 
               language="yaml"
               themes={WORKFLOW_SOURCE_CODE_THEMES}
               syntaxHighlighting
+              highlightedLineRange={highlightedLineRange}
             >
               {item.code}
             </CodeBlockContent>

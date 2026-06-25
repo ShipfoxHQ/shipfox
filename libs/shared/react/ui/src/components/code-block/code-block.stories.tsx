@@ -2,7 +2,7 @@ import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {Meta, StoryObj} from '@storybook/react';
 import {waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
-import type {CodeBlockData} from './index.js';
+import type {CodeBlockData, CodeBlockHighlightedLineRange} from './index.js';
 import {
   CodeBlock,
   CodeBlockBody,
@@ -39,12 +39,16 @@ const workflowFile: CodeBlockData = {
 };
 
 const diffFile: CodeBlockData = {
-  language: 'yaml',
-  filename: '.github/workflows/<workflow-name>.yml',
-  code: `jobs:
-  build:
-        - runs-on: ubuntu-latest
-        + runs-on: shipfox-2vcpu-ubuntu-2404`,
+  language: 'diff',
+  filename: '.github/workflows/<workflow-name>.yml.diff',
+  code: `diff --git a/.github/workflows/<workflow-name>.yml b/.github/workflows/<workflow-name>.yml
+--- a/.github/workflows/<workflow-name>.yml
++++ b/.github/workflows/<workflow-name>.yml
+@@ -1,4 +1,4 @@
+ jobs:
+   build:
+-    runs-on: ubuntu-latest
++    runs-on: shipfox-2vcpu-ubuntu-2404`,
 };
 
 const sourceFile: CodeBlockData = {
@@ -62,11 +66,13 @@ function CodeBlockShowcase({
   lineNumbers,
   syntaxHighlighting,
   footer,
+  highlightedLineRange,
 }: {
   data: CodeBlockData[];
   lineNumbers?: boolean;
   syntaxHighlighting?: boolean;
   footer?: ReactNode;
+  highlightedLineRange?: CodeBlockHighlightedLineRange | undefined;
 }) {
   return (
     <CodeBlock data={data}>
@@ -79,7 +85,11 @@ function CodeBlockShowcase({
       <CodeBlockBody>
         {(item) => (
           <CodeBlockItem value={item.filename} lineNumbers={lineNumbers}>
-            <CodeBlockContent language={item.language} syntaxHighlighting={syntaxHighlighting}>
+            <CodeBlockContent
+              language={item.language}
+              syntaxHighlighting={syntaxHighlighting}
+              highlightedLineRange={highlightedLineRange}
+            >
               {item.code}
             </CodeBlockContent>
           </CodeBlockItem>
@@ -111,8 +121,27 @@ export const SyntaxHighlighting: Story = {
   render: () => <CodeBlockShowcase data={[sourceFile]} syntaxHighlighting />,
 };
 
-export const DiffHighlighting: Story = {
-  render: () => <CodeBlockShowcase data={[diffFile]} />,
+export const DiffContent: Story = {
+  // Cold CI can snapshot the plain fallback before Shiki's dynamic import finishes.
+  play: async (ctx) => {
+    await document.fonts.ready;
+    await waitFor(
+      () => {
+        if (!ctx.canvasElement.querySelector('.shiki-override')) {
+          throw new Error('Shiki highlighting has not rendered yet');
+        }
+      },
+      {timeout: 10_000},
+    );
+    await argosScreenshot(ctx, 'CodeBlock DiffContent');
+  },
+  render: () => <CodeBlockShowcase data={[diffFile]} syntaxHighlighting />,
+};
+
+export const LineHighlighting: Story = {
+  render: () => (
+    <CodeBlockShowcase data={[workflowFile]} highlightedLineRange={{startLine: 3, endLine: 5}} />
+  ),
 };
 
 export const WithoutLineNumbers: Story = {
@@ -123,7 +152,7 @@ export const Footer: Story = {
   render: () => (
     <div className="flex flex-col gap-16">
       <CodeBlockShowcase
-        data={[diffFile]}
+        data={[workflowFile]}
         footer={
           <CodeBlockFooter
             state="running"
@@ -133,7 +162,7 @@ export const Footer: Story = {
         }
       />
       <CodeBlockShowcase
-        data={[diffFile]}
+        data={[workflowFile]}
         footer={<CodeBlockFooter state="done" message="Runner connected!" />}
       />
     </div>

@@ -1,7 +1,13 @@
-import {useNavigate} from '@tanstack/react-router';
-import {useEffect} from 'react';
+import {useNavigate, useSearch} from '@tanstack/react-router';
+import {useCallback, useEffect} from 'react';
 import {WorkflowRunView} from '#components/workflow-run-view/index.js';
 import {WorkflowRunsList} from '#components/workflow-runs-list/workflow-runs-list.js';
+import {
+  type WorkflowRunSelectionInput,
+  withoutWorkflowRunSelectionSearch,
+  withWorkflowRunSelectionSearch,
+  workflowRunSelectionFromSearch,
+} from '#core/workflow-run-url-state.js';
 import {useWorkflowRunsInfiniteQuery} from '#hooks/api/workflow-runs.js';
 import {WorkflowRunFirstTimeUse} from './workflow-run-first-time-use.js';
 
@@ -36,6 +42,8 @@ function useWorkflowRunPageTarget(
     navigate({
       to: '/workspaces/$wid/projects/$pid/runs/$runId',
       params: {wid: workspaceId, pid: projectId, runId: firstRunId},
+      search: ((previous: Record<string, unknown>) =>
+        withoutWorkflowRunSelectionSearch(previous)) as never,
       replace: true,
     });
   }, [navigate, workspaceId, projectId, runId, isLoaded, firstRunId]);
@@ -45,6 +53,18 @@ function useWorkflowRunPageTarget(
 
 export function WorkflowRunPage({workspaceId, projectId, runId}: WorkflowRunPageProps) {
   const {hasNoRuns} = useWorkflowRunPageTarget(workspaceId, projectId, runId);
+  const navigate = useNavigate();
+  const search = useSearch({strict: false}) as Record<string, unknown>;
+  const selection = workflowRunSelectionFromSearch(search);
+  const onSelectionChange = useCallback(
+    (nextSelection: WorkflowRunSelectionInput) => {
+      navigate({
+        search: ((previous: Record<string, unknown>) =>
+          withWorkflowRunSelectionSearch(previous, nextSelection)) as never,
+      });
+    },
+    [navigate],
+  );
 
   if (!runId && hasNoRuns) {
     return <WorkflowRunFirstTimeUse />;
@@ -53,7 +73,7 @@ export function WorkflowRunPage({workspaceId, projectId, runId}: WorkflowRunPage
   return (
     <div className="flex min-h-0 flex-1">
       <WorkflowRunsList workspaceId={workspaceId} projectId={projectId} selectedRunId={runId} />
-      <WorkflowRunView runId={runId} />
+      <WorkflowRunView runId={runId} selection={selection} onSelectionChange={onSelectionChange} />
     </div>
   );
 }

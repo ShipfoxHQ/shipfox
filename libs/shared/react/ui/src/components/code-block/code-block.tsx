@@ -6,8 +6,9 @@ import {useResolvedTheme} from '#hooks/useResolvedTheme.js';
 import {useShikiHighlight} from '#hooks/useShikiHighlight.js';
 import {useShikiStyleInjection} from '#hooks/useShikiStyleInjection.js';
 import {cn} from '#utils/cn.js';
-import {CodeContent} from './code-content.js';
+import {CODE_BLOCK_HIGHLIGHTED_LINE_DESCENDANT_STYLE, CodeContent} from './code-content.js';
 import {CodeCopyButton} from './code-copy-button.js';
+import {type CodeBlockHighlightedLineRange, isCodeBlockLineHighlighted} from './line-highlight.js';
 
 export type BundledLanguage = string;
 
@@ -162,10 +163,16 @@ export function CodeBlockCopyButton({
 }
 
 type CodeBlockFallbackProps = Omit<HTMLAttributes<HTMLDivElement>, 'children'> & {
+  highlightedLineRange?: CodeBlockHighlightedLineRange | null | undefined;
   children: string;
 };
 
-function CodeBlockFallback({children, className, ...props}: CodeBlockFallbackProps) {
+function CodeBlockFallback({
+  children,
+  className,
+  highlightedLineRange,
+  ...props
+}: CodeBlockFallbackProps) {
   const lines = children?.toString().split('\n') ?? [];
   return (
     <pre
@@ -174,13 +181,16 @@ function CodeBlockFallback({children, className, ...props}: CodeBlockFallbackPro
     >
       <code>
         {lines.map((line, index) => {
-          const isDiffRemove = line.trim().startsWith('-');
-          const isDiffAdd = line.trim().startsWith('+');
-          const diffClass = isDiffRemove ? 'diff remove' : isDiffAdd ? 'diff add' : '';
           const key = `${index}-${line}`;
 
           return (
-            <span className={cn('line', diffClass)} key={key}>
+            <span
+              className={cn(
+                'line',
+                isCodeBlockLineHighlighted(index + 1, highlightedLineRange) && 'highlighted-line',
+              )}
+              key={key}
+            >
               {line}
             </span>
           );
@@ -240,6 +250,7 @@ export function CodeBlockItem({
           '[&_.line.diff]:after:absolute [&_.line.diff]:after:left-0 [&_.line.diff]:after:top-0 [&_.line.diff]:after:bottom-0 [&_.line.diff]:after:w-1',
           '[&_.line.diff.add]:bg-tag-success-bg [&_.line.diff.add]:text-tag-success-text [&_.line.diff.add]:after:bg-tag-success-icon',
           '[&_.line.diff.remove]:bg-tag-error-bg [&_.line.diff.remove]:text-tag-error-text [&_.line.diff.remove]:after:bg-tag-error-icon',
+          CODE_BLOCK_HIGHLIGHTED_LINE_DESCENDANT_STYLE,
         )}
       >
         {children}
@@ -255,6 +266,7 @@ export type CodeBlockContentProps = Omit<HTMLAttributes<HTMLDivElement>, 'childr
   };
   language?: BundledLanguage;
   syntaxHighlighting?: boolean;
+  highlightedLineRange?: CodeBlockHighlightedLineRange | null | undefined;
   children: string;
 };
 
@@ -266,6 +278,7 @@ export function CodeBlockContent({
   },
   language = 'typescript',
   syntaxHighlighting = false,
+  highlightedLineRange,
   ...props
 }: CodeBlockContentProps) {
   const resolvedTheme = useResolvedTheme();
@@ -281,7 +294,11 @@ export function CodeBlockContent({
   });
 
   if (!syntaxHighlighting || isLoading) {
-    return <CodeBlockFallback {...props}>{children}</CodeBlockFallback>;
+    return (
+      <CodeBlockFallback highlightedLineRange={highlightedLineRange} {...props}>
+        {children}
+      </CodeBlockFallback>
+    );
   }
 
   return (
@@ -290,6 +307,7 @@ export function CodeBlockContent({
       highlightedCode={highlightedCode}
       isLoading={isLoading}
       syntaxHighlighting={syntaxHighlighting}
+      highlightedLineRange={highlightedLineRange}
       {...props}
     />
   );

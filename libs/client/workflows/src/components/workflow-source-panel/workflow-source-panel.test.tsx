@@ -43,6 +43,28 @@ describe('WorkflowSourcePanel', () => {
     expect(screen.queryByRole('button', {name: 'Close source'})).not.toBeInTheDocument();
   });
 
+  test('highlights the selected source line range', async () => {
+    renderPanel({
+      open: true,
+      highlightedLineRange: {startLine: 2, endLine: 3},
+    });
+
+    await screen.findByRole('dialog', {name: 'Workflow source'});
+
+    const highlightedLines = document.body.querySelectorAll('.line.highlighted-line');
+    expect(highlightedLines).toHaveLength(2);
+    expect(highlightedLines[0]).toHaveTextContent('build:');
+    expect(highlightedLines[1]).toHaveTextContent('steps: []');
+  });
+
+  test('renders source without highlighted lines when no range is provided', async () => {
+    renderPanel({open: true});
+
+    await screen.findByRole('dialog', {name: 'Workflow source'});
+
+    expect(document.body.querySelector('.line.highlighted-line')).toBeNull();
+  });
+
   test('does not render a sheet without source content', () => {
     renderPanel({open: true, source: null});
 
@@ -55,17 +77,20 @@ function renderPanel({
   open,
   source = {format: 'yaml', content: 'jobs:\n  build:\n    steps: []'},
   onClose = vi.fn(),
+  highlightedLineRange,
 }: {
   open: boolean;
   source?: Parameters<typeof WorkflowSourcePanel>[0]['source'];
   onClose?: () => void;
+  highlightedLineRange?: Parameters<typeof WorkflowSourcePanel>[0]['highlightedLineRange'];
 }) {
-  render(
+  return render(
     <WorkflowSourcePanel
       id="workflow-source-panel"
       open={open}
       source={source}
       onClose={onClose}
+      highlightedLineRange={highlightedLineRange}
     />,
   );
 }
