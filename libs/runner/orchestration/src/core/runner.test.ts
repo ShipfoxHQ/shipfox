@@ -13,7 +13,9 @@ vi.mock('#core/heartbeat-loop.js', () => ({
 
 vi.mock('@shipfox/runner-workspace', async (importActual) => ({
   ...(await importActual<typeof import('@shipfox/runner-workspace')>()),
+  cleanupJobLogs: vi.fn(),
   jobWorkspacePath: vi.fn(),
+  jobLogsPath: vi.fn(),
   cleanupWorkspace: vi.fn(),
   resolveWorkspaceRootFromEnv: vi.fn(),
 }));
@@ -31,8 +33,10 @@ vi.mock('@shipfox/runner-protocol', () => ({
 
 import {createLeaseClient, requestJob} from '@shipfox/runner-protocol';
 import {
+  cleanupJobLogs,
   cleanupWorkspace,
   InvalidJobIdError,
+  jobLogsPath,
   jobWorkspacePath,
   resolveWorkspaceRootFromEnv,
   UnsafeWorkspaceRootError,
@@ -41,7 +45,9 @@ import {runJob, startRunner} from '#core/runner.js';
 import {runJobSteps} from '#core/step-loop.js';
 
 const mockJobWorkspacePath = vi.mocked(jobWorkspacePath);
+const mockJobLogsPath = vi.mocked(jobLogsPath);
 const mockCleanupWorkspace = vi.mocked(cleanupWorkspace);
+const mockCleanupJobLogs = vi.mocked(cleanupJobLogs);
 const mockResolveWorkspaceRoot = vi.mocked(resolveWorkspaceRootFromEnv);
 const mockRunJobSteps = vi.mocked(runJobSteps);
 const mockCreateLeaseClient = vi.mocked(createLeaseClient);
@@ -57,6 +63,7 @@ const JOB = {
 
 const WORKSPACE_ROOT = '/tmp/shipfox-test-root';
 const JOB_CWD = '/tmp/shipfox-test-root/job-1';
+const JOB_LOGS_DIR = '/tmp/shipfox-test-root/.shipfox-runner-logs/job-1';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -65,24 +72,33 @@ beforeEach(() => {
 describe('runJob', () => {
   it('runs the step loop with the per-job cwd and lease client, then cleans up', async () => {
     mockJobWorkspacePath.mockReturnValue(JOB_CWD);
+    mockJobLogsPath.mockReturnValue(JOB_LOGS_DIR);
     mockRunJobSteps.mockResolvedValue();
 
     await runJob(JOB, WORKSPACE_ROOT);
 
     expect(mockCreateLeaseClient).toHaveBeenCalledWith(JOB.lease_token);
     expect(mockRunJobSteps).toHaveBeenCalledWith(
-      expect.objectContaining({jobId: JOB.job_id, cwd: JOB_CWD}),
+      expect.objectContaining({
+        jobId: JOB.job_id,
+        cwd: JOB_CWD,
+        logsDir: JOB_LOGS_DIR,
+        jobContext: {jobId: JOB.job_id, runId: JOB.run_id},
+      }),
     );
     expect(mockCleanupWorkspace).toHaveBeenCalledWith(JOB_CWD);
+    expect(mockCleanupJobLogs).toHaveBeenCalledWith(JOB_LOGS_DIR);
   });
 
   it('cleans up the per-job cwd when the step loop throws', async () => {
     mockJobWorkspacePath.mockReturnValue(JOB_CWD);
+    mockJobLogsPath.mockReturnValue(JOB_LOGS_DIR);
     mockRunJobSteps.mockRejectedValue(new Error('aborted'));
 
     await runJob(JOB, WORKSPACE_ROOT);
 
     expect(mockCleanupWorkspace).toHaveBeenCalledWith(JOB_CWD);
+    expect(mockCleanupJobLogs).toHaveBeenCalledWith(JOB_LOGS_DIR);
   });
 
   it('skips the job without running the loop or cleaning up when the job id is invalid', async () => {
@@ -94,6 +110,7 @@ describe('runJob', () => {
 
     expect(mockRunJobSteps).not.toHaveBeenCalled();
     expect(mockCleanupWorkspace).not.toHaveBeenCalled();
+    expect(mockCleanupJobLogs).not.toHaveBeenCalled();
   });
 });
 

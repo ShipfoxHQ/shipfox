@@ -35,8 +35,8 @@ interface SourceState {
  * forced mid-line flush.
  */
 export class LogTransformer {
-  private readonly variants: string[];
-  private readonly maxVariantLen: number;
+  private variants: string[];
+  private maxVariantLen: number;
   private readonly sources: Record<OutputSource, SourceState>;
 
   constructor(secrets: string[]) {
@@ -49,6 +49,12 @@ export class LogTransformer {
       stdout: {decoder: newDecoder(), buffer: ''},
       stderr: {decoder: newDecoder(), buffer: ''},
     };
+  }
+
+  addSecrets(secrets: string[]): void {
+    if (secrets.length === 0) return;
+    this.variants = mergeSecretVariants(this.variants, secrets);
+    this.maxVariantLen = this.variants.reduce((max, form) => Math.max(max, form.length), 0);
   }
 
   push(chunk: Buffer, source: OutputSource): TransformEvent[] {
@@ -162,6 +168,12 @@ export class LogTransformer {
     }
     return cut;
   }
+}
+
+function mergeSecretVariants(existing: string[], secrets: string[]): string[] {
+  const variants = new Set(existing);
+  for (const form of buildSecretVariants(secrets)) variants.add(form);
+  return [...variants].sort((a, b) => b.length - a.length);
 }
 
 function newDecoder(): TextDecoder {

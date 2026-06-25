@@ -34,15 +34,20 @@ vi.mock('@shipfox/runner-agent', () => ({
 const {runJobSteps} = await import('#core/step-loop.js');
 
 const JOB_ID = '00000000-0000-0000-0000-0000000000aa';
+const RUN_ID = '00000000-0000-0000-0000-0000000000ab';
+const LOGS_DIR = '/runner-logs/job-1';
+const JOB_CONTEXT = {jobId: JOB_ID, runId: RUN_ID};
 const leaseClient = {} as never;
 const STREAM_LENGTH = 128;
 
 // Ordered log of stream lifecycle events across all created streams, so tests can
 // assert "prior attempt drained before the next opens".
 let events: string[];
+let createdStreams: Map<string, FakeStream[]>;
 
 interface FakeStream {
   write: ReturnType<typeof vi.fn>;
+  addSecrets: ReturnType<typeof vi.fn>;
   writeGroup: ReturnType<typeof vi.fn>;
   writeOutputLine: ReturnType<typeof vi.fn>;
   writeEntry: ReturnType<typeof vi.fn>;
@@ -55,9 +60,12 @@ function makeFakeStream(
   label: string,
   drainOutcome: 'drained' | 'abandoned' = 'drained',
 ): FakeStream {
-  return {
+  const stream = {
     write: vi.fn(() => {
       events.push(`write:${label}`);
+    }),
+    addSecrets: vi.fn(() => {
+      events.push(`secrets:${label}`);
     }),
     writeGroup: vi.fn(() => {
       events.push(`group:${label}`);
@@ -78,6 +86,28 @@ function makeFakeStream(
       events.push(`dispose:${label}`);
     }),
   };
+  const prior = createdStreams.get(label) ?? [];
+  prior.push(stream);
+  createdStreams.set(label, prior);
+  return stream;
+}
+
+function streamFor(stepId: string): FakeStream {
+  const stream = createdStreams.get(stepId)?.at(-1);
+  if (!stream) throw new Error(`No stream created for ${stepId}`);
+  return stream;
+}
+
+function runLoop(params: {signal: AbortSignal; secrets?: string[]; cwd?: string}): Promise<void> {
+  return runJobSteps({
+    jobId: JOB_ID,
+    leaseClient,
+    secrets: params.secrets ?? [],
+    signal: params.signal,
+    cwd: params.cwd ?? '/work',
+    logsDir: LOGS_DIR,
+    jobContext: JOB_CONTEXT,
+  });
 }
 
 describe('runJobSteps', () => {
@@ -91,6 +121,7 @@ describe('runJobSteps', () => {
     createSessionLogStreamMock.mockReset();
     executeAgentStepMock.mockReset();
     events = [];
+    createdStreams = new Map();
     reportStepMock.mockResolvedValue({ok: true, cancel: false});
     // Setup succeeds by default; tests that exercise setup failure override it.
     executeSetupStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
@@ -114,12 +145,14 @@ describe('runJobSteps', () => {
     executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(executeSetupStepMock).toHaveBeenCalledWith({
       cwd: '/work',
       leaseClient,
       signal: ac.signal,
+      log: expect.any(Object),
+      jobContext: JOB_CONTEXT,
     });
     expect(executeRunStepMock).toHaveBeenCalledWith(run, {
       signal: ac.signal,
@@ -149,16 +182,23 @@ describe('runJobSteps', () => {
     executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(createStepLogStreamMock).toHaveBeenCalledWith({
-      logsDir: '/work/logs',
+      logsDir: LOGS_DIR,
       stepId: run.id,
       attempt: 3,
       secrets: [],
       append: expect.any(Function),
     });
-    expect(createStepLogStreamMock).toHaveBeenCalledTimes(1);
+    expect(createStepLogStreamMock).toHaveBeenCalledWith({
+      logsDir: LOGS_DIR,
+      stepId: setup.id,
+      attempt: 1,
+      secrets: [],
+      append: expect.any(Function),
+    });
+    expect(createStepLogStreamMock).toHaveBeenCalledTimes(2);
     expect(events).toContain(`drain:${run.id}`);
     expect(events).toContain(`dispose:${run.id}`);
   });
@@ -183,7 +223,7 @@ describe('runJobSteps', () => {
     );
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(captured?.write).toHaveBeenCalledWith(Buffer.from('hello'), 'stdout');
   });
@@ -223,7 +263,7 @@ describe('runJobSteps', () => {
     );
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(captured?.writeGroup).toHaveBeenCalledWith({
       name: 'Run echo hello',
@@ -244,14 +284,19 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce(stepResponse(setup, 1))
       .mockResolvedValueOnce(stepResponse(run, 1))
       .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
-    // Opening the spool throws (e.g. a broken logs dir): capture must be abandoned, not fatal.
-    createStepLogStreamMock.mockImplementationOnce(() => {
-      throw new Error('logs dir is a file');
-    });
+    // Opening the run spool throws (e.g. a broken logs dir): capture must be abandoned, not fatal.
+    createStepLogStreamMock
+      .mockImplementationOnce((opts: {stepId: string}) => {
+        events.push(`create:${opts.stepId}`);
+        return makeFakeStream(opts.stepId);
+      })
+      .mockImplementationOnce(() => {
+        throw new Error('logs dir is a file');
+      });
     executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(executeRunStepMock).toHaveBeenCalled();
     expect(reportStepMock).toHaveBeenCalledWith(
@@ -267,7 +312,15 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce(stepResponse(setup, 1))
       .mockResolvedValueOnce(stepResponse(run, 1))
       .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
-    createStepLogStreamMock.mockReturnValueOnce(makeFakeStream(run.id, 'abandoned'));
+    createStepLogStreamMock
+      .mockImplementationOnce((opts: {stepId: string}) => {
+        events.push(`create:${opts.stepId}`);
+        return makeFakeStream(opts.stepId);
+      })
+      .mockImplementationOnce((opts: {stepId: string}) => {
+        events.push(`create:${opts.stepId}`);
+        return makeFakeStream(opts.stepId, 'abandoned');
+      });
     executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     reportStepMock.mockImplementation((_client, params: {stepId: string; logOutcome: string}) => {
       events.push(`report:${params.stepId}:${params.logOutcome}`);
@@ -275,7 +328,7 @@ describe('runJobSteps', () => {
     });
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(events.indexOf(`drain:${run.id}`)).toBeLessThan(
       events.indexOf(`report:${run.id}:abandoned`),
@@ -298,7 +351,7 @@ describe('runJobSteps', () => {
     executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(events.indexOf(`dispose:${run1.id}`)).toBeLessThan(events.indexOf(`create:${run2.id}`));
     expect(events).toContain(`dispose:${run2.id}`);
@@ -323,7 +376,7 @@ describe('runJobSteps', () => {
     executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     // pull index 2 is the request that claims run2. run1's stream must be disposed before it,
     // so a slow drain delays only the (unclaimed) pull, never a freshly claimed step.
@@ -342,7 +395,7 @@ describe('runJobSteps', () => {
       return Promise.resolve({success: true, error: null, exit_code: 0});
     });
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     // Setup completed and was reported; the aborted run step is not.
     const reportedSteps = reportStepMock.mock.calls.map((call) => call[1].stepId);
@@ -359,7 +412,7 @@ describe('runJobSteps', () => {
     reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
       stepId: setup.id,
@@ -371,7 +424,15 @@ describe('runJobSteps', () => {
       signal: ac.signal,
     });
     expect(executeRunStepMock).not.toHaveBeenCalled();
-    expect(createStepLogStreamMock).not.toHaveBeenCalled();
+    expect(createStepLogStreamMock).toHaveBeenCalledWith({
+      logsDir: LOGS_DIR,
+      stepId: setup.id,
+      attempt: 1,
+      secrets: [],
+      append: expect.any(Function),
+    });
+    expect(events).toContain(`drain:${setup.id}`);
+    expect(events).toContain(`dispose:${setup.id}`);
     expect(requestNextStepMock).toHaveBeenCalledTimes(1);
   });
 
@@ -381,7 +442,7 @@ describe('runJobSteps', () => {
     reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(executeSetupStepMock).not.toHaveBeenCalled();
     expect(executeRunStepMock).not.toHaveBeenCalled();
@@ -401,7 +462,7 @@ describe('runJobSteps', () => {
     requestNextStepMock.mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(executeSetupStepMock).not.toHaveBeenCalled();
     expect(reportStepMock).not.toHaveBeenCalled();
@@ -411,9 +472,7 @@ describe('runJobSteps', () => {
     requestNextStepMock.mockRejectedValueOnce(buildHTTPError(404));
     const ac = new AbortController();
 
-    await expect(
-      runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'}),
-    ).resolves.toBeUndefined();
+    await expect(runLoop({signal: ac.signal})).resolves.toBeUndefined();
 
     expect(executeSetupStepMock).not.toHaveBeenCalled();
     expect(reportStepMock).not.toHaveBeenCalled();
@@ -423,9 +482,7 @@ describe('runJobSteps', () => {
     requestNextStepMock.mockRejectedValueOnce(buildHTTPError(500));
     const ac = new AbortController();
 
-    await expect(
-      runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'}),
-    ).rejects.toThrow();
+    await expect(runLoop({signal: ac.signal})).rejects.toThrow();
 
     expect(requestNextStepMock).toHaveBeenCalledTimes(1);
   });
@@ -443,7 +500,7 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce({ok: true, cancel: true});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
       stepId: run.id,
@@ -455,7 +512,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
     });
     expect(requestNextStepMock).toHaveBeenCalledTimes(2);
-    const stream = createStepLogStreamMock.mock.results[0]?.value as FakeStream;
+    const stream = streamFor(run.id);
     expect(stream.writeOutputLine).toHaveBeenCalledWith(
       'Process completed with exit code 1.',
       'stderr',
@@ -476,9 +533,9 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce({ok: true, cancel: true});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
-    const stream = createStepLogStreamMock.mock.results[0]?.value as FakeStream;
+    const stream = streamFor(run.id);
     expect(stream.writeOutputLine).toHaveBeenCalledWith(
       'Process terminated by signal SIGKILL.',
       'stderr',
@@ -498,9 +555,7 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce({ok: true, cancel: true});
     const ac = new AbortController();
 
-    await expect(
-      runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'}),
-    ).resolves.toBeUndefined();
+    await expect(runLoop({signal: ac.signal})).resolves.toBeUndefined();
 
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
       stepId: run.id,
@@ -511,7 +566,7 @@ describe('runJobSteps', () => {
       logOutcome: 'drained',
       signal: ac.signal,
     });
-    const stream = createStepLogStreamMock.mock.results[0]?.value as FakeStream;
+    const stream = streamFor(run.id);
     expect(stream.writeOutputLine).toHaveBeenCalledWith(
       'Process failed: ENOSPC: no space left on device',
       'stderr',
@@ -527,7 +582,7 @@ describe('runJobSteps', () => {
       return Promise.resolve({success: true, error: null, exit_code: 0});
     });
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(executeSetupStepMock).toHaveBeenCalledTimes(1);
     expect(reportStepMock).not.toHaveBeenCalled();
@@ -537,7 +592,7 @@ describe('runJobSteps', () => {
     const ac = new AbortController();
     ac.abort();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(requestNextStepMock).not.toHaveBeenCalled();
   });
@@ -552,7 +607,7 @@ describe('runJobSteps', () => {
     executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {
       signal: ac.signal,
@@ -588,16 +643,10 @@ describe('runJobSteps', () => {
     );
     const ac = new AbortController();
 
-    await runJobSteps({
-      jobId: JOB_ID,
-      leaseClient,
-      secrets: ['s3cr3t'],
-      signal: ac.signal,
-      cwd: '/work',
-    });
+    await runLoop({signal: ac.signal, secrets: ['s3cr3t']});
 
     expect(createSessionLogStreamMock).toHaveBeenCalledWith({
-      logsDir: '/work/logs',
+      logsDir: LOGS_DIR,
       stepId: agent.id,
       attempt: 1,
       secrets: ['s3cr3t'],
@@ -624,7 +673,7 @@ describe('runJobSteps', () => {
     executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
     const ac = new AbortController();
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {signal: ac.signal, cwd: '/work'});
     expect(reportStepMock).toHaveBeenCalledWith(
@@ -650,7 +699,7 @@ describe('runJobSteps', () => {
       });
     });
 
-    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+    await runLoop({signal: ac.signal});
 
     expect(executeAgentStepMock).toHaveBeenCalledTimes(1);
     // Only the setup step is reported; the aborted agent step is not.

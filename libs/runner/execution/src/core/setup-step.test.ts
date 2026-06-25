@@ -30,6 +30,10 @@ const {CheckoutError} = await import('@shipfox/runner-workspace');
 const CWD = '/tmp/shipfox-test-root/job-1';
 const leaseClient = {} as never;
 const signal = new AbortController().signal;
+const jobContext = {
+  jobId: '00000000-0000-0000-0000-0000000000aa',
+  runId: '00000000-0000-0000-0000-0000000000ab',
+};
 
 function checkoutResponse(auth?: unknown) {
   return {
@@ -39,8 +43,17 @@ function checkoutResponse(auth?: unknown) {
   };
 }
 
-function run() {
-  return executeSetupStep({cwd: CWD, leaseClient, signal});
+function run(log?: ReturnType<typeof fakeLog>) {
+  return executeSetupStep({cwd: CWD, leaseClient, signal, ...(log ? {log, jobContext} : {})});
+}
+
+function fakeLog() {
+  return {
+    writeGroup: vi.fn(),
+    writeOutputLine: vi.fn(),
+    write: vi.fn(),
+    addSecrets: vi.fn(),
+  };
 }
 
 // ky populates `error.data` with the pre-parsed body and consumes `error.response`, so
@@ -59,10 +72,10 @@ function httpError(status: number, body?: unknown): HTTPError {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  assertGitAvailableMock.mockResolvedValue(undefined);
+  assertGitAvailableMock.mockResolvedValue('git version 2.51.0');
   createJobDirMock.mockResolvedValue(undefined);
   requestCheckoutTokenMock.mockResolvedValue(checkoutResponse());
-  checkoutRepositoryMock.mockResolvedValue(undefined);
+  checkoutRepositoryMock.mockResolvedValue('abc123');
 });
 
 describe('executeSetupStep', () => {
@@ -76,14 +89,64 @@ describe('executeSetupStep', () => {
     expect(assertGitAvailableMock).toHaveBeenCalledOnce();
     expect(createJobDirMock).toHaveBeenCalledWith(CWD);
     expect(requestCheckoutTokenMock).toHaveBeenCalledWith(leaseClient, {signal});
-    expect(checkoutRepositoryMock).toHaveBeenCalledWith({
-      repositoryUrl: 'https://github.com/acme/repo.git',
-      ref: 'main',
-      auth: {kind: 'bearer', token: 't', expires_at: '2026-01-01T00:00:00Z'},
-      cwd: CWD,
-      signal,
-    });
+    expect(checkoutRepositoryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repositoryUrl: 'https://github.com/acme/repo.git',
+        ref: 'main',
+        auth: {kind: 'bearer', token: 't', expires_at: '2026-01-01T00:00:00Z'},
+        cwd: CWD,
+        signal,
+        onSecrets: expect.any(Function),
+        onCommandStart: expect.any(Function),
+      }),
+    );
     expect(result).toEqual({success: true, error: null, exit_code: 0});
+  });
+
+  it('writes setup groups and the final checked-out commit', async () => {
+    const log = fakeLog();
+
+    const result = await run(log);
+
+    expect(result.success).toBe(true);
+    expect(log.writeGroup).toHaveBeenCalledWith({
+      name: 'Job context',
+      lines: [`job id: ${jobContext.jobId}`, `run id: ${jobContext.runId}`],
+    });
+    expect(log.writeGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Runner environment',
+        lines: expect.arrayContaining(['git: git version 2.51.0']),
+      }),
+    );
+    expect(log.writeGroup).toHaveBeenCalledWith({
+      name: 'Checkout complete',
+      lines: ['checked-out commit: abc123'],
+    });
+    expect(log.writeOutputLine).toHaveBeenCalledWith('Setup completed successfully.');
+  });
+
+  it('routes checkout callbacks to the setup log sink', async () => {
+    const log = fakeLog();
+
+    await run(log);
+    const [{onSecrets, onCommandStart, onOutput}] = checkoutRepositoryMock.mock.calls[0] as [
+      {
+        onSecrets: (secrets: string[]) => void;
+        onCommandStart: (metadata: {phase: 'fetch'; command: string; cwd: string}) => void;
+        onOutput: (chunk: Buffer, source: 'stdout') => void;
+      },
+    ];
+    onSecrets(['tok-123']);
+    onCommandStart({phase: 'fetch', command: 'git fetch origin main', cwd: CWD});
+    onOutput(Buffer.from('remote output'), 'stdout');
+
+    expect(log.addSecrets).toHaveBeenCalledWith(['tok-123']);
+    expect(log.writeGroup).toHaveBeenCalledWith({
+      name: 'Checkout fetch',
+      lines: ['git fetch origin main', `working-directory: ${CWD}`],
+    });
+    expect(log.write).toHaveBeenCalledWith(Buffer.from('remote output'), 'stdout');
   });
 
   it('checks git before minting a credential', async () => {
@@ -149,7 +212,7 @@ describe('executeSetupStep', () => {
     {kind: 'unavailable' as const, reason: 'checkout_unavailable'},
     {kind: 'failed' as const, reason: 'checkout_failed'},
     {kind: 'aborted' as const, reason: 'setup_aborted'},
-  ])('maps a $kind clone failure to $reason', async ({kind, reason}) => {
+  ])('maps a $kind checkout failure to $reason', async ({kind, reason}) => {
     checkoutRepositoryMock.mockRejectedValue(new CheckoutError(kind, 'boom'));
 
     const result = await run();
@@ -158,7 +221,22 @@ describe('executeSetupStep', () => {
     expect(result.error?.reason).toBe(reason);
   });
 
-  it('maps an unexpected clone error to checkout_failed', async () => {
+  it('logs the checkout phase that failed', async () => {
+    const log = fakeLog();
+    checkoutRepositoryMock.mockRejectedValue(
+      new CheckoutError('failed', 'remote rejected', {phase: 'fetch'}),
+    );
+
+    const result = await run(log);
+
+    expect(result.error?.reason).toBe('checkout_failed');
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Setup failed during checkout fetch: remote rejected',
+      'stderr',
+    );
+  });
+
+  it('maps an unexpected checkout error to checkout_failed', async () => {
     checkoutRepositoryMock.mockRejectedValue(new Error('weird'));
 
     const result = await run();

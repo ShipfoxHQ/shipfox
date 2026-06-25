@@ -512,6 +512,27 @@ describe('createStepLogStream', () => {
     expect(raw).toContain('***');
   });
 
+  it('redacts secrets registered after the stream is created', async () => {
+    const stream = createStepLogStream({
+      logsDir: join(dir, 'logs'),
+      stepId: STEP_ID,
+      attempt: 18,
+      append: hangingAppend,
+      flushIntervalMs: 100000,
+      now: () => 1,
+    });
+
+    stream.addSecrets(['late-token']);
+    stream.writeGroup({name: 'Checkout auth', lines: ['token=late-token']});
+    stream.write(Buffer.from('remote late-token\n'), 'stderr');
+    await stream.close();
+    stream.dispose();
+
+    const raw = await readFile(join(dir, 'logs', `${STEP_ID}-18.ndjson`), 'utf8');
+    expect(raw).not.toContain('late-token');
+    expect(raw).toContain('***');
+  });
+
   it('abandons capture without crashing when a runner-originated metadata write fails', async () => {
     let appends = 0;
     const appendSpy = vi.spyOn(AttemptSpool.prototype, 'append').mockImplementation(() => {

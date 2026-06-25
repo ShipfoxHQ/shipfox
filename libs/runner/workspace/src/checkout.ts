@@ -1,8 +1,10 @@
-import {execFile} from 'node:child_process';
+import {execFile, spawn} from 'node:child_process';
 import {promisify} from 'node:util';
 import type {CheckoutTokenAuthDto} from '@shipfox/api-workflows-dto';
 
 const execFileAsync = promisify(execFile);
+const URL_CREDENTIAL_RE = /(https?:\/\/)[^/@\s]+@/gi;
+const SHELL_SAFE_ARG_RE = /^[A-Za-z0-9_./:=@+-]+$/;
 
 /** Thrown when `git` is not on the runner host's PATH; surfaced as `git_unavailable`. */
 export class GitUnavailableError extends Error {
@@ -12,27 +14,41 @@ export class GitUnavailableError extends Error {
   }
 }
 
+export type CheckoutOutputSink = (chunk: Buffer, source: 'stdout' | 'stderr') => void;
+
+export type CheckoutPhase = 'init' | 'remote' | 'fetch' | 'checkout' | 'resolve';
+
 /**
- * Why a clone failed, kept abstract here so the workspace layer does not depend on the
+ * Why checkout failed, kept abstract here so the workspace layer does not depend on the
  * step-error DTO. The setup step maps each kind to a machine-readable `reason`.
  */
 export type CheckoutFailureKind = 'auth' | 'unavailable' | 'failed' | 'aborted';
 
 export class CheckoutError extends Error {
+  public readonly phase: CheckoutPhase | undefined;
+
   constructor(
     public readonly kind: CheckoutFailureKind,
     message: string,
-    options?: ErrorOptions,
+    options?: ErrorOptions & {phase?: CheckoutPhase | undefined},
   ) {
     super(message, options);
     this.name = 'CheckoutError';
+    this.phase = options?.phase;
   }
 }
 
+export interface CheckoutCommandStartMetadata {
+  readonly phase: CheckoutPhase;
+  readonly command: string;
+  readonly cwd: string;
+}
+
 /** Throws {@link GitUnavailableError} when `git` cannot be invoked on the host. */
-export async function assertGitAvailable(): Promise<void> {
+export async function assertGitAvailable(): Promise<string> {
   try {
-    await execFileAsync('git', ['--version']);
+    const {stdout} = await execFileAsync('git', ['--version']);
+    return stdout.trim();
   } catch (error) {
     throw new GitUnavailableError({cause: error});
   }
@@ -40,14 +56,14 @@ export async function assertGitAvailable(): Promise<void> {
 
 /**
  * Removes every occurrence of each secret plus any URL-embedded `user:pass@` credential
- * from `text`, so a clone error never carries token material into a log or step result.
+ * from `text`, so a checkout error never carries token material into a log or step result.
  */
 export function redactSecrets(text: string, secrets: string[]): string {
   let redacted = text;
   for (const secret of secrets) {
     if (secret) redacted = redacted.split(secret).join('***');
   }
-  return redacted.replace(/(https?:\/\/)[^/@\s]+@/gi, '$1***@');
+  return redacted.replace(URL_CREDENTIAL_RE, '$1***@');
 }
 
 // git surfaces credential rejection and provider-availability failures only through
@@ -59,10 +75,10 @@ const PROVIDER_UNAVAILABLE =
   /could not resolve host|could not connect|connection timed out|failed to connect|temporary failure in name resolution|the requested url returned error: (?:429|5\d\d)/i;
 
 /**
- * Shallow-clones `ref` of `repositoryUrl` into `cwd` (which must already exist and be empty).
+ * Initializes `cwd` and checks out `ref` of `repositoryUrl` into it.
  *
  * The credential is injected with a one-shot `-c http.extraHeader`, never embedded in the
- * clone URL, so it is not persisted to `.git/config` where later user steps could read it.
+ * remote URL, so it is not persisted to `.git/config` where later user steps could read it.
  * `GIT_TERMINAL_PROMPT=0` turns a missing or denied credential into an immediate error
  * instead of a hang on an interactive prompt. Failures are classified into a
  * {@link CheckoutError} and have any token material redacted from their message.
@@ -73,22 +89,68 @@ export async function checkoutRepository(params: {
   auth?: CheckoutTokenAuthDto | undefined;
   cwd: string;
   signal?: AbortSignal | undefined;
-}): Promise<void> {
-  const {repositoryUrl, ref, auth, cwd, signal} = params;
+  onOutput?: CheckoutOutputSink | undefined;
+  onCommandStart?: ((metadata: CheckoutCommandStartMetadata) => void) | undefined;
+  onSecrets?: ((secrets: string[]) => void) | undefined;
+}): Promise<string> {
+  const {repositoryUrl, ref, auth, cwd, signal, onCommandStart, onOutput, onSecrets} = params;
 
-  const args: string[] = [];
-  if (auth) {
-    args.push('-c', `http.extraHeader=Authorization: ${authorizationValue(auth)}`);
-  }
-  args.push('clone', '--depth=1', '--single-branch', '--branch', ref, repositoryUrl, cwd);
+  const secrets = secretsOf(auth);
+  onSecrets?.(secrets);
 
   try {
-    await execFileAsync('git', args, {
-      env: {...process.env, GIT_TERMINAL_PROMPT: '0'},
-      ...(signal ? {signal} : {}),
+    await runGitCommand({
+      phase: 'init',
+      args: ['init'],
+      displayArgs: ['init'],
+      cwd,
+      signal,
+      onCommandStart,
+      onOutput,
     });
+    await runGitCommand({
+      phase: 'remote',
+      args: ['remote', 'add', 'origin', repositoryUrl],
+      displayArgs: ['remote', 'add', 'origin', redactSecrets(repositoryUrl, secrets)],
+      cwd,
+      signal,
+      onCommandStart,
+      onOutput,
+    });
+
+    const fetchArgs = ['fetch', '--progress', '--no-tags', '--prune', '--depth=1', 'origin', ref];
+    await runGitCommand({
+      phase: 'fetch',
+      args: auth
+        ? ['-c', `http.extraHeader=Authorization: ${authorizationValue(auth)}`, ...fetchArgs]
+        : fetchArgs,
+      displayArgs: fetchArgs,
+      cwd,
+      signal,
+      onCommandStart,
+      onOutput,
+    });
+    await runGitCommand({
+      phase: 'checkout',
+      args: ['checkout', '--progress', '--force', 'FETCH_HEAD'],
+      displayArgs: ['checkout', '--progress', '--force', 'FETCH_HEAD'],
+      cwd,
+      signal,
+      onCommandStart,
+      onOutput,
+    });
+    const {stdout} = await runGitCommand({
+      phase: 'resolve',
+      args: ['rev-parse', 'HEAD'],
+      displayArgs: ['rev-parse', 'HEAD'],
+      cwd,
+      signal,
+      onCommandStart,
+      onOutput,
+    });
+    return stdout.trim();
   } catch (error) {
-    throw classifyCloneError(error, auth);
+    throw classifyCheckoutError(error, auth);
   }
 }
 
@@ -110,23 +172,121 @@ function secretsOf(auth: CheckoutTokenAuthDto | undefined): string[] {
   return [auth.token, basicCredential(auth)];
 }
 
-function classifyCloneError(error: unknown, auth: CheckoutTokenAuthDto | undefined): CheckoutError {
+function classifyCheckoutError(
+  error: unknown,
+  auth: CheckoutTokenAuthDto | undefined,
+): CheckoutError {
   if (isAbortError(error)) {
-    return new CheckoutError('aborted', 'Checkout aborted', {cause: error});
+    return new CheckoutError('aborted', 'Checkout aborted', {cause: error, phase: phaseOf(error)});
   }
 
   const secrets = secretsOf(auth);
   const stderr = stderrOf(error);
   const message = redactSecrets(stderr.trim() || errorMessage(error), secrets);
-  // The raw execFile error carries the full argv (including the Authorization header) in
-  // its `message`/`cmd`, so it can never ride the cause chain into a logger un-redacted.
-  const cause = secrets.length > 0 ? redactedCause(error, secrets) : error;
+  // Raw process errors can carry provider output or credential-bearing URLs, so
+  // the cause chain is rebuilt before it can ride into a logger unredacted.
+  const cause = redactedCause(error, secrets);
 
-  if (AUTH_FAILURE.test(stderr)) return new CheckoutError('auth', message, {cause});
+  const phase = phaseOf(error);
+
+  if (AUTH_FAILURE.test(stderr)) return new CheckoutError('auth', message, {cause, phase});
   if (PROVIDER_UNAVAILABLE.test(stderr)) {
-    return new CheckoutError('unavailable', message, {cause});
+    return new CheckoutError('unavailable', message, {cause, phase});
   }
-  return new CheckoutError('failed', message, {cause});
+  return new CheckoutError('failed', message, {cause, phase});
+}
+
+function runGitCommand(params: {
+  phase: CheckoutPhase;
+  args: string[];
+  displayArgs: string[];
+  cwd: string;
+  signal?: AbortSignal | undefined;
+  onOutput?: CheckoutOutputSink | undefined;
+  onCommandStart?: ((metadata: CheckoutCommandStartMetadata) => void) | undefined;
+}): Promise<{stdout: string; stderr: string}> {
+  const {phase, args, displayArgs, cwd, signal, onCommandStart, onOutput} = params;
+  onCommandStart?.({phase, command: formatGitCommand(displayArgs), cwd});
+
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', args, {
+      cwd,
+      env: {...process.env, GIT_TERMINAL_PROMPT: '0'},
+      stdio: ['ignore', 'pipe', 'pipe'],
+      ...(signal ? {signal} : {}),
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+      onOutput?.(chunk, 'stdout');
+    });
+
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+      onOutput?.(chunk, 'stderr');
+    });
+
+    child.on('error', (error) => {
+      if (settled) return;
+      settled = true;
+      if (error instanceof Error && error.name === 'AbortError') {
+        (error as Error & {phase?: CheckoutPhase}).phase = phase;
+      }
+      reject(error);
+    });
+
+    child.on('close', (code, signalName) => {
+      if (settled) return;
+      settled = true;
+      if (code === 0) {
+        resolve({stdout, stderr});
+        return;
+      }
+      reject(new GitCommandError(phase, stderr, code, signalName));
+    });
+  });
+}
+
+class GitCommandError extends Error {
+  constructor(
+    public readonly phase: CheckoutPhase,
+    public readonly stderr: string,
+    public readonly code: number | null,
+    public readonly signal: NodeJS.Signals | null,
+  ) {
+    super('Git command failed');
+    this.name = 'GitCommandError';
+  }
+}
+
+function phaseOf(error: unknown): CheckoutPhase | undefined {
+  if (error instanceof GitCommandError) return error.phase;
+  if (error && typeof error === 'object' && 'phase' in error) {
+    const {phase} = error as {phase?: unknown};
+    if (
+      phase === 'init' ||
+      phase === 'remote' ||
+      phase === 'fetch' ||
+      phase === 'checkout' ||
+      phase === 'resolve'
+    ) {
+      return phase;
+    }
+  }
+  return undefined;
+}
+
+function formatGitCommand(args: string[]): string {
+  return `git ${args.map(shellQuote).join(' ')}`;
+}
+
+function shellQuote(value: string): string {
+  if (SHELL_SAFE_ARG_RE.test(value)) return value;
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 // Rebuilds the failure cause with every secret stripped from its message, preserving the

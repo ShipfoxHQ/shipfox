@@ -159,6 +159,15 @@ describe('LogTransformer secret masking', () => {
 
     expect(outputText(events)).toBe('token=sf_rt_SECRET123456\n');
   });
+
+  it('masks secrets registered after construction', () => {
+    const transformer = new LogTransformer([]);
+
+    transformer.addSecrets([SECRET]);
+    const events = transformer.push(Buffer.from(`token=${SECRET}\n`), 'stdout');
+
+    expect(outputText(events)).toBe('token=***\n');
+  });
 });
 
 describe('LogTransformer live streaming', () => {

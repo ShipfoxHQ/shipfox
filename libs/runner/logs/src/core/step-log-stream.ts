@@ -31,6 +31,8 @@ export interface StepLogStreamOptions {
 export interface StepLogStream extends LogStreamLifecycle {
   /** Frames and spools a captured output chunk. Safe to call from a pipe handler. */
   write(chunk: Buffer, source: OutputSource): void;
+  /** Registers additional secrets for subsequent runner metadata and captured output. */
+  addSecrets(secrets: string[]): void;
   /** Frames a runner-originated group using the same group records as `::group::` markers. */
   writeGroup(options: StepLogGroupOptions): void;
   /** Frames a runner-originated output line, ensuring it ends with a newline. */
@@ -53,7 +55,7 @@ export interface StepLogGroupOptions {
 export function createStepLogStream(options: StepLogStreamOptions): StepLogStream {
   const now = options.now ?? Date.now;
   const framer = new StreamFramer(now);
-  const secretVariants = buildSecretVariants(options.secrets ?? []);
+  let secretVariants = buildSecretVariants(options.secrets ?? []);
   const transformer = new LogTransformer(options.secrets ?? []);
   const sink = createRecordSink({
     logsDir: options.logsDir,
@@ -132,6 +134,12 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
   }
 
   return {
+    addSecrets(secrets) {
+      if (secrets.length === 0) return;
+      secretVariants = mergeSecretVariants(secretVariants, secrets);
+      transformer.addSecrets(secrets);
+    },
+
     write(chunk, source) {
       // Once the server caps the budget the runner stops emitting; the cap
       // tombstone is server-side, so no gap is recorded here.
@@ -188,6 +196,12 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
       sink.dispose();
     },
   };
+}
+
+function mergeSecretVariants(existing: string[], secrets: string[]): string[] {
+  const variants = new Set(existing);
+  for (const form of buildSecretVariants(secrets)) variants.add(form);
+  return [...variants].sort((a, b) => b.length - a.length);
 }
 
 function ensureTrailingNewline(line: string): string {
