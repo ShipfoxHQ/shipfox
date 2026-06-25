@@ -1,4 +1,4 @@
-import {mkdtemp, rm, stat, writeFile} from 'node:fs/promises';
+import {mkdir, mkdtemp, rm, stat, writeFile} from 'node:fs/promises';
 import {homedir, tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {
@@ -122,8 +122,31 @@ describe('cleanupWorkspace', () => {
 });
 
 describe('cleanupJobLogs', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'shipfox-job-logs-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(root, {recursive: true, force: true});
+  });
+
+  it('removes an existing job log directory without touching the root', async () => {
+    const logsDir = join(root, 'job-33333333-3333-4333-8333-333333333333');
+    await mkdir(logsDir, {recursive: true});
+    await writeFile(join(logsDir, 'setup.ndjson'), '{}\n');
+
+    const result = await cleanupJobLogs(logsDir);
+
+    const readLogsDir = () => stat(logsDir);
+    await expect(readLogsDir()).rejects.toThrow();
+    expect((await stat(root)).isDirectory()).toBe(true);
+    expect(result).toBeUndefined();
+  });
+
   it('does not throw when the directory is missing', async () => {
-    const missing = join(tmpdir(), 'shipfox-job-logs-does-not-exist-xyz');
+    const missing = join(root, 'shipfox-job-logs-does-not-exist-xyz');
 
     const result = await cleanupJobLogs(missing);
 
