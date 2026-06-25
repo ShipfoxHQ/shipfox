@@ -43,5 +43,24 @@ jobs:
           on_failure:
             restart_from: second-setup
             output: Second gate failed once; retrying from second setup.
+      - name: third-gate
+        run: |
+          counter=.shipfox/demo-gates/third-gate-attempts
+          attempts=0
+          if [ -f "$counter" ]; then
+            attempts=$(cat "$counter")
+          fi
+          attempts=$((attempts + 1))
+          printf '%s\n' "$attempts" > "$counter"
+          if [ "$attempts" -le 2 ]; then
+            echo "Third gate fails attempt $attempts of 2"
+            exit 1
+          fi
+          echo "Third gate passed on attempt $attempts"
+        gate:
+          success_if: exit_code == 0
+          on_failure:
+            restart_from: second-setup
+            output: Third gate failed; retrying from second setup.
       - name: finish
-        run: echo "Both gates passed; job succeeded"
+        run: echo "All three gates passed; job succeeded"
