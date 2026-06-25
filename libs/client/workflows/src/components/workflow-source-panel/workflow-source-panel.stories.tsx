@@ -39,6 +39,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test --filter=@shipfox/client-workflows`,
     },
+    highlightedLineRange: {startLine: 10, endLine: 11},
     onClose: () => undefined,
   },
 } satisfies Meta<typeof WorkflowSourcePanel>;

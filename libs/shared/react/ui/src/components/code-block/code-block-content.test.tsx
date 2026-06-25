@@ -2,6 +2,10 @@ import {render, waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
 import {codeToHtml} from 'shiki';
 import {ThemeProvider} from '../theme/index.js';
+import {
+  CODE_BLOCK_HIGHLIGHTED_LINE_DESCENDANT_STYLE,
+  CODE_BLOCK_HIGHLIGHTED_LINE_STYLE,
+} from './code-content.js';
 import {CodeBlockContent} from './index.js';
 
 vi.mock('shiki', () => ({
@@ -76,6 +80,11 @@ describe('CodeBlockContent', () => {
       expect(document.body.querySelector('.line.highlighted-line')?.textContent).toContain('three');
     });
     expect(codeToHtmlMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps highlighted line backgrounds above the Shiki transparent reset', () => {
+    expect(CODE_BLOCK_HIGHLIGHTED_LINE_STYLE).toContain('!bg-[');
+    expect(CODE_BLOCK_HIGHLIGHTED_LINE_DESCENDANT_STYLE).toContain(':!bg-[');
   });
 });
 
