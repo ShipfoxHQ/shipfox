@@ -3,6 +3,7 @@ import {Code, cn, RelativeTime} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {WorkflowRun} from '#core/workflow-run.js';
+import {withoutWorkflowRunSelectionSearch} from '#core/workflow-run-url-state.js';
 
 export function WorkflowRunRowList({
   runs,
@@ -103,6 +104,10 @@ export function WorkflowRunRow({
     <Link
       to="/workspaces/$wid/projects/$pid/runs/$runId"
       params={{wid: workspaceId, pid: projectId, runId: run.id}}
+      search={
+        ((previous: Record<string, unknown>) =>
+          withoutWorkflowRunSelectionSearch(previous)) as never
+      }
       aria-current={selected ? 'page' : undefined}
       className={cn(
         'group relative flex w-full flex-col gap-3 rounded-8 border border-transparent px-10 py-7 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',

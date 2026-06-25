@@ -55,15 +55,17 @@ function createTestRouter(
 export function renderProjectPage(
   path: string,
   renderPage: (params: {runId?: string | undefined}) => ReactElement,
-): RenderResult {
+): RenderResult & {router: ReturnType<typeof createTestRouter>} {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
   const router = createTestRouter(path, renderPage);
 
   configureApiClient({baseUrl: 'https://api.example.test'});
 
-  return render(
+  const result = render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
+
+  return Object.assign(result, {router});
 }

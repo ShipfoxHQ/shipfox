@@ -2,7 +2,7 @@ import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {Meta, StoryObj} from '@storybook/react';
 import {waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
-import type {CodeBlockData} from './index.js';
+import type {CodeBlockData, CodeBlockHighlightedLineRange} from './index.js';
 import {
   CodeBlock,
   CodeBlockBody,
@@ -62,11 +62,13 @@ function CodeBlockShowcase({
   lineNumbers,
   syntaxHighlighting,
   footer,
+  highlightedLineRange,
 }: {
   data: CodeBlockData[];
   lineNumbers?: boolean;
   syntaxHighlighting?: boolean;
   footer?: ReactNode;
+  highlightedLineRange?: CodeBlockHighlightedLineRange | undefined;
 }) {
   return (
     <CodeBlock data={data}>
@@ -79,7 +81,11 @@ function CodeBlockShowcase({
       <CodeBlockBody>
         {(item) => (
           <CodeBlockItem value={item.filename} lineNumbers={lineNumbers}>
-            <CodeBlockContent language={item.language} syntaxHighlighting={syntaxHighlighting}>
+            <CodeBlockContent
+              language={item.language}
+              syntaxHighlighting={syntaxHighlighting}
+              highlightedLineRange={highlightedLineRange}
+            >
               {item.code}
             </CodeBlockContent>
           </CodeBlockItem>
@@ -113,6 +119,12 @@ export const SyntaxHighlighting: Story = {
 
 export const DiffHighlighting: Story = {
   render: () => <CodeBlockShowcase data={[diffFile]} />,
+};
+
+export const LineHighlighting: Story = {
+  render: () => (
+    <CodeBlockShowcase data={[workflowFile]} highlightedLineRange={{startLine: 3, endLine: 5}} />
+  ),
 };
 
 export const WithoutLineNumbers: Story = {

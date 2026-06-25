@@ -150,6 +150,51 @@ describe('WorkflowRunView', () => {
     expect(screen.getByRole('region', {name: 'Step attempts'})).toBeInTheDocument();
   });
 
+  test('highlights selected step source lines when the source panel opens', async () => {
+    const user = userEvent.setup();
+    const stepId = '99999999-9999-4999-8999-000000000003';
+    configureApiClient({
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            runDetailDto({
+              source_snapshot: {
+                format: 'yaml',
+                content: 'jobs:\n  deploy:\n    steps:\n      - run: ship',
+              },
+              jobs: [
+                jobDto({
+                  id: '88888888-8888-4888-8888-888888888888',
+                  name: 'deploy',
+                  status: 'running',
+                  steps: [
+                    stepDto({
+                      id: stepId,
+                      job_id: '88888888-8888-4888-8888-888888888888',
+                      name: 'deploy',
+                      display_name: 'deploy',
+                      source_location: {start_line: 2, end_line: 3},
+                      status: 'running',
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ),
+        ),
+      ),
+    });
+
+    renderView({selection: {stepId}});
+    await user.click(await screen.findByRole('button', {name: 'Source'}));
+
+    await screen.findByRole('dialog', {name: 'Workflow source'});
+    const highlightedLines = document.body.querySelectorAll('.line.highlighted-line');
+    expect(highlightedLines).toHaveLength(2);
+    expect(highlightedLines[0]).toHaveTextContent('deploy:');
+    expect(highlightedLines[1]).toHaveTextContent('steps:');
+  });
+
   test('does not render a source control when the run has no source snapshot', async () => {
     configureApiClient({
       fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(runDetailDto({source_snapshot: null})))),
@@ -163,9 +208,9 @@ describe('WorkflowRunView', () => {
   });
 });
 
-function renderView() {
-  renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/x/runs/${RUN_ID}`, () => (
-    <WorkflowRunView runId={RUN_ID} />
+function renderView(props: Partial<Parameters<typeof WorkflowRunView>[0]> = {}) {
+  return renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/x/runs/${RUN_ID}`, () => (
+    <WorkflowRunView runId={RUN_ID} {...props} />
   ));
 }
 
