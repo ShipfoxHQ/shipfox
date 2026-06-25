@@ -181,16 +181,12 @@ function CodeBlockFallback({
     >
       <code>
         {lines.map((line, index) => {
-          const isDiffRemove = line.trim().startsWith('-');
-          const isDiffAdd = line.trim().startsWith('+');
-          const diffClass = isDiffRemove ? 'diff remove' : isDiffAdd ? 'diff add' : '';
           const key = `${index}-${line}`;
 
           return (
             <span
               className={cn(
                 'line',
-                diffClass,
                 isCodeBlockLineHighlighted(index + 1, highlightedLineRange) && 'highlighted-line',
               )}
               key={key}

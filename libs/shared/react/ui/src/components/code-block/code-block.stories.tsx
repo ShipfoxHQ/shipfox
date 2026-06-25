@@ -117,7 +117,7 @@ export const SyntaxHighlighting: Story = {
   render: () => <CodeBlockShowcase data={[sourceFile]} syntaxHighlighting />,
 };
 
-export const DiffHighlighting: Story = {
+export const DiffContent: Story = {
   render: () => <CodeBlockShowcase data={[diffFile]} />,
 };
 

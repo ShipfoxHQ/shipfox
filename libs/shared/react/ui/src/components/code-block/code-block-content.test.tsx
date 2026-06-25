@@ -32,6 +32,17 @@ describe('CodeBlockContent', () => {
     );
   });
 
+  test('does not infer diff styling from YAML list markers', () => {
+    renderCodeBlockContent({
+      code: 'steps:\n  - uses: actions/checkout@v3',
+    });
+
+    const lines = document.body.querySelectorAll('.line');
+    expect(lines[1]?.textContent).toContain('- uses: actions/checkout@v3');
+    expect(lines[1]?.classList.contains('diff')).toBe(false);
+    expect(lines[1]?.classList.contains('remove')).toBe(false);
+  });
+
   test('highlights Shiki-rendered lines without re-highlighting on range-only changes', async () => {
     const codeToHtmlMock = vi.mocked(codeToHtml);
     codeToHtmlMock.mockResolvedValue(highlightedHtml);
