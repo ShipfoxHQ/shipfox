@@ -198,6 +198,47 @@ describe('WorkflowJobsGraph', () => {
     expect(deployEdge).toHaveAttribute('stroke-width', '1');
   });
 
+  test('draws highlighted edges above overlapping normal edges', async () => {
+    const user = userEvent.setup();
+    const build = makeJob({name: 'build', status: 'succeeded'});
+    const lint = makeJob({
+      name: 'lint',
+      position: 1,
+      dependencies: ['build'],
+      status: 'succeeded',
+    });
+    const testJob = makeJob({
+      name: 'test',
+      position: 2,
+      dependencies: ['build'],
+      status: 'running',
+    });
+    const deploy = makeJob({
+      name: 'deploy',
+      position: 3,
+      dependencies: ['lint', 'test'],
+    });
+    const {container} = render(
+      <WorkflowJobsGraph run={makeRun({jobs: [build, lint, testJob, deploy]})} />,
+    );
+    const buildToLintEdge = container.querySelector(`[data-edge-id="${build.id}:${lint.id}"]`);
+    const buildToTestEdge = container.querySelector(`[data-edge-id="${build.id}:${testJob.id}"]`);
+    const testNode = screen.getByRole('button', {
+      name: 'test, Running',
+    });
+
+    await user.hover(testNode);
+
+    expect(buildToTestEdge).toHaveAttribute('stroke-width', '1.5');
+    expect(buildToLintEdge).toHaveAttribute('stroke-width', '1');
+    if (!buildToLintEdge || !buildToTestEdge) {
+      throw new Error('Expected branch edges to render');
+    }
+    expect(buildToLintEdge.compareDocumentPosition(buildToTestEdge)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
   test('routes skipped-column join edges away from intermediate nodes', () => {
     const packageJob = makeJob({name: 'package', position: 0, status: 'succeeded'});
     const securityScan = makeJob({name: 'security-scan', position: 1, status: 'succeeded'});

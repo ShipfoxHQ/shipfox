@@ -129,30 +129,40 @@ function GraphEdges({
   hoveredJobId?: string | undefined;
 }) {
   const byId = new Map(model.nodes.map((node) => [node.id, node]));
+  const edgeViews = model.edges
+    .map((edge) => {
+      const fromNode = byId.get(edge.from);
+      const toNode = byId.get(edge.to);
+      const from = edge.from === 'trigger' ? triggerPoint() : jobRightPoint(fromNode);
+      const to = jobLeftPoint(toNode);
+      if (!from || !to) return undefined;
+
+      return {
+        id: edge.id,
+        highlighted: edge.from === hoveredJobId || edge.to === hoveredJobId,
+        path: edgePath({from, fromNode, to, toNode}),
+      };
+    })
+    .filter((edgeView): edgeView is NonNullable<typeof edgeView> => edgeView !== undefined)
+    .sort((left, right) => Number(left.highlighted) - Number(right.highlighted));
 
   return (
     <svg className="pointer-events-none absolute inset-0 size-full" aria-hidden="true">
-      {model.edges.map((edge) => {
-        const fromNode = byId.get(edge.from);
-        const toNode = byId.get(edge.to);
-        const from = edge.from === 'trigger' ? triggerPoint() : jobRightPoint(fromNode);
-        const to = jobLeftPoint(toNode);
-        if (!from || !to) return null;
-        const highlighted = edge.from === hoveredJobId || edge.to === hoveredJobId;
+      {edgeViews.map((edge) => {
         return (
           <g
             key={edge.id}
             className={cn(
               'text-foreground-neutral-muted transition-colors',
-              highlighted && 'text-foreground-neutral-base',
+              edge.highlighted && 'text-foreground-neutral-base',
             )}
           >
             <path
               data-edge-id={edge.id}
-              d={edgePath({from, fromNode, to, toNode})}
+              d={edge.path}
               fill="none"
               stroke="currentColor"
-              strokeWidth={highlighted ? 1.5 : 1}
+              strokeWidth={edge.highlighted ? 1.5 : 1}
             />
           </g>
         );
