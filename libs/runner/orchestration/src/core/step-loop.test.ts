@@ -43,6 +43,8 @@ let events: string[];
 
 interface FakeStream {
   write: ReturnType<typeof vi.fn>;
+  writeGroup: ReturnType<typeof vi.fn>;
+  writeOutputLine: ReturnType<typeof vi.fn>;
   writeEntry: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
   drain: ReturnType<typeof vi.fn>;
@@ -51,7 +53,15 @@ interface FakeStream {
 
 function makeFakeStream(label: string): FakeStream {
   return {
-    write: vi.fn(),
+    write: vi.fn(() => {
+      events.push(`write:${label}`);
+    }),
+    writeGroup: vi.fn(() => {
+      events.push(`group:${label}`);
+    }),
+    writeOutputLine: vi.fn(() => {
+      events.push(`line:${label}`);
+    }),
     writeEntry: vi.fn(),
     close: vi.fn(() => {
       events.push(`close:${label}`);
@@ -111,6 +121,7 @@ describe('runJobSteps', () => {
     expect(executeRunStepMock).toHaveBeenCalledWith(run, {
       signal: ac.signal,
       cwd: '/work',
+      onCommandStart: expect.any(Function),
       onOutput: expect.any(Function),
     });
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
@@ -171,6 +182,55 @@ describe('runJobSteps', () => {
     await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
 
     expect(captured?.write).toHaveBeenCalledWith(Buffer.from('hello'), 'stdout');
+  });
+
+  it('writes command metadata before captured output', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep({config: {run: 'echo hello'}});
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    let captured: FakeStream | undefined;
+    createStepLogStreamMock.mockImplementation((opts: {stepId: string}) => {
+      captured = makeFakeStream(opts.stepId);
+      return captured;
+    });
+    executeRunStepMock.mockImplementation(
+      (
+        _step,
+        opts: {
+          onCommandStart: (metadata: {
+            command: string;
+            shell: {display: string};
+            cwd?: string;
+          }) => void;
+          onOutput: (chunk: Buffer, src: string) => void;
+        },
+      ) => {
+        opts.onCommandStart({
+          command: 'echo hello',
+          shell: {display: 'bash --noprofile --norc -eo pipefail {0}'},
+          cwd: '/work',
+        });
+        opts.onOutput(Buffer.from('hello'), 'stdout');
+        return Promise.resolve({success: true, error: null, exit_code: 0});
+      },
+    );
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+
+    expect(captured?.writeGroup).toHaveBeenCalledWith({
+      name: 'Run echo hello',
+      lines: [
+        'echo hello',
+        'shell: bash --noprofile --norc -eo pipefail {0}',
+        'working-directory: /work',
+      ],
+      source: 'stdout',
+    });
+    expect(events.indexOf(`group:${run.id}`)).toBeLessThan(events.indexOf(`write:${run.id}`));
   });
 
   it('runs and reports the step when opening the log stream fails (capture abandoned)', async () => {
@@ -362,6 +422,35 @@ describe('runJobSteps', () => {
       signal: ac.signal,
     });
     expect(requestNextStepMock).toHaveBeenCalledTimes(2);
+    const stream = createStepLogStreamMock.mock.results[0]?.value as FakeStream;
+    expect(stream.writeOutputLine).toHaveBeenCalledWith(
+      'Process completed with exit code 1.',
+      'stderr',
+    );
+    expect(events.indexOf(`line:${run.id}`)).toBeLessThan(events.indexOf(`close:${run.id}`));
+  });
+
+  it('writes terminal signal context for a failed run step before closing the stream', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    const error = {message: 'Killed by signal SIGKILL', exit_code: null, signal: 'SIGKILL'};
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1));
+    executeRunStepMock.mockResolvedValueOnce({success: false, error, exit_code: null});
+    reportStepMock
+      .mockResolvedValueOnce({ok: true, cancel: false})
+      .mockResolvedValueOnce({ok: true, cancel: true});
+    const ac = new AbortController();
+
+    await runJobSteps({jobId: JOB_ID, leaseClient, secrets: [], signal: ac.signal, cwd: '/work'});
+
+    const stream = createStepLogStreamMock.mock.results[0]?.value as FakeStream;
+    expect(stream.writeOutputLine).toHaveBeenCalledWith(
+      'Process terminated by signal SIGKILL.',
+      'stderr',
+    );
+    expect(events.indexOf(`line:${run.id}`)).toBeLessThan(events.indexOf(`close:${run.id}`));
   });
 
   it('reports the step failed when executeRunStep throws (no leaked error, no hung step)', async () => {
@@ -388,6 +477,11 @@ describe('runJobSteps', () => {
       exitCode: null,
       signal: ac.signal,
     });
+    const stream = createStepLogStreamMock.mock.results[0]?.value as FakeStream;
+    expect(stream.writeOutputLine).toHaveBeenCalledWith(
+      'Process failed: ENOSPC: no space left on device',
+      'stderr',
+    );
   });
 
   it('does not report when the signal aborts during setup', async () => {

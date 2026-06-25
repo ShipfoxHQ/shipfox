@@ -2,10 +2,12 @@ import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, join} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
-import {executeRunStep, type OutputSink} from '#core/run-step.js';
+import {type CommandStartMetadata, executeRunStep, type OutputSink} from '#core/run-step.js';
 
 const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
 const ESRCH_REGEX = /ESRCH/;
+const SHELL_EXECUTABLE_REGEX = /^(bash|sh)$/;
+const SCRIPT_PATH_REGEX = /shipfox-runner-.*\.sh$/;
 
 function collectOutput(): {sink: OutputSink; text: () => string; sources: () => string[]} {
   const chunks: Buffer[] = [];
@@ -107,6 +109,57 @@ describe('executeRunStep', () => {
     } finally {
       await rm(dir, {recursive: true, force: true});
     }
+  });
+
+  it('emits resolved command metadata before stdout or stderr', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'shipfox-command-metadata-test-'));
+    try {
+      const step = buildStep({config: {run: 'echo hello'}});
+      const events: string[] = [];
+      let metadata: CommandStartMetadata | undefined;
+
+      const result = await executeRunStep(step, {
+        cwd: dir,
+        onCommandStart: (value) => {
+          events.push('metadata');
+          metadata = value;
+        },
+        onOutput: () => {
+          events.push('output');
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(events[0]).toBe('metadata');
+      expect(events).toContain('output');
+      expect(metadata).toBeDefined();
+      if (!metadata) throw new Error('expected command metadata');
+      expect(metadata).toMatchObject({
+        command: 'echo hello',
+        cwd: dir,
+      });
+      expect(metadata.shell.executable).toMatch(SHELL_EXECUTABLE_REGEX);
+      expect(metadata.shell.args.at(-1)).toMatch(SCRIPT_PATH_REGEX);
+      expect(metadata.shell.display).toContain('{0}');
+      expect(metadata.shell.display).not.toContain(metadata.shell.args.at(-1) ?? '');
+    } finally {
+      await rm(dir, {recursive: true, force: true});
+    }
+  });
+
+  it('continues running the command when command metadata emission throws', async () => {
+    const step = buildStep({config: {run: 'echo still-runs'}});
+    const output = collectOutput();
+
+    const result = await executeRunStep(step, {
+      onCommandStart: () => {
+        throw new Error('capture unavailable');
+      },
+      onOutput: output.sink,
+    });
+
+    expect(result.success).toBe(true);
+    expect(output.text()).toContain('still-runs');
   });
 
   it('handles multi-line scripts', async () => {
