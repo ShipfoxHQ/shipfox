@@ -108,6 +108,7 @@ describe('IntegrationGallery — installed section', () => {
 
     expect(await screen.findByText('acme-one')).toBeVisible();
     expect(screen.getByText('acme-two')).toBeVisible();
+    expect(screen.getByText('Provider accounts linked to this workspace.')).toBeVisible();
   });
 
   test('sorts stably by provider name then created_at regardless of input order', async () => {
@@ -320,6 +321,7 @@ describe('IntegrationGallery — available section', () => {
 
     expect(await screen.findByRole('link', {name: 'Connect GitHub'})).toBeVisible();
     expect(screen.getByRole('link', {name: 'Connect Sentry'})).toBeVisible();
+    expect(screen.getByText('Providers available to connect to this workspace.')).toBeVisible();
   });
 
   test('exposes each available tile as a single link with no nested button', async () => {
