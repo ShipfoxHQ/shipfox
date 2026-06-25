@@ -1,12 +1,17 @@
-import {useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useState} from 'react';
 
 export function useIsTextTruncated<TElement extends HTMLElement>(text: string) {
-  const ref = useRef<TElement>(null);
+  const [element, setElement] = useState<TElement | null>(null);
   const [isTruncated, setIsTruncated] = useState(false);
+  const ref = useCallback((node: TElement | null) => {
+    setElement(node);
+  }, []);
 
   useEffect(() => {
-    const element = ref.current;
-    if (!element) return;
+    if (!element) {
+      setIsTruncated(false);
+      return;
+    }
     if (text.length === 0) {
       setIsTruncated(false);
       return;
@@ -21,7 +26,7 @@ export function useIsTextTruncated<TElement extends HTMLElement>(text: string) {
     const observer = new ResizeObserver(updateTruncation);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [text]);
+  }, [element, text]);
 
   return {ref, isTruncated};
 }
