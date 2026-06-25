@@ -6,6 +6,7 @@ const ONBOARDING_URL_RE = /\/setup\/workspaces\/new\/?$/u;
 const WORKSPACE_INTEGRATIONS_URL_RE = /\/workspaces\/[^/]+\/integrations\/?$/u;
 const CREATE_WORKSPACE_LABEL_RE = /Create workspace/u;
 const LAST_WORKSPACE_KEY = 'shipfox.lastWorkspaceId';
+const DEBUG_REPOSITORY_RE = /debug-owner\/platform/u;
 
 function workspaceUrlRe(wid: string): RegExp {
   return new RegExp(`/workspaces/${wid}(/|$)`, 'u');
@@ -28,7 +29,7 @@ async function completeWorkspaceSetup(page: Page, workspaceId: string): Promise<
   await page.goto(`/workspaces/${workspaceId}/integrations/debug`);
   await expect(page.getByText('Debug source control connected.')).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`/workspaces/${workspaceId}/projects/new/?$`, 'u'));
-  await expect(page.getByText('debug-owner/platform')).toBeVisible();
+  await expect(page.getByRole('radio', {name: DEBUG_REPOSITORY_RE})).toBeVisible();
   await expect(page.getByRole('button', {name: 'Create project'})).toBeEnabled();
   await page.getByRole('button', {name: 'Create project'}).click();
 

@@ -4,6 +4,7 @@ import {expect, test} from './test.js';
 
 const WORKSPACE_INTEGRATIONS_URL_RE = /\/workspaces\/[^/]+\/integrations\/?$/u;
 const DEBUG_INSTALL_URL_RE = /\/workspaces\/[^/]+\/integrations\/debug\/?$/u;
+const DEBUG_REPOSITORY_RE = /debug-owner\/platform/u;
 
 function projectsNewUrlRe(wid: string): RegExp {
   return new RegExp(`/workspaces/${wid}/projects/new/?$`, 'u');
@@ -45,7 +46,7 @@ test('connecting Debug from onboarding flows into project creation', async ({pag
   await expect(page).toHaveURL(projectsNewUrlRe(wid as string));
   await expectSetupNavigationHidden(page);
 
-  await expect(page.getByText('debug-owner/platform')).toBeVisible();
+  await expect(page.getByRole('radio', {name: DEBUG_REPOSITORY_RE})).toBeVisible();
   await expect(page.getByRole('button', {name: 'Create project'})).toBeEnabled();
   await page.getByRole('button', {name: 'Create project'}).click();
 
