@@ -17,6 +17,8 @@ import type {StepResult} from '#core/step-result.js';
 const URL_CREDENTIAL_RE = /(https?:\/\/)[^/@\s]+@/gi;
 
 interface SetupLogSink {
+  writeGroupStart(name: string): void;
+  writeGroupEnd(): void;
   writeGroup(options: {name: string; lines: readonly string[]; source?: 'stdout' | 'stderr'}): void;
   writeOutputLine(line: string, source?: 'stdout' | 'stderr'): void;
   write(chunk: Buffer, source: 'stdout' | 'stderr'): void;
@@ -46,10 +48,24 @@ export async function executeSetupStep(params: {
 
   writeJobContext(log, jobContext);
 
-  // Check git before minting a credential: a host without git never hits the provider.
-  let gitVersion: string;
+  const gitFailure = await checkGit(log);
+  if (gitFailure) return gitFailure;
+
+  const workspaceFailure = await prepareWorkspace({cwd, log});
+  if (workspaceFailure) return workspaceFailure;
+
+  const checkoutFailure = await runCheckoutSetup({cwd, leaseClient, signal, log});
+  if (checkoutFailure) return checkoutFailure;
+
+  log?.writeOutputLine('Setup completed successfully.');
+  return {success: true, error: null, exit_code: 0};
+}
+
+async function checkGit(log: SetupLogSink | undefined): Promise<StepResult | null> {
   try {
-    gitVersion = await assertGitAvailable();
+    const gitVersion = await assertGitAvailable();
+    writeRunnerEnvironment(log, gitVersion);
+    return null;
   } catch (error) {
     writeRunnerEnvironment(log, 'unavailable');
     log?.writeOutputLine(
@@ -58,8 +74,13 @@ export async function executeSetupStep(params: {
     );
     return fail(error, 'git_unavailable');
   }
-  writeRunnerEnvironment(log, gitVersion);
+}
 
+async function prepareWorkspace(params: {
+  cwd: string;
+  log?: SetupLogSink | undefined;
+}): Promise<StepResult | null> {
+  const {cwd, log} = params;
   try {
     log?.writeGroup({
       name: 'Prepare workspace',
@@ -76,14 +97,41 @@ export async function executeSetupStep(params: {
     );
     return fail(error, 'workspace_prep_failed');
   }
+  return null;
+}
 
-  let checkout: CheckoutTokenResponseDto;
+async function runCheckoutSetup(params: {
+  cwd: string;
+  leaseClient: KyInstance;
+  signal: AbortSignal;
+  log?: SetupLogSink | undefined;
+}): Promise<StepResult | null> {
+  const {log} = params;
+  log?.writeGroupStart('Checkout');
+  try {
+    const checkout = await requestCheckoutCredentials(params);
+    if (!checkout.ok) return checkout.result;
+
+    return await checkoutRepositoryForSetup({...params, checkout: checkout.value});
+  } finally {
+    log?.writeGroupEnd();
+  }
+}
+
+type SetupPhaseResult<T> = {ok: true; value: T} | {ok: false; result: StepResult};
+
+async function requestCheckoutCredentials(params: {
+  leaseClient: KyInstance;
+  signal: AbortSignal;
+  log?: SetupLogSink | undefined;
+}): Promise<SetupPhaseResult<CheckoutTokenResponseDto>> {
+  const {leaseClient, signal, log} = params;
   try {
     log?.writeGroup({
       name: 'Request checkout credentials',
       lines: ['Requesting checkout credentials'],
     });
-    checkout = await requestCheckoutToken(leaseClient, {signal});
+    const checkout = await requestCheckoutToken(leaseClient, {signal});
     log?.writeGroup({
       name: 'Checkout authentication',
       lines: [
@@ -91,14 +139,23 @@ export async function executeSetupStep(params: {
         checkout.auth?.expires_at ? `expires at: ${checkout.auth.expires_at}` : 'expires at: n/a',
       ],
     });
+    return {ok: true, value: checkout};
   } catch (error) {
     log?.writeOutputLine(
       `Setup failed while requesting checkout credentials: ${messageOf(error)}`,
       'stderr',
     );
-    return fail(error, classifyCheckoutTokenError(error));
+    return {ok: false, result: fail(error, classifyCheckoutTokenError(error))};
   }
+}
 
+async function checkoutRepositoryForSetup(params: {
+  cwd: string;
+  checkout: CheckoutTokenResponseDto;
+  signal: AbortSignal;
+  log?: SetupLogSink | undefined;
+}): Promise<StepResult | null> {
+  const {cwd, checkout, signal, log} = params;
   try {
     log?.writeGroup({
       name: 'Checkout repository',
@@ -115,6 +172,7 @@ export async function executeSetupStep(params: {
       onOutput: checkoutOutput(log),
     });
     log?.writeGroup({name: 'Checkout complete', lines: [`checked-out commit: ${commit}`]});
+    return null;
   } catch (error) {
     const reason =
       error instanceof CheckoutError ? CHECKOUT_KIND_REASON[error.kind] : 'checkout_failed';
@@ -128,9 +186,6 @@ export async function executeSetupStep(params: {
     }
     return fail(error, reason);
   }
-
-  log?.writeOutputLine('Setup completed successfully.');
-  return {success: true, error: null, exit_code: 0};
 }
 
 const CHECKOUT_KIND_REASON: Record<CheckoutFailureKind, StepErrorReason> = {

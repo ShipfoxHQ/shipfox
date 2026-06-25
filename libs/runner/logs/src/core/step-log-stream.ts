@@ -33,6 +33,10 @@ export interface StepLogStream extends LogStreamLifecycle {
   write(chunk: Buffer, source: OutputSource): void;
   /** Registers additional secrets for subsequent runner metadata and captured output. */
   addSecrets(secrets: string[]): void;
+  /** Opens a runner-originated group without writing marker text into the output stream. */
+  writeGroupStart(name: string): void;
+  /** Closes the most recent open runner-originated or marker-originated group. */
+  writeGroupEnd(): void;
   /** Frames a runner-originated group using the same group records as `::group::` markers. */
   writeGroup(options: StepLogGroupOptions): void;
   /** Frames a runner-originated output line, ensuring it ends with a newline. */
@@ -156,6 +160,14 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
       }
 
       writeEvents(events);
+    },
+
+    writeGroupStart(name) {
+      writeEvents([{type: 'group_start', name: safeText(name)}]);
+    },
+
+    writeGroupEnd() {
+      writeEvents([{type: 'group_end'}]);
     },
 
     writeGroup({name, lines, source = 'stdout'}) {

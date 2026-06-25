@@ -483,6 +483,34 @@ describe('createStepLogStream', () => {
     ).toEqual(['  npm test\n', '  shell: bash -e {0}\n', '  ::group::not parsed\n', 'work\n']);
   });
 
+  it('nests structured runner groups under an explicitly opened parent group', async () => {
+    const stream = createStepLogStream({
+      logsDir: join(dir, 'logs'),
+      stepId: STEP_ID,
+      attempt: 26,
+      append: hangingAppend,
+      flushIntervalMs: 100000,
+      now: () => 1,
+    });
+
+    stream.writeGroupStart('Checkout');
+    stream.writeGroup({name: 'Checkout fetch', lines: ['git fetch origin main']});
+    stream.write(Buffer.from('remote output\n'), 'stderr');
+    stream.writeGroupEnd();
+    await stream.close();
+    stream.dispose();
+
+    const records = await readRecords(26);
+    expect(groupStarts(records)).toEqual([
+      {id: 'g1', parent: null, name: 'Checkout'},
+      {id: 'g2', parent: 'g1', name: 'Checkout fetch'},
+    ]);
+    expect(groupEndIds(records)).toEqual(['g2', 'g1']);
+    expect(
+      records.filter((r) => r.type === 'output').map((r) => (r.type === 'output' ? r.data : '')),
+    ).toEqual(['  git fetch origin main\n', 'remote output\n']);
+  });
+
   it('redacts runner-originated group metadata before it reaches the spool', async () => {
     const secret = 'sf/rt+METADATA=34';
     const forms = secretWireForms(secret);

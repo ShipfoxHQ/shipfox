@@ -48,6 +48,8 @@ let createdStreams: Map<string, FakeStream[]>;
 interface FakeStream {
   write: ReturnType<typeof vi.fn>;
   addSecrets: ReturnType<typeof vi.fn>;
+  writeGroupStart: ReturnType<typeof vi.fn>;
+  writeGroupEnd: ReturnType<typeof vi.fn>;
   writeGroup: ReturnType<typeof vi.fn>;
   writeOutputLine: ReturnType<typeof vi.fn>;
   writeEntry: ReturnType<typeof vi.fn>;
@@ -66,6 +68,12 @@ function makeFakeStream(
     }),
     addSecrets: vi.fn(() => {
       events.push(`secrets:${label}`);
+    }),
+    writeGroupStart: vi.fn(() => {
+      events.push(`groupStart:${label}`);
+    }),
+    writeGroupEnd: vi.fn(() => {
+      events.push(`groupEnd:${label}`);
     }),
     writeGroup: vi.fn(() => {
       events.push(`group:${label}`);

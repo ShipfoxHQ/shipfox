@@ -49,6 +49,8 @@ function run(log?: ReturnType<typeof fakeLog>) {
 
 function fakeLog() {
   return {
+    writeGroupStart: vi.fn(),
+    writeGroupEnd: vi.fn(),
     writeGroup: vi.fn(),
     writeOutputLine: vi.fn(),
     write: vi.fn(),
@@ -113,6 +115,8 @@ describe('executeSetupStep', () => {
       name: 'Job context',
       lines: [`job id: ${jobContext.jobId}`, `run id: ${jobContext.runId}`],
     });
+    expect(log.writeGroupStart).toHaveBeenCalledWith('Checkout');
+    expect(log.writeGroupEnd).toHaveBeenCalledTimes(1);
     expect(log.writeGroup).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'Runner environment',
@@ -238,6 +242,8 @@ describe('executeSetupStep', () => {
     const result = await run(log);
 
     expect(result.error?.reason).toBe('checkout_failed');
+    expect(log.writeGroupStart).toHaveBeenCalledWith('Checkout');
+    expect(log.writeGroupEnd).toHaveBeenCalledTimes(1);
     expect(log.writeOutputLine).toHaveBeenCalledWith(
       'Setup failed during checkout fetch: remote rejected',
       'stderr',
