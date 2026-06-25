@@ -28,7 +28,7 @@ This adds:
 
 - triggers database migrations from `libs/api/triggers/drizzle`
 - the `POST /workflow-definitions/:definitionId/fire-manual` route
-- the `GET /trigger-events` and `GET /trigger-events/:id` inspection routes
+- the `GET /trigger-events`, `GET /trigger-events/facets`, and `GET /trigger-events/:id` inspection routes
 - subscribers for `DEFINITION_RESOLVED`, `DEFINITION_DELETED`, and
   `INTEGRATION_EVENT_RECEIVED`
 - the `triggers` outbox publisher
@@ -89,6 +89,7 @@ The routes are mounted by the host app under the `/workflow-definitions` and
 | --- | --- | --- | --- |
 | `POST` | `/workflow-definitions/:definitionId/fire-manual` | bearer token | Fires the workflow's manual trigger and returns the new `run_id`. Optional `inputs` in the body are forwarded to the run. |
 | `GET` | `/trigger-events?workspace_id=:workspaceId` | bearer token | Lists received trigger events for a workspace, newest first. Supports source, event, outcome, received-at window, limit, and cursor filters. |
+| `GET` | `/trigger-events/facets?workspace_id=:workspaceId` | bearer token | Returns the workspace's distinct `source` and `event` filter values with counts (top 50 each, by count). Backs the Events page filter dropdowns. |
 | `GET` | `/trigger-events/:id` | bearer token | Returns one received trigger event with its full payload and routing decisions. Cross-workspace ids return `404`. |
 
 The manual route is keyed by workflow definition id, not subscription id. The

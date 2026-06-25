@@ -36,6 +36,9 @@ export const triggersReceivedEvents = pgTable(
       table.receivedAt.desc(),
     ),
     index('triggers_received_events_prune_idx').on(table.createdAt),
+    // Back the workspace-scoped facet group-by (distinct source / event values).
+    index('triggers_received_events_workspace_source_idx').on(table.workspaceId, table.source),
+    index('triggers_received_events_workspace_event_idx').on(table.workspaceId, table.event),
   ],
 );
 

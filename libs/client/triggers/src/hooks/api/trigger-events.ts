@@ -1,5 +1,6 @@
 import type {
   TriggerEventDetailResponseDto,
+  TriggerEventFacetsResponseDto,
   TriggerEventListResponseDto,
   TriggerEventOutcomeDto,
 } from '@shipfox/api-triggers-dto';
@@ -7,23 +8,34 @@ import {apiRequest} from '@shipfox/client-api';
 import {keepPreviousData, useInfiniteQuery, useQuery} from '@tanstack/react-query';
 
 export interface TriggerEventFilters {
-  source?: string | undefined;
-  event?: string | undefined;
+  source?: string[] | undefined;
+  event?: string[] | undefined;
   outcome?: TriggerEventOutcomeDto[] | undefined;
   from?: string | undefined;
   to?: string | undefined;
 }
 
+function normalizeStringFilter(values: readonly string[] | undefined) {
+  return values && values.length > 0 ? [...new Set(values)].sort() : null;
+}
+
 function normalizeTriggerEventFiltersForQueryKey(filters: TriggerEventFilters) {
-  const outcome =
-    filters.outcome && filters.outcome.length > 0 ? [...new Set(filters.outcome)].sort() : null;
   return {
-    source: filters.source ?? null,
-    event: filters.event ?? null,
-    outcome,
+    source: normalizeStringFilter(filters.source),
+    event: normalizeStringFilter(filters.event),
+    outcome: normalizeStringFilter(filters.outcome),
     from: filters.from ?? null,
     to: filters.to ?? null,
   };
+}
+
+function setListParam(
+  params: URLSearchParams,
+  name: string,
+  values: readonly string[] | undefined,
+) {
+  const normalized = normalizeStringFilter(values);
+  if (normalized) params.set(name, normalized.join(','));
 }
 
 export const triggerEventsQueryKeys = {
@@ -36,6 +48,7 @@ export const triggerEventsQueryKeys = {
       normalizeTriggerEventFiltersForQueryKey(filters),
     ] as const,
   detail: (id: string) => [...triggerEventsQueryKeys.all, 'detail', id] as const,
+  facets: (workspaceId: string) => [...triggerEventsQueryKeys.all, 'facets', workspaceId] as const,
 };
 
 export async function listTriggerEvents({
@@ -53,13 +66,11 @@ export async function listTriggerEvents({
 }) {
   const params = new URLSearchParams({workspace_id: workspaceId, limit: String(limit)});
   if (cursor) params.set('cursor', cursor);
-  if (filters.source) params.set('source', filters.source);
-  if (filters.event) params.set('event', filters.event);
+  setListParam(params, 'source', filters.source);
+  setListParam(params, 'event', filters.event);
   if (filters.from) params.set('from', filters.from);
   if (filters.to) params.set('to', filters.to);
-  if (filters.outcome && filters.outcome.length > 0) {
-    params.set('outcome', [...new Set(filters.outcome)].sort().join(','));
-  }
+  setListParam(params, 'outcome', filters.outcome);
 
   return await apiRequest<TriggerEventListResponseDto>(`/trigger-events?${params.toString()}`, {
     signal,
@@ -102,5 +113,31 @@ export function useTriggerEventQuery(id: string | undefined) {
     queryKey: id ? triggerEventsQueryKeys.detail(id) : [...triggerEventsQueryKeys.all, 'detail'],
     enabled: Boolean(id),
     queryFn: ({signal}) => getTriggerEvent({id: id ?? '', signal}),
+  });
+}
+
+export async function getTriggerEventFacets({
+  workspaceId,
+  signal,
+}: {
+  workspaceId: string;
+  signal?: AbortSignal;
+}) {
+  const params = new URLSearchParams({workspace_id: workspaceId});
+  return await apiRequest<TriggerEventFacetsResponseDto>(
+    `/trigger-events/facets?${params.toString()}`,
+    {signal},
+  );
+}
+
+export function useTriggerEventFacetsQuery(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: workspaceId
+      ? triggerEventsQueryKeys.facets(workspaceId)
+      : [...triggerEventsQueryKeys.all, 'facets'],
+    enabled: Boolean(workspaceId),
+    queryFn: ({signal}) => getTriggerEventFacets({workspaceId: workspaceId ?? '', signal}),
+    // Distinct values change slowly; avoid refetching on every page mount.
+    staleTime: 5 * 60 * 1000,
   });
 }

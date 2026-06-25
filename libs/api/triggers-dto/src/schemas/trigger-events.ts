@@ -57,23 +57,25 @@ export type TriggerDecisionDto = z.infer<typeof triggerDecisionDtoSchema>;
 
 const isoDateTimeSchema = z.string().datetime();
 
-// `outcome` is the only multi-select filter. Accept a single value (`?outcome=routed`),
-// a comma-separated list (`?outcome=routed,failed`), or repeated keys
-// (`?outcome=routed&outcome=failed`). Blank entries are dropped so `?outcome=` and a
-// trailing comma mean "no outcome filter" rather than an invalid empty value.
-const outcomeFilterSchema = z.preprocess((value) => {
+function normalizeListFilter(value: unknown) {
   if (value === undefined || value === null) return undefined;
   const entries = (Array.isArray(value) ? value : [value])
     .flatMap((entry) => (typeof entry === 'string' ? entry.split(',') : []))
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
   return entries.length > 0 ? entries : undefined;
-}, z.array(triggerEventOutcomeSchema).optional());
+}
+
+const stringListFilterSchema = z.preprocess(normalizeListFilter, z.array(z.string()).optional());
+const outcomeFilterSchema = z.preprocess(
+  normalizeListFilter,
+  z.array(triggerEventOutcomeSchema).optional(),
+);
 
 const triggerEventListQueryBaseSchema = z.object({
   workspace_id: z.string().uuid(),
-  source: z.string().optional(),
-  event: z.string().optional(),
+  source: stringListFilterSchema,
+  event: stringListFilterSchema,
   outcome: outcomeFilterSchema,
   from: isoDateTimeSchema.optional(),
   to: isoDateTimeSchema.optional(),
@@ -109,3 +111,20 @@ export const triggerEventDetailResponseSchema = triggerEventDtoSchema.extend({
   decisions: z.array(triggerDecisionDtoSchema),
 });
 export type TriggerEventDetailResponseDto = z.infer<typeof triggerEventDetailResponseSchema>;
+
+export const triggerEventFacetsQuerySchema = z.object({
+  workspace_id: z.string().uuid(),
+});
+export type TriggerEventFacetsQueryDto = z.infer<typeof triggerEventFacetsQuerySchema>;
+
+export const triggerEventFacetItemSchema = z.object({
+  value: z.string(),
+  count: z.number().int().nonnegative(),
+});
+export type TriggerEventFacetItemDto = z.infer<typeof triggerEventFacetItemSchema>;
+
+export const triggerEventFacetsResponseSchema = z.object({
+  sources: z.array(triggerEventFacetItemSchema),
+  events: z.array(triggerEventFacetItemSchema),
+});
+export type TriggerEventFacetsResponseDto = z.infer<typeof triggerEventFacetsResponseSchema>;

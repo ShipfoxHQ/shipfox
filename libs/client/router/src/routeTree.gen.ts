@@ -27,6 +27,7 @@ import { Route as WorkspacesWidLayoutIntegrationsIndexRouteImport } from './rout
 import { Route as WorkspacesWidLayoutSettingsRunnersRouteImport } from './routes/workspaces/$wid/_layout/settings/runners'
 import { Route as WorkspacesWidLayoutSettingsMembersRouteImport } from './routes/workspaces/$wid/_layout/settings/members'
 import { Route as WorkspacesWidLayoutSettingsIntegrationsRouteImport } from './routes/workspaces/$wid/_layout/settings/integrations'
+import { Route as WorkspacesWidLayoutSettingsEventsRouteImport } from './routes/workspaces/$wid/_layout/settings/events'
 import { Route as WorkspacesWidLayoutProjectsNewRouteImport } from './routes/workspaces/$wid/_layout/projects/new'
 import { Route as WorkspacesWidLayoutIntegrationsSentryRouteImport } from './routes/workspaces/$wid/_layout/integrations/sentry'
 import { Route as WorkspacesWidLayoutIntegrationsGithubRouteImport } from './routes/workspaces/$wid/_layout/integrations/github'
@@ -137,6 +138,12 @@ const WorkspacesWidLayoutSettingsIntegrationsRoute =
     path: '/settings/integrations',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
+const WorkspacesWidLayoutSettingsEventsRoute =
+  WorkspacesWidLayoutSettingsEventsRouteImport.update({
+    id: '/settings/events',
+    path: '/settings/events',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
 const WorkspacesWidLayoutProjectsNewRoute =
   WorkspacesWidLayoutProjectsNewRouteImport.update({
     id: '/projects/new',
@@ -217,6 +224,7 @@ export interface FileRoutesByFullPath {
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/settings/events': typeof WorkspacesWidLayoutSettingsEventsRoute
   '/workspaces/$wid/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
@@ -246,6 +254,7 @@ export interface FileRoutesByTo {
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/settings/events': typeof WorkspacesWidLayoutSettingsEventsRoute
   '/workspaces/$wid/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
@@ -276,6 +285,7 @@ export interface FileRoutesById {
   '/workspaces/$wid/_layout/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/_layout/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/_layout/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/_layout/settings/events': typeof WorkspacesWidLayoutSettingsEventsRoute
   '/workspaces/$wid/_layout/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/_layout/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
   '/workspaces/$wid/_layout/settings/runners': typeof WorkspacesWidLayoutSettingsRunnersRoute
@@ -308,6 +318,7 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/integrations/sentry'
     | '/workspaces/$wid/projects/new'
+    | '/workspaces/$wid/settings/events'
     | '/workspaces/$wid/settings/integrations'
     | '/workspaces/$wid/settings/members'
     | '/workspaces/$wid/settings/runners'
@@ -337,6 +348,7 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/integrations/sentry'
     | '/workspaces/$wid/projects/new'
+    | '/workspaces/$wid/settings/events'
     | '/workspaces/$wid/settings/integrations'
     | '/workspaces/$wid/settings/members'
     | '/workspaces/$wid/settings/runners'
@@ -366,6 +378,7 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/_layout/integrations/github'
     | '/workspaces/$wid/_layout/integrations/sentry'
     | '/workspaces/$wid/_layout/projects/new'
+    | '/workspaces/$wid/_layout/settings/events'
     | '/workspaces/$wid/_layout/settings/integrations'
     | '/workspaces/$wid/_layout/settings/members'
     | '/workspaces/$wid/_layout/settings/runners'
@@ -520,6 +533,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWidLayoutSettingsIntegrationsRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
+    '/workspaces/$wid/_layout/settings/events': {
+      id: '/workspaces/$wid/_layout/settings/events'
+      path: '/settings/events'
+      fullPath: '/workspaces/$wid/settings/events'
+      preLoaderRoute: typeof WorkspacesWidLayoutSettingsEventsRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
     '/workspaces/$wid/_layout/projects/new': {
       id: '/workspaces/$wid/_layout/projects/new'
       path: '/projects/new'
@@ -636,6 +656,7 @@ interface WorkspacesWidLayoutRouteChildren {
   WorkspacesWidLayoutIntegrationsGithubRoute: typeof WorkspacesWidLayoutIntegrationsGithubRoute
   WorkspacesWidLayoutIntegrationsSentryRoute: typeof WorkspacesWidLayoutIntegrationsSentryRoute
   WorkspacesWidLayoutProjectsNewRoute: typeof WorkspacesWidLayoutProjectsNewRoute
+  WorkspacesWidLayoutSettingsEventsRoute: typeof WorkspacesWidLayoutSettingsEventsRoute
   WorkspacesWidLayoutSettingsIntegrationsRoute: typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   WorkspacesWidLayoutSettingsMembersRoute: typeof WorkspacesWidLayoutSettingsMembersRoute
   WorkspacesWidLayoutSettingsRunnersRoute: typeof WorkspacesWidLayoutSettingsRunnersRoute
@@ -655,6 +676,8 @@ const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
   WorkspacesWidLayoutIntegrationsSentryRoute:
     WorkspacesWidLayoutIntegrationsSentryRoute,
   WorkspacesWidLayoutProjectsNewRoute: WorkspacesWidLayoutProjectsNewRoute,
+  WorkspacesWidLayoutSettingsEventsRoute:
+    WorkspacesWidLayoutSettingsEventsRoute,
   WorkspacesWidLayoutSettingsIntegrationsRoute:
     WorkspacesWidLayoutSettingsIntegrationsRoute,
   WorkspacesWidLayoutSettingsMembersRoute:

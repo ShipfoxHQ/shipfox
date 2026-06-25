@@ -1,5 +1,10 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {getTriggerEvent, listTriggerEvents, triggerEventsQueryKeys} from './trigger-events.js';
+import {
+  getTriggerEvent,
+  getTriggerEventFacets,
+  listTriggerEvents,
+  triggerEventsQueryKeys,
+} from './trigger-events.js';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -63,6 +68,14 @@ describe('triggerEventsQueryKeys', () => {
     expect(key[4]).toMatchObject({outcome: null});
   });
 
+  test('treats empty source and event arrays as no filter', () => {
+    const workspaceId = '11111111-1111-4111-8111-111111111111';
+
+    const key = triggerEventsQueryKeys.list(workspaceId, {source: [], event: []});
+
+    expect(key[4]).toMatchObject({source: null, event: null});
+  });
+
   test('sorts and de-duplicates outcome so filter order does not split the cache', () => {
     const workspaceId = '11111111-1111-4111-8111-111111111111';
 
@@ -73,11 +86,30 @@ describe('triggerEventsQueryKeys', () => {
     expect(a[4]).toMatchObject({outcome: ['failed', 'routed']});
   });
 
+  test('sorts and de-duplicates source and event filters so order does not split the cache', () => {
+    const workspaceId = '11111111-1111-4111-8111-111111111111';
+
+    const a = triggerEventsQueryKeys.list(workspaceId, {
+      source: ['github', 'gitea'],
+      event: ['push', 'pull_request'],
+    });
+    const b = triggerEventsQueryKeys.list(workspaceId, {
+      source: ['gitea', 'github', 'gitea'],
+      event: ['pull_request', 'push', 'push'],
+    });
+
+    expect(a).toEqual(b);
+    expect(a[4]).toMatchObject({
+      source: ['gitea', 'github'],
+      event: ['pull_request', 'push'],
+    });
+  });
+
   test('keeps distinct filters on distinct keys', () => {
     const workspaceId = '11111111-1111-4111-8111-111111111111';
 
-    const push = triggerEventsQueryKeys.list(workspaceId, {event: 'push'});
-    const pr = triggerEventsQueryKeys.list(workspaceId, {event: 'pull_request'});
+    const push = triggerEventsQueryKeys.list(workspaceId, {event: ['push']});
+    const pr = triggerEventsQueryKeys.list(workspaceId, {event: ['pull_request']});
 
     expect(push).not.toEqual(pr);
   });
@@ -86,6 +118,16 @@ describe('triggerEventsQueryKeys', () => {
     const id = '22222222-2222-4222-8222-222222222222';
 
     expect(triggerEventsQueryKeys.detail(id)).toEqual(['trigger-events', 'detail', id]);
+  });
+
+  test('facets key carries the workspace id', () => {
+    const workspaceId = '11111111-1111-4111-8111-111111111111';
+
+    expect(triggerEventsQueryKeys.facets(workspaceId)).toEqual([
+      'trigger-events',
+      'facets',
+      workspaceId,
+    ]);
   });
 });
 
@@ -119,8 +161,8 @@ describe('listTriggerEvents', () => {
       limit: 25,
       cursor: 'cursor-abc',
       filters: {
-        source: 'github',
-        event: 'push',
+        source: ['github', 'gitea'],
+        event: ['push', 'pull_request'],
         outcome: ['routed', 'failed'],
         from: '2026-06-01T00:00:00.000Z',
         to: '2026-06-22T00:00:00.000Z',
@@ -130,20 +172,22 @@ describe('listTriggerEvents', () => {
     const url = new URL(requestFrom(fetchImpl).url);
     expect(url.searchParams.get('limit')).toBe('25');
     expect(url.searchParams.get('cursor')).toBe('cursor-abc');
-    expect(url.searchParams.get('source')).toBe('github');
-    expect(url.searchParams.get('event')).toBe('push');
+    expect(url.searchParams.get('source')).toBe('gitea,github');
+    expect(url.searchParams.get('event')).toBe('pull_request,push');
     expect(url.searchParams.get('from')).toBe('2026-06-01T00:00:00.000Z');
     expect(url.searchParams.get('to')).toBe('2026-06-22T00:00:00.000Z');
     expect(url.searchParams.get('outcome')).toBe('failed,routed');
   });
 
-  test('omits the outcome param when the filter array is empty', async () => {
+  test('omits list params when the filter arrays are empty', async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({trigger_events: [], next_cursor: null}));
     configureApiClient({fetchImpl});
 
-    await listTriggerEvents({workspaceId, filters: {outcome: []}});
+    await listTriggerEvents({workspaceId, filters: {source: [], event: [], outcome: []}});
 
     const url = new URL(requestFrom(fetchImpl).url);
+    expect(url.searchParams.has('source')).toBe(false);
+    expect(url.searchParams.has('event')).toBe(false);
     expect(url.searchParams.has('outcome')).toBe(false);
   });
 
@@ -184,6 +228,25 @@ describe('getTriggerEvent', () => {
 
     const url = new URL(requestFrom(fetchImpl).url);
     expect(url.pathname).toBe(`/trigger-events/${id}`);
+    expect(requestFrom(fetchImpl).method).toBe('GET');
+  });
+});
+
+describe('getTriggerEventFacets', () => {
+  beforeEach(() => {
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: undefined});
+  });
+
+  test('requests the workspace facets', async () => {
+    const workspaceId = '11111111-1111-4111-8111-111111111111';
+    const fetchImpl = vi.fn(async () => jsonResponse({sources: [], events: []}));
+    configureApiClient({fetchImpl});
+
+    await getTriggerEventFacets({workspaceId});
+
+    const url = new URL(requestFrom(fetchImpl).url);
+    expect(url.pathname).toBe('/trigger-events/facets');
+    expect(url.searchParams.get('workspace_id')).toBe(workspaceId);
     expect(requestFrom(fetchImpl).method).toBe('GET');
   });
 });
