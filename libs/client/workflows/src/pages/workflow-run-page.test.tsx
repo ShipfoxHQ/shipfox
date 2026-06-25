@@ -86,7 +86,7 @@ describe('WorkflowRunPage', () => {
 
     const deployJob = await screen.findByRole('button', {name: 'deploy, Running'});
     const deployAttempt = await screen.findByRole('button', {
-      name: '1. deploy, Running, attempt 2',
+      name: 'deploy, Running, attempt 2',
     });
 
     expect(deployJob).toHaveAttribute('aria-pressed', 'true');
@@ -106,7 +106,7 @@ describe('WorkflowRunPage', () => {
     });
     expect(currentSearch(router).step).toBeUndefined();
     expect(currentSearch(router).attempt).toBeUndefined();
-    expect(screen.getByRole('button', {name: '1. checkout, Succeeded, attempt 1'})).toHaveAttribute(
+    expect(screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'})).toHaveAttribute(
       'aria-expanded',
       'false',
     );
@@ -117,7 +117,7 @@ describe('WorkflowRunPage', () => {
     configureApiClient({fetchImpl: createRunDetailFetch()});
     const {router} = renderRunPath(`?job=${DEPLOY_JOB_ID}`);
 
-    await user.click(await screen.findByRole('button', {name: '1. deploy, Running, attempt 2'}));
+    await user.click(await screen.findByRole('button', {name: 'deploy, Running, attempt 2'}));
 
     await waitFor(() => {
       expect(currentSearch(router)).toMatchObject({
@@ -134,7 +134,7 @@ describe('WorkflowRunPage', () => {
     const {router} = renderRunPath(`?step=${DEPLOY_STEP_ID}&attempt=${DEPLOY_ATTEMPT_TWO_ID}`);
 
     const deployAttempt = await screen.findByRole('button', {
-      name: '1. deploy, Running, attempt 2',
+      name: 'deploy, Running, attempt 2',
     });
     await user.click(deployAttempt);
 
@@ -151,7 +151,7 @@ describe('WorkflowRunPage', () => {
     configureApiClient({fetchImpl: createRunDetailFetch()});
     const {router} = renderRunPath(`?job=${DEPLOY_JOB_ID}`);
 
-    await user.click(await screen.findByRole('button', {name: '1. deploy, Running, attempt 2'}));
+    await user.click(await screen.findByRole('button', {name: 'deploy, Running, attempt 2'}));
     await waitFor(() => {
       expect(currentSearch(router).attempt).toBe(DEPLOY_ATTEMPT_TWO_ID);
     });
@@ -164,7 +164,7 @@ describe('WorkflowRunPage', () => {
     });
     expect(currentSearch(router).step).toBeUndefined();
     expect(currentSearch(router).attempt).toBeUndefined();
-    expect(screen.getByRole('button', {name: '1. deploy, Running, attempt 2'})).toHaveAttribute(
+    expect(screen.getByRole('button', {name: 'deploy, Running, attempt 2'})).toHaveAttribute(
       'aria-expanded',
       'false',
     );
@@ -175,7 +175,7 @@ describe('WorkflowRunPage', () => {
     await waitFor(() => {
       expect(currentSearch(router).attempt).toBe(DEPLOY_ATTEMPT_TWO_ID);
     });
-    expect(screen.getByRole('button', {name: '1. deploy, Running, attempt 2'})).toHaveAttribute(
+    expect(screen.getByRole('button', {name: 'deploy, Running, attempt 2'})).toHaveAttribute(
       'aria-expanded',
       'true',
     );

@@ -18,9 +18,9 @@ describe('WorkflowStepList', () => {
       />,
     );
 
-    expect(screen.getByRole('region', {name: 'Step attempts'})).toBeInTheDocument();
+    expect(screen.getByRole('region', {name: 'build'})).toBeInTheDocument();
     expect(screen.queryByText('1 step')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', {name: '1. build, Running, attempt 1'})).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'build, Running, attempt 1'})).toBeInTheDocument();
     expect(screen.queryByText('Grouped')).not.toBeInTheDocument();
   });
 
@@ -33,7 +33,7 @@ describe('WorkflowStepList', () => {
         })}
       />,
     );
-    const build = screen.getByRole('button', {name: '1. build, Running, attempt 1'});
+    const build = screen.getByRole('button', {name: 'build, Running, attempt 1'});
 
     await user.click(build);
 
@@ -59,7 +59,7 @@ describe('WorkflowStepList', () => {
         )}
       />,
     );
-    const deploy = screen.getByRole('button', {name: '1. deploy, Running, attempt 1'});
+    const deploy = screen.getByRole('button', {name: 'deploy, Running, attempt 1'});
 
     await user.click(deploy);
 
@@ -80,7 +80,7 @@ describe('WorkflowStepList', () => {
         onSelectedAttemptChange={onSelectedAttemptChange}
       />,
     );
-    const deploy = screen.getByRole('button', {name: '1. deploy, Pending, attempt 1'});
+    const deploy = screen.getByRole('button', {name: 'deploy, Pending, attempt 1'});
 
     await user.click(deploy);
     await user.click(deploy);
@@ -100,7 +100,7 @@ describe('WorkflowStepList', () => {
       />,
     );
 
-    expect(screen.getByRole('button', {name: '1. deploy, Pending, attempt 1'})).toHaveAttribute(
+    expect(screen.getByRole('button', {name: 'deploy, Pending, attempt 1'})).toHaveAttribute(
       'aria-expanded',
       'true',
     );
@@ -122,7 +122,7 @@ describe('WorkflowStepList', () => {
         renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
       />,
     );
-    const deploy = screen.getByRole('button', {name: '1. deploy, Pending, attempt 1'});
+    const deploy = screen.getByRole('button', {name: 'deploy, Pending, attempt 1'});
     expect(screen.getByText(`logs for ${attempt.id}`)).toBeInTheDocument();
 
     rerender(
@@ -172,11 +172,11 @@ describe('WorkflowStepList', () => {
       />,
     );
 
-    expect(screen.getByRole('button', {name: '1. install, Running, attempt 1'})).toHaveAttribute(
+    expect(screen.getByRole('button', {name: 'install, Running, attempt 1'})).toHaveAttribute(
       'aria-expanded',
       'false',
     );
-    expect(screen.getByRole('button', {name: '2. deploy, Running, attempt 1'})).toHaveAttribute(
+    expect(screen.getByRole('button', {name: 'deploy, Running, attempt 1'})).toHaveAttribute(
       'aria-expanded',
       'true',
     );
@@ -194,7 +194,7 @@ describe('WorkflowStepList', () => {
       />,
     );
 
-    expect(screen.getByRole('button', {name: '1. deploy, Succeeded, attempt 1'})).toHaveAttribute(
+    expect(screen.getByRole('button', {name: 'deploy, Succeeded, attempt 1'})).toHaveAttribute(
       'aria-expanded',
       'false',
     );
@@ -213,7 +213,7 @@ describe('WorkflowStepList', () => {
         renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
       />,
     );
-    const deploy = screen.getByRole('button', {name: '1. deploy, Running, attempt 1'});
+    const deploy = screen.getByRole('button', {name: 'deploy, Running, attempt 1'});
     expect(screen.getByText(`logs for ${attempt.id}`)).toBeInTheDocument();
 
     await user.click(deploy);
@@ -265,12 +265,12 @@ describe('WorkflowStepList', () => {
 
     expect(
       screen.getByRole('button', {
-        name: '1. gate, Failed, attempt 1, User',
+        name: 'gate, Failed, attempt 1, User',
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', {
-        name: '1. gate, Failed, attempt 2, User',
+        name: 'gate, Failed, attempt 2, User',
       }),
     ).toBeInTheDocument();
     expect(screen.queryByText('User')).not.toBeInTheDocument();
@@ -299,10 +299,8 @@ describe('WorkflowStepList', () => {
       />,
     );
 
-    expect(screen.queryByRole('button', {name: '1. queued, Pending'})).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('button', {name: '2. build, Succeeded, attempt 1'}),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'queued, Pending'})).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'build, Succeeded, attempt 1'})).toBeInTheDocument();
     expect(screen.queryByText('#1')).not.toBeInTheDocument();
     expect(screen.queryByText('1 attempt')).not.toBeInTheDocument();
   });
@@ -319,9 +317,7 @@ describe('WorkflowStepList', () => {
       <WorkflowStepList job={makeJob({steps: [makeStep({name, attempts: [makeAttempt()]})]})} />,
     );
 
-    expect(
-      screen.getByRole('button', {name: `1. ${name}, Pending, attempt 1`}),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: `${name}, Pending, attempt 1`})).toBeInTheDocument();
   });
 });
 
