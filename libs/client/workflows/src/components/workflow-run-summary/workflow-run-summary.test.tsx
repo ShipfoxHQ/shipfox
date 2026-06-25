@@ -4,18 +4,26 @@ import {workflowRun} from '#test/fixtures/workflow-run.js';
 import {renderProjectPage} from '#test/pages.js';
 import {WorkflowRunSummary} from './workflow-run-summary.js';
 
-const RUN_ID = '66666666-6666-4666-8666-666666666666';
-const originalScrollWidth = Object.getOwnPropertyDescriptor(
-  window.HTMLElement.prototype,
-  'scrollWidth',
-);
-const originalClientWidth = Object.getOwnPropertyDescriptor(
-  window.HTMLElement.prototype,
-  'clientWidth',
-);
+const {useIsTextTruncatedMock} = vi.hoisted(() => ({
+  useIsTextTruncatedMock: vi.fn(),
+}));
 
-afterEach(() => {
-  restoreElementWidthDescriptors();
+const RUN_ID = '66666666-6666-4666-8666-666666666666';
+
+vi.mock('@shipfox/react-ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shipfox/react-ui')>();
+  return {
+    ...actual,
+    useIsTextTruncated: useIsTextTruncatedMock,
+  };
+});
+
+beforeEach(() => {
+  useIsTextTruncatedMock.mockReset();
+  useIsTextTruncatedMock.mockReturnValue({
+    ref: () => undefined,
+    isTruncated: false,
+  });
 });
 
 describe('WorkflowRunSummary', () => {
@@ -95,7 +103,10 @@ describe('WorkflowRunSummary', () => {
 
   test('does not show a run name tooltip when the heading is not truncated', async () => {
     const user = userEvent.setup();
-    setElementWidths({scrollWidth: 80, clientWidth: 120});
+    useIsTextTruncatedMock.mockReturnValue({
+      ref: () => undefined,
+      isTruncated: false,
+    });
     renderSummary();
 
     await user.hover(await screen.findByRole('heading', {name: 'deploy-web'}));
@@ -106,7 +117,10 @@ describe('WorkflowRunSummary', () => {
   test('shows the full run name in a tooltip when the heading is truncated', async () => {
     const user = userEvent.setup();
     const runName = 'release-production-multi-region-with-canary-and-smoke-tests';
-    setElementWidths({scrollWidth: 200, clientWidth: 120});
+    useIsTextTruncatedMock.mockReturnValue({
+      ref: () => undefined,
+      isTruncated: true,
+    });
     renderSummary({name: runName});
 
     await user.hover(await screen.findByRole('heading', {name: runName}));
@@ -164,29 +178,4 @@ function renderSummary(
   renderProjectPage('/workspaces/ws-demo/projects/proj-demo/runs/run-demo', () => (
     <WorkflowRunSummary run={run} {...props} />
   ));
-}
-
-function setElementWidths(widths: {scrollWidth: number; clientWidth: number}) {
-  Object.defineProperty(window.HTMLElement.prototype, 'scrollWidth', {
-    configurable: true,
-    get: () => widths.scrollWidth,
-  });
-  Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
-    configurable: true,
-    get: () => widths.clientWidth,
-  });
-}
-
-function restoreElementWidthDescriptors() {
-  if (originalScrollWidth) {
-    Object.defineProperty(window.HTMLElement.prototype, 'scrollWidth', originalScrollWidth);
-  } else {
-    delete (window.HTMLElement.prototype as {scrollWidth?: number}).scrollWidth;
-  }
-
-  if (originalClientWidth) {
-    Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', originalClientWidth);
-  } else {
-    delete (window.HTMLElement.prototype as {clientWidth?: number}).clientWidth;
-  }
 }
