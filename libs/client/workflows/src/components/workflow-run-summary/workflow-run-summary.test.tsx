@@ -73,8 +73,10 @@ describe('WorkflowRunSummary', () => {
     });
   });
 
-  test('omits empty trigger metadata', () => {
+  test('omits empty trigger metadata', async () => {
     renderSummary({trigger_source: '', trigger_event: ''});
+
+    await screen.findByRole('region', {name: 'deploy-web'});
 
     expect(screen.queryByText('manual / fire')).not.toBeInTheDocument();
   });

@@ -1,6 +1,6 @@
 import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {Meta, StoryObj} from '@storybook/react';
-import {screen, waitFor} from '@testing-library/react';
+import {screen, waitFor} from 'storybook/test';
 import {WorkflowSourcePanel} from './workflow-source-panel.js';
 
 const meta = {
