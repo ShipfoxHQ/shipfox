@@ -43,7 +43,7 @@
   "dependencies": {
     "@shipfox/config": "workspace:*",
     "handlebars": "^4.7.8",
-    "mjml": "^4.15.3"
+    "mjml": "^5.0.0"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -51,6 +51,6 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@types/mjml": "^4.7.4"
+    "@types/mjml": "^5.0.0"
   }
 }
