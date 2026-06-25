@@ -117,6 +117,7 @@ export const Showcase: Story = {
  * duration, and (for a branch with a failure) the inset error bar.
  */
 export const NestedGroups: Story = {
+  args: {defaultGroupsOpen: true},
   render: (args) => (
     <div className="max-w-3xl">
       <LogView {...args} records={nestedRecords} />
