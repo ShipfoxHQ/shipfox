@@ -1,8 +1,10 @@
 import type {FastifyInstance} from 'fastify';
 import {
+  capturedMail,
   createInvite,
   createWorkspace,
   createWorkspacesTestApp,
+  invitationOutboxEventsTo,
   resetCapturedMail,
   signupVerifyLogin,
   uniqueEmail,
@@ -42,6 +44,8 @@ describe('POST /workspaces/:workspaceId/invitations', () => {
       accepted_at: null,
       invited_by_user_id: owner.userId,
     });
+    expect(await invitationOutboxEventsTo(inviteeEmail)).toHaveLength(1);
+    expect(capturedMail()).toHaveLength(0);
   });
 
   test('transforms duplicate open invitation into 409', async () => {
@@ -59,22 +63,25 @@ describe('POST /workspaces/:workspaceId/invitations', () => {
 
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('open-invitation-exists');
+    expect(await invitationOutboxEventsTo(inviteeEmail)).toHaveLength(1);
   });
 
   test('transforms missing membership into 403', async () => {
     const owner = await signupVerifyLogin(app, 'invite-create-member-owner');
     const outsider = await signupVerifyLogin(app, 'invite-create-outsider');
     const workspaceId = await createWorkspace(app, owner.token);
+    const inviteeEmail = uniqueEmail('forbidden-invite');
 
     const res = await app.inject({
       method: 'POST',
       url: `/workspaces/${workspaceId}/invitations`,
       headers: {authorization: `Bearer ${outsider.token}`},
-      payload: {email: uniqueEmail('forbidden-invite')},
+      payload: {email: inviteeEmail},
     });
 
     expect(res.statusCode).toBe(403);
     expect(res.json().code).toBe('forbidden');
+    expect(await invitationOutboxEventsTo(inviteeEmail)).toHaveLength(0);
   });
 
   test('returns 403 when caller has no claim to the workspace (whether or not it exists)', async () => {

@@ -1,5 +1,9 @@
+import {WORKSPACES_INVITATION_SEND_REQUESTED} from '@shipfox/api-workspaces-dto';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
+import {and, desc, eq, sql} from 'drizzle-orm';
+import {db} from '#db/db.js';
 import {createMembership} from '#db/memberships.js';
+import {workspacesOutbox} from '#db/schema/outbox.js';
 import {userFactory, workspaceFactory} from '#test/index.js';
 import {
   InvitationEmailMismatchError,
@@ -40,12 +44,36 @@ vi.mock('#config.js', () => ({
 
 const TOKEN_RE = /token=([\w\-_=]+)/;
 
-function extractToken(message: MailMessage | undefined): string {
-  const match = message?.text?.match(TOKEN_RE);
+function extractToken(link: string | undefined): string {
+  const match = link?.match(TOKEN_RE);
   if (!match?.[1]) {
-    throw new Error('Expected message to contain a token link');
+    throw new Error('Expected link to contain a token');
   }
   return match[1];
+}
+
+async function invitationEventsTo(email: string) {
+  return await db()
+    .select()
+    .from(workspacesOutbox)
+    .where(
+      and(
+        eq(workspacesOutbox.eventType, WORKSPACES_INVITATION_SEND_REQUESTED),
+        sql`${workspacesOutbox.payload}->>'email' = ${email}`,
+      ),
+    )
+    .orderBy(desc(workspacesOutbox.createdAt));
+}
+
+async function latestInvitationPayload(email: string) {
+  const row = (await invitationEventsTo(email))[0];
+  if (!row) throw new Error(`No invitation outbox event for ${email}`);
+  return row.payload as {
+    email: string;
+    workspaceName: string;
+    inviterName: string;
+    inviteLink: string;
+  };
 }
 
 describe('invitations core', () => {
@@ -56,7 +84,7 @@ describe('invitations core', () => {
     captured.length = 0;
   });
 
-  test('createWorkspaceInvitation creates an invitation and sends an email', async () => {
+  test('createWorkspaceInvitation creates an invitation and queues an email', async () => {
     const inviter = userFactory.build();
     const workspace = await workspaceFactory.create();
     await createMembership({
@@ -75,11 +103,11 @@ describe('invitations core', () => {
     });
 
     expect(invitation.email).toBe(email);
-    expect(captured).toHaveLength(1);
-    expect(captured[0]?.to).toBe(email);
+    expect(captured).toHaveLength(0);
+    expect(await invitationEventsTo(email)).toHaveLength(1);
   });
 
-  test('createWorkspaceInvitation sends a branded email with the workspace name and inviter', async () => {
+  test('createWorkspaceInvitation queues the workspace name and inviter', async () => {
     const inviter = userFactory.build();
     const workspace = await workspaceFactory.create();
     await createMembership({
@@ -98,14 +126,17 @@ describe('invitations core', () => {
       invitedByMemberships: [{workspaceId: workspace.id, role: 'admin'}],
     });
 
-    const message = captured[0];
-    expect(message?.subject).toBe(`Join ${workspace.name} on Shipfox`);
-    expect(message?.text).toContain(workspace.name);
-    expect(message?.html).toContain('Dana Scully');
-    expect(message?.text).toContain('Dana Scully has invited you');
+    const payload = await latestInvitationPayload(email);
+    expect(captured).toHaveLength(0);
+    expect(payload).toMatchObject({
+      email,
+      workspaceName: workspace.name,
+      inviterName: 'Dana Scully',
+    });
+    expect(payload.inviteLink).toContain(`${testConfig.clientBaseUrl}/invitations/accept?token=`);
   });
 
-  test('createWorkspaceInvitation falls back to "A teammate" when no inviter display is given', async () => {
+  test('createWorkspaceInvitation queues the teammate fallback when no inviter display is given', async () => {
     const inviter = userFactory.build();
     const workspace = await workspaceFactory.create();
     await createMembership({
@@ -123,7 +154,9 @@ describe('invitations core', () => {
       invitedByMemberships: [{workspaceId: workspace.id, role: 'admin'}],
     });
 
-    expect(captured[0]?.text).toContain('A teammate has invited you');
+    const payload = await latestInvitationPayload(email);
+    expect(captured).toHaveLength(0);
+    expect(payload.inviterName).toBe('A teammate');
   });
 
   test('createWorkspaceInvitation rejects duplicate open invitations', async () => {
@@ -151,6 +184,8 @@ describe('invitations core', () => {
     });
 
     await expect(promise).rejects.toBeInstanceOf(OpenInvitationExistsError);
+    expect(captured).toHaveLength(0);
+    expect(await invitationEventsTo(email)).toHaveLength(1);
   });
 
   test('acceptWorkspaceInvitation accepts once and enforces the invited email', async () => {
@@ -169,7 +204,7 @@ describe('invitations core', () => {
       invitedByUserId: inviter.userId,
       invitedByMemberships: [{workspaceId: workspace.id, role: 'admin'}],
     });
-    const token = extractToken(captured[0]);
+    const token = extractToken((await latestInvitationPayload(invitee.email)).inviteLink);
 
     const wrongEmail = acceptWorkspaceInvitation({
       token,

@@ -8,9 +8,8 @@ import {
   TokenExpiredError,
   TokenInvalidError as WorkspacesTokenInvalidError,
 } from '@shipfox/api-workspaces';
-import {renderEmail} from '@shipfox/node-email';
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
-import {config, mailer} from '#config.js';
+import {config} from '#config.js';
 import {
   consumeEmailVerification,
   createEmailVerification,
@@ -99,21 +98,25 @@ async function createRefreshSession(user: User): Promise<string> {
   return refreshToken;
 }
 
-async function sendVerificationEmail(user: User, rawToken: string): Promise<void> {
-  const link = `${config.CLIENT_BASE_URL}/auth/verify-email?token=${rawToken}`;
-  const email = await renderEmail('verify-email', {verifyLink: link});
-  await mailer.send({to: user.email, ...email});
+function verificationLink(rawToken: string): string {
+  return `${config.CLIENT_BASE_URL}/auth/verify-email?token=${rawToken}`;
 }
 
-async function createAndSendEmailVerification(user: User): Promise<void> {
+function passwordResetLink(rawToken: string): string {
+  return `${config.CLIENT_BASE_URL}/auth/reset?token=${rawToken}`;
+}
+
+async function createAndQueueEmailVerification(user: User): Promise<void> {
   const rawToken = generateOpaqueToken('emailVerification');
   await createEmailVerification({
     userId: user.id,
     hashedToken: hashOpaqueToken(rawToken),
     expiresAt: hoursFromNow(VERIFICATION_TTL_HOURS),
+    sendEmail: {
+      email: user.email,
+      verifyLink: verificationLink(rawToken),
+    },
   });
-
-  await sendVerificationEmail(user, rawToken);
 }
 
 export interface SignupParams {
@@ -135,7 +138,7 @@ export async function signup(params: SignupParams): Promise<User> {
     name: params.name ?? null,
   });
 
-  await createAndSendEmailVerification(user);
+  await createAndQueueEmailVerification(user);
 
   return user;
 }
@@ -413,11 +416,10 @@ export async function resendEmailVerification(params: {
     hashedToken: hashOpaqueToken(rawToken),
     expiresAt: hoursFromNow(VERIFICATION_TTL_HOURS),
     cooldownSeconds: EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
+    sendEmail: {
+      verifyLink: verificationLink(rawToken),
+    },
   });
-
-  if (result.user && result.verification) {
-    await sendVerificationEmail(result.user, rawToken);
-  }
 
   return {nextResendAvailableAt: result.nextResendAvailableAt};
 }
@@ -433,14 +435,12 @@ export async function requestPasswordReset(params: {email: string}): Promise<voi
     userId: user.id,
     hashedToken: hashOpaqueToken(rawToken),
     expiresAt: hoursFromNow(RESET_TTL_HOURS),
+    sendEmail: {
+      email: user.email,
+      resetLink: passwordResetLink(rawToken),
+      expiresInHours: RESET_TTL_HOURS,
+    },
   });
-
-  const link = `${config.CLIENT_BASE_URL}/auth/reset?token=${rawToken}`;
-  const email = await renderEmail('reset-password', {
-    resetLink: link,
-    expiresInHours: RESET_TTL_HOURS,
-  });
-  await mailer.send({to: user.email, ...email});
 }
 
 export interface ConfirmPasswordResetResult {

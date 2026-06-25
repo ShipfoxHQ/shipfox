@@ -1,7 +1,11 @@
-import {EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS} from '@shipfox/api-auth-dto';
+import {
+  AUTH_EMAIL_VERIFICATION_SEND_REQUESTED,
+  AUTH_PASSWORD_RESET_SEND_REQUESTED,
+  EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
+} from '@shipfox/api-auth-dto';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
-import {eq} from 'drizzle-orm';
+import {and, desc, eq, sql} from 'drizzle-orm';
 import {
   changePassword,
   confirmEmailVerification,
@@ -26,6 +30,7 @@ import {verifyUserToken} from '#core/jwt.js';
 import {db} from '#db/db.js';
 import * as refreshTokenDb from '#db/refresh-tokens.js';
 import {emailVerifications} from '#db/schema/email-verifications.js';
+import {authOutbox} from '#db/schema/outbox.js';
 import {refreshTokens} from '#db/schema/refresh-tokens.js';
 import {users} from '#db/schema/users.js';
 import {findUserByEmail, findUserById} from '#db/users.js';
@@ -73,12 +78,31 @@ const listMembershipsByUserMock = vi.mocked(listMembershipsByUser);
 
 const TOKEN_RE = /token=([\w\-_=]+)/;
 
-function extractToken(message: MailMessage | undefined): string {
-  const match = message?.text?.match(TOKEN_RE);
+function extractToken(link: string | undefined): string {
+  const match = link?.match(TOKEN_RE);
   if (!match?.[1]) {
-    throw new Error('Expected message to contain a token link');
+    throw new Error('Expected link to contain a token');
   }
   return match[1];
+}
+
+async function outboxEventsTo(email: string, eventType: string) {
+  return await db()
+    .select()
+    .from(authOutbox)
+    .where(
+      and(eq(authOutbox.eventType, eventType), sql`${authOutbox.payload}->>'email' = ${email}`),
+    )
+    .orderBy(desc(authOutbox.createdAt));
+}
+
+async function latestEmailLinkTo(email: string, eventType: string): Promise<string> {
+  const event = (await outboxEventsTo(email, eventType))[0];
+  const payload = event?.payload as {verifyLink?: string; resetLink?: string} | undefined;
+  const link =
+    eventType === AUTH_EMAIL_VERIFICATION_SEND_REQUESTED ? payload?.verifyLink : payload?.resetLink;
+  if (!link) throw new Error(`No ${eventType} outbox link for ${email}`);
+  return link;
 }
 
 describe('auth core', () => {
@@ -101,9 +125,10 @@ describe('auth core', () => {
     expect(user.email).toBe(email);
     expect(user.name).toBe('Sign Up');
     expect(user.emailVerifiedAt).toBeNull();
-    expect(captured).toHaveLength(1);
-    expect(captured[0]?.to).toBe(email);
-    expect(captured[0]?.text).toContain(`${testConfig.clientBaseUrl}/auth/verify-email?token=`);
+    expect(captured).toHaveLength(0);
+    expect(await latestEmailLinkTo(email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED)).toContain(
+      `${testConfig.clientBaseUrl}/auth/verify-email?token=`,
+    );
   });
 
   test('signup rejects duplicate email with a business error', async () => {
@@ -221,7 +246,9 @@ describe('auth core', () => {
       email: `verify-${crypto.randomUUID()}@example.com`,
       password: 'correct horse battery staple',
     });
-    const token = extractToken(captured[0]);
+    const token = extractToken(
+      await latestEmailLinkTo(user.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED),
+    );
 
     const result = await confirmEmailVerification({token});
     const verified = await findUserById({id: user.id});
@@ -250,8 +277,16 @@ describe('auth core', () => {
       email: `missing-${crypto.randomUUID()}@example.com`,
     });
 
-    expect(captured).toHaveLength(1);
-    expect(captured[0]?.to).toBe(unverified.email);
+    expect(captured).toHaveLength(0);
+    expect(
+      await outboxEventsTo(unverified.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED),
+    ).toHaveLength(1);
+    expect(
+      await outboxEventsTo(verified.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED),
+    ).toHaveLength(0);
+    expect(
+      await outboxEventsTo(inactive.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED),
+    ).toHaveLength(0);
     expect(sent.nextResendAvailableAt).toBeInstanceOf(Date);
     expect(verifiedResult.nextResendAvailableAt).toBeInstanceOf(Date);
     expect(inactiveResult.nextResendAvailableAt).toBeInstanceOf(Date);
@@ -263,7 +298,9 @@ describe('auth core', () => {
       email: `resend-cooldown-${crypto.randomUUID()}@example.com`,
       password: 'correct horse battery staple',
     });
-    const token = extractToken(captured[0]);
+    const token = extractToken(
+      await latestEmailLinkTo(user.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED),
+    );
     const existingCreatedAt = new Date(
       Date.now() - (EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS / 2) * 1000,
     );
@@ -281,7 +318,10 @@ describe('auth core', () => {
     expect(result.nextResendAvailableAt.getTime()).toBeGreaterThanOrEqual(
       beforeCall + EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS * 1000,
     );
-    expect(captured).toHaveLength(1);
+    expect(captured).toHaveLength(0);
+    expect(await outboxEventsTo(user.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED)).toHaveLength(
+      1,
+    );
     expect(verified.user.id).toBe(user.id);
   });
 
@@ -301,8 +341,10 @@ describe('auth core', () => {
     const result = await resendEmailVerification({email: user.email});
 
     expect(result.nextResendAvailableAt).toBeInstanceOf(Date);
-    expect(captured).toHaveLength(2);
-    expect(captured[1]?.to).toBe(user.email);
+    expect(captured).toHaveLength(0);
+    expect(await outboxEventsTo(user.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED)).toHaveLength(
+      2,
+    );
   });
 
   test('resendEmailVerification serializes duplicate requests for one user', async () => {
@@ -314,8 +356,10 @@ describe('auth core', () => {
     ]);
 
     expect(results).toHaveLength(2);
-    expect(captured).toHaveLength(1);
-    expect(captured[0]?.to).toBe(user.email);
+    expect(captured).toHaveLength(0);
+    expect(await outboxEventsTo(user.email, AUTH_EMAIL_VERIFICATION_SEND_REQUESTED)).toHaveLength(
+      1,
+    );
   });
 
   test('password reset request and confirm update the password and invalidate the token', async () => {
@@ -324,7 +368,9 @@ describe('auth core', () => {
     const newPassword = 'new password is also long';
 
     await requestPasswordReset({email: user.email});
-    const resetToken = extractToken(captured[0]);
+    const resetToken = extractToken(
+      await latestEmailLinkTo(user.email, AUTH_PASSWORD_RESET_SEND_REQUESTED),
+    );
     const resetResult = await confirmPasswordReset({token: resetToken, newPassword});
 
     const oldLogin = login({email: user.email, password: user.plainPassword});
@@ -349,6 +395,7 @@ describe('auth core', () => {
     await requestPasswordReset({email});
 
     expect(captured).toHaveLength(0);
+    expect(await outboxEventsTo(email, AUTH_PASSWORD_RESET_SEND_REQUESTED)).toHaveLength(0);
   });
 
   test('changePassword validates the current password and updates the password', async () => {
@@ -437,9 +484,10 @@ describe('auth core', () => {
 
     await requestPasswordReset({email: user.email});
 
-    expect(captured).toHaveLength(1);
-    expect(captured[0]?.to).toBe(user.email);
-    expect(captured[0]?.text).toContain(`${testConfig.clientBaseUrl}/auth/reset?token=`);
+    expect(captured).toHaveLength(0);
+    expect(await latestEmailLinkTo(user.email, AUTH_PASSWORD_RESET_SEND_REQUESTED)).toContain(
+      `${testConfig.clientBaseUrl}/auth/reset?token=`,
+    );
   });
 
   test('signup persists a hashed password', async () => {

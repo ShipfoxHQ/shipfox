@@ -3,6 +3,7 @@ import {pgClient} from '@shipfox/node-postgres';
 import {apiKeys} from './schema/api-keys.js';
 import {invitations} from './schema/invitations.js';
 import {memberships} from './schema/memberships.js';
+import {workspacesOutbox} from './schema/outbox.js';
 import {workspaces} from './schema/workspaces.js';
 
 export const schema = {
@@ -10,6 +11,7 @@ export const schema = {
   apiKeys,
   memberships,
   invitations,
+  workspacesOutbox,
 };
 
 let _db: NodePgDatabase<typeof schema> | undefined;

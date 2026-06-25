@@ -1,11 +1,15 @@
 import type {OutgoingHttpHeaders} from 'node:http';
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {WORKSPACES_INVITATION_SEND_REQUESTED} from '@shipfox/api-workspaces-dto';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
+import {and, desc, eq, sql} from 'drizzle-orm';
+import {db} from '#db/db.js';
 import {createInvitation} from '#db/invitations.js';
 import {listMembershipsByUser} from '#db/memberships.js';
+import {workspacesOutbox} from '#db/schema/outbox.js';
 import {createApiKeyAuthMethod} from '#presentation/auth/api-key-auth.js';
 import {workspacesRoutes} from '#presentation/routes/index.js';
 
@@ -85,6 +89,19 @@ export function capturedMail(): MailMessage[] {
   return testConfig.captured;
 }
 
+export async function invitationOutboxEventsTo(email: string) {
+  return await db()
+    .select()
+    .from(workspacesOutbox)
+    .where(
+      and(
+        eq(workspacesOutbox.eventType, WORKSPACES_INVITATION_SEND_REQUESTED),
+        sql`${workspacesOutbox.payload}->>'email' = ${email}`,
+      ),
+    )
+    .orderBy(desc(workspacesOutbox.createdAt));
+}
+
 export function uniqueEmail(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}@example.com`;
 }
@@ -112,6 +129,14 @@ export function latestMailTo(email: string): MailMessage {
   const message = [...testConfig.captured].reverse().find((mail) => mail.to === email);
   expect(message).toBeDefined();
   return message as MailMessage;
+}
+
+export async function latestInvitationLinkTo(email: string): Promise<string> {
+  const event = (await invitationOutboxEventsTo(email))[0];
+  expect(event).toBeDefined();
+  const payload = event?.payload as {inviteLink?: string} | undefined;
+  expect(payload?.inviteLink).toBeDefined();
+  return payload?.inviteLink ?? '';
 }
 
 export async function createWorkspacesTestApp(): Promise<FastifyInstance> {
@@ -209,7 +234,7 @@ export async function createInvite(
   expect(res.statusCode).toBe(201);
   return {
     id: res.json().id,
-    rawToken: extractToken(latestMailTo(params.email).text ?? ''),
+    rawToken: extractToken(await latestInvitationLinkTo(params.email)),
   };
 }
 
