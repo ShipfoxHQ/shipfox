@@ -1,7 +1,14 @@
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
-import {Badge, Code, cn, Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui';
+import {
+  Badge,
+  Code,
+  cn,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  useIsTextTruncated,
+} from '@shipfox/react-ui';
 import type {KeyboardEventHandler, Ref} from 'react';
-import {useIsTextTruncated} from '#components/truncation/use-is-text-truncated.js';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {WorkflowGraphTriggerNode, WorkflowJobGraphNode} from './graph-model.js';

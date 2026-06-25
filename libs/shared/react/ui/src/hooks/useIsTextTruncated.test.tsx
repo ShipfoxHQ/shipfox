@@ -1,5 +1,5 @@
 import {act, render, screen, waitFor} from '@testing-library/react';
-import {useIsTextTruncated} from './use-is-text-truncated.js';
+import {useIsTextTruncated} from './useIsTextTruncated.js';
 
 const originalScrollWidth = Object.getOwnPropertyDescriptor(
   window.HTMLElement.prototype,
@@ -26,7 +26,7 @@ describe('useIsTextTruncated', () => {
     render(<TruncationProbe label="release-production" />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('truncation-probe')).toHaveAttribute('data-truncated', 'true');
+      expect(screen.getByTestId('truncation-probe').getAttribute('data-truncated')).toBe('true');
     });
   });
 
@@ -36,7 +36,7 @@ describe('useIsTextTruncated', () => {
     render(<TruncationProbe label="deploy" />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('truncation-probe')).toHaveAttribute('data-truncated', 'false');
+      expect(screen.getByTestId('truncation-probe').getAttribute('data-truncated')).toBe('false');
     });
   });
 
@@ -71,14 +71,14 @@ describe('useIsTextTruncated', () => {
 
     const {unmount} = render(<TruncationProbe label="deploy" />);
     await waitFor(() => {
-      expect(screen.getByTestId('truncation-probe')).toHaveAttribute('data-truncated', 'false');
+      expect(screen.getByTestId('truncation-probe').getAttribute('data-truncated')).toBe('false');
     });
 
     scrollWidth = 160;
     clientWidth = 100;
     act(() => resizeCallback?.([], {} as ResizeObserver));
 
-    expect(screen.getByTestId('truncation-probe')).toHaveAttribute('data-truncated', 'true');
+    expect(screen.getByTestId('truncation-probe').getAttribute('data-truncated')).toBe('true');
 
     unmount();
     expect(disconnect).toHaveBeenCalledTimes(1);
@@ -94,7 +94,7 @@ describe('useIsTextTruncated', () => {
     render(<TruncationProbe label="release-production" />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('truncation-probe')).toHaveAttribute('data-truncated', 'true');
+      expect(screen.getByTestId('truncation-probe').getAttribute('data-truncated')).toBe('true');
     });
   });
 
@@ -102,18 +102,16 @@ describe('useIsTextTruncated', () => {
     setElementWidths({scrollWidth: 140, clientWidth: 100});
 
     const {rerender} = render(<ConditionalTruncationProbe label="deploy" visible={false} />);
-    expect(screen.getByTestId('conditional-truncation-probe')).toHaveAttribute(
-      'data-truncated',
+    expect(screen.getByTestId('conditional-truncation-probe').getAttribute('data-truncated')).toBe(
       'false',
     );
 
     rerender(<ConditionalTruncationProbe label="deploy" visible />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('conditional-truncation-probe')).toHaveAttribute(
-        'data-truncated',
-        'true',
-      );
+      expect(
+        screen.getByTestId('conditional-truncation-probe').getAttribute('data-truncated'),
+      ).toBe('true');
     });
   });
 
@@ -125,19 +123,17 @@ describe('useIsTextTruncated', () => {
 
     const {rerender} = render(<ReplacementTruncationProbe label="deploy" width="fits" />);
     await waitFor(() => {
-      expect(screen.getByTestId('replacement-truncation-probe')).toHaveAttribute(
-        'data-truncated',
-        'false',
-      );
+      expect(
+        screen.getByTestId('replacement-truncation-probe').getAttribute('data-truncated'),
+      ).toBe('false');
     });
 
     rerender(<ReplacementTruncationProbe label="deploy" width="clipped" />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('replacement-truncation-probe')).toHaveAttribute(
-        'data-truncated',
-        'true',
-      );
+      expect(
+        screen.getByTestId('replacement-truncation-probe').getAttribute('data-truncated'),
+      ).toBe('true');
     });
   });
 });

@@ -8,10 +8,10 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  useIsTextTruncated,
 } from '@shipfox/react-ui';
 import type {Ref} from 'react';
 import {useId} from 'react';
-import {useIsTextTruncated} from '#components/truncation/use-is-text-truncated.js';
 import {WORKFLOW_RUN_STATUSES, type WorkflowRun} from '#core/workflow-run.js';
 import {Identifier} from '../identifier/index.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
