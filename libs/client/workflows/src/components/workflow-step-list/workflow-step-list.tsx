@@ -1,4 +1,8 @@
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   type BadgeVariant,
   cn,
   Dot,
@@ -73,27 +77,34 @@ function WorkflowStepListContent({
   className,
 }: Omit<WorkflowStepListProps, 'job'> & {model: WorkflowStepListModel}) {
   const titleId = useId();
-  const [localSelectedAttemptId, setLocalSelectedAttemptId] = useState<string | undefined>(
-    defaultSelectedAttemptId,
+  const [localSelectedAttemptIds, setLocalSelectedAttemptIds] = useState<string[]>(
+    defaultSelectedAttemptId ? [defaultSelectedAttemptId] : [],
   );
   const [userSelectedAttempt, setUserSelectedAttempt] = useState(false);
-  const autoSelectedAttemptId =
-    autoSelectActiveAttempt && !userSelectedAttempt ? model.activeEntryId : undefined;
+  const autoSelectedAttemptIds =
+    autoSelectActiveAttempt && !userSelectedAttempt && model.activeEntryId
+      ? [model.activeEntryId]
+      : [];
   // `undefined` leaves selection uncontrolled; `null` is a controlled collapsed state.
-  const selected =
+  const selectedAttemptIds =
     selectedAttemptId !== undefined
       ? selectedAttemptId
-      : (localSelectedAttemptId ?? autoSelectedAttemptId);
+        ? [selectedAttemptId]
+        : []
+      : localSelectedAttemptIds.length > 0
+        ? localSelectedAttemptIds
+        : autoSelectedAttemptIds;
+  const hasExpandedContent = renderExpandedStep !== undefined;
 
   useEffect(() => {
-    setLocalSelectedAttemptId(defaultSelectedAttemptId);
+    setLocalSelectedAttemptIds(defaultSelectedAttemptId ? [defaultSelectedAttemptId] : []);
     setUserSelectedAttempt(false);
   }, [defaultSelectedAttemptId]);
 
-  function selectAttempt(attemptId: string) {
-    const nextAttemptId = attemptId === selected ? undefined : attemptId;
+  function selectAttempt(nextAttemptIds: string[]) {
+    const nextAttemptId = nextSelectedAttemptId(selectedAttemptIds, nextAttemptIds);
     setUserSelectedAttempt(true);
-    setLocalSelectedAttemptId(nextAttemptId);
+    setLocalSelectedAttemptIds(nextAttemptIds);
     onSelectedAttemptChange?.(nextAttemptId);
   }
 
@@ -120,27 +131,46 @@ function WorkflowStepListContent({
           variant="compact"
         />
       ) : (
-        <ol className="min-h-0 divide-y divide-border-neutral-base overflow-auto">
-          {model.entries.map((entry) => (
-            <WorkflowStepRow
-              key={entry.id}
-              entry={entry}
-              selected={entry.id === selected}
-              hasExpandedContent={renderExpandedStep !== undefined}
-              onSelect={() => selectAttempt(entry.id)}
-              expandedContent={
-                entry.id === selected
-                  ? renderExpandedStep?.({
-                      stepId: entry.step.id,
-                      attempt: entry.attempt,
-                      attemptId: entry.id,
-                      attemptStatus: entry.statusVisual.kind,
-                    })
-                  : null
-              }
-            />
-          ))}
-        </ol>
+        <Accordion
+          type="multiple"
+          value={selectedAttemptIds}
+          onValueChange={selectAttempt}
+          className="min-h-0 overflow-auto"
+          asChild
+        >
+          <ol>
+            {model.entries.map((entry) => {
+              const selected = selectedAttemptIds.includes(entry.id);
+              return (
+                <WorkflowStepRow
+                  key={entry.id}
+                  entry={entry}
+                  selected={selected}
+                  hasExpandedContent={hasExpandedContent}
+                  onSelect={() => {
+                    selectAttempt(
+                      hasExpandedContent
+                        ? toggleAttemptId(selectedAttemptIds, entry.id)
+                        : selected
+                          ? []
+                          : [entry.id],
+                    );
+                  }}
+                  expandedContent={
+                    selected
+                      ? renderExpandedStep?.({
+                          stepId: entry.step.id,
+                          attempt: entry.attempt,
+                          attemptId: entry.id,
+                          attemptStatus: entry.statusVisual.kind,
+                        })
+                      : null
+                  }
+                />
+              );
+            })}
+          </ol>
+        </Accordion>
       )}
     </section>
   );
@@ -160,21 +190,8 @@ function WorkflowStepRow({
   expandedContent: ReactNode;
 }) {
   const shouldShowLabelTooltip = entry.step.label.length > 32;
-  const buttonId = useId();
-  const panelId = useId();
-  const button = (
-    <button
-      id={buttonId}
-      type="button"
-      aria-expanded={selected && hasExpandedContent}
-      {...(hasExpandedContent ? {'aria-controls': panelId} : {})}
-      aria-label={entryAccessibleLabel(entry)}
-      onClick={onSelect}
-      className={cn(
-        'group grid min-h-44 w-full grid-cols-[14px_14px_minmax(0,1fr)] items-center gap-x-8 px-12 py-6 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
-        selected && 'bg-background-components-hover',
-      )}
-    >
+  const rowContent = (
+    <>
       <Icon
         name="chevronRight"
         aria-hidden="true"
@@ -192,11 +209,33 @@ function WorkflowStepRow({
           {entry.step.attempts.length > 1 ? <WorkflowAttemptChip attempt={entry} /> : null}
         </div>
       </div>
+    </>
+  );
+  const rowClasses = cn(
+    'group grid min-h-44 w-full grid-cols-[14px_14px_minmax(0,1fr)] items-center gap-x-8 px-12 py-6 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
+    selected && 'bg-background-components-hover',
+  );
+  const button = hasExpandedContent ? (
+    <AccordionTrigger
+      showIcon={false}
+      aria-label={entryAccessibleLabel(entry)}
+      className={rowClasses}
+    >
+      {rowContent}
+    </AccordionTrigger>
+  ) : (
+    <button
+      type="button"
+      aria-expanded={false}
+      aria-label={entryAccessibleLabel(entry)}
+      onClick={onSelect}
+      className={rowClasses}
+    >
+      {rowContent}
     </button>
   );
-
-  return (
-    <li>
+  const row = (
+    <>
       {shouldShowLabelTooltip ? (
         <Tooltip>
           <TooltipTrigger asChild>{button}</TooltipTrigger>
@@ -208,20 +247,45 @@ function WorkflowStepRow({
         button
       )}
       {selected && expandedContent ? (
-        <section
-          id={panelId}
-          aria-labelledby={buttonId}
-          className="border-t border-border-neutral-base bg-background-neutral-base px-12 py-12"
-        >
+        <AccordionContent className="border-t border-border-neutral-base bg-background-neutral-base px-12 py-12">
           <div className="grid grid-cols-[14px_14px_minmax(0,1fr)] gap-x-8">
             <span aria-hidden="true" />
             <span aria-hidden="true" />
             <div className="min-w-0">{expandedContent}</div>
           </div>
-        </section>
+        </AccordionContent>
       ) : null}
-    </li>
+    </>
   );
+
+  if (hasExpandedContent) {
+    return (
+      <AccordionItem value={entry.id} asChild>
+        <li>{row}</li>
+      </AccordionItem>
+    );
+  }
+
+  return <li className="border-b border-border-neutral-base last:border-b-0">{row}</li>;
+}
+
+function toggleAttemptId(selectedAttemptIds: readonly string[], attemptId: string): string[] {
+  if (selectedAttemptIds.includes(attemptId)) {
+    return selectedAttemptIds.filter((selectedAttemptId) => selectedAttemptId !== attemptId);
+  }
+  return [...selectedAttemptIds, attemptId];
+}
+
+function nextSelectedAttemptId(
+  selectedAttemptIds: readonly string[],
+  nextAttemptIds: readonly string[],
+): string | undefined {
+  if (nextAttemptIds.length === 0) return undefined;
+
+  const openedAttemptId = nextAttemptIds.find(
+    (attemptId) => !selectedAttemptIds.includes(attemptId),
+  );
+  return openedAttemptId ?? nextAttemptIds.at(-1);
 }
 
 function WorkflowStepStatusIcon({entry}: {entry: WorkflowStepListEntryModel}) {

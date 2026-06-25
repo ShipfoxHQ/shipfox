@@ -69,6 +69,30 @@ describe('WorkflowStepList', () => {
     ).toBeInTheDocument();
   });
 
+  test('keeps multiple expanded rows open', async () => {
+    const user = userEvent.setup();
+    const buildAttempt = makeAttempt({status: 'succeeded'});
+    const deployAttempt = makeAttempt({status: 'running'});
+    const build = makeStep({name: 'build', attempts: [buildAttempt]});
+    const deploy = makeStep({name: 'deploy', position: 1, attempts: [deployAttempt]});
+    render(
+      <WorkflowStepList
+        job={makeJob({steps: [build, deploy]})}
+        renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
+      />,
+    );
+    const buildRow = screen.getByRole('button', {name: 'build, Succeeded, attempt 1'});
+    const deployRow = screen.getByRole('button', {name: 'deploy, Running, attempt 1'});
+
+    await user.click(buildRow);
+    await user.click(deployRow);
+
+    expect(buildRow).toHaveAttribute('aria-expanded', 'true');
+    expect(deployRow).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText(`logs for ${buildAttempt.id}`)).toBeInTheDocument();
+    expect(screen.getByText(`logs for ${deployAttempt.id}`)).toBeInTheDocument();
+  });
+
   test('reports selection changes including collapse', async () => {
     const user = userEvent.setup();
     const onSelectedAttemptChange = vi.fn();
@@ -87,6 +111,23 @@ describe('WorkflowStepList', () => {
 
     expect(onSelectedAttemptChange).toHaveBeenNthCalledWith(1, attempt.id);
     expect(onSelectedAttemptChange).toHaveBeenNthCalledWith(2, undefined);
+  });
+
+  test('keeps row selection singular when no expanded content is rendered', async () => {
+    const user = userEvent.setup();
+    const buildAttempt = makeAttempt({status: 'succeeded'});
+    const deployAttempt = makeAttempt({status: 'running'});
+    const build = makeStep({name: 'build', attempts: [buildAttempt]});
+    const deploy = makeStep({name: 'deploy', position: 1, attempts: [deployAttempt]});
+    render(<WorkflowStepList job={makeJob({steps: [build, deploy]})} />);
+    const buildRow = screen.getByRole('button', {name: 'build, Succeeded, attempt 1'});
+    const deployRow = screen.getByRole('button', {name: 'deploy, Running, attempt 1'});
+
+    await user.click(buildRow);
+    await user.click(deployRow);
+
+    expect(buildRow).not.toHaveClass('bg-background-components-hover');
+    expect(deployRow).toHaveClass('bg-background-components-hover');
   });
 
   test('opens a default selected attempt', () => {

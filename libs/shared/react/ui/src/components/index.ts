@@ -1,3 +1,4 @@
+export * from './accordion/index.js';
 export * from './alert/index.js';
 export * from './avatar/index.js';
 export * from './badge/index.js';
