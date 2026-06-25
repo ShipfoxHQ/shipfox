@@ -79,7 +79,10 @@ export async function executeSetupStep(params: {
 
   let checkout: CheckoutTokenResponseDto;
   try {
-    log?.writeGroup({name: 'Checkout authentication', lines: ['Requesting checkout credentials']});
+    log?.writeGroup({
+      name: 'Request checkout credentials',
+      lines: ['Requesting checkout credentials'],
+    });
     checkout = await requestCheckoutToken(leaseClient, {signal});
     log?.writeGroup({
       name: 'Checkout authentication',

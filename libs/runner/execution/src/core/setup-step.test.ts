@@ -120,6 +120,14 @@ describe('executeSetupStep', () => {
       }),
     );
     expect(log.writeGroup).toHaveBeenCalledWith({
+      name: 'Request checkout credentials',
+      lines: ['Requesting checkout credentials'],
+    });
+    expect(log.writeGroup).toHaveBeenCalledWith({
+      name: 'Checkout authentication',
+      lines: ['credential kind: none', 'expires at: n/a'],
+    });
+    expect(log.writeGroup).toHaveBeenCalledWith({
       name: 'Checkout complete',
       lines: ['checked-out commit: abc123'],
     });
