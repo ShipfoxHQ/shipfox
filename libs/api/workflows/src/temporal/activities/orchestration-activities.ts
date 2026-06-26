@@ -1,6 +1,6 @@
 import {enqueueJob, releaseJob} from '@shipfox/api-runners';
 import {ApplicationFailure} from '@temporalio/common';
-import type {JobStatus} from '#core/entities/job.js';
+import type {JobStatus, JobStatusReason} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus, RuntimeDagJob} from '#core/entities/runtime-dag.js';
 import type {StepStatus} from '#core/entities/step.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
@@ -93,11 +93,13 @@ export async function setJobStatus(params: {
   jobId: string;
   status: JobStatus;
   version: number;
+  statusReason?: JobStatusReason | null | undefined;
 }): Promise<{newVersion: number}> {
   const updated = await updateJobStatus({
     jobId: params.jobId,
     status: params.status,
     expectedVersion: params.version,
+    statusReason: params.statusReason,
   });
   return {newVersion: updated.version};
 }

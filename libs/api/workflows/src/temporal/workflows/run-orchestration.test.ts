@@ -78,7 +78,7 @@ describe('runOrchestration', () => {
     expect(callsNamed('enqueueJobForRunner')).toHaveLength(3);
   });
 
-  test('single job fails, dependents are cancelled', async () => {
+  test('single job fails, dependents are skipped', async () => {
     const jobs = [
       dagJob('j1', 'build'),
       dagJob('j2', 'test', ['build']),
@@ -95,12 +95,21 @@ describe('runOrchestration', () => {
     const jobStatuses = setJobStatusCalls().map((c) => ({
       id: c.params.jobId,
       status: c.params.status,
+      statusReason: c.params.statusReason ?? null,
     }));
-    expect(jobStatuses).toContainEqual({id: 'j2', status: 'cancelled'});
-    expect(jobStatuses).toContainEqual({id: 'j3', status: 'cancelled'});
+    expect(jobStatuses).toContainEqual({
+      id: 'j2',
+      status: 'skipped',
+      statusReason: 'dependency_not_completed',
+    });
+    expect(jobStatuses).toContainEqual({
+      id: 'j3',
+      status: 'skipped',
+      statusReason: 'dependency_not_completed',
+    });
   });
 
-  test('first job fails, all downstream cancelled', async () => {
+  test('first job fails, all downstream skipped', async () => {
     const jobs = [
       dagJob('j1', 'build'),
       dagJob('j2', 'a', ['build']),
@@ -113,6 +122,22 @@ describe('runOrchestration', () => {
     const runStatuses = setRunStatusCalls().map((c) => c.params.status);
     expect(runStatuses).toEqual(['running', 'failed']);
     expect(callsNamed('enqueueJobForRunner')).toHaveLength(1);
+
+    const jobStatuses = setJobStatusCalls().map((c) => ({
+      id: c.params.jobId,
+      status: c.params.status,
+      statusReason: c.params.statusReason ?? null,
+    }));
+    expect(jobStatuses).toContainEqual({
+      id: 'j2',
+      status: 'skipped',
+      statusReason: 'dependency_not_completed',
+    });
+    expect(jobStatuses).toContainEqual({
+      id: 'j3',
+      status: 'skipped',
+      statusReason: 'dependency_not_completed',
+    });
   });
 
   test('version tracking flows through correctly', async () => {
@@ -140,13 +165,18 @@ describe('runOrchestration', () => {
     const runStatuses = setRunStatusCalls().map((c) => c.params.status);
     expect(runStatuses).toEqual(['running', 'failed']);
 
-    // A, B, C enqueued — D cancelled because B failed
+    // A, B, C enqueued — D skipped because B failed
     expect(callsNamed('enqueueJobForRunner')).toHaveLength(3);
     const jobStatuses = setJobStatusCalls().map((c) => ({
       id: c.params.jobId,
       status: c.params.status,
+      statusReason: c.params.statusReason ?? null,
     }));
-    expect(jobStatuses).toContainEqual({id: 'j4', status: 'cancelled'});
+    expect(jobStatuses).toContainEqual({
+      id: 'j4',
+      status: 'skipped',
+      statusReason: 'dependency_not_completed',
+    });
   });
 
   test('child workflow crash propagates to parent', async () => {

@@ -50,24 +50,24 @@ describe('scheduleRuntimeDag', () => {
     expect(commands).toEqual([{kind: 'start-job', job: jobs[1]}]);
   });
 
-  it('cancels jobs blocked by a failed dependency', () => {
+  it('skips jobs blocked by a failed dependency', () => {
     const jobs = [job('build'), job('test', ['build'])];
 
     const commands = scheduleRuntimeDag({jobs, completed: completed({build: 'failed'})});
 
     expect(commands).toEqual([
-      {kind: 'cancel-job', job: jobs[1]},
+      {kind: 'skip-job', job: jobs[1]},
       {kind: 'complete-run', status: 'failed'},
     ]);
   });
 
-  it('cancels remaining jobs when no ready node exists', () => {
+  it('skips remaining jobs when no ready node exists', () => {
     const jobs = [job('a', ['missing'])];
 
     const commands = scheduleRuntimeDag({jobs, completed: completed({})});
 
     expect(commands).toEqual([
-      {kind: 'cancel-job', job: jobs[0]},
+      {kind: 'skip-job', job: jobs[0]},
       {kind: 'complete-run', status: 'failed'},
     ]);
   });

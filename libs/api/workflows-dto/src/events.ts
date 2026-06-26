@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {jobStatusReasonSchema} from './schemas/job.js';
 import {logOutcomeSchema} from './schemas/log-outcome.js';
 
 const nonEmptyStringSchema = z.string().nonempty();
@@ -29,14 +30,16 @@ export const workflowsWorkflowRunCreatedSchema = z.object({
 });
 export type WorkflowsWorkflowRunCreatedEvent = z.infer<typeof workflowsWorkflowRunCreatedSchema>;
 
-// Keep outbox terminal statuses narrower than runStatusSchema, which also
-// carries pending/running.
-export const terminalStatusSchema = z.enum(['succeeded', 'failed', 'cancelled']);
+// Keep outbox terminal statuses narrower than the public status schemas, which
+// also carry pending/running and job-only skipped.
+export const workflowRunTerminalStatusSchema = z.enum(['succeeded', 'failed', 'cancelled']);
+export const jobTerminalStatusSchema = z.enum(['succeeded', 'failed', 'cancelled', 'skipped']);
+export const terminalStatusSchema = workflowRunTerminalStatusSchema;
 
 export const workflowsWorkflowRunTerminatedSchema = z.object({
   runId: nonEmptyStringSchema,
   projectId: nonEmptyStringSchema,
-  status: terminalStatusSchema,
+  status: workflowRunTerminalStatusSchema,
 });
 export type WorkflowsWorkflowRunTerminatedEvent = z.infer<
   typeof workflowsWorkflowRunTerminatedSchema
@@ -51,7 +54,8 @@ export type WorkflowsJobTimedOutEvent = z.infer<typeof workflowsJobTimedOutSchem
 export const workflowsJobTerminatedSchema = z.object({
   jobId: nonEmptyStringSchema,
   runId: nonEmptyStringSchema,
-  status: terminalStatusSchema,
+  status: jobTerminalStatusSchema,
+  statusReason: jobStatusReasonSchema.nullable(),
 });
 export type WorkflowsJobTerminatedEvent = z.infer<typeof workflowsJobTerminatedSchema>;
 

@@ -40,8 +40,8 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
     const completeRun = commands.find((command) => command.kind === 'complete-run');
 
     for (const command of commands) {
-      if (command.kind !== 'cancel-job') continue;
-      await cancelJob(command.job, completed, jobVersions);
+      if (command.kind !== 'skip-job') continue;
+      await skipJob(command.job, completed, jobVersions);
     }
 
     const jobsToStart = commands.flatMap((command) =>
@@ -65,13 +65,18 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
   }
 }
 
-async function cancelJob(
+async function skipJob(
   job: DagJob,
   completed: Map<string, RuntimeCompletionStatus>,
   jobVersions: Map<string, number>,
 ): Promise<void> {
   const version = jobVersions.get(job.id) ?? job.version;
-  const {newVersion} = await setJobStatus({jobId: job.id, status: 'cancelled', version});
+  const {newVersion} = await setJobStatus({
+    jobId: job.id,
+    status: 'skipped',
+    version,
+    statusReason: 'dependency_not_completed',
+  });
   jobVersions.set(job.id, newVersion);
   completed.set(job.name, 'failed');
 }

@@ -1,12 +1,31 @@
 import {z} from 'zod';
 
-export const jobStatusSchema = z.enum(['pending', 'running', 'succeeded', 'failed', 'cancelled']);
+export const jobStatusSchema = z.enum([
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+  'skipped',
+]);
+
+export const jobStatusReasonSchema = z.enum([
+  'dependency_not_completed',
+  'condition_false',
+  'user_cancelled',
+  'run_cancelled',
+  'timed_out',
+  'runner_lost',
+  'step_failed',
+  'unknown',
+]);
 
 export const jobDtoSchema = z.object({
   id: z.string().uuid(),
   run_id: z.string().uuid(),
   name: z.string(),
   status: jobStatusSchema,
+  status_reason: jobStatusReasonSchema.nullable(),
   dependencies: z.array(z.string()),
   position: z.number(),
   created_at: z.string(),
@@ -21,3 +40,4 @@ export const jobDtoSchema = z.object({
 
 export type JobDto = z.infer<typeof jobDtoSchema>;
 export type JobStatusDto = z.infer<typeof jobStatusSchema>;
+export type JobStatusReasonDto = z.infer<typeof jobStatusReasonSchema>;

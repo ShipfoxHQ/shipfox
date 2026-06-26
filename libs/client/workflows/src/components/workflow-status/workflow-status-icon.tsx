@@ -27,6 +27,7 @@ const glyphByKind: Partial<Record<WorkflowStatus, IconName>> = {
   succeeded: 'checkCircleSolid',
   failed: 'xCircleSolid',
   cancelled: 'forbid2Fill',
+  skipped: 'forbid2Fill',
 };
 
 // The solid discs fill ~90-95% of their viewBox and forbid2Fill ~83%, so one numeric size
@@ -41,6 +42,7 @@ const glyphScale: Partial<Record<IconName, number>> = {
 const dotSizeClass: Record<number, string> = {
   12: 'size-12',
   14: 'size-14',
+  20: 'size-20',
 };
 
 // Pending is a neutral ring: a filled disc with a transparent center punched out by a radial
@@ -95,7 +97,7 @@ export function WorkflowStatusIcon({
           'inline-flex shrink-0 items-center justify-center',
           box,
           toneByVariant[visual.dot],
-          visual.kind === 'cancelled' && 'opacity-70',
+          (visual.kind === 'cancelled' || visual.kind === 'skipped') && 'opacity-70',
         )}
       >
         <Icon name={name} size={Math.round(size * (glyphScale[name] ?? 1))} />

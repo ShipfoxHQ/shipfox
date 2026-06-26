@@ -75,7 +75,7 @@ export function setRunStatusCalls() {
 export function setJobStatusCalls() {
   return callsNamed('setJobStatus') as Array<{
     name: string;
-    params: {jobId: string; status: string; version: number};
+    params: {jobId: string; status: string; version: number; statusReason?: string | null};
   }>;
 }
 
@@ -142,7 +142,12 @@ function createMockActivities() {
       return {newVersion: nextVersion()};
     },
 
-    setJobStatus: (params: {jobId: string; status: string; version: number}) => {
+    setJobStatus: (params: {
+      jobId: string;
+      status: string;
+      version: number;
+      statusReason?: string | null;
+    }) => {
       calls.push({name: 'setJobStatus', params});
       return {newVersion: nextVersion()};
     },

@@ -39,6 +39,7 @@ describe('resolveCheckoutIntent', () => {
     'succeeded',
     'failed',
     'cancelled',
+    'skipped',
   ] as const)('throws JobNotActiveError when the job is %s (terminal)', async (status) => {
     const project = projectFactory.build();
     mockGetProjectById.mockResolvedValue(project);

@@ -7,7 +7,9 @@ export {
   checkoutTokenResponseSchema,
   type JobDto,
   type JobStatusDto,
+  type JobStatusReasonDto,
   jobDtoSchema,
+  jobStatusReasonSchema,
   jobStatusSchema,
   type LogOutcomeDto,
   logOutcomeSchema,
@@ -55,6 +57,7 @@ export {
 export {type WorkflowSourceSnapshotDto, workflowSourceSnapshotSchema} from '#schemas/run.js';
 export {type StepSourceLocationDto, stepSourceLocationSchema} from '#schemas/step.js';
 export {
+  jobTerminalStatusSchema,
   terminalStatusSchema,
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_JOB_TERMINATED,
@@ -71,6 +74,7 @@ export {
   type WorkflowsStepRestartEnqueuedEvent,
   type WorkflowsWorkflowRunCreatedEvent,
   type WorkflowsWorkflowRunTerminatedEvent,
+  workflowRunTerminalStatusSchema,
   workflowsEventSchemas,
   workflowsJobStepsSettledSchema,
   workflowsJobTerminatedSchema,

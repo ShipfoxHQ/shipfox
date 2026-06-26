@@ -26,6 +26,8 @@ export function getWorkflowStatusVisual(status: WorkflowStatus): WorkflowStatusV
       return {kind: 'failed', label: 'Failed', dot: 'error', badge: 'error'};
     case 'cancelled':
       return {kind: 'cancelled', label: 'Cancelled', dot: 'neutral', badge: 'neutral'};
+    case 'skipped':
+      return {kind: 'skipped', label: 'Skipped', dot: 'neutral', badge: 'neutral'};
   }
 
   const exhaustive: never = status;

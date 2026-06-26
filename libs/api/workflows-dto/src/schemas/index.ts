@@ -5,7 +5,14 @@ export {
   checkoutTokenAuthSchema,
   checkoutTokenResponseSchema,
 } from './checkout-token.js';
-export {type JobDto, type JobStatusDto, jobDtoSchema, jobStatusSchema} from './job.js';
+export {
+  type JobDto,
+  type JobStatusDto,
+  type JobStatusReasonDto,
+  jobDtoSchema,
+  jobStatusReasonSchema,
+  jobStatusSchema,
+} from './job.js';
 export {
   type NextStepResponseDto,
   nextStepResponseSchema,

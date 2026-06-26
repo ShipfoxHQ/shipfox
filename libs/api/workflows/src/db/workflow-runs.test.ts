@@ -60,7 +60,15 @@ async function jobTerminatedEvents(jobId: string) {
         sql`${workflowsOutbox.payload}->>'jobId' = ${jobId}`,
       ),
     );
-  return rows.map((row) => row.payload as {jobId: string; runId: string; status: string});
+  return rows.map(
+    (row) =>
+      row.payload as {
+        jobId: string;
+        runId: string;
+        status: string;
+        statusReason: string | null;
+      },
+  );
 }
 
 async function runTerminatedEvents(runId: string) {
@@ -750,6 +758,37 @@ jobs:
       expect(updated.version).toBe(2);
     });
 
+    test('persists terminal status reason and clears it on a later non-reasoned transition', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const job = (await getJobsByRunId(run.id))[0];
+
+      const skipped = await updateJobStatus({
+        jobId: job?.id as string,
+        status: 'skipped',
+        expectedVersion: 1,
+        statusReason: 'dependency_not_completed',
+      });
+      const running = await updateJobStatus({
+        jobId: job?.id as string,
+        status: 'running',
+        expectedVersion: 2,
+      });
+
+      expect(skipped.statusReason).toBe('dependency_not_completed');
+      expect(running.statusReason).toBeNull();
+    });
+
     test('throws on version mismatch', async () => {
       const run = await createWorkflowRun({
         workspaceId,
@@ -848,6 +887,30 @@ jobs:
       expect(updated.version).toBe(2);
     });
 
+    test('rejects status reasons outside the database enum', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const job = (await getJobsByRunId(run.id))[0];
+
+      const writeInvalidReason = db().execute(
+        sql`UPDATE ${jobs} SET status_reason = 'not_a_reason' WHERE id = ${job?.id}`,
+      );
+
+      await expect(writeInvalidReason).rejects.toMatchObject({
+        cause: expect.objectContaining({code: '22P02'}),
+      });
+    });
+
     test('throws on version mismatch', async () => {
       const run = await createWorkflowRun({
         workspaceId,
@@ -938,13 +1001,18 @@ jobs:
       expect(cancelled.finishedAt).not.toBeNull();
     });
 
-    test('job: stamps finished_at on a terminal transition', async () => {
+    test.each([
+      'succeeded',
+      'failed',
+      'cancelled',
+      'skipped',
+    ] as const)('job: stamps finished_at on a %s terminal transition', async (status) => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
       const job = (await getJobsByRunId(run.id))[0];
 
       const finished = await updateJobStatus({
         jobId: job?.id as string,
-        status: 'succeeded',
+        status,
         expectedVersion: 1,
       });
 
@@ -976,6 +1044,7 @@ jobs:
 
       expect(updated.finishedAt).not.toBeNull();
       expect(updated.timedOutAt).not.toBeNull();
+      expect(updated.statusReason).toBe('timed_out');
     });
 
     test('run: re-entering running keeps the first started_at (coalesce, not a fresh clock)', async () => {
@@ -1022,6 +1091,7 @@ jobs:
       'succeeded',
       'failed',
       'cancelled',
+      'skipped',
     ] as const)('writes one terminated event when a job becomes %s', async (status) => {
       const {run, jobId} = await seedPendingJob();
 
@@ -1029,7 +1099,27 @@ jobs:
 
       const events = await jobTerminatedEvents(jobId);
       expect(events).toHaveLength(1);
-      expect(events[0]).toEqual({jobId, runId: run.id, status});
+      expect(events[0]).toEqual({jobId, runId: run.id, status, statusReason: null});
+    });
+
+    test('writes status reason on the terminated event', async () => {
+      const {run, jobId} = await seedPendingJob();
+
+      await updateJobStatus({
+        jobId,
+        status: 'skipped',
+        expectedVersion: 1,
+        statusReason: 'dependency_not_completed',
+      });
+
+      const events = await jobTerminatedEvents(jobId);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toEqual({
+        jobId,
+        runId: run.id,
+        status: 'skipped',
+        statusReason: 'dependency_not_completed',
+      });
     });
 
     test('writes no terminated event for a non-terminal transition', async () => {
@@ -1057,7 +1147,12 @@ jobs:
 
       const terminated = await jobTerminatedEvents(jobId);
       expect(terminated).toHaveLength(1);
-      expect(terminated[0]).toEqual({jobId, runId: run.id, status: 'failed'});
+      expect(terminated[0]).toEqual({
+        jobId,
+        runId: run.id,
+        status: 'failed',
+        statusReason: 'timed_out',
+      });
 
       const timedOut = await db()
         .select()
@@ -1373,9 +1468,9 @@ jobs:
       expect((await jobRow(jobId))?.status).toBe('running');
     });
 
-    test('does not flip a row a concurrent DAG-cancel already terminalised; reports it truthfully', async () => {
+    test('does not flip a row a concurrent cancellation already terminalised; reports it truthfully', async () => {
       const {jobId, runningVersion} = await seedRunningJob(2);
-      // run-orchestration cancelled the job (steps left non-terminal), bumping the version.
+
       await updateJobStatus({jobId, status: 'cancelled', expectedVersion: runningVersion});
 
       // The lease-expiry resolver runs with the now-stale running version.

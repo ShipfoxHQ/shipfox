@@ -17,7 +17,7 @@ import {
 } from '@shipfox/node-drizzle';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
 import {and, asc, count, desc, eq, gte, inArray, isNull, lte, type SQL, sql} from 'drizzle-orm';
-import {isJobTerminal, type Job, type JobStatus} from '#core/entities/job.js';
+import {isJobTerminal, type Job, type JobStatus, type JobStatusReason} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
 import {
@@ -470,6 +470,7 @@ export interface UpdateJobStatusAtVersionParams {
   jobId: string;
   status: JobStatus;
   expectedVersion: number;
+  statusReason?: JobStatusReason | null | undefined;
   markTimedOut?: boolean;
 }
 
@@ -482,6 +483,7 @@ async function updateJobStatusAtVersion(
     .update(jobs)
     .set({
       status: params.status,
+      statusReason: params.statusReason ?? null,
       version: sql`${jobs.version} + 1`,
       updatedAt: new Date(),
       ...(params.markTimedOut ? {timedOutAt: new Date()} : {}),
@@ -501,7 +503,12 @@ async function updateJobStatusAtVersion(
   if (isJobTerminal(job.status)) {
     await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
       type: WORKFLOWS_JOB_TERMINATED,
-      payload: {jobId: job.id, runId: job.runId, status: job.status},
+      payload: {
+        jobId: job.id,
+        runId: job.runId,
+        status: job.status,
+        statusReason: job.statusReason,
+      },
     });
   }
 
@@ -512,14 +519,17 @@ export interface UpdateJobStatusParams {
   jobId: string;
   status: JobStatus;
   expectedVersion: number;
+  statusReason?: JobStatusReason | null | undefined;
 }
 
 export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Job> {
+  const statusReason = params.statusReason ?? null;
   const result = await db().transaction(async (tx) => {
     const updated = await updateJobStatusAtVersion(tx, {
       jobId: params.jobId,
       status: params.status,
       expectedVersion: params.expectedVersion,
+      statusReason,
     });
     if (updated) return updated;
 
@@ -530,7 +540,9 @@ export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Jo
     // instead of throwing an optimistic-lock error that would wedge the workflow.
     const existing = await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1);
     const row = existing[0];
-    if (row && row.status === params.status) return {job: toJob(row), changed: false};
+    if (row && row.status === params.status && row.statusReason === statusReason) {
+      return {job: toJob(row), changed: false};
+    }
     throw new Error(
       `Optimistic lock failure: job ${params.jobId} version ${params.expectedVersion}`,
     );
@@ -580,6 +592,7 @@ export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promis
       jobId: params.jobId,
       status: 'failed',
       expectedVersion: params.expectedVersion,
+      statusReason: 'timed_out',
       markTimedOut: true,
     });
 
@@ -644,10 +657,12 @@ export async function resolveJobAfterLeaseExpiry(params: {
     }
 
     if (jobSteps.every((step) => isTerminal(step.status))) {
+      const status = deriveCompletion(jobSteps);
       const updated = await updateJobStatusAtVersion(tx, {
         jobId: params.jobId,
-        status: deriveCompletion(jobSteps),
+        status,
         expectedVersion: params.expectedVersion,
+        statusReason: statusReasonForStepCompletion(status),
       });
       changedJob = updated?.changed ? updated.job : null;
     } else {
@@ -655,6 +670,7 @@ export async function resolveJobAfterLeaseExpiry(params: {
         jobId: params.jobId,
         status: 'failed',
         expectedVersion: params.expectedVersion,
+        statusReason: 'runner_lost',
       });
       changedJob = updated?.changed ? updated.job : null;
       await bulkUpdateStepStatuses({jobId: params.jobId, status: 'cancelled'}, tx);
@@ -670,6 +686,10 @@ export async function resolveJobAfterLeaseExpiry(params: {
   if (result.changedJob) recordWorkflowJobStatusChanged(result.changedJob.status);
 
   return {status: result.status, jobVersion: result.jobVersion};
+}
+
+function statusReasonForStepCompletion(status: RuntimeCompletionStatus): JobStatusReason | null {
+  return status === 'failed' ? 'step_failed' : null;
 }
 
 // Enqueue the steps-settled signal in the same transaction as the final per-step

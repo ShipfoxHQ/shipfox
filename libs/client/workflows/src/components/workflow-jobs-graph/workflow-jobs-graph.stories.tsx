@@ -72,7 +72,7 @@ export const TwoRunningJobs: Story = {
   },
 };
 
-export const UpstreamFailureCancelsDownstream: Story = {
+export const UpstreamFailureSkipsDownstream: Story = {
   args: {
     run: makeRun({
       jobs: [
@@ -81,7 +81,8 @@ export const UpstreamFailureCancelsDownstream: Story = {
           name: 'deploy',
           position: 1,
           dependencies: ['build'],
-          status: 'cancelled',
+          status: 'skipped',
+          status_reason: 'dependency_not_completed',
         }),
       ],
     }),

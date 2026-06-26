@@ -14,7 +14,7 @@ export function scheduleRuntimeDag<Job extends RuntimeDagJob>(
   const commands: RuntimeSchedulingCommand<Job>[] = [];
 
   for (const job of findBlockedJobs(input.jobs, completed)) {
-    commands.push({kind: 'cancel-job', job});
+    commands.push({kind: 'skip-job', job});
     completed.set(job.name, 'failed');
   }
 
@@ -32,7 +32,7 @@ export function scheduleRuntimeDag<Job extends RuntimeDagJob>(
   const remaining = input.jobs.filter((job) => !completed.has(job.name));
   if (remaining.length > 0) {
     commands.push(
-      ...remaining.map((job): RuntimeSchedulingCommand<Job> => ({kind: 'cancel-job', job})),
+      ...remaining.map((job): RuntimeSchedulingCommand<Job> => ({kind: 'skip-job', job})),
     );
     commands.push({kind: 'complete-run', status: 'failed'});
     return commands;

@@ -35,6 +35,13 @@
           "notNull": true,
           "default": "'pending'"
         },
+        "status_reason": {
+          "name": "status_reason",
+          "type": "workflows_job_status_reason",
+          "primaryKey": false,
+          "notNull": false,
+          "typeSchema": "public"
+        },
         "dependencies": {
           "name": "dependencies",
           "type": "jsonb",
@@ -640,7 +647,7 @@
     "public.workflows_job_status": {
       "name": "workflows_job_status",
       "schema": "public",
-      "values": ["pending", "running", "succeeded", "failed", "cancelled"]
+      "values": ["pending", "running", "succeeded", "failed", "cancelled", "skipped"]
     },
     "public.workflows_step_status": {
       "name": "workflows_step_status",
@@ -651,6 +658,20 @@
       "name": "workflows_run_status",
       "schema": "public",
       "values": ["pending", "running", "succeeded", "failed", "cancelled"]
+    },
+    "public.workflows_job_status_reason": {
+      "name": "workflows_job_status_reason",
+      "schema": "public",
+      "values": [
+        "dependency_not_completed",
+        "condition_false",
+        "user_cancelled",
+        "run_cancelled",
+        "timed_out",
+        "runner_lost",
+        "step_failed",
+        "unknown"
+      ]
     }
   },
   "schemas": {},

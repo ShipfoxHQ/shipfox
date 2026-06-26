@@ -56,7 +56,7 @@ describe('WorkflowJobsGraph', () => {
     expect(screen.getByRole('button', {name: 'macos, Running'})).toBeInTheDocument();
   });
 
-  test('renders a downstream job cancelled after an upstream failure', () => {
+  test('renders a downstream job skipped after an upstream failure', () => {
     render(
       <WorkflowJobsGraph
         run={makeRun({
@@ -64,7 +64,8 @@ describe('WorkflowJobsGraph', () => {
             makeJob({name: 'build', status: 'failed'}),
             makeJob({
               name: 'deploy',
-              status: 'cancelled',
+              status: 'skipped',
+              status_reason: 'dependency_not_completed',
               position: 1,
               dependencies: ['build'],
             }),
@@ -74,7 +75,7 @@ describe('WorkflowJobsGraph', () => {
     );
 
     expect(screen.getByRole('button', {name: 'build, Failed'})).toBeInTheDocument();
-    expect(screen.getByRole('button', {name: 'deploy, Cancelled'})).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'deploy, Skipped'})).toBeInTheDocument();
   });
 
   test('renders an empty state', () => {

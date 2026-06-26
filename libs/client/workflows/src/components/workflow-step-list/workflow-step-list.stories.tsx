@@ -227,6 +227,17 @@ export const CancelledAndPending: Story = {
   },
 };
 
+export const SkippedBeforeStart: Story = {
+  args: {
+    job: makeJob({status: 'skipped', status_reason: 'dependency_not_completed', steps: []}),
+    emptyState: {
+      title: 'This job was skipped',
+      description: 'A required job did not complete, so this job was skipped.',
+      status: 'skipped',
+    },
+  },
+};
+
 export const MultipleAttempts: Story = {
   args: {
     job: makeJob({
