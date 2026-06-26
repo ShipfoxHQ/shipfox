@@ -9,6 +9,14 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 
+const STORYBOOK_NOW_MS = Date.parse('2026-06-26T12:00:00.000Z');
+
+Object.defineProperty(Date, 'now', {
+  configurable: true,
+  writable: true,
+  value: () => STORYBOOK_NOW_MS,
+});
+
 const withTheme: Decorator = (Story, context) => {
   const theme = context.globals.theme;
   return (
