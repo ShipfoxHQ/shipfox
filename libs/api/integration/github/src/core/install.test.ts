@@ -37,6 +37,12 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
     fetchRepositoryFile: vi.fn(() => {
       throw new Error('not used');
     }),
+    createInstallationAccessToken: vi.fn(() =>
+      Promise.resolve({
+        token: 'ghs_installationtoken',
+        expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+      }),
+    ),
     ...overrides,
   };
 }
@@ -51,7 +57,6 @@ function githubConnection(
     externalAccountId: '123',
     displayName: 'GitHub shipfox',
     lifecycleStatus: 'active',
-    capabilities: ['source_control'],
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

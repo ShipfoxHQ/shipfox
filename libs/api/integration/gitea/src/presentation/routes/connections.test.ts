@@ -3,6 +3,7 @@ import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {GiteaApiClient} from '#api/client.js';
+import type {ConnectGiteaConnectionInput} from '#core/connect.js';
 import {createGiteaIntegrationProvider} from '#index.js';
 
 vi.mock('@shipfox/api-workspaces', () => ({
@@ -62,8 +63,8 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
   const provider = createGiteaIntegrationProvider({
     gitea: options.gitea ?? giteaClient(),
     getExistingGiteaConnection: vi.fn(() => Promise.resolve(options.existingConnection)),
-    connectGiteaConnection: vi.fn((input) =>
-      Promise.resolve({
+    connectGiteaConnection: vi.fn((input: ConnectGiteaConnectionInput) => {
+      const connection: IntegrationConnection<'gitea'> = {
         id: crypto.randomUUID(),
         workspaceId: input.workspaceId,
         provider: 'gitea',
@@ -72,8 +73,10 @@ async function createTestApp(options: CreateTestAppOptions = {}): Promise<Fastif
         lifecycleStatus: 'active',
         createdAt: new Date(),
         updatedAt: new Date(),
-      }),
-    ),
+      };
+
+      return Promise.resolve(connection);
+    }),
     // Provider-level mounting includes webhook routes; these tests exercise only connections.
     coreDb: vi.fn() as never,
     publishSourcePush: vi.fn() as never,
