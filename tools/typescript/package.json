@@ -18,7 +18,7 @@
   },
   "scripts": {
     "build": "shipfox-swc",
-    "test": "node --test test/*.test.mjs",
+    "test": "pnpm run build && node --test test/*.test.mjs",
     "type": "node ./bin/tsc-check.js",
     "type:emit": "node ./bin/tsc-emit.js"
   },

@@ -1,6 +1,12 @@
 import {readdirSync} from 'node:fs';
 import {dirname, join, relative, resolve} from 'node:path';
-import {parseJsonConfigFileContent, readConfigFile, sys} from 'typescript';
+import {
+  type Diagnostic,
+  flattenDiagnosticMessageText,
+  parseJsonConfigFileContent,
+  readConfigFile,
+  sys,
+} from 'typescript';
 
 const ignoredDirectories = new Set([
   '.cache',
@@ -37,13 +43,30 @@ function findTestFiles(directory: string): string[] {
   return files;
 }
 
+function formatDiagnostic(diagnostic: Diagnostic): string {
+  return flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+}
+
 export function getMissingTestFiles(configPath: string, projectRoot = dirname(configPath)): string[] {
   const parsedConfig = readConfigFile(configPath, sys.readFile);
   if (parsedConfig.error) {
-    throw new Error(`Could not read TypeScript config: ${configPath}`);
+    throw new Error(
+      [`Could not read TypeScript config: ${configPath}`, formatDiagnostic(parsedConfig.error)].join(
+        '\n',
+      ),
+    );
   }
 
   const config = parseJsonConfigFileContent(parsedConfig.config, sys, dirname(configPath));
+  if (config.errors.length > 0) {
+    throw new Error(
+      [
+        `Could not parse TypeScript config: ${configPath}`,
+        ...config.errors.map(formatDiagnostic),
+      ].join('\n'),
+    );
+  }
+
   const includedFiles = new Set(config.fileNames.map(normalizedPath));
 
   return findTestFiles(projectRoot)

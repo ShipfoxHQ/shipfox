@@ -77,3 +77,22 @@ test('accepts test configs that clear inherited excludes', () => {
     rmSync(root, {force: true, recursive: true});
   }
 });
+
+test('reports test config parse errors before missing test files', () => {
+  const root = createProject({
+    tsconfigTest: {
+      extends: './tsconfig.build.json',
+      compilerOptions: {moduleResolution: 'invalid', noEmit: true, rootDir: '.'},
+      include: ['src'],
+    },
+  });
+
+  try {
+    assert.throws(
+      () => getMissingTestFiles(join(root, 'tsconfig.test.json'), root),
+      /Could not parse TypeScript config:[\s\S]*moduleResolution/,
+    );
+  } finally {
+    rmSync(root, {force: true, recursive: true});
+  }
+});
