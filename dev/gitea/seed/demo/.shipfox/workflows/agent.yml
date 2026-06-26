@@ -3,6 +3,10 @@ triggers:
   on_demand:
     source: manual
     event: fire
+  on_push:
+    source: gitea
+    event: push
+    filter: 'event.ref == "refs/heads/main"'
 jobs:
   greet:
     steps:

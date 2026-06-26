@@ -1,6 +1,9 @@
 name: Build and deploy
 runner: ubuntu-latest
 triggers:
+  on_demand:
+    source: manual
+    event: fire
   on_push:
     source: gitea
     event: push

@@ -121,7 +121,7 @@ describe('handleGiteaWebhook', () => {
 
   it('accepts the captured local Gitea push payload shape', async () => {
     const connection = fakeConnection();
-    await seedConnection('shipfox-demo', connection.id);
+    await seedConnection('shipfox', connection.id);
     const handlers = deps({connection});
     const deliveryId = randomUUID();
 
@@ -141,7 +141,7 @@ describe('handleGiteaWebhook', () => {
       workspaceId: connection.workspaceId,
       connectionId: connection.id,
       push: {
-        externalRepositoryId: 'gitea:shipfox-demo/api',
+        externalRepositoryId: 'gitea:shipfox/api',
         ref: 'main',
         headCommitSha: capturedGiteaPushPayload.after,
         defaultBranch: 'main',

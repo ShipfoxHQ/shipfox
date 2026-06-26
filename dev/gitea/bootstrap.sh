@@ -14,7 +14,7 @@ ADMIN_EMAIL="${GITEA_ADMIN_EMAIL:-gitea-admin@shipfox.local}"
 BOT_USER="${GITEA_SERVICE_USERNAME:-shipfox-bot}"
 BOT_PASSWORD="${GITEA_SERVICE_TOKEN:-shipfox-bot-dev-password}"
 BOT_EMAIL="${GITEA_BOT_EMAIL:-shipfox-bot@shipfox.local}"
-ORG="${GITEA_ORG:-shipfox-demo}"
+ORG="${GITEA_ORG:-shipfox}"
 # A read-only team that includes every repo, current and future. It is the bot's
 # only org membership, so a leaked bot credential is bounded to read access on the
 # demo repos rather than the whole instance.

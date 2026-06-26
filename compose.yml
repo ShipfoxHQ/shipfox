@@ -108,7 +108,7 @@ services:
       # Matches apps/api/.env so API and bootstrap share the dev service account.
       GITEA_SERVICE_USERNAME: shipfox-bot
       GITEA_SERVICE_TOKEN: shipfox-bot-dev-password
-      GITEA_ORG: shipfox-demo
+      GITEA_ORG: shipfox
       # Register the org push webhook as admin; the service account is read-only.
       GITEA_WEBHOOK_TARGET_URL: http://host.docker.internal:16101/webhooks/integrations/gitea
       GITEA_WEBHOOK_SECRET: shipfox-gitea-dev-webhook-secret
