@@ -887,6 +887,30 @@ jobs:
       expect(updated.version).toBe(2);
     });
 
+    test('rejects status reasons outside the database enum', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const job = (await getJobsByRunId(run.id))[0];
+
+      const writeInvalidReason = db().execute(
+        sql`UPDATE ${jobs} SET status_reason = 'not_a_reason' WHERE id = ${job?.id}`,
+      );
+
+      await expect(writeInvalidReason).rejects.toMatchObject({
+        cause: expect.objectContaining({code: '22P02'}),
+      });
+    });
+
     test('throws on version mismatch', async () => {
       const run = await createWorkflowRun({
         workspaceId,

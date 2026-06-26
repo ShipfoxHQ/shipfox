@@ -122,6 +122,22 @@ describe('runOrchestration', () => {
     const runStatuses = setRunStatusCalls().map((c) => c.params.status);
     expect(runStatuses).toEqual(['running', 'failed']);
     expect(callsNamed('enqueueJobForRunner')).toHaveLength(1);
+
+    const jobStatuses = setJobStatusCalls().map((c) => ({
+      id: c.params.jobId,
+      status: c.params.status,
+      statusReason: c.params.statusReason ?? null,
+    }));
+    expect(jobStatuses).toContainEqual({
+      id: 'j2',
+      status: 'skipped',
+      statusReason: 'dependency_not_completed',
+    });
+    expect(jobStatuses).toContainEqual({
+      id: 'j3',
+      status: 'skipped',
+      statusReason: 'dependency_not_completed',
+    });
   });
 
   test('version tracking flows through correctly', async () => {

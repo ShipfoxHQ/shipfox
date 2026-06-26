@@ -1,16 +1,6 @@
 export type JobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'skipped';
 
-export type JobStatusReason =
-  | 'dependency_not_completed'
-  | 'condition_false'
-  | 'user_cancelled'
-  | 'run_cancelled'
-  | 'timed_out'
-  | 'runner_lost'
-  | 'step_failed'
-  | 'unknown';
-
-const JOB_STATUS_REASONS = new Set<JobStatusReason>([
+export const JOB_STATUS_REASONS = [
   'dependency_not_completed',
   'condition_false',
   'user_cancelled',
@@ -19,7 +9,11 @@ const JOB_STATUS_REASONS = new Set<JobStatusReason>([
   'runner_lost',
   'step_failed',
   'unknown',
-]);
+] as const;
+
+export type JobStatusReason = (typeof JOB_STATUS_REASONS)[number];
+
+const JOB_STATUS_REASON_SET = new Set<JobStatusReason>(JOB_STATUS_REASONS);
 
 export interface Job {
   id: string;
@@ -52,5 +46,7 @@ export function isJobTerminal(status: JobStatus): status is TerminalJobStatus {
 
 export function toJobStatusReason(value: string | null): JobStatusReason | null {
   if (value === null) return null;
-  return JOB_STATUS_REASONS.has(value as JobStatusReason) ? (value as JobStatusReason) : 'unknown';
+  return JOB_STATUS_REASON_SET.has(value as JobStatusReason)
+    ? (value as JobStatusReason)
+    : 'unknown';
 }
