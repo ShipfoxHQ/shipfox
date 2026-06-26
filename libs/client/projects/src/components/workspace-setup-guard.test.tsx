@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import {configureApiClient} from '@shipfox/client-api';
 import {type AuthState, authStateAtom} from '@shipfox/client-auth';
+import {integrationsQueryKeys} from '@shipfox/client-integrations';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {
   createMemoryHistory,
@@ -11,9 +12,10 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router';
-import {render, screen} from '@testing-library/react';
+import {render, screen, waitFor} from '@testing-library/react';
 import {Provider as JotaiProvider, useSetAtom} from 'jotai';
 import {useEffect} from 'react';
+import {projectsQueryKeys} from '#hooks/api/projects.js';
 import {WorkspaceSetupGuard} from './workspace-setup-guard.js';
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
@@ -89,8 +91,13 @@ function setupFetch(options: SetupFetchOptions = {}) {
   });
 }
 
-function renderGuardPage(path: string, fetchImpl: ReturnType<typeof setupFetch>) {
+function renderGuardPage(
+  path: string,
+  fetchImpl: ReturnType<typeof setupFetch>,
+  options: {seedQueryClient?: (queryClient: QueryClient) => void} = {},
+) {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+  options.seedQueryClient?.(queryClient);
   const rootRoute = createRootRoute({component: Outlet});
   const guardedRoute = (routePath: string, label: string) =>
     createRoute({
@@ -183,6 +190,26 @@ describe('WorkspaceSetupGuard', () => {
     );
   });
 
+  test('keeps cached completed-workspace state when the project refetch fails', async () => {
+    const fetchImpl = setupFetch({projectsFail: true});
+
+    renderGuardPage(`/workspaces/${WORKSPACE_ID}`, fetchImpl, {
+      seedQueryClient: (queryClient) => {
+        queryClient.setQueryData(projectsQueryKeys.exists(WORKSPACE_ID), {
+          projects: [projectStub()],
+          next_cursor: null,
+        });
+      },
+    });
+
+    expect(await screen.findByText('Workspace home')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(calledUrls(fetchImpl).some((url) => url.includes('/projects?'))).toBe(true),
+    );
+    expect(screen.queryByText('Could not load workspace setup')).not.toBeInTheDocument();
+    expect(screen.getByTestId('project-navigation')).toHaveTextContent('visible');
+  });
+
   test('sends a workspace with no active VCS to source-control onboarding', async () => {
     const fetchImpl = setupFetch({
       connections: [sourceConnection({lifecycle_status: 'disabled'})],
@@ -201,6 +228,27 @@ describe('WorkspaceSetupGuard', () => {
     );
 
     expect(await screen.findByText('Create project')).toBeInTheDocument();
+    expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
+  });
+
+  test('keeps cached source-connection state when the source refetch fails', async () => {
+    const fetchImpl = setupFetch({connectionsFail: true});
+
+    renderGuardPage(`/workspaces/${WORKSPACE_ID}`, fetchImpl, {
+      seedQueryClient: (queryClient) => {
+        queryClient.setQueryData(integrationsQueryKeys.sourceConnections(WORKSPACE_ID), {
+          connections: [sourceConnection()],
+        });
+      },
+    });
+
+    expect(await screen.findByText('Create project')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(calledUrls(fetchImpl).some((url) => url.includes('/integration-connections?'))).toBe(
+        true,
+      ),
+    );
+    expect(screen.queryByText('Could not load workspace setup')).not.toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
   });
 

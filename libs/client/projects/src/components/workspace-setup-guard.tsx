@@ -21,15 +21,16 @@ export function WorkspaceSetupGuard({children}: WorkspaceSetupGuardProps) {
   const location = useLocation();
   const projectQuery = useWorkspaceProjectExistenceQuery(workspace?.id);
   const hasProject = (projectQuery.data?.projects.length ?? 0) > 0;
+  const projectQueryInitialError = projectQuery.isError && projectQuery.data === undefined;
   const sourceConnectionsQuery = useSourceConnectionsQuery(
-    workspace && !projectQuery.isPending && !projectQuery.isError && !hasProject
+    workspace && !projectQuery.isPending && !projectQueryInitialError && !hasProject
       ? workspace.id
       : undefined,
   );
 
   if (!workspace || projectQuery.isPending) return <FullPageLoader />;
 
-  if (projectQuery.isError) {
+  if (projectQueryInitialError) {
     return (
       <WorkspaceSetupError
         message={setupErrorMessage(projectQuery.error)}
@@ -58,7 +59,7 @@ export function WorkspaceSetupGuard({children}: WorkspaceSetupGuardProps) {
 
   if (sourceConnectionsQuery.isPending) return <FullPageLoader />;
 
-  if (sourceConnectionsQuery.isError) {
+  if (sourceConnectionsQuery.isError && sourceConnectionsQuery.data === undefined) {
     return (
       <WorkspaceSetupError
         message={setupErrorMessage(sourceConnectionsQuery.error)}
