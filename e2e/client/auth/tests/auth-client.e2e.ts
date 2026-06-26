@@ -80,9 +80,9 @@ test('hydrates an E2E browser session from the refresh cookie after reload', asy
 test('restores a nested deep link after login', async ({page, auth, workspaces}) => {
   const user = await auth.createUser();
   const ws = await workspaces.create({userId: user.user.id, name: `DL ${randomUUID()}`});
-  // Fresh E2E workspaces have no source connections, so CreateProjectPage will
-  // redirect to /integrations the moment it mounts. The deep-link restore is
-  // proven by the URL transiting *through* /projects/new before that redirect.
+  // Fresh E2E workspaces have no source connections, so WorkspaceSetupGuard
+  // redirects /projects/new to /integrations. The deep-link restore is proven
+  // by the URL transiting *through* /projects/new before that redirect.
   const target = `/workspaces/${ws.id}/projects/new`;
 
   const urlsSeen: string[] = [];
@@ -117,9 +117,10 @@ test('restores a nested deep link after login', async ({page, auth, workspaces})
 test('preserves search and hash in the deep link after login', async ({page, auth, workspaces}) => {
   const user = await auth.createUser();
   const ws = await workspaces.create({userId: user.user.id, name: `DL ${randomUUID()}`});
-  // HomeRouter at /workspaces/$wid redirects fresh workspaces to /integrations
-  // and that redirect drops the search/hash. The restore is proven by the URL
-  // transiting through the original deep target with search and hash intact.
+  // WorkspaceSetupGuard at /workspaces/$wid redirects fresh workspaces to
+  // /integrations and that redirect drops the search/hash. The restore is
+  // proven by the URL transiting through the original deep target with search
+  // and hash intact.
   const target = `/workspaces/${ws.id}?tab=runs#header`;
 
   const urlsSeen: string[] = [];

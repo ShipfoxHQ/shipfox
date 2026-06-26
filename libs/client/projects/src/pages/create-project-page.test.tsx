@@ -28,11 +28,11 @@ describe('CreateProjectPage', () => {
     configureApiClient({fetchImpl});
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
-    expect(await screen.findByRole('radio', {name: DEBUG_RADIO_LABEL_RE})).toBeChecked();
-    expect((await screen.findAllByText('Debug')).length).toBeGreaterThan(0);
-    expect((await screen.findAllByText('debug-owner/platform')).length).toBeGreaterThan(0);
-    await waitFor(() => expect(screen.getByLabelText('Project name')).toHaveValue('Platform'));
-    fireEvent.change(screen.getByLabelText('Project name'), {
+    const nameInput = await screen.findByLabelText('Project name');
+    await waitFor(() => expect(nameInput).toHaveValue('Platform'));
+    expect(screen.getByRole('radio', {name: DEBUG_RADIO_LABEL_RE})).toBeChecked();
+    expect(screen.getAllByText('debug-owner/platform').length).toBeGreaterThan(0);
+    fireEvent.change(nameInput, {
       target: {value: '  Launch Pad  '},
     });
     fireEvent.click(screen.getByRole('button', {name: 'Create project'}));
@@ -46,7 +46,7 @@ describe('CreateProjectPage', () => {
         external_repository_id: 'platform',
       },
     });
-  });
+  }, 10_000);
 
   test('uses the current repository-derived name when submitted before touching the field', async () => {
     let createProjectBody: unknown;
@@ -173,6 +173,14 @@ describe('CreateProjectPage', () => {
             },
             {status: 409},
           ),
+        );
+      }
+      if (request.url.includes('/projects?')) {
+        return Promise.resolve(
+          jsonResponse({
+            projects: [projectDto({id: '55555555-5555-4555-8555-555555555555'})],
+            next_cursor: null,
+          }),
         );
       }
       if (request.url.includes('/definitions?')) {

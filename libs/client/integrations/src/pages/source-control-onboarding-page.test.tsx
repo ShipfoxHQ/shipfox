@@ -1,0 +1,46 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import {configureApiClient} from '@shipfox/client-api';
+import {screen} from '@testing-library/react';
+import {INTEGRATIONS_TEST_WID, jsonResponse, renderIntegrationsPage} from '#test/render.js';
+import {SourceControlOnboardingPage} from './source-control-onboarding-page.js';
+
+describe('SourceControlOnboardingPage', () => {
+  test('renders only source-control provider cards', async () => {
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes('/integration-providers')) {
+        return Promise.resolve(
+          jsonResponse({
+            providers: [
+              {provider: 'github', display_name: 'GitHub', capabilities: ['source_control']},
+              {provider: 'sentry', display_name: 'Sentry', capabilities: []},
+            ],
+          }),
+        );
+      }
+      return Promise.resolve(jsonResponse({}, {status: 404}));
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderIntegrationsPage({
+      path: `/workspaces/${INTEGRATIONS_TEST_WID}/integrations`,
+      routePath: '/workspaces/$wid/integrations',
+      element: <SourceControlOnboardingPage />,
+      extraRoutes: ['/workspaces/$wid/integrations/github'],
+    });
+
+    expect(await screen.findByRole('heading', {name: 'Connect source control'})).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Connect GitHub'})).toBeVisible();
+    expect(screen.queryByRole('region', {name: 'Installed integrations'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', {name: 'Available integrations'})).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Provider accounts linked to this workspace.'),
+    ).not.toBeInTheDocument();
+
+    const urls = fetchImpl.mock.calls.map(([input]) =>
+      input instanceof Request ? input.url : String(input),
+    );
+    expect(urls.some((url) => url.includes('/integration-connections?'))).toBe(false);
+  });
+});

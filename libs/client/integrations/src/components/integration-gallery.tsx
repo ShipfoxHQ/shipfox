@@ -9,34 +9,24 @@ import {QueryLoadError} from '@shipfox/client-ui';
 import {
   Badge,
   Button,
-  Card,
   cn,
   EmptyState,
   formatDate,
   Header,
-  Icon,
   type IconName,
   Skeleton,
   Text,
 } from '@shipfox/react-ui';
-import {Link} from '@tanstack/react-router';
 import {
   useIntegrationConnectionsQuery,
   useIntegrationProvidersQuery,
 } from '#hooks/api/integrations.js';
 import {IntegrationIcon} from '#integration-icon.js';
-import {PROVIDER_CATALOG} from '#provider-catalog.js';
+import {ProviderGrid} from './provider-grid.js';
 
 export interface IntegrationGalleryProps {
-  /** Restricts both providers and connections to one capability (e.g. onboarding). */
   capability?: IntegrationCapabilityDto;
   emptyProvidersMessage?: string;
-  /**
-   * Suppresses the entire Installed section — skeleton, error, and empty state
-   * included — until at least one connection loads. Onboarding sets this so a
-   * fresh workspace shows only the Available section; settings leaves it unset.
-   */
-  hideInstalledUntilConnected?: boolean;
 }
 
 const lifecyclePills: Record<
@@ -50,14 +40,6 @@ const lifecyclePills: Record<
   error: {variant: 'error', label: 'Error'},
 };
 
-// Shared so the live grid and its loading skeleton can never drift to a
-// different column rule. Container-driven (auto-fill) columns work in both the
-// wide settings panel and the narrow onboarding container. The 180px min keeps
-// the compact provider tiles dense (3+ per row in the settings panel). Keep it
-// space-free — Tailwind v4 arbitrary-property values must not contain spaces.
-const AVAILABLE_GRID_CLASS =
-  'grid gap-12 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]';
-
 // Both gallery surfaces use the same card fill so they read as one system on
 // the subtle page canvas, rather than the list blending into the background.
 const SURFACE_CLASS =
@@ -66,7 +48,6 @@ const SURFACE_CLASS =
 export function IntegrationGallery({
   capability,
   emptyProvidersMessage = 'Enable at least one provider in the application settings.',
-  hideInstalledUntilConnected = false,
 }: IntegrationGalleryProps) {
   const workspace = useActiveWorkspace();
   const providersQuery = useIntegrationProvidersQuery(capability ? {capability} : undefined);
@@ -93,53 +74,46 @@ export function IntegrationGallery({
     return a.created_at.localeCompare(b.created_at);
   });
 
-  const hasConnections = sortedConnections.length > 0;
-  const showInstalled = !hideInstalledUntilConnected || hasConnections;
-
-  const installableProviders = providers.filter((provider) => PROVIDER_CATALOG[provider.provider]);
-
   return (
     <div className="flex flex-col gap-24">
-      {showInstalled ? (
-        <section className="flex flex-col gap-16" aria-label="Installed integrations">
-          <div className="flex flex-col gap-4">
-            <Header variant="h3">Installed integrations</Header>
-            <Text size="sm" className="text-foreground-neutral-muted">
-              Provider accounts linked to this workspace.
-            </Text>
+      <section className="flex flex-col gap-16" aria-label="Installed integrations">
+        <div className="flex flex-col gap-4">
+          <Header variant="h3">Installed integrations</Header>
+          <Text size="sm" className="text-foreground-neutral-muted">
+            Provider accounts linked to this workspace.
+          </Text>
+        </div>
+
+        {connectionsQuery.isPending ? <InstalledSkeleton label="Loading integrations" /> : null}
+
+        {connectionsQuery.isError && connectionsQuery.data === undefined ? (
+          <div className={cn(SURFACE_CLASS, 'px-16')}>
+            <QueryLoadError query={connectionsQuery} subject="integrations" />
           </div>
+        ) : null}
 
-          {connectionsQuery.isPending ? <InstalledSkeleton label="Loading integrations" /> : null}
+        {connectionsQuery.data !== undefined && sortedConnections.length === 0 ? (
+          <div className={cn(SURFACE_CLASS, 'px-16')}>
+            <EmptyState
+              icon="componentLine"
+              title="No integrations connected yet"
+              description="Connect a provider below to get started."
+            />
+          </div>
+        ) : null}
 
-          {connectionsQuery.isError && connectionsQuery.data === undefined ? (
-            <div className={cn(SURFACE_CLASS, 'px-16')}>
-              <QueryLoadError query={connectionsQuery} subject="integrations" />
-            </div>
-          ) : null}
-
-          {connectionsQuery.data !== undefined && !hasConnections ? (
-            <div className={cn(SURFACE_CLASS, 'px-16')}>
-              <EmptyState
-                icon="componentLine"
-                title="No integrations connected yet"
-                description="Connect a provider below to get started."
+        {sortedConnections.length > 0 ? (
+          <ul className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}>
+            {sortedConnections.map((connection) => (
+              <InstalledRow
+                key={connection.id}
+                connection={connection}
+                providerLabel={providerLabel(connection.provider)}
               />
-            </div>
-          ) : null}
-
-          {hasConnections ? (
-            <ul className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}>
-              {sortedConnections.map((connection) => (
-                <InstalledRow
-                  key={connection.id}
-                  connection={connection}
-                  providerLabel={providerLabel(connection.provider)}
-                />
-              ))}
-            </ul>
-          ) : null}
-        </section>
-      ) : null}
+            ))}
+          </ul>
+        ) : null}
+      </section>
 
       <section className="flex flex-col gap-16" aria-label="Available integrations">
         <div className="flex flex-col gap-4">
@@ -149,33 +123,11 @@ export function IntegrationGallery({
           </Text>
         </div>
 
-        {providersQuery.isPending ? <AvailableSkeleton label="Loading providers" /> : null}
-
-        {providersQuery.isError && providersQuery.data === undefined ? (
-          <div className={cn(SURFACE_CLASS, 'px-16')}>
-            <QueryLoadError query={providersQuery} subject="available integrations" />
-          </div>
-        ) : null}
-
-        {providersQuery.data !== undefined && installableProviders.length === 0 ? (
-          <div className={cn(SURFACE_CLASS, 'px-16')}>
-            <EmptyState
-              icon="componentLine"
-              title="No integrations available"
-              description={emptyProvidersMessage}
-            />
-          </div>
-        ) : null}
-
-        {installableProviders.length > 0 ? (
-          <ul className={AVAILABLE_GRID_CLASS}>
-            {installableProviders.map((provider) => (
-              <li key={provider.provider}>
-                <AvailableCard provider={provider} workspaceId={workspace.id} />
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        <ProviderGrid
+          providersQuery={providersQuery}
+          workspaceId={workspace.id}
+          emptyMessage={emptyProvidersMessage}
+        />
       </section>
     </div>
   );
@@ -248,47 +200,6 @@ function InstalledRow({
   );
 }
 
-function AvailableCard({
-  provider,
-  workspaceId,
-}: {
-  provider: IntegrationProviderDto;
-  workspaceId: string;
-}) {
-  const catalog = PROVIDER_CATALOG[provider.provider];
-  if (!catalog) return null;
-
-  // The whole tile is the click target (no Button nested inside the Link); the
-  // hover wash + the "Connect" affordance signal that the tile is clickable.
-  // The affordance is muted by default and only turns brand-orange on hover —
-  // a per-card orange CTA repeated across the grid would be too loud (DESIGN.md §4).
-  return (
-    <Link
-      to={catalog.setupPath}
-      params={{wid: workspaceId}}
-      aria-label={`Connect ${provider.display_name}`}
-      className="group block h-full rounded-8 focus-visible:shadow-button-neutral-focus focus-visible:outline-none"
-    >
-      <Card className="h-full gap-8 p-16 transition-colors hover:bg-background-components-hover">
-        <div className="flex min-w-0 items-center gap-12">
-          <IntegrationIcon
-            source={provider.provider}
-            aria-hidden
-            className="size-24 shrink-0 text-foreground-neutral-base"
-          />
-          <Text size="md" bold className="truncate">
-            {provider.display_name}
-          </Text>
-        </div>
-        <div className="flex items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">
-          <Text size="sm">Connect</Text>
-          <Icon name="chevronRight" className="size-16" />
-        </div>
-      </Card>
-    </Link>
-  );
-}
-
 function InstalledSkeleton({label}: {label: string}) {
   return (
     <ul
@@ -304,24 +215,6 @@ function InstalledSkeleton({label}: {label: string}) {
             <Skeleton className="h-12 w-80" />
           </div>
           <Skeleton className="h-20 w-72 shrink-0" />
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function AvailableSkeleton({label}: {label: string}) {
-  return (
-    <ul role="status" aria-label={label} className={AVAILABLE_GRID_CLASS}>
-      {[0, 1, 2, 3].map((tile) => (
-        <li key={tile}>
-          <Card className="h-full gap-8 p-16">
-            <div className="flex items-center gap-12">
-              <Skeleton className="size-24 shrink-0" />
-              <Skeleton className="h-16 w-100" />
-            </div>
-            <Skeleton className="h-16 w-64" />
-          </Card>
         </li>
       ))}
     </ul>

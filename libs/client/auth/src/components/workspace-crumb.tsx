@@ -6,10 +6,15 @@ import {WorkspaceSwitcher} from './workspace-switcher.js';
 
 export interface WorkspaceCrumbProps {
   workspace: Workspace;
+  compact?: boolean;
 }
 
-export function WorkspaceCrumb({workspace}: WorkspaceCrumbProps) {
+export function WorkspaceCrumb({workspace, compact = false}: WorkspaceCrumbProps) {
   const [open, setOpen] = useState(false);
+  const linkClassName = [
+    'inline-block text-md font-medium text-foreground-neutral-base px-6 py-4 rounded-6 hover:bg-background-components-hover transition-colors truncate',
+    compact ? 'max-w-[120px] sm:max-w-[200px]' : 'max-w-[200px]',
+  ].join(' ');
 
   return (
     <div className="flex items-center">
@@ -17,7 +22,7 @@ export function WorkspaceCrumb({workspace}: WorkspaceCrumbProps) {
         to="/workspaces/$wid"
         params={{wid: workspace.id}}
         aria-current="page"
-        className="text-md font-medium text-foreground-neutral-base px-6 py-4 rounded-6 hover:bg-background-components-hover transition-colors max-w-[200px] truncate"
+        className={linkClassName}
       >
         {workspace.name}
       </Link>

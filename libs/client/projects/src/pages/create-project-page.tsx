@@ -1,5 +1,9 @@
 import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
-import {createProjectBodySchema} from '@shipfox/api-projects-dto';
+import {
+  createProjectBodySchema,
+  type ListProjectsResponseDto,
+  type ProjectResponseDto,
+} from '@shipfox/api-projects-dto';
 import {useMaybeActiveWorkspace} from '@shipfox/client-auth';
 import {
   ConnectionPicker,
@@ -24,7 +28,7 @@ import {
   toast,
 } from '@shipfox/react-ui';
 import {useForm} from '@tanstack/react-form';
-import {useQueryClient} from '@tanstack/react-query';
+import {type QueryClient, useQueryClient} from '@tanstack/react-query';
 import {Link, Navigate, useNavigate} from '@tanstack/react-router';
 import {useEffect, useRef, useState} from 'react';
 import {projectsQueryKeys, useCreateProjectMutation} from '#hooks/api/projects.js';
@@ -140,8 +144,9 @@ export function CreateProjectPage() {
         },
       });
       const project = await createProject.mutateAsync(projectBody);
-      await queryClient.invalidateQueries({queryKey: projectsQueryKeys.list(workspace.id)});
+      setWorkspaceProjectExists(queryClient, workspace.id, project);
       queryClient.setQueryData(projectsQueryKeys.detail(project.id), project);
+      await queryClient.invalidateQueries({queryKey: projectsQueryKeys.list(workspace.id)});
       toast.success('Project created.');
       await navigate({
         to: '/workspaces/$wid/projects/$pid',
@@ -150,6 +155,11 @@ export function CreateProjectPage() {
     } catch (error) {
       const copy = projectErrorCopy(error);
       if (copy.existingProjectId) {
+        await queryClient.invalidateQueries({
+          queryKey: projectsQueryKeys.exists(workspace.id),
+          refetchType: 'active',
+        });
+        await queryClient.invalidateQueries({queryKey: projectsQueryKeys.list(workspace.id)});
         toast.info('Project already exists.');
         await navigate({
           to: '/workspaces/$wid/projects/$pid',
@@ -357,6 +367,17 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
     return () => clearTimeout(handle);
   }, [value, delayMs]);
   return debounced;
+}
+
+function setWorkspaceProjectExists(
+  queryClient: QueryClient,
+  workspaceId: string,
+  project: ProjectResponseDto,
+) {
+  queryClient.setQueryData<ListProjectsResponseDto>(projectsQueryKeys.exists(workspaceId), {
+    projects: [project],
+    next_cursor: null,
+  });
 }
 
 interface FieldLike {

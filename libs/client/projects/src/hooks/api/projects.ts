@@ -10,6 +10,8 @@ export const projectsQueryKeys = {
   all: ['projects'] as const,
   list: (workspaceId: string, search?: string) =>
     [...projectsQueryKeys.all, 'list', workspaceId, search ?? ''] as const,
+  exists: (workspaceId: string) => [...projectsQueryKeys.all, 'exists', workspaceId] as const,
+  existsDisabled: () => [...projectsQueryKeys.all, 'exists', 'disabled'] as const,
   detail: (projectId: string) => [...projectsQueryKeys.all, 'detail', projectId] as const,
 };
 
@@ -56,6 +58,16 @@ export function useProjectsInfiniteQuery(
       listProjects({workspaceId: workspaceId ?? '', limit, cursor: pageParam, search, signal}),
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
     placeholderData: keepPreviousData,
+  });
+}
+
+export function useWorkspaceProjectExistenceQuery(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: workspaceId
+      ? projectsQueryKeys.exists(workspaceId)
+      : projectsQueryKeys.existsDisabled(),
+    enabled: Boolean(workspaceId),
+    queryFn: ({signal}) => listProjects({workspaceId: workspaceId ?? '', limit: 1, signal}),
   });
 }
 

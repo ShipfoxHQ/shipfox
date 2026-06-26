@@ -13,7 +13,11 @@ declare module '@tanstack/react-router' {
   }
 }
 
-export function MainLayout() {
+export interface MainLayoutProps {
+  hideProjectNavigation?: boolean;
+}
+
+export function MainLayout({hideProjectNavigation = false}: MainLayoutProps) {
   // Guard against the brief window where the route matched (e.g., direct
   // navigation to /workspaces/$wid via a deep link or page refresh) but the
   // auth atom hasn't populated `auth.workspaces` yet. NavBar's
@@ -27,8 +31,8 @@ export function MainLayout() {
 
   return (
     <div className="h-screen w-full flex flex-col bg-background-subtle-base">
-      <NavBar />
-      <ProjectTabs />
+      <NavBar hideProjectNavigation={hideProjectNavigation} />
+      {hideProjectNavigation ? undefined : <ProjectTabs />}
       {fullBleed ? (
         <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
           <Outlet />

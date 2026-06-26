@@ -33,6 +33,37 @@ async function stubConnect(page: Page, response: {status: number; body: unknown}
   });
 }
 
+async function stubProjectExists(page: Page, workspaceId: string): Promise<void> {
+  await page.route('**/projects?*', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get('workspace_id') !== workspaceId) {
+      await route.continue();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        projects: [
+          {
+            id: '00000000-0000-4000-8000-000000000001',
+            workspace_id: workspaceId,
+            name: 'Platform',
+            source: {
+              connection_id: '00000000-0000-4000-8000-000000000002',
+              external_repository_id: 'debug:platform',
+            },
+            created_at: '2026-01-15T12:00:00.000Z',
+            updated_at: '2026-01-15T12:00:00.000Z',
+          },
+        ],
+        next_cursor: null,
+      }),
+    });
+  });
+}
+
 test('Sentry callback shows an error when required params are missing', async ({
   page,
   auth,
@@ -77,6 +108,7 @@ test('Sentry callback connects to a workspace on success', async ({page, auth, w
   await auth.loginAs(page, user);
 
   await stubConnect(page, {status: 200, body: sentryConnectionFixture(workspace.id)});
+  await stubProjectExists(page, workspace.id);
 
   await page.goto(CALLBACK_URL);
   await expect(page.getByRole('heading', {name: 'Connect Sentry'})).toBeVisible();

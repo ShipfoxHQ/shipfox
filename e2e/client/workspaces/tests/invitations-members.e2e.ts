@@ -18,6 +18,37 @@ function textRe(text: string): RegExp {
   return new RegExp(text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u');
 }
 
+async function stubProjectExists(page: Page, workspaceId: string): Promise<void> {
+  await page.route('**/projects?*', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get('workspace_id') !== workspaceId) {
+      await route.continue();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        projects: [
+          {
+            id: '00000000-0000-4000-8000-000000000001',
+            workspace_id: workspaceId,
+            name: 'Platform',
+            source: {
+              connection_id: '00000000-0000-4000-8000-000000000002',
+              external_repository_id: 'debug:platform',
+            },
+            created_at: '2026-01-15T12:00:00.000Z',
+            updated_at: '2026-01-15T12:00:00.000Z',
+          },
+        ],
+        next_cursor: null,
+      }),
+    });
+  });
+}
+
 async function stableArgosScreenshot(
   page: Page,
   name: string,
@@ -168,6 +199,7 @@ test('accepts an invitation from the public landing page via login', async ({
   await expect(page.getByLabel('Email')).toHaveValue(invitee.email);
 
   await page.getByLabel('Password').fill(invitee.password);
+  await stubProjectExists(page, workspace.id);
   await page.getByRole('button', {name: 'Log in'}).click();
 
   await expect(page).toHaveURL(workspaceUrlRe(workspace.id));
@@ -223,6 +255,7 @@ test('creates an account from an invitation with the email locked', async ({
 
   await page.getByLabel('Name').fill('Signup Invitee');
   await page.getByLabel('Password').fill('correct horse battery staple');
+  await stubProjectExists(page, workspace.id);
   await page.getByRole('button', {name: 'Create account'}).click();
 
   await expect(page).toHaveURL(workspaceUrlRe(workspace.id));
@@ -247,6 +280,7 @@ test('creates, rejects duplicate, and revokes a pending invitation from members 
   });
   const pendingEmail = `pending-${randomUUID()}@example.test`;
   await auth.loginAs(page, owner);
+  await stubProjectExists(page, workspace.id);
 
   await page.goto(`/workspaces/${workspace.id}/settings/members`);
   await expect(page.getByRole('heading', {name: 'Pending invitations'})).toBeVisible();
