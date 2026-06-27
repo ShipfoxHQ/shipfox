@@ -239,16 +239,21 @@ function DecisionRow({workspaceId, decision}: {workspaceId: string; decision: Tr
       <Link
         to="/workspaces/$wid/projects/$pid/runs/$runId"
         params={{wid: workspaceId, pid: decision.project_id, runId: decision.run_id}}
-        className="flex min-w-0 items-center gap-8 rounded-6 px-8 py-6 transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
+        className="flex min-w-0 items-start gap-8 rounded-6 px-8 py-6 transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
       >
         <Icon
           name="cornerDownRightLine"
-          className="size-14 shrink-0 text-foreground-neutral-muted"
+          className="mt-3 size-14 shrink-0 text-foreground-neutral-muted"
           aria-hidden="true"
         />
-        <Code as="span" variant="label" className="truncate text-foreground-neutral-base">
-          {decision.run_name}
-        </Code>
+        <span className="flex min-w-0 flex-col gap-1">
+          <Text as="span" size="sm" className="min-w-0 truncate text-foreground-neutral-base">
+            {decision.subscription_name}
+          </Text>
+          <Code as="span" variant="label" className="truncate text-foreground-neutral-muted">
+            {decision.run_name}
+          </Code>
+        </span>
       </Link>
     </li>
   );

@@ -97,6 +97,7 @@ describe('TriggerEventDetailView', () => {
     renderDetailView(makeEvent());
 
     expect(screen.getByText('Triggered 1 workflow')).toBeInTheDocument();
+    expect(screen.getByText('Deploy production')).toBeInTheDocument();
     expect(screen.getByRole('link', {name: DEPLOY_RUN_LINK_NAME})).toHaveAttribute(
       'href',
       `/workspaces/${WORKSPACE_ID}/projects/${PROJECT_ID}/runs/${RUN_ID}`,
