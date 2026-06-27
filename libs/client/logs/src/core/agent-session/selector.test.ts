@@ -7,6 +7,8 @@ const record = (data: unknown, ts = 1): Extract<LogRecord, {type: 'agent_session
   type: 'agent_session',
   data: typeof data === 'string' ? data : JSON.stringify(data),
 });
+const meta = (label: string, value: string, inline?: boolean) =>
+  inline == null ? {label, value} : {label, value, inline};
 
 describe('expandSessionRecord', () => {
   test('returns a fallback row for malformed JSON', () => {
@@ -51,7 +53,8 @@ describe('expandSessionRecord', () => {
         kind: 'message',
         timestamp: 1,
         role: 'assistant',
-        label: 'assistant · claude-opus-4',
+        label: 'assistant',
+        meta: [meta('model', 'claude-opus-4')],
         text: 'I will edit the file.',
         terminalFailure: false,
       },
@@ -95,33 +98,45 @@ describe('expandSessionRecord', () => {
   });
 
   test.each([
-    [{type: 'session', id: 'session-1'}, 'Session started', 'session-1'],
+    [{type: 'session', id: 'session-1'}, 'Session started', 'session-1', []],
     [
       {type: 'session', version: 2, id: 'session-1', cwd: '/workspace'},
       'Session started',
       'v2 · session-1 · /workspace',
+      [],
     ],
-    [{type: 'thinking_level_change', thinkingLevel: 'high'}, 'Thinking level changed', 'high'],
+    [{type: 'thinking_level_change', thinkingLevel: 'high'}, 'Thinking level changed', 'high', []],
     [
       {type: 'model_change', modelId: 'gpt-5-codex', provider: 'openai'},
       'Model changed',
       'gpt-5-codex · openai',
+      [],
     ],
     [
       {type: 'compaction', summary: 'summarized old context', tokensBefore: 12_345},
       'Context compacted',
-      'summarized old context · 12345 tokens summarized',
+      'summarized old context',
+      [meta('tokens before', '12.3K tokens')],
     ],
     [
       {type: 'label', label: 'Implement tests', targetId: 'entry-1'},
       'Label',
-      'Implement tests · target entry-1',
+      'Implement tests',
+      [meta('target', 'entry-1', false)],
     ],
-  ])('expands lifecycle entry %#', (entry, label, detail) => {
+  ])('expands lifecycle entry %#', (entry, label, detail, meta) => {
     const rows = expandSessionRecord(record(entry));
 
     expect(rows).toEqual([
-      {kind: 'lifecycle', timestamp: 1, label, detail, tone: 'default', terminalFailure: false},
+      {
+        kind: 'lifecycle',
+        timestamp: 1,
+        label,
+        detail,
+        meta,
+        tone: 'default',
+        terminalFailure: false,
+      },
     ]);
   });
 
@@ -145,6 +160,7 @@ describe('expandSessionRecord', () => {
         timestamp: 1,
         role: 'user',
         label: 'user',
+        meta: [],
         text: 'Inspect this screenshot.\n\n[image/png image]',
         terminalFailure: false,
       },
@@ -173,7 +189,12 @@ describe('expandSessionRecord', () => {
         timestamp: 1,
         role: 'bash-execution',
         label: 'bash execution',
-        text: '$ pnpm test\n1 failed\nexit 1 · truncated · full output: /tmp/output.log',
+        meta: [
+          meta('exit', '1'),
+          meta('truncated', 'yes'),
+          meta('full output', '/tmp/output.log', false),
+        ],
+        text: '$ pnpm test\n1 failed',
         terminalFailure: false,
       },
     ]);
@@ -184,25 +205,28 @@ describe('expandSessionRecord', () => {
       {role: 'branchSummary', summary: 'branched for fix', fromId: 'entry-1'},
       'branch-summary',
       'branch summary',
-      'branched for fix · from entry-1',
+      [meta('from', 'entry-1')],
+      'branched for fix',
     ],
     [
       {role: 'compactionSummary', summary: 'summarized history', tokensBefore: 42_000},
       'compaction-summary',
       'compaction summary',
-      'summarized history · 42000 tokens summarized',
+      [meta('tokens before', '42K tokens')],
+      'summarized history',
     ],
     [
       {role: 'custom', customType: 'extension', content: 'extension output', display: true},
       'custom',
-      'custom · extension',
+      'custom',
+      [meta('type', 'extension'), meta('display', 'on')],
       'extension output',
     ],
-  ])('renders extended message role %#', (message, role, label, text) => {
+  ])('renders extended message role %#', (message, role, label, meta, text) => {
     const rows = expandSessionRecord(record({type: 'message', message}));
 
     expect(rows).toEqual([
-      {kind: 'message', timestamp: 1, role, label, text, terminalFailure: false},
+      {kind: 'message', timestamp: 1, role, label, meta, text, terminalFailure: false},
     ]);
   });
 
@@ -288,7 +312,8 @@ describe('expandSessionRecord', () => {
         timestamp: 1,
         role: 'system',
         label: 'branch summary',
-        text: 'merged main · from entry-1',
+        meta: [meta('from', 'entry-1')],
+        text: 'merged main',
         terminalFailure: false,
       },
     ]);
@@ -304,7 +329,8 @@ describe('expandSessionRecord', () => {
         kind: 'message',
         timestamp: 1,
         role: 'custom',
-        label: 'custom · extension',
+        label: 'custom',
+        meta: [meta('type', 'extension')],
         text: '{\n  "ok": true\n}',
         terminalFailure: false,
       },
@@ -321,7 +347,8 @@ describe('expandSessionRecord', () => {
         kind: 'message',
         timestamp: 1,
         role: 'custom',
-        label: 'custom message · extension',
+        label: 'custom message',
+        meta: [meta('type', 'extension')],
         text: 'hello there',
         terminalFailure: false,
       },
@@ -337,6 +364,7 @@ describe('expandSessionRecord', () => {
         timestamp: 1,
         label: 'Session info',
         detail: 'resumed',
+        meta: [],
         tone: 'default',
         terminalFailure: false,
       },

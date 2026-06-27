@@ -26,10 +26,17 @@ export interface AgentSessionRowBase {
   timestamp: number;
 }
 
+export interface AgentRowMeta {
+  label: string;
+  value: string;
+  inline?: boolean;
+}
+
 export interface AgentMessageRow extends AgentSessionRowBase {
   kind: 'message';
   role: string;
   label: string;
+  meta: readonly AgentRowMeta[];
   text: string;
   terminalFailure: boolean;
 }
@@ -58,6 +65,7 @@ export interface AgentLifecycleRow extends AgentSessionRowBase {
   kind: 'lifecycle';
   label: string;
   detail: string | null;
+  meta: readonly AgentRowMeta[];
   tone: 'default' | 'warning' | 'error';
   terminalFailure: boolean;
 }
@@ -108,7 +116,14 @@ function expandSessionRecordUncached(record: AgentSessionLogRecord): readonly Ag
       return [lifecycleRow(record.ts, 'Model changed', modelChangeDetail(entry), 'default', false)];
     case 'compaction':
       return [
-        lifecycleRow(record.ts, 'Context compacted', compactionDetail(entry), 'default', false),
+        lifecycleRow(
+          record.ts,
+          'Context compacted',
+          compactionDetail(entry),
+          'default',
+          false,
+          compactionMeta(entry),
+        ),
       ];
     case 'branch_summary':
       return [
@@ -118,6 +133,7 @@ function expandSessionRecordUncached(record: AgentSessionLogRecord): readonly Ag
           'branch summary',
           branchSummaryDetail(entry) ?? toJson(entry),
           false,
+          branchSummaryMeta(entry),
         ),
       ];
     case 'custom':
@@ -125,9 +141,10 @@ function expandSessionRecordUncached(record: AgentSessionLogRecord): readonly Ag
         messageRow(
           record.ts,
           'custom',
-          customEntryLabel(entry, 'custom'),
+          customEntryLabel('custom'),
           customEntryText(entry) ?? toJson(entry),
           false,
+          customEntryMeta(entry),
         ),
       ];
     case 'custom_message':
@@ -135,13 +152,16 @@ function expandSessionRecordUncached(record: AgentSessionLogRecord): readonly Ag
         messageRow(
           record.ts,
           'custom',
-          customEntryLabel(entry, 'custom message'),
+          customEntryLabel('custom message'),
           customEntryText(entry) ?? toJson(entry),
           false,
+          customEntryMeta(entry),
         ),
       ];
     case 'label':
-      return [lifecycleRow(record.ts, 'Label', labelDetail(entry), 'default', false)];
+      return [
+        lifecycleRow(record.ts, 'Label', labelDetail(entry), 'default', false, labelMeta(entry)),
+      ];
     default:
       return [
         {
@@ -179,6 +199,7 @@ function expandMessageEntry(
         'bash execution',
         bashExecutionText(message),
         isTerminalStop(message),
+        bashExecutionMeta(message),
       ),
     ];
   }
@@ -190,6 +211,7 @@ function expandMessageEntry(
         'branch summary',
         branchSummaryDetail(message) ?? toJson(message),
         isTerminalStop(message),
+        branchSummaryMeta(message),
       ),
     ];
   }
@@ -201,6 +223,7 @@ function expandMessageEntry(
         'compaction summary',
         compactionDetail(message) ?? toJson(message),
         isTerminalStop(message),
+        compactionMeta(message),
       ),
     ];
   }
@@ -209,16 +232,24 @@ function expandMessageEntry(
       messageRow(
         timestamp,
         role,
-        customEntryLabel(message, 'custom'),
+        customEntryLabel('custom'),
         customEntryText(message) ?? toJson(message),
         isTerminalStop(message),
+        customEntryMeta(message),
       ),
     ];
   }
 
   const text = messageText(message);
   return [
-    messageRow(timestamp, role, roleLabel(role), text || toJson(message), isTerminalStop(message)),
+    messageRow(
+      timestamp,
+      role,
+      roleLabel(role),
+      text || toJson(message),
+      isTerminalStop(message),
+      messageMeta(message),
+    ),
   ];
 }
 
@@ -233,9 +264,10 @@ function expandAssistantMessage(
       messageRow(
         timestamp,
         'assistant',
-        assistantLabel(message),
+        'assistant',
         text || terminalStopDetail(message) || toJson(message),
         isTerminalStop(message),
+        assistantMeta(message),
       ),
     ];
   }
@@ -251,9 +283,10 @@ function expandAssistantMessage(
           messageRow(
             timestamp,
             'assistant',
-            assistantLabel(message),
+            'assistant',
             textParts.join('\n\n'),
             isTerminalStop(message),
+            assistantMeta(message),
           ),
         );
         textParts.length = 0;
@@ -281,9 +314,10 @@ function expandAssistantMessage(
       messageRow(
         timestamp,
         'assistant',
-        assistantLabel(message),
+        'assistant',
         textParts.join('\n\n'),
         isTerminalStop(message),
+        assistantMeta(message),
       ),
     );
   }
@@ -294,9 +328,10 @@ function expandAssistantMessage(
       messageRow(
         timestamp,
         'assistant',
-        assistantLabel(message),
+        'assistant',
         toJson(message),
         isTerminalStop(message),
+        assistantMeta(message),
       ),
     );
 
@@ -309,8 +344,9 @@ function messageRow(
   label: string,
   text: string,
   terminalFailure: boolean,
+  meta: readonly AgentRowMeta[] = [],
 ): AgentMessageRow {
-  return {kind: 'message', timestamp, role, label, text, terminalFailure};
+  return {kind: 'message', timestamp, role, label, meta, text, terminalFailure};
 }
 
 function lifecycleRow(
@@ -319,8 +355,9 @@ function lifecycleRow(
   detail: string | null,
   tone: AgentLifecycleRow['tone'],
   terminalFailure: boolean,
+  meta: readonly AgentRowMeta[] = [],
 ): AgentLifecycleRow {
-  return {kind: 'lifecycle', timestamp, label, detail, tone, terminalFailure};
+  return {kind: 'lifecycle', timestamp, label, detail, meta, tone, terminalFailure};
 }
 
 function toolCallRow(timestamp: number, block: ContentBlock): AgentToolCallRow {
@@ -395,11 +432,18 @@ function roleLabel(role: string): string {
   return role.replaceAll('-', ' ');
 }
 
-function assistantLabel(message: AgentMessage): string {
-  const parts = ['assistant'];
-  if (message.model) parts.push(message.model);
-  if (message.provider) parts.push(message.provider);
-  return parts.join(' · ');
+function assistantMeta(message: AgentMessage): readonly AgentRowMeta[] {
+  return [
+    providerModelMeta(message),
+    metaItem('api', stringField(message, 'api'), false),
+    usageMeta(message),
+    costMeta(message),
+    stopReasonMeta(message),
+  ].filter(isMeta);
+}
+
+function messageMeta(message: AgentMessage): readonly AgentRowMeta[] {
+  return [stopReasonMeta(message)].filter(isMeta);
 }
 
 function isTerminalStop(message: AgentMessage): boolean {
@@ -435,22 +479,35 @@ function modelChangeDetail(entry: SessionEntry): string | null {
 }
 
 function compactionDetail(entry: SessionEntry | AgentMessage): string | null {
-  const summary = stringField(entry, 'summary') ?? stringField(entry, 'message');
+  return stringField(entry, 'summary') ?? stringField(entry, 'message') ?? entryDetail(entry);
+}
+
+function compactionMeta(entry: SessionEntry | AgentMessage): readonly AgentRowMeta[] {
   const tokensBefore = numberField(entry, 'tokensBefore');
-  const tokenDetail = tokensBefore == null ? null : `${tokensBefore} tokens summarized`;
-  return [summary, tokenDetail].filter(Boolean).join(' · ') || entryDetail(entry);
+  return [
+    tokensBefore == null ? null : metaItem('tokens before', formatCount(tokensBefore, 'token')),
+  ].filter(isMeta);
 }
 
 function branchSummaryDetail(entry: SessionEntry | AgentMessage): string | null {
-  const summary = stringField(entry, 'summary') ?? stringField(entry, 'message');
-  const fromId = stringField(entry, 'fromId');
-  const branchDetail = fromId == null ? null : `from ${fromId}`;
-  return [summary, branchDetail].filter(Boolean).join(' · ') || entryDetail(entry);
+  return stringField(entry, 'summary') ?? stringField(entry, 'message') ?? entryDetail(entry);
 }
 
-function customEntryLabel(entry: SessionEntry | AgentMessage, fallback: string): string {
-  const customType = stringField(entry, 'customType');
-  return [fallback, customType].filter(Boolean).join(' · ');
+function branchSummaryMeta(entry: SessionEntry | AgentMessage): readonly AgentRowMeta[] {
+  const fromId = stringField(entry, 'fromId');
+  return [fromId == null ? null : metaItem('from', fromId)].filter(isMeta);
+}
+
+function customEntryLabel(fallback: string): string {
+  return fallback;
+}
+
+function customEntryMeta(entry: SessionEntry | AgentMessage): readonly AgentRowMeta[] {
+  const display = field(entry, 'display');
+  return [
+    metaItem('type', stringField(entry, 'customType')),
+    typeof display === 'boolean' ? metaItem('display', display ? 'on' : 'off') : null,
+  ].filter(isMeta);
 }
 
 function customEntryText(entry: SessionEntry | AgentMessage): string | null {
@@ -461,34 +518,73 @@ function customEntryText(entry: SessionEntry | AgentMessage): string | null {
   return data === undefined ? entryDetail(entry) : stringifyValue(data);
 }
 
+function bashExecutionMeta(message: AgentMessage): readonly AgentRowMeta[] {
+  const exitCode = field(message, 'exitCode');
+  return [
+    typeof exitCode === 'number' ? metaItem('exit', String(exitCode)) : null,
+    booleanField(message, 'cancelled') ? metaItem('cancelled', 'yes') : null,
+    booleanField(message, 'truncated') ? metaItem('truncated', 'yes') : null,
+    booleanField(message, 'excludeFromContext') ? metaItem('context', 'excluded') : null,
+    metaItem('full output', stringField(message, 'fullOutputPath'), false),
+  ].filter(isMeta);
+}
+
 function labelDetail(entry: SessionEntry): string | null {
-  const label = stringField(entry, 'label');
+  return stringField(entry, 'label') ?? entryDetail(entry);
+}
+
+function labelMeta(entry: SessionEntry): readonly AgentRowMeta[] {
   const targetId = stringField(entry, 'targetId');
-  return (
-    [label, targetId == null ? null : `target ${targetId}`].filter(Boolean).join(' · ') ||
-    entryDetail(entry)
-  );
+  return [targetId == null ? null : metaItem('target', targetId, false)].filter(isMeta);
 }
 
 function bashExecutionText(message: AgentMessage): string {
   const command = stringField(message, 'command');
   const output = stringField(message, 'output');
-  const exitCode = field(message, 'exitCode');
-  const cancelled = booleanField(message, 'cancelled');
-  const truncated = booleanField(message, 'truncated');
-  const fullOutputPath = stringField(message, 'fullOutputPath');
-  const status = [
-    typeof exitCode === 'number' ? `exit ${exitCode}` : null,
-    cancelled ? 'cancelled' : null,
-    truncated ? 'truncated' : null,
-    fullOutputPath == null ? null : `full output: ${fullOutputPath}`,
-  ]
-    .filter(Boolean)
-    .join(' · ');
 
-  return (
-    [`$ ${command ?? ''}`.trim(), output, status].filter(Boolean).join('\n') || toJson(message)
-  );
+  return [`$ ${command ?? ''}`.trim(), output].filter(Boolean).join('\n') || toJson(message);
+}
+
+function providerModelMeta(message: AgentMessage): AgentRowMeta | null {
+  const model = stringField(message, 'model') ?? stringField(message, 'modelId');
+  const provider = stringField(message, 'provider');
+  const value = [provider, model].filter(Boolean).join('/');
+  return value ? metaItem('model', value) : null;
+}
+
+function usageMeta(message: AgentMessage): AgentRowMeta | null {
+  const usage = asLooseObject(field(message, 'usage'));
+  const totalTokens = numberField(usage, 'totalTokens');
+  return totalTokens == null ? null : metaItem('tokens', formatCount(totalTokens, 'token'));
+}
+
+function costMeta(message: AgentMessage): AgentRowMeta | null {
+  const usage = asLooseObject(field(message, 'usage'));
+  const cost = asLooseObject(field(usage, 'cost'));
+  const total = numberField(cost, 'total');
+  return total == null ? null : metaItem('cost', `$${total.toFixed(total < 0.01 ? 4 : 2)}`);
+}
+
+function stopReasonMeta(message: AgentMessage): AgentRowMeta | null {
+  const stopReason = stringField(message, 'stopReason');
+  return stopReason == null ? null : metaItem('stop', stopReason);
+}
+
+function formatCount(value: number, unit: string): string {
+  return `${new Intl.NumberFormat('en-US', {maximumFractionDigits: 1, notation: value >= 10000 ? 'compact' : 'standard'}).format(value)} ${unit}${value === 1 ? '' : 's'}`;
+}
+
+function metaItem(
+  label: string,
+  value: string | null | undefined,
+  inline = true,
+): AgentRowMeta | null {
+  if (value == null || value.length === 0) return null;
+  return inline ? {label, value} : {label, value, inline};
+}
+
+function isMeta(value: AgentRowMeta | null | undefined): value is AgentRowMeta {
+  return value != null;
 }
 
 function imagePlaceholder(block: ContentBlock): string {

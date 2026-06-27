@@ -8,9 +8,12 @@ import {
   LogDisclosureContent,
   LogDisclosureTrigger,
   LogRow,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@shipfox/react-ui';
-import {useState} from 'react';
-import type {AgentSessionRow} from '#core/agent-session/selector.js';
+import {Fragment, useState} from 'react';
+import type {AgentRowMeta, AgentSessionRow} from '#core/agent-session/selector.js';
 
 const PREVIEW_CHAR_LIMIT = 1200;
 const WHITESPACE = /\s+/g;
@@ -56,9 +59,14 @@ function AgentSessionRowView({
           <LogContent className="text-foreground-neutral-base">
             <span className="flex min-w-0 items-start gap-8">
               <MessageIcon role={row.role} terminalFailure={row.terminalFailure} />
-              <span className="min-w-0 flex-1">
-                <span className="mr-8 font-code text-foreground-neutral-muted">{row.label}</span>
-                <PreviewText text={row.text} />
+              <span className="flex min-w-0 flex-1 flex-col gap-2">
+                <span className="flex min-w-0 items-center gap-8">
+                  <MessageRoleLabel label={row.label} terminalFailure={row.terminalFailure} />
+                  <RowMetadata meta={row.meta} className="ml-auto flex-none" />
+                </span>
+                <span className="block min-w-0">
+                  <PreviewText text={row.text} />
+                </span>
               </span>
             </span>
           </LogContent>
@@ -176,6 +184,7 @@ function AgentSessionRowView({
                 aria-hidden="true"
                 className="h-px flex-1 border-t border-dashed border-current opacity-30"
               />
+              <RowMetadata meta={row.meta} />
             </span>
           </LogContent>
         </LogRow>
@@ -223,6 +232,69 @@ function MessageIcon({role, terminalFailure}: {role: string; terminalFailure: bo
       )}
       aria-hidden="true"
     />
+  );
+}
+
+function MessageRoleLabel({label, terminalFailure}: {label: string; terminalFailure: boolean}) {
+  return (
+    <span
+      className={cn(
+        'min-w-0 font-code text-foreground-neutral-muted',
+        terminalFailure && 'text-foreground-highlight-error',
+      )}
+    >
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
+
+function RowMetadata({meta, className}: {meta: readonly AgentRowMeta[]; className?: string}) {
+  if (meta.length === 0) return null;
+
+  const inlineMeta = meta.length === 1 && meta[0]?.inline !== false ? meta[0] : null;
+  if (inlineMeta != null) {
+    return (
+      <span
+        className={cn('font-code text-xs text-foreground-neutral-muted', className)}
+        title={`${inlineMeta.label}: ${inlineMeta.value}`}
+      >
+        {inlineMeta.value}
+      </span>
+    );
+  }
+
+  return (
+    <span className={className}>
+      <MetadataTrigger meta={meta} />
+    </span>
+  );
+}
+
+function MetadataTrigger({meta}: {meta: readonly AgentRowMeta[]}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex size-20 flex-none items-center justify-center rounded-4 text-foreground-neutral-muted opacity-60 transition-opacity hover:bg-background-components-hover hover:text-foreground-neutral-base hover:opacity-100 focus-visible:opacity-100 focus-visible:shadow-[inset_0_0_0_2px_var(--color-primary-500)] group-hover/log-row:opacity-100"
+          aria-label="Show message metadata"
+        >
+          <Icon name="informationLine" className="size-12" aria-hidden="true" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent align="end" variant="inverted" className="max-w-360 px-8 py-6">
+        <span className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-8 gap-y-2 font-code text-xs">
+          {meta.map((item) => (
+            <Fragment key={`${item.label}-${item.value}`}>
+              <span className="text-foreground-contrast-secondary">{item.label}</span>
+              <span className="min-w-0 break-all text-foreground-contrast-primary">
+                {item.value}
+              </span>
+            </Fragment>
+          ))}
+        </span>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
