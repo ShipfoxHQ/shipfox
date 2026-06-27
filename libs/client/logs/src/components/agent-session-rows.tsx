@@ -1,0 +1,281 @@
+'use client';
+
+import {
+  cn,
+  Icon,
+  LogContent,
+  LogDisclosure,
+  LogDisclosureContent,
+  LogDisclosureTrigger,
+  LogRow,
+} from '@shipfox/react-ui';
+import {useState} from 'react';
+import type {AgentSessionRow} from '#core/agent-session/selector.js';
+
+const PREVIEW_CHAR_LIMIT = 1200;
+const WHITESPACE = /\s+/g;
+const WORD_SEPARATOR = /\s+/;
+
+export interface AgentSessionRowsProps {
+  rows: readonly AgentSessionRow[];
+  resolvedToolCallIds: ReadonlySet<string>;
+  indent: number;
+}
+
+export function AgentSessionRows({rows, resolvedToolCallIds, indent}: AgentSessionRowsProps) {
+  return rows.map((row) => (
+    <AgentSessionRowView
+      key={rowKey(row)}
+      row={row}
+      resolvedToolCallIds={resolvedToolCallIds}
+      indent={indent}
+    />
+  ));
+}
+
+function AgentSessionRowView({
+  row,
+  resolvedToolCallIds,
+  indent,
+}: {
+  row: AgentSessionRow;
+  resolvedToolCallIds: ReadonlySet<string>;
+  indent: number;
+}) {
+  switch (row.kind) {
+    case 'message':
+      return (
+        <LogRow
+          lineNumber={null}
+          timestamp={new Date(row.timestamp)}
+          indent={indent}
+          tone={row.terminalFailure ? 'error' : 'default'}
+          data-log-terminal-failure={row.terminalFailure ? 'true' : undefined}
+        >
+          <LogContent className="text-foreground-neutral-base">
+            <span className="flex min-w-0 items-start gap-8">
+              <MessageIcon role={row.role} terminalFailure={row.terminalFailure} />
+              <span className="min-w-0 flex-1">
+                <span className="mr-8 font-code text-foreground-neutral-muted">{row.label}</span>
+                <PreviewText text={row.text} />
+              </span>
+            </span>
+          </LogContent>
+        </LogRow>
+      );
+    case 'thinking':
+      return (
+        <LogDisclosure indent={indent}>
+          <LogDisclosureTrigger
+            summary={wordSummary(row.text)}
+            timestamp={new Date(row.timestamp)}
+            className="text-foreground-neutral-subtle"
+          >
+            thinking
+          </LogDisclosureTrigger>
+          <LogDisclosureContent className="text-foreground-neutral-subtle">
+            <LogContent className="text-foreground-neutral-subtle">
+              <PreviewText text={row.text} />
+            </LogContent>
+          </LogDisclosureContent>
+        </LogDisclosure>
+      );
+    case 'tool-call': {
+      const awaitingResult = row.id != null && !resolvedToolCallIds.has(row.id);
+      return (
+        <LogDisclosure indent={indent}>
+          <LogDisclosureTrigger
+            timestamp={new Date(row.timestamp)}
+            summary={compactPreview(row.input)}
+            trailing={
+              awaitingResult ? (
+                <span className="inline-flex items-center gap-4">
+                  <Icon
+                    name="loader4Line"
+                    className="size-12 motion-safe:animate-spin"
+                    aria-hidden="true"
+                  />
+                  awaiting result
+                </span>
+              ) : null
+            }
+          >
+            <span className="inline-flex min-w-0 items-center gap-6">
+              <Icon name="terminalBoxLine" className="size-14 flex-none" aria-hidden="true" />
+              <span className="truncate">tool {row.name}</span>
+            </span>
+          </LogDisclosureTrigger>
+          <LogDisclosureContent>
+            <LogContent variant="code">
+              <PreviewText text={row.input} />
+            </LogContent>
+          </LogDisclosureContent>
+        </LogDisclosure>
+      );
+    }
+    case 'tool-result':
+      return (
+        <LogDisclosure indent={indent}>
+          <LogDisclosureTrigger
+            timestamp={new Date(row.timestamp)}
+            summary={compactPreview(row.output)}
+            trailing={
+              <span
+                className={cn(
+                  'inline-flex items-center gap-4',
+                  row.isError ? 'text-red-600 dark:text-red-400' : 'text-foreground-neutral-muted',
+                )}
+              >
+                <Icon
+                  name={row.isError ? 'closeCircleLine' : 'checkLine'}
+                  className="size-12"
+                  aria-hidden="true"
+                />
+                {row.isError ? 'error' : 'ok'}
+              </span>
+            }
+          >
+            <span className="inline-flex min-w-0 items-center gap-6">
+              <Icon name="terminalWindowLine" className="size-14 flex-none" aria-hidden="true" />
+              <span className="truncate">result {row.toolName}</span>
+            </span>
+          </LogDisclosureTrigger>
+          <LogDisclosureContent>
+            <LogContent
+              variant="code"
+              className={cn(row.isError && 'text-red-600 dark:text-red-400')}
+            >
+              <PreviewText text={row.output} />
+            </LogContent>
+          </LogDisclosureContent>
+        </LogDisclosure>
+      );
+    case 'lifecycle':
+      return (
+        <LogRow
+          lineNumber={null}
+          timestamp={new Date(row.timestamp)}
+          indent={indent}
+          tone={row.tone}
+          data-log-terminal-failure={row.terminalFailure ? 'true' : undefined}
+        >
+          <LogContent className="text-foreground-neutral-muted">
+            <span className="inline-flex w-full items-center gap-8">
+              <Icon name="informationLine" className="size-14 flex-none" aria-hidden="true" />
+              <span className="min-w-0">
+                <span className="font-medium">{row.label}</span>
+                {row.detail != null ? (
+                  <>
+                    {' · '}
+                    <span className="text-foreground-neutral-subtle">{row.detail}</span>
+                  </>
+                ) : null}
+              </span>
+              <span
+                aria-hidden="true"
+                className="h-px flex-1 border-t border-dashed border-current opacity-30"
+              />
+            </span>
+          </LogContent>
+        </LogRow>
+      );
+    case 'fallback':
+      return (
+        <LogDisclosure indent={indent}>
+          <LogDisclosureTrigger
+            timestamp={new Date(row.timestamp)}
+            summary={compactPreview(row.raw)}
+            className="text-orange-600 dark:text-orange-400"
+          >
+            <span className="inline-flex min-w-0 items-center gap-6">
+              <Icon name="errorWarningLine" className="size-14 flex-none" aria-hidden="true" />
+              <span className="truncate">{row.label}</span>
+            </span>
+          </LogDisclosureTrigger>
+          <LogDisclosureContent>
+            <LogContent variant="code">
+              <PreviewText text={row.raw} />
+            </LogContent>
+          </LogDisclosureContent>
+        </LogDisclosure>
+      );
+    default:
+      return assertNever(row);
+  }
+}
+
+function MessageIcon({role, terminalFailure}: {role: string; terminalFailure: boolean}) {
+  const name = terminalFailure
+    ? 'closeCircleLine'
+    : role === 'user'
+      ? 'userLine'
+      : role === 'assistant'
+        ? 'robot2Line'
+        : 'message2Line';
+
+  return (
+    <Icon
+      name={name}
+      className={cn(
+        'mt-3 size-14 flex-none',
+        terminalFailure ? 'text-red-600 dark:text-red-400' : 'text-foreground-neutral-muted',
+      )}
+      aria-hidden="true"
+    />
+  );
+}
+
+function PreviewText({text}: {text: string}) {
+  const [expanded, setExpanded] = useState(false);
+  const truncated = text.length > PREVIEW_CHAR_LIMIT;
+  const visible = truncated && !expanded ? `${text.slice(0, PREVIEW_CHAR_LIMIT)}…` : text;
+
+  return (
+    <>
+      {visible}
+      {truncated ? (
+        <button
+          type="button"
+          className="ml-8 inline-flex min-h-24 items-center rounded-4 px-6 font-display text-xs text-foreground-highlight-interactive focus-visible:shadow-[inset_0_0_0_2px_var(--color-primary-500)]"
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? 'show less' : 'show more'}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+function compactPreview(value: string): string {
+  const singleLine = value.replace(WHITESPACE, ' ').trim();
+  if (singleLine.length <= 80) return singleLine;
+  return `${singleLine.slice(0, 80)}…`;
+}
+
+function wordSummary(value: string): string {
+  const count = value.trim().split(WORD_SEPARATOR).filter(Boolean).length;
+  return `${count} ${count === 1 ? 'word' : 'words'}`;
+}
+
+function rowKey(row: AgentSessionRow): string {
+  switch (row.kind) {
+    case 'message':
+      return `${row.kind}-${row.timestamp}-${row.role}-${row.label}-${row.text}`;
+    case 'thinking':
+      return `${row.kind}-${row.timestamp}-${row.text}`;
+    case 'tool-call':
+      return `${row.kind}-${row.timestamp}-${row.id ?? ''}-${row.name}-${row.input}`;
+    case 'tool-result':
+      return `${row.kind}-${row.timestamp}-${row.toolCallId ?? ''}-${row.toolName}-${row.output}`;
+    case 'lifecycle':
+      return `${row.kind}-${row.timestamp}-${row.label}-${row.detail ?? ''}`;
+    case 'fallback':
+      return `${row.kind}-${row.timestamp}-${row.label}-${row.raw}`;
+    default:
+      return assertNever(row);
+  }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`unexpected agent session row: ${JSON.stringify(value)}`);
+}

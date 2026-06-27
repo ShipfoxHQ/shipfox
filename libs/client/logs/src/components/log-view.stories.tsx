@@ -13,6 +13,12 @@ const out = (data: string, offset: number, stream: 'stdout' | 'stderr' = 'stdout
   stream,
   data,
 });
+const session = (data: unknown, offset: number): LogRecord => ({
+  v: 1,
+  ts: at(offset),
+  type: 'agent_session',
+  data: typeof data === 'string' ? data : JSON.stringify(data),
+});
 const groupStart = (
   groupId: string,
   name: string,
@@ -82,6 +88,89 @@ const nestedRecords: LogRecord[] = [
   {v: 1, ts: at(15.2), type: 'end', total_bytes: 9_216},
 ];
 
+const unifiedAgentRecords: LogRecord[] = [
+  session(
+    {
+      type: 'message',
+      message: {role: 'user', content: 'Update the auth form error handling.'},
+    },
+    0,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'assistant',
+        model: 'gpt-5-codex',
+        content: [
+          {type: 'text', text: 'I will inspect the form and the existing tests first.'},
+          {
+            type: 'thinking',
+            text: 'The likely risk is server errors being written to the wrong form meta slot.',
+          },
+          {
+            type: 'toolCall',
+            id: 'call-1',
+            name: 'read_file',
+            arguments: {path: 'src/login-form.tsx'},
+          },
+        ],
+      },
+    },
+    1,
+  ),
+  out('$ pnpm --filter @shipfox/client-auth test\n', 2),
+  session(
+    {
+      type: 'message',
+      message: {
+        toolCallId: 'call-1',
+        toolName: 'read_file',
+        content: 'export function LoginForm() { /* ... */ }',
+      },
+    },
+    3,
+  ),
+  session({type: 'model_change', model: 'gpt-5-codex', provider: 'openai'}, 4),
+  {v: 1, ts: at(5), type: 'end', total_bytes: 4096},
+];
+
+const awaitingAgentRecords: LogRecord[] = [
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'toolCall',
+            id: 'call-2',
+            name: 'run_tests',
+            arguments: {filter: '@shipfox/client-logs'},
+          },
+        ],
+      },
+    },
+    0,
+  ),
+  out('running tests...\n', 1),
+];
+
+const failedAgentRecords: LogRecord[] = [
+  out('$ pnpm test\n', 0),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'assistant',
+        content: [{type: 'text', text: 'The run cannot continue because the harness aborted.'}],
+        stopReason: 'error',
+      },
+    },
+    1,
+  ),
+];
+
 const meta = {
   title: 'Logs/LogView',
   component: LogView,
@@ -148,6 +237,65 @@ export const MinimalOutput: Story = {
   render: (args) => (
     <div className="max-w-3xl">
       <LogView {...args} records={[{v: 1, ts: at(1), type: 'end', total_bytes: 0}]} />
+    </div>
+  ),
+};
+
+export const UnifiedAgentSession: Story = {
+  args: {showLineNumbers: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={unifiedAgentRecords} />
+    </div>
+  ),
+};
+
+export const RunningAgentToolCall: Story = {
+  args: {showLineNumbers: true, emptyState: 'pending'},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={awaitingAgentRecords} />
+    </div>
+  ),
+};
+
+export const FailedAgentSession: Story = {
+  args: {showLineNumbers: true, anchorToFailure: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={failedAgentRecords} />
+    </div>
+  ),
+};
+
+export const UnknownAgentEntry: Story = {
+  args: {showLineNumbers: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={[session({type: 'future_entry', payload: {value: true}}, 0)]} />
+    </div>
+  ),
+};
+
+export const LargeAgentPayload: Story = {
+  args: {showLineNumbers: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView
+        {...args}
+        records={[
+          session(
+            {
+              type: 'message',
+              message: {
+                role: 'assistant',
+                content: [{type: 'text', text: 'Large payload '.repeat(180)}],
+              },
+            },
+            0,
+          ),
+        ]}
+      />
     </div>
   ),
 };

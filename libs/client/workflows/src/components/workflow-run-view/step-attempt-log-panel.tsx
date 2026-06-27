@@ -37,6 +37,7 @@ export function StepAttemptLogPanel({
   });
   const records = query.data?.records ?? [];
   const recordCount = records.length;
+  const anchorToFailure = attemptStatus === 'failed';
   const missingActiveStream =
     retryMissingStream && query.data === undefined && isMissingStepLogStreamError(query.error);
   const initialError = query.isError && query.data === undefined && !missingActiveStream;
@@ -44,6 +45,7 @@ export function StepAttemptLogPanel({
 
   useEffect(() => {
     if (recordCount === 0) return undefined;
+    if (anchorToFailure) return undefined;
     if (!shouldFollowTailRef.current) return undefined;
 
     const frame = scheduleAnimationFrame(() => {
@@ -55,7 +57,7 @@ export function StepAttemptLogPanel({
     return () => {
       cancelScheduledFrame(frame);
     };
-  }, [recordCount]);
+  }, [anchorToFailure, recordCount]);
 
   function handleLogScroll(event: UIEvent<HTMLDivElement>) {
     const element = event.currentTarget;
@@ -96,6 +98,7 @@ export function StepAttemptLogPanel({
       <LogView
         records={records}
         emptyState={query.data?.complete ? 'complete' : 'pending'}
+        anchorToFailure={anchorToFailure}
         className={logSurfaceClasses}
         onScroll={handleLogScroll}
       />
