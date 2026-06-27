@@ -14,7 +14,7 @@ describe('triggerEventResult', () => {
     const result = triggerEventResult({outcome: 'routed', matched_count: 1});
 
     expect(result.badge).toBe('info');
-    expect(result.failed).toBe(false);
+    expect(result.isFailure).toBe(false);
   });
 
   test('discarded reads as no workflows triggered', () => {
@@ -30,7 +30,7 @@ describe('triggerEventResult', () => {
 
       expect(result.label).toBe('Failed');
       expect(result.badge).toBe('error');
-      expect(result.failed).toBe(true);
+      expect(result.isFailure).toBe(true);
     }
   });
 

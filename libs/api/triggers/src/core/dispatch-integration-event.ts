@@ -15,7 +15,7 @@ export interface DispatchIntegrationEventParams {
   event: string;
   deliveryId: string;
   connectionId: string;
-  connectionName: string;
+  connectionName: string | null;
   payload: unknown;
   receivedAt: Date;
 }

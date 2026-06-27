@@ -14,9 +14,8 @@ import {
 import {type ReactNode, useState} from 'react';
 import type {TriggerEventFilters} from '#hooks/api/trigger-events.js';
 
-// The result filter maps the DESIGN.md §9 event outcomes onto the plain-language results an
-// operator filters by. `failed` folds `errored` in (the list renders both as "Failed"), so
-// filtering Failed never hides an event the list shows as failed.
+// Filters expose the same plain-language results shown in the table. `failed`
+// includes `errored` so the Failed filter does not hide rows rendered as failed.
 const RESULT_FILTERS: {
   value: TriggerEventOutcomeDto;
   selects: TriggerEventOutcomeDto[];
@@ -69,7 +68,7 @@ export function EventsFilterBar({
     selects.some((outcome) => selectedOutcomes.has(outcome)),
   ).map(({value}) => value);
 
-  // One count per active dimension keeps the toggle badge small and legible.
+  // Count active dimensions, not selected options, so the badge stays stable as chips grow.
   const activeCount =
     (dateRange ? 1 : 0) +
     (filters.source?.length ? 1 : 0) +

@@ -2,12 +2,9 @@ import type {TriggerEventListItemDto} from '@shipfox/api-triggers-dto';
 import type {BadgeVariant} from '@shipfox/react-ui';
 
 export interface TriggerEventResult {
-  /** Plain-language outcome shown both in the list cell and the detail header badge. */
   label: string;
-  /** Badge variant for the detail header. */
   badge: BadgeVariant;
-  /** Failed events read in the error tone in the dense list; others stay muted. */
-  failed: boolean;
+  isFailure: boolean;
 }
 
 /**
@@ -25,19 +22,19 @@ export function triggerEventResult(
       return {
         label: `Triggered ${event.matched_count} workflow${plural}`,
         badge: 'info',
-        failed: false,
+        isFailure: false,
       };
     }
     case 'discarded':
-      return {label: 'No workflows triggered', badge: 'neutral', failed: false};
+      return {label: 'No workflows triggered', badge: 'neutral', isFailure: false};
     case 'failed':
     case 'errored':
-      return {label: 'Failed', badge: 'error', failed: true};
+      return {label: 'Failed', badge: 'error', isFailure: true};
     case 'received':
-      return {label: 'Evaluating…', badge: 'neutral', failed: false};
+      return {label: 'Evaluating…', badge: 'neutral', isFailure: false};
     default: {
       const _exhaustive: never = event.outcome;
-      return {label: 'Unknown', badge: 'warning', failed: false};
+      return {label: 'Unknown', badge: 'warning', isFailure: false};
     }
   }
 }

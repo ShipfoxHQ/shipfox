@@ -72,6 +72,14 @@ describe('integrationEventReceivedSchema', () => {
     expect(result).toEqual(validEventReceived);
   });
 
+  it('defaults missing connection names to null for queued events', () => {
+    const {connectionName: _connectionName, ...withoutConnectionName} = validEventReceived;
+
+    const result = integrationEventReceivedSchema.parse(withoutConnectionName);
+
+    expect(result).toEqual({...withoutConnectionName, connectionName: null});
+  });
+
   it('rejects a payload missing the opaque provider payload key', () => {
     const {payload: _payload, ...withoutPayload} = validEventReceived;
 

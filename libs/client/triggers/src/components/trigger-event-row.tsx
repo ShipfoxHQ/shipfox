@@ -49,7 +49,7 @@ export function TriggerEventRow({event, selected, onSelect}: TriggerEventRowProp
         <Text
           size="sm"
           className={cn(
-            result.failed ? 'text-foreground-highlight-error' : 'text-foreground-neutral-subtle',
+            result.isFailure ? 'text-foreground-highlight-error' : 'text-foreground-neutral-subtle',
           )}
         >
           {result.label}
