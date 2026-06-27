@@ -4,11 +4,14 @@ export type WorkflowModelValidationIssueCode =
   | 'duplicate-job-id'
   | 'duplicate-step-id'
   | 'duplicate-trigger-id'
+  | 'invalid-runner-label'
   | 'invalid-step-gate-restart-from'
   | 'invalid-step-gate-success-if'
   | 'job-dependency-cycle'
+  | 'missing-runner-label'
   | 'multiple-manual-triggers'
   | 'self-job-dependency'
+  | 'too-many-runner-labels'
   | 'unknown-job-dependency';
 
 export type WorkflowModelValidationIssuePathSegment = string | number;

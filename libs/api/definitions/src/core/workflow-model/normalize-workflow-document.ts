@@ -4,6 +4,13 @@ import {
   type WorkflowExpression,
 } from '@shipfox/expression';
 import {
+  canonicalizeLabels,
+  findInvalidLabels,
+  MAX_RUNNER_LABEL_LENGTH,
+  MAX_RUNNER_LABELS,
+  RUNNER_LABEL_PATTERN,
+} from '@shipfox/runner-labels';
+import {
   DEFAULT_AGENT_PROVIDER,
   DEFAULT_AGENT_THINKING,
   type WorkflowDocument,
@@ -32,12 +39,22 @@ const manualTriggerSource = 'manual';
 
 export function normalizeWorkflowDocument(
   document: WorkflowDocument,
-  options: {stepSourceLocations?: WorkflowStepSourceLocationMap | undefined} = {},
+  options: {
+    defaultRunnerLabels?: readonly string[] | undefined;
+    stepSourceLocations?: WorkflowStepSourceLocationMap | undefined;
+  } = {},
 ): WorkflowModel {
   const issues: WorkflowModelValidationIssue[] = [];
+  const defaultRunnerLabels = canonicalizeLabels(options.defaultRunnerLabels);
   const jobIdBySourceName = mapJobIds(document, issues);
   const triggers = normalizeTriggers(document, issues);
-  const jobs = normalizeJobs(document, jobIdBySourceName, issues, options.stepSourceLocations);
+  const jobs = normalizeJobs(
+    document,
+    jobIdBySourceName,
+    issues,
+    options.stepSourceLocations,
+    defaultRunnerLabels,
+  );
   const dependencies = normalizeDependencies(document.jobs, jobIdBySourceName, issues);
 
   validateCycles(document.jobs, jobIdBySourceName, issues);
@@ -139,6 +156,7 @@ function normalizeJobs(
   jobIdBySourceName: ReadonlyMap<string, string>,
   issues: WorkflowModelValidationIssue[],
   stepSourceLocations: WorkflowStepSourceLocationMap | undefined,
+  defaultRunnerLabels: readonly string[],
 ): readonly WorkflowModelJob[] {
   return Object.entries(document.jobs).flatMap(([sourceName, job]) => {
     const id = jobIdBySourceName.get(sourceName);
@@ -214,17 +232,61 @@ function normalizeJobs(
       // model-step union honest without a non-null assertion.
       throw new Error(`Workflow step "${stepId}" is neither a run nor an agent step`);
     });
+    const runner = normalizeRunner({document, job, sourceName, issues, defaultRunnerLabels});
 
     return [
       {
         id,
         sourceName,
-        runner: normalizeStringArray(job.runner ?? document.runner),
+        runner,
         dependencies,
         steps,
       },
     ];
   });
+}
+
+function normalizeRunner(params: {
+  document: WorkflowDocument;
+  job: WorkflowDocumentJob;
+  sourceName: string;
+  issues: WorkflowModelValidationIssue[];
+  defaultRunnerLabels: readonly string[];
+}): readonly string[] {
+  const rawRunner = params.job.runner ?? params.document.runner;
+  // Persisted documents keep author text; scheduling consumes only this canonical model field.
+  const runner =
+    rawRunner === undefined ? params.defaultRunnerLabels : canonicalizeLabels(rawRunner);
+  const invalid = findInvalidLabels(runner);
+
+  if (invalid.length > 0) {
+    params.issues.push(
+      issue({
+        code: 'invalid-runner-label',
+        message: `Job "${params.sourceName}" has invalid runner label(s): ${invalid.join(', ')}. Labels must match ${RUNNER_LABEL_PATTERN} and be at most ${MAX_RUNNER_LABEL_LENGTH} chars.`,
+        path: ['jobs', params.sourceName, 'runner'],
+        details: {labels: invalid},
+      }),
+    );
+  } else if (runner.length === 0) {
+    params.issues.push(
+      issue({
+        code: 'missing-runner-label',
+        message: `Job "${params.sourceName}" must declare at least one runner label. Set "runner" on the job or the workflow, or configure DEFINITION_DEFAULT_RUNNER_LABEL.`,
+        path: ['jobs', params.sourceName, 'runner'],
+      }),
+    );
+  } else if (runner.length > MAX_RUNNER_LABELS) {
+    params.issues.push(
+      issue({
+        code: 'too-many-runner-labels',
+        message: `Job "${params.sourceName}" declares ${runner.length} runner labels; the maximum is ${MAX_RUNNER_LABELS}.`,
+        path: ['jobs', params.sourceName, 'runner'],
+      }),
+    );
+  }
+
+  return runner;
 }
 
 function normalizeStepGate(params: {

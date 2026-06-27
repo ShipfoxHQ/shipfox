@@ -9,6 +9,7 @@ import {upsertDefinition} from '#db/definitions.js';
 function defaultDefinition(): WorkflowDefinitionPayload {
   const document = {
     name: 'Test Workflow',
+    runner: 'ubuntu-latest',
     jobs: {
       build: {
         steps: [{run: 'echo hello'}],

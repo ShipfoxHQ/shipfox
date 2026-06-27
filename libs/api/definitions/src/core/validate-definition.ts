@@ -1,4 +1,5 @@
 import {InvalidWorkflowDocumentError} from '@shipfox/workflow-document';
+import {definitionDefaultRunnerLabels} from '../config.js';
 import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
 import {InvalidWorkflowModelError, normalizeWorkflowDocument} from './workflow-model/index.js';
 import {InvalidWorkflowYamlError, parseWorkflowYamlWithLocations} from './workflow-yaml/index.js';
@@ -9,10 +10,16 @@ export type ValidationResult =
   | {valid: true; definition: WorkflowDefinitionPayload}
   | {valid: false; errors: ValidationError[]};
 
-export function validateDefinition(yamlContent: string): ValidationResult {
+export function validateDefinition(
+  yamlContent: string,
+  options: {defaultRunnerLabels?: readonly string[]} = {},
+): ValidationResult {
   try {
     const {document, stepSourceLocations} = parseWorkflowYamlWithLocations(yamlContent);
-    const model = normalizeWorkflowDocument(document, {stepSourceLocations});
+    const model = normalizeWorkflowDocument(document, {
+      defaultRunnerLabels: options.defaultRunnerLabels ?? definitionDefaultRunnerLabels,
+      stepSourceLocations,
+    });
     return {valid: true, definition: {document, model}};
   } catch (error) {
     return {valid: false, errors: validationErrorsFor(error)};

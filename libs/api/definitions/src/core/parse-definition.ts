@@ -2,8 +2,11 @@ import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js'
 import {DefinitionParseError} from './errors.js';
 import {validateDefinition} from './validate-definition.js';
 
-export function parseDefinition(yamlString: string): WorkflowDefinitionPayload {
-  const result = validateDefinition(yamlString);
+export function parseDefinition(
+  yamlString: string,
+  options?: {defaultRunnerLabels?: readonly string[]},
+): WorkflowDefinitionPayload {
+  const result = validateDefinition(yamlString, options);
 
   if (!result.valid) {
     throw new DefinitionParseError(

@@ -52,6 +52,7 @@ import {normalizeWorkflowDocument} from '#core/workflow-model/index.js';
 
 const model = normalizeWorkflowDocument({
   name: 'simple build',
+  runner: 'ubuntu-latest',
   jobs: {
     build: {
       steps: [{run: 'npm test'}],
@@ -69,6 +70,10 @@ file paths. Those fields belong to `WorkflowDefinition`.
 
 Trigger filters stay as source strings in this module until event schemas define
 the expression context needed to type-check them.
+
+The persisted `workflow_document` keeps author-provided runner labels exactly as
+written. Canonical and defaulted labels live on `workflow_model.jobs[].runner`;
+downstream consumers should read the model, not `document.runner`.
 
 Run-step gate expressions are different. They have a small local result context,
 so this module can parse and type-check `success_if` now. The accepted model

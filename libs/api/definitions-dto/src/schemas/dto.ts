@@ -47,6 +47,13 @@ export const definitionResponseSchema = definitionDtoSchema;
 
 export type DefinitionResponseDto = z.infer<typeof definitionResponseSchema>;
 
+export const definitionValidationErrorSchema = z.object({
+  message: z.string(),
+  path: z.string().optional(),
+});
+
+export type DefinitionValidationErrorDto = z.infer<typeof definitionValidationErrorSchema>;
+
 export const definitionListQuerySchema = z.object({
   project_id: z.string().uuid(),
   limit: z.coerce.number().int().min(1).max(100).default(50),

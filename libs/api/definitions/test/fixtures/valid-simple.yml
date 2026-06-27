@@ -1,4 +1,5 @@
 name: Simple build
+runner: ubuntu-latest
 
 triggers:
   on_demand:
