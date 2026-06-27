@@ -37,6 +37,7 @@ export const triggerEventListItemDtoSchema = z.object({
 export type TriggerEventListItemDto = z.infer<typeof triggerEventListItemDtoSchema>;
 
 export const triggerEventDtoSchema = triggerEventListItemDtoSchema.extend({
+  connection_name: z.string().nullable(),
   payload: z.record(z.string(), z.unknown()).nullable(),
 });
 export type TriggerEventDto = z.infer<typeof triggerEventDtoSchema>;
@@ -45,6 +46,7 @@ export const triggerDecisionDtoSchema = z.object({
   id: z.string().uuid(),
   received_event_id: z.string().uuid(),
   subscription_id: z.string().uuid(),
+  subscription_name: z.string(),
   workflow_definition_id: z.string().uuid(),
   project_id: z.string().uuid(),
   decision: triggerDecisionOutcomeSchema,

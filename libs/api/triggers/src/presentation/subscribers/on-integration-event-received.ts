@@ -13,6 +13,7 @@ export async function onIntegrationEventReceived(
     event: envelope.event,
     deliveryId: envelope.deliveryId,
     connectionId: envelope.connectionId,
+    connectionName: envelope.connectionName ?? null,
     payload: envelope.payload,
     receivedAt: new Date(envelope.receivedAt),
   });

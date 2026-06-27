@@ -5,6 +5,7 @@ export interface TriggerDecision {
   id: string;
   receivedEventId: string;
   subscriptionId: string;
+  subscriptionName: string;
   workflowDefinitionId: string;
   projectId: string;
   decision: TriggerDecisionOutcome;

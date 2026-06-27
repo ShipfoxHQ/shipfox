@@ -23,6 +23,7 @@ function buildEvent(
     event: 'push',
     workspaceId: crypto.randomUUID(),
     connectionId: crypto.randomUUID(),
+    connectionName: 'Acme Production',
     deliveryId: crypto.randomUUID(),
     receivedAt: new Date().toISOString(),
     payload: {
@@ -52,6 +53,7 @@ function buildSourcePushParams() {
     provider: 'github',
     workspaceId: crypto.randomUUID(),
     connectionId: crypto.randomUUID(),
+    connectionName: 'Acme Production',
     deliveryId: crypto.randomUUID(),
     receivedAt: new Date().toISOString(),
     push: buildPush(),

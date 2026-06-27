@@ -47,6 +47,7 @@ export async function fireManualSubscription(
     event: subscription.event,
     deliveryId: null,
     connectionId: null,
+    connectionName: null,
     payload: null,
     receivedAt: new Date(),
   };

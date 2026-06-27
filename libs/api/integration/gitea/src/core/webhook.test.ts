@@ -110,6 +110,7 @@ describe('handleGiteaWebhook', () => {
       deliveryId,
       workspaceId: connection.workspaceId,
       connectionId: connection.id,
+      connectionName: connection.displayName,
       push: {
         externalRepositoryId: 'gitea:shipfox/api',
         ref: 'main',

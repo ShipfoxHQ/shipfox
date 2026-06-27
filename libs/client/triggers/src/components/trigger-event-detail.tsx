@@ -1,0 +1,296 @@
+import type {TriggerDecisionDto, TriggerEventDetailResponseDto} from '@shipfox/api-triggers-dto';
+import {
+  Alert,
+  Badge,
+  Button,
+  Code,
+  CodeBlock,
+  CodeBlockBody,
+  CodeBlockContent,
+  CodeBlockCopyButton,
+  CodeBlockFilename,
+  CodeBlockFiles,
+  CodeBlockHeader,
+  CodeBlockItem,
+  cn,
+  EmptyState,
+  Icon,
+  RelativeTime,
+  Skeleton,
+  Text,
+} from '@shipfox/react-ui';
+import {Link} from '@tanstack/react-router';
+import {useMemo} from 'react';
+import {useTriggerEventQuery} from '#hooks/api/trigger-events.js';
+import {triggerEventResult} from './trigger-event-result.js';
+import {TriggerSourceIcon} from './trigger-source-icon.js';
+
+const PANEL_CLASS =
+  'min-h-0 rounded-8 border border-border-neutral-base bg-background-neutral-base';
+
+export interface TriggerEventDetailProps {
+  workspaceId: string;
+  eventId?: string | undefined;
+  onBack: () => void;
+}
+
+export function TriggerEventDetail({workspaceId, eventId, onBack}: TriggerEventDetailProps) {
+  const query = useTriggerEventQuery(eventId);
+
+  if (!eventId) return <TriggerEventDetailPlaceholder />;
+  if (query.data) {
+    return <TriggerEventDetailView workspaceId={workspaceId} event={query.data} onBack={onBack} />;
+  }
+  if (query.isError)
+    return <TriggerEventDetailError onBack={onBack} onRetry={() => query.refetch()} />;
+  return <TriggerEventDetailLoading onBack={onBack} />;
+}
+
+export function TriggerEventDetailView({
+  workspaceId,
+  event,
+  onBack,
+}: {
+  workspaceId: string;
+  event: TriggerEventDetailResponseDto;
+  onBack: () => void;
+}) {
+  const result = triggerEventResult(event);
+  const formattedPayload = useMemo(
+    () => JSON.stringify(event.payload ?? null, null, 2) ?? 'null',
+    [event.payload],
+  );
+
+  return (
+    <aside
+      aria-label="Event details"
+      className={cn(PANEL_CLASS, 'flex min-h-0 flex-col overflow-hidden')}
+    >
+      <div className="flex shrink-0 flex-col gap-12 border-b border-border-neutral-base p-16">
+        <Button
+          type="button"
+          variant="transparentMuted"
+          size="sm"
+          iconLeft="arrowLeftLine"
+          className="self-start min-[900px]:hidden"
+          onClick={onBack}
+        >
+          Back to events
+        </Button>
+        <div className="flex min-w-0 items-start justify-between gap-12">
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="flex min-w-0 items-center gap-6">
+              <TriggerSourceIcon
+                source={event.source}
+                aria-hidden="true"
+                className="size-16 shrink-0 text-foreground-neutral-muted"
+              />
+              <Code as="span" variant="label" className="truncate text-foreground-neutral-base">
+                {event.source}
+              </Code>
+              <Code as="span" variant="label" className="truncate text-foreground-neutral-subtle">
+                {event.event}
+              </Code>
+            </div>
+            <Text size="xs" className="truncate text-foreground-neutral-muted">
+              <RelativeTime value={event.received_at} />
+            </Text>
+          </div>
+          <Badge variant={result.badge} size="xs">
+            {result.label}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-20 overflow-y-auto p-16 scrollbar">
+        <EventRuns workspaceId={workspaceId} event={event} />
+        <EventPayload payload={formattedPayload} />
+      </div>
+    </aside>
+  );
+}
+
+function TriggerEventDetailPlaceholder() {
+  return (
+    <aside
+      aria-label="Event details"
+      className={cn(
+        PANEL_CLASS,
+        'hidden min-h-[240px] items-center justify-center p-24 min-[900px]:flex',
+      )}
+    >
+      <EmptyState icon="pulseLine" variant="compact" title="No event selected" />
+    </aside>
+  );
+}
+
+function TriggerEventDetailLoading({onBack}: {onBack: () => void}) {
+  return (
+    <aside
+      aria-label="Event details"
+      className={cn(PANEL_CLASS, 'flex min-h-[320px] flex-col gap-16 p-16')}
+    >
+      <Button
+        type="button"
+        variant="transparentMuted"
+        size="sm"
+        iconLeft="arrowLeftLine"
+        className="self-start min-[900px]:hidden"
+        onClick={onBack}
+      >
+        Back to events
+      </Button>
+      <div className="flex flex-col gap-8">
+        <Skeleton className="h-16 w-160" />
+        <Skeleton className="h-12 w-120" />
+      </div>
+      <Skeleton className="h-96" />
+      <Skeleton className="h-160" />
+    </aside>
+  );
+}
+
+function TriggerEventDetailError({onBack, onRetry}: {onBack: () => void; onRetry: () => void}) {
+  return (
+    <aside aria-label="Event details" className={cn(PANEL_CLASS, 'flex flex-col gap-16 p-16')}>
+      <Button
+        type="button"
+        variant="transparentMuted"
+        size="sm"
+        iconLeft="arrowLeftLine"
+        className="self-start min-[900px]:hidden"
+        onClick={onBack}
+      >
+        Back to events
+      </Button>
+      <Alert variant="error" animated={false}>
+        <div className="flex items-center justify-between gap-12">
+          <Text size="sm">Event detail could not be loaded.</Text>
+          <Button type="button" variant="secondary" size="xs" onClick={onRetry}>
+            Retry
+          </Button>
+        </div>
+      </Alert>
+    </aside>
+  );
+}
+
+function EventRuns({
+  workspaceId,
+  event,
+}: {
+  workspaceId: string;
+  event: TriggerEventDetailResponseDto;
+}) {
+  if (event.decisions.length === 0) {
+    if (event.outcome === 'discarded') {
+      return (
+        <Text size="sm" className="text-foreground-neutral-muted">
+          No workflows are subscribed to this event.
+        </Text>
+      );
+    }
+    return null;
+  }
+
+  return (
+    <section aria-labelledby="trigger-event-runs-heading" className="flex flex-col gap-6">
+      <Text id="trigger-event-runs-heading" size="sm" bold>
+        Matched workflows
+      </Text>
+      <ul className="-mx-8 flex flex-col gap-1">
+        {event.decisions.map((decision) => (
+          <DecisionRow key={decision.id} workspaceId={workspaceId} decision={decision} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function DecisionRow({workspaceId, decision}: {workspaceId: string; decision: TriggerDecisionDto}) {
+  if (decision.decision === 'errored' || !decision.run_id || !decision.run_name) {
+    return (
+      <li className="flex min-w-0 items-start gap-8 rounded-6 px-8 py-6">
+        <Icon
+          name="cornerDownRightLine"
+          className="mt-2 size-14 shrink-0 text-foreground-neutral-disabled"
+          aria-hidden="true"
+        />
+        <div className="flex min-w-0 flex-col gap-1">
+          <Text size="sm" className="min-w-0 truncate text-foreground-neutral-base">
+            {decision.subscription_name}
+          </Text>
+          {decision.reason ? (
+            <Text size="xs" className="text-foreground-highlight-error">
+              {decision.reason}
+            </Text>
+          ) : (
+            <Text size="xs" className="text-foreground-neutral-disabled">
+              No run created
+            </Text>
+          )}
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <Link
+        to="/workspaces/$wid/projects/$pid/runs/$runId"
+        params={{wid: workspaceId, pid: decision.project_id, runId: decision.run_id}}
+        className="flex min-w-0 items-start gap-8 rounded-6 px-8 py-6 transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
+      >
+        <Icon
+          name="cornerDownRightLine"
+          className="mt-3 size-14 shrink-0 text-foreground-neutral-muted"
+          aria-hidden="true"
+        />
+        <span className="flex min-w-0 flex-col gap-1">
+          <Text as="span" size="sm" className="min-w-0 truncate text-foreground-neutral-base">
+            {decision.subscription_name}
+          </Text>
+          <Code as="span" variant="label" className="truncate text-foreground-neutral-muted">
+            {decision.run_name}
+          </Code>
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+function EventPayload({payload}: {payload: string}) {
+  const data = [{language: 'json', filename: 'payload.json', code: payload}];
+
+  return (
+    <section aria-labelledby="trigger-event-payload-heading" className="flex flex-col gap-6">
+      <Text id="trigger-event-payload-heading" size="sm" bold>
+        Payload
+      </Text>
+      <CodeBlock
+        data={data}
+        className="flex h-auto max-h-[min(360px,45vh)] flex-col rounded-8 bg-background-contrast-base shadow-none"
+      >
+        <CodeBlockHeader className="shrink-0 border-b border-border-contrast-base bg-background-contrast-base px-10 py-6">
+          <CodeBlockFiles>
+            {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
+          </CodeBlockFiles>
+          <CodeBlockCopyButton />
+        </CodeBlockHeader>
+        <CodeBlockBody className="min-h-0 overflow-auto scrollbar">
+          {(item) => (
+            <CodeBlockItem
+              value={item.filename}
+              lineNumbers={false}
+              className="px-0 pb-0 [&>div]:rounded-none [&>div]:border-0 [&>div]:bg-background-contrast-base [&>div]:dark:bg-background-contrast-base [&_code]:!text-foreground-neutral-on-color"
+            >
+              <CodeBlockContent language="json" syntaxHighlighting={false}>
+                {item.code}
+              </CodeBlockContent>
+            </CodeBlockItem>
+          )}
+        </CodeBlockBody>
+      </CodeBlock>
+    </section>
+  );
+}

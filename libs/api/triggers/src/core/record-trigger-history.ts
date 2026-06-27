@@ -47,6 +47,7 @@ export interface BeginTriggerHistoryParams {
   event: string;
   deliveryId: string | null;
   connectionId: string | null;
+  connectionName: string | null;
   payload: Record<string, unknown> | null;
   receivedAt: Date;
 }

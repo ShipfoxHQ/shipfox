@@ -22,6 +22,7 @@ describe('onIntegrationEventReceived', () => {
       event: 'push',
       workspaceId: crypto.randomUUID(),
       connectionId: crypto.randomUUID(),
+      connectionName: 'Acme Production',
       deliveryId: crypto.randomUUID(),
       receivedAt,
       payload: {ref: 'main', headCommitSha: 'abc123'},
@@ -42,6 +43,7 @@ describe('onIntegrationEventReceived', () => {
       event: envelope.event,
       deliveryId: envelope.deliveryId,
       connectionId: envelope.connectionId,
+      connectionName: envelope.connectionName,
       payload: envelope.payload,
       receivedAt: new Date(receivedAt),
     });

@@ -25,6 +25,7 @@ function buildEventParams(
     event: 'push',
     deliveryId: null,
     connectionId: null,
+    connectionName: null,
     payload: null,
     receivedAt: new Date(),
     ...overrides,
@@ -235,14 +236,16 @@ describe('decision upserts', () => {
   it('is idempotent on (received_event_id, subscription_id)', async () => {
     const receivedEventId = await insertReceivedEvent(buildEventParams());
     const subscription = buildSubscription();
+    const renamedSubscription = buildSubscription({...subscription, name: 'renamed trigger'});
     const run = {id: crypto.randomUUID(), name: 'Build and test'};
 
     await upsertTriggeredDecision({receivedEventId, subscription, run});
-    await upsertTriggeredDecision({receivedEventId, subscription, run});
+    await upsertTriggeredDecision({receivedEventId, subscription: renamedSubscription, run});
 
     const rows = await decisionsFor(receivedEventId);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.decision).toBe('triggered');
+    expect(rows[0]?.subscriptionName).toBe(subscription.name);
     expect(rows[0]?.runId).toBe(run.id);
     expect(rows[0]?.runName).toBe(run.name);
   });
@@ -250,14 +253,16 @@ describe('decision upserts', () => {
   it('flips an errored decision to triggered on a successful retry', async () => {
     const receivedEventId = await insertReceivedEvent(buildEventParams());
     const subscription = buildSubscription();
+    const renamedSubscription = buildSubscription({...subscription, name: 'renamed trigger'});
     const run = {id: crypto.randomUUID(), name: 'Build and test'};
 
     await upsertErroredDecision({receivedEventId, subscription, reason: 'boom'});
-    await upsertTriggeredDecision({receivedEventId, subscription, run});
+    await upsertTriggeredDecision({receivedEventId, subscription: renamedSubscription, run});
 
     const rows = await decisionsFor(receivedEventId);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.decision).toBe('triggered');
+    expect(rows[0]?.subscriptionName).toBe(subscription.name);
     expect(rows[0]?.runId).toBe(run.id);
     expect(rows[0]?.reason).toBeNull();
   });
@@ -265,15 +270,40 @@ describe('decision upserts', () => {
   it('never downgrades an existing triggered decision to errored', async () => {
     const receivedEventId = await insertReceivedEvent(buildEventParams());
     const subscription = buildSubscription();
+    const renamedSubscription = buildSubscription({...subscription, name: 'renamed trigger'});
     const run = {id: crypto.randomUUID(), name: 'Build and test'};
 
     await upsertTriggeredDecision({receivedEventId, subscription, run});
-    await upsertErroredDecision({receivedEventId, subscription, reason: 'definition deleted'});
+    await upsertErroredDecision({
+      receivedEventId,
+      subscription: renamedSubscription,
+      reason: 'definition deleted',
+    });
 
     const rows = await decisionsFor(receivedEventId);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.decision).toBe('triggered');
+    expect(rows[0]?.subscriptionName).toBe(subscription.name);
     expect(rows[0]?.runId).toBe(run.id);
     expect(rows[0]?.reason).toBeNull();
+  });
+
+  it('preserves the original subscription name on errored replay', async () => {
+    const receivedEventId = await insertReceivedEvent(buildEventParams());
+    const subscription = buildSubscription();
+    const renamedSubscription = buildSubscription({...subscription, name: 'renamed trigger'});
+
+    await upsertErroredDecision({receivedEventId, subscription, reason: 'boom'});
+    await upsertErroredDecision({
+      receivedEventId,
+      subscription: renamedSubscription,
+      reason: 'still broken',
+    });
+
+    const rows = await decisionsFor(receivedEventId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.decision).toBe('errored');
+    expect(rows[0]?.subscriptionName).toBe(subscription.name);
+    expect(rows[0]?.reason).toBe('still broken');
   });
 });

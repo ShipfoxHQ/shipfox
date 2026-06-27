@@ -5,12 +5,16 @@ export const INTEGRATION_EVENT_RECEIVED = 'integrations.event.received' as const
 const nonEmptyStringSchema = z.string().nonempty();
 const isoDateTimeSchema = z.string().datetime();
 const requiredUnknownSchema = z.custom<unknown>((value) => value !== undefined);
+const nullableConnectionNameSchema = nonEmptyStringSchema.nullish().default(null);
 
 export const integrationEventReceivedSchema = z.object({
   source: nonEmptyStringSchema,
   event: nonEmptyStringSchema,
   workspaceId: nonEmptyStringSchema,
   connectionId: nonEmptyStringSchema,
+  // Denormalized so trigger consumers can render the connection name without a
+  // synchronous callback into the integrations module.
+  connectionName: nullableConnectionNameSchema,
   deliveryId: nonEmptyStringSchema,
   receivedAt: isoDateTimeSchema,
   payload: requiredUnknownSchema,

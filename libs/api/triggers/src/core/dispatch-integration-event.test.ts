@@ -55,6 +55,7 @@ function dispatch(overrides: DispatchOverrides = {}): Promise<void> {
     event: overrides.event ?? 'push',
     workspaceId: overrides.workspaceId ?? crypto.randomUUID(),
     connectionId: overrides.connectionId ?? crypto.randomUUID(),
+    connectionName: 'Acme Production',
     deliveryId: overrides.deliveryId ?? crypto.randomUUID(),
     receivedAt: overrides.receivedAt ?? new Date(),
     payload: overrides.payload ?? {ref: 'main', headCommitSha: 'abc123'},

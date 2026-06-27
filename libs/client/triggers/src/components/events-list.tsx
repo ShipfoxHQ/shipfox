@@ -31,6 +31,8 @@ export function EventsList({
   hasNextPage,
   isFetchingNextPage,
   onLoadMore,
+  selectedEventId,
+  onSelectEvent,
 }: EventsListProps) {
   const activeFilters = hasAnyFilter(filters);
   const refreshFailed = query.isError && query.data !== undefined;
@@ -47,7 +49,7 @@ export function EventsList({
   }
 
   return (
-    <div className="flex min-h-0 flex-col">
+    <div className="flex min-h-0 flex-col overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base">
       <EventsFilterBar
         filters={filters}
         onFiltersChange={onFiltersChange}
@@ -68,18 +70,19 @@ export function EventsList({
           <Table>
             <TableHeader className="sticky top-0 z-10">
               <TableRow>
-                <TableHead className="w-0 pr-0">
-                  <span className="sr-only">Status</span>
-                </TableHead>
                 <TableHead>Event</TableHead>
                 <TableHead>Result</TableHead>
-                <TableHead>Delivery</TableHead>
                 <TableHead className="text-right">Received</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {events.map((event) => (
-                <TriggerEventRow key={event.id} event={event} />
+                <TriggerEventRow
+                  key={event.id}
+                  event={event}
+                  selected={event.id === selectedEventId}
+                  onSelect={onSelectEvent}
+                />
               ))}
             </TableBody>
           </Table>

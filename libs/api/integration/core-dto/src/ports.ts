@@ -31,6 +31,7 @@ export type PublishSourcePushFn = (params: {
   provider: string;
   workspaceId: string;
   connectionId: string;
+  connectionName: string;
   deliveryId: string;
   receivedAt: string;
   push: SourcePushPayload;

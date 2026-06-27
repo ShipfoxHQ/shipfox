@@ -122,6 +122,7 @@ export async function handleGithubPush(
     provider: GITHUB_SOURCE,
     workspaceId: connection.workspaceId,
     connectionId: connection.id,
+    connectionName: connection.displayName,
     deliveryId: params.deliveryId,
     receivedAt: new Date().toISOString(),
     push,

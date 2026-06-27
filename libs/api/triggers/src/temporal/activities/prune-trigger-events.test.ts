@@ -29,6 +29,7 @@ async function insertDecision(receivedEventId: string): Promise<string> {
     id,
     receivedEventId,
     subscriptionId: randomUUID(),
+    subscriptionName: 'Deploy production',
     workflowDefinitionId: randomUUID(),
     projectId: randomUUID(),
     decision: 'triggered',

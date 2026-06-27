@@ -88,6 +88,8 @@ const meta = {
     hasNextPage: false,
     isFetchingNextPage: false,
     onLoadMore: () => undefined,
+    selectedEventId: 'evt-00000002',
+    onSelectEvent: () => undefined,
   },
 } satisfies Meta<typeof EventsList>;
 

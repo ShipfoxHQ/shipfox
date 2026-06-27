@@ -53,6 +53,7 @@ export interface PublishSourcePushParams {
   provider: string;
   workspaceId: string;
   connectionId: string;
+  connectionName: string;
   deliveryId: string;
   receivedAt: string;
   push: SourcePushPayload;
@@ -87,6 +88,7 @@ export async function publishSourcePush(
         event: 'push',
         workspaceId: params.workspaceId,
         connectionId: params.connectionId,
+        connectionName: params.connectionName,
         deliveryId: params.deliveryId,
         receivedAt: params.receivedAt,
         payload: params.push,

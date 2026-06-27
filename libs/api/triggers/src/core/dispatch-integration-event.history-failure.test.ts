@@ -45,6 +45,7 @@ describe('dispatchIntegrationEvent resilience to history-write failure', () => {
         source: 'github',
         event: 'push',
         connectionId: crypto.randomUUID(),
+        connectionName: 'Acme Production',
         deliveryId: crypto.randomUUID(),
         receivedAt: new Date(),
         payload: {ref: 'main'},

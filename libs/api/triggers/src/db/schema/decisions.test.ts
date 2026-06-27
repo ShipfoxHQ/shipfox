@@ -14,6 +14,7 @@ describe('toTriggerDecision', () => {
       id: '019e98ab-6656-7ca1-b9ad-1ca4442c479d',
       receivedEventId: '019e98ab-b90f-7265-b13c-8b441c991381',
       subscriptionId: '019e98ab-b90f-7265-b13c-8b441c991382',
+      subscriptionName: 'Deploy production',
       workflowDefinitionId: '019e98ab-b90f-7265-b13c-8b441c991383',
       projectId: '019e98ab-b90f-7265-b13c-8b441c991384',
       decision: 'triggered',
@@ -29,6 +30,7 @@ describe('toTriggerDecision', () => {
       id: row.id,
       receivedEventId: row.receivedEventId,
       subscriptionId: row.subscriptionId,
+      subscriptionName: 'Deploy production',
       workflowDefinitionId: row.workflowDefinitionId,
       projectId: row.projectId,
       decision: 'triggered',
@@ -44,6 +46,7 @@ describe('toTriggerDecision', () => {
       id: '019e98ab-6656-7ca1-b9ad-1ca4442c479d',
       receivedEventId: '019e98ab-b90f-7265-b13c-8b441c991381',
       subscriptionId: '019e98ab-b90f-7265-b13c-8b441c991382',
+      subscriptionName: 'Deploy production',
       workflowDefinitionId: '019e98ab-b90f-7265-b13c-8b441c991383',
       projectId: '019e98ab-b90f-7265-b13c-8b441c991384',
       decision: 'errored',
@@ -84,6 +87,7 @@ describe('triggers_decisions schema', () => {
     const values: TriggerDecisionInsertDb = {
       receivedEventId,
       subscriptionId: crypto.randomUUID(),
+      subscriptionName: 'Deploy production',
       workflowDefinitionId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       decision: 'triggered',
@@ -108,6 +112,7 @@ describe('triggers_decisions schema', () => {
     expect(result).toMatchObject({
       receivedEventId,
       subscriptionId: values.subscriptionId,
+      subscriptionName: 'Deploy production',
       workflowDefinitionId: values.workflowDefinitionId,
       projectId: values.projectId,
       decision: 'triggered',
@@ -119,6 +124,7 @@ describe('triggers_decisions schema', () => {
     await db().insert(triggersDecisions).values({
       receivedEventId,
       subscriptionId: crypto.randomUUID(),
+      subscriptionName: 'Deploy production',
       workflowDefinitionId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       decision: 'triggered',
@@ -138,6 +144,7 @@ describe('triggers_decisions schema', () => {
     const values: TriggerDecisionInsertDb = {
       receivedEventId,
       subscriptionId: crypto.randomUUID(),
+      subscriptionName: 'Deploy production',
       workflowDefinitionId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       decision: 'triggered',

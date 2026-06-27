@@ -13,6 +13,7 @@ export interface InsertReceivedEventParams {
   event: string;
   deliveryId: string | null;
   connectionId: string | null;
+  connectionName: string | null;
   payload: Record<string, unknown> | null;
   receivedAt: Date;
 }
@@ -30,6 +31,7 @@ export async function insertReceivedEvent(params: InsertReceivedEventParams): Pr
       event: params.event,
       deliveryId: params.deliveryId,
       connectionId: params.connectionId,
+      connectionName: params.connectionName,
       payload: params.payload,
       receivedAt: params.receivedAt,
     })
@@ -120,6 +122,7 @@ export async function upsertTriggeredDecision(
     .values({
       receivedEventId: params.receivedEventId,
       subscriptionId: params.subscription.id,
+      subscriptionName: params.subscription.name,
       workflowDefinitionId: params.subscription.workflowDefinitionId,
       projectId: params.subscription.projectId,
       decision: 'triggered',
@@ -146,6 +149,7 @@ export async function upsertErroredDecision(params: UpsertErroredDecisionParams)
     .values({
       receivedEventId: params.receivedEventId,
       subscriptionId: params.subscription.id,
+      subscriptionName: params.subscription.name,
       workflowDefinitionId: params.subscription.workflowDefinitionId,
       projectId: params.subscription.projectId,
       decision: 'errored',

@@ -18,6 +18,7 @@ const baseSummary: TriggerReceivedEventSummary = {
   event: 'fire',
   deliveryId: null,
   connectionId: null,
+  connectionName: null,
   outcome: 'discarded',
   matchedCount: 0,
   receivedAt: new Date('2026-05-07T00:00:00.000Z'),
@@ -55,11 +56,24 @@ describe('trigger-events mappers', () => {
     expect(toTriggerEventDto(withoutPayload).payload).toBeNull();
   });
 
+  test('toTriggerEventDto carries the connection name (including null)', () => {
+    const named: TriggerReceivedEvent = {
+      ...baseSummary,
+      connectionName: 'Acme Production',
+      payload: null,
+    };
+    const unnamed: TriggerReceivedEvent = {...baseSummary, connectionName: null, payload: null};
+
+    expect(toTriggerEventDto(named).connection_name).toBe('Acme Production');
+    expect(toTriggerEventDto(unnamed).connection_name).toBeNull();
+  });
+
   test('toTriggerDecisionDto maps null run/reason fields', () => {
     const decision: TriggerDecision = {
       id: '33333333-3333-3333-3333-333333333333',
       receivedEventId: '11111111-1111-1111-1111-111111111111',
       subscriptionId: '44444444-4444-4444-4444-444444444444',
+      subscriptionName: 'Deploy production',
       workflowDefinitionId: '55555555-5555-5555-5555-555555555555',
       projectId: '66666666-6666-6666-6666-666666666666',
       decision: 'errored',
@@ -73,6 +87,7 @@ describe('trigger-events mappers', () => {
       id: decision.id,
       received_event_id: decision.receivedEventId,
       subscription_id: decision.subscriptionId,
+      subscription_name: 'Deploy production',
       workflow_definition_id: decision.workflowDefinitionId,
       project_id: decision.projectId,
       decision: 'errored',

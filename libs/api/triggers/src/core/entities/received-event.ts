@@ -19,6 +19,7 @@ export interface TriggerReceivedEvent {
   event: string;
   deliveryId: string | null;
   connectionId: string | null;
+  connectionName: string | null;
   outcome: TriggerEventOutcome;
   matchedCount: number;
   payload: Record<string, unknown> | null;

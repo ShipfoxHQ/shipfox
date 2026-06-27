@@ -32,6 +32,7 @@ export function toTriggerEventListItemDto(
 export function toTriggerEventDto(event: TriggerReceivedEvent): TriggerEventDto {
   return {
     ...toTriggerEventListItemDto(event),
+    connection_name: event.connectionName,
     payload: event.payload,
   };
 }
@@ -41,6 +42,7 @@ export function toTriggerDecisionDto(decision: TriggerDecision): TriggerDecision
     id: decision.id,
     received_event_id: decision.receivedEventId,
     subscription_id: decision.subscriptionId,
+    subscription_name: decision.subscriptionName,
     workflow_definition_id: decision.workflowDefinitionId,
     project_id: decision.projectId,
     decision: decision.decision,

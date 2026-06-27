@@ -11,6 +11,7 @@ const validEventReceived = {
   event: 'push',
   workspaceId: 'ws-1',
   connectionId: 'conn-1',
+  connectionName: 'Acme Production',
   deliveryId: 'delivery-1',
   receivedAt: '2026-06-21T00:00:00.000Z',
   payload: {opaque: true},
@@ -69,6 +70,14 @@ describe('integrationEventReceivedSchema', () => {
     const result = integrationEventReceivedSchema.parse(validEventReceived);
 
     expect(result).toEqual(validEventReceived);
+  });
+
+  it('defaults missing connection names to null for queued events', () => {
+    const {connectionName: _connectionName, ...withoutConnectionName} = validEventReceived;
+
+    const result = integrationEventReceivedSchema.parse(withoutConnectionName);
+
+    expect(result).toEqual({...withoutConnectionName, connectionName: null});
   });
 
   it('rejects a payload missing the opaque provider payload key', () => {
