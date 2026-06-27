@@ -32,6 +32,7 @@ export function toTriggerEventListItemDto(
 export function toTriggerEventDto(event: TriggerReceivedEvent): TriggerEventDto {
   return {
     ...toTriggerEventListItemDto(event),
+    connection_name: event.connectionName,
     payload: event.payload,
   };
 }

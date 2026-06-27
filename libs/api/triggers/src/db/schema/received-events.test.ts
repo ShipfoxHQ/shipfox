@@ -18,6 +18,7 @@ describe('toTriggerReceivedEvent', () => {
       event: 'push',
       deliveryId: 'delivery-1',
       connectionId: '019e98ab-b90f-7265-b13c-8b441c991382',
+      connectionName: 'Acme Production',
       outcome: 'routed',
       matchedCount: 3,
       payload: {ref: 'refs/heads/main'},
@@ -37,6 +38,7 @@ describe('toTriggerReceivedEvent', () => {
       event: 'push',
       deliveryId: 'delivery-1',
       connectionId: row.connectionId,
+      connectionName: 'Acme Production',
       outcome: 'routed',
       matchedCount: 3,
       payload: {ref: 'refs/heads/main'},
@@ -56,6 +58,7 @@ describe('toTriggerReceivedEvent', () => {
       event: 'fire',
       deliveryId: null,
       connectionId: null,
+      connectionName: null,
       outcome: 'received',
       matchedCount: 0,
       payload: null,
@@ -68,6 +71,7 @@ describe('toTriggerReceivedEvent', () => {
 
     expect(result.deliveryId).toBeNull();
     expect(result.connectionId).toBeNull();
+    expect(result.connectionName).toBeNull();
     expect(result.payload).toBeNull();
     expect(result.processedAt).toBeNull();
   });

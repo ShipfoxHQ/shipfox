@@ -1,8 +1,7 @@
 import type {TriggerEventListItemDto} from '@shipfox/api-triggers-dto';
-import {Code, Dot, RelativeTime, TableCell, TableRow, Text} from '@shipfox/react-ui';
+import {Code, cn, RelativeTime, TableCell, TableRow, Text} from '@shipfox/react-ui';
 import type {MouseEvent} from 'react';
-import {triggerEventMatchSummary} from './trigger-event-match-summary.js';
-import {getTriggerOutcomeVisual} from './trigger-outcome.js';
+import {triggerEventResult} from './trigger-event-result.js';
 import {TriggerSourceIcon} from './trigger-source-icon.js';
 
 interface TriggerEventRowProps {
@@ -12,7 +11,7 @@ interface TriggerEventRowProps {
 }
 
 export function TriggerEventRow({event, selected, onSelect}: TriggerEventRowProps) {
-  const visual = getTriggerOutcomeVisual(event.outcome);
+  const result = triggerEventResult(event);
 
   function handleRowClick(clickEvent: MouseEvent<HTMLTableRowElement>) {
     const target = clickEvent.target;
@@ -26,10 +25,6 @@ export function TriggerEventRow({event, selected, onSelect}: TriggerEventRowProp
       className="cursor-pointer"
       onClick={handleRowClick}
     >
-      <TableCell className="w-0 pr-0">
-        <Dot variant={visual.dot} ripple={visual.ripple} />
-        <span className="sr-only">{visual.label}</span>
-      </TableCell>
       <TableCell>
         <button
           type="button"
@@ -51,18 +46,14 @@ export function TriggerEventRow({event, selected, onSelect}: TriggerEventRowProp
         </button>
       </TableCell>
       <TableCell>
-        <Text size="sm" className="text-foreground-neutral-subtle">
-          {triggerEventMatchSummary(event)}
+        <Text
+          size="sm"
+          className={cn(
+            result.failed ? 'text-foreground-highlight-error' : 'text-foreground-neutral-subtle',
+          )}
+        >
+          {result.label}
         </Text>
-      </TableCell>
-      <TableCell>
-        {event.delivery_id ? (
-          <Code as="span" variant="label" className="truncate text-foreground-neutral-muted">
-            {event.delivery_id}
-          </Code>
-        ) : (
-          <span className="text-foreground-neutral-disabled">—</span>
-        )}
       </TableCell>
       <TableCell className="text-right">
         <Code as="span" variant="label" className="text-foreground-neutral-muted">

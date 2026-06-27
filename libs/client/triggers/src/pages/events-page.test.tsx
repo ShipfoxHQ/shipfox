@@ -73,6 +73,7 @@ function makeEvent(overrides: Partial<TriggerEventListItemDto> = {}): TriggerEve
 function makeDetail(overrides: Partial<TriggerEventDetailResponseDto> = {}) {
   return {
     ...makeEvent(),
+    connection_name: 'ShipfoxHQ Production',
     payload: {ref: 'refs/heads/main'},
     decisions: [],
     ...overrides,

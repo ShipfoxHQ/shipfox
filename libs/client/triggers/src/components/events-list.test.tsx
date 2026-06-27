@@ -56,10 +56,17 @@ function renderList(props: EventsListProps) {
   );
 }
 
-async function selectOutcome(label: string) {
+const FILTERS_TOGGLE = /Filters/u;
+
+async function openFilters() {
+  await userEvent.click(screen.getByRole('button', {name: FILTERS_TOGGLE}));
+}
+
+async function selectResult(label: string) {
   const user = userEvent.setup();
 
-  await user.click(screen.getByRole('combobox', {name: 'Filter by outcome'}));
+  await openFilters();
+  await user.click(screen.getByRole('combobox', {name: 'Filter by result'}));
   await user.click(await screen.findByRole('option', {name: label}));
 }
 
@@ -67,13 +74,13 @@ describe('EventsList', () => {
   test('renders a row per event with its match summary', () => {
     renderList(makeProps());
 
-    expect(screen.getByText('→ 2 runs')).toBeInTheDocument();
+    expect(screen.getByText('Triggered 2 workflows')).toBeInTheDocument();
   });
 
   test('still renders rows when the facets query failed', () => {
     renderList(makeProps({facets: undefined}));
 
-    expect(screen.getByText('→ 2 runs')).toBeInTheDocument();
+    expect(screen.getByText('Triggered 2 workflows')).toBeInTheDocument();
   });
 
   test('shows the no-matches state and clears active filters', async () => {
@@ -93,24 +100,25 @@ describe('EventsList', () => {
   test('empty list filters do not count as active filters', () => {
     renderList(makeProps({filters: {source: [], event: [], outcome: []}}));
 
-    expect(screen.getByText('→ 2 runs')).toBeInTheDocument();
+    expect(screen.getByText('Triggered 2 workflows')).toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Clear filters'})).not.toBeInTheDocument();
   });
 
-  test('selecting an outcome reports the filter patch', async () => {
+  test('selecting a result reports the filter patch', async () => {
     const onFiltersChange = vi.fn();
     renderList(makeProps({onFiltersChange}));
 
-    await selectOutcome('Routed');
+    await selectResult('Triggered');
 
     expect(onFiltersChange).toHaveBeenCalledWith({outcome: ['routed']});
   });
 
-  test('removing the last active outcome clears the filter to undefined', async () => {
+  test('removing the last active result clears the filter to undefined', async () => {
     const onFiltersChange = vi.fn();
     renderList(makeProps({filters: {outcome: ['routed']}, onFiltersChange}));
 
-    await userEvent.click(screen.getByLabelText('Remove Routed'));
+    await openFilters();
+    await userEvent.click(screen.getByLabelText('Remove Triggered'));
 
     expect(onFiltersChange).toHaveBeenCalledWith({outcome: undefined});
   });
@@ -119,13 +127,15 @@ describe('EventsList', () => {
     const onFiltersChange = vi.fn();
     renderList(makeProps({onFiltersChange}));
 
-    await selectOutcome('Failed');
+    await selectResult('Failed');
 
     expect(onFiltersChange).toHaveBeenCalledWith({outcome: ['failed', 'errored']});
   });
 
-  test('an errored-only filter shows Failed as selected', () => {
+  test('an errored-only filter shows Failed as selected', async () => {
     renderList(makeProps({filters: {outcome: ['errored']}}));
+
+    await openFilters();
 
     expect(screen.getByLabelText('Remove Failed')).toBeInTheDocument();
   });
@@ -142,7 +152,7 @@ describe('EventsList', () => {
   test('selects an event when the row is clicked', async () => {
     const onSelectEvent = vi.fn();
     renderList(makeProps({onSelectEvent}));
-    const row = screen.getByText('→ 2 runs').closest('tr');
+    const row = screen.getByText('Triggered 2 workflows').closest('tr');
     if (!row) throw new Error('expected an event row');
 
     await userEvent.click(row);

@@ -58,6 +58,7 @@ const routedEvent: TriggerEventDetailResponseDto = {
   event: 'push',
   delivery_id: 'delivery-179',
   connection_id: '55555555-5555-4555-8555-555555555555',
+  connection_name: 'ShipfoxHQ Production',
   outcome: 'routed',
   matched_count: 2,
   payload: {

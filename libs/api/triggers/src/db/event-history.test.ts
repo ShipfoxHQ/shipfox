@@ -25,6 +25,7 @@ function buildEventParams(
     event: 'push',
     deliveryId: null,
     connectionId: null,
+    connectionName: null,
     payload: null,
     receivedAt: new Date(),
     ...overrides,

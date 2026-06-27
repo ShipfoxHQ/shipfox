@@ -34,6 +34,7 @@ CREATE TABLE "triggers_received_events" (
 	"event" text NOT NULL,
 	"delivery_id" text,
 	"connection_id" uuid,
+	"connection_name" text,
 	"outcome" text DEFAULT 'received' NOT NULL,
 	"matched_count" integer DEFAULT 0 NOT NULL,
 	"payload" jsonb,

@@ -165,6 +165,7 @@ export async function handleGiteaPush(
     provider: giteaProviderKind,
     workspaceId: connection.workspaceId,
     connectionId: connection.id,
+    connectionName: connection.displayName,
     deliveryId: params.deliveryId,
     receivedAt: new Date().toISOString(),
     push,

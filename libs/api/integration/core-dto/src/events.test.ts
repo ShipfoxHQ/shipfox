@@ -11,6 +11,7 @@ const validEventReceived = {
   event: 'push',
   workspaceId: 'ws-1',
   connectionId: 'conn-1',
+  connectionName: 'Acme Production',
   deliveryId: 'delivery-1',
   receivedAt: '2026-06-21T00:00:00.000Z',
   payload: {opaque: true},

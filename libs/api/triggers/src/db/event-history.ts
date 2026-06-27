@@ -13,6 +13,7 @@ export interface InsertReceivedEventParams {
   event: string;
   deliveryId: string | null;
   connectionId: string | null;
+  connectionName: string | null;
   payload: Record<string, unknown> | null;
   receivedAt: Date;
 }
@@ -30,6 +31,7 @@ export async function insertReceivedEvent(params: InsertReceivedEventParams): Pr
       event: params.event,
       deliveryId: params.deliveryId,
       connectionId: params.connectionId,
+      connectionName: params.connectionName,
       payload: params.payload,
       receivedAt: params.receivedAt,
     })

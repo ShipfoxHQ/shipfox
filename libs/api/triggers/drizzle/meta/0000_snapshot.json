@@ -307,6 +307,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "connection_name": {
+          "name": "connection_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "outcome": {
           "name": "outcome",
           "type": "text",

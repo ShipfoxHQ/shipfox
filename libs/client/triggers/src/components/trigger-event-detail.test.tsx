@@ -56,6 +56,7 @@ function makeEvent(
     event: 'push',
     delivery_id: 'delivery-179',
     connection_id: '55555555-5555-4555-8555-555555555555',
+    connection_name: 'ShipfoxHQ Production',
     outcome: 'routed',
     matched_count: 1,
     payload: {ref: 'refs/heads/main', action: 'push'},
@@ -92,28 +93,26 @@ function renderDetailView(event: TriggerEventDetailResponseDto, onBack = vi.fn()
 }
 
 describe('TriggerEventDetailView', () => {
-  test('renders routed decisions with subscription names, run links, and payload', () => {
+  test('renders the result badge, run links, and payload', () => {
     renderDetailView(makeEvent());
 
-    expect(screen.getByText('Deploy production')).toBeInTheDocument();
+    expect(screen.getByText('Triggered 1 workflow')).toBeInTheDocument();
     expect(screen.getByRole('link', {name: DEPLOY_RUN_LINK_NAME})).toHaveAttribute(
       'href',
       `/workspaces/${WORKSPACE_ID}/projects/${PROJECT_ID}/runs/${RUN_ID}`,
     );
     expect(screen.getByText(PAYLOAD_REF_LINE)).toBeInTheDocument();
-    expect(
-      screen.getByText('Shows trigger routing only; inspect each run for in-run behavior.'),
-    ).toBeInTheDocument();
   });
 
-  test('renders the discarded empty state', () => {
+  test('renders a no-subscriptions note for a discarded event', () => {
     renderDetailView(makeEvent({outcome: 'discarded', matched_count: 0, decisions: []}));
 
-    expect(screen.getByText('Matched no subscriptions')).toBeInTheDocument();
-    expect(screen.queryByText('Decisions')).not.toBeInTheDocument();
+    expect(screen.getByText('No workflows triggered')).toBeInTheDocument();
+    expect(screen.getByText('No workflows are subscribed to this event.')).toBeInTheDocument();
+    expect(screen.queryByText('Matched workflows')).not.toBeInTheDocument();
   });
 
-  test('renders failed reasons from errored decisions', () => {
+  test('renders errored decisions inline with their reason', () => {
     renderDetailView(
       makeEvent({
         outcome: 'errored',
@@ -135,8 +134,9 @@ describe('TriggerEventDetailView', () => {
       }),
     );
 
-    expect(screen.getByText('Failure reason')).toBeInTheDocument();
-    expect(screen.getAllByText('workflow definition deleted')).toHaveLength(2);
+    expect(screen.getByText('Failed')).toBeInTheDocument();
+    expect(screen.getByText('Deploy production')).toBeInTheDocument();
+    expect(screen.getByText('workflow definition deleted')).toBeInTheDocument();
   });
 
   test('renders null run fields without a run link', () => {

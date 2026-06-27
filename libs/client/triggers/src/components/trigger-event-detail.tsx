@@ -12,35 +12,21 @@ import {
   CodeBlockFiles,
   CodeBlockHeader,
   CodeBlockItem,
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
   cn,
   EmptyState,
-  Header,
   Icon,
   RelativeTime,
   Skeleton,
   Text,
 } from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
-import {type ReactNode, useMemo} from 'react';
+import {useMemo} from 'react';
 import {useTriggerEventQuery} from '#hooks/api/trigger-events.js';
-import {getTriggerDecisionVisual} from './trigger-decision.js';
-import {triggerEventMatchSummary} from './trigger-event-match-summary.js';
-import {getTriggerOutcomeVisual} from './trigger-outcome.js';
+import {triggerEventResult} from './trigger-event-result.js';
 import {TriggerSourceIcon} from './trigger-source-icon.js';
 
 const PANEL_CLASS =
   'min-h-0 rounded-8 border border-border-neutral-base bg-background-neutral-base';
-const LOADING_ENVELOPE_PLACEHOLDERS = [
-  'label-1',
-  'value-1',
-  'label-2',
-  'value-2',
-  'label-3',
-  'value-3',
-];
 
 export interface TriggerEventDetailProps {
   workspaceId: string;
@@ -69,7 +55,7 @@ export function TriggerEventDetailView({
   event: TriggerEventDetailResponseDto;
   onBack: () => void;
 }) {
-  const outcomeVisual = getTriggerOutcomeVisual(event.outcome);
+  const result = triggerEventResult(event);
   const formattedPayload = useMemo(
     () => JSON.stringify(event.payload ?? null, null, 2) ?? 'null',
     [event.payload],
@@ -92,34 +78,32 @@ export function TriggerEventDetailView({
           Back to events
         </Button>
         <div className="flex min-w-0 items-start justify-between gap-12">
-          <div className="flex min-w-0 flex-col gap-6">
+          <div className="flex min-w-0 flex-col gap-4">
             <div className="flex min-w-0 items-center gap-6">
               <TriggerSourceIcon
                 source={event.source}
                 aria-hidden="true"
                 className="size-16 shrink-0 text-foreground-neutral-muted"
               />
-              <Code as="span" variant="label" className="truncate text-foreground-neutral-muted">
+              <Code as="span" variant="label" className="truncate text-foreground-neutral-base">
                 {event.source}
               </Code>
               <Code as="span" variant="label" className="truncate text-foreground-neutral-subtle">
                 {event.event}
               </Code>
             </div>
-            <Header variant="h4" as="h2" className="truncate text-foreground-neutral-base">
-              {outcomeVisual.label}
-            </Header>
+            <Text size="xs" className="truncate text-foreground-neutral-muted">
+              <RelativeTime value={event.received_at} />
+            </Text>
           </div>
-          <Badge variant={outcomeVisual.dot} size="xs">
-            {triggerEventMatchSummary(event)}
+          <Badge variant={result.badge} size="xs">
+            {result.label}
           </Badge>
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-16 overflow-y-auto p-16 scrollbar">
-        <EventEnvelope event={event} />
-        <EventStateBody event={event} />
-        <EventDecisions workspaceId={workspaceId} decisions={event.decisions} />
+      <div className="flex min-h-0 flex-1 flex-col gap-20 overflow-y-auto p-16 scrollbar">
+        <EventRuns workspaceId={workspaceId} event={event} />
         <EventPayload payload={formattedPayload} />
       </div>
     </aside>
@@ -158,12 +142,7 @@ function TriggerEventDetailLoading({onBack}: {onBack: () => void}) {
       </Button>
       <div className="flex flex-col gap-8">
         <Skeleton className="h-16 w-160" />
-        <Skeleton className="h-24 w-120" />
-      </div>
-      <div className="grid grid-cols-[92px_minmax(0,1fr)] gap-x-10 gap-y-8">
-        {LOADING_ENVELOPE_PLACEHOLDERS.map((key) => (
-          <Skeleton key={key} className="h-16" />
-        ))}
+        <Skeleton className="h-12 w-120" />
       </div>
       <Skeleton className="h-96" />
       <Skeleton className="h-160" />
@@ -196,120 +175,31 @@ function TriggerEventDetailError({onBack, onRetry}: {onBack: () => void; onRetry
   );
 }
 
-function EventEnvelope({event}: {event: TriggerEventDetailResponseDto}) {
-  const rows = [
-    {label: 'Event ref', value: <CodeValue>{event.event_ref}</CodeValue>},
-    {label: 'Origin', value: event.origin},
-    {
-      label: 'Delivery',
-      value: event.delivery_id ? <CodeValue>{event.delivery_id}</CodeValue> : null,
-    },
-    {
-      label: 'Connection',
-      value: event.connection_id ? <CodeValue>{event.connection_id}</CodeValue> : null,
-    },
-    {label: 'Received', value: <RelativeTime value={event.received_at} />},
-    {
-      label: 'Processed',
-      value: event.processed_at ? <RelativeTime value={event.processed_at} /> : null,
-    },
-  ];
-
-  return (
-    <section aria-labelledby="trigger-event-envelope-heading" className="flex flex-col gap-8">
-      <Text id="trigger-event-envelope-heading" size="sm" bold>
-        Envelope
-      </Text>
-      <dl className="grid grid-cols-[92px_minmax(0,1fr)] gap-x-10 gap-y-6">
-        {rows.map((row) => (
-          <EnvelopeRow key={row.label} label={row.label}>
-            {row.value ?? <MutedDash />}
-          </EnvelopeRow>
-        ))}
-      </dl>
-    </section>
-  );
-}
-
-function EnvelopeRow({label, children}: {label: string; children: ReactNode}) {
-  return (
-    <>
-      <dt>
-        <Text size="xs" className="text-foreground-neutral-muted">
-          {label}
-        </Text>
-      </dt>
-      <dd className="min-w-0 truncate text-sm leading-20 text-foreground-neutral-base">
-        {children}
-      </dd>
-    </>
-  );
-}
-
-function EventStateBody({event}: {event: TriggerEventDetailResponseDto}) {
-  const erroredDecisions = event.decisions.filter((decision) => decision.decision === 'errored');
-
-  if (event.outcome === 'discarded') {
-    return (
-      <section aria-labelledby="trigger-event-state-heading">
-        <h3 id="trigger-event-state-heading" className="sr-only">
-          Event state
-        </h3>
-        <EmptyState
-          icon="subtractLine"
-          variant="compact"
-          title="Matched no subscriptions"
-          className="rounded-8 border border-border-neutral-base bg-background-subtle-base p-16"
-        />
-      </section>
-    );
-  }
-
-  if (event.outcome !== 'failed' && event.outcome !== 'errored') return null;
-
-  return (
-    <section aria-labelledby="trigger-event-state-heading" className="flex flex-col gap-8">
-      <Text id="trigger-event-state-heading" size="sm" bold>
-        Failure reason
-      </Text>
-      {erroredDecisions.length > 0 ? (
-        <ul className="flex flex-col gap-6">
-          {erroredDecisions.map((decision) => (
-            <li key={decision.id} className="text-sm leading-20 text-foreground-neutral-base">
-              {decision.reason ?? 'No reason recorded'}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <Text size="sm" className="text-foreground-neutral-muted">
-          No reason recorded
-        </Text>
-      )}
-    </section>
-  );
-}
-
-function EventDecisions({
+function EventRuns({
   workspaceId,
-  decisions,
+  event,
 }: {
   workspaceId: string;
-  decisions: TriggerDecisionDto[];
+  event: TriggerEventDetailResponseDto;
 }) {
-  if (decisions.length === 0) return null;
+  if (event.decisions.length === 0) {
+    if (event.outcome === 'discarded') {
+      return (
+        <Text size="sm" className="text-foreground-neutral-muted">
+          No workflows are subscribed to this event.
+        </Text>
+      );
+    }
+    return null;
+  }
 
   return (
-    <section aria-labelledby="trigger-event-decisions-heading" className="flex flex-col gap-10">
-      <div className="flex flex-col gap-2">
-        <Text id="trigger-event-decisions-heading" size="sm" bold>
-          Decisions
-        </Text>
-        <Text size="xs" className="text-foreground-neutral-muted">
-          Shows trigger routing only; inspect each run for in-run behavior.
-        </Text>
-      </div>
-      <ul className="flex flex-col divide-y divide-border-neutral-base rounded-8 border border-border-neutral-base">
-        {decisions.map((decision) => (
+    <section aria-labelledby="trigger-event-runs-heading" className="flex flex-col gap-6">
+      <Text id="trigger-event-runs-heading" size="sm" bold>
+        Matched workflows
+      </Text>
+      <ul className="-mx-8 flex flex-col gap-1">
+        {event.decisions.map((decision) => (
           <DecisionRow key={decision.id} workspaceId={workspaceId} decision={decision} />
         ))}
       </ul>
@@ -318,48 +208,49 @@ function EventDecisions({
 }
 
 function DecisionRow({workspaceId, decision}: {workspaceId: string; decision: TriggerDecisionDto}) {
-  const visual = getTriggerDecisionVisual(decision.decision);
-
-  return (
-    <li className="flex min-w-0 flex-col gap-6 p-10">
-      <div className="flex min-w-0 items-center justify-between gap-10">
-        <Text size="sm" bold className="min-w-0 truncate text-foreground-neutral-base">
-          {decision.subscription_name}
-        </Text>
-        <Badge variant={visual.badge} size="2xs">
-          {visual.label}
-        </Badge>
-      </div>
-      <RunLink workspaceId={workspaceId} decision={decision} />
-      {decision.reason ? (
-        <Text size="xs" className="text-foreground-neutral-muted">
-          {decision.reason}
-        </Text>
-      ) : null}
-    </li>
-  );
-}
-
-function RunLink({workspaceId, decision}: {workspaceId: string; decision: TriggerDecisionDto}) {
-  if (!decision.run_id || !decision.run_name) {
+  if (decision.decision === 'errored' || !decision.run_id || !decision.run_name) {
     return (
-      <Text size="xs" className="text-foreground-neutral-disabled">
-        No run created
-      </Text>
+      <li className="flex min-w-0 items-start gap-8 rounded-6 px-8 py-6">
+        <Icon
+          name="cornerDownRightLine"
+          className="mt-2 size-14 shrink-0 text-foreground-neutral-disabled"
+          aria-hidden="true"
+        />
+        <div className="flex min-w-0 flex-col gap-1">
+          <Text size="sm" className="min-w-0 truncate text-foreground-neutral-base">
+            {decision.subscription_name}
+          </Text>
+          {decision.reason ? (
+            <Text size="xs" className="text-foreground-highlight-error">
+              {decision.reason}
+            </Text>
+          ) : (
+            <Text size="xs" className="text-foreground-neutral-disabled">
+              No run created
+            </Text>
+          )}
+        </div>
+      </li>
     );
   }
 
   return (
-    <Link
-      to="/workspaces/$wid/projects/$pid/runs/$runId"
-      params={{wid: workspaceId, pid: decision.project_id, runId: decision.run_id}}
-      className="inline-flex min-w-0 items-center gap-4 self-start rounded-6 text-foreground-highlight-interactive underline-offset-2 hover:text-foreground-highlight-interactive-hover hover:underline focus-visible:outline-none focus-visible:shadow-button-neutral-focus"
-    >
-      <Code as="span" variant="label" className="truncate text-current">
-        {decision.run_name}
-      </Code>
-      <Icon name="externalLinkLine" className="size-14 shrink-0" aria-hidden="true" />
-    </Link>
+    <li>
+      <Link
+        to="/workspaces/$wid/projects/$pid/runs/$runId"
+        params={{wid: workspaceId, pid: decision.project_id, runId: decision.run_id}}
+        className="flex min-w-0 items-center gap-8 rounded-6 px-8 py-6 transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
+      >
+        <Icon
+          name="cornerDownRightLine"
+          className="size-14 shrink-0 text-foreground-neutral-muted"
+          aria-hidden="true"
+        />
+        <Code as="span" variant="label" className="truncate text-foreground-neutral-base">
+          {decision.run_name}
+        </Code>
+      </Link>
+    </li>
   );
 }
 
@@ -367,63 +258,34 @@ function EventPayload({payload}: {payload: string}) {
   const data = [{language: 'json', filename: 'payload.json', code: payload}];
 
   return (
-    <Collapsible defaultOpen>
-      <section aria-labelledby="trigger-event-payload-heading" className="flex flex-col gap-8">
-        <div className="flex items-center justify-between gap-10">
-          <Text id="trigger-event-payload-heading" size="sm" bold>
-            Payload
-          </Text>
-          <CollapsibleTrigger asChild>
-            <Button
-              type="button"
-              variant="transparentMuted"
-              size="2xs"
-              iconLeft="arrowDownSLine"
-              aria-label="Toggle payload"
-            />
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent>
-          <CodeBlock
-            data={data}
-            className="flex h-auto max-h-[min(360px,45vh)] flex-col rounded-8 bg-background-contrast-base shadow-none"
-          >
-            <CodeBlockHeader className="shrink-0 border-b border-border-contrast-base bg-background-contrast-base px-10 py-6">
-              <CodeBlockFiles>
-                {(item) => (
-                  <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>
-                )}
-              </CodeBlockFiles>
-              <CodeBlockCopyButton />
-            </CodeBlockHeader>
-            <CodeBlockBody className="min-h-0 overflow-auto scrollbar">
-              {(item) => (
-                <CodeBlockItem
-                  value={item.filename}
-                  lineNumbers={false}
-                  className="px-0 pb-0 [&>div]:rounded-none [&>div]:border-0 [&>div]:bg-background-contrast-base [&>div]:dark:bg-background-contrast-base [&_code]:!text-foreground-neutral-on-color"
-                >
-                  <CodeBlockContent language="json" syntaxHighlighting={false}>
-                    {item.code}
-                  </CodeBlockContent>
-                </CodeBlockItem>
-              )}
-            </CodeBlockBody>
-          </CodeBlock>
-        </CollapsibleContent>
-      </section>
-    </Collapsible>
+    <section aria-labelledby="trigger-event-payload-heading" className="flex flex-col gap-6">
+      <Text id="trigger-event-payload-heading" size="sm" bold>
+        Payload
+      </Text>
+      <CodeBlock
+        data={data}
+        className="flex h-auto max-h-[min(360px,45vh)] flex-col rounded-8 bg-background-contrast-base shadow-none"
+      >
+        <CodeBlockHeader className="shrink-0 border-b border-border-contrast-base bg-background-contrast-base px-10 py-6">
+          <CodeBlockFiles>
+            {(item) => <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>}
+          </CodeBlockFiles>
+          <CodeBlockCopyButton />
+        </CodeBlockHeader>
+        <CodeBlockBody className="min-h-0 overflow-auto scrollbar">
+          {(item) => (
+            <CodeBlockItem
+              value={item.filename}
+              lineNumbers={false}
+              className="px-0 pb-0 [&>div]:rounded-none [&>div]:border-0 [&>div]:bg-background-contrast-base [&>div]:dark:bg-background-contrast-base [&_code]:!text-foreground-neutral-on-color"
+            >
+              <CodeBlockContent language="json" syntaxHighlighting={false}>
+                {item.code}
+              </CodeBlockContent>
+            </CodeBlockItem>
+          )}
+        </CodeBlockBody>
+      </CodeBlock>
+    </section>
   );
-}
-
-function CodeValue({children}: {children: ReactNode}) {
-  return (
-    <Code as="span" variant="label" className="truncate text-foreground-neutral-muted">
-      {children}
-    </Code>
-  );
-}
-
-function MutedDash() {
-  return <span className="text-foreground-neutral-disabled">-</span>;
 }

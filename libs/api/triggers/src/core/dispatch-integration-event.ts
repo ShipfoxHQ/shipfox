@@ -15,6 +15,7 @@ export interface DispatchIntegrationEventParams {
   event: string;
   deliveryId: string;
   connectionId: string;
+  connectionName: string;
   payload: unknown;
   receivedAt: Date;
 }
@@ -43,6 +44,7 @@ export async function dispatchIntegrationEvent(
     event: params.event,
     deliveryId: params.deliveryId,
     connectionId: params.connectionId,
+    connectionName: params.connectionName,
     payload: (params.payload ?? null) as Record<string, unknown> | null,
     receivedAt: params.receivedAt,
   });

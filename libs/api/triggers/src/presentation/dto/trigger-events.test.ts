@@ -18,6 +18,7 @@ const baseSummary: TriggerReceivedEventSummary = {
   event: 'fire',
   deliveryId: null,
   connectionId: null,
+  connectionName: null,
   outcome: 'discarded',
   matchedCount: 0,
   receivedAt: new Date('2026-05-07T00:00:00.000Z'),
@@ -53,6 +54,18 @@ describe('trigger-events mappers', () => {
 
     expect(toTriggerEventDto(withPayload).payload).toEqual({ref: 'main'});
     expect(toTriggerEventDto(withoutPayload).payload).toBeNull();
+  });
+
+  test('toTriggerEventDto carries the connection name (including null)', () => {
+    const named: TriggerReceivedEvent = {
+      ...baseSummary,
+      connectionName: 'Acme Production',
+      payload: null,
+    };
+    const unnamed: TriggerReceivedEvent = {...baseSummary, connectionName: null, payload: null};
+
+    expect(toTriggerEventDto(named).connection_name).toBe('Acme Production');
+    expect(toTriggerEventDto(unnamed).connection_name).toBeNull();
   });
 
   test('toTriggerDecisionDto maps null run/reason fields', () => {

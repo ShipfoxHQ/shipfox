@@ -40,6 +40,7 @@ describe('trigger history is best-effort and never blocks triggering', () => {
       event: 'push',
       deliveryId: null,
       connectionId: null,
+      connectionName: null,
       payload: null,
       receivedAt: new Date(),
     });
@@ -94,6 +95,7 @@ describe('a per-write failure after a successful insert is swallowed', () => {
       event: 'push',
       deliveryId: null,
       connectionId: null,
+      connectionName: null,
       payload: null,
       receivedAt: new Date(),
     });

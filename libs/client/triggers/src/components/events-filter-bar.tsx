@@ -1,28 +1,34 @@
 import type {TriggerEventFacetItemDto, TriggerEventOutcomeDto} from '@shipfox/api-triggers-dto';
 import {
   Button,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
   Combobox,
   type ComboboxOption,
+  cn,
   type DateRange,
   DateRangePicker,
+  Text,
 } from '@shipfox/react-ui';
+import {type ReactNode, useState} from 'react';
 import type {TriggerEventFilters} from '#hooks/api/trigger-events.js';
-import {getTriggerOutcomeVisual} from './trigger-outcome.js';
 
-// The four DESIGN.md §9 event-level states. `errored` has no option of its own: the row
-// summary already renders it as "Failed", so the Failed option selects both `failed` and
-// `errored` (otherwise filtering Failed would silently hide events the list shows as failed).
-const OUTCOME_FILTERS: {outcome: TriggerEventOutcomeDto; selects: TriggerEventOutcomeDto[]}[] = [
-  {outcome: 'received', selects: ['received']},
-  {outcome: 'routed', selects: ['routed']},
-  {outcome: 'discarded', selects: ['discarded']},
-  {outcome: 'failed', selects: ['failed', 'errored']},
+// The result filter maps the DESIGN.md §9 event outcomes onto the plain-language results an
+// operator filters by. `failed` folds `errored` in (the list renders both as "Failed"), so
+// filtering Failed never hides an event the list shows as failed.
+const RESULT_FILTERS: {
+  value: TriggerEventOutcomeDto;
+  selects: TriggerEventOutcomeDto[];
+  label: string;
+}[] = [
+  {value: 'routed', selects: ['routed'], label: 'Triggered'},
+  {value: 'discarded', selects: ['discarded'], label: 'No match'},
+  {value: 'failed', selects: ['failed', 'errored'], label: 'Failed'},
+  {value: 'received', selects: ['received'], label: 'Evaluating'},
 ];
 
-const OUTCOME_OPTIONS: ComboboxOption[] = OUTCOME_FILTERS.map(({outcome}) => ({
-  value: outcome,
-  label: getTriggerOutcomeVisual(outcome).label,
-}));
+const RESULT_OPTIONS: ComboboxOption[] = RESULT_FILTERS.map(({value, label}) => ({value, label}));
 
 function toOptions(facets: TriggerEventFacetItemDto[] | undefined): ComboboxOption[] {
   return (facets ?? []).map((facet) => ({
@@ -48,6 +54,8 @@ export function EventsFilterBar({
   hasActiveFilters,
   onClear,
 }: EventsFilterBarProps) {
+  const [open, setOpen] = useState(false);
+
   const dateRange: DateRange | undefined =
     filters.from || filters.to
       ? {
@@ -57,17 +65,19 @@ export function EventsFilterBar({
       : undefined;
 
   const selectedOutcomes = new Set(filters.outcome ?? []);
+  const resultValue = RESULT_FILTERS.filter(({selects}) =>
+    selects.some((outcome) => selectedOutcomes.has(outcome)),
+  ).map(({value}) => value);
 
-  function isFilterActive(selects: TriggerEventOutcomeDto[]): boolean {
-    return selects.some((outcome) => selectedOutcomes.has(outcome));
-  }
+  // One count per active dimension keeps the toggle badge small and legible.
+  const activeCount =
+    (dateRange ? 1 : 0) +
+    (filters.source?.length ? 1 : 0) +
+    (filters.event?.length ? 1 : 0) +
+    (resultValue.length > 0 ? 1 : 0);
 
-  const outcomeValue = OUTCOME_FILTERS.filter(({selects}) => isFilterActive(selects)).map(
-    ({outcome}) => outcome,
-  );
-
-  function handleOutcomeValue(values: string[]) {
-    const next = OUTCOME_FILTERS.filter(({outcome}) => values.includes(outcome)).flatMap(
+  function handleResultValue(values: string[]) {
+    const next = RESULT_FILTERS.filter(({value}) => values.includes(value)).flatMap(
       ({selects}) => selects,
     );
     onFiltersChange({outcome: next.length > 0 ? next : undefined});
@@ -87,59 +97,102 @@ export function EventsFilterBar({
   }
 
   return (
-    <div className="sticky top-0 z-10 flex flex-wrap items-center gap-8 border-b border-border-neutral-base bg-background-neutral-base px-8 py-12">
-      <DateRangePicker
-        size="small"
-        {...(dateRange ? {dateRange} : {})}
-        onDateRangeSelect={handleDateRange}
-        onClear={() => onFiltersChange({from: undefined, to: undefined})}
-        placeholder="Any date"
-      />
-      <Combobox
-        multiple
-        size="small"
-        options={toOptions(sources)}
-        value={filters.source ?? []}
-        onValueChange={(value) => onFiltersChange({source: value.length > 0 ? value : undefined})}
-        placeholder="All sources"
-        emptyState="No sources yet"
-        className="w-160"
-        maxVisibleChips={1}
-      />
-      <Combobox
-        multiple
-        size="small"
-        options={toOptions(events)}
-        value={filters.event ?? []}
-        onValueChange={(value) => onFiltersChange({event: value.length > 0 ? value : undefined})}
-        placeholder="All events"
-        emptyState="No events yet"
-        className="w-160"
-        maxVisibleChips={1}
-      />
-      <Combobox
-        multiple
-        size="small"
-        aria-label="Filter by outcome"
-        options={OUTCOME_OPTIONS}
-        value={outcomeValue}
-        onValueChange={handleOutcomeValue}
-        placeholder="All outcomes"
-        emptyState="No outcomes"
-        className="w-220"
-        maxVisibleChips={2}
-      />
-      {hasActiveFilters ? (
-        <Button
-          type="button"
-          size="2xs"
-          variant="transparentMuted"
-          onClick={onClear}
-          className="ml-auto"
-        >
-          Clear filters
-        </Button>
-      ) : null}
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <div className="flex items-center justify-between gap-8 border-b border-border-neutral-base px-12 py-8">
+        <CollapsibleTrigger asChild>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            iconLeft="filter3Line"
+            iconRight={open ? 'arrowUpSLine' : 'arrowDownSLine'}
+          >
+            {activeCount > 0 ? `Filters (${activeCount})` : 'Filters'}
+          </Button>
+        </CollapsibleTrigger>
+        {hasActiveFilters ? (
+          <Button type="button" size="2xs" variant="transparentMuted" onClick={onClear}>
+            Clear filters
+          </Button>
+        ) : null}
+      </div>
+      <CollapsibleContent>
+        <div className="grid grid-cols-1 gap-x-12 gap-y-10 border-b border-border-neutral-base px-12 py-12 min-[520px]:grid-cols-2">
+          <FilterField label="Date" className="col-span-full">
+            <DateRangePicker
+              size="small"
+              className="w-full"
+              {...(dateRange ? {dateRange} : {})}
+              onDateRangeSelect={handleDateRange}
+              onClear={() => onFiltersChange({from: undefined, to: undefined})}
+              placeholder="Any date"
+            />
+          </FilterField>
+          <FilterField label="Result">
+            <Combobox
+              multiple
+              size="small"
+              aria-label="Filter by result"
+              options={RESULT_OPTIONS}
+              value={resultValue}
+              onValueChange={handleResultValue}
+              placeholder="All results"
+              emptyState="No results"
+              className="w-full"
+              maxVisibleChips={2}
+            />
+          </FilterField>
+          <FilterField label="Source">
+            <Combobox
+              multiple
+              size="small"
+              options={toOptions(sources)}
+              value={filters.source ?? []}
+              onValueChange={(value) =>
+                onFiltersChange({source: value.length > 0 ? value : undefined})
+              }
+              placeholder="All sources"
+              emptyState="No sources yet"
+              className="w-full"
+              maxVisibleChips={2}
+            />
+          </FilterField>
+          <FilterField label="Event">
+            <Combobox
+              multiple
+              size="small"
+              options={toOptions(events)}
+              value={filters.event ?? []}
+              onValueChange={(value) =>
+                onFiltersChange({event: value.length > 0 ? value : undefined})
+              }
+              placeholder="All events"
+              emptyState="No events yet"
+              className="w-full"
+              maxVisibleChips={2}
+            />
+          </FilterField>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function FilterField({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn('flex min-w-0 flex-col gap-4', className)}>
+      <Text size="xs" className="font-medium text-foreground-neutral-muted">
+        {label}
+      </Text>
+      {children}
     </div>
   );
 }

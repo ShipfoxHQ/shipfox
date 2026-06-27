@@ -130,6 +130,7 @@ describe('GitHub webhook route', () => {
       deliveryId,
       workspaceId: connection.workspaceId,
       connectionId: connection.id,
+      connectionName: connection.displayName,
       push: {
         externalRepositoryId: 'github:42',
         ref: 'main',

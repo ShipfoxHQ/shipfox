@@ -72,6 +72,7 @@ export async function handleSentryIssueEvent(params: HandleSentryIssueEventParam
       event: `issue.${params.payload.action}`,
       workspaceId: connection.workspaceId,
       connectionId: connection.id,
+      connectionName: connection.displayName,
       deliveryId: params.deliveryId,
       receivedAt: new Date().toISOString(),
       payload: normalizeIssuePayload(params.payload),

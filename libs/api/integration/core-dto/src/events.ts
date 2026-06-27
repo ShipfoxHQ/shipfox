@@ -11,6 +11,9 @@ export const integrationEventReceivedSchema = z.object({
   event: nonEmptyStringSchema,
   workspaceId: nonEmptyStringSchema,
   connectionId: nonEmptyStringSchema,
+  // Carried so consumers (triggers) can render the connection's name without a
+  // synchronous call back into the integrations module.
+  connectionName: nonEmptyStringSchema,
   deliveryId: nonEmptyStringSchema,
   receivedAt: isoDateTimeSchema,
   payload: requiredUnknownSchema,
