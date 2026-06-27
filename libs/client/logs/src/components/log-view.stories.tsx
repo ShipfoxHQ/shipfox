@@ -171,6 +171,94 @@ const failedAgentRecords: LogRecord[] = [
   ),
 ];
 
+const allAgentSessionTypeRecords: LogRecord[] = [
+  session({type: 'session', id: 'session-2026-06-23', cwd: '/workspace/platform'}, 0),
+  session({type: 'session_info', message: 'Restored 14 messages from prior context.'}, 1),
+  session({type: 'label', label: 'Review setup'}, 2),
+  session({type: 'thinking_level_change', thinkingLevel: 'high'}, 3),
+  session({type: 'model_change', model: 'gpt-5-codex', provider: 'openai'}, 4),
+  session(
+    {
+      type: 'message',
+      message: {role: 'user', content: 'Review the failed workflow attempt and patch the tests.'},
+    },
+    5,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'assistant',
+        model: 'gpt-5-codex',
+        provider: 'openai',
+        content: [
+          {type: 'text', text: 'I will inspect the failure anchor and the log selector.'},
+          {
+            type: 'thinking',
+            text: 'The UI needs to preserve the terminal assistant message while still showing the tool activity inline.',
+          },
+          {
+            type: 'tool_call',
+            id: 'call-read',
+            name: 'read_file',
+            arguments: {path: 'libs/client/logs/src/core/agent-session/selector.ts'},
+          },
+        ],
+      },
+    },
+    6,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'tool',
+        toolCallId: 'call-read',
+        toolName: 'read_file',
+        content: [{type: 'text', text: 'function expandSessionRecord(record) { /* ... */ }'}],
+      },
+    },
+    7,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        toolCallId: 'call-test',
+        toolName: 'run_tests',
+        content: [{type: 'text', text: 'FAIL selector.test.ts > parses tool results'}],
+        isError: true,
+      },
+    },
+    8,
+  ),
+  session(
+    {
+      type: 'branch_summary',
+      summary: 'Kept the parser scoped to agent_session records and log-tree ordering.',
+    },
+    9,
+  ),
+  session({type: 'compaction', summary: 'Previous context summarized into 3 decisions.'}, 10),
+  session({type: 'custom', message: 'Specialist review: parser coverage looks complete.'}, 11),
+  session({type: 'custom_message', text: 'Operator note: retry after the fixture update.'}, 12),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'assistant',
+        content: [{type: 'text', text: 'I cannot continue because the test harness aborted.'}],
+        stopReason: 'aborted',
+        errorMessage: 'Harness aborted before the retry finished.',
+      },
+    },
+    13,
+  ),
+  session({type: 'future_entry', payload: {feature: 'new-session-event'}}, 14),
+  {v: 1, ts: at(15), type: 'agent_session', data: '{not-json'},
+  {v: 1, ts: at(16), type: 'end', total_bytes: 12_288},
+];
+
 const meta = {
   title: 'Logs/LogView',
   component: LogView,
@@ -246,6 +334,15 @@ export const UnifiedAgentSession: Story = {
   render: (args) => (
     <div className="max-w-3xl">
       <LogView {...args} records={unifiedAgentRecords} />
+    </div>
+  ),
+};
+
+export const AllAgentSessionTypes: Story = {
+  args: {showLineNumbers: true, anchorToFailure: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={allAgentSessionTypeRecords} />
     </div>
   ),
 };
