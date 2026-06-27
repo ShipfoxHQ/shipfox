@@ -6,10 +6,12 @@ export {
 } from './step-enums.js';
 export {
   type WorkflowDocument,
+  type WorkflowDocumentEnv,
   type WorkflowDocumentJob,
   type WorkflowDocumentRunStepGate,
   type WorkflowDocumentStep,
   type WorkflowDocumentTrigger,
+  workflowDocumentEnvSchema,
   workflowDocumentJobSchema,
   workflowDocumentSchema,
   workflowDocumentStepSchema,

@@ -7,10 +7,12 @@ export {
   invalidWorkflowDocumentErrorCode,
   parseWorkflowDocument,
   type WorkflowDocument,
+  type WorkflowDocumentEnv,
   type WorkflowDocumentJob,
   type WorkflowDocumentRunStepGate,
   type WorkflowDocumentStep,
   type WorkflowDocumentTrigger,
+  workflowDocumentEnvSchema,
   workflowDocumentSchema,
   workflowDocumentStepSchema,
 } from '#document/index.js';

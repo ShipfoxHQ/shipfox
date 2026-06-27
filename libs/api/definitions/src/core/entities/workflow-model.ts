@@ -4,6 +4,7 @@ import type {AgentThinking} from '@shipfox/workflow-document';
 export interface WorkflowModel {
   readonly kind: 'workflow';
   readonly name: string;
+  readonly env?: Readonly<Record<string, string>>;
   readonly triggers: readonly WorkflowModelTrigger[];
   readonly jobs: readonly WorkflowModelJob[];
   readonly dependencies: readonly WorkflowModelDependency[];
@@ -22,6 +23,7 @@ export interface WorkflowModelJob {
   readonly id: string;
   readonly sourceName: string;
   readonly runner: readonly string[];
+  readonly env?: Readonly<Record<string, string>>;
   readonly dependencies: readonly string[];
   readonly steps: readonly WorkflowModelStep[];
 }
@@ -38,6 +40,7 @@ interface WorkflowModelStepBase {
 export interface WorkflowModelRunStep extends WorkflowModelStepBase {
   readonly kind: 'run';
   readonly command: WorkflowModelRunCommand;
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface WorkflowModelAgentStep extends WorkflowModelStepBase {

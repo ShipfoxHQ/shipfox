@@ -56,7 +56,7 @@ export function materializeWorkflowModel(model: WorkflowModel): readonly Materia
         sourceLocation: step.sourceLocation ?? null,
         status: 'pending' as const,
         type: step.kind,
-        config: stepConfig(step),
+        config: stepConfig(step, model.env, job.env),
         position: stepPosition + 1,
       })),
     ],
@@ -91,10 +91,15 @@ function firstLine(value: string): string {
   return value.split(FIRST_LINE_PATTERN, 1)[0]?.trim() || value.trim();
 }
 
-function stepConfig(step: WorkflowModelStep): Record<string, unknown> {
+function stepConfig(
+  step: WorkflowModelStep,
+  workflowEnv: WorkflowModel['env'],
+  jobEnv: WorkflowModelJob['env'],
+): Record<string, unknown> {
   const gate = step.gate === undefined ? {} : {gate: stepGateConfig(step.gate)};
+  const env = step.kind === 'run' ? mergedEnv(workflowEnv, jobEnv, step.env) : {};
   return step.kind === 'run'
-    ? {run: step.command.value, ...gate}
+    ? {run: step.command.value, ...env, ...gate}
     : {
         model: step.model,
         provider: step.provider,
@@ -102,6 +107,15 @@ function stepConfig(step: WorkflowModelStep): Record<string, unknown> {
         prompt: step.prompt,
         ...gate,
       };
+}
+
+function mergedEnv(
+  workflowEnv: WorkflowModel['env'],
+  jobEnv: WorkflowModelJob['env'],
+  stepEnv: Extract<WorkflowModelStep, {kind: 'run'}>['env'],
+): {env: Readonly<Record<string, string>>} | Record<string, never> {
+  const env = {...workflowEnv, ...jobEnv, ...stepEnv};
+  return Object.keys(env).length === 0 ? {} : {env};
 }
 
 function assertNever(value: never): never {

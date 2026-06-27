@@ -167,6 +167,60 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
+  it('materializes merged env for run steps only', () => {
+    const model = workflowModel({
+      env: {SHARED: 'workflow', WORKFLOW_ONLY: 'yes'},
+      jobs: {
+        build: {
+          env: {SHARED: 'job', JOB_ONLY: 'yes'},
+          steps: [
+            {name: 'run', run: 'npm test', env: {SHARED: 'step', STEP_ONLY: 'yes'}},
+            {
+              name: 'agent',
+              model: 'claude-opus-4-8',
+              provider: 'anthropic',
+              thinking: 'high',
+              prompt: 'Fix it.',
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel(model);
+
+    expect(rows[0]?.steps[0]?.config).toEqual({});
+    expect(rows[0]?.steps[1]?.config).toEqual({
+      run: 'npm test',
+      env: {
+        SHARED: 'step',
+        WORKFLOW_ONLY: 'yes',
+        JOB_ONLY: 'yes',
+        STEP_ONLY: 'yes',
+      },
+    });
+    expect(rows[0]?.steps[2]?.config).toEqual({
+      model: 'claude-opus-4-8',
+      provider: 'anthropic',
+      thinking: 'high',
+      prompt: 'Fix it.',
+    });
+  });
+
+  it('omits env from run-step config when the merge is empty', () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [{run: 'npm test'}],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel(model);
+
+    expect(rows[0]?.steps[1]?.config).toEqual({run: 'npm test'});
+  });
+
   it('gives a job with no user steps just the synthetic setup step', () => {
     const model = workflowModel({jobs: {noop: {steps: []}}});
 

@@ -2,6 +2,7 @@ import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, join} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
+import {logger} from '@shipfox/node-opentelemetry';
 import {type CommandStartMetadata, executeRunStep, type OutputSink} from '#core/run-step.js';
 
 const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
@@ -22,7 +23,16 @@ function collectOutput(): {sink: OutputSink; text: () => string; sources: () => 
   };
 }
 
+function nodeEnvDumpCommand(keys: readonly string[]): string {
+  const script = `const keys = ${JSON.stringify(keys)}; process.stdout.write(JSON.stringify(Object.fromEntries(keys.map((key) => [key, process.env[key] ?? null]))));`;
+  return `node -e ${JSON.stringify(script)}`;
+}
+
 describe('executeRunStep', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('succeeds with exit code 0', async () => {
     const step = buildStep({config: {run: 'echo hello'}});
     const output = collectOutput();
@@ -32,6 +42,89 @@ describe('executeRunStep', () => {
     expect(result.success).toBe(true);
     expect(output.text()).toContain('hello');
     expect(result.exit_code).toBe(0);
+  });
+
+  it('passes step env to the spawned process with precedence over inherited env', async () => {
+    const previous = process.env.SHIPFOX_ENV_TEST_EXISTING;
+    process.env.SHIPFOX_ENV_TEST_EXISTING = 'inherited';
+    try {
+      const step = buildStep({
+        config: {
+          run: nodeEnvDumpCommand(['SHIPFOX_ENV_TEST_CUSTOM', 'SHIPFOX_ENV_TEST_EXISTING']),
+          env: {
+            SHIPFOX_ENV_TEST_CUSTOM: 'custom',
+            SHIPFOX_ENV_TEST_EXISTING: 'step',
+          },
+        },
+      });
+      const output = collectOutput();
+
+      const result = await executeRunStep(step, {onOutput: output.sink});
+
+      expect(result.success).toBe(true);
+      expect(JSON.parse(output.text())).toEqual({
+        SHIPFOX_ENV_TEST_CUSTOM: 'custom',
+        SHIPFOX_ENV_TEST_EXISTING: 'step',
+      });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.SHIPFOX_ENV_TEST_EXISTING;
+      } else {
+        process.env.SHIPFOX_ENV_TEST_EXISTING = previous;
+      }
+    }
+  });
+
+  it('inherits process env when step env is absent', async () => {
+    const previous = process.env.SHIPFOX_ENV_TEST_INHERITED;
+    process.env.SHIPFOX_ENV_TEST_INHERITED = 'inherited';
+    try {
+      const step = buildStep({
+        config: {run: nodeEnvDumpCommand(['SHIPFOX_ENV_TEST_INHERITED'])},
+      });
+      const output = collectOutput();
+
+      const result = await executeRunStep(step, {onOutput: output.sink});
+
+      expect(result.success).toBe(true);
+      expect(JSON.parse(output.text())).toEqual({SHIPFOX_ENV_TEST_INHERITED: 'inherited'});
+    } finally {
+      if (previous === undefined) {
+        delete process.env.SHIPFOX_ENV_TEST_INHERITED;
+      } else {
+        process.env.SHIPFOX_ENV_TEST_INHERITED = previous;
+      }
+    }
+  });
+
+  it('skips non-string step env values and warns without failing the step', async () => {
+    const warn = vi.spyOn(logger(), 'warn').mockImplementation(() => undefined);
+    const step = buildStep({
+      config: {
+        run: nodeEnvDumpCommand(['SHIPFOX_ENV_TEST_GOOD', 'SHIPFOX_ENV_TEST_BAD']),
+        env: {
+          SHIPFOX_ENV_TEST_GOOD: 'good',
+          SHIPFOX_ENV_TEST_BAD: 123,
+        },
+      },
+    });
+    const output = collectOutput();
+
+    const result = await executeRunStep(step, {onOutput: output.sink});
+
+    expect(result.success).toBe(true);
+    expect(JSON.parse(output.text())).toEqual({
+      SHIPFOX_ENV_TEST_GOOD: 'good',
+      SHIPFOX_ENV_TEST_BAD: null,
+    });
+    expect(warn).toHaveBeenCalledWith(
+      {
+        stepId: step.id,
+        key: 'SHIPFOX_ENV_TEST_BAD',
+        valueType: 'number',
+      },
+      'Skipping non-string step env value',
+    );
   });
 
   it('fails with non-zero exit code and reports it on result.error', async () => {
