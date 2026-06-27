@@ -429,6 +429,34 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/typescript
 
+  libs/api/agent-dto:
+    dependencies:
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../../shared/workflow/document
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
   libs/api/auth:
     dependencies:
       '@fastify/cookie':
