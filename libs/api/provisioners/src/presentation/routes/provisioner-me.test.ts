@@ -1,0 +1,207 @@
+import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
+import type {AuthMethod} from '@shipfox/node-fastify';
+import {closeApp, createApp} from '@shipfox/node-fastify';
+import {generateOpaqueToken} from '@shipfox/node-tokens';
+import {sql} from 'drizzle-orm';
+import type {FastifyInstance} from 'fastify';
+import {db} from '#db/db.js';
+import {revokeProvisionerToken} from '#db/provisioner-tokens.js';
+import {createProvisionerTokenAuthMethod} from '#presentation/auth/index.js';
+import {provisionerTokenFactory} from '#test/index.js';
+import {provisionerRoutes} from './index.js';
+
+const mocks = vi.hoisted(() => ({
+  logger: {
+    child: vi.fn(),
+    debug: vi.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+    info: vi.fn(),
+    trace: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
+
+mocks.logger.child.mockReturnValue(mocks.logger);
+
+vi.mock('@shipfox/node-opentelemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shipfox/node-opentelemetry')>()),
+  logger: () => mocks.logger,
+}));
+
+const fakeUserAuth: AuthMethod = {
+  name: AUTH_USER,
+  authenticate: () => Promise.resolve(),
+};
+
+describe('provisioner me route', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    await closeApp();
+    await db().execute(sql`TRUNCATE provisioners_provisioner_tokens CASCADE`);
+    await db().execute(sql`TRUNCATE workspaces CASCADE`);
+    mocks.logger.warn.mockReset();
+    app = await createApp({
+      auth: [fakeUserAuth, createProvisionerTokenAuthMethod()],
+      routes: provisionerRoutes,
+      swagger: false,
+    });
+    await app.ready();
+  });
+
+  afterEach(async () => {
+    await closeApp();
+  });
+
+  test('uses provisioner auth for provisioner routes', () => {
+    expect(provisionerRoutes[1]?.auth).toBe(AUTH_PROVISIONER_TOKEN);
+  });
+
+  it('returns the authenticated provisioner identity', async () => {
+    const workspaceId = await createWorkspace();
+    const rawToken = generateOpaqueToken('provisionerToken');
+    const token = await provisionerTokenFactory.create({workspaceId}, {transient: {rawToken}});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/provisioners/me',
+      headers: {authorization: `Bearer ${rawToken}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({id: token.id, workspace_id: workspaceId});
+  });
+
+  it('returns 401 without an authorization header', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/provisioners/me',
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().code).toBe('unauthorized');
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      {prefix: undefined, reason: 'missing'},
+      'provisioner token auth failed',
+    );
+  });
+
+  it('returns 401 for a non-provisioner token type before lookup', async () => {
+    const rawToken = generateOpaqueToken('runnerToken');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/provisioners/me',
+      headers: {authorization: `Bearer ${rawToken}`},
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().code).toBe('unauthorized');
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      {prefix: rawToken.slice(0, 12), reason: 'type'},
+      'provisioner token auth failed',
+    );
+  });
+
+  it('returns 401 for an unknown provisioner token', async () => {
+    const rawToken = generateOpaqueToken('provisionerToken');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/provisioners/me',
+      headers: {authorization: `Bearer ${rawToken}`},
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().code).toBe('unauthorized');
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      {prefix: rawToken.slice(0, 12), reason: 'not-found'},
+      'provisioner token auth failed',
+    );
+  });
+
+  it('returns 401 for a revoked provisioner token', async () => {
+    const workspaceId = await createWorkspace();
+    const rawToken = generateOpaqueToken('provisionerToken');
+    const token = await provisionerTokenFactory.create({workspaceId}, {transient: {rawToken}});
+    await revokeProvisionerToken({
+      tokenId: token.id,
+      workspaceId,
+      revokedByUserId: crypto.randomUUID(),
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/provisioners/me',
+      headers: {authorization: `Bearer ${rawToken}`},
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().code).toBe('provisioner-token-revoked');
+  });
+
+  it('returns 401 for an expired provisioner token', async () => {
+    const workspaceId = await createWorkspace();
+    const rawToken = generateOpaqueToken('provisionerToken');
+    await provisionerTokenFactory.create(
+      {workspaceId, expiresAt: new Date(Date.now() - 60_000)},
+      {transient: {rawToken}},
+    );
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/provisioners/me',
+      headers: {authorization: `Bearer ${rawToken}`},
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().code).toBe('provisioner-token-expired');
+  });
+
+  it('returns 401 for a provisioner token whose workspace does not exist', async () => {
+    const rawToken = generateOpaqueToken('provisionerToken');
+    await provisionerTokenFactory.create(
+      {workspaceId: crypto.randomUUID()},
+      {transient: {rawToken}},
+    );
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/provisioners/me',
+      headers: {authorization: `Bearer ${rawToken}`},
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().code).toBe('unauthorized');
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      {prefix: rawToken.slice(0, 12), reason: 'workspace-not-found'},
+      'provisioner token auth failed',
+    );
+  });
+
+  it('returns 403 for a provisioner token in a suspended workspace', async () => {
+    const workspaceId = await createWorkspace({status: 'suspended'});
+    const rawToken = generateOpaqueToken('provisionerToken');
+    await provisionerTokenFactory.create({workspaceId}, {transient: {rawToken}});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/provisioners/me',
+      headers: {authorization: `Bearer ${rawToken}`},
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('workspace-inactive');
+  });
+});
+
+async function createWorkspace(params?: {status?: 'active' | 'suspended' | 'deleted'}) {
+  const id = crypto.randomUUID();
+  await db().execute(
+    sql`INSERT INTO workspaces (id, name, status) VALUES (${id}, 'Test Workspace', ${
+      params?.status ?? 'active'
+    })`,
+  );
+  return id;
+}

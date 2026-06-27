@@ -18,9 +18,10 @@ export {
   TokenAlreadyUsedError,
   TokenExpiredError,
   TokenInvalidError,
+  WorkspaceNotFoundError,
 } from '#core/errors.js';
 export {acceptWorkspaceInvitation, peekInvitationByRawToken} from '#core/invitations.js';
-export {requireWorkspaceMembership} from '#core/workspaces.js';
+export {getWorkspace, requireWorkspaceMembership} from '#core/workspaces.js';
 export {db, migrationsPath} from '#db/index.js';
 export {listMembershipsByUser} from '#db/memberships.js';
 export {requireMembership} from '#presentation/auth/require-membership.js';

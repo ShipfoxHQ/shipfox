@@ -4,6 +4,7 @@ import type {WorkspaceRole} from '@shipfox/api-workspaces-dto';
 export const AUTH_USER = 'user';
 export const AUTH_RUNNER_TOKEN = 'runner-token';
 export const AUTH_LEASED_JOB = 'leased-job';
+export const AUTH_PROVISIONER_TOKEN = 'provisioner-token';
 
 export type WorkspaceStatus = 'active' | 'suspended' | 'deleted';
 
@@ -41,12 +42,18 @@ export function buildUserContext(params: BuildUserContextParams): UserContext {
   };
 }
 
+export interface ProvisionerContext {
+  provisionerTokenId: string;
+  workspaceId: string;
+}
+
 export type LeasedJobContext = JobLeaseTokenClaims;
 
 type RequestWithContext = object;
 
 const USER_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/user');
 const LEASED_JOB_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/leased-job');
+const PROVISIONER_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/provisioner');
 
 export function setUserContext(request: RequestWithContext, context: UserContext): void {
   (request as Record<symbol, unknown>)[USER_CONTEXT_KEY] = context;
@@ -62,6 +69,29 @@ export function requireUserContext(request: RequestWithContext): UserContext {
   const context = getUserContext(request);
   if (!context) {
     throw new Error('User context is not available on this request');
+  }
+  return context;
+}
+
+export function setProvisionerContext(
+  request: RequestWithContext,
+  context: ProvisionerContext,
+): void {
+  (request as Record<symbol, unknown>)[PROVISIONER_CONTEXT_KEY] = context;
+}
+
+export function getProvisionerContext(request: RequestWithContext): ProvisionerContext | null {
+  return (
+    ((request as Record<symbol, unknown>)[PROVISIONER_CONTEXT_KEY] as
+      | ProvisionerContext
+      | undefined) ?? null
+  );
+}
+
+export function requireProvisionerContext(request: RequestWithContext): ProvisionerContext {
+  const context = getProvisionerContext(request);
+  if (!context) {
+    throw new Error('Provisioner context is not available on this request');
   }
   return context;
 }

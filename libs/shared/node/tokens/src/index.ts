@@ -11,6 +11,7 @@ export const tokenTypeParts = {
   passwordReset: 'pr',
   refreshToken: 'r',
   runnerToken: 'rt',
+  provisionerToken: 'pt',
 } as const;
 
 const tokenPrefixRegexes = createShipfoxTokenPrefixRegexes(Object.values(tokenTypeParts));
