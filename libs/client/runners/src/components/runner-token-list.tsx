@@ -143,7 +143,8 @@ function RevokeRunnerTokenButton({
               Revoke token?
             </Text>
             <Text size="sm" className="text-foreground-neutral-muted">
-              {tokenName} will stop being usable immediately.
+              {tokenName} will stop creating new runner sessions. Existing sessions and job leases
+              expire on their own.
             </Text>
           </div>
           {revokeToken.isError ? (

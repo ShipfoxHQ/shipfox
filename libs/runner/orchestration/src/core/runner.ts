@@ -1,6 +1,12 @@
 import {setTimeout as setTimeoutPromise} from 'node:timers/promises';
 import {logger} from '@shipfox/node-opentelemetry';
-import {createLeaseClient, requestJob, runnerToken} from '@shipfox/runner-protocol';
+import {
+  createLeaseClient,
+  HTTPError,
+  registerRunnerSession,
+  requestJob,
+  runnerToken,
+} from '@shipfox/runner-protocol';
 import {
   cleanupJobLogs,
   cleanupWorkspace,
@@ -34,10 +40,12 @@ export async function startRunner(): Promise<void> {
   );
 
   let currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
+  let runnerSession = await registerRunnerSession();
+  logger().info({runnerSessionId: runnerSession.session_id}, 'Runner session registered');
 
   while (running) {
     try {
-      const job = await requestJob();
+      const job = await requestJob(runnerSession.session_token);
 
       if (!job) {
         logger().debug({interval: currentInterval}, 'No jobs available, backing off');
@@ -51,6 +59,16 @@ export async function startRunner(): Promise<void> {
 
       await runJob(job, workspaceRoot);
     } catch (pollError) {
+      if (isUnauthorized(pollError)) {
+        try {
+          runnerSession = await registerRunnerSession();
+          logger().info({runnerSessionId: runnerSession.session_id}, 'Runner session refreshed');
+          currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
+          continue;
+        } catch (registrationError) {
+          logger().error({err: registrationError}, 'Runner session refresh failed');
+        }
+      }
       logger().error({err: pollError}, 'Poll cycle failed');
       currentInterval = Math.min(currentInterval * 1.5, config.SHIPFOX_POLL_MAX_INTERVAL_MS);
       await interruptableSleep(currentInterval);
@@ -80,7 +98,7 @@ export async function runJob(
   const ac = new AbortController();
   currentJobAbortController = ac;
 
-  const heartbeatLoop = startHeartbeatLoop(job.job_id, ac, {
+  const heartbeatLoop = startHeartbeatLoop(job.job_id, job.lease_token, ac, {
     intervalMs: config.SHIPFOX_HEARTBEAT_INTERVAL_MS,
     maxStaleMs: config.SHIPFOX_HEARTBEAT_MAX_STALE_MS,
   });
@@ -112,6 +130,10 @@ export async function runJob(
     await cleanupWorkspace(cwd);
     await cleanupJobLogs(logsDir);
   }
+}
+
+function isUnauthorized(error: unknown): boolean {
+  return error instanceof HTTPError && error.response.status === 401;
 }
 
 function setupSignalHandlers(): void {

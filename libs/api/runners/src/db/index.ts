@@ -10,6 +10,8 @@ export {
   recordHeartbeat,
   releaseJob,
 } from './jobs.js';
+export type {CreateRunnerSessionParams} from './runner-sessions.js';
+export {createRunnerSession} from './runner-sessions.js';
 export type {CreateRunnerTokenParams} from './runner-tokens.js';
 export {
   createRunnerToken,

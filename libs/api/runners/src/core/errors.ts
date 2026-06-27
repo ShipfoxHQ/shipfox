@@ -11,3 +11,10 @@ export class RunnerTokenNotFoundError extends Error {
     this.name = 'RunnerTokenNotFoundError';
   }
 }
+
+export class EmptyRunnerLabelsError extends Error {
+  constructor() {
+    super('Runner labels cannot be empty');
+    this.name = 'EmptyRunnerLabelsError';
+  }
+}

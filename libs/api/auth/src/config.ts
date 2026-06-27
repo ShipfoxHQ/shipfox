@@ -16,6 +16,13 @@ export const config = createConfig({
     desc: 'How long a job lease token stays valid. Set it longer than the longest job (JOB_MAX_DURATION is 60 minutes) plus a safety margin.',
     default: '90m',
   }),
+  AUTH_RUNNER_SESSION_TOKEN_SECRET: str({
+    desc: 'Secret used to sign and verify runner session tokens. Required, with no default, so startup fails when it is missing.',
+  }),
+  AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN: str({
+    desc: 'How long a runner session token stays valid. A revoked registration token can leave existing sessions usable until this lifetime ends.',
+    default: '1h',
+  }),
   AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS: num({
     desc: 'How many days a refresh token stays valid before the user must sign in again.',
     default: 14,

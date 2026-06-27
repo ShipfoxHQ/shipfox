@@ -3,7 +3,8 @@ import {HTTPError} from 'ky';
 const heartbeatMock = vi.fn();
 
 vi.mock('@shipfox/runner-protocol', () => ({
-  heartbeat: (jobId: string, opts?: {signal?: AbortSignal}) => heartbeatMock(jobId, opts),
+  heartbeat: (jobId: string, leaseToken: string, opts?: {signal?: AbortSignal}) =>
+    heartbeatMock(jobId, leaseToken, opts),
   HTTPError,
 }));
 
@@ -27,7 +28,10 @@ describe('startHeartbeatLoop', () => {
     heartbeatMock.mockResolvedValue({cancel: false});
     const ac = new AbortController();
 
-    const handle = startHeartbeatLoop('job-1', ac, {intervalMs: 100, maxStaleMs: 1000});
+    const handle = startHeartbeatLoop('job-1', 'lease-1', ac, {
+      intervalMs: 100,
+      maxStaleMs: 1000,
+    });
 
     // Flush any pending microtasks before asserting the timer has not fired —
     // a regression that resolved the first tick synchronously would leak past
@@ -37,6 +41,7 @@ describe('startHeartbeatLoop', () => {
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
     expect(heartbeatMock.mock.calls[0]?.[0]).toBe('job-1');
+    expect(heartbeatMock.mock.calls[0]?.[1]).toBe('lease-1');
     expect(ac.signal.aborted).toBe(false);
 
     handle.stop();
@@ -47,7 +52,10 @@ describe('startHeartbeatLoop', () => {
     heartbeatMock.mockImplementation(() => new Promise<{cancel: boolean}>((r) => (resolve = r)));
     const ac = new AbortController();
 
-    const handle = startHeartbeatLoop('job-1', ac, {intervalMs: 100, maxStaleMs: 10_000});
+    const handle = startHeartbeatLoop('job-1', 'lease-1', ac, {
+      intervalMs: 100,
+      maxStaleMs: 10_000,
+    });
 
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
@@ -65,7 +73,7 @@ describe('startHeartbeatLoop', () => {
   test('max-stale guard aborts the in-flight call and schedules the next tick', async () => {
     let receivedSignal: AbortSignal | undefined;
     heartbeatMock.mockImplementation(
-      (_jobId: string, opts?: {signal?: AbortSignal}) =>
+      (_jobId: string, _leaseToken: string, opts?: {signal?: AbortSignal}) =>
         new Promise<{cancel: boolean}>((_resolve, reject) => {
           receivedSignal = opts?.signal;
           opts?.signal?.addEventListener('abort', () => {
@@ -77,7 +85,10 @@ describe('startHeartbeatLoop', () => {
     );
     const ac = new AbortController();
 
-    const handle = startHeartbeatLoop('job-1', ac, {intervalMs: 100, maxStaleMs: 200});
+    const handle = startHeartbeatLoop('job-1', 'lease-1', ac, {
+      intervalMs: 100,
+      maxStaleMs: 200,
+    });
 
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
@@ -99,7 +110,10 @@ describe('startHeartbeatLoop', () => {
     heartbeatMock.mockResolvedValueOnce({cancel: true});
     const ac = new AbortController();
 
-    const handle = startHeartbeatLoop('job-1', ac, {intervalMs: 100, maxStaleMs: 1000});
+    const handle = startHeartbeatLoop('job-1', 'lease-1', ac, {
+      intervalMs: 100,
+      maxStaleMs: 1000,
+    });
 
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
@@ -115,7 +129,10 @@ describe('startHeartbeatLoop', () => {
     heartbeatMock.mockRejectedValueOnce(buildHTTPError(404));
     const ac = new AbortController();
 
-    const handle = startHeartbeatLoop('job-1', ac, {intervalMs: 100, maxStaleMs: 1000});
+    const handle = startHeartbeatLoop('job-1', 'lease-1', ac, {
+      intervalMs: 100,
+      maxStaleMs: 1000,
+    });
 
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
@@ -131,7 +148,10 @@ describe('startHeartbeatLoop', () => {
     heartbeatMock.mockRejectedValueOnce(buildHTTPError(500)).mockResolvedValueOnce({cancel: false});
     const ac = new AbortController();
 
-    const handle = startHeartbeatLoop('job-1', ac, {intervalMs: 100, maxStaleMs: 1000});
+    const handle = startHeartbeatLoop('job-1', 'lease-1', ac, {
+      intervalMs: 100,
+      maxStaleMs: 1000,
+    });
 
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
@@ -146,7 +166,7 @@ describe('startHeartbeatLoop', () => {
   test('stop() prevents future ticks and aborts any in-flight call', async () => {
     let aborted = false;
     heartbeatMock.mockImplementation(
-      (_jobId: string, opts?: {signal?: AbortSignal}) =>
+      (_jobId: string, _leaseToken: string, opts?: {signal?: AbortSignal}) =>
         new Promise<{cancel: boolean}>((_resolve, reject) => {
           opts?.signal?.addEventListener('abort', () => {
             aborted = true;
@@ -158,7 +178,10 @@ describe('startHeartbeatLoop', () => {
     );
     const ac = new AbortController();
 
-    const handle = startHeartbeatLoop('job-1', ac, {intervalMs: 100, maxStaleMs: 10_000});
+    const handle = startHeartbeatLoop('job-1', 'lease-1', ac, {
+      intervalMs: 100,
+      maxStaleMs: 10_000,
+    });
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
 

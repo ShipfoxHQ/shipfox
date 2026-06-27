@@ -4,22 +4,22 @@ import {db} from '#db/db.js';
 import {claimPendingJob} from '#db/jobs.js';
 import {runnersOutbox} from '#db/schema/outbox.js';
 import {runningJobs} from '#db/schema/running-jobs.js';
-import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
+import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
 import {detectAndExpireStuckJobsActivity} from './maintenance-activities.js';
 
 describe('detectAndExpireStuckJobsActivity', () => {
   let workspaceId: string;
-  let runnerTokenId: string;
+  let runnerSessionId: string;
 
   beforeEach(async () => {
     workspaceId = crypto.randomUUID();
-    const runnerToken = await runnerTokenFactory.create({workspaceId});
-    runnerTokenId = runnerToken.id;
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+    runnerSessionId = runnerSession.id;
   });
 
   it('delegates to detectAndExpireStuckJobs and returns the expired count', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
     await db()
       .update(runningJobs)
       .set({lastHeartbeatAt: sql`now() - interval '10 minutes'`})

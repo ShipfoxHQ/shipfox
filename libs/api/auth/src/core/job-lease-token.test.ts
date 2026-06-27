@@ -11,7 +11,7 @@ function claims() {
     runId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
-    runnerTokenId: crypto.randomUUID(),
+    runnerSessionId: crypto.randomUUID(),
   };
 }
 
@@ -27,7 +27,7 @@ describe('job-lease-token', () => {
     expect(verified?.runId).toBe(input.runId);
     expect(verified?.projectId).toBe(input.projectId);
     expect(verified?.workspaceId).toBe(input.workspaceId);
-    expect(verified?.runnerTokenId).toBe(input.runnerTokenId);
+    expect(verified?.runnerSessionId).toBe(input.runnerSessionId);
     expect(verified?.aud).toBe(JOB_LEASE_TOKEN_AUDIENCE);
     expect(verified?.iat).toBeTypeOf('number');
     expect(verified?.exp).toBeGreaterThan(verified?.iat ?? 0);
@@ -67,7 +67,7 @@ describe('job-lease-token', () => {
       runId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d0f',
       projectId: crypto.randomUUID(),
       workspaceId: crypto.randomUUID(),
-      runnerTokenId: crypto.randomUUID(),
+      runnerSessionId: crypto.randomUUID(),
     };
 
     const token = await issueJobLeaseToken(input);

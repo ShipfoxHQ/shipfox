@@ -1,11 +1,12 @@
-// Exercises the real api-client (the mocked step-loop tests can't) to prove claim/heartbeat
-// use the runner token and step calls use the lease token. SHIPFOX_API_URL comes from
-// test/env.ts (setupFiles), loaded before config is imported.
+// Exercises the real api-client (the mocked step-loop tests can't) to prove registration,
+// claim, heartbeat, and step calls use the right bearer token class. SHIPFOX_API_URL comes
+// from test/env.ts (setupFiles), loaded before config is imported.
 
 import {
   appendStepLogs,
   createLeaseClient,
   heartbeat,
+  registerRunnerSession,
   reportStep,
   requestCheckoutToken,
   requestJob,
@@ -16,8 +17,9 @@ import {config} from '#config.js';
 const JOB_ID = crypto.randomUUID();
 const RUN_ID = crypto.randomUUID();
 const STEP_ID = crypto.randomUUID();
+const SESSION_ID = crypto.randomUUID();
 
-let calls: Array<{url: string; method: string; authorization: string | null}>;
+let calls: Array<{url: string; method: string; authorization: string | null; body: string}>;
 let originalFetch: typeof globalThis.fetch;
 
 beforeAll(() => {
@@ -33,10 +35,21 @@ beforeEach(() => {
 });
 
 describe('api-client auth contexts', () => {
-  it('requestJob sends the runner token and parses the step-less claim + lease token', async () => {
+  it('registerRunnerSession sends the registration token and configured labels', async () => {
+    stubFetch(() => jsonResponse(registerResponse()));
+
+    const session = await registerRunnerSession();
+
+    expect(session).toEqual(registerResponse());
+    expect(calls[0]?.url).toContain('runners/register');
+    expect(calls[0]?.authorization).toBe(`Bearer ${config.SHIPFOX_RUNNER_TOKEN}`);
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({labels: ['linux', 'x64']});
+  });
+
+  it('requestJob sends the runner session token and parses the step-less claim + lease token', async () => {
     stubFetch(() => jsonResponse(claimResponse()));
 
-    const job = await requestJob();
+    const job = await requestJob('session-abc');
 
     expect(job?.job_id).toBe(JOB_ID);
     expect(job?.run_id).toBe(RUN_ID);
@@ -45,24 +58,24 @@ describe('api-client auth contexts', () => {
     expect(job).not.toHaveProperty('steps');
     expect(job).not.toHaveProperty('job_name');
     expect(calls[0]?.url).toContain('runners/jobs/request');
-    expect(calls[0]?.authorization).toBe(`Bearer ${config.SHIPFOX_RUNNER_TOKEN}`);
+    expect(calls[0]?.authorization).toBe('Bearer session-abc');
   });
 
   it('requestJob returns null on 204', async () => {
     stubFetch(() => new Response(null, {status: 204}));
 
-    const job = await requestJob();
+    const job = await requestJob('session-abc');
 
     expect(job).toBeNull();
   });
 
-  it('heartbeat sends the runner token', async () => {
+  it('heartbeat sends the job lease token', async () => {
     stubFetch(() => jsonResponse({cancel: false}));
 
-    await heartbeat(JOB_ID);
+    await heartbeat(JOB_ID, 'lease-heartbeat');
 
     expect(calls[0]?.url).toContain(`runners/jobs/${JOB_ID}/heartbeat`);
-    expect(calls[0]?.authorization).toBe(`Bearer ${config.SHIPFOX_RUNNER_TOKEN}`);
+    expect(calls[0]?.authorization).toBe('Bearer lease-heartbeat');
   });
 
   it('requestNextStep sends the lease token, not the runner token', async () => {
@@ -280,6 +293,15 @@ function claimResponse() {
   };
 }
 
+function registerResponse() {
+  return {
+    session_token: 'session-abc',
+    session_id: SESSION_ID,
+    mode: 'manual',
+    max_claims: null,
+  };
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -288,13 +310,14 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 function stubFetch(handler: (url: string) => Response): void {
-  globalThis.fetch = vi.fn((input: Request | string | URL, init?: RequestInit) => {
+  globalThis.fetch = vi.fn(async (input: Request | string | URL, init?: RequestInit) => {
     const request = input instanceof Request ? input : new Request(String(input), init);
     calls.push({
       url: request.url,
       method: request.method,
       authorization: request.headers.get('authorization'),
+      body: await request.clone().text(),
     });
-    return Promise.resolve(handler(request.url));
+    return handler(request.url);
   }) as unknown as typeof globalThis.fetch;
 }

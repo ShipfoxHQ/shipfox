@@ -9,8 +9,12 @@ export {
   heartbeatResponseSchema,
   type ListRunnerTokensResponseDto,
   listRunnerTokensResponseSchema,
+  type RegisterRunnerBodyDto,
+  type RegisterRunnerResponseDto,
   type RevokeRunnerTokenResponseDto,
   type RunnerTokenDto,
+  registerRunnerBodySchema,
+  registerRunnerResponseSchema,
   revokeRunnerTokenResponseSchema,
   runnerTokenDtoSchema,
 } from '#schemas/index.js';
@@ -27,3 +31,4 @@ export {
   runnerJobQueuedEventSchema,
   runnersEventSchemas,
 } from './events.js';
+export {canonicalizeRunnerLabels} from './labels.js';

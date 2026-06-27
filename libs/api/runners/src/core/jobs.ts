@@ -10,7 +10,7 @@ export interface ClaimJobResult {
 
 export async function claimJob(params: {
   workspaceId: string;
-  runnerTokenId: string;
+  runnerSessionId: string;
 }): Promise<ClaimJobResult | null> {
   const claimed = await claimPendingJob(params);
   if (!claimed) {
@@ -24,7 +24,7 @@ export async function claimJob(params: {
     runId: claimed.runId,
     projectId: claimed.projectId,
     workspaceId: params.workspaceId,
-    runnerTokenId: params.runnerTokenId,
+    runnerSessionId: params.runnerSessionId,
   });
 
   return {jobId: claimed.jobId, runId: claimed.runId, leaseToken};

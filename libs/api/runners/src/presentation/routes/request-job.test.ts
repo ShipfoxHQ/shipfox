@@ -1,14 +1,24 @@
-import {verifyJobLeaseToken} from '@shipfox/api-auth';
-import {AUTH_USER} from '@shipfox/api-auth-context';
+import {
+  createLeaseTokenAuthMethod,
+  createRunnerSessionAuthMethod,
+  verifyJobLeaseToken,
+} from '@shipfox/api-auth';
+import {AUTH_API_KEY, AUTH_USER} from '@shipfox/api-auth-context';
+import {RUNNER_SESSION_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
+import {signHs256} from '@shipfox/node-jwt';
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import {db} from '#db/db.js';
-import {revokeRunnerToken} from '#db/runner-tokens.js';
 import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';
 import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
+
+const fakeApiKeyAuth: AuthMethod = {
+  name: AUTH_API_KEY,
+  authenticate: () => Promise.resolve(),
+};
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -19,11 +29,18 @@ describe('POST /runners/jobs/request', () => {
   let app: FastifyInstance;
   let rawToken: string;
   let workspaceId: string;
-  let runnerTokenId: string;
+  let sessionToken: string;
+  let runnerSessionId: string;
 
   beforeAll(async () => {
     app = await createApp({
-      auth: [fakeUserAuth, createRunnerTokenAuthMethod()],
+      auth: [
+        fakeApiKeyAuth,
+        fakeUserAuth,
+        createRunnerTokenAuthMethod(),
+        createRunnerSessionAuthMethod(),
+        createLeaseTokenAuthMethod(),
+      ],
       routes: runnerRoutes,
       swagger: false,
     });
@@ -36,13 +53,29 @@ describe('POST /runners/jobs/request', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_tokens CASCADE`,
+      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens CASCADE`,
     );
     rawToken = `sf_r_${crypto.randomUUID()}`;
     workspaceId = crypto.randomUUID();
-    const token = await runnerTokenFactory.create({workspaceId}, {transient: {rawToken}});
-    runnerTokenId = token.id;
+    await runnerTokenFactory.create({workspaceId}, {transient: {rawToken}});
+    const registered = await registerSession(rawToken);
+    sessionToken = registered.sessionToken;
+    runnerSessionId = registered.runnerSessionId;
   });
+
+  async function registerSession(
+    token: string,
+  ): Promise<{sessionToken: string; runnerSessionId: string}> {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/runners/register',
+      headers: {authorization: `Bearer ${token}`},
+      payload: {labels: ['Linux', 'x64']},
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    return {sessionToken: body.session_token, runnerSessionId: body.session_id};
+  }
 
   it('returns 401 without authorization', async () => {
     const res = await app.inject({
@@ -53,7 +86,7 @@ describe('POST /runners/jobs/request', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('returns 401 with an invalid runner token', async () => {
+  it('returns 401 with an invalid runner session token', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/runners/jobs/request',
@@ -69,7 +102,7 @@ describe('POST /runners/jobs/request', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/runners/jobs/request',
-      headers: {authorization: `Bearer ${rawToken}`},
+      headers: {authorization: `Bearer ${sessionToken}`},
     });
 
     expect(res.statusCode).toBe(200);
@@ -86,50 +119,60 @@ describe('POST /runners/jobs/request', () => {
       runId: created.runId,
       projectId: created.projectId,
       workspaceId,
-      runnerTokenId,
+      runnerSessionId,
     });
   });
 
-  it('returns 204 when no jobs are available for the token workspace', async () => {
+  it('returns 204 when no jobs are available for the session workspace', async () => {
     await pendingJobFactory.create({workspaceId: crypto.randomUUID()});
 
     const res = await app.inject({
       method: 'POST',
       url: '/runners/jobs/request',
-      headers: {authorization: `Bearer ${rawToken}`},
+      headers: {authorization: `Bearer ${sessionToken}`},
     });
 
     expect(res.statusCode).toBe(204);
   });
 
-  it('returns 401 when the runner token is expired', async () => {
-    const expiredRawToken = `sf_r_${crypto.randomUUID()}`;
-    await runnerTokenFactory.create(
-      {workspaceId, expiresAt: new Date(Date.now() - 1000)},
-      {transient: {rawToken: expiredRawToken}},
-    );
+  it('claims multiple jobs from one manual session', async () => {
+    const first = await pendingJobFactory.create({workspaceId});
+    const second = await pendingJobFactory.create({workspaceId});
 
-    const res = await app.inject({
+    const firstRes = await app.inject({
       method: 'POST',
       url: '/runners/jobs/request',
-      headers: {authorization: `Bearer ${expiredRawToken}`},
+      headers: {authorization: `Bearer ${sessionToken}`},
+    });
+    const secondRes = await app.inject({
+      method: 'POST',
+      url: '/runners/jobs/request',
+      headers: {authorization: `Bearer ${sessionToken}`},
     });
 
-    expect(res.statusCode).toBe(401);
+    expect(firstRes.statusCode).toBe(200);
+    expect(firstRes.json().job_id).toBe(first.jobId);
+    expect(secondRes.statusCode).toBe(200);
+    expect(secondRes.json().job_id).toBe(second.jobId);
   });
 
-  it('returns 401 when the runner token is revoked', async () => {
-    const revokedRawToken = `sf_r_${crypto.randomUUID()}`;
-    const token = await runnerTokenFactory.create(
-      {workspaceId},
-      {transient: {rawToken: revokedRawToken}},
-    );
-    await revokeRunnerToken({tokenId: token.id, workspaceId});
+  it('returns 401 when the runner session token is expired', async () => {
+    const expiredSessionToken = await signHs256({
+      payload: {
+        runnerSessionId,
+        workspaceId,
+        scope: 'workspace',
+        labels: ['linux', 'x64'],
+      },
+      secret: process.env.AUTH_RUNNER_SESSION_TOKEN_SECRET ?? 'test-runner-session-secret',
+      expiresIn: '-1s',
+      audience: RUNNER_SESSION_TOKEN_AUDIENCE,
+    });
 
     const res = await app.inject({
       method: 'POST',
       url: '/runners/jobs/request',
-      headers: {authorization: `Bearer ${revokedRawToken}`},
+      headers: {authorization: `Bearer ${expiredSessionToken}`},
     });
 
     expect(res.statusCode).toBe(401);

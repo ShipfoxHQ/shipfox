@@ -214,7 +214,9 @@ export function CreatedRunnerTokenPanel({token}: {token: CreateRunnerTokenRespon
       <InlineTipsContent className="flex flex-col gap-12">
         <div className="flex flex-col gap-2">
           <InlineTipsTitle className="mb-0">Token created</InlineTipsTitle>
-          <InlineTipsDescription>Copy it now. It will not be shown again.</InlineTipsDescription>
+          <InlineTipsDescription>
+            Copy this registration token now. It will not be shown again.
+          </InlineTipsDescription>
         </div>
         <div className="flex items-center gap-8 max-[640px]:flex-col max-[640px]:items-stretch">
           <Code variant="paragraph" className="min-w-0 flex-1 break-all">

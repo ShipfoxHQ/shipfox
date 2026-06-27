@@ -1,9 +1,13 @@
 import {appendLogsResponseSchema, offsetGapResponseSchema} from '@shipfox/api-logs-dto';
 import {
   type ClaimedJobResponseDto,
+  canonicalizeRunnerLabels,
   claimedJobResponseSchema,
   type HeartbeatResponseDto,
   heartbeatResponseSchema,
+  type RegisterRunnerResponseDto,
+  registerRunnerBodySchema,
+  registerRunnerResponseSchema,
 } from '@shipfox/api-runners-dto';
 import {
   type CheckoutTokenResponseDto,
@@ -50,8 +54,7 @@ const baseUrl = config.SHIPFOX_API_URL.endsWith('/')
   ? config.SHIPFOX_API_URL
   : `${config.SHIPFOX_API_URL}/`;
 
-// Runner token (long-lived) authes claim + heartbeat; step calls use a per-job lease token.
-const api = ky.create({
+const registrationApi = ky.create({
   baseUrl,
   headers: {
     Authorization: `Bearer ${config.SHIPFOX_RUNNER_TOKEN}`,
@@ -67,12 +70,36 @@ export function runnerToken(): string {
   return config.SHIPFOX_RUNNER_TOKEN;
 }
 
+export function configuredRunnerLabels(): string[] {
+  return canonicalizeRunnerLabels(config.SHIPFOX_RUNNER_LABELS.split(','));
+}
+
+export async function registerRunnerSession(): Promise<RegisterRunnerResponseDto> {
+  const labels = configuredRunnerLabels();
+
+  logger().debug({labels}, 'Registering runner session');
+
+  const body = registerRunnerBodySchema.parse({labels});
+  const response = await registrationApi.post('runners/register', {json: body});
+
+  return registerRunnerResponseSchema.parse(await response.json());
+}
+
+function createRunnerSessionClient(sessionToken: string): KyInstance {
+  return ky.create({
+    baseUrl,
+    headers: {
+      Authorization: `Bearer ${sessionToken}`,
+    },
+  });
+}
+
 // Scheduling is step-less: the claim returns only the job/run ids and the lease
 // token. Steps are pulled one at a time from the step API using that token.
-export async function requestJob(): Promise<ClaimedJobResponseDto | null> {
+export async function requestJob(sessionToken: string): Promise<ClaimedJobResponseDto | null> {
   logger().debug('Polling for job');
 
-  const response = await api.post('runners/jobs/request');
+  const response = await createRunnerSessionClient(sessionToken).post('runners/jobs/request');
 
   if (response.status === 204) {
     return null;
@@ -206,9 +233,10 @@ export async function appendStepLogs(
 
 export async function heartbeat(
   jobId: string,
+  leaseToken: string,
   options: {signal?: AbortSignal} = {},
 ): Promise<HeartbeatResponseDto> {
-  const response = await api.post(
+  const response = await createLeaseClient(leaseToken).post(
     `runners/jobs/${jobId}/heartbeat`,
     options.signal ? {signal: options.signal} : undefined,
   );

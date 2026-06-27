@@ -1,8 +1,9 @@
-import type {JobLeaseTokenClaims} from '@shipfox/api-auth-dto';
+import type {JobLeaseTokenClaims, RunnerSessionTokenClaims} from '@shipfox/api-auth-dto';
 import type {WorkspaceRole} from '@shipfox/api-workspaces-dto';
 
 export const AUTH_USER = 'user';
 export const AUTH_RUNNER_TOKEN = 'runner-token';
+export const AUTH_RUNNER_SESSION = 'runner-session';
 export const AUTH_LEASED_JOB = 'leased-job';
 export const AUTH_PROVISIONER_TOKEN = 'provisioner-token';
 
@@ -48,12 +49,14 @@ export interface ProvisionerContext {
 }
 
 export type LeasedJobContext = JobLeaseTokenClaims;
+export type RunnerSessionContext = RunnerSessionTokenClaims;
 
 type RequestWithContext = object;
 
 const USER_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/user');
 const LEASED_JOB_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/leased-job');
 const PROVISIONER_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/provisioner');
+const RUNNER_SESSION_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/runner-session');
 
 export function setUserContext(request: RequestWithContext, context: UserContext): void {
   (request as Record<symbol, unknown>)[USER_CONTEXT_KEY] = context;
@@ -112,6 +115,29 @@ export function requireLeasedJobContext(request: RequestWithContext): LeasedJobC
   const context = getLeasedJobContext(request);
   if (!context) {
     throw new Error('Leased job context is not available on this request');
+  }
+  return context;
+}
+
+export function setRunnerSessionContext(
+  request: RequestWithContext,
+  context: RunnerSessionContext,
+): void {
+  (request as Record<symbol, unknown>)[RUNNER_SESSION_CONTEXT_KEY] = context;
+}
+
+export function getRunnerSessionContext(request: RequestWithContext): RunnerSessionContext | null {
+  return (
+    ((request as Record<symbol, unknown>)[RUNNER_SESSION_CONTEXT_KEY] as
+      | RunnerSessionContext
+      | undefined) ?? null
+  );
+}
+
+export function requireRunnerSessionContext(request: RequestWithContext): RunnerSessionContext {
+  const context = getRunnerSessionContext(request);
+  if (!context) {
+    throw new Error('Runner session context is not available on this request');
   }
   return context;
 }
