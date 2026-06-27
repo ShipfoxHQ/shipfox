@@ -100,10 +100,10 @@ describe('workflowDocumentSchema', () => {
   });
 
   it.each([
-    ['starts with a digit', {env: {'1PORT': '3000'}}],
-    ['contains a dash', {env: {'NODE-ENV': 'test'}}],
-    ['contains a dot', {env: {'node.env': 'test'}}],
-    ['has a null byte string value', {env: {NODE_ENV: 'test\u0000prod'}}],
+    ['has a key that starts with a digit', {env: {'1PORT': '3000'}}],
+    ['has a key containing a dash', {env: {'NODE-ENV': 'test'}}],
+    ['has a key containing a dot', {env: {'node.env': 'test'}}],
+    ['has a string value containing a null byte', {env: {NODE_ENV: 'test\u0000prod'}}],
     ['has a null value', {env: {NODE_ENV: null}}],
     ['has an object value', {env: {NODE_ENV: {value: 'test'}}}],
   ])('rejects env that %s', (_label, override) => {

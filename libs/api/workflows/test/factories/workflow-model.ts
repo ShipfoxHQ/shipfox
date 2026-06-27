@@ -49,7 +49,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
       id: jobId,
       sourceName,
       runner: normalizeStringArray(job.runner ?? input.runner),
-      ...(job.env === undefined ? {} : {env: job.env}),
+      ...optionalEnv(job.env),
       dependencies: normalizeStringArray(job.needs).map(stableId),
       steps: job.steps.map((step, stepIndex) => normalizeStep(step, jobId, stepIndex)),
     };
@@ -58,7 +58,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
   return {
     kind: 'workflow',
     name: input.name ?? 'Test Workflow',
-    ...(input.env === undefined ? {} : {env: input.env}),
+    ...optionalEnv(input.env),
     triggers: [],
     jobs: modelJobs,
     dependencies: modelJobs.flatMap((job) =>
@@ -74,7 +74,7 @@ function normalizeStep(step: TestWorkflowStep, jobId: string, stepIndex: number)
         ...base,
         kind: 'run',
         command: {kind: 'shell', value: step.run},
-        ...(step.env === undefined ? {} : {env: step.env}),
+        ...optionalEnv(step.env),
       }
     : {
         ...base,
@@ -101,6 +101,13 @@ function stepBase(step: TestWorkflowStep, jobId: string, stepIndex: number) {
 function normalizeStringArray(value: string | readonly string[] | undefined): readonly string[] {
   if (value === undefined) return [];
   return typeof value === 'string' ? [value] : value;
+}
+
+function optionalEnv(
+  env: WorkflowModel['env'] | undefined,
+): {env: NonNullable<WorkflowModel['env']>} | Record<string, never> {
+  if (env === undefined || Object.keys(env).length === 0) return {};
+  return {env};
 }
 
 function stableId(sourceName: string): string {
