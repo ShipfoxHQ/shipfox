@@ -48,7 +48,7 @@ export function createProvisionerTokenAuthMethod(): AuthMethod {
         });
       }
 
-      if (provisionerToken.expiresAt && provisionerToken.expiresAt < new Date()) {
+      if (provisionerToken.expiresAt && provisionerToken.expiresAt <= new Date()) {
         logAuthFailure({rawToken, reason: 'expired'});
         throw new ClientError('Provisioner token has expired', 'provisioner-token-expired', {
           status: 401,

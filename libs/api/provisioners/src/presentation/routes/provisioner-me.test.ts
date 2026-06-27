@@ -159,6 +159,25 @@ describe('provisioner me route', () => {
     expect(res.json().code).toBe('provisioner-token-expired');
   });
 
+  it('returns 401 for a provisioner token expiring at the current instant', async () => {
+    const now = new Date('2026-01-01T00:00:00.000Z');
+    const workspaceId = await createWorkspace();
+    const rawToken = generateOpaqueToken('provisionerToken');
+    await provisionerTokenFactory.create({workspaceId, expiresAt: now}, {transient: {rawToken}});
+
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/provisioners/me',
+      headers: {authorization: `Bearer ${rawToken}`},
+    });
+    vi.useRealTimers();
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().code).toBe('provisioner-token-expired');
+  });
+
   it('returns 401 for a provisioner token whose workspace does not exist', async () => {
     const rawToken = generateOpaqueToken('provisionerToken');
     await provisionerTokenFactory.create(
