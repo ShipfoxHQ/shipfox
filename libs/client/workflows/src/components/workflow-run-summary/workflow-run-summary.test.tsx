@@ -9,6 +9,7 @@ const {useIsTextTruncatedMock} = vi.hoisted(() => ({
 }));
 
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
+const RELATIVE_TIME_TEXT_PATTERN = /ago$/;
 
 vi.mock('@shipfox/react-ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@shipfox/react-ui')>();
@@ -35,7 +36,8 @@ describe('WorkflowRunSummary', () => {
     expect(within(summary).getByRole('heading', {name: 'deploy-web'})).toBeInTheDocument();
     expect(within(summary).getAllByText('Running')).not.toHaveLength(0);
     expect(within(summary).getByText('manual / fire')).toBeInTheDocument();
-    expect(within(summary).getByText('Triggered')).toBeInTheDocument();
+    expect(within(summary).getByText(RELATIVE_TIME_TEXT_PATTERN)).toBeInTheDocument();
+    expect(within(summary).queryByText('Triggered')).not.toBeInTheDocument();
     expect(within(summary).queryByText('Updated')).not.toBeInTheDocument();
   });
 

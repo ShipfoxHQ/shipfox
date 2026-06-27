@@ -45,6 +45,18 @@ export const WithSourceButton: Story = {
   },
 };
 
+export const SourceOpen: Story = {
+  args: {
+    run: workflowRun({
+      status: 'succeeded',
+      source_snapshot: {format: 'yaml', content: 'jobs:\n  build:\n    steps: []'},
+    }),
+    sourceAvailable: true,
+    sourceOpen: true,
+    sourcePanelId: 'workflow-source-panel',
+  },
+};
+
 const ALL_STATUSES: WorkflowRunStatus[] = [
   'pending',
   'running',

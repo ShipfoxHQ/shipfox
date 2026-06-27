@@ -1,6 +1,7 @@
 import {
   Code,
   cn,
+  Icon,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -115,8 +116,9 @@ export function Identifier({
             onClick={() => {
               void handleCopy();
             }}
-            className="inline-flex min-w-0 items-center gap-4 rounded-4 text-foreground-neutral-muted outline-none transition-colors hover:text-foreground-neutral-base focus-visible:ring-2 focus-visible:ring-background-accent-blue-base focus-visible:ring-offset-2 focus-visible:ring-offset-background-subtle-base"
+            className="inline-flex h-20 min-w-0 shrink-0 items-center gap-4 rounded-4 px-2 text-foreground-neutral-muted outline-none transition-colors hover:bg-background-components-hover hover:text-foreground-neutral-base focus-visible:shadow-border-interactive-with-active"
           >
+            <Icon name="copy" aria-hidden="true" className="size-12 shrink-0" />
             <Code as="span" variant="label" className="truncate">
               {display}
             </Code>
