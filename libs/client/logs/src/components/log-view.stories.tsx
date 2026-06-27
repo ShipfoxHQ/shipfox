@@ -126,7 +126,7 @@ const unifiedAgentRecords: LogRecord[] = [
       message: {
         toolCallId: 'call-1',
         toolName: 'read_file',
-        content: 'export function LoginForm() { /* ... */ }',
+        content: [{type: 'text', text: 'export function LoginForm() { /* ... */ }'}],
       },
     },
     3,

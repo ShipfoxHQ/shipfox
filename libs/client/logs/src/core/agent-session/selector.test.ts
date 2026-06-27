@@ -76,7 +76,7 @@ describe('expandSessionRecord', () => {
         message: {
           toolCallId: 'call-1',
           toolName: 'read_file',
-          content: 'file contents',
+          content: [{type: 'text', text: 'file contents'}],
           isError,
         },
       }),
@@ -96,7 +96,7 @@ describe('expandSessionRecord', () => {
 
   test.each([
     [{type: 'session', id: 'session-1'}, 'Session started', 'session-1'],
-    [{type: 'thinking_level_change', level: 'high'}, 'Thinking level changed', 'high'],
+    [{type: 'thinking_level_change', thinkingLevel: 'high'}, 'Thinking level changed', 'high'],
     [{type: 'model_change', model: 'gpt-5-codex'}, 'Model changed', 'gpt-5-codex'],
     [
       {type: 'compaction', summary: 'summarized old context'},
@@ -136,5 +136,103 @@ describe('expandSessionRecord', () => {
 
     expect(first).toBe(second);
     expect(parseSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('expands a tool result with no id', () => {
+    const rows = expandSessionRecord(
+      record({
+        type: 'message',
+        message: {role: 'tool', toolName: 'read_file', content: [{type: 'text', text: 'data'}]},
+      }),
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'tool-result',
+        timestamp: 1,
+        toolCallId: null,
+        toolName: 'read_file',
+        output: 'data',
+        isError: false,
+      },
+    ]);
+  });
+
+  test('expands a tool call with no id', () => {
+    const rows = expandSessionRecord(
+      record({
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: [{type: 'tool_call', name: 'run', arguments: {cmd: 'ls'}}],
+        },
+      }),
+    );
+
+    expect(rows).toEqual([
+      {kind: 'tool-call', timestamp: 1, id: null, name: 'run', input: '{\n  "cmd": "ls"\n}'},
+    ]);
+  });
+
+  test('falls back to the raw message when assistant content has no renderable blocks', () => {
+    const rows = expandSessionRecord(
+      record({type: 'message', message: {role: 'assistant', content: [{type: 'image'}]}}),
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({kind: 'message', role: 'assistant'});
+  });
+
+  test('renders a branch summary as a system message row', () => {
+    const rows = expandSessionRecord(record({type: 'branch_summary', summary: 'merged main'}));
+
+    expect(rows).toEqual([
+      {
+        kind: 'message',
+        timestamp: 1,
+        role: 'system',
+        label: 'branch summary',
+        text: 'merged main',
+        terminalFailure: false,
+      },
+    ]);
+  });
+
+  test('renders a custom entry as a message row', () => {
+    const rows = expandSessionRecord(record({type: 'custom', message: 'hello there'}));
+
+    expect(rows).toEqual([
+      {
+        kind: 'message',
+        timestamp: 1,
+        role: 'custom',
+        label: 'custom',
+        text: 'hello there',
+        terminalFailure: false,
+      },
+    ]);
+  });
+
+  test('renders a session_info entry as a lifecycle row', () => {
+    const rows = expandSessionRecord(record({type: 'session_info', message: 'resumed'}));
+
+    expect(rows).toEqual([
+      {
+        kind: 'lifecycle',
+        timestamp: 1,
+        label: 'Session info',
+        detail: 'resumed',
+        tone: 'default',
+        terminalFailure: false,
+      },
+    ]);
+  });
+
+  test('returns an unsupported fallback when the entry has no type', () => {
+    const rows = expandSessionRecord(record({payload: {x: 1}}));
+
+    expect(rows).toEqual([
+      {kind: 'fallback', timestamp: 1, label: 'Unsupported entry', raw: '{"payload":{"x":1}}'},
+    ]);
   });
 });

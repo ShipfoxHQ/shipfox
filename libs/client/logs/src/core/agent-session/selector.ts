@@ -276,12 +276,14 @@ function toolCallRow(timestamp: number, block: ContentBlock): AgentToolCallRow {
 }
 
 function toolResultRow(timestamp: number, message: AgentMessage): AgentToolResultRow {
+  const output = messageText(message) || stringifyValue(message.content ?? '');
+
   return {
     kind: 'tool-result',
     timestamp,
     toolCallId: message.toolCallId ?? null,
     toolName: message.toolName ?? 'tool',
-    output: stringifyValue(message.content ?? ''),
+    output,
     isError: message.isError === true,
   };
 }
@@ -375,6 +377,7 @@ function entryDetail(entry: SessionEntry): string | null {
     stringField(entry, 'text') ??
     stringField(entry, 'summary') ??
     stringField(entry, 'label') ??
+    stringField(entry, 'thinkingLevel') ??
     stringField(entry, 'level') ??
     stringField(entry, 'reason');
   if (detail) return detail;

@@ -23,9 +23,10 @@ export interface AgentSessionRowsProps {
 }
 
 export function AgentSessionRows({rows, resolvedToolCallIds, indent}: AgentSessionRowsProps) {
-  return rows.map((row) => (
+  return rows.map((row, index) => (
     <AgentSessionRowView
-      key={rowKey(row)}
+      // biome-ignore lint/suspicious/noArrayIndexKey: a record's rows are immutable and never reordered (deterministic expandSessionRecord), so the index is a stable identity; content keys would balloon to megabyte strings and collide on a repeated id-less tool call.
+      key={`${row.kind}-${index}`}
       row={row}
       resolvedToolCallIds={resolvedToolCallIds}
       indent={indent}
@@ -217,7 +218,7 @@ function MessageIcon({role, terminalFailure}: {role: string; terminalFailure: bo
     <Icon
       name={name}
       className={cn(
-        'mt-3 size-14 flex-none',
+        'mt-2 size-14 flex-none',
         terminalFailure ? 'text-red-600 dark:text-red-400' : 'text-foreground-neutral-muted',
       )}
       aria-hidden="true"
@@ -247,7 +248,10 @@ function PreviewText({text}: {text: string}) {
 }
 
 function compactPreview(value: string): string {
-  const singleLine = value.replace(WHITESPACE, ' ').trim();
+  // Normalize only a bounded head: tool output can be megabytes, and this runs
+  // per render for every disclosure trigger.
+  const head = value.length > 200 ? value.slice(0, 200) : value;
+  const singleLine = head.replace(WHITESPACE, ' ').trim();
   if (singleLine.length <= 80) return singleLine;
   return `${singleLine.slice(0, 80)}…`;
 }
@@ -255,25 +259,6 @@ function compactPreview(value: string): string {
 function wordSummary(value: string): string {
   const count = value.trim().split(WORD_SEPARATOR).filter(Boolean).length;
   return `${count} ${count === 1 ? 'word' : 'words'}`;
-}
-
-function rowKey(row: AgentSessionRow): string {
-  switch (row.kind) {
-    case 'message':
-      return `${row.kind}-${row.timestamp}-${row.role}-${row.label}-${row.text}`;
-    case 'thinking':
-      return `${row.kind}-${row.timestamp}-${row.text}`;
-    case 'tool-call':
-      return `${row.kind}-${row.timestamp}-${row.id ?? ''}-${row.name}-${row.input}`;
-    case 'tool-result':
-      return `${row.kind}-${row.timestamp}-${row.toolCallId ?? ''}-${row.toolName}-${row.output}`;
-    case 'lifecycle':
-      return `${row.kind}-${row.timestamp}-${row.label}-${row.detail ?? ''}`;
-    case 'fallback':
-      return `${row.kind}-${row.timestamp}-${row.label}-${row.raw}`;
-    default:
-      return assertNever(row);
-  }
 }
 
 function assertNever(value: never): never {

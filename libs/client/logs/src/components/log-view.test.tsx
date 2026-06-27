@@ -116,7 +116,7 @@ describe('LogView', () => {
               message: {
                 toolCallId: 'call-1',
                 toolName: 'edit_file',
-                content: 'patched',
+                content: [{type: 'text', text: 'patched'}],
                 isError: false,
               },
             },
@@ -130,6 +130,25 @@ describe('LogView', () => {
     expect(screen.getByText('stdout between call and result')).toBeDefined();
     expect(screen.getByText('result edit_file')).toBeDefined();
     expect(screen.queryByText('awaiting result')).toBeNull();
+  });
+
+  test('shows the awaiting-result state for a tool call with no matching result', () => {
+    render(
+      <LogView
+        records={[
+          agentSession({
+            type: 'message',
+            message: {
+              role: 'assistant',
+              content: [{type: 'toolCall', id: 'call-1', name: 'edit_file', arguments: {}}],
+            },
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('tool edit_file')).toBeDefined();
+    expect(screen.getByText('awaiting result')).toBeDefined();
   });
 
   test('renders unknown session entries without crashing', () => {
