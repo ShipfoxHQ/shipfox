@@ -12,13 +12,6 @@ export class WorkspaceInactiveError extends Error {
   }
 }
 
-export class ApiKeyNotFoundError extends Error {
-  constructor(id: string) {
-    super(`API key not found: ${id}`);
-    this.name = 'ApiKeyNotFoundError';
-  }
-}
-
 export class InvitationNotFoundError extends Error {
   constructor(id: string) {
     super(`Invitation not found: ${id}`);

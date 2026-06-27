@@ -6,7 +6,6 @@ const DISPLAY_PREFIX_LENGTH = 12;
 const TOKEN_PREFIX_NAMESPACE = 'sf';
 
 export const tokenTypeParts = {
-  apiKey: 'k',
   invitation: 'i',
   emailVerification: 'v',
   passwordReset: 'pr',

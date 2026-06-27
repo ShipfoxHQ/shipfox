@@ -6,16 +6,6 @@ export {
   workspacesInvitationSendRequestedSchema,
 } from '../events.js';
 export {
-  type ApiKeyDto,
-  apiKeyDtoSchema,
-  type CreateApiKeyBodyDto,
-  type CreateApiKeyResponseDto,
-  createApiKeyBodySchema,
-  createApiKeyResponseSchema,
-  type RevokeApiKeyResponseDto,
-  revokeApiKeyResponseSchema,
-} from './api-key.js';
-export {
   type E2eCreateInvitationBodyDto,
   type E2eCreateInvitationResponseDto,
   type E2eCreateWorkspaceBodyDto,

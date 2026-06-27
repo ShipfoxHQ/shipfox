@@ -10,7 +10,6 @@ import {db} from '#db/db.js';
 import {createInvitation} from '#db/invitations.js';
 import {listMembershipsByUser} from '#db/memberships.js';
 import {workspacesOutbox} from '#db/schema/outbox.js';
-import {createApiKeyAuthMethod} from '#presentation/auth/api-key-auth.js';
 import {workspacesRoutes} from '#presentation/routes/index.js';
 
 const testConfig = vi.hoisted(
@@ -141,7 +140,7 @@ export async function latestInvitationLinkTo(email: string): Promise<string> {
 
 export async function createWorkspacesTestApp(): Promise<FastifyInstance> {
   return await createApp({
-    auth: [createApiKeyAuthMethod(), fakeUserAuth],
+    auth: [fakeUserAuth],
     routes: workspacesRoutes,
     swagger: false,
   });

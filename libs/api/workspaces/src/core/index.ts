@@ -1,14 +1,7 @@
-export {
-  type CreateWorkspaceApiKeyResult,
-  createWorkspaceApiKey,
-  revokeWorkspaceApiKey,
-} from './api-keys.js';
-export type {ApiKey} from './entities/api-key.js';
 export type {Invitation} from './entities/invitation.js';
 export type {Membership} from './entities/membership.js';
 export type {Workspace, WorkspaceStatus} from './entities/workspace.js';
 export {
-  ApiKeyNotFoundError,
   InvitationEmailMismatchError,
   InvitationNotFoundError,
   InvitationWorkspaceMismatchError,
