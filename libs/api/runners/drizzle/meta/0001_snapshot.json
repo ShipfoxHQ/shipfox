@@ -367,7 +367,8 @@
         },
         "scope": {
           "name": "scope",
-          "type": "text",
+          "type": "runners_runner_session_scope",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
           "default": "'workspace'"
@@ -500,7 +501,13 @@
       "isRLSEnabled": false
     }
   },
-  "enums": {},
+  "enums": {
+    "public.runners_runner_session_scope": {
+      "name": "runners_runner_session_scope",
+      "schema": "public",
+      "values": ["workspace"]
+    }
+  },
   "schemas": {},
   "sequences": {},
   "roles": {},

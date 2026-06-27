@@ -23,6 +23,7 @@ let shuttingDown = false;
 // Module-level so the long-lived SIGINT handler can reach the in-flight job's
 // controller; locally-scoped capture isn't possible from a process-global handler.
 let currentJobAbortController: AbortController | undefined;
+type RunnerSession = Awaited<ReturnType<typeof registerRunnerSession>>;
 
 export async function startRunner(): Promise<void> {
   setupSignalHandlers();
@@ -40,11 +41,15 @@ export async function startRunner(): Promise<void> {
   );
 
   let currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
-  let runnerSession = await registerRunnerSession();
-  logger().info({runnerSessionId: runnerSession.session_id}, 'Runner session registered');
+  let runnerSession: RunnerSession | undefined;
 
   while (running) {
     try {
+      if (!runnerSession) {
+        runnerSession = await registerRunnerSession();
+        logger().info({runnerSessionId: runnerSession.session_id}, 'Runner session registered');
+      }
+
       const job = await requestJob(runnerSession.session_token);
 
       if (!job) {
@@ -60,14 +65,10 @@ export async function startRunner(): Promise<void> {
       await runJob(job, workspaceRoot);
     } catch (pollError) {
       if (isUnauthorized(pollError)) {
-        try {
-          runnerSession = await registerRunnerSession();
-          logger().info({runnerSessionId: runnerSession.session_id}, 'Runner session refreshed');
-          currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
-          continue;
-        } catch (registrationError) {
-          logger().error({err: registrationError}, 'Runner session refresh failed');
-        }
+        runnerSession = undefined;
+        logger().info('Runner session rejected; registering a new session');
+        currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
+        continue;
       }
       logger().error({err: pollError}, 'Poll cycle failed');
       currentInterval = Math.min(currentInterval * 1.5, config.SHIPFOX_POLL_MAX_INTERVAL_MS);

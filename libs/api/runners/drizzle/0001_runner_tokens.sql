@@ -1,3 +1,5 @@
+CREATE TYPE "public"."runners_runner_session_scope" AS ENUM('workspace');
+--> statement-breakpoint
 CREATE TABLE "runners_runner_tokens" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
@@ -13,7 +15,7 @@ CREATE TABLE "runners_runner_tokens" (
 CREATE TABLE "runners_runner_sessions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
-	"scope" text DEFAULT 'workspace' NOT NULL,
+	"scope" "runners_runner_session_scope" DEFAULT 'workspace' NOT NULL,
 	"registration_token_id" uuid NOT NULL,
 	"labels" text[] NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,

@@ -1,12 +1,14 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {text, timestamp, uuid} from 'drizzle-orm/pg-core';
+import {pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import type {RunnerSession} from '#core/entities/runner-session.js';
 import {pgTable} from './common.js';
+
+export const runnerSessionScopeEnum = pgEnum('runners_runner_session_scope', ['workspace']);
 
 export const runnerSessions = pgTable('runner_sessions', {
   id: uuidv7PrimaryKey(),
   workspaceId: uuid('workspace_id').notNull(),
-  scope: text('scope').notNull().default('workspace'),
+  scope: runnerSessionScopeEnum('scope').notNull().default('workspace'),
   registrationTokenId: uuid('registration_token_id').notNull(),
   labels: text('labels').array().notNull(),
   createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
