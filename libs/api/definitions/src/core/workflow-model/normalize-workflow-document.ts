@@ -254,10 +254,9 @@ function normalizeRunner(params: {
   defaultRunnerLabels: readonly string[];
 }): readonly string[] {
   const rawRunner = params.job.runner ?? params.document.runner;
-  // Persisted documents keep author text; scheduling consumes only this canonical model field.
-  const runner =
+  const runnerLabels =
     rawRunner === undefined ? params.defaultRunnerLabels : canonicalizeLabels(rawRunner);
-  const invalid = findInvalidLabels(runner);
+  const invalid = findInvalidLabels(runnerLabels);
 
   if (invalid.length > 0) {
     params.issues.push(
@@ -268,7 +267,9 @@ function normalizeRunner(params: {
         details: {labels: invalid},
       }),
     );
-  } else if (runner.length === 0) {
+  }
+
+  if (runnerLabels.length === 0) {
     params.issues.push(
       issue({
         code: 'missing-runner-label',
@@ -276,17 +277,19 @@ function normalizeRunner(params: {
         path: ['jobs', params.sourceName, 'runner'],
       }),
     );
-  } else if (runner.length > MAX_RUNNER_LABELS) {
+  }
+
+  if (runnerLabels.length > MAX_RUNNER_LABELS) {
     params.issues.push(
       issue({
         code: 'too-many-runner-labels',
-        message: `Job "${params.sourceName}" declares ${runner.length} runner labels; the maximum is ${MAX_RUNNER_LABELS}.`,
+        message: `Job "${params.sourceName}" declares ${runnerLabels.length} runner labels; the maximum is ${MAX_RUNNER_LABELS}.`,
         path: ['jobs', params.sourceName, 'runner'],
       }),
     );
   }
 
-  return runner;
+  return runnerLabels;
 }
 
 function normalizeStepGate(params: {

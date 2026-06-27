@@ -292,6 +292,36 @@ describe('normalizeWorkflowDocument', () => {
     }
   });
 
+  it('reports invalid labels and too many labels together', () => {
+    const document: WorkflowDocument = {
+      name: 'invalid and too many runners',
+      runner: ['has space', ...Array.from({length: 20}, (_, index) => `label-${index}`)],
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    try {
+      normalizeWorkflowDocumentBase(document);
+      expect.fail('Expected InvalidWorkflowModelError');
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidWorkflowModelError);
+      expect((error as InvalidWorkflowModelError).issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-runner-label',
+          path: ['jobs', 'build', 'runner'],
+          details: {labels: ['has space']},
+        }),
+        expect.objectContaining({
+          code: 'too-many-runner-labels',
+          path: ['jobs', 'build', 'runner'],
+        }),
+      ]);
+    }
+  });
+
   it('accepts the maximum runner label count', () => {
     const document: WorkflowDocument = {
       name: 'maximum runner count',
