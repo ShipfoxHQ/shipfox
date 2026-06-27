@@ -96,19 +96,113 @@ describe('expandSessionRecord', () => {
 
   test.each([
     [{type: 'session', id: 'session-1'}, 'Session started', 'session-1'],
-    [{type: 'thinking_level_change', thinkingLevel: 'high'}, 'Thinking level changed', 'high'],
-    [{type: 'model_change', model: 'gpt-5-codex'}, 'Model changed', 'gpt-5-codex'],
     [
-      {type: 'compaction', summary: 'summarized old context'},
-      'Context compacted',
-      'summarized old context',
+      {type: 'session', version: 2, id: 'session-1', cwd: '/workspace'},
+      'Session started',
+      'v2 · session-1 · /workspace',
     ],
-    [{type: 'label', label: 'Implement tests'}, 'Label', 'Implement tests'],
+    [{type: 'thinking_level_change', thinkingLevel: 'high'}, 'Thinking level changed', 'high'],
+    [
+      {type: 'model_change', modelId: 'gpt-5-codex', provider: 'openai'},
+      'Model changed',
+      'gpt-5-codex · openai',
+    ],
+    [
+      {type: 'compaction', summary: 'summarized old context', tokensBefore: 12_345},
+      'Context compacted',
+      'summarized old context · 12345 tokens summarized',
+    ],
+    [
+      {type: 'label', label: 'Implement tests', targetId: 'entry-1'},
+      'Label',
+      'Implement tests · target entry-1',
+    ],
   ])('expands lifecycle entry %#', (entry, label, detail) => {
     const rows = expandSessionRecord(record(entry));
 
     expect(rows).toEqual([
       {kind: 'lifecycle', timestamp: 1, label, detail, tone: 'default', terminalFailure: false},
+    ]);
+  });
+
+  test('renders message content blocks without exposing image data', () => {
+    const rows = expandSessionRecord(
+      record({
+        type: 'message',
+        message: {
+          role: 'user',
+          content: [
+            {type: 'text', text: 'Inspect this screenshot.'},
+            {type: 'image', mimeType: 'image/png', data: 'base64-payload'},
+          ],
+        },
+      }),
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'message',
+        timestamp: 1,
+        role: 'user',
+        label: 'user',
+        text: 'Inspect this screenshot.\n\n[image/png image]',
+        terminalFailure: false,
+      },
+    ]);
+  });
+
+  test('renders bash execution messages without falling back to raw JSON', () => {
+    const rows = expandSessionRecord(
+      record({
+        type: 'message',
+        message: {
+          role: 'bashExecution',
+          command: 'pnpm test',
+          output: '1 failed',
+          exitCode: 1,
+          cancelled: false,
+          truncated: true,
+          fullOutputPath: '/tmp/output.log',
+        },
+      }),
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'message',
+        timestamp: 1,
+        role: 'bash-execution',
+        label: 'bash execution',
+        text: '$ pnpm test\n1 failed\nexit 1 · truncated · full output: /tmp/output.log',
+        terminalFailure: false,
+      },
+    ]);
+  });
+
+  test.each([
+    [
+      {role: 'branchSummary', summary: 'branched for fix', fromId: 'entry-1'},
+      'branch-summary',
+      'branch summary',
+      'branched for fix · from entry-1',
+    ],
+    [
+      {role: 'compactionSummary', summary: 'summarized history', tokensBefore: 42_000},
+      'compaction-summary',
+      'compaction summary',
+      'summarized history · 42000 tokens summarized',
+    ],
+    [
+      {role: 'custom', customType: 'extension', content: 'extension output', display: true},
+      'custom',
+      'custom · extension',
+      'extension output',
+    ],
+  ])('renders extended message role %#', (message, role, label, text) => {
+    const rows = expandSessionRecord(record({type: 'message', message}));
+
+    expect(rows).toEqual([
+      {kind: 'message', timestamp: 1, role, label, text, terminalFailure: false},
     ]);
   });
 
@@ -184,7 +278,9 @@ describe('expandSessionRecord', () => {
   });
 
   test('renders a branch summary as a system message row', () => {
-    const rows = expandSessionRecord(record({type: 'branch_summary', summary: 'merged main'}));
+    const rows = expandSessionRecord(
+      record({type: 'branch_summary', summary: 'merged main', fromId: 'entry-1'}),
+    );
 
     expect(rows).toEqual([
       {
@@ -192,21 +288,40 @@ describe('expandSessionRecord', () => {
         timestamp: 1,
         role: 'system',
         label: 'branch summary',
-        text: 'merged main',
+        text: 'merged main · from entry-1',
         terminalFailure: false,
       },
     ]);
   });
 
   test('renders a custom entry as a message row', () => {
-    const rows = expandSessionRecord(record({type: 'custom', message: 'hello there'}));
+    const rows = expandSessionRecord(
+      record({type: 'custom', customType: 'extension', data: {ok: true}}),
+    );
 
     expect(rows).toEqual([
       {
         kind: 'message',
         timestamp: 1,
         role: 'custom',
-        label: 'custom',
+        label: 'custom · extension',
+        text: '{\n  "ok": true\n}',
+        terminalFailure: false,
+      },
+    ]);
+  });
+
+  test('renders a custom message entry from content', () => {
+    const rows = expandSessionRecord(
+      record({type: 'custom_message', customType: 'extension', content: 'hello there'}),
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'message',
+        timestamp: 1,
+        role: 'custom',
+        label: 'custom message · extension',
         text: 'hello there',
         terminalFailure: false,
       },

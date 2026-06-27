@@ -172,15 +172,21 @@ const failedAgentRecords: LogRecord[] = [
 ];
 
 const allAgentSessionTypeRecords: LogRecord[] = [
-  session({type: 'session', id: 'session-2026-06-23', cwd: '/workspace/platform'}, 0),
+  session({type: 'session', version: 2, id: 'session-2026-06-23', cwd: '/workspace/platform'}, 0),
   session({type: 'session_info', message: 'Restored 14 messages from prior context.'}, 1),
-  session({type: 'label', label: 'Review setup'}, 2),
+  session({type: 'label', label: 'Review setup', targetId: 'entry-review'}, 2),
   session({type: 'thinking_level_change', thinkingLevel: 'high'}, 3),
-  session({type: 'model_change', model: 'gpt-5-codex', provider: 'openai'}, 4),
+  session({type: 'model_change', modelId: 'gpt-5-codex', provider: 'openai'}, 4),
   session(
     {
       type: 'message',
-      message: {role: 'user', content: 'Review the failed workflow attempt and patch the tests.'},
+      message: {
+        role: 'user',
+        content: [
+          {type: 'text', text: 'Review the failed workflow attempt and patch the tests.'},
+          {type: 'image', mimeType: 'image/png', data: 'base64-payload'},
+        ],
+      },
     },
     5,
   ),
@@ -195,7 +201,8 @@ const allAgentSessionTypeRecords: LogRecord[] = [
           {type: 'text', text: 'I will inspect the failure anchor and the log selector.'},
           {
             type: 'thinking',
-            text: 'The UI needs to preserve the terminal assistant message while still showing the tool activity inline.',
+            thinking:
+              'The UI needs to preserve the terminal assistant message while still showing the tool activity inline.',
           },
           {
             type: 'tool_call',
@@ -212,7 +219,7 @@ const allAgentSessionTypeRecords: LogRecord[] = [
     {
       type: 'message',
       message: {
-        role: 'tool',
+        role: 'toolResult',
         toolCallId: 'call-read',
         toolName: 'read_file',
         content: [{type: 'text', text: 'function expandSessionRecord(record) { /* ... */ }'}],
@@ -236,12 +243,30 @@ const allAgentSessionTypeRecords: LogRecord[] = [
     {
       type: 'branch_summary',
       summary: 'Kept the parser scoped to agent_session records and log-tree ordering.',
+      fromId: 'entry-review',
     },
     9,
   ),
-  session({type: 'compaction', summary: 'Previous context summarized into 3 decisions.'}, 10),
-  session({type: 'custom', message: 'Specialist review: parser coverage looks complete.'}, 11),
-  session({type: 'custom_message', text: 'Operator note: retry after the fixture update.'}, 12),
+  session(
+    {
+      type: 'compaction',
+      summary: 'Previous context summarized into 3 decisions.',
+      tokensBefore: 42000,
+    },
+    10,
+  ),
+  session(
+    {type: 'custom', customType: 'review', data: {verdict: 'parser coverage looks complete'}},
+    11,
+  ),
+  session(
+    {
+      type: 'custom_message',
+      customType: 'operator-note',
+      content: 'Retry after the fixture update.',
+    },
+    12,
+  ),
   session(
     {
       type: 'message',
@@ -254,9 +279,58 @@ const allAgentSessionTypeRecords: LogRecord[] = [
     },
     13,
   ),
-  session({type: 'future_entry', payload: {feature: 'new-session-event'}}, 14),
-  {v: 1, ts: at(15), type: 'agent_session', data: '{not-json'},
-  {v: 1, ts: at(16), type: 'end', total_bytes: 12_288},
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'bashExecution',
+        command: 'pnpm test',
+        output: 'FAIL selector.test.ts > parses tool results',
+        exitCode: 1,
+        cancelled: false,
+        truncated: true,
+        fullOutputPath: '/tmp/shipfox-agent-output.log',
+      },
+    },
+    14,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'custom',
+        customType: 'status',
+        content: 'Extension status update.',
+        display: true,
+      },
+    },
+    15,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'branchSummary',
+        summary: 'Created a branch for selector fixes.',
+        fromId: 'entry-review',
+      },
+    },
+    16,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'compactionSummary',
+        summary: 'Summarized earlier tool output.',
+        tokensBefore: 96000,
+      },
+    },
+    17,
+  ),
+  session({type: 'future_entry', payload: {feature: 'new-session-event'}}, 18),
+  {v: 1, ts: at(19), type: 'agent_session', data: '{not-json'},
+  {v: 1, ts: at(20), type: 'end', total_bytes: 12_288},
 ];
 
 const meta = {

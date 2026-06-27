@@ -107,30 +107,41 @@ function expandSessionRecordUncached(record: AgentSessionLogRecord): readonly Ag
     case 'model_change':
       return [lifecycleRow(record.ts, 'Model changed', modelChangeDetail(entry), 'default', false)];
     case 'compaction':
-      return [lifecycleRow(record.ts, 'Context compacted', entryDetail(entry), 'default', false)];
+      return [
+        lifecycleRow(record.ts, 'Context compacted', compactionDetail(entry), 'default', false),
+      ];
     case 'branch_summary':
       return [
         messageRow(
           record.ts,
           'system',
           'branch summary',
-          entryDetail(entry) ?? toJson(entry),
+          branchSummaryDetail(entry) ?? toJson(entry),
           false,
         ),
       ];
     case 'custom':
+      return [
+        messageRow(
+          record.ts,
+          'custom',
+          customEntryLabel(entry, 'custom'),
+          customEntryText(entry) ?? toJson(entry),
+          false,
+        ),
+      ];
     case 'custom_message':
       return [
         messageRow(
           record.ts,
           'custom',
-          entry.type.replace('_', ' '),
-          entryDetail(entry) ?? toJson(entry),
+          customEntryLabel(entry, 'custom message'),
+          customEntryText(entry) ?? toJson(entry),
           false,
         ),
       ];
     case 'label':
-      return [lifecycleRow(record.ts, 'Label', entryDetail(entry), 'default', false)];
+      return [lifecycleRow(record.ts, 'Label', labelDetail(entry), 'default', false)];
     default:
       return [
         {
@@ -159,6 +170,51 @@ function expandMessageEntry(
   if (isToolResultMessage(message)) return [toolResultRow(timestamp, message)];
 
   if (role === 'assistant') return expandAssistantMessage(timestamp, message);
+
+  if (role === 'bash-execution') {
+    return [
+      messageRow(
+        timestamp,
+        role,
+        'bash execution',
+        bashExecutionText(message),
+        isTerminalStop(message),
+      ),
+    ];
+  }
+  if (role === 'branch-summary') {
+    return [
+      messageRow(
+        timestamp,
+        role,
+        'branch summary',
+        branchSummaryDetail(message) ?? toJson(message),
+        isTerminalStop(message),
+      ),
+    ];
+  }
+  if (role === 'compaction-summary') {
+    return [
+      messageRow(
+        timestamp,
+        role,
+        'compaction summary',
+        compactionDetail(message) ?? toJson(message),
+        isTerminalStop(message),
+      ),
+    ];
+  }
+  if (role === 'custom') {
+    return [
+      messageRow(
+        timestamp,
+        role,
+        customEntryLabel(message, 'custom'),
+        customEntryText(message) ?? toJson(message),
+        isTerminalStop(message),
+      ),
+    ];
+  }
 
   const text = messageText(message);
   return [
@@ -289,7 +345,8 @@ function toolResultRow(timestamp: number, message: AgentMessage): AgentToolResul
 }
 
 function isToolResultMessage(message: AgentMessage): boolean {
-  return typeof message.toolCallId === 'string' || normalizeRole(message) === 'tool';
+  const role = normalizeRole(message);
+  return typeof message.toolCallId === 'string' || role === 'tool' || role === 'tool-result';
 }
 
 function isToolCallBlock(block: ContentBlock): boolean {
@@ -303,6 +360,8 @@ function isThinkingBlock(block: ContentBlock): boolean {
 }
 
 function blockText(block: ContentBlock): string {
+  if (stringField(block, 'type') === 'image') return imagePlaceholder(block);
+
   return (
     stringField(block, 'text') ??
     stringField(block, 'content') ??
@@ -359,9 +418,13 @@ function terminalStopDetail(message: AgentMessage): string | null {
 }
 
 function sessionDetail(entry: SessionEntry): string | null {
+  const version = numberField(entry, 'version');
   const id = stringField(entry, 'id') ?? stringField(entry, 'sessionId');
   const cwd = stringField(entry, 'cwd');
-  return [id, cwd].filter(Boolean).join(' · ') || entryDetail(entry);
+  return (
+    [version == null ? null : `v${version}`, id, cwd].filter(Boolean).join(' · ') ||
+    entryDetail(entry)
+  );
 }
 
 function modelChangeDetail(entry: SessionEntry): string | null {
@@ -371,10 +434,73 @@ function modelChangeDetail(entry: SessionEntry): string | null {
   return [model, provider].filter(Boolean).join(' · ') || entryDetail(entry);
 }
 
-function entryDetail(entry: SessionEntry): string | null {
+function compactionDetail(entry: SessionEntry | AgentMessage): string | null {
+  const summary = stringField(entry, 'summary') ?? stringField(entry, 'message');
+  const tokensBefore = numberField(entry, 'tokensBefore');
+  const tokenDetail = tokensBefore == null ? null : `${tokensBefore} tokens summarized`;
+  return [summary, tokenDetail].filter(Boolean).join(' · ') || entryDetail(entry);
+}
+
+function branchSummaryDetail(entry: SessionEntry | AgentMessage): string | null {
+  const summary = stringField(entry, 'summary') ?? stringField(entry, 'message');
+  const fromId = stringField(entry, 'fromId');
+  const branchDetail = fromId == null ? null : `from ${fromId}`;
+  return [summary, branchDetail].filter(Boolean).join(' · ') || entryDetail(entry);
+}
+
+function customEntryLabel(entry: SessionEntry | AgentMessage, fallback: string): string {
+  const customType = stringField(entry, 'customType');
+  return [fallback, customType].filter(Boolean).join(' · ');
+}
+
+function customEntryText(entry: SessionEntry | AgentMessage): string | null {
+  const text = messageText(entry);
+  if (text) return text;
+
+  const data = field(entry, 'data') ?? field(entry, 'details');
+  return data === undefined ? entryDetail(entry) : stringifyValue(data);
+}
+
+function labelDetail(entry: SessionEntry): string | null {
+  const label = stringField(entry, 'label');
+  const targetId = stringField(entry, 'targetId');
+  return (
+    [label, targetId == null ? null : `target ${targetId}`].filter(Boolean).join(' · ') ||
+    entryDetail(entry)
+  );
+}
+
+function bashExecutionText(message: AgentMessage): string {
+  const command = stringField(message, 'command');
+  const output = stringField(message, 'output');
+  const exitCode = field(message, 'exitCode');
+  const cancelled = booleanField(message, 'cancelled');
+  const truncated = booleanField(message, 'truncated');
+  const fullOutputPath = stringField(message, 'fullOutputPath');
+  const status = [
+    typeof exitCode === 'number' ? `exit ${exitCode}` : null,
+    cancelled ? 'cancelled' : null,
+    truncated ? 'truncated' : null,
+    fullOutputPath == null ? null : `full output: ${fullOutputPath}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    [`$ ${command ?? ''}`.trim(), output, status].filter(Boolean).join('\n') || toJson(message)
+  );
+}
+
+function imagePlaceholder(block: ContentBlock): string {
+  const mimeType = stringField(block, 'mimeType');
+  return mimeType == null ? '[image]' : `[${mimeType} image]`;
+}
+
+function entryDetail(entry: SessionEntry | AgentMessage): string | null {
   const detail =
     stringField(entry, 'message') ??
     stringField(entry, 'text') ??
+    stringField(entry, 'content') ??
     stringField(entry, 'summary') ??
     stringField(entry, 'label') ??
     stringField(entry, 'thinkingLevel') ??
@@ -396,6 +522,15 @@ function stringField(value: unknown, key: string): string | undefined {
 function field(value: unknown, key: string): unknown {
   const object = asLooseObject(value);
   return object?.[key];
+}
+
+function numberField(value: unknown, key: string): number | undefined {
+  const fieldValue = field(value, key);
+  return typeof fieldValue === 'number' && Number.isFinite(fieldValue) ? fieldValue : undefined;
+}
+
+function booleanField(value: unknown, key: string): boolean {
+  return field(value, key) === true;
 }
 
 function stringifyValue(value: unknown): string {
