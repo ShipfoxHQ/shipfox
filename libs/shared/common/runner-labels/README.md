@@ -14,7 +14,7 @@ canonicalization contract.
 
 Post-canonicalization labels must match `/^[a-z0-9][a-z0-9._-]*$/`, so labels
 start with a lowercase ASCII letter or digit and may then contain lowercase
-letters, digits, `.`, `_`, and `-`. A label may be at most 64 characters.
+letters, digits, `.`, `_`, and `-`. A label may be at most 128 characters.
 Callers that own a complete label set should cap it at 20 labels.
 
 That comma behavior is deliberate: `runner: ubuntu,gpu` in YAML is one invalid

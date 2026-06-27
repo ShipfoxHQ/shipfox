@@ -1,5 +1,5 @@
 export const RUNNER_LABEL_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
-export const MAX_RUNNER_LABEL_LENGTH = 64;
+export const MAX_RUNNER_LABEL_LENGTH = 128;
 export const MAX_RUNNER_LABELS = 20;
 
 export function canonicalizeLabels(
