@@ -12,7 +12,6 @@ import {provisionerTokenFactory} from '#test/index.js';
 describe('provisioner token db', () => {
   beforeEach(async () => {
     await db().execute(sql`TRUNCATE provisioners_provisioner_tokens CASCADE`);
-    await db().execute(sql`TRUNCATE workspaces CASCADE`);
   });
 
   it('creates and resolves a token', async () => {

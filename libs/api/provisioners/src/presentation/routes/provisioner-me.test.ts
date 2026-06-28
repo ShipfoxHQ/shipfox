@@ -40,7 +40,6 @@ describe('provisioner me route', () => {
   beforeEach(async () => {
     await closeApp();
     await db().execute(sql`TRUNCATE provisioners_provisioner_tokens CASCADE`);
-    await db().execute(sql`TRUNCATE workspaces CASCADE`);
     mocks.logger.warn.mockReset();
     app = await createApp({
       auth: [fakeUserAuth, createProvisionerTokenAuthMethod()],
