@@ -28,7 +28,7 @@ export const runnerSessions = pgTable(
   (table) => [
     check(
       'runners_runner_sessions_claims_ck',
-      sql`${table.claimsUsed} >= 0 AND (${table.maxClaims} IS NULL OR (${table.maxClaims} > 0 AND ${table.claimsUsed} <= ${table.maxClaims}))`,
+      sql`${table.claimsUsed} >= 0 AND ((${table.registrationTokenKind} = 'manual' AND ${table.maxClaims} IS NULL) OR (${table.registrationTokenKind} = 'ephemeral' AND ${table.maxClaims} IS NOT NULL AND ${table.maxClaims} > 0 AND ${table.claimsUsed} <= ${table.maxClaims}))`,
     ),
   ],
 );

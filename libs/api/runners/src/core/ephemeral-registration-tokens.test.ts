@@ -3,6 +3,7 @@ import {eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
 import {mintEphemeralRegistrationToken} from './ephemeral-registration-tokens.js';
+import {ActiveEphemeralRegistrationTokenExistsError} from './errors.js';
 
 describe('mintEphemeralRegistrationToken', () => {
   beforeEach(async () => {
@@ -65,5 +66,47 @@ describe('mintEphemeralRegistrationToken', () => {
     });
 
     expect(result.token.reservationId).toBe(reservationId);
+  });
+
+  it('rejects a second active token for the same resource', async () => {
+    const workspaceId = crypto.randomUUID();
+    const provisionerId = crypto.randomUUID();
+    const resourceId = 'gh-runner-7';
+    await mintEphemeralRegistrationToken({
+      workspaceId,
+      provisionerId,
+      resourceId,
+      ttlSeconds: 600,
+    });
+
+    await expect(
+      mintEphemeralRegistrationToken({
+        workspaceId,
+        provisionerId,
+        resourceId,
+        ttlSeconds: 600,
+      }),
+    ).rejects.toBeInstanceOf(ActiveEphemeralRegistrationTokenExistsError);
+  });
+
+  it('allows minting a replacement after the previous token expires', async () => {
+    const workspaceId = crypto.randomUUID();
+    const provisionerId = crypto.randomUUID();
+    const resourceId = 'gh-runner-7';
+    await mintEphemeralRegistrationToken({
+      workspaceId,
+      provisionerId,
+      resourceId,
+      ttlSeconds: -1,
+    });
+
+    const replacement = await mintEphemeralRegistrationToken({
+      workspaceId,
+      provisionerId,
+      resourceId,
+      ttlSeconds: 600,
+    });
+
+    expect(replacement.token.resourceId).toBe(resourceId);
   });
 });

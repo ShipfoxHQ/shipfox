@@ -22,6 +22,13 @@ export const ephemeralRegistrationTokens = pgTable(
     uniqueIndex('runners_ephemeral_registration_tokens_hashed_token_unique').on(table.hashedToken),
     index('runners_ephemeral_registration_tokens_workspace_id_idx').on(table.workspaceId),
     index('runners_ephemeral_registration_tokens_provisioner_id_idx').on(table.provisionerId),
+    index('runners_ephemeral_registration_tokens_active_resource_idx').on(
+      table.workspaceId,
+      table.provisionerId,
+      table.resourceId,
+      table.consumedAt,
+      table.expiresAt,
+    ),
   ],
 );
 

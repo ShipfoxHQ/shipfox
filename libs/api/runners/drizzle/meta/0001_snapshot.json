@@ -122,6 +122,45 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "runners_ephemeral_registration_tokens_active_resource_idx": {
+          "name": "runners_ephemeral_registration_tokens_active_resource_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provisioner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "resource_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "consumed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {},
@@ -427,7 +466,7 @@
       "checkConstraints": {
         "runners_runner_sessions_claims_ck": {
           "name": "runners_runner_sessions_claims_ck",
-          "value": "\"runners_runner_sessions\".\"claims_used\" >= 0 AND (\"runners_runner_sessions\".\"max_claims\" IS NULL OR (\"runners_runner_sessions\".\"max_claims\" > 0 AND \"runners_runner_sessions\".\"claims_used\" <= \"runners_runner_sessions\".\"max_claims\"))"
+          "value": "\"runners_runner_sessions\".\"claims_used\" >= 0 AND ((\"runners_runner_sessions\".\"registration_token_kind\" = 'manual' AND \"runners_runner_sessions\".\"max_claims\" IS NULL) OR (\"runners_runner_sessions\".\"registration_token_kind\" = 'ephemeral' AND \"runners_runner_sessions\".\"max_claims\" IS NOT NULL AND \"runners_runner_sessions\".\"max_claims\" > 0 AND \"runners_runner_sessions\".\"claims_used\" <= \"runners_runner_sessions\".\"max_claims\"))"
         }
       },
       "isRLSEnabled": false

@@ -4,7 +4,11 @@ import {db} from '#db/db.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
 import {runnerSessions} from '#db/schema/runner-sessions.js';
 import {ephemeralRegistrationTokenFactory, runnerTokenFactory} from '#test/index.js';
-import {EmptyRunnerLabelsError, RegistrationTokenConsumedError} from './errors.js';
+import {
+  EmptyRunnerLabelsError,
+  RegistrationTokenConsumedError,
+  RegistrationTokenWorkspaceMismatchError,
+} from './errors.js';
 import {registerRunnerSession} from './runner-sessions.js';
 
 describe('registerRunnerSession', () => {
@@ -101,5 +105,39 @@ describe('registerRunnerSession', () => {
     await expect(registerRunnerSession({credential, labels: ['linux']})).rejects.toBeInstanceOf(
       RegistrationTokenConsumedError,
     );
+  });
+
+  it('rejects consuming an ephemeral token for a different workspace', async () => {
+    const token = await ephemeralRegistrationTokenFactory.create({workspaceId});
+
+    await expect(
+      registerRunnerSession({
+        credential: {
+          kind: 'ephemeral',
+          ephemeralTokenId: token.id,
+          workspaceId: crypto.randomUUID(),
+          provisionerId: token.provisionerId,
+          reservationId: token.reservationId,
+          resourceId: token.resourceId,
+        },
+        labels: ['linux'],
+      }),
+    ).rejects.toBeInstanceOf(RegistrationTokenWorkspaceMismatchError);
+  });
+
+  it('rejects an ephemeral session row without a positive max claim cap', async () => {
+    await expect(
+      db()
+        .insert(runnerSessions)
+        .values({
+          workspaceId,
+          scope: 'workspace',
+          registrationTokenId: crypto.randomUUID(),
+          registrationTokenKind: 'ephemeral',
+          labels: ['linux'],
+          maxClaims: null,
+          claimsUsed: 0,
+        }),
+    ).rejects.toThrow();
   });
 });

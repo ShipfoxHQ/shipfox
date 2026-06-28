@@ -1,6 +1,11 @@
 import {and, eq, gt, isNull, sql} from 'drizzle-orm';
 import type {EphemeralRegistrationToken} from '#core/entities/ephemeral-registration-token.js';
-import {RegistrationTokenConsumedError, RegistrationTokenExpiredError} from '#core/errors.js';
+import {
+  ActiveEphemeralRegistrationTokenExistsError,
+  RegistrationTokenConsumedError,
+  RegistrationTokenExpiredError,
+  RegistrationTokenWorkspaceMismatchError,
+} from '#core/errors.js';
 import {db} from './db.js';
 import {
   ephemeralRegistrationTokens,
@@ -21,18 +26,50 @@ export interface CreateEphemeralRegistrationTokenParams {
 export async function createEphemeralRegistrationToken(
   params: CreateEphemeralRegistrationTokenParams,
 ): Promise<EphemeralRegistrationToken> {
-  const rows = await db()
-    .insert(ephemeralRegistrationTokens)
-    .values({
-      workspaceId: params.workspaceId,
-      provisionerId: params.provisionerId,
-      reservationId: params.reservationId ?? null,
-      resourceId: params.resourceId,
-      hashedToken: params.hashedToken,
-      prefix: params.prefix,
-      expiresAt: params.expiresAt,
-    })
-    .returning();
+  const rows = await db().transaction(async (tx) => {
+    const resourceLockKey = [
+      'runners_ephemeral_registration_tokens',
+      params.workspaceId,
+      params.provisionerId,
+      params.resourceId,
+    ].join(':');
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${resourceLockKey}))`);
+
+    const [active] = await tx
+      .select({id: ephemeralRegistrationTokens.id})
+      .from(ephemeralRegistrationTokens)
+      .where(
+        and(
+          eq(ephemeralRegistrationTokens.workspaceId, params.workspaceId),
+          eq(ephemeralRegistrationTokens.provisionerId, params.provisionerId),
+          eq(ephemeralRegistrationTokens.resourceId, params.resourceId),
+          isNull(ephemeralRegistrationTokens.consumedAt),
+          gt(ephemeralRegistrationTokens.expiresAt, sql`now()`),
+        ),
+      )
+      .limit(1);
+
+    if (active) {
+      throw new ActiveEphemeralRegistrationTokenExistsError(
+        params.workspaceId,
+        params.provisionerId,
+        params.resourceId,
+      );
+    }
+
+    return await tx
+      .insert(ephemeralRegistrationTokens)
+      .values({
+        workspaceId: params.workspaceId,
+        provisionerId: params.provisionerId,
+        reservationId: params.reservationId ?? null,
+        resourceId: params.resourceId,
+        hashedToken: params.hashedToken,
+        prefix: params.prefix,
+        expiresAt: params.expiresAt,
+      })
+      .returning();
+  });
 
   const row = rows[0];
   if (!row) throw new Error('Insert returned no rows');
@@ -66,6 +103,7 @@ export async function createRunnerSessionConsumingEphemeralToken(params: {
       .where(
         and(
           eq(ephemeralRegistrationTokens.id, params.ephemeralTokenId),
+          eq(ephemeralRegistrationTokens.workspaceId, params.workspaceId),
           isNull(ephemeralRegistrationTokens.consumedAt),
           gt(ephemeralRegistrationTokens.expiresAt, sql`now()`),
         ),
@@ -74,7 +112,11 @@ export async function createRunnerSessionConsumingEphemeralToken(params: {
 
     if (!consumed[0]) {
       const [token] = await tx
-        .select()
+        .select({
+          workspaceId: ephemeralRegistrationTokens.workspaceId,
+          consumedAt: ephemeralRegistrationTokens.consumedAt,
+          isExpired: sql<boolean>`${ephemeralRegistrationTokens.expiresAt} <= now()`,
+        })
         .from(ephemeralRegistrationTokens)
         .where(eq(ephemeralRegistrationTokens.id, params.ephemeralTokenId))
         .limit(1);
@@ -82,9 +124,14 @@ export async function createRunnerSessionConsumingEphemeralToken(params: {
       if (!token) {
         throw new Error(`Ephemeral registration token not found: ${params.ephemeralTokenId}`);
       }
+      if (token.workspaceId !== params.workspaceId) {
+        throw new RegistrationTokenWorkspaceMismatchError(
+          params.ephemeralTokenId,
+          params.workspaceId,
+        );
+      }
       if (token.consumedAt) throw new RegistrationTokenConsumedError(params.ephemeralTokenId);
-      if (token.expiresAt <= new Date())
-        throw new RegistrationTokenExpiredError(params.ephemeralTokenId);
+      if (token.isExpired) throw new RegistrationTokenExpiredError(params.ephemeralTokenId);
       throw new Error(
         `Ephemeral registration token could not be consumed: ${params.ephemeralTokenId}`,
       );
