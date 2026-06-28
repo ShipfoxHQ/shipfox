@@ -23,7 +23,7 @@ export type {
   ReservationGrant,
   ReservationTemplate,
 } from './reservations.js';
-export {pollDemandAndReserve} from './reservations.js';
+export {deleteExpiredReservations, pollDemandAndReserve} from './reservations.js';
 export type {CreateRunnerSessionParams} from './runner-sessions.js';
 export {createRunnerSession} from './runner-sessions.js';
 export type {CreateRunnerTokenParams} from './runner-tokens.js';

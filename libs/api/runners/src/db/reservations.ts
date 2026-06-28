@@ -1,5 +1,5 @@
 import {canonicalizeRunnerLabels} from '@shipfox/api-runners-dto';
-import {and, eq, gt, sql} from 'drizzle-orm';
+import {and, asc, eq, gt, inArray, lt, sql} from 'drizzle-orm';
 import {db} from './db.js';
 import {pendingJobs} from './schema/pending-jobs.js';
 import {reservations} from './schema/reservations.js';
@@ -146,6 +146,22 @@ export async function pollDemandAndReserve(
 
     return {stats, reservations: grants};
   });
+}
+
+export async function deleteExpiredReservations(params?: {limit?: number}): Promise<number> {
+  const expiredIds = db()
+    .select({id: reservations.id})
+    .from(reservations)
+    .where(lt(reservations.expiresAt, sql`now()`))
+    .orderBy(asc(reservations.expiresAt))
+    .limit(params?.limit ?? 1000);
+
+  const deleted = await db()
+    .delete(reservations)
+    .where(inArray(reservations.id, expiredIds))
+    .returning({id: reservations.id});
+
+  return deleted.length;
 }
 
 function sortDemandRows(rows: DemandRow[]): DemandRow[] {
