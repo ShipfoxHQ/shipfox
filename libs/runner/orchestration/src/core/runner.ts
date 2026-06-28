@@ -82,7 +82,12 @@ export async function startRunner(): Promise<void> {
       if (isUnauthorized(pollError)) {
         runnerSession = undefined;
         logger().info('Runner session rejected; registering a new session');
-        currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
+        if (hasPollDeadlinePassed(pollDeadline)) {
+          logger().error({err: pollError}, 'Runner session rejected past the poll deadline');
+          throw pollError;
+        }
+        currentInterval = nextBackoffInterval(currentInterval);
+        await interruptableSleep(withJitter(currentInterval));
         continue;
       }
       if (pollError instanceof RunnerSessionExhaustedError) {

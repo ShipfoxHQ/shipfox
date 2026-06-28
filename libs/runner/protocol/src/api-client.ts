@@ -135,23 +135,11 @@ async function postJobRequest(sessionToken: string): Promise<Response> {
   } catch (error) {
     if (!(error instanceof HTTPError) || error.response.status !== 409) throw error;
 
-    if (
-      hasRunnerSessionExhaustedCode((error as {data?: unknown}).data) ||
-      (await responseHasRunnerSessionExhaustedCode(error.response))
-    ) {
+    if (hasRunnerSessionExhaustedCode(error.data)) {
       throw new RunnerSessionExhaustedError();
     }
 
     throw error;
-  }
-}
-
-async function responseHasRunnerSessionExhaustedCode(response: Response): Promise<boolean> {
-  try {
-    const body = await response.clone().json();
-    return hasRunnerSessionExhaustedCode(body);
-  } catch {
-    return false;
   }
 }
 

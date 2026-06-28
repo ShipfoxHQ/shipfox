@@ -235,6 +235,16 @@ describe('startRunner', () => {
     expect(mockRequestJob).toHaveBeenCalledTimes(2);
   });
 
+  it('rejects when unauthorized responses continue past the poll deadline', async () => {
+    const unauthorized = httpError(401);
+    vi.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(2);
+    mockRequestJob.mockRejectedValue(unauthorized);
+
+    await expect(startRunner()).rejects.toBe(unauthorized);
+    expect(mockRegisterRunnerSession).toHaveBeenCalledTimes(2);
+    expect(mockRequestJob).toHaveBeenCalledTimes(2);
+  });
+
   it('resets the poll deadline after completing a job', async () => {
     vi.spyOn(Date, 'now')
       .mockReturnValueOnce(0)
@@ -251,21 +261,52 @@ describe('startRunner', () => {
     expect(mockRunJobSteps).toHaveBeenCalledTimes(1);
     expect(mockRequestJob).toHaveBeenCalledTimes(3);
   });
+
+  it('does not register duplicate signal handlers across repeated starts', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(0);
+    mockRequestJob.mockRejectedValue(new RunnerSessionExhaustedError());
+    const sigintListeners = process.listenerCount('SIGINT');
+    const sigtermListeners = process.listenerCount('SIGTERM');
+
+    await startRunner();
+    await startRunner();
+
+    expect(process.listenerCount('SIGINT')).toBeLessThanOrEqual(sigintListeners + 1);
+    expect(process.listenerCount('SIGTERM')).toBeLessThanOrEqual(sigtermListeners + 1);
+  });
 });
 
 describe('poll helpers', () => {
+  it('grows backoff intervals before reaching the configured cap', () => {
+    const next = nextBackoffInterval(2);
+
+    expect(next).toBe(3);
+  });
+
   it('grows backoff intervals up to the configured cap', () => {
     const next = nextBackoffInterval(4);
 
     expect(next).toBe(5);
   });
 
-  it('applies full jitter', () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0.25);
+  it.each([
+    {random: 0, expected: 0},
+    {random: 0.25, expected: 2},
+    {random: 0.999, expected: 7.992},
+  ])('applies full jitter at random=$random', ({random, expected}) => {
+    vi.spyOn(Math, 'random').mockReturnValue(random);
 
     const sleep = withJitter(8);
 
-    expect(sleep).toBe(2);
+    expect(sleep).toBe(expected);
+  });
+
+  it('keeps zero sleeps at zero when jittered', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+
+    const sleep = withJitter(0);
+
+    expect(sleep).toBe(0);
   });
 
   it('computes a poll deadline from the configured max duration', () => {
