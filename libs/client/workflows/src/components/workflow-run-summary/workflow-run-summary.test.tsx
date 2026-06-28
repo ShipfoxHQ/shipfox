@@ -143,7 +143,7 @@ describe('WorkflowRunSummary', () => {
       },
     );
 
-    const sourceButton = await screen.findByRole('button', {name: 'Source'});
+    const sourceButton = await screen.findByRole('button', {name: 'View source'});
     await user.click(sourceButton);
 
     expect(sourceButton).toHaveAttribute('aria-controls', 'workflow-source-panel');
@@ -156,7 +156,7 @@ describe('WorkflowRunSummary', () => {
 
     await screen.findByRole('region', {name: 'deploy-web'});
 
-    expect(screen.queryByRole('button', {name: 'Source'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'View source'})).not.toBeInTheDocument();
   });
 
   test('shows the cancel action when the run can be cancelled', async () => {

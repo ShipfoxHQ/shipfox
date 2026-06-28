@@ -113,7 +113,7 @@ export function WorkflowRunSummary({
               aria-expanded={sourceOpen}
               onClick={onSourceToggle}
             >
-              Source
+              View source
             </Button>
           ) : null}
         </div>
