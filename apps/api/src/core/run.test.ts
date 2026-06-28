@@ -1,30 +1,40 @@
 import type {ModuleWorker, StartModuleWorkersOptions} from '@shipfox/node-module';
 import {run} from './run.js';
 
-const mocks = vi.hoisted(() => ({
-  captureException: vi.fn(),
-  closeApp: vi.fn(),
-  closeErrorMonitoring: vi.fn(),
-  createApp: vi.fn(),
-  createDefinitionsModule: vi.fn(),
-  createE2eAdminAuthMethod: vi.fn(),
-  createE2eRouteGroup: vi.fn(),
-  createIntegrationsContext: vi.fn(),
-  createPostgresClient: vi.fn(),
-  createProjectsModule: vi.fn(),
-  initializeModules: vi.fn(),
-  listen: vi.fn(),
-  logger: {
-    error: vi.fn(),
-    info: vi.fn(),
-  },
-  parseApiTrustProxy: vi.fn(),
-  registerModuleMetrics: vi.fn(),
-  setSourceControl: vi.fn(),
-  startModuleWorkers: vi.fn(),
-  startServiceMetrics: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  const metricCounter = {
+    add: vi.fn(),
+  };
+  return {
+    captureException: vi.fn(),
+    closeApp: vi.fn(),
+    closeErrorMonitoring: vi.fn(),
+    createApp: vi.fn(),
+    createDefinitionsModule: vi.fn(),
+    createE2eAdminAuthMethod: vi.fn(),
+    createE2eRouteGroup: vi.fn(),
+    createIntegrationsContext: vi.fn(),
+    createPostgresClient: vi.fn(),
+    createProjectsModule: vi.fn(),
+    initializeModules: vi.fn(),
+    listen: vi.fn(),
+    logger: {
+      error: vi.fn(),
+      info: vi.fn(),
+    },
+    metricCounter,
+    metricMeter: {
+      createCounter: vi.fn(() => metricCounter),
+    },
+    parseApiTrustProxy: vi.fn(),
+    registerModuleMetrics: vi.fn(),
+    setSourceControl: vi.fn(),
+    startModuleWorkers: vi.fn(),
+    startServiceMetrics: vi.fn(),
+  };
+});
 
+vi.mock('@shipfox/api-agent', () => ({agentModule: {name: 'agent'}}));
 vi.mock('@shipfox/api-auth', () => ({authModule: {name: 'auth'}}));
 vi.mock('@shipfox/api-definitions', () => ({
   createDefinitionsModule: mocks.createDefinitionsModule,
@@ -58,6 +68,7 @@ vi.mock('@shipfox/node-module', () => ({
   startModuleWorkers: mocks.startModuleWorkers,
 }));
 vi.mock('@shipfox/node-opentelemetry', () => ({
+  instanceMetrics: {getMeter: () => mocks.metricMeter},
   logger: () => mocks.logger,
   startServiceMetrics: mocks.startServiceMetrics,
 }));
@@ -103,6 +114,8 @@ describe('run', () => {
     mocks.listen.mockReset();
     mocks.logger.error.mockReset();
     mocks.logger.info.mockReset();
+    mocks.metricCounter.add.mockReset();
+    mocks.metricMeter.createCounter.mockReset();
     mocks.parseApiTrustProxy.mockReset();
     mocks.registerModuleMetrics.mockReset();
     mocks.setSourceControl.mockReset();

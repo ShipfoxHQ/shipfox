@@ -4,7 +4,15 @@ import {db, migrationsPath} from '#db/index.js';
 export {
   type AgentProviderConfig,
   AgentProviderConfigNotFoundError,
+  AgentProviderValidationError,
   type AgentWorkspaceSettings,
+  CredentialDecryptionError,
+  decryptCredentials,
+  InvalidAgentModelError,
+  InvalidCredentialFieldsError,
+  ProviderValidationUnavailableError,
+  testAndSaveProviderConfig,
+  UnsupportedAgentProviderError,
 } from '#core/index.js';
 export {
   deleteAgentProviderConfig,
