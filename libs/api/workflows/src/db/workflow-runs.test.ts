@@ -262,6 +262,39 @@ describe('workflow run queries', () => {
       expect(runJobs[0]?.dependencies).toEqual([]);
     });
 
+    test('stores prompt-only agent steps with runtime agent defaults resolved', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            fix: {steps: [{prompt: 'Fix the failing tests.'}]},
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByRunId(run.id);
+      const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
+      const agentStep = jobSteps.find((step) => step.type === 'agent');
+
+      expect(agentStep).toMatchObject({
+        type: 'agent',
+        config: {
+          model: 'claude-opus-4-8',
+          provider: 'anthropic',
+          thinking: 'high',
+          prompt: 'Fix the failing tests.',
+        },
+      });
+    });
+
     test('handles multi-job definitions with correct positions', async () => {
       const run = await createWorkflowRun({
         workspaceId,

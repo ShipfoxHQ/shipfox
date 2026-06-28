@@ -146,48 +146,24 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
-  it('reports explicit model/provider pairs not present in the provider catalog', () => {
+  it('preserves explicit model ids even when the seed catalog only knows provider defaults', () => {
     const document: WorkflowDocument = {
       name: 'agent build',
       jobs: {
         fix: {
-          steps: [{provider: 'openai', model: 'claude-opus-4-8', prompt: 'Fix it.'}],
+          steps: [{provider: 'openai', model: 'gpt-4.1', prompt: 'Fix it.'}],
         },
       },
     };
 
-    const error = expectInvalid(document);
+    const model = normalizeWorkflowDocument(document);
 
-    expect(error.issues).toEqual([
-      {
-        code: 'invalid-agent-provider-model',
-        message: 'Agent model "claude-opus-4-8" is not cataloged for provider "openai".',
-        path: ['jobs', 'fix', 'steps', 0, 'model'],
-        details: {provider: 'openai', model: 'claude-opus-4-8'},
-      },
-    ]);
-  });
-
-  it('reports explicit agent models that are not cataloged', () => {
-    const document: WorkflowDocument = {
-      name: 'agent build',
-      jobs: {
-        fix: {
-          steps: [{model: 'not-a-cataloged-model', prompt: 'Fix it.'}],
-        },
-      },
-    };
-
-    const error = expectInvalid(document);
-
-    expect(error.issues).toEqual([
-      {
-        code: 'invalid-agent-model',
-        message: 'Agent model "not-a-cataloged-model" is not cataloged.',
-        path: ['jobs', 'fix', 'steps', 0, 'model'],
-        details: {model: 'not-a-cataloged-model'},
-      },
-    ]);
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      provider: 'openai',
+      model: 'gpt-4.1',
+      prompt: 'Fix it.',
+    });
   });
 
   it('applies top-level runner defaults to jobs without runner overrides', () => {

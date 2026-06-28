@@ -1,4 +1,4 @@
-import {getAgentProviderEntry, listSupportedAgentProviders} from '@shipfox/api-agent-dto';
+import {getAgentProviderEntry} from '@shipfox/api-agent-dto';
 import {
   createWorkflowExpression,
   InvalidWorkflowExpressionError,
@@ -35,11 +35,6 @@ import {
 const nonStableIdPattern = /[^a-z0-9]+/g;
 const edgeDashPattern = /^-+|-+$/g;
 const manualTriggerSource = 'manual';
-const catalogedAgentModels = new Set(
-  listSupportedAgentProviders().flatMap((provider) =>
-    provider.default_model === null ? [] : [provider.default_model],
-  ),
-);
 
 export function normalizeWorkflowDocument(
   document: WorkflowDocument,
@@ -265,19 +260,7 @@ function validateAgentStep(params: {
   issues: WorkflowModelValidationIssue[];
 }): void {
   const providerId = params.step.provider;
-  if (providerId === undefined) {
-    if (params.step.model !== undefined && !catalogedAgentModels.has(params.step.model)) {
-      params.issues.push(
-        issue({
-          code: 'invalid-agent-model',
-          message: `Agent model "${params.step.model}" is not cataloged.`,
-          path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
-          details: {model: params.step.model},
-        }),
-      );
-    }
-    return;
-  }
+  if (providerId === undefined) return;
 
   const provider = getAgentProviderEntry(providerId);
   if (provider === undefined || provider.support_status !== 'supported') {
@@ -290,17 +273,6 @@ function validateAgentStep(params: {
       }),
     );
     return;
-  }
-
-  if (params.step.model !== undefined && provider.default_model !== params.step.model) {
-    params.issues.push(
-      issue({
-        code: 'invalid-agent-provider-model',
-        message: `Agent model "${params.step.model}" is not cataloged for provider "${providerId}".`,
-        path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
-        details: {provider: providerId, model: params.step.model},
-      }),
-    );
   }
 }
 

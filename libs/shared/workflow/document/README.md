@@ -62,12 +62,12 @@ try {
 ```
 
 A step can also be an inline agent step. It declares a `prompt` and no `run`.
-`model`, `thinking`, and `provider` are optional authoring hints resolved later
-from workspace, instance, or catalog defaults. The `provider` names the model's
-provider (for example `anthropic` or `openai`); pairing it with `model` lets a
-step target a non-default provider/model pair. The recommended pattern is an
-agent step that produces a change, followed by a `run` step whose `gate` judges
-the result:
+`model`, `thinking`, and `provider` are optional authoring hints; later layers
+resolve omitted values before the runner executes the step. The `provider` names
+the model's provider (for example `anthropic` or `openai`); pairing it with
+`model` lets a step target a non-default provider/model pair. The recommended
+pattern is an agent step that produces a change, followed by a `run` step whose
+`gate` judges the result:
 
 ```ts
 parseWorkflowDocument({

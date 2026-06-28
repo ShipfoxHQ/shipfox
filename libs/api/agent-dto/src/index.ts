@@ -22,6 +22,7 @@ export {
   agentThinkingSchema,
   type CreateAgentProviderConfigBodyDto,
   createAgentProviderConfigBodySchema,
+  DEFAULT_AGENT_PROVIDER,
   DEFAULT_AGENT_THINKING,
   getAgentProviderCredentialKeys,
   getAgentProviderEntry,

@@ -7,7 +7,7 @@ Code that turns a checked workflow document into the model used by definitions.
 - **`WorkflowModel`**: Defines the stable workflow graph used after document
   parsing.
 - **`normalizeWorkflowDocument(document)`**: Expands shorthand fields, assigns
-  stable ids, validates cataloged agent fields, and builds graph edges.
+  stable ids, validates explicit agent providers, and builds graph edges.
 - **Step gates**: Parse run-step `gate.success_if` as CEL with `exit_code` in
   scope and check `gate.on_failure.restart_from` against earlier named steps in
   the same job.
@@ -82,9 +82,10 @@ stores a typed `WorkflowExpression` with `language: 'cel'`, the original source
 string, and `check: 'typed'`.
 
 Agent steps keep omitted `provider`, `model`, and `thinking` fields omitted in
-the definition model. Run creation resolves those contextual defaults later.
-Explicit providers and explicit model/provider pairs are checked against the
-shared agent provider catalog when the document has enough context.
+the definition model. Run materialization resolves runner-ready catalog defaults
+before execution. Explicit providers are checked against the shared agent
+provider catalog; explicit model ids are preserved because the shared seed
+catalog does not yet carry each provider's full model list.
 
 For now, run-step gates can use `exit_code`. Fields such as `step.output.pass`
 need a declared output schema, so they belong to later agent-step work.

@@ -167,7 +167,7 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
-  it('materializes prompt-only agent steps without unresolved defaults', () => {
+  it('materializes prompt-only agent steps with catalog defaults before runner execution', () => {
     const model = workflowModel({
       jobs: {
         fix: {
@@ -184,8 +184,32 @@ describe('materializeWorkflowModel', () => {
       sourceLocation: null,
       status: 'pending',
       type: 'agent',
-      config: {prompt: 'Fix the failing tests.'},
+      config: {
+        model: 'claude-opus-4-8',
+        provider: 'anthropic',
+        thinking: 'high',
+        prompt: 'Fix the failing tests.',
+      },
       position: 1,
+    });
+  });
+
+  it('materializes provider-only agent steps with that provider catalog default model', () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {
+          steps: [{provider: 'openai', prompt: 'Fix the failing tests.'}],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel(model);
+
+    expect(rows[0]?.steps[1]?.config).toEqual({
+      model: 'gpt-5.5-pro',
+      provider: 'openai',
+      thinking: 'high',
+      prompt: 'Fix the failing tests.',
     });
   });
 
