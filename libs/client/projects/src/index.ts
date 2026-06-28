@@ -7,7 +7,6 @@ export {
 } from './components/workspace-setup-guard.js';
 export * from './hooks/api/definitions.js';
 export * from './hooks/api/projects.js';
-export * from './hooks/api/workflow-runs.js';
 export * from './pages/create-project-page.js';
 export * from './pages/home-router.js';
 export * from './pages/project-workflows-page.js';
