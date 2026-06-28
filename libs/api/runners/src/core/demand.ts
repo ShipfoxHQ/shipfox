@@ -2,6 +2,7 @@ import {setTimeout as sleep} from 'node:timers/promises';
 import {config} from '#config.js';
 import {
   type DemandStat,
+  deleteReservationsByIds,
   pollDemandAndReserve,
   type ReservationGrant,
   type ReservationTemplate,
@@ -38,26 +39,40 @@ export async function pollDemand(params: PollDemandParams): Promise<PollDemandRe
   while (true) {
     if (params.signal.aborted) return lastResult;
 
-    lastResult = await pollDemandAndReserve({
+    const previousResult = lastResult;
+    const result = await pollDemandAndReserve({
       workspaceId: params.workspaceId,
       provisionerId: params.provisionerId,
       maxReservations: params.maxReservations,
       ttlSeconds: params.ttlSeconds,
       templates: params.templates,
     });
+    if (params.signal.aborted) {
+      await releaseReservationGrants(result.reservations);
+      return previousResult;
+    }
+
+    lastResult = result;
 
     if (shouldReturn(lastResult, params.maxReservations, totalCapacity, Date.now() >= deadlineMs)) {
       return lastResult;
     }
 
+    const remainingWaitMs = Math.max(0, deadlineMs - Date.now());
     try {
-      await sleep(withJitter(interval), undefined, {signal: params.signal});
+      await sleep(Math.min(withJitter(interval), remainingWaitMs), undefined, {
+        signal: params.signal,
+      });
     } catch (error) {
       if (params.signal.aborted) return lastResult;
       throw error;
     }
     interval = nextBackoffInterval(interval);
   }
+}
+
+export async function releaseReservationGrants(reservations: ReservationGrant[]): Promise<void> {
+  await deleteReservationsByIds(reservations.map((reservation) => reservation.reservationId));
 }
 
 export function shouldReturn(

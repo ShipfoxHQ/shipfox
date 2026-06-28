@@ -84,11 +84,27 @@ export async function pollDemandAndReserve(
     const reservedByLabels = new Map(
       activeReservationRows.map((row) => [labelKey(row.requiredLabels), row.reserved]),
     );
+    const activeProvisionerReservationRows = await tx
+      .select({
+        requiredLabels: reservations.requiredLabels,
+        reserved: sql<number>`coalesce(sum(${reservations.count}), 0)::int`,
+      })
+      .from(reservations)
+      .where(
+        and(
+          eq(reservations.workspaceId, params.workspaceId),
+          eq(reservations.provisionerId, params.provisionerId),
+          gt(reservations.expiresAt, sql`now()`),
+        ),
+      )
+      .groupBy(reservations.requiredLabels);
+
     const templates = params.templates.map((template) => ({
       templateKey: template.templateKey,
       labels: canonicalizeRunnerLabels(template.labels),
       remainingSlots: template.availableSlots,
     }));
+    deductProvisionerReservations(templates, activeProvisionerReservationRows);
     const stats: DemandStat[] = [];
     const grants: ReservationGrant[] = [];
     let remainingMaxReservations = params.maxReservations;
@@ -164,11 +180,44 @@ export async function deleteExpiredReservations(params?: {limit?: number}): Prom
   return deleted.length;
 }
 
+export async function deleteReservationsByIds(ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+
+  const deleted = await db()
+    .delete(reservations)
+    .where(inArray(reservations.id, ids))
+    .returning({id: reservations.id});
+
+  return deleted.length;
+}
+
+function deductProvisionerReservations(
+  templates: NormalizedTemplate[],
+  activeReservations: {requiredLabels: string[]; reserved: number}[],
+): void {
+  for (const reservation of sortReservationRows(activeReservations)) {
+    const satisfyingTemplates = templates
+      .filter((template) => isSubset(reservation.requiredLabels, template.labels))
+      .sort(
+        (a, b) => a.labels.length - b.labels.length || a.templateKey.localeCompare(b.templateKey),
+      );
+    drawSlots(satisfyingTemplates, reservation.reserved);
+  }
+}
+
 function sortDemandRows(rows: DemandRow[]): DemandRow[] {
   return [...rows].sort((a, b) => {
     const specificity = b.requiredLabels.length - a.requiredLabels.length;
     if (specificity !== 0) return specificity;
     return a.oldestQueuedAt.getTime() - b.oldestQueuedAt.getTime();
+  });
+}
+
+function sortReservationRows<T extends {requiredLabels: string[]}>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => {
+    const specificity = b.requiredLabels.length - a.requiredLabels.length;
+    if (specificity !== 0) return specificity;
+    return labelKey(a.requiredLabels).localeCompare(labelKey(b.requiredLabels));
   });
 }
 

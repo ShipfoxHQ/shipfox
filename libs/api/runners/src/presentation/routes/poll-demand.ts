@@ -2,7 +2,8 @@ import {requireProvisionerContext} from '@shipfox/api-auth-context';
 import {pollDemandBodySchema, pollDemandResponseSchema} from '@shipfox/api-runners-dto';
 import {defineRoute} from '@shipfox/node-fastify';
 import {config} from '#config.js';
-import {pollDemand} from '#core/demand.js';
+import {pollDemand, releaseReservationGrants} from '#core/demand.js';
+import type {ReservationGrant} from '#db/reservations.js';
 import {toPollDemandResponseDto} from '#presentation/dto/index.js';
 
 export const pollDemandRoute = defineRoute({
@@ -15,10 +16,20 @@ export const pollDemandRoute = defineRoute({
       200: pollDemandResponseSchema,
     },
   },
-  handler: async (request) => {
+  handler: async (request, reply) => {
     const {provisionerTokenId, workspaceId} = requireProvisionerContext(request);
     const abortController = new AbortController();
-    request.raw.on('close', () => abortController.abort());
+    let responseFinished = false;
+    let responseReservations: ReservationGrant[] = [];
+    reply.raw.on('finish', () => {
+      responseFinished = true;
+    });
+    reply.raw.on('close', () => {
+      if (!responseFinished) {
+        abortController.abort();
+        void releaseReservationGrants(responseReservations).catch(() => undefined);
+      }
+    });
 
     const result = await pollDemand({
       workspaceId,
@@ -35,6 +46,7 @@ export const pollDemandRoute = defineRoute({
       })),
       signal: abortController.signal,
     });
+    responseReservations = result.reservations;
 
     return toPollDemandResponseDto(result);
   },

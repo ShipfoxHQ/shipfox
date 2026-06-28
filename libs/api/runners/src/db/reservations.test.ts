@@ -1,6 +1,6 @@
 import {sql, sum} from 'drizzle-orm';
 import {db} from '#db/db.js';
-import {pollDemandAndReserve} from '#db/reservations.js';
+import {deleteReservationsByIds, pollDemandAndReserve} from '#db/reservations.js';
 import {reservations} from '#db/schema/reservations.js';
 import {pendingJobFactory, reservationFactory} from '#test/index.js';
 
@@ -97,6 +97,30 @@ describe('pollDemandAndReserve', () => {
     expect(result.stats[0]).toMatchObject({queued: 1, reserved: 1});
   });
 
+  it('deducts this provisioner active reservations from advertised capacity', async () => {
+    await createPendingJobs(10, ['linux']);
+    await reservationFactory.create({
+      workspaceId,
+      provisionerId,
+      requiredLabels: ['linux'],
+      count: 5,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const result = await pollDemandAndReserve({
+      workspaceId,
+      provisionerId,
+      maxReservations: 5,
+      ttlSeconds: 60,
+      templates: [template('linux', ['linux'], 5)],
+    });
+
+    const reserved = await activeReservedCount();
+    expect(result.reservations).toEqual([]);
+    expect(result.stats[0]).toMatchObject({queued: 10, reserved: 5});
+    expect(reserved).toBe(5);
+  });
+
   it('returns multiple reservation groups in one response', async () => {
     await createPendingJobs(2, ['linux']);
     await createPendingJobs(1, ['macos']);
@@ -183,6 +207,35 @@ describe('pollDemandAndReserve', () => {
     const expiresAt = result.reservations[0]?.expiresAt;
     expect(expiresAt).toBeInstanceOf(Date);
     expect(expiresAt?.getTime()).toBeGreaterThan(before + 50_000);
+  });
+
+  it('deletes reservations by id', async () => {
+    await reservationFactory.create({
+      workspaceId,
+      provisionerId,
+      requiredLabels: ['linux'],
+      count: 1,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await reservationFactory.create({
+      workspaceId,
+      provisionerId,
+      requiredLabels: ['macos'],
+      count: 1,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const beforeDelete = await db().select().from(reservations);
+    const deletedReservation = beforeDelete.find((reservation) =>
+      reservation.requiredLabels.includes('linux'),
+    );
+    if (!deletedReservation) throw new Error('Expected linux reservation');
+
+    const deleted = await deleteReservationsByIds([deletedReservation.id]);
+
+    const remaining = await db().select().from(reservations);
+    expect(deleted).toBe(1);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]?.requiredLabels).toEqual(['macos']);
   });
 
   async function createPendingJobs(count: number, requiredLabels: string[]): Promise<void> {

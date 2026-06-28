@@ -462,13 +462,33 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "runners_reservations_expires_idx": {
+          "name": "runners_reservations_expires_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "runners_reservations_count_positive_ck": {
+          "name": "runners_reservations_count_positive_ck",
+          "value": "\"runners_reservations\".\"count\" > 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.runners_runner_sessions": {

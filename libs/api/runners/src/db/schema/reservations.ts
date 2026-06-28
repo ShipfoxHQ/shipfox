@@ -1,5 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {index, integer, text, timestamp, uuid} from 'drizzle-orm/pg-core';
+import {sql} from 'drizzle-orm';
+import {check, index, integer, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import type {Reservation} from '#core/entities/reservation.js';
 import {pgTable} from './common.js';
 
@@ -16,6 +17,8 @@ export const reservations = pgTable(
   },
   (table) => [
     index('runners_reservations_workspace_expires_idx').on(table.workspaceId, table.expiresAt),
+    index('runners_reservations_expires_idx').on(table.expiresAt),
+    check('runners_reservations_count_positive_ck', sql`${table.count} > 0`),
   ],
 );
 

@@ -26,14 +26,14 @@ export const demandStatSchema = z.object({
     .describe(
       'Active reservations for this label set; advisory, may exceed `queued` during heavy claiming.',
     ),
-  oldest_queued_at: z.string(),
+  oldest_queued_at: z.string().datetime(),
 });
 
 export const reservationGrantSchema = z.object({
   reservation_id: z.string().uuid(),
   labels: z.array(z.string()),
   count: z.number().int().positive(),
-  expires_at: z.string(),
+  expires_at: z.string().datetime(),
 });
 
 export const pollDemandResponseSchema = z.object({
