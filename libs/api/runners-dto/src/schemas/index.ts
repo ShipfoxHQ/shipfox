@@ -1,4 +1,8 @@
-export {type ClaimedJobResponseDto, claimedJobResponseSchema} from './claim-job.js';
+export {
+  type ClaimedJobResponseDto,
+  claimedJobResponseSchema,
+  RUNNER_SESSION_EXHAUSTED_CODE,
+} from './claim-job.js';
 export {type HeartbeatResponseDto, heartbeatResponseSchema} from './heartbeat.js';
 export {
   type RegisterRunnerBodyDto,

@@ -6,10 +6,13 @@ export {
   heartbeat,
   type LogAppendFn,
   type LogAppendOutcome,
+  RunnerLabelsRequiredError,
+  RunnerSessionExhaustedError,
   registerRunnerSession,
   reportStep,
   requestCheckoutToken,
   requestJob,
   requestNextStep,
+  requireRunnerLabels,
   runnerToken,
 } from '#api-client.js';

@@ -6,6 +6,7 @@ import {
   type HeartbeatResponseDto,
   heartbeatResponseSchema,
   type RegisterRunnerResponseDto,
+  RUNNER_SESSION_EXHAUSTED_CODE,
   registerRunnerBodySchema,
   registerRunnerResponseSchema,
 } from '@shipfox/api-runners-dto';
@@ -74,6 +75,26 @@ export function configuredRunnerLabels(): string[] {
   return canonicalizeRunnerLabels(config.SHIPFOX_RUNNER_LABELS.split(','));
 }
 
+export class RunnerLabelsRequiredError extends Error {
+  constructor() {
+    super('SHIPFOX_RUNNER_LABELS must contain at least one non-empty label.');
+    this.name = 'RunnerLabelsRequiredError';
+  }
+}
+
+export class RunnerSessionExhaustedError extends Error {
+  constructor() {
+    super('Runner session is exhausted.');
+    this.name = 'RunnerSessionExhaustedError';
+  }
+}
+
+export function requireRunnerLabels(): string[] {
+  const labels = configuredRunnerLabels();
+  if (labels.length === 0) throw new RunnerLabelsRequiredError();
+  return labels;
+}
+
 export async function registerRunnerSession(): Promise<RegisterRunnerResponseDto> {
   const labels = configuredRunnerLabels();
 
@@ -99,13 +120,36 @@ function createRunnerSessionClient(sessionToken: string): KyInstance {
 export async function requestJob(sessionToken: string): Promise<ClaimedJobResponseDto | null> {
   logger().debug('Polling for job');
 
-  const response = await createRunnerSessionClient(sessionToken).post('runners/jobs/request');
+  const response = await postJobRequest(sessionToken);
 
   if (response.status === 204) {
     return null;
   }
 
   return claimedJobResponseSchema.parse(await response.json());
+}
+
+async function postJobRequest(sessionToken: string): Promise<Response> {
+  try {
+    return await createRunnerSessionClient(sessionToken).post('runners/jobs/request');
+  } catch (error) {
+    if (!(error instanceof HTTPError) || error.response.status !== 409) throw error;
+
+    if (hasRunnerSessionExhaustedCode(error.data)) {
+      throw new RunnerSessionExhaustedError();
+    }
+
+    throw error;
+  }
+}
+
+function hasRunnerSessionExhaustedCode(body: unknown): boolean {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'code' in body &&
+    body.code === RUNNER_SESSION_EXHAUSTED_CODE
+  );
 }
 
 // next/report are idempotent, so we widen ky's retry to POST (off by default): a lost

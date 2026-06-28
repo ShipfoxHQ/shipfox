@@ -12,6 +12,7 @@ export {
   type RegisterRunnerBodyDto,
   type RegisterRunnerResponseDto,
   type RevokeRunnerTokenResponseDto,
+  RUNNER_SESSION_EXHAUSTED_CODE,
   type RunnerTokenDto,
   registerRunnerBodySchema,
   registerRunnerResponseSchema,
