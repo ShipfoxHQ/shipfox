@@ -17,7 +17,10 @@ export const runnerSessionFactory = Factory.define<RunnerSession>(({onCreate}) =
     workspaceId: crypto.randomUUID(),
     scope: 'workspace',
     registrationTokenId: crypto.randomUUID(),
+    registrationTokenKind: 'manual',
     labels: ['linux', 'x64'],
+    maxClaims: null,
+    claimsUsed: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

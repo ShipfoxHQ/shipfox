@@ -25,3 +25,24 @@ export class EmptyRequiredLabelsError extends Error {
     this.name = 'EmptyRequiredLabelsError';
   }
 }
+
+export class RegistrationTokenConsumedError extends Error {
+  constructor(public readonly ephemeralTokenId: string) {
+    super(`Ephemeral registration token has already been consumed: ${ephemeralTokenId}`);
+    this.name = 'RegistrationTokenConsumedError';
+  }
+}
+
+export class RegistrationTokenExpiredError extends Error {
+  constructor(public readonly ephemeralTokenId: string) {
+    super(`Ephemeral registration token has expired: ${ephemeralTokenId}`);
+    this.name = 'RegistrationTokenExpiredError';
+  }
+}
+
+export class RunnerSessionExhaustedError extends Error {
+  constructor(public readonly runnerSessionId: string) {
+    super(`Runner session claim limit exhausted: ${runnerSessionId}`);
+    this.name = 'RunnerSessionExhaustedError';
+  }
+}

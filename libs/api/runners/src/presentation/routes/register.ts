@@ -1,6 +1,10 @@
 import {registerRunnerBodySchema, registerRunnerResponseSchema} from '@shipfox/api-runners-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
-import {EmptyRunnerLabelsError} from '#core/errors.js';
+import {
+  EmptyRunnerLabelsError,
+  RegistrationTokenConsumedError,
+  RegistrationTokenExpiredError,
+} from '#core/errors.js';
 import {registerRunnerSession} from '#core/runner-sessions.js';
 import {getRunnerContext} from '#presentation/auth/index.js';
 
@@ -14,17 +18,47 @@ export const registerRoute = defineRoute({
       200: registerRunnerResponseSchema,
     },
   },
-  errorHandler: (error) => {
+  errorHandler: (error, request) => {
     if (error instanceof EmptyRunnerLabelsError) {
       throw new ClientError(error.message, 'empty-runner-labels', {status: 400});
+    }
+    if (error instanceof RegistrationTokenConsumedError) {
+      const runner = getRunnerContext(request);
+      if (runner.kind === 'ephemeral') {
+        request.log.warn(
+          {
+            ephemeralTokenId: error.ephemeralTokenId,
+            provisionerId: runner.provisionerId,
+          },
+          'Ephemeral registration token reuse rejected',
+        );
+      }
+      throw new ClientError(
+        'Registration token has already been consumed',
+        'registration-token-consumed',
+        {
+          status: 409,
+        },
+      );
+    }
+    if (error instanceof RegistrationTokenExpiredError) {
+      throw new ClientError('Registration token has expired', 'registration-token-expired', {
+        status: 401,
+      });
     }
     throw error;
   },
   handler: async (request) => {
     const runner = getRunnerContext(request);
     const result = await registerRunnerSession({
-      registrationTokenId: runner.runnerTokenId,
-      workspaceId: runner.workspaceId,
+      credential:
+        runner.kind === 'manual'
+          ? {
+              kind: 'manual',
+              registrationTokenId: runner.registrationTokenId,
+              workspaceId: runner.workspaceId,
+            }
+          : runner,
       labels: request.body.labels,
     });
 

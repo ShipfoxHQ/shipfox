@@ -8,11 +8,16 @@ import {RUNNER_SESSION_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {signHs256} from '@shipfox/node-jwt';
+import {generateOpaqueToken} from '@shipfox/node-tokens';
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import {db} from '#db/db.js';
 import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';
-import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
+import {
+  ephemeralRegistrationTokenFactory,
+  pendingJobFactory,
+  runnerTokenFactory,
+} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
 const fakeUserAuth: AuthMethod = {
@@ -47,7 +52,7 @@ describe('POST /runners/jobs/request', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens CASCADE`,
     );
     rawToken = `sf_r_${crypto.randomUUID()}`;
     workspaceId = crypto.randomUUID();
@@ -162,6 +167,33 @@ describe('POST /runners/jobs/request', () => {
     expect(secondRes.json().job_id).toBe(second.jobId);
   });
 
+  it('returns 409 after an ephemeral session claims one job', async () => {
+    const ephemeralRawToken = generateOpaqueToken('ephemeralRegistrationToken');
+    await ephemeralRegistrationTokenFactory.create(
+      {workspaceId},
+      {transient: {rawToken: ephemeralRawToken}},
+    );
+    const registered = await registerSession(ephemeralRawToken);
+    const created = await pendingJobFactory.create({workspaceId});
+    await pendingJobFactory.create({workspaceId});
+
+    const firstRes = await app.inject({
+      method: 'POST',
+      url: '/runners/jobs/request',
+      headers: {authorization: `Bearer ${registered.sessionToken}`},
+    });
+    const secondRes = await app.inject({
+      method: 'POST',
+      url: '/runners/jobs/request',
+      headers: {authorization: `Bearer ${registered.sessionToken}`},
+    });
+
+    expect(firstRes.statusCode).toBe(200);
+    expect(firstRes.json().job_id).toBe(created.jobId);
+    expect(secondRes.statusCode).toBe(409);
+    expect(secondRes.json().code).toBe('runner-session-exhausted');
+  });
+
   it('returns 401 when the runner session token is expired', async () => {
     const expiredSessionToken = await signHs256({
       payload: {
@@ -169,6 +201,7 @@ describe('POST /runners/jobs/request', () => {
         workspaceId,
         scope: 'workspace',
         labels: ['linux', 'x64'],
+        maxClaims: null,
       },
       secret: process.env.AUTH_RUNNER_SESSION_TOKEN_SECRET ?? 'test-runner-session-secret',
       expiresIn: '-1s',

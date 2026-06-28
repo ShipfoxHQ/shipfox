@@ -12,6 +12,7 @@ function claims() {
     workspaceId: crypto.randomUUID(),
     scope: 'workspace' as const,
     labels: ['linux', 'x64'],
+    maxClaims: null,
   };
 }
 
@@ -27,6 +28,7 @@ describe('runner-session-token', () => {
     expect(verified?.workspaceId).toBe(input.workspaceId);
     expect(verified?.scope).toBe(input.scope);
     expect(verified?.labels).toEqual(input.labels);
+    expect(verified?.maxClaims).toBeNull();
     expect(verified?.aud).toBe(RUNNER_SESSION_TOKEN_AUDIENCE);
     expect(verified?.iat).toBeTypeOf('number');
     expect(verified?.exp).toBeGreaterThan(verified?.iat ?? 0);

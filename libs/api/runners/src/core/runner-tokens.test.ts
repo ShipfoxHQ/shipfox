@@ -11,7 +11,9 @@ import {
 
 describe('runner token core', () => {
   beforeEach(async () => {
-    await db().execute(sql`TRUNCATE runners_runner_tokens CASCADE`);
+    await db().execute(
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_runner_tokens CASCADE`,
+    );
   });
 
   it('creates a workspace runner token and stores only the hash', async () => {

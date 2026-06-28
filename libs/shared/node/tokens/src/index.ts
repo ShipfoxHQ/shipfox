@@ -11,6 +11,7 @@ export const tokenTypeParts = {
   passwordReset: 'pr',
   refreshToken: 'r',
   runnerToken: 'rt',
+  ephemeralRegistrationToken: 'ert',
   provisionerToken: 'pt',
 } as const;
 

@@ -23,6 +23,7 @@ describe('detectAndExpireStuckJobsActivity', () => {
       workspaceId,
       runnerSessionId,
       sessionLabels: ['linux', 'x64'],
+      maxClaims: null,
     });
     await db()
       .update(runningJobs)
