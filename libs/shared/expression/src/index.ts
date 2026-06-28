@@ -26,3 +26,22 @@ export type {
   WorkflowExpressionCheck,
   WorkflowExpressionCheckOptions,
 } from './expression/workflow-expression.js';
+export {
+  getWorkflowContextDefinition,
+  getWorkflowContextTypeEnvironment,
+  type OpenWorkflowContextDefinition,
+  type TypedWorkflowContextDefinition,
+  type WorkflowContextDefinition,
+  type WorkflowContextName,
+  type WorkflowContextShape,
+  type WorkflowContextTrustTier,
+  type WorkflowInterpolationField,
+  type WorkflowInterpolationFieldPolicy,
+  workflowContextDefinitions,
+  workflowContextNames,
+  workflowContextTrustTiers,
+  workflowInterpolationFieldAcceptsContext,
+  workflowInterpolationFieldAcceptsTrustTier,
+  workflowInterpolationFieldPolicies,
+  workflowInterpolationFields,
+} from './workflow-context/index.js';
