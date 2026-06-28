@@ -1,10 +1,19 @@
+import type {RerunMode} from '@shipfox/api-workflows-dto';
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {RelativeTimeProvider, toast} from '@shipfox/react-ui';
+import {EmptyState, RelativeTimeProvider, toast} from '@shipfox/react-ui';
+import {useNavigate} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
 import {isWorkflowRunTerminal, type WorkflowJob} from '#core/workflow-run.js';
-import type {WorkflowRunSelectionInput} from '#core/workflow-run-url-state.js';
-import {useCancelWorkflowRunMutation, useWorkflowRunQuery} from '#hooks/api/workflow-runs.js';
+import {
+  type WorkflowRunSelectionInput,
+  withoutWorkflowRunSelectionSearch,
+} from '#core/workflow-run-url-state.js';
+import {
+  useCancelWorkflowRunMutation,
+  useRerunWorkflowRunMutation,
+  useWorkflowRunQuery,
+} from '#hooks/api/workflow-runs.js';
 import {WorkflowJobsGraph} from '../workflow-jobs-graph/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
 import {WorkflowSourcePanel} from '../workflow-source-panel/index.js';
@@ -18,6 +27,8 @@ import {
 } from './workflow-run-states.js';
 
 export interface WorkflowRunViewProps {
+  workspaceId: string;
+  projectId: string;
   runId?: string | undefined;
   selection?: WorkflowRunSelectionInput | undefined;
   onSelectionChange?: ((selection: WorkflowRunSelectionInput) => void) | undefined;
@@ -28,14 +39,24 @@ export interface WorkflowRunViewProps {
  * resolving which run to show) or the run is loading, so the page never branches on the
  * loading state itself.
  */
-export function WorkflowRunView({runId, selection, onSelectionChange}: WorkflowRunViewProps) {
+export function WorkflowRunView({
+  workspaceId,
+  projectId,
+  runId,
+  selection,
+  onSelectionChange,
+}: WorkflowRunViewProps) {
   const runQuery = useWorkflowRunQuery(runId);
+  const rerunMutation = useRerunWorkflowRunMutation(projectId);
 
   return (
     <RelativeTimeProvider>
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <RunViewContent
+          workspaceId={workspaceId}
+          projectId={projectId}
           query={runQuery}
+          rerunMutation={rerunMutation}
           selection={selection}
           onSelectionChange={onSelectionChange}
         />
@@ -45,14 +66,21 @@ export function WorkflowRunView({runId, selection, onSelectionChange}: WorkflowR
 }
 
 function RunViewContent({
+  workspaceId,
+  projectId,
   query,
+  rerunMutation,
   selection,
   onSelectionChange,
 }: {
+  workspaceId: string;
+  projectId: string;
   query: ReturnType<typeof useWorkflowRunQuery>;
+  rerunMutation: ReturnType<typeof useRerunWorkflowRunMutation>;
   selection: WorkflowRunSelectionInput | undefined;
   onSelectionChange: ((selection: WorkflowRunSelectionInput) => void) | undefined;
 }) {
+  const navigate = useNavigate();
   const [selectedJobId, setSelectedJobId] = useState<string | undefined>();
   const [sourcePanelOpen, setSourcePanelOpen] = useState(false);
   const sourcePanelId = useId();
@@ -80,17 +108,37 @@ function RunViewContent({
 
   if (query.data === undefined) return <WorkflowRunSkeleton />;
 
+  const runData = query.data;
   const resolvedSelection = selectionControlled
-    ? resolveWorkflowRunSelection({run: query.data, selection})
+    ? resolveWorkflowRunSelection({run: runData, selection})
     : undefined;
   const selectedJob = selectionControlled
     ? resolvedSelection?.job
-    : (query.data.jobs.find((job) => job.id === selectedJobId) ?? query.data.jobs.at(0));
+    : (runData.jobs.find((job) => job.id === selectedJobId) ?? runData.jobs.at(0));
   const selectedAttemptId = selectionControlled
     ? (resolvedSelection?.selectedAttemptId ?? null)
     : undefined;
   const highlightedLineRange = resolvedSelection?.step?.sourceLocation ?? null;
-  const sourceSnapshot = query.data.sourceSnapshot;
+  const sourceSnapshot = runData.sourceSnapshot;
+  const hasFailedJobs = runData.jobs.some(
+    (job) => job.status === 'failed' || job.status === 'cancelled',
+  );
+  const canRerun = isWorkflowRunTerminal(runData.status);
+
+  async function rerun(mode: RerunMode) {
+    try {
+      const run = await rerunMutation.mutateAsync({runId: runData.id, mode});
+      toast.success('Re-run started');
+      await navigate({
+        to: '/workspaces/$wid/projects/$pid/runs/$runId',
+        params: {wid: workspaceId, pid: projectId, runId: run.id},
+        search: ((previous: Record<string, unknown>) =>
+          withoutWorkflowRunSelectionSearch(previous)) as never,
+      });
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Could not start re-run');
+    }
+  }
 
   function selectJob(jobId: string | undefined) {
     if (!selectionControlled) {
@@ -138,21 +186,25 @@ function RunViewContent({
     <>
       <div className="flex min-w-0 flex-1 flex-col">
         <WorkflowRunSummary
-          run={query.data}
+          run={runData}
           sourceAvailable={sourceAvailable}
           sourceOpen={sourcePanelOpen}
           sourcePanelId={sourcePanelId}
           sourceButtonRef={sourceButtonRef}
           onSourceToggle={() => setSourcePanelOpen((open) => !open)}
-          canCancel={!isWorkflowRunTerminal(query.data.status)}
+          canCancel={!isWorkflowRunTerminal(runData.status)}
           cancelling={cancelMutation.isPending}
           onCancel={cancelRun}
+          canRerun={canRerun}
+          hasFailedJobs={hasFailedJobs}
+          rerunPending={rerunMutation.isPending}
+          onRerun={(mode) => void rerun(mode)}
         />
         {query.isError ? <WorkflowRunStaleError query={query} /> : null}
         <div className="min-h-0 flex-1 overflow-auto bg-background-neutral-base p-16">
           <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-16">
             <WorkflowJobsGraph
-              run={query.data}
+              run={runData}
               selectedJobId={selectedJob?.id}
               onSelectedJobChange={selectJob}
             />
@@ -160,17 +212,21 @@ function RunViewContent({
               <WorkflowStepList
                 job={selectedJob}
                 className="max-h-[50vh]"
-                selectedAttemptId={selectedAttemptId}
+                selectedAttemptId={selectedJob.carriedOver ? undefined : selectedAttemptId}
                 onSelectedAttemptChange={selectionControlled ? selectAttempt : undefined}
                 autoSelectActiveAttempt
                 emptyState={emptyStateForJob(selectedJob)}
-                renderExpandedStep={({stepId, attempt, attemptStatus}) => (
-                  <StepAttemptLogPanel
-                    stepId={stepId}
-                    attempt={attempt}
-                    attemptStatus={attemptStatus}
-                  />
-                )}
+                renderExpandedStep={({stepId, attempt, attemptStatus, carriedOver}) =>
+                  carriedOver ? (
+                    <CarriedOverStepPanel />
+                  ) : (
+                    <StepAttemptLogPanel
+                      stepId={stepId}
+                      attempt={attempt}
+                      attemptStatus={attemptStatus}
+                    />
+                  )
+                }
               />
             ) : null}
           </div>
@@ -195,6 +251,14 @@ function cancelErrorMessage(error: unknown): string {
 }
 
 function emptyStateForJob(job: WorkflowJob): WorkflowStepListEmptyState | undefined {
+  if (job.carriedOver) {
+    return {
+      title: 'Carried over from a previous attempt',
+      description: 'This job did not execute in this run.',
+      status: 'succeeded',
+    };
+  }
+
   if (job.status === 'skipped') {
     return {
       title: 'This job was skipped',
@@ -212,6 +276,18 @@ function emptyStateForJob(job: WorkflowJob): WorkflowStepListEmptyState | undefi
   }
 
   return undefined;
+}
+
+function CarriedOverStepPanel() {
+  return (
+    <EmptyState
+      className="min-h-120 rounded-8 border border-border-neutral-base bg-background-components-base px-16 py-20"
+      icon="componentLine"
+      title="Carried over from a previous attempt"
+      description="Not executed in this run."
+      variant="compact"
+    />
+  );
 }
 
 function skippedJobDescription(reason: WorkflowJob['statusReason']): string {

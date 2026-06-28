@@ -4,6 +4,16 @@ export const runStatusSchema = z.enum(['pending', 'running', 'succeeded', 'faile
 
 export type RunStatusDto = z.infer<typeof runStatusSchema>;
 
+export const rerunModeSchema = z.enum(['all', 'failed']);
+
+export type RerunMode = z.infer<typeof rerunModeSchema>;
+
+export const rerunRunBodySchema = z.object({
+  mode: rerunModeSchema,
+});
+
+export type RerunRunBodyDto = z.infer<typeof rerunRunBodySchema>;
+
 const isoDateTimeSchema = z.string().datetime();
 const runListQueryBaseSchema = z.object({
   project_id: z.string().uuid(),
@@ -65,6 +75,10 @@ export const runDtoSchema = z.object({
   definition_id: z.string().uuid(),
   name: z.string(),
   status: runStatusSchema,
+  source_run_id: z.string().uuid().nullable(),
+  root_run_id: z.string().uuid().nullable(),
+  attempt: z.number().int().positive(),
+  rerun_mode: rerunModeSchema.nullable(),
   trigger_source: z.string(),
   trigger_event: z.string(),
   trigger_payload: z.record(z.string(), z.unknown()),

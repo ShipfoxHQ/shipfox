@@ -19,7 +19,7 @@ import {
 export interface DagJob extends RuntimeDagJob {
   id: string;
   name: string;
-  status: string;
+  status: JobStatus;
   dependencies: string[];
   version: number;
   steps: Array<{

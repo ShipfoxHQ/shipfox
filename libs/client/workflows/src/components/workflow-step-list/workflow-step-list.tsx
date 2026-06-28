@@ -3,6 +3,7 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
+  Badge,
   type BadgeVariant,
   cn,
   Dot,
@@ -30,6 +31,7 @@ export interface WorkflowStepExpandedContext {
   attempt: number;
   attemptId: string;
   attemptStatus: string;
+  carriedOver: boolean;
 }
 
 export interface WorkflowStepListEmptyState {
@@ -167,6 +169,7 @@ function WorkflowStepListContent({
                           attempt: entry.attempt,
                           attemptId: entry.id,
                           attemptStatus: entry.statusVisual.kind,
+                          carriedOver: entry.carriedOver,
                         })
                       : null
                   }
@@ -248,6 +251,7 @@ function WorkflowStepRow({
             {entry.step.label}
           </Text>
           {entry.step.attempts.length > 1 ? <WorkflowAttemptChip attempt={entry} /> : null}
+          {entry.carriedOver ? <CarriedOverBadge /> : null}
         </div>
       </div>
     </>
@@ -255,6 +259,7 @@ function WorkflowStepRow({
   const rowClasses = cn(
     'group grid min-h-44 w-full grid-cols-[14px_14px_minmax(0,1fr)] items-center gap-x-8 px-12 py-6 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
     selected && 'bg-background-components-hover',
+    entry.carriedOver && 'opacity-[0.55]',
   );
   const button = hasExpandedContent ? (
     <AccordionTrigger
@@ -308,6 +313,23 @@ function WorkflowStepRow({
   }
 
   return <li className="border-b border-border-neutral-base last:border-b-0">{row}</li>;
+}
+
+function CarriedOverBadge() {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="shrink-0">
+          <Badge variant="neutral" size="2xs">
+            reused
+          </Badge>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        Carried over from a previous attempt; did not run in this attempt.
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 function toggleAttemptId(selectedAttemptIds: readonly string[], attemptId: string): string[] {

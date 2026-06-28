@@ -87,11 +87,16 @@ export function setJobStatusCalls() {
 // DAG helpers
 // ---------------------------------------------------------------------------
 
-export function dagJob(id: string, name: string, deps: string[] = []): RunDag['jobs'][number] {
+export function dagJob(
+  id: string,
+  name: string,
+  deps: string[] = [],
+  options: {status?: RunDag['jobs'][number]['status']} = {},
+): RunDag['jobs'][number] {
   return {
     id,
     name,
-    status: 'pending',
+    status: options.status ?? 'pending',
     dependencies: deps,
     version: 1,
     steps: [{id: `${id}-step`, name: null, type: 'run', config: {cmd: 'echo'}, position: 0}],

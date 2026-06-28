@@ -26,6 +26,7 @@ export const jobDtoSchema = z.object({
   name: z.string(),
   status: jobStatusSchema,
   status_reason: jobStatusReasonSchema.nullable(),
+  carried_over: z.boolean(),
   dependencies: z.array(z.string()),
   position: z.number(),
   created_at: z.string(),

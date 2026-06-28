@@ -1,5 +1,7 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
+import {sql} from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   index,
   integer,
   jsonb,
@@ -24,6 +26,8 @@ export const workflowRunStatusEnum = pgEnum('workflows_run_status', [
   'cancelled',
 ]);
 
+export const workflowRunRerunModeEnum = pgEnum('workflows_rerun_mode', ['all', 'failed']);
+
 export const workflowRuns = pgTable(
   'workflow_runs',
   {
@@ -33,6 +37,11 @@ export const workflowRuns = pgTable(
     definitionId: uuid('definition_id').notNull(),
     name: text('name').notNull(),
     status: workflowRunStatusEnum('status').notNull().default('pending'),
+    sourceRunId: uuid('source_run_id').references((): AnyPgColumn => workflowRuns.id),
+    rootRunId: uuid('root_run_id').references((): AnyPgColumn => workflowRuns.id),
+    attempt: integer('attempt').notNull().default(1),
+    rerunMode: workflowRunRerunModeEnum('rerun_mode'),
+    rerunByUserId: uuid('rerun_by_user_id'),
     triggerSource: text('trigger_source').notNull(),
     triggerEvent: text('trigger_event').notNull(),
     triggerPayload: jsonb('trigger_payload').notNull().$type<TriggerPayload>(),
@@ -68,6 +77,9 @@ export const workflowRuns = pgTable(
       table.createdAt,
       table.id,
     ),
+    uniqueIndex('workflows_wr_root_run_attempt_unique')
+      .on(table.rootRunId, table.attempt)
+      .where(sql`${table.rootRunId} is not null`),
   ],
 );
 
@@ -82,6 +94,11 @@ export function toWorkflowRun(row: WorkflowRunDb): WorkflowRun {
     definitionId: row.definitionId,
     name: row.name,
     status: row.status,
+    sourceRunId: row.sourceRunId,
+    rootRunId: row.rootRunId,
+    attempt: row.attempt,
+    rerunMode: row.rerunMode ?? null,
+    rerunByUserId: row.rerunByUserId,
     triggerSource: row.triggerSource,
     triggerEvent: row.triggerEvent,
     triggerPayload: row.triggerPayload as TriggerPayload,

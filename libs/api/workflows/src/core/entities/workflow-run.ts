@@ -51,6 +51,11 @@ export interface WorkflowRun {
   definitionId: string;
   name: string;
   status: WorkflowRunStatus;
+  sourceRunId: string | null;
+  rootRunId: string | null;
+  attempt: number;
+  rerunMode: 'all' | 'failed' | null;
+  rerunByUserId: string | null;
   triggerSource: string;
   triggerEvent: string;
   triggerPayload: TriggerPayload;

@@ -23,6 +23,8 @@ export {
 } from './job-execution.js';
 export {type LogOutcomeDto, logOutcomeSchema} from './log-outcome.js';
 export {
+  type RerunMode,
+  type RerunRunBodyDto,
   type RunAggregatesQueryDto,
   type RunAggregatesResponseDto,
   type RunDto,
@@ -30,6 +32,8 @@ export {
   type RunListResponseDto,
   type RunResponseDto,
   type RunStatusDto,
+  rerunModeSchema,
+  rerunRunBodySchema,
   runAggregatesQuerySchema,
   runAggregatesResponseSchema,
   runDtoSchema,

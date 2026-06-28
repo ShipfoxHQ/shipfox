@@ -63,6 +63,27 @@ export class WorkflowRunNotCancellableError extends Error {
   }
 }
 
+export class SourceRunNotFoundError extends Error {
+  constructor(runId: string) {
+    super(`Source workflow run not found: ${runId}`);
+    this.name = 'SourceRunNotFoundError';
+  }
+}
+
+export class RunNotTerminalError extends Error {
+  constructor(runId: string) {
+    super(`Workflow run is not terminal: ${runId}`);
+    this.name = 'RunNotTerminalError';
+  }
+}
+
+export class NoFailedJobsError extends Error {
+  constructor(runId: string) {
+    super(`Workflow run has no failed or cancelled jobs to re-run: ${runId}`);
+    this.name = 'NoFailedJobsError';
+  }
+}
+
 // The run's project (and therefore its source repository) cannot be resolved, so
 // there is nothing to check out.
 export class CheckoutIntentUnresolvedError extends Error {

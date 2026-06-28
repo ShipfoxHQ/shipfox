@@ -111,6 +111,7 @@ export interface WorkflowJob {
   name: string;
   status: WorkflowJobStatus;
   statusReason: WorkflowJobStatusReason | null;
+  carriedOver: boolean;
   dependencies: string[];
   position: number;
   createdAt: string;
@@ -222,6 +223,7 @@ export function toWorkflowJob(dto: RunJobDetailDto): WorkflowJob {
     name: dto.name,
     status: dto.status,
     statusReason: dto.status_reason,
+    carriedOver: dto.carried_over,
     dependencies: dto.dependencies,
     position: dto.position,
     createdAt: dto.created_at,
