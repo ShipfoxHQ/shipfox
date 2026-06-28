@@ -65,6 +65,51 @@ export class ActiveEphemeralRegistrationTokenExistsError extends Error {
   }
 }
 
+export class ReservationNotFoundError extends Error {
+  constructor(public readonly reservationId: string) {
+    super(`Reservation not found: ${reservationId}`);
+    this.name = 'ReservationNotFoundError';
+  }
+}
+
+export class ReservationExpiredError extends Error {
+  constructor(public readonly reservationId: string) {
+    super(`Reservation has expired: ${reservationId}`);
+    this.name = 'ReservationExpiredError';
+  }
+}
+
+export class RegistrationTokenBatchTooLargeError extends Error {
+  constructor(
+    public readonly requested: number,
+    public readonly max: number,
+  ) {
+    super(`Registration token batch requested ${requested} resources, exceeding max ${max}`);
+    this.name = 'RegistrationTokenBatchTooLargeError';
+  }
+}
+
+export class RegistrationTokenBatchExceedsReservationError extends Error {
+  constructor(
+    public readonly requested: number,
+    public readonly reservationCount: number,
+  ) {
+    super(
+      `Registration token batch requested ${requested} resources, exceeding reservation count ${reservationCount}`,
+    );
+    this.name = 'RegistrationTokenBatchExceedsReservationError';
+  }
+}
+
+export class ActiveEphemeralRegistrationTokensExistError extends Error {
+  constructor(public readonly resourceIds: string[]) {
+    super(
+      `Active ephemeral registration tokens already exist for resources: ${resourceIds.join(', ')}`,
+    );
+    this.name = 'ActiveEphemeralRegistrationTokensExistError';
+  }
+}
+
 export class RunnerSessionExhaustedError extends Error {
   constructor(public readonly runnerSessionId: string) {
     super(`Runner session claim limit exhausted: ${runnerSessionId}`);

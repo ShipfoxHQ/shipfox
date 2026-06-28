@@ -5,6 +5,17 @@ export {
 } from './claim-job.js';
 export {type HeartbeatResponseDto, heartbeatResponseSchema} from './heartbeat.js';
 export {
+  type MintedRegistrationTokenDto,
+  type MintRegistrationTokensBatchBodyDto,
+  type MintRegistrationTokensBatchResponseDto,
+  type MintRegistrationTokensResourceDto,
+  mintedRegistrationTokenSchema,
+  mintRegistrationTokensBatchBodySchema,
+  mintRegistrationTokensBatchResponseSchema,
+  mintRegistrationTokensResourceSchema,
+  REGISTRATION_TOKEN_BATCH_HARD_MAX,
+} from './mint-registration-tokens.js';
+export {
   type DemandStatDto,
   demandStatSchema,
   type PollDemandBodyDto,

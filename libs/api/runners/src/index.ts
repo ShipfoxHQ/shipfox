@@ -12,7 +12,11 @@ import {RUNNERS_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 export {
   type MintEphemeralRegistrationTokenParams,
   type MintEphemeralRegistrationTokenResult,
+  type MintEphemeralRegistrationTokensBatchParams,
+  type MintEphemeralRegistrationTokensBatchResource,
+  type MintEphemeralRegistrationTokensBatchResult,
   mintEphemeralRegistrationToken,
+  mintEphemeralRegistrationTokensBatch,
 } from '#core/ephemeral-registration-tokens.js';
 export {cancelRunnerJobs, type EnqueueJobParams, enqueueJob, releaseJob} from '#db/index.js';
 
