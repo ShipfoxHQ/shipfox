@@ -52,7 +52,7 @@ export function decryptCredential(params: CredentialDecipherParams): string {
     if (!params.encoded.startsWith(ENCODED_PREFIX)) throw new CredentialDecryptionError();
 
     const payload = Buffer.from(params.encoded.slice(ENCODED_PREFIX.length), 'base64');
-    if (payload.length <= IV_BYTES + AUTH_TAG_BYTES) throw new CredentialDecryptionError();
+    if (payload.length < IV_BYTES + AUTH_TAG_BYTES) throw new CredentialDecryptionError();
 
     const iv = payload.subarray(0, IV_BYTES);
     const authTag = payload.subarray(IV_BYTES, IV_BYTES + AUTH_TAG_BYTES);
@@ -124,7 +124,7 @@ function getEncryptionKey(): Buffer {
   }
 
   const key = Buffer.from(encoded, 'base64');
-  if (key.length !== KEY_BYTES || key.toString('base64') !== encoded) {
+  if (key.length !== KEY_BYTES) {
     throw new Error(
       'AGENT_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key, for example from `openssl rand -base64 32`.',
     );

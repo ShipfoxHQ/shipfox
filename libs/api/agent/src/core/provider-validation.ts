@@ -5,6 +5,7 @@ import {config} from '#config.js';
 import {
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
+  ProviderValidationUnavailableError,
   UnsupportedAgentProviderError,
 } from './errors.js';
 
@@ -30,7 +31,7 @@ export async function probeProviderCredentials(
   if (!model) throw new InvalidAgentModelError(params.providerId, params.model);
 
   const secretField = entry.credential_fields.find((field) => field.secret);
-  if (!secretField) throw new UnsupportedAgentProviderError(params.providerId);
+  if (!secretField) throw new ProviderValidationUnavailableError(params.providerId);
   const apiKey = credentialValue(params, secretField.key);
 
   const context: Context = {

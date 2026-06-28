@@ -9,6 +9,7 @@ import {
 import {CredentialDecryptionError} from './errors.js';
 
 const ENCODED_CREDENTIAL_PREFIX = /^v1:/;
+const BASE64_PADDING_SUFFIX = /=+$/;
 
 describe('credential encryption', () => {
   afterEach(() => {
@@ -24,6 +25,14 @@ describe('credential encryption', () => {
     expect(encoded).not.toContain(plaintext);
     expect(encoded).toMatch(ENCODED_CREDENTIAL_PREFIX);
     expect(decrypted).toBe(plaintext);
+  });
+
+  it('round-trips an empty credential', () => {
+    const encoded = encryptCredential({plaintext: '', aad: 'workspace:anthropic:api_key'});
+
+    const decrypted = decryptCredential({encoded, aad: 'workspace:anthropic:api_key'});
+
+    expect(decrypted).toBe('');
   });
 
   it('uses a random IV for each encryption', () => {
@@ -87,6 +96,20 @@ describe('credential encryption', () => {
       secondModule.decryptCredential({encoded, aad: 'workspace:anthropic:api_key'});
 
     expect(decryptWithWrongKey).toThrow('Failed to decrypt agent provider credential');
+  });
+
+  it('accepts an unpadded base64 encryption key', async () => {
+    vi.resetModules();
+    vi.stubEnv(
+      'AGENT_CREDENTIALS_ENCRYPTION_KEY',
+      Buffer.from('a'.repeat(32), 'utf8').toString('base64').replace(BASE64_PADDING_SUFFIX, ''),
+    );
+    const module = await import('./credential-encryption.js');
+
+    const encoded = module.encryptCredential({plaintext: 'secret', aad: 'aad'});
+    const decrypted = module.decryptCredential({encoded, aad: 'aad'});
+
+    expect(decrypted).toBe('secret');
   });
 
   it('round-trips a multi-field credential record', () => {
