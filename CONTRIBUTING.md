@@ -201,8 +201,9 @@ suite for React integration, and Playwright for user-visible journeys.
 ## Visual Regression Testing
 
 Visual drift is caught on every PR via [Argos](https://argos-ci.com/). One Argos
-project receives one named build per source module (`react-ui` for the
-component library, `client-auth` for the auth E2E surface, etc.) using Argos's
+project receives one named build per visual surface (`react-ui` for the
+component library, `client-auth-storybook` for auth Storybook coverage,
+`client-auth` for the auth E2E surface, etc.) using Argos's
 [build-splitting](https://argos-ci.com/docs/build-splitting); each posts its own
 GitHub check.
 
@@ -212,6 +213,7 @@ GitHub check.
 | --- | --- | --- |
 | `react-ui` | `@shipfox/react-ui` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/shared/react/ui/.storybook/preview.tsx` as `parameters.argos.modes`) |
 | `client-workflows` | `@shipfox/client-workflows` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/client/workflows/.storybook/preview.tsx` as `parameters.argos.modes`) |
+| `client-auth-storybook` | `@shipfox/client-auth` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | workspace switcher states in **light + dark** (declared in `libs/client/auth/.storybook/preview.tsx` as `parameters.argos.modes`) |
 | `client-auth` | `@shipfox/e2e-client-auth` Playwright specs via `@argos-ci/playwright` reporter | explicit `argosScreenshot()` calls at user-visible checkpoints |
 
 The goal is review-grade signal on UI drift, not 100% state coverage. Capture the
