@@ -4,7 +4,6 @@ import {
   Badge,
   Button,
   Code,
-  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -107,15 +106,11 @@ export function WorkflowRunSummary({
             <Button
               ref={sourceButtonRef}
               type="button"
-              variant="transparentMuted"
+              variant="secondary"
               size="xs"
               iconLeft="fileCodeLine"
               aria-controls={sourcePanelId}
               aria-expanded={sourceOpen}
-              className={cn(
-                'text-foreground-neutral-subtle',
-                sourceOpen && 'bg-background-components-hover text-foreground-neutral-base',
-              )}
               onClick={onSourceToggle}
             >
               Source
