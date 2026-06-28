@@ -133,6 +133,7 @@ function launchJobs(
             jobId: job.id,
             runId: run.runId,
             jobVersion: jobVersions.get(job.id) ?? job.version,
+            requiredLabels: job.runner,
           },
         ],
         parentClosePolicy: ParentClosePolicy.TERMINATE,

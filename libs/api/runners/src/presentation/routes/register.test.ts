@@ -140,8 +140,8 @@ describe('POST /runners/register', () => {
   });
 
   it.each([
-    ['too many labels', {labels: Array.from({length: 51}, (_, index) => `label-${index}`)}],
-    ['too long label', {labels: ['a'.repeat(64)]}],
+    ['too many labels', {labels: Array.from({length: 21}, (_, index) => `label-${index}`)}],
+    ['too long label', {labels: ['a'.repeat(129)]}],
     ['bad charset', {labels: ['linux/amd64']}],
   ])('returns 400 for %s', async (_case, payload) => {
     const res = await app.inject({
@@ -152,5 +152,19 @@ describe('POST /runners/register', () => {
     });
 
     expect(res.statusCode).toBe(400);
+  });
+
+  it.each([
+    ['20 labels', {labels: Array.from({length: 20}, (_, index) => `label-${index}`)}],
+    ['128-character label', {labels: ['a'.repeat(128)]}],
+  ])('accepts %s', async (_case, payload) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/runners/register',
+      headers: {authorization: `Bearer ${rawToken}`},
+      payload,
+    });
+
+    expect(res.statusCode).toBe(200);
   });
 });

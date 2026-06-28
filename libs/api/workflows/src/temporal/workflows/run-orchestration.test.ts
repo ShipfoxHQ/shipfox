@@ -67,6 +67,7 @@ describe('runOrchestration', () => {
         workspaceId: 'workspace-1',
         projectId: 'project-1',
         runId: 'r1',
+        requiredLabels: ['ubuntu22'],
       });
     }
   });

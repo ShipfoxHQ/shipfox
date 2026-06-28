@@ -5,12 +5,13 @@ import {
   RUNNER_JOB_QUEUED,
 } from '@shipfox/api-runners-dto';
 import {eq, sql} from 'drizzle-orm';
+import {EmptyRequiredLabelsError} from '#core/errors.js';
 import {claimJob, detectAndExpireStuckJobs} from '#core/jobs.js';
 import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
 import {db} from './db.js';
 import {
   cancelRunnerJobs,
-  claimPendingJob,
+  claimPendingJob as claimPendingJobDb,
   enqueueJob,
   expireStuckJobs,
   getJobQueueDepth,
@@ -21,6 +22,16 @@ import {
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobs} from './schema/pending-jobs.js';
 import {runningJobs} from './schema/running-jobs.js';
+
+const sessionLabels = ['linux', 'x64'];
+
+function claimPendingJob(
+  params: Omit<Parameters<typeof claimPendingJobDb>[0], 'sessionLabels'> & {
+    sessionLabels?: string[];
+  },
+) {
+  return claimPendingJobDb({...params, sessionLabels: params.sessionLabels ?? sessionLabels});
+}
 
 describe('enqueueJob', () => {
   beforeEach(async () => {
@@ -35,7 +46,7 @@ describe('enqueueJob', () => {
     const workspaceId = crypto.randomUUID();
     const projectId = crypto.randomUUID();
 
-    await enqueueJob({workspaceId, jobId, runId, projectId});
+    await enqueueJob({workspaceId, jobId, runId, projectId, requiredLabels: ['linux']});
 
     const rows = await db().select().from(pendingJobs);
     expect(rows).toHaveLength(1);
@@ -43,7 +54,35 @@ describe('enqueueJob', () => {
     expect(rows[0]?.runId).toBe(runId);
     expect(rows[0]?.projectId).toBe(projectId);
     expect(rows[0]?.workspaceId).toBe(workspaceId);
+    expect(rows[0]?.requiredLabels).toEqual(['linux']);
     expect(rows[0]).not.toHaveProperty('payload');
+  });
+
+  it('stores canonical required labels', async () => {
+    const jobId = crypto.randomUUID();
+
+    await enqueueJob({
+      workspaceId: crypto.randomUUID(),
+      jobId,
+      runId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      requiredLabels: ['Ubuntu22', ' ubuntu22 ', 'LINUX'],
+    });
+
+    const rows = await db().select().from(pendingJobs).where(eq(pendingJobs.jobId, jobId));
+    expect(rows[0]?.requiredLabels).toEqual(['linux', 'ubuntu22']);
+  });
+
+  it('rejects empty required labels', async () => {
+    await expect(
+      enqueueJob({
+        workspaceId: crypto.randomUUID(),
+        jobId: crypto.randomUUID(),
+        runId: crypto.randomUUID(),
+        projectId: crypto.randomUUID(),
+        requiredLabels: [],
+      }),
+    ).rejects.toBeInstanceOf(EmptyRequiredLabelsError);
   });
 
   it('is idempotent: scheduling the same jobId twice is a no-op', async () => {
@@ -53,6 +92,7 @@ describe('enqueueJob', () => {
       runId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       jobId,
+      requiredLabels: ['linux'],
     };
 
     await enqueueJob(params);
@@ -71,6 +111,7 @@ describe('enqueueJob', () => {
       jobId,
       runId,
       projectId: crypto.randomUUID(),
+      requiredLabels: ['linux'],
     });
 
     const [pending] = await db().select().from(pendingJobs);
@@ -89,6 +130,7 @@ describe('enqueueJob', () => {
       runId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       jobId: crypto.randomUUID(),
+      requiredLabels: ['linux'],
     };
 
     await enqueueJob(params);
@@ -152,6 +194,7 @@ describe('claimPendingJob', () => {
       jobId: created.jobId,
       runId: created.runId,
       projectId: created.projectId,
+      requiredLabels: created.requiredLabels,
     });
     // Clear the initial claim's events so this assertion only covers the orphan claim.
     await db().delete(runnersOutbox);
@@ -212,6 +255,77 @@ describe('claimPendingJob', () => {
     expect(running).toHaveLength(1);
     expect(running[0]?.runnerSessionId).toBe(runnerSessionId);
     expect(running[0]?.projectId).toBe(created.projectId);
+    expect(running[0]?.requiredLabels).toEqual(created.requiredLabels);
+    expect(running[0]?.runnerLabels).toEqual(sessionLabels);
+  });
+
+  it('claims a job whose required labels are a subset of the session labels', async () => {
+    const created = await pendingJobFactory.create({
+      workspaceId,
+      requiredLabels: ['linux'],
+    });
+
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+
+    expect(claimed?.jobId).toBe(created.jobId);
+  });
+
+  it('claims a job whose required labels exactly match the session labels', async () => {
+    const created = await pendingJobFactory.create({
+      workspaceId,
+      requiredLabels: ['linux', 'x64'],
+    });
+
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+
+    expect(claimed?.jobId).toBe(created.jobId);
+  });
+
+  it('skips an older incompatible job and claims the oldest compatible job', async () => {
+    await pendingJobFactory.create({workspaceId, requiredLabels: ['macos']});
+    const compatible = await pendingJobFactory.create({workspaceId, requiredLabels: ['linux']});
+    await pendingJobFactory.create({workspaceId, requiredLabels: ['linux']});
+
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+
+    expect(claimed?.jobId).toBe(compatible.jobId);
+  });
+
+  it('claims the older matching job before newer matching jobs', async () => {
+    await pendingJobFactory.create({workspaceId, requiredLabels: ['macos']});
+    const olderMatching = await pendingJobFactory.create({workspaceId, requiredLabels: ['linux']});
+    await pendingJobFactory.create({workspaceId, requiredLabels: ['x64']});
+
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+
+    expect(claimed?.jobId).toBe(olderMatching.jobId);
+  });
+
+  it('returns null when no compatible job is pending', async () => {
+    await pendingJobFactory.create({workspaceId, requiredLabels: ['macos']});
+
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+
+    expect(claimed).toBeNull();
+  });
+
+  it('returns null for an empty session label set', async () => {
+    await pendingJobFactory.create({workspaceId, requiredLabels: ['linux']});
+
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, sessionLabels: []});
+
+    expect(claimed).toBeNull();
+  });
+
+  it('claims the compatible row from a mixed-label queue', async () => {
+    for (let index = 0; index < 8; index += 1) {
+      await pendingJobFactory.create({workspaceId, requiredLabels: [`gpu-${index}`]});
+    }
+    const compatible = await pendingJobFactory.create({workspaceId, requiredLabels: ['linux']});
+
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+
+    expect(claimed?.jobId).toBe(compatible.jobId);
   });
 
   it('does not claim jobs from another workspace', async () => {
@@ -233,6 +347,7 @@ describe('claimPendingJob', () => {
       jobId: created.jobId,
       runId: created.runId,
       projectId: created.projectId,
+      requiredLabels: created.requiredLabels,
     });
 
     const second = await claimPendingJob({workspaceId, runnerSessionId});
@@ -242,6 +357,30 @@ describe('claimPendingJob', () => {
     const running = await db().select().from(runningJobs);
     expect(running).toHaveLength(1);
     expect(running[0]?.jobId).toBe(created.jobId);
+  });
+
+  it('leaves a non-matching orphan unclaimed until release sweeps it', async () => {
+    const created = await pendingJobFactory.create({workspaceId});
+    const first = await claimPendingJob({workspaceId, runnerSessionId});
+    expect(first?.jobId).toBe(created.jobId);
+    await db().insert(pendingJobs).values({
+      workspaceId,
+      jobId: created.jobId,
+      runId: created.runId,
+      projectId: created.projectId,
+      requiredLabels: created.requiredLabels,
+    });
+
+    const second = await claimPendingJob({
+      workspaceId,
+      runnerSessionId,
+      sessionLabels: ['macos'],
+    });
+    await releaseJob({jobId: created.jobId});
+
+    expect(second).toBeNull();
+    expect(await db().select().from(runningJobs)).toHaveLength(0);
+    expect(await db().select().from(pendingJobs)).toHaveLength(0);
   });
 
   it('claims a real pending job ahead of a newer orphan', async () => {
@@ -255,6 +394,7 @@ describe('claimPendingJob', () => {
       jobId: alreadyRunning.jobId,
       runId: alreadyRunning.runId,
       projectId: alreadyRunning.projectId,
+      requiredLabels: alreadyRunning.requiredLabels,
     });
 
     const claimed = await claimPendingJob({workspaceId, runnerSessionId});
@@ -279,7 +419,7 @@ describe('claimJob', () => {
   it('mints a lease token whose claims match the claimed job', async () => {
     const created = await pendingJobFactory.create({workspaceId});
 
-    const claimed = await claimJob({workspaceId, runnerSessionId});
+    const claimed = await claimJob({workspaceId, runnerSessionId, sessionLabels});
 
     expect(claimed).not.toBeNull();
     expect(claimed?.jobId).toBe(created.jobId);
@@ -297,7 +437,7 @@ describe('claimJob', () => {
   });
 
   it('returns null and mints no token when the queue is empty', async () => {
-    const claimed = await claimJob({workspaceId, runnerSessionId});
+    const claimed = await claimJob({workspaceId, runnerSessionId, sessionLabels});
 
     expect(claimed).toBeNull();
   });
@@ -352,6 +492,7 @@ describe('releaseJob', () => {
         jobId: claimed?.jobId as string,
         runId: claimed?.runId as string,
         projectId: claimed?.projectId as string,
+        requiredLabels: ['linux'],
       });
 
     await releaseJob({jobId: claimed?.jobId as string});
@@ -649,7 +790,15 @@ describe('detectAndExpireStuckJobs', () => {
     const {jobId, runId, projectId} = await makeStaleJob(600);
     // A post-claim enqueue retry left a pending row whose job is already running;
     // without this sweep it would stay re-claimable for an already-finished job.
-    await db().insert(pendingJobs).values({workspaceId, jobId, runId, projectId});
+    await db()
+      .insert(pendingJobs)
+      .values({
+        workspaceId,
+        jobId,
+        runId,
+        projectId,
+        requiredLabels: ['linux'],
+      });
 
     await detectAndExpireStuckJobs({thresholdSeconds: 180});
 
@@ -661,7 +810,15 @@ describe('detectAndExpireStuckJobs', () => {
 
   it('leaves the orphan pending row alone when the running row is not stale enough to reap', async () => {
     const {jobId, runId, projectId} = await makeStaleJob(60);
-    await db().insert(pendingJobs).values({workspaceId, jobId, runId, projectId});
+    await db()
+      .insert(pendingJobs)
+      .values({
+        workspaceId,
+        jobId,
+        runId,
+        projectId,
+        requiredLabels: ['linux'],
+      });
 
     await detectAndExpireStuckJobs({thresholdSeconds: 180});
 
@@ -709,7 +866,15 @@ describe('detectAndExpireStuckJobs', () => {
   it('a reaper tick and a concurrent claim of the same orphan-pending job leave consistent state', async () => {
     const {jobId, runId, projectId} = await makeStaleJob(600);
     // Orphan pending row from a post-claim enqueue retry for an already-running job.
-    await db().insert(pendingJobs).values({workspaceId, jobId, runId, projectId});
+    await db()
+      .insert(pendingJobs)
+      .values({
+        workspaceId,
+        jobId,
+        runId,
+        projectId,
+        requiredLabels: ['linux'],
+      });
 
     // The reaper locks running-then-pending while the claim locks pending-then-running;
     // a deadlock loser rolls back, so either side may settle as rejected.

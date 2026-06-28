@@ -100,6 +100,7 @@ const defaultJobInput = {
   runId: 'run-1',
   projectId: 'project-1',
   jobVersion: 1,
+  requiredLabels: ['ubuntu22'],
 };
 
 function executeJob(input: typeof defaultJobInput): Promise<{status: string; jobVersion: number}> {

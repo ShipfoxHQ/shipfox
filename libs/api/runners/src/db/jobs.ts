@@ -1,12 +1,13 @@
 import {
+  canonicalizeRunnerLabels,
   RUNNER_JOB_CLAIMED,
   RUNNER_JOB_LEASE_EXPIRED,
   RUNNER_JOB_QUEUED,
   type RunnersEventMap,
 } from '@shipfox/api-runners-dto';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
-import {and, asc, count, eq, inArray, lt, sql} from 'drizzle-orm';
-import {RunningJobNotFoundError} from '#core/errors.js';
+import {and, arrayContained, asc, count, eq, inArray, lt, sql} from 'drizzle-orm';
+import {EmptyRequiredLabelsError, RunningJobNotFoundError} from '#core/errors.js';
 import {jobEnqueuedCount, jobLeaseExpiredCount} from '#metrics/instance.js';
 import {db} from './db.js';
 import {runnersOutbox} from './schema/outbox.js';
@@ -18,6 +19,7 @@ export interface EnqueueJobParams {
   jobId: string;
   runId: string;
   projectId: string;
+  requiredLabels: string[];
 }
 
 // Idempotent while the job is still pending: a duplicate jobId already in
@@ -28,6 +30,9 @@ export interface EnqueueJobParams {
 // can reinsert an orphan pending row, which a later `claimPendingJob` drops
 // via the running-job unique constraint (onConflictDoNothing) instead of failing.
 export async function enqueueJob(params: EnqueueJobParams): Promise<void> {
+  const requiredLabels = canonicalizeRunnerLabels(params.requiredLabels);
+  if (requiredLabels.length === 0) throw new EmptyRequiredLabelsError();
+
   const enqueued = await db().transaction(async (tx) => {
     const [inserted] = await tx
       .insert(pendingJobs)
@@ -36,6 +41,7 @@ export async function enqueueJob(params: EnqueueJobParams): Promise<void> {
         jobId: params.jobId,
         runId: params.runId,
         projectId: params.projectId,
+        requiredLabels,
       })
       .onConflictDoNothing({target: pendingJobs.jobId})
       .returning({createdAt: pendingJobs.createdAt});
@@ -68,14 +74,22 @@ export interface ClaimedJob {
 export async function claimPendingJob(params: {
   workspaceId: string;
   runnerSessionId: string;
+  sessionLabels: string[];
 }): Promise<ClaimedJob | null> {
+  if (params.sessionLabels.length === 0) return null;
+
   return await db().transaction(async (tx) => {
     // `id` is a uuidv7 (time-ordered), so it is a deterministic FIFO tiebreaker
     // for rows sharing a created_at within a batch.
     const [row] = await tx
       .select()
       .from(pendingJobs)
-      .where(eq(pendingJobs.workspaceId, params.workspaceId))
+      .where(
+        and(
+          eq(pendingJobs.workspaceId, params.workspaceId),
+          arrayContained(pendingJobs.requiredLabels, params.sessionLabels),
+        ),
+      )
       .orderBy(asc(pendingJobs.createdAt), asc(pendingJobs.id))
       .limit(1)
       .for('update', {skipLocked: true});
@@ -98,6 +112,8 @@ export async function claimPendingJob(params: {
         runId: row.runId,
         projectId: row.projectId,
         runnerSessionId: params.runnerSessionId,
+        requiredLabels: row.requiredLabels,
+        runnerLabels: params.sessionLabels,
       })
       .onConflictDoNothing({target: runningJobs.jobId})
       .returning({claimedAt: runningJobs.startedAt});

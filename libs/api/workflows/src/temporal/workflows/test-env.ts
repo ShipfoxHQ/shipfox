@@ -93,6 +93,7 @@ export function dagJob(id: string, name: string, deps: string[] = []): RunDag['j
     name,
     status: 'pending',
     dependencies: deps,
+    runner: ['ubuntu22'],
     version: 1,
     steps: [{id: `${id}-step`, name: null, type: 'run', config: {cmd: 'echo'}, position: 0}],
   };
@@ -176,6 +177,7 @@ function createMockActivities() {
       jobId: string;
       runId: string;
       projectId: string;
+      requiredLabels: string[];
     }) => {
       calls.push({name: 'enqueueJobForRunner', params});
 

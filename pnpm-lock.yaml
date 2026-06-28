@@ -1803,6 +1803,9 @@ importers:
 
   libs/api/runners-dto:
     dependencies:
+      '@shipfox/runner-labels':
+        specifier: workspace:*
+        version: link:../../shared/common/runner-labels
       zod:
         specifier: ^4.4.3
         version: 4.4.3

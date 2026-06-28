@@ -129,6 +129,18 @@ describe('POST /runners/jobs/request', () => {
     expect(res.statusCode).toBe(204);
   });
 
+  it('returns 204 when no pending job matches the session labels', async () => {
+    await pendingJobFactory.create({workspaceId, requiredLabels: ['macos']});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/runners/jobs/request',
+      headers: {authorization: `Bearer ${sessionToken}`},
+    });
+
+    expect(res.statusCode).toBe(204);
+  });
+
   it('claims multiple jobs from one manual session', async () => {
     const first = await pendingJobFactory.create({workspaceId});
     const second = await pendingJobFactory.create({workspaceId});

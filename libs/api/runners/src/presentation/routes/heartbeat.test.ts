@@ -54,7 +54,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
 
   async function claimAvailableJob(): Promise<{jobId: string; leaseToken: string}> {
     const pending = await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerSessionId});
+    const claimed = await claimJob({workspaceId, runnerSessionId, sessionLabels: ['linux', 'x64']});
     expect(claimed).not.toBeNull();
     return {jobId: pending.jobId, leaseToken: claimed?.leaseToken as string};
   }

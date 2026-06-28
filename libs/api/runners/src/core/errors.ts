@@ -18,3 +18,10 @@ export class EmptyRunnerLabelsError extends Error {
     this.name = 'EmptyRunnerLabelsError';
   }
 }
+
+export class EmptyRequiredLabelsError extends Error {
+  constructor() {
+    super('Required labels cannot be empty');
+    this.name = 'EmptyRequiredLabelsError';
+  }
+}

@@ -29,6 +29,7 @@ const defaultJobInput = {
   runId: 'run-1',
   projectId: 'project-1',
   jobVersion: 1,
+  requiredLabels: ['ubuntu22'],
 };
 
 function executeJob(input: typeof defaultJobInput): Promise<{status: string; jobVersion: number}> {
@@ -65,6 +66,34 @@ describe('jobOrchestration', () => {
     expect(callsNamed('releaseLeaseActivity')).toHaveLength(1);
     expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(0);
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
+  });
+
+  test('empty required labels fail before the job is marked running', async () => {
+    setCfg({
+      dag: makeDag([dagJob('job-empty-labels', 'build')]),
+      jobResults: new Map([['job-empty-labels', 'succeeded']]),
+    });
+
+    await expect(
+      executeJob({...defaultJobInput, jobId: 'job-empty-labels', requiredLabels: []}),
+    ).rejects.toThrow();
+
+    expect(setJobStatusCalls()).toHaveLength(0);
+    expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
+  });
+
+  test('whitespace-only required labels fail before the job is marked running', async () => {
+    setCfg({
+      dag: makeDag([dagJob('job-blank-labels', 'build')]),
+      jobResults: new Map([['job-blank-labels', 'succeeded']]),
+    });
+
+    await expect(
+      executeJob({...defaultJobInput, jobId: 'job-blank-labels', requiredLabels: ['  ']}),
+    ).rejects.toThrow();
+
+    expect(setJobStatusCalls()).toHaveLength(0);
+    expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
   });
 
   test('finished signal (failed) flips status without sweeping steps', async () => {
