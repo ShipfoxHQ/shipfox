@@ -133,7 +133,7 @@ test('switches between workspaces from the top nav', async ({page, auth, workspa
   await expect(page).toHaveURL(workspaceUrlRe(wsA.id));
 
   await page.getByLabel('Switch workspace').click();
-  await argosScreenshot(page, 'workspaces/switcher-open');
+  await expect(page.getByRole('option', {name: workspaceAName})).toBeVisible();
   await page.getByRole('option', {name: workspaceBName}).click();
 
   await expect(page).toHaveURL(workspaceUrlRe(wsB.id));
@@ -218,7 +218,6 @@ test('creates a second workspace from the switcher mid-session', async ({
   await page.getByLabel('Switch workspace').click();
   await expect(page.getByRole('option', {name: workspaceAName})).toBeVisible();
   await expect(page.getByRole('option', {name: CREATE_WORKSPACE_LABEL_RE})).toBeVisible();
-  await argosScreenshot(page, 'workspaces/switcher-single-with-create');
 
   await page.getByRole('option', {name: CREATE_WORKSPACE_LABEL_RE}).click();
   await expect(page).toHaveURL(ONBOARDING_URL_RE);
@@ -258,7 +257,6 @@ test('switcher keeps Create workspace visible when search filters every workspac
   // CommandItem stays in the DOM but its parent gets [hidden].
   await expect(page.getByText('No workspaces found.')).toBeVisible();
   await expect(page.getByRole('option', {name: CREATE_WORKSPACE_LABEL_RE})).toBeVisible();
-  await argosScreenshot(page, 'workspaces/switcher-empty-search');
 
   // The create item is the only forceMount-ed option, so cmdk auto-selects
   // it. Enter must navigate via the onSelect handler — if it falls back to
@@ -287,7 +285,6 @@ test('switcher list scrolls while Create workspace stays pinned', async ({
   await page.getByLabel('Switch workspace').click();
   await expect(page.getByRole('option', {name: 'Workspace 01'})).toBeVisible();
   await expect(page.getByRole('option', {name: CREATE_WORKSPACE_LABEL_RE})).toBeVisible();
-  await argosScreenshot(page, 'workspaces/switcher-many-overflow');
 
   // Scroll the inner max-h-300 container to the bottom. Walk up from a
   // workspace option until we hit the first ancestor whose content overflows
@@ -303,7 +300,6 @@ test('switcher list scrolls while Create workspace stays pinned', async ({
   });
   await expect(page.getByRole('option', {name: 'Workspace 20'})).toBeInViewport();
   await expect(page.getByRole('option', {name: CREATE_WORKSPACE_LABEL_RE})).toBeVisible();
-  await argosScreenshot(page, 'workspaces/switcher-many-overflow-scrolled');
 });
 
 test('routes a returning user with workspaces straight to /workspaces/$wid', async ({
