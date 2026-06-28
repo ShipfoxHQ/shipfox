@@ -1,6 +1,7 @@
 import {requireRunnerSessionContext} from '@shipfox/api-auth-context';
 import {claimedJobResponseSchema} from '@shipfox/api-runners-dto';
-import {defineRoute} from '@shipfox/node-fastify';
+import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import {RunnerSessionExhaustedError} from '#core/errors.js';
 import {claimJob} from '#core/jobs.js';
 
 export const requestJobRoute = defineRoute({
@@ -12,6 +13,14 @@ export const requestJobRoute = defineRoute({
       200: claimedJobResponseSchema,
     },
   },
+  errorHandler: (error) => {
+    if (error instanceof RunnerSessionExhaustedError) {
+      throw new ClientError('Runner session claim limit exhausted', 'runner-session-exhausted', {
+        status: 409,
+      });
+    }
+    throw error;
+  },
   handler: async (_request, reply) => {
     const runner = requireRunnerSessionContext(_request);
 
@@ -19,6 +28,7 @@ export const requestJobRoute = defineRoute({
       workspaceId: runner.workspaceId,
       runnerSessionId: runner.runnerSessionId,
       sessionLabels: runner.labels,
+      maxClaims: runner.maxClaims,
     });
 
     if (!job) {

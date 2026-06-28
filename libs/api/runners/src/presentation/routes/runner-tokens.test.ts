@@ -49,7 +49,9 @@ describe('runner token routes', () => {
 
   beforeEach(async () => {
     await closeApp();
-    await db().execute(sql`TRUNCATE runners_runner_tokens CASCADE`);
+    await db().execute(
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_runner_tokens CASCADE`,
+    );
     workspaceId = crypto.randomUUID();
     vi.mocked(requireMembership).mockResolvedValue({
       workspaceId,

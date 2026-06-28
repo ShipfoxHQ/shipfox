@@ -1,8 +1,25 @@
+export type {EphemeralRegistrationToken} from './entities/ephemeral-registration-token.js';
 export type {RunnerSession} from './entities/runner-session.js';
 export type {RunnerToken} from './entities/runner-token.js';
-export {RunnerTokenNotFoundError, RunningJobNotFoundError} from './errors.js';
+export {
+  type MintEphemeralRegistrationTokenParams,
+  type MintEphemeralRegistrationTokenResult,
+  mintEphemeralRegistrationToken,
+} from './ephemeral-registration-tokens.js';
+export {
+  EmptyRunnerLabelsError,
+  RegistrationTokenConsumedError,
+  RegistrationTokenExpiredError,
+  RunnerSessionExhaustedError,
+  RunnerTokenNotFoundError,
+  RunningJobNotFoundError,
+} from './errors.js';
 export {type ClaimJobResult, claimJob} from './jobs.js';
-export {type RegisterRunnerSessionResult, registerRunnerSession} from './runner-sessions.js';
+export {
+  type RegisterRunnerSessionResult,
+  type RunnerRegistrationCredential,
+  registerRunnerSession,
+} from './runner-sessions.js';
 export {
   createWorkspaceRunnerToken,
   listUsableRunnerTokens,

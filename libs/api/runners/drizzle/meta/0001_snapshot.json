@@ -1,9 +1,175 @@
 {
-  "id": "fff3e821-10b9-41e7-971c-701202da0b7b",
+  "id": "75800393-dde2-4b8e-9490-28a091c8f188",
   "prevId": "a53333b4-62be-43e4-9fc0-96dbbd630be8",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.runners_ephemeral_registration_tokens": {
+      "name": "runners_ephemeral_registration_tokens",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuidv7()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provisioner_id": {
+          "name": "provisioner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reservation_id": {
+          "name": "reservation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resource_id": {
+          "name": "resource_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hashed_token": {
+          "name": "hashed_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prefix": {
+          "name": "prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consumed_session_id": {
+          "name": "consumed_session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "runners_ephemeral_registration_tokens_hashed_token_unique": {
+          "name": "runners_ephemeral_registration_tokens_hashed_token_unique",
+          "columns": [
+            {
+              "expression": "hashed_token",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "runners_ephemeral_registration_tokens_workspace_id_idx": {
+          "name": "runners_ephemeral_registration_tokens_workspace_id_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "runners_ephemeral_registration_tokens_provisioner_id_idx": {
+          "name": "runners_ephemeral_registration_tokens_provisioner_id_idx",
+          "columns": [
+            {
+              "expression": "provisioner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "runners_ephemeral_registration_tokens_active_resource_idx": {
+          "name": "runners_ephemeral_registration_tokens_active_resource_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provisioner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "resource_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "consumed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.runners_outbox": {
       "name": "runners_outbox",
       "schema": "",
@@ -220,6 +386,91 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.runners_runner_sessions": {
+      "name": "runners_runner_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuidv7()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "runners_runner_session_scope",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'workspace'"
+        },
+        "registration_token_id": {
+          "name": "registration_token_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "registration_token_kind": {
+          "name": "registration_token_kind",
+          "type": "runners_runner_session_registration_token_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "labels": {
+          "name": "labels",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_claims": {
+          "name": "max_claims",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claims_used": {
+          "name": "claims_used",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "runners_runner_sessions_claims_ck": {
+          "name": "runners_runner_sessions_claims_ck",
+          "value": "\"runners_runner_sessions\".\"claims_used\" >= 0 AND ((\"runners_runner_sessions\".\"registration_token_kind\" = 'manual' AND \"runners_runner_sessions\".\"max_claims\" IS NULL) OR (\"runners_runner_sessions\".\"registration_token_kind\" = 'ephemeral' AND \"runners_runner_sessions\".\"max_claims\" IS NOT NULL AND \"runners_runner_sessions\".\"max_claims\" > 0 AND \"runners_runner_sessions\".\"claims_used\" <= \"runners_runner_sessions\".\"max_claims\"))"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.runners_runner_tokens": {
       "name": "runners_runner_tokens",
       "schema": "",
@@ -348,66 +599,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.runners_runner_sessions": {
-      "name": "runners_runner_sessions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "uuidv7()"
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scope": {
-          "name": "scope",
-          "type": "runners_runner_session_scope",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'workspace'"
-        },
-        "registration_token_id": {
-          "name": "registration_token_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "labels": {
-          "name": "labels",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.runners_running_jobs": {
       "name": "runners_running_jobs",
       "schema": "",
@@ -502,6 +693,11 @@
     }
   },
   "enums": {
+    "public.runners_runner_session_registration_token_kind": {
+      "name": "runners_runner_session_registration_token_kind",
+      "schema": "public",
+      "values": ["manual", "ephemeral"]
+    },
     "public.runners_runner_session_scope": {
       "name": "runners_runner_session_scope",
       "schema": "public",

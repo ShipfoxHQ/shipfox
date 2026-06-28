@@ -19,6 +19,7 @@ export async function issueRunnerSessionToken(
       workspaceId: claims.workspaceId,
       scope: claims.scope,
       labels: claims.labels,
+      maxClaims: claims.maxClaims,
     },
     secret: config.AUTH_RUNNER_SESSION_TOKEN_SECRET,
     expiresIn: config.AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN,

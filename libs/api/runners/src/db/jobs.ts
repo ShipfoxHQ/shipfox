@@ -7,11 +7,16 @@ import {
 } from '@shipfox/api-runners-dto';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
 import {and, arrayContained, asc, count, eq, inArray, lt, sql} from 'drizzle-orm';
-import {EmptyRequiredLabelsError, RunningJobNotFoundError} from '#core/errors.js';
+import {
+  EmptyRequiredLabelsError,
+  RunnerSessionExhaustedError,
+  RunningJobNotFoundError,
+} from '#core/errors.js';
 import {jobEnqueuedCount, jobLeaseExpiredCount} from '#metrics/instance.js';
 import {db} from './db.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobs} from './schema/pending-jobs.js';
+import {runnerSessions} from './schema/runner-sessions.js';
 import {runningJobs} from './schema/running-jobs.js';
 
 export interface EnqueueJobParams {
@@ -75,10 +80,27 @@ export async function claimPendingJob(params: {
   workspaceId: string;
   runnerSessionId: string;
   sessionLabels: string[];
+  maxClaims: number | null;
 }): Promise<ClaimedJob | null> {
   if (params.sessionLabels.length === 0) return null;
 
   return await db().transaction(async (tx) => {
+    if (params.maxClaims !== null) {
+      const [session] = await tx
+        .select({
+          maxClaims: runnerSessions.maxClaims,
+          claimsUsed: runnerSessions.claimsUsed,
+        })
+        .from(runnerSessions)
+        .where(eq(runnerSessions.id, params.runnerSessionId))
+        .limit(1)
+        .for('update');
+
+      if (!session || session.maxClaims === null || session.claimsUsed >= session.maxClaims) {
+        throw new RunnerSessionExhaustedError(params.runnerSessionId);
+      }
+    }
+
     // `id` is a uuidv7 (time-ordered), so it is a deterministic FIFO tiebreaker
     // for rows sharing a created_at within a batch.
     const [row] = await tx
@@ -120,6 +142,13 @@ export async function claimPendingJob(params: {
 
     const claimed = inserted[0];
     if (!claimed) return null;
+
+    if (params.maxClaims !== null) {
+      await tx
+        .update(runnerSessions)
+        .set({claimsUsed: sql`${runnerSessions.claimsUsed} + 1`})
+        .where(eq(runnerSessions.id, params.runnerSessionId));
+    }
 
     // The running-row insert is the runner claiming the job. Emit in the same tx; the
     // payload carries the row's own claim instant so a consumer records the true time,

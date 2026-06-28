@@ -5,7 +5,7 @@ import {
   RUNNER_JOB_QUEUED,
 } from '@shipfox/api-runners-dto';
 import {eq, sql} from 'drizzle-orm';
-import {EmptyRequiredLabelsError} from '#core/errors.js';
+import {EmptyRequiredLabelsError, RunnerSessionExhaustedError} from '#core/errors.js';
 import {claimJob, detectAndExpireStuckJobs} from '#core/jobs.js';
 import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
 import {db} from './db.js';
@@ -21,22 +21,28 @@ import {
 } from './jobs.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobs} from './schema/pending-jobs.js';
+import {runnerSessions} from './schema/runner-sessions.js';
 import {runningJobs} from './schema/running-jobs.js';
 
 const sessionLabels = ['linux', 'x64'];
 
 function claimPendingJob(
-  params: Omit<Parameters<typeof claimPendingJobDb>[0], 'sessionLabels'> & {
+  params: Omit<Parameters<typeof claimPendingJobDb>[0], 'maxClaims' | 'sessionLabels'> & {
+    maxClaims?: number | null;
     sessionLabels?: string[];
   },
 ) {
-  return claimPendingJobDb({...params, sessionLabels: params.sessionLabels ?? sessionLabels});
+  return claimPendingJobDb({
+    ...params,
+    maxClaims: params.maxClaims ?? null,
+    sessionLabels: params.sessionLabels ?? sessionLabels,
+  });
 }
 
 describe('enqueueJob', () => {
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_outbox CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_outbox CASCADE`,
     );
   });
 
@@ -147,7 +153,7 @@ describe('claimPendingJob', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
@@ -157,7 +163,7 @@ describe('claimPendingJob', () => {
   it('emits runners.job.claimed carrying the claim instant on a real claim', async () => {
     const created = await pendingJobFactory.create({workspaceId});
 
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     const [running] = await db()
       .select()
@@ -175,7 +181,7 @@ describe('claimPendingJob', () => {
   });
 
   it('emits no claimed event when there is nothing to claim', async () => {
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     expect(claimed).toBeNull();
     expect(
@@ -188,7 +194,7 @@ describe('claimPendingJob', () => {
 
   it('emits no claimed event when dropping an orphan pending row', async () => {
     const created = await pendingJobFactory.create({workspaceId});
-    await claimPendingJob({workspaceId, runnerSessionId});
+    await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
     await db().insert(pendingJobs).values({
       workspaceId,
       jobId: created.jobId,
@@ -199,7 +205,7 @@ describe('claimPendingJob', () => {
     // Clear the initial claim's events so this assertion only covers the orphan claim.
     await db().delete(runnersOutbox);
 
-    const second = await claimPendingJob({workspaceId, runnerSessionId});
+    const second = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     expect(second).toBeNull();
     expect(await db().select().from(runnersOutbox)).toHaveLength(0);
@@ -208,7 +214,7 @@ describe('claimPendingJob', () => {
   it('returns the job ids when a job is available', async () => {
     const created = await pendingJobFactory.create({workspaceId});
 
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     expect(claimed).not.toBeNull();
     expect(claimed?.jobId).toBe(created.jobId);
@@ -217,9 +223,62 @@ describe('claimPendingJob', () => {
   });
 
   it('returns null when no jobs are pending', async () => {
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     expect(claimed).toBeNull();
+  });
+
+  it('enforces a non-null session claim cap from the database', async () => {
+    await db()
+      .update(runnerSessions)
+      .set({registrationTokenKind: 'ephemeral', maxClaims: 1})
+      .where(eq(runnerSessions.id, runnerSessionId));
+    await pendingJobFactory.create({workspaceId});
+    await pendingJobFactory.create({workspaceId});
+
+    const first = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: 1});
+
+    expect(first).not.toBeNull();
+    await expect(
+      claimPendingJob({workspaceId, runnerSessionId, maxClaims: 1}),
+    ).rejects.toBeInstanceOf(RunnerSessionExhaustedError);
+  });
+
+  it('does not spend a claim when a capped session polls an empty queue', async () => {
+    await db()
+      .update(runnerSessions)
+      .set({registrationTokenKind: 'ephemeral', maxClaims: 1})
+      .where(eq(runnerSessions.id, runnerSessionId));
+
+    const empty = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: 1});
+
+    const [afterEmpty] = await db()
+      .select({claimsUsed: runnerSessions.claimsUsed})
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, runnerSessionId));
+    expect(empty).toBeNull();
+    expect(afterEmpty?.claimsUsed).toBe(0);
+
+    const created = await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: 1});
+
+    const [afterClaim] = await db()
+      .select({claimsUsed: runnerSessions.claimsUsed})
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, runnerSessionId));
+    expect(claimed?.jobId).toBe(created.jobId);
+    expect(afterClaim?.claimsUsed).toBe(1);
+  });
+
+  it('allows a manual session to claim repeatedly', async () => {
+    const first = await pendingJobFactory.create({workspaceId});
+    const second = await pendingJobFactory.create({workspaceId});
+
+    const firstClaim = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
+    const secondClaim = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
+
+    expect(firstClaim?.jobId).toBe(first.jobId);
+    expect(secondClaim?.jobId).toBe(second.jobId);
   });
 
   it('only one caller wins when two claim concurrently', async () => {
@@ -227,8 +286,12 @@ describe('claimPendingJob', () => {
     await pendingJobFactory.create({workspaceId});
 
     const [claim1, claim2] = await Promise.all([
-      claimPendingJob({workspaceId, runnerSessionId}),
-      claimPendingJob({workspaceId, runnerSessionId: otherRunnerSession.id}),
+      claimPendingJob({workspaceId, runnerSessionId, maxClaims: null}),
+      claimPendingJob({
+        workspaceId,
+        runnerSessionId: otherRunnerSession.id,
+        maxClaims: null,
+      }),
     ]);
 
     const claimed = [claim1, claim2].filter(Boolean);
@@ -239,7 +302,7 @@ describe('claimPendingJob', () => {
     const older = await pendingJobFactory.create({workspaceId});
     await pendingJobFactory.create({workspaceId});
 
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     expect(claimed?.jobId).toBe(older.jobId);
   });
@@ -247,7 +310,7 @@ describe('claimPendingJob', () => {
   it('moves the job from pending to running', async () => {
     const created = await pendingJobFactory.create({workspaceId});
 
-    await claimPendingJob({workspaceId, runnerSessionId});
+    await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     const pending = await db().select().from(pendingJobs);
     const running = await db().select().from(runningJobs);
@@ -331,14 +394,14 @@ describe('claimPendingJob', () => {
   it('does not claim jobs from another workspace', async () => {
     await pendingJobFactory.create({workspaceId: crypto.randomUUID()});
 
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     expect(claimed).toBeNull();
   });
 
   it('drops an orphan pending row whose job is already running, without a poison loop', async () => {
     const created = await pendingJobFactory.create({workspaceId});
-    const first = await claimPendingJob({workspaceId, runnerSessionId});
+    const first = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
     expect(first?.jobId).toBe(created.jobId);
 
     // Simulate an enqueue retry that re-inserts a pending row after the claim.
@@ -350,7 +413,7 @@ describe('claimPendingJob', () => {
       requiredLabels: created.requiredLabels,
     });
 
-    const second = await claimPendingJob({workspaceId, runnerSessionId});
+    const second = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     expect(second).toBeNull();
     expect(await db().select().from(pendingJobs)).toHaveLength(0);
@@ -385,7 +448,7 @@ describe('claimPendingJob', () => {
 
   it('claims a real pending job ahead of a newer orphan', async () => {
     const alreadyRunning = await pendingJobFactory.create({workspaceId});
-    await claimPendingJob({workspaceId, runnerSessionId});
+    await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     // A genuinely new pending job (older), then an orphan re-insert for the running job (newer).
     const real = await pendingJobFactory.create({workspaceId});
@@ -397,7 +460,7 @@ describe('claimPendingJob', () => {
       requiredLabels: alreadyRunning.requiredLabels,
     });
 
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     expect(claimed?.jobId).toBe(real.jobId);
   });
@@ -409,7 +472,7 @@ describe('claimJob', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
@@ -419,7 +482,7 @@ describe('claimJob', () => {
   it('mints a lease token whose claims match the claimed job', async () => {
     const created = await pendingJobFactory.create({workspaceId});
 
-    const claimed = await claimJob({workspaceId, runnerSessionId, sessionLabels});
+    const claimed = await claimJob({workspaceId, runnerSessionId, sessionLabels, maxClaims: null});
 
     expect(claimed).not.toBeNull();
     expect(claimed?.jobId).toBe(created.jobId);
@@ -437,7 +500,7 @@ describe('claimJob', () => {
   });
 
   it('returns null and mints no token when the queue is empty', async () => {
-    const claimed = await claimJob({workspaceId, runnerSessionId, sessionLabels});
+    const claimed = await claimJob({workspaceId, runnerSessionId, sessionLabels, maxClaims: null});
 
     expect(claimed).toBeNull();
   });
@@ -449,7 +512,7 @@ describe('releaseJob', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
@@ -458,7 +521,7 @@ describe('releaseJob', () => {
 
   it('deletes the running row and writes no outbox event', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
     const before = await db().select().from(runnersOutbox);
 
     await releaseJob({jobId: claimed?.jobId as string});
@@ -473,7 +536,7 @@ describe('releaseJob', () => {
 
   it('releases regardless of which session holds the lease', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     // No token is passed: the workflow is authoritative over the lease.
     await releaseJob({jobId: claimed?.jobId as string});
@@ -483,7 +546,7 @@ describe('releaseJob', () => {
 
   it('also sweeps a lingering pending row for the same job', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
     // An orphan pending row left by a post-claim enqueue retry.
     await db()
       .insert(pendingJobs)
@@ -514,7 +577,7 @@ describe('recordHeartbeat', () => {
 
   it('returns cancel:false on a fresh row and bumps last_heartbeat_at', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     const before = await db()
       .select()
@@ -544,7 +607,7 @@ describe('recordHeartbeat', () => {
 
   it('returns cancel:true after requestJobCancellation', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     await requestJobCancellation({jobId: claimed?.jobId as string});
 
@@ -565,7 +628,7 @@ describe('recordHeartbeat', () => {
   it('throws when jobId belongs to a different session', async () => {
     const otherRunnerSession = await runnerSessionFactory.create({workspaceId});
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     await expect(
       recordHeartbeat({
@@ -588,7 +651,7 @@ describe('requestJobCancellation', () => {
 
   it('sets cancellation_requested_at on a fresh row', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     await requestJobCancellation({jobId: claimed?.jobId as string});
 
@@ -601,7 +664,7 @@ describe('requestJobCancellation', () => {
 
   it('is idempotent: second call preserves the first timestamp', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     await requestJobCancellation({jobId: claimed?.jobId as string});
     const after1 = await db()
@@ -631,7 +694,7 @@ describe('cancelRunnerJobs', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
@@ -640,7 +703,7 @@ describe('cancelRunnerJobs', () => {
 
   it('deletes queued jobs and requests cancellation for running jobs', async () => {
     const running = await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
     const queued = await pendingJobFactory.create({workspaceId});
 
     await cancelRunnerJobs({jobIds: [queued.jobId, claimed?.jobId as string]});
@@ -667,7 +730,7 @@ describe('cancelRunnerJobs', () => {
 
     await cancelRunnerJobs({jobIds: [queued.jobId]});
 
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
     expect(claimed).toBeNull();
   });
 });
@@ -686,7 +749,7 @@ describe('detectAndExpireStuckJobs', () => {
     staleSeconds: number,
   ): Promise<{jobId: string; runId: string; projectId: string}> {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
     await db()
       .update(runningJobs)
       .set({
@@ -880,7 +943,7 @@ describe('detectAndExpireStuckJobs', () => {
     // a deadlock loser rolls back, so either side may settle as rejected.
     await Promise.allSettled([
       detectAndExpireStuckJobs({thresholdSeconds: 180}),
-      claimPendingJob({workspaceId, runnerSessionId}),
+      claimPendingJob({workspaceId, runnerSessionId, maxClaims: null}),
     ]);
 
     // A follow-up tick finishes any reap that lost a deadlock race.
@@ -891,7 +954,7 @@ describe('detectAndExpireStuckJobs', () => {
     expect(await db().select().from(pendingJobs).where(eq(pendingJobs.jobId, jobId))).toHaveLength(
       0,
     );
-    expect(await claimPendingJob({workspaceId, runnerSessionId})).toBeNull();
+    expect(await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null})).toBeNull();
   });
 });
 
@@ -901,7 +964,7 @@ describe('getJobQueueDepth', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
@@ -917,7 +980,7 @@ describe('getJobQueueDepth', () => {
   it('counts pending and running jobs separately', async () => {
     await pendingJobFactory.create({workspaceId});
     await pendingJobFactory.create({workspaceId});
-    await claimPendingJob({workspaceId, runnerSessionId});
+    await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     const depth = await getJobQueueDepth();
 

@@ -2,6 +2,12 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 export {closeDb, db, schema} from './db.js';
+export type {CreateEphemeralRegistrationTokenParams} from './ephemeral-registration-tokens.js';
+export {
+  createEphemeralRegistrationToken,
+  createRunnerSessionConsumingEphemeralToken,
+  resolveEphemeralRegistrationTokenByHash,
+} from './ephemeral-registration-tokens.js';
 export type {ClaimedJob, EnqueueJobParams} from './jobs.js';
 export {
   cancelRunnerJobs,

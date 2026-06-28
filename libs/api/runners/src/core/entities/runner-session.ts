@@ -3,7 +3,10 @@ export interface RunnerSession {
   workspaceId: string;
   scope: 'workspace';
   registrationTokenId: string;
+  registrationTokenKind: 'manual' | 'ephemeral';
   labels: string[];
+  maxClaims: number | null;
+  claimsUsed: number;
   createdAt: Date;
   updatedAt: Date;
 }

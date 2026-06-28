@@ -12,7 +12,9 @@ import {runnerTokens} from './schema/runner-tokens.js';
 
 describe('runner tokens', () => {
   beforeEach(async () => {
-    await db().execute(sql`TRUNCATE runners_runner_tokens CASCADE`);
+    await db().execute(
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_runner_tokens CASCADE`,
+    );
   });
 
   it('creates a runner token with a hashed token and prefix', async () => {

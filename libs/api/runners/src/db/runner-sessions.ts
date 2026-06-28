@@ -18,7 +18,10 @@ export async function createRunnerSession(
       workspaceId: params.workspaceId,
       scope: params.scope,
       registrationTokenId: params.registrationTokenId,
+      registrationTokenKind: 'manual',
       labels: params.labels,
+      maxClaims: null,
+      claimsUsed: 0,
     })
     .returning();
 

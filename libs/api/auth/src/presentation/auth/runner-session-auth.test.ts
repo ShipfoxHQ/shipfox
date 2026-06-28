@@ -35,6 +35,7 @@ describe('runner-session-auth', () => {
       workspaceId: crypto.randomUUID(),
       scope: 'workspace' as const,
       labels: ['linux', 'x64'],
+      maxClaims: null,
     };
     const token = await issueRunnerSessionToken(claims);
 

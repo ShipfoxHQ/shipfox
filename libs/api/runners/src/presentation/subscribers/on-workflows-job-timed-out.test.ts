@@ -26,6 +26,7 @@ describe('onWorkflowsJobTimedOut', () => {
       workspaceId,
       runnerSessionId,
       sessionLabels: ['linux', 'x64'],
+      maxClaims: null,
     });
     expect(claimed).not.toBeNull();
 
@@ -44,6 +45,7 @@ describe('onWorkflowsJobTimedOut', () => {
       workspaceId,
       runnerSessionId,
       sessionLabels: ['linux', 'x64'],
+      maxClaims: null,
     });
 
     await onWorkflowsJobTimedOut(buildPayload(claimed?.jobId as string, claimed?.runId as string));

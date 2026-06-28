@@ -45,7 +45,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     const session = await runnerSessionFactory.create({workspaceId});
@@ -54,7 +54,12 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
 
   async function claimAvailableJob(): Promise<{jobId: string; leaseToken: string}> {
     const pending = await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({workspaceId, runnerSessionId, sessionLabels: ['linux', 'x64']});
+    const claimed = await claimJob({
+      workspaceId,
+      runnerSessionId,
+      sessionLabels: ['linux', 'x64'],
+      maxClaims: null,
+    });
     expect(claimed).not.toBeNull();
     return {jobId: pending.jobId, leaseToken: claimed?.leaseToken as string};
   }

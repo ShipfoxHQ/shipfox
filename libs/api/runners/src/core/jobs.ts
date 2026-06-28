@@ -12,6 +12,7 @@ export async function claimJob(params: {
   workspaceId: string;
   runnerSessionId: string;
   sessionLabels: string[];
+  maxClaims: number | null;
 }): Promise<ClaimJobResult | null> {
   const claimed = await claimPendingJob(params);
   if (!claimed) {
