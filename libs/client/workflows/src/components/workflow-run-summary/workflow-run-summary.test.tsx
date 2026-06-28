@@ -1,6 +1,7 @@
 import {fireEvent, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {workflowRun} from '#test/fixtures/workflow-run.js';
+import type {workflowRunDetailDto} from '#test/fixtures/workflow-run.js';
+import {workflowJobDto, workflowRunDetail} from '#test/fixtures/workflow-run.js';
 import {renderProjectPage} from '#test/pages.js';
 import {WorkflowRunSummary} from './workflow-run-summary.js';
 
@@ -143,7 +144,7 @@ describe('WorkflowRunSummary', () => {
       },
     );
 
-    const sourceButton = await screen.findByRole('button', {name: 'Source'});
+    const sourceButton = await screen.findByRole('button', {name: 'View source'});
     await user.click(sourceButton);
 
     expect(sourceButton).toHaveAttribute('aria-controls', 'workflow-source-panel');
@@ -156,21 +157,21 @@ describe('WorkflowRunSummary', () => {
 
     await screen.findByRole('region', {name: 'deploy-web'});
 
-    expect(screen.queryByRole('button', {name: 'Source'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'View source'})).not.toBeInTheDocument();
   });
 
   test('shows the cancel action when the run can be cancelled', async () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
-    renderSummary({}, {canCancel: true, onCancel});
+    renderSummary({}, {onCancel});
 
     await user.click(await screen.findByRole('button', {name: 'Cancel workflow'}));
 
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
-  test('omits the cancel action when the run cannot be cancelled', async () => {
-    renderSummary({status: 'succeeded'}, {canCancel: false});
+  test('omits the cancel action for terminal runs', async () => {
+    renderSummary({status: 'succeeded'});
 
     await screen.findByRole('region', {name: 'deploy-web'});
 
@@ -178,19 +179,90 @@ describe('WorkflowRunSummary', () => {
   });
 
   test('disables the cancel action while cancellation is pending', async () => {
-    renderSummary({}, {canCancel: true, cancelling: true, onCancel: vi.fn()});
+    renderSummary({}, {cancelling: true, onCancel: vi.fn()});
 
     const button = await screen.findByRole('button', {name: 'Cancel workflow'});
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute('aria-busy', 'true');
   });
+
+  test('hides the cancel action when no cancel handler is provided', async () => {
+    renderSummary({status: 'running'});
+
+    await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(screen.queryByRole('button', {name: 'Cancel workflow'})).not.toBeInTheDocument();
+  });
+
+  test('derives the cancel action for non-terminal runs', async () => {
+    const onCancel = vi.fn();
+    const onRerun = vi.fn();
+    renderSummary({status: 'running'}, {onCancel, onRerun});
+
+    await screen.findByRole('button', {name: 'Cancel workflow'});
+
+    expect(screen.queryByRole('button', {name: 'Re-run workflow'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Re-run jobs'})).not.toBeInTheDocument();
+  });
+
+  test('re-runs all jobs from a succeeded run', async () => {
+    const user = userEvent.setup();
+    const onRerun = vi.fn();
+    renderSummary({status: 'succeeded'}, {onRerun});
+
+    await user.click(await screen.findByRole('button', {name: 'Re-run workflow'}));
+
+    expect(onRerun).toHaveBeenCalledWith('all');
+  });
+
+  test('hides the re-run action when no re-run handler is provided', async () => {
+    renderSummary({status: 'succeeded'});
+
+    await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(screen.queryByRole('button', {name: 'Re-run workflow'})).not.toBeInTheDocument();
+  });
+
+  test('shows re-run choices for a failed run', async () => {
+    const user = userEvent.setup();
+    const onRerun = vi.fn();
+    renderSummary({status: 'failed', jobs: [workflowJobDto({status: 'failed'})]}, {onRerun});
+
+    await user.click(await screen.findByRole('button', {name: 'Re-run jobs'}));
+    expect(await screen.findByRole('menuitem', {name: 'Re-run all jobs'})).toBeInTheDocument();
+    await user.click(await screen.findByRole('menuitem', {name: 'Re-run failed jobs'}));
+
+    expect(onRerun).toHaveBeenCalledWith('failed');
+  });
+
+  test('shows re-run choices for a cancelled run', async () => {
+    const user = userEvent.setup();
+    const onRerun = vi.fn();
+    renderSummary({status: 'cancelled', jobs: [workflowJobDto({status: 'cancelled'})]}, {onRerun});
+
+    await user.click(await screen.findByRole('button', {name: 'Re-run jobs'}));
+
+    expect(await screen.findByRole('menuitem', {name: 'Re-run all jobs'})).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', {name: 'Re-run failed jobs'})).toBeInTheDocument();
+  });
+
+  test('re-runs the full workflow when a failed run has no failed jobs', async () => {
+    const user = userEvent.setup();
+    const onRerun = vi.fn();
+    renderSummary({status: 'failed', jobs: [workflowJobDto({status: 'succeeded'})]}, {onRerun});
+
+    await user.click(await screen.findByRole('button', {name: 'Re-run workflow'}));
+
+    expect(screen.queryByRole('button', {name: 'Re-run jobs'})).not.toBeInTheDocument();
+    expect(onRerun).toHaveBeenCalledWith('all');
+  });
 });
 
 function renderSummary(
-  overrides: Parameters<typeof workflowRun>[0] = {},
+  overrides: Parameters<typeof workflowRunDetailDto>[0] = {},
   props: Omit<Parameters<typeof WorkflowRunSummary>[0], 'run'> = {},
 ) {
-  const run = workflowRun({
+  const run = workflowRunDetail({
     id: RUN_ID,
     project_id: '44444444-4444-4444-8444-444444444444',
     definition_id: '55555555-5555-4555-8555-555555555555',

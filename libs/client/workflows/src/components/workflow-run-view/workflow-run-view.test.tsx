@@ -204,7 +204,7 @@ describe('WorkflowRunView', () => {
     await user.click(deployNode);
     expect(deployNode).toHaveAttribute('aria-pressed', 'true');
 
-    const sourceButton = screen.getByRole('button', {name: 'Source'});
+    const sourceButton = screen.getByRole('button', {name: 'View source'});
     const panelId = sourceButton.getAttribute('aria-controls');
     expect(panelId).toBeTruthy();
     expect(sourceButton).toHaveAttribute('aria-expanded', 'false');
@@ -261,7 +261,7 @@ describe('WorkflowRunView', () => {
     });
 
     renderView({selection: {stepId}});
-    await user.click(await screen.findByRole('button', {name: 'Source'}));
+    await user.click(await screen.findByRole('button', {name: 'View source'}));
 
     await screen.findByRole('dialog', {name: 'Workflow source'});
     const highlightedLines = document.body.querySelectorAll('.line.highlighted-line');
@@ -281,7 +281,7 @@ describe('WorkflowRunView', () => {
 
     await screen.findByRole('region', {name: 'deploy-web'});
 
-    expect(screen.queryByRole('button', {name: 'Source'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'View source'})).not.toBeInTheDocument();
   });
 
   test('re-runs all jobs from a succeeded run and navigates to the new run', async () => {
@@ -313,7 +313,7 @@ describe('WorkflowRunView', () => {
     configureApiClient({fetchImpl: fetchImpl as typeof fetch});
 
     const {router} = renderView();
-    await user.click(await screen.findByRole('button', {name: 'Re-run all jobs'}));
+    await user.click(await screen.findByRole('button', {name: 'Re-run workflow'}));
 
     const postRequest = await findRequest(fetchImpl, 'POST', `/workflows/runs/${RUN_ID}/rerun`);
     expect(postRequest).toBeDefined();
@@ -326,7 +326,7 @@ describe('WorkflowRunView', () => {
     );
   });
 
-  test('re-runs failed or cancelled jobs from the dropdown', async () => {
+  test('re-runs failed jobs from the dropdown', async () => {
     const user = userEvent.setup();
     const postBodies: unknown[] = [];
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
@@ -361,9 +361,7 @@ describe('WorkflowRunView', () => {
 
     renderView();
     await user.click(await screen.findByRole('button', {name: 'Re-run jobs'}));
-    await user.click(
-      await screen.findByRole('menuitem', {name: 'Re-run failed or cancelled jobs'}),
-    );
+    await user.click(await screen.findByRole('menuitem', {name: 'Re-run failed jobs'}));
 
     const postRequest = await findRequest(fetchImpl, 'POST', `/workflows/runs/${RUN_ID}/rerun`);
     expect(postRequest).toBeDefined();
@@ -386,7 +384,7 @@ describe('WorkflowRunView', () => {
     configureApiClient({fetchImpl: fetchImpl as typeof fetch});
 
     renderView();
-    await user.click(await screen.findByRole('button', {name: 'Re-run all jobs'}));
+    await user.click(await screen.findByRole('button', {name: 'Re-run workflow'}));
 
     await waitFor(() => expect(errorSpy).toHaveBeenCalledWith('Run has no failed jobs'));
   });

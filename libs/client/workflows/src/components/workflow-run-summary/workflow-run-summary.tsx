@@ -4,7 +4,6 @@ import {
   Badge,
   Button,
   Code,
-  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -19,13 +18,20 @@ import {
 } from '@shipfox/react-ui';
 import type {Ref} from 'react';
 import {useId} from 'react';
-import {WORKFLOW_RUN_STATUSES, type WorkflowRun} from '#core/workflow-run.js';
+import {
+  isWorkflowRunTerminal,
+  WORKFLOW_RUN_STATUSES,
+  type WorkflowJob,
+  type WorkflowRun,
+} from '#core/workflow-run.js';
 import {Identifier} from '../identifier/index.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
 
 const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
   ...WORKFLOW_RUN_STATUSES.map((status) => getWorkflowStatusVisual(status).label.length),
 );
+
+type WorkflowRunAction = 'cancel' | 'rerun-all' | 'rerun-menu';
 
 export interface WorkflowRunSummaryProps {
   run: WorkflowRun;
@@ -34,11 +40,8 @@ export interface WorkflowRunSummaryProps {
   sourcePanelId?: string | undefined;
   sourceButtonRef?: Ref<HTMLButtonElement> | undefined;
   onSourceToggle?: (() => void) | undefined;
-  canCancel?: boolean | undefined;
   cancelling?: boolean | undefined;
   onCancel?: (() => void) | undefined;
-  canRerun?: boolean | undefined;
-  hasFailedJobs?: boolean | undefined;
   rerunPending?: boolean | undefined;
   onRerun?: ((mode: RerunMode) => void) | undefined;
 }
@@ -50,16 +53,14 @@ export function WorkflowRunSummary({
   sourcePanelId,
   sourceButtonRef,
   onSourceToggle,
-  canCancel = false,
   cancelling = false,
   onCancel,
-  canRerun = false,
-  hasFailedJobs = false,
   rerunPending = false,
   onRerun,
 }: WorkflowRunSummaryProps) {
   const headingId = useId();
   const status = getWorkflowStatusVisual(run.status);
+  const action = workflowRunActionForRun(run);
   const {ref: headingTextRef, isTruncated: isHeadingTruncated} =
     useIsTextTruncated<HTMLSpanElement>(run.name);
 
@@ -94,47 +95,28 @@ export function WorkflowRunSummary({
           </Tooltip>
         </div>
 
-        {sourceAvailable || canCancel || canRerun ? (
-          <div className="col-start-2 row-start-1 flex min-w-max items-center gap-6 justify-self-end">
-            {canCancel ? (
-              <Button
-                type="button"
-                variant="danger"
-                size="xs"
-                iconLeft="close"
-                isLoading={cancelling}
-                disabled={cancelling || !onCancel}
-                onClick={onCancel}
-              >
-                Cancel workflow
-              </Button>
-            ) : null}
-            <WorkflowRunActionSlot
-              canRerun={canRerun}
-              hasFailedJobs={hasFailedJobs}
-              rerunPending={rerunPending}
-              onRerun={onRerun}
-            />
-            {sourceAvailable ? (
-              <Button
-                ref={sourceButtonRef}
-                type="button"
-                variant="transparentMuted"
-                size="xs"
-                iconLeft="fileCodeLine"
-                aria-controls={sourcePanelId}
-                aria-expanded={sourceOpen}
-                className={cn(
-                  'text-foreground-neutral-subtle',
-                  sourceOpen && 'bg-background-components-hover text-foreground-neutral-base',
-                )}
-                onClick={onSourceToggle}
-              >
-                Source
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="col-start-2 row-start-1 flex min-w-max items-center gap-6 justify-self-end">
+          <WorkflowRunActionSlot
+            action={action}
+            cancelling={cancelling}
+            onCancel={onCancel}
+            rerunPending={rerunPending}
+            onRerun={onRerun}
+          />
+          {sourceAvailable ? (
+            <Button
+              ref={sourceButtonRef}
+              type="button"
+              variant="secondary"
+              size="xs"
+              aria-controls={sourcePanelId}
+              aria-expanded={sourceOpen}
+              onClick={onSourceToggle}
+            >
+              View source
+            </Button>
+          ) : null}
+        </div>
 
         <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-8 overflow-hidden text-foreground-neutral-muted">
           <Identifier display={run.shortId} value={run.id} label="run id" />
@@ -178,32 +160,53 @@ export function WorkflowRunSummary({
 }
 
 function WorkflowRunActionSlot({
-  canRerun,
-  hasFailedJobs,
+  action,
+  cancelling,
+  onCancel,
   rerunPending,
   onRerun,
 }: {
-  canRerun: boolean;
-  hasFailedJobs: boolean;
+  action: WorkflowRunAction;
+  cancelling: boolean;
+  onCancel?: (() => void) | undefined;
   rerunPending: boolean;
   onRerun?: ((mode: RerunMode) => void) | undefined;
 }) {
-  if (!canRerun || !onRerun) return null;
+  if (action === 'cancel') {
+    if (!onCancel) return null;
 
-  if (!hasFailedJobs) {
+    return (
+      <Button
+        type="button"
+        variant="danger"
+        size="xs"
+        isLoading={cancelling}
+        disabled={cancelling}
+        onClick={onCancel}
+      >
+        Cancel workflow
+      </Button>
+    );
+  }
+
+  if (action === 'rerun-all') {
+    if (!onRerun) return null;
+
     return (
       <Button
         type="button"
         variant="secondary"
         size="xs"
-        iconLeft="restartLine"
         isLoading={rerunPending}
+        disabled={rerunPending}
         onClick={() => onRerun('all')}
       >
-        Re-run all jobs
+        Re-run workflow
       </Button>
     );
   }
+
+  if (!onRerun) return null;
 
   return (
     <DropdownMenu>
@@ -212,9 +215,9 @@ function WorkflowRunActionSlot({
           type="button"
           variant="secondary"
           size="xs"
-          iconLeft="restartLine"
           iconRight="arrowDownSLine"
           isLoading={rerunPending}
+          disabled={rerunPending}
         >
           Re-run jobs
         </Button>
@@ -224,11 +227,27 @@ function WorkflowRunActionSlot({
           Re-run all jobs
         </DropdownMenuItem>
         <DropdownMenuItem disabled={rerunPending} onSelect={() => onRerun('failed')}>
-          Re-run failed or cancelled jobs
+          Re-run failed jobs
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+function workflowRunActionForRun(run: WorkflowRun): WorkflowRunAction {
+  if (!isWorkflowRunTerminal(run.status)) return 'cancel';
+  if (run.status === 'succeeded' || !hasFailedOrCancelledJobs(run)) return 'rerun-all';
+  return 'rerun-menu';
+}
+
+function hasFailedOrCancelledJobs(run: WorkflowRun): boolean {
+  if (!workflowRunHasJobs(run)) return false;
+
+  return run.jobs.some((job) => job.status === 'failed' || job.status === 'cancelled');
+}
+
+function workflowRunHasJobs(run: WorkflowRun): run is WorkflowRun & {jobs: WorkflowJob[]} {
+  return 'jobs' in run && Array.isArray(run.jobs);
 }
 
 function MetadataSeparator() {
