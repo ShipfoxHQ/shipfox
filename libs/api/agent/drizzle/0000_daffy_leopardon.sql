@@ -17,5 +17,4 @@ CREATE TABLE "agent_workspace_settings" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX "agent_provider_configs_workspace_provider_unique" ON "agent_provider_configs" USING btree ("workspace_id","provider_id");--> statement-breakpoint
-CREATE INDEX "agent_provider_configs_workspace_idx" ON "agent_provider_configs" USING btree ("workspace_id");
+CREATE UNIQUE INDEX "agent_provider_configs_workspace_provider_unique" ON "agent_provider_configs" USING btree ("workspace_id","provider_id");

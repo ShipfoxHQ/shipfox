@@ -1,6 +1,6 @@
 import type {AgentThinking, SupportedAgentProviderId} from '@shipfox/api-agent-dto';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {index, jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {AgentProviderConfig} from '#core/entities/agent-provider-config.js';
 import {pgTable} from './common.js';
 
@@ -22,7 +22,6 @@ export const agentProviderConfigs = pgTable(
       table.workspaceId,
       table.providerId,
     ),
-    index('agent_provider_configs_workspace_idx').on(table.workspaceId),
   ],
 );
 

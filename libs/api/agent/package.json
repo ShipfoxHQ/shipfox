@@ -37,17 +37,14 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.79.9",
-    "@opentelemetry/api": "1.9.1",
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-module": "workspace:*",
-    "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
-    "drizzle-orm": "^0.45.2",
-    "zod": "^4.4.3"
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
+    "@earendil-works/pi-ai": "0.79.9",
     "@shipfox/biome": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",

@@ -1,14 +1,16 @@
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath} from '#db/index.js';
 
-export type {AgentProviderConfig, AgentWorkspaceSettings} from '#core/index.js';
 export {
-  db,
+  type AgentProviderConfig,
+  AgentProviderConfigNotFoundError,
+  type AgentWorkspaceSettings,
+} from '#core/index.js';
+export {
   deleteAgentProviderConfig,
   getAgentProviderConfig,
   getAgentWorkspaceSettings,
   listAgentProviderConfigs,
-  migrationsPath,
   setDefaultAgentProvider,
   upsertAgentProviderConfig,
 } from '#db/index.js';
