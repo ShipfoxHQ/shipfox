@@ -127,6 +127,18 @@ async function captureOpenAttemptsMenu(ctx: WorkflowRunSummaryStoryContext) {
 const noop = () => undefined;
 const noopRerun = (_mode: RerunMode) => undefined;
 
+const ATTEMPT_SUMMARY_ARGS = {
+  run: workflowRun({
+    id: CURRENT_RUN_ID,
+    root_run_id: ROOT_RUN_ID,
+    attempt: 2,
+    status: 'failed',
+  }),
+  workspaceId: WORKSPACE_ID,
+  projectId: PROJECT_ID,
+  latestAttempt: 3,
+};
+
 export const Default: Story = {};
 
 export const WithSourceButton: Story = {
@@ -153,20 +165,15 @@ export const SourceOpen: Story = {
   },
 };
 
+export const WithAttempts: Story = {
+  decorators: [withAttemptApi],
+  args: ATTEMPT_SUMMARY_ARGS,
+};
+
 export const WithAttemptsOpen: Story = {
   decorators: [withAttemptApi],
   play: captureOpenAttemptsMenu,
-  args: {
-    run: workflowRun({
-      id: CURRENT_RUN_ID,
-      root_run_id: ROOT_RUN_ID,
-      attempt: 2,
-      status: 'failed',
-    }),
-    workspaceId: WORKSPACE_ID,
-    projectId: PROJECT_ID,
-    latestAttempt: 3,
-  },
+  args: ATTEMPT_SUMMARY_ARGS,
 };
 
 export const Cancellable: Story = {
@@ -279,6 +286,29 @@ export const ActionVariantsWithSource: Story = {
           sourceAvailable
           sourceOpen={label === 'Running'}
           sourcePanelId={`workflow-source-panel-${index}`}
+          {...props}
+        />
+      ))}
+    </div>
+  ),
+};
+
+export const ActionVariantsWithAttempts: Story = {
+  decorators: [withAttemptApi],
+  render: () => (
+    <div className="flex flex-col">
+      {ACTION_VARIANTS.map(({label, run, props}, index) => (
+        <WorkflowRunSummary
+          key={label}
+          workspaceId={WORKSPACE_ID}
+          projectId={PROJECT_ID}
+          run={{
+            ...run,
+            id: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
+            rootRunId: ROOT_RUN_ID,
+            attempt: 2,
+          }}
+          latestAttempt={3}
           {...props}
         />
       ))}
