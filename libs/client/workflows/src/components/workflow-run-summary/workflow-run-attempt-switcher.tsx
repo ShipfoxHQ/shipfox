@@ -35,8 +35,11 @@ export function WorkflowRunAttemptSwitcher({
   if (latestAttempt <= 1) return null;
 
   const attempts = attemptsQuery.data ?? [];
-  const maxAttempt =
-    attempts.length > 0 ? Math.max(...attempts.map((attempt) => attempt.attempt)) : latestAttempt;
+  const maxAttempt = Math.max(
+    latestAttempt,
+    run.attempt,
+    ...attempts.map((attempt) => attempt.attempt),
+  );
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>

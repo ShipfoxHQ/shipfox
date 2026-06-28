@@ -93,9 +93,9 @@ describe('WorkflowRunAttemptSwitcher', () => {
         ),
       ),
     });
-    renderSwitcher();
+    renderSwitcher({latestAttempt: 2});
 
-    await user.click(screen.getByRole('button', {name: 'Switch attempt, currently 2 of 4'}));
+    await user.click(screen.getByRole('button', {name: 'Switch attempt, currently 2 of 2'}));
 
     await waitFor(() => expect(screen.getByText('Attempt 2 of 3')).toBeInTheDocument());
     const items = await screen.findAllByRole('menuitem');
@@ -113,6 +113,30 @@ describe('WorkflowRunAttemptSwitcher', () => {
     expect(current).toHaveAttribute('aria-current', 'true');
     expect(current).toHaveClass('bg-background-highlight-base');
     expect(within(current).getByRole('img', {name: 'Failed'})).toBeInTheDocument();
+  });
+
+  test('keeps the max attempt from dropping when cached attempts are stale', async () => {
+    const user = userEvent.setup();
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            runAttemptsResponseDto({
+              attempts: [
+                workflowRunAttemptDto({id: ROOT_RUN_ID, attempt: 1}),
+                workflowRunAttemptDto({id: CURRENT_RUN_ID, attempt: 2}),
+              ],
+            }),
+          ),
+        ),
+      ),
+    });
+    renderSwitcher({latestAttempt: 3});
+
+    await user.click(screen.getByRole('button', {name: 'Switch attempt, currently 2 of 3'}));
+
+    await waitFor(() => expect(screen.getByText('Attempt 2 of 3')).toBeInTheDocument());
   });
 
   test('selects an attempt', async () => {

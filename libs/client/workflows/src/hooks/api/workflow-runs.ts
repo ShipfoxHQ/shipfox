@@ -160,8 +160,12 @@ export function useRerunWorkflowRunMutation(projectId: string) {
 
   return useMutation({
     mutationFn: rerunWorkflowRun,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.lists(projectId)});
+    onSuccess: async (run, variables) => {
+      const rootRunId = run.root_run_id ?? variables.runId;
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.lists(projectId)}),
+        queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.attempts(rootRunId)}),
+      ]);
     },
   });
 }

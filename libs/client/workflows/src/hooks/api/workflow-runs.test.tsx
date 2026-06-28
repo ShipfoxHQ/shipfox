@@ -202,7 +202,7 @@ describe('workflow run API hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({queryKey: workflowRunsQueryKeys.lists(PROJECT_ID)});
   });
 
-  test('posts rerun mode and invalidates project run lists', async () => {
+  test('posts rerun mode and invalidates project run lists and attempt lineage', async () => {
     const postBodies: unknown[] = [];
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const request = input as Request;
@@ -210,6 +210,7 @@ describe('workflow run API hooks', () => {
       return jsonResponse(
         workflowRunDto({
           id: '77777777-7777-4777-8777-777777777777',
+          root_run_id: ROOT_RUN_ID,
           status: 'pending',
         }),
       );
@@ -231,6 +232,9 @@ describe('workflow run API hooks', () => {
     expect(postBodies).toEqual([{mode: 'failed'}]);
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: workflowRunsQueryKeys.lists(PROJECT_ID),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: workflowRunsQueryKeys.attempts(ROOT_RUN_ID),
     });
   });
 });
