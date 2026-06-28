@@ -1,6 +1,7 @@
 import {createLeaseTokenAuthMethod, createRunnerSessionAuthMethod} from '@shipfox/api-auth';
 import {
   AUTH_LEASED_JOB,
+  AUTH_PROVISIONER_TOKEN,
   AUTH_RUNNER_SESSION,
   AUTH_RUNNER_TOKEN,
   AUTH_USER,
@@ -43,6 +44,11 @@ const fakeUserAuth: AuthMethod = {
   },
 };
 
+const fakeProvisionerAuth: AuthMethod = {
+  name: AUTH_PROVISIONER_TOKEN,
+  authenticate: () => Promise.resolve(),
+};
+
 describe('runner token routes', () => {
   let app: FastifyInstance;
   let workspaceId: string;
@@ -72,6 +78,7 @@ describe('runner token routes', () => {
         createRunnerTokenAuthMethod(),
         createRunnerSessionAuthMethod(),
         createLeaseTokenAuthMethod(),
+        fakeProvisionerAuth,
       ],
       routes: runnerRoutes,
       swagger: false,
@@ -88,6 +95,7 @@ describe('runner token routes', () => {
     expect(runnerRoutes[1]?.auth).toBe(AUTH_RUNNER_TOKEN);
     expect(runnerRoutes[2]?.auth).toBe(AUTH_RUNNER_SESSION);
     expect(runnerRoutes[3]?.auth).toBe(AUTH_LEASED_JOB);
+    expect(runnerRoutes[4]?.auth).toBe(AUTH_PROVISIONER_TOKEN);
   });
 
   describe('GET /workspaces/:workspaceId/runners/tokens', () => {

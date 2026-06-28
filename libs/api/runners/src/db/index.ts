@@ -17,6 +17,13 @@ export {
   recordHeartbeat,
   releaseJob,
 } from './jobs.js';
+export type {
+  DemandStat,
+  PollDemandAndReserveParams,
+  ReservationGrant,
+  ReservationTemplate,
+} from './reservations.js';
+export {pollDemandAndReserve} from './reservations.js';
 export type {CreateRunnerSessionParams} from './runner-sessions.js';
 export {createRunnerSession} from './runner-sessions.js';
 export type {CreateRunnerTokenParams} from './runner-tokens.js';

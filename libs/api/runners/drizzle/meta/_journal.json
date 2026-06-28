@@ -22,6 +22,13 @@
       "when": 1777377600000,
       "tag": "0002_flippant_manta",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782648228195,
+      "tag": "0003_abnormal_toad",
+      "breakpoints": true
     }
   ]
 }

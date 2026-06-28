@@ -3,7 +3,7 @@ import {
   createRunnerSessionAuthMethod,
   verifyRunnerSessionToken,
 } from '@shipfox/api-auth';
-import {AUTH_USER} from '@shipfox/api-auth-context';
+import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {generateOpaqueToken} from '@shipfox/node-tokens';
@@ -22,6 +22,11 @@ const fakeUserAuth: AuthMethod = {
   authenticate: () => Promise.resolve(),
 };
 
+const fakeProvisionerAuth: AuthMethod = {
+  name: AUTH_PROVISIONER_TOKEN,
+  authenticate: () => Promise.resolve(),
+};
+
 describe('POST /runners/register', () => {
   let app: FastifyInstance;
   let rawToken: string;
@@ -34,6 +39,7 @@ describe('POST /runners/register', () => {
         createRunnerTokenAuthMethod(),
         createRunnerSessionAuthMethod(),
         createLeaseTokenAuthMethod(),
+        fakeProvisionerAuth,
       ],
       routes: runnerRoutes,
       swagger: false,
