@@ -1,5 +1,5 @@
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
-import {Code, cn, RelativeTime} from '@shipfox/react-ui';
+import {Code, cn, RelativeTime, Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {WorkflowRun} from '#core/workflow-run.js';
@@ -62,8 +62,8 @@ export function WorkflowRunRow({
       </div>
 
       <div className="flex min-w-0 items-center gap-8">
-        {run.triggerLabel ? (
-          <>
+        {run.triggerDisplayLabel ? (
+          <span className="flex min-w-0 flex-1 items-center gap-8">
             <TriggerSourceIcon
               source={run.triggerSource}
               aria-hidden
@@ -73,9 +73,9 @@ export function WorkflowRunRow({
               variant="label"
               className="min-w-0 flex-1 truncate text-foreground-neutral-subtle"
             >
-              {run.triggerLabel}
+              {run.triggerDisplayLabel}
             </Code>
-          </>
+          </span>
         ) : (
           <span className="flex min-w-0 flex-1 items-center gap-8 truncate text-foreground-neutral-muted">
             <span aria-hidden="true" className="size-14 shrink-0" />
@@ -93,14 +93,31 @@ export function WorkflowRunRow({
   // replaces them on the next poll, so they render non-interactively instead of as a link
   // that would navigate to a run id the detail route rejects.
   if (run.isTemporary) {
+    if (!run.triggerDisplayLabel) {
+      return (
+        <div className="relative flex w-full flex-col gap-4 rounded-8 border border-transparent px-10 py-8 text-left">
+          {body}
+        </div>
+      );
+    }
+
     return (
-      <div className="relative flex w-full flex-col gap-4 rounded-8 border border-transparent px-10 py-8 text-left">
-        {body}
-      </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={run.triggerLabel}
+            className="relative flex w-full flex-col gap-4 rounded-8 border border-transparent bg-transparent px-10 py-8 text-left outline-none focus-visible:shadow-border-interactive-with-active"
+          >
+            {body}
+          </button>
+        </TooltipTrigger>
+        <TriggerTooltip label={run.triggerLabel} />
+      </Tooltip>
     );
   }
 
-  return (
+  const runLink = (
     <Link
       to="/workspaces/$wid/projects/$pid/runs/$runId"
       params={{wid: workspaceId, pid: projectId, runId: run.id}}
@@ -109,6 +126,7 @@ export function WorkflowRunRow({
           withoutWorkflowRunSelectionSearch(previous)) as never
       }
       aria-current={selected ? 'page' : undefined}
+      aria-label={run.triggerLabel ? `${run.name}, ${run.status}, ${run.triggerLabel}` : undefined}
       className={cn(
         'group relative flex w-full flex-col gap-4 rounded-8 border border-transparent px-10 py-8 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
         selected && 'bg-background-components-hover',
@@ -116,5 +134,24 @@ export function WorkflowRunRow({
     >
       {body}
     </Link>
+  );
+
+  if (!run.triggerDisplayLabel) return runLink;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{runLink}</TooltipTrigger>
+      <TriggerTooltip label={run.triggerLabel} />
+    </Tooltip>
+  );
+}
+
+function TriggerTooltip({label}: {label: string}) {
+  return (
+    <TooltipContent>
+      <Code as="span" variant="label" className="block max-w-[360px] break-words">
+        {label}
+      </Code>
+    </TooltipContent>
   );
 }

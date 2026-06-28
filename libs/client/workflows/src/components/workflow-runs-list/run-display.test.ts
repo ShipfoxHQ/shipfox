@@ -20,7 +20,7 @@ describe('runMatchesSearch', () => {
     expect(runMatchesSearch(run, 'abcd1234-x')).toBe(true);
     expect(runMatchesSearch(run, 'deploy production')).toBe(true);
     expect(runMatchesSearch(run, 'RUNNING')).toBe(true);
-    expect(runMatchesSearch(run, 'github / push')).toBe(true);
+    expect(runMatchesSearch(run, 'github · push')).toBe(true);
   });
 
   test('returns false when nothing in the run contains the query', () => {

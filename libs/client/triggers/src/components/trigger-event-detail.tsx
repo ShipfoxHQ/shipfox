@@ -18,6 +18,9 @@ import {
   RelativeTime,
   Skeleton,
   Text,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {useMemo} from 'react';
@@ -56,6 +59,8 @@ export function TriggerEventDetailView({
   onBack: () => void;
 }) {
   const result = triggerEventResult(event);
+  const eventLabel = triggerEventDisplayLabel(event);
+  const fullEventLabel = triggerEventFullLabel(event);
   const formattedPayload = useMemo(
     () => JSON.stringify(event.payload ?? null, null, 2) ?? 'null',
     [event.payload],
@@ -79,19 +84,29 @@ export function TriggerEventDetailView({
         </Button>
         <div className="flex min-w-0 items-start justify-between gap-12">
           <div className="flex min-w-0 flex-col gap-4">
-            <div className="flex min-w-0 items-center gap-6">
-              <TriggerSourceIcon
-                source={event.source}
-                aria-hidden="true"
-                className="size-16 shrink-0 text-foreground-neutral-muted"
-              />
-              <Code as="span" variant="label" className="truncate text-foreground-neutral-base">
-                {event.source}
-              </Code>
-              <Code as="span" variant="label" className="truncate text-foreground-neutral-subtle">
-                {event.event}
-              </Code>
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={fullEventLabel}
+                  className="flex min-w-0 items-center gap-6 rounded-6 border-0 bg-transparent p-0 text-left outline-none focus-visible:shadow-button-neutral-focus"
+                >
+                  <TriggerSourceIcon
+                    source={event.source}
+                    aria-hidden="true"
+                    className="size-16 shrink-0 text-foreground-neutral-muted"
+                  />
+                  <Code as="span" variant="label" className="truncate text-foreground-neutral-base">
+                    {eventLabel}
+                  </Code>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <Code as="span" variant="label" className="block max-w-[360px] break-words">
+                  {fullEventLabel}
+                </Code>
+              </TooltipContent>
+            </Tooltip>
             <Text size="xs" className="truncate text-foreground-neutral-muted">
               <RelativeTime value={event.received_at} />
             </Text>
@@ -108,6 +123,14 @@ export function TriggerEventDetailView({
       </div>
     </aside>
   );
+}
+
+function triggerEventDisplayLabel(event: Pick<TriggerEventDetailResponseDto, 'event' | 'source'>) {
+  return event.event || event.source;
+}
+
+function triggerEventFullLabel(event: Pick<TriggerEventDetailResponseDto, 'event' | 'source'>) {
+  return [event.source, event.event].filter(Boolean).join(' · ');
 }
 
 function TriggerEventDetailPlaceholder() {

@@ -38,7 +38,7 @@ describe('WorkflowRunView', () => {
 
     expect(within(summary).getByRole('heading', {name: 'deploy-web'})).toBeInTheDocument();
     expect(within(summary).getAllByText('Running')).not.toHaveLength(0);
-    expect(within(summary).getByText('manual / fire')).toBeInTheDocument();
+    expect(within(summary).getByText('fire')).toBeInTheDocument();
     expect(within(summary).getByRole('button', {name: `Copy run id ${RUN_ID}`})).toHaveTextContent(
       '66666666',
     );

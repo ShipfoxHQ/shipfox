@@ -36,7 +36,8 @@ describe('WorkflowRunSummary', () => {
 
     expect(within(summary).getByRole('heading', {name: 'deploy-web'})).toBeInTheDocument();
     expect(within(summary).getAllByText('Running')).not.toHaveLength(0);
-    expect(within(summary).getByText('manual / fire')).toBeInTheDocument();
+    expect(within(summary).getByText('fire')).toBeInTheDocument();
+    expect(within(summary).queryByText('manual')).not.toBeInTheDocument();
     expect(within(summary).getByText(RELATIVE_TIME_TEXT_PATTERN)).toBeInTheDocument();
     expect(within(summary).queryByText('Triggered')).not.toBeInTheDocument();
     expect(within(summary).queryByText('Updated')).not.toBeInTheDocument();
@@ -101,7 +102,7 @@ describe('WorkflowRunSummary', () => {
 
     await screen.findByRole('region', {name: 'deploy-web'});
 
-    expect(screen.queryByText('manual / fire')).not.toBeInTheDocument();
+    expect(screen.queryByText('fire')).not.toBeInTheDocument();
   });
 
   test('does not show a run name tooltip when the heading is not truncated', async () => {

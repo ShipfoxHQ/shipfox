@@ -144,7 +144,7 @@ describe('EventsList', () => {
     const onSelectEvent = vi.fn();
     renderList(makeProps({onSelectEvent}));
 
-    await userEvent.click(screen.getByRole('button', {name: 'Open details for github push'}));
+    await userEvent.click(screen.getByRole('button', {name: 'Open details for github · push'}));
 
     expect(onSelectEvent).toHaveBeenCalledWith('evt-1');
   });
@@ -164,7 +164,7 @@ describe('EventsList', () => {
     renderList(makeProps({selectedEventId: 'evt-1'}));
 
     expect(
-      screen.getByRole('button', {name: 'Open details for github push'}).closest('tr'),
+      screen.getByRole('button', {name: 'Open details for github · push'}).closest('tr'),
     ).toHaveAttribute('data-selected', 'true');
   });
 });

@@ -10,7 +10,7 @@ describe('WorkflowJobsGraph', () => {
     render(<WorkflowJobsGraph run={makeRun({jobs: [makeJob({name: 'build'})]})} />);
 
     expect(screen.getByRole('region', {name: 'Workflow jobs'})).toBeInTheDocument();
-    expect(screen.getByRole('button', {name: 'manual / fire'})).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'fire'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'build, Pending'})).toBeInTheDocument();
   });
 

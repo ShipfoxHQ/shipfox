@@ -119,7 +119,7 @@ describe('EventsPage', () => {
     const {rerender} = render(
       <EventsPage workspaceId={WORKSPACE_ID} filters={{}} onFiltersChange={vi.fn()} />,
     );
-    await userEvent.click(screen.getByRole('button', {name: 'Open details for github push'}));
+    await userEvent.click(screen.getByRole('button', {name: 'Open details for github · push'}));
     expect(screen.getByRole('button', {name: 'Back to events'})).toBeInTheDocument();
 
     useTriggerEventsInfiniteQueryMock.mockReturnValue(makeListQuery([]));

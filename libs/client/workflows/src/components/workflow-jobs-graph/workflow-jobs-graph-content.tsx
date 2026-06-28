@@ -1,6 +1,7 @@
 import {cn, EmptyState} from '@shipfox/react-ui';
 import type {KeyboardEvent} from 'react';
 import {useRef, useState} from 'react';
+import type {WorkflowRunDetail} from '#core/workflow-run.js';
 import type {WorkflowJobGraphModel, WorkflowJobGraphNavigationKey} from './graph-model.js';
 import {nextWorkflowJobGraphNodeId} from './graph-model.js';
 import {TriggerNode, WorkflowJobNode} from './workflow-job-node.js';
@@ -14,10 +15,12 @@ const PADDING = 16;
 
 export function WorkflowJobsGraphContent({
   model,
+  trigger,
   selectedJobId,
   onSelectJob,
 }: {
   model: WorkflowJobGraphModel;
+  trigger: Pick<WorkflowRunDetail, 'triggerDisplayLabel' | 'triggerLabel' | 'triggerSource'>;
   selectedJobId?: string | undefined;
   onSelectJob: (jobId: string | undefined) => void;
 }) {
@@ -78,7 +81,7 @@ export function WorkflowJobsGraphContent({
           className="absolute"
           style={{left: PADDING, top: PADDING + (NODE_HEIGHT - TRIGGER_WIDTH) / 2}}
         >
-          <TriggerNode trigger={model.trigger} />
+          <TriggerNode trigger={trigger} />
         </div>
         {model.columns.map((column, columnIndex) => (
           <div
