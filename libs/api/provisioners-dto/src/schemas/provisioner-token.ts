@@ -19,6 +19,7 @@ export const createProvisionerTokenResponseSchema = z.object({
   revoked_by_user_id: z.string().uuid().nullable(),
   expires_at: z.string().nullable(),
   revoked_at: z.string().nullable(),
+  last_seen_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -36,6 +37,7 @@ export const provisionerTokenDtoSchema = z.object({
   revoked_by_user_id: z.string().uuid().nullable(),
   expires_at: z.string().nullable(),
   revoked_at: z.string().nullable(),
+  last_seen_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });

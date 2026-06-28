@@ -7,7 +7,8 @@ import {getWorkspace, WorkspaceNotFoundError} from '@shipfox/api-workspaces';
 import {type AuthMethod, ClientError, extractBearerToken} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import {extractDisplayPrefix, getTokenType, hashOpaqueToken} from '@shipfox/node-tokens';
-import {resolveProvisionerTokenByHash} from '#db/provisioner-tokens.js';
+import {config} from '#config.js';
+import {resolveProvisionerTokenByHash, touchProvisionerLastSeen} from '#db/provisioner-tokens.js';
 
 type AuthFailureReason =
   | 'missing'
@@ -74,6 +75,13 @@ export function createProvisionerTokenAuthMethod(): AuthMethod {
         provisionerTokenId: provisionerToken.id,
         workspaceId: workspace.id,
       };
+
+      await touchProvisionerLastSeen({
+        tokenId: provisionerToken.id,
+        throttleSeconds: config.PROVISIONER_LAST_SEEN_THROTTLE_SECONDS,
+      }).catch((error: unknown) => {
+        logger().warn({error, provisionerTokenId: provisionerToken.id}, 'last-seen touch failed');
+      });
 
       setProvisionerContext(request, context);
     },

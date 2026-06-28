@@ -8,10 +8,12 @@ import {
 import type {RouteGroup} from '@shipfox/node-fastify';
 import {createRunnerTokenRoute} from './create-runner-token.js';
 import {heartbeatRoute} from './heartbeat.js';
+import {listActiveRunnersRoute} from './list-active-runners.js';
 import {listRunnerTokensRoute} from './list-runner-tokens.js';
 import {mintRegistrationTokensRoute} from './mint-registration-tokens.js';
 import {pollDemandRoute} from './poll-demand.js';
 import {registerRoute} from './register.js';
+import {reportResourcesRoute} from './report-resources.js';
 import {requestJobRoute} from './request-job.js';
 import {revokeRunnerTokenRoute} from './revoke-runner-token.js';
 
@@ -20,6 +22,11 @@ export const runnerRoutes: RouteGroup[] = [
     prefix: '/workspaces/:workspaceId/runners/tokens',
     auth: AUTH_USER,
     routes: [listRunnerTokensRoute, createRunnerTokenRoute, revokeRunnerTokenRoute],
+  },
+  {
+    prefix: '/workspaces/:workspaceId/runners/active',
+    auth: AUTH_USER,
+    routes: [listActiveRunnersRoute],
   },
   {
     prefix: '/runners',
@@ -39,6 +46,6 @@ export const runnerRoutes: RouteGroup[] = [
   {
     prefix: '/provisioners',
     auth: AUTH_PROVISIONER_TOKEN,
-    routes: [pollDemandRoute, mintRegistrationTokensRoute],
+    routes: [pollDemandRoute, mintRegistrationTokensRoute, reportResourcesRoute],
   },
 ];

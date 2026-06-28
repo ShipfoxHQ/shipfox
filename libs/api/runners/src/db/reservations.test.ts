@@ -1,6 +1,10 @@
 import {sql, sum} from 'drizzle-orm';
 import {db} from '#db/db.js';
-import {deleteReservationsByIds, pollDemandAndReserve} from '#db/reservations.js';
+import {
+  deleteReservationsByIds,
+  pollDemandAndReserve,
+  releaseReservationUnits,
+} from '#db/reservations.js';
 import {reservations} from '#db/schema/reservations.js';
 import {pendingJobFactory, reservationFactory} from '#test/index.js';
 
@@ -236,6 +240,110 @@ describe('pollDemandAndReserve', () => {
     expect(deleted).toBe(1);
     expect(remaining).toHaveLength(1);
     expect(remaining[0]?.requiredLabels).toEqual(['macos']);
+  });
+
+  it('decrements reservation units inside a caller transaction', async () => {
+    await reservationFactory.create({
+      workspaceId,
+      provisionerId,
+      requiredLabels: ['linux'],
+      count: 3,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const [reservation] = await db().select().from(reservations);
+    if (!reservation) throw new Error('Expected reservation');
+
+    const released = await db().transaction((tx) =>
+      releaseReservationUnits(tx, {
+        workspaceId,
+        provisionerId,
+        releases: [{reservationId: reservation.id, count: 2}],
+      }),
+    );
+
+    const rows = await db().select().from(reservations);
+    expect(released).toBe(2);
+    expect(rows[0]?.count).toBe(1);
+  });
+
+  it('deletes reservations when releasing all remaining units', async () => {
+    await reservationFactory.create({
+      workspaceId,
+      provisionerId,
+      requiredLabels: ['linux'],
+      count: 1,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const [reservation] = await db().select().from(reservations);
+    if (!reservation) throw new Error('Expected reservation');
+
+    const released = await db().transaction((tx) =>
+      releaseReservationUnits(tx, {
+        workspaceId,
+        provisionerId,
+        releases: [{reservationId: reservation.id, count: 1}],
+      }),
+    );
+
+    const rows = await db().select().from(reservations);
+    expect(released).toBe(1);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('does not release another workspace or provisioner reservation', async () => {
+    await reservationFactory.create({
+      workspaceId: crypto.randomUUID(),
+      provisionerId,
+      requiredLabels: ['linux'],
+      count: 1,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await reservationFactory.create({
+      workspaceId,
+      provisionerId: crypto.randomUUID(),
+      requiredLabels: ['linux'],
+      count: 1,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const rowsBefore = await db().select().from(reservations);
+
+    const released = await db().transaction((tx) =>
+      releaseReservationUnits(tx, {
+        workspaceId,
+        provisionerId,
+        releases: rowsBefore.map((reservation) => ({reservationId: reservation.id, count: 1})),
+      }),
+    );
+
+    const rowsAfter = await db().select().from(reservations);
+    expect(released).toBe(0);
+    expect(rowsAfter.map((reservation) => reservation.id).sort()).toEqual(
+      rowsBefore.map((reservation) => reservation.id).sort(),
+    );
+  });
+
+  it('credits only the deleted reservation count when release units exceed the row count', async () => {
+    await reservationFactory.create({
+      workspaceId,
+      provisionerId,
+      requiredLabels: ['linux'],
+      count: 1,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const [reservation] = await db().select().from(reservations);
+    if (!reservation) throw new Error('Expected reservation');
+
+    const released = await db().transaction((tx) =>
+      releaseReservationUnits(tx, {
+        workspaceId,
+        provisionerId,
+        releases: [{reservationId: reservation.id, count: 3}],
+      }),
+    );
+
+    const rows = await db().select().from(reservations);
+    expect(released).toBe(1);
+    expect(rows).toHaveLength(0);
   });
 
   async function createPendingJobs(count: number, requiredLabels: string[]): Promise<void> {

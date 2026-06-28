@@ -1,10 +1,12 @@
 import {extractDisplayPrefix, generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 import {
   createProvisionerToken,
+  listActiveProvisionerTokens,
   listUsableProvisionerTokensByWorkspaceId,
   revokeProvisionerToken,
 } from '#db/provisioner-tokens.js';
-import type {ProvisionerToken} from './entities/provisioner-token.js';
+import {config} from '../config.js';
+import type {ActiveProvisionerToken, ProvisionerToken} from './entities/provisioner-token.js';
 import {ProvisionerTokenNotFoundError} from './errors.js';
 
 export interface CreateWorkspaceProvisionerTokenParams {
@@ -39,6 +41,13 @@ export async function createWorkspaceProvisionerToken(
 
 export function listUsableProvisionerTokens(workspaceId: string): Promise<ProvisionerToken[]> {
   return listUsableProvisionerTokensByWorkspaceId(workspaceId);
+}
+
+export function listActiveProvisioners(workspaceId: string): Promise<ActiveProvisionerToken[]> {
+  return listActiveProvisionerTokens({
+    workspaceId,
+    windowSeconds: config.PROVISIONER_ACTIVE_WINDOW_SECONDS,
+  });
 }
 
 export async function revokeWorkspaceProvisionerToken(params: {

@@ -5,6 +5,7 @@ import {generateOpaqueToken} from '@shipfox/node-tokens';
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import {db} from '#db/db.js';
+import * as provisionerTokenDb from '#db/provisioner-tokens.js';
 import {revokeProvisionerToken} from '#db/provisioner-tokens.js';
 import {createProvisionerTokenAuthMethod} from '#presentation/auth/index.js';
 import {provisionerTokenFactory} from '#test/index.js';
@@ -54,7 +55,7 @@ describe('provisioner me route', () => {
   });
 
   test('uses provisioner auth for provisioner routes', () => {
-    expect(provisionerRoutes[1]?.auth).toBe(AUTH_PROVISIONER_TOKEN);
+    expect(provisionerRoutes[2]?.auth).toBe(AUTH_PROVISIONER_TOKEN);
   });
 
   it('returns the authenticated provisioner identity', async () => {
@@ -70,6 +71,35 @@ describe('provisioner me route', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({id: token.id, workspace_id: workspaceId});
+  });
+
+  it('does not reject valid auth when the last-seen write fails', async () => {
+    await closeApp();
+    const workspaceId = await createWorkspace();
+    const rawToken = generateOpaqueToken('provisionerToken');
+    const token = await provisionerTokenFactory.create({workspaceId}, {transient: {rawToken}});
+    vi.spyOn(provisionerTokenDb, 'touchProvisionerLastSeen').mockRejectedValueOnce(
+      new Error('database unavailable'),
+    );
+    app = await createApp({
+      auth: [fakeUserAuth, createProvisionerTokenAuthMethod()],
+      routes: provisionerRoutes,
+      swagger: false,
+    });
+    await app.ready();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/provisioners/me',
+      headers: {authorization: `Bearer ${rawToken}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({id: token.id, workspace_id: workspaceId});
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      {error: expect.any(Error), provisionerTokenId: token.id},
+      'last-seen touch failed',
+    );
   });
 
   it('returns 401 without an authorization header', async () => {

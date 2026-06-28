@@ -9,6 +9,7 @@ export function toProvisionerTokenDto(token: ProvisionerToken): {
   revoked_by_user_id: string | null;
   expires_at: string | null;
   revoked_at: string | null;
+  last_seen_at: string | null;
   created_at: string;
   updated_at: string;
 } {
@@ -21,6 +22,7 @@ export function toProvisionerTokenDto(token: ProvisionerToken): {
     revoked_by_user_id: token.revokedByUserId,
     expires_at: token.expiresAt?.toISOString() ?? null,
     revoked_at: token.revokedAt?.toISOString() ?? null,
+    last_seen_at: token.lastSeenAt?.toISOString() ?? null,
     created_at: token.createdAt.toISOString(),
     updated_at: token.updatedAt.toISOString(),
   };

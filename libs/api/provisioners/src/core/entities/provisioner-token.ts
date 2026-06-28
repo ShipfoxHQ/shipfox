@@ -8,6 +8,9 @@ export interface ProvisionerToken {
   revokedByUserId: string | null;
   expiresAt: Date | null;
   revokedAt: Date | null;
+  lastSeenAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type ActiveProvisionerToken = ProvisionerToken & {lastSeenAt: Date};

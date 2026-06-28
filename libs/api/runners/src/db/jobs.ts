@@ -6,7 +6,7 @@ import {
   type RunnersEventMap,
 } from '@shipfox/api-runners-dto';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
-import {and, arrayContained, asc, count, eq, inArray, lt, sql} from 'drizzle-orm';
+import {and, arrayContained, asc, count, desc, eq, inArray, lt, sql} from 'drizzle-orm';
 import {
   EmptyRequiredLabelsError,
   RunnerSessionExhaustedError,
@@ -74,6 +74,17 @@ export interface ClaimedJob {
   jobId: string;
   runId: string;
   projectId: string;
+}
+
+export interface ActiveRunningJob {
+  jobId: string;
+  runId: string;
+  projectId: string;
+  runnerSessionId: string;
+  requiredLabels: string[];
+  runnerLabels: string[];
+  startedAt: Date;
+  lastHeartbeatAt: Date;
 }
 
 export async function claimPendingJob(params: {
@@ -252,6 +263,33 @@ export async function getJobQueueDepth(): Promise<{pending: number; running: num
   const [pending] = await db().select({value: count()}).from(pendingJobs);
   const [running] = await db().select({value: count()}).from(runningJobs);
   return {pending: pending?.value ?? 0, running: running?.value ?? 0};
+}
+
+export async function listActiveRunningJobs(params: {
+  workspaceId: string;
+  windowSeconds: number;
+  limit?: number;
+}): Promise<ActiveRunningJob[]> {
+  return await db()
+    .select({
+      jobId: runningJobs.jobId,
+      runId: runningJobs.runId,
+      projectId: runningJobs.projectId,
+      runnerSessionId: runningJobs.runnerSessionId,
+      requiredLabels: runningJobs.requiredLabels,
+      runnerLabels: runningJobs.runnerLabels,
+      startedAt: runningJobs.startedAt,
+      lastHeartbeatAt: runningJobs.lastHeartbeatAt,
+    })
+    .from(runningJobs)
+    .where(
+      and(
+        eq(runningJobs.workspaceId, params.workspaceId),
+        sql`${runningJobs.lastHeartbeatAt} > now() - (${params.windowSeconds} || ' seconds')::interval`,
+      ),
+    )
+    .orderBy(desc(runningJobs.lastHeartbeatAt), desc(runningJobs.id))
+    .limit(params.limit ?? 1000);
 }
 
 export async function recordHeartbeat(params: {

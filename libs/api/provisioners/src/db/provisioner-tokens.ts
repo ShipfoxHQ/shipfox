@@ -1,5 +1,5 @@
-import {and, desc, eq, gt, isNull, or} from 'drizzle-orm';
-import type {ProvisionerToken} from '#core/entities/provisioner-token.js';
+import {and, desc, eq, gt, isNull, or, sql} from 'drizzle-orm';
+import type {ActiveProvisionerToken, ProvisionerToken} from '#core/entities/provisioner-token.js';
 import {db} from './db.js';
 import {provisionerTokens, toProvisionerToken} from './schema/provisioner-tokens.js';
 
@@ -99,4 +99,44 @@ export async function revokeProvisionerToken(params: {
   const existingRow = existingRows[0];
   if (!existingRow) return undefined;
   return toProvisionerToken(existingRow);
+}
+
+export async function touchProvisionerLastSeen(params: {
+  tokenId: string;
+  throttleSeconds: number;
+}): Promise<void> {
+  await db()
+    .update(provisionerTokens)
+    .set({lastSeenAt: sql`now()`, updatedAt: sql`now()`})
+    .where(
+      and(
+        eq(provisionerTokens.id, params.tokenId),
+        or(
+          isNull(provisionerTokens.lastSeenAt),
+          sql`${provisionerTokens.lastSeenAt} < now() - (${params.throttleSeconds} || ' seconds')::interval`,
+        ),
+      ),
+    );
+}
+
+export async function listActiveProvisionerTokens(params: {
+  workspaceId: string;
+  windowSeconds: number;
+}): Promise<ActiveProvisionerToken[]> {
+  const rows = await db()
+    .select()
+    .from(provisionerTokens)
+    .where(
+      and(
+        eq(provisionerTokens.workspaceId, params.workspaceId),
+        isNull(provisionerTokens.revokedAt),
+        or(isNull(provisionerTokens.expiresAt), gt(provisionerTokens.expiresAt, sql`now()`)),
+        sql`${provisionerTokens.lastSeenAt} > now() - (${params.windowSeconds} || ' seconds')::interval`,
+      ),
+    )
+    .orderBy(desc(provisionerTokens.lastSeenAt), desc(provisionerTokens.id));
+
+  return rows.map(toProvisionerToken).filter((token): token is ActiveProvisionerToken => {
+    return token.lastSeenAt !== null;
+  });
 }

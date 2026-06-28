@@ -4,6 +4,7 @@ import {ephemeralRegistrationTokens} from './schema/ephemeral-registration-token
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobs} from './schema/pending-jobs.js';
 import {reservations} from './schema/reservations.js';
+import {resources} from './schema/resources.js';
 import {runnerSessions} from './schema/runner-sessions.js';
 import {runnerTokens} from './schema/runner-tokens.js';
 import {runningJobs} from './schema/running-jobs.js';
@@ -12,6 +13,7 @@ export const schema = {
   ephemeralRegistrationTokens,
   pendingJobs,
   reservations,
+  resources,
   runnerSessions,
   runnerTokens,
   runningJobs,
@@ -28,3 +30,5 @@ export function db() {
 export function closeDb(): void {
   _db = undefined;
 }
+
+export type Tx = Parameters<Parameters<NodePgDatabase<typeof schema>['transaction']>[0]>[0];

@@ -72,6 +72,7 @@ describe('provisioner token routes', () => {
 
   test('uses user auth for provisioner token management routes', () => {
     expect(provisionerRoutes[0]?.auth).toBe(AUTH_USER);
+    expect(provisionerRoutes[1]?.auth).toBe(AUTH_USER);
   });
 
   describe('GET /workspaces/:workspaceId/provisioners/tokens', () => {
@@ -122,6 +123,33 @@ describe('provisioner token routes', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json().tokens.map((token: {id: string}) => token.id)).toEqual([usable.id]);
       expect(res.json().tokens.map((token: {id: string}) => token.id)).not.toContain(expired.id);
+    });
+  });
+
+  describe('GET /workspaces/:workspaceId/provisioners/active', () => {
+    it('returns active provisioners for the workspace', async () => {
+      const active = await provisionerTokenFactory.create({workspaceId, name: 'active'});
+      await db().execute(
+        sql`UPDATE provisioners_provisioner_tokens SET last_seen_at = now() WHERE id = ${active.id}`,
+      );
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/workspaces/${workspaceId}/provisioners/active`,
+        headers: {authorization: 'Bearer user'},
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({
+        provisioners: [
+          expect.objectContaining({
+            id: active.id,
+            name: 'active',
+            prefix: active.prefix,
+            last_seen_at: expect.any(String),
+          }),
+        ],
+      });
     });
   });
 

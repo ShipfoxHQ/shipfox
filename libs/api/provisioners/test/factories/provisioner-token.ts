@@ -34,6 +34,7 @@ export const provisionerTokenFactory = Factory.define<
     revokedByUserId: null,
     expiresAt: null,
     revokedAt: null,
+    lastSeenAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

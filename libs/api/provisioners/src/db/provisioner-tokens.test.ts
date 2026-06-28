@@ -3,9 +3,11 @@ import {sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {
   createProvisionerToken,
+  listActiveProvisionerTokens,
   listUsableProvisionerTokensByWorkspaceId,
   resolveProvisionerTokenByHash,
   revokeProvisionerToken,
+  touchProvisionerLastSeen,
 } from '#db/provisioner-tokens.js';
 import {provisionerTokenFactory} from '#test/index.js';
 
@@ -96,6 +98,41 @@ describe('provisioner token db', () => {
     expect(second?.id).toBe(token.id);
     expect(second?.revokedAt?.toISOString()).toBe(first?.revokedAt?.toISOString());
     expect(second?.revokedByUserId).toBe(firstRevokedByUserId);
+  });
+
+  it('touches last seen only after the throttle window', async () => {
+    const workspaceId = crypto.randomUUID();
+    const token = await provisionerTokenFactory.create({workspaceId});
+
+    await touchProvisionerLastSeen({tokenId: token.id, throttleSeconds: 10});
+    const first = await resolveProvisionerTokenByHash(token.hashedToken);
+    await touchProvisionerLastSeen({tokenId: token.id, throttleSeconds: 10});
+    const second = await resolveProvisionerTokenByHash(token.hashedToken);
+
+    expect(first?.lastSeenAt).toBeInstanceOf(Date);
+    expect(second?.lastSeenAt?.toISOString()).toBe(first?.lastSeenAt?.toISOString());
+  });
+
+  it('lists active usable provisioner tokens', async () => {
+    const workspaceId = crypto.randomUUID();
+    const active = await provisionerTokenFactory.create({workspaceId, name: 'active'});
+    const stale = await provisionerTokenFactory.create({workspaceId, name: 'stale'});
+    const revoked = await provisionerTokenFactory.create({workspaceId, name: 'revoked'});
+    await touchProvisionerLastSeen({tokenId: active.id, throttleSeconds: 10});
+    await touchProvisionerLastSeen({tokenId: stale.id, throttleSeconds: 10});
+    await touchProvisionerLastSeen({tokenId: revoked.id, throttleSeconds: 10});
+    await db().execute(
+      sql`UPDATE provisioners_provisioner_tokens SET last_seen_at = now() - interval '10 minutes' WHERE id = ${stale.id}`,
+    );
+    await revokeProvisionerToken({
+      tokenId: revoked.id,
+      workspaceId,
+      revokedByUserId: crypto.randomUUID(),
+    });
+
+    const tokens = await listActiveProvisionerTokens({workspaceId, windowSeconds: 120});
+
+    expect(tokens.map((token) => token.id)).toEqual([active.id]);
   });
 });
 

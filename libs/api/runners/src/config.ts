@@ -28,6 +28,10 @@ export const config = createConfig({
     desc: 'Maximum backoff interval between demand re-checks while a provisioner request is waiting, in milliseconds.',
     default: 5000,
   }),
+  RUNNER_ACTIVE_WINDOW_SECONDS: num({
+    desc: 'Time window, in seconds, used to list active runners from recent heartbeats and resource reports.',
+    default: 60,
+  }),
 });
 
 if (
@@ -81,5 +85,14 @@ if (
 ) {
   throw new Error(
     `RESERVATION_POLL_MAX_INTERVAL_MS (${config.RESERVATION_POLL_MAX_INTERVAL_MS}) must be a whole number of milliseconds >= RESERVATION_POLL_INTERVAL_MS (${config.RESERVATION_POLL_INTERVAL_MS}).`,
+  );
+}
+
+if (
+  !Number.isInteger(config.RUNNER_ACTIVE_WINDOW_SECONDS) ||
+  config.RUNNER_ACTIVE_WINDOW_SECONDS < 1
+) {
+  throw new Error(
+    `RUNNER_ACTIVE_WINDOW_SECONDS (${config.RUNNER_ACTIVE_WINDOW_SECONDS}) must be a whole number of seconds >= 1.`,
   );
 }

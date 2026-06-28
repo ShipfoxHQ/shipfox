@@ -35,6 +35,26 @@ export {
   runnerLabelSchema,
 } from './register.js';
 export {
+  type ActiveRunnerDto,
+  type ActiveRunnerStateDto,
+  type ActiveRunnersResponseDto,
+  activeRunnerDtoSchema,
+  activeRunnerStateSchema,
+  activeRunnersResponseSchema,
+  MAX_PROVIDER_KIND_LENGTH,
+  MAX_RESOURCE_REASON_LENGTH,
+  MAX_RESOURCE_REPORT_EVENTS,
+  providerKindSchema,
+  type ReportResourcesBodyDto,
+  type ReportResourcesResponseDto,
+  type ResourceReportEventDto,
+  type ResourceStateDto,
+  reportResourcesBodySchema,
+  reportResourcesResponseSchema,
+  resourceReportEventSchema,
+  resourceStateSchema,
+} from './report-resources.js';
+export {
   type CreateRunnerTokenBodyDto,
   type CreateRunnerTokenResponseDto,
   createRunnerTokenBodySchema,

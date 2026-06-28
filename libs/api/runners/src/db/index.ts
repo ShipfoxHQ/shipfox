@@ -14,6 +14,7 @@ export {
   claimPendingJob,
   enqueueJob,
   expireStuckJobs,
+  listActiveRunningJobs,
   recordHeartbeat,
   releaseJob,
 } from './jobs.js';
@@ -27,7 +28,10 @@ export {
   deleteExpiredReservations,
   deleteReservationsByIds,
   pollDemandAndReserve,
+  releaseReservationUnits,
 } from './reservations.js';
+export type {ReportResourcesParams, ResourceReportEvent} from './resources.js';
+export {listActiveResources, reportResources} from './resources.js';
 export type {CreateRunnerSessionParams} from './runner-sessions.js';
 export {createRunnerSession} from './runner-sessions.js';
 export type {CreateRunnerTokenParams} from './runner-tokens.js';

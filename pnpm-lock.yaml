@@ -1690,6 +1690,9 @@ importers:
       '@shipfox/api-workspaces':
         specifier: workspace:*
         version: link:../workspaces
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../shared/common/config
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
