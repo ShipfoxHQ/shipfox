@@ -30,6 +30,7 @@ interface LogMarkerRowProps {
   detail?: string;
   /** Right-aligned `font-code` figures (bytes, line count, duration). */
   meta?: string;
+  terminalFailure?: boolean;
   children: string;
 }
 
@@ -40,9 +41,22 @@ interface LogMarkerRowProps {
  * names the event, the icon/tone carry severity), so the copy reads helpfully rather
  * than mechanically.
  */
-function LogMarkerRow({icon, tone, timestamp = null, detail, meta, children}: LogMarkerRowProps) {
+function LogMarkerRow({
+  icon,
+  tone,
+  timestamp = null,
+  detail,
+  meta,
+  terminalFailure = false,
+  children,
+}: LogMarkerRowProps) {
   return (
-    <LogRow lineNumber={null} timestamp={timestamp} tone={tone}>
+    <LogRow
+      lineNumber={null}
+      timestamp={timestamp}
+      tone={tone}
+      data-log-terminal-failure={terminalFailure ? 'true' : undefined}
+    >
       <LogContent className={cn('block', toneText[tone])}>
         <span className="inline-flex w-full items-center gap-8">
           <Icon name={icon} className="size-14 flex-none" aria-hidden="true" />
@@ -132,6 +146,7 @@ export function RunnerLostMarker({record}: {record: RunnerLostLogRecord}) {
       tone="error"
       timestamp={new Date(record.ts)}
       detail="the log ends here and may be incomplete"
+      terminalFailure
     >
       Runner disconnected
     </LogMarkerRow>

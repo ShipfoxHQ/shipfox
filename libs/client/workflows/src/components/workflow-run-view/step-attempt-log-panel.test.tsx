@@ -66,6 +66,7 @@ describe('StepAttemptLogPanel', () => {
     cleanup();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     configureApiClient({baseUrl: '', fetchImpl: undefined});
   });
 
@@ -145,7 +146,7 @@ describe('StepAttemptLogPanel', () => {
 
     expect(await screen.findByText('Step produced no output')).toBeInTheDocument();
     expect(
-      screen.getByText('This log stream closed without stdout or stderr.'),
+      screen.getByText('This log stream closed without session entries or process output.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(screen.getByRole('log')).toBeInTheDocument();
@@ -197,5 +198,46 @@ describe('StepAttemptLogPanel', () => {
 
     await waitFor(() => expect(screen.getByText('second')).toBeInTheDocument());
     expect(logRows.scrollTop).toBe(320);
+  });
+
+  test('passes failure anchoring for failed attempts', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(async () =>
+        jsonResponse(
+          inlineLogBody(
+            JSON.stringify({
+              v: 1,
+              ts: 1,
+              type: 'agent_session',
+              data: JSON.stringify({
+                type: 'message',
+                message: {
+                  role: 'assistant',
+                  content: [{type: 'text', text: 'I cannot continue.'}],
+                  stopReason: 'error',
+                },
+              }),
+            }),
+            1,
+          ),
+        ),
+      ),
+    });
+
+    renderPanel({attemptStatus: 'failed'});
+
+    expect(await screen.findByText('I cannot continue.')).toBeInTheDocument();
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({block: 'center'}));
   });
 });

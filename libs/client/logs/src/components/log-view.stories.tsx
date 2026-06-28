@@ -13,6 +13,12 @@ const out = (data: string, offset: number, stream: 'stdout' | 'stderr' = 'stdout
   stream,
   data,
 });
+const session = (data: unknown, offset: number): LogRecord => ({
+  v: 1,
+  ts: at(offset),
+  type: 'agent_session',
+  data: typeof data === 'string' ? data : JSON.stringify(data),
+});
 const groupStart = (
   groupId: string,
   name: string,
@@ -82,6 +88,251 @@ const nestedRecords: LogRecord[] = [
   {v: 1, ts: at(15.2), type: 'end', total_bytes: 9_216},
 ];
 
+const unifiedAgentRecords: LogRecord[] = [
+  session(
+    {
+      type: 'message',
+      message: {role: 'user', content: 'Update the auth form error handling.'},
+    },
+    0,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'assistant',
+        model: 'gpt-5-codex',
+        content: [
+          {type: 'text', text: 'I will inspect the form and the existing tests first.'},
+          {
+            type: 'thinking',
+            text: 'The likely risk is server errors being written to the wrong form meta slot.',
+          },
+          {
+            type: 'toolCall',
+            id: 'call-1',
+            name: 'read_file',
+            arguments: {path: 'src/login-form.tsx'},
+          },
+        ],
+      },
+    },
+    1,
+  ),
+  out('$ pnpm --filter @shipfox/client-auth test\n', 2),
+  session(
+    {
+      type: 'message',
+      message: {
+        toolCallId: 'call-1',
+        toolName: 'read_file',
+        content: [{type: 'text', text: 'export function LoginForm() { /* ... */ }'}],
+      },
+    },
+    3,
+  ),
+  session({type: 'model_change', model: 'gpt-5-codex', provider: 'openai'}, 4),
+  {v: 1, ts: at(5), type: 'end', total_bytes: 4096},
+];
+
+const awaitingAgentRecords: LogRecord[] = [
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'toolCall',
+            id: 'call-2',
+            name: 'run_tests',
+            arguments: {filter: '@shipfox/client-logs'},
+          },
+        ],
+      },
+    },
+    0,
+  ),
+  out('running tests...\n', 1),
+];
+
+const failedAgentRecords: LogRecord[] = [
+  out('$ pnpm test\n', 0),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'assistant',
+        content: [{type: 'text', text: 'The run cannot continue because the harness aborted.'}],
+        stopReason: 'error',
+      },
+    },
+    1,
+  ),
+];
+
+const allAgentSessionTypeRecords: LogRecord[] = [
+  session({type: 'session', version: 2, id: 'session-2026-06-23', cwd: '/workspace/platform'}, 0),
+  session({type: 'session_info', message: 'Restored 14 messages from prior context.'}, 1),
+  session({type: 'label', label: 'Review setup', targetId: 'entry-review'}, 2),
+  session({type: 'thinking_level_change', thinkingLevel: 'high'}, 3),
+  session({type: 'model_change', modelId: 'gpt-5-codex', provider: 'openai'}, 4),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'user',
+        content: [
+          {type: 'text', text: 'Review the failed workflow attempt and patch the tests.'},
+          {type: 'image', mimeType: 'image/png', data: 'base64-payload'},
+        ],
+      },
+    },
+    5,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'assistant',
+        model: 'gpt-5-codex',
+        provider: 'openai',
+        content: [
+          {type: 'text', text: 'I will inspect the failure anchor and the log selector.'},
+          {
+            type: 'thinking',
+            thinking:
+              'The UI needs to preserve the terminal assistant message while still showing the tool activity inline.',
+          },
+          {
+            type: 'tool_call',
+            id: 'call-read',
+            name: 'read_file',
+            arguments: {path: 'libs/client/logs/src/core/agent-session/selector.ts'},
+          },
+        ],
+      },
+    },
+    6,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'toolResult',
+        toolCallId: 'call-read',
+        toolName: 'read_file',
+        content: [{type: 'text', text: 'function expandSessionRecord(record) { /* ... */ }'}],
+      },
+    },
+    7,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        toolCallId: 'call-test',
+        toolName: 'run_tests',
+        content: [{type: 'text', text: 'FAIL selector.test.ts > parses tool results'}],
+        isError: true,
+      },
+    },
+    8,
+  ),
+  session(
+    {
+      type: 'branch_summary',
+      summary: 'Kept the parser scoped to agent_session records and log-tree ordering.',
+      fromId: 'entry-review',
+    },
+    9,
+  ),
+  session(
+    {
+      type: 'compaction',
+      summary: 'Previous context summarized into 3 decisions.',
+      tokensBefore: 42000,
+    },
+    10,
+  ),
+  session(
+    {type: 'custom', customType: 'review', data: {verdict: 'parser coverage looks complete'}},
+    11,
+  ),
+  session(
+    {
+      type: 'custom_message',
+      customType: 'operator-note',
+      content: 'Retry after the fixture update.',
+    },
+    12,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'assistant',
+        content: [{type: 'text', text: 'I cannot continue because the test harness aborted.'}],
+        stopReason: 'aborted',
+        errorMessage: 'Harness aborted before the retry finished.',
+      },
+    },
+    13,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'bashExecution',
+        command: 'pnpm test',
+        output: 'FAIL selector.test.ts > parses tool results',
+        exitCode: 1,
+        cancelled: false,
+        truncated: true,
+        fullOutputPath: '/tmp/shipfox-agent-output.log',
+      },
+    },
+    14,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'custom',
+        customType: 'status',
+        content: 'Extension status update.',
+        display: true,
+      },
+    },
+    15,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'branchSummary',
+        summary: 'Created a branch for selector fixes.',
+        fromId: 'entry-review',
+      },
+    },
+    16,
+  ),
+  session(
+    {
+      type: 'message',
+      message: {
+        role: 'compactionSummary',
+        summary: 'Summarized earlier tool output.',
+        tokensBefore: 96000,
+      },
+    },
+    17,
+  ),
+  session({type: 'future_entry', payload: {feature: 'new-session-event'}}, 18),
+  {v: 1, ts: at(19), type: 'agent_session', data: '{not-json'},
+  {v: 1, ts: at(20), type: 'end', total_bytes: 12_288},
+];
+
 const meta = {
   title: 'Logs/LogView',
   component: LogView,
@@ -148,6 +399,74 @@ export const MinimalOutput: Story = {
   render: (args) => (
     <div className="max-w-3xl">
       <LogView {...args} records={[{v: 1, ts: at(1), type: 'end', total_bytes: 0}]} />
+    </div>
+  ),
+};
+
+export const UnifiedAgentSession: Story = {
+  args: {showLineNumbers: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={unifiedAgentRecords} />
+    </div>
+  ),
+};
+
+export const AllAgentSessionTypes: Story = {
+  args: {showLineNumbers: true, anchorToFailure: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={allAgentSessionTypeRecords} />
+    </div>
+  ),
+};
+
+export const RunningAgentToolCall: Story = {
+  args: {showLineNumbers: true, emptyState: 'pending'},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={awaitingAgentRecords} />
+    </div>
+  ),
+};
+
+export const FailedAgentSession: Story = {
+  args: {showLineNumbers: true, anchorToFailure: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={failedAgentRecords} />
+    </div>
+  ),
+};
+
+export const UnknownAgentEntry: Story = {
+  args: {showLineNumbers: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={[session({type: 'future_entry', payload: {value: true}}, 0)]} />
+    </div>
+  ),
+};
+
+export const LargeAgentPayload: Story = {
+  args: {showLineNumbers: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView
+        {...args}
+        records={[
+          session(
+            {
+              type: 'message',
+              message: {
+                role: 'assistant',
+                content: [{type: 'text', text: 'Large payload '.repeat(180)}],
+              },
+            },
+            0,
+          ),
+        ]}
+      />
     </div>
   ),
 };

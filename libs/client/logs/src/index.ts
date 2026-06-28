@@ -6,6 +6,7 @@ export {
   type LogTree,
   type MarkerLogNode,
   type OutputLogNode,
+  type SessionLogNode,
 } from '#core/log-tree.js';
 export * from './components/index.js';
 export {

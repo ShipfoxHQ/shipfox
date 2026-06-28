@@ -74,10 +74,10 @@ describe('buildLogTree', () => {
     expect(empty.lineCount).toBe(0);
   });
 
-  test('anchors originTs on the first render-relevant record, skipping a leading agent_session', () => {
+  test('anchors originTs on the first agent_session record', () => {
     const tree = buildLogTree([agentSession('entry', 5), out('a', 'stdout', 9)]);
 
-    expect(tree.originTs).toBe(9);
+    expect(tree.originTs).toBe(5);
   });
 
   test('nests output inside a closed group', () => {
@@ -250,13 +250,37 @@ describe('buildLogTree', () => {
     expect(seqs).toEqual([0, 1, 2, 3]);
   });
 
-  test('skips agent_session without consuming a line number', () => {
+  test('emits agent_session nodes without consuming a line number', () => {
     const records = [out('a'), agentSession('{"role":"assistant"}'), out('b')];
 
     const tree = buildLogTree(records);
 
-    expect(tree.nodes).toHaveLength(2);
-    expect(tree.nodes.map((n) => (n.kind === 'output' ? n.lineNumber : null))).toEqual([1, 2]);
+    expect(tree.nodes.map((node) => node.kind)).toEqual(['output', 'session', 'output']);
+    expect(tree.nodes.flatMap((n) => (n.kind === 'output' ? [n.lineNumber] : []))).toEqual([1, 2]);
+  });
+
+  test('keeps stdout between a tool call and tool result in stream order', () => {
+    const toolCall = agentSession(
+      JSON.stringify({
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: [{type: 'toolCall', id: 'call-1', name: 'edit_file', arguments: {}}],
+        },
+      }),
+      1,
+    );
+    const toolResult = agentSession(
+      JSON.stringify({
+        type: 'message',
+        message: {toolCallId: 'call-1', toolName: 'edit_file', content: 'done'},
+      }),
+      3,
+    );
+
+    const tree = buildLogTree([toolCall, out('interleaved\n', 'stdout', 2), toolResult]);
+
+    expect(tree.nodes.map((node) => node.kind)).toEqual(['session', 'output', 'session']);
   });
 
   test.each([

@@ -9,7 +9,8 @@ import {
   type LogTimestampMode,
   Skeleton,
 } from '@shipfox/react-ui';
-import {type ReactNode, type UIEventHandler, useMemo} from 'react';
+import {type ReactNode, type UIEventHandler, useEffect, useMemo, useRef} from 'react';
+import {expandSessionRecord} from '#core/agent-session/selector.js';
 import {
   assertNever,
   buildLogTree,
@@ -17,6 +18,7 @@ import {
   type LogTree,
   type MarkerLogRecord,
 } from '#core/log-tree.js';
+import {AgentSessionRows} from './agent-session-rows.js';
 import {LogGroup} from './log-group.js';
 import {OutputLogRow} from './output-log-row.js';
 import {CappedMarker, EndMarker, GapMarker, RunnerLostMarker} from './system-markers.js';
@@ -28,6 +30,7 @@ export interface LogViewProps {
   showLineNumbers?: boolean;
   emptyState?: 'complete' | 'pending';
   defaultGroupsOpen?: boolean;
+  anchorToFailure?: boolean;
   className?: string | undefined;
   onScroll?: UIEventHandler<HTMLDivElement> | undefined;
 }
@@ -44,14 +47,39 @@ export function LogView({
   showLineNumbers = true,
   emptyState = 'complete',
   defaultGroupsOpen = false,
+  anchorToFailure = false,
   className,
   onScroll,
 }: LogViewProps) {
+  const rowsRef = useRef<HTMLDivElement>(null);
   const tree = useMemo(() => buildLogTree(records), [records]);
+  const resolvedToolCallIds = useMemo(() => collectResolvedToolCallIds(tree.nodes), [tree.nodes]);
   const noOutputState = getNoOutputState(tree, emptyState);
+  const anchorRecordCount = records.length;
+
+  useEffect(() => {
+    if (!anchorToFailure) return;
+    if (anchorRecordCount === 0) return;
+
+    const frame = scheduleAnimationFrame(() => {
+      const rows = rowsRef.current;
+      if (!rows) return;
+
+      const failure = rows.querySelector<HTMLElement>('[data-log-terminal-failure="true"]');
+      if (failure) {
+        failure.scrollIntoView({block: 'center'});
+        return;
+      }
+
+      rows.scrollTop = rows.scrollHeight;
+    });
+
+    return () => cancelScheduledFrame(frame);
+  }, [anchorToFailure, anchorRecordCount]);
 
   return (
     <LogRows
+      ref={rowsRef}
       timestamps={timestamps}
       wrap={wrap}
       showLineNumbers={showLineNumbers}
@@ -60,7 +88,7 @@ export function LogView({
       {...(tree.originTs != null ? {timestampOrigin: new Date(tree.originTs)} : {})}
     >
       {noOutputState ? <NoOutputRow state={noOutputState} /> : null}
-      {renderNodes(tree.nodes, 0, tree, defaultGroupsOpen)}
+      {renderNodes(tree.nodes, 0, tree, defaultGroupsOpen, resolvedToolCallIds)}
     </LogRows>
   );
 }
@@ -127,7 +155,7 @@ function NoOutputRow({state}: {state: NonNullable<LogViewProps['emptyState']>}) 
         }
       : {
           title: 'Step produced no output',
-          detail: 'This log stream closed without stdout or stderr.',
+          detail: 'This log stream closed without session entries or process output.',
         };
 
   return (
@@ -151,6 +179,7 @@ function renderNodes(
   depth: number,
   tree: LogTree,
   defaultGroupsOpen: boolean,
+  resolvedToolCallIds: ReadonlySet<string>,
 ): ReactNode[] {
   // `node.seq` is the stable, unique render key (see `LogNodeBase`): a concatenated
   // multi-step/retry stream can repeat a `group_id` or a marker's `(type, ts)` at one
@@ -175,15 +204,65 @@ function renderNodes(
             terminated={tree.terminated}
             defaultOpen={defaultGroupsOpen}
           >
-            {renderNodes(node.children, depth + 1, tree, defaultGroupsOpen)}
+            {renderNodes(node.children, depth + 1, tree, defaultGroupsOpen, resolvedToolCallIds)}
           </LogGroup>
         );
       case 'marker':
         return <MarkerRow key={node.seq} record={node.record} tree={tree} />;
+      case 'session':
+        return (
+          <AgentSessionRows
+            key={node.seq}
+            rows={expandSessionRecord(node.record)}
+            resolvedToolCallIds={resolvedToolCallIds}
+            indent={depth}
+          />
+        );
       default:
         return assertNever(node);
     }
   });
+}
+
+function collectResolvedToolCallIds(nodes: readonly LogNode[]): ReadonlySet<string> {
+  const ids = new Set<string>();
+  collectResolvedToolCallIdsInto(nodes, ids);
+  return ids;
+}
+
+function collectResolvedToolCallIdsInto(nodes: readonly LogNode[], ids: Set<string>): void {
+  for (const node of nodes) {
+    switch (node.kind) {
+      case 'session':
+        for (const row of expandSessionRecord(node.record)) {
+          if (row.kind === 'tool-result' && row.toolCallId != null) ids.add(row.toolCallId);
+        }
+        break;
+      case 'group':
+        collectResolvedToolCallIdsInto(node.children, ids);
+        break;
+      case 'output':
+      case 'marker':
+        break;
+      default:
+        assertNever(node);
+    }
+  }
+}
+
+function scheduleAnimationFrame(callback: FrameRequestCallback): number {
+  if (typeof globalThis.requestAnimationFrame === 'function') {
+    return globalThis.requestAnimationFrame(callback);
+  }
+  return window.setTimeout(() => callback(Date.now()), 0);
+}
+
+function cancelScheduledFrame(frame: number) {
+  if (typeof globalThis.cancelAnimationFrame === 'function') {
+    globalThis.cancelAnimationFrame(frame);
+    return;
+  }
+  window.clearTimeout(frame);
 }
 
 function MarkerRow({record, tree}: {record: MarkerLogRecord; tree: LogTree}): ReactNode {

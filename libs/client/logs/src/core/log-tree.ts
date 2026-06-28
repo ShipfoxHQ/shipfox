@@ -19,6 +19,7 @@ export type EndLogRecord = Extract<LogRecord, {type: 'end'}>;
 export type GapLogRecord = Extract<LogRecord, {type: 'gap'}>;
 export type CappedLogRecord = Extract<LogRecord, {type: 'capped'}>;
 export type RunnerLostLogRecord = Extract<LogRecord, {type: 'runner_lost'}>;
+export type AgentSessionLogRecord = Extract<LogRecord, {type: 'agent_session'}>;
 export type MarkerLogRecord = EndLogRecord | GapLogRecord | CappedLogRecord | RunnerLostLogRecord;
 
 /**
@@ -56,7 +57,12 @@ export interface GroupLogNode extends LogNodeBase {
   children: LogNode[];
 }
 
-export type LogNode = OutputLogNode | MarkerLogNode | GroupLogNode;
+export interface SessionLogNode extends LogNodeBase {
+  kind: 'session';
+  record: AgentSessionLogRecord;
+}
+
+export type LogNode = OutputLogNode | MarkerLogNode | GroupLogNode | SessionLogNode;
 
 export interface LogTree {
   nodes: LogNode[];
@@ -86,8 +92,6 @@ export function buildLogTree(records: readonly LogRecord[]): LogTree {
   let lineNumber = 0;
   let lineCount = 0;
   let terminated = false;
-  // Anchor relative timestamps on the first render-relevant record, skipping a leading
-  // agent_session (rendered elsewhere) so the first visible row reads as the baseline.
   let originTs: number | null = null;
 
   const childrenOf = (): LogNode[] => stack[stack.length - 1]?.children ?? nodes;
@@ -99,7 +103,7 @@ export function buildLogTree(records: readonly LogRecord[]): LogTree {
   };
 
   for (const record of records) {
-    if (originTs === null && record.type !== 'agent_session') originTs = record.ts;
+    if (originTs === null) originTs = record.ts;
     switch (record.type) {
       case 'output': {
         lineNumber += 1;
@@ -180,7 +184,7 @@ export function buildLogTree(records: readonly LogRecord[]): LogTree {
         break;
       }
       case 'agent_session':
-        // Rendered by the agent-session surface, not this package.
+        childrenOf().push({kind: 'session', seq: seq++, record});
         break;
       default:
         assertNever(record);
