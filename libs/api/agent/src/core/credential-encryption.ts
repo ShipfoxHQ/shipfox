@@ -10,6 +10,8 @@ const ENCODED_PREFIX = 'v1:';
 const IV_BYTES = 12;
 const AUTH_TAG_BYTES = 16;
 const KEY_BYTES = 32;
+const BASE64_PADDING_SUFFIX = /=+$/;
+const BASE64_KEY_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
 
 let memoizedEncryptionKey: Buffer | undefined;
 
@@ -124,7 +126,7 @@ function getEncryptionKey(): Buffer {
   }
 
   const key = Buffer.from(encoded, 'base64');
-  if (key.length !== KEY_BYTES) {
+  if (key.length !== KEY_BYTES || !isCanonicalBase64Key(encoded, key)) {
     throw new Error(
       'AGENT_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key, for example from `openssl rand -base64 32`.',
     );
@@ -132,6 +134,14 @@ function getEncryptionKey(): Buffer {
 
   memoizedEncryptionKey = key;
   return key;
+}
+
+function isCanonicalBase64Key(encoded: string, key: Buffer): boolean {
+  return (
+    BASE64_KEY_PATTERN.test(encoded) &&
+    key.toString('base64').replace(BASE64_PADDING_SUFFIX, '') ===
+      encoded.replace(BASE64_PADDING_SUFFIX, '')
+  );
 }
 
 function credentialAad(

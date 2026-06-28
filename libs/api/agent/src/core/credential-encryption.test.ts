@@ -112,6 +112,19 @@ describe('credential encryption', () => {
     expect(decrypted).toBe('secret');
   });
 
+  it('rejects non-canonical base64 encryption keys', async () => {
+    vi.resetModules();
+    const encodedKey = Buffer.from('a'.repeat(32), 'utf8').toString('base64');
+    vi.stubEnv('AGENT_CREDENTIALS_ENCRYPTION_KEY', `$${encodedKey}`);
+    const module = await import('./credential-encryption.js');
+
+    const encrypt = () => module.encryptCredential({plaintext: 'secret', aad: 'aad'});
+
+    expect(encrypt).toThrow(
+      'AGENT_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key',
+    );
+  });
+
   it('round-trips a multi-field credential record', () => {
     const credentials = {
       api_key: 'sk-secret',
