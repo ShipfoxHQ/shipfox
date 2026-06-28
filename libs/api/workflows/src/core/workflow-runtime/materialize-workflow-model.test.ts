@@ -117,7 +117,7 @@ describe('materializeWorkflowModel', () => {
               prompt: 'Fix the tests.',
             },
             {
-              model: 'gpt-5.1',
+              model: 'gpt-5.5-pro',
               provider: 'openai',
               thinking: 'low',
               prompt: 'Review it.',
@@ -149,12 +149,12 @@ describe('materializeWorkflowModel', () => {
     });
     expect(rows[0]?.steps[3]).toEqual({
       sourceName: null,
-      displayName: 'gpt-5.1 · Review it.',
+      displayName: 'gpt-5.5-pro · Review it.',
       sourceLocation: null,
       status: 'pending',
       type: 'agent',
       config: {
-        model: 'gpt-5.1',
+        model: 'gpt-5.5-pro',
         provider: 'openai',
         thinking: 'low',
         prompt: 'Review it.',
@@ -164,6 +164,28 @@ describe('materializeWorkflowModel', () => {
         },
       },
       position: 3,
+    });
+  });
+
+  it('materializes prompt-only agent steps without unresolved defaults', () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {
+          steps: [{prompt: 'Fix the failing tests.'}],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel(model);
+
+    expect(rows[0]?.steps[1]).toEqual({
+      sourceName: null,
+      displayName: 'Fix the failing tests.',
+      sourceLocation: null,
+      status: 'pending',
+      type: 'agent',
+      config: {prompt: 'Fix the failing tests.'},
+      position: 1,
     });
   });
 

@@ -79,16 +79,17 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
-  it('normalizes an inline agent step, applying the thinking and provider defaults and keeping gates', () => {
+  it('normalizes inline agent steps without resolving contextual defaults', () => {
     const document: WorkflowDocument = {
       name: 'agent build',
       jobs: {
         fix: {
           steps: [
+            {name: 'plan', prompt: 'Plan the fix.'},
             {name: 'implement', model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'},
             {
               name: 'review',
-              model: 'gpt-5.1',
+              model: 'gpt-5.5-pro',
               provider: 'openai',
               prompt: 'Review the fix.',
               thinking: 'low',
@@ -102,21 +103,91 @@ describe('normalizeWorkflowDocument', () => {
     const model = normalizeWorkflowDocument(document);
 
     expect(model.jobs[0]?.steps[0]).toEqual({
+      id: 'fix-plan',
+      sourceName: 'plan',
+      kind: 'agent',
+      prompt: 'Plan the fix.',
+    });
+    expect(model.jobs[0]?.steps[1]).toEqual({
       id: 'fix-implement',
       sourceName: 'implement',
       kind: 'agent',
       model: 'claude-opus-4-8',
-      provider: 'anthropic',
-      thinking: 'high',
       prompt: 'Fix the failing tests.',
     });
-    expect(model.jobs[0]?.steps[1]).toMatchObject({
+    expect(model.jobs[0]?.steps[2]).toMatchObject({
       id: 'fix-review',
       kind: 'agent',
       provider: 'openai',
       thinking: 'low',
       gate: {onFailure: {restartFrom: 'implement'}},
     });
+  });
+
+  it('reports unsupported explicit agent providers', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [{provider: 'github-copilot', prompt: 'Fix it.'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-agent-provider',
+        message: 'Agent provider "github-copilot" is not supported.',
+        path: ['jobs', 'fix', 'steps', 0, 'provider'],
+        details: {provider: 'github-copilot'},
+      },
+    ]);
+  });
+
+  it('reports explicit model/provider pairs not present in the provider catalog', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [{provider: 'openai', model: 'claude-opus-4-8', prompt: 'Fix it.'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-agent-provider-model',
+        message: 'Agent model "claude-opus-4-8" is not cataloged for provider "openai".',
+        path: ['jobs', 'fix', 'steps', 0, 'model'],
+        details: {provider: 'openai', model: 'claude-opus-4-8'},
+      },
+    ]);
+  });
+
+  it('reports explicit agent models that are not cataloged', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [{model: 'not-a-cataloged-model', prompt: 'Fix it.'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-agent-model',
+        message: 'Agent model "not-a-cataloged-model" is not cataloged.',
+        path: ['jobs', 'fix', 'steps', 0, 'model'],
+        details: {model: 'not-a-cataloged-model'},
+      },
+    ]);
   });
 
   it('applies top-level runner defaults to jobs without runner overrides', () => {

@@ -6,8 +6,8 @@ Code that turns a checked workflow document into the model used by definitions.
 
 - **`WorkflowModel`**: Defines the stable workflow graph used after document
   parsing.
-- **`normalizeWorkflowDocument(document)`**: Applies defaults, expands
-  shorthand fields, assigns stable ids, and builds graph edges.
+- **`normalizeWorkflowDocument(document)`**: Expands shorthand fields, assigns
+  stable ids, validates cataloged agent fields, and builds graph edges.
 - **Step gates**: Parse run-step `gate.success_if` as CEL with `exit_code` in
   scope and check `gate.on_failure.restart_from` against earlier named steps in
   the same job.
@@ -40,6 +40,7 @@ This code is part of `@shipfox/api-definitions`. It is not a standalone package.
 ```json
 {
   "dependencies": {
+    "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/workflow-document": "workspace:*"
   }
 }
@@ -79,6 +80,11 @@ Run-step gate expressions are different. They have a small local result context,
 so this module can parse and type-check `success_if` now. The accepted model
 stores a typed `WorkflowExpression` with `language: 'cel'`, the original source
 string, and `check: 'typed'`.
+
+Agent steps keep omitted `provider`, `model`, and `thinking` fields omitted in
+the definition model. Run creation resolves those contextual defaults later.
+Explicit providers and explicit model/provider pairs are checked against the
+shared agent provider catalog when the document has enough context.
 
 For now, run-step gates can use `exit_code`. Fields such as `step.output.pass`
 need a declared output schema, so they belong to later agent-step work.

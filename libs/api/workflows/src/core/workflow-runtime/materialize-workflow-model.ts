@@ -81,7 +81,9 @@ function stepDisplayName(step: WorkflowModelStep): string {
     case 'run':
       return firstLine(step.command.value);
     case 'agent':
-      return `${step.model} · ${firstLine(step.prompt)}`;
+      return step.model === undefined
+        ? firstLine(step.prompt)
+        : `${step.model} · ${firstLine(step.prompt)}`;
     default:
       return assertNever(step);
   }
@@ -101,9 +103,9 @@ function stepConfig(
   return step.kind === 'run'
     ? {run: step.command.value, ...env, ...gate}
     : {
-        model: step.model,
-        provider: step.provider,
-        thinking: step.thinking,
+        ...(step.model === undefined ? {} : {model: step.model}),
+        ...(step.provider === undefined ? {} : {provider: step.provider}),
+        ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
         prompt: step.prompt,
         ...gate,
       };

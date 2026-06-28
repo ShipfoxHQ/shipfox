@@ -15,10 +15,10 @@ interface TestRunStep extends TestWorkflowStepBase {
 }
 
 interface TestAgentStep extends TestWorkflowStepBase {
-  readonly model: string;
-  readonly provider: string;
+  readonly model?: string | undefined;
+  readonly provider?: string | undefined;
   readonly prompt: string;
-  readonly thinking: AgentThinking;
+  readonly thinking?: AgentThinking | undefined;
 }
 
 type TestWorkflowStep = TestRunStep | TestAgentStep;
@@ -79,9 +79,9 @@ function normalizeStep(step: TestWorkflowStep, jobId: string, stepIndex: number)
     : {
         ...base,
         kind: 'agent',
-        model: step.model,
-        provider: step.provider,
-        thinking: step.thinking,
+        ...(step.model === undefined ? {} : {model: step.model}),
+        ...(step.provider === undefined ? {} : {provider: step.provider}),
+        ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
         prompt: step.prompt,
       };
 }

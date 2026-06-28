@@ -1,3 +1,4 @@
+import {getAgentProviderEntry, listSupportedAgentProviders} from '@shipfox/api-agent-dto';
 import {
   createWorkflowExpression,
   InvalidWorkflowExpressionError,
@@ -10,12 +11,10 @@ import {
   MAX_RUNNER_LABELS,
   RUNNER_LABEL_PATTERN,
 } from '@shipfox/runner-labels';
-import {
-  DEFAULT_AGENT_PROVIDER,
-  DEFAULT_AGENT_THINKING,
-  type WorkflowDocument,
-  type WorkflowDocumentJob,
-  type WorkflowDocumentStep,
+import type {
+  WorkflowDocument,
+  WorkflowDocumentJob,
+  WorkflowDocumentStep,
 } from '@shipfox/workflow-document';
 import type {
   WorkflowModel,
@@ -36,6 +35,11 @@ import {
 const nonStableIdPattern = /[^a-z0-9]+/g;
 const edgeDashPattern = /^-+|-+$/g;
 const manualTriggerSource = 'manual';
+const catalogedAgentModels = new Set(
+  listSupportedAgentProviders().flatMap((provider) =>
+    provider.default_model === null ? [] : [provider.default_model],
+  ),
+);
 
 export function normalizeWorkflowDocument(
   document: WorkflowDocument,
@@ -222,20 +226,21 @@ function normalizeJobs(
         };
       }
 
-      if (step.model !== undefined && step.prompt !== undefined) {
+      if (step.prompt !== undefined) {
+        validateAgentStep({step, sourceName, stepIndex: index, issues});
+
         return {
           ...stepBase,
           kind: 'agent',
-          model: step.model,
-          provider: step.provider ?? DEFAULT_AGENT_PROVIDER,
+          ...(step.model === undefined ? {} : {model: step.model}),
+          ...(step.provider === undefined ? {} : {provider: step.provider}),
           prompt: step.prompt,
-          thinking: step.thinking ?? DEFAULT_AGENT_THINKING,
+          ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
         };
       }
 
-      // workflowDocumentStepSchema guarantees a step is a run step or an agent step
-      // carrying both model and prompt, so this is unreachable; the guard keeps the
-      // model-step union honest without a non-null assertion.
+      // workflowDocumentStepSchema requires either `run` or an agent `prompt`; this
+      // keeps the model-step union honest if callers bypass the document parser.
       throw new Error(`Workflow step "${stepId}" is neither a run nor an agent step`);
     });
     const runner = normalizeRunner({document, job, sourceName, issues, defaultRunnerLabels});
@@ -251,6 +256,52 @@ function normalizeJobs(
       },
     ];
   });
+}
+
+function validateAgentStep(params: {
+  step: WorkflowDocumentStep;
+  sourceName: string;
+  stepIndex: number;
+  issues: WorkflowModelValidationIssue[];
+}): void {
+  const providerId = params.step.provider;
+  if (providerId === undefined) {
+    if (params.step.model !== undefined && !catalogedAgentModels.has(params.step.model)) {
+      params.issues.push(
+        issue({
+          code: 'invalid-agent-model',
+          message: `Agent model "${params.step.model}" is not cataloged.`,
+          path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
+          details: {model: params.step.model},
+        }),
+      );
+    }
+    return;
+  }
+
+  const provider = getAgentProviderEntry(providerId);
+  if (provider === undefined || provider.support_status !== 'supported') {
+    params.issues.push(
+      issue({
+        code: 'invalid-agent-provider',
+        message: `Agent provider "${providerId}" is not supported.`,
+        path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
+        details: {provider: providerId},
+      }),
+    );
+    return;
+  }
+
+  if (params.step.model !== undefined && provider.default_model !== params.step.model) {
+    params.issues.push(
+      issue({
+        code: 'invalid-agent-provider-model',
+        message: `Agent model "${params.step.model}" is not cataloged for provider "${providerId}".`,
+        path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
+        details: {provider: providerId, model: params.step.model},
+      }),
+    );
+  }
 }
 
 function normalizeRunner(params: {
