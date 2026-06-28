@@ -78,7 +78,7 @@ export function WorkspaceSetupPending() {
   return <FullPageLoader />;
 }
 
-export function WorkspaceSetupErrorRoute({error, reset}: ErrorComponentProps) {
+export function WorkspaceLayoutErrorRoute({error, reset}: ErrorComponentProps) {
   const router = useRouter();
   const onRetry = () => {
     reset();

@@ -17,7 +17,7 @@ import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {projectsQueryKeys} from '#hooks/api/projects.js';
 import {
   loadWorkspaceSetupRoute,
-  WorkspaceSetupErrorRoute,
+  WorkspaceLayoutErrorRoute,
   WorkspaceSetupPending,
   type WorkspaceSetupState,
 } from './workspace-setup-guard.js';
@@ -102,7 +102,7 @@ function renderSetupRoute(
           pathname: location.pathname,
         }),
       pendingComponent: FullPageLoader,
-      errorComponent: WorkspaceSetupErrorRoute,
+      errorComponent: WorkspaceLayoutErrorRoute,
       component: () => <GuardedRoute label={label} />,
     });
   const routeTree = rootRoute.addChildren([
@@ -353,7 +353,7 @@ describe('workspace setup route hook', () => {
       getParentRoute: () => rootRoute,
       path: '/workspaces/$wid',
       beforeLoad: () => ({hideProjectNavigation: false}),
-      errorComponent: WorkspaceSetupErrorRoute,
+      errorComponent: WorkspaceLayoutErrorRoute,
       component: ThrowingWorkspaceRoute,
     });
     const router = createRouter({

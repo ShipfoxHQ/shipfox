@@ -2,7 +2,7 @@ import {MainLayout} from '@shipfox/client-app-shell';
 import {rememberLastWorkspaceId} from '@shipfox/client-auth';
 import {
   loadWorkspaceSetupRoute,
-  WorkspaceSetupErrorRoute,
+  WorkspaceLayoutErrorRoute,
   WorkspaceSetupPending,
 } from '@shipfox/client-projects';
 import {ShipfoxLoader} from '@shipfox/react-ui';
@@ -34,7 +34,7 @@ export const Route = createFileRoute('/workspaces/$wid/_layout')({
       <ShipfoxLoader size={64} animation="circular" color="orange" background="dark" />
     </div>
   ),
-  errorComponent: WorkspaceSetupErrorRoute,
+  errorComponent: WorkspaceLayoutErrorRoute,
   component: WorkspaceLayoutRoute,
 });
 

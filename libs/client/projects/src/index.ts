@@ -2,7 +2,7 @@ export {ProjectCrumb, type ProjectCrumbProps} from './components/project-crumb.j
 export {ProjectSwitcher, type ProjectSwitcherProps} from './components/project-switcher.js';
 export {
   loadWorkspaceSetupRoute,
-  WorkspaceSetupErrorRoute,
+  WorkspaceLayoutErrorRoute,
   WorkspaceSetupPending,
   type WorkspaceSetupRouteOptions,
   type WorkspaceSetupState,
