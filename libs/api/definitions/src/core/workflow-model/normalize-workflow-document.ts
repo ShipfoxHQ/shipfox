@@ -66,6 +66,7 @@ export function normalizeWorkflowDocument(
   return {
     kind: 'workflow',
     name: document.name,
+    ...optionalEnv(document.env),
     triggers,
     jobs,
     dependencies,
@@ -213,7 +214,12 @@ function normalizeJobs(
       };
 
       if (step.run !== undefined) {
-        return {...stepBase, kind: 'run', command: {kind: 'shell', value: step.run}};
+        return {
+          ...stepBase,
+          kind: 'run',
+          command: {kind: 'shell', value: step.run},
+          ...optionalEnv(step.env),
+        };
       }
 
       if (step.model !== undefined && step.prompt !== undefined) {
@@ -239,6 +245,7 @@ function normalizeJobs(
         id,
         sourceName,
         runner,
+        ...optionalEnv(job.env),
         dependencies,
         steps,
       },
@@ -482,6 +489,16 @@ function normalizeNeeds(value: string | readonly string[] | undefined): readonly
 function normalizeStringArray(value: string | readonly string[] | undefined): readonly string[] {
   if (value === undefined) return [];
   return typeof value === 'string' ? [value] : value;
+}
+
+function optionalEnv(
+  env: Readonly<Record<string, string | number | boolean>> | undefined,
+): {env: Readonly<Record<string, string>>} | Record<string, never> {
+  if (env === undefined || Object.keys(env).length === 0) return {};
+
+  return {
+    env: Object.fromEntries(Object.entries(env).map(([key, value]) => [key, String(value)])),
+  };
 }
 
 function uniqueStrings(values: readonly string[]): readonly string[] {

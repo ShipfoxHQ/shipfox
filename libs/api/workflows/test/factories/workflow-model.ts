@@ -11,6 +11,7 @@ interface TestWorkflowStepBase {
 
 interface TestRunStep extends TestWorkflowStepBase {
   readonly run: string;
+  readonly env?: WorkflowModel['env'] | undefined;
 }
 
 interface TestAgentStep extends TestWorkflowStepBase {
@@ -25,12 +26,14 @@ type TestWorkflowStep = TestRunStep | TestAgentStep;
 interface TestWorkflowJob {
   readonly needs?: string | readonly string[] | undefined;
   readonly runner?: string | readonly string[] | undefined;
+  readonly env?: WorkflowModel['env'] | undefined;
   readonly steps: readonly TestWorkflowStep[];
 }
 
 interface TestWorkflowModelInput {
   readonly name?: string | undefined;
   readonly runner?: string | readonly string[] | undefined;
+  readonly env?: WorkflowModel['env'] | undefined;
   readonly jobs?: Readonly<Record<string, TestWorkflowJob>> | undefined;
 }
 
@@ -46,6 +49,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
       id: jobId,
       sourceName,
       runner: normalizeStringArray(job.runner ?? input.runner),
+      ...optionalEnv(job.env),
       dependencies: normalizeStringArray(job.needs).map(stableId),
       steps: job.steps.map((step, stepIndex) => normalizeStep(step, jobId, stepIndex)),
     };
@@ -54,6 +58,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
   return {
     kind: 'workflow',
     name: input.name ?? 'Test Workflow',
+    ...optionalEnv(input.env),
     triggers: [],
     jobs: modelJobs,
     dependencies: modelJobs.flatMap((job) =>
@@ -65,7 +70,12 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
 function normalizeStep(step: TestWorkflowStep, jobId: string, stepIndex: number): ModelStep {
   const base = stepBase(step, jobId, stepIndex);
   return 'run' in step
-    ? {...base, kind: 'run', command: {kind: 'shell', value: step.run}}
+    ? {
+        ...base,
+        kind: 'run',
+        command: {kind: 'shell', value: step.run},
+        ...optionalEnv(step.env),
+      }
     : {
         ...base,
         kind: 'agent',
@@ -91,6 +101,13 @@ function stepBase(step: TestWorkflowStep, jobId: string, stepIndex: number) {
 function normalizeStringArray(value: string | readonly string[] | undefined): readonly string[] {
   if (value === undefined) return [];
   return typeof value === 'string' ? [value] : value;
+}
+
+function optionalEnv(
+  env: WorkflowModel['env'] | undefined,
+): {env: NonNullable<WorkflowModel['env']>} | Record<string, never> {
+  if (env === undefined || Object.keys(env).length === 0) return {};
+  return {env};
 }
 
 function stableId(sourceName: string): string {

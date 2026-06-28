@@ -55,17 +55,21 @@ export function executeRunStep(step: StepDto, options: RunStepOptions = {}): Pro
     });
   }
 
-  return runShellCommand(command, options);
+  return runShellCommand(command, readStepEnv(step), options);
 }
 
-async function runShellCommand(command: string, options: RunStepOptions): Promise<StepResult> {
+async function runShellCommand(
+  command: string,
+  stepEnv: Readonly<Record<string, string>>,
+  options: RunStepOptions,
+): Promise<StepResult> {
   const scriptPath = join(tmpdir(), `shipfox-runner-${randomUUID()}.sh`);
   const metadata = commandStartMetadata({command, scriptPath, cwd: options.cwd});
   notifyCommandStart(options.onCommandStart, cloneCommandStartMetadata(metadata));
 
   try {
     await writeFile(scriptPath, command, {mode: 0o700});
-    return await spawnAndCapture(metadata, options);
+    return await spawnAndCapture(metadata, stepEnv, options);
   } finally {
     await unlink(scriptPath).catch(() => undefined);
   }
@@ -73,6 +77,7 @@ async function runShellCommand(command: string, options: RunStepOptions): Promis
 
 function spawnAndCapture(
   metadata: CommandStartMetadata,
+  stepEnv: Readonly<Record<string, string>>,
   options: RunStepOptions,
 ): Promise<StepResult> {
   return new Promise((resolve) => {
@@ -85,6 +90,7 @@ function spawnAndCapture(
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
       cwd: options.cwd,
+      env: {...process.env, ...stepEnv},
     });
 
     // stdout and stderr are two separate pipes, so the sink sees them merged by
@@ -177,6 +183,32 @@ function spawnAndCapture(
       });
     });
   });
+}
+
+function readStepEnv(step: StepDto): Readonly<Record<string, string>> {
+  const rawEnv = step.config.env;
+  if (
+    rawEnv === undefined ||
+    rawEnv === null ||
+    typeof rawEnv !== 'object' ||
+    Array.isArray(rawEnv)
+  ) {
+    return {};
+  }
+
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(rawEnv)) {
+    if (typeof value === 'string') {
+      env[key] = value;
+      continue;
+    }
+
+    logger().warn(
+      {stepId: step.id, key, valueType: value === null ? 'null' : typeof value},
+      'Skipping non-string step env value',
+    );
+  }
+  return env;
 }
 
 function findShell(): string {

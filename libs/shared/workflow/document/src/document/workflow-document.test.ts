@@ -82,6 +82,59 @@ describe('workflowDocumentSchema', () => {
     expect(result.triggers?.main_push?.filter).toBe('event.ref == "refs/heads/main"');
   });
 
+  it('accepts env maps at workflow, job, and run-step scope', () => {
+    const workflowDocument = {
+      name: 'env build',
+      env: {NODE_ENV: 'test', PORT: 3000, CI: true},
+      jobs: {
+        build: {
+          env: {JOB_SCOPE: 'build'},
+          steps: [{run: 'npm test', env: {STEP_SCOPE: 'test'}}],
+        },
+      },
+    };
+
+    const result = workflowDocumentSchema.safeParse(workflowDocument);
+
+    expect(result.success).toBe(true);
+  });
+
+  it.each([
+    ['has a key that starts with a digit', {env: {'1PORT': '3000'}}],
+    ['has a key containing a dash', {env: {'NODE-ENV': 'test'}}],
+    ['has a key containing a dot', {env: {'node.env': 'test'}}],
+    ['has a string value containing a null byte', {env: {NODE_ENV: 'test\u0000prod'}}],
+    ['has a null value', {env: {NODE_ENV: null}}],
+    ['has an object value', {env: {NODE_ENV: {value: 'test'}}}],
+  ])('rejects env that %s', (_label, override) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'env build',
+      jobs: {
+        build: {
+          steps: [{run: 'npm test', ...override}],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('reports a clear message for env on an agent step', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [{model: 'claude-opus-4-8', prompt: 'Fix it.', env: {NODE_ENV: 'test'}}],
+        },
+      },
+    });
+
+    const envIssue = result.success
+      ? undefined
+      : result.error.issues.find((issue) => issue.path.includes('env'));
+    expect(envIssue?.message).toBe('"env" is supported only on run steps.');
+  });
+
   it('accepts a step gate with success_if and on_failure', () => {
     const workflowDocument = {
       name: 'review loop',

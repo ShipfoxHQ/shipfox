@@ -43,8 +43,9 @@ try {
     },
     jobs: {
       build: {
+        env: {NODE_ENV: 'test'},
         runner: 'ubuntu-latest',
-        steps: [{run: 'npm run build', gate: {success_if: 'exit_code == 0'}}],
+        steps: [{run: 'npm run build', env: {CI: true}, gate: {success_if: 'exit_code == 0'}}],
       },
     },
   });
@@ -98,6 +99,21 @@ parseWorkflowDocument({
   time and fails later at runtime. The `high` and `anthropic` defaults are
   applied later in the model layer, not here. The `agent` key is reserved for a
   future step kind and is rejected today.
+- `env` can be declared on the workflow, a job, or a run step. Values may be
+  strings, numbers, or booleans; the model layer stringifies numbers and
+  booleans before a run is saved. Values are literal. Expression interpolation
+  such as `${{ ... }}` is not evaluated.
+- `env` applies only to run steps. Declaring `env` directly on an agent step is
+  rejected. Workflow-level and job-level `env` is not applied to agent steps.
+- Run-step env is plaintext, non-secret configuration. Values are stored in the
+  committed workflow file and in the saved step config, and they are not masked.
+  Do not put secrets in `env`.
+- Env precedence is workflow, then job, then step; the nearest scope wins. A run
+  step inherits the runner process environment, and workflow env can override
+  names such as `PATH` for that subprocess. This is within the run-step trust
+  boundary because the workflow author already controls the shell script.
+- There is no unset syntax. `env: {}` does not remove inherited variables, and
+  `FOO: ""` sets `FOO` to an empty string.
 - Rules that need a project, user, runner, database row, or saved state belong
   outside this package.
 

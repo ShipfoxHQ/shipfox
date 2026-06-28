@@ -7,6 +7,17 @@ const nonEmptyRecordSchema = <ValueSchema extends z.ZodType>(valueSchema: ValueS
     .record(z.string().min(1), valueSchema)
     .refine((value) => Object.keys(value).length > 0, {message: 'Expected at least one entry'});
 
+// Runner shell steps execute on Unix shells, so workflow env names follow the
+// portable POSIX-style variable shape.
+const envNameSchema = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/);
+const envStringValueSchema = z.string().refine((value) => !value.includes('\u0000'), {
+  message: 'Env string values cannot contain null bytes',
+});
+export const workflowDocumentEnvSchema = z.record(
+  envNameSchema,
+  z.union([envStringValueSchema, z.number(), z.boolean()]),
+);
+
 const workflowDocumentTriggerBaseSchema = {
   source: z.string().min(1),
   with: z.record(z.string(), z.unknown()).optional(),
@@ -48,6 +59,7 @@ export const workflowDocumentStepSchema = z
     provider: z.string().min(1).optional(),
     agent: z.unknown().optional(),
     gate: workflowDocumentStepGateSchema.optional(),
+    env: workflowDocumentEnvSchema.optional(),
   })
   .superRefine((step, ctx) => {
     if (step.agent !== undefined) {
@@ -80,6 +92,13 @@ export const workflowDocumentStepSchema = z
     }
 
     if (isAgent) {
+      if (step.env !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['env'],
+          message: '"env" is supported only on run steps.',
+        });
+      }
       if (step.model === undefined) {
         ctx.addIssue({code: 'custom', path: ['model'], message: 'An agent step requires "model".'});
       }
@@ -107,17 +126,20 @@ export const workflowDocumentStepSchema = z
 export const workflowDocumentJobSchema = z.strictObject({
   needs: stringOrStringArraySchema.optional(),
   runner: stringOrStringArraySchema.optional(),
+  env: workflowDocumentEnvSchema.optional(),
   steps: z.array(workflowDocumentStepSchema).min(1),
 });
 
 export const workflowDocumentSchema = z.strictObject({
   name: z.string().min(1),
   runner: stringOrStringArraySchema.optional(),
+  env: workflowDocumentEnvSchema.optional(),
   triggers: nonEmptyRecordSchema(workflowDocumentTriggerSchema).optional(),
   jobs: nonEmptyRecordSchema(workflowDocumentJobSchema),
 });
 
 export type WorkflowDocument = z.infer<typeof workflowDocumentSchema>;
+export type WorkflowDocumentEnv = z.infer<typeof workflowDocumentEnvSchema>;
 export type WorkflowDocumentJob = z.infer<typeof workflowDocumentJobSchema>;
 export type WorkflowDocumentRunStepGate = z.infer<typeof workflowDocumentStepGateSchema>;
 export type WorkflowDocumentStep = z.infer<typeof workflowDocumentStepSchema>;

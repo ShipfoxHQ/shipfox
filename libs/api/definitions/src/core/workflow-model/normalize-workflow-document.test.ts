@@ -354,6 +354,47 @@ describe('normalizeWorkflowDocument', () => {
     expect(model.jobs).toMatchObject([{id: 'build', runner: ['ubuntu-latest']}]);
   });
 
+  it('stringifies env at workflow, job, and run-step scope', () => {
+    const document: WorkflowDocument = {
+      name: 'env build',
+      env: {NODE_ENV: 'test', PORT: 3000, CI: true},
+      jobs: {
+        build: {
+          env: {JOB_SCOPE: 'build'},
+          steps: [{run: 'npm test', env: {STEP_SCOPE: 'test', DEBUG: false}}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.env).toEqual({NODE_ENV: 'test', PORT: '3000', CI: 'true'});
+    expect(model.jobs[0]?.env).toEqual({JOB_SCOPE: 'build'});
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'run',
+      env: {STEP_SCOPE: 'test', DEBUG: 'false'},
+    });
+  });
+
+  it('omits empty env maps and does not attach inherited env to agent steps', () => {
+    const document: WorkflowDocument = {
+      name: 'agent env',
+      env: {},
+      jobs: {
+        fix: {
+          env: {JOB_SCOPE: 'fix'},
+          steps: [{model: 'claude-opus-4-8', prompt: 'Fix it.'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model).not.toHaveProperty('env');
+    expect(model.jobs[0]?.env).toEqual({JOB_SCOPE: 'fix'});
+    expect(model.jobs[0]?.steps[0]).not.toHaveProperty('env');
+  });
+
   it('expands needs into job dependencies and explicit graph edges', () => {
     const document: WorkflowDocument = {
       name: 'graph',
