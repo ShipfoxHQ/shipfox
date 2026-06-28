@@ -43,7 +43,7 @@ const workflowDocumentStepGateSchema = z
     message: 'Expected success_if or on_failure',
   });
 
-// A step is a run step (`run`) or an inline agent step (`model` + `prompt`), never
+// A step is a run step (`run`) or an inline agent step (`prompt`), never
 // both. They share one strict object so an unknown key is still rejected; the
 // `superRefine` discriminates by which payload keys are present and emits one
 // targeted issue per failure mode (a plain union would surface every branch's
@@ -71,55 +71,46 @@ export const workflowDocumentStepSchema = z
       return;
     }
 
-    const isRun = step.run !== undefined;
-    const isAgent = step.model !== undefined || step.prompt !== undefined;
+    if (step.run !== undefined) {
+      for (const key of ['model', 'prompt', 'thinking', 'provider'] as const) {
+        if (step[key] !== undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: `"${key}" is not valid on a run step.`,
+          });
+        }
+      }
+      return;
+    }
 
-    if (isRun && isAgent) {
+    const isAgent =
+      step.model !== undefined ||
+      step.prompt !== undefined ||
+      step.thinking !== undefined ||
+      step.provider !== undefined;
+
+    if (!isAgent) {
       ctx.addIssue({
         code: 'custom',
-        message:
-          'A step is either a run step ("run") or an agent step ("model" + "prompt"), not both.',
+        message: 'A step must define either "run" or an agent "prompt".',
       });
       return;
     }
 
-    if (!isRun && !isAgent) {
+    if (step.env !== undefined) {
       ctx.addIssue({
         code: 'custom',
-        message: 'A step must define either "run" or both "model" and "prompt".',
+        path: ['env'],
+        message: '"env" is supported only on run steps.',
       });
-      return;
     }
-
-    if (isAgent) {
-      if (step.env !== undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['env'],
-          message: '"env" is supported only on run steps.',
-        });
-      }
-      if (step.model === undefined) {
-        ctx.addIssue({code: 'custom', path: ['model'], message: 'An agent step requires "model".'});
-      }
-      if (step.prompt === undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['prompt'],
-          message: 'An agent step requires "prompt".',
-        });
-      }
-      return;
-    }
-
-    for (const key of ['model', 'prompt', 'thinking', 'provider'] as const) {
-      if (step[key] !== undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          path: [key],
-          message: `"${key}" is not valid on a run step.`,
-        });
-      }
+    if (step.prompt === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['prompt'],
+        message: 'An agent step requires "prompt".',
+      });
     }
   });
 

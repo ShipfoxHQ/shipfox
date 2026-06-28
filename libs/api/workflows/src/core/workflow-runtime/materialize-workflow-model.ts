@@ -1,3 +1,8 @@
+import {
+  DEFAULT_AGENT_PROVIDER,
+  DEFAULT_AGENT_THINKING,
+  getAgentProviderEntry,
+} from '@shipfox/api-agent-dto';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
@@ -5,7 +10,6 @@ type WorkflowModelStep = WorkflowModelJob['steps'][number];
 type WorkflowSourceLocation = NonNullable<WorkflowModelStep['sourceLocation']>;
 
 const FIRST_LINE_PATTERN = /\r?\n/;
-
 export interface MaterializedWorkflowJob {
   readonly sourceName: string;
   readonly dependencies: readonly string[];
@@ -81,7 +85,9 @@ function stepDisplayName(step: WorkflowModelStep): string {
     case 'run':
       return firstLine(step.command.value);
     case 'agent':
-      return `${step.model} · ${firstLine(step.prompt)}`;
+      return step.model === undefined
+        ? firstLine(step.prompt)
+        : `${step.model} · ${firstLine(step.prompt)}`;
     default:
       return assertNever(step);
   }
@@ -100,13 +106,27 @@ function stepConfig(
   const env = step.kind === 'run' ? mergedEnv(workflowEnv, jobEnv, step.env) : {};
   return step.kind === 'run'
     ? {run: step.command.value, ...env, ...gate}
-    : {
-        model: step.model,
-        provider: step.provider,
-        thinking: step.thinking,
-        prompt: step.prompt,
-        ...gate,
-      };
+    : {...agentStepConfig(step), ...gate};
+}
+
+function agentStepConfig(step: Extract<WorkflowModelStep, {kind: 'agent'}>): {
+  model: string;
+  provider: string;
+  thinking: string;
+  prompt: string;
+} {
+  const provider = step.provider ?? DEFAULT_AGENT_PROVIDER;
+  const model = step.model ?? defaultModelForProvider(provider);
+  const thinking = step.thinking ?? DEFAULT_AGENT_THINKING;
+  return {model, provider, thinking, prompt: step.prompt};
+}
+
+function defaultModelForProvider(provider: string): string {
+  const entry = getAgentProviderEntry(provider);
+  if (entry === undefined || entry.support_status !== 'supported' || entry.default_model === null) {
+    throw new Error(`No default agent model is cataloged for provider "${provider}"`);
+  }
+  return entry.default_model;
 }
 
 function mergedEnv(

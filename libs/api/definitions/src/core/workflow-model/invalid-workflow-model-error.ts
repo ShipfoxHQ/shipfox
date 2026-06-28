@@ -4,6 +4,7 @@ export type WorkflowModelValidationIssueCode =
   | 'duplicate-job-id'
   | 'duplicate-step-id'
   | 'duplicate-trigger-id'
+  | 'invalid-agent-provider'
   | 'invalid-runner-label'
   | 'invalid-step-gate-restart-from'
   | 'invalid-step-gate-success-if'

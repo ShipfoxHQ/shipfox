@@ -217,9 +217,11 @@ describe('workflowDocumentSchema', () => {
   });
 
   it.each([
+    ['prompt-only agent step', {prompt: 'Fix the failing tests.'}],
     ['inline agent step', {model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'}],
     ['agent step with thinking', {model: 'claude-opus-4-8', prompt: 'Fix it.', thinking: 'low'}],
-    ['agent step with provider', {model: 'gpt-5.1', prompt: 'Fix it.', provider: 'openai'}],
+    ['agent step with provider', {model: 'gpt-5.5-pro', prompt: 'Fix it.', provider: 'openai'}],
+    ['agent step with provider only', {provider: 'openai', prompt: 'Fix it.'}],
     ['agent step with name', {name: 'fix', model: 'claude-opus-4-8', prompt: 'Fix it.'}],
     [
       'agent step with gate',
@@ -236,16 +238,16 @@ describe('workflowDocumentSchema', () => {
   });
 
   it.each([
-    ['agent step missing model', {prompt: 'Fix it.'}],
     ['agent step missing prompt', {model: 'claude-opus-4-8'}],
-    ['run and agent fields together', {run: 'npm test', model: 'claude-opus-4-8', prompt: 'Fix.'}],
+    ['prompt on a run step', {run: 'npm test', prompt: 'Fix.'}],
+    ['model on a run step', {run: 'npm test', model: 'claude-opus-4-8'}],
     ['neither run nor agent', {name: 'noop'}],
     ['reserved agent keyword', {agent: 'producer', model: 'claude-opus-4-8', prompt: 'Fix.'}],
     ['thinking on a run step', {run: 'npm test', thinking: 'high'}],
     ['provider on a run step', {run: 'npm test', provider: 'openai'}],
     ['unknown thinking value', {model: 'claude-opus-4-8', prompt: 'Fix.', thinking: 'ultra'}],
     ['empty model string', {model: '', prompt: 'Fix.'}],
-    ['empty provider string', {model: 'gpt-5.1', prompt: 'Fix.', provider: ''}],
+    ['empty provider string', {model: 'gpt-5.5-pro', prompt: 'Fix.', provider: ''}],
   ])('rejects %s', (_label, step) => {
     const result = workflowDocumentSchema.safeParse({
       name: 'agent build',

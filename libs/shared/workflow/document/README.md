@@ -10,8 +10,8 @@ Input shape for Shipfox workflow authoring.
 - `WorkflowDocumentRunStepGate` describes the step `gate` block with `success_if`
   and `on_failure`.
 - A job step is either a **run step** (`run: <shell command>`) or an inline
-  **agent step** (`model` + `prompt`, with an optional `thinking` level and an
-  optional `provider`). A step carries one or the other, never both.
+  **agent step** (`prompt`, with optional `model`, `thinking`, and `provider`).
+  A step carries one or the other, never both.
 
 Use this package where Shipfox accepts a workflow object from a file, tool, or
 API call. It checks the shape only. It does not add defaults, pick runners,
@@ -61,13 +61,13 @@ try {
 }
 ```
 
-A step can also be an inline agent step. It declares a `model` and a `prompt`
-(no `run`), with an optional `thinking` level that defaults to `high` and an
-optional `provider` that defaults to `anthropic`. The `provider` names the
-model's provider (for example `anthropic` or `openai`); pairing it with `model`
-lets a step target a non-Anthropic model. The recommended pattern is an agent
-step that produces a change, followed by a `run` step whose `gate` judges the
-result:
+A step can also be an inline agent step. It declares a `prompt` and no `run`.
+`model`, `thinking`, and `provider` are optional authoring hints; later layers
+resolve omitted values before the runner executes the step. The `provider` names
+the model's provider (for example `anthropic` or `openai`); pairing it with
+`model` lets a step target a non-default provider/model pair. The recommended
+pattern is an agent step that produces a change, followed by a `run` step whose
+`gate` judges the result:
 
 ```ts
 parseWorkflowDocument({
@@ -75,8 +75,8 @@ parseWorkflowDocument({
   jobs: {
     fix: {
       steps: [
-        {model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'},
-        {model: 'gpt-5.1', provider: 'openai', prompt: 'Review the fix.'},
+        {prompt: 'Fix the failing tests.'},
+        {model: 'gpt-5.5-pro', provider: 'openai', prompt: 'Review the fix.'},
         {run: 'npm test', gate: {success_if: 'exit_code == 0'}},
       ],
     },
@@ -91,14 +91,13 @@ parseWorkflowDocument({
 - The `gate` block is checked as input shape here. CEL parsing and restart
   target checks belong to definitions-owned model code.
 - A step is discriminated by which keys it carries: `run` marks a run step;
-  `model` + `prompt` (both required) mark an agent step; declaring both, or
-  neither, is rejected. `thinking` and `provider` are optional and valid only on
-  an agent step; using either on a run step is rejected. `thinking` is validated
+  `prompt`, `model`, `thinking`, or `provider` mark an agent step, and an agent
+  step must include `prompt`. Declaring run and agent fields together, or neither
+  kind, is rejected. `model`, `thinking`, and `provider` are valid only on an
+  agent step; using them on a run step is rejected. `thinking` is validated
   against a fixed set (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`).
-  `model` and `provider` are free text, so an unknown value is accepted at parse
-  time and fails later at runtime. The `high` and `anthropic` defaults are
-  applied later in the model layer, not here. The `agent` key is reserved for a
-  future step kind and is rejected today.
+  Provider and model catalog checks belong to the model layer, not this parser.
+  The `agent` key is reserved for a future step kind and is rejected today.
 - `env` can be declared on the workflow, a job, or a run step. Values may be
   strings, numbers, or booleans; the model layer stringifies numbers and
   booleans before a run is saved. Values are literal. Expression interpolation

@@ -79,16 +79,17 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
-  it('normalizes an inline agent step, applying the thinking and provider defaults and keeping gates', () => {
+  it('normalizes inline agent steps without resolving contextual defaults', () => {
     const document: WorkflowDocument = {
       name: 'agent build',
       jobs: {
         fix: {
           steps: [
+            {name: 'plan', prompt: 'Plan the fix.'},
             {name: 'implement', model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'},
             {
               name: 'review',
-              model: 'gpt-5.1',
+              model: 'gpt-5.5-pro',
               provider: 'openai',
               prompt: 'Review the fix.',
               thinking: 'low',
@@ -102,20 +103,66 @@ describe('normalizeWorkflowDocument', () => {
     const model = normalizeWorkflowDocument(document);
 
     expect(model.jobs[0]?.steps[0]).toEqual({
+      id: 'fix-plan',
+      sourceName: 'plan',
+      kind: 'agent',
+      prompt: 'Plan the fix.',
+    });
+    expect(model.jobs[0]?.steps[1]).toEqual({
       id: 'fix-implement',
       sourceName: 'implement',
       kind: 'agent',
       model: 'claude-opus-4-8',
-      provider: 'anthropic',
-      thinking: 'high',
       prompt: 'Fix the failing tests.',
     });
-    expect(model.jobs[0]?.steps[1]).toMatchObject({
+    expect(model.jobs[0]?.steps[2]).toMatchObject({
       id: 'fix-review',
       kind: 'agent',
       provider: 'openai',
       thinking: 'low',
       gate: {onFailure: {restartFrom: 'implement'}},
+    });
+  });
+
+  it('reports unsupported explicit agent providers', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [{provider: 'github-copilot', prompt: 'Fix it.'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-agent-provider',
+        message: 'Agent provider "github-copilot" is not supported.',
+        path: ['jobs', 'fix', 'steps', 0, 'provider'],
+        details: {provider: 'github-copilot'},
+      },
+    ]);
+  });
+
+  it('preserves explicit model ids even when the seed catalog only knows provider defaults', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [{provider: 'openai', model: 'gpt-4.1', prompt: 'Fix it.'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      provider: 'openai',
+      model: 'gpt-4.1',
+      prompt: 'Fix it.',
     });
   });
 

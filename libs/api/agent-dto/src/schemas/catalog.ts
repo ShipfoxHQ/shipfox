@@ -1,4 +1,8 @@
-import {agentThinkingSchema, DEFAULT_AGENT_THINKING} from '@shipfox/workflow-document';
+import {
+  agentThinkingSchema,
+  DEFAULT_AGENT_PROVIDER,
+  DEFAULT_AGENT_THINKING,
+} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {
   type AgentProviderId,
@@ -9,7 +13,7 @@ import {
 } from './provider-id.js';
 
 export type {AgentThinking} from '@shipfox/workflow-document';
-export {agentThinkingSchema, DEFAULT_AGENT_THINKING};
+export {agentThinkingSchema, DEFAULT_AGENT_PROVIDER, DEFAULT_AGENT_THINKING};
 
 export const agentModelOptionSchema = z.object({
   id: z.string().min(1),

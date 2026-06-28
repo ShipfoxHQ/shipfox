@@ -1,3 +1,4 @@
+import {getAgentProviderEntry} from '@shipfox/api-agent-dto';
 import {
   createWorkflowExpression,
   InvalidWorkflowExpressionError,
@@ -10,12 +11,10 @@ import {
   MAX_RUNNER_LABELS,
   RUNNER_LABEL_PATTERN,
 } from '@shipfox/runner-labels';
-import {
-  DEFAULT_AGENT_PROVIDER,
-  DEFAULT_AGENT_THINKING,
-  type WorkflowDocument,
-  type WorkflowDocumentJob,
-  type WorkflowDocumentStep,
+import type {
+  WorkflowDocument,
+  WorkflowDocumentJob,
+  WorkflowDocumentStep,
 } from '@shipfox/workflow-document';
 import type {
   WorkflowModel,
@@ -222,20 +221,21 @@ function normalizeJobs(
         };
       }
 
-      if (step.model !== undefined && step.prompt !== undefined) {
+      if (step.prompt !== undefined) {
+        validateAgentStep({step, sourceName, stepIndex: index, issues});
+
         return {
           ...stepBase,
           kind: 'agent',
-          model: step.model,
-          provider: step.provider ?? DEFAULT_AGENT_PROVIDER,
+          ...(step.model === undefined ? {} : {model: step.model}),
+          ...(step.provider === undefined ? {} : {provider: step.provider}),
           prompt: step.prompt,
-          thinking: step.thinking ?? DEFAULT_AGENT_THINKING,
+          ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
         };
       }
 
-      // workflowDocumentStepSchema guarantees a step is a run step or an agent step
-      // carrying both model and prompt, so this is unreachable; the guard keeps the
-      // model-step union honest without a non-null assertion.
+      // workflowDocumentStepSchema requires either `run` or an agent `prompt`; this
+      // keeps the model-step union honest if callers bypass the document parser.
       throw new Error(`Workflow step "${stepId}" is neither a run nor an agent step`);
     });
     const runner = normalizeRunner({document, job, sourceName, issues, defaultRunnerLabels});
@@ -251,6 +251,29 @@ function normalizeJobs(
       },
     ];
   });
+}
+
+function validateAgentStep(params: {
+  step: WorkflowDocumentStep;
+  sourceName: string;
+  stepIndex: number;
+  issues: WorkflowModelValidationIssue[];
+}): void {
+  const providerId = params.step.provider;
+  if (providerId === undefined) return;
+
+  const provider = getAgentProviderEntry(providerId);
+  if (provider === undefined || provider.support_status !== 'supported') {
+    params.issues.push(
+      issue({
+        code: 'invalid-agent-provider',
+        message: `Agent provider "${providerId}" is not supported.`,
+        path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
+        details: {provider: providerId},
+      }),
+    );
+    return;
+  }
 }
 
 function normalizeRunner(params: {

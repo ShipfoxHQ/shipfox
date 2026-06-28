@@ -12,6 +12,7 @@ export {
   agentProviderCredentialFieldSchema,
   agentProviderSupportStatusSchema,
   agentThinkingSchema,
+  DEFAULT_AGENT_PROVIDER,
   DEFAULT_AGENT_THINKING,
   getAgentProviderEntry,
   listSupportedAgentProviders,
