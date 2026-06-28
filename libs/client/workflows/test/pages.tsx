@@ -55,7 +55,10 @@ function createTestRouter(
 export function renderProjectPage(
   path: string,
   renderPage: (params: {runId?: string | undefined}) => ReactElement,
-): RenderResult & {router: ReturnType<typeof createTestRouter>} {
+): RenderResult & {
+  queryClient: QueryClient;
+  router: ReturnType<typeof createTestRouter>;
+} {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
   const router = createTestRouter(path, renderPage);
 
@@ -67,5 +70,5 @@ export function renderProjectPage(
     </QueryClientProvider>,
   );
 
-  return Object.assign(result, {router});
+  return Object.assign(result, {queryClient, router});
 }

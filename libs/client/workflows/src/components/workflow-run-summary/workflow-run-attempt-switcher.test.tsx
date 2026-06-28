@@ -1,6 +1,7 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {workflowRunsQueryKeys} from '#hooks/api/workflow-runs.js';
 import {
   runAttemptsResponseDto,
   workflowRun,
@@ -111,7 +112,7 @@ describe('WorkflowRunAttemptSwitcher', () => {
     expect(items[2]).toHaveTextContent('Attempt 1');
     const current = screen.getByRole('menuitem', {name: ATTEMPT_2_PATTERN});
     expect(current).toHaveAttribute('aria-current', 'page');
-    expect(current).toHaveClass('bg-background-highlight-base');
+    expect(current).not.toHaveClass('bg-background-highlight-base');
     expect(within(current).getByRole('img', {name: 'Failed'})).toBeInTheDocument();
   });
 
@@ -137,6 +138,29 @@ describe('WorkflowRunAttemptSwitcher', () => {
     await user.click(await screen.findByRole('button', {name: 'Switch attempt, currently 2 of 3'}));
 
     await waitFor(() => expect(screen.getByText('Attempt 2 of 3')).toBeInTheDocument());
+  });
+
+  test('shows stale cached attempts with a loading row while fetching a known newer attempt', async () => {
+    const user = userEvent.setup();
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() => new Promise<Response>(() => undefined)),
+    });
+    const {queryClient} = renderSwitcher({latestAttempt: 3});
+    queryClient.setQueryData(
+      workflowRunsQueryKeys.attempts(ROOT_RUN_ID),
+      runAttemptsResponseDto({
+        attempts: [
+          workflowRunAttemptDto({id: ROOT_RUN_ID, attempt: 1}),
+          workflowRunAttemptDto({id: CURRENT_RUN_ID, attempt: 2}),
+        ],
+      }),
+    );
+
+    await user.click(await screen.findByRole('button', {name: 'Switch attempt, currently 2 of 3'}));
+
+    expect(await screen.findByRole('menuitem', {name: ATTEMPT_2_PATTERN})).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', {name: 'Loading attempts...'})).toBeInTheDocument();
   });
 
   test('links to an attempt and clears selected step search on navigation', async () => {

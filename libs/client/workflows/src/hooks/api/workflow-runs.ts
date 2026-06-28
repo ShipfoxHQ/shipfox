@@ -164,6 +164,7 @@ export function useRerunWorkflowRunMutation(projectId: string) {
       const rootRunId = run.root_run_id ?? variables.runId;
       await Promise.all([
         queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.lists(projectId)}),
+        queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.detail(variables.runId)}),
         queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.attempts(rootRunId)}),
       ]);
     },

@@ -39,11 +39,10 @@ export function WorkflowRunAttemptSwitcher({
   if (latestAttempt <= 1) return null;
 
   const attempts = attemptsQuery.data ?? [];
-  const maxAttempt = Math.max(
-    latestAttempt,
-    run.attempt,
-    ...attempts.map((attempt) => attempt.attempt),
-  );
+  const latestLoadedAttempt = Math.max(0, ...attempts.map((attempt) => attempt.attempt));
+  const maxAttempt = Math.max(latestAttempt, run.attempt, latestLoadedAttempt);
+  const isLoadingMissingAttempt =
+    attempts.length > 0 && attemptsQuery.isFetching && latestLoadedAttempt < maxAttempt;
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -63,6 +62,7 @@ export function WorkflowRunAttemptSwitcher({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" size="lg">
         {attemptsQuery.isPending && attempts.length === 0 ? <LoadingRow /> : null}
+        {isLoadingMissingAttempt ? <LoadingRow /> : null}
         {attemptsQuery.isError && attempts.length === 0 ? (
           <ErrorRow onRetry={() => void attemptsQuery.refetch()} />
         ) : null}
@@ -116,10 +116,7 @@ function AttemptItem({
   projectId: string;
 }) {
   return (
-    <DropdownMenuItem
-      asChild
-      className={cn(current && 'bg-background-highlight-base text-foreground-neutral-base')}
-    >
+    <DropdownMenuItem asChild className={cn(current && 'text-foreground-neutral-base')}>
       <Link
         to="/workspaces/$wid/projects/$pid/runs/$runId"
         params={{wid: workspaceId, pid: projectId, runId: attempt.id}}

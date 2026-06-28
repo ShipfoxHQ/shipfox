@@ -11,6 +11,8 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router';
+import type {ReactNode} from 'react';
+import {useEffect, useState} from 'react';
 import {screen, userEvent, within} from 'storybook/test';
 import type {WorkflowRunStatus} from '#core/workflow-run.js';
 import {
@@ -29,6 +31,30 @@ const WORKSPACE_ID = '44444444-4444-4444-8444-444444444444';
 const PROJECT_ID = '55555555-5555-4555-8555-555555555555';
 const SWITCH_ATTEMPT_PATTERN = /Switch attempt/;
 const ATTEMPT_3_PATTERN = /Attempt 3/;
+const RUN_ATTEMPTS_RESPONSE = runAttemptsResponseDto({
+  attempts: [
+    workflowRunAttemptDto({
+      id: ROOT_RUN_ID,
+      attempt: 1,
+      status: 'succeeded',
+      created_at: '2026-06-21T12:00:00.000Z',
+    }),
+    workflowRunAttemptDto({
+      id: CURRENT_RUN_ID,
+      attempt: 2,
+      status: 'failed',
+      created_at: '2026-06-21T12:08:00.000Z',
+      rerun_mode: 'all',
+    }),
+    workflowRunAttemptDto({
+      id: NEXT_RUN_ID,
+      attempt: 3,
+      status: 'running',
+      created_at: '2026-06-21T12:14:00.000Z',
+      rerun_mode: 'failed',
+    }),
+  ],
+});
 
 const withFrame: Decorator = (Story) => (
   <div className="min-h-screen bg-background-neutral-base">
@@ -40,39 +66,6 @@ const withFrame: Decorator = (Story) => (
 );
 
 const withAttemptApi: Decorator = (Story) => {
-  configureApiClient({
-    baseUrl: 'https://api.example.test',
-    fetchImpl: async () =>
-      new Response(
-        JSON.stringify(
-          runAttemptsResponseDto({
-            attempts: [
-              workflowRunAttemptDto({
-                id: ROOT_RUN_ID,
-                attempt: 1,
-                status: 'succeeded',
-                created_at: '2026-06-21T12:00:00.000Z',
-              }),
-              workflowRunAttemptDto({
-                id: CURRENT_RUN_ID,
-                attempt: 2,
-                status: 'failed',
-                created_at: '2026-06-21T12:08:00.000Z',
-                rerun_mode: 'all',
-              }),
-              workflowRunAttemptDto({
-                id: NEXT_RUN_ID,
-                attempt: 3,
-                status: 'running',
-                created_at: '2026-06-21T12:14:00.000Z',
-                rerun_mode: 'failed',
-              }),
-            ],
-          }),
-        ),
-        {headers: {'content-type': 'application/json'}},
-      ),
-  });
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
   const rootRoute = createRootRoute({component: Outlet});
   const runRoute = createRoute({
@@ -88,11 +81,35 @@ const withAttemptApi: Decorator = (Story) => {
   });
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <AttemptApiProvider>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </AttemptApiProvider>
   );
 };
+
+function AttemptApiProvider({children}: {children: ReactNode}) {
+  const [configured, setConfigured] = useState(false);
+
+  useEffect(() => {
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: async () =>
+        new Response(JSON.stringify(RUN_ATTEMPTS_RESPONSE), {
+          headers: {'content-type': 'application/json'},
+        }),
+    });
+    setConfigured(true);
+
+    return () => {
+      configureApiClient({baseUrl: '', fetchImpl: undefined});
+    };
+  }, []);
+
+  if (!configured) return null;
+  return children;
+}
 
 const meta = {
   title: 'Workflows/RunSummary',

@@ -234,6 +234,9 @@ describe('workflow run API hooks', () => {
       queryKey: workflowRunsQueryKeys.lists(PROJECT_ID),
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: workflowRunsQueryKeys.detail(RUN_ID),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: workflowRunsQueryKeys.attempts(ROOT_RUN_ID),
     });
   });
