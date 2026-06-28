@@ -1,3 +1,4 @@
+import {agentModule} from '@shipfox/api-agent';
 import {authModule} from '@shipfox/api-auth';
 import {createDefinitionsModule} from '@shipfox/api-definitions';
 import {dispatcherModule} from '@shipfox/api-dispatcher';
@@ -36,6 +37,7 @@ export async function run(): Promise<void> {
   const modules = [
     authModule,
     workspacesModule,
+    agentModule,
     integrations.module,
     projectsModule,
     definitionsModule,

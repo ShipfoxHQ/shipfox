@@ -20,6 +20,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@shipfox/api-agent':
+        specifier: workspace:*
+        version: link:../../libs/api/agent
       '@shipfox/api-auth':
         specifier: workspace:*
         version: link:../../libs/api/auth
@@ -431,6 +434,49 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../../../tools/typescript
+
+  libs/api/agent:
+    dependencies:
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../agent-dto
+      '@shipfox/node-drizzle':
+        specifier: workspace:*
+        version: link:../../shared/node/drizzle
+      '@shipfox/node-module':
+        specifier: workspace:*
+        version: link:../../shared/node/module
+      '@shipfox/node-postgres':
+        specifier: workspace:*
+        version: link:../../shared/node/postgres
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
+    devDependencies:
+      '@earendil-works/pi-ai':
+        specifier: 0.79.9
+        version: 0.79.9(ws@8.21.0)(zod@4.4.3)
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+      '@types/pg':
+        specifier: ^8.15.5
+        version: 8.20.0
+      drizzle-kit:
+        specifier: ^0.31.10
+        version: 0.31.10
 
   libs/api/agent-dto:
     dependencies:
@@ -3242,7 +3288,7 @@ importers:
     dependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 0.79.6
-        version: 0.79.6(ws@8.21.0)(zod@4.4.3)
+        version: 0.79.6
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../../api/workflows-dto
@@ -12336,7 +12382,7 @@ snapshots:
 
   '@aws-sdk/credential-provider-login@3.972.53':
     dependencies:
-      '@aws-sdk/core': 3.974.21
+      '@aws-sdk/core': 3.974.22
       '@aws-sdk/nested-clients': 3.997.21
       '@aws-sdk/types': 3.973.13
       '@smithy/core': 3.24.7
@@ -12436,7 +12482,7 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.974.21
+      '@aws-sdk/core': 3.974.22
       '@aws-sdk/signature-v4-multi-region': 3.996.35
       '@aws-sdk/types': 3.973.13
       '@smithy/core': 3.24.7
@@ -12812,7 +12858,7 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@earendil-works/pi-agent-core@0.79.9(ws@8.21.0)(zod@4.4.3)':
+  '@earendil-works/pi-agent-core@0.79.9':
     dependencies:
       '@earendil-works/pi-ai': 0.79.9(ws@8.21.0)(zod@4.4.3)
       ignore: 7.0.5
@@ -12847,9 +12893,9 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-coding-agent@0.79.6(ws@8.21.0)(zod@4.4.3)':
+  '@earendil-works/pi-coding-agent@0.79.6':
     dependencies:
-      '@earendil-works/pi-agent-core': 0.79.9(ws@8.21.0)(zod@4.4.3)
+      '@earendil-works/pi-agent-core': 0.79.9
       '@earendil-works/pi-ai': 0.79.9(ws@8.21.0)(zod@4.4.3)
       '@earendil-works/pi-tui': 0.79.9
       '@silvia-odwyer/photon-node': 0.3.4
@@ -16108,7 +16154,7 @@ snapshots:
 
   '@types/bunyan@1.8.11':
     dependencies:
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
 
   '@types/chai@5.2.3':
     dependencies:
@@ -16117,7 +16163,7 @@ snapshots:
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
 
   '@types/deep-eql@4.0.2': {}
 
@@ -16141,7 +16187,7 @@ snapshots:
 
   '@types/memcached@2.2.10':
     dependencies:
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
 
   '@types/mjml-core@5.0.0': {}
 
@@ -16151,7 +16197,7 @@ snapshots:
 
   '@types/mysql@2.15.27':
     dependencies:
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
 
   '@types/node@12.20.55': {}
 
@@ -16173,7 +16219,7 @@ snapshots:
 
   '@types/oracledb@6.5.2':
     dependencies:
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
 
   '@types/pg-pool@2.0.7':
     dependencies:
@@ -16181,13 +16227,13 @@ snapshots:
 
   '@types/pg@8.15.6':
     dependencies:
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
       pg-protocol: 1.14.0
       pg-types: 2.2.0
 
   '@types/pg@8.20.0':
     dependencies:
-      '@types/node': 26.0.0
+      '@types/node': 25.9.3
       pg-protocol: 1.14.0
       pg-types: 2.2.0
 
@@ -16207,7 +16253,7 @@ snapshots:
 
   '@types/tedious@4.0.14':
     dependencies:
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
 
   '@types/unist@3.0.3': {}
 
@@ -19309,7 +19355,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
       long: 5.3.2
 
   protobufjs@7.6.4:
@@ -19323,7 +19369,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 24.13.2
+      '@types/node': 25.9.3
       long: 5.3.2
 
   pump@3.0.4:
