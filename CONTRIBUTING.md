@@ -201,10 +201,13 @@ suite for React integration, and Playwright for user-visible journeys.
 ## Visual Regression Testing
 
 Visual drift is caught on every PR via [Argos](https://argos-ci.com/). One Argos
-project receives one named build per source module (`react-ui` for the
-component library, `client-auth` for the auth E2E surface, etc.) using Argos's
-[build-splitting](https://argos-ci.com/docs/build-splitting); each posts its own
-GitHub check.
+project receives one named build per source package (`react-ui` for
+`@shipfox/react-ui`, `client-auth` for `@shipfox/client-auth`,
+`e2e-client-auth` for `@shipfox/e2e-client-auth`, etc.) using Argos's
+[build-splitting](https://argos-ci.com/docs/build-splitting). Each build posts
+its own GitHub check, and a surface with both Storybook and E2E coverage gets
+two standalone builds in the same Argos project. Do not merge those captures
+through parallel or sharded Argos builds.
 
 ### What's covered
 
@@ -212,7 +215,8 @@ GitHub check.
 | --- | --- | --- |
 | `react-ui` | `@shipfox/react-ui` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/shared/react/ui/.storybook/preview.tsx` as `parameters.argos.modes`) |
 | `client-workflows` | `@shipfox/client-workflows` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | every story in **light + dark** (declared in `libs/client/workflows/.storybook/preview.tsx` as `parameters.argos.modes`) |
-| `client-auth` | `@shipfox/e2e-client-auth` Playwright specs via `@argos-ci/playwright` reporter | explicit `argosScreenshot()` calls at user-visible checkpoints |
+| `client-auth` | `@shipfox/client-auth` stories via `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin` | workspace switcher states in **light + dark** (declared in `libs/client/auth/.storybook/preview.tsx` as `parameters.argos.modes`) |
+| `e2e-client-auth` | `@shipfox/e2e-client-auth` Playwright specs via `@argos-ci/playwright` reporter | explicit `argosScreenshot()` calls at user-visible checkpoints |
 
 The goal is review-grade signal on UI drift, not 100% state coverage. Capture the
 states a reviewer would want to eyeball on a PR; skip anything that re-renders
@@ -220,8 +224,9 @@ the same DOM as a covered state.
 
 ### Run locally
 
-Library capture is part of the standard test task — useful when iterating on a
-component:
+Storybook capture is part of the standard cached `test` task, not a separate
+`test:visual` task. That keeps cache policy consistent while Argos build names
+keep review surfaces separate. It is useful when iterating on a component:
 
 ```sh
 turbo test --filter=@shipfox/react-ui
@@ -271,9 +276,10 @@ Conventions:
   meaningful UI drift.
 
 New `e2e/client/*` packages register their own Argos reporter in their
-`playwright.config.ts` with a `buildName` that matches the package suffix
-(e.g. `e2e/client/auth` → `'client-auth'`, `e2e/client/projects` →
-`'client-projects'`). One named Argos build per E2E module keeps PR checks
+`playwright.config.ts` with a `buildName` that matches the package name without
+the `@shipfox/` scope (e.g. `@shipfox/e2e-client-auth` →
+`'e2e-client-auth'`, `@shipfox/e2e-client-projects` →
+`'e2e-client-projects'`). One named Argos build per E2E module keeps PR checks
 scoped: a regression in the auth flow doesn't taint the review surface for
 projects.
 
@@ -290,6 +296,9 @@ the PR merges to `main`.
   project that wraps stories with `storybookTest()` and `argosVitestPlugin()`.
   The plugin writes PNGs to `screenshots/` and uploads when `process.env.CI`
   is set.
+- Client packages with Storybook use the same `storybook` Vitest project shape,
+  name the Argos build after their package without the `@shipfox/` scope, and
+  include a package-level `vercel.json` for Storybook deployment.
 - `turbo.jsonc` `globalPassThroughEnv` includes `ARGOS_TOKEN` and `CI` so
   the Vitest plugin and Playwright reporter actually receive them when run
   through Turbo. If you add another env var the visual flow needs (e.g. a

@@ -631,11 +631,18 @@ describe.each(runnerEventTypeEnum.enumValues)('createRunnerEvent "%s"', (eventTy
 
 ## Visual Regression Testing
 
-Argos catches UI drift on every PR via one named build per source module:
+Argos catches UI drift on every PR via one named build per source package. The
+`buildName` is the package name without the `@shipfox/` scope:
 
 - `react-ui`: `@shipfox/react-ui` stories captured in **light + dark** by `@storybook/addon-vitest` + `@argos-ci/storybook/vitest-plugin`. Capture is part of `turbo test` for `@shipfox/react-ui`. Adding a new story snapshots automatically in both themes.
 - `client-workflows`: `@shipfox/client-workflows` stories, captured the same way under `turbo test` for that package. Story-based capture isn't limited to `react-ui`: any client package with stories can register its own `argosVitestPlugin` build named after the package.
-- `client-<module>` (today: `client-auth`): explicit `argosScreenshot(page, '<surface>/<state>')` calls in the matching `e2e/client/<module>/*` Playwright specs. Each E2E package sets its own `buildName` matching the package suffix so PR checks stay scoped per surface. Place the call **after** the assertions that prove the page reached the expected state; the helper waits for fonts and layout, not for content you have not asserted on.
+- `client-auth`: `@shipfox/client-auth` Storybook stories, captured the same way under `turbo test` for that package. Today this covers workspace switcher states in light and dark without full workspace E2E setup.
+- `e2e-client-<module>` (today: `e2e-client-auth`): explicit `argosScreenshot(page, '<surface>/<state>')` calls in the matching `e2e/client/<module>/*` Playwright specs. Each E2E package sets its own `buildName` matching the package name without the `@shipfox/` scope so PR checks stay scoped per surface. Place the call **after** the assertions that prove the page reached the expected state; the helper waits for fonts and layout, not for content you have not asserted on.
+
+A surface with both Storybook and E2E visual coverage gets two standalone builds
+in the same Argos project, one for the client package and one for the E2E
+package. Do not merge them with Argos parallel or sharded builds. Visual capture
+stays under the cached `test` task; do not split it into `test:visual`.
 
 To cover a component state a single render cannot reach (error states, populated lists, etc.), add it as a new story rather than driving interactions in `play`. To cover a new page state, add an `argosScreenshot` call in the existing test that already drives there; do not write a screenshot-only spec.
 
