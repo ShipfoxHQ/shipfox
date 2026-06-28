@@ -21,6 +21,7 @@ import {useId} from 'react';
 import {
   isWorkflowRunTerminal,
   WORKFLOW_RUN_STATUSES,
+  type WorkflowJob,
   type WorkflowRun,
 } from '#core/workflow-run.js';
 import {Identifier} from '../identifier/index.js';
@@ -59,7 +60,7 @@ export function WorkflowRunSummary({
 }: WorkflowRunSummaryProps) {
   const headingId = useId();
   const status = getWorkflowStatusVisual(run.status);
-  const action = workflowRunActionForStatus(run.status);
+  const action = workflowRunActionForRun(run);
   const {ref: headingTextRef, isTruncated: isHeadingTruncated} =
     useIsTextTruncated<HTMLSpanElement>(run.name);
 
@@ -233,10 +234,20 @@ function WorkflowRunActionSlot({
   );
 }
 
-function workflowRunActionForStatus(status: WorkflowRun['status']): WorkflowRunAction {
-  if (!isWorkflowRunTerminal(status)) return 'cancel';
-  if (status === 'succeeded') return 'rerun-all';
+function workflowRunActionForRun(run: WorkflowRun): WorkflowRunAction {
+  if (!isWorkflowRunTerminal(run.status)) return 'cancel';
+  if (run.status === 'succeeded' || !hasFailedOrCancelledJobs(run)) return 'rerun-all';
   return 'rerun-menu';
+}
+
+function hasFailedOrCancelledJobs(run: WorkflowRun): boolean {
+  if (!workflowRunHasJobs(run)) return false;
+
+  return run.jobs.some((job) => job.status === 'failed' || job.status === 'cancelled');
+}
+
+function workflowRunHasJobs(run: WorkflowRun): run is WorkflowRun & {jobs: WorkflowJob[]} {
+  return 'jobs' in run && Array.isArray(run.jobs);
 }
 
 function MetadataSeparator() {

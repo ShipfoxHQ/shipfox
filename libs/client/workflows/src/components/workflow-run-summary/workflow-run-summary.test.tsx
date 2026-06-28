@@ -1,6 +1,7 @@
 import {fireEvent, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {workflowRun} from '#test/fixtures/workflow-run.js';
+import type {workflowRunDetailDto} from '#test/fixtures/workflow-run.js';
+import {workflowJobDto, workflowRunDetail} from '#test/fixtures/workflow-run.js';
 import {renderProjectPage} from '#test/pages.js';
 import {WorkflowRunSummary} from './workflow-run-summary.js';
 
@@ -225,7 +226,7 @@ describe('WorkflowRunSummary', () => {
   test('shows re-run choices for a failed run', async () => {
     const user = userEvent.setup();
     const onRerun = vi.fn();
-    renderSummary({status: 'failed'}, {onRerun});
+    renderSummary({status: 'failed', jobs: [workflowJobDto({status: 'failed'})]}, {onRerun});
 
     await user.click(await screen.findByRole('button', {name: 'Re-run jobs'}));
     expect(await screen.findByRole('menuitem', {name: 'Re-run all jobs'})).toBeInTheDocument();
@@ -237,20 +238,31 @@ describe('WorkflowRunSummary', () => {
   test('shows re-run choices for a cancelled run', async () => {
     const user = userEvent.setup();
     const onRerun = vi.fn();
-    renderSummary({status: 'cancelled'}, {onRerun});
+    renderSummary({status: 'cancelled', jobs: [workflowJobDto({status: 'cancelled'})]}, {onRerun});
 
     await user.click(await screen.findByRole('button', {name: 'Re-run jobs'}));
 
     expect(await screen.findByRole('menuitem', {name: 'Re-run all jobs'})).toBeInTheDocument();
     expect(screen.getByRole('menuitem', {name: 'Re-run failed jobs'})).toBeInTheDocument();
   });
+
+  test('re-runs the full workflow when a failed run has no failed jobs', async () => {
+    const user = userEvent.setup();
+    const onRerun = vi.fn();
+    renderSummary({status: 'failed', jobs: [workflowJobDto({status: 'succeeded'})]}, {onRerun});
+
+    await user.click(await screen.findByRole('button', {name: 'Re-run workflow'}));
+
+    expect(screen.queryByRole('button', {name: 'Re-run jobs'})).not.toBeInTheDocument();
+    expect(onRerun).toHaveBeenCalledWith('all');
+  });
 });
 
 function renderSummary(
-  overrides: Parameters<typeof workflowRun>[0] = {},
+  overrides: Parameters<typeof workflowRunDetailDto>[0] = {},
   props: Omit<Parameters<typeof WorkflowRunSummary>[0], 'run'> = {},
 ) {
-  const run = workflowRun({
+  const run = workflowRunDetail({
     id: RUN_ID,
     project_id: '44444444-4444-4444-8444-444444444444',
     definition_id: '55555555-5555-4555-8555-555555555555',

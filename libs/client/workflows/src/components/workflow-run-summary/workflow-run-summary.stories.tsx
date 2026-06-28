@@ -1,7 +1,7 @@
 import type {RerunMode} from '@shipfox/api-workflows-dto';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import type {WorkflowRunStatus} from '#core/workflow-run.js';
-import {workflowRun} from '#test/fixtures/workflow-run.js';
+import {workflowJobDto, workflowRun, workflowRunDetail} from '#test/fixtures/workflow-run.js';
 import {WorkflowRunSummary} from './workflow-run-summary.js';
 
 const withFrame: Decorator = (Story) => (
@@ -109,12 +109,29 @@ const ACTION_VARIANTS = [
   },
   {
     label: 'Failed',
-    run: workflowRun({status: 'failed', name: 'failed-pipeline'}),
+    run: workflowRunDetail({
+      status: 'failed',
+      name: 'failed-pipeline',
+      jobs: [workflowJobDto({status: 'failed'})],
+    }),
     props: {onRerun: noopRerun},
   },
   {
     label: 'Cancelled',
-    run: workflowRun({status: 'cancelled', name: 'cancelled-pipeline'}),
+    run: workflowRunDetail({
+      status: 'cancelled',
+      name: 'cancelled-pipeline',
+      jobs: [workflowJobDto({status: 'cancelled'})],
+    }),
+    props: {onRerun: noopRerun},
+  },
+  {
+    label: 'Failed without failed jobs',
+    run: workflowRunDetail({
+      status: 'failed',
+      name: 'failed-without-failed-jobs-pipeline',
+      jobs: [workflowJobDto({status: 'succeeded'})],
+    }),
     props: {onRerun: noopRerun},
   },
 ] satisfies Array<{
