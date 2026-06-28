@@ -8,6 +8,7 @@ import {
 } from '#core/errors.js';
 import {setRefreshTokenCookie} from '#presentation/auth/refresh-cookie.js';
 import {toAuthSessionDto} from '#presentation/dto/user.js';
+import {createAuthRateLimitPreHandler} from '#presentation/routes/rate-limit.js';
 
 export const loginRoute = defineRoute({
   method: 'POST',
@@ -19,6 +20,7 @@ export const loginRoute = defineRoute({
       200: loginResponseSchema,
     },
   },
+  preHandler: createAuthRateLimitPreHandler('login'),
   errorHandler: (error) => {
     if (error instanceof InvalidCredentialsError) {
       throw new ClientError('Invalid credentials', 'invalid-credentials', {status: 401});

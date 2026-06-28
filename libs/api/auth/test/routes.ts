@@ -3,7 +3,7 @@ import {
   AUTH_EMAIL_VERIFICATION_SEND_REQUESTED,
   type AUTH_PASSWORD_RESET_SEND_REQUESTED,
 } from '@shipfox/api-auth-dto';
-import {createApp, type FastifyInstance} from '@shipfox/node-fastify';
+import {type AppConfig, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
 import {and, desc, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
@@ -180,12 +180,16 @@ export async function latestEmailLinkTo(
   return link ?? '';
 }
 
-export async function createAuthTestApp(): Promise<FastifyInstance> {
-  return await createApp({
+export async function createAuthTestApp(params?: {
+  fastifyOptions?: AppConfig['fastifyOptions'];
+}): Promise<FastifyInstance> {
+  const appConfig: AppConfig = {
     auth: [createJwtAuthMethod()],
     routes: [authRoutes],
     swagger: false,
-  });
+  };
+  if (params?.fastifyOptions) appConfig.fastifyOptions = params.fastifyOptions;
+  return await createApp(appConfig);
 }
 
 export async function signup(

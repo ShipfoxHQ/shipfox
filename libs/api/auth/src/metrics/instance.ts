@@ -3,6 +3,9 @@ import {instanceMetrics} from '@shipfox/node-opentelemetry';
 export type AuthTokenType = 'session' | 'job_lease' | 'runner_session';
 export type AuthTokenVerificationOutcome = 'ok' | 'rejected';
 export type AuthTokenRefreshOutcome = 'rotated' | 'grace' | 'rejected';
+export type AuthRateLimitAction = 'login' | 'email-send';
+export type AuthRateLimitScope = 'ip' | 'email';
+export type AuthRateLimitOutcome = 'allowed' | 'blocked' | 'unavailable';
 
 const meter = instanceMetrics.getMeter('auth');
 
@@ -19,6 +22,18 @@ const tokenRefreshedCount = meter.createCounter<{outcome: AuthTokenRefreshOutcom
   'auth_token_refreshed',
   {description: 'Refresh-token exchanges by outcome'},
 );
+
+const rateLimitCheckCount = meter.createCounter<{
+  action: AuthRateLimitAction;
+  scope: AuthRateLimitScope;
+  outcome: AuthRateLimitOutcome;
+}>('auth_rate_limit_checks', {
+  description: 'Authentication rate limit checks by action, scope, and outcome',
+});
+
+const rateLimitPruneFailureCount = meter.createCounter('auth_rate_limit_prune_failures', {
+  description: 'Authentication rate limit prune failures',
+});
 
 function recordMetric(record: () => void): void {
   try {
@@ -41,4 +56,22 @@ export function recordTokenVerified(
 
 export function recordTokenRefreshed(outcome: AuthTokenRefreshOutcome): void {
   recordMetric(() => tokenRefreshedCount.add(1, {outcome}));
+}
+
+export function recordAuthRateLimitCheck(params: {
+  action: AuthRateLimitAction;
+  scope: AuthRateLimitScope;
+  outcome: AuthRateLimitOutcome;
+}): void {
+  recordMetric(() =>
+    rateLimitCheckCount.add(1, {
+      action: params.action,
+      scope: params.scope,
+      outcome: params.outcome,
+    }),
+  );
+}
+
+export function recordAuthRateLimitPruneFailure(): void {
+  recordMetric(() => rateLimitPruneFailureCount.add(1));
 }

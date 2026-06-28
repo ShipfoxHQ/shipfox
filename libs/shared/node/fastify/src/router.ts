@@ -1,7 +1,10 @@
 import type {FastifyInstance} from 'fastify';
 import {createAuthHook} from './auth.js';
-import type {RouteDefinition, RouteExport, RouteGroup} from './types.js';
+import type {RouteDefinition, RouteExport, RouteGroup, RoutePreHandler} from './types.js';
 import {isRouteGroup} from './types.js';
+
+type FastifyRouteConfig = Parameters<FastifyInstance['route']>[0];
+type FastifyPreHandler = NonNullable<FastifyRouteConfig['preHandler']>;
 
 export function mountRoutes({
   app,
@@ -51,7 +54,7 @@ function mountRoute(
 ): void {
   const effectiveAuth = route.auth ?? parentAuth;
 
-  const routeConfig: Parameters<FastifyInstance['route']>[0] = {
+  const routeConfig: FastifyRouteConfig = {
     method: route.method,
     url: route.path,
     handler: route.handler,
@@ -60,10 +63,25 @@ function mountRoute(
   routeConfig.schema = {...route.schema, description: route.description};
   if (route.errorHandler) routeConfig.errorHandler = route.errorHandler;
   if (effectiveAuth) routeConfig.onRequest = createAuthHook(effectiveAuth);
+  if (route.preHandler) {
+    routeConfig.preHandler = normalizePreHandler(route.preHandler);
+  }
   if (route.options?.bodyLimit !== undefined) routeConfig.bodyLimit = route.options.bodyLimit;
   if (route.options?.logLevel !== undefined) routeConfig.logLevel = route.options.logLevel;
   if (route.options?.handlerTimeout !== undefined)
     routeConfig.handlerTimeout = route.options.handlerTimeout;
 
   app.route(routeConfig);
+}
+
+function normalizePreHandler(preHandler: RoutePreHandler | RoutePreHandler[]): FastifyPreHandler {
+  if (Array.isArray(preHandler)) {
+    return preHandler.map((handler) => async (request, reply) => {
+      await handler(request, reply);
+    }) as FastifyPreHandler;
+  }
+
+  return (async (request, reply) => {
+    await preHandler(request, reply);
+  }) as FastifyPreHandler;
 }

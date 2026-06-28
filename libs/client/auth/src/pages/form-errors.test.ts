@@ -28,10 +28,28 @@ describe('loginErrorToFormError', () => {
     expect(result).toEqual({kind: 'form', message: 'Email or password is incorrect.'});
   });
 
-  test('routes unknown ApiError codes to a form-level alert', () => {
+  test('routes rate-limited to a form-level alert', () => {
     const result = loginErrorToFormError(apiError('rate-limited', 429));
 
-    expect(result).toEqual({kind: 'form', message: 'rate-limited server message'});
+    expect(result).toEqual({
+      kind: 'form',
+      message: 'Too many attempts. Wait a bit and try again.',
+    });
+  });
+
+  test('routes limiter outages to a form-level alert', () => {
+    const result = loginErrorToFormError(apiError('auth-rate-limit-unavailable', 503));
+
+    expect(result).toEqual({
+      kind: 'form',
+      message: 'Sign-in protection is temporarily unavailable. Try again soon.',
+    });
+  });
+
+  test('routes unknown ApiError codes to a form-level alert', () => {
+    const result = loginErrorToFormError(apiError('unknown-code', 400));
+
+    expect(result).toEqual({kind: 'form', message: 'unknown-code server message'});
   });
 
   test('routes non-ApiError to a generic form-level alert', () => {
@@ -66,7 +84,10 @@ describe('passwordResetRequestErrorToFormError', () => {
   test('always routes to a form-level alert', () => {
     const result = passwordResetRequestErrorToFormError(apiError('rate-limited', 429));
 
-    expect(result).toEqual({kind: 'form', message: 'rate-limited server message'});
+    expect(result).toEqual({
+      kind: 'form',
+      message: 'Too many attempts. Wait a bit and try again.',
+    });
   });
 });
 
