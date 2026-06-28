@@ -313,7 +313,7 @@ describe('WorkflowRunView', () => {
     configureApiClient({fetchImpl: fetchImpl as typeof fetch});
 
     const {router} = renderView();
-    await user.click(await screen.findByRole('button', {name: 'Re-run all jobs'}));
+    await user.click(await screen.findByRole('button', {name: 'Re-run workflow'}));
 
     const postRequest = await findRequest(fetchImpl, 'POST', `/workflows/runs/${RUN_ID}/rerun`);
     expect(postRequest).toBeDefined();
@@ -384,7 +384,7 @@ describe('WorkflowRunView', () => {
     configureApiClient({fetchImpl: fetchImpl as typeof fetch});
 
     renderView();
-    await user.click(await screen.findByRole('button', {name: 'Re-run all jobs'}));
+    await user.click(await screen.findByRole('button', {name: 'Re-run workflow'}));
 
     await waitFor(() => expect(errorSpy).toHaveBeenCalledWith('Run has no failed jobs'));
   });

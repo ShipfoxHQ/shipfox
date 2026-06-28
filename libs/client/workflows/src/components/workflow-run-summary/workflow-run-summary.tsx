@@ -203,7 +203,7 @@ function WorkflowRunActionSlot({
         disabled={rerunPending}
         onClick={() => onRerun('all')}
       >
-        Re-run all jobs
+        Re-run workflow
       </Button>
     );
   }

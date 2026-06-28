@@ -200,7 +200,7 @@ describe('WorkflowRunSummary', () => {
 
     await screen.findByRole('button', {name: 'Cancel workflow'});
 
-    expect(screen.queryByRole('button', {name: 'Re-run all jobs'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Re-run workflow'})).not.toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Re-run jobs'})).not.toBeInTheDocument();
   });
 
@@ -209,7 +209,7 @@ describe('WorkflowRunSummary', () => {
     const onRerun = vi.fn();
     renderSummary({status: 'succeeded'}, {onRerun});
 
-    await user.click(await screen.findByRole('button', {name: 'Re-run all jobs'}));
+    await user.click(await screen.findByRole('button', {name: 'Re-run workflow'}));
 
     expect(onRerun).toHaveBeenCalledWith('all');
   });
@@ -219,7 +219,7 @@ describe('WorkflowRunSummary', () => {
 
     await screen.findByRole('region', {name: 'deploy-web'});
 
-    expect(screen.queryByRole('button', {name: 'Re-run all jobs'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Re-run workflow'})).not.toBeInTheDocument();
   });
 
   test('shows re-run choices for a failed run', async () => {
