@@ -7,11 +7,16 @@ import {authStateAtom} from '#state/auth.js';
 
 const REFRESH_RETRY_DELAY_MS = 60_000;
 
-export function AuthProvider({children}: PropsWithChildren) {
-  const [queryClient] = useState(() => new QueryClient());
+export interface AuthProviderProps extends PropsWithChildren {
+  queryClient?: QueryClient;
+}
+
+export function AuthProvider({children, queryClient}: AuthProviderProps) {
+  const [fallbackQueryClient] = useState(() => new QueryClient());
+  const client = queryClient ?? fallbackQueryClient;
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={client}>
       <JotaiProvider>
         <AuthProviderContent>{children}</AuthProviderContent>
       </JotaiProvider>

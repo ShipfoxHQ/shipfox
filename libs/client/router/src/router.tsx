@@ -1,4 +1,5 @@
 import type {AuthStateValue} from '@shipfox/client-auth';
+import type {QueryClient} from '@tanstack/react-query';
 import {createRouter, type RouteIds} from '@tanstack/react-router';
 import {routeTree} from './routeTree.gen.js';
 
@@ -10,12 +11,13 @@ export interface RouterContext {
    * `auth.status === 'loading'` so the route waits for auth before deciding.
    */
   auth: AuthStateValue | undefined;
+  queryClient: QueryClient | undefined;
 }
 
 export const router = createRouter({
   routeTree,
   scrollRestoration: true,
-  context: {auth: undefined} satisfies RouterContext,
+  context: {auth: undefined, queryClient: undefined} satisfies RouterContext,
 });
 
 export type RouterType = typeof router;

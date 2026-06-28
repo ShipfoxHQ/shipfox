@@ -7,9 +7,12 @@ import {AuthProvider, useAuthState} from '@shipfox/client-auth';
 import {ConfigErrorScreen, setLoadedConfig} from '@shipfox/client-config';
 import {RouterProvider, router} from '@shipfox/client-router';
 import {ThemeProvider, Toaster, TooltipProvider} from '@shipfox/react-ui';
+import {QueryClient} from '@tanstack/react-query';
 import {StrictMode, useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
 import {loadAppConfig} from './config.js';
+
+const queryClient = new QueryClient();
 
 function RoutedApp() {
   const auth = useAuthState();
@@ -23,7 +26,7 @@ function RoutedApp() {
     }
   }, [auth.isLoading]);
 
-  return <RouterProvider router={router} context={{auth}} />;
+  return <RouterProvider router={router} context={{auth, queryClient}} />;
 }
 
 const element = document.getElementById('app');
@@ -51,7 +54,7 @@ if (!configResult.ok) {
     <StrictMode>
       <ThemeProvider>
         <TooltipProvider>
-          <AuthProvider>
+          <AuthProvider queryClient={queryClient}>
             <RoutedApp />
             <Toaster />
           </AuthProvider>

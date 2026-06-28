@@ -1,10 +1,11 @@
+import type {ListIntegrationConnectionsResponseDto} from '@shipfox/api-integration-core-dto';
+import type {ListProjectsResponseDto} from '@shipfox/api-projects-dto';
 import {ApiError} from '@shipfox/client-api';
-import {useMaybeActiveWorkspace} from '@shipfox/client-auth';
-import {useSourceConnectionsQuery} from '@shipfox/client-integrations';
+import {integrationsQueryKeys, listSourceConnections} from '@shipfox/client-integrations';
 import {Alert, Button, FullPageLoader, Header, Text} from '@shipfox/react-ui';
-import {Navigate, useLocation} from '@tanstack/react-router';
-import type {ReactNode} from 'react';
-import {useWorkspaceProjectExistenceQuery} from '#hooks/api/projects.js';
+import type {QueryClient} from '@tanstack/react-query';
+import {type ErrorComponentProps, redirect, useRouter} from '@tanstack/react-router';
+import {listProjects, projectsQueryKeys} from '#hooks/api/projects.js';
 
 const TRAILING_SLASHES_RE = /\/+$/u;
 
@@ -12,81 +13,75 @@ export interface WorkspaceSetupState {
   hideProjectNavigation: boolean;
 }
 
-export interface WorkspaceSetupGuardProps {
-  children: ReactNode | ((state: WorkspaceSetupState) => ReactNode);
+export interface WorkspaceSetupRouteOptions {
+  queryClient: QueryClient;
+  workspaceId: string;
+  pathname: string;
 }
 
-export function WorkspaceSetupGuard({children}: WorkspaceSetupGuardProps) {
-  const workspace = useMaybeActiveWorkspace();
-  const location = useLocation();
-  const projectQuery = useWorkspaceProjectExistenceQuery(workspace?.id);
-  const hasProject = (projectQuery.data?.projects.length ?? 0) > 0;
-  const projectQueryInitialError = projectQuery.isError && projectQuery.data === undefined;
-  const sourceConnectionsQuery = useSourceConnectionsQuery(
-    workspace && !projectQuery.isPending && !projectQueryInitialError && !hasProject
-      ? workspace.id
-      : undefined,
-  );
-
-  if (!workspace || projectQuery.isPending) return <FullPageLoader />;
-
-  if (projectQueryInitialError) {
-    return (
-      <WorkspaceSetupError
-        message={setupErrorMessage(projectQuery.error)}
-        onRetry={() => {
-          void projectQuery.refetch();
-        }}
-      />
-    );
-  }
-
-  const pathname = normalizePath(location.pathname);
+export async function loadWorkspaceSetupRoute({
+  queryClient,
+  workspaceId,
+  pathname,
+}: WorkspaceSetupRouteOptions): Promise<WorkspaceSetupState> {
+  const projects = await fetchWorkspaceProjectExistence(queryClient, workspaceId);
+  const normalizedPathname = normalizePath(pathname);
+  const hasProject = projects.projects.length > 0;
 
   if (hasProject) {
-    if (isIntegrationsIndexPath(pathname, workspace.id)) {
-      return (
-        <Navigate
-          to="/workspaces/$wid/settings/integrations"
-          params={{wid: workspace.id}}
-          replace
-        />
-      );
+    if (isIntegrationsIndexPath(normalizedPathname, workspaceId)) {
+      throw redirect({
+        to: '/workspaces/$wid/settings/integrations',
+        params: {wid: workspaceId},
+        replace: true,
+      });
     }
 
-    return renderChildren(children, {hideProjectNavigation: false});
+    return {hideProjectNavigation: false};
   }
 
-  if (sourceConnectionsQuery.isPending) return <FullPageLoader />;
-
-  if (sourceConnectionsQuery.isError && sourceConnectionsQuery.data === undefined) {
-    return (
-      <WorkspaceSetupError
-        message={setupErrorMessage(sourceConnectionsQuery.error)}
-        onRetry={() => {
-          void sourceConnectionsQuery.refetch();
-        }}
-      />
-    );
-  }
-
-  if (sourceConnectionsQuery.data === undefined) return <FullPageLoader />;
-
-  const hasSourceConnection = sourceConnectionsQuery.data.connections.length > 0;
+  const sourceConnections = await fetchWorkspaceSourceConnections(queryClient, workspaceId);
+  const hasSourceConnection = sourceConnections.connections.length > 0;
 
   if (!hasSourceConnection) {
-    if (isIntegrationsPath(pathname, workspace.id)) {
-      return renderChildren(children, {hideProjectNavigation: true});
+    if (isIntegrationsPath(normalizedPathname, workspaceId)) {
+      return {hideProjectNavigation: true};
     }
 
-    return <Navigate to="/workspaces/$wid/integrations" params={{wid: workspace.id}} replace />;
+    throw redirect({
+      to: '/workspaces/$wid/integrations',
+      params: {wid: workspaceId},
+      replace: true,
+    });
   }
 
-  if (isProjectCreationPath(pathname, workspace.id)) {
-    return renderChildren(children, {hideProjectNavigation: true});
+  if (isProjectCreationPath(normalizedPathname, workspaceId)) {
+    return {hideProjectNavigation: true};
   }
 
-  return <Navigate to="/workspaces/$wid/projects/new" params={{wid: workspace.id}} replace />;
+  throw redirect({
+    to: '/workspaces/$wid/projects/new',
+    params: {wid: workspaceId},
+    replace: true,
+  });
+}
+
+export function WorkspaceSetupPending() {
+  return <FullPageLoader />;
+}
+
+export function WorkspaceSetupErrorRoute({error, reset}: ErrorComponentProps) {
+  const router = useRouter();
+
+  return (
+    <WorkspaceSetupError
+      message={setupErrorMessage(error)}
+      onRetry={() => {
+        reset();
+        void router.invalidate();
+      }}
+    />
+  );
 }
 
 function WorkspaceSetupError({message, onRetry}: {message: string; onRetry: () => void}) {
@@ -110,16 +105,39 @@ function WorkspaceSetupError({message, onRetry}: {message: string; onRetry: () =
   );
 }
 
-function renderChildren(
-  children: WorkspaceSetupGuardProps['children'],
-  state: WorkspaceSetupState,
-) {
-  return typeof children === 'function' ? children(state) : children;
-}
-
 function setupErrorMessage(error: unknown) {
   if (error instanceof ApiError) return error.message;
   return 'Try again in a moment.';
+}
+
+async function fetchWorkspaceProjectExistence(queryClient: QueryClient, workspaceId: string) {
+  const queryKey = projectsQueryKeys.exists(workspaceId);
+
+  try {
+    return await queryClient.fetchQuery({
+      queryKey,
+      queryFn: ({signal}) => listProjects({workspaceId, limit: 1, signal}),
+    });
+  } catch (error) {
+    const cached = queryClient.getQueryData<ListProjectsResponseDto>(queryKey);
+    if (cached !== undefined) return cached;
+    throw error;
+  }
+}
+
+async function fetchWorkspaceSourceConnections(queryClient: QueryClient, workspaceId: string) {
+  const queryKey = integrationsQueryKeys.sourceConnections(workspaceId);
+
+  try {
+    return await queryClient.fetchQuery({
+      queryKey,
+      queryFn: ({signal}) => listSourceConnections({workspaceId, signal}),
+    });
+  } catch (error) {
+    const cached = queryClient.getQueryData<ListIntegrationConnectionsResponseDto>(queryKey);
+    if (cached !== undefined) return cached;
+    throw error;
+  }
 }
 
 function normalizePath(pathname: string) {

@@ -1,13 +1,17 @@
 import {MainLayout} from '@shipfox/client-app-shell';
 import {rememberLastWorkspaceId} from '@shipfox/client-auth';
-import {WorkspaceSetupGuard} from '@shipfox/client-projects';
+import {
+  loadWorkspaceSetupRoute,
+  WorkspaceSetupErrorRoute,
+  WorkspaceSetupPending,
+} from '@shipfox/client-projects';
 import {ShipfoxLoader} from '@shipfox/react-ui';
 import {createFileRoute, redirect} from '@tanstack/react-router';
 
 export const Route = createFileRoute('/workspaces/$wid/_layout')({
-  beforeLoad: ({context, params, location}) => {
+  beforeLoad: async ({context, params, location}) => {
     const auth = context.auth;
-    if (!auth || auth.isLoading) return;
+    if (!auth || auth.isLoading || !context.queryClient) return;
     if (!auth.isAuthenticated) {
       throw redirect({to: '/auth/login', search: {redirect: location.href}});
     }
@@ -19,19 +23,24 @@ export const Route = createFileRoute('/workspaces/$wid/_layout')({
     } catch {
       // localStorage may throw in private browsing or quota-exceeded; routing is still URL-driven.
     }
+    return await loadWorkspaceSetupRoute({
+      queryClient: context.queryClient,
+      workspaceId: params.wid,
+      pathname: location.pathname,
+    });
   },
   pendingComponent: () => (
     <div className="flex h-screen items-center justify-center">
       <ShipfoxLoader size={64} animation="circular" color="orange" background="dark" />
     </div>
   ),
+  errorComponent: WorkspaceSetupErrorRoute,
   component: WorkspaceLayoutRoute,
 });
 
 function WorkspaceLayoutRoute() {
-  return (
-    <WorkspaceSetupGuard>
-      {({hideProjectNavigation}) => <MainLayout hideProjectNavigation={hideProjectNavigation} />}
-    </WorkspaceSetupGuard>
-  );
+  const setupState = Route.useRouteContext();
+  if (setupState.hideProjectNavigation === undefined) return <WorkspaceSetupPending />;
+
+  return <MainLayout hideProjectNavigation={setupState.hideProjectNavigation} />;
 }
