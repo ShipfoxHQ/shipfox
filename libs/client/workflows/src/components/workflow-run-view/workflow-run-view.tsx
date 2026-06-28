@@ -120,9 +120,6 @@ function RunViewContent({
     : undefined;
   const highlightedLineRange = resolvedSelection?.step?.sourceLocation ?? null;
   const sourceSnapshot = runData.sourceSnapshot;
-  const hasFailedJobs = runData.jobs.some(
-    (job) => job.status === 'failed' || job.status === 'cancelled',
-  );
   const canRerun = isWorkflowRunTerminal(runData.status);
 
   async function rerun(mode: RerunMode) {
@@ -196,7 +193,6 @@ function RunViewContent({
           cancelling={cancelMutation.isPending}
           onCancel={cancelRun}
           canRerun={canRerun}
-          hasFailedJobs={hasFailedJobs}
           rerunPending={rerunMutation.isPending}
           onRerun={(mode) => void rerun(mode)}
         />

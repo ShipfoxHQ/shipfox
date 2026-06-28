@@ -326,7 +326,7 @@ describe('WorkflowRunView', () => {
     );
   });
 
-  test('re-runs failed or cancelled jobs from the dropdown', async () => {
+  test('re-runs failed jobs from the dropdown', async () => {
     const user = userEvent.setup();
     const postBodies: unknown[] = [];
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
@@ -361,9 +361,7 @@ describe('WorkflowRunView', () => {
 
     renderView();
     await user.click(await screen.findByRole('button', {name: 'Re-run jobs'}));
-    await user.click(
-      await screen.findByRole('menuitem', {name: 'Re-run failed or cancelled jobs'}),
-    );
+    await user.click(await screen.findByRole('menuitem', {name: 'Re-run failed jobs'}));
 
     const postRequest = await findRequest(fetchImpl, 'POST', `/workflows/runs/${RUN_ID}/rerun`);
     expect(postRequest).toBeDefined();

@@ -184,6 +184,50 @@ describe('WorkflowRunSummary', () => {
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute('aria-busy', 'true');
   });
+
+  test('prefers the cancel action for non-terminal runs', async () => {
+    const onCancel = vi.fn();
+    const onRerun = vi.fn();
+    renderSummary({status: 'running'}, {canCancel: true, onCancel, canRerun: true, onRerun});
+
+    await screen.findByRole('button', {name: 'Cancel workflow'});
+
+    expect(screen.queryByRole('button', {name: 'Re-run all jobs'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Re-run jobs'})).not.toBeInTheDocument();
+  });
+
+  test('re-runs all jobs from a succeeded run', async () => {
+    const user = userEvent.setup();
+    const onRerun = vi.fn();
+    renderSummary({status: 'succeeded'}, {canRerun: true, onRerun});
+
+    await user.click(await screen.findByRole('button', {name: 'Re-run all jobs'}));
+
+    expect(onRerun).toHaveBeenCalledWith('all');
+  });
+
+  test('shows re-run choices for a failed run', async () => {
+    const user = userEvent.setup();
+    const onRerun = vi.fn();
+    renderSummary({status: 'failed'}, {canRerun: true, onRerun});
+
+    await user.click(await screen.findByRole('button', {name: 'Re-run jobs'}));
+    expect(await screen.findByRole('menuitem', {name: 'Re-run all jobs'})).toBeInTheDocument();
+    await user.click(await screen.findByRole('menuitem', {name: 'Re-run failed jobs'}));
+
+    expect(onRerun).toHaveBeenCalledWith('failed');
+  });
+
+  test('shows re-run choices for a cancelled run', async () => {
+    const user = userEvent.setup();
+    const onRerun = vi.fn();
+    renderSummary({status: 'cancelled'}, {canRerun: true, onRerun});
+
+    await user.click(await screen.findByRole('button', {name: 'Re-run jobs'}));
+
+    expect(await screen.findByRole('menuitem', {name: 'Re-run all jobs'})).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', {name: 'Re-run failed jobs'})).toBeInTheDocument();
+  });
 });
 
 function renderSummary(

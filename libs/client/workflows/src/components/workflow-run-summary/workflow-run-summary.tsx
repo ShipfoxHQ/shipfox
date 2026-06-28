@@ -19,7 +19,11 @@ import {
 } from '@shipfox/react-ui';
 import type {Ref} from 'react';
 import {useId} from 'react';
-import {WORKFLOW_RUN_STATUSES, type WorkflowRun} from '#core/workflow-run.js';
+import {
+  isWorkflowRunTerminal,
+  WORKFLOW_RUN_STATUSES,
+  type WorkflowRun,
+} from '#core/workflow-run.js';
 import {Identifier} from '../identifier/index.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
 
@@ -38,7 +42,6 @@ export interface WorkflowRunSummaryProps {
   cancelling?: boolean | undefined;
   onCancel?: (() => void) | undefined;
   canRerun?: boolean | undefined;
-  hasFailedJobs?: boolean | undefined;
   rerunPending?: boolean | undefined;
   onRerun?: ((mode: RerunMode) => void) | undefined;
 }
@@ -54,7 +57,6 @@ export function WorkflowRunSummary({
   cancelling = false,
   onCancel,
   canRerun = false,
-  hasFailedJobs = false,
   rerunPending = false,
   onRerun,
 }: WorkflowRunSummaryProps) {
@@ -96,22 +98,12 @@ export function WorkflowRunSummary({
 
         {sourceAvailable || canCancel || canRerun ? (
           <div className="col-start-2 row-start-1 flex min-w-max items-center gap-6 justify-self-end">
-            {canCancel ? (
-              <Button
-                type="button"
-                variant="danger"
-                size="xs"
-                iconLeft="close"
-                isLoading={cancelling}
-                disabled={cancelling || !onCancel}
-                onClick={onCancel}
-              >
-                Cancel workflow
-              </Button>
-            ) : null}
             <WorkflowRunActionSlot
+              run={run}
+              canCancel={canCancel}
+              cancelling={cancelling}
+              onCancel={onCancel}
               canRerun={canRerun}
-              hasFailedJobs={hasFailedJobs}
               rerunPending={rerunPending}
               onRerun={onRerun}
             />
@@ -178,19 +170,43 @@ export function WorkflowRunSummary({
 }
 
 function WorkflowRunActionSlot({
+  run,
+  canCancel,
+  cancelling,
+  onCancel,
   canRerun,
-  hasFailedJobs,
   rerunPending,
   onRerun,
 }: {
+  run: WorkflowRun;
+  canCancel: boolean;
+  cancelling: boolean;
+  onCancel?: (() => void) | undefined;
   canRerun: boolean;
-  hasFailedJobs: boolean;
   rerunPending: boolean;
   onRerun?: ((mode: RerunMode) => void) | undefined;
 }) {
+  if (!isWorkflowRunTerminal(run.status)) {
+    if (!canCancel) return null;
+
+    return (
+      <Button
+        type="button"
+        variant="danger"
+        size="xs"
+        iconLeft="close"
+        isLoading={cancelling}
+        disabled={cancelling || !onCancel}
+        onClick={onCancel}
+      >
+        Cancel workflow
+      </Button>
+    );
+  }
+
   if (!canRerun || !onRerun) return null;
 
-  if (!hasFailedJobs) {
+  if (run.status === 'succeeded') {
     return (
       <Button
         type="button"
@@ -224,7 +240,7 @@ function WorkflowRunActionSlot({
           Re-run all jobs
         </DropdownMenuItem>
         <DropdownMenuItem disabled={rerunPending} onSelect={() => onRerun('failed')}>
-          Re-run failed or cancelled jobs
+          Re-run failed jobs
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
