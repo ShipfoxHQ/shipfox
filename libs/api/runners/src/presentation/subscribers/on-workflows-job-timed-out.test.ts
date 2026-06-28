@@ -22,7 +22,11 @@ describe('onWorkflowsJobTimedOut', () => {
 
   it('sets cancellation_requested_at on the matching running_jobs row', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({
+      workspaceId,
+      runnerSessionId,
+      sessionLabels: ['linux', 'x64'],
+    });
     expect(claimed).not.toBeNull();
 
     await onWorkflowsJobTimedOut(buildPayload(claimed?.jobId as string, claimed?.runId as string));
@@ -36,7 +40,11 @@ describe('onWorkflowsJobTimedOut', () => {
 
   it('idempotent under double delivery: second call preserves the first timestamp', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({
+      workspaceId,
+      runnerSessionId,
+      sessionLabels: ['linux', 'x64'],
+    });
 
     await onWorkflowsJobTimedOut(buildPayload(claimed?.jobId as string, claimed?.runId as string));
     const after1 = await db()

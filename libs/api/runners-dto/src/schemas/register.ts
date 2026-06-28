@@ -1,13 +1,18 @@
+import {
+  MAX_RUNNER_LABEL_LENGTH,
+  MAX_RUNNER_LABELS,
+  RUNNER_LABEL_PATTERN,
+} from '@shipfox/runner-labels';
 import {z} from 'zod';
 
 export const runnerLabelSchema = z
   .string()
   .min(1)
-  .max(63)
-  .regex(/^[a-z0-9][a-z0-9._-]*$/i);
+  .max(MAX_RUNNER_LABEL_LENGTH)
+  .regex(new RegExp(RUNNER_LABEL_PATTERN.source, 'i'));
 
 export const registerRunnerBodySchema = z.object({
-  labels: z.array(runnerLabelSchema).min(1).max(50),
+  labels: z.array(runnerLabelSchema).min(1).max(MAX_RUNNER_LABELS),
 });
 
 export const registerRunnerResponseSchema = z.object({

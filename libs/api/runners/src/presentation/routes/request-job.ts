@@ -18,6 +18,7 @@ export const requestJobRoute = defineRoute({
     const job = await claimJob({
       workspaceId: runner.workspaceId,
       runnerSessionId: runner.runnerSessionId,
+      sessionLabels: runner.labels,
     });
 
     if (!job) {

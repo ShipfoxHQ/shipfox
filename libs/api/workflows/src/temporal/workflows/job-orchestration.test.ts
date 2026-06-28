@@ -29,6 +29,7 @@ const defaultJobInput = {
   runId: 'run-1',
   projectId: 'project-1',
   jobVersion: 1,
+  requiredLabels: ['ubuntu22'],
 };
 
 function executeJob(input: typeof defaultJobInput): Promise<{status: string; jobVersion: number}> {
@@ -51,6 +52,24 @@ function terminalSetJobCall(jobId: string) {
   );
 }
 
+async function expectEmptyRequiredLabelsFailure(input: typeof defaultJobInput): Promise<void> {
+  let error: unknown;
+
+  try {
+    await executeJob(input);
+  } catch (err) {
+    error = err;
+  }
+
+  expect(error).toMatchObject({
+    cause: expect.objectContaining({
+      message: `Job ${input.jobId} has no required runner labels`,
+      nonRetryable: true,
+      type: 'EmptyRequiredLabelsError',
+    }),
+  });
+}
+
 describe('jobOrchestration', () => {
   test('finished signal (succeeded) flips status and releases the lease', async () => {
     setCfg({
@@ -65,6 +84,38 @@ describe('jobOrchestration', () => {
     expect(callsNamed('releaseLeaseActivity')).toHaveLength(1);
     expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(0);
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
+  });
+
+  test('empty required labels fail before the job is marked running', async () => {
+    setCfg({
+      dag: makeDag([dagJob('job-empty-labels', 'build')]),
+      jobResults: new Map([['job-empty-labels', 'succeeded']]),
+    });
+
+    await expectEmptyRequiredLabelsFailure({
+      ...defaultJobInput,
+      jobId: 'job-empty-labels',
+      requiredLabels: [],
+    });
+
+    expect(setJobStatusCalls()).toHaveLength(0);
+    expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
+  });
+
+  test('whitespace-only required labels fail before the job is marked running', async () => {
+    setCfg({
+      dag: makeDag([dagJob('job-blank-labels', 'build')]),
+      jobResults: new Map([['job-blank-labels', 'succeeded']]),
+    });
+
+    await expectEmptyRequiredLabelsFailure({
+      ...defaultJobInput,
+      jobId: 'job-blank-labels',
+      requiredLabels: ['  '],
+    });
+
+    expect(setJobStatusCalls()).toHaveLength(0);
+    expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
   });
 
   test('finished signal (failed) flips status without sweeping steps', async () => {

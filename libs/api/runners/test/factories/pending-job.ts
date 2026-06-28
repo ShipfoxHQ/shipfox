@@ -6,6 +6,7 @@ interface PendingJobAttrs {
   jobId: string;
   runId: string;
   projectId: string;
+  requiredLabels: string[];
 }
 
 export const pendingJobFactory = Factory.define<PendingJobAttrs>(({onCreate}) => {
@@ -20,6 +21,7 @@ export const pendingJobFactory = Factory.define<PendingJobAttrs>(({onCreate}) =>
       jobId: attrs.jobId,
       runId: attrs.runId,
       projectId: attrs.projectId,
+      requiredLabels: attrs.requiredLabels,
     });
     return attrs;
   });
@@ -29,5 +31,6 @@ export const pendingJobFactory = Factory.define<PendingJobAttrs>(({onCreate}) =>
     jobId,
     runId,
     projectId,
+    requiredLabels: ['linux'],
   };
 });

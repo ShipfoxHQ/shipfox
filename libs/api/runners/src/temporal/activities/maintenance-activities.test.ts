@@ -19,7 +19,11 @@ describe('detectAndExpireStuckJobsActivity', () => {
 
   it('delegates to detectAndExpireStuckJobs and returns the expired count', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
+    const claimed = await claimPendingJob({
+      workspaceId,
+      runnerSessionId,
+      sessionLabels: ['linux', 'x64'],
+    });
     await db()
       .update(runningJobs)
       .set({lastHeartbeatAt: sql`now() - interval '10 minutes'`})

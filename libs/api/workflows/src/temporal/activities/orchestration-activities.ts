@@ -21,6 +21,7 @@ export interface DagJob extends RuntimeDagJob {
   name: string;
   status: JobStatus;
   dependencies: string[];
+  runner: string[];
   version: number;
   steps: Array<{
     id: string;
@@ -64,6 +65,7 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
       name: job.name,
       status: job.status,
       dependencies: job.dependencies,
+      runner: job.runner ?? [],
       version: job.version,
       steps: (stepsByJobId.get(job.id) ?? []).map((s) => ({
         id: s.id,
@@ -143,13 +145,22 @@ export async function enqueueJobForRunner(params: {
   jobId: string;
   runId: string;
   projectId: string;
+  requiredLabels: string[];
 }): Promise<void> {
-  await enqueueJob({
-    workspaceId: params.workspaceId,
-    jobId: params.jobId,
-    runId: params.runId,
-    projectId: params.projectId,
-  });
+  try {
+    await enqueueJob({
+      workspaceId: params.workspaceId,
+      jobId: params.jobId,
+      runId: params.runId,
+      projectId: params.projectId,
+      requiredLabels: params.requiredLabels,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'EmptyRequiredLabelsError') {
+      throw ApplicationFailure.nonRetryable(err.message, err.name);
+    }
+    throw err;
+  }
 }
 
 export async function cancelRunnerJobsActivity(params: {jobIds: string[]}): Promise<void> {

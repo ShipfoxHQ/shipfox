@@ -1,3 +1,4 @@
+import {ApplicationFailure} from '@temporalio/common';
 import {condition, defineSignal, log, proxyActivities, setHandler} from '@temporalio/workflow';
 
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
@@ -54,6 +55,7 @@ export interface JobOrchestrationInput {
   runId: string;
   projectId: string;
   jobVersion: number;
+  requiredLabels: string[];
 }
 
 export interface JobOrchestrationResult {
@@ -81,6 +83,13 @@ async function markJobRunningAndEnqueue(
 ): Promise<
   {kind: 'running'; runningVersion: number} | {kind: 'terminal'; result: JobOrchestrationResult}
 > {
+  if (input.requiredLabels.every((label) => label.trim().length === 0)) {
+    throw ApplicationFailure.nonRetryable(
+      `Job ${input.jobId} has no required runner labels`,
+      'EmptyRequiredLabelsError',
+    );
+  }
+
   const {newVersion: runningVersion, status} = await setJobStatus({
     jobId: input.jobId,
     status: 'running',
@@ -99,6 +108,7 @@ async function markJobRunningAndEnqueue(
     jobId: input.jobId,
     runId: input.runId,
     projectId: input.projectId,
+    requiredLabels: input.requiredLabels,
   });
 
   return {kind: 'running', runningVersion};

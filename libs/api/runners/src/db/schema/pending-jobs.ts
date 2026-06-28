@@ -1,5 +1,5 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {index, timestamp, uuid} from 'drizzle-orm/pg-core';
+import {index, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import {pgTable} from './common.js';
 
 export const pendingJobs = pgTable(
@@ -10,6 +10,7 @@ export const pendingJobs = pgTable(
     jobId: uuid('job_id').notNull().unique(),
     runId: uuid('run_id').notNull(),
     projectId: uuid('project_id').notNull(),
+    requiredLabels: text('required_labels').array().notNull(),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [

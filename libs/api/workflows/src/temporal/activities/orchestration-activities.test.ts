@@ -67,7 +67,7 @@ describe('loadRunDag', () => {
       workspaceId,
       projectId,
       definitionId: crypto.randomUUID(),
-      model: workflowModel({jobs: {build: {steps: [{run: 'step1'}]}}}),
+      model: workflowModel({jobs: {build: {runner: ['ubuntu22'], steps: [{run: 'step1'}]}}}),
       triggerPayload: {
         source: 'manual',
         event: 'fire',
@@ -81,5 +81,6 @@ describe('loadRunDag', () => {
     expect(dag.runId).toBe(run.id);
     expect(dag.workspaceId).toBe(workspaceId);
     expect(dag.projectId).toBe(projectId);
+    expect(dag.jobs[0]?.runner).toEqual(['ubuntu22']);
   });
 });

@@ -11,6 +11,7 @@ export interface ClaimJobResult {
 export async function claimJob(params: {
   workspaceId: string;
   runnerSessionId: string;
+  sessionLabels: string[];
 }): Promise<ClaimJobResult | null> {
   const claimed = await claimPendingJob(params);
   if (!claimed) {
