@@ -446,12 +446,21 @@ importers:
       '@shipfox/api-agent-dto':
         specifier: workspace:*
         version: link:../agent-dto
+      '@shipfox/api-auth-context':
+        specifier: workspace:*
+        version: link:../auth-context
+      '@shipfox/api-workspaces':
+        specifier: workspace:*
+        version: link:../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
+      '@shipfox/node-fastify':
+        specifier: workspace:*
+        version: link:../../shared/node/fastify
       '@shipfox/node-module':
         specifier: workspace:*
         version: link:../../shared/node/module
@@ -467,6 +476,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -689,12 +701,12 @@ importers:
 
   libs/api/definitions:
     dependencies:
-      '@shipfox/api-auth-context':
-        specifier: workspace:*
-        version: link:../auth-context
       '@shipfox/api-agent-dto':
         specifier: workspace:*
         version: link:../agent-dto
+      '@shipfox/api-auth-context':
+        specifier: workspace:*
+        version: link:../auth-context
       '@shipfox/api-definitions-dto':
         specifier: workspace:*
         version: link:../definitions-dto
@@ -2014,15 +2026,15 @@ importers:
 
   libs/api/workflows:
     dependencies:
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../agent-dto
       '@shipfox/api-auth':
         specifier: workspace:*
         version: link:../auth
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context
-      '@shipfox/api-agent-dto':
-        specifier: workspace:*
-        version: link:../agent-dto
       '@shipfox/api-definitions':
         specifier: workspace:*
         version: link:../definitions

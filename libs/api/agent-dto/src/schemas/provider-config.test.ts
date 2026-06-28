@@ -1,77 +1,14 @@
 import {
   agentProviderConfigDtoSchema,
   agentProviderCredentialKeysMatch,
-  createAgentProviderConfigBodySchema,
   getAgentProviderCredentialKeys,
   listAgentProviderConfigsResponseSchema,
   setDefaultAgentProviderBodySchema,
+  setDefaultAgentProviderResponseSchema,
   updateAgentProviderConfigBodySchema,
 } from './provider-config.js';
 
 describe('agent provider config schemas', () => {
-  it('parses a create body with the provider credential keys', () => {
-    const parsed = createAgentProviderConfigBodySchema.parse({
-      provider_id: 'cloudflare-ai-gateway',
-      credentials: {
-        api_key: 'secret',
-        account_id: 'account-123',
-        gateway_id: 'gateway-123',
-      },
-    });
-
-    expect(parsed.provider_id).toBe('cloudflare-ai-gateway');
-  });
-
-  it('rejects an unsupported create provider', () => {
-    const parse = () =>
-      createAgentProviderConfigBodySchema.parse({
-        provider_id: 'amazon-bedrock',
-        credentials: {api_key: 'secret'},
-      });
-
-    expect(parse).toThrow();
-  });
-
-  it('rejects empty create credentials', () => {
-    const parse = () =>
-      createAgentProviderConfigBodySchema.parse({
-        provider_id: 'openai',
-        credentials: {},
-      });
-
-    expect(parse).toThrow();
-  });
-
-  it('rejects create credentials with an empty key', () => {
-    const parse = () =>
-      createAgentProviderConfigBodySchema.parse({
-        provider_id: 'openai',
-        credentials: {'': 'secret'},
-      });
-
-    expect(parse).toThrow();
-  });
-
-  it('rejects create credentials with an empty value', () => {
-    const parse = () =>
-      createAgentProviderConfigBodySchema.parse({
-        provider_id: 'openai',
-        credentials: {api_key: ''},
-      });
-
-    expect(parse).toThrow();
-  });
-
-  it('rejects create credentials whose keys do not match the catalog', () => {
-    const parse = () =>
-      createAgentProviderConfigBodySchema.parse({
-        provider_id: 'openai',
-        credentials: {token: 'secret'},
-      });
-
-    expect(parse).toThrow();
-  });
-
   it('parses an update body with non-empty credentials', () => {
     const parsed = updateAgentProviderConfigBodySchema.parse({
       credentials: {api_key: 'rotated-secret'},
@@ -130,6 +67,12 @@ describe('agent provider config schemas', () => {
     const parse = () => setDefaultAgentProviderBodySchema.parse({provider_id: 'openai-codex'});
 
     expect(parse).toThrow();
+  });
+
+  it('parses a set-default response with a nullable provider', () => {
+    const parsed = setDefaultAgentProviderResponseSchema.parse({default_provider_id: null});
+
+    expect(parsed.default_provider_id).toBeNull();
   });
 
   it('parses config rows and list responses with a nullable default provider', () => {
