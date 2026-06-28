@@ -486,20 +486,20 @@ describe('requestJobCancellation', () => {
 
 describe('cancelRunnerJobs', () => {
   let workspaceId: string;
-  let runnerTokenId: string;
+  let runnerSessionId: string;
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_tokens, runners_outbox CASCADE`,
+      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
     );
     workspaceId = crypto.randomUUID();
-    const runnerToken = await runnerTokenFactory.create({workspaceId});
-    runnerTokenId = runnerToken.id;
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+    runnerSessionId = runnerSession.id;
   });
 
   it('deletes queued jobs and requests cancellation for running jobs', async () => {
     const running = await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
     const queued = await pendingJobFactory.create({workspaceId});
 
     await cancelRunnerJobs({jobIds: [queued.jobId, claimed?.jobId as string]});
@@ -526,7 +526,7 @@ describe('cancelRunnerJobs', () => {
 
     await cancelRunnerJobs({jobIds: [queued.jobId]});
 
-    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
     expect(claimed).toBeNull();
   });
 });
