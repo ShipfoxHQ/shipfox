@@ -4,6 +4,7 @@ import {cancelRunRoute} from './cancel-run.js';
 import {checkoutTokenRoute} from './checkout-token.js';
 import {getRunRoute} from './get-run.js';
 import {getRunAggregatesRoute} from './get-run-aggregates.js';
+import {listRunAttemptsRoute} from './list-run-attempts.js';
 import {listRunsRoute} from './list-runs.js';
 import {nextStepRoute} from './next-step.js';
 import {reportStepRoute} from './report-step.js';
@@ -20,7 +21,14 @@ export const workflowRoutes: RouteGroup[] = [
   {
     prefix: '/workflows/runs',
     auth: AUTH_USER,
-    routes: [listRunsRoute, getRunAggregatesRoute, getRunRoute, cancelRunRoute, rerunRunRoute],
+    routes: [
+      listRunsRoute,
+      getRunAggregatesRoute,
+      listRunAttemptsRoute,
+      getRunRoute,
+      cancelRunRoute,
+      rerunRunRoute,
+    ],
   },
   leaseTokenRouteGroup,
 ];

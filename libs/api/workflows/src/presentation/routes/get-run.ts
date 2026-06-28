@@ -1,14 +1,14 @@
-import {requireProjectAccess} from '@shipfox/api-projects';
 import {runDetailResponseSchema} from '@shipfox/api-workflows-dto';
-import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {
   getJobsByRunId,
+  getLatestAttempt,
   getStepAttemptsByJobIds,
   getStepsByJobIds,
-  getWorkflowRunById,
 } from '#db/index.js';
 import {toJobDto, toRunDto, toStepAttemptDto, toStepDto} from '#presentation/dto/index.js';
+import {requireAccessibleRun} from './require-accessible-run.js';
 
 export const getRunRoute = defineRoute({
   method: 'GET',
@@ -24,18 +24,7 @@ export const getRunRoute = defineRoute({
   },
   handler: async (request) => {
     const {id} = request.params;
-
-    const run = await getWorkflowRunById(id);
-    if (!run) {
-      throw new ClientError('Run not found', 'not-found', {status: 404});
-    }
-
-    await requireProjectAccess({request, projectId: run.projectId}).catch((err: unknown) => {
-      if (err instanceof ClientError && (err.status === 403 || err.status === 404)) {
-        throw new ClientError('Run not found', 'not-found', {status: 404});
-      }
-      throw err;
-    });
+    const run = await requireAccessibleRun({request, id});
 
     const runJobs = await getJobsByRunId(run.id);
     const jobIds = runJobs.map((j) => j.id);
@@ -56,6 +45,10 @@ export const getRunRoute = defineRoute({
 
     return {
       ...toRunDto(run),
+      latest_attempt:
+        run.rootRunId !== null || run.attempt > 1
+          ? await getLatestAttempt({rootRunId: run.rootRunId ?? run.id, projectId: run.projectId})
+          : run.attempt,
       jobs: jobDtos,
     };
   },

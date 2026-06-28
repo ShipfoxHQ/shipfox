@@ -1,5 +1,7 @@
 import type {
   JobStatusDto,
+  RunAttemptDto,
+  RunAttemptsResponseDto,
   RunDetailResponseDto,
   RunJobDetailDto,
   RunListResponseDto,
@@ -84,6 +86,7 @@ export function workflowRunDetailDto(
 ): RunDetailResponseDto {
   return {
     ...workflowRunDto(),
+    latest_attempt: 1,
     jobs: [],
     ...overrides,
   };
@@ -93,6 +96,26 @@ export function workflowRunDetail(
   overrides: Partial<RunDetailResponseDto> = {},
 ): WorkflowRunDetail {
   return toWorkflowRunDetail(workflowRunDetailDto(overrides));
+}
+
+export function workflowRunAttemptDto(overrides: Partial<RunAttemptDto> = {}): RunAttemptDto {
+  return {
+    id: RUN_ID,
+    attempt: 1,
+    status: 'running',
+    created_at: '2026-06-21T12:00:00.000Z',
+    rerun_mode: null,
+    ...overrides,
+  };
+}
+
+export function runAttemptsResponseDto(
+  overrides: Partial<RunAttemptsResponseDto> = {},
+): RunAttemptsResponseDto {
+  return {
+    attempts: [workflowRunAttemptDto()],
+    ...overrides,
+  };
 }
 
 export function workflowJobDto(overrides: Partial<RunJobDetailDto> = {}): RunJobDetailDto {

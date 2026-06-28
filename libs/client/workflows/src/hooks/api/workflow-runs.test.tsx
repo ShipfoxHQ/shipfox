@@ -5,7 +5,9 @@ import {act, cleanup, renderHook, waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
 import {toWorkflowRun} from '#core/workflow-run.js';
 import {
+  runAttemptsResponseDto,
   workflowJobDto,
+  workflowRunAttemptDto,
   workflowRunDetailDto,
   workflowRunDto,
   workflowRunListResponseDto,
@@ -13,6 +15,7 @@ import {
 import {
   useCancelWorkflowRunMutation,
   useRerunWorkflowRunMutation,
+  useWorkflowRunAttemptsQuery,
   useWorkflowRunQuery,
   useWorkflowRunsInfiniteQuery,
   workflowRunsQueryKeys,
@@ -20,6 +23,7 @@ import {
 
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
+const ROOT_RUN_ID = '77777777-7777-4777-8777-777777777777';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -122,6 +126,55 @@ describe('workflow run API hooks', () => {
     expect(cached).not.toHaveProperty('triggerSource');
   });
 
+  test('maps run attempts and caches them by root run id', async () => {
+    const body = runAttemptsResponseDto({
+      attempts: [
+        workflowRunAttemptDto({
+          id: ROOT_RUN_ID,
+          attempt: 1,
+          status: 'succeeded',
+          created_at: '2026-05-07T01:00:00.000Z',
+        }),
+        workflowRunAttemptDto({
+          id: RUN_ID,
+          attempt: 2,
+          status: 'failed',
+          created_at: '2026-05-07T01:02:00.000Z',
+          rerun_mode: 'all',
+        }),
+      ],
+    });
+    const fetchImpl = vi.fn(async () => jsonResponse(body));
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const {result, queryClient} = renderWithQueryClient(() =>
+      useWorkflowRunAttemptsQuery({runId: RUN_ID, rootRunId: ROOT_RUN_ID, enabled: true}),
+    );
+
+    await waitFor(() => expect(result.current.data?.[1]?.attempt).toBe(2));
+    expect(result.current.data?.[1]).toMatchObject({
+      id: RUN_ID,
+      status: 'failed',
+      createdAt: '2026-05-07T01:02:00.000Z',
+      rerunMode: 'all',
+    });
+    expect(firstRequest(fetchImpl).url).toBe(
+      `https://api.example.test/workflows/runs/${RUN_ID}/attempts`,
+    );
+    expect(queryClient.getQueryData(workflowRunsQueryKeys.attempts(ROOT_RUN_ID))).toEqual(body);
+  });
+
+  test('does not fetch run attempts while disabled', () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(runAttemptsResponseDto()));
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderWithQueryClient(() =>
+      useWorkflowRunAttemptsQuery({runId: RUN_ID, rootRunId: ROOT_RUN_ID, enabled: false}),
+    );
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   test('cancels a workflow run and invalidates detail and list queries', async () => {
     const body = workflowRunDto({id: RUN_ID, project_id: PROJECT_ID, status: 'cancelled'});
     const fetchImpl = vi.fn(async () => jsonResponse(body));
@@ -149,7 +202,7 @@ describe('workflow run API hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({queryKey: workflowRunsQueryKeys.lists(PROJECT_ID)});
   });
 
-  test('posts rerun mode and invalidates project run lists', async () => {
+  test('posts rerun mode and invalidates project run lists and attempt lineage', async () => {
     const postBodies: unknown[] = [];
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const request = input as Request;
@@ -157,6 +210,7 @@ describe('workflow run API hooks', () => {
       return jsonResponse(
         workflowRunDto({
           id: '77777777-7777-4777-8777-777777777777',
+          root_run_id: ROOT_RUN_ID,
           status: 'pending',
         }),
       );
@@ -178,6 +232,12 @@ describe('workflow run API hooks', () => {
     expect(postBodies).toEqual([{mode: 'failed'}]);
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: workflowRunsQueryKeys.lists(PROJECT_ID),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: workflowRunsQueryKeys.detail(RUN_ID),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: workflowRunsQueryKeys.attempts(ROOT_RUN_ID),
     });
   });
 });

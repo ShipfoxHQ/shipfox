@@ -68,3 +68,11 @@ export interface WorkflowRun {
   startedAt: Date | null;
   finishedAt: Date | null;
 }
+
+export interface RunAttemptSummary {
+  id: string;
+  attempt: number;
+  status: WorkflowRunStatus;
+  createdAt: Date;
+  rerunMode: 'all' | 'failed' | null;
+}

@@ -1,5 +1,5 @@
-import type {RunDto} from '@shipfox/api-workflows-dto';
-import type {WorkflowRun} from '#core/entities/workflow-run.js';
+import type {RunAttemptDto, RunDto} from '@shipfox/api-workflows-dto';
+import type {RunAttemptSummary, WorkflowRun} from '#core/entities/workflow-run.js';
 
 export function toRunDto(run: WorkflowRun): RunDto {
   return {
@@ -21,5 +21,15 @@ export function toRunDto(run: WorkflowRun): RunDto {
     updated_at: run.updatedAt.toISOString(),
     started_at: run.startedAt?.toISOString() ?? null,
     finished_at: run.finishedAt?.toISOString() ?? null,
+  };
+}
+
+export function toRunAttemptDto(summary: RunAttemptSummary): RunAttemptDto {
+  return {
+    id: summary.id,
+    attempt: summary.attempt,
+    status: summary.status,
+    created_at: summary.createdAt.toISOString(),
+    rerun_mode: summary.rerunMode,
   };
 }

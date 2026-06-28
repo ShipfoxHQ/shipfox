@@ -1,6 +1,7 @@
 import type {
   JobStatusDto,
   JobStatusReasonDto,
+  RunAttemptDto,
   RunDetailResponseDto,
   RunJobDetailDto,
   RunListResponseDto,
@@ -128,6 +129,10 @@ export interface WorkflowRun {
   definitionId: string;
   name: string;
   status: WorkflowRunStatus;
+  sourceRunId: string | null;
+  rootRunId: string | null;
+  attempt: number;
+  rerunMode: 'all' | 'failed' | null;
   triggerSource: string;
   triggerEvent: string;
   triggerLabel: string;
@@ -143,7 +148,16 @@ export interface WorkflowRun {
 }
 
 export interface WorkflowRunDetail extends WorkflowRun {
+  latestAttempt: number;
   jobs: WorkflowJob[];
+}
+
+export interface WorkflowRunAttempt {
+  id: string;
+  attempt: number;
+  status: WorkflowRunStatus;
+  createdAt: string;
+  rerunMode: 'all' | 'failed' | null;
 }
 
 export interface WorkflowRunListPage {
@@ -186,6 +200,10 @@ export function toWorkflowRun(dto: RunResponseDto): WorkflowRun {
     definitionId: dto.definition_id,
     name: dto.name,
     status: dto.status,
+    sourceRunId: dto.source_run_id,
+    rootRunId: dto.root_run_id,
+    attempt: dto.attempt,
+    rerunMode: dto.rerun_mode,
     triggerSource: dto.trigger_source,
     triggerEvent: dto.trigger_event,
     triggerLabel,
@@ -204,6 +222,7 @@ export function toWorkflowRun(dto: RunResponseDto): WorkflowRun {
 export function toWorkflowRunDetail(dto: RunDetailResponseDto): WorkflowRunDetail {
   return {
     ...toWorkflowRun(dto),
+    latestAttempt: dto.latest_attempt,
     jobs: dto.jobs.map(toWorkflowJob),
   };
 }
@@ -270,6 +289,16 @@ export function toWorkflowStepAttempt(dto: StepAttemptDto): WorkflowStepAttempt 
     restartResult: dto.restart_result ?? null,
     startedAt: dto.started_at,
     finishedAt: dto.finished_at ?? null,
+  };
+}
+
+export function toWorkflowRunAttempt(dto: RunAttemptDto): WorkflowRunAttempt {
+  return {
+    id: dto.id,
+    attempt: dto.attempt,
+    status: dto.status,
+    createdAt: dto.created_at,
+    rerunMode: dto.rerun_mode,
   };
 }
 

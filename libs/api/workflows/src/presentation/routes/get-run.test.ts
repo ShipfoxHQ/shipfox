@@ -7,8 +7,15 @@ import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {db} from '#db/db.js';
+import * as dbIndex from '#db/index.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
-import {createWorkflowRun, getJobsByRunId, getStepsByJobId} from '#db/workflow-runs.js';
+import {
+  createRerunWorkflowRun,
+  createWorkflowRun,
+  getJobsByRunId,
+  getStepsByJobId,
+  updateWorkflowRunStatus,
+} from '#db/workflow-runs.js';
 import {workflowModel} from '#test/index.js';
 import {getRunRoute} from './get-run.js';
 
@@ -106,8 +113,63 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(body.jobs[0].steps[1].name).toBe('Install');
     expect(body.jobs[0].steps[2].name).toBeNull();
     // Timing fields flow through the read model (null on a fresh, unstamped run).
-    expect(body).toMatchObject({started_at: null, finished_at: null});
+    expect(body).toMatchObject({latest_attempt: 1, started_at: null, finished_at: null});
     expect(body.jobs[0]).toMatchObject({queued_at: null, started_at: null, finished_at: null});
+  });
+
+  test('does not aggregate latest_attempt for a first attempt without lineage', async () => {
+    const latestAttemptSpy = vi.spyOn(dbIndex, 'getLatestAttempt');
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId: crypto.randomUUID(),
+      definitionId: crypto.randomUUID(),
+      model: workflowModel({name: 'First attempt'}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().latest_attempt).toBe(1);
+    expect(latestAttemptSpy).not.toHaveBeenCalled();
+  });
+
+  test('returns latest_attempt for a run lineage', async () => {
+    const projectId = crypto.randomUUID();
+    const source = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId: crypto.randomUUID(),
+      model: workflowModel({name: 'Lineage'}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    await updateWorkflowRunStatus({runId: source.id, status: 'failed', expectedVersion: 1});
+    const rerun = await createRerunWorkflowRun({
+      sourceRunId: source.id,
+      mode: 'all',
+      actorUserId: crypto.randomUUID(),
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${rerun.id}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().latest_attempt).toBe(2);
   });
 
   test('returns run source snapshot when present', async () => {

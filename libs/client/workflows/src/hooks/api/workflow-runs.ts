@@ -1,6 +1,7 @@
 import type {
   RerunMode,
   RerunRunBodyDto,
+  RunAttemptsResponseDto,
   RunDetailResponseDto,
   RunDto,
   RunListResponseDto,
@@ -18,9 +19,11 @@ import {
 import {
   isWorkflowRunTerminal,
   toWorkflowRun,
+  toWorkflowRunAttempt,
   toWorkflowRunDetail,
   toWorkflowRunListPage,
   type WorkflowRun,
+  type WorkflowRunAttempt,
   type WorkflowRunDetail,
   type WorkflowRunListPage,
   type WorkflowRunStatus,
@@ -40,6 +43,7 @@ export const workflowRunsQueryKeys = {
   list: (projectId: string, filters: WorkflowRunFilters) =>
     [...workflowRunsQueryKeys.lists(projectId), normalizeFilters(filters)] as const,
   detail: (runId: string) => [...workflowRunsQueryKeys.all, 'detail', runId] as const,
+  attempts: (rootRunId: string) => [...workflowRunsQueryKeys.all, 'attempts', rootRunId] as const,
 };
 
 function normalizeFilters(filters: WorkflowRunFilters) {
@@ -136,6 +140,10 @@ async function getWorkflowRunDto({runId, signal}: {runId: string; signal?: Abort
   return await apiRequest<RunDetailResponseDto>(`/workflows/runs/${runId}`, {signal});
 }
 
+async function getWorkflowRunAttemptsDto({runId, signal}: {runId: string; signal?: AbortSignal}) {
+  return await apiRequest<RunAttemptsResponseDto>(`/workflows/runs/${runId}/attempts`, {signal});
+}
+
 async function cancelWorkflowRunDto({runId}: {runId: string}) {
   return await apiRequest<RunDto>(`/workflows/runs/${runId}/cancel`, {method: 'POST'});
 }
@@ -152,8 +160,13 @@ export function useRerunWorkflowRunMutation(projectId: string) {
 
   return useMutation({
     mutationFn: rerunWorkflowRun,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.lists(projectId)});
+    onSuccess: async (run, variables) => {
+      const rootRunId = run.root_run_id ?? variables.runId;
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.lists(projectId)}),
+        queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.detail(variables.runId)}),
+        queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.attempts(rootRunId)}),
+      ]);
     },
   });
 }
@@ -176,6 +189,30 @@ export function useWorkflowRunQuery(runId: string | undefined) {
       return isWorkflowRunTerminal(status) ? false : ACTIVE_POLL_MS;
     },
     refetchIntervalInBackground: false,
+  });
+}
+
+export function useWorkflowRunAttemptsQuery({
+  runId,
+  rootRunId,
+  enabled,
+}: {
+  runId: string | undefined;
+  rootRunId?: string | null | undefined;
+  enabled: boolean;
+}) {
+  const cacheRootRunId = rootRunId ?? runId ?? '';
+
+  return useQuery({
+    queryKey: cacheRootRunId
+      ? workflowRunsQueryKeys.attempts(cacheRootRunId)
+      : [...workflowRunsQueryKeys.all, 'attempts'],
+    enabled: Boolean(runId) && enabled,
+    queryFn: ({signal}) => getWorkflowRunAttemptsDto({runId: runId ?? '', signal}),
+    select: (dto): WorkflowRunAttempt[] => dto.attempts.map(toWorkflowRunAttempt),
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
   });
 }
 

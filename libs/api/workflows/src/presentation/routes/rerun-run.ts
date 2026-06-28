@@ -1,11 +1,11 @@
 import {requireUserContext} from '@shipfox/api-auth-context';
-import {requireProjectAccess} from '@shipfox/api-projects';
 import {rerunRunBodySchema, runResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#core/errors.js';
-import {createRerunWorkflowRun, getWorkflowRunById} from '#db/index.js';
+import {createRerunWorkflowRun} from '#db/index.js';
 import {toRunDto} from '#presentation/dto/index.js';
+import {requireAccessibleRun} from './require-accessible-run.js';
 
 export const rerunRunRoute = defineRoute({
   method: 'POST',
@@ -34,17 +34,7 @@ export const rerunRunRoute = defineRoute({
   },
   handler: async (request) => {
     const {id} = request.params;
-    const sourceRun = await getWorkflowRunById(id);
-    if (!sourceRun) {
-      throw new ClientError('Run not found', 'not-found', {status: 404});
-    }
-
-    await requireProjectAccess({request, projectId: sourceRun.projectId}).catch((err: unknown) => {
-      if (err instanceof ClientError && (err.status === 403 || err.status === 404)) {
-        throw new ClientError('Run not found', 'not-found', {status: 404});
-      }
-      throw err;
-    });
+    const sourceRun = await requireAccessibleRun({request, id});
 
     const actor = requireUserContext(request);
     const run = await createRerunWorkflowRun({

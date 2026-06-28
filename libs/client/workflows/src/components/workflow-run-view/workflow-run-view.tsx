@@ -181,6 +181,8 @@ function RunViewContent({
     <>
       <div className="flex min-w-0 flex-1 flex-col">
         <WorkflowRunSummary
+          workspaceId={workspaceId}
+          projectId={projectId}
           run={runData}
           sourceAvailable={sourceAvailable}
           sourceOpen={sourcePanelOpen}
@@ -191,6 +193,7 @@ function RunViewContent({
           onCancel={cancelRun}
           rerunPending={rerunMutation.isPending}
           onRerun={(mode) => void rerun(mode)}
+          latestAttempt={runData.latestAttempt}
         />
         {query.isError ? <WorkflowRunStaleError query={query} /> : null}
         <div className="min-h-0 flex-1 overflow-auto bg-background-neutral-base p-16">

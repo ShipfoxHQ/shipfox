@@ -1,8 +1,60 @@
+import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {RerunMode} from '@shipfox/api-workflows-dto';
+import {configureApiClient} from '@shipfox/client-api';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from '@tanstack/react-router';
+import type {ReactNode} from 'react';
+import {useEffect, useState} from 'react';
+import {screen, userEvent, within} from 'storybook/test';
 import type {WorkflowRunStatus} from '#core/workflow-run.js';
-import {workflowJobDto, workflowRun, workflowRunDetail} from '#test/fixtures/workflow-run.js';
+import {
+  runAttemptsResponseDto,
+  workflowJobDto,
+  workflowRun,
+  workflowRunAttemptDto,
+  workflowRunDetail,
+} from '#test/fixtures/workflow-run.js';
 import {WorkflowRunSummary} from './workflow-run-summary.js';
+
+const ROOT_RUN_ID = '11111111-1111-4111-8111-111111111111';
+const CURRENT_RUN_ID = '22222222-2222-4222-8222-222222222222';
+const NEXT_RUN_ID = '33333333-3333-4333-8333-333333333333';
+const WORKSPACE_ID = '44444444-4444-4444-8444-444444444444';
+const PROJECT_ID = '55555555-5555-4555-8555-555555555555';
+const SWITCH_ATTEMPT_PATTERN = /Switch attempt/;
+const ATTEMPT_3_PATTERN = /Attempt 3/;
+const RUN_ATTEMPTS_RESPONSE = runAttemptsResponseDto({
+  attempts: [
+    workflowRunAttemptDto({
+      id: ROOT_RUN_ID,
+      attempt: 1,
+      status: 'succeeded',
+      created_at: '2026-06-21T12:00:00.000Z',
+    }),
+    workflowRunAttemptDto({
+      id: CURRENT_RUN_ID,
+      attempt: 2,
+      status: 'failed',
+      created_at: '2026-06-21T12:08:00.000Z',
+      rerun_mode: 'all',
+    }),
+    workflowRunAttemptDto({
+      id: NEXT_RUN_ID,
+      attempt: 3,
+      status: 'running',
+      created_at: '2026-06-21T12:14:00.000Z',
+      rerun_mode: 'failed',
+    }),
+  ],
+});
 
 const withFrame: Decorator = (Story) => (
   <div className="min-h-screen bg-background-neutral-base">
@@ -12,6 +64,52 @@ const withFrame: Decorator = (Story) => (
     </div>
   </div>
 );
+
+const withAttemptApi: Decorator = (Story) => {
+  const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+  const rootRoute = createRootRoute({component: Outlet});
+  const runRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/projects/$pid/runs/$runId',
+    component: () => <Story />,
+  });
+  const router = createRouter({
+    history: createMemoryHistory({
+      initialEntries: [`/workspaces/${WORKSPACE_ID}/projects/${PROJECT_ID}/runs/${CURRENT_RUN_ID}`],
+    }),
+    routeTree: rootRoute.addChildren([runRoute]),
+  });
+
+  return (
+    <AttemptApiProvider>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </AttemptApiProvider>
+  );
+};
+
+function AttemptApiProvider({children}: {children: ReactNode}) {
+  const [configured, setConfigured] = useState(false);
+
+  useEffect(() => {
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: async () =>
+        new Response(JSON.stringify(RUN_ATTEMPTS_RESPONSE), {
+          headers: {'content-type': 'application/json'},
+        }),
+    });
+    setConfigured(true);
+
+    return () => {
+      configureApiClient({baseUrl: '', fetchImpl: undefined});
+    };
+  }, []);
+
+  if (!configured) return null;
+  return children;
+}
 
 const meta = {
   title: 'Workflows/RunSummary',
@@ -31,9 +129,32 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+type WorkflowRunSummaryStoryContext = Parameters<NonNullable<Story['play']>>[0];
+
+async function captureOpenAttemptsMenu(ctx: WorkflowRunSummaryStoryContext) {
+  const canvas = within(ctx.canvasElement);
+
+  await userEvent.click(await canvas.findByRole('button', {name: SWITCH_ATTEMPT_PATTERN}));
+  await screen.findByRole('menu');
+  await screen.findByRole('menuitem', {name: ATTEMPT_3_PATTERN});
+  await document.fonts.ready;
+  await argosScreenshot(ctx, 'Workflow Run Summary Attempts Open');
+}
 
 const noop = () => undefined;
 const noopRerun = (_mode: RerunMode) => undefined;
+
+const ATTEMPT_SUMMARY_ARGS = {
+  run: workflowRun({
+    id: CURRENT_RUN_ID,
+    root_run_id: ROOT_RUN_ID,
+    attempt: 2,
+    status: 'failed',
+  }),
+  workspaceId: WORKSPACE_ID,
+  projectId: PROJECT_ID,
+  latestAttempt: 3,
+};
 
 export const Default: Story = {};
 
@@ -58,6 +179,32 @@ export const SourceOpen: Story = {
     sourceAvailable: true,
     sourceOpen: true,
     sourcePanelId: 'workflow-source-panel',
+  },
+};
+
+export const WithAttempts: Story = {
+  decorators: [withAttemptApi],
+  args: ATTEMPT_SUMMARY_ARGS,
+};
+
+export const WithAttemptsOpen: Story = {
+  decorators: [withAttemptApi],
+  play: captureOpenAttemptsMenu,
+  args: ATTEMPT_SUMMARY_ARGS,
+};
+
+export const Cancellable: Story = {
+  args: {
+    run: workflowRun({status: 'running'}),
+    onCancel: noop,
+  },
+};
+
+export const Cancelling: Story = {
+  args: {
+    run: workflowRun({status: 'running'}),
+    onCancel: noop,
+    cancelling: true,
   },
 };
 
@@ -156,6 +303,29 @@ export const ActionVariantsWithSource: Story = {
           sourceAvailable
           sourceOpen={label === 'Running'}
           sourcePanelId={`workflow-source-panel-${index}`}
+          {...props}
+        />
+      ))}
+    </div>
+  ),
+};
+
+export const ActionVariantsWithAttempts: Story = {
+  decorators: [withAttemptApi],
+  render: () => (
+    <div className="flex flex-col">
+      {ACTION_VARIANTS.map(({label, run, props}, index) => (
+        <WorkflowRunSummary
+          key={label}
+          workspaceId={WORKSPACE_ID}
+          projectId={PROJECT_ID}
+          run={{
+            ...run,
+            id: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
+            rootRunId: ROOT_RUN_ID,
+            attempt: 2,
+          }}
+          latestAttempt={3}
           {...props}
         />
       ))}
