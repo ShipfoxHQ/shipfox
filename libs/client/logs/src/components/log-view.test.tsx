@@ -20,9 +20,21 @@ const agentSession = (data: unknown, offsetMs = 0): LogRecord => ({
 });
 
 describe('LogView', () => {
+  let scrollIntoViewDescriptor: PropertyDescriptor | undefined;
+  let scrollIntoViewWasStubbed = false;
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    if (scrollIntoViewWasStubbed) {
+      if (scrollIntoViewDescriptor != null) {
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', scrollIntoViewDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
+      }
+    }
+    scrollIntoViewDescriptor = undefined;
+    scrollIntoViewWasStubbed = false;
   });
 
   test('renders the complete empty state for an empty closed stream', () => {
@@ -172,7 +184,14 @@ describe('LogView', () => {
       />,
     );
 
-    expect(screen.getByRole('button', {name: 'show more'})).toBeDefined();
+    const toggle = screen.getByRole('button', {name: 'show more'});
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(toggle);
+
+    expect(screen.getByRole('button', {name: 'show less'}).getAttribute('aria-expanded')).toBe(
+      'true',
+    );
   });
 
   test('anchors terminal failures when requested', async () => {
@@ -181,11 +200,20 @@ describe('LogView', () => {
       return 1;
     });
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
-      configurable: true,
-      value: scrollIntoView,
-    });
+    scrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollIntoView',
+    );
+    scrollIntoViewWasStubbed = true;
+    if (scrollIntoViewDescriptor == null) {
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: () => undefined,
+      });
+    }
+    const scrollIntoView = vi
+      .spyOn(HTMLElement.prototype, 'scrollIntoView')
+      .mockImplementation(() => undefined);
 
     render(
       <LogView

@@ -16,6 +16,7 @@ import {Fragment, useState} from 'react';
 import type {AgentRowMeta, AgentSessionRow} from '#core/agent-session/selector.js';
 
 const PREVIEW_CHAR_LIMIT = 1200;
+const WORD_SUMMARY_CHAR_LIMIT = 5000;
 const WHITESPACE = /\s+/g;
 const WORD_SEPARATOR = /\s+/;
 
@@ -309,6 +310,7 @@ function PreviewText({text}: {text: string}) {
       {truncated ? (
         <button
           type="button"
+          aria-expanded={expanded}
           className="ml-8 inline-flex min-h-24 items-center rounded-4 px-6 font-display text-xs text-foreground-highlight-interactive focus-visible:shadow-[inset_0_0_0_2px_var(--color-primary-500)]"
           onClick={() => setExpanded((value) => !value)}
         >
@@ -329,8 +331,11 @@ function compactPreview(value: string): string {
 }
 
 function wordSummary(value: string): string {
-  const count = value.trim().split(WORD_SEPARATOR).filter(Boolean).length;
-  return `${count} ${count === 1 ? 'word' : 'words'}`;
+  const truncated = value.length > WORD_SUMMARY_CHAR_LIMIT;
+  const head = truncated ? value.slice(0, WORD_SUMMARY_CHAR_LIMIT) : value;
+  const count = head.trim().split(WORD_SEPARATOR).filter(Boolean).length;
+  const marker = truncated ? '+' : '';
+  return `${count}${marker} ${count === 1 ? 'word' : 'words'}`;
 }
 
 function assertNever(value: never): never {

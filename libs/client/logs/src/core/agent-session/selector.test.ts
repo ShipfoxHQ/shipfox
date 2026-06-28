@@ -69,6 +69,64 @@ describe('expandSessionRecord', () => {
     ]);
   });
 
+  test('preserves interleaved assistant text and thinking block order', () => {
+    const rows = expandSessionRecord(
+      record({
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: [
+            {type: 'text', text: 'First visible update.'},
+            {type: 'thinking', text: 'First private thought.'},
+            {type: 'text', text: 'Second visible update.'},
+            {type: 'toolCall', id: 'call-1', name: 'read_file', arguments: {path: 'src/a.ts'}},
+            {type: 'thinking', text: 'Thought after tool call.'},
+            {type: 'text', text: 'Final visible update.'},
+          ],
+        },
+      }),
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'message',
+        timestamp: 1,
+        role: 'assistant',
+        label: 'assistant',
+        meta: [],
+        text: 'First visible update.',
+        terminalFailure: false,
+      },
+      {kind: 'thinking', timestamp: 1, text: 'First private thought.'},
+      {
+        kind: 'message',
+        timestamp: 1,
+        role: 'assistant',
+        label: 'assistant',
+        meta: [],
+        text: 'Second visible update.',
+        terminalFailure: false,
+      },
+      {
+        kind: 'tool-call',
+        timestamp: 1,
+        id: 'call-1',
+        name: 'read_file',
+        input: '{\n  "path": "src/a.ts"\n}',
+      },
+      {kind: 'thinking', timestamp: 1, text: 'Thought after tool call.'},
+      {
+        kind: 'message',
+        timestamp: 1,
+        role: 'assistant',
+        label: 'assistant',
+        meta: [],
+        text: 'Final visible update.',
+        terminalFailure: false,
+      },
+    ]);
+  });
+
   test.each([
     ['success', false],
     ['error', true],
@@ -243,6 +301,32 @@ describe('expandSessionRecord', () => {
     );
 
     expect(rows[0]).toMatchObject({kind: 'message', terminalFailure: true});
+  });
+
+  test('adds a failure anchor for thinking-only assistant terminal errors', () => {
+    const rows = expandSessionRecord(
+      record({
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: [{type: 'thinking', text: 'No visible response before failure.'}],
+          stopReason: 'error',
+        },
+      }),
+    );
+
+    expect(rows).toEqual([
+      {kind: 'thinking', timestamp: 1, text: 'No visible response before failure.'},
+      {
+        kind: 'message',
+        timestamp: 1,
+        role: 'assistant',
+        label: 'assistant',
+        meta: [meta('stop', 'error')],
+        text: 'Assistant stopped with an error.',
+        terminalFailure: true,
+      },
+    ]);
   });
 
   test('memoizes rows per record object', () => {

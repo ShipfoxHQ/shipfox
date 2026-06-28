@@ -258,6 +258,8 @@ function expandAssistantMessage(
   message: AgentMessage,
 ): readonly AgentSessionRow[] {
   const blocks = asContentBlocks(message.content);
+  const terminalFailure = isTerminalStop(message);
+  const meta = assistantMeta(message);
   if (blocks.length === 0) {
     const text = messageText(message);
     return [
@@ -266,8 +268,8 @@ function expandAssistantMessage(
         'assistant',
         'assistant',
         text || terminalStopDetail(message) || toJson(message),
-        isTerminalStop(message),
-        assistantMeta(message),
+        terminalFailure,
+        meta,
       ),
     ];
   }
@@ -275,64 +277,63 @@ function expandAssistantMessage(
   const rows: AgentSessionRow[] = [];
   const textParts: string[] = [];
   const thinkingParts: string[] = [];
-
-  for (const block of blocks) {
-    if (isToolCallBlock(block)) {
-      if (textParts.length > 0) {
-        rows.push(
-          messageRow(
-            timestamp,
-            'assistant',
-            'assistant',
-            textParts.join('\n\n'),
-            isTerminalStop(message),
-            assistantMeta(message),
-          ),
-        );
-        textParts.length = 0;
-      }
-      if (thinkingParts.length > 0) {
-        rows.push({kind: 'thinking', timestamp, text: thinkingParts.join('\n\n')});
-        thinkingParts.length = 0;
-      }
-      rows.push(toolCallRow(timestamp, block));
-      continue;
-    }
-
-    if (isThinkingBlock(block)) {
-      const text = blockText(block);
-      if (text) thinkingParts.push(text);
-      continue;
-    }
-
-    const text = blockText(block);
-    if (text) textParts.push(text);
-  }
-
-  if (textParts.length > 0) {
+  const pushTextParts = () => {
+    if (textParts.length === 0) return;
     rows.push(
       messageRow(
         timestamp,
         'assistant',
         'assistant',
         textParts.join('\n\n'),
-        isTerminalStop(message),
-        assistantMeta(message),
+        terminalFailure,
+        meta,
       ),
     );
-  }
-  if (thinkingParts.length > 0)
+    textParts.length = 0;
+  };
+  const pushThinkingParts = () => {
+    if (thinkingParts.length === 0) return;
     rows.push({kind: 'thinking', timestamp, text: thinkingParts.join('\n\n')});
-  if (rows.length === 0)
+    thinkingParts.length = 0;
+  };
+
+  for (const block of blocks) {
+    if (isToolCallBlock(block)) {
+      pushTextParts();
+      pushThinkingParts();
+      rows.push(toolCallRow(timestamp, block));
+      continue;
+    }
+
+    if (isThinkingBlock(block)) {
+      pushTextParts();
+      const text = blockText(block);
+      if (text) thinkingParts.push(text);
+      continue;
+    }
+
+    pushThinkingParts();
+    const text = blockText(block);
+    if (text) textParts.push(text);
+  }
+
+  pushTextParts();
+  pushThinkingParts();
+  if (terminalFailure && !rows.some((row) => row.kind === 'message' && row.terminalFailure)) {
     rows.push(
       messageRow(
         timestamp,
         'assistant',
         'assistant',
-        toJson(message),
-        isTerminalStop(message),
-        assistantMeta(message),
+        terminalStopDetail(message) || toJson(message),
+        true,
+        meta,
       ),
+    );
+  }
+  if (rows.length === 0)
+    rows.push(
+      messageRow(timestamp, 'assistant', 'assistant', toJson(message), terminalFailure, meta),
     );
 
   return rows;
