@@ -6,6 +6,7 @@ describe('toDefinition', () => {
   it('maps legacy definition payloads without source snapshots to null', () => {
     const document = {
       name: 'Manual workflow',
+      runner: 'ubuntu-latest',
       jobs: {
         build: {
           steps: [{run: 'pnpm build'}],

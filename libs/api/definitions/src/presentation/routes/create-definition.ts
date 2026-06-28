@@ -1,6 +1,11 @@
-import {createDefinitionBodySchema, definitionResponseSchema} from '@shipfox/api-definitions-dto';
+import {
+  createDefinitionBodySchema,
+  definitionResponseSchema,
+  definitionValidationErrorSchema,
+} from '@shipfox/api-definitions-dto';
 import {ProjectNotFoundError, requireProjectAccess} from '@shipfox/api-projects';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import {z} from 'zod';
 import {DefinitionParseError} from '#core/errors.js';
 import {parseDefinition} from '#core/parse-definition.js';
 import {upsertDefinition} from '#db/definitions.js';
@@ -14,12 +19,18 @@ export const createDefinitionRoute = defineRoute({
     body: createDefinitionBodySchema,
     response: {
       200: definitionResponseSchema,
+      400: z.object({
+        code: z.string(),
+        message: z.string().optional(),
+        details: z.array(definitionValidationErrorSchema).optional(),
+      }),
+      404: z.object({code: z.string()}),
     },
   },
   errorHandler: (error, _request, _reply) => {
     if (error instanceof DefinitionParseError) {
       throw new ClientError(error.message, 'invalid-workflow-definition', {
-        data: error.details,
+        details: error.details,
         status: 400,
       });
     }

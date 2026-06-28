@@ -4,6 +4,7 @@ describe('validateDefinition', () => {
   test('valid YAML returns { valid: true, definition }', () => {
     const yaml = `
 name: Test
+runner: ubuntu-latest
 jobs:
   build:
     steps:
@@ -61,6 +62,7 @@ jobs:
   test('cyclic DAG returns { valid: false, errors with cycle info }', () => {
     const yaml = `
 name: Cyclic
+runner: ubuntu-latest
 jobs:
   a:
     needs: b
@@ -77,6 +79,40 @@ jobs:
     expect(result.valid).toBe(false);
     if (!result.valid) {
       expect(result.errors[0]?.message).toContain('Circular dependency');
+    }
+  });
+
+  test('runner-less YAML returns a validation path for the missing runner', () => {
+    const yaml = `
+name: Missing runner
+jobs:
+  build:
+    steps:
+      - run: echo hello
+`;
+
+    const result = validateDefinition(yaml);
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors).toContainEqual(expect.objectContaining({path: 'jobs.build.runner'}));
+    }
+  });
+
+  test('default runner labels allow runner-less YAML', () => {
+    const yaml = `
+name: Default runner
+jobs:
+  build:
+    steps:
+      - run: echo hello
+`;
+
+    const result = validateDefinition(yaml, {defaultRunnerLabels: ['ubuntu-latest']});
+
+    expect(result.valid).toBe(true);
+    if (result.valid) {
+      expect(result.definition.model.jobs[0]?.runner).toEqual(['ubuntu-latest']);
     }
   });
 });

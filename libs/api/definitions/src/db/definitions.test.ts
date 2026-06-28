@@ -29,6 +29,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1_000;
 function definitionFields(name = 'Test Workflow'): WorkflowDefinitionPayload {
   const document = {
     name,
+    runner: 'ubuntu-latest',
     jobs: {build: {steps: [{run: 'echo hello'}]}},
   };
   return {document, model: normalizeWorkflowDocument(document)};

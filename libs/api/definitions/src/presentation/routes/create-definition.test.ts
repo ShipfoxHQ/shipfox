@@ -48,6 +48,7 @@ describe('POST /api/definitions', () => {
 
   const validYaml = `
 name: Test Workflow
+runner: ubuntu-latest
 jobs:
   build:
     steps:
@@ -109,6 +110,7 @@ jobs:
   test('cyclic DAG returns 400 with dag error code', async () => {
     const cyclicYaml = `
 name: Cyclic
+runner: ubuntu-latest
 jobs:
   a:
     needs: b
@@ -140,6 +142,7 @@ jobs:
 
     const updatedYaml = `
 name: Updated Workflow
+runner: ubuntu-latest
 jobs:
   deploy:
     steps:
@@ -154,6 +157,28 @@ jobs:
     expect(res2.statusCode).toBe(200);
     expect(res2.json().id).toBe(res1.json().id);
     expect(res2.json().name).toBe('Updated Workflow');
+  });
+
+  test('runner-less YAML returns validation details with the runner path', async () => {
+    const yaml = `
+name: Missing Runner
+jobs:
+  build:
+    steps:
+      - run: echo hello
+`;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/definitions',
+      payload: {project_id: projectId, config_path: 'test.yml', yaml},
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({
+      code: 'invalid-workflow-definition',
+      details: [expect.objectContaining({path: 'jobs.build.runner'})],
+    });
   });
 
   test('missing body fields returns 400', async () => {
@@ -174,6 +199,7 @@ jobs:
     });
 
     expect(res.statusCode).toBe(400);
+    expect(res.json().message).toBeDefined();
   });
 
   test('creates a manual definition without a config path', async () => {

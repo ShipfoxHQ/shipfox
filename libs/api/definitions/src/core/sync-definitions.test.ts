@@ -16,6 +16,7 @@ import {
 
 const validYaml = `
 name: CI
+runner: ubuntu-latest
 jobs:
   build:
     steps:

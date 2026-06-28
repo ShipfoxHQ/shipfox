@@ -1,15 +1,10 @@
-import {definitionDtoSchema} from '@shipfox/api-definitions-dto';
+import {definitionDtoSchema, definitionValidationErrorSchema} from '@shipfox/api-definitions-dto';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {validateDefinition} from '#core/validate-definition.js';
 
 const validateBodySchema = z.object({
   yaml: z.string().min(1).max(1_000_000),
-});
-
-const validationErrorSchema = z.object({
-  message: z.string(),
-  path: z.string().optional(),
 });
 
 const validationResultSchema = z.union([
@@ -20,7 +15,7 @@ const validationResultSchema = z.union([
   }),
   z.object({
     valid: z.literal(false),
-    errors: z.array(validationErrorSchema),
+    errors: z.array(definitionValidationErrorSchema),
   }),
 ]);
 

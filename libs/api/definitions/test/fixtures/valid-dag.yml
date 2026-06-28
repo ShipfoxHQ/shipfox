@@ -1,4 +1,5 @@
 name: Multi-job pipeline
+runner: ubuntu-latest
 
 jobs:
   build:

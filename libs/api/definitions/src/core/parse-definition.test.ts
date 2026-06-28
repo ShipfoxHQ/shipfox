@@ -44,6 +44,7 @@ describe('parseDefinition', () => {
 
   test('attaches source line locations to workflow model steps', () => {
     const yaml = `name: Source locations
+runner: ubuntu-latest
 jobs:
   build:
     steps:
@@ -67,16 +68,17 @@ jobs:
     const build = definition.model.jobs.find((job) => job.id === 'build');
     const deploy = definition.model.jobs.find((job) => job.id === 'deploy');
     expect(build?.steps.map((step) => step.sourceLocation)).toEqual([
-      {startLine: 5, endLine: 6},
-      {startLine: 8, endLine: 12},
+      {startLine: 6, endLine: 7},
+      {startLine: 9, endLine: 13},
     ]);
     expect(deploy?.steps.map((step) => step.sourceLocation)).toEqual([
-      {startLine: 16, endLine: 17},
+      {startLine: 17, endLine: 18},
     ]);
   });
 
   test('ends source line locations on the final content line of block scalar steps', () => {
     const yaml = `name: Block scalar
+runner: ubuntu-latest
 jobs:
   build:
     steps:
@@ -88,9 +90,22 @@ jobs:
     const definition = parseDefinition(yaml);
 
     expect(definition.model.jobs[0]?.steps[0]?.sourceLocation).toEqual({
-      startLine: 5,
-      endLine: 7,
+      startLine: 6,
+      endLine: 8,
     });
+  });
+
+  test('accepts default runner labels through parse options', () => {
+    const yaml = `name: Default runner
+jobs:
+  build:
+    steps:
+      - run: echo hello
+`;
+
+    const definition = parseDefinition(yaml, {defaultRunnerLabels: ['ubuntu-latest']});
+
+    expect(definition.model.jobs[0]?.runner).toEqual(['ubuntu-latest']);
   });
 
   test('invalid YAML syntax throws DefinitionParseError', () => {
@@ -132,6 +147,7 @@ jobs:
 
   test('manual trigger requires an explicit event', () => {
     const yaml = `name: Manual only
+runner: ubuntu-latest
 triggers:
   on_demand:
     source: manual
@@ -146,6 +162,7 @@ jobs:
 
   test('declaring more than one manual trigger throws DefinitionParseError', () => {
     const yaml = `name: Multi manual
+runner: ubuntu-latest
 triggers:
   deploy:
     source: manual

@@ -6,6 +6,7 @@ describe('toDefinitionDto', () => {
   it('maps the workflow definition entity to the public DTO shape', () => {
     const document = {
       name: 'Manual workflow',
+      runner: 'ubuntu-latest',
       triggers: {
         run_now: {
           source: 'manual',

@@ -1,10 +1,20 @@
 import type {WorkflowDocument} from '@shipfox/workflow-document';
 import {InvalidWorkflowModelError} from './invalid-workflow-model-error.js';
-import {normalizeWorkflowDocument} from './normalize-workflow-document.js';
+import {normalizeWorkflowDocument as normalizeWorkflowDocumentBase} from './normalize-workflow-document.js';
 
-function expectInvalid(document: WorkflowDocument): InvalidWorkflowModelError {
+function normalizeWorkflowDocument(
+  document: WorkflowDocument,
+  options?: Parameters<typeof normalizeWorkflowDocumentBase>[1],
+) {
+  return normalizeWorkflowDocumentBase({runner: 'ubuntu-latest', ...document}, options);
+}
+
+function expectInvalid(
+  document: WorkflowDocument,
+  options?: Parameters<typeof normalizeWorkflowDocumentBase>[1],
+): InvalidWorkflowModelError {
   try {
-    normalizeWorkflowDocument(document);
+    normalizeWorkflowDocument(document, options);
     expect.fail('Expected InvalidWorkflowModelError');
   } catch (error) {
     expect(error).toBeInstanceOf(InvalidWorkflowModelError);
@@ -48,7 +58,7 @@ describe('normalizeWorkflowDocument', () => {
         {
           id: 'build',
           sourceName: 'build',
-          runner: [],
+          runner: ['ubuntu-latest'],
           dependencies: [],
           steps: [
             {
@@ -127,9 +137,205 @@ describe('normalizeWorkflowDocument', () => {
     const model = normalizeWorkflowDocument(document);
 
     expect(model.jobs).toMatchObject([
-      {id: 'build', runner: ['ubuntu-latest', 'node-22']},
+      {id: 'build', runner: ['node-22', 'ubuntu-latest']},
       {id: 'test', runner: ['ubuntu-latest']},
     ]);
+  });
+
+  it('canonicalizes runner labels', () => {
+    const document: WorkflowDocument = {
+      name: 'canonical runners',
+      runner: [' Ubuntu-Latest ', 'gpu', 'ubuntu-latest', ' Node-22 '],
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs).toMatchObject([{id: 'build', runner: ['gpu', 'node-22', 'ubuntu-latest']}]);
+  });
+
+  it('reports a missing runner label when no default exists', () => {
+    const document: WorkflowDocument = {
+      name: 'missing runner',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    try {
+      normalizeWorkflowDocumentBase(document);
+      expect.fail('Expected InvalidWorkflowModelError');
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidWorkflowModelError);
+      expect((error as InvalidWorkflowModelError).issues).toEqual([
+        expect.objectContaining({
+          code: 'missing-runner-label',
+          path: ['jobs', 'build', 'runner'],
+        }),
+      ]);
+    }
+  });
+
+  it('uses canonicalized default runner labels when no runner is declared', () => {
+    const document: WorkflowDocument = {
+      name: 'default runner',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocumentBase(document, {
+      defaultRunnerLabels: [' Ubuntu ', 'ubuntu'],
+    });
+
+    expect(model.jobs).toMatchObject([{id: 'build', runner: ['ubuntu']}]);
+  });
+
+  it('does not fall back to defaults for explicit whitespace-only runner labels', () => {
+    const document: WorkflowDocument = {
+      name: 'empty explicit runner',
+      runner: ' ',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    try {
+      normalizeWorkflowDocumentBase(document, {defaultRunnerLabels: ['ubuntu-latest']});
+      expect.fail('Expected InvalidWorkflowModelError');
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidWorkflowModelError);
+      expect((error as InvalidWorkflowModelError).issues).toEqual([
+        expect.objectContaining({
+          code: 'missing-runner-label',
+          path: ['jobs', 'build', 'runner'],
+        }),
+      ]);
+    }
+  });
+
+  it('canonicalizes job-level runner overrides over workflow-level runner labels', () => {
+    const document: WorkflowDocument = {
+      name: 'runner overrides',
+      runner: ['ubuntu-latest'],
+      jobs: {
+        build: {
+          runner: [' Node-22 ', 'node-22', 'GPU'],
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs).toMatchObject([{id: 'build', runner: ['gpu', 'node-22']}]);
+  });
+
+  it('reports invalid runner labels', () => {
+    const document: WorkflowDocument = {
+      name: 'invalid runner',
+      runner: 'ci,gpu',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    try {
+      normalizeWorkflowDocumentBase(document);
+      expect.fail('Expected InvalidWorkflowModelError');
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidWorkflowModelError);
+      expect((error as InvalidWorkflowModelError).issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-runner-label',
+          path: ['jobs', 'build', 'runner'],
+          details: {labels: ['ci,gpu']},
+        }),
+      ]);
+    }
+  });
+
+  it('reports too many runner labels', () => {
+    const document: WorkflowDocument = {
+      name: 'too many runners',
+      runner: Array.from({length: 21}, (_, index) => `label-${index}`),
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    try {
+      normalizeWorkflowDocumentBase(document);
+      expect.fail('Expected InvalidWorkflowModelError');
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidWorkflowModelError);
+      expect((error as InvalidWorkflowModelError).issues).toEqual([
+        expect.objectContaining({
+          code: 'too-many-runner-labels',
+          path: ['jobs', 'build', 'runner'],
+        }),
+      ]);
+    }
+  });
+
+  it('reports invalid labels and too many labels together', () => {
+    const document: WorkflowDocument = {
+      name: 'invalid and too many runners',
+      runner: ['has space', ...Array.from({length: 20}, (_, index) => `label-${index}`)],
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    try {
+      normalizeWorkflowDocumentBase(document);
+      expect.fail('Expected InvalidWorkflowModelError');
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidWorkflowModelError);
+      expect((error as InvalidWorkflowModelError).issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-runner-label',
+          path: ['jobs', 'build', 'runner'],
+          details: {labels: ['has space']},
+        }),
+        expect.objectContaining({
+          code: 'too-many-runner-labels',
+          path: ['jobs', 'build', 'runner'],
+        }),
+      ]);
+    }
+  });
+
+  it('accepts the maximum runner label count', () => {
+    const document: WorkflowDocument = {
+      name: 'maximum runner count',
+      runner: Array.from({length: 20}, (_, index) => `label-${index}`),
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocumentBase(document);
+
+    expect(model.jobs[0]?.runner).toHaveLength(20);
   });
 
   it('expands a top-level runner string shorthand', () => {

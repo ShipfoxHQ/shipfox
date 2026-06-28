@@ -21,6 +21,7 @@ describe('POST /definitions/validate', () => {
       payload: {
         yaml: `
 name: Test
+runner: ubuntu-latest
 jobs:
   build:
     steps:

@@ -6,11 +6,13 @@ export {
   type DefinitionListResponseDto,
   type DefinitionResponseDto,
   type DefinitionSyncSummaryDto,
+  type DefinitionValidationErrorDto,
   definitionDtoSchema,
   definitionListQuerySchema,
   definitionListResponseSchema,
   definitionResponseSchema,
   definitionSyncSummarySchema,
+  definitionValidationErrorSchema,
   type TriggerDto,
 } from '#schemas/index.js';
 export {
