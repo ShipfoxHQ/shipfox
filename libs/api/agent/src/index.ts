@@ -1,11 +1,13 @@
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath} from '#db/index.js';
+import {routes} from '#presentation/index.js';
 
 export {
   type AgentProviderConfig,
   AgentProviderConfigNotFoundError,
   AgentProviderValidationError,
   type AgentWorkspaceSettings,
+  buildAgentProviderCatalog,
   CredentialDecryptionError,
   decryptCredentials,
   InvalidAgentModelError,
@@ -26,4 +28,5 @@ export {
 export const agentModule: ShipfoxModule = {
   name: 'agent',
   database: {db, migrationsPath},
+  routes,
 };

@@ -87,6 +87,12 @@ export const agentProviderCatalogEntrySchema = agentProviderCatalogSeedBaseSchem
 
 export type AgentProviderCatalogEntryDto = z.infer<typeof agentProviderCatalogEntrySchema>;
 
+export const agentProviderCatalogResponseSchema = z.object({
+  providers: z.array(agentProviderCatalogEntrySchema),
+});
+
+export type AgentProviderCatalogResponseDto = z.infer<typeof agentProviderCatalogResponseSchema>;
+
 const apiKeyCredentialFields = [credentialField('api_key', 'API key', true)];
 
 const azureCredentialFields = [

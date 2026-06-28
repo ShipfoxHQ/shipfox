@@ -10,4 +10,5 @@ export {
   ProviderValidationUnavailableError,
   UnsupportedAgentProviderError,
 } from './errors.js';
+export {buildAgentProviderCatalog} from './provider-catalog.js';
 export {testAndSaveProviderConfig} from './provider-config-service.js';

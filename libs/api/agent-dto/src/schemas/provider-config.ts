@@ -23,26 +23,6 @@ export type ListAgentProviderConfigsResponseDto = z.infer<
   typeof listAgentProviderConfigsResponseSchema
 >;
 
-export const createAgentProviderConfigBodySchema = z
-  .object({
-    provider_id: supportedAgentProviderIdSchema,
-    credentials: credentialRecordSchema,
-  })
-  .superRefine((body, ctx) => {
-    const expectedKeys = getAgentProviderCredentialKeys(body.provider_id);
-    if (expectedKeys === undefined) return;
-
-    if (!agentProviderCredentialKeysMatch(body.provider_id, body.credentials)) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['credentials'],
-        message: `Credentials must include exactly these keys: ${expectedKeys.join(', ')}.`,
-      });
-    }
-  });
-
-export type CreateAgentProviderConfigBodyDto = z.infer<typeof createAgentProviderConfigBodySchema>;
-
 export const updateAgentProviderConfigBodySchema = z.object({
   credentials: credentialRecordSchema.refine((credentials) => Object.keys(credentials).length > 0, {
     message: 'Credentials must include at least one key.',
@@ -56,6 +36,14 @@ export const setDefaultAgentProviderBodySchema = z.object({
 });
 
 export type SetDefaultAgentProviderBodyDto = z.infer<typeof setDefaultAgentProviderBodySchema>;
+
+export const setDefaultAgentProviderResponseSchema = z.object({
+  default_provider_id: supportedAgentProviderIdSchema.nullable(),
+});
+
+export type SetDefaultAgentProviderResponseDto = z.infer<
+  typeof setDefaultAgentProviderResponseSchema
+>;
 
 export function getAgentProviderCredentialKeys(
   providerId: SupportedAgentProviderId,
