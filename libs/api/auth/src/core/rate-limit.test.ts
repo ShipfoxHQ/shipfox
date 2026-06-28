@@ -1,6 +1,6 @@
 import {and, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
-import {countAuthRateLimitsForIdentifierHmac, pruneExpiredAuthRateLimits} from '#db/rate-limits.js';
+import {pruneExpiredAuthRateLimits} from '#db/rate-limits.js';
 import {authRateLimits} from '#db/schema/rate-limits.js';
 import {
   AuthRateLimitUnavailableError,
@@ -231,16 +231,71 @@ describe('checkAuthRateLimit', () => {
       ]);
 
     const result = await pruneExpiredAuthRateLimits({now, minIntervalMs: 0});
-    const expiredRows = await countAuthRateLimitsForIdentifierHmac({
+    const expiredRows = await countRows({
+      action: 'login',
+      scope: 'email',
       identifierHmac: expiredIdentifierHmac,
     });
-    const activeRows = await countAuthRateLimitsForIdentifierHmac({
+    const activeRows = await countRows({
+      action: 'login',
+      scope: 'email',
       identifierHmac: activeIdentifierHmac,
     });
 
     expect(result).toBeGreaterThanOrEqual(1);
     expect(expiredRows).toBe(0);
     expect(activeRows).toBe(1);
+  });
+
+  it('throttles prune attempts inside the configured interval', async () => {
+    const firstIdentifierHmac = hashAuthRateLimitIdentifier({
+      action: 'login',
+      scope: 'email',
+      identifier: identifier('first-prune'),
+    });
+    const secondIdentifierHmac = hashAuthRateLimitIdentifier({
+      action: 'login',
+      scope: 'email',
+      identifier: identifier('second-prune'),
+    });
+    await db()
+      .insert(authRateLimits)
+      .values({
+        action: 'login',
+        scope: 'email',
+        identifierHmac: firstIdentifierHmac,
+        windowStart: new Date('2026-06-23T00:00:00Z'),
+        count: 1,
+        expiresAt: new Date('2026-06-23T00:01:00Z'),
+      });
+    const firstResult = await pruneExpiredAuthRateLimits({
+      now: new Date('2026-06-23T00:05:00Z'),
+      minIntervalMs: 60_000,
+    });
+    await db()
+      .insert(authRateLimits)
+      .values({
+        action: 'login',
+        scope: 'email',
+        identifierHmac: secondIdentifierHmac,
+        windowStart: new Date('2026-06-23T00:01:00Z'),
+        count: 1,
+        expiresAt: new Date('2026-06-23T00:02:00Z'),
+      });
+
+    const secondResult = await pruneExpiredAuthRateLimits({
+      now: new Date('2026-06-23T00:05:30Z'),
+      minIntervalMs: 60_000,
+    });
+    const secondRows = await countRows({
+      action: 'login',
+      scope: 'email',
+      identifierHmac: secondIdentifierHmac,
+    });
+
+    expect(firstResult).toBeGreaterThanOrEqual(1);
+    expect(secondResult).toBeUndefined();
+    expect(secondRows).toBe(1);
   });
 
   it('stores only HMAC identifiers, not raw emails or IPs', async () => {
@@ -311,5 +366,44 @@ describe('checkAuthRateLimit', () => {
       scope: 'email',
       identifierHmacPrefix: expect.not.stringContaining(email),
     });
+  });
+
+  it('uses the configured identifier secret when present', async () => {
+    vi.resetModules();
+    vi.doMock('#config.js', () => ({
+      config: {
+        AUTH_JWT_SECRET: 'jwt-secret',
+        AUTH_RATE_LIMIT_IDENTIFIER_SECRET: 'configured-secret',
+      },
+    }));
+
+    try {
+      const configuredSecretModule = await import('./rate-limit.js');
+      const configuredSecretHash = configuredSecretModule.hashAuthRateLimitIdentifier({
+        action: 'login',
+        scope: 'email',
+        identifier: 'person@example.com',
+      });
+      vi.doMock('#config.js', () => ({
+        config: {
+          AUTH_JWT_SECRET: 'jwt-secret',
+          AUTH_RATE_LIMIT_IDENTIFIER_SECRET: undefined,
+        },
+      }));
+      vi.resetModules();
+      const derivedSecretModule = await import('./rate-limit.js');
+      const derivedSecretHash = derivedSecretModule.hashAuthRateLimitIdentifier({
+        action: 'login',
+        scope: 'email',
+        identifier: 'person@example.com',
+      });
+
+      expect(configuredSecretHash).toMatch(HMAC_HEX_PATTERN);
+      expect(derivedSecretHash).toMatch(HMAC_HEX_PATTERN);
+      expect(configuredSecretHash).not.toBe(derivedSecretHash);
+    } finally {
+      vi.doUnmock('#config.js');
+      vi.resetModules();
+    }
   });
 });

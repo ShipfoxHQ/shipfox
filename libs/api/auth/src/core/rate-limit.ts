@@ -67,11 +67,13 @@ const HASH_PREFIX_LENGTH = 12;
 const IDENTIFIER_SECRET_DERIVATION_DOMAIN = 'shipfox.auth.rate-limit.identifier-secret.v1';
 const IDENTIFIER_HASH_DOMAIN = 'shipfox.auth.rate-limit.identifier.v1';
 
-const checksCounter = instanceMetrics
-  .getMeter('api-auth')
-  .createCounter('auth_rate_limit_checks_total', {
-    description: 'Authentication rate limit checks by action, scope, and outcome.',
-  });
+const meter = instanceMetrics.getMeter('api-auth');
+const checksCounter = meter.createCounter('auth_rate_limit_checks_total', {
+  description: 'Authentication rate limit checks by action, scope, and outcome.',
+});
+const pruneFailuresCounter = meter.createCounter('auth_rate_limit_prune_failures_total', {
+  description: 'Authentication rate limit prune failures.',
+});
 
 function effectiveIdentifierSecret(): Buffer | string {
   if (config.AUTH_RATE_LIMIT_IDENTIFIER_SECRET) {
@@ -171,5 +173,7 @@ export async function checkAuthRateLimit(params: CheckAuthRateLimitParams): Prom
 
   recordAuthRateLimitCheck({action: params.action, scope: params.scope, outcome: 'allowed'});
 
-  await pruneExpiredAuthRateLimits({now}).catch(() => undefined);
+  await pruneExpiredAuthRateLimits({now}).catch(() => {
+    pruneFailuresCounter.add(1);
+  });
 }

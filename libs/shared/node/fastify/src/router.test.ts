@@ -223,6 +223,38 @@ describe('route mounting', () => {
     expect(handlerCalled).toBe(false);
   });
 
+  test('route preHandler arrays run in order before the handler', async () => {
+    const events: string[] = [];
+    const app = await createApp({
+      routes: [
+        {
+          method: 'GET',
+          path: '/hooked-array',
+          description: 'Hooked route',
+          preHandler: [
+            () => {
+              events.push('first');
+            },
+            async () => {
+              await Promise.resolve();
+              events.push('second');
+            },
+          ],
+          handler: () => {
+            events.push('handler');
+            return {ok: true};
+          },
+        },
+      ],
+    });
+
+    const res = await app.inject({method: 'GET', url: '/hooked-array'});
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ok: true});
+    expect(events).toEqual(['first', 'second', 'handler']);
+  });
+
   test('global error handler catches unhandled errors', async () => {
     const app = await createApp({
       routes: [

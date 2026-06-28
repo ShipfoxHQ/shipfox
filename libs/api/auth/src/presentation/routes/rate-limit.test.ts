@@ -1,5 +1,6 @@
+import {AUTH_PASSWORD_RESET_SEND_REQUESTED} from '@shipfox/api-auth-dto';
 import type {AppConfig, FastifyInstance} from '@shipfox/node-fastify';
-import {sql} from 'drizzle-orm';
+import {and, eq, sql} from 'drizzle-orm';
 import {
   type AuthRateLimitAction,
   type AuthRateLimitScope,
@@ -7,11 +8,10 @@ import {
   hashAuthRateLimitIdentifier,
 } from '#core/rate-limit.js';
 import {db} from '#db/db.js';
-import {countAuthRateLimitsForIdentifierHmac} from '#db/rate-limits.js';
 import {authRateLimits} from '#db/schema/rate-limits.js';
 import {
-  capturedMail,
   createAuthTestApp,
+  outboxEventsTo,
   resetCapturedMail,
   signupVerifyLogin,
   uniqueEmail,
@@ -54,8 +54,42 @@ async function countBucket(params: {
     scope: params.scope,
     identifier: params.identifier,
   });
+  const rows = await db()
+    .select({count: sql<number>`count(*)::int`})
+    .from(authRateLimits)
+    .where(
+      and(
+        eq(authRateLimits.action, params.action),
+        eq(authRateLimits.scope, params.scope),
+        eq(authRateLimits.identifierHmac, identifierHmac),
+      ),
+    );
 
-  return await countAuthRateLimitsForIdentifierHmac({identifierHmac});
+  return rows[0]?.count ?? 0;
+}
+
+async function bucketAttemptCount(params: {
+  action: AuthRateLimitAction;
+  scope: AuthRateLimitScope;
+  identifier: string;
+}): Promise<number> {
+  const identifierHmac = hashAuthRateLimitIdentifier({
+    action: params.action,
+    scope: params.scope,
+    identifier: params.identifier,
+  });
+  const rows = await db()
+    .select({count: authRateLimits.count})
+    .from(authRateLimits)
+    .where(
+      and(
+        eq(authRateLimits.action, params.action),
+        eq(authRateLimits.scope, params.scope),
+        eq(authRateLimits.identifierHmac, identifierHmac),
+      ),
+    );
+
+  return rows[0]?.count ?? 0;
 }
 
 function windowStartFor(now: Date, windowSeconds: number): Date {
@@ -182,9 +216,33 @@ describe('auth rate-limit routes', () => {
 
     expect(blockedReset.statusCode).toBe(429);
     expect(blockedResend.statusCode).toBe(429);
+    expect(await outboxEventsTo(account.email, AUTH_PASSWORD_RESET_SEND_REQUESTED)).toHaveLength(3);
+  });
+
+  it('blocks exhausted email-send IP buckets before consuming email buckets', async () => {
+    const ip = uniqueIp();
+    const blockedEmail = uniqueEmail('email-send-ip-blocked');
+    await exhaustBucket({
+      action: 'email-send',
+      scope: 'ip',
+      identifier: ip,
+      limit: 30,
+      windowSeconds: 60 * 60,
+    });
+
+    const blocked = await app.inject({
+      method: 'POST',
+      url: '/auth/password-reset',
+      headers: {'x-forwarded-for': ip},
+      payload: {email: blockedEmail},
+    });
+
+    expect(blocked.statusCode).toBe(429);
+    expect(blocked.json().code).toBe('rate-limited');
+    expect(await bucketAttemptCount({action: 'email-send', scope: 'ip', identifier: ip})).toBe(31);
     expect(
-      capturedMail().filter((message) => message.subject === 'Reset your password'),
-    ).toHaveLength(3);
+      await countBucket({action: 'email-send', scope: 'email', identifier: blockedEmail}),
+    ).toBe(0);
   });
 
   it('does not consume buckets for invalid bodies', async () => {

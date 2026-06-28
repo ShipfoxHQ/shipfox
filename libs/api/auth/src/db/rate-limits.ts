@@ -1,4 +1,4 @@
-import {eq, lt, sql} from 'drizzle-orm';
+import {lt, sql} from 'drizzle-orm';
 import {db} from './db.js';
 import {authRateLimits} from './schema/rate-limits.js';
 
@@ -63,21 +63,7 @@ export async function pruneExpiredAuthRateLimits(
 
   nextPruneAt = now.getTime() + minIntervalMs;
 
-  const rows = await db()
-    .delete(authRateLimits)
-    .where(lt(authRateLimits.expiresAt, now))
-    .returning({identifierHmac: authRateLimits.identifierHmac});
+  const result = await db().delete(authRateLimits).where(lt(authRateLimits.expiresAt, now));
 
-  return rows.length;
-}
-
-export async function countAuthRateLimitsForIdentifierHmac(params: {
-  identifierHmac: string;
-}): Promise<number> {
-  const rows = await db()
-    .select({count: sql<number>`count(*)::int`})
-    .from(authRateLimits)
-    .where(eq(authRateLimits.identifierHmac, params.identifierHmac));
-
-  return rows[0]?.count ?? 0;
+  return result.rowCount ?? 0;
 }

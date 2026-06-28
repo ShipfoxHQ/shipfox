@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     error: vi.fn(),
     info: vi.fn(),
   },
+  parseApiTrustProxy: vi.fn(),
   registerModuleMetrics: vi.fn(),
   setSourceControl: vi.fn(),
   startModuleWorkers: vi.fn(),
@@ -61,7 +62,10 @@ vi.mock('@shipfox/node-opentelemetry', () => ({
   startServiceMetrics: mocks.startServiceMetrics,
 }));
 vi.mock('@shipfox/node-postgres', () => ({createPostgresClient: mocks.createPostgresClient}));
-vi.mock('../config.js', () => ({config: {E2E_ENABLED: false}}));
+vi.mock('../config.js', () => ({
+  config: {API_TRUST_PROXY: 'false', E2E_ENABLED: false},
+  parseApiTrustProxy: mocks.parseApiTrustProxy,
+}));
 vi.mock('./e2e.js', () => ({
   createE2eAdminAuthMethod: mocks.createE2eAdminAuthMethod,
   createE2eRouteGroup: mocks.createE2eRouteGroup,
@@ -99,6 +103,7 @@ describe('run', () => {
     mocks.listen.mockReset();
     mocks.logger.error.mockReset();
     mocks.logger.info.mockReset();
+    mocks.parseApiTrustProxy.mockReset();
     mocks.registerModuleMetrics.mockReset();
     mocks.setSourceControl.mockReset();
     mocks.startModuleWorkers.mockReset();
@@ -119,6 +124,7 @@ describe('run', () => {
     });
     mocks.createE2eRouteGroup.mockReturnValue([]);
     mocks.createApp.mockResolvedValue({});
+    mocks.parseApiTrustProxy.mockReturnValue(false);
     mocks.startModuleWorkers.mockResolvedValue(undefined);
     mocks.listen.mockResolvedValue('http://127.0.0.1:3000');
     mocks.closeApp.mockResolvedValue(undefined);
