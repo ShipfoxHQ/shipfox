@@ -1,19 +1,18 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {render, screen, waitFor, within} from '@testing-library/react';
+import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type {ReactNode} from 'react';
 import {
   runAttemptsResponseDto,
   workflowRun,
   workflowRunAttemptDto,
 } from '#test/fixtures/workflow-run.js';
-import {jsonResponse} from '#test/pages.js';
+import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {WorkflowRunAttemptSwitcher} from './workflow-run-attempt-switcher.js';
 
 const ROOT_RUN_ID = '11111111-1111-4111-8111-111111111111';
 const CURRENT_RUN_ID = '22222222-2222-4222-8222-222222222222';
 const THIRD_RUN_ID = '33333333-3333-4333-8333-333333333333';
+const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const SWITCH_ATTEMPT_PATTERN = /Switch attempt/;
 const ATTEMPT_1_PATTERN = /Attempt 1/;
 const ATTEMPT_2_PATTERN = /Attempt 2/;
@@ -24,9 +23,10 @@ describe('WorkflowRunAttemptSwitcher', () => {
     configureApiClient({baseUrl: '', fetchImpl: undefined});
   });
 
-  test('hides itself for a single-attempt run', () => {
+  test('hides itself for a single-attempt run', async () => {
     renderSwitcher({latestAttempt: 1});
 
+    await screen.findByTestId('attempt-switcher-test-mount');
     expect(screen.queryByRole('button', {name: SWITCH_ATTEMPT_PATTERN})).not.toBeInTheDocument();
   });
 
@@ -38,7 +38,7 @@ describe('WorkflowRunAttemptSwitcher', () => {
     });
     renderSwitcher();
 
-    await user.click(screen.getByRole('button', {name: 'Switch attempt, currently 2 of 4'}));
+    await user.click(await screen.findByRole('button', {name: 'Switch attempt, currently 2 of 4'}));
 
     expect(await screen.findByText('Loading attempts...')).toBeInTheDocument();
   });
@@ -51,7 +51,7 @@ describe('WorkflowRunAttemptSwitcher', () => {
     });
     renderSwitcher();
 
-    await user.click(screen.getByRole('button', {name: 'Switch attempt, currently 2 of 4'}));
+    await user.click(await screen.findByRole('button', {name: 'Switch attempt, currently 2 of 4'}));
 
     expect(
       await screen.findByRole('menuitem', {name: 'Could not load attempts. Retry'}),
@@ -95,7 +95,7 @@ describe('WorkflowRunAttemptSwitcher', () => {
     });
     renderSwitcher({latestAttempt: 2});
 
-    await user.click(screen.getByRole('button', {name: 'Switch attempt, currently 2 of 2'}));
+    await user.click(await screen.findByRole('button', {name: 'Switch attempt, currently 2 of 2'}));
 
     await waitFor(() => expect(screen.getByText('Attempt 2 of 3')).toBeInTheDocument());
     const items = await screen.findAllByRole('menuitem');
@@ -110,7 +110,7 @@ describe('WorkflowRunAttemptSwitcher', () => {
     expect(items[1]).toHaveTextContent('Attempt 2');
     expect(items[2]).toHaveTextContent('Attempt 1');
     const current = screen.getByRole('menuitem', {name: ATTEMPT_2_PATTERN});
-    expect(current).toHaveAttribute('aria-current', 'true');
+    expect(current).toHaveAttribute('aria-current', 'page');
     expect(current).toHaveClass('bg-background-highlight-base');
     expect(within(current).getByRole('img', {name: 'Failed'})).toBeInTheDocument();
   });
@@ -134,14 +134,13 @@ describe('WorkflowRunAttemptSwitcher', () => {
     });
     renderSwitcher({latestAttempt: 3});
 
-    await user.click(screen.getByRole('button', {name: 'Switch attempt, currently 2 of 3'}));
+    await user.click(await screen.findByRole('button', {name: 'Switch attempt, currently 2 of 3'}));
 
     await waitFor(() => expect(screen.getByText('Attempt 2 of 3')).toBeInTheDocument());
   });
 
-  test('selects an attempt', async () => {
+  test('links to an attempt and clears selected step search on navigation', async () => {
     const user = userEvent.setup();
-    const onSelectAttempt = vi.fn();
     configureApiClient({
       baseUrl: 'https://api.example.test',
       fetchImpl: vi.fn(() =>
@@ -157,38 +156,50 @@ describe('WorkflowRunAttemptSwitcher', () => {
         ),
       ),
     });
-    renderSwitcher({onSelectAttempt});
+    const {router} = renderSwitcher({
+      path: `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${CURRENT_RUN_ID}?job=job-1&step=step-1&attempt=attempt-1`,
+    });
 
-    await user.click(screen.getByRole('button', {name: 'Switch attempt, currently 2 of 4'}));
-    await user.click(await screen.findByRole('menuitem', {name: ATTEMPT_1_PATTERN}));
+    await user.click(await screen.findByRole('button', {name: 'Switch attempt, currently 2 of 4'}));
+    const attemptLink = await screen.findByRole('menuitem', {name: ATTEMPT_1_PATTERN});
 
-    expect(onSelectAttempt).toHaveBeenCalledWith(ROOT_RUN_ID);
+    expect(attemptLink).toHaveAttribute(
+      'href',
+      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${ROOT_RUN_ID}`,
+    );
+
+    await user.click(attemptLink);
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${ROOT_RUN_ID}`,
+      ),
+    );
+    expect(router.state.location.search).toEqual({});
   });
 });
 
 function renderSwitcher({
   latestAttempt = 4,
-  onSelectAttempt = vi.fn(),
+  path = `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${CURRENT_RUN_ID}`,
 }: {
   latestAttempt?: number | undefined;
-  onSelectAttempt?: ((runId: string) => void) | undefined;
+  path?: string | undefined;
 } = {}) {
   const run = workflowRun({
     id: CURRENT_RUN_ID,
     root_run_id: ROOT_RUN_ID,
     attempt: 2,
   });
-  const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
-  const wrapper = ({children}: {children: ReactNode}) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
 
-  render(
-    <WorkflowRunAttemptSwitcher
-      run={run}
-      latestAttempt={latestAttempt}
-      onSelectAttempt={onSelectAttempt}
-    />,
-    {wrapper},
-  );
+  return renderProjectPage(path, () => (
+    <div data-testid="attempt-switcher-test-mount">
+      <WorkflowRunAttemptSwitcher
+        workspaceId={PROJECT_TEST_WID}
+        projectId={PROJECT_ID}
+        run={run}
+        latestAttempt={latestAttempt}
+      />
+    </div>
+  ));
 }

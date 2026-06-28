@@ -135,17 +135,6 @@ function RunViewContent({
     }
   }
 
-  async function navigateToAttempt(nextRunId: string) {
-    if (nextRunId === runData.id) return;
-
-    await navigate({
-      to: '/workspaces/$wid/projects/$pid/runs/$runId',
-      params: {wid: workspaceId, pid: projectId, runId: nextRunId},
-      search: ((previous: Record<string, unknown>) =>
-        withoutWorkflowRunSelectionSearch(previous)) as never,
-    });
-  }
-
   function selectJob(jobId: string | undefined) {
     if (!selectionControlled) {
       setSelectedJobId(jobId);
@@ -192,6 +181,8 @@ function RunViewContent({
     <>
       <div className="flex min-w-0 flex-1 flex-col">
         <WorkflowRunSummary
+          workspaceId={workspaceId}
+          projectId={projectId}
           run={runData}
           sourceAvailable={sourceAvailable}
           sourceOpen={sourcePanelOpen}
@@ -203,7 +194,6 @@ function RunViewContent({
           rerunPending={rerunMutation.isPending}
           onRerun={(mode) => void rerun(mode)}
           latestAttempt={runData.latestAttempt}
-          onSelectAttempt={(attemptRunId) => void navigateToAttempt(attemptRunId)}
         />
         {query.isError ? <WorkflowRunStaleError query={query} /> : null}
         <div className="min-h-0 flex-1 overflow-auto bg-background-neutral-base p-16">

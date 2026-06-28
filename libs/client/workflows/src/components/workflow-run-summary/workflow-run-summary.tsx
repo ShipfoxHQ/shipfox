@@ -35,6 +35,8 @@ const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
 type WorkflowRunAction = 'cancel' | 'rerun-all' | 'rerun-menu';
 
 export interface WorkflowRunSummaryProps {
+  workspaceId?: string | undefined;
+  projectId?: string | undefined;
   run: WorkflowRun;
   sourceAvailable?: boolean | undefined;
   sourceOpen?: boolean | undefined;
@@ -46,10 +48,11 @@ export interface WorkflowRunSummaryProps {
   rerunPending?: boolean | undefined;
   onRerun?: ((mode: RerunMode) => void) | undefined;
   latestAttempt?: number | undefined;
-  onSelectAttempt?: ((runId: string) => void) | undefined;
 }
 
 export function WorkflowRunSummary({
+  workspaceId,
+  projectId,
   run,
   sourceAvailable = false,
   sourceOpen = false,
@@ -61,7 +64,6 @@ export function WorkflowRunSummary({
   rerunPending = false,
   onRerun,
   latestAttempt,
-  onSelectAttempt,
 }: WorkflowRunSummaryProps) {
   const headingId = useId();
   const status = getWorkflowStatusVisual(run.status);
@@ -126,13 +128,14 @@ export function WorkflowRunSummary({
         <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-8 overflow-hidden text-foreground-neutral-muted">
           <Identifier display={run.shortId} value={run.id} label="run id" />
 
-          {latestAttempt && latestAttempt > 1 && onSelectAttempt ? (
+          {latestAttempt && latestAttempt > 1 && workspaceId && projectId ? (
             <>
               <MetadataSeparator />
               <WorkflowRunAttemptSwitcher
+                workspaceId={workspaceId}
+                projectId={projectId}
                 run={run}
                 latestAttempt={latestAttempt}
-                onSelectAttempt={onSelectAttempt}
               />
             </>
           ) : null}

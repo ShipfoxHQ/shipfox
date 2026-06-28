@@ -3,6 +3,14 @@ import type {RerunMode} from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from '@tanstack/react-router';
 import {screen, userEvent, within} from 'storybook/test';
 import type {WorkflowRunStatus} from '#core/workflow-run.js';
 import {
@@ -17,6 +25,8 @@ import {WorkflowRunSummary} from './workflow-run-summary.js';
 const ROOT_RUN_ID = '11111111-1111-4111-8111-111111111111';
 const CURRENT_RUN_ID = '22222222-2222-4222-8222-222222222222';
 const NEXT_RUN_ID = '33333333-3333-4333-8333-333333333333';
+const WORKSPACE_ID = '44444444-4444-4444-8444-444444444444';
+const PROJECT_ID = '55555555-5555-4555-8555-555555555555';
 const SWITCH_ATTEMPT_PATTERN = /Switch attempt/;
 const ATTEMPT_3_PATTERN = /Attempt 3/;
 
@@ -64,10 +74,22 @@ const withAttemptApi: Decorator = (Story) => {
       ),
   });
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+  const rootRoute = createRootRoute({component: Outlet});
+  const runRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/projects/$pid/runs/$runId',
+    component: () => <Story />,
+  });
+  const router = createRouter({
+    history: createMemoryHistory({
+      initialEntries: [`/workspaces/${WORKSPACE_ID}/projects/${PROJECT_ID}/runs/${CURRENT_RUN_ID}`],
+    }),
+    routeTree: rootRoute.addChildren([runRoute]),
+  });
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Story />
+      <RouterProvider router={router} />
     </QueryClientProvider>
   );
 };
@@ -141,8 +163,9 @@ export const WithAttemptsOpen: Story = {
       attempt: 2,
       status: 'failed',
     }),
+    workspaceId: WORKSPACE_ID,
+    projectId: PROJECT_ID,
     latestAttempt: 3,
-    onSelectAttempt: () => undefined,
   },
 };
 

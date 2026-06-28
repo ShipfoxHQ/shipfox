@@ -9,21 +9,25 @@ import {
   RelativeTime,
   Text,
 } from '@shipfox/react-ui';
+import {Link} from '@tanstack/react-router';
 import {useState} from 'react';
 import type {WorkflowRun, WorkflowRunAttempt} from '#core/workflow-run.js';
+import {withoutWorkflowRunSelectionSearch} from '#core/workflow-run-url-state.js';
 import {useWorkflowRunAttemptsQuery} from '#hooks/api/workflow-runs.js';
 import {WorkflowStatusIcon} from '../workflow-status/workflow-status-icon.js';
 
 export interface WorkflowRunAttemptSwitcherProps {
+  workspaceId: string;
+  projectId: string;
   run: WorkflowRun;
   latestAttempt: number;
-  onSelectAttempt: (runId: string) => void;
 }
 
 export function WorkflowRunAttemptSwitcher({
+  workspaceId,
+  projectId,
   run,
   latestAttempt,
-  onSelectAttempt,
 }: WorkflowRunAttemptSwitcherProps) {
   const [open, setOpen] = useState(false);
   const attemptsQuery = useWorkflowRunAttemptsQuery({
@@ -70,7 +74,8 @@ export function WorkflowRunAttemptSwitcher({
                   key={attempt.id}
                   attempt={attempt}
                   current={attempt.id === run.id}
-                  onSelectAttempt={onSelectAttempt}
+                  workspaceId={workspaceId}
+                  projectId={projectId}
                 />
               ))
           : null}
@@ -102,19 +107,28 @@ function ErrorRow({onRetry}: {onRetry: () => void}) {
 function AttemptItem({
   attempt,
   current,
-  onSelectAttempt,
+  workspaceId,
+  projectId,
 }: {
   attempt: WorkflowRunAttempt;
   current: boolean;
-  onSelectAttempt: (runId: string) => void;
+  workspaceId: string;
+  projectId: string;
 }) {
   return (
     <DropdownMenuItem
-      aria-current={current ? 'true' : undefined}
+      asChild
       className={cn(current && 'bg-background-highlight-base text-foreground-neutral-base')}
-      onSelect={() => onSelectAttempt(attempt.id)}
     >
-      <span className="flex min-w-0 flex-1 items-center gap-8">
+      <Link
+        to="/workspaces/$wid/projects/$pid/runs/$runId"
+        params={{wid: workspaceId, pid: projectId, runId: attempt.id}}
+        search={
+          ((previous: Record<string, unknown>) =>
+            current ? previous : withoutWorkflowRunSelectionSearch(previous)) as never
+        }
+        aria-current={current ? 'page' : undefined}
+      >
         <WorkflowStatusIcon status={attempt.status} size={14} tooltip={false} />
         <Code as="span" variant="label" className="min-w-0 flex-1 truncate text-inherit">
           Attempt {attempt.attempt}
@@ -123,7 +137,7 @@ function AttemptItem({
           value={attempt.createdAt}
           className="shrink-0 whitespace-nowrap font-code text-xs leading-20 text-foreground-neutral-muted"
         />
-      </span>
+      </Link>
     </DropdownMenuItem>
   );
 }
