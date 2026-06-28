@@ -52,6 +52,24 @@ function terminalSetJobCall(jobId: string) {
   );
 }
 
+async function expectEmptyRequiredLabelsFailure(input: typeof defaultJobInput): Promise<void> {
+  let error: unknown;
+
+  try {
+    await executeJob(input);
+  } catch (err) {
+    error = err;
+  }
+
+  expect(error).toMatchObject({
+    cause: expect.objectContaining({
+      message: `Job ${input.jobId} has no required runner labels`,
+      nonRetryable: true,
+      type: 'EmptyRequiredLabelsError',
+    }),
+  });
+}
+
 describe('jobOrchestration', () => {
   test('finished signal (succeeded) flips status and releases the lease', async () => {
     setCfg({
@@ -74,9 +92,11 @@ describe('jobOrchestration', () => {
       jobResults: new Map([['job-empty-labels', 'succeeded']]),
     });
 
-    await expect(
-      executeJob({...defaultJobInput, jobId: 'job-empty-labels', requiredLabels: []}),
-    ).rejects.toThrow();
+    await expectEmptyRequiredLabelsFailure({
+      ...defaultJobInput,
+      jobId: 'job-empty-labels',
+      requiredLabels: [],
+    });
 
     expect(setJobStatusCalls()).toHaveLength(0);
     expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
@@ -88,9 +108,11 @@ describe('jobOrchestration', () => {
       jobResults: new Map([['job-blank-labels', 'succeeded']]),
     });
 
-    await expect(
-      executeJob({...defaultJobInput, jobId: 'job-blank-labels', requiredLabels: ['  ']}),
-    ).rejects.toThrow();
+    await expectEmptyRequiredLabelsFailure({
+      ...defaultJobInput,
+      jobId: 'job-blank-labels',
+      requiredLabels: ['  '],
+    });
 
     expect(setJobStatusCalls()).toHaveLength(0);
     expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
