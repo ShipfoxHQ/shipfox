@@ -23,6 +23,8 @@ interface TestAgentStep extends TestWorkflowStepBase {
 
 type TestWorkflowStep = TestRunStep | TestAgentStep;
 
+const DEFAULT_RUNNER_LABELS = ['ubuntu-latest'] as const;
+
 interface TestWorkflowJob {
   readonly needs?: string | readonly string[] | undefined;
   readonly runner?: string | readonly string[] | undefined;
@@ -48,7 +50,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
     return {
       id: jobId,
       sourceName,
-      runner: normalizeStringArray(job.runner ?? input.runner),
+      runner: normalizeStringArray(job.runner ?? input.runner ?? DEFAULT_RUNNER_LABELS),
       ...optionalEnv(job.env),
       dependencies: normalizeStringArray(job.needs).map(stableId),
       steps: job.steps.map((step, stepIndex) => normalizeStep(step, jobId, stepIndex)),
