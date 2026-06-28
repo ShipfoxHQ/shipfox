@@ -13,11 +13,12 @@ import {
   RouterProvider,
   useRouteContext,
 } from '@tanstack/react-router';
-import {render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {projectsQueryKeys} from '#hooks/api/projects.js';
 import {
   loadWorkspaceSetupRoute,
   WorkspaceSetupErrorRoute,
+  WorkspaceSetupPending,
   type WorkspaceSetupState,
 } from './workspace-setup-guard.js';
 
@@ -120,7 +121,7 @@ function renderSetupRoute(
 
   configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
-  return render(<RouterProvider router={router} context={{queryClient}} />);
+  return {router, ...render(<RouterProvider router={router} context={{queryClient}} />)};
 }
 
 function GuardedRoute({label}: {label: string}) {
@@ -183,6 +184,9 @@ describe('workspace setup route hook', () => {
           projects: [projectStub()],
           next_cursor: null,
         });
+        // Existence is cached with an infinite staleTime, so only an explicit
+        // invalidation forces the refetch whose failure exercises the fallback.
+        void queryClient.invalidateQueries({queryKey: projectsQueryKeys.exists(WORKSPACE_ID)});
       },
     });
 
@@ -263,4 +267,77 @@ describe('workspace setup route hook', () => {
     expect(screen.getByRole('button', {name: 'Retry'})).toBeInTheDocument();
     expect(screen.queryByText('Workspace home')).not.toBeInTheDocument();
   });
+
+  test('recovers workspace content when Retry re-runs the route load', async () => {
+    let projectAttempts = 0;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes('/projects?')) {
+        projectAttempts += 1;
+        if (projectAttempts === 1)
+          return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
+        return Promise.resolve(jsonResponse({projects: [projectStub()], next_cursor: null}));
+      }
+      return Promise.resolve(jsonResponse({}, {status: 404}));
+    });
+
+    renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, fetchImpl);
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Retry'}));
+
+    expect(await screen.findByText('Workspace home')).toBeInTheDocument();
+    expect(screen.queryByText('Could not load workspace setup')).not.toBeInTheDocument();
+  });
+
+  test('re-evaluates the guard on navigation between children without refetching existence', async () => {
+    const fetchImpl = setupFetch({projects: [projectStub()]});
+    const {router} = renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, fetchImpl);
+
+    expect(await screen.findByText('Workspace home')).toBeInTheDocument();
+
+    await act(async () => {
+      await router.navigate({
+        to: '/workspaces/$wid/integrations',
+        params: {wid: WORKSPACE_ID},
+      });
+    });
+
+    expect(await screen.findByText('Settings integrations')).toBeInTheDocument();
+    expect(calledUrls(fetchImpl).filter((url) => url.includes('/projects?'))).toHaveLength(1);
+  });
+
+  test('shows the pending loader while setup state is unresolved (auth-loading parity)', async () => {
+    const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+    const rootRoute = createRootRouteWithContext<{queryClient: QueryClient}>()({
+      component: Outlet,
+    });
+    const layoutRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/workspaces/$wid',
+      beforeLoad: () => undefined,
+      component: WorkspaceLayoutParity,
+    });
+    const router = createRouter({
+      defaultPendingMs: 0,
+      history: createMemoryHistory({initialEntries: [`/workspaces/${WORKSPACE_ID}`]}),
+      routeTree: rootRoute.addChildren([layoutRoute]),
+      context: {queryClient},
+    });
+
+    render(<RouterProvider router={router} context={{queryClient}} />);
+
+    expect(await screen.findByRole('status', {name: 'Loading'})).toBeInTheDocument();
+    expect(screen.queryByText('Protected content')).not.toBeInTheDocument();
+  });
 });
+
+// Mirrors the _layout route component: while auth is loading, beforeLoad returns
+// undefined, so the route context carries no setup state and the layout shows a
+// loader instead of protected content. Guards the TanStack contract (undefined
+// beforeLoad leaves the key absent) that the production sentinel depends on.
+function WorkspaceLayoutParity() {
+  const setupState = useRouteContext({strict: false}) as Partial<WorkspaceSetupState>;
+  if (setupState.hideProjectNavigation === undefined) return <WorkspaceSetupPending />;
+
+  return <main>Protected content</main>;
+}

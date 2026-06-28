@@ -117,6 +117,11 @@ async function fetchWorkspaceProjectExistence(queryClient: QueryClient, workspac
     return await queryClient.fetchQuery({
       queryKey,
       queryFn: ({signal}) => listProjects({workspaceId, limit: 1, signal}),
+      // This runs in beforeLoad on every in-workspace navigation. Project
+      // existence never reverts within a session (there is no client delete
+      // flow) and creation seeds this key, so serve from cache instead of
+      // blocking each navigation on a round-trip. Invalidation still refetches.
+      staleTime: Number.POSITIVE_INFINITY,
     });
   } catch (error) {
     const cached = queryClient.getQueryData<ListProjectsResponseDto>(queryKey);
@@ -129,6 +134,9 @@ async function fetchWorkspaceSourceConnections(queryClient: QueryClient, workspa
   const queryKey = integrationsQueryKeys.sourceConnections(workspaceId);
 
   try {
+    // Onboarding-only path: kept fresh (no staleTime) because some install
+    // flows connect a source without invalidating this key, and a stale
+    // "no connection" read would trap the user in the onboarding redirect.
     return await queryClient.fetchQuery({
       queryKey,
       queryFn: ({signal}) => listSourceConnections({workspaceId, signal}),

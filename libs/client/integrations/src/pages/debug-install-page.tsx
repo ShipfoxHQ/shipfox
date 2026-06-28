@@ -23,9 +23,9 @@ export function DebugInstallPage() {
       .then(async () => {
         await queryClient.invalidateQueries({
           queryKey: integrationsQueryKeys.sourceConnections(workspaceId),
-          // WorkspaceSetupGuard is the next active observer, not this page, so the
-          // default 'active' refetch would no-op and leave the cache stale
-          // until after the guard's first render redirects back here.
+          // The workspace setup runs in the route's beforeLoad via fetchQuery,
+          // not a mounted observer, so the default 'active' refetch would no-op
+          // and leave the cache stale until the next navigation reads it.
           refetchType: 'all',
         });
         toast.success('Debug source control connected.');
