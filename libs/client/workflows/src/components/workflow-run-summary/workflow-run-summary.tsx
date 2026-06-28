@@ -173,6 +173,8 @@ function WorkflowRunActionSlot({
   onRerun?: ((mode: RerunMode) => void) | undefined;
 }) {
   if (action === 'cancel') {
+    if (!onCancel) return null;
+
     return (
       <Button
         type="button"
@@ -180,7 +182,7 @@ function WorkflowRunActionSlot({
         size="xs"
         iconLeft="close"
         isLoading={cancelling}
-        disabled={cancelling || onCancel === undefined}
+        disabled={cancelling}
         onClick={onCancel}
       >
         Cancel workflow
@@ -189,6 +191,8 @@ function WorkflowRunActionSlot({
   }
 
   if (action === 'rerun-all') {
+    if (!onRerun) return null;
+
     return (
       <Button
         type="button"
@@ -196,13 +200,15 @@ function WorkflowRunActionSlot({
         size="xs"
         iconLeft="restartLine"
         isLoading={rerunPending}
-        disabled={rerunPending || onRerun === undefined}
-        onClick={() => onRerun?.('all')}
+        disabled={rerunPending}
+        onClick={() => onRerun('all')}
       >
         Re-run all jobs
       </Button>
     );
   }
+
+  if (!onRerun) return null;
 
   return (
     <DropdownMenu>
@@ -214,16 +220,16 @@ function WorkflowRunActionSlot({
           iconLeft="restartLine"
           iconRight="arrowDownSLine"
           isLoading={rerunPending}
-          disabled={rerunPending || onRerun === undefined}
+          disabled={rerunPending}
         >
           Re-run jobs
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem disabled={rerunPending} onSelect={() => onRerun?.('all')}>
+        <DropdownMenuItem disabled={rerunPending} onSelect={() => onRerun('all')}>
           Re-run all jobs
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={rerunPending} onSelect={() => onRerun?.('failed')}>
+        <DropdownMenuItem disabled={rerunPending} onSelect={() => onRerun('failed')}>
           Re-run failed jobs
         </DropdownMenuItem>
       </DropdownMenuContent>

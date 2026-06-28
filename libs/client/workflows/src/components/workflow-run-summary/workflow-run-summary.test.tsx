@@ -185,6 +185,14 @@ describe('WorkflowRunSummary', () => {
     expect(button).toHaveAttribute('aria-busy', 'true');
   });
 
+  test('hides the cancel action when no cancel handler is provided', async () => {
+    renderSummary({status: 'running'});
+
+    await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(screen.queryByRole('button', {name: 'Cancel workflow'})).not.toBeInTheDocument();
+  });
+
   test('derives the cancel action for non-terminal runs', async () => {
     const onCancel = vi.fn();
     const onRerun = vi.fn();
@@ -204,6 +212,14 @@ describe('WorkflowRunSummary', () => {
     await user.click(await screen.findByRole('button', {name: 'Re-run all jobs'}));
 
     expect(onRerun).toHaveBeenCalledWith('all');
+  });
+
+  test('hides the re-run action when no re-run handler is provided', async () => {
+    renderSummary({status: 'succeeded'});
+
+    await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(screen.queryByRole('button', {name: 'Re-run all jobs'})).not.toBeInTheDocument();
   });
 
   test('shows re-run choices for a failed run', async () => {
