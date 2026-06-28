@@ -1,4 +1,4 @@
-import {AUTH_API_KEY, AUTH_USER} from '@shipfox/api-auth-context';
+import {AUTH_USER} from '@shipfox/api-auth-context';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {sql} from 'drizzle-orm';
@@ -8,11 +8,6 @@ import {claimPendingJob, requestJobCancellation} from '#db/jobs.js';
 import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';
 import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
-
-const fakeApiKeyAuth: AuthMethod = {
-  name: AUTH_API_KEY,
-  authenticate: () => Promise.resolve(),
-};
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -27,7 +22,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
 
   beforeAll(async () => {
     app = await createApp({
-      auth: [fakeApiKeyAuth, fakeUserAuth, createRunnerTokenAuthMethod()],
+      auth: [fakeUserAuth, createRunnerTokenAuthMethod()],
       routes: runnerRoutes,
       swagger: false,
     });

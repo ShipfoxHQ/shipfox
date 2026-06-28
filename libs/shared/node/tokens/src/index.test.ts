@@ -18,20 +18,20 @@ describe('tokens', () => {
 
   describe('generateOpaqueToken', () => {
     it('generates a token with the type prefix', () => {
-      const token = generateOpaqueToken('apiKey');
+      const token = generateOpaqueToken('invitation');
 
-      expect(token.startsWith('sf_k_')).toBe(true);
+      expect(token.startsWith('sf_i_')).toBe(true);
     });
 
     it('generates a token with consistent length', () => {
-      const token = generateOpaqueToken('apiKey');
+      const token = generateOpaqueToken('invitation');
 
       expect(token).toHaveLength(48);
     });
 
     it('generates unique tokens', () => {
-      const first = generateOpaqueToken('apiKey');
-      const second = generateOpaqueToken('apiKey');
+      const first = generateOpaqueToken('invitation');
+      const second = generateOpaqueToken('invitation');
 
       expect(first).not.toBe(second);
     });
@@ -47,9 +47,9 @@ describe('tokens', () => {
       vi.resetModules();
       const {generateOpaqueToken} = await import('./index.js');
 
-      const token = generateOpaqueToken('apiKey');
+      const token = generateOpaqueToken('invitation');
 
-      expect(token.startsWith('sf_staging_k_')).toBe(true);
+      expect(token.startsWith('sf_staging_i_')).toBe(true);
     });
 
     it.each([
@@ -60,9 +60,9 @@ describe('tokens', () => {
       vi.resetModules();
       const {generateOpaqueToken} = await import('./index.js');
 
-      const token = generateOpaqueToken('apiKey');
+      const token = generateOpaqueToken('invitation');
 
-      expect(token.startsWith(`sf_${environment}_k_`)).toBe(true);
+      expect(token.startsWith(`sf_${environment}_i_`)).toBe(true);
     });
   });
 
@@ -107,7 +107,7 @@ describe('tokens', () => {
       vi.resetModules();
       const {getTokenType} = await import('./index.js');
 
-      const type = getTokenType('sf_k_Ab3xY7890123456789');
+      const type = getTokenType('sf_i_Ab3xY7890123456789');
 
       expect(type).toBeUndefined();
     });
@@ -117,7 +117,7 @@ describe('tokens', () => {
       vi.resetModules();
       const {getTokenType} = await import('./index.js');
 
-      const type = getTokenType('sf_prod_k_Ab3xY7890123456789');
+      const type = getTokenType('sf_prod_i_Ab3xY7890123456789');
 
       expect(type).toBeUndefined();
     });
@@ -125,19 +125,19 @@ describe('tokens', () => {
 
   describe('getTokenEnvironment', () => {
     it('returns production for an unqualified token prefix', () => {
-      const environment = getTokenEnvironment('sf_k_Ab3xY7890123456789');
+      const environment = getTokenEnvironment('sf_i_Ab3xY7890123456789');
 
       expect(environment).toBe('production');
     });
 
     it('returns prod for a prod token prefix', () => {
-      const environment = getTokenEnvironment('sf_prod_k_Ab3xY7890123456789');
+      const environment = getTokenEnvironment('sf_prod_i_Ab3xY7890123456789');
 
       expect(environment).toBe('prod');
     });
 
     it('returns the environment for an environment-scoped token prefix', () => {
-      const environment = getTokenEnvironment('sf_staging_k_Ab3xY7890123456789');
+      const environment = getTokenEnvironment('sf_staging_i_Ab3xY7890123456789');
 
       expect(environment).toBe('staging');
     });
@@ -153,7 +153,7 @@ describe('tokens', () => {
       vi.resetModules();
       const {getTokenEnvironment} = await import('./index.js');
 
-      const environment = getTokenEnvironment('sf_k_Ab3xY7890123456789');
+      const environment = getTokenEnvironment('sf_i_Ab3xY7890123456789');
 
       expect(environment).toBeUndefined();
     });
@@ -161,9 +161,9 @@ describe('tokens', () => {
 
   describe('extractDisplayPrefix', () => {
     it('returns the first twelve characters', () => {
-      const prefix = extractDisplayPrefix('sf_k_Ab3xY7890123456789');
+      const prefix = extractDisplayPrefix('sf_i_Ab3xY7890123456789');
 
-      expect(prefix).toBe('sf_k_Ab3xY78');
+      expect(prefix).toBe('sf_i_Ab3xY78');
       expect(prefix).toHaveLength(12);
     });
   });

@@ -15,7 +15,6 @@ Supported token types:
 
 | Type | Prefix part |
 | --- | --- |
-| `apiKey` | `k` |
 | `invitation` | `i` |
 | `emailVerification` | `v` |
 | `passwordReset` | `pr` |
@@ -27,10 +26,10 @@ Supported token types:
 ```ts
 import {generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
 
-const raw = generateOpaqueToken('apiKey');
+const raw = generateOpaqueToken('invitation');
 const hashed = hashOpaqueToken(raw);
 
-await db.insert(apiKeys).values({
+await db.insert(invitations).values({
   displayPrefix: raw.slice(0, 12),
   hashedToken: hashed,
 });
@@ -42,7 +41,7 @@ Set `TOKEN_ENVIRONMENT` to add an environment part to new tokens:
 TOKEN_ENVIRONMENT=staging
 ```
 
-With that setting, an API key starts with `sf_staging_k_`. Prefix readers reject tokens from another configured environment.
+With that setting, an invitation token starts with `sf_staging_i_`. Prefix readers reject tokens from another configured environment.
 
 > [!IMPORTANT]
 > Store only the hash returned by `hashOpaqueToken`. Show the raw token once, when it is created.
