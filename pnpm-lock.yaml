@@ -2032,6 +2032,9 @@ importers:
 
   libs/api/workflows:
     dependencies:
+      '@shipfox/api-agent':
+        specifier: workspace:*
+        version: link:../agent
       '@shipfox/api-agent-dto':
         specifier: workspace:*
         version: link:../agent-dto

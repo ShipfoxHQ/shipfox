@@ -1,3 +1,4 @@
+import {type AgentDefaultsResolver, catalogDefaultAgentResolver} from '@shipfox/api-agent';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {
   type LogOutcomeDto,
@@ -82,10 +83,15 @@ export interface CreateWorkflowRunParams {
   inputs?: Record<string, unknown> | undefined;
   sourceSnapshot?: WorkflowSourceSnapshot | null | undefined;
   triggerIdempotencyKey?: string | undefined;
+  resolveAgentDefaults?: AgentDefaultsResolver | undefined;
 }
 
 export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
-  const materializedJobs = materializeWorkflowModel(params.model);
+  const materializedJobs = materializeWorkflowModel(
+    params.model,
+    params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
+    params.definitionId,
+  );
 
   const result = await db().transaction(async (tx) => {
     const insertResult = await tx

@@ -1,3 +1,4 @@
+import type {AgentDefaultsResolver} from '@shipfox/api-agent';
 import {
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_JOB_TIMED_OUT,
@@ -326,6 +327,47 @@ describe('workflow run queries', () => {
       });
     });
 
+    test('stores agent step config resolved by the injected resolver', async () => {
+      const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+        provider: 'openai',
+        model: 'gpt-5.5-pro',
+        thinking: 'medium',
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            fix: {steps: [{prompt: 'Fix the failing tests.'}]},
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        resolveAgentDefaults,
+      });
+
+      const runJobs = await getJobsByRunId(run.id);
+      const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
+      const agentStep = jobSteps.find((step) => step.type === 'agent');
+      expect(resolveAgentDefaults).toHaveBeenCalledWith({
+        provider: undefined,
+        model: undefined,
+        thinking: undefined,
+      });
+      expect(agentStep?.config).toEqual({
+        model: 'gpt-5.5-pro',
+        provider: 'openai',
+        thinking: 'medium',
+        prompt: 'Fix the failing tests.',
+      });
+    });
+
     test('handles multi-job definitions with correct positions', async () => {
       const run = await createWorkflowRun({
         workspaceId,
@@ -608,6 +650,61 @@ jobs:
       expect(outboxRows).toHaveLength(1);
     });
 
+    test('duplicate triggerIdempotencyKey with an agent step re-resolves before returning the existing run', async () => {
+      const subscriptionId = crypto.randomUUID();
+      const eventId = crypto.randomUUID();
+      const idempotencyKey = `${subscriptionId}:${eventId}`;
+      const model = buildModel({
+        jobs: {
+          fix: {steps: [{prompt: 'Fix the failing tests.'}]},
+        },
+      });
+      const firstResolver = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+        provider: 'openai',
+        model: 'gpt-5.5-pro',
+        thinking: 'medium',
+      });
+      const secondResolver = vi.fn<AgentDefaultsResolver>().mockImplementation(() => {
+        throw new Error('agent defaults unavailable');
+      });
+      const first = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId,
+          userId: crypto.randomUUID(),
+        },
+        triggerIdempotencyKey: idempotencyKey,
+        resolveAgentDefaults: firstResolver,
+      });
+
+      const replay = createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId,
+          userId: crypto.randomUUID(),
+        },
+        triggerIdempotencyKey: idempotencyKey,
+        resolveAgentDefaults: secondResolver,
+      });
+
+      await expect(replay).rejects.toThrow('agent defaults unavailable');
+      expect(firstResolver).toHaveBeenCalledTimes(1);
+      expect(secondResolver).toHaveBeenCalledTimes(1);
+
+      const allJobs = await getJobsByRunId(first.id);
+      expect(allJobs).toHaveLength(1);
+    });
+
     test('null triggerIdempotencyKey allows independent inserts', async () => {
       const a = await createWorkflowRun({
         workspaceId,
@@ -724,6 +821,51 @@ jobs:
         expect(jobSteps.every((step) => step.status === 'pending')).toBe(true);
         expect(jobSteps.every((step) => step.output === null && step.error === null)).toBe(true);
       }
+    });
+
+    test('reruns preserve the original resolved agent step config', async () => {
+      const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+        provider: 'openai',
+        model: 'gpt-5.5-pro',
+        thinking: 'medium',
+      });
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            fix: {steps: [{prompt: 'Fix the failing tests.'}]},
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        resolveAgentDefaults,
+      });
+      const sourceJobs = await getJobsByRunId(source.id);
+      await markJob(sourceJobs, 'fix', 'failed');
+      await updateWorkflowRunStatus({runId: source.id, status: 'failed', expectedVersion: 1});
+
+      const rerun = await createRerunWorkflowRun({
+        sourceRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const rerunJobs = await getJobsByRunId(rerun.id);
+      const rerunSteps = await getStepsByJobId(rerunJobs[0]?.id as string);
+      const agentStep = rerunSteps.find((step) => step.type === 'agent');
+      expect(resolveAgentDefaults).toHaveBeenCalledTimes(1);
+      expect(agentStep?.config).toEqual({
+        model: 'gpt-5.5-pro',
+        provider: 'openai',
+        thinking: 'medium',
+        prompt: 'Fix the failing tests.',
+      });
     });
 
     test('writes one workflow_run.created outbox event for the rerun', async () => {

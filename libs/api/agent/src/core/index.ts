@@ -12,3 +12,12 @@ export {
 } from './errors.js';
 export {buildAgentProviderCatalog} from './provider-catalog.js';
 export {testAndSaveProviderConfig} from './provider-config-service.js';
+export {
+  type AgentConfigResolutionContext,
+  type AgentDefaultsResolver,
+  type ContextualAgentConfig,
+  catalogDefaultAgentResolver,
+  createWorkspaceAgentDefaultsResolver,
+  type ResolvedAgentConfig,
+  resolveAgentConfig,
+} from './resolve-agent-config.js';

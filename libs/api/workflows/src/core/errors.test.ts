@@ -1,4 +1,5 @@
 import {
+  AgentConfigUnresolvableError,
   DefinitionNotFoundError,
   isPermanentRunWorkflowError,
   ProjectMismatchError,
@@ -13,6 +14,12 @@ describe('isPermanentRunWorkflowError', () => {
 
   test('is true for a project mismatch', () => {
     const result = isPermanentRunWorkflowError(new ProjectMismatchError('proj-a', 'proj-b'));
+
+    expect(result).toBe(true);
+  });
+
+  test('is true for unresolvable agent configuration', () => {
+    const result = isPermanentRunWorkflowError(new AgentConfigUnresolvableError('def-1'));
 
     expect(result).toBe(true);
   });

@@ -3,16 +3,23 @@ import {db, migrationsPath} from '#db/index.js';
 import {routes} from '#presentation/index.js';
 
 export {
+  type AgentConfigResolutionContext,
+  type AgentDefaultsResolver,
   type AgentProviderConfig,
   AgentProviderConfigNotFoundError,
   AgentProviderValidationError,
   type AgentWorkspaceSettings,
   buildAgentProviderCatalog,
+  type ContextualAgentConfig,
   CredentialDecryptionError,
+  catalogDefaultAgentResolver,
+  createWorkspaceAgentDefaultsResolver,
   decryptCredentials,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
   ProviderValidationUnavailableError,
+  type ResolvedAgentConfig,
+  resolveAgentConfig,
   testAndSaveProviderConfig,
   UnsupportedAgentProviderError,
 } from '#core/index.js';
