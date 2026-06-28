@@ -78,4 +78,61 @@ describe('evaluateWorkflowExpression', () => {
 
     expect(act).toThrow(WorkflowExpressionEvaluationError);
   });
+
+  it('reads dotted properties from syntax-checked plain objects', () => {
+    const expression = createWorkflowExpression({
+      source: 'event.pull_request.title',
+      check: {mode: 'syntax'},
+    });
+
+    const result = evaluateWorkflowExpression(expression, {
+      event: {
+        pull_request: {
+          title: 'Fix auth',
+        },
+      },
+    });
+
+    expect(result).toBe('Fix auth');
+  });
+
+  it('returns heterogeneous nested values from syntax-checked plain objects', () => {
+    const expression = createWorkflowExpression({
+      source: 'event.pull_request',
+      check: {mode: 'syntax'},
+    });
+    const pullRequest = {
+      title: 'Fix auth',
+      labels: [{name: 'bug'}],
+      number: 42,
+      draft: false,
+      review: {score: 0.95},
+    };
+
+    const result = evaluateWorkflowExpression(expression, {
+      event: {
+        pull_request: pullRequest,
+      },
+    });
+
+    expect(result).toEqual(pullRequest);
+  });
+
+  it('wraps missing paths from syntax-checked plain objects as evaluation errors', () => {
+    const expression = createWorkflowExpression({
+      source: 'event.nope.deep',
+      check: {mode: 'syntax'},
+    });
+
+    const act = () =>
+      evaluateWorkflowExpression(expression, {
+        event: {
+          pull_request: {
+            title: 'Fix auth',
+          },
+        },
+      });
+
+    expect(act).toThrow(WorkflowExpressionEvaluationError);
+  });
 });
