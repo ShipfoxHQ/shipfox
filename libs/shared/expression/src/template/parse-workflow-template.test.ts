@@ -9,9 +9,15 @@ import type {
 
 const templateOpen = '$' + '{{';
 const templateClose = '}' + '}';
+const escapedTemplateOpen = `$${templateOpen}`;
+const tripleDollarTemplateOpen = `$${escapedTemplateOpen}`;
 
 function templateExpression(source: string): string {
   return `${templateOpen}${source}${templateClose}`;
+}
+
+function templateSpanFromOpen(open: string, source: string): string {
+  return `${open}${source}${templateClose}`;
 }
 
 describe('parseWorkflowTemplate', () => {
@@ -222,15 +228,24 @@ describe('parseWorkflowTemplate', () => {
   });
 
   it('escapes a literal opener with a leading dollar', () => {
-    const segments = parseWorkflowTemplate(`$${templateExpression(' event.ref ')}`);
+    const segments = parseWorkflowTemplate(
+      templateSpanFromOpen(escapedTemplateOpen, ' event.ref '),
+    );
 
     expect(segments).toEqual([{kind: 'literal', text: templateExpression(' event.ref ')}]);
   });
 
   it('greedily escapes the second dollar in a triple-dollar opener', () => {
-    const segments = parseWorkflowTemplate(`$$${templateExpression(' event.ref ')}`);
+    const segments = parseWorkflowTemplate(
+      templateSpanFromOpen(tripleDollarTemplateOpen, ' event.ref '),
+    );
 
-    expect(segments).toEqual([{kind: 'literal', text: `$${templateExpression(' event.ref ')}`}]);
+    expect(segments).toEqual([
+      {
+        kind: 'literal',
+        text: templateSpanFromOpen(escapedTemplateOpen, ' event.ref '),
+      },
+    ]);
   });
 
   it('passes lone dollar runs through when they do not escape an opener', () => {
