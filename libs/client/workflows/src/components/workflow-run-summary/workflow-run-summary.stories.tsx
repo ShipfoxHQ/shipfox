@@ -61,21 +61,6 @@ export const SourceOpen: Story = {
   },
 };
 
-export const Cancellable: Story = {
-  args: {
-    run: workflowRun({status: 'running'}),
-    onCancel: noop,
-  },
-};
-
-export const Cancelling: Story = {
-  args: {
-    run: workflowRun({status: 'running'}),
-    cancelling: true,
-    onCancel: noop,
-  },
-};
-
 const ALL_STATUSES: WorkflowRunStatus[] = [
   'pending',
   'running',
