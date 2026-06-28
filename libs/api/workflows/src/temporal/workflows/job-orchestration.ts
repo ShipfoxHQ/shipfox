@@ -72,12 +72,27 @@ async function releaseLeaseBestEffort(jobId: string): Promise<void> {
   }
 }
 
-async function markJobRunningAndEnqueue(input: JobOrchestrationInput): Promise<number> {
-  const {newVersion: runningVersion} = await setJobStatus({
+function runtimeStatusForTerminalJob(status: string): RuntimeCompletionStatus {
+  return status === 'succeeded' ? 'succeeded' : 'failed';
+}
+
+async function markJobRunningAndEnqueue(
+  input: JobOrchestrationInput,
+): Promise<
+  {kind: 'running'; runningVersion: number} | {kind: 'terminal'; result: JobOrchestrationResult}
+> {
+  const {newVersion: runningVersion, status} = await setJobStatus({
     jobId: input.jobId,
     status: 'running',
     version: input.jobVersion,
   });
+
+  if (status !== undefined && status !== 'pending' && status !== 'running') {
+    return {
+      kind: 'terminal',
+      result: {status: runtimeStatusForTerminalJob(status), jobVersion: runningVersion},
+    };
+  }
 
   await enqueueJobForRunner({
     workspaceId: input.workspaceId,
@@ -86,7 +101,7 @@ async function markJobRunningAndEnqueue(input: JobOrchestrationInput): Promise<n
     projectId: input.projectId,
   });
 
-  return runningVersion;
+  return {kind: 'running', runningVersion};
 }
 
 interface JobOutcomeSignals {
@@ -169,7 +184,9 @@ async function resolveTimedOutJob({
 export async function jobOrchestration(
   input: JobOrchestrationInput,
 ): Promise<JobOrchestrationResult> {
-  const runningVersion = await markJobRunningAndEnqueue(input);
+  const running = await markJobRunningAndEnqueue(input);
+  if (running.kind === 'terminal') return running.result;
+  const {runningVersion} = running;
 
   const {finished, leaseExpired} = await awaitJobOutcome();
 

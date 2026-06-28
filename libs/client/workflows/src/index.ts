@@ -25,6 +25,7 @@ export {
   workflowRunTriggerLabel,
 } from '#core/workflow-run.js';
 export {
+  useCancelWorkflowRunMutation,
   useWorkflowRunQuery,
   useWorkflowRunsInfiniteQuery,
   type WorkflowRunFilters,

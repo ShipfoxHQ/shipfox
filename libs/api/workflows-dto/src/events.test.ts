@@ -4,6 +4,7 @@ import {
   WORKFLOWS_JOB_TIMED_OUT,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
+  WORKFLOWS_WORKFLOW_RUN_CANCELLED,
   WORKFLOWS_WORKFLOW_RUN_CREATED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   workflowsEventSchemas,
@@ -12,6 +13,7 @@ import {
   workflowsJobTimedOutSchema,
   workflowsStepAttemptTerminatedSchema,
   workflowsStepRestartEnqueuedSchema,
+  workflowsWorkflowRunCancelledSchema,
   workflowsWorkflowRunCreatedSchema,
   workflowsWorkflowRunTerminatedSchema,
 } from './events.js';
@@ -34,6 +36,11 @@ const validRunTerminated = {
   runId: 'run-1',
   projectId: 'proj-1',
   status: 'failed',
+};
+
+const validRunCancelled = {
+  runId: 'run-1',
+  projectId: 'proj-1',
 };
 
 const validJobTimedOut = {
@@ -157,6 +164,12 @@ describe.each([
     validRunCreated,
     'runId',
   ],
+  [
+    'workflowsWorkflowRunCancelledSchema',
+    workflowsWorkflowRunCancelledSchema,
+    validRunCancelled,
+    'projectId',
+  ],
   ['workflowsJobTimedOutSchema', workflowsJobTimedOutSchema, validJobTimedOut, 'jobId'],
   [
     'workflowsJobStepsSettledSchema',
@@ -202,6 +215,7 @@ describe('workflowsEventSchemas', () => {
       [
         WORKFLOWS_WORKFLOW_RUN_CREATED,
         WORKFLOWS_WORKFLOW_RUN_TERMINATED,
+        WORKFLOWS_WORKFLOW_RUN_CANCELLED,
         WORKFLOWS_JOB_TIMED_OUT,
         WORKFLOWS_JOB_TERMINATED,
         WORKFLOWS_JOB_STEPS_SETTLED,

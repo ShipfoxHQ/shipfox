@@ -8,6 +8,7 @@ import {
 } from '@shipfox/api-runners-dto';
 import {
   WORKFLOWS_JOB_STEPS_SETTLED,
+  WORKFLOWS_WORKFLOW_RUN_CANCELLED,
   WORKFLOWS_WORKFLOW_RUN_CREATED,
   type WorkflowsEventMap,
   workflowsEventSchemas,
@@ -20,6 +21,7 @@ import {
   onRunnerJobClaimed,
   onRunnerJobLeaseExpired,
   onRunnerJobQueued,
+  onWorkflowRunCancelled,
   onWorkflowRunCreated,
   routes,
 } from '#presentation/index.js';
@@ -38,6 +40,7 @@ export {
   isPermanentRunWorkflowError,
   ProjectMismatchError,
   runWorkflow,
+  WorkflowRunNotCancellableError,
 } from '#core/index.js';
 export {setSourceControl} from '#core/source-control.js';
 export {
@@ -65,6 +68,7 @@ export const workflowsModule: ShipfoxModule = {
   ],
   subscribers: [
     subscriber(WORKFLOWS_WORKFLOW_RUN_CREATED, onWorkflowRunCreated),
+    subscriber(WORKFLOWS_WORKFLOW_RUN_CANCELLED, onWorkflowRunCancelled),
     subscriber(WORKFLOWS_JOB_STEPS_SETTLED, onJobStepsSettled),
     subscriber(RUNNER_JOB_LEASE_EXPIRED, onRunnerJobLeaseExpired),
     subscriber(RUNNER_JOB_QUEUED, onRunnerJobQueued),

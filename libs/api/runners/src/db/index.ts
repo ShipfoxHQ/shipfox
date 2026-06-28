@@ -4,6 +4,7 @@ import {fileURLToPath} from 'node:url';
 export {closeDb, db, schema} from './db.js';
 export type {ClaimedJob, EnqueueJobParams} from './jobs.js';
 export {
+  cancelRunnerJobs,
   claimPendingJob,
   enqueueJob,
   expireStuckJobs,

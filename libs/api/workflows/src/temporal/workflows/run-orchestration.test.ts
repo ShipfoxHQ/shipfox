@@ -38,6 +38,14 @@ async function executeRun(): Promise<void> {
   });
 }
 
+async function waitForActivity(name: string): Promise<void> {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (callsNamed(name).length > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Timed out waiting for ${name}`);
+}
+
 describe('runOrchestration', () => {
   test('linear DAG, all succeed', async () => {
     const jobs = [
@@ -149,6 +157,42 @@ describe('runOrchestration', () => {
     // The final setRunStatus should use the version returned by the first setRunStatus
     const finalRunStatus = setRunStatusCalls().at(-1);
     expect(finalRunStatus?.params.version).toBeGreaterThan(0);
+  });
+
+  test('cancel signal stops scheduling and fans out runner cancellation', async () => {
+    const jobs = [dagJob('j1', 'build'), dagJob('j2', 'deploy', ['build'])];
+    setCfg({dag: makeDag(jobs, 'r-cancel'), jobResults: new Map(), skipSignal: true});
+
+    const handle = await testEnv.client.workflow.start('runOrchestration', {
+      taskQueue: TASK_QUEUE,
+      workflowId: `run:${runId}`,
+      args: [{runId, workspaceId}],
+    });
+    await waitForActivity('enqueueJobForRunner');
+
+    await handle.signal('run-cancel');
+    await handle.result();
+
+    expect(setRunStatusCalls().map((c) => c.params.status)).toEqual(['running']);
+    expect(callsNamed('enqueueJobForRunner')).toHaveLength(1);
+    expect(callsNamed('cancelRunnerJobsActivity')).toEqual([
+      {name: 'cancelRunnerJobsActivity', params: {jobIds: ['j1', 'j2']}},
+    ]);
+  });
+
+  test('aborts early when the initial running write reports an already-terminal run', async () => {
+    const jobs = [dagJob('j1', 'build')];
+    setCfg({
+      dag: makeDag(jobs, 'r-terminal'),
+      jobResults: new Map(),
+      initialRunStatus: 'cancelled',
+    });
+
+    await executeRun();
+
+    expect(setRunStatusCalls().map((c) => c.params.status)).toEqual(['running']);
+    expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
+    expect(callsNamed('cancelRunnerJobsActivity')).toHaveLength(0);
   });
 
   test('diamond DAG with partial failure', async () => {

@@ -158,6 +158,32 @@ describe('WorkflowRunSummary', () => {
 
     expect(screen.queryByRole('button', {name: 'Source'})).not.toBeInTheDocument();
   });
+
+  test('shows the cancel action when the run can be cancelled', async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    renderSummary({}, {canCancel: true, onCancel});
+
+    await user.click(await screen.findByRole('button', {name: 'Cancel workflow'}));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  test('omits the cancel action when the run cannot be cancelled', async () => {
+    renderSummary({status: 'succeeded'}, {canCancel: false});
+
+    await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(screen.queryByRole('button', {name: 'Cancel workflow'})).not.toBeInTheDocument();
+  });
+
+  test('disables the cancel action while cancellation is pending', async () => {
+    renderSummary({}, {canCancel: true, cancelling: true, onCancel: vi.fn()});
+
+    const button = await screen.findByRole('button', {name: 'Cancel workflow'});
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
+  });
 });
 
 function renderSummary(

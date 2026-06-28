@@ -1,4 +1,5 @@
 import type {JobStatus} from './entities/job.js';
+import type {WorkflowRunStatus} from './entities/workflow-run.js';
 
 export class DefinitionNotFoundError extends Error {
   constructor(definitionId: string) {
@@ -49,6 +50,16 @@ export class WorkflowRunNotFoundError extends Error {
   constructor(runId: string) {
     super(`Workflow run not found: ${runId}`);
     this.name = 'WorkflowRunNotFoundError';
+  }
+}
+
+export class WorkflowRunNotCancellableError extends Error {
+  constructor(
+    readonly runId: string,
+    readonly status: WorkflowRunStatus,
+  ) {
+    super(`Workflow run ${runId} is ${status} and cannot be cancelled`);
+    this.name = 'WorkflowRunNotCancellableError';
   }
 }
 

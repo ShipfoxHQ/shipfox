@@ -1,4 +1,4 @@
-import {enqueueJob, releaseJob} from '@shipfox/api-runners';
+import {cancelRunnerJobs, enqueueJob, releaseJob} from '@shipfox/api-runners';
 import {ApplicationFailure} from '@temporalio/common';
 import type {JobStatus, JobStatusReason} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus, RuntimeDagJob} from '#core/entities/runtime-dag.js';
@@ -80,13 +80,13 @@ export async function setRunStatus(params: {
   runId: string;
   status: WorkflowRunStatus;
   version: number;
-}): Promise<{newVersion: number}> {
+}): Promise<{newVersion: number; status: WorkflowRunStatus}> {
   const updated = await updateWorkflowRunStatus({
     runId: params.runId,
     status: params.status,
     expectedVersion: params.version,
   });
-  return {newVersion: updated.version};
+  return {newVersion: updated.version, status: updated.status};
 }
 
 export async function setJobStatus(params: {
@@ -94,14 +94,14 @@ export async function setJobStatus(params: {
   status: JobStatus;
   version: number;
   statusReason?: JobStatusReason | null | undefined;
-}): Promise<{newVersion: number}> {
+}): Promise<{newVersion: number; status: JobStatus}> {
   const updated = await updateJobStatus({
     jobId: params.jobId,
     status: params.status,
     expectedVersion: params.version,
     statusReason: params.statusReason,
   });
-  return {newVersion: updated.version};
+  return {newVersion: updated.version, status: updated.status};
 }
 
 export async function bulkSetStepStatuses(params: {
@@ -150,6 +150,10 @@ export async function enqueueJobForRunner(params: {
     runId: params.runId,
     projectId: params.projectId,
   });
+}
+
+export async function cancelRunnerJobsActivity(params: {jobIds: string[]}): Promise<void> {
+  await cancelRunnerJobs({jobIds: params.jobIds});
 }
 
 export async function failJobAsTimedOutActivity(params: {

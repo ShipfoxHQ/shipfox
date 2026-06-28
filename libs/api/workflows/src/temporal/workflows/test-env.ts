@@ -35,6 +35,10 @@ export interface TestConfig {
   releaseLeaseError?: string;
   /** If set, failJobAsTimedOutActivity throws (for timeout error-path testing) */
   failJobAsTimedOutError?: string;
+  /** Effective status returned by the initial running setRunStatus call */
+  initialRunStatus?: string;
+  /** Effective status returned by a running setJobStatus call */
+  runningJobStatus?: string;
 }
 
 export let cfg: TestConfig;
@@ -139,7 +143,9 @@ function createMockActivities() {
 
     setRunStatus: (params: {runId: string; status: string; version: number}) => {
       calls.push({name: 'setRunStatus', params});
-      return {newVersion: nextVersion()};
+      const status =
+        params.status === 'running' && cfg.initialRunStatus ? cfg.initialRunStatus : params.status;
+      return {newVersion: nextVersion(), status};
     },
 
     setJobStatus: (params: {
@@ -149,11 +155,17 @@ function createMockActivities() {
       statusReason?: string | null;
     }) => {
       calls.push({name: 'setJobStatus', params});
-      return {newVersion: nextVersion()};
+      const status =
+        params.status === 'running' && cfg.runningJobStatus ? cfg.runningJobStatus : params.status;
+      return {newVersion: nextVersion(), status};
     },
 
     bulkSetStepStatuses: (params: {jobId: string; status: string}) => {
       calls.push({name: 'bulkSetStepStatuses', params});
+    },
+
+    cancelRunnerJobsActivity: (params: {jobIds: string[]}) => {
+      calls.push({name: 'cancelRunnerJobsActivity', params});
     },
 
     // Scheduling is step-less. The mock runner reports the job outcome by signalling

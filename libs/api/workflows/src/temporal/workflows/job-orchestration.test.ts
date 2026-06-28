@@ -149,6 +149,20 @@ describe('jobOrchestration', () => {
     expect(finalStatusesFor('job-dup').filter((s) => s !== 'running')).toEqual(['succeeded']);
   });
 
+  test('already-terminal job is not enqueued', async () => {
+    setCfg({
+      dag: makeDag([]),
+      jobResults: new Map(),
+      runningJobStatus: 'cancelled',
+    });
+
+    const result = await executeJob({...defaultJobInput, jobId: 'job-cancelled'});
+
+    expect(result).toMatchObject({status: 'failed'});
+    expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
+    expect(callsNamed('releaseLeaseActivity')).toHaveLength(0);
+  });
+
   test('releaseLease failure does not block the result (best-effort)', async () => {
     setCfg({
       dag: makeDag([]),

@@ -1,15 +1,19 @@
-import type {RunDetailResponseDto, RunListResponseDto} from '@shipfox/api-workflows-dto';
+import type {RunDetailResponseDto, RunDto, RunListResponseDto} from '@shipfox/api-workflows-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {
   type InfiniteData,
   keepPreviousData,
   useInfiniteQuery,
+  useMutation,
   useQuery,
+  useQueryClient,
 } from '@tanstack/react-query';
 import {
   isWorkflowRunTerminal,
+  toWorkflowRun,
   toWorkflowRunDetail,
   toWorkflowRunListPage,
+  type WorkflowRun,
   type WorkflowRunDetail,
   type WorkflowRunListPage,
   type WorkflowRunStatus,
@@ -125,6 +129,10 @@ async function getWorkflowRunDto({runId, signal}: {runId: string; signal?: Abort
   return await apiRequest<RunDetailResponseDto>(`/workflows/runs/${runId}`, {signal});
 }
 
+async function cancelWorkflowRunDto({runId}: {runId: string}) {
+  return await apiRequest<RunDto>(`/workflows/runs/${runId}/cancel`, {method: 'POST'});
+}
+
 export function useWorkflowRunQuery(runId: string | undefined) {
   // Poll a non-terminal run so the open run detail stays live (same cadence as the run
   // list); stop once the run is terminal.
@@ -143,5 +151,22 @@ export function useWorkflowRunQuery(runId: string | undefined) {
       return isWorkflowRunTerminal(status) ? false : ACTIVE_POLL_MS;
     },
     refetchIntervalInBackground: false,
+  });
+}
+
+export function useCancelWorkflowRunMutation(run: WorkflowRun | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!run) throw new Error('Workflow run is not loaded');
+      return toWorkflowRun(await cancelWorkflowRunDto({runId: run.id}));
+    },
+    onSuccess: async () => {
+      if (!run) return;
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.detail(run.id)}),
+        queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.lists(run.projectId)}),
+      ]);
+    },
   });
 }

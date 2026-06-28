@@ -5,6 +5,7 @@ export {closeDb, db, schema} from './db.js';
 export {workflowsOutbox} from './schema/outbox.js';
 export type {
   BulkUpdateStepStatusesParams,
+  CancelWorkflowRunParams,
   CreateWorkflowRunParams,
   FailJobAsTimedOutParams,
   ListWorkflowRunsParams,
@@ -19,6 +20,7 @@ export type {
 } from './workflow-runs.js';
 export {
   bulkUpdateStepStatuses,
+  cancelWorkflowRun,
   createWorkflowRun,
   failJobAsTimedOut,
   getJobById,

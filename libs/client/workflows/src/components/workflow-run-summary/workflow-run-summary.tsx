@@ -29,6 +29,9 @@ export interface WorkflowRunSummaryProps {
   sourcePanelId?: string | undefined;
   sourceButtonRef?: Ref<HTMLButtonElement> | undefined;
   onSourceToggle?: (() => void) | undefined;
+  canCancel?: boolean | undefined;
+  cancelling?: boolean | undefined;
+  onCancel?: (() => void) | undefined;
 }
 
 export function WorkflowRunSummary({
@@ -38,6 +41,9 @@ export function WorkflowRunSummary({
   sourcePanelId,
   sourceButtonRef,
   onSourceToggle,
+  canCancel = false,
+  cancelling = false,
+  onCancel,
 }: WorkflowRunSummaryProps) {
   const headingId = useId();
   const status = getWorkflowStatusVisual(run.status);
@@ -75,23 +81,40 @@ export function WorkflowRunSummary({
           </Tooltip>
         </div>
 
-        {sourceAvailable ? (
-          <Button
-            ref={sourceButtonRef}
-            type="button"
-            variant="transparentMuted"
-            size="xs"
-            iconLeft="fileCodeLine"
-            aria-controls={sourcePanelId}
-            aria-expanded={sourceOpen}
-            className={cn(
-              'col-start-2 row-start-1 justify-self-end text-foreground-neutral-subtle',
-              sourceOpen && 'bg-background-components-hover text-foreground-neutral-base',
-            )}
-            onClick={onSourceToggle}
-          >
-            Source
-          </Button>
+        {sourceAvailable || canCancel ? (
+          <div className="col-start-2 row-start-1 flex items-center gap-8 justify-self-end">
+            {canCancel ? (
+              <Button
+                type="button"
+                variant="danger"
+                size="xs"
+                iconLeft="close"
+                isLoading={cancelling}
+                disabled={cancelling || !onCancel}
+                onClick={onCancel}
+              >
+                Cancel workflow
+              </Button>
+            ) : null}
+            {sourceAvailable ? (
+              <Button
+                ref={sourceButtonRef}
+                type="button"
+                variant="transparentMuted"
+                size="xs"
+                iconLeft="fileCodeLine"
+                aria-controls={sourcePanelId}
+                aria-expanded={sourceOpen}
+                className={cn(
+                  'text-foreground-neutral-subtle',
+                  sourceOpen && 'bg-background-components-hover text-foreground-neutral-base',
+                )}
+                onClick={onSourceToggle}
+              >
+                Source
+              </Button>
+            ) : null}
+          </div>
         ) : null}
 
         <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-8 overflow-hidden text-foreground-neutral-muted">
