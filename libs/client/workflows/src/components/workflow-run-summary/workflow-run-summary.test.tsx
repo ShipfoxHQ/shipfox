@@ -162,15 +162,15 @@ describe('WorkflowRunSummary', () => {
   test('shows the cancel action when the run can be cancelled', async () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
-    renderSummary({}, {canCancel: true, onCancel});
+    renderSummary({}, {onCancel});
 
     await user.click(await screen.findByRole('button', {name: 'Cancel workflow'}));
 
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
-  test('omits the cancel action when the run cannot be cancelled', async () => {
-    renderSummary({status: 'succeeded'}, {canCancel: false});
+  test('omits the cancel action for terminal runs', async () => {
+    renderSummary({status: 'succeeded'});
 
     await screen.findByRole('region', {name: 'deploy-web'});
 
@@ -178,17 +178,17 @@ describe('WorkflowRunSummary', () => {
   });
 
   test('disables the cancel action while cancellation is pending', async () => {
-    renderSummary({}, {canCancel: true, cancelling: true, onCancel: vi.fn()});
+    renderSummary({}, {cancelling: true, onCancel: vi.fn()});
 
     const button = await screen.findByRole('button', {name: 'Cancel workflow'});
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute('aria-busy', 'true');
   });
 
-  test('prefers the cancel action for non-terminal runs', async () => {
+  test('derives the cancel action for non-terminal runs', async () => {
     const onCancel = vi.fn();
     const onRerun = vi.fn();
-    renderSummary({status: 'running'}, {canCancel: true, onCancel, canRerun: true, onRerun});
+    renderSummary({status: 'running'}, {onCancel, onRerun});
 
     await screen.findByRole('button', {name: 'Cancel workflow'});
 
@@ -199,7 +199,7 @@ describe('WorkflowRunSummary', () => {
   test('re-runs all jobs from a succeeded run', async () => {
     const user = userEvent.setup();
     const onRerun = vi.fn();
-    renderSummary({status: 'succeeded'}, {canRerun: true, onRerun});
+    renderSummary({status: 'succeeded'}, {onRerun});
 
     await user.click(await screen.findByRole('button', {name: 'Re-run all jobs'}));
 
@@ -209,7 +209,7 @@ describe('WorkflowRunSummary', () => {
   test('shows re-run choices for a failed run', async () => {
     const user = userEvent.setup();
     const onRerun = vi.fn();
-    renderSummary({status: 'failed'}, {canRerun: true, onRerun});
+    renderSummary({status: 'failed'}, {onRerun});
 
     await user.click(await screen.findByRole('button', {name: 'Re-run jobs'}));
     expect(await screen.findByRole('menuitem', {name: 'Re-run all jobs'})).toBeInTheDocument();
@@ -221,7 +221,7 @@ describe('WorkflowRunSummary', () => {
   test('shows re-run choices for a cancelled run', async () => {
     const user = userEvent.setup();
     const onRerun = vi.fn();
-    renderSummary({status: 'cancelled'}, {canRerun: true, onRerun});
+    renderSummary({status: 'cancelled'}, {onRerun});
 
     await user.click(await screen.findByRole('button', {name: 'Re-run jobs'}));
 

@@ -4,7 +4,7 @@ import {QueryLoadError} from '@shipfox/client-ui';
 import {EmptyState, RelativeTimeProvider, toast} from '@shipfox/react-ui';
 import {useNavigate} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
-import {isWorkflowRunTerminal, type WorkflowJob} from '#core/workflow-run.js';
+import type {WorkflowJob} from '#core/workflow-run.js';
 import {
   type WorkflowRunSelectionInput,
   withoutWorkflowRunSelectionSearch,
@@ -120,8 +120,6 @@ function RunViewContent({
     : undefined;
   const highlightedLineRange = resolvedSelection?.step?.sourceLocation ?? null;
   const sourceSnapshot = runData.sourceSnapshot;
-  const canRerun = isWorkflowRunTerminal(runData.status);
-
   async function rerun(mode: RerunMode) {
     try {
       const run = await rerunMutation.mutateAsync({runId: runData.id, mode});
@@ -189,10 +187,8 @@ function RunViewContent({
           sourcePanelId={sourcePanelId}
           sourceButtonRef={sourceButtonRef}
           onSourceToggle={() => setSourcePanelOpen((open) => !open)}
-          canCancel={!isWorkflowRunTerminal(runData.status)}
           cancelling={cancelMutation.isPending}
           onCancel={cancelRun}
-          canRerun={canRerun}
           rerunPending={rerunMutation.isPending}
           onRerun={(mode) => void rerun(mode)}
         />

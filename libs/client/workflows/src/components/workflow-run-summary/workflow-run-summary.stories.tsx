@@ -1,3 +1,4 @@
+import type {RerunMode} from '@shipfox/api-workflows-dto';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import type {WorkflowRunStatus} from '#core/workflow-run.js';
 import {workflowRun} from '#test/fixtures/workflow-run.js';
@@ -31,6 +32,9 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const noop = () => undefined;
+const noopRerun = (_mode: RerunMode) => undefined;
+
 export const Default: Story = {};
 
 export const WithSourceButton: Story = {
@@ -60,15 +64,15 @@ export const SourceOpen: Story = {
 export const Cancellable: Story = {
   args: {
     run: workflowRun({status: 'running'}),
-    canCancel: true,
+    onCancel: noop,
   },
 };
 
 export const Cancelling: Story = {
   args: {
     run: workflowRun({status: 'running'}),
-    canCancel: true,
     cancelling: true,
+    onCancel: noop,
   },
 };
 
@@ -91,6 +95,66 @@ export const Statuses: Story = {
             status,
             name: `${status}-pipeline`,
           })}
+        />
+      ))}
+    </div>
+  ),
+};
+
+const ACTION_VARIANTS = [
+  {
+    label: 'Running',
+    run: workflowRun({status: 'running', name: 'running-pipeline'}),
+    props: {onCancel: noop},
+  },
+  {
+    label: 'Cancelling',
+    run: workflowRun({status: 'running', name: 'cancelling-pipeline'}),
+    props: {cancelling: true, onCancel: noop},
+  },
+  {
+    label: 'Succeeded',
+    run: workflowRun({status: 'succeeded', name: 'succeeded-pipeline'}),
+    props: {onRerun: noopRerun},
+  },
+  {
+    label: 'Re-running',
+    run: workflowRun({status: 'succeeded', name: 'rerun-pending-pipeline'}),
+    props: {rerunPending: true, onRerun: noopRerun},
+  },
+  {
+    label: 'Failed',
+    run: workflowRun({status: 'failed', name: 'failed-pipeline'}),
+    props: {onRerun: noopRerun},
+  },
+  {
+    label: 'Cancelled',
+    run: workflowRun({status: 'cancelled', name: 'cancelled-pipeline'}),
+    props: {onRerun: noopRerun},
+  },
+] satisfies Array<{
+  label: string;
+  run: ReturnType<typeof workflowRun>;
+  props: Pick<
+    Parameters<typeof WorkflowRunSummary>[0],
+    'cancelling' | 'onCancel' | 'rerunPending' | 'onRerun'
+  >;
+}>;
+
+export const ActionVariantsWithSource: Story = {
+  render: () => (
+    <div className="flex flex-col">
+      {ACTION_VARIANTS.map(({label, run, props}, index) => (
+        <WorkflowRunSummary
+          key={label}
+          run={{
+            ...run,
+            id: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
+          }}
+          sourceAvailable
+          sourceOpen={label === 'Running'}
+          sourcePanelId={`workflow-source-panel-${index}`}
+          {...props}
         />
       ))}
     </div>

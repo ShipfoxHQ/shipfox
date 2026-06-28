@@ -31,6 +31,8 @@ const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
   ...WORKFLOW_RUN_STATUSES.map((status) => getWorkflowStatusVisual(status).label.length),
 );
 
+type WorkflowRunAction = 'cancel' | 'rerun-all' | 'rerun-menu';
+
 export interface WorkflowRunSummaryProps {
   run: WorkflowRun;
   sourceAvailable?: boolean | undefined;
@@ -38,10 +40,8 @@ export interface WorkflowRunSummaryProps {
   sourcePanelId?: string | undefined;
   sourceButtonRef?: Ref<HTMLButtonElement> | undefined;
   onSourceToggle?: (() => void) | undefined;
-  canCancel?: boolean | undefined;
   cancelling?: boolean | undefined;
   onCancel?: (() => void) | undefined;
-  canRerun?: boolean | undefined;
   rerunPending?: boolean | undefined;
   onRerun?: ((mode: RerunMode) => void) | undefined;
 }
@@ -53,15 +53,14 @@ export function WorkflowRunSummary({
   sourcePanelId,
   sourceButtonRef,
   onSourceToggle,
-  canCancel = false,
   cancelling = false,
   onCancel,
-  canRerun = false,
   rerunPending = false,
   onRerun,
 }: WorkflowRunSummaryProps) {
   const headingId = useId();
   const status = getWorkflowStatusVisual(run.status);
+  const action = workflowRunActionForStatus(run.status);
   const {ref: headingTextRef, isTruncated: isHeadingTruncated} =
     useIsTextTruncated<HTMLSpanElement>(run.name);
 
@@ -96,37 +95,33 @@ export function WorkflowRunSummary({
           </Tooltip>
         </div>
 
-        {sourceAvailable || canCancel || canRerun ? (
-          <div className="col-start-2 row-start-1 flex min-w-max items-center gap-6 justify-self-end">
-            <WorkflowRunActionSlot
-              run={run}
-              canCancel={canCancel}
-              cancelling={cancelling}
-              onCancel={onCancel}
-              canRerun={canRerun}
-              rerunPending={rerunPending}
-              onRerun={onRerun}
-            />
-            {sourceAvailable ? (
-              <Button
-                ref={sourceButtonRef}
-                type="button"
-                variant="transparentMuted"
-                size="xs"
-                iconLeft="fileCodeLine"
-                aria-controls={sourcePanelId}
-                aria-expanded={sourceOpen}
-                className={cn(
-                  'text-foreground-neutral-subtle',
-                  sourceOpen && 'bg-background-components-hover text-foreground-neutral-base',
-                )}
-                onClick={onSourceToggle}
-              >
-                Source
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="col-start-2 row-start-1 flex min-w-max items-center gap-6 justify-self-end">
+          <WorkflowRunActionSlot
+            action={action}
+            cancelling={cancelling}
+            onCancel={onCancel}
+            rerunPending={rerunPending}
+            onRerun={onRerun}
+          />
+          {sourceAvailable ? (
+            <Button
+              ref={sourceButtonRef}
+              type="button"
+              variant="transparentMuted"
+              size="xs"
+              iconLeft="fileCodeLine"
+              aria-controls={sourcePanelId}
+              aria-expanded={sourceOpen}
+              className={cn(
+                'text-foreground-neutral-subtle',
+                sourceOpen && 'bg-background-components-hover text-foreground-neutral-base',
+              )}
+              onClick={onSourceToggle}
+            >
+              Source
+            </Button>
+          ) : null}
+        </div>
 
         <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-8 overflow-hidden text-foreground-neutral-muted">
           <Identifier display={run.shortId} value={run.id} label="run id" />
@@ -170,25 +165,19 @@ export function WorkflowRunSummary({
 }
 
 function WorkflowRunActionSlot({
-  run,
-  canCancel,
+  action,
   cancelling,
   onCancel,
-  canRerun,
   rerunPending,
   onRerun,
 }: {
-  run: WorkflowRun;
-  canCancel: boolean;
+  action: WorkflowRunAction;
   cancelling: boolean;
   onCancel?: (() => void) | undefined;
-  canRerun: boolean;
   rerunPending: boolean;
   onRerun?: ((mode: RerunMode) => void) | undefined;
 }) {
-  if (!isWorkflowRunTerminal(run.status)) {
-    if (!canCancel) return null;
-
+  if (action === 'cancel') {
     return (
       <Button
         type="button"
@@ -196,7 +185,7 @@ function WorkflowRunActionSlot({
         size="xs"
         iconLeft="close"
         isLoading={cancelling}
-        disabled={cancelling || !onCancel}
+        disabled={cancelling || onCancel === undefined}
         onClick={onCancel}
       >
         Cancel workflow
@@ -204,9 +193,7 @@ function WorkflowRunActionSlot({
     );
   }
 
-  if (!canRerun || !onRerun) return null;
-
-  if (run.status === 'succeeded') {
+  if (action === 'rerun-all') {
     return (
       <Button
         type="button"
@@ -214,7 +201,8 @@ function WorkflowRunActionSlot({
         size="xs"
         iconLeft="restartLine"
         isLoading={rerunPending}
-        onClick={() => onRerun('all')}
+        disabled={rerunPending || onRerun === undefined}
+        onClick={() => onRerun?.('all')}
       >
         Re-run all jobs
       </Button>
@@ -231,20 +219,27 @@ function WorkflowRunActionSlot({
           iconLeft="restartLine"
           iconRight="arrowDownSLine"
           isLoading={rerunPending}
+          disabled={rerunPending || onRerun === undefined}
         >
           Re-run jobs
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem disabled={rerunPending} onSelect={() => onRerun('all')}>
+        <DropdownMenuItem disabled={rerunPending} onSelect={() => onRerun?.('all')}>
           Re-run all jobs
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={rerunPending} onSelect={() => onRerun('failed')}>
+        <DropdownMenuItem disabled={rerunPending} onSelect={() => onRerun?.('failed')}>
           Re-run failed jobs
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+function workflowRunActionForStatus(status: WorkflowRun['status']): WorkflowRunAction {
+  if (!isWorkflowRunTerminal(status)) return 'cancel';
+  if (status === 'succeeded') return 'rerun-all';
+  return 'rerun-menu';
 }
 
 function MetadataSeparator() {
