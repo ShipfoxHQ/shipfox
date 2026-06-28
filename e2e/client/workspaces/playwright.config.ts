@@ -12,7 +12,7 @@ export default defineConfig({
           '@argos-ci/playwright/reporter',
           {
             uploadToArgos: Boolean(process.env.ARGOS_TOKEN),
-            buildName: 'client-workspaces',
+            buildName: 'e2e-client-workspaces',
             ignoreUploadFailures: true,
           },
         ],

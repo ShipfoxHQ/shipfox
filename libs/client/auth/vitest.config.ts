@@ -40,7 +40,7 @@ export default defineConfig(
             argosVitestPlugin({
               uploadToArgos: !!process.env.CI,
               ...(process.env.ARGOS_TOKEN ? {token: process.env.ARGOS_TOKEN} : {}),
-              buildName: 'client-auth-storybook',
+              buildName: 'client-auth',
               argosCSS: `
                 *, *::before, *::after {
                   animation-delay: 0s !important;
