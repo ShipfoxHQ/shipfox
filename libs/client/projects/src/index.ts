@@ -1,8 +1,10 @@
 export {ProjectCrumb, type ProjectCrumbProps} from './components/project-crumb.js';
 export {ProjectSwitcher, type ProjectSwitcherProps} from './components/project-switcher.js';
 export {
-  WorkspaceSetupGuard,
-  type WorkspaceSetupGuardProps,
+  loadWorkspaceSetupRoute,
+  WorkspaceLayoutErrorRoute,
+  WorkspaceSetupPending,
+  type WorkspaceSetupRouteOptions,
   type WorkspaceSetupState,
 } from './components/workspace-setup-guard.js';
 export * from './hooks/api/definitions.js';

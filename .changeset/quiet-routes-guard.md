@@ -6,4 +6,4 @@
 "@shipfox/client-router": patch
 ---
 
-Adds a workspace setup guard that keeps VCS onboarding and first project creation out of the completed-workspace navigation.
+Moves workspace setup gating into route hooks so VCS onboarding and first project creation resolve before protected workspace content renders.

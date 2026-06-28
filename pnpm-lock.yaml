@@ -129,6 +129,9 @@ importers:
       '@swc/helpers':
         specifier: ^0.5.17
         version: 0.5.23
+      '@tanstack/react-query':
+        specifier: ^5.101.0
+        version: 5.101.0(react@19.2.7)
       react:
         specifier: ^19.1.1
         version: 19.2.7
