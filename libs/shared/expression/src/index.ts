@@ -27,6 +27,17 @@ export type {
   WorkflowExpressionCheckOptions,
 } from './expression/workflow-expression.js';
 export {
+  InvalidWorkflowTemplateError,
+  invalidWorkflowTemplateErrorCode,
+} from './template/errors.js';
+export {extractCelRoots} from './template/extract-cel-roots.js';
+export {parseWorkflowTemplate} from './template/parse-workflow-template.js';
+export type {
+  WorkflowTemplateExprSegment,
+  WorkflowTemplateLiteralSegment,
+  WorkflowTemplateSegment,
+} from './template/template-segment.js';
+export {
   getWorkflowContextDefinition,
   getWorkflowContextTypeEnvironment,
   type OpenWorkflowContextDefinition,

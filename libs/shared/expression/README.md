@@ -10,6 +10,10 @@ CEL checks and run-time evaluation for Shipfox workflow expressions.
 - **`ExpressionTypeEnvironment`**: Lists names and field types for typed checks.
 - **`evaluateWorkflowExpression`**: Runs a checked value against caller data.
 - **`evaluateWorkflowPredicate`**: Returns `true` only for the boolean `true`.
+- **`parseWorkflowTemplate`**: Splits strings with `${{ ... }}` spans into
+  ordered literal and expression segments.
+- **`extractCelRoots`**: Returns the sorted top-level CEL identifiers mentioned
+  by an expression for downstream context and trust checks.
 - **Typed errors**: Reports bad text and run failures with stable error classes.
 - **`workflowContextDefinitions`**: Names the v1 workflow contexts (`run`,
   `trigger`, `event`, `inputs`, `job`) and gives each a trust tier and a check
@@ -67,6 +71,18 @@ const passed = evaluateWorkflowPredicate(expression, {
 - The caller must pass values that match the checked data shape.
 - The evaluator does not read secrets, database rows, events, files, or external
   services.
+- Template parsing throws only `InvalidWorkflowTemplateError`. The error includes
+  the full source, the span `offset`, and a reason; invalid inner CEL is wrapped
+  with the inner expression error available as `cause`.
+- Write a literal `${{` in template text as `$${{`. The escape is greedy from
+  left to right, so `$$${{` emits literal `$${{`; there is no separate way to
+  write literal `$$` immediately before a real expression opener.
+- Template closing scans are string-aware, line-comment-aware, and brace-aware,
+  so `}}` inside CEL strings, `//` comments, or map literals does not close the
+  expression span.
+- Root extraction fails closed for trust decisions. It skips only identifiers
+  that are provably not roots and may over-include comprehension variables or
+  struct keys; downstream code maps roots to the known workflow contexts.
 - The CEL dependency has an ESM patch. Check the patch when upgrading it.
 
 Trigger filters can use `syntax` while integration event payloads are still open.
