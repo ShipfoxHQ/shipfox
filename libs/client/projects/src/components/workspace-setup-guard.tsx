@@ -21,7 +21,7 @@ export interface WorkspaceSetupRouteOptions {
 }
 
 export class WorkspaceSetupLoadError extends Error {
-  constructor(public readonly cause: unknown) {
+  constructor(public override readonly cause: unknown) {
     super(cause instanceof Error ? cause.message : 'Workspace setup load failed');
     this.name = 'WorkspaceSetupLoadError';
   }
