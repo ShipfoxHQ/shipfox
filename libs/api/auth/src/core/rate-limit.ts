@@ -1,11 +1,18 @@
 import {createHmac} from 'node:crypto';
-import {instanceMetrics} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {consumeAuthRateLimit, pruneExpiredAuthRateLimits} from '#db/rate-limits.js';
+import {
+  type AuthRateLimitAction,
+  type AuthRateLimitScope,
+  recordAuthRateLimitCheck,
+  recordAuthRateLimitPruneFailure,
+} from '#metrics/index.js';
 
-export type AuthRateLimitAction = 'login' | 'email-send';
-export type AuthRateLimitScope = 'ip' | 'email';
-export type AuthRateLimitOutcome = 'allowed' | 'blocked' | 'unavailable';
+export type {
+  AuthRateLimitAction,
+  AuthRateLimitOutcome,
+  AuthRateLimitScope,
+} from '#metrics/index.js';
 
 export interface AuthRateLimitPolicy {
   limit: number;
@@ -67,14 +74,6 @@ const HASH_PREFIX_LENGTH = 12;
 const IDENTIFIER_SECRET_DERIVATION_DOMAIN = 'shipfox.auth.rate-limit.identifier-secret.v1';
 const IDENTIFIER_HASH_DOMAIN = 'shipfox.auth.rate-limit.identifier.v1';
 
-const meter = instanceMetrics.getMeter('api-auth');
-const checksCounter = meter.createCounter('auth_rate_limit_checks_total', {
-  description: 'Authentication rate limit checks by action, scope, and outcome.',
-});
-const pruneFailuresCounter = meter.createCounter('auth_rate_limit_prune_failures_total', {
-  description: 'Authentication rate limit prune failures.',
-});
-
 function effectiveIdentifierSecret(): Buffer | string {
   if (config.AUTH_RATE_LIMIT_IDENTIFIER_SECRET) {
     return config.AUTH_RATE_LIMIT_IDENTIFIER_SECRET;
@@ -83,18 +82,6 @@ function effectiveIdentifierSecret(): Buffer | string {
   return createHmac('sha256', config.AUTH_JWT_SECRET)
     .update(IDENTIFIER_SECRET_DERIVATION_DOMAIN)
     .digest();
-}
-
-function recordAuthRateLimitCheck(params: {
-  action: AuthRateLimitAction;
-  scope: AuthRateLimitScope;
-  outcome: AuthRateLimitOutcome;
-}): void {
-  checksCounter.add(1, {
-    action: params.action,
-    scope: params.scope,
-    outcome: params.outcome,
-  });
 }
 
 export function hashAuthRateLimitIdentifier(params: {
@@ -174,6 +161,6 @@ export async function checkAuthRateLimit(params: CheckAuthRateLimitParams): Prom
   recordAuthRateLimitCheck({action: params.action, scope: params.scope, outcome: 'allowed'});
 
   await pruneExpiredAuthRateLimits({now}).catch(() => {
-    pruneFailuresCounter.add(1);
+    recordAuthRateLimitPruneFailure();
   });
 }
