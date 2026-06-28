@@ -67,7 +67,7 @@ export interface ClaimedJob {
 
 export async function claimPendingJob(params: {
   workspaceId: string;
-  runnerTokenId: string;
+  runnerSessionId: string;
 }): Promise<ClaimedJob | null> {
   return await db().transaction(async (tx) => {
     // `id` is a uuidv7 (time-ordered), so it is a deterministic FIFO tiebreaker
@@ -97,7 +97,7 @@ export async function claimPendingJob(params: {
         jobId: row.jobId,
         runId: row.runId,
         projectId: row.projectId,
-        runnerTokenId: params.runnerTokenId,
+        runnerSessionId: params.runnerSessionId,
       })
       .onConflictDoNothing({target: runningJobs.jobId})
       .returning({claimedAt: runningJobs.startedAt});
@@ -211,13 +211,16 @@ export async function getJobQueueDepth(): Promise<{pending: number; running: num
 
 export async function recordHeartbeat(params: {
   jobId: string;
-  runnerTokenId: string;
+  runnerSessionId: string;
 }): Promise<{cancellationRequested: boolean}> {
   const updated = await db()
     .update(runningJobs)
     .set({lastHeartbeatAt: sql`now()`})
     .where(
-      and(eq(runningJobs.jobId, params.jobId), eq(runningJobs.runnerTokenId, params.runnerTokenId)),
+      and(
+        eq(runningJobs.jobId, params.jobId),
+        eq(runningJobs.runnerSessionId, params.runnerSessionId),
+      ),
     )
     .returning({cancellationRequestedAt: runningJobs.cancellationRequestedAt});
 

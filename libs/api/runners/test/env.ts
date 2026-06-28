@@ -7,4 +7,5 @@ process.env.POSTGRES_MAX_CONNECTIONS = '5';
 process.env.WORKSPACE_JWT_SECRET = 'test-secret';
 process.env.AUTH_JWT_SECRET = 'test-secret';
 process.env.AUTH_JOB_LEASE_TOKEN_SECRET = 'test-lease-secret';
+process.env.AUTH_RUNNER_SESSION_TOKEN_SECRET = 'test-runner-session-secret';
 process.env.TZ = 'UTC';

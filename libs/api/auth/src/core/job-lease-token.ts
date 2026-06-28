@@ -17,7 +17,7 @@ export async function issueJobLeaseToken(claims: IssueJobLeaseTokenParams): Prom
       runId: claims.runId,
       projectId: claims.projectId,
       workspaceId: claims.workspaceId,
-      runnerTokenId: claims.runnerTokenId,
+      runnerSessionId: claims.runnerSessionId,
     },
     secret: config.AUTH_JOB_LEASE_TOKEN_SECRET,
     expiresIn: config.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN,

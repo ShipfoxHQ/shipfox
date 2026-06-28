@@ -5,6 +5,9 @@ export const config = createConfig({
     desc: 'Base URL of the Shipfox API the runner connects to, such as https://api.shipfox.io. Required.',
   }),
   SHIPFOX_RUNNER_TOKEN: str({
-    desc: 'Bearer token the runner uses to authenticate with the API. Required, with no default, so startup fails when it is missing rather than sending a predictable token.',
+    desc: 'Registration token the runner exchanges for a short-lived runner session token at startup. Required, with no default, so startup fails when it is missing rather than sending a predictable token.',
+  }),
+  SHIPFOX_RUNNER_LABELS: str({
+    desc: 'Comma-separated labels this runner registers with, such as linux,x64,self-hosted. Required, with no default, so startup fails when labels are missing.',
   }),
 });

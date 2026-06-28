@@ -29,6 +29,7 @@ export interface HeartbeatLoopHandle {
  */
 export function startHeartbeatLoop(
   jobId: string,
+  leaseToken: string,
   jobAbortController: AbortController,
   options: HeartbeatLoopOptions,
 ): HeartbeatLoopHandle {
@@ -56,7 +57,7 @@ export function startHeartbeatLoop(
     }, options.maxStaleMs);
 
     try {
-      const {cancel} = await heartbeat(jobId, {signal: httpAc.signal});
+      const {cancel} = await heartbeat(jobId, leaseToken, {signal: httpAc.signal});
       if (stopped) return;
       if (cancel) {
         logger().info({jobId}, 'Heartbeat returned cancel:true; aborting job');

@@ -1,12 +1,12 @@
-import {getLeasedJobContext} from '@shipfox/api-auth-context';
-import {JOB_LEASE_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
+import {getRunnerSessionContext} from '@shipfox/api-auth-context';
+import {RUNNER_SESSION_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
-import {issueJobLeaseToken} from '#core/job-lease-token.js';
-import {createLeaseTokenAuthMethod} from './lease-token-auth.js';
+import {issueRunnerSessionToken} from '#core/runner-session-token.js';
+import {createRunnerSessionAuthMethod} from './runner-session-auth.js';
 
-describe('lease-token-auth', () => {
+describe('runner-session-auth', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
@@ -14,13 +14,13 @@ describe('lease-token-auth', () => {
     app.setValidatorCompiler(validatorCompiler);
     app.setSerializerCompiler(serializerCompiler);
 
-    const authMethod = createLeaseTokenAuthMethod();
+    const authMethod = createRunnerSessionAuthMethod();
     app.addHook('onRequest', async (request, reply) => {
       await authMethod.authenticate(request, reply);
     });
 
     app.get('/protected', (request) => {
-      return {leasedJob: getLeasedJobContext(request)};
+      return {runnerSession: getRunnerSessionContext(request)};
     });
     await app.ready();
   });
@@ -29,15 +29,14 @@ describe('lease-token-auth', () => {
     await app.close();
   });
 
-  test('valid lease token sets leased job context on the request', async () => {
+  test('valid session token sets runner session context on the request', async () => {
     const claims = {
-      jobId: crypto.randomUUID(),
-      runId: crypto.randomUUID(),
-      projectId: crypto.randomUUID(),
-      workspaceId: crypto.randomUUID(),
       runnerSessionId: crypto.randomUUID(),
+      workspaceId: crypto.randomUUID(),
+      scope: 'workspace' as const,
+      labels: ['linux', 'x64'],
     };
-    const token = await issueJobLeaseToken(claims);
+    const token = await issueRunnerSessionToken(claims);
 
     const res = await app.inject({
       method: 'GET',
@@ -46,9 +45,9 @@ describe('lease-token-auth', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().leasedJob).toMatchObject({
+    expect(res.json().runnerSession).toMatchObject({
       ...claims,
-      aud: JOB_LEASE_TOKEN_AUDIENCE,
+      aud: RUNNER_SESSION_TOKEN_AUDIENCE,
     });
   });
 });

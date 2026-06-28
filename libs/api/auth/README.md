@@ -45,6 +45,8 @@ Required environment:
 | `AUTH_JWT_EXPIRES_IN` | `15m` | Access token lifetime. |
 | `AUTH_JOB_LEASE_TOKEN_SECRET` | none | Secret used to sign and verify job lease tokens. |
 | `AUTH_JOB_LEASE_TOKEN_EXPIRES_IN` | `90m` | Job lease token lifetime. |
+| `AUTH_RUNNER_SESSION_TOKEN_SECRET` | none | Secret used to sign and verify runner session tokens. |
+| `AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN` | `1h` | Runner session token lifetime. |
 | `AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS` | `14` | Refresh token and cookie lifetime. |
 | `AUTH_REFRESH_ROTATION_GRACE_SECONDS` | `30` | Grace window for accepting a just-rotated refresh token during concurrent refreshes. |
 | `AUTH_REFRESH_COOKIE_NAME` | `shipfox_refresh_token` | HTTP cookie name for refresh sessions. |
@@ -58,13 +60,13 @@ Required environment:
 
 ## Security model
 
-The module issues two kinds of bearer token, both presented as
-`Authorization: Bearer <token>`. Both are **stateless**: each is signed with
+The module issues three kinds of bearer token, all presented as
+`Authorization: Bearer <token>`. All are **stateless**: each is signed with
 HMAC-SHA256 and verified by checking its signature and expiry alone, with no
 database read on the request path. They differ in who they authenticate and what
 they grant, and the stateless tradeoff is accepted for a different reason in each
-case. Each is signed with its own dedicated secret, so neither token type can be
-used in place of the other.
+case. Each token class has a dedicated secret and audience, so one token type
+cannot be used in place of another.
 
 ### User session token
 
@@ -87,6 +89,32 @@ used in place of the other.
   membership change only takes effect on the next refresh. Accepted because the
   token is short-lived, so the staleness window is bounded and a per-request
   membership read is avoided.
+
+### Runner session token
+
+A runner session token is the data-plane identity for a running manual runner.
+The runner exchanges its long-lived registration token at startup, then uses the
+short-lived session token to claim jobs. Heartbeat and step/report/log operations
+use the per-job lease token instead.
+
+- **Scope — one workspace's runner data plane.** The token names one runner
+  session, one workspace, the fixed `workspace` scope, and the session's immutable
+  label set. It can claim jobs for that workspace. It is not a user identity and
+  does not authorize dashboard management routes.
+- **Labels are self-attested.** A holder of a valid registration token chooses
+  the labels it registers with. The labels are immutable after registration and
+  signed into the session token, but they are not an authorization boundary in v1.
+  Treat the registration token's workspace scope as the trust boundary.
+- **Mechanics.** Signed with HMAC-SHA256 using `AUTH_RUNNER_SESSION_TOKEN_SECRET`
+  and the `runner-session` audience. The default lifetime is `1h`, short enough
+  to bound the residual claim window when a registration token is revoked.
+- **Tradeoff — no per-session revocation in v1.** Claim stays stateless and does
+  not check the runner session row on each poll. Revoking the registration token
+  blocks new sessions, but an existing session can keep claiming until
+  `AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN` elapses. If it claimed a job just before
+  session expiry, that job can keep heartbeating until its already-issued
+  `AUTH_JOB_LEASE_TOKEN_EXPIRES_IN` lease expires. With the defaults, the
+  worst-case residual window is about 2.5 hours.
 
 ### Job lease token
 
@@ -174,7 +202,9 @@ It also exports lower-level pieces for tests and advanced integration:
 - `routes`: the `/auth` route group.
 - `db` and `migrationsPath`: the Drizzle database handle and migration path.
 - `createJwtAuthMethod()`: the Fastify auth method for user JWTs.
+- `createRunnerSessionAuthMethod()`: the Fastify auth method for runner session tokens.
 - `createLeaseTokenAuthMethod()`: the Fastify auth method for job lease tokens.
+- `issueRunnerSessionToken(claims)` / `verifyRunnerSessionToken(token)`: mint and verify runner session tokens.
 - `issueJobLeaseToken(claims)` / `verifyJobLeaseToken(token)`: mint and verify job lease tokens.
 - `getClientContext(request)`: reads the authenticated user context from a Fastify request.
 - Entity types: `User`, `UserStatus`, `RefreshToken`, `EmailVerification`, and `PasswordReset`.

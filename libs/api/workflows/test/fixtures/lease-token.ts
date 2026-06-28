@@ -23,7 +23,7 @@ export function mintLeaseToken(params: MintLeaseTokenParams): Promise<string> {
       runId: params.runId ?? crypto.randomUUID(),
       projectId: params.projectId ?? crypto.randomUUID(),
       workspaceId: params.workspaceId ?? crypto.randomUUID(),
-      runnerTokenId: crypto.randomUUID(),
+      runnerSessionId: crypto.randomUUID(),
     },
     secret: params.secret ?? SECRET,
     expiresIn: params.expiresIn ?? '90m',

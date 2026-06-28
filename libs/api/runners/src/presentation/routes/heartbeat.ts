@@ -1,9 +1,9 @@
+import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {heartbeatResponseSchema} from '@shipfox/api-runners-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {RunningJobNotFoundError} from '#core/errors.js';
 import {recordHeartbeat} from '#db/jobs.js';
-import {getRunnerContext} from '#presentation/auth/index.js';
 
 export const heartbeatRoute = defineRoute({
   method: 'POST',
@@ -24,11 +24,16 @@ export const heartbeatRoute = defineRoute({
   },
   handler: async (request) => {
     const {jobId} = request.params;
-    const runner = getRunnerContext(request);
+    const lease = requireLeasedJobContext(request);
+    if (lease.jobId !== jobId) {
+      throw new ClientError('Lease token does not match job', 'lease-job-mismatch', {
+        status: 404,
+      });
+    }
 
     const {cancellationRequested} = await recordHeartbeat({
       jobId,
-      runnerTokenId: runner.runnerTokenId,
+      runnerSessionId: lease.runnerSessionId,
     });
 
     return {cancel: cancellationRequested};

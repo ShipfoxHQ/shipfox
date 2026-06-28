@@ -12,7 +12,7 @@ export const jobLeaseTokenClaimsSchema = z.object({
   runId: z.string().uuid(),
   projectId: z.string().uuid(),
   workspaceId: z.string().uuid(),
-  runnerTokenId: z.string().uuid(),
+  runnerSessionId: z.string().uuid(),
   aud: z.literal(JOB_LEASE_TOKEN_AUDIENCE),
   iat: z.number().int(),
   exp: z.number().int(),

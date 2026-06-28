@@ -1,3 +1,4 @@
+import {AUTH_RUNNER_TOKEN} from '@shipfox/api-auth-context';
 import {type AuthMethod, ClientError, extractBearerToken} from '@shipfox/node-fastify';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import type {FastifyRequest} from 'fastify';
@@ -8,7 +9,6 @@ const RUNNER_CONTEXT_KEY = 'runner';
 export interface RunnerAuthContext {
   runnerTokenId: string;
   workspaceId: string;
-  revokedAt: Date | null;
 }
 
 export function getRunnerContext(request: FastifyRequest): RunnerAuthContext {
@@ -23,7 +23,7 @@ export function getRunnerContext(request: FastifyRequest): RunnerAuthContext {
 
 export function createRunnerTokenAuthMethod(): AuthMethod {
   return {
-    name: 'runner-token',
+    name: AUTH_RUNNER_TOKEN,
     authenticate: async (request) => {
       const rawToken = extractBearerToken(request.headers.authorization);
       if (!rawToken) {
@@ -40,11 +40,15 @@ export function createRunnerTokenAuthMethod(): AuthMethod {
       if (token.expiresAt && token.expiresAt < new Date()) {
         throw new ClientError('Runner token has expired', 'runner-token-expired', {status: 401});
       }
+      if (token.revokedAt) {
+        throw new ClientError('Runner token has been revoked', 'runner-token-revoked', {
+          status: 401,
+        });
+      }
 
       (request as unknown as Record<string, unknown>)[RUNNER_CONTEXT_KEY] = {
         runnerTokenId: token.id,
         workspaceId: token.workspaceId,
-        revokedAt: token.revokedAt,
       } satisfies RunnerAuthContext;
     },
   };

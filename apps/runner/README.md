@@ -22,6 +22,11 @@ logs or step errors. A setup failure (missing `git`, a denied credential, or an
 unreachable provider) fails the job before any step runs, with a machine-readable
 reason recorded on the step.
 
+At startup, the runner exchanges `SHIPFOX_RUNNER_TOKEN` for a short-lived runner
+session token using `SHIPFOX_RUNNER_LABELS`. Job polling uses that session token.
+Heartbeat, step, checkout, and log calls use the per-job lease token returned by
+the claim response.
+
 ### `SHIPFOX_RUNNER_WORKSPACE_ROOT` (optional)
 
 Parent directory under which per-job working directories are created.
@@ -43,7 +48,8 @@ configured root is empty, the filesystem root (`/`), or a home directory.
 | Variable | Default | Description |
 | --- | --- | --- |
 | `SHIPFOX_API_URL` | — | Base URL of the Shipfox API. |
-| `SHIPFOX_RUNNER_TOKEN` | `static-poc-token` | Bearer token used to authenticate with the API. |
+| `SHIPFOX_RUNNER_TOKEN` | — | Registration token copied from the workspace runner settings. The runner exchanges it for a session token at startup. |
+| `SHIPFOX_RUNNER_LABELS` | — | Comma-separated labels registered on this runner session, such as `linux,x64,self-hosted`. |
 | `SHIPFOX_RUNNER_WORKSPACE_ROOT` | OS temp dir | Parent directory for per-job workspaces (see above). |
 | `SHIPFOX_POLL_INTERVAL_MS` | `5000` | Base poll interval when requesting jobs. |
 | `SHIPFOX_POLL_MAX_INTERVAL_MS` | `30000` | Maximum backoff interval when no jobs are available. |

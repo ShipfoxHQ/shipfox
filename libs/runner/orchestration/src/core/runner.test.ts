@@ -25,13 +25,14 @@ vi.mock('#core/step-loop.js', () => ({
 }));
 
 vi.mock('@shipfox/runner-protocol', () => ({
+  registerRunnerSession: vi.fn(),
   requestJob: vi.fn(),
   createLeaseClient: vi.fn(() => ({}) as never),
   runnerToken: vi.fn(() => 'runner-token'),
   HTTPError: class HTTPError extends Error {},
 }));
 
-import {createLeaseClient, requestJob} from '@shipfox/runner-protocol';
+import {createLeaseClient, registerRunnerSession, requestJob} from '@shipfox/runner-protocol';
 import {
   cleanupJobLogs,
   cleanupWorkspace,
@@ -41,6 +42,7 @@ import {
   resolveWorkspaceRootFromEnv,
   UnsafeWorkspaceRootError,
 } from '@shipfox/runner-workspace';
+import {startHeartbeatLoop} from '#core/heartbeat-loop.js';
 import {runJob, startRunner} from '#core/runner.js';
 import {runJobSteps} from '#core/step-loop.js';
 
@@ -51,7 +53,9 @@ const mockCleanupJobLogs = vi.mocked(cleanupJobLogs);
 const mockResolveWorkspaceRoot = vi.mocked(resolveWorkspaceRootFromEnv);
 const mockRunJobSteps = vi.mocked(runJobSteps);
 const mockCreateLeaseClient = vi.mocked(createLeaseClient);
+const mockRegisterRunnerSession = vi.mocked(registerRunnerSession);
 const mockRequestJob = vi.mocked(requestJob);
+const mockStartHeartbeatLoop = vi.mocked(startHeartbeatLoop);
 
 const JOB = {
   job_id: '00000000-0000-0000-0000-000000000001',
@@ -77,6 +81,15 @@ describe('runJob', () => {
 
     await runJob(JOB, WORKSPACE_ROOT);
 
+    expect(mockStartHeartbeatLoop).toHaveBeenCalledWith(
+      JOB.job_id,
+      JOB.lease_token,
+      expect.any(AbortController),
+      expect.objectContaining({
+        intervalMs: 10_000,
+        maxStaleMs: 10_000,
+      }),
+    );
     expect(mockCreateLeaseClient).toHaveBeenCalledWith(JOB.lease_token);
     expect(mockRunJobSteps).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -121,6 +134,7 @@ describe('startRunner', () => {
     });
 
     await expect(startRunner()).rejects.toThrow(UnsafeWorkspaceRootError);
+    expect(mockRegisterRunnerSession).not.toHaveBeenCalled();
     expect(mockRequestJob).not.toHaveBeenCalled();
   });
 });

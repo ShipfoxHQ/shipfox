@@ -55,7 +55,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/biome": "workspace:*",
+    "@shipfox/node-jwt": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",

@@ -1,10 +1,12 @@
 export {
   appendStepLogs,
+  configuredRunnerLabels,
   createLeaseClient,
   HTTPError,
   heartbeat,
   type LogAppendFn,
   type LogAppendOutcome,
+  registerRunnerSession,
   reportStep,
   requestCheckoutToken,
   requestJob,

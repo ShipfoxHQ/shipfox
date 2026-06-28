@@ -1,4 +1,12 @@
-import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {createLeaseTokenAuthMethod, createRunnerSessionAuthMethod} from '@shipfox/api-auth';
+import {
+  AUTH_LEASED_JOB,
+  AUTH_RUNNER_SESSION,
+  AUTH_RUNNER_TOKEN,
+  AUTH_USER,
+  buildUserContext,
+  setUserContext,
+} from '@shipfox/api-auth-context';
 import {requireMembership} from '@shipfox/api-workspaces';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
@@ -57,7 +65,12 @@ describe('runner token routes', () => {
       role: 'admin',
     });
     app = await createApp({
-      auth: [fakeUserAuth, createRunnerTokenAuthMethod()],
+      auth: [
+        fakeUserAuth,
+        createRunnerTokenAuthMethod(),
+        createRunnerSessionAuthMethod(),
+        createLeaseTokenAuthMethod(),
+      ],
       routes: runnerRoutes,
       swagger: false,
     });
@@ -68,8 +81,11 @@ describe('runner token routes', () => {
     await closeApp();
   });
 
-  test('uses user auth for runner token management routes', () => {
+  test('uses the expected auth method for each runner route group', () => {
     expect(runnerRoutes[0]?.auth).toBe(AUTH_USER);
+    expect(runnerRoutes[1]?.auth).toBe(AUTH_RUNNER_TOKEN);
+    expect(runnerRoutes[2]?.auth).toBe(AUTH_RUNNER_SESSION);
+    expect(runnerRoutes[3]?.auth).toBe(AUTH_LEASED_JOB);
   });
 
   describe('GET /workspaces/:workspaceId/runners/tokens', () => {

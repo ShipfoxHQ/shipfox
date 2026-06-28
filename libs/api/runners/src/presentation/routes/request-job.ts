@@ -1,7 +1,7 @@
+import {requireRunnerSessionContext} from '@shipfox/api-auth-context';
 import {claimedJobResponseSchema} from '@shipfox/api-runners-dto';
-import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import {defineRoute} from '@shipfox/node-fastify';
 import {claimJob} from '#core/jobs.js';
-import {getRunnerContext} from '#presentation/auth/index.js';
 
 export const requestJobRoute = defineRoute({
   method: 'POST',
@@ -13,16 +13,11 @@ export const requestJobRoute = defineRoute({
     },
   },
   handler: async (_request, reply) => {
-    const runner = getRunnerContext(_request);
-    if (runner.revokedAt) {
-      throw new ClientError('Runner token has been revoked', 'runner-token-revoked', {
-        status: 401,
-      });
-    }
+    const runner = requireRunnerSessionContext(_request);
 
     const job = await claimJob({
       workspaceId: runner.workspaceId,
-      runnerTokenId: runner.runnerTokenId,
+      runnerSessionId: runner.runnerSessionId,
     });
 
     if (!job) {

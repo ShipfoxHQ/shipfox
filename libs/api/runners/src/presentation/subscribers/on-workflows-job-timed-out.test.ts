@@ -3,7 +3,7 @@ import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {claimPendingJob} from '#db/jobs.js';
 import {runningJobs} from '#db/schema/running-jobs.js';
-import {pendingJobFactory, runnerTokenFactory} from '#test/index.js';
+import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
 import {onWorkflowsJobTimedOut} from './on-workflows-job-timed-out.js';
 
 function buildPayload(jobId: string, runId: string): WorkflowsJobTimedOutEvent {
@@ -12,17 +12,17 @@ function buildPayload(jobId: string, runId: string): WorkflowsJobTimedOutEvent {
 
 describe('onWorkflowsJobTimedOut', () => {
   let workspaceId: string;
-  let runnerTokenId: string;
+  let runnerSessionId: string;
 
   beforeEach(async () => {
     workspaceId = crypto.randomUUID();
-    const runnerToken = await runnerTokenFactory.create({workspaceId});
-    runnerTokenId = runnerToken.id;
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+    runnerSessionId = runnerSession.id;
   });
 
   it('sets cancellation_requested_at on the matching running_jobs row', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
     expect(claimed).not.toBeNull();
 
     await onWorkflowsJobTimedOut(buildPayload(claimed?.jobId as string, claimed?.runId as string));
@@ -36,7 +36,7 @@ describe('onWorkflowsJobTimedOut', () => {
 
   it('idempotent under double delivery: second call preserves the first timestamp', async () => {
     await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId});
 
     await onWorkflowsJobTimedOut(buildPayload(claimed?.jobId as string, claimed?.runId as string));
     const after1 = await db()

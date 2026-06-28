@@ -63,4 +63,9 @@ export {
   type JobLeaseTokenClaims,
   jobLeaseTokenClaimsSchema,
 } from './job-lease-token.js';
+export {
+  RUNNER_SESSION_TOKEN_AUDIENCE,
+  type RunnerSessionTokenClaims,
+  runnerSessionTokenClaimsSchema,
+} from './runner-session-token.js';
 export {type UserDto, userDtoSchema, userStatusSchema} from './user.js';

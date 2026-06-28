@@ -348,6 +348,66 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.runners_runner_sessions": {
+      "name": "runners_runner_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuidv7()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "runners_runner_session_scope",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'workspace'"
+        },
+        "registration_token_id": {
+          "name": "registration_token_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "labels": {
+          "name": "labels",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.runners_running_jobs": {
       "name": "runners_running_jobs",
       "schema": "",
@@ -383,8 +443,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "runner_token_id": {
-          "name": "runner_token_id",
+        "runner_session_id": {
+          "name": "runner_session_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -441,7 +501,13 @@
       "isRLSEnabled": false
     }
   },
-  "enums": {},
+  "enums": {
+    "public.runners_runner_session_scope": {
+      "name": "runners_runner_session_scope",
+      "schema": "public",
+      "values": ["workspace"]
+    }
+  },
   "schemas": {},
   "sequences": {},
   "roles": {},
