@@ -31,8 +31,7 @@ export async function probeProviderCredentials(
 
   const secretField = entry.credential_fields.find((field) => field.secret);
   if (!secretField) throw new UnsupportedAgentProviderError(params.providerId);
-  const apiKey = params.credentials[secretField.key];
-  if (apiKey === undefined) throw new InvalidCredentialFieldsError(params.providerId);
+  const apiKey = credentialValue(params, secretField.key);
 
   const context: Context = {
     messages: [
@@ -48,6 +47,7 @@ export async function probeProviderCredentials(
     maxTokens: PROBE_MAX_TOKENS,
     maxRetries: 0,
     timeoutMs: config.AGENT_PROVIDER_VALIDATION_TIMEOUT_MS,
+    ...providerCredentialOptions(params),
     ...(params.signal ? {signal: params.signal} : {}),
   };
 
@@ -62,4 +62,37 @@ export function sanitizeProviderError(error: unknown, secrets: string[]): string
   const secretForms = secrets.flatMap((secret) => secretWireForms(secret));
   const redacted = redactSecrets(message, secretForms);
   return redacted.slice(0, MAX_SANITIZED_ERROR_LENGTH);
+}
+
+function providerCredentialOptions(
+  params: Pick<ProbeProviderCredentialsParams, 'providerId' | 'credentials'>,
+): ProviderStreamOptions {
+  switch (params.providerId) {
+    case 'azure-openai-responses':
+      return {azureBaseUrl: credentialValue(params, 'endpoint')};
+    case 'cloudflare-ai-gateway':
+      return {
+        env: {
+          CLOUDFLARE_ACCOUNT_ID: credentialValue(params, 'account_id'),
+          CLOUDFLARE_GATEWAY_ID: credentialValue(params, 'gateway_id'),
+        },
+      };
+    case 'cloudflare-workers-ai':
+      return {
+        env: {
+          CLOUDFLARE_ACCOUNT_ID: credentialValue(params, 'account_id'),
+        },
+      };
+    default:
+      return {};
+  }
+}
+
+function credentialValue(
+  params: Pick<ProbeProviderCredentialsParams, 'providerId' | 'credentials'>,
+  key: string,
+): string {
+  const value = params.credentials[key];
+  if (value === undefined) throw new InvalidCredentialFieldsError(params.providerId);
+  return value;
 }

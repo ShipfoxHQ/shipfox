@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type {SupportedAgentProviderId} from '@shipfox/api-agent-dto';
 import {getAgentProviderEntry} from '@shipfox/api-agent-dto';
 import {stripUrlCredentials} from '@shipfox/redact';
+import {config} from '#config.js';
 import {CredentialDecryptionError, UnsupportedAgentProviderError} from './errors.js';
 
 const CIPHER = 'aes-256-gcm';
@@ -38,7 +39,15 @@ export function encryptCredential(params: CredentialCipherParams): string {
   return `${ENCODED_PREFIX}${Buffer.concat([iv, authTag, ciphertext]).toString('base64')}`;
 }
 
+export function ensureCredentialsEncryptionKeyConfigured(): void {
+  getEncryptionKey();
+}
+
 export function decryptCredential(params: CredentialDecipherParams): string {
+  // Resolve the key outside the try: a missing or malformed encryption key is a
+  // configuration fault whose actionable message must surface, not collapse into
+  // the opaque CredentialDecryptionError reserved for real ciphertext failures.
+  const key = getEncryptionKey();
   try {
     if (!params.encoded.startsWith(ENCODED_PREFIX)) throw new CredentialDecryptionError();
 
@@ -48,7 +57,7 @@ export function decryptCredential(params: CredentialDecipherParams): string {
     const iv = payload.subarray(0, IV_BYTES);
     const authTag = payload.subarray(IV_BYTES, IV_BYTES + AUTH_TAG_BYTES);
     const ciphertext = payload.subarray(IV_BYTES + AUTH_TAG_BYTES);
-    const decipher = crypto.createDecipheriv(CIPHER, getEncryptionKey(), iv);
+    const decipher = crypto.createDecipheriv(CIPHER, key, iv);
     decipher.setAAD(Buffer.from(params.aad, 'utf8'));
     decipher.setAuthTag(authTag);
 
@@ -107,7 +116,7 @@ export function fingerprintCredentials(
 function getEncryptionKey(): Buffer {
   if (memoizedEncryptionKey) return memoizedEncryptionKey;
 
-  const encoded = process.env.AGENT_CREDENTIALS_ENCRYPTION_KEY;
+  const encoded = config.AGENT_CREDENTIALS_ENCRYPTION_KEY;
   if (!encoded) {
     throw new Error(
       'AGENT_CREDENTIALS_ENCRYPTION_KEY is required to encrypt or decrypt agent provider credentials. Set it to a base64-encoded 32-byte key, for example from `openssl rand -base64 32`.',
@@ -130,7 +139,7 @@ function credentialAad(
   providerId: SupportedAgentProviderId,
   fieldKey: string,
 ): string {
-  return `${workspaceId}:${providerId}:${fieldKey}`;
+  return JSON.stringify([workspaceId, providerId, fieldKey]);
 }
 
 function maskSecret(secret: string): string {

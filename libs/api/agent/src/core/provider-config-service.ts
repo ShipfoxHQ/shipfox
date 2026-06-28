@@ -6,13 +6,16 @@ import {
 } from '@shipfox/api-agent-dto';
 import {upsertAgentProviderConfig} from '#db/index.js';
 import {providerValidationCount} from '#metrics/index.js';
-import {encryptCredentials, fingerprintCredentials} from './credential-encryption.js';
+import {
+  encryptCredentials,
+  ensureCredentialsEncryptionKeyConfigured,
+  fingerprintCredentials,
+} from './credential-encryption.js';
 import type {AgentProviderConfig} from './entities/agent-provider-config.js';
 import {
   AgentProviderValidationError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
-  ProviderValidationUnavailableError,
   UnsupportedAgentProviderError,
 } from './errors.js';
 import {probeProviderCredentials, sanitizeProviderError} from './provider-validation.js';
@@ -38,13 +41,11 @@ export async function testAndSaveProviderConfig(
   }
   if (entry.default_model === null) throw new UnsupportedAgentProviderError(params.providerId);
 
-  if (!hasSingleSecretCredentialField(entry.credential_fields)) {
-    throw new ProviderValidationUnavailableError(params.providerId);
-  }
-
   if (!agentProviderCredentialKeysMatch(params.providerId, params.credentials)) {
     throw new InvalidCredentialFieldsError(params.providerId);
   }
+
+  ensureCredentialsEncryptionKeyConfigured();
 
   try {
     await probe({
@@ -53,9 +54,9 @@ export async function testAndSaveProviderConfig(
       credentials: params.credentials,
     });
   } catch (error) {
+    providerValidationCount.add(1, {provider: params.providerId, outcome: 'failed'});
     if (error instanceof InvalidAgentModelError) throw error;
 
-    providerValidationCount.add(1, {provider: params.providerId, outcome: 'failed'});
     const sanitizedMessage = sanitizeProviderError(error, Object.values(params.credentials));
     // Provider SDK errors can contain request headers or bodies with the API key, so this
     // handled validation error deliberately carries only the sanitized message.
@@ -75,10 +76,4 @@ export async function testAndSaveProviderConfig(
     defaultModel: entry.default_model,
     defaultThinking: DEFAULT_AGENT_THINKING,
   });
-}
-
-function hasSingleSecretCredentialField(
-  credentialFields: {key: string; secret: boolean}[],
-): boolean {
-  return credentialFields.length === 1 && credentialFields[0]?.secret === true;
 }

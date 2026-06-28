@@ -66,6 +66,121 @@ describe('probeProviderCredentials', () => {
     await expect(probe).rejects.toThrow(InvalidAgentModelError);
     expect(piAi.complete).not.toHaveBeenCalled();
   });
+
+  it('passes Azure endpoint credentials as Pi Azure base URL options', async () => {
+    piAi.getModels.mockReturnValue([
+      {
+        id: 'gpt-5.5-pro',
+        provider: 'azure-openai-responses',
+        api: 'azure-openai-responses',
+        name: 'GPT',
+        baseUrl: '',
+        reasoning: true,
+        input: ['text'],
+        cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
+        contextWindow: 200000,
+        maxTokens: 32000,
+      },
+    ]);
+
+    await probeProviderCredentials({
+      providerId: 'azure-openai-responses',
+      model: 'gpt-5.5-pro',
+      credentials: {
+        endpoint: 'https://azure.example.test/openai/v1',
+        api_key: 'sk-azure-secret',
+      },
+    });
+
+    const [, , options] = piAi.complete.mock.calls[0] as [
+      {id: string},
+      Context,
+      ProviderStreamOptions,
+    ];
+    expect(options).toMatchObject({
+      apiKey: 'sk-azure-secret',
+      azureBaseUrl: 'https://azure.example.test/openai/v1',
+    });
+  });
+
+  it('passes Cloudflare AI Gateway credentials through provider env options', async () => {
+    piAi.getModels.mockReturnValue([
+      {
+        id: 'claude-opus-4-8',
+        provider: 'cloudflare-ai-gateway',
+        api: 'anthropic-messages',
+        name: 'Claude',
+        baseUrl:
+          'https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/anthropic',
+        reasoning: true,
+        input: ['text'],
+        cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
+        contextWindow: 200000,
+        maxTokens: 32000,
+      },
+    ]);
+
+    await probeProviderCredentials({
+      providerId: 'cloudflare-ai-gateway',
+      model: 'claude-opus-4-8',
+      credentials: {
+        api_key: 'cf-secret',
+        account_id: 'account-123',
+        gateway_id: 'gateway-456',
+      },
+    });
+
+    const [, , options] = piAi.complete.mock.calls[0] as [
+      {id: string},
+      Context,
+      ProviderStreamOptions,
+    ];
+    expect(options).toMatchObject({
+      apiKey: 'cf-secret',
+      env: {
+        CLOUDFLARE_ACCOUNT_ID: 'account-123',
+        CLOUDFLARE_GATEWAY_ID: 'gateway-456',
+      },
+    });
+  });
+
+  it('passes Cloudflare Workers AI credentials through provider env options', async () => {
+    piAi.getModels.mockReturnValue([
+      {
+        id: '@cf/moonshotai/kimi-k2.7-code',
+        provider: 'cloudflare-workers-ai',
+        api: 'openai-completions',
+        name: 'Kimi',
+        baseUrl: 'https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1',
+        reasoning: true,
+        input: ['text'],
+        cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
+        contextWindow: 200000,
+        maxTokens: 32000,
+      },
+    ]);
+
+    await probeProviderCredentials({
+      providerId: 'cloudflare-workers-ai',
+      model: '@cf/moonshotai/kimi-k2.7-code',
+      credentials: {
+        api_key: 'cf-secret',
+        account_id: 'account-123',
+      },
+    });
+
+    const [, , options] = piAi.complete.mock.calls[0] as [
+      {id: string},
+      Context,
+      ProviderStreamOptions,
+    ];
+    expect(options).toMatchObject({
+      apiKey: 'cf-secret',
+      env: {
+        CLOUDFLARE_ACCOUNT_ID: 'account-123',
+      },
+    });
+  });
 });
 
 describe('sanitizeProviderError', () => {

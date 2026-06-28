@@ -11,6 +11,10 @@ import {CredentialDecryptionError} from './errors.js';
 const ENCODED_CREDENTIAL_PREFIX = /^v1:/;
 
 describe('credential encryption', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('round-trips a credential without storing plaintext', () => {
     const plaintext = 'sk-ant-secretabcd';
 
@@ -104,6 +108,28 @@ describe('credential encryption', () => {
 
     expect(encryptedCredentials).not.toEqual(credentials);
     expect(decryptedCredentials).toEqual(credentials);
+  });
+
+  it('surfaces missing encryption key configuration errors', async () => {
+    vi.resetModules();
+    vi.stubEnv('AGENT_CREDENTIALS_ENCRYPTION_KEY', '');
+    const module = await import('./credential-encryption.js');
+
+    const encrypt = () => module.encryptCredential({plaintext: 'secret', aad: 'aad'});
+
+    expect(encrypt).toThrow('AGENT_CREDENTIALS_ENCRYPTION_KEY is required');
+  });
+
+  it('surfaces malformed encryption key configuration errors', async () => {
+    vi.resetModules();
+    vi.stubEnv('AGENT_CREDENTIALS_ENCRYPTION_KEY', 'not-base64');
+    const module = await import('./credential-encryption.js');
+
+    const encrypt = () => module.encryptCredential({plaintext: 'secret', aad: 'aad'});
+
+    expect(encrypt).toThrow(
+      'AGENT_CREDENTIALS_ENCRYPTION_KEY must be a base64-encoded 32-byte key',
+    );
   });
 });
 

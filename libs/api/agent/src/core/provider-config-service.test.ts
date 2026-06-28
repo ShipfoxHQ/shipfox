@@ -5,18 +5,18 @@ import {
   AgentProviderValidationError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
-  ProviderValidationUnavailableError,
 } from './errors.js';
-import {
-  type TestAndSaveProviderConfigParams,
-  testAndSaveProviderConfig,
-} from './provider-config-service.js';
+import {testAndSaveProviderConfig} from './provider-config-service.js';
 
 describe('testAndSaveProviderConfig', () => {
   let workspaceId: string;
 
   beforeEach(() => {
     workspaceId = crypto.randomUUID();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('validates, encrypts, fingerprints, and stores a provider config', async () => {
@@ -116,28 +116,74 @@ describe('testAndSaveProviderConfig', () => {
     expect(stored).toBeUndefined();
   });
 
-  it('rejects supported providers whose validation shape is unavailable', async () => {
+  it('validates and stores Azure provider configs with multi-field credentials', async () => {
     const probe = vi.fn();
+    const credentials = {
+      endpoint: 'https://azure.example.test/openai/v1',
+      api_key: 'sk-azure-secret-abcd',
+    };
 
-    const save = testAndSaveProviderConfig(
-      createParams({
+    const config = await testAndSaveProviderConfig(
+      {
         workspaceId,
         providerId: 'azure-openai-responses',
-        credentials: {
-          endpoint: 'https://api.example.test',
-          api_key: 'sk-azure-secret-abcd',
-        },
-      }),
+        credentials,
+      },
       {probe},
     );
 
-    await expect(save).rejects.toThrow(ProviderValidationUnavailableError);
-    expect(probe).not.toHaveBeenCalled();
     const stored = await getAgentProviderConfig({
       workspaceId,
       providerId: 'azure-openai-responses',
     });
-    expect(stored).toBeUndefined();
+    expect(stored).toEqual(config);
+    expect(
+      decryptCredentials({
+        workspaceId,
+        providerId: 'azure-openai-responses',
+        encryptedCredentials: stored?.encryptedCredentials ?? {},
+      }),
+    ).toEqual(credentials);
+    expect(stored?.keyFingerprints).toEqual({
+      endpoint: 'https://azure.example.test/openai/v1',
+      api_key: 'sk-azure...abcd',
+    });
+  });
+
+  it('validates and stores Cloudflare provider configs with multi-field credentials', async () => {
+    const probe = vi.fn();
+    const credentials = {
+      api_key: 'cf-secret-abcd',
+      account_id: 'account-123',
+      gateway_id: 'gateway-456',
+    };
+
+    const config = await testAndSaveProviderConfig(
+      {
+        workspaceId,
+        providerId: 'cloudflare-ai-gateway',
+        credentials,
+      },
+      {probe},
+    );
+
+    const stored = await getAgentProviderConfig({
+      workspaceId,
+      providerId: 'cloudflare-ai-gateway',
+    });
+    expect(stored).toEqual(config);
+    expect(
+      decryptCredentials({
+        workspaceId,
+        providerId: 'cloudflare-ai-gateway',
+        encryptedCredentials: stored?.encryptedCredentials ?? {},
+      }),
+    ).toEqual(credentials);
+    expect(stored?.keyFingerprints).toEqual({
+      api_key: 'cf-secre...abcd',
+      account_id: 'account-123',
+      gateway_id: 'gateway-456',
+    });
   });
 
   it('rejects mismatched credential fields and persists nothing', async () => {
@@ -153,8 +199,19 @@ describe('testAndSaveProviderConfig', () => {
     const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(stored).toBeUndefined();
   });
-});
 
-function createParams(params: TestAndSaveProviderConfigParams): TestAndSaveProviderConfigParams {
-  return params;
-}
+  it('validates the local encryption key before probing the provider', async () => {
+    vi.resetModules();
+    vi.stubEnv('AGENT_CREDENTIALS_ENCRYPTION_KEY', '');
+    const module = await import('./provider-config-service.js');
+    const probe = vi.fn();
+
+    const save = module.testAndSaveProviderConfig(
+      {workspaceId, providerId: 'anthropic', credentials: {api_key: 'sk-ant-secret-abcd'}},
+      {probe},
+    );
+
+    await expect(save).rejects.toThrow('AGENT_CREDENTIALS_ENCRYPTION_KEY is required');
+    expect(probe).not.toHaveBeenCalled();
+  });
+});
