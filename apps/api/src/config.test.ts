@@ -21,6 +21,8 @@ describe('parseApiTrustProxy', () => {
     '-1',
     '1.5',
     'maybe',
+    '9007199254740992',
+    '1'.repeat(400),
     '10.0.0.0/99',
     '2001:db8::/129',
   ])('rejects %s', (value) => {

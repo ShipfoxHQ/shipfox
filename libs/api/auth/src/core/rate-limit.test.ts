@@ -247,6 +247,58 @@ describe('checkAuthRateLimit', () => {
     expect(activeRows).toBe(1);
   });
 
+  it('does not wait for opportunistic pruning after an allowed check', async () => {
+    const now = new Date('2026-06-23T00:04:30Z');
+    const expiresAt = new Date('2026-06-23T00:05:00Z');
+    const consumeAuthRateLimit = vi.fn().mockResolvedValue({count: 1, expiresAt});
+    let finishPrune: ((value: number) => void) | undefined;
+    const pendingPrune = new Promise<number>((resolve) => {
+      finishPrune = resolve;
+    });
+    const pruneExpiredAuthRateLimits = vi.fn(() => pendingPrune);
+    vi.resetModules();
+    vi.doMock('#config.js', () => ({
+      config: {
+        AUTH_JWT_SECRET: 'jwt-secret',
+        AUTH_RATE_LIMIT_IDENTIFIER_SECRET: undefined,
+      },
+    }));
+    vi.doMock('#db/rate-limits.js', () => ({
+      consumeAuthRateLimit,
+      pruneExpiredAuthRateLimits,
+    }));
+    vi.doMock('#metrics/index.js', () => ({
+      recordAuthRateLimitCheck: vi.fn(),
+      recordAuthRateLimitPruneFailure: vi.fn(),
+    }));
+
+    try {
+      const rateLimitModule = await import('./rate-limit.js');
+      const result = await Promise.race([
+        rateLimitModule
+          .checkAuthRateLimit({
+            action: 'login',
+            scope: 'email',
+            identifier: 'person@example.com',
+            limit: 2,
+            windowSeconds: 60,
+            now,
+          })
+          .then(() => 'resolved' as const),
+        new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 20)),
+      ]);
+
+      expect(result).toBe('resolved');
+      expect(pruneExpiredAuthRateLimits).toHaveBeenCalledWith({now});
+    } finally {
+      finishPrune?.(0);
+      vi.doUnmock('#config.js');
+      vi.doUnmock('#db/rate-limits.js');
+      vi.doUnmock('#metrics/index.js');
+      vi.resetModules();
+    }
+  });
+
   it('throttles prune attempts inside the configured interval', async () => {
     const firstIdentifierHmac = hashAuthRateLimitIdentifier({
       action: 'login',

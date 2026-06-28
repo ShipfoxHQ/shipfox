@@ -39,7 +39,7 @@ describe('auth metrics', () => {
       outcome: 'blocked',
     });
 
-    expect(counterAdd('auth_rate_limit_checks_total')).toHaveBeenCalledWith(1, {
+    expect(counterAdd('auth_rate_limit_checks')).toHaveBeenCalledWith(1, {
       action: 'login',
       scope: 'ip',
       outcome: 'blocked',
@@ -49,11 +49,11 @@ describe('auth metrics', () => {
   it('records auth rate-limit prune failures', () => {
     metrics.recordAuthRateLimitPruneFailure();
 
-    expect(counterAdd('auth_rate_limit_prune_failures_total')).toHaveBeenCalledWith(1);
+    expect(counterAdd('auth_rate_limit_prune_failures')).toHaveBeenCalledWith(1);
   });
 
   it('does not let metric failures affect callers', () => {
-    counterAdd('auth_rate_limit_checks_total').mockImplementationOnce(() => {
+    counterAdd('auth_rate_limit_checks').mockImplementationOnce(() => {
       throw new Error('metrics unavailable');
     });
 

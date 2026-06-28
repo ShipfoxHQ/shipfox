@@ -27,11 +27,11 @@ const rateLimitCheckCount = meter.createCounter<{
   action: AuthRateLimitAction;
   scope: AuthRateLimitScope;
   outcome: AuthRateLimitOutcome;
-}>('auth_rate_limit_checks_total', {
+}>('auth_rate_limit_checks', {
   description: 'Authentication rate limit checks by action, scope, and outcome',
 });
 
-const rateLimitPruneFailureCount = meter.createCounter('auth_rate_limit_prune_failures_total', {
+const rateLimitPruneFailureCount = meter.createCounter('auth_rate_limit_prune_failures', {
   description: 'Authentication rate limit prune failures',
 });
 

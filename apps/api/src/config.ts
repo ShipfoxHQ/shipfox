@@ -38,8 +38,8 @@ export function parseApiTrustProxy(value: string): ApiTrustProxy {
 
   if (INTEGER_PATTERN.test(trimmed)) {
     const hops = Number(trimmed);
-    if (hops > 0) return hops;
-    throw new Error('API_TRUST_PROXY hop count must be greater than zero');
+    if (Number.isSafeInteger(hops) && hops > 0) return hops;
+    throw new Error('API_TRUST_PROXY hop count must be a positive safe integer');
   }
 
   if (isIP(trimmed) !== 0 || parseCidr(trimmed)) return trimmed;

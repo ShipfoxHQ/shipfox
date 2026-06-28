@@ -160,7 +160,7 @@ export async function checkAuthRateLimit(params: CheckAuthRateLimitParams): Prom
 
   recordAuthRateLimitCheck({action: params.action, scope: params.scope, outcome: 'allowed'});
 
-  await pruneExpiredAuthRateLimits({now}).catch(() => {
+  void pruneExpiredAuthRateLimits({now}).catch(() => {
     recordAuthRateLimitPruneFailure();
   });
 }
