@@ -3,7 +3,7 @@ import {
   createRunnerSessionAuthMethod,
   verifyJobLeaseToken,
 } from '@shipfox/api-auth';
-import {AUTH_USER} from '@shipfox/api-auth-context';
+import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
 import {RUNNER_SESSION_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
@@ -25,6 +25,11 @@ const fakeUserAuth: AuthMethod = {
   authenticate: () => Promise.resolve(),
 };
 
+const fakeProvisionerAuth: AuthMethod = {
+  name: AUTH_PROVISIONER_TOKEN,
+  authenticate: () => Promise.resolve(),
+};
+
 describe('POST /runners/jobs/request', () => {
   let app: FastifyInstance;
   let rawToken: string;
@@ -39,6 +44,7 @@ describe('POST /runners/jobs/request', () => {
         createRunnerTokenAuthMethod(),
         createRunnerSessionAuthMethod(),
         createLeaseTokenAuthMethod(),
+        fakeProvisionerAuth,
       ],
       routes: runnerRoutes,
       swagger: false,

@@ -1,0 +1,48 @@
+import {MAX_RUNNER_LABELS} from '@shipfox/runner-labels';
+import {z} from 'zod';
+import {runnerLabelSchema} from './register.js';
+
+export const pollDemandTemplateSchema = z.object({
+  template_key: z.string().min(1),
+  labels: z.array(runnerLabelSchema).min(1).max(MAX_RUNNER_LABELS),
+  available_slots: z.number().int().min(0).max(100_000),
+  starting: z.number().int().min(0).max(100_000),
+  running: z.number().int().min(0).max(100_000),
+});
+
+export const pollDemandBodySchema = z.object({
+  wait_seconds: z.number().int().min(0).optional(),
+  max_reservations: z.number().int().min(0).max(1000),
+  templates: z.array(pollDemandTemplateSchema).min(1).max(100),
+});
+
+export const demandStatSchema = z.object({
+  labels: z.array(z.string()),
+  queued: z.number().int().min(0),
+  reserved: z
+    .number()
+    .int()
+    .min(0)
+    .describe(
+      'Active reservations for this label set; advisory, may exceed `queued` during heavy claiming.',
+    ),
+  oldest_queued_at: z.string().datetime(),
+});
+
+export const reservationGrantSchema = z.object({
+  reservation_id: z.string().uuid(),
+  labels: z.array(z.string()),
+  count: z.number().int().positive(),
+  expires_at: z.string().datetime(),
+});
+
+export const pollDemandResponseSchema = z.object({
+  stats: z.array(demandStatSchema),
+  reservations: z.array(reservationGrantSchema),
+});
+
+export type PollDemandTemplateDto = z.infer<typeof pollDemandTemplateSchema>;
+export type PollDemandBodyDto = z.infer<typeof pollDemandBodySchema>;
+export type DemandStatDto = z.infer<typeof demandStatSchema>;
+export type ReservationGrantDto = z.infer<typeof reservationGrantSchema>;
+export type PollDemandResponseDto = z.infer<typeof pollDemandResponseSchema>;

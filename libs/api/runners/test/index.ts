@@ -3,6 +3,7 @@ export {
   ephemeralRegistrationTokenFactory,
 } from './factories/ephemeral-registration-token.js';
 export {pendingJobFactory} from './factories/pending-job.js';
+export {reservationFactory} from './factories/reservation.js';
 export {runnerSessionFactory} from './factories/runner-session.js';
 export {
   type RunnerTokenFactoryTransientParams,

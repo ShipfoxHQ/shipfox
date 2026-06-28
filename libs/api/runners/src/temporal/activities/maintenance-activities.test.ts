@@ -3,9 +3,13 @@ import {eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {claimPendingJob} from '#db/jobs.js';
 import {runnersOutbox} from '#db/schema/outbox.js';
+import {reservations} from '#db/schema/reservations.js';
 import {runningJobs} from '#db/schema/running-jobs.js';
-import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
-import {detectAndExpireStuckJobsActivity} from './maintenance-activities.js';
+import {pendingJobFactory, reservationFactory, runnerSessionFactory} from '#test/index.js';
+import {
+  deleteExpiredReservationsActivity,
+  detectAndExpireStuckJobsActivity,
+} from './maintenance-activities.js';
 
 describe('detectAndExpireStuckJobsActivity', () => {
   let workspaceId: string;
@@ -52,5 +56,40 @@ describe('detectAndExpireStuckJobsActivity', () => {
     expect(payload.runId).toBe(claimed?.runId);
     expect(payload.steps).toBeUndefined();
     expect(payload.status).toBeUndefined();
+  });
+});
+
+describe('deleteExpiredReservationsActivity', () => {
+  let workspaceId: string;
+  let provisionerId: string;
+
+  beforeEach(async () => {
+    await db().execute(sql`TRUNCATE runners_reservations CASCADE`);
+    workspaceId = crypto.randomUUID();
+    provisionerId = crypto.randomUUID();
+  });
+
+  it('deletes expired reservations and keeps active reservations', async () => {
+    await reservationFactory.create({
+      workspaceId,
+      provisionerId,
+      requiredLabels: ['linux'],
+      count: 1,
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+    await reservationFactory.create({
+      workspaceId,
+      provisionerId,
+      requiredLabels: ['linux', 'gpu'],
+      count: 1,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const result = await deleteExpiredReservationsActivity();
+
+    const remaining = await db().select().from(reservations);
+    expect(result.deleted).toBe(1);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]?.requiredLabels).toEqual(['linux', 'gpu']);
   });
 });
