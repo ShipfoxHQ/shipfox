@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-router';
 import {createStore, Provider as JotaiProvider} from 'jotai';
 import {useMemo} from 'react';
-import {expect, screen, userEvent, waitFor, within} from 'storybook/test';
+import {expect, userEvent, waitFor, within} from 'storybook/test';
 import {authStateAtom, type Workspace} from '#state/auth.js';
 import {WorkspaceSwitcher} from './workspace-switcher.js';
 
@@ -149,11 +149,13 @@ export const ManyOverflowScrolled: Story = {
     workspaces: MANY_WORKSPACES,
   },
   play: async (ctx) => {
-    await screen.findByRole('option', {name: 'Workspace 01'});
-    await screen.findByRole('option', {name: 'Create workspace'});
+    const canvas = within(ctx.canvasElement);
 
-    await screen.findByRole('option', {name: 'Workspace 20'});
-    const firstOption = document.querySelector('[role="option"]');
+    await canvas.findByRole('option', {name: 'Workspace 01'});
+    await canvas.findByRole('option', {name: 'Create workspace'});
+
+    await canvas.findByRole('option', {name: 'Workspace 20'});
+    const firstOption = canvas.getAllByRole('option')[0];
     let scrollContainer = firstOption?.parentElement ?? null;
     while (scrollContainer && scrollContainer.scrollHeight <= scrollContainer.clientHeight) {
       scrollContainer = scrollContainer.parentElement;
@@ -163,7 +165,7 @@ export const ManyOverflowScrolled: Story = {
     }
     scrollContainer.scrollTop = scrollContainer.scrollHeight;
 
-    await waitFor(() => expect(screen.getByRole('option', {name: 'Workspace 20'})).toBeVisible());
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'Workspace 20'})).toBeVisible());
     await document.fonts.ready;
     await argosScreenshot(ctx, 'Workspace Switcher Many Overflow Scrolled');
   },
