@@ -117,6 +117,35 @@ describe('resolveAgentConfig', () => {
     );
   });
 
+  test('falls through to the instance default when the workspace default provider is null', () => {
+    const resolved = resolveAgentConfig(
+      {},
+      {workspaceDefaultProviderId: null, instanceDefaultProvider: 'anthropic'},
+    );
+
+    expect(resolved.provider).toBe('anthropic');
+  });
+
+  test('throws when a stored workspace default provider is no longer supported', () => {
+    const resolve = () =>
+      resolveAgentConfig(
+        {},
+        {workspaceDefaultProviderId: 'amazon-bedrock' as SupportedAgentProviderId},
+      );
+
+    expect(resolve).toThrow(UnsupportedAgentProviderError);
+  });
+
+  test('validates the instance default model and rejects an unknown one', () => {
+    const resolve = () =>
+      resolveAgentConfig(
+        {},
+        {instanceDefaultProvider: 'anthropic', instanceDefaultProviderModel: 'not-a-model'},
+      );
+
+    expect(resolve).toThrow(InvalidAgentModelError);
+  });
+
   test('catalogDefaultAgentResolver uses catalog-only defaults', () => {
     const resolved = catalogDefaultAgentResolver({provider: 'openai'});
 
