@@ -20,6 +20,7 @@ export type RunJobDetailDto = z.infer<typeof runJobDetailDtoSchema>;
 // The run detail read model returned by `GET /workflows/runs/:id`: a run plus its
 // jobs, each job's steps, and each step's attempt history.
 export const runDetailResponseSchema = runResponseSchema.extend({
+  latest_attempt: z.number().int().positive(),
   jobs: z.array(runJobDetailDtoSchema),
 });
 

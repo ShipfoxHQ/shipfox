@@ -1,5 +1,6 @@
 import {
   workflowJobDto,
+  workflowRunAttemptDto,
   workflowRunDetailDto,
   workflowRunDto,
   workflowRunListResponseDto,
@@ -10,6 +11,7 @@ import {
   isWorkflowRunTerminal,
   isWorkflowStatus,
   toWorkflowRun,
+  toWorkflowRunAttempt,
   toWorkflowRunDetail,
   toWorkflowRunListPage,
   workflowRunShortId,
@@ -24,6 +26,10 @@ describe('workflow run model mapping', () => {
       definition_id: '55555555-5555-4555-8555-555555555555',
       name: 'deploy-web',
       status: 'running',
+      source_run_id: '77777777-7777-4777-8777-777777777777',
+      root_run_id: '88888888-8888-4888-8888-888888888888',
+      attempt: 3,
+      rerun_mode: 'failed',
       trigger_source: 'github',
       trigger_event: 'push',
       trigger_payload: {ref: 'refs/heads/main'},
@@ -43,6 +49,10 @@ describe('workflow run model mapping', () => {
       definitionId: '55555555-5555-4555-8555-555555555555',
       name: 'deploy-web',
       status: 'running',
+      sourceRunId: '77777777-7777-4777-8777-777777777777',
+      rootRunId: '88888888-8888-4888-8888-888888888888',
+      attempt: 3,
+      rerunMode: 'failed',
       triggerSource: 'github',
       triggerEvent: 'push',
       triggerLabel: 'github / push',
@@ -149,10 +159,11 @@ describe('workflow run model mapping', () => {
       finished_at: '2026-05-07T01:02:00.000Z',
       steps: [step],
     });
-    const dto = workflowRunDetailDto({jobs: [job]});
+    const dto = workflowRunDetailDto({latest_attempt: 4, jobs: [job]});
 
     const detail = toWorkflowRunDetail(dto);
 
+    expect(detail.latestAttempt).toBe(4);
     expect(detail.jobs[0]).toMatchObject({
       id: '44444444-4444-4444-8444-000000000001',
       runId: '11111111-1111-4111-8111-111111111111',
@@ -246,6 +257,26 @@ describe('workflow run model mapping', () => {
       restartReason: null,
       restartResult: null,
       finishedAt: null,
+    });
+  });
+
+  test('maps run attempt summaries', () => {
+    const dto = workflowRunAttemptDto({
+      id: '77777777-7777-4777-8777-777777777777',
+      attempt: 2,
+      status: 'failed',
+      created_at: '2026-05-07T01:02:00.000Z',
+      rerun_mode: 'all',
+    });
+
+    const attempt = toWorkflowRunAttempt(dto);
+
+    expect(attempt).toEqual({
+      id: '77777777-7777-4777-8777-777777777777',
+      attempt: 2,
+      status: 'failed',
+      createdAt: '2026-05-07T01:02:00.000Z',
+      rerunMode: 'all',
     });
   });
 });

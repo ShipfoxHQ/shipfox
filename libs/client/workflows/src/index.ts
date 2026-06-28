@@ -2,6 +2,7 @@ export type {
   WorkflowJob,
   WorkflowJobStatus,
   WorkflowRun,
+  WorkflowRunAttempt,
   WorkflowRunDetail,
   WorkflowRunListPage,
   WorkflowRunStatus,
@@ -26,6 +27,7 @@ export {
 } from '#core/workflow-run.js';
 export {
   useCancelWorkflowRunMutation,
+  useWorkflowRunAttemptsQuery,
   useWorkflowRunQuery,
   useWorkflowRunsInfiniteQuery,
   type WorkflowRunFilters,

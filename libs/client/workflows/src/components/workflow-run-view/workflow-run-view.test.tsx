@@ -5,7 +5,9 @@ import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {inlineLogBody, outputLine} from '#test/fixtures/logs.js';
 import {
+  runAttemptsResponseDto,
   workflowJobDto,
+  workflowRunAttemptDto,
   workflowRunDetailDto,
   workflowRunDto,
   workflowStepAttemptDto,
@@ -22,6 +24,7 @@ const DEPLOY_JOB_ID = '88888888-8888-4888-8888-888888888888';
 const CHECKOUT_STEP_ID = '99999999-9999-4999-8999-999999999999';
 const CHECKOUT_ATTEMPT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const RERUN_BUTTON_NAME = /^Re-run/;
+const ATTEMPT_2_PATTERN = /Attempt 2/;
 
 describe('WorkflowRunView', () => {
   test('renders the run summary, jobs graph, and selected job step attempts when a run loads', async () => {
@@ -387,6 +390,64 @@ describe('WorkflowRunView', () => {
     await user.click(await screen.findByRole('button', {name: 'Re-run workflow'}));
 
     await waitFor(() => expect(errorSpy).toHaveBeenCalledWith('Run has no failed jobs'));
+  });
+
+  test('selects another run attempt and clears job selection search', async () => {
+    const user = userEvent.setup();
+    const secondRunId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.pathname === `/workflows/runs/${RUN_ID}/attempts`) {
+        return Promise.resolve(
+          jsonResponse(
+            runAttemptsResponseDto({
+              attempts: [
+                workflowRunAttemptDto({
+                  id: RUN_ID,
+                  attempt: 1,
+                  status: 'succeeded',
+                  created_at: '2026-05-07T01:01:00.000Z',
+                }),
+                workflowRunAttemptDto({
+                  id: secondRunId,
+                  attempt: 2,
+                  status: 'running',
+                  created_at: '2026-05-07T01:02:00.000Z',
+                  rerun_mode: 'all',
+                }),
+              ],
+            }),
+          ),
+        );
+      }
+      return Promise.resolve(
+        jsonResponse(
+          workflowRunViewDetailDto({
+            root_run_id: RUN_ID,
+            attempt: 1,
+            latest_attempt: 2,
+          }),
+        ),
+      );
+    });
+    configureApiClient({fetchImpl: fetchImpl as typeof fetch});
+
+    const {router} = renderProjectPage(
+      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${RUN_ID}?job=${BUILD_JOB_ID}&step=${CHECKOUT_STEP_ID}&attempt=${CHECKOUT_ATTEMPT_ID}`,
+      () => (
+        <WorkflowRunView workspaceId={PROJECT_TEST_WID} projectId={PROJECT_ID} runId={RUN_ID} />
+      ),
+    );
+
+    await user.click(await screen.findByRole('button', {name: 'Switch attempt, currently 1 of 2'}));
+    await user.click(await screen.findByRole('menuitem', {name: ATTEMPT_2_PATTERN}));
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${secondRunId}`,
+      ),
+    );
+    expect(router.state.location.search).toEqual({});
   });
 
   test('does not render rerun controls for non-terminal runs', async () => {

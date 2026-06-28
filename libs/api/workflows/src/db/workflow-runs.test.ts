@@ -21,6 +21,7 @@ import {db} from './db.js';
 import {jobs} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
 import {steps as stepsTable} from './schema/steps.js';
+import {workflowRuns} from './schema/workflow-runs.js';
 import {
   bulkUpdateStepStatuses,
   cancelWorkflowRun,
@@ -28,10 +29,12 @@ import {
   createWorkflowRun,
   failJobAsTimedOut,
   getJobsByRunId,
+  getLatestAttempt,
   getStepAttempts,
   getStepsByJobId,
   getWorkflowExecutionDepth,
   getWorkflowRunById,
+  listRunAttempts,
   listWorkflowRunsByProject,
   resolveJobAfterLeaseExpiry,
   updateJobStatus,
@@ -895,6 +898,79 @@ jobs:
       const found = await getWorkflowRunById(crypto.randomUUID());
 
       expect(found).toBeUndefined();
+    });
+  });
+
+  describe('run attempt lineage queries', () => {
+    test('lists run attempts ordered by attempt and returns the latest attempt', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      await updateWorkflowRunStatus({runId: source.id, status: 'failed', expectedVersion: 1});
+      const second = await createRerunWorkflowRun({
+        sourceRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+      await updateWorkflowRunStatus({runId: second.id, status: 'failed', expectedVersion: 1});
+      const third = await createRerunWorkflowRun({
+        sourceRunId: second.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const attempts = await listRunAttempts({rootRunId: source.id, projectId});
+      const latestAttempt = await getLatestAttempt({rootRunId: source.id, projectId});
+
+      expect(attempts.map((attempt) => attempt.id)).toEqual([source.id, second.id, third.id]);
+      expect(attempts.map((attempt) => attempt.attempt)).toEqual([1, 2, 3]);
+      expect(attempts.map((attempt) => attempt.status)).toEqual(['failed', 'failed', 'pending']);
+      expect(attempts.map((attempt) => attempt.rerunMode)).toEqual([null, 'all', 'all']);
+      expect(latestAttempt).toBe(3);
+    });
+
+    test('returns a single no-lineage run and filters out another project', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const otherProjectRun = await createWorkflowRun({
+        workspaceId,
+        projectId: crypto.randomUUID(),
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      await db()
+        .update(workflowRuns)
+        .set({rootRunId: run.id, attempt: 99})
+        .where(eq(workflowRuns.id, otherProjectRun.id));
+
+      const attempts = await listRunAttempts({rootRunId: run.id, projectId});
+
+      expect(attempts.map((attempt) => attempt.id)).toEqual([run.id]);
     });
   });
 

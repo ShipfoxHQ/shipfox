@@ -26,6 +26,7 @@ import {
 } from '#core/workflow-run.js';
 import {Identifier} from '../identifier/index.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
+import {WorkflowRunAttemptSwitcher} from './workflow-run-attempt-switcher.js';
 
 const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
   ...WORKFLOW_RUN_STATUSES.map((status) => getWorkflowStatusVisual(status).label.length),
@@ -44,6 +45,8 @@ export interface WorkflowRunSummaryProps {
   onCancel?: (() => void) | undefined;
   rerunPending?: boolean | undefined;
   onRerun?: ((mode: RerunMode) => void) | undefined;
+  latestAttempt?: number | undefined;
+  onSelectAttempt?: ((runId: string) => void) | undefined;
 }
 
 export function WorkflowRunSummary({
@@ -57,6 +60,8 @@ export function WorkflowRunSummary({
   onCancel,
   rerunPending = false,
   onRerun,
+  latestAttempt,
+  onSelectAttempt,
 }: WorkflowRunSummaryProps) {
   const headingId = useId();
   const status = getWorkflowStatusVisual(run.status);
@@ -120,6 +125,17 @@ export function WorkflowRunSummary({
 
         <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-8 overflow-hidden text-foreground-neutral-muted">
           <Identifier display={run.shortId} value={run.id} label="run id" />
+
+          {latestAttempt && latestAttempt > 1 && onSelectAttempt ? (
+            <>
+              <MetadataSeparator />
+              <WorkflowRunAttemptSwitcher
+                run={run}
+                latestAttempt={latestAttempt}
+                onSelectAttempt={onSelectAttempt}
+              />
+            </>
+          ) : null}
 
           {run.triggerLabel ? (
             <>

@@ -28,6 +28,7 @@ import {
   isNull,
   lte,
   notInArray,
+  or,
   type SQL,
   sql,
 } from 'drizzle-orm';
@@ -36,6 +37,7 @@ import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
 import {
   isWorkflowRunTerminal,
+  type RunAttemptSummary,
   type TriggerPayload,
   type WorkflowRun,
   type WorkflowRunStatus,
@@ -342,6 +344,45 @@ export async function getWorkflowRunById(id: string): Promise<WorkflowRun | unde
   const row = rows[0];
   if (!row) return undefined;
   return toWorkflowRun(row);
+}
+
+export async function listRunAttempts(params: {
+  rootRunId: string;
+  projectId: string;
+}): Promise<RunAttemptSummary[]> {
+  return await db()
+    .select({
+      id: workflowRuns.id,
+      attempt: workflowRuns.attempt,
+      status: workflowRuns.status,
+      createdAt: workflowRuns.createdAt,
+      rerunMode: workflowRuns.rerunMode,
+    })
+    .from(workflowRuns)
+    .where(
+      and(
+        or(eq(workflowRuns.rootRunId, params.rootRunId), eq(workflowRuns.id, params.rootRunId)),
+        eq(workflowRuns.projectId, params.projectId),
+      ),
+    )
+    .orderBy(asc(workflowRuns.attempt));
+}
+
+export async function getLatestAttempt(params: {
+  rootRunId: string;
+  projectId: string;
+}): Promise<number> {
+  const [row] = await db()
+    .select({value: sql<number>`coalesce(max(${workflowRuns.attempt}), 1)`})
+    .from(workflowRuns)
+    .where(
+      and(
+        eq(workflowRuns.rootRunId, params.rootRunId),
+        eq(workflowRuns.projectId, params.projectId),
+      ),
+    );
+
+  return Number(row?.value ?? 1);
 }
 
 export type WorkflowRunCursor = TimestampIdCursor;

@@ -1,0 +1,165 @@
+import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {requireProjectAccess} from '@shipfox/api-projects';
+import {ClientError} from '@shipfox/node-fastify';
+import type {FastifyInstance} from 'fastify';
+import Fastify from 'fastify';
+import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
+import {
+  createRerunWorkflowRun,
+  createWorkflowRun,
+  updateWorkflowRunStatus,
+} from '#db/workflow-runs.js';
+import {workflowModel} from '#test/index.js';
+import {listRunAttemptsRoute} from './list-run-attempts.js';
+
+const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
+
+vi.mock('@shipfox/api-projects', () => ({
+  requireProjectAccess: vi.fn(({projectId}) =>
+    Promise.resolve({
+      project: {id: projectId, workspaceId: projectAccessState.workspaceId},
+      workspaceId: projectAccessState.workspaceId,
+    }),
+  ),
+}));
+
+const mockRequireProjectAccess = vi.mocked(requireProjectAccess);
+
+describe('GET /api/workflows/runs/:id/attempts', () => {
+  let app: FastifyInstance;
+  let workspaceId: string;
+  let projectId: string;
+  let definitionId: string;
+
+  beforeAll(async () => {
+    app = Fastify();
+    app.setValidatorCompiler(validatorCompiler);
+    app.setSerializerCompiler(serializerCompiler);
+    app.addHook('onRequest', (request, _reply, done) => {
+      setUserContext(
+        request,
+        buildUserContext({
+          userId: crypto.randomUUID(),
+          email: 'user@example.com',
+          memberships: [{workspaceId, role: 'admin'}],
+        }),
+      );
+      done();
+    });
+    app.get('/api/workflows/runs/:id/attempts', listRunAttemptsRoute);
+    await app.ready();
+  });
+
+  beforeEach(() => {
+    workspaceId = crypto.randomUUID();
+    projectId = crypto.randomUUID();
+    definitionId = crypto.randomUUID();
+    projectAccessState.workspaceId = workspaceId;
+    mockRequireProjectAccess.mockImplementation(({projectId: requestedProjectId}) =>
+      Promise.resolve({
+        project: {
+          id: requestedProjectId,
+          workspaceId,
+          sourceConnectionId: crypto.randomUUID(),
+          sourceExternalRepositoryId: `repo:${crypto.randomUUID()}`,
+          name: 'Project',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        workspaceId,
+      }),
+    );
+  });
+
+  test('returns attempts for the root run and a child run', async () => {
+    const {source, rerun} = await createLineage();
+
+    const rootRes = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${source.id}/attempts`,
+    });
+    const childRes = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${rerun.id}/attempts`,
+    });
+
+    expect(rootRes.statusCode).toBe(200);
+    expect(childRes.statusCode).toBe(200);
+    expect(rootRes.json().attempts.map((attempt: {id: string}) => attempt.id)).toEqual([
+      source.id,
+      rerun.id,
+    ]);
+    expect(childRes.json()).toEqual(rootRes.json());
+    expect(rootRes.json().attempts[0]).toMatchObject({
+      id: source.id,
+      attempt: 1,
+      status: 'failed',
+      rerun_mode: null,
+    });
+    expect(rootRes.json().attempts[1]).toMatchObject({
+      id: rerun.id,
+      attempt: 2,
+      status: 'pending',
+      rerun_mode: 'all',
+    });
+  });
+
+  test('returns one attempt for a run without lineage', async () => {
+    const run = await createRun();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}/attempts`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().attempts).toHaveLength(1);
+    expect(res.json().attempts[0]).toMatchObject({id: run.id, attempt: 1, rerun_mode: null});
+  });
+
+  test('returns 404 for a missing or inaccessible run', async () => {
+    const missing = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${crypto.randomUUID()}/attempts`,
+    });
+    const run = await createRun();
+    mockRequireProjectAccess.mockRejectedValueOnce(
+      new ClientError('Forbidden', 'forbidden', {status: 403}),
+    );
+
+    const inaccessible = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}/attempts`,
+    });
+
+    expect(missing.statusCode).toBe(404);
+    expect(inaccessible.statusCode).toBe(404);
+  });
+
+  async function createLineage() {
+    const source = await createRun();
+    await updateWorkflowRunStatus({runId: source.id, status: 'failed', expectedVersion: 1});
+    const rerun = await createRerunWorkflowRun({
+      sourceRunId: source.id,
+      mode: 'all',
+      actorUserId: crypto.randomUUID(),
+    });
+
+    return {source, rerun};
+  }
+
+  function createRun() {
+    return createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model: workflowModel({name: 'Deploy'}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+  }
+});
