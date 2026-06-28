@@ -4,5 +4,6 @@ export {
   onRunnerJobClaimed,
   onRunnerJobLeaseExpired,
   onRunnerJobQueued,
+  onWorkflowRunCancelled,
   onWorkflowRunCreated,
 } from './subscribers/index.js';

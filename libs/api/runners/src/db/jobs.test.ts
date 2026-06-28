@@ -9,6 +9,7 @@ import {claimJob, detectAndExpireStuckJobs} from '#core/jobs.js';
 import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
 import {db} from './db.js';
 import {
+  cancelRunnerJobs,
   claimPendingJob,
   enqueueJob,
   expireStuckJobs,
@@ -480,6 +481,53 @@ describe('requestJobCancellation', () => {
 
   it('is a no-op when the job is missing (does not throw)', async () => {
     await expect(requestJobCancellation({jobId: crypto.randomUUID()})).resolves.toBeUndefined();
+  });
+});
+
+describe('cancelRunnerJobs', () => {
+  let workspaceId: string;
+  let runnerTokenId: string;
+
+  beforeEach(async () => {
+    await db().execute(
+      sql`TRUNCATE runners_pending_jobs, runners_running_jobs, runners_runner_tokens, runners_outbox CASCADE`,
+    );
+    workspaceId = crypto.randomUUID();
+    const runnerToken = await runnerTokenFactory.create({workspaceId});
+    runnerTokenId = runnerToken.id;
+  });
+
+  it('deletes queued jobs and requests cancellation for running jobs', async () => {
+    const running = await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+    const queued = await pendingJobFactory.create({workspaceId});
+
+    await cancelRunnerJobs({jobIds: [queued.jobId, claimed?.jobId as string]});
+
+    expect(await db().select().from(pendingJobs)).toHaveLength(0);
+    const rows = await db().select().from(runningJobs);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.jobId).toBe(running.jobId);
+    expect(rows[0]?.cancellationRequestedAt).not.toBeNull();
+  });
+
+  it('is idempotent and no-ops for absent jobs', async () => {
+    const queued = await pendingJobFactory.create({workspaceId});
+
+    await cancelRunnerJobs({jobIds: [queued.jobId, crypto.randomUUID()]});
+    await cancelRunnerJobs({jobIds: [queued.jobId, crypto.randomUUID()]});
+
+    expect(await db().select().from(pendingJobs)).toHaveLength(0);
+    expect(await db().select().from(runningJobs)).toHaveLength(0);
+  });
+
+  it('prevents a cancelled queued job from being claimed', async () => {
+    const queued = await pendingJobFactory.create({workspaceId});
+
+    await cancelRunnerJobs({jobIds: [queued.jobId]});
+
+    const claimed = await claimPendingJob({workspaceId, runnerTokenId});
+    expect(claimed).toBeNull();
   });
 });
 

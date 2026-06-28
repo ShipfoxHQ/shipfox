@@ -2,11 +2,12 @@ import {
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_JOB_TIMED_OUT,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
+  WORKFLOWS_WORKFLOW_RUN_CANCELLED,
   WORKFLOWS_WORKFLOW_RUN_CREATED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
 } from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
-import {JobNotFoundError} from '#core/errors.js';
+import {JobNotFoundError, WorkflowRunNotCancellableError} from '#core/errors.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
@@ -16,6 +17,7 @@ import {workflowsOutbox} from './schema/outbox.js';
 import {steps as stepsTable} from './schema/steps.js';
 import {
   bulkUpdateStepStatuses,
+  cancelWorkflowRun,
   createWorkflowRun,
   failJobAsTimedOut,
   getJobsByRunId,
@@ -82,6 +84,19 @@ async function runTerminatedEvents(runId: string) {
       ),
     );
   return rows.map((row) => row.payload as {runId: string; projectId: string; status: string});
+}
+
+async function runCancelledEvents(runId: string) {
+  const rows = await db()
+    .select({payload: workflowsOutbox.payload})
+    .from(workflowsOutbox)
+    .where(
+      and(
+        eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_CANCELLED),
+        sql`${workflowsOutbox.payload}->>'runId' = ${runId}`,
+      ),
+    );
+  return rows.map((row) => row.payload as {runId: string; projectId: string});
 }
 
 async function stepAttemptTerminatedEvents(jobId: string) {
@@ -758,7 +773,7 @@ jobs:
       expect(updated.version).toBe(2);
     });
 
-    test('persists terminal status reason and clears it on a later non-reasoned transition', async () => {
+    test('preserves terminal status reason when a later transition is ignored', async () => {
       const run = await createWorkflowRun({
         workspaceId,
         projectId,
@@ -779,14 +794,15 @@ jobs:
         expectedVersion: 1,
         statusReason: 'dependency_not_completed',
       });
-      const running = await updateJobStatus({
+      const retry = await updateJobStatus({
         jobId: job?.id as string,
         status: 'running',
         expectedVersion: 2,
       });
 
       expect(skipped.statusReason).toBe('dependency_not_completed');
-      expect(running.statusReason).toBeNull();
+      expect(retry.status).toBe('skipped');
+      expect(retry.statusReason).toBe('dependency_not_completed');
     });
 
     test('throws on version mismatch', async () => {
@@ -856,6 +872,137 @@ jobs:
 
       expect(retry.version).toBe(first.version);
       expect(await runTerminatedEvents(run.id)).toHaveLength(1);
+    });
+
+    test('terminal-tolerant mismatch: existing terminal run returns without re-emitting', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      const cancelled = await updateWorkflowRunStatus({
+        runId: run.id,
+        status: 'cancelled',
+        expectedVersion: 1,
+      });
+
+      const retry = await updateWorkflowRunStatus({
+        runId: run.id,
+        status: 'running',
+        expectedVersion: 1,
+      });
+
+      expect(retry.status).toBe('cancelled');
+      expect(retry.version).toBe(cancelled.version);
+      expect(await runTerminatedEvents(run.id)).toHaveLength(1);
+    });
+
+    test('terminal-tolerant match: existing terminal run cannot be revived at the current version', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      const cancelled = await updateWorkflowRunStatus({
+        runId: run.id,
+        status: 'cancelled',
+        expectedVersion: 1,
+      });
+
+      const retry = await updateWorkflowRunStatus({
+        runId: run.id,
+        status: 'running',
+        expectedVersion: cancelled.version,
+      });
+
+      expect(retry.status).toBe('cancelled');
+      expect(retry.version).toBe(cancelled.version);
+      expect(await getWorkflowRunById(run.id)).toMatchObject({
+        status: 'cancelled',
+        version: cancelled.version,
+      });
+      expect(await runTerminatedEvents(run.id)).toHaveLength(1);
+    });
+  });
+
+  describe('cancelWorkflowRun', () => {
+    test('cancels the run, non-terminal jobs, and only their non-terminal steps', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            running: {steps: [{run: 'a'}, {run: 'b'}]},
+            succeeded: {steps: [{run: 'ok'}]},
+            skipped: {steps: [{run: 'skip'}]},
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      await updateWorkflowRunStatus({runId: run.id, status: 'running', expectedVersion: 1});
+      const [runningJob, succeededJob, skippedJob] = await getJobsByRunId(run.id);
+      if (!runningJob || !succeededJob || !skippedJob) throw new Error('Expected jobs');
+      await updateJobStatus({jobId: runningJob.id, status: 'running', expectedVersion: 1});
+      await nextStepForJob(runningJob.id);
+      await updateJobStatus({jobId: succeededJob.id, status: 'succeeded', expectedVersion: 1});
+      await updateJobStatus({
+        jobId: skippedJob.id,
+        status: 'skipped',
+        expectedVersion: 1,
+        statusReason: 'dependency_not_completed',
+      });
+
+      const cancelled = await cancelWorkflowRun({runId: run.id});
+
+      expect(cancelled.status).toBe('cancelled');
+      expect(cancelled.finishedAt).not.toBeNull();
+      const [finalRunning, finalSucceeded, finalSkipped] = await getJobsByRunId(run.id);
+      expect(finalRunning).toMatchObject({status: 'cancelled', statusReason: 'run_cancelled'});
+      expect(finalSucceeded).toMatchObject({status: 'succeeded', statusReason: null});
+      expect(finalSkipped).toMatchObject({
+        status: 'skipped',
+        statusReason: 'dependency_not_completed',
+      });
+      expect((await getStepsByJobId(runningJob.id)).map((step) => step.status)).toEqual([
+        'cancelled',
+        'cancelled',
+        'cancelled',
+      ]);
+      expect(
+        (await getStepsByJobId(skippedJob.id)).every((step) => step.status === 'pending'),
+      ).toBe(true);
+      expect(await runTerminatedEvents(run.id)).toEqual([
+        {runId: run.id, projectId, status: 'cancelled'},
+      ]);
+      expect(await runCancelledEvents(run.id)).toEqual([{runId: run.id, projectId}]);
+      expect(await jobTerminatedEvents(runningJob.id)).toEqual([
+        {
+          jobId: runningJob.id,
+          runId: run.id,
+          status: 'cancelled',
+          statusReason: 'run_cancelled',
+        },
+      ]);
+      expect(await stepAttemptTerminatedEvents(runningJob.id)).toHaveLength(1);
+      expect(await jobTerminatedEvents(succeededJob.id)).toHaveLength(1);
+      expect(await jobTerminatedEvents(skippedJob.id)).toHaveLength(1);
+    });
+
+    test('throws without changing an already-terminal run', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      const finished = await updateWorkflowRunStatus({
+        runId: run.id,
+        status: 'succeeded',
+        expectedVersion: 1,
+      });
+
+      await expect(cancelWorkflowRun({runId: run.id})).rejects.toBeInstanceOf(
+        WorkflowRunNotCancellableError,
+      );
+
+      expect(await getWorkflowRunById(run.id)).toMatchObject({
+        status: 'succeeded',
+        version: finished.version,
+      });
+      expect(await runCancelledEvents(run.id)).toHaveLength(0);
     });
   });
 
@@ -962,6 +1109,72 @@ jobs:
 
       expect(retry.status).toBe('running');
       expect(retry.version).toBe(first.version);
+    });
+
+    test('terminal-tolerant mismatch: existing terminal job returns without re-emitting', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const job = (await getJobsByRunId(run.id))[0];
+      const cancelled = await updateJobStatus({
+        jobId: job?.id as string,
+        status: 'cancelled',
+        expectedVersion: 1,
+      });
+
+      const retry = await updateJobStatus({
+        jobId: job?.id as string,
+        status: 'running',
+        expectedVersion: 1,
+      });
+
+      expect(retry.status).toBe('cancelled');
+      expect(retry.version).toBe(cancelled.version);
+      expect(await jobTerminatedEvents(job?.id as string)).toHaveLength(1);
+    });
+
+    test('terminal-tolerant match: existing terminal job cannot be revived at the current version', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const job = (await getJobsByRunId(run.id))[0];
+      const cancelled = await updateJobStatus({
+        jobId: job?.id as string,
+        status: 'cancelled',
+        expectedVersion: 1,
+      });
+
+      const retry = await updateJobStatus({
+        jobId: job?.id as string,
+        status: 'running',
+        expectedVersion: cancelled.version,
+      });
+
+      expect(retry.status).toBe('cancelled');
+      expect(retry.version).toBe(cancelled.version);
+      expect((await getJobsByRunId(run.id))[0]).toMatchObject({
+        status: 'cancelled',
+        version: cancelled.version,
+      });
+      expect(await jobTerminatedEvents(job?.id as string)).toHaveLength(1);
     });
   });
 

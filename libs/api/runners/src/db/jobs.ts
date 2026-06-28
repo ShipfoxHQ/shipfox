@@ -239,3 +239,17 @@ export async function requestJobCancellation(params: {jobId: string}): Promise<v
     })
     .where(eq(runningJobs.jobId, params.jobId));
 }
+
+export async function cancelRunnerJobs(params: {jobIds: string[]}): Promise<void> {
+  if (params.jobIds.length === 0) return;
+
+  await db().transaction(async (tx) => {
+    await tx.delete(pendingJobs).where(inArray(pendingJobs.jobId, params.jobIds));
+    await tx
+      .update(runningJobs)
+      .set({
+        cancellationRequestedAt: sql`COALESCE(${runningJobs.cancellationRequestedAt}, now())`,
+      })
+      .where(inArray(runningJobs.jobId, params.jobIds));
+  });
+}

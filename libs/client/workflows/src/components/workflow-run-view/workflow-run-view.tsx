@@ -1,10 +1,10 @@
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {RelativeTimeProvider} from '@shipfox/react-ui';
+import {RelativeTimeProvider, toast} from '@shipfox/react-ui';
 import {useEffect, useId, useRef, useState} from 'react';
-import type {WorkflowJob} from '#core/workflow-run.js';
+import {isWorkflowRunTerminal, type WorkflowJob} from '#core/workflow-run.js';
 import type {WorkflowRunSelectionInput} from '#core/workflow-run-url-state.js';
-import {useWorkflowRunQuery} from '#hooks/api/workflow-runs.js';
+import {useCancelWorkflowRunMutation, useWorkflowRunQuery} from '#hooks/api/workflow-runs.js';
 import {WorkflowJobsGraph} from '../workflow-jobs-graph/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
 import {WorkflowSourcePanel} from '../workflow-source-panel/index.js';
@@ -60,6 +60,7 @@ function RunViewContent({
   const selectionControlled = selection !== undefined;
   const sourceAvailable =
     query.data?.sourceSnapshot !== null && query.data?.sourceSnapshot !== undefined;
+  const cancelMutation = useCancelWorkflowRunMutation(query.data);
 
   useEffect(() => {
     if (!sourceAvailable) setSourcePanelOpen(false);
@@ -125,6 +126,14 @@ function RunViewContent({
     }, 0);
   }
 
+  function cancelRun() {
+    cancelMutation.mutate(undefined, {
+      onError: (error) => {
+        toast.error(cancelErrorMessage(error));
+      },
+    });
+  }
+
   return (
     <>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -135,6 +144,9 @@ function RunViewContent({
           sourcePanelId={sourcePanelId}
           sourceButtonRef={sourceButtonRef}
           onSourceToggle={() => setSourcePanelOpen((open) => !open)}
+          canCancel={!isWorkflowRunTerminal(query.data.status)}
+          cancelling={cancelMutation.isPending}
+          onCancel={cancelRun}
         />
         {query.isError ? <WorkflowRunStaleError query={query} /> : null}
         <div className="min-h-0 flex-1 overflow-auto bg-background-neutral-base p-16">
@@ -173,6 +185,13 @@ function RunViewContent({
       />
     </>
   );
+}
+
+function cancelErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.code === 'run-already-finished') {
+    return 'This workflow run has already finished.';
+  }
+  return 'Could not cancel workflow run.';
 }
 
 function emptyStateForJob(job: WorkflowJob): WorkflowStepListEmptyState | undefined {

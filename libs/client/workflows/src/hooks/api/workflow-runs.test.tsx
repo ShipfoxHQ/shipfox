@@ -1,8 +1,9 @@
 import type {RunDetailResponseDto, RunListResponseDto} from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {type InfiniteData, QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {cleanup, renderHook, waitFor} from '@testing-library/react';
+import {act, cleanup, renderHook, waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
+import {toWorkflowRun} from '#core/workflow-run.js';
 import {
   workflowJobDto,
   workflowRunDetailDto,
@@ -10,6 +11,7 @@ import {
   workflowRunListResponseDto,
 } from '#test/fixtures/workflow-run.js';
 import {
+  useCancelWorkflowRunMutation,
   useWorkflowRunQuery,
   useWorkflowRunsInfiniteQuery,
   workflowRunsQueryKeys,
@@ -117,5 +119,32 @@ describe('workflow run API hooks', () => {
       jobs: [{name: 'build', run_id: RUN_ID}],
     });
     expect(cached).not.toHaveProperty('triggerSource');
+  });
+
+  test('cancels a workflow run and invalidates detail and list queries', async () => {
+    const body = workflowRunDto({id: RUN_ID, project_id: PROJECT_ID, status: 'cancelled'});
+    const fetchImpl = vi.fn(async () => jsonResponse(body));
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    const run = workflowRunDto({id: RUN_ID, project_id: PROJECT_ID, status: 'running'});
+    const {result, queryClient} = renderWithQueryClient(() =>
+      useCancelWorkflowRunMutation(toWorkflowRun(run)),
+    );
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    let cancelled: Awaited<ReturnType<typeof result.current.mutateAsync>> | undefined;
+    await act(async () => {
+      cancelled = await result.current.mutateAsync();
+    });
+
+    const calls = fetchImpl.mock.calls as unknown as Array<[Request]>;
+    const request = calls[0]?.[0];
+    if (!request) throw new Error('Expected cancel request');
+    expect(request.url).toBe(
+      'https://api.example.test/workflows/runs/66666666-6666-4666-8666-666666666666/cancel',
+    );
+    expect(request.method).toBe('POST');
+    expect(cancelled?.status).toBe('cancelled');
+    expect(invalidateSpy).toHaveBeenCalledWith({queryKey: workflowRunsQueryKeys.detail(RUN_ID)});
+    expect(invalidateSpy).toHaveBeenCalledWith({queryKey: workflowRunsQueryKeys.lists(PROJECT_ID)});
   });
 });

@@ -19,6 +19,7 @@ export {
   ProjectMismatchError,
   StepNotFoundError,
   StepNotRunningError,
+  WorkflowRunNotCancellableError,
 } from './errors.js';
 export type {NextStep, RecordStepResultOutcome, RecordStepResultParams} from './job-execution.js';
 export {nextStepForJob, recordStepResult} from './job-execution.js';

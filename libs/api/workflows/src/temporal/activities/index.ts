@@ -1,5 +1,6 @@
 import {
   bulkSetStepStatuses,
+  cancelRunnerJobsActivity,
   enqueueJobForRunner,
   failJobAsTimedOutActivity,
   loadRunDag,
@@ -15,6 +16,7 @@ export function createOrchestrationActivities() {
     setRunStatus,
     setJobStatus,
     bulkSetStepStatuses,
+    cancelRunnerJobsActivity,
     enqueueJobForRunner,
     failJobAsTimedOutActivity,
     resolveLeaseExpiredJobActivity,

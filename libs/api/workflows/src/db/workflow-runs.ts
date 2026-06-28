@@ -6,6 +6,7 @@ import {
   WORKFLOWS_JOB_TIMED_OUT,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
+  WORKFLOWS_WORKFLOW_RUN_CANCELLED,
   WORKFLOWS_WORKFLOW_RUN_CREATED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   type WorkflowsEventMap,
@@ -16,7 +17,20 @@ import {
   timestampIdCursorWhere,
 } from '@shipfox/node-drizzle';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
-import {and, asc, count, desc, eq, gte, inArray, isNull, lte, type SQL, sql} from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  notInArray,
+  type SQL,
+  sql,
+} from 'drizzle-orm';
 import {isJobTerminal, type Job, type JobStatus, type JobStatusReason} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
@@ -27,7 +41,11 @@ import {
   type WorkflowRunStatus,
   type WorkflowSourceSnapshot,
 } from '#core/entities/workflow-run.js';
-import {JobNotFoundError} from '#core/errors.js';
+import {
+  JobNotFoundError,
+  WorkflowRunNotCancellableError,
+  WorkflowRunNotFoundError,
+} from '#core/errors.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import {materializeWorkflowModel} from '#core/workflow-runtime/index.js';
 import {
@@ -45,6 +63,9 @@ import {workflowsOutbox} from './schema/outbox.js';
 import {stepAttempts, toStepAttempt} from './schema/step-attempts.js';
 import {steps, toStep} from './schema/steps.js';
 import {toWorkflowRun, workflowRuns} from './schema/workflow-runs.js';
+
+const TERMINAL_WORKFLOW_RUN_STATUSES: WorkflowRunStatus[] = ['succeeded', 'failed', 'cancelled'];
+const TERMINAL_JOB_STATUSES: JobStatus[] = ['succeeded', 'failed', 'cancelled', 'skipped'];
 
 export interface CreateWorkflowRunParams {
   workspaceId: string;
@@ -397,6 +418,96 @@ export async function getStepsByJobIds(jobIds: string[]): Promise<Step[]> {
   return rows.map(toStep);
 }
 
+export interface CancelWorkflowRunParams {
+  runId: string;
+}
+
+export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promise<WorkflowRun> {
+  const result = await db().transaction(async (tx) => {
+    const runJobIds = tx.select({id: jobs.id}).from(jobs).where(eq(jobs.runId, params.runId));
+
+    await tx
+      .select({id: steps.id})
+      .from(steps)
+      .where(inArray(steps.jobId, runJobIds))
+      .orderBy(asc(steps.jobId), asc(steps.position))
+      .for('update');
+
+    const jobRows = await tx
+      .select()
+      .from(jobs)
+      .where(eq(jobs.runId, params.runId))
+      .orderBy(asc(jobs.position), asc(jobs.id))
+      .for('update');
+
+    const [lockedRun] = await tx
+      .select()
+      .from(workflowRuns)
+      .where(eq(workflowRuns.id, params.runId))
+      .limit(1)
+      .for('update');
+
+    if (!lockedRun) {
+      throw new WorkflowRunNotFoundError(params.runId);
+    }
+    if (isWorkflowRunTerminal(lockedRun.status)) {
+      throw new WorkflowRunNotCancellableError(lockedRun.id, lockedRun.status);
+    }
+
+    const cancelledJobs: Job[] = [];
+    for (const jobRow of jobRows) {
+      if (isJobTerminal(jobRow.status)) continue;
+
+      const updated = await updateJobStatusAtVersion(tx, {
+        jobId: jobRow.id,
+        status: 'cancelled',
+        expectedVersion: jobRow.version,
+        statusReason: 'run_cancelled',
+      });
+      if (updated?.changed) cancelledJobs.push(updated.job);
+      await bulkUpdateStepStatuses({jobId: jobRow.id, status: 'cancelled'}, tx);
+    }
+
+    const [cancelledRunRow] = await tx
+      .update(workflowRuns)
+      .set({
+        status: 'cancelled',
+        version: sql`${workflowRuns.version} + 1`,
+        updatedAt: new Date(),
+        finishedAt: sql`now()`,
+      })
+      .where(and(eq(workflowRuns.id, lockedRun.id), eq(workflowRuns.version, lockedRun.version)))
+      .returning();
+
+    if (!cancelledRunRow) {
+      throw new Error(`Optimistic lock failure: run ${lockedRun.id} version ${lockedRun.version}`);
+    }
+
+    const cancelledRun = toWorkflowRun(cancelledRunRow);
+    await writeOutboxEvents<WorkflowsEventMap>(tx, workflowsOutbox, [
+      {
+        type: WORKFLOWS_WORKFLOW_RUN_TERMINATED,
+        payload: {
+          runId: cancelledRun.id,
+          projectId: cancelledRun.projectId,
+          status: 'cancelled',
+        },
+      },
+      {
+        type: WORKFLOWS_WORKFLOW_RUN_CANCELLED,
+        payload: {runId: cancelledRun.id, projectId: cancelledRun.projectId},
+      },
+    ]);
+
+    return {run: cancelledRun, cancelledJobs};
+  });
+
+  recordWorkflowRunStatusChanged(result.run.status);
+  for (const job of result.cancelledJobs) recordWorkflowJobStatusChanged(job.status);
+
+  return result.run;
+}
+
 export interface UpdateWorkflowRunStatusParams {
   runId: string;
   status: WorkflowRunStatus;
@@ -423,7 +534,11 @@ export async function updateWorkflowRunStatus(
         ...(isWorkflowRunTerminal(params.status) ? {finishedAt: sql`now()`} : {}),
       })
       .where(
-        and(eq(workflowRuns.id, params.runId), eq(workflowRuns.version, params.expectedVersion)),
+        and(
+          eq(workflowRuns.id, params.runId),
+          eq(workflowRuns.version, params.expectedVersion),
+          notInArray(workflowRuns.status, TERMINAL_WORKFLOW_RUN_STATUSES),
+        ),
       )
       .returning();
 
@@ -439,7 +554,10 @@ export async function updateWorkflowRunStatus(
         .where(eq(workflowRuns.id, params.runId))
         .limit(1);
       const existingRow = existing[0];
-      if (existingRow && existingRow.status === params.status) {
+      if (
+        existingRow &&
+        (existingRow.status === params.status || isWorkflowRunTerminal(existingRow.status))
+      ) {
         return {run: toWorkflowRun(existingRow), changed: false};
       }
       throw new Error(
@@ -490,7 +608,13 @@ async function updateJobStatusAtVersion(
       // DB clock so finished_at shares the runner-sourced queued_at/started_at clock.
       ...(isJobTerminal(params.status) ? {finishedAt: sql`now()`} : {}),
     })
-    .where(and(eq(jobs.id, params.jobId), eq(jobs.version, params.expectedVersion)))
+    .where(
+      and(
+        eq(jobs.id, params.jobId),
+        eq(jobs.version, params.expectedVersion),
+        notInArray(jobs.status, TERMINAL_JOB_STATUSES),
+      ),
+    )
     .returning();
 
   const row = rows[0];
@@ -540,7 +664,11 @@ export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Jo
     // instead of throwing an optimistic-lock error that would wedge the workflow.
     const existing = await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1);
     const row = existing[0];
-    if (row && row.status === params.status && row.statusReason === statusReason) {
+    if (
+      row &&
+      ((row.status === params.status && row.statusReason === statusReason) ||
+        isJobTerminal(row.status))
+    ) {
       return {job: toJob(row), changed: false};
     }
     throw new Error(

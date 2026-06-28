@@ -64,6 +64,7 @@ export {
   WORKFLOWS_JOB_TIMED_OUT,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
+  WORKFLOWS_WORKFLOW_RUN_CANCELLED,
   WORKFLOWS_WORKFLOW_RUN_CREATED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   type WorkflowsEventMap,
@@ -72,6 +73,7 @@ export {
   type WorkflowsJobTimedOutEvent,
   type WorkflowsStepAttemptTerminatedEvent,
   type WorkflowsStepRestartEnqueuedEvent,
+  type WorkflowsWorkflowRunCancelledEvent,
   type WorkflowsWorkflowRunCreatedEvent,
   type WorkflowsWorkflowRunTerminatedEvent,
   workflowRunTerminalStatusSchema,
@@ -81,6 +83,7 @@ export {
   workflowsJobTimedOutSchema,
   workflowsStepAttemptTerminatedSchema,
   workflowsStepRestartEnqueuedSchema,
+  workflowsWorkflowRunCancelledSchema,
   workflowsWorkflowRunCreatedSchema,
   workflowsWorkflowRunTerminatedSchema,
 } from './events.js';
