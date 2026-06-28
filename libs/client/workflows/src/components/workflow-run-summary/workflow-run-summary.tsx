@@ -108,7 +108,6 @@ export function WorkflowRunSummary({
               type="button"
               variant="secondary"
               size="xs"
-              iconLeft="fileCodeLine"
               aria-controls={sourcePanelId}
               aria-expanded={sourceOpen}
               onClick={onSourceToggle}
@@ -180,7 +179,6 @@ function WorkflowRunActionSlot({
         type="button"
         variant="danger"
         size="xs"
-        iconLeft="close"
         isLoading={cancelling}
         disabled={cancelling}
         onClick={onCancel}
@@ -198,7 +196,6 @@ function WorkflowRunActionSlot({
         type="button"
         variant="secondary"
         size="xs"
-        iconLeft="restartLine"
         isLoading={rerunPending}
         disabled={rerunPending}
         onClick={() => onRerun('all')}
@@ -217,7 +214,6 @@ function WorkflowRunActionSlot({
           type="button"
           variant="secondary"
           size="xs"
-          iconLeft="restartLine"
           iconRight="arrowDownSLine"
           isLoading={rerunPending}
           disabled={rerunPending}
