@@ -5,10 +5,11 @@ import {
   setUserContext,
   type UserContext,
 } from '@shipfox/api-auth-context';
-import {type AuthMethod, ClientError, extractBearerToken} from '@shipfox/node-fastify';
+import type {AuthMethod} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
 import {config} from '#config.js';
 import {verifyUserToken} from '#core/jwt.js';
+import {createBearerTokenAuthMethod} from './bearer-token-auth.js';
 
 export type ClientContext = UserContext;
 
@@ -21,28 +22,18 @@ export function getClientContext(request: FastifyRequest): ClientContext | null 
 }
 
 export function createJwtAuthMethod(): AuthMethod {
-  return {
+  return createBearerTokenAuthMethod({
     name: AUTH_USER,
-    authenticate: async (request) => {
-      const token = extractBearerToken(request.headers.authorization);
-      if (!token) {
-        throw new ClientError('Missing or invalid Authorization header', 'unauthorized', {
-          status: 401,
-        });
-      }
-
-      const claims = await verifyUserToken({token, secret: config.AUTH_JWT_SECRET}).catch(() => {
-        throw new ClientError('Invalid or expired token', 'unauthorized', {status: 401});
-      });
-
+    verifyToken: (token) => verifyUserToken({token, secret: config.AUTH_JWT_SECRET}),
+    invalidTokenError: {message: 'Invalid or expired token', code: 'unauthorized'},
+    setContext: (request, claims) => {
       const clientContext: ClientContext = buildUserContext({
         userId: claims.sub,
         email: claims.email,
         name: claims.name ?? null,
         memberships: claims.memberships,
       });
-
       setUserContext(request, clientContext);
     },
-  };
+  });
 }
