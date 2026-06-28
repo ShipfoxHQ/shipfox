@@ -239,6 +239,70 @@ describe('workflow run API hooks', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
   });
 
+  test('does not remove newer optimistic manual runs when an older manual fire fails', async () => {
+    const fireRequests: Array<{resolve: (response: Response) => void}> = [];
+    const fetchImpl = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          fireRequests.push({resolve});
+        }),
+    );
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    const {result, queryClient} = renderWithQueryClient(() => useFireManualWorkflowMutation());
+    const listKey = workflowRunsQueryKeys.list(PROJECT_ID, {});
+    queryClient.setQueryData<InfiniteData<RunListResponseDto, string | undefined>>(listKey, {
+      pages: [workflowRunListResponseDto({runs: [], filtered_total_count: 0})],
+      pageParams: [undefined],
+    });
+
+    act(() => {
+      result.current.mutate({projectId: PROJECT_ID, definitionId: DEFINITION_ID});
+    });
+    await waitFor(() => expect(fireRequests).toHaveLength(1));
+    const firstFire = fireRequests[0];
+    if (!firstFire) throw new Error('Expected first manual fire request');
+
+    await waitFor(() => {
+      const cached =
+        queryClient.getQueryData<InfiniteData<RunListResponseDto, string | undefined>>(listKey);
+      expect(cached?.pages[0]?.runs).toHaveLength(1);
+      expect(cached?.pages[0]?.filtered_total_count).toBe(1);
+    });
+
+    act(() => {
+      result.current.mutate({projectId: PROJECT_ID, definitionId: DEFINITION_ID});
+    });
+    await waitFor(() => expect(fireRequests).toHaveLength(2));
+    const secondFire = fireRequests[1];
+    if (!secondFire) throw new Error('Expected second manual fire request');
+
+    let secondTempRunId: string | undefined;
+    await waitFor(() => {
+      const cached =
+        queryClient.getQueryData<InfiniteData<RunListResponseDto, string | undefined>>(listKey);
+      expect(cached?.pages[0]?.runs).toHaveLength(2);
+      expect(cached?.pages[0]?.filtered_total_count).toBe(2);
+      secondTempRunId = cached?.pages[0]?.runs[0]?.id;
+      expect(secondTempRunId).toMatch(TEMP_RUN_ID_PATTERN);
+    });
+
+    act(() => {
+      firstFire.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
+    });
+
+    await waitFor(() => {
+      const cached =
+        queryClient.getQueryData<InfiniteData<RunListResponseDto, string | undefined>>(listKey);
+      expect(cached?.pages[0]?.runs.map((run) => run.id)).toEqual([secondTempRunId]);
+      expect(cached?.pages[0]?.filtered_total_count).toBe(1);
+    });
+
+    act(() => {
+      secondFire.resolve(jsonResponse({run_id: RUN_ID}, {status: 201}));
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  });
+
   test('does not fetch run attempts while disabled', () => {
     const fetchImpl = vi.fn(async () => jsonResponse(runAttemptsResponseDto()));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});

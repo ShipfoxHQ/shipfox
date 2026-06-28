@@ -276,16 +276,16 @@ export function useFireManualWorkflowMutation() {
       });
 
       const listsKey = workflowRunsQueryKeys.lists(variables.projectId);
-      const snapshots: Array<[readonly unknown[], RunListInfinite | undefined]> = [];
+      const touchedQueryKeys: Array<readonly unknown[]> = [];
 
       const entries = queryClient.getQueriesData<RunListInfinite>({queryKey: listsKey});
       const now = new Date(createdAt);
-      for (const [queryKey, data] of entries) {
+      for (const [queryKey] of entries) {
         const filters = readFiltersFromKey(queryKey);
         if (!filters) continue;
         if (!filtersAcceptManualPendingRun(filters, variables.definitionId, now)) continue;
 
-        snapshots.push([queryKey, data]);
+        touchedQueryKeys.push(queryKey);
         queryClient.setQueryData<RunListInfinite>(queryKey, (current) => {
           if (!current || current.pages.length === 0) return current;
           const firstPage = current.pages[0];
@@ -300,12 +300,33 @@ export function useFireManualWorkflowMutation() {
         });
       }
 
-      return {snapshots};
+      return {tempRunId: tempRun.id, touchedQueryKeys};
     },
     onError: (_error, _variables, context) => {
       if (!context) return;
-      for (const [queryKey, previous] of context.snapshots) {
-        queryClient.setQueryData(queryKey, previous);
+      for (const queryKey of context.touchedQueryKeys) {
+        queryClient.setQueryData<RunListInfinite>(queryKey, (current) => {
+          if (!current) return current;
+          let removedCount = 0;
+          const pages = current.pages.map((page) => {
+            const runs = page.runs.filter((run) => {
+              if (run.id !== context.tempRunId) return true;
+              removedCount += 1;
+              return false;
+            });
+            if (runs.length === page.runs.length) return page;
+            return {
+              ...page,
+              runs,
+              filtered_total_count:
+                page.filtered_total_count != null
+                  ? Math.max(0, page.filtered_total_count - removedCount)
+                  : null,
+            };
+          });
+          if (removedCount === 0) return current;
+          return {...current, pages};
+        });
       }
     },
     onSuccess: (_data, variables) => {
