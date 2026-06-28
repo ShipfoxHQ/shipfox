@@ -104,8 +104,17 @@ export async function createEphemeralRegistrationTokensBatch(
       params.workspaceId,
       params.provisionerId,
     ].join(':');
-    // The production mint path is batch-only, so this coarse lock serializes real callers.
+    // Serialize batch callers and compose with the single-token mint's resource locks.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${provisionerLockKey}))`);
+    for (const resourceId of [...new Set(params.rows.map((row) => row.resourceId))].sort()) {
+      const resourceLockKey = [
+        'runners_ephemeral_registration_tokens',
+        params.workspaceId,
+        params.provisionerId,
+        resourceId,
+      ].join(':');
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${resourceLockKey}))`);
+    }
 
     const [reservation] = await tx
       .select({

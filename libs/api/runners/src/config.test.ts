@@ -10,6 +10,7 @@ describe('EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS validation', () => {
     '0',
     '-5',
     '1.5',
+    '3601',
   ])('fails startup when EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS is %s', async (value) => {
     vi.stubEnv('EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS', value);
     vi.resetModules();
@@ -17,13 +18,13 @@ describe('EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS validation', () => {
     await expect(import('#config.js')).rejects.toThrow('EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS');
   });
 
-  it('accepts a whole-second value of 1 or greater', async () => {
-    vi.stubEnv('EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS', '30');
+  it('accepts a whole-second value inside the hard ceiling', async () => {
+    vi.stubEnv('EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS', '3600');
     vi.resetModules();
 
     const {config} = await import('#config.js');
 
-    expect(config.EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS).toBe(30);
+    expect(config.EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS).toBe(3600);
   });
 });
 

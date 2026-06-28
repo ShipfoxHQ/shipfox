@@ -21,6 +21,7 @@ export interface MintEphemeralRegistrationTokenResult {
 
 export interface MintEphemeralRegistrationTokensBatchResource {
   resourceId: string;
+  templateKey: string;
 }
 
 export interface MintEphemeralRegistrationTokensBatchParams {
@@ -42,7 +43,7 @@ export async function mintEphemeralRegistrationToken(
   params: MintEphemeralRegistrationTokenParams,
 ): Promise<MintEphemeralRegistrationTokenResult> {
   const expiresAt = new Date(Date.now() + params.ttlSeconds * 1000);
-  const row = buildEphemeralTokenRow(params.resourceId, expiresAt);
+  const row = buildEphemeralTokenRow({resourceId: params.resourceId}, expiresAt);
   const token = await createEphemeralRegistrationToken({
     workspaceId: params.workspaceId,
     provisionerId: params.provisionerId,
@@ -64,9 +65,7 @@ export async function mintEphemeralRegistrationTokensBatch(
   }
 
   const expiresAt = new Date(Date.now() + params.ttlSeconds * 1000);
-  const rows = params.resources.map((resource) =>
-    buildEphemeralTokenRow(resource.resourceId, expiresAt),
-  );
+  const rows = params.resources.map((resource) => buildEphemeralTokenRow(resource, expiresAt));
   const tokens = await createEphemeralRegistrationTokensBatch({
     workspaceId: params.workspaceId,
     provisionerId: params.provisionerId,
@@ -91,10 +90,13 @@ interface EphemeralTokenRow {
   expiresAt: Date;
 }
 
-function buildEphemeralTokenRow(resourceId: string, expiresAt: Date): EphemeralTokenRow {
+function buildEphemeralTokenRow(
+  resource: {resourceId: string; templateKey?: string},
+  expiresAt: Date,
+): EphemeralTokenRow {
   const rawToken = generateOpaqueToken('ephemeralRegistrationToken');
   return {
-    resourceId,
+    resourceId: resource.resourceId,
     rawToken,
     hashedToken: hashOpaqueToken(rawToken),
     prefix: extractDisplayPrefix(rawToken),

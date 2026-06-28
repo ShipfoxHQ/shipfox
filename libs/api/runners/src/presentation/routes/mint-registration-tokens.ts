@@ -64,8 +64,11 @@ export const mintRegistrationTokensRoute = defineRoute({
       workspaceId,
       provisionerId: provisionerTokenId,
       reservationId: request.body.reservation_id,
-      // template_key is contract-only here; lifecycle reporting owns resource/template binding.
-      resources: request.body.resources.map((resource) => ({resourceId: resource.resource_id})),
+      resources: request.body.resources.map((resource) => ({
+        resourceId: resource.resource_id,
+        // template_key is contract-only here; lifecycle reporting owns resource/template binding.
+        templateKey: resource.template_key,
+      })),
       ttlSeconds: config.EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS,
       maxBatchSize: config.REGISTRATION_TOKEN_BATCH_MAX,
     });
