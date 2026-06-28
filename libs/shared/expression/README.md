@@ -77,6 +77,8 @@ const passed = evaluateWorkflowPredicate(expression, {
 - Write a literal `${{` in template text as `$${{`. The escape is greedy from
   left to right, so `$$${{` emits literal `$${{`; there is no separate way to
   write literal `$$` immediately before a real expression opener.
+  Put the dollar inside the expression when it must be dynamic, such as
+  `${{ "$" + string(inputs.amount) }}`.
 - Template closing scans are string-aware, line-comment-aware, and brace-aware,
   so `}}` inside CEL strings, `//` comments, or map literals does not close the
   expression span.
