@@ -46,7 +46,7 @@ export const workflowRunsQueryKeys = {
   attempts: (rootRunId: string) => [...workflowRunsQueryKeys.all, 'attempts', rootRunId] as const,
 };
 
-export function normalizeFilters(filters: WorkflowRunFilters) {
+function normalizeFilters(filters: WorkflowRunFilters) {
   return {
     status: filters.status ?? null,
     definitionId: filters.definitionId ?? null,

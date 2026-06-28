@@ -28,7 +28,6 @@ export {
 export {
   type FireManualWorkflowVariables,
   fireManualWorkflow,
-  normalizeFilters,
   useCancelWorkflowRunMutation,
   useFireManualWorkflowMutation,
   useWorkflowRunAttemptsQuery,
