@@ -9,7 +9,6 @@ export type WorkflowContextTrustTier = (typeof workflowContextTrustTiers)[number
 export type WorkflowContextShape = 'known' | 'open';
 
 export interface TypedWorkflowContextDefinition {
-  readonly name: WorkflowContextName;
   readonly trustTier: WorkflowContextTrustTier;
   readonly shape: 'known';
   readonly checkMode: 'typed';
@@ -17,7 +16,6 @@ export interface TypedWorkflowContextDefinition {
 }
 
 export interface OpenWorkflowContextDefinition {
-  readonly name: WorkflowContextName;
   readonly trustTier: WorkflowContextTrustTier;
   readonly shape: 'open';
   readonly checkMode: 'syntax';
@@ -62,33 +60,28 @@ const jobTypeEnvironment = {
 
 export const workflowContextDefinitions = {
   run: {
-    name: 'run',
     trustTier: 'trusted',
     shape: 'known',
     checkMode: 'typed',
     typeEnvironment: runTypeEnvironment,
   },
   trigger: {
-    name: 'trigger',
     trustTier: 'trusted',
     shape: 'known',
     checkMode: 'typed',
     typeEnvironment: triggerTypeEnvironment,
   },
   event: {
-    name: 'event',
     trustTier: 'untrusted',
     shape: 'open',
     checkMode: 'syntax',
   },
   inputs: {
-    name: 'inputs',
     trustTier: 'untrusted',
     shape: 'open',
     checkMode: 'syntax',
   },
   job: {
-    name: 'job',
     trustTier: 'trusted',
     shape: 'known',
     checkMode: 'typed',
@@ -107,7 +100,6 @@ export type WorkflowInterpolationField =
   | 'step.name';
 
 export interface WorkflowInterpolationFieldPolicy {
-  readonly field: WorkflowInterpolationField;
   readonly acceptedTrustTiers: readonly WorkflowContextTrustTier[];
   readonly renderSanitize: boolean;
 }
@@ -117,42 +109,34 @@ const anyTrustTier: readonly WorkflowContextTrustTier[] = ['trusted', 'untrusted
 
 export const workflowInterpolationFieldPolicies = {
   run: {
-    field: 'run',
     acceptedTrustTiers: trustedOnlyTrustTiers,
     renderSanitize: false,
   },
   'env.value': {
-    field: 'env.value',
     acceptedTrustTiers: anyTrustTier,
     renderSanitize: false,
   },
   'agent.prompt': {
-    field: 'agent.prompt',
     acceptedTrustTiers: anyTrustTier,
     renderSanitize: false,
   },
   'agent.model': {
-    field: 'agent.model',
     acceptedTrustTiers: trustedOnlyTrustTiers,
     renderSanitize: false,
   },
   'agent.provider': {
-    field: 'agent.provider',
     acceptedTrustTiers: trustedOnlyTrustTiers,
     renderSanitize: false,
   },
   'agent.thinking': {
-    field: 'agent.thinking',
     acceptedTrustTiers: trustedOnlyTrustTiers,
     renderSanitize: false,
   },
   'job.name': {
-    field: 'job.name',
     acceptedTrustTiers: anyTrustTier,
     renderSanitize: true,
   },
   'step.name': {
-    field: 'step.name',
     acceptedTrustTiers: anyTrustTier,
     renderSanitize: true,
   },

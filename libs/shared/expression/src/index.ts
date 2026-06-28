@@ -44,4 +44,4 @@ export {
   workflowInterpolationFieldAcceptsTrustTier,
   workflowInterpolationFieldPolicies,
   workflowInterpolationFields,
-} from './workflow-context/index.js';
+} from './workflow-context/workflow-context.js';
