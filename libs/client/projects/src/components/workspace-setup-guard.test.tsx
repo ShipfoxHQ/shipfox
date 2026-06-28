@@ -121,7 +121,11 @@ function renderSetupRoute(
 
   configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
-  return {router, ...render(<RouterProvider router={router} context={{queryClient}} />)};
+  return {
+    queryClient,
+    router,
+    ...render(<RouterProvider router={router} context={{queryClient}} />),
+  };
 }
 
 function GuardedRoute({label}: {label: string}) {
@@ -184,8 +188,8 @@ describe('workspace setup route hook', () => {
           projects: [projectStub()],
           next_cursor: null,
         });
-        // Existence is cached with an infinite staleTime, so only an explicit
-        // invalidation forces the refetch whose failure exercises the fallback.
+        // Existence has a freshness window, so explicit invalidation forces the
+        // refetch whose failure exercises the cached fallback.
         void queryClient.invalidateQueries({queryKey: projectsQueryKeys.exists(WORKSPACE_ID)});
       },
     });
@@ -289,7 +293,7 @@ describe('workspace setup route hook', () => {
     expect(screen.queryByText('Could not load workspace setup')).not.toBeInTheDocument();
   });
 
-  test('re-evaluates the guard on navigation between children without refetching existence', async () => {
+  test('re-evaluates the guard on navigation between children without refetching fresh existence', async () => {
     const fetchImpl = setupFetch({projects: [projectStub()]});
     const {router} = renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, fetchImpl);
 
@@ -304,6 +308,65 @@ describe('workspace setup route hook', () => {
 
     expect(await screen.findByText('Settings integrations')).toBeInTheDocument();
     expect(calledUrls(fetchImpl).filter((url) => url.includes('/projects?'))).toHaveLength(1);
+  });
+
+  test('refetches stale project existence so external project creation can complete setup', async () => {
+    let projects = [] as unknown[];
+    const fetchImpl = setupFetch({connections: [sourceConnection()]});
+    fetchImpl.mockImplementation((input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes('/projects?')) {
+        return Promise.resolve(jsonResponse({projects, next_cursor: null}));
+      }
+      if (url.includes('/integration-connections?')) {
+        return Promise.resolve(jsonResponse({connections: [sourceConnection()]}));
+      }
+      return Promise.resolve(jsonResponse({}, {status: 404}));
+    });
+    const {queryClient, router} = renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, fetchImpl);
+
+    expect(await screen.findByText('Create project')).toBeInTheDocument();
+    projects = [projectStub()];
+    queryClient.setQueryData(
+      projectsQueryKeys.exists(WORKSPACE_ID),
+      {projects: [], next_cursor: null},
+      {updatedAt: Date.now() - 31_000},
+    );
+
+    await act(async () => {
+      await router.navigate({
+        to: '/workspaces/$wid',
+        params: {wid: WORKSPACE_ID},
+      });
+    });
+
+    expect(await screen.findByText('Workspace home')).toBeInTheDocument();
+    expect(calledUrls(fetchImpl).filter((url) => url.includes('/projects?'))).toHaveLength(2);
+  });
+
+  test('uses a generic workspace error for descendant route failures', async () => {
+    const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+    const rootRoute = createRootRouteWithContext<{queryClient: QueryClient}>()({
+      component: Outlet,
+    });
+    const throwingRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/workspaces/$wid',
+      beforeLoad: () => ({hideProjectNavigation: false}),
+      errorComponent: WorkspaceSetupErrorRoute,
+      component: ThrowingWorkspaceRoute,
+    });
+    const router = createRouter({
+      defaultPendingMs: 0,
+      history: createMemoryHistory({initialEntries: [`/workspaces/${WORKSPACE_ID}`]}),
+      routeTree: rootRoute.addChildren([throwingRoute]),
+      context: {queryClient},
+    });
+
+    render(<RouterProvider router={router} context={{queryClient}} />);
+
+    expect(await screen.findByText('Could not load workspace')).toBeInTheDocument();
+    expect(screen.queryByText('Could not load workspace setup')).not.toBeInTheDocument();
   });
 
   test('shows the pending loader while setup state is unresolved (auth-loading parity)', async () => {
@@ -340,4 +403,8 @@ function WorkspaceLayoutParity() {
   if (setupState.hideProjectNavigation === undefined) return <WorkspaceSetupPending />;
 
   return <main>Protected content</main>;
+}
+
+function ThrowingWorkspaceRoute(): never {
+  throw new Error('Descendant route failed');
 }

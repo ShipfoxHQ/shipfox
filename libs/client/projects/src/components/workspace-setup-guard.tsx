@@ -8,6 +8,7 @@ import {type ErrorComponentProps, redirect, useRouter} from '@tanstack/react-rou
 import {listProjects, projectsQueryKeys} from '#hooks/api/projects.js';
 
 const TRAILING_SLASHES_RE = /\/+$/u;
+const PROJECT_EXISTENCE_STALE_TIME_MS = 30_000;
 
 export interface WorkspaceSetupState {
   hideProjectNavigation: boolean;
@@ -17,6 +18,13 @@ export interface WorkspaceSetupRouteOptions {
   queryClient: QueryClient;
   workspaceId: string;
   pathname: string;
+}
+
+export class WorkspaceSetupLoadError extends Error {
+  constructor(public readonly cause: unknown) {
+    super(cause instanceof Error ? cause.message : 'Workspace setup load failed');
+    this.name = 'WorkspaceSetupLoadError';
+  }
 }
 
 export async function loadWorkspaceSetupRoute({
@@ -72,16 +80,16 @@ export function WorkspaceSetupPending() {
 
 export function WorkspaceSetupErrorRoute({error, reset}: ErrorComponentProps) {
   const router = useRouter();
+  const onRetry = () => {
+    reset();
+    void router.invalidate();
+  };
 
-  return (
-    <WorkspaceSetupError
-      message={setupErrorMessage(error)}
-      onRetry={() => {
-        reset();
-        void router.invalidate();
-      }}
-    />
-  );
+  if (!(error instanceof WorkspaceSetupLoadError)) {
+    return <WorkspaceRouteError message={routeErrorMessage(error)} onRetry={onRetry} />;
+  }
+
+  return <WorkspaceSetupError message={setupErrorMessage(error)} onRetry={onRetry} />;
 }
 
 function WorkspaceSetupError({message, onRetry}: {message: string; onRetry: () => void}) {
@@ -106,6 +114,33 @@ function WorkspaceSetupError({message, onRetry}: {message: string; onRetry: () =
 }
 
 function setupErrorMessage(error: unknown) {
+  const cause = error instanceof WorkspaceSetupLoadError ? error.cause : error;
+  if (cause instanceof ApiError) return cause.message;
+  return 'Try again in a moment.';
+}
+
+function WorkspaceRouteError({message, onRetry}: {message: string; onRetry: () => void}) {
+  return (
+    <main className="min-h-screen bg-background-subtle-base px-24 py-32 max-[520px]:px-16">
+      <div className="mx-auto flex w-full max-w-[640px] flex-col gap-24">
+        <Header variant="h1">Workspace</Header>
+        <Alert variant="error">
+          <div className="flex flex-col gap-8">
+            <Text size="sm" bold>
+              Could not load workspace
+            </Text>
+            <Text size="sm">{message}</Text>
+            <Button size="sm" variant="secondary" onClick={onRetry} className="w-fit">
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      </div>
+    </main>
+  );
+}
+
+function routeErrorMessage(error: unknown) {
   if (error instanceof ApiError) return error.message;
   return 'Try again in a moment.';
 }
@@ -117,16 +152,15 @@ async function fetchWorkspaceProjectExistence(queryClient: QueryClient, workspac
     return await queryClient.fetchQuery({
       queryKey,
       queryFn: ({signal}) => listProjects({workspaceId, limit: 1, signal}),
-      // This runs in beforeLoad on every in-workspace navigation. Project
-      // existence never reverts within a session (there is no client delete
-      // flow) and creation seeds this key, so serve from cache instead of
-      // blocking each navigation on a round-trip. Invalidation still refetches.
-      staleTime: Number.POSITIVE_INFINITY,
+      // beforeLoad runs for every in-workspace navigation. Use a short
+      // freshness window to avoid hot-path refetches while still detecting
+      // project creation from another tab or actor.
+      staleTime: PROJECT_EXISTENCE_STALE_TIME_MS,
     });
   } catch (error) {
     const cached = queryClient.getQueryData<ListProjectsResponseDto>(queryKey);
     if (cached !== undefined) return cached;
-    throw error;
+    throw new WorkspaceSetupLoadError(error);
   }
 }
 
@@ -144,7 +178,7 @@ async function fetchWorkspaceSourceConnections(queryClient: QueryClient, workspa
   } catch (error) {
     const cached = queryClient.getQueryData<ListIntegrationConnectionsResponseDto>(queryKey);
     if (cached !== undefined) return cached;
-    throw error;
+    throw new WorkspaceSetupLoadError(error);
   }
 }
 
