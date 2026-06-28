@@ -1,9 +1,14 @@
+import type {RerunMode} from '@shipfox/api-workflows-dto';
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {
   Badge,
   Button,
   Code,
   cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Header,
   RelativeTime,
   Text,
@@ -32,6 +37,10 @@ export interface WorkflowRunSummaryProps {
   canCancel?: boolean | undefined;
   cancelling?: boolean | undefined;
   onCancel?: (() => void) | undefined;
+  canRerun?: boolean | undefined;
+  hasFailedJobs?: boolean | undefined;
+  rerunPending?: boolean | undefined;
+  onRerun?: ((mode: RerunMode) => void) | undefined;
 }
 
 export function WorkflowRunSummary({
@@ -44,6 +53,10 @@ export function WorkflowRunSummary({
   canCancel = false,
   cancelling = false,
   onCancel,
+  canRerun = false,
+  hasFailedJobs = false,
+  rerunPending = false,
+  onRerun,
 }: WorkflowRunSummaryProps) {
   const headingId = useId();
   const status = getWorkflowStatusVisual(run.status);
@@ -81,8 +94,8 @@ export function WorkflowRunSummary({
           </Tooltip>
         </div>
 
-        {sourceAvailable || canCancel ? (
-          <div className="col-start-2 row-start-1 flex items-center gap-8 justify-self-end">
+        {sourceAvailable || canCancel || canRerun ? (
+          <div className="col-start-2 row-start-1 flex min-w-max items-center gap-6 justify-self-end">
             {canCancel ? (
               <Button
                 type="button"
@@ -96,6 +109,12 @@ export function WorkflowRunSummary({
                 Cancel workflow
               </Button>
             ) : null}
+            <WorkflowRunActionSlot
+              canRerun={canRerun}
+              hasFailedJobs={hasFailedJobs}
+              rerunPending={rerunPending}
+              onRerun={onRerun}
+            />
             {sourceAvailable ? (
               <Button
                 ref={sourceButtonRef}
@@ -155,6 +174,60 @@ export function WorkflowRunSummary({
         </div>
       </div>
     </section>
+  );
+}
+
+function WorkflowRunActionSlot({
+  canRerun,
+  hasFailedJobs,
+  rerunPending,
+  onRerun,
+}: {
+  canRerun: boolean;
+  hasFailedJobs: boolean;
+  rerunPending: boolean;
+  onRerun?: ((mode: RerunMode) => void) | undefined;
+}) {
+  if (!canRerun || !onRerun) return null;
+
+  if (!hasFailedJobs) {
+    return (
+      <Button
+        type="button"
+        variant="secondary"
+        size="xs"
+        iconLeft="restartLine"
+        isLoading={rerunPending}
+        onClick={() => onRerun('all')}
+      >
+        Re-run all jobs
+      </Button>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="secondary"
+          size="xs"
+          iconLeft="restartLine"
+          iconRight="arrowDownSLine"
+          isLoading={rerunPending}
+        >
+          Re-run jobs
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem disabled={rerunPending} onSelect={() => onRerun('all')}>
+          Re-run all jobs
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={rerunPending} onSelect={() => onRerun('failed')}>
+          Re-run failed or cancelled jobs
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

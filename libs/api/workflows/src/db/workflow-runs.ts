@@ -43,6 +43,9 @@ import {
 } from '#core/entities/workflow-run.js';
 import {
   JobNotFoundError,
+  NoFailedJobsError,
+  RunNotTerminalError,
+  SourceRunNotFoundError,
   WorkflowRunNotCancellableError,
   WorkflowRunNotFoundError,
 } from '#core/errors.js';
@@ -177,6 +180,161 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
   if (result.created) recordWorkflowRunCreated(result.run.triggerSource);
 
   return result.run;
+}
+
+export interface CreateRerunWorkflowRunParams {
+  sourceRunId: string;
+  mode: 'all' | 'failed';
+  actorUserId: string;
+}
+
+export async function createRerunWorkflowRun(
+  params: CreateRerunWorkflowRunParams,
+): Promise<WorkflowRun> {
+  const result = await db().transaction(async (tx) => {
+    const sourceRows = await tx
+      .select()
+      .from(workflowRuns)
+      .where(eq(workflowRuns.id, params.sourceRunId))
+      .limit(1);
+    const sourceRow = sourceRows[0];
+    if (!sourceRow) throw new SourceRunNotFoundError(params.sourceRunId);
+    if (!isWorkflowRunTerminal(sourceRow.status)) throw new RunNotTerminalError(sourceRow.id);
+
+    const sourceJobs = await tx
+      .select()
+      .from(jobs)
+      .where(eq(jobs.runId, sourceRow.id))
+      .orderBy(asc(jobs.position), asc(jobs.id));
+
+    if (
+      params.mode === 'failed' &&
+      !sourceJobs.some((job) => job.status === 'failed' || job.status === 'cancelled')
+    ) {
+      throw new NoFailedJobsError(sourceRow.id);
+    }
+
+    const rootRunId = sourceRow.rootRunId ?? sourceRow.id;
+    // Serialize attempt allocation per lineage; the unique index is the final guard.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${rootRunId}))`);
+
+    if (sourceRow.rootRunId === null) {
+      await tx
+        .update(workflowRuns)
+        .set({rootRunId: sourceRow.id, updatedAt: new Date()})
+        .where(and(eq(workflowRuns.id, sourceRow.id), isNull(workflowRuns.rootRunId)));
+    }
+
+    const [attemptRow] = await tx
+      .select({value: sql<number>`coalesce(max(${workflowRuns.attempt}), 1)`})
+      .from(workflowRuns)
+      .where(eq(workflowRuns.rootRunId, rootRunId));
+    const attempt = Number(attemptRow?.value ?? 1) + 1;
+
+    const [newRunRow] = await tx
+      .insert(workflowRuns)
+      .values({
+        workspaceId: sourceRow.workspaceId,
+        projectId: sourceRow.projectId,
+        definitionId: sourceRow.definitionId,
+        name: sourceRow.name,
+        status: 'pending',
+        sourceRunId: sourceRow.id,
+        rootRunId,
+        attempt,
+        rerunMode: params.mode,
+        rerunByUserId: params.actorUserId,
+        triggerSource: sourceRow.triggerSource,
+        triggerEvent: sourceRow.triggerEvent,
+        triggerPayload: sourceRow.triggerPayload,
+        inputs: sourceRow.inputs,
+        sourceSnapshot: sourceRow.sourceSnapshot,
+        triggerIdempotencyKey: null,
+      })
+      .returning();
+    if (!newRunRow) throw new Error('Insert returned no rows');
+
+    const sourceSteps =
+      sourceJobs.length === 0
+        ? []
+        : await tx
+            .select()
+            .from(steps)
+            .where(
+              inArray(
+                steps.jobId,
+                sourceJobs.map((job) => job.id),
+              ),
+            )
+            .orderBy(asc(steps.jobId), asc(steps.position), asc(steps.id));
+
+    const clonedJobRows =
+      sourceJobs.length === 0
+        ? []
+        : await tx
+            .insert(jobs)
+            .values(
+              sourceJobs.map((job) => {
+                const carriedOver = params.mode === 'failed' && job.status === 'succeeded';
+                return {
+                  runId: newRunRow.id,
+                  name: job.name,
+                  status: carriedOver ? ('succeeded' as const) : ('pending' as const),
+                  statusReason: null,
+                  carriedOver,
+                  dependencies: [...job.dependencies],
+                  runner: job.runner ? [...job.runner] : null,
+                  position: job.position,
+                };
+              }),
+            )
+            .returning();
+
+    const sourceJobById = new Map(sourceJobs.map((job) => [job.id, job]));
+    const clonedJobByPosition = new Map(clonedJobRows.map((job) => [job.position, job]));
+    const stepValues = sourceSteps.flatMap((step) => {
+      const sourceJob = sourceJobById.get(step.jobId);
+      if (!sourceJob) return [];
+      const clonedJob = clonedJobByPosition.get(sourceJob.position);
+      if (!clonedJob) return [];
+      const carriedOver = params.mode === 'failed' && sourceJob.status === 'succeeded';
+      return [
+        {
+          jobId: clonedJob.id,
+          name: step.name,
+          displayName: step.displayName,
+          sourceLocation: step.sourceLocation,
+          status: carriedOver ? step.status : ('pending' as const),
+          type: step.type,
+          config: step.config,
+          output: carriedOver ? step.output : null,
+          error: null,
+          position: step.position,
+          currentAttempt: 1,
+        },
+      ];
+    });
+
+    if (stepValues.length > 0) {
+      await tx.insert(steps).values(stepValues);
+    }
+
+    await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+      type: WORKFLOWS_WORKFLOW_RUN_CREATED,
+      payload: {
+        runId: newRunRow.id,
+        workspaceId: newRunRow.workspaceId,
+        projectId: newRunRow.projectId,
+        definitionId: newRunRow.definitionId,
+      },
+    });
+
+    return toWorkflowRun(newRunRow);
+  });
+
+  recordWorkflowRunCreated(result.triggerSource);
+
+  return result;
 }
 
 export async function getWorkflowRunById(id: string): Promise<WorkflowRun | undefined> {

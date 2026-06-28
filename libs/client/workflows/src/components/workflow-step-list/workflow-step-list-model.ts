@@ -16,6 +16,7 @@ export interface WorkflowStepStatusVisual extends Omit<WorkflowStatusVisual, 'ki
 
 export interface WorkflowStepAttemptModel extends WorkflowStepAttempt {
   statusVisual: WorkflowStepStatusVisual;
+  carriedOver: boolean;
 }
 
 export interface WorkflowStepModel extends Omit<WorkflowStep, 'attempts'> {
@@ -38,7 +39,9 @@ export interface WorkflowStepListModel {
 
 export function buildWorkflowStepListModel({job}: {job: WorkflowJob}): WorkflowStepListModel {
   const steps = [...job.steps].sort(compareSteps).map(toStepModel);
-  const entries = steps.flatMap(toStepEntries).sort(compareEntries);
+  const entries = steps
+    .flatMap((step) => toStepEntries(step, job.carriedOver))
+    .sort(compareEntries);
 
   return {
     jobId: job.id,
@@ -77,6 +80,7 @@ function toStepModel(step: WorkflowStep, index: number): WorkflowStepModel {
   const attempts = [...step.attempts].sort(compareAttempts).map((attempt) => ({
     ...attempt,
     statusVisual: getStepStatusVisual(attempt.status),
+    carriedOver: false,
   }));
 
   return {
@@ -97,11 +101,40 @@ function stepLabel(step: WorkflowStep, index: number): string {
   return `Step ${index + 1}`;
 }
 
-function toStepEntries(step: WorkflowStepModel): WorkflowStepListEntryModel[] {
-  return step.attempts.map((attempt) => ({
-    ...attempt,
-    step,
-  }));
+function toStepEntries(
+  step: WorkflowStepModel,
+  carriedOverJob: boolean,
+): WorkflowStepListEntryModel[] {
+  if (step.attempts.length > 0) {
+    return step.attempts.map((attempt) => ({
+      ...attempt,
+      step,
+    }));
+  }
+
+  if (!carriedOverJob) return [];
+
+  return [
+    {
+      id: `carried-over:${step.id}`,
+      stepId: step.id,
+      jobId: step.jobId,
+      attempt: step.currentAttempt,
+      executionOrder: step.position,
+      status: step.status,
+      exitCode: null,
+      output: null,
+      error: null,
+      gateResult: null,
+      restartReason: null,
+      restartResult: null,
+      startedAt: step.createdAt,
+      finishedAt: null,
+      statusVisual: getStepStatusVisual(step.status),
+      carriedOver: true,
+      step,
+    },
+  ];
 }
 
 function compareSteps(left: WorkflowStep, right: WorkflowStep): number {

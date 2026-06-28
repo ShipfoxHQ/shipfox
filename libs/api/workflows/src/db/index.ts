@@ -6,6 +6,7 @@ export {workflowsOutbox} from './schema/outbox.js';
 export type {
   BulkUpdateStepStatusesParams,
   CancelWorkflowRunParams,
+  CreateRerunWorkflowRunParams,
   CreateWorkflowRunParams,
   FailJobAsTimedOutParams,
   ListWorkflowRunsParams,
@@ -21,6 +22,7 @@ export type {
 export {
   bulkUpdateStepStatuses,
   cancelWorkflowRun,
+  createRerunWorkflowRun,
   createWorkflowRun,
   failJobAsTimedOut,
   getJobById,

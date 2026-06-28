@@ -12,6 +12,7 @@ import {
 } from '#test/fixtures/workflow-run.js';
 import {
   useCancelWorkflowRunMutation,
+  useRerunWorkflowRunMutation,
   useWorkflowRunQuery,
   useWorkflowRunsInfiniteQuery,
   workflowRunsQueryKeys,
@@ -147,4 +148,42 @@ describe('workflow run API hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({queryKey: workflowRunsQueryKeys.detail(RUN_ID)});
     expect(invalidateSpy).toHaveBeenCalledWith({queryKey: workflowRunsQueryKeys.lists(PROJECT_ID)});
   });
+
+  test('posts rerun mode and invalidates project run lists', async () => {
+    const postBodies: unknown[] = [];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      postBodies.push(await request.clone().json());
+      return jsonResponse(
+        workflowRunDto({
+          id: '77777777-7777-4777-8777-777777777777',
+          status: 'pending',
+        }),
+      );
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const {result, queryClient} = renderWithQueryClient(() =>
+      useRerunWorkflowRunMutation(PROJECT_ID),
+    );
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    await act(async () => {
+      await result.current.mutateAsync({runId: RUN_ID, mode: 'failed'});
+    });
+
+    const request = firstRequest(fetchImpl);
+    expect(request.url).toBe(`https://api.example.test/workflows/runs/${RUN_ID}/rerun`);
+    expect(request.method).toBe('POST');
+    expect(postBodies).toEqual([{mode: 'failed'}]);
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: workflowRunsQueryKeys.lists(PROJECT_ID),
+    });
+  });
 });
+
+function firstRequest(fetchImpl: ReturnType<typeof vi.fn>): Request {
+  const input = (fetchImpl.mock.calls as unknown[][])[0]?.[0];
+  if (!(input instanceof Request)) throw new Error('Expected fetch to receive a Request');
+  return input;
+}

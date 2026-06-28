@@ -1,4 +1,11 @@
-import type {RunDetailResponseDto, RunDto, RunListResponseDto} from '@shipfox/api-workflows-dto';
+import type {
+  RerunMode,
+  RerunRunBodyDto,
+  RunDetailResponseDto,
+  RunDto,
+  RunListResponseDto,
+  RunResponseDto,
+} from '@shipfox/api-workflows-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {
   type InfiniteData,
@@ -131,6 +138,24 @@ async function getWorkflowRunDto({runId, signal}: {runId: string; signal?: Abort
 
 async function cancelWorkflowRunDto({runId}: {runId: string}) {
   return await apiRequest<RunDto>(`/workflows/runs/${runId}/cancel`, {method: 'POST'});
+}
+
+export async function rerunWorkflowRun({runId, mode}: {runId: string; mode: RerunMode}) {
+  return await apiRequest<RunResponseDto>(`/workflows/runs/${runId}/rerun`, {
+    method: 'POST',
+    body: {mode} satisfies RerunRunBodyDto,
+  });
+}
+
+export function useRerunWorkflowRunMutation(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: rerunWorkflowRun,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.lists(projectId)});
+    },
+  });
 }
 
 export function useWorkflowRunQuery(runId: string | undefined) {

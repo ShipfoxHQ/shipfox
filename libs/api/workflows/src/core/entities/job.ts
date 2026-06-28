@@ -21,6 +21,7 @@ export interface Job {
   name: string;
   status: JobStatus;
   statusReason: JobStatusReason | null;
+  carriedOver: boolean;
   dependencies: string[];
   runner: string[] | null;
   position: number;

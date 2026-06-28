@@ -7,6 +7,7 @@ import {getRunAggregatesRoute} from './get-run-aggregates.js';
 import {listRunsRoute} from './list-runs.js';
 import {nextStepRoute} from './next-step.js';
 import {reportStepRoute} from './report-step.js';
+import {rerunRunRoute} from './rerun-run.js';
 
 export const leaseTokenRouteGroup: RouteGroup = {
   // The lease token names the job, so the path carries no job id ("current").
@@ -19,7 +20,7 @@ export const workflowRoutes: RouteGroup[] = [
   {
     prefix: '/workflows/runs',
     auth: AUTH_USER,
-    routes: [listRunsRoute, getRunAggregatesRoute, getRunRoute, cancelRunRoute],
+    routes: [listRunsRoute, getRunAggregatesRoute, getRunRoute, cancelRunRoute, rerunRunRoute],
   },
   leaseTokenRouteGroup,
 ];

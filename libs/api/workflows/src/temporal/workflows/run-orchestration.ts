@@ -49,6 +49,7 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
   const jobVersions = new Map<string, number>();
   for (const job of dag.jobs) {
     jobVersions.set(job.id, job.version);
+    if (job.status === 'succeeded') completed.set(job.name, 'succeeded');
   }
 
   while (true) {

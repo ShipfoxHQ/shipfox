@@ -1,11 +1,13 @@
 import type {RunDetailResponseDto} from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
+import {toast} from '@shipfox/react-ui';
 import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {inlineLogBody, outputLine} from '#test/fixtures/logs.js';
 import {
   workflowJobDto,
   workflowRunDetailDto,
+  workflowRunDto,
   workflowStepAttemptDto,
   workflowStepDto,
 } from '#test/fixtures/workflow-run.js';
@@ -19,6 +21,7 @@ const BUILD_JOB_ID = '77777777-7777-4777-8777-777777777777';
 const DEPLOY_JOB_ID = '88888888-8888-4888-8888-888888888888';
 const CHECKOUT_STEP_ID = '99999999-9999-4999-8999-999999999999';
 const CHECKOUT_ATTEMPT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const RERUN_BUTTON_NAME = /^Re-run/;
 
 describe('WorkflowRunView', () => {
   test('renders the run summary, jobs graph, and selected job step attempts when a run loads', async () => {
@@ -280,17 +283,209 @@ describe('WorkflowRunView', () => {
 
     expect(screen.queryByRole('button', {name: 'Source'})).not.toBeInTheDocument();
   });
+
+  test('re-runs all jobs from a succeeded run and navigates to the new run', async () => {
+    const user = userEvent.setup();
+    const rerunId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const successSpy = vi.spyOn(toast, 'success').mockImplementation(() => 'toast-id');
+    const postBodies: unknown[] = [];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      const url = requestUrl(input);
+      if (request.method === 'POST' && url.pathname === `/workflows/runs/${RUN_ID}/rerun`) {
+        postBodies.push(await request.clone().json());
+        return jsonResponse(workflowRunDto({id: rerunId, status: 'pending'}));
+      }
+      return jsonResponse(
+        workflowRunViewDetailDto({
+          status: 'succeeded',
+          jobs: [
+            workflowJobDto({
+              id: BUILD_JOB_ID,
+              run_id: RUN_ID,
+              name: 'build',
+              status: 'succeeded',
+            }),
+          ],
+        }),
+      );
+    });
+    configureApiClient({fetchImpl: fetchImpl as typeof fetch});
+
+    const {router} = renderView();
+    await user.click(await screen.findByRole('button', {name: 'Re-run all jobs'}));
+
+    const postRequest = await findRequest(fetchImpl, 'POST', `/workflows/runs/${RUN_ID}/rerun`);
+    expect(postRequest).toBeDefined();
+    expect(postBodies).toEqual([{mode: 'all'}]);
+    expect(successSpy).toHaveBeenCalledWith('Re-run started');
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${rerunId}`,
+      ),
+    );
+  });
+
+  test('re-runs failed or cancelled jobs from the dropdown', async () => {
+    const user = userEvent.setup();
+    const postBodies: unknown[] = [];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      const url = requestUrl(input);
+      if (request.method === 'POST' && url.pathname === `/workflows/runs/${RUN_ID}/rerun`) {
+        postBodies.push(await request.clone().json());
+        return jsonResponse(workflowRunDto({id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'}));
+      }
+      return jsonResponse(
+        workflowRunViewDetailDto({
+          status: 'failed',
+          jobs: [
+            workflowJobDto({
+              id: BUILD_JOB_ID,
+              run_id: RUN_ID,
+              name: 'build',
+              status: 'failed',
+            }),
+            workflowJobDto({
+              id: DEPLOY_JOB_ID,
+              run_id: RUN_ID,
+              name: 'deploy',
+              status: 'cancelled',
+              position: 1,
+            }),
+          ],
+        }),
+      );
+    });
+    configureApiClient({fetchImpl: fetchImpl as typeof fetch});
+
+    renderView();
+    await user.click(await screen.findByRole('button', {name: 'Re-run jobs'}));
+    await user.click(
+      await screen.findByRole('menuitem', {name: 'Re-run failed or cancelled jobs'}),
+    );
+
+    const postRequest = await findRequest(fetchImpl, 'POST', `/workflows/runs/${RUN_ID}/rerun`);
+    expect(postRequest).toBeDefined();
+    expect(postBodies).toEqual([{mode: 'failed'}]);
+  });
+
+  test('shows an error toast when rerun creation fails', async () => {
+    const user = userEvent.setup();
+    const errorSpy = vi.spyOn(toast, 'error').mockImplementation(() => 'toast-id');
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      const url = requestUrl(input);
+      if (request.method === 'POST' && url.pathname === `/workflows/runs/${RUN_ID}/rerun`) {
+        return Promise.resolve(
+          jsonResponse({code: 'no-failed-jobs', message: 'Run has no failed jobs'}, {status: 409}),
+        );
+      }
+      return Promise.resolve(jsonResponse(workflowRunViewDetailDto({status: 'succeeded'})));
+    });
+    configureApiClient({fetchImpl: fetchImpl as typeof fetch});
+
+    renderView();
+    await user.click(await screen.findByRole('button', {name: 'Re-run all jobs'}));
+
+    await waitFor(() => expect(errorSpy).toHaveBeenCalledWith('Run has no failed jobs'));
+  });
+
+  test('does not render rerun controls for non-terminal runs', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(workflowRunViewDetailDto()))),
+    });
+
+    renderView();
+
+    await screen.findByRole('region', {name: 'deploy-web'});
+    expect(screen.queryByRole('button', {name: RERUN_BUTTON_NAME})).not.toBeInTheDocument();
+  });
+
+  test('renders carried-over steps without requesting attempt logs', async () => {
+    const user = userEvent.setup();
+    const fetchImpl = vi.fn(() =>
+      Promise.resolve(
+        jsonResponse(
+          workflowRunViewDetailDto({
+            status: 'succeeded',
+            jobs: [
+              workflowJobDto({
+                id: BUILD_JOB_ID,
+                run_id: RUN_ID,
+                name: 'build',
+                status: 'succeeded',
+                carried_over: true,
+                steps: [
+                  workflowStepDto({
+                    id: CHECKOUT_STEP_ID,
+                    job_id: BUILD_JOB_ID,
+                    name: 'checkout',
+                    display_name: 'checkout',
+                    status: 'succeeded',
+                    attempts: [],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ),
+      ),
+    );
+    configureApiClient({fetchImpl: fetchImpl as typeof fetch});
+
+    renderView();
+    expect(
+      await screen.findByRole('button', {name: 'build, Succeeded, reused'}),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('reused')).toHaveLength(2);
+    await user.click(screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'}));
+
+    expect(await screen.findByText('Not executed in this run.')).toBeInTheDocument();
+    expect(
+      mockRequests(fetchImpl).some((request) => requestUrl(request).pathname.includes('/logs')),
+    ).toBe(false);
+  });
 });
 
 function renderView(props: Partial<Parameters<typeof WorkflowRunView>[0]> = {}) {
   return renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/x/runs/${RUN_ID}`, () => (
-    <WorkflowRunView runId={RUN_ID} {...props} />
+    <WorkflowRunView
+      workspaceId={PROJECT_TEST_WID}
+      projectId={PROJECT_ID}
+      runId={RUN_ID}
+      {...props}
+    />
   ));
 }
 
 function requestUrl(input: RequestInfo | URL): URL {
   if (input instanceof Request) return new URL(input.url);
   return new URL(String(input));
+}
+
+async function findRequest(
+  fetchImpl: ReturnType<typeof vi.fn>,
+  method: string,
+  pathname: string,
+): Promise<Request> {
+  await waitFor(() => {
+    const match = mockRequests(fetchImpl).find(
+      (request) => request.method === method && requestUrl(request).pathname === pathname,
+    );
+    expect(match).toBeDefined();
+  });
+  const match = mockRequests(fetchImpl).find(
+    (request) => request.method === method && requestUrl(request).pathname === pathname,
+  );
+  if (!match) throw new Error(`Missing ${method} ${pathname}`);
+  return match;
+}
+
+function mockRequests(fetchImpl: ReturnType<typeof vi.fn>): Request[] {
+  return (fetchImpl.mock.calls as unknown[][])
+    .map((call) => call[0])
+    .filter((input): input is Request => input instanceof Request);
 }
 
 function workflowRunViewDetailDto(

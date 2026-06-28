@@ -19,6 +19,7 @@ function jobEntity(overrides: Partial<Job> = {}): Job {
     name: 'deploy',
     status: 'pending',
     statusReason: null,
+    carriedOver: false,
     dependencies: [],
     runner: null,
     position: 0,

@@ -47,7 +47,7 @@ async function waitForActivity(name: string): Promise<void> {
 }
 
 describe('runOrchestration', () => {
-  test('linear DAG, all succeed', async () => {
+  test('all-pending linear DAG enqueues every job and succeeds', async () => {
     const jobs = [
       dagJob('j1', 'build'),
       dagJob('j2', 'test', ['build']),
@@ -69,6 +69,38 @@ describe('runOrchestration', () => {
         runId: 'r1',
       });
     }
+  });
+
+  test('already-succeeded upstream jobs are not re-enqueued', async () => {
+    const jobs = [
+      dagJob('j1', 'build', [], {status: 'succeeded'}),
+      dagJob('j2', 'test', ['build']),
+    ];
+    setCfg({dag: makeDag(jobs, 'r1-carried'), jobResults: new Map([['j2', 'succeeded']])});
+
+    await executeRun();
+
+    const runStatuses = setRunStatusCalls().map((c) => c.params.status);
+    expect(runStatuses).toEqual(['running', 'succeeded']);
+    const enqueueCalls = callsNamed('enqueueJobForRunner');
+    expect(enqueueCalls).toHaveLength(1);
+    expect(enqueueCalls[0]?.params).toMatchObject({jobId: 'j2'});
+  });
+
+  test('already-succeeded upstream jobs can unblock a failed retry', async () => {
+    const jobs = [
+      dagJob('j1', 'build', [], {status: 'succeeded'}),
+      dagJob('j2', 'test', ['build']),
+    ];
+    setCfg({dag: makeDag(jobs, 'r1-carried-failed'), jobResults: new Map([['j2', 'failed']])});
+
+    await executeRun();
+
+    const runStatuses = setRunStatusCalls().map((c) => c.params.status);
+    expect(runStatuses).toEqual(['running', 'failed']);
+    const enqueueCalls = callsNamed('enqueueJobForRunner');
+    expect(enqueueCalls).toHaveLength(1);
+    expect(enqueueCalls[0]?.params).toMatchObject({jobId: 'j2'});
   });
 
   test('parallel roots both succeed', async () => {

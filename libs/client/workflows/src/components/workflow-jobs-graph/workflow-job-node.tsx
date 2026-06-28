@@ -60,10 +60,14 @@ export function WorkflowJobNode({
 }) {
   const visual = getWorkflowStatusVisual(node.status);
   const dependencyText = dependencyLabel(node.currentDependencyCount);
-  const accessibleLabel =
-    dependencyText !== undefined
-      ? `${node.name}, ${visual.label}, ${dependencyText.accessible}`
-      : `${node.name}, ${visual.label}`;
+  const accessibleLabel = [
+    node.name,
+    visual.label,
+    dependencyText?.accessible,
+    node.carriedOver ? 'reused' : undefined,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(', ');
 
   return (
     <button
@@ -79,6 +83,7 @@ export function WorkflowJobNode({
       className={cn(
         'group relative flex h-48 w-208 items-center gap-8 rounded-8 border border-border-neutral-base bg-background-components-base px-10 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
         selected && 'bg-background-components-hover',
+        node.carriedOver && 'opacity-[0.55]',
       )}
     >
       {selected ? (
@@ -103,7 +108,25 @@ export function WorkflowJobNode({
           <TooltipContent>{dependencyText.tooltip}</TooltipContent>
         </Tooltip>
       ) : null}
+      {node.carriedOver ? <CarriedOverBadge /> : null}
     </button>
+  );
+}
+
+function CarriedOverBadge() {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="shrink-0">
+          <Badge variant="neutral" size="2xs">
+            reused
+          </Badge>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        Carried over from a previous attempt; did not run in this attempt.
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
