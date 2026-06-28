@@ -1,5 +1,7 @@
 import {z} from 'zod';
 
+export const RUNNER_SESSION_EXHAUSTED_CODE = 'runner-session-exhausted' as const;
+
 export const claimedJobResponseSchema = z.object({
   job_id: z.string().uuid(),
   run_id: z.string().uuid(),

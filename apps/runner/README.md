@@ -27,6 +27,13 @@ session token using `SHIPFOX_RUNNER_LABELS`. Job polling uses that session token
 Heartbeat, step, checkout, and log calls use the per-job lease token returned by
 the claim response.
 
+The runner refuses to start when `SHIPFOX_RUNNER_LABELS` is empty after trimming.
+When no job is claimed before `SHIPFOX_POLL_MAX_DURATION_MS`, it exits cleanly so
+short-lived provisioned runners can be reclaimed. A session-exhausted response
+also exits cleanly. If the API keeps erroring until the same deadline, the runner
+exits nonzero so supervisors can see the outage. Manual or self-hosted runners
+that should poll forever must set `SHIPFOX_POLL_MAX_DURATION_MS=0`.
+
 ### `SHIPFOX_RUNNER_WORKSPACE_ROOT` (optional)
 
 Parent directory under which per-job working directories are created.
@@ -51,8 +58,9 @@ configured root is empty, the filesystem root (`/`), or a home directory.
 | `SHIPFOX_RUNNER_TOKEN` | — | Registration token copied from the workspace runner settings. The runner exchanges it for a session token at startup. |
 | `SHIPFOX_RUNNER_LABELS` | — | Comma-separated labels registered on this runner session, such as `linux,x64,self-hosted`. |
 | `SHIPFOX_RUNNER_WORKSPACE_ROOT` | OS temp dir | Parent directory for per-job workspaces (see above). |
-| `SHIPFOX_POLL_INTERVAL_MS` | `5000` | Base poll interval when requesting jobs. |
-| `SHIPFOX_POLL_MAX_INTERVAL_MS` | `30000` | Maximum backoff interval when no jobs are available. |
+| `SHIPFOX_POLL_INTERVAL_MS` | `1000` | Base poll interval when requesting jobs. |
+| `SHIPFOX_POLL_MAX_INTERVAL_MS` | `5000` | Maximum backoff interval when no jobs are available or the API errors. |
+| `SHIPFOX_POLL_MAX_DURATION_MS` | `300000` | Maximum time to poll without claiming a job. Set to `0` to poll forever for manual or self-hosted runners. |
 | `SHIPFOX_HEARTBEAT_INTERVAL_MS` | `10000` | Heartbeat tick interval for an in-flight job. |
 | `SHIPFOX_HEARTBEAT_MAX_STALE_MS` | `10000` | Max time a single heartbeat may stay outstanding before it is aborted. |
 | `ANTHROPIC_API_KEY` | none | Anthropic API key the embedded pi harness uses to run agent steps against Anthropic models. Read from the process environment. Unset or empty disables agent steps, which then fail at invocation; other step types are unaffected. |

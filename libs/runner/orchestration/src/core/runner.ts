@@ -3,8 +3,10 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {
   createLeaseClient,
   HTTPError,
+  RunnerSessionExhaustedError,
   registerRunnerSession,
   requestJob,
+  requireRunnerLabels,
   runnerToken,
 } from '@shipfox/runner-protocol';
 import {
@@ -20,21 +22,26 @@ import {runJobSteps} from '#core/step-loop.js';
 
 let running = true;
 let shuttingDown = false;
+let signalHandlersRegistered = false;
 // Module-level so the long-lived SIGINT handler can reach the in-flight job's
 // controller; locally-scoped capture isn't possible from a process-global handler.
 let currentJobAbortController: AbortController | undefined;
 type RunnerSession = Awaited<ReturnType<typeof registerRunnerSession>>;
 
 export async function startRunner(): Promise<void> {
+  running = true;
+  shuttingDown = false;
   setupSignalHandlers();
 
   // Fail fast at startup: a dangerous root should crash the process at deploy,
   // not silently fail every job.
   const workspaceRoot = resolveWorkspaceRootFromEnv();
+  requireRunnerLabels();
 
   logger().info(
     {
       pollInterval: config.SHIPFOX_POLL_INTERVAL_MS,
+      pollMaxDuration: config.SHIPFOX_POLL_MAX_DURATION_MS,
       workspaceRoot,
     },
     'Runner started',
@@ -42,6 +49,9 @@ export async function startRunner(): Promise<void> {
 
   let currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
   let runnerSession: RunnerSession | undefined;
+
+  await interruptableSleep(withJitter(config.SHIPFOX_POLL_INTERVAL_MS));
+  let pollDeadline = nextPollDeadline();
 
   while (running) {
     try {
@@ -53,16 +63,21 @@ export async function startRunner(): Promise<void> {
       const job = await requestJob(runnerSession.session_token);
 
       if (!job) {
+        if (hasPollDeadlinePassed(pollDeadline)) {
+          logger().info('No jobs available before the poll deadline; runner exiting');
+          return;
+        }
+        currentInterval = nextBackoffInterval(currentInterval);
         logger().debug({interval: currentInterval}, 'No jobs available, backing off');
-        currentInterval = Math.min(currentInterval * 1.5, config.SHIPFOX_POLL_MAX_INTERVAL_MS);
-        await interruptableSleep(currentInterval);
+        await interruptableSleep(withJitter(currentInterval));
         continue;
       }
 
-      currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
       logger().info({jobId: job.job_id, runId: job.run_id}, 'Job claimed');
 
       await runJob(job, workspaceRoot);
+      currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
+      pollDeadline = nextPollDeadline();
     } catch (pollError) {
       if (isUnauthorized(pollError)) {
         runnerSession = undefined;
@@ -70,13 +85,34 @@ export async function startRunner(): Promise<void> {
         currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
         continue;
       }
+      if (pollError instanceof RunnerSessionExhaustedError) {
+        logger().info('Runner session exhausted; runner exiting');
+        return;
+      }
+      if (hasPollDeadlinePassed(pollDeadline)) {
+        logger().error({err: pollError}, 'Poll cycle failed past the poll deadline');
+        throw pollError;
+      }
       logger().error({err: pollError}, 'Poll cycle failed');
-      currentInterval = Math.min(currentInterval * 1.5, config.SHIPFOX_POLL_MAX_INTERVAL_MS);
-      await interruptableSleep(currentInterval);
+      currentInterval = nextBackoffInterval(currentInterval);
+      await interruptableSleep(withJitter(currentInterval));
     }
   }
 
   logger().info('Runner stopped');
+}
+
+export function nextBackoffInterval(ms: number): number {
+  return Math.min(ms * 1.5, config.SHIPFOX_POLL_MAX_INTERVAL_MS);
+}
+
+export function withJitter(ms: number): number {
+  return Math.random() * ms;
+}
+
+export function nextPollDeadline(): number | undefined {
+  if (config.SHIPFOX_POLL_MAX_DURATION_MS === 0) return undefined;
+  return Date.now() + config.SHIPFOX_POLL_MAX_DURATION_MS;
 }
 
 export async function runJob(
@@ -137,22 +173,37 @@ function isUnauthorized(error: unknown): boolean {
   return error instanceof HTTPError && error.response.status === 401;
 }
 
+function hasPollDeadlinePassed(deadline: number | undefined): boolean {
+  return deadline !== undefined && Date.now() >= deadline;
+}
+
 function setupSignalHandlers(): void {
-  const handleSignal = (signal: string) => {
-    if (shuttingDown) {
-      logger().info({signal}, 'Second signal received, aborting current job');
-      currentJobAbortController?.abort('shutdown');
-      // Also exit promptly — the runner loop's interruptableSleep wakes on signals.
-      process.exit(1);
-    }
+  if (signalHandlersRegistered) return;
 
-    shuttingDown = true;
-    running = false;
-    logger().info({signal}, 'Shutting down gracefully, waiting for current job to finish...');
-  };
+  process.on('SIGINT', handleSigint);
+  process.on('SIGTERM', handleSigterm);
+  signalHandlersRegistered = true;
+}
 
-  process.on('SIGINT', () => handleSignal('SIGINT'));
-  process.on('SIGTERM', () => handleSignal('SIGTERM'));
+function handleSigint(): void {
+  handleSignal('SIGINT');
+}
+
+function handleSigterm(): void {
+  handleSignal('SIGTERM');
+}
+
+function handleSignal(signal: string): void {
+  if (shuttingDown) {
+    logger().info({signal}, 'Second signal received, aborting current job');
+    currentJobAbortController?.abort('shutdown');
+    // Also exit promptly — the runner loop's interruptableSleep wakes on signals.
+    process.exit(1);
+  }
+
+  shuttingDown = true;
+  running = false;
+  logger().info({signal}, 'Shutting down gracefully, waiting for current job to finish...');
 }
 
 async function interruptableSleep(ms: number): Promise<void> {

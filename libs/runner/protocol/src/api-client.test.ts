@@ -2,15 +2,19 @@
 // claim, heartbeat, and step calls use the right bearer token class. SHIPFOX_API_URL comes
 // from test/env.ts (setupFiles), loaded before config is imported.
 
+import {RUNNER_SESSION_EXHAUSTED_CODE} from '@shipfox/api-runners-dto';
 import {
   appendStepLogs,
   createLeaseClient,
+  HTTPError,
   heartbeat,
+  RunnerSessionExhaustedError,
   registerRunnerSession,
   reportStep,
   requestCheckoutToken,
   requestJob,
   requestNextStep,
+  requireRunnerLabels,
 } from '#api-client.js';
 import {config} from '#config.js';
 
@@ -32,6 +36,30 @@ afterAll(() => {
 
 beforeEach(() => {
   calls = [];
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+describe('runner labels', () => {
+  it('canonicalizes configured labels', () => {
+    const labels = requireRunnerLabels();
+
+    expect(labels).toEqual(['linux', 'x64']);
+  });
+
+  it.each(['', ' , , '])('throws when SHIPFOX_RUNNER_LABELS is %j', async (labels) => {
+    vi.stubEnv('SHIPFOX_RUNNER_LABELS', labels);
+    vi.resetModules();
+
+    const {
+      requireRunnerLabels: loadLabels,
+      RunnerLabelsRequiredError: LoadedRunnerLabelsRequiredError,
+    } = await import('#api-client.js');
+
+    expect(() => loadLabels()).toThrow(LoadedRunnerLabelsRequiredError);
+  });
 });
 
 describe('api-client auth contexts', () => {
@@ -67,6 +95,30 @@ describe('api-client auth contexts', () => {
     const job = await requestJob('session-abc');
 
     expect(job).toBeNull();
+  });
+
+  it('requestJob treats the session-exhausted 409 code as terminal', async () => {
+    stubFetch(() => jsonResponse({code: RUNNER_SESSION_EXHAUSTED_CODE}, 409));
+
+    const request = requestJob('session-abc');
+
+    await expect(request).rejects.toThrow(RunnerSessionExhaustedError);
+  });
+
+  it('requestJob rethrows non-terminal 409 responses as transient', async () => {
+    stubFetch(() => jsonResponse({code: 'other-conflict'}, 409));
+
+    const request = requestJob('session-abc');
+
+    await expect(request).rejects.toThrow(HTTPError);
+  });
+
+  it('requestJob rethrows malformed 409 responses as transient', async () => {
+    stubFetch(() => new Response('not json', {status: 409}));
+
+    const request = requestJob('session-abc');
+
+    await expect(request).rejects.toThrow(HTTPError);
   });
 
   it('heartbeat sends the job lease token', async () => {
