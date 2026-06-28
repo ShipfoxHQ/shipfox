@@ -46,7 +46,7 @@ export const workflowRunsQueryKeys = {
   attempts: (rootRunId: string) => [...workflowRunsQueryKeys.all, 'attempts', rootRunId] as const,
 };
 
-function normalizeFilters(filters: WorkflowRunFilters) {
+export function normalizeFilters(filters: WorkflowRunFilters) {
   return {
     status: filters.status ?? null,
     definitionId: filters.definitionId ?? null,
@@ -83,8 +83,30 @@ async function listWorkflowRunsDto({
   return await apiRequest<RunListResponseDto>(`/workflows/runs?${params.toString()}`, {signal});
 }
 
+/**
+ * Fire the manual trigger of a workflow definition.
+ *
+ * The server resolves the manual subscription by definition id (workflows
+ * may declare at most one manual trigger). `inputs` are forwarded to the
+ * run when provided.
+ */
+export async function fireManualWorkflow({
+  definitionId,
+  inputs,
+}: {
+  definitionId: string;
+  inputs?: Record<string, unknown>;
+}) {
+  return await apiRequest<{run_id: string}>(`/workflow-definitions/${definitionId}/fire-manual`, {
+    method: 'POST',
+    body: inputs ? {inputs} : {},
+  });
+}
+
 const ACTIVE_POLL_MS = 4_000;
 const IDLE_POLL_MS = 30_000;
+
+type RunListInfinite = InfiniteData<RunListResponseDto, string | undefined>;
 
 function toWorkflowRunInfiniteData(
   data: InfiniteData<RunListResponseDto, string | undefined>,
@@ -169,6 +191,161 @@ export function useRerunWorkflowRunMutation(projectId: string) {
       ]);
     },
   });
+}
+
+function filtersAcceptManualPendingRun(
+  filters: WorkflowRunFilters,
+  definitionId: string,
+  now: Date,
+): boolean {
+  if (filters.status && filters.status !== 'pending') return false;
+  if (filters.definitionId && filters.definitionId !== definitionId) return false;
+  if (filters.triggerSource && filters.triggerSource !== 'manual') return false;
+  if (filters.createdFrom && Date.parse(filters.createdFrom) > now.getTime()) return false;
+  if (filters.createdTo && Date.parse(filters.createdTo) < now.getTime()) return false;
+  return true;
+}
+
+function buildTempRun({
+  projectId,
+  definitionId,
+  name,
+  createdAt,
+}: {
+  projectId: string;
+  definitionId: string;
+  name: string;
+  createdAt: string;
+}): RunDto {
+  return {
+    id: `temp-${cryptoRandomId()}`,
+    project_id: projectId,
+    definition_id: definitionId,
+    name,
+    status: 'pending',
+    source_run_id: null,
+    root_run_id: null,
+    attempt: 1,
+    rerun_mode: null,
+    trigger_source: 'manual',
+    trigger_event: 'fire',
+    trigger_payload: {source: 'manual', event: 'fire'},
+    inputs: null,
+    source_snapshot: null,
+    created_at: createdAt,
+    updated_at: createdAt,
+    started_at: null,
+    finished_at: null,
+  };
+}
+
+function cryptoRandomId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export interface FireManualWorkflowVariables {
+  projectId: string;
+  definitionId: string;
+  inputs?: Record<string, unknown>;
+}
+
+export function useFireManualWorkflowMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: FireManualWorkflowVariables) =>
+      fireManualWorkflow(
+        variables.inputs
+          ? {definitionId: variables.definitionId, inputs: variables.inputs}
+          : {definitionId: variables.definitionId},
+      ),
+    onMutate: (variables) => {
+      const definitionName = lookupDefinitionName(
+        queryClient,
+        variables.projectId,
+        variables.definitionId,
+      );
+      const createdAt = new Date().toISOString();
+      const tempRun = buildTempRun({
+        projectId: variables.projectId,
+        definitionId: variables.definitionId,
+        name: definitionName ?? 'New run',
+        createdAt,
+      });
+
+      const listsKey = workflowRunsQueryKeys.lists(variables.projectId);
+      const snapshots: Array<[readonly unknown[], RunListInfinite | undefined]> = [];
+
+      const entries = queryClient.getQueriesData<RunListInfinite>({queryKey: listsKey});
+      const now = new Date(createdAt);
+      for (const [queryKey, data] of entries) {
+        const filters = readFiltersFromKey(queryKey);
+        if (!filters) continue;
+        if (!filtersAcceptManualPendingRun(filters, variables.definitionId, now)) continue;
+
+        snapshots.push([queryKey, data]);
+        queryClient.setQueryData<RunListInfinite>(queryKey, (current) => {
+          if (!current || current.pages.length === 0) return current;
+          const firstPage = current.pages[0];
+          if (!firstPage) return current;
+          const nextFirstPage: RunListResponseDto = {
+            ...firstPage,
+            runs: [tempRun, ...firstPage.runs],
+            filtered_total_count:
+              firstPage.filtered_total_count != null ? firstPage.filtered_total_count + 1 : null,
+          };
+          return {...current, pages: [nextFirstPage, ...current.pages.slice(1)]};
+        });
+      }
+
+      return {snapshots};
+    },
+    onError: (_error, _variables, context) => {
+      if (!context) return;
+      for (const [queryKey, previous] of context.snapshots) {
+        queryClient.setQueryData(queryKey, previous);
+      }
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: workflowRunsQueryKeys.lists(variables.projectId),
+      });
+    },
+  });
+}
+
+function readFiltersFromKey(queryKey: readonly unknown[]): WorkflowRunFilters | null {
+  if (queryKey.length < 4) return null;
+  const normalized = queryKey[3];
+  if (!normalized || typeof normalized !== 'object') return null;
+  const obj = normalized as Record<string, unknown>;
+  return {
+    status: (obj.status as WorkflowRunStatus | null) ?? undefined,
+    definitionId: (obj.definitionId as string | null) ?? undefined,
+    triggerSource: (obj.triggerSource as string | null) ?? undefined,
+    createdFrom: (obj.createdFrom as string | null) ?? undefined,
+    createdTo: (obj.createdTo as string | null) ?? undefined,
+  };
+}
+
+function lookupDefinitionName(
+  queryClient: ReturnType<typeof useQueryClient>,
+  projectId: string,
+  definitionId: string,
+): string | undefined {
+  const entries = queryClient.getQueriesData<
+    InfiniteData<{definitions: Array<{id: string; project_id: string; name: string}>}>
+  >({queryKey: ['definitions', 'list', projectId]});
+  for (const [, data] of entries) {
+    if (!data) continue;
+    for (const page of data.pages) {
+      const match = page.definitions.find((d) => d.id === definitionId);
+      if (match) return match.name;
+    }
+  }
+  return undefined;
 }
 
 export function useWorkflowRunQuery(runId: string | undefined) {

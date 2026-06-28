@@ -26,7 +26,11 @@ export {
   workflowRunTriggerLabel,
 } from '#core/workflow-run.js';
 export {
+  type FireManualWorkflowVariables,
+  fireManualWorkflow,
+  normalizeFilters,
   useCancelWorkflowRunMutation,
+  useFireManualWorkflowMutation,
   useWorkflowRunAttemptsQuery,
   useWorkflowRunQuery,
   useWorkflowRunsInfiniteQuery,

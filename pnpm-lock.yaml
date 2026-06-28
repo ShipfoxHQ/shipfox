@@ -2742,6 +2742,9 @@ importers:
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui
+      '@shipfox/client-workflows':
+        specifier: workspace:*
+        version: link:../workflows
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui

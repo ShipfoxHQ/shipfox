@@ -1,6 +1,7 @@
 import type {DefinitionDto, DefinitionSyncSummaryDto} from '@shipfox/api-definitions-dto';
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
+import {useFireManualWorkflowMutation} from '@shipfox/client-workflows';
 import {
   Alert,
   Button,
@@ -32,7 +33,6 @@ import {useState} from 'react';
 import {SourceStrip} from '#components/source-strip.js';
 import {useDefinitionsInfiniteQuery} from '#hooks/api/definitions.js';
 import {useProjectQuery} from '#hooks/api/projects.js';
-import {useFireManualWorkflowMutation} from '#hooks/api/workflow-runs.js';
 
 export function ProjectWorkflowsPage({projectId}: {projectId: string}) {
   return (

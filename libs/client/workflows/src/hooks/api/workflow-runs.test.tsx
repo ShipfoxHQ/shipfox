@@ -13,7 +13,9 @@ import {
   workflowRunListResponseDto,
 } from '#test/fixtures/workflow-run.js';
 import {
+  fireManualWorkflow,
   useCancelWorkflowRunMutation,
+  useFireManualWorkflowMutation,
   useRerunWorkflowRunMutation,
   useWorkflowRunAttemptsQuery,
   useWorkflowRunQuery,
@@ -22,8 +24,10 @@ import {
 } from './workflow-runs.js';
 
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
+const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
 const ROOT_RUN_ID = '77777777-7777-4777-8777-777777777777';
+const TEMP_RUN_ID_PATTERN = /^temp-/;
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -164,6 +168,75 @@ describe('workflow run API hooks', () => {
       `https://api.example.test/workflows/runs/${RUN_ID}/attempts`,
     );
     expect(queryClient.getQueryData(workflowRunsQueryKeys.attempts(ROOT_RUN_ID))).toEqual(body);
+  });
+
+  test('posts manual fire requests with and without inputs', async () => {
+    const postBodies: unknown[] = [];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      postBodies.push(await (input as Request).clone().json());
+      return jsonResponse({run_id: RUN_ID}, {status: 201});
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const withoutInputs = await fireManualWorkflow({definitionId: DEFINITION_ID});
+    const withInputs = await fireManualWorkflow({
+      definitionId: DEFINITION_ID,
+      inputs: {env: 'production'},
+    });
+
+    expect(withoutInputs.run_id).toBe(RUN_ID);
+    expect(withInputs.run_id).toBe(RUN_ID);
+    expect(postBodies).toEqual([{}, {inputs: {env: 'production'}}]);
+    expect(firstRequest(fetchImpl).url).toBe(
+      `https://api.example.test/workflow-definitions/${DEFINITION_ID}/fire-manual`,
+    );
+    expect(firstRequest(fetchImpl).method).toBe('POST');
+  });
+
+  test('optimistically inserts manual runs into the same list cache prefix read by the rail', async () => {
+    let resolveFire: ((response: Response) => void) | undefined;
+    const fetchImpl = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFire = resolve;
+        }),
+    );
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    const {result, queryClient} = renderWithQueryClient(() => useFireManualWorkflowMutation());
+    const listKey = workflowRunsQueryKeys.list(PROJECT_ID, {});
+    queryClient.setQueryData<InfiniteData<RunListResponseDto, string | undefined>>(listKey, {
+      pages: [workflowRunListResponseDto({runs: [], filtered_total_count: 0})],
+      pageParams: [undefined],
+    });
+
+    const railListEntries = queryClient.getQueriesData({
+      queryKey: workflowRunsQueryKeys.lists(PROJECT_ID),
+    });
+    expect(railListEntries.map(([queryKey]) => queryKey)).toContainEqual(listKey);
+
+    act(() => {
+      result.current.mutate({projectId: PROJECT_ID, definitionId: DEFINITION_ID});
+    });
+
+    await waitFor(() => {
+      const cached =
+        queryClient.getQueryData<InfiniteData<RunListResponseDto, string | undefined>>(listKey);
+      expect(cached?.pages[0]?.runs[0]).toMatchObject({
+        project_id: PROJECT_ID,
+        definition_id: DEFINITION_ID,
+        status: 'pending',
+        trigger_source: 'manual',
+      });
+      expect(cached?.pages[0]?.runs[0]?.id).toMatch(TEMP_RUN_ID_PATTERN);
+      expect(cached?.pages[0]?.filtered_total_count).toBe(1);
+    });
+
+    if (!resolveFire) throw new Error('Expected manual fire request');
+    const completeFire = resolveFire;
+    act(() => {
+      completeFire(jsonResponse({run_id: RUN_ID}, {status: 201}));
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
   });
 
   test('does not fetch run attempts while disabled', () => {
