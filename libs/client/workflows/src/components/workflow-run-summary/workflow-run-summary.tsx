@@ -140,22 +140,26 @@ export function WorkflowRunSummary({
             </>
           ) : null}
 
-          {run.triggerLabel ? (
+          {run.triggerDisplayLabel ? (
             <>
               <MetadataSeparator />
               <span className="min-w-0">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="inline-flex max-w-full min-w-0 items-center gap-4">
+                    <button
+                      type="button"
+                      aria-label={run.triggerLabel}
+                      className="inline-flex max-w-full min-w-0 items-center gap-4 rounded-6 border-0 bg-transparent p-0 text-left text-foreground-neutral-muted outline-none focus-visible:shadow-button-neutral-focus"
+                    >
                       <TriggerSourceIcon
                         source={run.triggerSource}
                         aria-hidden="true"
                         className="size-12 shrink-0"
                       />
                       <Code as="span" variant="label" className="min-w-0 truncate">
-                        {run.triggerLabel}
+                        {run.triggerDisplayLabel}
                       </Code>
-                    </span>
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent>
                     <Code as="span" variant="label" className="block max-w-[360px] break-words">

@@ -135,6 +135,7 @@ export interface WorkflowRun {
   rerunMode: 'all' | 'failed' | null;
   triggerSource: string;
   triggerEvent: string;
+  triggerDisplayLabel: string;
   triggerLabel: string;
   triggerPayload: Record<string, unknown>;
   inputs: Record<string, unknown> | null;
@@ -177,7 +178,17 @@ export function workflowRunTriggerLabel({
   triggerSource: string;
   triggerEvent: string;
 }): string {
-  return [triggerSource, triggerEvent].filter(Boolean).join(' / ');
+  return [triggerSource, triggerEvent].filter(Boolean).join(' · ');
+}
+
+export function workflowRunTriggerDisplayLabel({
+  triggerSource,
+  triggerEvent,
+}: {
+  triggerSource: string;
+  triggerEvent: string;
+}): string {
+  return triggerEvent || triggerSource;
 }
 
 export function isWorkflowRunTerminal(status: WorkflowRunStatus): boolean {
@@ -190,6 +201,10 @@ export function isWorkflowStatus(status: string): status is WorkflowStatus {
 
 export function toWorkflowRun(dto: RunResponseDto): WorkflowRun {
   const triggerLabel = workflowRunTriggerLabel({
+    triggerSource: dto.trigger_source,
+    triggerEvent: dto.trigger_event,
+  });
+  const triggerDisplayLabel = workflowRunTriggerDisplayLabel({
     triggerSource: dto.trigger_source,
     triggerEvent: dto.trigger_event,
   });
@@ -206,6 +221,7 @@ export function toWorkflowRun(dto: RunResponseDto): WorkflowRun {
     rerunMode: dto.rerun_mode,
     triggerSource: dto.trigger_source,
     triggerEvent: dto.trigger_event,
+    triggerDisplayLabel,
     triggerLabel,
     triggerPayload: dto.trigger_payload,
     inputs: dto.inputs ?? null,

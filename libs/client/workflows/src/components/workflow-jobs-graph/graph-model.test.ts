@@ -4,12 +4,11 @@ import {workflowJob, workflowRunDetail} from '#test/fixtures/workflow-run.js';
 import {buildWorkflowJobGraphModel, nextWorkflowJobGraphNodeId} from './graph-model.js';
 
 describe('buildWorkflowJobGraphModel', () => {
-  test('returns an empty model with a real trigger node', () => {
+  test('returns an empty model', () => {
     const run = makeRun({jobs: []});
 
     const result = buildWorkflowJobGraphModel({run});
 
-    expect(result.trigger.triggerLabel).toBe('github / push');
     expect(result.nodes).toEqual([]);
     expect(result.edges).toEqual([]);
     expect(result.columns).toEqual([]);

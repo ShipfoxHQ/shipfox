@@ -158,7 +158,8 @@ function unevenJoinRun(): WorkflowRunDetail {
     jobs: [packageJob, securityScan, smokeTests, deploy],
     triggerSource: 'manual',
     triggerEvent: 'release',
-    triggerLabel: 'manual / release',
+    triggerDisplayLabel: 'release',
+    triggerLabel: 'manual · release',
   });
 }
 

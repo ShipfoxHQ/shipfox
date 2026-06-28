@@ -11,12 +11,18 @@ import {
 import type {KeyboardEventHandler, Ref} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
-import type {WorkflowGraphTriggerNode, WorkflowJobGraphNode} from './graph-model.js';
+import type {WorkflowRunDetail} from '#core/workflow-run.js';
+import type {WorkflowJobGraphNode} from './graph-model.js';
 
 const TRIGGER_SIZE = 36;
 
-export function TriggerNode({trigger}: {trigger: WorkflowGraphTriggerNode}) {
-  const label = trigger.triggerLabel || 'trigger';
+export function TriggerNode({
+  trigger,
+}: {
+  trigger: Pick<WorkflowRunDetail, 'triggerDisplayLabel' | 'triggerLabel' | 'triggerSource'>;
+}) {
+  const label = trigger.triggerDisplayLabel || 'trigger';
+  const tooltip = trigger.triggerLabel || label;
 
   return (
     <Tooltip>
@@ -35,7 +41,7 @@ export function TriggerNode({trigger}: {trigger: WorkflowGraphTriggerNode}) {
         </button>
       </TooltipTrigger>
       <TooltipContent>
-        <span>{label}</span>
+        <span>{tooltip}</span>
       </TooltipContent>
     </Tooltip>
   );

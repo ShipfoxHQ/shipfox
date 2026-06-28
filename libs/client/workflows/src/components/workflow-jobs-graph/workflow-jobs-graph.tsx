@@ -14,6 +14,7 @@ export function WorkflowJobsGraph({
   return (
     <WorkflowJobsGraphView
       model={model}
+      trigger={run}
       selectedJobId={selectedJobId}
       defaultSelectedJobId={defaultSelectedJobId}
       onSelectedJobChange={onSelectedJobChange}

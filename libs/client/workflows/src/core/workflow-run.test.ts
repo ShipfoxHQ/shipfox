@@ -15,6 +15,7 @@ import {
   toWorkflowRunDetail,
   toWorkflowRunListPage,
   workflowRunShortId,
+  workflowRunTriggerDisplayLabel,
   workflowRunTriggerLabel,
 } from './workflow-run.js';
 
@@ -55,7 +56,8 @@ describe('workflow run model mapping', () => {
       rerunMode: 'failed',
       triggerSource: 'github',
       triggerEvent: 'push',
-      triggerLabel: 'github / push',
+      triggerDisplayLabel: 'push',
+      triggerLabel: 'github · push',
       triggerPayload: {ref: 'refs/heads/main'},
       inputs: {environment: 'production'},
       sourceSnapshot: {format: 'yaml', content: 'jobs: {}'},
@@ -84,6 +86,7 @@ describe('workflow run model mapping', () => {
     const run = toWorkflowRun(dto as unknown as Parameters<typeof toWorkflowRun>[0]);
 
     expect(run).toMatchObject({
+      triggerDisplayLabel: '',
       triggerLabel: '',
       inputs: null,
       sourceSnapshot: null,
@@ -287,7 +290,20 @@ describe('workflow run helpers', () => {
     const sourceOnly = workflowRunTriggerLabel({triggerSource: 'manual', triggerEvent: ''});
     const neither = workflowRunTriggerLabel({triggerSource: '', triggerEvent: ''});
 
-    expect(withBoth).toBe('github / push');
+    expect(withBoth).toBe('github · push');
+    expect(sourceOnly).toBe('manual');
+    expect(neither).toBe('');
+  });
+
+  test('formats visible trigger labels as the event name', () => {
+    const withBoth = workflowRunTriggerDisplayLabel({
+      triggerSource: 'github',
+      triggerEvent: 'push',
+    });
+    const sourceOnly = workflowRunTriggerDisplayLabel({triggerSource: 'manual', triggerEvent: ''});
+    const neither = workflowRunTriggerDisplayLabel({triggerSource: '', triggerEvent: ''});
+
+    expect(withBoth).toBe('push');
     expect(sourceOnly).toBe('manual');
     expect(neither).toBe('');
   });

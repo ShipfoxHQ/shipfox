@@ -75,7 +75,8 @@ describe('workflow run API hooks', () => {
       id: RUN_ID,
       triggerSource: 'github',
       triggerEvent: 'push',
-      triggerLabel: 'github / push',
+      triggerDisplayLabel: 'push',
+      triggerLabel: 'github · push',
       updatedAt: '2026-05-07T01:02:00.000Z',
       isTemporary: false,
     });
@@ -110,7 +111,8 @@ describe('workflow run API hooks', () => {
       id: RUN_ID,
       triggerSource: 'manual',
       triggerEvent: 'fire',
-      triggerLabel: 'manual / fire',
+      triggerDisplayLabel: 'fire',
+      triggerLabel: 'manual · fire',
       jobs: [{name: 'build', runId: RUN_ID}],
     });
 
