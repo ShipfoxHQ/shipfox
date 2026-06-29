@@ -14,6 +14,7 @@ if (typeof document !== 'undefined' && document.fonts) {
     document.fonts.load("16px 'Inter'"),
     document.fonts.load("italic 16px 'Inter'"),
     document.fonts.load("16px 'Commit Mono'"),
+    document.fonts.load("bold 16px 'Commit Mono'"),
   ]);
 }
 
