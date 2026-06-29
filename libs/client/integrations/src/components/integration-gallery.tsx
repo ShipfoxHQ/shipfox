@@ -31,9 +31,9 @@ export interface IntegrationGalleryProps {
 
 const lifecyclePills: Record<
   IntegrationConnectionLifecycleStatusDto,
-  {variant: 'success' | 'neutral' | 'error'; label: string; iconLeft?: IconName}
+  {variant: 'neutral' | 'error'; label: string; iconLeft?: IconName} | undefined
 > = {
-  active: {variant: 'success', label: 'Connected'},
+  active: undefined,
   // Mirrors the webhook-delivery taxonomy (DESIGN.md §9): disabled is quiet
   // neutral with a warning icon, not warning-orange (which means "act now").
   disabled: {variant: 'neutral', label: 'Disabled', iconLeft: 'errorWarningLine'},
@@ -144,7 +144,7 @@ function InstalledRow({
   const muted = connection.lifecycle_status === 'disabled';
 
   return (
-    <li className="flex items-center gap-12 px-16 py-10 transition-colors hover:bg-background-components-hover">
+    <li className="flex items-center gap-12 px-16 py-12 transition-colors hover:bg-background-components-hover">
       <IntegrationIcon
         source={connection.provider}
         aria-hidden
@@ -154,22 +154,31 @@ function InstalledRow({
         )}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <Text
-          size="md"
-          bold
-          className={cn('truncate', muted ? 'text-foreground-neutral-disabled' : undefined)}
-        >
-          {connection.display_name}
-        </Text>
+        <div className="flex min-w-0 items-center gap-8">
+          <Text
+            size="md"
+            bold
+            className={cn('truncate', muted ? 'text-foreground-neutral-disabled' : undefined)}
+          >
+            {connection.display_name}
+          </Text>
+          {pill ? (
+            <Badge
+              variant={pill.variant}
+              radius="rounded"
+              className="shrink-0"
+              {...(pill.iconLeft ? {iconLeft: pill.iconLeft} : {})}
+            >
+              {pill.label}
+            </Badge>
+          ) : null}
+        </div>
         {/* Provider is already named by the icon (and the account name), so the
             meta line carries only the date — no third repeat of the provider. */}
         <Text size="sm" className="truncate text-foreground-neutral-muted">
           Added {formatDate(connection.created_at)}
         </Text>
       </div>
-      {/* "Open" sits left of the pill (optional, only when external_url is set)
-          so the status pill stays the rightmost element on every row and the
-          pills align in a single scannable column. */}
       {connection.external_url ? (
         <Button
           asChild
@@ -188,14 +197,6 @@ function InstalledRow({
           </a>
         </Button>
       ) : null}
-      <Badge
-        variant={pill.variant}
-        radius="rounded"
-        className="shrink-0"
-        {...(pill.iconLeft ? {iconLeft: pill.iconLeft} : {})}
-      >
-        {pill.label}
-      </Badge>
     </li>
   );
 }
@@ -208,7 +209,7 @@ function InstalledSkeleton({label}: {label: string}) {
       className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}
     >
       {[0, 1, 2].map((row) => (
-        <li key={row} className="flex items-center gap-12 px-16 py-10">
+        <li key={row} className="flex items-center gap-12 px-16 py-12">
           <Skeleton className="size-24 shrink-0" />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <Skeleton className="h-16 w-120" />

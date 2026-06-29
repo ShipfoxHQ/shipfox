@@ -38,6 +38,7 @@ import {AgentProviderTestAndSaveForm} from './test-and-save-form.js';
 
 const SURFACE_CLASS =
   'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';
+const PROVIDER_GRID_CLASS = 'grid grid-cols-2 gap-12 max-[760px]:grid-cols-1';
 
 type ProviderFormState =
   | {mode: 'configure'; entry: AgentProviderCatalogEntryDto; config?: undefined}
@@ -160,7 +161,7 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
         ) : null}
 
         {configsLoaded && availableProviders.length > 0 ? (
-          <ul className="grid grid-cols-2 gap-12 max-[760px]:grid-cols-1">
+          <ul className={PROVIDER_GRID_CLASS}>
             {availableProviders.map((entry) => (
               <AvailableProviderCard
                 key={entry.id}
@@ -467,16 +468,20 @@ function AvailableProviderCard({
       <button
         type="button"
         className={cn(
-          'block w-full cursor-pointer px-14 py-10 text-left outline-none transition-colors hover:bg-background-components-hover focus-visible:shadow-button-neutral-focus',
+          'group block w-full cursor-pointer p-16 text-left outline-none transition-colors hover:bg-background-components-hover focus-visible:shadow-button-neutral-focus',
           SURFACE_CLASS,
         )}
         aria-label={`Configure ${entry.label}`}
         onClick={onConfigure}
       >
-        <div className="min-w-0 flex-1">
-          <Text size="md" bold className="truncate">
+        <div className="flex min-w-0 items-center justify-between gap-12">
+          <Text size="md" bold className="min-w-0 truncate">
             {entry.label}
           </Text>
+          <div className="flex shrink-0 items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">
+            <Text size="sm">Connect</Text>
+            <Icon name="chevronRight" className="size-16" />
+          </div>
         </div>
       </button>
     </li>
@@ -506,11 +511,7 @@ function ProviderRowsSkeleton({label}: {label: string}) {
 
 function ProviderGridSkeleton() {
   return (
-    <div
-      role="status"
-      aria-label="Loading available providers"
-      className="grid grid-cols-2 gap-12 max-[760px]:grid-cols-1"
-    >
+    <div role="status" aria-label="Loading available providers" className={PROVIDER_GRID_CLASS}>
       {[0, 1, 2, 3].map((card) => (
         <Skeleton key={card} className="h-136 w-full" />
       ))}

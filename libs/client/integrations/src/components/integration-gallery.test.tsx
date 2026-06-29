@@ -137,7 +137,7 @@ describe('IntegrationGallery — installed section', () => {
     expect(names).toEqual(['acme-early', 'acme-late']);
   });
 
-  test('renders the lifecycle badge label per status', async () => {
+  test('renders lifecycle badges only for states that need attention', async () => {
     renderGallery(
       {},
       {
@@ -163,7 +163,8 @@ describe('IntegrationGallery — installed section', () => {
       },
     );
 
-    expect(await screen.findByText('Connected')).toBeVisible();
+    expect(await screen.findByText('acme-corp')).toBeVisible();
+    expect(screen.queryByText('Connected')).not.toBeInTheDocument();
     expect(screen.getByText('Disabled')).toBeVisible();
     expect(screen.getByText('Error')).toBeVisible();
   });

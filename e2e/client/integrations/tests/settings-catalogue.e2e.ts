@@ -107,7 +107,7 @@ test('settings catalogue shows a connected provider after Debug connect', async 
 
   const installed = page.locator('section[aria-label="Installed integrations"]');
   await expect(installed.getByText('Debug', {exact: true})).toBeVisible();
-  await expect(installed.getByText('Connected')).toBeVisible();
+  await expect(installed.getByText('Connected')).toHaveCount(0);
 
   // `Added <date>` is server-generated, so it would drift the Argos baseline.
   // Pin only that text and keep the rest of the row anchored to the real Debug
