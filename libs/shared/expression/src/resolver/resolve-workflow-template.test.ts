@@ -125,7 +125,28 @@ describe('resolveWorkflowTemplate', () => {
     expect(error).toMatchObject({
       code: 'workflow-template-resolution-failed',
       name: 'WorkflowTemplateResolutionError',
-      expression: '1 / 0',
+      source: '1 / 0',
+    });
+    expect((error as WorkflowTemplateResolutionError).cause).toBeInstanceOf(
+      WorkflowExpressionEvaluationError,
+    );
+  });
+
+  it('wraps missing paths for required context roots in resolution errors', () => {
+    const segments = parseWorkflowTemplate(`run-${templateExpression(' run.id ')}`);
+
+    let error: unknown;
+    try {
+      resolveWorkflowTemplate(segments, {run: {}}, {requiredContextRoots: ['run']});
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(WorkflowTemplateResolutionError);
+    expect(error).toMatchObject({
+      code: 'workflow-template-resolution-failed',
+      name: 'WorkflowTemplateResolutionError',
+      source: 'run.id',
     });
     expect((error as WorkflowTemplateResolutionError).cause).toBeInstanceOf(
       WorkflowExpressionEvaluationError,

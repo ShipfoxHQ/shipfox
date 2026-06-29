@@ -2,11 +2,11 @@ export const workflowTemplateResolutionErrorCode = 'workflow-template-resolution
 
 export class WorkflowTemplateResolutionError extends Error {
   readonly code = workflowTemplateResolutionErrorCode;
-  readonly expression: string;
+  readonly source: string;
 
-  constructor(params: {expression: string; cause: unknown}) {
+  constructor(params: {source: string; cause: unknown}) {
     super('Workflow template resolution failed', {cause: params.cause});
     this.name = 'WorkflowTemplateResolutionError';
-    this.expression = params.expression;
+    this.source = params.source;
   }
 }

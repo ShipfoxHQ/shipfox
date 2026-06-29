@@ -19,9 +19,14 @@ export interface WorkflowTemplateResolution {
   readonly diagnostics: readonly WorkflowTemplateDiagnostic[];
 }
 
+export interface WorkflowTemplateResolutionOptions {
+  readonly requiredContextRoots?: readonly string[];
+}
+
 export function resolveWorkflowTemplate(
   segments: readonly WorkflowTemplateSegment[],
   context: WorkflowExpressionEvaluationContext,
+  options: WorkflowTemplateResolutionOptions = {},
 ): WorkflowTemplateResolution {
   let value = '';
   const diagnostics: WorkflowTemplateDiagnostic[] = [];
@@ -36,16 +41,25 @@ export function resolveWorkflowTemplate(
       value += coerceWorkflowValueToString(evaluateWorkflowExpression(segment.expression, context));
     } catch (error) {
       if (error instanceof WorkflowExpressionEvaluationError && error.reason === 'missing-path') {
-        diagnostics.push({
+        const diagnostic = {
           reason: 'missing-path',
           expression: segment.expression.source,
           contextRoots: segment.contextRoots,
-        });
+        } as const satisfies WorkflowTemplateDiagnostic;
+
+        if (missingPathRequiresFailure(diagnostic, options)) {
+          throw new WorkflowTemplateResolutionError({
+            source: segment.expression.source,
+            cause: error,
+          });
+        }
+
+        diagnostics.push(diagnostic);
         continue;
       }
 
       throw new WorkflowTemplateResolutionError({
-        expression: segment.expression.source,
+        source: segment.expression.source,
         cause: error,
       });
     }
@@ -57,6 +71,15 @@ export function resolveWorkflowTemplate(
 export function resolveWorkflowTemplateSource(
   source: string,
   context: WorkflowExpressionEvaluationContext,
+  options?: WorkflowTemplateResolutionOptions,
 ): WorkflowTemplateResolution {
-  return resolveWorkflowTemplate(parseWorkflowTemplate(source), context);
+  return resolveWorkflowTemplate(parseWorkflowTemplate(source), context, options);
+}
+
+function missingPathRequiresFailure(
+  diagnostic: WorkflowTemplateDiagnostic,
+  options: WorkflowTemplateResolutionOptions,
+): boolean {
+  const requiredContextRoots = options.requiredContextRoots ?? [];
+  return diagnostic.contextRoots.some((contextRoot) => requiredContextRoots.includes(contextRoot));
 }

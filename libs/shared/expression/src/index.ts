@@ -36,6 +36,7 @@ export {
   resolveWorkflowTemplateSource,
   type WorkflowTemplateDiagnostic,
   type WorkflowTemplateResolution,
+  type WorkflowTemplateResolutionOptions,
 } from './resolver/resolve-workflow-template.js';
 export {
   InvalidWorkflowTemplateError,
