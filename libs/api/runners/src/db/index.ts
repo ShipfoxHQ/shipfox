@@ -14,6 +14,7 @@ export {
   claimPendingJob,
   enqueueJob,
   expireStuckJobs,
+  isJobLeaseActive,
   listActiveRunningJobs,
   recordHeartbeat,
   releaseJob,

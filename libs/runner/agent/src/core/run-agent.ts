@@ -1,5 +1,6 @@
 import {join} from 'node:path';
 import {
+  type ApiKeyCredential,
   AuthStorage,
   type CreateAgentSessionOptions,
   createAgentSession,
@@ -56,16 +57,10 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   // session exists so a mid-creation abort still stops pi.
   if (signal.aborted) throw new Error('Agent step aborted before the pi session started');
 
-  const authStorage = AuthStorage.create();
-  if (credentials !== undefined) {
-    const apiKey = credentials.api_key;
-    if (apiKey === undefined || apiKey === '') {
-      throw new AgentConfigError(
-        `No API key returned for provider "${provider}" in the agent runtime config.`,
-      );
-    }
-    authStorage.setRuntimeApiKey(provider, apiKey);
-  }
+  const authStorage =
+    credentials === undefined
+      ? AuthStorage.create()
+      : AuthStorage.inMemory({[provider]: toPiRuntimeCredential(provider, credentials)});
   const modelRegistry = ModelRegistry.create(authStorage);
   const model = resolveModel(modelRegistry, provider, modelId);
 
@@ -158,4 +153,49 @@ function resolveModel(
   throw new AgentConfigError(
     `Model "${modelId}" is not available for provider "${provider}".${hint}`,
   );
+}
+
+function toPiRuntimeCredential(
+  provider: string,
+  credentials: Record<string, string>,
+): ApiKeyCredential {
+  const credential: ApiKeyCredential = {
+    type: 'api_key',
+    key: credentialValue(provider, credentials, 'api_key'),
+  };
+  const env = providerCredentialEnv(provider, credentials);
+  return env === undefined ? credential : {...credential, env};
+}
+
+function providerCredentialEnv(
+  provider: string,
+  credentials: Record<string, string>,
+): Record<string, string> | undefined {
+  switch (provider) {
+    case 'azure-openai-responses':
+      return {AZURE_OPENAI_BASE_URL: credentialValue(provider, credentials, 'endpoint')};
+    case 'cloudflare-ai-gateway':
+      return {
+        CLOUDFLARE_ACCOUNT_ID: credentialValue(provider, credentials, 'account_id'),
+        CLOUDFLARE_GATEWAY_ID: credentialValue(provider, credentials, 'gateway_id'),
+      };
+    case 'cloudflare-workers-ai':
+      return {CLOUDFLARE_ACCOUNT_ID: credentialValue(provider, credentials, 'account_id')};
+    default:
+      return undefined;
+  }
+}
+
+function credentialValue(
+  provider: string,
+  credentials: Record<string, string>,
+  key: string,
+): string {
+  const value = credentials[key];
+  if (value === undefined || value === '') {
+    throw new AgentConfigError(
+      `Runtime credentials for provider "${provider}" are missing "${key}".`,
+    );
+  }
+  return value;
 }

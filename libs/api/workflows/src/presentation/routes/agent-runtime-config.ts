@@ -9,6 +9,7 @@ import {
   materializedAgentStepConfigSchema,
 } from '@shipfox/api-agent-dto';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
+import {isJobLeaseActive} from '@shipfox/api-runners';
 import {agentRuntimeConfigQuerySchema} from '@shipfox/api-workflows-dto';
 import {captureException} from '@shipfox/node-error-monitoring';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
@@ -60,6 +61,13 @@ export const agentRuntimeConfigRoute = defineRoute({
     const workspaceId = await getJobWorkspaceId(leasedJob.jobId);
     if (!workspaceId) {
       throw new ClientError('Leased job not found', 'job-not-found', {status: 404});
+    }
+    const leaseIsActive = await isJobLeaseActive({
+      jobId: leasedJob.jobId,
+      runnerSessionId: leasedJob.runnerSessionId,
+    });
+    if (!leaseIsActive) {
+      throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
     }
     if (step.currentAttempt !== attempt) {
       throw new ClientError(
