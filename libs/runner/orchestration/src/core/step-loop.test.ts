@@ -41,11 +41,15 @@ vi.mock('@shipfox/runner-execution', () => ({
   executeSetupStep: (...args: unknown[]) => executeSetupStepMock(...args),
 }));
 
-vi.mock('@shipfox/runner-logs', () => ({
-  createStepLogStream: (...args: unknown[]) => createStepLogStreamMock(...args),
-  createSessionLogStream: (...args: unknown[]) => createSessionLogStreamMock(...args),
-  buildSecretVariants: (secrets: string[]) => secrets.filter((secret) => secret !== ''),
-}));
+vi.mock('@shipfox/runner-logs', async () => {
+  const actual =
+    await vi.importActual<typeof import('@shipfox/runner-logs')>('@shipfox/runner-logs');
+  return {
+    createStepLogStream: (...args: unknown[]) => createStepLogStreamMock(...args),
+    createSessionLogStream: (...args: unknown[]) => createSessionLogStreamMock(...args),
+    buildSecretVariants: actual.buildSecretVariants,
+  };
+});
 
 vi.mock('@shipfox/runner-agent', () => ({
   executeAgentStep: (...args: unknown[]) => executeAgentStepMock(...args),
@@ -805,11 +809,12 @@ describe('runJobSteps', () => {
 
   it('redacts runtime credential values from agent failures and blanks output before reporting', async () => {
     const agent = buildAgentStep();
+    const hexCredential = Buffer.from('sk-runtime-secret').toString('hex');
     executeAgentStepMock.mockResolvedValue({
       success: false,
       output: 'provider echoed sk-runtime-secret',
       error: {
-        message: 'provider rejected sk-runtime-secret',
+        message: `provider rejected sk-runtime-secret and ${hexCredential}`,
         reason: 'agent_invocation_failed' as const,
       },
       exit_code: null,
@@ -834,7 +839,7 @@ describe('runJobSteps', () => {
       success: false,
       output: '',
       error: {
-        message: 'provider rejected ***',
+        message: 'provider rejected *** and ***',
         reason: 'agent_invocation_failed',
       },
       exit_code: null,

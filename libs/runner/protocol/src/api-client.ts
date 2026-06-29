@@ -258,10 +258,7 @@ export async function requestAgentRuntimeConfig(
     });
   } catch (error) {
     if (error instanceof HTTPError) {
-      throw new AgentRuntimeConfigRequestError(
-        error.response.status,
-        codeFromBody(error.data) ?? (await errorCode(error.response)),
-      );
+      throw new AgentRuntimeConfigRequestError(error.response.status, codeFromBody(error.data));
     }
     throw error;
   }
