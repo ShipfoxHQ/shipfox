@@ -116,6 +116,49 @@ describe('createWorkflowExpression', () => {
     });
   });
 
+  it('rejects timestamp fields compared with non-timestamp values', () => {
+    const act = () =>
+      createWorkflowExpression({
+        source: 'event.value < 1',
+        check: {
+          mode: 'typed',
+          typeEnvironment: {
+            event: {kind: 'object', fields: {value: 'timestamp'}},
+          },
+        },
+      });
+
+    expect(act).toThrow(InvalidWorkflowExpressionError);
+  });
+
+  it('type-checks nested object fields registered through schemas', () => {
+    const expression = createWorkflowExpression({
+      source: 'event.pull_request.title == "ready"',
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          event: {
+            kind: 'object',
+            fields: {
+              pull_request: {
+                kind: 'object',
+                fields: {
+                  title: 'string',
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(expression).toEqual({
+      language: 'cel',
+      source: 'event.pull_request.title == "ready"',
+      check: 'typed',
+    });
+  });
+
   it('rejects parse errors before type checking', () => {
     const act = () =>
       createWorkflowExpression({

@@ -14,7 +14,7 @@ const scalarTypeToCelType = {
   double: 'double',
   bool: 'bool',
   null: 'null',
-  timestamp: 'dyn',
+  timestamp: 'google.protobuf.Timestamp',
 } satisfies Record<ExpressionScalarType, string>;
 
 type CelSchema = {
@@ -48,7 +48,7 @@ export function createWorkflowExpression(
       if (typeof celType === 'string') {
         environment.registerVariable(name, celType);
       } else {
-        environment.registerVariable(name, celType);
+        environment.registerVariable({name, schema: celType.schema});
       }
     }
 
