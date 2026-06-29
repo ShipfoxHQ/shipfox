@@ -1973,6 +1973,9 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
+      '@shipfox/node-error-monitoring':
+        specifier: workspace:*
+        version: link:../../shared/node/error-monitoring
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../shared/node/fastify
@@ -3487,6 +3490,9 @@ importers:
 
   libs/runner/protocol:
     dependencies:
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../../api/agent-dto
       '@shipfox/api-logs-dto':
         specifier: workspace:*
         version: link:../../api/logs-dto

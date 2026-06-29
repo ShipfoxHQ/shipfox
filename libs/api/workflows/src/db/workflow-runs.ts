@@ -193,6 +193,21 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
   return result.run;
 }
 
+export async function getStepByIdForJob(params: {
+  stepId: string;
+  jobId: string;
+}): Promise<Step | undefined> {
+  const rows = await db()
+    .select()
+    .from(steps)
+    .where(and(eq(steps.id, params.stepId), eq(steps.jobId, params.jobId)))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return undefined;
+  return toStep(row);
+}
+
 export interface CreateRerunWorkflowRunParams {
   sourceRunId: string;
   mode: 'all' | 'failed';
@@ -605,6 +620,16 @@ export async function getJobById(id: string): Promise<Job | undefined> {
   const row = rows[0];
   if (!row) return undefined;
   return toJob(row);
+}
+
+export async function getJobWorkspaceId(jobId: string): Promise<string | undefined> {
+  const rows = await db()
+    .select({workspaceId: workflowRuns.workspaceId})
+    .from(jobs)
+    .innerJoin(workflowRuns, eq(jobs.runId, workflowRuns.id))
+    .where(eq(jobs.id, jobId))
+    .limit(1);
+  return rows[0]?.workspaceId;
 }
 
 export async function getStepsByJobId(jobId: string): Promise<Step[]> {

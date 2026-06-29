@@ -23,7 +23,13 @@ export {
   mintEphemeralRegistrationToken,
   mintEphemeralRegistrationTokensBatch,
 } from '#core/ephemeral-registration-tokens.js';
-export {cancelRunnerJobs, type EnqueueJobParams, enqueueJob, releaseJob} from '#db/index.js';
+export {
+  cancelRunnerJobs,
+  type EnqueueJobParams,
+  enqueueJob,
+  isJobLeaseActive,
+  releaseJob,
+} from '#db/index.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');

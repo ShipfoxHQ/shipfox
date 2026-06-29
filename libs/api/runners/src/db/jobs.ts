@@ -292,6 +292,24 @@ export async function listActiveRunningJobs(params: {
     .limit(params.limit ?? 1000);
 }
 
+export async function isJobLeaseActive(params: {
+  jobId: string;
+  runnerSessionId: string;
+}): Promise<boolean> {
+  const [row] = await db()
+    .select({id: runningJobs.id})
+    .from(runningJobs)
+    .where(
+      and(
+        eq(runningJobs.jobId, params.jobId),
+        eq(runningJobs.runnerSessionId, params.runnerSessionId),
+      ),
+    )
+    .limit(1);
+
+  return row !== undefined;
+}
+
 export async function recordHeartbeat(params: {
   jobId: string;
   runnerSessionId: string;

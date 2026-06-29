@@ -9,3 +9,10 @@ export const providerValidationCount = meter.createCounter<{
 }>('agent_provider_validation_attempted', {
   description: 'Provider credential test attempts by provider and outcome',
 });
+
+export const agentRuntimeConfigResolvedCount = meter.createCounter<{
+  source: 'workspace' | 'instance';
+  outcome: 'resolved' | 'unavailable' | 'decryption_failed';
+}>('agent_runtime_config_resolved', {
+  description: 'Lease-scoped agent runtime credential resolution by source and outcome',
+});

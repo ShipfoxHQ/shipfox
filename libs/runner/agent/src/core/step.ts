@@ -11,7 +11,12 @@ const DEFAULT_PROVIDER = 'anthropic';
 
 export function executeAgentStep(
   step: StepDto,
-  options: {signal?: AbortSignal; cwd?: string; onSessionEntry?: (line: string) => void} = {},
+  options: {
+    signal?: AbortSignal;
+    cwd?: string;
+    credentials?: Record<string, string>;
+    onSessionEntry?: (line: string) => void;
+  } = {},
 ): Promise<StepResult> {
   if (step.type !== 'agent') {
     return Promise.resolve(agentFailure(`Unsupported step type: ${step.type}`));
@@ -30,6 +35,7 @@ export function executeAgentStep(
     prompt,
     thinking: typeof thinking === 'string' ? thinking : DEFAULT_THINKING,
     provider: typeof provider === 'string' && provider !== '' ? provider : DEFAULT_PROVIDER,
+    credentials: options.credentials,
     signal: options.signal,
     onSessionEntry: options.onSessionEntry,
   });
@@ -41,10 +47,11 @@ async function runAgentStep(params: {
   prompt: string;
   thinking: string;
   provider: string;
+  credentials: Record<string, string> | undefined;
   signal: AbortSignal | undefined;
   onSessionEntry: ((line: string) => void) | undefined;
 }): Promise<StepResult> {
-  const {cwd, model, prompt, thinking, provider, onSessionEntry} = params;
+  const {cwd, model, prompt, thinking, provider, credentials, onSessionEntry} = params;
   const signal = params.signal ?? new AbortController().signal;
 
   try {
@@ -55,6 +62,7 @@ async function runAgentStep(params: {
         provider,
         thinking,
         prompt,
+        ...(credentials ? {credentials} : {}),
         signal,
         ...(onSessionEntry ? {onSessionEntry} : {}),
       }),

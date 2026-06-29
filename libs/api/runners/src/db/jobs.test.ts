@@ -15,6 +15,7 @@ import {
   enqueueJob,
   expireStuckJobs,
   getJobQueueDepth,
+  isJobLeaseActive,
   recordHeartbeat,
   releaseJob,
   requestJobCancellation,
@@ -220,6 +221,21 @@ describe('claimPendingJob', () => {
     expect(claimed?.jobId).toBe(created.jobId);
     expect(claimed?.runId).toBe(created.runId);
     expect(claimed?.projectId).toBe(created.projectId);
+  });
+
+  it('reports an active lease only for the session that claimed the job', async () => {
+    const created = await pendingJobFactory.create({workspaceId});
+    const otherRunnerSession = await runnerSessionFactory.create({workspaceId});
+
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
+    const active = await isJobLeaseActive({jobId: claimed?.jobId as string, runnerSessionId});
+    const stale = await isJobLeaseActive({
+      jobId: created.jobId,
+      runnerSessionId: otherRunnerSession.id,
+    });
+
+    expect(active).toBe(true);
+    expect(stale).toBe(false);
   });
 
   it('returns null when no jobs are pending', async () => {

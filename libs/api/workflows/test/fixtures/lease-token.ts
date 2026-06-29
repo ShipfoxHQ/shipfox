@@ -11,6 +11,7 @@ export interface MintLeaseTokenParams {
   runId?: string;
   projectId?: string;
   workspaceId?: string;
+  runnerSessionId?: string;
   secret?: string;
   expiresIn?: string;
   audience?: string;
@@ -23,7 +24,7 @@ export function mintLeaseToken(params: MintLeaseTokenParams): Promise<string> {
       runId: params.runId ?? crypto.randomUUID(),
       projectId: params.projectId ?? crypto.randomUUID(),
       workspaceId: params.workspaceId ?? crypto.randomUUID(),
-      runnerSessionId: crypto.randomUUID(),
+      runnerSessionId: params.runnerSessionId ?? crypto.randomUUID(),
     },
     secret: params.secret ?? SECRET,
     expiresIn: params.expiresIn ?? '90m',

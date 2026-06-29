@@ -17,10 +17,12 @@ import {
   type StepLogStream,
 } from '@shipfox/runner-logs';
 import {
+  AgentRuntimeConfigRequestError,
   appendStepLogs,
   HTTPError,
   type LogAppendFn,
   reportStep,
+  requestAgentRuntimeConfig,
   requestNextStep,
 } from '@shipfox/runner-protocol';
 import type {KyInstance} from 'ky';
@@ -261,13 +263,29 @@ export async function executeStep(params: {
     // pipeline as opaque `agent_session` records. Capture is best-effort: if the spool cannot
     // be opened, run the agent without it rather than failing the step.
     if (step.type === 'agent') {
+      let runtimeConfig: Awaited<ReturnType<typeof requestAgentRuntimeConfig>>;
+      try {
+        runtimeConfig = await requestAgentRuntimeConfig(leaseClient, {
+          stepId: step.id,
+          attempt,
+          signal,
+        });
+      } catch (error) {
+        return {
+          result: agentRuntimeConfigFailure(error),
+          logOutcome: 'drained',
+          preparedWorkspace: false,
+        };
+      }
+
       let sessionStream: SessionLogStream | undefined;
+      const agentSecrets = [...secrets, ...Object.values(runtimeConfig.credentials)];
       try {
         sessionStream = createSessionLogStream({
           logsDir,
           stepId: step.id,
           attempt,
-          secrets,
+          secrets: agentSecrets,
           append,
         });
       } catch (error) {
@@ -280,6 +298,7 @@ export async function executeStep(params: {
       const result = await executeAgentStep(step, {
         signal,
         cwd,
+        credentials: runtimeConfig.credentials,
         ...(sessionStream
           ? {onSessionEntry: (line: string) => sessionStream?.writeEntry(line)}
           : {}),
@@ -343,6 +362,28 @@ export async function executeStep(params: {
       preparedWorkspace: false,
     };
   }
+}
+
+function agentRuntimeConfigFailure(error: unknown): StepResult {
+  if (error instanceof AgentRuntimeConfigRequestError) {
+    return {
+      success: false,
+      error: {
+        message: error.message,
+        reason:
+          error.code === 'agent-config-invalid'
+            ? 'agent_config_invalid'
+            : 'agent_invocation_failed',
+      },
+      exit_code: null,
+    };
+  }
+
+  return {
+    success: false,
+    error: {message: error instanceof Error ? error.message : String(error)},
+    exit_code: null,
+  };
 }
 
 function writeCommandMetadata(
