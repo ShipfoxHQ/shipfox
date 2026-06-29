@@ -1,13 +1,13 @@
 import {deleteExpiredRunnerReservations, detectAndExpireStuckJobs} from '#core/maintenance.js';
 
-export async function detectAndExpireStuckJobsActivity(params: {
+export function detectAndExpireStuckJobsActivity(params: {
   thresholdSeconds: number;
 }): Promise<{expired: number}> {
-  return await detectAndExpireStuckJobs(params);
+  return detectAndExpireStuckJobs(params);
 }
 
-export async function deleteExpiredReservationsActivity(params?: {
+export function deleteExpiredReservationsActivity(params?: {
   limit?: number;
 }): Promise<{deleted: number}> {
-  return await deleteExpiredRunnerReservations(params);
+  return deleteExpiredRunnerReservations(params);
 }

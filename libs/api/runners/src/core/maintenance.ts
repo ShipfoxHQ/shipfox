@@ -4,7 +4,6 @@ import {STUCK_JOB_THRESHOLD_SECONDS} from './maintenance-policy.js';
 
 export interface DetectAndExpireStuckJobsParams {
   thresholdSeconds?: number;
-  limit?: number;
 }
 
 export async function detectAndExpireStuckJobs(
@@ -12,7 +11,6 @@ export async function detectAndExpireStuckJobs(
 ): Promise<{expired: number}> {
   const reaped = await expireStuckJobs({
     thresholdSeconds: params.thresholdSeconds ?? STUCK_JOB_THRESHOLD_SECONDS,
-    ...(params.limit === undefined ? {} : {limit: params.limit}),
   });
   return {expired: reaped.length};
 }
