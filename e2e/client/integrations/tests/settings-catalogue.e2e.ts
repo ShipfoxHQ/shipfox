@@ -76,15 +76,15 @@ test('settings catalogue lists available providers with an empty installed state
   await page.goto(`/workspaces/${workspace.id}/settings/integrations`);
 
   await expect(page.getByRole('heading', {name: 'Available integrations'})).toBeVisible();
-  await expect(page.getByRole('link', {name: 'Connect GitHub'})).toBeVisible();
-  await expect(page.getByRole('link', {name: 'Connect Sentry'})).toBeVisible();
-  await expect(page.getByRole('link', {name: 'Connect Debug'})).toBeVisible();
-  await expect(page.getByText('No integrations connected yet')).toBeVisible();
+  await expect(page.getByRole('link', {name: 'Install GitHub'})).toBeVisible();
+  await expect(page.getByRole('link', {name: 'Install Sentry'})).toBeVisible();
+  await expect(page.getByRole('link', {name: 'Install Debug'})).toBeVisible();
+  await expect(page.getByText('No integrations installed yet')).toBeVisible();
 
   await argosScreenshot(page, 'integrations/settings-empty');
 });
 
-test('settings catalogue shows a connected provider after Debug connect', async ({
+test('settings catalogue shows an installed provider after Debug install', async ({
   page,
   auth,
   workspaces,
@@ -97,11 +97,11 @@ test('settings catalogue shows a connected provider after Debug connect', async 
   await auth.loginAs(page, user);
   await stubProjectExists(page, workspace.id);
 
-  // Real Debug connect (no external dependency): the install page creates the
+  // Real Debug install (no external dependency): the install page creates the
   // connection on mount, fires the success toast, then forwards to
   // /workspaces/$wid, so we explicitly return to settings to inspect the row.
   await page.goto(`/workspaces/${workspace.id}/integrations/debug`);
-  await expect(page.getByText('Debug source control connected.')).toBeVisible();
+  await expect(page.getByText('Debug source control installed.')).toBeVisible();
 
   await page.goto(`/workspaces/${workspace.id}/settings/integrations`);
 

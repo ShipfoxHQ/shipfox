@@ -127,7 +127,7 @@ describe('classifySentryConnectError', () => {
 
     expect(result).toEqual({
       kind: 'terminal',
-      message: 'This Sentry org is already connected to another workspace.',
+      message: 'This Sentry org is already installed in another workspace.',
       startOver: false,
     });
   });
@@ -198,13 +198,13 @@ describe('classifySentryConnectError', () => {
   test('5xx ApiError falls back to retryable', () => {
     const result = classifySentryConnectError(apiError({code: 'server-error', status: 500}));
 
-    expect(result).toEqual({kind: 'retryable', message: 'Could not connect Sentry. Try again.'});
+    expect(result).toEqual({kind: 'retryable', message: 'Could not install Sentry. Try again.'});
   });
 
   test('unknown errors fall back to retryable', () => {
     const result = classifySentryConnectError(new Error('network down'));
 
-    expect(result).toEqual({kind: 'retryable', message: 'Could not connect Sentry. Try again.'});
+    expect(result).toEqual({kind: 'retryable', message: 'Could not install Sentry. Try again.'});
   });
 });
 

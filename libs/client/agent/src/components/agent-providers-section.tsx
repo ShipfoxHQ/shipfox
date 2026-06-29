@@ -86,7 +86,7 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
         <div className="flex flex-col gap-4">
           <Header variant="h3">Configured providers</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
-            Workspace credentials available to agent jobs.
+            Workspace credentials available to agent steps.
           </Text>
         </div>
 
@@ -105,7 +105,7 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
             <EmptyState
               icon="key2Line"
               title="No providers configured"
-              description="Configure a provider below to run agent jobs with workspace-managed credentials."
+              description="Configure a provider below to run agent steps with workspace-managed credentials."
             />
           </div>
         ) : null}
@@ -138,7 +138,7 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
         <div className="flex flex-col gap-4">
           <Header variant="h3">Available providers</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
-            Supported providers ready for workspace credentials.
+            Providers that can be configured for agent steps in this workspace.
           </Text>
         </div>
 
@@ -177,7 +177,7 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
         <div className="flex flex-col gap-4">
           <Header variant="h3">Unsupported providers</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
-            Providers that cannot use workspace-managed API keys yet.
+            Providers that cannot be configured in this workspace yet.
           </Text>
         </div>
 
@@ -479,7 +479,7 @@ function AvailableProviderCard({
             {entry.label}
           </Text>
           <div className="flex shrink-0 items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">
-            <Text size="sm">Connect</Text>
+            <Text size="sm">Configure</Text>
             <Icon name="chevronRight" className="size-16" />
           </div>
         </div>

@@ -60,7 +60,7 @@ function GithubCallbackRoute() {
         if (disposed) return;
         if (!toastedCallbacks.has(key)) {
           toastedCallbacks.add(key);
-          toast.success('GitHub connected.');
+          toast.success('GitHub installed.');
         }
         navigate({to: '/', replace: true});
       })
@@ -124,5 +124,5 @@ function numberParam(value: unknown): number | undefined {
 function githubCallbackErrorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
-  return 'Could not connect GitHub.';
+  return 'Could not install GitHub.';
 }

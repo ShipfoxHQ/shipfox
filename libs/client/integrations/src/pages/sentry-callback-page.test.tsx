@@ -53,11 +53,11 @@ beforeEach(() => {
 });
 
 describe('SentryCallbackPage', () => {
-  test('always asks for confirmation and never auto-connects', async () => {
+  test('always asks for confirmation and never auto-installs', async () => {
     renderCallback({installationId: 'install-confirm', orgSlug: 'acme'});
 
-    expect(await screen.findByText('Connect the Sentry org "acme" to a workspace.')).toBeVisible();
-    expect(screen.getByRole('button', {name: 'Connect'})).toBeVisible();
+    expect(await screen.findByText('Install the Sentry org "acme" in a workspace.')).toBeVisible();
+    expect(screen.getByRole('button', {name: 'Install'})).toBeVisible();
     expect(connectSentryMock).not.toHaveBeenCalled();
   });
 
@@ -67,7 +67,7 @@ describe('SentryCallbackPage', () => {
     renderCallback({installationId: 'install-loading', loadingAuth: true});
 
     expect(await screen.findByRole('status', {name: 'Loading'})).toBeInTheDocument();
-    expect(screen.queryByRole('button', {name: 'Connect'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Install'})).not.toBeInTheDocument();
     expect(connectSentryMock).not.toHaveBeenCalled();
   });
 
@@ -86,7 +86,7 @@ describe('SentryCallbackPage', () => {
 
     expect(await screen.findByText('Acme')).toBeVisible();
     expect(screen.getByText('Beta')).toBeVisible();
-    expect(screen.getAllByRole('button', {name: 'Connect'})).toHaveLength(2);
+    expect(screen.getAllByRole('button', {name: 'Install'})).toHaveLength(2);
   });
 
   test('renders a terminal state when params are missing', async () => {
@@ -94,15 +94,15 @@ describe('SentryCallbackPage', () => {
 
     // Alert mounts via framer-motion (opacity 0 in jsdom), so assert presence.
     expect(await screen.findByText(MISSING_PARAMS_RE)).toBeInTheDocument();
-    expect(screen.queryByRole('button', {name: 'Connect'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Install'})).not.toBeInTheDocument();
     expect(connectSentryMock).not.toHaveBeenCalled();
   });
 
-  test('connects on click and lands on the settings integrations page', async () => {
+  test('installs on click and lands on the settings integrations page', async () => {
     connectSentryMock.mockResolvedValue({});
     renderCallback({installationId: 'install-success'});
 
-    fireEvent.click(await screen.findByRole('button', {name: 'Connect'}));
+    fireEvent.click(await screen.findByRole('button', {name: 'Install'}));
 
     await screen.findByTestId('route:/workspaces/$wid/settings/integrations');
     expect(connectSentryMock).toHaveBeenCalledWith({
@@ -123,7 +123,7 @@ describe('SentryCallbackPage', () => {
       .mockResolvedValueOnce({});
     renderCallback({installationId: 'install-retry'});
 
-    fireEvent.click(await screen.findByRole('button', {name: 'Connect'}));
+    fireEvent.click(await screen.findByRole('button', {name: 'Install'}));
     fireEvent.click(await screen.findByRole('button', {name: 'Retry'}));
 
     await screen.findByTestId('route:/workspaces/$wid/settings/integrations');
@@ -145,12 +145,12 @@ describe('SentryCallbackPage', () => {
     renderCallback({installationId: 'install-lock-recover'});
 
     // First failure is rate-limited, so the lock disables Retry.
-    fireEvent.click(await screen.findByRole('button', {name: 'Connect'}));
+    fireEvent.click(await screen.findByRole('button', {name: 'Install'}));
     await waitFor(() => expect(screen.getByRole('button', {name: 'Retry'})).toBeDisabled());
 
-    // A second attempt (via the still-enabled workspace Connect) fails with no
+    // A second attempt (via the still-enabled workspace Install) fails with no
     // backoff hint — the lock must clear so the user is not stranded.
-    fireEvent.click(screen.getByRole('button', {name: 'Connect'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Install'}));
     await waitFor(() => expect(screen.getByRole('button', {name: 'Retry'})).toBeEnabled());
   });
 
@@ -160,7 +160,7 @@ describe('SentryCallbackPage', () => {
     );
     renderCallback({installationId: 'install-terminal'});
 
-    fireEvent.click(await screen.findByRole('button', {name: 'Connect'}));
+    fireEvent.click(await screen.findByRole('button', {name: 'Install'}));
 
     expect(await screen.findByText('Sentry rejected the code.')).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Start over'})).toBeInTheDocument();
@@ -177,10 +177,10 @@ describe('SentryCallbackPage', () => {
     );
     renderCallback({installationId: 'install-409'});
 
-    fireEvent.click(await screen.findByRole('button', {name: 'Connect'}));
+    fireEvent.click(await screen.findByRole('button', {name: 'Install'}));
 
     expect(
-      await screen.findByText('This Sentry org is already connected to another workspace.'),
+      await screen.findByText('This Sentry org is already installed in another workspace.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Retry'})).not.toBeInTheDocument();
     expect(screen.queryByRole('link', {name: 'Start over'})).not.toBeInTheDocument();
@@ -191,13 +191,13 @@ describe('SentryCallbackPage', () => {
       new ApiError({message: 'down', code: 'timeout', status: 503}),
     );
     const first = renderCallback({installationId: 'install-remount'});
-    fireEvent.click(await screen.findByRole('button', {name: 'Connect'}));
+    fireEvent.click(await screen.findByRole('button', {name: 'Install'}));
     await screen.findByRole('button', {name: 'Retry'});
     first.unmount();
 
     connectSentryMock.mockResolvedValue({});
     renderCallback({installationId: 'install-remount'});
-    fireEvent.click(await screen.findByRole('button', {name: 'Connect'}));
+    fireEvent.click(await screen.findByRole('button', {name: 'Install'}));
 
     await screen.findByTestId('route:/workspaces/$wid/settings/integrations');
     await waitFor(() => expect(connectSentryMock).toHaveBeenCalledTimes(2));

@@ -67,6 +67,8 @@ describe('IntegrationsSettingsPage', () => {
     expect(screen.getByRole('region', {name: 'Available integrations'})).toBeInTheDocument();
     expect(await screen.findByText('acme-corp')).toBeVisible();
     expect(screen.queryByText('Connected')).not.toBeInTheDocument();
+    expect(screen.queryByText('Connect')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Install GitHub'})).toBeVisible();
     expect(screen.getByText(ADDED_META_RE)).toBeVisible();
   });
 });

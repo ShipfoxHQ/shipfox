@@ -60,7 +60,7 @@ async function stubProjectsExist(page: Page, workspaceIds: ReadonlyArray<string>
 
 async function completeWorkspaceSetup(page: Page, workspaceId: string): Promise<void> {
   await page.goto(`/workspaces/${workspaceId}/integrations/debug`);
-  await expect(page.getByText('Debug source control connected.')).toBeVisible();
+  await expect(page.getByText('Debug source control installed.')).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`/workspaces/${workspaceId}/projects/new/?$`, 'u'));
   await expect(page.getByRole('radio', {name: DEBUG_REPOSITORY_RE})).toBeVisible();
   await expect(page.getByRole('button', {name: 'Create project'})).toBeEnabled();
@@ -111,7 +111,7 @@ test('creates the first workspace via onboarding and persists lastWorkspaceId', 
   await page.getByRole('button', {name: 'Create workspace'}).click();
 
   await expect(page).toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
-  await expect(page.getByRole('heading', {name: 'Connect source control'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Install source control'})).toBeVisible();
   await expectSetupNavigationHidden(page);
   const url = new URL(page.url());
   const wid = url.pathname.split('/')[2];
@@ -185,7 +185,7 @@ test('routes setup workspace settings back to source-control onboarding', async 
   await page.goto(`/workspaces/${workspace.id}/settings`);
 
   await expect(page).toHaveURL(new RegExp(`/workspaces/${workspace.id}/integrations/?$`, 'u'));
-  await expect(page.getByRole('heading', {name: 'Connect source control'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Install source control'})).toBeVisible();
   await expectSetupNavigationHidden(page);
 });
 
