@@ -9,6 +9,7 @@ export const provisionedRunnerStateEnum = pgEnum('runners_provisioned_runner_sta
   'stopping',
   'stopped',
   'failed',
+  'terminated',
 ]);
 
 export const provisionedRunners = pgTable(
@@ -26,6 +27,11 @@ export const provisionedRunners = pgTable(
     runnerSessionId: uuid('runner_session_id'),
     providerKind: text('provider_kind'),
     reportedAt: timestamp('reported_at', {withTimezone: true}).notNull(),
+    startedAt: timestamp('started_at', {withTimezone: true}),
+    stoppingAt: timestamp('stopping_at', {withTimezone: true}),
+    stoppedAt: timestamp('stopped_at', {withTimezone: true}),
+    failedAt: timestamp('failed_at', {withTimezone: true}),
+    terminatedAt: timestamp('terminated_at', {withTimezone: true}),
     reservationReleasedAt: timestamp('reservation_released_at', {withTimezone: true}),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
@@ -62,6 +68,11 @@ export function toProvisionedRunner(row: ProvisionedRunnerDb): ProvisionedRunner
     runnerSessionId: row.runnerSessionId,
     providerKind: row.providerKind,
     reportedAt: row.reportedAt,
+    startedAt: row.startedAt,
+    stoppingAt: row.stoppingAt,
+    stoppedAt: row.stoppedAt,
+    failedAt: row.failedAt,
+    terminatedAt: row.terminatedAt,
     reservationReleasedAt: row.reservationReleasedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

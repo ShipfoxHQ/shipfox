@@ -16,6 +16,17 @@ describe('provisionedRunnerReportEventSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts cleanup-confirmed terminated lifecycle events', () => {
+    const result = provisionedRunnerReportEventSchema.safeParse({
+      provisioned_runner_id: 'container-1',
+      labels: ['linux'],
+      state: 'terminated',
+      reported_at: new Date().toISOString(),
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it('rejects provider-sensitive extra fields', () => {
     const result = provisionedRunnerReportEventSchema.safeParse({
       provisioned_runner_id: 'container-1',

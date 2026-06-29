@@ -3,7 +3,7 @@ import {z} from 'zod';
 export const REGISTRATION_TOKEN_BATCH_HARD_MAX = 1000;
 
 export const mintRegistrationTokensProvisionedRunnerSchema = z.object({
-  provisioned_runner_id: z.string().min(1).max(200),
+  provisioned_runner_id: z.string().min(1).max(255),
 });
 
 export const mintRegistrationTokensBatchBodySchema = z

@@ -470,6 +470,36 @@
           "primaryKey": false,
           "notNull": true
         },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stopping_at": {
+          "name": "stopping_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stopped_at": {
+          "name": "stopped_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failed_at": {
+          "name": "failed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "terminated_at": {
+          "name": "terminated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "reservation_released_at": {
           "name": "reservation_released_at",
           "type": "timestamp with time zone",
@@ -672,6 +702,33 @@
               "expression": "workspace_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "runners_provisioner_tokens_workspace_last_seen_idx": {
+          "name": "runners_provisioner_tokens_workspace_last_seen_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "last_seen_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
               "nulls": "last"
             }
           ],
@@ -1109,7 +1166,7 @@
     "public.runners_provisioned_runner_state": {
       "name": "runners_provisioned_runner_state",
       "schema": "public",
-      "values": ["starting", "running", "stopping", "stopped", "failed"]
+      "values": ["starting", "running", "stopping", "stopped", "failed", "terminated"]
     },
     "public.runners_runner_session_registration_token_kind": {
       "name": "runners_runner_session_registration_token_kind",

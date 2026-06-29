@@ -6,7 +6,11 @@ import {db} from './db.js';
 import {releaseReservationUnits} from './reservations.js';
 import {provisionedRunners, toProvisionedRunner} from './schema/provisioned-runners.js';
 
-const terminalStates = ['stopped', 'failed'] as const satisfies readonly ProvisionedRunnerState[];
+const terminalStates = [
+  'stopped',
+  'failed',
+  'terminated',
+] as const satisfies readonly ProvisionedRunnerState[];
 const activeStates = [
   'starting',
   'running',
@@ -31,21 +35,36 @@ export interface ReportProvisionedRunnersParams {
   events: ProvisionedRunnerReportEvent[];
 }
 
+interface ProvisionedRunnerReportRow extends ProvisionedRunnerReportEvent {
+  startedAt: Date | null;
+  stoppingAt: Date | null;
+  stoppedAt: Date | null;
+  failedAt: Date | null;
+  terminatedAt: Date | null;
+}
+
+type ProvisionedRunnerMilestoneColumn =
+  | typeof provisionedRunners.startedAt
+  | typeof provisionedRunners.stoppingAt
+  | typeof provisionedRunners.stoppedAt
+  | typeof provisionedRunners.failedAt
+  | typeof provisionedRunners.terminatedAt;
+
 export async function reportProvisionedRunners(params: ReportProvisionedRunnersParams): Promise<{
   accepted: number;
   reservationsReleased: number;
 }> {
-  const events = dedupeEvents(params.events);
-  if (events.length === 0) return {accepted: 0, reservationsReleased: 0};
-
-  const hasTerminalEvent = events.some((event) => isTerminalState(event.state));
+  if (params.events.length === 0) return {accepted: 0, reservationsReleased: 0};
 
   return await db().transaction(async (tx) => {
+    const receivedAt = new Date();
+    const events = aggregateEvents(params.events, receivedAt);
+    const hasTerminalEvent = events.some((event) => isTerminalState(event.state));
+
     if (hasTerminalEvent) {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${params.workspaceId}))`);
     }
 
-    const receivedAt = new Date();
     const values = events.map((event) => ({
       workspaceId: params.workspaceId,
       provisionerId: params.provisionerId,
@@ -58,6 +77,11 @@ export async function reportProvisionedRunners(params: ReportProvisionedRunnersP
       runnerSessionId: event.runnerSessionId,
       providerKind: event.providerKind,
       reportedAt: event.reportedAt > receivedAt ? receivedAt : event.reportedAt,
+      startedAt: event.startedAt,
+      stoppingAt: event.stoppingAt,
+      stoppedAt: event.stoppedAt,
+      failedAt: event.failedAt,
+      terminatedAt: event.terminatedAt,
     }));
 
     await tx
@@ -70,22 +94,27 @@ export async function reportProvisionedRunners(params: ReportProvisionedRunnersP
           provisionedRunners.provisionedRunnerId,
         ],
         set: {
-          reservationId: sql`coalesce(excluded.reservation_id, ${provisionedRunners.reservationId})`,
-          templateKey: sql`coalesce(excluded.template_key, ${provisionedRunners.templateKey})`,
-          labels: sql`excluded.labels`,
-          state: sql`excluded.state`,
-          reason: sql`excluded.reason`,
-          runnerSessionId: sql`coalesce(excluded.runner_session_id, ${provisionedRunners.runnerSessionId})`,
-          providerKind: sql`coalesce(excluded.provider_kind, ${provisionedRunners.providerKind})`,
-          reportedAt: sql`excluded.reported_at`,
+          reservationId: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN coalesce(excluded.reservation_id, ${provisionedRunners.reservationId}) ELSE ${provisionedRunners.reservationId} END`,
+          templateKey: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN coalesce(excluded.template_key, ${provisionedRunners.templateKey}) ELSE ${provisionedRunners.templateKey} END`,
+          labels: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN excluded.labels ELSE ${provisionedRunners.labels} END`,
+          state: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN excluded.state ELSE ${provisionedRunners.state} END`,
+          reason: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN excluded.reason ELSE ${provisionedRunners.reason} END`,
+          runnerSessionId: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN coalesce(excluded.runner_session_id, ${provisionedRunners.runnerSessionId}) ELSE ${provisionedRunners.runnerSessionId} END`,
+          providerKind: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN coalesce(excluded.provider_kind, ${provisionedRunners.providerKind}) ELSE ${provisionedRunners.providerKind} END`,
+          reportedAt: sql`CASE WHEN ${provisionedRunnerProjectionUpdateCondition()} THEN excluded.reported_at ELSE ${provisionedRunners.reportedAt} END`,
+          startedAt: firstObservedAt(provisionedRunners.startedAt, sql`excluded.started_at`),
+          stoppingAt: firstObservedAt(provisionedRunners.stoppingAt, sql`excluded.stopping_at`),
+          stoppedAt: firstObservedAt(provisionedRunners.stoppedAt, sql`excluded.stopped_at`),
+          failedAt: firstObservedAt(provisionedRunners.failedAt, sql`excluded.failed_at`),
+          terminatedAt: firstObservedAt(
+            provisionedRunners.terminatedAt,
+            sql`excluded.terminated_at`,
+          ),
           updatedAt: sql`now()`,
         },
         setWhere: sql`
-          excluded.reported_at > ${provisionedRunners.reportedAt}
-          OR (
-            excluded.reported_at = ${provisionedRunners.reportedAt}
-            AND ${provisionedRunnerStateRank(sql`excluded.state`)} >= ${provisionedRunnerStateRank(provisionedRunners.state)}
-          )
+          ${provisionedRunnerProjectionUpdateCondition()}
+          OR ${provisionedRunnerMilestoneUpdateCondition()}
         `,
       });
 
@@ -184,15 +213,63 @@ async function releaseTerminalProvisionedRunnerReservations(
   });
 }
 
-function dedupeEvents(events: ProvisionedRunnerReportEvent[]): ProvisionedRunnerReportEvent[] {
-  const byProvisionedRunnerId = new Map<string, ProvisionedRunnerReportEvent>();
-  for (const event of events) {
+function aggregateEvents(
+  events: ProvisionedRunnerReportEvent[],
+  receivedAt: Date,
+): ProvisionedRunnerReportRow[] {
+  const byProvisionedRunnerId = new Map<string, ProvisionedRunnerReportRow>();
+  for (const rawEvent of events) {
+    const event = toProvisionedRunnerReportRow(rawEvent, receivedAt);
     const existing = byProvisionedRunnerId.get(event.provisionedRunnerId);
+    if (existing) mergeMilestones(existing, event);
     if (!existing || compareProvisionedRunnerReportEvents(event, existing) > 0) {
-      byProvisionedRunnerId.set(event.provisionedRunnerId, event);
+      byProvisionedRunnerId.set(
+        event.provisionedRunnerId,
+        existing ? {...event, ...pickMilestones(existing)} : event,
+      );
     }
   }
   return [...byProvisionedRunnerId.values()];
+}
+
+function toProvisionedRunnerReportRow(
+  event: ProvisionedRunnerReportEvent,
+  receivedAt: Date,
+): ProvisionedRunnerReportRow {
+  const reportedAt = event.reportedAt > receivedAt ? receivedAt : event.reportedAt;
+  return {
+    ...event,
+    reportedAt,
+    startedAt: event.state === 'running' ? reportedAt : null,
+    stoppingAt: event.state === 'stopping' ? reportedAt : null,
+    stoppedAt: event.state === 'stopped' ? reportedAt : null,
+    failedAt: event.state === 'failed' ? reportedAt : null,
+    terminatedAt: event.state === 'terminated' ? reportedAt : null,
+  };
+}
+
+function mergeMilestones(target: ProvisionedRunnerReportRow, source: ProvisionedRunnerReportRow) {
+  target.startedAt = earliestDate(target.startedAt, source.startedAt);
+  target.stoppingAt = earliestDate(target.stoppingAt, source.stoppingAt);
+  target.stoppedAt = earliestDate(target.stoppedAt, source.stoppedAt);
+  target.failedAt = earliestDate(target.failedAt, source.failedAt);
+  target.terminatedAt = earliestDate(target.terminatedAt, source.terminatedAt);
+}
+
+function pickMilestones(event: ProvisionedRunnerReportRow) {
+  return {
+    startedAt: event.startedAt,
+    stoppingAt: event.stoppingAt,
+    stoppedAt: event.stoppedAt,
+    failedAt: event.failedAt,
+    terminatedAt: event.terminatedAt,
+  };
+}
+
+function earliestDate(a: Date | null, b: Date | null): Date | null {
+  if (!a) return b;
+  if (!b) return a;
+  return a < b ? a : b;
 }
 
 function compareProvisionedRunnerReportEvents(
@@ -200,8 +277,9 @@ function compareProvisionedRunnerReportEvents(
   b: ProvisionedRunnerReportEvent,
 ): number {
   const timeDelta = a.reportedAt.getTime() - b.reportedAt.getTime();
-  if (timeDelta !== 0) return timeDelta;
-  return getProvisionedRunnerStateRank(a.state) - getProvisionedRunnerStateRank(b.state);
+  const rankDelta = getProvisionedRunnerStateRank(a.state) - getProvisionedRunnerStateRank(b.state);
+  if (rankDelta !== 0) return rankDelta;
+  return timeDelta;
 }
 
 function getProvisionedRunnerStateRank(state: ProvisionedRunnerState): number {
@@ -216,6 +294,8 @@ function getProvisionedRunnerStateRank(state: ProvisionedRunnerState): number {
       return 4;
     case 'failed':
       return 5;
+    case 'terminated':
+      return 6;
   }
 }
 
@@ -227,7 +307,45 @@ function provisionedRunnerStateRank(state: SQL | typeof provisionedRunners.state
       WHEN 'stopping' THEN 3
       WHEN 'stopped' THEN 4
       WHEN 'failed' THEN 5
+      WHEN 'terminated' THEN 6
       ELSE 0
+    END
+  `;
+}
+
+function provisionedRunnerProjectionUpdateCondition(): SQL<boolean> {
+  return sql<boolean>`
+    ${provisionedRunnerStateRank(sql`excluded.state`)} > ${provisionedRunnerStateRank(provisionedRunners.state)}
+    OR (
+      ${provisionedRunnerStateRank(sql`excluded.state`)} = ${provisionedRunnerStateRank(provisionedRunners.state)}
+      AND excluded.reported_at >= ${provisionedRunners.reportedAt}
+    )
+  `;
+}
+
+function provisionedRunnerMilestoneUpdateCondition(): SQL<boolean> {
+  return sql<boolean>`
+    ${milestoneNeedsUpdate(provisionedRunners.startedAt, sql`excluded.started_at`)}
+    OR ${milestoneNeedsUpdate(provisionedRunners.stoppingAt, sql`excluded.stopping_at`)}
+    OR ${milestoneNeedsUpdate(provisionedRunners.stoppedAt, sql`excluded.stopped_at`)}
+    OR ${milestoneNeedsUpdate(provisionedRunners.failedAt, sql`excluded.failed_at`)}
+    OR ${milestoneNeedsUpdate(provisionedRunners.terminatedAt, sql`excluded.terminated_at`)}
+  `;
+}
+
+function milestoneNeedsUpdate(
+  current: SQL | ProvisionedRunnerMilestoneColumn,
+  incoming: SQL,
+): SQL<boolean> {
+  return sql<boolean>`${incoming} IS NOT NULL AND (${current} IS NULL OR ${incoming} < ${current})`;
+}
+
+function firstObservedAt(current: SQL | ProvisionedRunnerMilestoneColumn, incoming: SQL) {
+  return sql`
+    CASE
+      WHEN ${incoming} IS NULL THEN ${current}
+      WHEN ${current} IS NULL THEN ${incoming}
+      ELSE least(${current}, ${incoming})
     END
   `;
 }

@@ -12,6 +12,7 @@ export const provisionedRunnerStateSchema = z.enum([
   'stopping',
   'stopped',
   'failed',
+  'terminated',
 ]);
 
 export const providerKindSchema = z.string().min(1).max(MAX_PROVIDER_KIND_LENGTH);

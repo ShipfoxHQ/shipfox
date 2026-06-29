@@ -59,7 +59,7 @@ describe('reportProvisionedRunners', () => {
     expect(rows.map((row) => row.state)).toEqual(['failed', 'failed']);
   });
 
-  it('rejects older out-of-order events', async () => {
+  it('accepts delayed events that move the lifecycle forward', async () => {
     const newest = new Date();
     await reportProvisionedRunners({
       workspaceId,
@@ -83,8 +83,41 @@ describe('reportProvisionedRunners', () => {
     });
 
     const rows = await db().select().from(provisionedRunners);
+    expect(rows[0]?.state).toBe('failed');
+    expect(rows[0]?.reason).toBe('late stale failure');
+  });
+
+  it('rejects older out-of-order events in the same lifecycle state', async () => {
+    const newest = new Date();
+    await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          state: 'running',
+          reason: 'fresh',
+          reportedAt: newest,
+        }),
+      ],
+    });
+
+    await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          state: 'running',
+          reason: 'stale',
+          reportedAt: new Date(newest.getTime() - 1_000),
+        }),
+      ],
+    });
+
+    const rows = await db().select().from(provisionedRunners);
     expect(rows[0]?.state).toBe('running');
-    expect(rows[0]?.reason).toBeNull();
+    expect(rows[0]?.reason).toBe('fresh');
   });
 
   it('does not let equal-timestamp lower-priority reports flip terminal state', async () => {
@@ -165,6 +198,84 @@ describe('reportProvisionedRunners', () => {
     const rows = await db().select().from(provisionedRunners);
     expect(rows[0]?.state).toBe('running');
     expect(rows[0]?.reportedAt.getTime()).toBeLessThan(Date.now() + 10_000);
+  });
+
+  it('records lifecycle milestone timestamps from one report batch', async () => {
+    const startedAt = new Date('2025-01-01T00:00:00.000Z');
+    const stoppingAt = new Date('2025-01-01T00:01:00.000Z');
+    const stoppedAt = new Date('2025-01-01T00:02:00.000Z');
+    const terminatedAt = new Date('2025-01-01T00:03:00.000Z');
+
+    const result = await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          state: 'running',
+          reportedAt: startedAt,
+        }),
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          state: 'stopping',
+          reportedAt: stoppingAt,
+        }),
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          state: 'stopped',
+          reportedAt: stoppedAt,
+        }),
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          state: 'terminated',
+          reportedAt: terminatedAt,
+        }),
+      ],
+    });
+
+    const rows = await db().select().from(provisionedRunners);
+    expect(result).toEqual({accepted: 1, reservationsReleased: 0});
+    expect(rows[0]?.state).toBe('terminated');
+    expect(rows[0]?.reportedAt.toISOString()).toBe(terminatedAt.toISOString());
+    expect(rows[0]?.startedAt?.toISOString()).toBe(startedAt.toISOString());
+    expect(rows[0]?.stoppingAt?.toISOString()).toBe(stoppingAt.toISOString());
+    expect(rows[0]?.stoppedAt?.toISOString()).toBe(stoppedAt.toISOString());
+    expect(rows[0]?.failedAt).toBeNull();
+    expect(rows[0]?.terminatedAt?.toISOString()).toBe(terminatedAt.toISOString());
+  });
+
+  it('records delayed lower-state milestones without reviving current state', async () => {
+    const terminatedAt = new Date('2025-01-01T00:03:00.000Z');
+    const startedAt = new Date('2025-01-01T00:00:00.000Z');
+    await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          state: 'terminated',
+          reportedAt: terminatedAt,
+        }),
+      ],
+    });
+
+    await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          state: 'running',
+          reportedAt: startedAt,
+        }),
+      ],
+    });
+
+    const rows = await db().select().from(provisionedRunners);
+    expect(rows[0]?.state).toBe('terminated');
+    expect(rows[0]?.reportedAt.toISOString()).toBe(terminatedAt.toISOString());
+    expect(rows[0]?.startedAt?.toISOString()).toBe(startedAt.toISOString());
+    expect(rows[0]?.terminatedAt?.toISOString()).toBe(terminatedAt.toISOString());
   });
 
   it('uses server update time for active provisioned runner windows', async () => {
@@ -262,7 +373,7 @@ describe('reportProvisionedRunners', () => {
     expect(reservationRows[0]?.count).toBe(1);
   });
 
-  it('keeps reservation released when a newer running report revives the provisioned runner', async () => {
+  it('does not let a newer running report revive a terminal provisioned runner', async () => {
     const reservationId = await createReservation(2);
     const failedAt = new Date();
     await reportProvisionedRunners({
@@ -293,9 +404,29 @@ describe('reportProvisionedRunners', () => {
 
     const provisionedRunnerRows = await db().select().from(provisionedRunners);
     const reservationRows = await db().select().from(reservations);
-    expect(provisionedRunnerRows[0]?.state).toBe('running');
+    expect(provisionedRunnerRows[0]?.state).toBe('failed');
     expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
     expect(reservationRows[0]?.count).toBe(1);
+  });
+
+  it('tracks provider cleanup as terminated', async () => {
+    const reservationId = await createReservation(2);
+
+    const result = await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({provisionedRunnerId: 'provisioned-runner-1', reservationId, state: 'terminated'}),
+      ],
+    });
+
+    const reservationRows = await db().select().from(reservations);
+    const provisionedRunnerRows = await db().select().from(provisionedRunners);
+    expect(result).toEqual({accepted: 1, reservationsReleased: 1});
+    expect(reservationRows[0]?.count).toBe(1);
+    expect(provisionedRunnerRows[0]?.state).toBe('terminated');
+    expect(provisionedRunnerRows[0]?.terminatedAt).toBeInstanceOf(Date);
+    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
   });
 
   it('releases multiple units from the same reservation in one batch', async () => {
@@ -411,7 +542,7 @@ describe('reportProvisionedRunners', () => {
   function event(params: {
     provisionedRunnerId?: string;
     reservationId?: string | null;
-    state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed';
+    state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
     reportedAt?: Date;
     reason?: string | null;
     runnerSessionId?: string | null;

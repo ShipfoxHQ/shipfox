@@ -17,7 +17,7 @@ export const jobLeaseExpiredCount = meter.createCounter<Record<string, never>>(
 );
 
 export const provisionedRunnerReportCount = meter.createCounter<{
-  state: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed';
+  state: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
 }>('runners_provisioned_runner_reported', {
   description: 'Provisioned runner lifecycle reports accepted by state',
 });
