@@ -10,6 +10,7 @@ export {
   deleteAgentProviderConfig,
   getAgentProviderConfig,
   listAgentProviderConfigs,
+  updateAgentProviderDefaultModel,
   upsertAgentProviderConfig,
 } from './agent-provider-configs.js';
 export {

@@ -7,6 +7,7 @@ const credentialRecordSchema = z.record(credentialKeySchema, z.string().min(1));
 
 export const agentProviderConfigDtoSchema = z.object({
   provider_id: supportedAgentProviderIdSchema,
+  default_model: z.string().min(1).nullable(),
   key_fingerprints: z.record(credentialKeySchema, z.string()),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
@@ -24,12 +25,21 @@ export type ListAgentProviderConfigsResponseDto = z.infer<
 >;
 
 export const updateAgentProviderConfigBodySchema = z.object({
+  default_model: z.string().min(1).nullable().optional(),
   credentials: credentialRecordSchema.refine((credentials) => Object.keys(credentials).length > 0, {
     message: 'Credentials must include at least one key.',
   }),
 });
 
 export type UpdateAgentProviderConfigBodyDto = z.infer<typeof updateAgentProviderConfigBodySchema>;
+
+export const updateAgentProviderDefaultModelBodySchema = z.object({
+  default_model: z.string().min(1).nullable(),
+});
+
+export type UpdateAgentProviderDefaultModelBodyDto = z.infer<
+  typeof updateAgentProviderDefaultModelBodySchema
+>;
 
 export const setDefaultAgentProviderBodySchema = z.object({
   provider_id: supportedAgentProviderIdSchema,

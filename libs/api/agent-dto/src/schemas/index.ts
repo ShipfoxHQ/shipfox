@@ -31,7 +31,9 @@ export {
   setDefaultAgentProviderBodySchema,
   setDefaultAgentProviderResponseSchema,
   type UpdateAgentProviderConfigBodyDto,
+  type UpdateAgentProviderDefaultModelBodyDto,
   updateAgentProviderConfigBodySchema,
+  updateAgentProviderDefaultModelBodySchema,
 } from './provider-config.js';
 export {
   AGENT_PROVIDER_IDS,

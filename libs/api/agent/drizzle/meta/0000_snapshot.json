@@ -43,7 +43,7 @@
           "name": "default_model",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "default_thinking": {
           "name": "default_thinking",

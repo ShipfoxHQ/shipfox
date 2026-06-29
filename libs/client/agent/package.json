@@ -1,11 +1,11 @@
 {
-  "name": "@shipfox/client-workspace-settings",
+  "name": "@shipfox/client-agent",
   "license": "MIT",
-  "version": "0.0.2",
+  "version": "0.0.1",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "libs/client/workspace-settings"
+    "directory": "libs/client/agent"
   },
   "private": true,
   "type": "module",
@@ -37,13 +37,8 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/api-workspaces-dto": "workspace:*",
-    "@shipfox/client-agent": "workspace:*",
+    "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
-    "@shipfox/client-auth": "workspace:*",
-    "@shipfox/client-integrations": "workspace:*",
-    "@shipfox/client-runners": "workspace:*",
-    "@shipfox/client-triggers": "workspace:*",
     "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",
@@ -51,7 +46,6 @@
     "@tanstack/react-query": "^5.101.0"
   },
   "peerDependencies": {
-    "@tanstack/react-router": "^1.170.16",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -60,16 +54,13 @@
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vite": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@tanstack/react-router": "^1.170.16",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.1.11",
     "@types/react-dom": "^19.1.7",
     "jsdom": "^29.0.0",
-    "jotai": "^2.19.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   }

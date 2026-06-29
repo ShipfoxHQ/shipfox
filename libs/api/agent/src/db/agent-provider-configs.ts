@@ -10,7 +10,7 @@ export interface UpsertAgentProviderConfigParams {
   providerId: SupportedAgentProviderId;
   encryptedCredentials: Record<string, string>;
   keyFingerprints: Record<string, string>;
-  defaultModel: string;
+  defaultModel: string | null;
   defaultThinking: AgentThinking;
 }
 
@@ -58,6 +58,27 @@ export async function getAgentProviderConfig(params: {
       ),
     )
     .limit(1);
+
+  const row = rows[0];
+  if (!row) return undefined;
+  return toAgentProviderConfig(row);
+}
+
+export async function updateAgentProviderDefaultModel(params: {
+  workspaceId: string;
+  providerId: SupportedAgentProviderId;
+  defaultModel: string | null;
+}): Promise<AgentProviderConfig | undefined> {
+  const rows = await db()
+    .update(agentProviderConfigs)
+    .set({defaultModel: params.defaultModel, updatedAt: sql`NOW()`})
+    .where(
+      and(
+        eq(agentProviderConfigs.workspaceId, params.workspaceId),
+        eq(agentProviderConfigs.providerId, params.providerId),
+      ),
+    )
+    .returning();
 
   const row = rows[0];
   if (!row) return undefined;

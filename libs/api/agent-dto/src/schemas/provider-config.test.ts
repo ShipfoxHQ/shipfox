@@ -6,14 +6,27 @@ import {
   setDefaultAgentProviderBodySchema,
   setDefaultAgentProviderResponseSchema,
   updateAgentProviderConfigBodySchema,
+  updateAgentProviderDefaultModelBodySchema,
 } from './provider-config.js';
 
 describe('agent provider config schemas', () => {
   it('parses an update body with non-empty credentials', () => {
     const parsed = updateAgentProviderConfigBodySchema.parse({
+      default_model: 'claude-opus-4-8',
       credentials: {api_key: 'rotated-secret'},
     });
 
+    expect(parsed.default_model).toBe('claude-opus-4-8');
+    expect(parsed.credentials.api_key).toBe('rotated-secret');
+  });
+
+  it('parses an update body with Latest selected', () => {
+    const parsed = updateAgentProviderConfigBodySchema.parse({
+      default_model: null,
+      credentials: {api_key: 'rotated-secret'},
+    });
+
+    expect(parsed.default_model).toBeNull();
     expect(parsed.credentials.api_key).toBe('rotated-secret');
   });
 
@@ -51,6 +64,20 @@ describe('agent provider config schemas', () => {
     expect(keysMatch).toBe(false);
   });
 
+  it('parses a model-only update body with Latest selected', () => {
+    const parsed = updateAgentProviderDefaultModelBodySchema.parse({default_model: null});
+
+    expect(parsed.default_model).toBeNull();
+  });
+
+  it('parses a model-only update body with an explicit model', () => {
+    const parsed = updateAgentProviderDefaultModelBodySchema.parse({
+      default_model: 'claude-haiku-4-5',
+    });
+
+    expect(parsed.default_model).toBe('claude-haiku-4-5');
+  });
+
   it('returns credential keys for route-layer validation', () => {
     const keys = getAgentProviderCredentialKeys('cloudflare-ai-gateway');
 
@@ -78,6 +105,7 @@ describe('agent provider config schemas', () => {
   it('parses config rows and list responses with a nullable default provider', () => {
     const row = {
       provider_id: 'openai',
+      default_model: null,
       key_fingerprints: {api_key: 'sk-...abcd'},
       created_at: '2026-06-27T10:30:00.000Z',
       updated_at: '2026-06-27T10:45:00.000Z',
@@ -90,6 +118,7 @@ describe('agent provider config schemas', () => {
     });
 
     expect(parsedRow.provider_id).toBe('openai');
+    expect(parsedRow.default_model).toBeNull();
     expect(parsedList.default_provider_id).toBeNull();
   });
 
@@ -97,6 +126,7 @@ describe('agent provider config schemas', () => {
     const parse = () =>
       agentProviderConfigDtoSchema.parse({
         provider_id: 'openai',
+        default_model: 'gpt-5.5-pro',
         key_fingerprints: {'': 'sk-...abcd'},
         created_at: '2026-06-27T10:30:00.000Z',
         updated_at: '2026-06-27T10:45:00.000Z',

@@ -38,5 +38,7 @@ export {
   supportedAgentProviderIdSchema,
   UNSUPPORTED_AGENT_PROVIDER_IDS,
   type UpdateAgentProviderConfigBodyDto,
+  type UpdateAgentProviderDefaultModelBodyDto,
   updateAgentProviderConfigBodySchema,
+  updateAgentProviderDefaultModelBodySchema,
 } from '#schemas/index.js';

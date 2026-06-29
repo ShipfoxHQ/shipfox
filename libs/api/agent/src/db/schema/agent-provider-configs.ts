@@ -12,7 +12,7 @@ export const agentProviderConfigs = pgTable(
     providerId: text('provider_id').notNull(),
     encryptedCredentials: jsonb('encrypted_credentials').$type<Record<string, string>>().notNull(),
     keyFingerprints: jsonb('key_fingerprints').$type<Record<string, string>>().notNull(),
-    defaultModel: text('default_model').notNull(),
+    defaultModel: text('default_model'),
     defaultThinking: text('default_thinking').notNull(),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),

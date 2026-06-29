@@ -2271,6 +2271,70 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/typescript
 
+  libs/client/agent:
+    dependencies:
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../../api/agent-dto
+      '@shipfox/client-api':
+        specifier: workspace:*
+        version: link:../api
+      '@shipfox/client-ui':
+        specifier: workspace:*
+        version: link:../ui
+      '@shipfox/react-ui':
+        specifier: workspace:*
+        version: link:../../shared/react/ui
+      '@swc/helpers':
+        specifier: ^0.5.17
+        version: 0.5.23
+      '@tanstack/react-form':
+        specifier: ^1.32.0
+        version: 1.33.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tanstack/react-query':
+        specifier: ^5.101.0
+        version: 5.101.0(react@19.2.7)
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+      '@testing-library/jest-dom':
+        specifier: ^6.6.3
+        version: 6.9.1
+      '@testing-library/react':
+        specifier: ^16.3.0
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@testing-library/user-event':
+        specifier: ^14.6.1
+        version: 14.6.1(@testing-library/dom@10.4.1)
+      '@types/react':
+        specifier: ^19.1.11
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.1.7
+        version: 19.2.3(@types/react@19.2.17)
+      jsdom:
+        specifier: ^29.0.0
+        version: 29.1.1
+      react:
+        specifier: ^19.1.1
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.1.1
+        version: 19.2.7(react@19.2.7)
+
   libs/client/api:
     dependencies:
       '@swc/helpers':
@@ -3282,6 +3346,9 @@ importers:
       '@shipfox/api-workspaces-dto':
         specifier: workspace:*
         version: link:../../api/workspaces-dto
+      '@shipfox/client-agent':
+        specifier: workspace:*
+        version: link:../agent
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api
