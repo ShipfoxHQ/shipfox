@@ -4,6 +4,7 @@ import {useRef, useState} from 'react';
 import type {WorkflowRunDetail} from '#core/workflow-run.js';
 import type {WorkflowJobGraphModel, WorkflowJobGraphNavigationKey} from './graph-model.js';
 import {nextWorkflowJobGraphNodeId} from './graph-model.js';
+import {JobDurationTickerProvider} from './job-duration-ticker.js';
 import {TriggerNode, WorkflowJobNode} from './workflow-job-node.js';
 
 const NODE_WIDTH = 208;
@@ -74,39 +75,41 @@ export function WorkflowJobsGraphContent({
   }
 
   return (
-    <div className="min-h-0 overflow-auto bg-background-neutral-base">
-      <div className="relative" style={{width: contentWidth, minHeight: contentHeight}}>
-        <GraphEdges model={model} hoveredJobId={hoveredJobId} />
-        <div
-          className="absolute"
-          style={{left: PADDING, top: PADDING + (NODE_HEIGHT - TRIGGER_WIDTH) / 2}}
-        >
-          <TriggerNode trigger={trigger} />
-        </div>
-        {model.columns.map((column, columnIndex) => (
+    <JobDurationTickerProvider>
+      <div className="min-h-0 overflow-auto bg-background-neutral-base">
+        <div className="relative" style={{width: contentWidth, minHeight: contentHeight}}>
+          <GraphEdges model={model} hoveredJobId={hoveredJobId} />
           <div
-            key={column.map((node) => node.id).join(':')}
-            className="absolute flex flex-col gap-20"
-            style={{left: jobLeft(columnIndex), top: PADDING}}
+            className="absolute"
+            style={{left: PADDING, top: PADDING + (NODE_HEIGHT - TRIGGER_WIDTH) / 2}}
           >
-            {column.map((node) => (
-              <WorkflowJobNode
-                key={node.id}
-                node={node}
-                selected={node.id === selectedJobId}
-                ref={setNodeRef(node.id)}
-                onSelect={() => onSelectJob(node.id === selectedJobId ? undefined : node.id)}
-                onKeyDown={handleKeyDown}
-                onHoverStart={() => setHoveredJobId(node.id)}
-                onHoverEnd={() =>
-                  setHoveredJobId((current) => (current === node.id ? undefined : current))
-                }
-              />
-            ))}
+            <TriggerNode trigger={trigger} />
           </div>
-        ))}
+          {model.columns.map((column, columnIndex) => (
+            <div
+              key={column.map((node) => node.id).join(':')}
+              className="absolute flex flex-col gap-20"
+              style={{left: jobLeft(columnIndex), top: PADDING}}
+            >
+              {column.map((node) => (
+                <WorkflowJobNode
+                  key={node.id}
+                  node={node}
+                  selected={node.id === selectedJobId}
+                  ref={setNodeRef(node.id)}
+                  onSelect={() => onSelectJob(node.id === selectedJobId ? undefined : node.id)}
+                  onKeyDown={handleKeyDown}
+                  onHoverStart={() => setHoveredJobId(node.id)}
+                  onHoverEnd={() =>
+                    setHoveredJobId((current) => (current === node.id ? undefined : current))
+                  }
+                />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </JobDurationTickerProvider>
   );
 }
 

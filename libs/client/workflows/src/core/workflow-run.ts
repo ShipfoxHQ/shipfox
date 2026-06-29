@@ -48,11 +48,19 @@ export const WORKFLOW_JOB_STATUSES = [
   'skipped',
 ] as const satisfies readonly WorkflowJobStatus[];
 
+export const TERMINAL_WORKFLOW_JOB_STATUSES = [
+  'succeeded',
+  'failed',
+  'cancelled',
+  'skipped',
+] as const satisfies readonly WorkflowJobStatus[];
+
 const WORKFLOW_STATUSES = new Set<WorkflowStatus>([
   ...WORKFLOW_RUN_STATUSES,
   ...WORKFLOW_JOB_STATUSES,
 ]);
 const TERMINAL_WORKFLOW_RUN_STATUS_SET = new Set<WorkflowRunStatus>(TERMINAL_WORKFLOW_RUN_STATUSES);
+const TERMINAL_WORKFLOW_JOB_STATUS_SET = new Set<WorkflowJobStatus>(TERMINAL_WORKFLOW_JOB_STATUSES);
 
 export interface WorkflowSourceSnapshot {
   content: string;
@@ -193,6 +201,10 @@ export function workflowRunTriggerDisplayLabel({
 
 export function isWorkflowRunTerminal(status: WorkflowRunStatus): boolean {
   return TERMINAL_WORKFLOW_RUN_STATUS_SET.has(status);
+}
+
+export function isTerminalJobStatus(status: WorkflowJobStatus): boolean {
+  return TERMINAL_WORKFLOW_JOB_STATUS_SET.has(status);
 }
 
 export function isWorkflowStatus(status: string): status is WorkflowStatus {

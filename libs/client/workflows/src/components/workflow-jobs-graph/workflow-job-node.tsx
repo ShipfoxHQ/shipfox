@@ -3,6 +3,7 @@ import {
   Badge,
   Code,
   cn,
+  humanDuration,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -13,6 +14,8 @@ import {getWorkflowStatusVisual} from '#components/workflow-status/status-visual
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {WorkflowRunDetail} from '#core/workflow-run.js';
 import type {WorkflowJobGraphNode} from './graph-model.js';
+import type {JobDurationDisplay} from './job-duration.js';
+import {JobDurationLabel} from './job-duration-label.js';
 
 const TRIGGER_SIZE = 36;
 
@@ -69,6 +72,7 @@ export function WorkflowJobNode({
   const accessibleLabel = [
     node.name,
     visual.label,
+    durationAccessibleLabel(node.duration),
     dependencyText?.accessible,
     node.carriedOver ? 'reused' : undefined,
   ]
@@ -102,6 +106,7 @@ export function WorkflowJobNode({
         <WorkflowStatusIcon status={node.status} size={14} tooltip={false} />
         <JobLabel label={node.name} />
       </div>
+      <JobDurationLabel duration={node.duration} />
       {dependencyText ? (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -151,6 +156,19 @@ function JobLabel({label}: {label: string}) {
       {isTruncated ? <TooltipContent>{label}</TooltipContent> : null}
     </Tooltip>
   );
+}
+
+function durationAccessibleLabel(duration: JobDurationDisplay): string | undefined {
+  switch (duration.kind) {
+    case 'none':
+      return undefined;
+    case 'queued':
+      return `queued ${humanDuration(duration.fromIso)}`;
+    case 'running':
+      return `running ${humanDuration(duration.fromIso)}`;
+    case 'finished':
+      return `ran ${humanDuration(duration.fromIso, duration.toIso)}`;
+  }
 }
 
 function dependencyLabel(count: number) {

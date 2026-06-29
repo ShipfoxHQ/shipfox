@@ -164,6 +164,24 @@ describe('buildWorkflowJobGraphModel', () => {
       currentDependencyCount: 2,
     });
   });
+
+  test('attaches the duration descriptor to each node', () => {
+    const build = makeJob({
+      name: 'build',
+      status: 'succeeded',
+      started_at: '2026-06-21T12:00:30.000Z',
+      finished_at: '2026-06-21T12:02:44.000Z',
+    });
+    const run = makeRun({jobs: [build]});
+
+    const result = buildWorkflowJobGraphModel({run});
+
+    expect(nodeByName(result, 'build')?.duration).toEqual({
+      kind: 'finished',
+      fromIso: '2026-06-21T12:00:30.000Z',
+      toIso: '2026-06-21T12:02:44.000Z',
+    });
+  });
 });
 
 function nodeByName(result: ReturnType<typeof buildWorkflowJobGraphModel>, name: string) {
