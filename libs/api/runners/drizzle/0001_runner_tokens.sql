@@ -34,12 +34,15 @@ CREATE TABLE "runners_runner_sessions" (
 	"scope" "runners_runner_session_scope" DEFAULT 'workspace' NOT NULL,
 	"registration_token_id" uuid NOT NULL,
 	"registration_token_kind" "runners_runner_session_registration_token_kind" NOT NULL,
+	"provisioner_id" uuid,
+	"provisioned_runner_id" text,
 	"labels" text[] NOT NULL,
 	"max_claims" integer,
 	"claims_used" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "runners_runner_sessions_claims_ck" CHECK ("runners_runner_sessions"."claims_used" >= 0 AND (("runners_runner_sessions"."registration_token_kind" = 'manual' AND "runners_runner_sessions"."max_claims" IS NULL) OR ("runners_runner_sessions"."registration_token_kind" = 'ephemeral' AND "runners_runner_sessions"."max_claims" IS NOT NULL AND "runners_runner_sessions"."max_claims" > 0 AND "runners_runner_sessions"."claims_used" <= "runners_runner_sessions"."max_claims")))
+	CONSTRAINT "runners_runner_sessions_claims_ck" CHECK ("runners_runner_sessions"."claims_used" >= 0 AND (("runners_runner_sessions"."registration_token_kind" = 'manual' AND "runners_runner_sessions"."max_claims" IS NULL) OR ("runners_runner_sessions"."registration_token_kind" = 'ephemeral' AND "runners_runner_sessions"."max_claims" IS NOT NULL AND "runners_runner_sessions"."max_claims" > 0 AND "runners_runner_sessions"."claims_used" <= "runners_runner_sessions"."max_claims"))),
+	CONSTRAINT "runners_runner_sessions_link_ck" CHECK (("runners_runner_sessions"."registration_token_kind" = 'manual' AND "runners_runner_sessions"."provisioner_id" IS NULL AND "runners_runner_sessions"."provisioned_runner_id" IS NULL) OR ("runners_runner_sessions"."registration_token_kind" = 'ephemeral' AND "runners_runner_sessions"."provisioner_id" IS NOT NULL AND "runners_runner_sessions"."provisioned_runner_id" IS NOT NULL))
 );
 --> statement-breakpoint
 ALTER TABLE "runners_running_jobs" ADD COLUMN "runner_session_id" uuid DEFAULT uuidv7() NOT NULL;--> statement-breakpoint

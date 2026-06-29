@@ -882,6 +882,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "provisioner_id": {
+          "name": "provisioner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provisioned_runner_id": {
+          "name": "provisioned_runner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "labels": {
           "name": "labels",
           "type": "text[]",
@@ -925,6 +937,10 @@
         "runners_runner_sessions_claims_ck": {
           "name": "runners_runner_sessions_claims_ck",
           "value": "\"runners_runner_sessions\".\"claims_used\" >= 0 AND ((\"runners_runner_sessions\".\"registration_token_kind\" = 'manual' AND \"runners_runner_sessions\".\"max_claims\" IS NULL) OR (\"runners_runner_sessions\".\"registration_token_kind\" = 'ephemeral' AND \"runners_runner_sessions\".\"max_claims\" IS NOT NULL AND \"runners_runner_sessions\".\"max_claims\" > 0 AND \"runners_runner_sessions\".\"claims_used\" <= \"runners_runner_sessions\".\"max_claims\"))"
+        },
+        "runners_runner_sessions_link_ck": {
+          "name": "runners_runner_sessions_link_ck",
+          "value": "((\"runners_runner_sessions\".\"registration_token_kind\" = 'manual' AND \"runners_runner_sessions\".\"provisioner_id\" IS NULL AND \"runners_runner_sessions\".\"provisioned_runner_id\" IS NULL) OR (\"runners_runner_sessions\".\"registration_token_kind\" = 'ephemeral' AND \"runners_runner_sessions\".\"provisioner_id\" IS NOT NULL AND \"runners_runner_sessions\".\"provisioned_runner_id\" IS NOT NULL))"
         }
       },
       "isRLSEnabled": false
@@ -1098,6 +1114,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "provisioner_id": {
+          "name": "provisioner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provisioned_runner_id": {
+          "name": "provisioned_runner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "required_labels": {
           "name": "required_labels",
           "type": "text[]",
@@ -1158,7 +1186,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "runners_running_jobs_link_ck": {
+          "name": "runners_running_jobs_link_ck",
+          "value": "(\"runners_running_jobs\".\"provisioner_id\" IS NULL) = (\"runners_running_jobs\".\"provisioned_runner_id\" IS NULL)"
+        }
+      },
       "isRLSEnabled": false
     }
   },

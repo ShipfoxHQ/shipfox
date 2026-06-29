@@ -81,6 +81,8 @@ export interface ActiveRunningJob {
   runId: string;
   projectId: string;
   runnerSessionId: string;
+  provisionerId: string | null;
+  provisionedRunnerId: string | null;
   requiredLabels: string[];
   runnerLabels: string[];
   startedAt: Date;
@@ -96,11 +98,16 @@ export async function claimPendingJob(params: {
   if (params.sessionLabels.length === 0) return null;
 
   return await db().transaction(async (tx) => {
+    let provisionerId: string | null = null;
+    let provisionedRunnerId: string | null = null;
+
     if (params.maxClaims !== null) {
       const [session] = await tx
         .select({
           maxClaims: runnerSessions.maxClaims,
           claimsUsed: runnerSessions.claimsUsed,
+          provisionerId: runnerSessions.provisionerId,
+          provisionedRunnerId: runnerSessions.provisionedRunnerId,
         })
         .from(runnerSessions)
         .where(eq(runnerSessions.id, params.runnerSessionId))
@@ -110,6 +117,11 @@ export async function claimPendingJob(params: {
       if (!session || session.maxClaims === null || session.claimsUsed >= session.maxClaims) {
         throw new RunnerSessionExhaustedError(params.runnerSessionId);
       }
+
+      // Ephemeral sessions are the only capped sessions, and the DB check keeps
+      // their provisioned-runner link present as a pair.
+      provisionerId = session.provisionerId;
+      provisionedRunnerId = session.provisionedRunnerId;
     }
 
     // `id` is a uuidv7 (time-ordered), so it is a deterministic FIFO tiebreaker
@@ -145,6 +157,8 @@ export async function claimPendingJob(params: {
         runId: row.runId,
         projectId: row.projectId,
         runnerSessionId: params.runnerSessionId,
+        provisionerId,
+        provisionedRunnerId,
         requiredLabels: row.requiredLabels,
         runnerLabels: params.sessionLabels,
       })
@@ -276,6 +290,8 @@ export async function listActiveRunningJobs(params: {
       runId: runningJobs.runId,
       projectId: runningJobs.projectId,
       runnerSessionId: runningJobs.runnerSessionId,
+      provisionerId: runningJobs.provisionerId,
+      provisionedRunnerId: runningJobs.provisionedRunnerId,
       requiredLabels: runningJobs.requiredLabels,
       runnerLabels: runningJobs.runnerLabels,
       startedAt: runningJobs.startedAt,

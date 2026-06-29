@@ -212,7 +212,11 @@ export async function createRunnerSessionConsumingEphemeralToken(params: {
           gt(ephemeralRegistrationTokens.expiresAt, sql`now()`),
         ),
       )
-      .returning({id: ephemeralRegistrationTokens.id});
+      .returning({
+        id: ephemeralRegistrationTokens.id,
+        provisionerId: ephemeralRegistrationTokens.provisionerId,
+        provisionedRunnerId: ephemeralRegistrationTokens.provisionedRunnerId,
+      });
 
     if (!consumed[0]) {
       const [token] = await tx
@@ -248,6 +252,8 @@ export async function createRunnerSessionConsumingEphemeralToken(params: {
         scope: 'workspace',
         registrationTokenId: params.ephemeralTokenId,
         registrationTokenKind: 'ephemeral',
+        provisionerId: consumed[0].provisionerId,
+        provisionedRunnerId: consumed[0].provisionedRunnerId,
         labels: params.labels,
         maxClaims: params.maxClaims,
         claimsUsed: 0,
