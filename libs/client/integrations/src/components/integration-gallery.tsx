@@ -154,21 +154,31 @@ function InstalledRow({
         )}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <Text
-          size="md"
-          bold
-          className={cn('truncate', muted ? 'text-foreground-neutral-disabled' : undefined)}
-        >
-          {connection.display_name}
-        </Text>
+        <div className="flex min-w-0 items-center gap-8">
+          <Text
+            size="md"
+            bold
+            className={cn('truncate', muted ? 'text-foreground-neutral-disabled' : undefined)}
+          >
+            {connection.display_name}
+          </Text>
+          {pill ? (
+            <Badge
+              variant={pill.variant}
+              radius="rounded"
+              className="shrink-0"
+              {...(pill.iconLeft ? {iconLeft: pill.iconLeft} : {})}
+            >
+              {pill.label}
+            </Badge>
+          ) : null}
+        </div>
         {/* Provider is already named by the icon (and the account name), so the
             meta line carries only the date — no third repeat of the provider. */}
         <Text size="sm" className="truncate text-foreground-neutral-muted">
           Added {formatDate(connection.created_at)}
         </Text>
       </div>
-      {/* "Open" sits left of any status pill so non-active states align in a
-          single scannable column. */}
       {connection.external_url ? (
         <Button
           asChild
@@ -186,16 +196,6 @@ function InstalledRow({
             Open
           </a>
         </Button>
-      ) : null}
-      {pill ? (
-        <Badge
-          variant={pill.variant}
-          radius="rounded"
-          className="shrink-0"
-          {...(pill.iconLeft ? {iconLeft: pill.iconLeft} : {})}
-        >
-          {pill.label}
-        </Badge>
       ) : null}
     </li>
   );
