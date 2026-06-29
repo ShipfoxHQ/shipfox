@@ -3573,6 +3573,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/redact':
+        specifier: workspace:*
+        version: link:../../shared/common/redact
       '@shipfox/runner-agent':
         specifier: workspace:*
         version: link:../agent

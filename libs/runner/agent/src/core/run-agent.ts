@@ -21,7 +21,7 @@ export interface AgentInvocation {
   readonly provider: string;
   readonly thinking: string;
   readonly prompt: string;
-  readonly credentials?: Record<string, string> | undefined;
+  readonly credentials: Record<string, string>;
   readonly signal: AbortSignal;
   /**
    * Forwards each verbatim pi session entry line as it is persisted, in order. Best-effort
@@ -57,19 +57,18 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   // session exists so a mid-creation abort still stops pi.
   if (signal.aborted) throw new Error('Agent step aborted before the pi session started');
 
-  const authStorage =
-    credentials === undefined
-      ? AuthStorage.create()
-      : AuthStorage.inMemory({[provider]: toPiRuntimeCredential(provider, credentials)});
+  const authStorage = AuthStorage.inMemory({
+    [provider]: toPiRuntimeCredential(provider, credentials),
+  });
   const modelRegistry = ModelRegistry.create(authStorage);
   const model = resolveModel(modelRegistry, provider, modelId);
 
   // Surface a missing key up front as a config error: otherwise it fails deep inside the
-  // provider call as an opaque invocation failure, hiding that the fix is on the runner.
+  // provider call as an opaque invocation failure, hiding that the fix is workspace config.
   if (!modelRegistry.hasConfiguredAuth(model)) {
     throw new AgentConfigError(
-      `No credentials configured for provider "${provider}" on this runner. ` +
-        "Set the provider's API key in the runner environment.",
+      `No credentials configured for provider "${provider}". ` +
+        'Verify the provider is configured for this workspace.',
     );
   }
 

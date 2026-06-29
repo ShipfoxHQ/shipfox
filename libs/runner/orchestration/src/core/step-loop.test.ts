@@ -44,13 +44,14 @@ vi.mock('@shipfox/runner-execution', () => ({
 vi.mock('@shipfox/runner-logs', () => ({
   createStepLogStream: (...args: unknown[]) => createStepLogStreamMock(...args),
   createSessionLogStream: (...args: unknown[]) => createSessionLogStreamMock(...args),
+  buildSecretVariants: (secrets: string[]) => secrets.filter((secret) => secret !== ''),
 }));
 
 vi.mock('@shipfox/runner-agent', () => ({
   executeAgentStep: (...args: unknown[]) => executeAgentStepMock(...args),
 }));
 
-const {runJobSteps} = await import('#core/step-loop.js');
+const {executeStep, runJobSteps} = await import('#core/step-loop.js');
 
 const JOB_ID = '00000000-0000-0000-0000-0000000000aa';
 const RUN_ID = '00000000-0000-0000-0000-0000000000ab';
@@ -646,7 +647,12 @@ describe('runJobSteps', () => {
     expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {
       signal: ac.signal,
       cwd: '/work',
-      credentials: {api_key: 'sk-runtime-secret'},
+      runtime: {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+        credentials: {api_key: 'sk-runtime-secret'},
+      },
       onSessionEntry: expect.any(Function),
     });
     expect(requestAgentRuntimeConfigMock).toHaveBeenCalledWith(leaseClient, {
@@ -664,6 +670,44 @@ describe('runJobSteps', () => {
       logOutcome: 'drained',
       signal: ac.signal,
     });
+  });
+
+  it('uses provider, model, and thinking from runtime config instead of stale step config', async () => {
+    const setup = buildSetupStep();
+    const agent = buildAgentStep({
+      config: {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+        prompt: 'Fix it.',
+      },
+    });
+    requestAgentRuntimeConfigMock.mockResolvedValueOnce({
+      provider_id: 'openai',
+      model: 'gpt-5.1',
+      thinking: 'medium',
+      credentials: {api_key: 'sk-openai-runtime'},
+    });
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(executeAgentStepMock).toHaveBeenCalledWith(
+      agent,
+      expect.objectContaining({
+        runtime: {
+          provider: 'openai',
+          model: 'gpt-5.1',
+          thinking: 'medium',
+          credentials: {api_key: 'sk-openai-runtime'},
+        },
+      }),
+    );
   });
 
   it('opens a session stream for an agent step, forwards entries, and settles it', async () => {
@@ -718,7 +762,12 @@ describe('runJobSteps', () => {
     expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {
       signal: ac.signal,
       cwd: '/work',
-      credentials: {api_key: 'sk-runtime-secret'},
+      runtime: {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+        credentials: {api_key: 'sk-runtime-secret'},
+      },
     });
     expect(reportStepMock).toHaveBeenCalledWith(
       leaseClient,
@@ -752,6 +801,44 @@ describe('runJobSteps', () => {
       leaseClient,
       expect.objectContaining({stepId: agent.id}),
     );
+  });
+
+  it('redacts runtime credential values from agent failures and blanks output before reporting', async () => {
+    const agent = buildAgentStep();
+    executeAgentStepMock.mockResolvedValue({
+      success: false,
+      output: 'provider echoed sk-runtime-secret',
+      error: {
+        message: 'provider rejected sk-runtime-secret',
+        reason: 'agent_invocation_failed' as const,
+      },
+      exit_code: null,
+    });
+    const ac = new AbortController();
+
+    const execution = await executeStep({
+      step: agent,
+      attempt: 1,
+      cwd: '/work',
+      logsDir: LOGS_DIR,
+      jobContext: JOB_CONTEXT,
+      leaseClient,
+      secrets: [],
+      signal: ac.signal,
+      workspacePrepared: true,
+      jobId: JOB_ID,
+      stepLabel: 'implement',
+    });
+
+    expect(execution.result).toEqual({
+      success: false,
+      output: '',
+      error: {
+        message: 'provider rejected ***',
+        reason: 'agent_invocation_failed',
+      },
+      exit_code: null,
+    });
   });
 
   it('reports agent_config_invalid when runtime credentials are rejected by the API', async () => {

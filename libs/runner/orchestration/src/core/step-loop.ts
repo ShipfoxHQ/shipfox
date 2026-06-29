@@ -1,5 +1,6 @@
 import type {LogOutcomeDto, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {redactSecrets} from '@shipfox/redact';
 import {executeAgentStep} from '@shipfox/runner-agent';
 import {
   type CommandStartMetadata,
@@ -9,6 +10,7 @@ import {
   type StepResult,
 } from '@shipfox/runner-execution';
 import {
+  buildSecretVariants,
   createSessionLogStream,
   createStepLogStream,
   type LogDrainOutcome,
@@ -279,7 +281,9 @@ export async function executeStep(params: {
       }
 
       let sessionStream: SessionLogStream | undefined;
-      const agentSecrets = [...secrets, ...Object.values(runtimeConfig.credentials)];
+      const runtimeCredentialValues = Object.values(runtimeConfig.credentials);
+      const runtimeSecretVariants = buildSecretVariants(runtimeCredentialValues);
+      const agentSecrets = [...secrets, ...runtimeCredentialValues];
       try {
         sessionStream = createSessionLogStream({
           logsDir,
@@ -298,13 +302,18 @@ export async function executeStep(params: {
       const result = await executeAgentStep(step, {
         signal,
         cwd,
-        credentials: runtimeConfig.credentials,
+        runtime: {
+          provider: runtimeConfig.provider_id,
+          model: runtimeConfig.model,
+          thinking: runtimeConfig.thinking,
+          credentials: runtimeConfig.credentials,
+        },
         ...(sessionStream
           ? {onSessionEntry: (line: string) => sessionStream?.writeEntry(line)}
           : {}),
       });
       return {
-        result,
+        result: maskAgentFailure(result, runtimeSecretVariants),
         stream,
         logOutcome: sessionStream ? undefined : 'abandoned',
         preparedWorkspace: false,
@@ -362,6 +371,15 @@ export async function executeStep(params: {
       preparedWorkspace: false,
     };
   }
+}
+
+function maskAgentFailure(result: StepResult, secretVariants: string[]): StepResult {
+  if (result.success) return result;
+  const error =
+    result.error === null || result.error === undefined
+      ? result.error
+      : {...result.error, message: redactSecrets(result.error.message, secretVariants)};
+  return {...result, output: '', error};
 }
 
 function agentRuntimeConfigFailure(error: unknown): StepResult {

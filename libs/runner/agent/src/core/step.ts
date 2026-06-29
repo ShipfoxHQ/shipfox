@@ -3,39 +3,38 @@ import type {StepResult} from '@shipfox/runner-execution';
 import {AgentConfigError} from '#core/errors.js';
 import {runAgent} from '#core/run-agent.js';
 
-const DEFAULT_THINKING = 'high';
-// Matches DEFAULT_AGENT_PROVIDER upstream; kept local so the runner stays decoupled from
-// the workflow-document package, and so a config materialized before `provider` existed
-// still resolves to anthropic.
-const DEFAULT_PROVIDER = 'anthropic';
-
 export function executeAgentStep(
   step: StepDto,
   options: {
     signal?: AbortSignal;
     cwd?: string;
-    credentials?: Record<string, string>;
+    runtime: {
+      provider: string;
+      model: string;
+      thinking: string;
+      credentials: Record<string, string>;
+    };
     onSessionEntry?: (line: string) => void;
-  } = {},
+  },
 ): Promise<StepResult> {
   if (step.type !== 'agent') {
     return Promise.resolve(agentFailure(`Unsupported step type: ${step.type}`));
   }
 
-  const {model, prompt, thinking, provider} = step.config;
-  if (typeof model !== 'string' || model === '' || typeof prompt !== 'string' || prompt === '') {
+  const {prompt} = step.config;
+  if (typeof prompt !== 'string' || prompt === '') {
     return Promise.resolve(
-      agentFailure('Agent step config is missing model or prompt', 'agent_config_invalid'),
+      agentFailure('Agent step config is missing prompt', 'agent_config_invalid'),
     );
   }
 
   return runAgentStep({
     cwd: options.cwd ?? process.cwd(),
-    model,
+    model: options.runtime.model,
     prompt,
-    thinking: typeof thinking === 'string' ? thinking : DEFAULT_THINKING,
-    provider: typeof provider === 'string' && provider !== '' ? provider : DEFAULT_PROVIDER,
-    credentials: options.credentials,
+    thinking: options.runtime.thinking,
+    provider: options.runtime.provider,
+    credentials: options.runtime.credentials,
     signal: options.signal,
     onSessionEntry: options.onSessionEntry,
   });
@@ -47,7 +46,7 @@ async function runAgentStep(params: {
   prompt: string;
   thinking: string;
   provider: string;
-  credentials: Record<string, string> | undefined;
+  credentials: Record<string, string>;
   signal: AbortSignal | undefined;
   onSessionEntry: ((line: string) => void) | undefined;
 }): Promise<StepResult> {
@@ -62,7 +61,7 @@ async function runAgentStep(params: {
         provider,
         thinking,
         prompt,
-        ...(credentials ? {credentials} : {}),
+        credentials,
         signal,
         ...(onSessionEntry ? {onSessionEntry} : {}),
       }),
