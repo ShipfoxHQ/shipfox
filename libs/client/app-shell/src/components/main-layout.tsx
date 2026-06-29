@@ -1,7 +1,6 @@
 import {useMaybeActiveWorkspace} from '@shipfox/client-auth';
 import {FullPageLoader} from '@shipfox/react-ui';
 import {Outlet, useMatches} from '@tanstack/react-router';
-import {Footer} from './footer.js';
 import {NavBar} from './nav-bar.js';
 import {ProjectTabs} from './project-tabs.js';
 
@@ -44,7 +43,6 @@ export function MainLayout({hideProjectNavigation = false}: MainLayoutProps) {
           </div>
         </main>
       )}
-      <Footer />
     </div>
   );
 }
