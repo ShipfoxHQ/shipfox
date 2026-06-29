@@ -13,7 +13,10 @@ import {
   ReservationExpiredError,
   ReservationNotFoundError,
 } from '#core/errors.js';
-import {toMintRegistrationTokensResponseDto} from '#presentation/dto/index.js';
+import {
+  toMintRegistrationTokensResources,
+  toMintRegistrationTokensResponseDto,
+} from '#presentation/dto/index.js';
 
 export const mintRegistrationTokensRoute = defineRoute({
   method: 'POST',
@@ -64,11 +67,7 @@ export const mintRegistrationTokensRoute = defineRoute({
       workspaceId,
       provisionerId: provisionerTokenId,
       reservationId: request.body.reservation_id,
-      resources: request.body.resources.map((resource) => ({
-        resourceId: resource.resource_id,
-        // template_key is contract-only here; lifecycle reporting owns resource/template binding.
-        templateKey: resource.template_key,
-      })),
+      resources: toMintRegistrationTokensResources(request.body.resources),
       ttlSeconds: config.EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS,
       maxBatchSize: config.REGISTRATION_TOKEN_BATCH_MAX,
     });
