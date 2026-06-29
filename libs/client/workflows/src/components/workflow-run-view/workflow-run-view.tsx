@@ -206,7 +206,6 @@ function RunViewContent({
             {selectedJob ? (
               <WorkflowStepList
                 job={selectedJob}
-                className="max-h-[50vh]"
                 selectedAttemptId={selectedJob.carriedOver ? undefined : selectedAttemptId}
                 onSelectedAttemptChange={selectionControlled ? selectAttempt : undefined}
                 autoSelectActiveAttempt

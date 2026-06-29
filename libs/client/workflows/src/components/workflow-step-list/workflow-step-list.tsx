@@ -137,13 +137,7 @@ function WorkflowStepListContent({
       {model.entries.length === 0 ? (
         <WorkflowStepListEmptyStateView emptyState={emptyState} />
       ) : (
-        <Accordion
-          type="multiple"
-          value={selectedAttemptIds}
-          onValueChange={selectAttempt}
-          className="min-h-0 overflow-auto"
-          asChild
-        >
+        <Accordion type="multiple" value={selectedAttemptIds} onValueChange={selectAttempt} asChild>
           <ol>
             {model.entries.map((entry) => {
               const selected = selectedAttemptIds.includes(entry.id);
