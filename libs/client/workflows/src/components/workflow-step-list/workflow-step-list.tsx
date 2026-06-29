@@ -15,7 +15,7 @@ import {
   TooltipTrigger,
 } from '@shipfox/react-ui';
 import type {ReactNode} from 'react';
-import {useEffect, useId, useMemo, useState} from 'react';
+import {useEffect, useId, useMemo, useRef, useState} from 'react';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import {isWorkflowStatus, type WorkflowJob} from '#core/workflow-run.js';
 import {
@@ -89,34 +89,56 @@ function WorkflowStepListContent({
   className,
 }: Omit<WorkflowStepListProps, 'job'> & {model: WorkflowStepListModel}) {
   const titleId = useId();
-  const [localSelectedAttemptIds, setLocalSelectedAttemptIds] = useState<string[]>(
-    defaultSelectedAttemptId ? [defaultSelectedAttemptId] : [],
+  const [localSelectedAttemptIds, setLocalSelectedAttemptIds] = useState<string[]>(() =>
+    selectedAttemptId
+      ? [selectedAttemptId]
+      : defaultSelectedAttemptId
+        ? [defaultSelectedAttemptId]
+        : [],
   );
   const [userSelectedAttempt, setUserSelectedAttempt] = useState(false);
+  const lastNotifiedSelectedAttemptId = useRef<string | null>(null);
+  const shouldUseControlledCollapsedState =
+    selectedAttemptId === null && lastNotifiedSelectedAttemptId.current === null;
   const autoSelectedAttemptIds =
-    autoSelectActiveAttempt && !userSelectedAttempt && model.activeEntryId
+    selectedAttemptId === undefined &&
+    autoSelectActiveAttempt &&
+    !userSelectedAttempt &&
+    model.activeEntryId
       ? [model.activeEntryId]
       : [];
-  // `undefined` leaves selection uncontrolled; `null` is a controlled collapsed state.
-  const selectedAttemptIds =
-    selectedAttemptId !== undefined
-      ? selectedAttemptId
-        ? [selectedAttemptId]
-        : []
-      : localSelectedAttemptIds.length > 0
-        ? localSelectedAttemptIds
-        : autoSelectedAttemptIds;
+  const selectedAttemptIds = shouldUseControlledCollapsedState
+    ? []
+    : localSelectedAttemptIds.length > 0
+      ? localSelectedAttemptIds
+      : autoSelectedAttemptIds;
   const hasExpandedContent = renderExpandedStep !== undefined;
 
   useEffect(() => {
+    if (selectedAttemptId !== undefined) return;
+
     setLocalSelectedAttemptIds(defaultSelectedAttemptId ? [defaultSelectedAttemptId] : []);
     setUserSelectedAttempt(false);
-  }, [defaultSelectedAttemptId]);
+  }, [defaultSelectedAttemptId, selectedAttemptId]);
+
+  useEffect(() => {
+    if (selectedAttemptId === undefined) return;
+
+    const nextSelectedAttemptId = selectedAttemptId ?? null;
+    if (lastNotifiedSelectedAttemptId.current === nextSelectedAttemptId) {
+      lastNotifiedSelectedAttemptId.current = null;
+      return;
+    }
+
+    setLocalSelectedAttemptIds(selectedAttemptId ? [selectedAttemptId] : []);
+    setUserSelectedAttempt(true);
+  }, [selectedAttemptId]);
 
   function selectAttempt(nextAttemptIds: string[]) {
     const nextAttemptId = nextSelectedAttemptId(selectedAttemptIds, nextAttemptIds);
     setUserSelectedAttempt(true);
     setLocalSelectedAttemptIds(nextAttemptIds);
+    lastNotifiedSelectedAttemptId.current = nextAttemptId ?? null;
     onSelectedAttemptChange?.(nextAttemptId);
   }
 
