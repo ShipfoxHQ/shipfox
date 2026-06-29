@@ -1,0 +1,1 @@
+export const STUCK_JOB_THRESHOLD_SECONDS = 180;
