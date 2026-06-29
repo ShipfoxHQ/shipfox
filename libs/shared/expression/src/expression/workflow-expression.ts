@@ -30,6 +30,7 @@ export type WorkflowExpressionCheckOptions =
   | {
       mode: 'typed';
       typeEnvironment?: ExpressionTypeEnvironment;
+      expectedResultType?: ExpressionScalarType;
     };
 
 export interface CreateWorkflowExpressionParams {

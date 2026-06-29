@@ -59,6 +59,15 @@ export function createWorkflowExpression(
         reason: typeCheckResult.error?.message ?? 'Expression source did not type-check.',
       });
     }
+    if (
+      params.check.expectedResultType !== undefined &&
+      typeCheckResult.type !== scalarTypeToCelType[params.check.expectedResultType]
+    ) {
+      throw new InvalidWorkflowExpressionError({
+        source,
+        reason: `Expression source must return ${scalarTypeToCelType[params.check.expectedResultType]}; got ${typeCheckResult.type ?? 'unknown'}.`,
+      });
+    }
   }
 
   return {

@@ -600,6 +600,30 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('reports non-boolean gate success_if expressions', () => {
+    const document: WorkflowDocument = {
+      name: 'non-boolean gate',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', gate: {success_if: 'exit_code + 1'}}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-step-gate-success-if',
+        path: ['jobs', 'build', 'steps', 0, 'gate', 'success_if'],
+        details: expect.objectContaining({
+          source: 'exit_code + 1',
+          reason: expect.stringContaining('must return bool'),
+        }),
+      }),
+    ]);
+  });
+
   it('reports gate restart_from references to unknown steps', () => {
     const document: WorkflowDocument = {
       name: 'invalid gate',
@@ -742,6 +766,37 @@ describe('normalizeWorkflowDocument', () => {
         test: {
           needs: 'build',
           steps: [{run: 'npm test'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'job-dependency-cycle',
+        message: 'Circular dependency detected among jobs: build, test.',
+        path: ['jobs'],
+        details: {cycleSourceNames: ['build', 'test'], cycleJobIds: ['build', 'test']},
+      },
+    ]);
+  });
+
+  it('reports only cycle members for dependencies blocked by a cycle', () => {
+    const document: WorkflowDocument = {
+      name: 'cycle with dependent',
+      jobs: {
+        build: {
+          needs: 'test',
+          steps: [{run: 'npm run build'}],
+        },
+        test: {
+          needs: 'build',
+          steps: [{run: 'npm test'}],
+        },
+        deploy: {
+          needs: 'build',
+          steps: [{run: 'npm run deploy'}],
         },
       },
     };
@@ -983,5 +1038,516 @@ describe('normalizeWorkflowDocument', () => {
       'unknown-job-dependency',
       'self-job-dependency',
     ]);
+  });
+
+  describe('definition-time interpolation', () => {
+    const interpolation = (source: string) => '$'.concat('{{ ', source, ' }}');
+
+    it('stores parsed templates for run, env, prompt, and step name fields', () => {
+      const document: WorkflowDocument = {
+        name: 'templated workflow',
+        env: {RUN_ID: interpolation('run.id'), PORT: 3000},
+        jobs: {
+          build: {
+            env: {JOB_NAME: interpolation('job.name')},
+            steps: [
+              {
+                name: `deploy ${interpolation('event.action')}`,
+                run: `deploy ${interpolation('run.id')}`,
+                env: {PR_TITLE: interpolation('event.pull_request.title'), DEBUG: false},
+              },
+              {
+                name: `review ${interpolation('inputs.topic')}`,
+                provider: 'openai',
+                prompt: `Review ${interpolation('event.pull_request.title')}`,
+              },
+            ],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model.templates?.env?.RUN_ID).toEqual([
+        {
+          kind: 'expr',
+          expression: {language: 'cel', source: 'run.id', check: 'typed'},
+          contextRoots: ['run'],
+        },
+      ]);
+      expect(model.templates?.env).not.toHaveProperty('PORT');
+      expect(model.jobs[0]?.templates?.env?.JOB_NAME).toEqual([
+        {
+          kind: 'expr',
+          expression: {language: 'cel', source: 'job.name', check: 'typed'},
+          contextRoots: ['job'],
+        },
+      ]);
+      expect(model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'run',
+        command: {value: `deploy ${interpolation('run.id')}`},
+        templates: {
+          command: [
+            {kind: 'literal', text: 'deploy '},
+            {
+              kind: 'expr',
+              expression: {language: 'cel', source: 'run.id', check: 'typed'},
+              contextRoots: ['run'],
+            },
+          ],
+          name: [
+            {kind: 'literal', text: 'deploy '},
+            {
+              kind: 'expr',
+              expression: {language: 'cel', source: 'event.action', check: 'syntax'},
+              contextRoots: ['event'],
+            },
+          ],
+          env: {
+            PR_TITLE: [
+              {
+                kind: 'expr',
+                expression: {
+                  language: 'cel',
+                  source: 'event.pull_request.title',
+                  check: 'syntax',
+                },
+                contextRoots: ['event'],
+              },
+            ],
+          },
+        },
+      });
+      expect(model.jobs[0]?.steps[1]).toMatchObject({
+        kind: 'agent',
+        templates: {
+          prompt: [
+            {kind: 'literal', text: 'Review '},
+            {
+              kind: 'expr',
+              expression: {
+                language: 'cel',
+                source: 'event.pull_request.title',
+                check: 'syntax',
+              },
+              contextRoots: ['event'],
+            },
+          ],
+          name: [
+            {kind: 'literal', text: 'review '},
+            {
+              kind: 'expr',
+              expression: {language: 'cel', source: 'inputs.topic', check: 'syntax'},
+              contextRoots: ['inputs'],
+            },
+          ],
+        },
+      });
+    });
+
+    it('omits templates for pure literal and escaped interpolation text', () => {
+      const document: WorkflowDocument = {
+        name: 'literal workflow',
+        env: {VALUE: '$${{ event.ref }}'},
+        jobs: {
+          build: {
+            steps: [{name: 'literal step', run: 'echo $${{ event.ref }}'}],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model).not.toHaveProperty('templates');
+      expect(model.jobs[0]?.steps[0]).not.toHaveProperty('templates');
+      expect(model.env).toEqual({VALUE: '$${{ event.ref }}'});
+      expect(model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'run',
+        command: {value: 'echo $${{ event.ref }}'},
+      });
+    });
+
+    it('preserves env keys that look like object prototype properties', () => {
+      const document: WorkflowDocument = {
+        name: 'prototype env',
+        env: {['__proto__']: interpolation('event.name')},
+        jobs: {
+          build: {
+            env: {['__proto__']: 'job-value'},
+            steps: [
+              {
+                run: 'echo ok',
+                env: {['__proto__']: interpolation('inputs.value')},
+              },
+            ],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+      const workflowEnv = model.env ?? {};
+      const jobEnv = model.jobs[0]?.env ?? {};
+      const step = model.jobs[0]?.steps[0];
+      if (step?.kind !== 'run') expect.fail('Expected a run step');
+      const stepEnv = step.env ?? {};
+      const workflowTemplates = model.templates?.env ?? {};
+      const stepTemplates = step.templates?.env ?? {};
+
+      expect(Object.hasOwn(workflowEnv, '__proto__')).toBe(true);
+      expect(Object.hasOwn(jobEnv, '__proto__')).toBe(true);
+      expect(Object.hasOwn(stepEnv, '__proto__')).toBe(true);
+      expect(Object.getOwnPropertyDescriptor(workflowEnv, '__proto__')?.value).toBe(
+        interpolation('event.name'),
+      );
+      expect(Object.getOwnPropertyDescriptor(jobEnv, '__proto__')?.value).toBe('job-value');
+      expect(Object.getOwnPropertyDescriptor(stepEnv, '__proto__')?.value).toBe(
+        interpolation('inputs.value'),
+      );
+      expect(
+        Object.getOwnPropertyDescriptor(workflowTemplates, '__proto__')?.value?.[0],
+      ).toMatchObject({
+        kind: 'expr',
+        contextRoots: ['event'],
+      });
+      expect(Object.getOwnPropertyDescriptor(stepTemplates, '__proto__')?.value?.[0]).toMatchObject(
+        {
+          kind: 'expr',
+          contextRoots: ['inputs'],
+        },
+      );
+    });
+
+    it('rejects untrusted context in run commands with the env fix-it message', () => {
+      const document: WorkflowDocument = {
+        name: 'unsafe run',
+        jobs: {
+          build: {
+            steps: [{run: `echo ${interpolation('event.pull_request.title')}`}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'untrusted-context-in-field',
+          path: ['jobs', 'build', 'steps', 0, 'run'],
+          message: expect.stringContaining('Bind untrusted values to env'),
+          details: expect.objectContaining({
+            field: 'run',
+            rejectedRoots: ['event'],
+          }),
+        }),
+      ]);
+    });
+
+    it('allows untrusted context in env, prompt, and step names', () => {
+      const document: WorkflowDocument = {
+        name: 'untrusted allowed',
+        env: {EVENT_NAME: interpolation('event.name')},
+        jobs: {
+          build: {
+            steps: [
+              {name: interpolation('event.action'), run: 'echo ok'},
+              {provider: 'openai', prompt: interpolation('inputs.prompt')},
+            ],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model.templates?.env?.EVENT_NAME?.[0]).toMatchObject({
+        kind: 'expr',
+        expression: {check: 'syntax'},
+        contextRoots: ['event'],
+      });
+      expect(model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'run',
+        templates: {name: [{kind: 'expr', contextRoots: ['event']}]},
+      });
+      expect(model.jobs[0]?.steps[1]).toMatchObject({
+        kind: 'agent',
+        templates: {prompt: [{kind: 'expr', contextRoots: ['inputs']}]},
+      });
+    });
+
+    it.each([
+      ['model', {model: interpolation('event.model'), prompt: 'Fix it.'}, 'event'],
+      ['provider', {provider: interpolation('inputs.provider'), prompt: 'Fix it.'}, 'inputs'],
+    ] as const)('rejects untrusted agent %s interpolation', (_field, step, root) => {
+      const document: WorkflowDocument = {
+        name: 'unsafe agent field',
+        jobs: {
+          fix: {
+            steps: [step],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'untrusted-context-in-field',
+          details: expect.objectContaining({rejectedRoots: [root]}),
+        }),
+      ]);
+    });
+
+    it.each([
+      ['model', {model: interpolation('foo.bar'), prompt: 'Fix it.'}],
+      ['provider', {provider: interpolation('foo.bar'), prompt: 'Fix it.'}],
+    ] as const)('rejects unknown context roots in agent %s interpolation', (_field, step) => {
+      const document: WorkflowDocument = {
+        name: 'unknown agent context',
+        jobs: {
+          fix: {
+            steps: [step],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'unknown-interpolation-context',
+          details: expect.objectContaining({unknownRoots: ['foo']}),
+        }),
+      ]);
+    });
+
+    it.each([
+      ['model', {model: interpolation('run.name'), prompt: 'Fix it.'}],
+      ['provider', {provider: interpolation('run.name'), prompt: 'Fix it.'}],
+    ] as const)('rejects trusted agent %s interpolation until resolution lands', (_field, step) => {
+      const document: WorkflowDocument = {
+        name: 'unsupported agent field',
+        jobs: {
+          fix: {
+            steps: [step],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'interpolation-not-supported',
+          message: expect.stringContaining('ENG-637'),
+        }),
+      ]);
+    });
+
+    it('still validates literal agent providers through the catalog', () => {
+      const document: WorkflowDocument = {
+        name: 'literal provider',
+        jobs: {
+          fix: {
+            steps: [{provider: 'github-copilot', prompt: 'Fix it.'}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-agent-provider',
+          path: ['jobs', 'fix', 'steps', 0, 'provider'],
+        }),
+      ]);
+    });
+
+    it('reports typed interpolation expression errors for trusted known contexts', () => {
+      const document: WorkflowDocument = {
+        name: 'bad trusted path',
+        env: {BAD: interpolation('run.nope')},
+        jobs: {
+          build: {
+            steps: [{run: 'echo ok'}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-interpolation-expression',
+          path: ['env', 'BAD'],
+          details: expect.objectContaining({
+            field: 'env.value',
+            expression: 'run.nope',
+            contextRoots: ['run'],
+          }),
+        }),
+      ]);
+    });
+
+    it('reports malformed interpolation templates before expression validation', () => {
+      const document: WorkflowDocument = {
+        name: 'bad template',
+        env: {BAD: 'deploy ${{ event.ref'},
+        jobs: {
+          build: {
+            steps: [{run: 'echo ok'}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-interpolation-template',
+          path: ['env', 'BAD'],
+          details: expect.objectContaining({field: 'env.value'}),
+        }),
+      ]);
+    });
+
+    it('reports unknown interpolation context roots', () => {
+      const document: WorkflowDocument = {
+        name: 'unknown context',
+        env: {BAD: interpolation('foo.bar')},
+        jobs: {
+          build: {
+            steps: [{run: 'echo ok'}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'unknown-interpolation-context',
+          path: ['env', 'BAD'],
+          details: expect.objectContaining({
+            contextRoots: ['foo'],
+            unknownRoots: ['foo'],
+          }),
+        }),
+      ]);
+    });
+
+    it('type-checks merged trusted contexts and reports bad fields from either root', () => {
+      const validDocument: WorkflowDocument = {
+        name: 'merged contexts',
+        env: {VALID: interpolation('run.name + trigger.source')},
+        jobs: {
+          build: {
+            steps: [{run: 'echo ok'}],
+          },
+        },
+      };
+      const invalidDocument: WorkflowDocument = {
+        name: 'bad merged contexts',
+        env: {BAD: interpolation('run.name + trigger.nope')},
+        jobs: {
+          build: {
+            steps: [{run: 'echo ok'}],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(validDocument);
+      const error = expectInvalid(invalidDocument);
+
+      expect(model.templates?.env?.VALID?.[0]).toMatchObject({
+        kind: 'expr',
+        expression: {check: 'typed'},
+        contextRoots: ['run', 'trigger'],
+      });
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-interpolation-expression',
+          path: ['env', 'BAD'],
+        }),
+      ]);
+    });
+
+    it('uses syntax mode for mixed open contexts but still enforces minimum trust', () => {
+      const envDocument: WorkflowDocument = {
+        name: 'mixed env',
+        env: {MIXED: interpolation('run.nope + event.x')},
+        jobs: {
+          build: {
+            steps: [{run: 'echo ok'}],
+          },
+        },
+      };
+      const runDocument: WorkflowDocument = {
+        name: 'mixed run',
+        jobs: {
+          build: {
+            steps: [{run: `echo ${interpolation('run.id + event.x')}`}],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(envDocument);
+      const error = expectInvalid(runDocument);
+
+      expect(model.templates?.env?.MIXED?.[0]).toMatchObject({
+        kind: 'expr',
+        expression: {check: 'syntax'},
+        contextRoots: expect.arrayContaining(['run', 'event']),
+      });
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'untrusted-context-in-field',
+          path: ['jobs', 'build', 'steps', 0, 'run'],
+        }),
+      ]);
+    });
+
+    it('reports one trust issue for a multi-segment run field with one untrusted segment', () => {
+      const document: WorkflowDocument = {
+        name: 'multi segment run',
+        jobs: {
+          build: {
+            steps: [{run: `${interpolation('run.id')}-${interpolation('event.x')}`}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'untrusted-context-in-field',
+          details: expect.objectContaining({rejectedRoots: ['event']}),
+        }),
+      ]);
+    });
+
+    it('does not parse templates in non-string env values', () => {
+      const document: WorkflowDocument = {
+        name: 'non-string env',
+        env: {COUNT: 1, ENABLED: true},
+        jobs: {
+          build: {
+            env: {LIMIT: 10},
+            steps: [{run: 'echo ok', env: {DEBUG: false}}],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model.env).toEqual({COUNT: '1', ENABLED: 'true'});
+      expect(model).not.toHaveProperty('templates');
+      expect(model.jobs[0]).not.toHaveProperty('templates');
+      expect(model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'run',
+        env: {DEBUG: 'false'},
+      });
+      expect(model.jobs[0]?.steps[0]).not.toHaveProperty('templates');
+    });
   });
 });

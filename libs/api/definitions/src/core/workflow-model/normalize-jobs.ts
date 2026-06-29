@@ -1,0 +1,430 @@
+import {getAgentProviderEntry} from '@shipfox/api-agent-dto';
+import {
+  canonicalizeLabels,
+  findInvalidLabels,
+  MAX_RUNNER_LABEL_LENGTH,
+  MAX_RUNNER_LABELS,
+  RUNNER_LABEL_PATTERN,
+} from '@shipfox/runner-labels';
+import type {
+  WorkflowDocument,
+  WorkflowDocumentJob,
+  WorkflowDocumentStep,
+} from '@shipfox/workflow-document';
+import type {
+  WorkflowEnvTemplates,
+  WorkflowFieldTemplate,
+  WorkflowModelAgentStep,
+  WorkflowModelJob,
+  WorkflowModelRunStep,
+  WorkflowModelStep,
+  WorkflowStepSourceLocationMap,
+} from '../entities/workflow-model.js';
+import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
+import {normalizeEnv} from './normalize-env.js';
+import {normalizeNeeds} from './normalize-needs.js';
+import {normalizeStepGate} from './normalize-step-gate.js';
+import {
+  parseInterpolationField,
+  rejectUnsupportedInterpolationField,
+} from './parse-interpolation-field.js';
+import {stableId} from './stable-id.js';
+import {issue} from './validation-issue.js';
+
+export function normalizeJobs(
+  document: WorkflowDocument,
+  jobIdBySourceName: ReadonlyMap<string, string>,
+  issues: WorkflowModelValidationIssue[],
+  stepSourceLocations: WorkflowStepSourceLocationMap | undefined,
+  defaultRunnerLabels: readonly string[],
+): readonly WorkflowModelJob[] {
+  return Object.entries(document.jobs).flatMap(([sourceName, job]) => {
+    const model = normalizeJob({
+      document,
+      sourceName,
+      job,
+      jobIdBySourceName,
+      issues,
+      stepSourceLocations,
+      defaultRunnerLabels,
+    });
+    return model === undefined ? [] : [model];
+  });
+}
+
+function normalizeJob(params: {
+  document: WorkflowDocument;
+  sourceName: string;
+  job: WorkflowDocumentJob;
+  jobIdBySourceName: ReadonlyMap<string, string>;
+  issues: WorkflowModelValidationIssue[];
+  stepSourceLocations: WorkflowStepSourceLocationMap | undefined;
+  defaultRunnerLabels: readonly string[];
+}): WorkflowModelJob | undefined {
+  const id = params.jobIdBySourceName.get(params.sourceName);
+  if (id === undefined) return undefined;
+
+  const dependencies = normalizeJobDependencies({
+    sourceName: params.sourceName,
+    job: params.job,
+    jobIdBySourceName: params.jobIdBySourceName,
+  });
+  const steps = normalizeJobSteps({
+    sourceName: params.sourceName,
+    jobId: id,
+    job: params.job,
+    issues: params.issues,
+    stepSourceLocations: params.stepSourceLocations,
+  });
+  const runner = normalizeRunner({
+    document: params.document,
+    job: params.job,
+    sourceName: params.sourceName,
+    issues: params.issues,
+    defaultRunnerLabels: params.defaultRunnerLabels,
+  });
+  const jobEnv = normalizeEnv({
+    env: params.job.env,
+    path: ['jobs', params.sourceName, 'env'],
+    issues: params.issues,
+  });
+
+  return {
+    id,
+    sourceName: params.sourceName,
+    runner,
+    ...jobEnv,
+    dependencies,
+    steps,
+  };
+}
+
+function normalizeJobDependencies(params: {
+  sourceName: string;
+  job: WorkflowDocumentJob;
+  jobIdBySourceName: ReadonlyMap<string, string>;
+}): readonly string[] {
+  return normalizeNeeds(params.job.needs).flatMap((dependencySourceName) => {
+    const dependencyId = params.jobIdBySourceName.get(dependencySourceName);
+    if (dependencyId === undefined || dependencySourceName === params.sourceName) return [];
+    return [dependencyId];
+  });
+}
+
+function normalizeJobSteps(params: {
+  sourceName: string;
+  jobId: string;
+  job: WorkflowDocumentJob;
+  issues: WorkflowModelValidationIssue[];
+  stepSourceLocations: WorkflowStepSourceLocationMap | undefined;
+}): readonly WorkflowModelStep[] {
+  const usedStepIds = new Map<string, number>();
+
+  return params.job.steps.map((step, index) =>
+    normalizeStep({
+      step,
+      index,
+      sourceName: params.sourceName,
+      jobId: params.jobId,
+      allSteps: params.job.steps,
+      usedStepIds,
+      issues: params.issues,
+      stepSourceLocations: params.stepSourceLocations,
+    }),
+  );
+}
+
+function normalizeStep(params: {
+  step: WorkflowDocumentStep;
+  index: number;
+  sourceName: string;
+  jobId: string;
+  allSteps: readonly WorkflowDocumentStep[];
+  usedStepIds: Map<string, number>;
+  issues: WorkflowModelValidationIssue[];
+  stepSourceLocations: WorkflowStepSourceLocationMap | undefined;
+}): WorkflowModelStep {
+  const stepSourceName = params.step.name;
+  const stepId =
+    stepSourceName === undefined
+      ? `${params.jobId}-step-${params.index + 1}`
+      : `${params.jobId}-${stableId(stepSourceName)}`;
+  const existingIndex = params.usedStepIds.get(stepId);
+
+  if (existingIndex !== undefined) {
+    params.issues.push(
+      issue({
+        code: 'duplicate-step-id',
+        message: `Steps ${existingIndex} and ${params.index} in job "${params.sourceName}" resolve to the same stable id "${stepId}".`,
+        path: ['jobs', params.sourceName, 'steps', params.index],
+        details: {id: stepId, indexes: [existingIndex, params.index]},
+      }),
+    );
+  } else {
+    params.usedStepIds.set(stepId, params.index);
+  }
+
+  const gate = normalizeStepGate({
+    step: params.step,
+    sourceName: params.sourceName,
+    stepIndex: params.index,
+    stepId,
+    previousStepSourceNames: new Set(
+      params.allSteps
+        .slice(0, params.index)
+        .flatMap((candidate) => (candidate.name ? [candidate.name] : [])),
+    ),
+    issues: params.issues,
+  });
+  const sourceLocation = params.stepSourceLocations?.get(params.sourceName)?.get(params.index);
+  const nameTemplate =
+    stepSourceName === undefined
+      ? undefined
+      : parseInterpolationField({
+          field: 'step.name',
+          source: stepSourceName,
+          path: ['jobs', params.sourceName, 'steps', params.index, 'name'],
+          issues: params.issues,
+        });
+  const stepBase = {
+    id: stepId,
+    ...(stepSourceName === undefined ? {} : {sourceName: stepSourceName}),
+    ...(sourceLocation === undefined ? {} : {sourceLocation}),
+    ...(gate === undefined ? {} : {gate}),
+  };
+
+  if (params.step.run !== undefined) {
+    return normalizeRunStep({
+      step: params.step,
+      stepBase,
+      sourceName: params.sourceName,
+      stepIndex: params.index,
+      nameTemplate,
+      issues: params.issues,
+    });
+  }
+
+  if (params.step.prompt !== undefined) {
+    return normalizeAgentStep({
+      step: params.step,
+      stepBase,
+      sourceName: params.sourceName,
+      stepIndex: params.index,
+      nameTemplate,
+      issues: params.issues,
+    });
+  }
+
+  // workflowDocumentStepSchema requires either `run` or an agent `prompt`; this
+  // keeps the model-step union honest if callers bypass the document parser.
+  throw new Error(`Workflow step "${stepId}" is neither a run nor an agent step`);
+}
+
+function normalizeRunStep(params: {
+  step: WorkflowDocumentStep;
+  stepBase: WorkflowModelStepBaseFields;
+  sourceName: string;
+  stepIndex: number;
+  nameTemplate: WorkflowFieldTemplate | undefined;
+  issues: WorkflowModelValidationIssue[];
+}): WorkflowModelRunStep {
+  if (params.step.run === undefined) {
+    throw new Error('Run step normalization requires a run command');
+  }
+
+  const commandTemplate = parseInterpolationField({
+    field: 'run',
+    source: params.step.run,
+    path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'run'],
+    issues: params.issues,
+  });
+  const stepEnv = normalizeEnv({
+    env: params.step.env,
+    path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'env'],
+    issues: params.issues,
+  });
+  const templates = optionalRunStepTemplates({
+    command: commandTemplate,
+    name: params.nameTemplate,
+    env: stepEnv.templates?.env,
+  });
+
+  return {
+    ...params.stepBase,
+    kind: 'run',
+    command: {kind: 'shell', value: params.step.run},
+    ...(stepEnv.env === undefined ? {} : {env: stepEnv.env}),
+    ...(templates === undefined ? {} : {templates}),
+  };
+}
+
+function normalizeAgentStep(params: {
+  step: WorkflowDocumentStep;
+  stepBase: WorkflowModelStepBaseFields;
+  sourceName: string;
+  stepIndex: number;
+  nameTemplate: WorkflowFieldTemplate | undefined;
+  issues: WorkflowModelValidationIssue[];
+}): WorkflowModelAgentStep {
+  if (params.step.prompt === undefined) {
+    throw new Error('Agent step normalization requires a prompt');
+  }
+
+  const promptTemplate = parseInterpolationField({
+    field: 'agent.prompt',
+    source: params.step.prompt,
+    path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'prompt'],
+    issues: params.issues,
+  });
+  if (params.step.model !== undefined) {
+    rejectUnsupportedInterpolationField({
+      field: 'agent.model',
+      source: params.step.model,
+      path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
+      issues: params.issues,
+    });
+  }
+  const providerHasInterpolation =
+    params.step.provider === undefined
+      ? false
+      : rejectUnsupportedInterpolationField({
+          field: 'agent.provider',
+          source: params.step.provider,
+          path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
+          issues: params.issues,
+        });
+  if (!providerHasInterpolation)
+    validateAgentStep({
+      step: params.step,
+      sourceName: params.sourceName,
+      stepIndex: params.stepIndex,
+      issues: params.issues,
+    });
+  const templates = optionalAgentStepTemplates({
+    prompt: promptTemplate,
+    name: params.nameTemplate,
+  });
+
+  return {
+    ...params.stepBase,
+    kind: 'agent',
+    ...(params.step.model === undefined ? {} : {model: params.step.model}),
+    ...(params.step.provider === undefined ? {} : {provider: params.step.provider}),
+    prompt: params.step.prompt,
+    ...(params.step.thinking === undefined ? {} : {thinking: params.step.thinking}),
+    ...(templates === undefined ? {} : {templates}),
+  };
+}
+
+function validateAgentStep(params: {
+  step: WorkflowDocumentStep;
+  sourceName: string;
+  stepIndex: number;
+  issues: WorkflowModelValidationIssue[];
+}): void {
+  const providerId = params.step.provider;
+  if (providerId === undefined) return;
+
+  const provider = getAgentProviderEntry(providerId);
+  if (provider === undefined || provider.support_status !== 'supported') {
+    params.issues.push(
+      issue({
+        code: 'invalid-agent-provider',
+        message: `Agent provider "${providerId}" is not supported.`,
+        path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
+        details: {provider: providerId},
+      }),
+    );
+    return;
+  }
+}
+
+function normalizeRunner(params: {
+  document: WorkflowDocument;
+  job: WorkflowDocumentJob;
+  sourceName: string;
+  issues: WorkflowModelValidationIssue[];
+  defaultRunnerLabels: readonly string[];
+}): readonly string[] {
+  const rawRunner = params.job.runner ?? params.document.runner;
+  const runnerLabels =
+    rawRunner === undefined ? params.defaultRunnerLabels : canonicalizeLabels(rawRunner);
+  const invalid = findInvalidLabels(runnerLabels);
+
+  if (invalid.length > 0) {
+    params.issues.push(
+      issue({
+        code: 'invalid-runner-label',
+        message: `Job "${params.sourceName}" has invalid runner label(s): ${invalid.join(', ')}. Labels must match ${RUNNER_LABEL_PATTERN} and be at most ${MAX_RUNNER_LABEL_LENGTH} chars.`,
+        path: ['jobs', params.sourceName, 'runner'],
+        details: {labels: invalid},
+      }),
+    );
+  }
+
+  if (runnerLabels.length === 0) {
+    params.issues.push(
+      issue({
+        code: 'missing-runner-label',
+        message: `Job "${params.sourceName}" must declare at least one runner label. Set "runner" on the job or the workflow, or configure DEFINITION_DEFAULT_RUNNER_LABEL.`,
+        path: ['jobs', params.sourceName, 'runner'],
+      }),
+    );
+  }
+
+  if (runnerLabels.length > MAX_RUNNER_LABELS) {
+    params.issues.push(
+      issue({
+        code: 'too-many-runner-labels',
+        message: `Job "${params.sourceName}" declares ${runnerLabels.length} runner labels; the maximum is ${MAX_RUNNER_LABELS}.`,
+        path: ['jobs', params.sourceName, 'runner'],
+      }),
+    );
+  }
+
+  return runnerLabels;
+}
+
+type WorkflowModelStepBaseFields = Pick<
+  WorkflowModelStep,
+  'id' | 'sourceName' | 'sourceLocation' | 'gate'
+>;
+
+function optionalRunStepTemplates(params: {
+  command: WorkflowFieldTemplate | undefined;
+  name: WorkflowFieldTemplate | undefined;
+  env: WorkflowEnvTemplates | undefined;
+}):
+  | {
+      command?: WorkflowFieldTemplate;
+      name?: WorkflowFieldTemplate;
+      env?: WorkflowEnvTemplates;
+    }
+  | undefined {
+  if (params.command === undefined && params.name === undefined && params.env === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(params.command === undefined ? {} : {command: params.command}),
+    ...(params.name === undefined ? {} : {name: params.name}),
+    ...(params.env === undefined ? {} : {env: params.env}),
+  };
+}
+
+function optionalAgentStepTemplates(params: {
+  prompt: WorkflowFieldTemplate | undefined;
+  name: WorkflowFieldTemplate | undefined;
+}):
+  | {
+      prompt?: WorkflowFieldTemplate;
+      name?: WorkflowFieldTemplate;
+    }
+  | undefined {
+  if (params.prompt === undefined && params.name === undefined) return undefined;
+
+  return {
+    ...(params.prompt === undefined ? {} : {prompt: params.prompt}),
+    ...(params.name === undefined ? {} : {name: params.name}),
+  };
+}

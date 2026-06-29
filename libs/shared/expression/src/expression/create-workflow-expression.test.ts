@@ -63,6 +63,27 @@ describe('createWorkflowExpression', () => {
     expect(act).toThrow(InvalidWorkflowExpressionError);
   });
 
+  it('rejects typed expressions with an unexpected result type', () => {
+    let error: unknown;
+    try {
+      createWorkflowExpression({
+        source: 'event.value + 1',
+        check: {
+          mode: 'typed',
+          typeEnvironment: {
+            event: {kind: 'object', fields: {value: 'int'}},
+          },
+          expectedResultType: 'bool',
+        },
+      });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(InvalidWorkflowExpressionError);
+    expect((error as InvalidWorkflowExpressionError).reason).toContain('must return bool; got int');
+  });
+
   it('exposes the source and type-check reason on invalid expression errors', () => {
     let error: unknown;
     try {
