@@ -169,8 +169,10 @@ async function launchReservation<Spec>(
         });
         launched += 1;
       } catch (error) {
-        // The runner is tracked as starting; backend reconciliation (ENG-618) reaps
-        // one that never registers. Do not free the slot here on a transient failure.
+        // The launch call rejected, so no resource was created: free the slot now instead
+        // of leaving a phantom `starting` runner. A persistent failure (bad image, daemon
+        // down) would otherwise drain capacity to zero and wedge the loop until restart.
+        deps.tracker.remove(token.provisioned_runner_id);
         logger().error(
           {err: error, provisionedRunnerId: token.provisioned_runner_id},
           'Failed to launch provisioned runner',

@@ -241,7 +241,7 @@ describe('runProvisionerTick', () => {
     expect(result.launchedCount).toBe(1);
   });
 
-  it('isolates a launch failure: it mints, counts it unlaunched, and does not throw', async () => {
+  it('frees the slot on a launch failure: it mints, removes the runner, and does not throw', async () => {
     const template = ubuntuTemplate({key: 'small'});
     const fixture = harness({response: {stats: [], reservations: [reservation(1)]}});
 
@@ -258,5 +258,7 @@ describe('runProvisionerTick', () => {
 
     expect(fixture.mintBodies).toHaveLength(1);
     expect(result.launchedCount).toBe(0);
+    // The failed runner must not keep occupying a slot, or a persistent failure wedges the loop.
+    expect(fixture.tracker.countsByTemplate()).toEqual(new Map());
   });
 });
