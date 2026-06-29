@@ -31,9 +31,9 @@ export interface IntegrationGalleryProps {
 
 const lifecyclePills: Record<
   IntegrationConnectionLifecycleStatusDto,
-  {variant: 'success' | 'neutral' | 'error'; label: string; iconLeft?: IconName}
+  {variant: 'neutral' | 'error'; label: string; iconLeft?: IconName} | undefined
 > = {
-  active: {variant: 'success', label: 'Connected'},
+  active: undefined,
   // Mirrors the webhook-delivery taxonomy (DESIGN.md §9): disabled is quiet
   // neutral with a warning icon, not warning-orange (which means "act now").
   disabled: {variant: 'neutral', label: 'Disabled', iconLeft: 'errorWarningLine'},
@@ -144,7 +144,7 @@ function InstalledRow({
   const muted = connection.lifecycle_status === 'disabled';
 
   return (
-    <li className="flex items-center gap-12 px-16 py-10 transition-colors hover:bg-background-components-hover">
+    <li className="flex items-center gap-12 px-16 py-12 transition-colors hover:bg-background-components-hover">
       <IntegrationIcon
         source={connection.provider}
         aria-hidden
@@ -188,14 +188,16 @@ function InstalledRow({
           </a>
         </Button>
       ) : null}
-      <Badge
-        variant={pill.variant}
-        radius="rounded"
-        className="shrink-0"
-        {...(pill.iconLeft ? {iconLeft: pill.iconLeft} : {})}
-      >
-        {pill.label}
-      </Badge>
+      {pill ? (
+        <Badge
+          variant={pill.variant}
+          radius="rounded"
+          className="shrink-0"
+          {...(pill.iconLeft ? {iconLeft: pill.iconLeft} : {})}
+        >
+          {pill.label}
+        </Badge>
+      ) : null}
     </li>
   );
 }
@@ -208,7 +210,7 @@ function InstalledSkeleton({label}: {label: string}) {
       className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}
     >
       {[0, 1, 2].map((row) => (
-        <li key={row} className="flex items-center gap-12 px-16 py-10">
+        <li key={row} className="flex items-center gap-12 px-16 py-12">
           <Skeleton className="size-24 shrink-0" />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <Skeleton className="h-16 w-120" />

@@ -65,8 +65,8 @@ describe('IntegrationsSettingsPage', () => {
     expect(screen.getByRole('link', {name: INTEGRATIONS_LINK_RE})).toBeVisible();
     expect(await screen.findByRole('region', {name: 'Installed integrations'})).toBeInTheDocument();
     expect(screen.getByRole('region', {name: 'Available integrations'})).toBeInTheDocument();
-    expect(await screen.findByText('Connected')).toBeVisible();
-    expect(screen.getByText('acme-corp')).toBeVisible();
+    expect(await screen.findByText('acme-corp')).toBeVisible();
+    expect(screen.queryByText('Connected')).not.toBeInTheDocument();
     expect(screen.getByText(ADDED_META_RE)).toBeVisible();
   });
 });
