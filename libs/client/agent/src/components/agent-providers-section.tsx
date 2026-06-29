@@ -138,7 +138,7 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
         <div className="flex flex-col gap-4">
           <Header variant="h3">Available providers</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
-            Supported providers ready for workspace credentials.
+            Providers that can be configured with workspace-managed API keys.
           </Text>
         </div>
 

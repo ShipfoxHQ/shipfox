@@ -73,6 +73,9 @@ describe('WorkspaceAgentProvidersSection', () => {
     expect(screen.getByText('Default provider')).toHaveClass('sr-only');
     expect(screen.queryByText(ANTHROPIC_FINGERPRINT_RE)).not.toBeInTheDocument();
     expect(screen.getByText('Available providers')).toBeVisible();
+    expect(
+      screen.getByText('Providers that can be configured with workspace-managed API keys.'),
+    ).toBeVisible();
     expect(screen.getByText('OpenAI')).toBeVisible();
     expect(screen.getByText('Unsupported providers')).toBeVisible();
     expect(screen.getByText('Amazon Bedrock')).toBeVisible();
