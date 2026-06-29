@@ -225,7 +225,7 @@ function aggregateEvents(
     if (!existing || compareProvisionedRunnerReportEvents(event, existing) > 0) {
       byProvisionedRunnerId.set(
         event.provisionedRunnerId,
-        existing ? {...event, ...pickMilestones(existing)} : event,
+        existing ? mergeProjectionMetadata(event, existing) : event,
       );
     }
   }
@@ -254,6 +254,20 @@ function mergeMilestones(target: ProvisionedRunnerReportRow, source: Provisioned
   target.stoppedAt = earliestDate(target.stoppedAt, source.stoppedAt);
   target.failedAt = earliestDate(target.failedAt, source.failedAt);
   target.terminatedAt = earliestDate(target.terminatedAt, source.terminatedAt);
+}
+
+function mergeProjectionMetadata(
+  event: ProvisionedRunnerReportRow,
+  existing: ProvisionedRunnerReportRow,
+): ProvisionedRunnerReportRow {
+  return {
+    ...event,
+    reservationId: event.reservationId ?? existing.reservationId,
+    templateKey: event.templateKey ?? existing.templateKey,
+    runnerSessionId: event.runnerSessionId ?? existing.runnerSessionId,
+    providerKind: event.providerKind ?? existing.providerKind,
+    ...pickMilestones(existing),
+  };
 }
 
 function pickMilestones(event: ProvisionedRunnerReportRow) {

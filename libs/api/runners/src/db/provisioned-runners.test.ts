@@ -513,6 +513,40 @@ describe('reportProvisionedRunners', () => {
     expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeNull();
   });
 
+  it('preserves claimed runner session metadata when a terminal state wins the batch', async () => {
+    const reservationId = await createReservation(1);
+    const runnerSessionId = crypto.randomUUID();
+    const reportedAt = new Date('2025-01-01T00:00:00.000Z');
+
+    const result = await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          reservationId,
+          state: 'running',
+          runnerSessionId,
+          reportedAt,
+        }),
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          reservationId,
+          state: 'failed',
+          reportedAt: new Date(reportedAt.getTime() + 1_000),
+        }),
+      ],
+    });
+
+    const reservationRows = await db().select().from(reservations);
+    const provisionedRunnerRows = await db().select().from(provisionedRunners);
+    expect(result).toEqual({accepted: 1, reservationsReleased: 0});
+    expect(reservationRows[0]?.count).toBe(1);
+    expect(provisionedRunnerRows[0]?.state).toBe('failed');
+    expect(provisionedRunnerRows[0]?.runnerSessionId).toBe(runnerSessionId);
+    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeNull();
+  });
+
   async function createReservation(
     count: number,
     overrides?: {workspaceId?: string; provisionerId?: string},
