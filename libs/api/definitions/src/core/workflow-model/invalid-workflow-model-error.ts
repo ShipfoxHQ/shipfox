@@ -5,6 +5,9 @@ export type WorkflowModelValidationIssueCode =
   | 'duplicate-step-id'
   | 'duplicate-trigger-id'
   | 'invalid-agent-provider'
+  | 'interpolation-not-supported'
+  | 'invalid-interpolation-expression'
+  | 'invalid-interpolation-template'
   | 'invalid-runner-label'
   | 'invalid-step-gate-restart-from'
   | 'invalid-step-gate-success-if'
@@ -13,7 +16,9 @@ export type WorkflowModelValidationIssueCode =
   | 'multiple-manual-triggers'
   | 'self-job-dependency'
   | 'too-many-runner-labels'
-  | 'unknown-job-dependency';
+  | 'unknown-interpolation-context'
+  | 'unknown-job-dependency'
+  | 'untrusted-context-in-field';
 
 export type WorkflowModelValidationIssuePathSegment = string | number;
 

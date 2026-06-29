@@ -1,10 +1,16 @@
-import type {WorkflowExpression} from '@shipfox/expression';
+import type {WorkflowExpression, WorkflowTemplateSegment} from '@shipfox/expression';
 import type {AgentThinking} from '@shipfox/workflow-document';
+
+export type WorkflowFieldTemplate = readonly WorkflowTemplateSegment[];
+export type WorkflowEnvTemplates = Readonly<Record<string, WorkflowFieldTemplate>>;
 
 export interface WorkflowModel {
   readonly kind: 'workflow';
   readonly name: string;
   readonly env?: Readonly<Record<string, string>>;
+  readonly templates?: {
+    readonly env?: WorkflowEnvTemplates;
+  };
   readonly triggers: readonly WorkflowModelTrigger[];
   readonly jobs: readonly WorkflowModelJob[];
   readonly dependencies: readonly WorkflowModelDependency[];
@@ -24,6 +30,9 @@ export interface WorkflowModelJob {
   readonly sourceName: string;
   readonly runner: readonly string[];
   readonly env?: Readonly<Record<string, string>>;
+  readonly templates?: {
+    readonly env?: WorkflowEnvTemplates;
+  };
   readonly dependencies: readonly string[];
   readonly steps: readonly WorkflowModelStep[];
 }
@@ -41,6 +50,11 @@ export interface WorkflowModelRunStep extends WorkflowModelStepBase {
   readonly kind: 'run';
   readonly command: WorkflowModelRunCommand;
   readonly env?: Readonly<Record<string, string>>;
+  readonly templates?: {
+    readonly command?: WorkflowFieldTemplate;
+    readonly name?: WorkflowFieldTemplate;
+    readonly env?: WorkflowEnvTemplates;
+  };
 }
 
 export interface WorkflowModelAgentStep extends WorkflowModelStepBase {
@@ -49,6 +63,10 @@ export interface WorkflowModelAgentStep extends WorkflowModelStepBase {
   readonly provider?: string;
   readonly thinking?: AgentThinking;
   readonly prompt: string;
+  readonly templates?: {
+    readonly prompt?: WorkflowFieldTemplate;
+    readonly name?: WorkflowFieldTemplate;
+  };
 }
 
 export interface WorkflowSourceLocation {
