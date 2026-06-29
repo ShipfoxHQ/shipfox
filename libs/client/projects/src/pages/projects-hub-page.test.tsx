@@ -61,9 +61,9 @@ describe('ProjectsHubPage', () => {
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
     expect(await screen.findByText('Platform')).toBeInTheDocument();
     const projectLink = screen.getByText('Platform').closest('a');
-    // The card is fully clickable via a stretched link, so the focus ring is
-    // drawn on the link's ::after (which covers the whole card), not the link box.
-    expect(projectLink).toHaveClass('focus-visible:after:shadow-button-neutral-focus');
+    // The whole card is the link, carrying the neutral focus ring (matching the
+    // integration gallery cards).
+    expect(projectLink).toHaveClass('focus-visible:shadow-button-neutral-focus');
     expect(projectLink?.className).not.toContain('shadow-button-secondary');
 
     fireEvent.click(screen.getByRole('button', {name: 'Load more'}));
@@ -84,7 +84,7 @@ describe('ProjectsHubPage', () => {
     expect(screen.getByRole('button', {name: 'Retry loading projects'})).toBeInTheDocument();
   });
 
-  test('shows no status badge or repository id for a connected source', async () => {
+  test('shows no status pill or repository id for a connected source', async () => {
     configureApiClient({
       fetchImpl: createHubFetch({
         projects: jsonResponse({
@@ -114,36 +114,34 @@ describe('ProjectsHubPage', () => {
       expect(card?.querySelector('svg[viewBox="0 0 25 24"]')).toBeNull();
     });
 
-    // "Connected" is the expected state, so it stays unbadged; the raw repository
+    // "active" is the expected state, so it stays unbadged; the raw repository
     // id is dropped because it is meaningless to end users.
     expect(screen.queryByText('Connected')).not.toBeInTheDocument();
-    expect(screen.queryByText('Disconnected')).not.toBeInTheDocument();
+    expect(screen.queryByText('Disabled')).not.toBeInTheDocument();
+    expect(screen.queryByText('Error')).not.toBeInTheDocument();
     expect(screen.queryByText('github:octo/platform')).not.toBeInTheDocument();
   });
 
-  test('flags a disconnected source with a reconnect link to integration settings', async () => {
+  test.each([
+    ['error', 'Error'],
+    ['disabled', 'Disabled'],
+  ] as const)('flags a %s source with the matching status pill', async (lifecycleStatus, label) => {
     configureApiClient({
       fetchImpl: createHubFetch({
         projects: jsonResponse({
           projects: [projectDto({id: 'project-1', name: 'Platform'})],
           next_cursor: null,
         }),
-        connections: jsonResponse(connectionsDto({lifecycleStatus: 'error'})),
+        connections: jsonResponse(connectionsDto({lifecycleStatus})),
       }),
     });
 
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
 
-    expect(await screen.findByText('Disconnected')).toBeInTheDocument();
-    const reconnectLink = await screen.findByRole('link', {name: 'Reconnect'});
-    expect(reconnectLink).toHaveAttribute(
-      'href',
-      `/workspaces/${PROJECT_TEST_WID}/settings/integrations`,
-    );
-
-    fireEvent.click(reconnectLink);
-
-    expect(await screen.findByText('Integrations settings placeholder')).toBeInTheDocument();
+    expect(await screen.findByText('Platform')).toBeInTheDocument();
+    expect(await screen.findByText(label)).toBeInTheDocument();
+    // The aligned card carries no CTA.
+    expect(screen.queryByRole('link', {name: 'Reconnect'})).not.toBeInTheDocument();
   });
 
   test('keeps cards usable and unflagged when the connections request fails', async () => {
@@ -170,7 +168,8 @@ describe('ProjectsHubPage', () => {
     });
 
     // A failed connections fetch is not mistaken for a disconnected source.
-    expect(screen.queryByText('Disconnected')).not.toBeInTheDocument();
+    expect(screen.queryByText('Disabled')).not.toBeInTheDocument();
+    expect(screen.queryByText('Error')).not.toBeInTheDocument();
     expect(screen.queryByText('Connected')).not.toBeInTheDocument();
   });
 });

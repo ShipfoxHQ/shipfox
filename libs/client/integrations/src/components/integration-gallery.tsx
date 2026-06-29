@@ -1,22 +1,12 @@
 import type {
   IntegrationCapabilityDto,
   IntegrationConnectionDto,
-  IntegrationConnectionLifecycleStatusDto,
   IntegrationProviderDto,
 } from '@shipfox/api-integration-core-dto';
 import {useActiveWorkspace} from '@shipfox/client-auth';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {
-  Badge,
-  Button,
-  cn,
-  EmptyState,
-  formatDate,
-  Header,
-  type IconName,
-  Skeleton,
-  Text,
-} from '@shipfox/react-ui';
+import {Button, cn, EmptyState, formatDate, Header, Skeleton, Text} from '@shipfox/react-ui';
+import {ConnectionStatusBadge} from '#connection-status-badge.js';
 import {
   useIntegrationConnectionsQuery,
   useIntegrationProvidersQuery,
@@ -28,17 +18,6 @@ export interface IntegrationGalleryProps {
   capability?: IntegrationCapabilityDto;
   emptyProvidersMessage?: string;
 }
-
-const lifecyclePills: Record<
-  IntegrationConnectionLifecycleStatusDto,
-  {variant: 'neutral' | 'error'; label: string; iconLeft?: IconName} | undefined
-> = {
-  active: undefined,
-  // Mirrors the webhook-delivery taxonomy (DESIGN.md §9): disabled is quiet
-  // neutral with a warning icon, not warning-orange (which means "act now").
-  disabled: {variant: 'neutral', label: 'Disabled', iconLeft: 'errorWarningLine'},
-  error: {variant: 'error', label: 'Error'},
-};
 
 // Both gallery surfaces use the same card fill so they read as one system on
 // the subtle page canvas, rather than the list blending into the background.
@@ -140,7 +119,6 @@ function InstalledRow({
   connection: IntegrationConnectionDto;
   providerLabel: string;
 }) {
-  const pill = lifecyclePills[connection.lifecycle_status];
   const muted = connection.lifecycle_status === 'disabled';
 
   return (
@@ -162,16 +140,7 @@ function InstalledRow({
           >
             {connection.display_name}
           </Text>
-          {pill ? (
-            <Badge
-              variant={pill.variant}
-              radius="rounded"
-              className="shrink-0"
-              {...(pill.iconLeft ? {iconLeft: pill.iconLeft} : {})}
-            >
-              {pill.label}
-            </Badge>
-          ) : null}
+          <ConnectionStatusBadge status={connection.lifecycle_status} className="shrink-0" />
         </div>
         {/* Provider is already named by the icon (and the account name), so the
             meta line carries only the date — no third repeat of the provider. */}
