@@ -71,7 +71,7 @@ describe('ProjectsHubPage', () => {
   test('renders projects and loads the next cursor page', async () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       const url = new URL(requestInputUrl(input));
-      if (url.pathname === '/agent/providers') {
+      if (url.pathname.endsWith('/agent/providers')) {
         return Promise.resolve(jsonResponse(agentProviderConfigsDto()));
       }
       if (url.pathname === '/integration-connections') {
@@ -227,7 +227,7 @@ function createHubFetch({
 } = {}) {
   return vi.fn((input: RequestInfo | URL) => {
     const url = new URL(requestInputUrl(input));
-    if (url.pathname === '/agent/providers') {
+    if (url.pathname.endsWith('/agent/providers')) {
       return Promise.resolve(agentProviders.clone());
     }
     if (url.pathname === '/integration-connections') {
