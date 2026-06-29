@@ -55,13 +55,27 @@ describe('StepList', () => {
   test('renders expanded slot content with the selected attempt context', async () => {
     const user = userEvent.setup();
     const attempt = makeAttempt({status: 'running'});
-    const step = makeStep({name: 'deploy', status: 'running', attempts: [attempt]});
+    const step = makeStep({
+      name: 'deploy',
+      status: 'running',
+      source_location: {start_line: 4, end_line: 6},
+      attempts: [attempt],
+    });
     render(
       <StepList
         job={makeJob({steps: [step]})}
-        renderExpandedStep={({stepId, attempt, attemptId, attemptStatus}) => (
+        renderExpandedStep={({
+          stepId,
+          stepLabel,
+          sourceLocation,
+          attempt,
+          attemptId,
+          attemptStatus,
+        }) => (
           <Text size="sm">
-            slot for {stepId} attempt {attempt} id {attemptId} status {attemptStatus}
+            slot for {stepId} label {stepLabel} lines{' '}
+            {sourceLocation ? `${sourceLocation.startLine}-${sourceLocation.endLine}` : 'none'}{' '}
+            attempt {attempt} id {attemptId} status {attemptStatus}
           </Text>
         )}
       />,
@@ -72,7 +86,9 @@ describe('StepList', () => {
 
     expect(deploy).toHaveAttribute('aria-expanded', 'true');
     expect(
-      screen.getByText(`slot for ${step.id} attempt 1 id ${attempt.id} status running`),
+      screen.getByText(
+        `slot for ${step.id} label deploy lines 4-6 attempt 1 id ${attempt.id} status running`,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -505,167 +521,6 @@ describe('StepList', () => {
 
     expect(screen.getByRole('button', {name: `${name}, Pending, attempt 1`})).toBeInTheDocument();
   });
-});
-
-describe('StepList source affordance', () => {
-  const SOURCE_PROPS = {sourcePanelId: 'workflow-source', sourceAvailable: true} as const;
-
-  test('renders the Source action on a located step when source is available', () => {
-    renderWithSource({
-      steps: [
-        makeStep({
-          name: 'build',
-          source_location: {start_line: 3, end_line: 5},
-          attempts: [makeAttempt()],
-        }),
-      ],
-    });
-
-    const button = screen.getByRole('button', {name: 'View step source'});
-    expect(button).toHaveAttribute('aria-controls', 'workflow-source');
-    expect(button).toHaveAttribute('aria-expanded', 'false');
-  });
-
-  test('renders the Source action as a sibling of the disclosure, not inside it', () => {
-    renderWithSource({
-      steps: [
-        makeStep({
-          name: 'build',
-          source_location: {start_line: 3, end_line: 5},
-          attempts: [makeAttempt()],
-        }),
-      ],
-    });
-
-    const button = screen.getByRole('button', {name: 'View step source'});
-    expect(button.closest('[data-slot="accordion-trigger"]')).toBeNull();
-    expect(button.closest('h1, h2, h3, h4, h5, h6, [role="heading"]')).toBeNull();
-  });
-
-  test('omits the Source action when the step is not located', () => {
-    renderWithSource({
-      steps: [makeStep({name: 'build', source_location: null, attempts: [makeAttempt()]})],
-    });
-
-    expect(screen.queryByRole('button', {name: 'View step source'})).not.toBeInTheDocument();
-  });
-
-  test('omits the Source action when the run has no source snapshot', () => {
-    render(
-      <StepList
-        job={makeJob({
-          steps: [
-            makeStep({
-              name: 'build',
-              source_location: {start_line: 3, end_line: 5},
-              attempts: [makeAttempt()],
-            }),
-          ],
-        })}
-        sourcePanelId="workflow-source"
-        sourceAvailable={false}
-        onOpenStepSource={vi.fn()}
-        renderExpandedStep={() => null}
-      />,
-    );
-
-    expect(screen.queryByRole('button', {name: 'View step source'})).not.toBeInTheDocument();
-  });
-
-  test('renders one Source action per step even with multiple attempts', () => {
-    renderWithSource({
-      steps: [
-        makeStep({
-          name: 'build',
-          current_attempt: 2,
-          source_location: {start_line: 3, end_line: 5},
-          attempts: [
-            makeAttempt({attempt: 1, execution_order: 1, status: 'failed'}),
-            makeAttempt({attempt: 2, execution_order: 2, status: 'succeeded'}),
-          ],
-        }),
-      ],
-    });
-
-    expect(screen.getAllByRole('button', {name: 'View step source'})).toHaveLength(1);
-  });
-
-  test('reports expanded only while the panel is focused on this step', () => {
-    const step = makeStep({
-      name: 'build',
-      source_location: {start_line: 3, end_line: 5},
-      attempts: [makeAttempt()],
-    });
-
-    renderWithSource({steps: [step], focusedSourceStepId: step.id});
-
-    expect(screen.getByRole('button', {name: 'View step source'})).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
-  });
-
-  test('opens the panel with the step id, located range, and a focusable trigger ref', async () => {
-    const user = userEvent.setup();
-    const onOpenStepSource = vi.fn();
-    const step = makeStep({
-      name: 'build',
-      source_location: {start_line: 3, end_line: 5},
-      attempts: [makeAttempt()],
-    });
-
-    render(
-      <StepList
-        job={makeJob({steps: [step]})}
-        {...SOURCE_PROPS}
-        onOpenStepSource={onOpenStepSource}
-        renderExpandedStep={() => null}
-      />,
-    );
-    const button = screen.getByRole('button', {name: 'View step source'});
-    await user.click(button);
-
-    expect(onOpenStepSource).toHaveBeenCalledTimes(1);
-    const [request, triggerRef] = onOpenStepSource.mock.calls[0] ?? [];
-    expect(request).toEqual({stepId: step.id, location: {startLine: 3, endLine: 5}});
-    expect(triggerRef.current).toBe(button);
-  });
-
-  test('keeps the Source action keyboard-focusable', () => {
-    renderWithSource({
-      steps: [
-        makeStep({
-          name: 'build',
-          source_location: {start_line: 3, end_line: 5},
-          attempts: [makeAttempt()],
-        }),
-      ],
-    });
-
-    const button = screen.getByRole('button', {name: 'View step source'});
-    button.focus();
-
-    expect(button).toHaveFocus();
-    expect(button).toBeEnabled();
-  });
-
-  function renderWithSource({
-    steps,
-    focusedSourceStepId = null,
-  }: {
-    steps: WorkflowRunStepDetailDto[];
-    focusedSourceStepId?: string | null;
-  }) {
-    return render(
-      <StepList
-        job={makeJob({steps})}
-        {...SOURCE_PROPS}
-        focusedSourceStepId={focusedSourceStepId}
-        onOpenStepSource={vi.fn()}
-        renderExpandedStep={() => null}
-      />,
-    );
-  }
 });
 
 function makeJob(overrides: JobDtoOverrides = {}): Job {

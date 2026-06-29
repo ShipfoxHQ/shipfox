@@ -3,7 +3,7 @@ import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {RelativeTimeProvider, toast} from '@shipfox/react-ui';
 import {useNavigate} from '@tanstack/react-router';
-import {type RefObject, useEffect, useId, useRef, useState} from 'react';
+import {useEffect, useId, useRef, useState} from 'react';
 import {
   type JobExecution,
   type WorkflowStepSourceLocation,
@@ -19,22 +19,20 @@ import {
   useWorkflowRunAttemptQuery,
 } from '#hooks/api/workflow-runs.js';
 import {JobGraph} from '../job-graph/index.js';
-import type {WorkflowStepSourceRequest} from '../step-list/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
 import {WorkflowSourcePanel} from '../workflow-source-panel/index.js';
 import {JobCard} from './job-card.js';
-
-interface WorkflowSourceFocus {
-  stepId: string;
-  location: WorkflowStepSourceLocation;
-}
-
 import {resolveWorkflowRunSelection} from './workflow-run-selection.js';
 import {
   WorkflowRunNotFound,
   WorkflowRunSkeleton,
   WorkflowRunStaleError,
 } from './workflow-run-states.js';
+
+interface WorkflowSourceFocus {
+  stepId: string;
+  location: WorkflowStepSourceLocation;
+}
 
 export interface WorkflowRunViewProps {
   workspaceId: string;
@@ -97,7 +95,7 @@ function RunViewContent({
   const [sourceFocus, setSourceFocus] = useState<WorkflowSourceFocus | null>(null);
   const sourcePanelId = useId();
   const sourceButtonRef = useRef<HTMLButtonElement>(null);
-  // The button that last opened the panel (summary or a step row), so Escape /
+  // The button that last opened the panel (summary or a step detail), so Escape /
   // Close returns focus to whoever opened it.
   const lastSourceTriggerRef = useRef<HTMLButtonElement | null>(null);
   const selectionControlled = selection !== undefined;
@@ -236,11 +234,12 @@ function RunViewContent({
   }
 
   function openStepSource(
-    request: WorkflowStepSourceRequest,
-    triggerRef: RefObject<HTMLButtonElement | null>,
+    stepId: string,
+    location: WorkflowStepSourceLocation,
+    trigger: HTMLButtonElement | null,
   ) {
-    setSourceFocus({stepId: request.stepId, location: request.location});
-    lastSourceTriggerRef.current = triggerRef.current;
+    setSourceFocus({stepId, location});
+    lastSourceTriggerRef.current = trigger;
     setSourcePanelOpen(true);
   }
 

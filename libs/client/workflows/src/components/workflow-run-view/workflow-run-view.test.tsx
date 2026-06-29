@@ -744,7 +744,8 @@ describe('WorkflowRunView', () => {
     renderView();
 
     await screen.findByRole('region', {name: 'build'});
-    const stepSourceButton = screen.getByRole('button', {name: 'View step source'});
+    await user.click(screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'}));
+    const stepSourceButton = screen.getByRole('button', {name: 'View source for checkout'});
     const summaryButton = screen.getByRole('button', {name: 'View source'});
     expect(stepSourceButton).toHaveAttribute('aria-expanded', 'false');
     expect(stepSourceButton).toHaveAttribute(
@@ -773,7 +774,8 @@ describe('WorkflowRunView', () => {
     renderView();
 
     await screen.findByRole('region', {name: 'build'});
-    const stepSourceButton = screen.getByRole('button', {name: 'View step source'});
+    await user.click(screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'}));
+    const stepSourceButton = screen.getByRole('button', {name: 'View source for checkout'});
 
     await user.click(stepSourceButton);
     await screen.findByRole('dialog', {name: 'Workflow source'});

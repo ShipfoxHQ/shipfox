@@ -2,6 +2,7 @@ import {agentConfigIssueSchema, stepErrorReasonSchema} from '@shipfox/api-workfl
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {
   Badge,
+  Button,
   EmptyState,
   Icon,
   RelativeTime,
@@ -11,8 +12,8 @@ import {
   TooltipTrigger,
   useTimeTick,
 } from '@shipfox/react-ui';
-import type {ReactNode, RefObject} from 'react';
-import {Fragment, useId} from 'react';
+import type {ReactNode} from 'react';
+import {Fragment, useId, useRef} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {
   type Job,
@@ -20,16 +21,12 @@ import {
   type JobExecutionTime,
   type Step,
   type StepError,
+  type WorkflowStepSourceLocation,
   WORKFLOW_JOB_STATUSES,
   workflowRunTriggerDisplayLabel,
   workflowRunTriggerLabel,
 } from '#core/workflow-run.js';
-import {
-  type StepExpandedContext,
-  StepList,
-  type StepListEmptyState,
-  type WorkflowStepSourceRequest,
-} from '../step-list/index.js';
+import {type StepExpandedContext, StepList, type StepListEmptyState} from '../step-list/index.js';
 import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
 import {JobExecutionSwitcher} from './job-execution-switcher.js';
 import {formatJobExecutionTime, JobExecutionTimeText} from './job-execution-time-text.js';
@@ -64,8 +61,9 @@ export function JobCard({
   focusedSourceStepId?: string | null | undefined;
   onOpenStepSource?:
     | ((
-        request: WorkflowStepSourceRequest,
-        triggerRef: RefObject<HTMLButtonElement | null>,
+        stepId: string,
+        location: WorkflowStepSourceLocation,
+        trigger: HTMLButtonElement | null,
       ) => void)
     | undefined;
 }) {
@@ -74,6 +72,8 @@ export function JobCard({
   const defaultRenderExpandedStep = ({
     step,
     stepId,
+    stepLabel,
+    sourceLocation,
     attempt,
     attemptError,
     attemptStatus,
@@ -86,6 +86,12 @@ export function JobCard({
         workspaceId={workspaceId}
         step={step}
         stepId={stepId}
+        stepLabel={stepLabel}
+        sourceLocation={sourceLocation}
+        sourceAvailable={sourceAvailable === true}
+        sourcePanelId={sourcePanelId}
+        sourceExpanded={focusedSourceStepId === stepId}
+        onOpenStepSource={onOpenStepSource}
         attempt={attempt}
         attemptError={attemptError}
         attemptStatus={attemptStatus}
@@ -143,10 +149,6 @@ export function JobCard({
             autoSelectActiveAttempt
             emptyState={emptyStateForJob(job, selectedJobExecution)}
             showHeader={false}
-            sourcePanelId={sourcePanelId}
-            sourceAvailable={sourceAvailable}
-            focusedSourceStepId={focusedSourceStepId}
-            onOpenStepSource={onOpenStepSource}
             className="rounded-none border-0 bg-transparent"
             renderExpandedStep={renderExpandedStep ?? defaultRenderExpandedStep}
           />
@@ -316,6 +318,12 @@ function StepAttemptDetailPanel({
   workspaceId,
   step,
   stepId,
+  stepLabel,
+  sourceLocation,
+  sourceAvailable,
+  sourcePanelId,
+  sourceExpanded,
+  onOpenStepSource,
   attempt,
   attemptError,
   attemptStatus,
@@ -323,14 +331,45 @@ function StepAttemptDetailPanel({
   workspaceId: string;
   step: Step;
   stepId: string;
+  stepLabel: string;
+  sourceLocation: WorkflowStepSourceLocation | null;
+  sourceAvailable: boolean;
+  sourcePanelId: string | undefined;
+  sourceExpanded: boolean;
+  onOpenStepSource:
+    | ((
+        stepId: string,
+        location: WorkflowStepSourceLocation,
+        trigger: HTMLButtonElement | null,
+      ) => void)
+    | undefined;
   attempt: number;
   attemptError: Record<string, unknown> | null;
   attemptStatus: string;
 }) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const selectedAttemptError = toSelectedAttemptError(step, attemptError) ?? step.error;
+  const sourceActionLocation = sourceAvailable ? sourceLocation : null;
 
   return (
     <div className="flex min-w-0 flex-col gap-10">
+      {sourceActionLocation && sourcePanelId && onOpenStepSource ? (
+        <div className="flex min-h-28 items-center justify-end border-b border-border-neutral-base pb-12">
+          <Button
+            ref={buttonRef}
+            type="button"
+            variant="transparentMuted"
+            size="xs"
+            iconLeft="codeSSlashLine"
+            aria-label={`View source for ${stepLabel}`}
+            aria-controls={sourcePanelId}
+            aria-expanded={sourceExpanded}
+            onClick={() => onOpenStepSource(stepId, sourceActionLocation, buttonRef.current)}
+          >
+            View source
+          </Button>
+        </div>
+      ) : null}
       {isAgentConfigFailure(step, selectedAttemptError) ? (
         <AgentConfigFailureCallout
           workspaceId={workspaceId}

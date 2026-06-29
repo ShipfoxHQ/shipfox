@@ -29,7 +29,6 @@ export interface StepModel extends Omit<Step, 'attempts'> {
 
 export interface StepListEntryModel extends StepAttemptModel {
   step: StepModel;
-  isStepSourceAnchor: boolean;
 }
 
 export interface StepListModel {
@@ -50,13 +49,9 @@ export function buildStepListModel({
 }): StepListModel {
   const selectedJobExecution = jobExecution ?? defaultStepListJobExecution(job);
   const steps = [...selectedJobExecution.steps].sort(compareSteps).map(toStepModel);
-  const builtEntries = steps
+  const entries = steps
     .flatMap((step) => toStepEntries(step, job.carriedOver))
     .sort(compareEntries);
-  const anchorIds = stepSourceAnchorIds(builtEntries);
-  const entries = builtEntries.map((entry) =>
-    anchorIds.has(entry.id) ? {...entry, isStepSourceAnchor: true} : entry,
-  );
 
   return {
     jobId: job.id,
@@ -89,25 +84,6 @@ export function emptyJobExecutionForJob(job: Job): JobExecution {
     updatedAt: job.updatedAt,
     steps: [],
   });
-}
-
-function stepSourceAnchorIds(entries: readonly StepListEntryModel[]): Set<string> {
-  const entriesByStepId = new Map<string, StepListEntryModel[]>();
-  for (const entry of entries) {
-    const stepEntries = entriesByStepId.get(entry.step.id) ?? [];
-    stepEntries.push(entry);
-    entriesByStepId.set(entry.step.id, stepEntries);
-  }
-
-  const anchorIds = new Set<string>();
-  for (const stepEntries of entriesByStepId.values()) {
-    const step = stepEntries[0]?.step;
-    if (!step) continue;
-    const anchor =
-      stepEntries.find((entry) => entry.attempt === step.currentAttempt) ?? stepEntries.at(-1);
-    if (anchor) anchorIds.add(anchor.id);
-  }
-  return anchorIds;
 }
 
 export function getStepStatusVisual(status: string): StepStatusVisual {
@@ -164,7 +140,6 @@ function toStepEntries(step: StepModel, carriedOverJob: boolean): StepListEntryM
     return step.attempts.map((attempt) => ({
       ...attempt,
       step,
-      isStepSourceAnchor: false,
     }));
   }
 
@@ -189,7 +164,6 @@ function toStepEntries(step: StepModel, carriedOverJob: boolean): StepListEntryM
       statusVisual: getStepStatusVisual(step.status),
       carriedOver: true,
       step,
-      isStepSourceAnchor: false,
     },
   ];
 }

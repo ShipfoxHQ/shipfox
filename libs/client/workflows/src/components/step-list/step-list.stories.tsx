@@ -302,16 +302,6 @@ export const ExpandedSlot: Story = {
   render: renderExpandedSlot,
 };
 
-export const SourceAction: Story = {
-  parameters: {
-    argos: {
-      modes: {light: {theme: 'light'}, dark: {theme: 'dark'}},
-      fitToContent: false,
-    },
-  },
-  render: renderSourceAction,
-};
-
 export const TestAgentConfigFailureCallout: Story = {
   decorators: [withAgentProviderSettingsRoute],
   render: renderAgentConfigFailureCallout,
@@ -368,34 +358,6 @@ function renderExpandedSlot() {
           Injected detail placeholder for {stepId}
         </Text>
       )}
-    />
-  );
-}
-
-function renderSourceAction() {
-  const checkout = makeStep({
-    name: 'checkout',
-    status: 'succeeded',
-    source_location: {start_line: 2, end_line: 3},
-    attempts: [makeAttempt({status: 'succeeded'})],
-  });
-  const install = makeStep({
-    name: 'install dependencies',
-    position: 1,
-    status: 'succeeded',
-    source_location: {start_line: 5, end_line: 8},
-    attempts: [makeAttempt({status: 'succeeded'})],
-  });
-  const test = makeStep({name: 'test', position: 2, source_location: null});
-
-  return (
-    <StepList
-      job={makeJob({steps: [checkout, install, test]})}
-      sourcePanelId="story-source-panel"
-      sourceAvailable
-      focusedSourceStepId={checkout.id}
-      onOpenStepSource={() => undefined}
-      renderExpandedStep={() => null}
     />
   );
 }
