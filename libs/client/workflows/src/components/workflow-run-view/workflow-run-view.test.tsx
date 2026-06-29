@@ -3,6 +3,7 @@ import {configureApiClient} from '@shipfox/client-api';
 import {toast} from '@shipfox/react-ui';
 import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {workflowRunsQueryKeys} from '#hooks/api/workflow-runs.js';
 import {inlineLogBody, outputLine} from '#test/fixtures/logs.js';
 import {
   runAttemptsResponseDto,
@@ -786,6 +787,75 @@ describe('WorkflowRunView', () => {
     expect(screen.getByRole('region', {name: 'build'})).toBeInTheDocument();
   });
 
+  test('falls back to the summary Source button when refetch removes the focused step source', async () => {
+    const user = userEvent.setup();
+    let detailRequests = 0;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.pathname === `/workflows/runs/${RUN_ID}`) {
+        detailRequests += 1;
+        return Promise.resolve(
+          jsonResponse(
+            detailRequests === 1
+              ? locatedStepSourceDetail()
+              : locatedStepSourceDetail({
+                  jobs: [
+                    workflowJobDto({
+                      id: BUILD_JOB_ID,
+                      run_id: RUN_ID,
+                      name: 'build',
+                      status: 'succeeded',
+                      steps: [
+                        workflowStepDto({
+                          id: CHECKOUT_STEP_ID,
+                          job_id: BUILD_JOB_ID,
+                          name: 'checkout',
+                          display_name: 'checkout',
+                          status: 'succeeded',
+                          source_location: null,
+                          attempts: [
+                            workflowStepAttemptDto({
+                              id: CHECKOUT_ATTEMPT_ID,
+                              step_id: CHECKOUT_STEP_ID,
+                              job_id: BUILD_JOB_ID,
+                              status: 'succeeded',
+                              exit_code: 0,
+                              finished_at: '2026-05-07T01:01:20.000Z',
+                            }),
+                          ],
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+          ),
+        );
+      }
+      return Promise.resolve(jsonResponse(inlineLogBody(outputLine('done\n'), 1)));
+    });
+    configureApiClient({fetchImpl: fetchImpl as typeof fetch});
+
+    const {queryClient} = renderView();
+
+    await screen.findByRole('region', {name: 'build'});
+    await user.click(screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'}));
+    const stepSourceButton = screen.getByRole('button', {name: 'View source for checkout'});
+    const summaryButton = screen.getByRole('button', {name: 'View source'});
+    await user.click(stepSourceButton);
+    await screen.findByRole('dialog', {name: 'Workflow source'});
+
+    await queryClient.refetchQueries({queryKey: workflowRunsQueryKeys.detail(RUN_ID)});
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', {name: 'View source for checkout'}),
+      ).not.toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole('button', {name: 'Close source'}));
+
+    await waitFor(() => expect(summaryButton).toHaveFocus());
+    expect(summaryButton).toHaveAttribute('aria-expanded', 'false');
+  });
+
   test('re-runs all jobs from a succeeded run and navigates to the new run', async () => {
     const user = userEvent.setup();
     const rerunId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -1053,7 +1123,9 @@ function mockRequests(fetchImpl: ReturnType<typeof vi.fn>): Request[] {
     .filter((input): input is Request => input instanceof Request);
 }
 
-function locatedStepSourceDetail(): RunDetailResponseDto {
+function locatedStepSourceDetail(
+  overrides: Partial<RunDetailResponseDto> = {},
+): RunDetailResponseDto {
   return workflowRunViewDetailDto({
     source_snapshot: {
       format: 'yaml',
@@ -1087,6 +1159,7 @@ function locatedStepSourceDetail(): RunDetailResponseDto {
         ],
       }),
     ],
+    ...overrides,
   });
 }
 

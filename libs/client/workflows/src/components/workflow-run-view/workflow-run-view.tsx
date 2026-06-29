@@ -245,11 +245,13 @@ function RunViewContent({
 
   function closeSourcePanel() {
     const trigger = lastSourceTriggerRef.current;
+    const fallbackTrigger = sourceButtonRef.current;
     setSourcePanelOpen(false);
     // Defer so focus lands after the panel unmounts; clear the focus only after
     // focusing so the opener button is still expanded (force-visible) on return.
     window.setTimeout(() => {
-      trigger?.focus();
+      const focusTarget = trigger?.isConnected ? trigger : fallbackTrigger;
+      focusTarget?.focus();
       setSourceFocus(null);
     }, 0);
   }
