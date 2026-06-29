@@ -21,8 +21,9 @@ export class DockerTemplateConfigError extends Error {
 
 // A memory size Docker understands, such as `4GiB`, `512m`, or `2g`. Parsing into a
 // concrete `docker run` argument happens when containers are started (ENG-618); here
-// it only has to fail fast on a typo.
-const MEMORY_PATTERN = /^\d+(\.\d+)?\s*(b|kb|mb|gb|tb|kib|mib|gib|tib|k|m|g|t)?$/i;
+// it only has to fail fast on a typo. The unit is required: a bare number like `512`
+// would silently mean 512 bytes, which is never the intent.
+const MEMORY_PATTERN = /^\d+(\.\d+)?\s*(b|kb|mb|gb|tb|kib|mib|gib|tib|k|m|g|t)$/i;
 
 const MAX_TEMPLATE_CONCURRENCY = 100_000;
 

@@ -113,7 +113,9 @@ export function nextBackoffInterval(ms: number): number {
 }
 
 export function withJitter(ms: number): number {
-  return Math.random() * ms;
+  // Keep a floor of half the interval so a fast-returning poll (for example with
+  // wait_seconds=0) cannot collapse the delay toward zero and busy-loop the API.
+  return ms * (0.5 + Math.random() * 0.5);
 }
 
 function setupSignalHandlers(): void {

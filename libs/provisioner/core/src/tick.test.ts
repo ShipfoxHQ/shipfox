@@ -206,6 +206,41 @@ describe('runProvisionerTick', () => {
     expect(result.launchedCount).toBe(0);
   });
 
+  it('launches only the runners that received a token when mint returns a shortfall', async () => {
+    const template = ubuntuTemplate({key: 'small'});
+    const launches: ProvisionedRunnerLaunch<null>[] = [];
+    const tracker = createInMemoryTracker();
+    const client: ProvisionerClient = {
+      getIdentity: () => Promise.resolve({id: 'p', workspace_id: 'w'}),
+      pollDemand: () => Promise.resolve({stats: [], reservations: [reservation(2)]}),
+      mintRegistrationTokens: (body) =>
+        Promise.resolve({
+          tokens: body.provisioned_runners.slice(0, 1).map((runner) => ({
+            provisioned_runner_id: runner.provisioned_runner_id,
+            registration_token: `sfrt_${runner.provisioned_runner_id}`,
+            expires_at: EXPIRES_AT,
+          })),
+        }),
+    };
+
+    const result = await runProvisionerTick({
+      client,
+      templates: [template],
+      tracker,
+      launch: (launch) => {
+        launches.push(launch);
+        return Promise.resolve();
+      },
+      buildRunnerEnv: ({registrationToken}) => ({SHIPFOX_RUNNER_TOKEN: registrationToken}),
+      maxReservations: 250,
+      waitSeconds: 30,
+      registrationTokenBatchSize: 250,
+    });
+
+    expect(launches).toHaveLength(1);
+    expect(result.launchedCount).toBe(1);
+  });
+
   it('isolates a launch failure: it mints, counts it unlaunched, and does not throw', async () => {
     const template = ubuntuTemplate({key: 'small'});
     const fixture = harness({response: {stats: [], reservations: [reservation(1)]}});

@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@shipfox/config": "workspace:*",
+    "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/provisioner-core": "workspace:*",
     "@shipfox/runner-labels": "workspace:*",
     "js-yaml": "^4.1.0",

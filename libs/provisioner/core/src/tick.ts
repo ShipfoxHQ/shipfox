@@ -124,17 +124,29 @@ async function launchReservation<Spec>(
     if (deps.signal?.aborted) break;
     let minted: MintRegistrationTokensBatchResponseDto;
     try {
-      minted = await deps.client.mintRegistrationTokens({
-        reservation_id: reservationId,
-        provisioned_runners: batch.map((runner) => ({
-          provisioned_runner_id: runner.provisionedRunnerId,
-        })),
-      });
+      minted = await deps.client.mintRegistrationTokens(
+        {
+          reservation_id: reservationId,
+          provisioned_runners: batch.map((runner) => ({
+            provisioned_runner_id: runner.provisionedRunnerId,
+          })),
+        },
+        deps.signal ? {signal: deps.signal} : {},
+      );
     } catch (error) {
       // Leave these slots free: the reservation TTL releases the demand and another
       // tick (or another provisioner) can pick it up.
       logger().error({err: error, reservationId}, 'Failed to mint registration tokens');
       continue;
+    }
+
+    if (minted.tokens.length < batch.length) {
+      // The mint endpoint is atomic, so a shortfall is unexpected; surface it rather
+      // than silently dropping the runners that got no token.
+      logger().warn(
+        {reservationId, requested: batch.length, minted: minted.tokens.length},
+        'Mint returned fewer registration tokens than requested',
+      );
     }
 
     for (const token of minted.tokens) {

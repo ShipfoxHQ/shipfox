@@ -33,6 +33,7 @@ export interface ProvisionerClient {
   /** Mint one single-use ephemeral registration token per planned runner. */
   mintRegistrationTokens(
     body: MintRegistrationTokensBatchBodyDto,
+    options?: {signal?: AbortSignal},
   ): Promise<MintRegistrationTokensBatchResponseDto>;
 }
 
@@ -65,10 +66,11 @@ export function createProvisionerClient(params: {
       });
     },
 
-    mintRegistrationTokens(body) {
+    mintRegistrationTokens(body, options = {}) {
       return withAuthMapping(async () => {
         const response = await api.post('provisioners/runner-registration-tokens/batch', {
           json: body,
+          ...(options.signal ? {signal: options.signal} : {}),
         });
         return mintRegistrationTokensBatchResponseSchema.parse(await response.json());
       });
