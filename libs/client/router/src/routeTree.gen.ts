@@ -28,6 +28,7 @@ import { Route as WorkspacesWidLayoutSettingsRunnersRouteImport } from './routes
 import { Route as WorkspacesWidLayoutSettingsMembersRouteImport } from './routes/workspaces/$wid/_layout/settings/members'
 import { Route as WorkspacesWidLayoutSettingsIntegrationsRouteImport } from './routes/workspaces/$wid/_layout/settings/integrations'
 import { Route as WorkspacesWidLayoutSettingsEventsRouteImport } from './routes/workspaces/$wid/_layout/settings/events'
+import { Route as WorkspacesWidLayoutSettingsAgentProvidersRouteImport } from './routes/workspaces/$wid/_layout/settings/agent-providers'
 import { Route as WorkspacesWidLayoutProjectsNewRouteImport } from './routes/workspaces/$wid/_layout/projects/new'
 import { Route as WorkspacesWidLayoutIntegrationsSentryRouteImport } from './routes/workspaces/$wid/_layout/integrations/sentry'
 import { Route as WorkspacesWidLayoutIntegrationsGithubRouteImport } from './routes/workspaces/$wid/_layout/integrations/github'
@@ -144,6 +145,12 @@ const WorkspacesWidLayoutSettingsEventsRoute =
     path: '/settings/events',
     getParentRoute: () => WorkspacesWidLayoutRoute,
   } as any)
+const WorkspacesWidLayoutSettingsAgentProvidersRoute =
+  WorkspacesWidLayoutSettingsAgentProvidersRouteImport.update({
+    id: '/settings/agent-providers',
+    path: '/settings/agent-providers',
+    getParentRoute: () => WorkspacesWidLayoutRoute,
+  } as any)
 const WorkspacesWidLayoutProjectsNewRoute =
   WorkspacesWidLayoutProjectsNewRouteImport.update({
     id: '/projects/new',
@@ -224,6 +231,7 @@ export interface FileRoutesByFullPath {
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/settings/agent-providers': typeof WorkspacesWidLayoutSettingsAgentProvidersRoute
   '/workspaces/$wid/settings/events': typeof WorkspacesWidLayoutSettingsEventsRoute
   '/workspaces/$wid/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
@@ -254,6 +262,7 @@ export interface FileRoutesByTo {
   '/workspaces/$wid/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/settings/agent-providers': typeof WorkspacesWidLayoutSettingsAgentProvidersRoute
   '/workspaces/$wid/settings/events': typeof WorkspacesWidLayoutSettingsEventsRoute
   '/workspaces/$wid/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
@@ -285,6 +294,7 @@ export interface FileRoutesById {
   '/workspaces/$wid/_layout/integrations/github': typeof WorkspacesWidLayoutIntegrationsGithubRoute
   '/workspaces/$wid/_layout/integrations/sentry': typeof WorkspacesWidLayoutIntegrationsSentryRoute
   '/workspaces/$wid/_layout/projects/new': typeof WorkspacesWidLayoutProjectsNewRoute
+  '/workspaces/$wid/_layout/settings/agent-providers': typeof WorkspacesWidLayoutSettingsAgentProvidersRoute
   '/workspaces/$wid/_layout/settings/events': typeof WorkspacesWidLayoutSettingsEventsRoute
   '/workspaces/$wid/_layout/settings/integrations': typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   '/workspaces/$wid/_layout/settings/members': typeof WorkspacesWidLayoutSettingsMembersRoute
@@ -318,6 +328,7 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/integrations/sentry'
     | '/workspaces/$wid/projects/new'
+    | '/workspaces/$wid/settings/agent-providers'
     | '/workspaces/$wid/settings/events'
     | '/workspaces/$wid/settings/integrations'
     | '/workspaces/$wid/settings/members'
@@ -348,6 +359,7 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/integrations/github'
     | '/workspaces/$wid/integrations/sentry'
     | '/workspaces/$wid/projects/new'
+    | '/workspaces/$wid/settings/agent-providers'
     | '/workspaces/$wid/settings/events'
     | '/workspaces/$wid/settings/integrations'
     | '/workspaces/$wid/settings/members'
@@ -378,6 +390,7 @@ export interface FileRouteTypes {
     | '/workspaces/$wid/_layout/integrations/github'
     | '/workspaces/$wid/_layout/integrations/sentry'
     | '/workspaces/$wid/_layout/projects/new'
+    | '/workspaces/$wid/_layout/settings/agent-providers'
     | '/workspaces/$wid/_layout/settings/events'
     | '/workspaces/$wid/_layout/settings/integrations'
     | '/workspaces/$wid/_layout/settings/members'
@@ -540,6 +553,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWidLayoutSettingsEventsRouteImport
       parentRoute: typeof WorkspacesWidLayoutRoute
     }
+    '/workspaces/$wid/_layout/settings/agent-providers': {
+      id: '/workspaces/$wid/_layout/settings/agent-providers'
+      path: '/settings/agent-providers'
+      fullPath: '/workspaces/$wid/settings/agent-providers'
+      preLoaderRoute: typeof WorkspacesWidLayoutSettingsAgentProvidersRouteImport
+      parentRoute: typeof WorkspacesWidLayoutRoute
+    }
     '/workspaces/$wid/_layout/projects/new': {
       id: '/workspaces/$wid/_layout/projects/new'
       path: '/projects/new'
@@ -656,6 +676,7 @@ interface WorkspacesWidLayoutRouteChildren {
   WorkspacesWidLayoutIntegrationsGithubRoute: typeof WorkspacesWidLayoutIntegrationsGithubRoute
   WorkspacesWidLayoutIntegrationsSentryRoute: typeof WorkspacesWidLayoutIntegrationsSentryRoute
   WorkspacesWidLayoutProjectsNewRoute: typeof WorkspacesWidLayoutProjectsNewRoute
+  WorkspacesWidLayoutSettingsAgentProvidersRoute: typeof WorkspacesWidLayoutSettingsAgentProvidersRoute
   WorkspacesWidLayoutSettingsEventsRoute: typeof WorkspacesWidLayoutSettingsEventsRoute
   WorkspacesWidLayoutSettingsIntegrationsRoute: typeof WorkspacesWidLayoutSettingsIntegrationsRoute
   WorkspacesWidLayoutSettingsMembersRoute: typeof WorkspacesWidLayoutSettingsMembersRoute
@@ -676,6 +697,8 @@ const WorkspacesWidLayoutRouteChildren: WorkspacesWidLayoutRouteChildren = {
   WorkspacesWidLayoutIntegrationsSentryRoute:
     WorkspacesWidLayoutIntegrationsSentryRoute,
   WorkspacesWidLayoutProjectsNewRoute: WorkspacesWidLayoutProjectsNewRoute,
+  WorkspacesWidLayoutSettingsAgentProvidersRoute:
+    WorkspacesWidLayoutSettingsAgentProvidersRoute,
   WorkspacesWidLayoutSettingsEventsRoute:
     WorkspacesWidLayoutSettingsEventsRoute,
   WorkspacesWidLayoutSettingsIntegrationsRoute:

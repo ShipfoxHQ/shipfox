@@ -34,7 +34,7 @@ export interface AgentConfigResolutionContext {
 }
 
 interface WorkspaceProviderDefaults {
-  readonly defaultModel: string;
+  readonly defaultModel: string | null;
   readonly defaultThinking: AgentThinking;
 }
 

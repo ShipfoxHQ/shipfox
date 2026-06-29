@@ -11,7 +11,10 @@ export {
   UnsupportedAgentProviderError,
 } from './errors.js';
 export {buildAgentProviderCatalog} from './provider-catalog.js';
-export {testAndSaveProviderConfig} from './provider-config-service.js';
+export {
+  testAndSaveProviderConfig,
+  updateProviderConfigDefaultModel,
+} from './provider-config-service.js';
 export {
   type AgentConfigResolutionContext,
   type AgentDefaultsResolver,

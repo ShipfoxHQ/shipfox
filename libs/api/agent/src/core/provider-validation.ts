@@ -1,4 +1,10 @@
-import {type Context, complete, getModels, type ProviderStreamOptions} from '@earendil-works/pi-ai';
+import {
+  type AssistantMessage,
+  type Context,
+  complete,
+  getModels,
+  type ProviderStreamOptions,
+} from '@earendil-works/pi-ai';
 import {getAgentProviderEntry, type SupportedAgentProviderId} from '@shipfox/api-agent-dto';
 import {redactSecrets, secretWireForms} from '@shipfox/redact';
 import {config} from '#config.js';
@@ -52,7 +58,8 @@ export async function probeProviderCredentials(
     ...(params.signal ? {signal: params.signal} : {}),
   };
 
-  await complete(model, context, options);
+  const result = await complete(model, context, options);
+  rejectProviderErrorResult(result);
 }
 
 export function sanitizeProviderError(error: unknown, secrets: string[]): string {
@@ -96,4 +103,9 @@ function credentialValue(
   const value = params.credentials[key];
   if (value === undefined) throw new InvalidCredentialFieldsError(params.providerId);
   return value;
+}
+
+function rejectProviderErrorResult(result: AssistantMessage): void {
+  if (result.stopReason !== 'error' && result.stopReason !== 'aborted') return;
+  throw new Error(result.errorMessage ?? 'Provider validation failed.');
 }

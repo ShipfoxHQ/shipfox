@@ -1,25 +1,25 @@
 import {
   agentProviderConfigDtoSchema,
   supportedAgentProviderIdSchema,
-  updateAgentProviderConfigBodySchema,
+  updateAgentProviderDefaultModelBodySchema,
 } from '@shipfox/api-agent-dto';
 import {requireMembership} from '@shipfox/api-workspaces';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {testAndSaveProviderConfig} from '#core/index.js';
+import {updateProviderConfigDefaultModel} from '#core/index.js';
 import {toAgentProviderConfigDto} from '#presentation/dto/index.js';
 import {translateAgentProviderRouteError} from './errors.js';
 
-export const upsertProviderConfigRoute = defineRoute({
+export const updateProviderDefaultModelRoute = defineRoute({
   method: 'PUT',
-  path: '/providers/:providerId',
-  description: 'Test and save an agent provider configuration for a workspace',
+  path: '/providers/:providerId/default-model',
+  description: 'Update the default model for an existing agent provider configuration',
   schema: {
     params: z.object({
       workspaceId: z.string().uuid(),
       providerId: supportedAgentProviderIdSchema,
     }),
-    body: updateAgentProviderConfigBodySchema,
+    body: updateAgentProviderDefaultModelBodySchema,
     response: {
       200: agentProviderConfigDtoSchema,
     },
@@ -29,11 +29,10 @@ export const upsertProviderConfigRoute = defineRoute({
     const {workspaceId, providerId} = request.params;
     await requireMembership({request, workspaceId});
 
-    const config = await testAndSaveProviderConfig({
+    const config = await updateProviderConfigDefaultModel({
       workspaceId,
       providerId,
-      ...('default_model' in request.body ? {defaultModel: request.body.default_model} : {}),
-      credentials: request.body.credentials,
+      defaultModel: request.body.default_model,
     });
 
     return toAgentProviderConfigDto(config);

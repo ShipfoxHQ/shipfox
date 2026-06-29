@@ -44,6 +44,7 @@ describe('resolveAgentConfig', () => {
   test('resolves model from explicit step, workspace, instance match, then catalog default', () => {
     const workspaceProviderConfigs = new Map([
       ['openai' as const, {defaultModel: 'gpt-5.5-pro', defaultThinking: 'medium' as const}],
+      ['anthropic' as const, {defaultModel: null, defaultThinking: 'low' as const}],
     ]);
 
     const explicit = resolveAgentConfig(
@@ -58,11 +59,13 @@ describe('resolveAgentConfig', () => {
         instanceDefaultProviderModel: 'claude-opus-4-8',
       },
     );
+    const workspaceLatest = resolveAgentConfig({provider: 'anthropic'}, {workspaceProviderConfigs});
     const catalog = resolveAgentConfig({provider: 'deepseek'});
 
     expect(explicit.model).toBe('gpt-5.5-pro');
     expect(workspace.model).toBe('gpt-5.5-pro');
     expect(instance.model).toBe('claude-opus-4-8');
+    expect(workspaceLatest.model).toBe('claude-opus-4-8');
     expect(catalog.model).toBe('deepseek-v4-pro');
   });
 
@@ -215,12 +218,32 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
       thinking: 'medium',
     });
   });
+
+  test('uses catalog model when the workspace provider config keeps latest selected', async () => {
+    await upsertAgentProviderConfig(
+      createProviderConfigParams({
+        workspaceId,
+        providerId: 'openai',
+        defaultModel: null,
+        defaultThinking: 'medium',
+      }),
+    );
+
+    const resolver = await createWorkspaceAgentDefaultsResolver(workspaceId);
+    const resolved = resolver({provider: 'openai'});
+
+    expect(resolved).toEqual({
+      provider: 'openai',
+      model: 'gpt-5.5-pro',
+      thinking: 'medium',
+    });
+  });
 });
 
 function createProviderConfigParams(params: {
   workspaceId: string;
   providerId: SupportedAgentProviderId;
-  defaultModel: string;
+  defaultModel: string | null;
   defaultThinking: AgentThinking;
 }): UpsertAgentProviderConfigParams {
   return {

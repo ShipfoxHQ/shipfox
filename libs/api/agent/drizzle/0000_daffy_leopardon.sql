@@ -4,7 +4,7 @@ CREATE TABLE "agent_provider_configs" (
 	"provider_id" text NOT NULL,
 	"encrypted_credentials" jsonb NOT NULL,
 	"key_fingerprints" jsonb NOT NULL,
-	"default_model" text NOT NULL,
+	"default_model" text,
 	"default_thinking" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL

@@ -6,7 +6,7 @@ export interface AgentProviderConfig {
   providerId: SupportedAgentProviderId;
   encryptedCredentials: Record<string, string>;
   keyFingerprints: Record<string, string>;
-  defaultModel: string;
+  defaultModel: string | null;
   defaultThinking: AgentThinking;
   createdAt: Date;
   updatedAt: Date;

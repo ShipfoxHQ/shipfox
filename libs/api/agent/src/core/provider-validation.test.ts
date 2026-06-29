@@ -1,4 +1,4 @@
-import type {Context, ProviderStreamOptions} from '@earendil-works/pi-ai';
+import type {AssistantMessage, Context, ProviderStreamOptions} from '@earendil-works/pi-ai';
 import {InvalidAgentModelError} from './errors.js';
 import {probeProviderCredentials, sanitizeProviderError} from './provider-validation.js';
 
@@ -26,7 +26,7 @@ describe('probeProviderCredentials', () => {
         maxTokens: 32000,
       },
     ]);
-    piAi.complete.mockResolvedValue(undefined);
+    piAi.complete.mockResolvedValue(createAssistantMessage());
   });
 
   it('resolves the catalog model and sends the catalog secret field as apiKey', async () => {
@@ -65,6 +65,20 @@ describe('probeProviderCredentials', () => {
 
     await expect(probe).rejects.toThrow(InvalidAgentModelError);
     expect(piAi.complete).not.toHaveBeenCalled();
+  });
+
+  it('rejects provider error results from Pi complete', async () => {
+    piAi.complete.mockResolvedValue(
+      createAssistantMessage({stopReason: 'error', errorMessage: '401 Unauthorized'}),
+    );
+
+    const probe = probeProviderCredentials({
+      providerId: 'anthropic',
+      model: 'claude-opus-4-8',
+      credentials: {api_key: 'sk-ant-secret'},
+    });
+
+    await expect(probe).rejects.toThrow('401 Unauthorized');
   });
 
   it('passes Azure endpoint credentials as Pi Azure base URL options', async () => {
@@ -182,6 +196,27 @@ describe('probeProviderCredentials', () => {
     });
   });
 });
+
+function createAssistantMessage(overrides: Partial<AssistantMessage> = {}): AssistantMessage {
+  return {
+    role: 'assistant',
+    content: [{type: 'text', text: 'OK'}],
+    api: 'anthropic-messages',
+    provider: 'anthropic',
+    model: 'claude-opus-4-8',
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0},
+    },
+    stopReason: 'stop',
+    timestamp: Date.now(),
+    ...overrides,
+  };
+}
 
 describe('sanitizeProviderError', () => {
   it('redacts literal and derived secret wire forms from provider messages', () => {

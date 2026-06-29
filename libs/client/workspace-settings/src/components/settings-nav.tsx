@@ -9,6 +9,9 @@ export function SettingsNav({workspaceId}: {workspaceId: string}) {
   const isRunnersActive = Boolean(
     matchRoute({to: '/workspaces/$wid/settings/runners', params: {wid: workspaceId}}),
   );
+  const isAgentProvidersActive = Boolean(
+    matchRoute({to: '/workspaces/$wid/settings/agent-providers', params: {wid: workspaceId}}),
+  );
   const isIntegrationsActive = Boolean(
     matchRoute({to: '/workspaces/$wid/settings/integrations', params: {wid: workspaceId}}),
   );
@@ -44,6 +47,20 @@ export function SettingsNav({workspaceId}: {workspaceId: string}) {
         >
           <Icon name="settings3Line" className="size-16" />
           Runners
+        </Link>
+      </Button>
+      <Button
+        asChild
+        variant={isAgentProvidersActive ? 'secondary' : 'transparent'}
+        className="w-full justify-start"
+      >
+        <Link
+          to="/workspaces/$wid/settings/agent-providers"
+          params={{wid: workspaceId}}
+          aria-current={isAgentProvidersActive ? 'page' : undefined}
+        >
+          <Icon name="robot2Line" className="size-16" />
+          Agent providers
         </Link>
       </Button>
       <Button

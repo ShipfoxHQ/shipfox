@@ -173,14 +173,68 @@ describe('agent provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().provider_id).toBe('anthropic');
+      expect(res.json().default_model).toBeNull();
       expect(res.json().key_fingerprints).toEqual({api_key: 'sk-ant-s...abcd'});
       expect(res.body).not.toContain(secret);
       expect(res.body).not.toContain('encrypted_credentials');
       expect(replace.statusCode).toBe(200);
+      expect(replace.json().default_model).toBeNull();
       expect(replace.json().key_fingerprints).toEqual({api_key: 'sk-ant-r...wxyz'});
       const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.encryptedCredentials.api_key).not.toBeUndefined();
       expect(stored?.encryptedCredentials.api_key).not.toContain(secret);
+      expect(stored?.defaultModel).toBeNull();
+    });
+
+    it('saves an explicit default model for a provider config', async () => {
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/providers/anthropic`,
+        headers: {authorization: 'Bearer user'},
+        payload: {
+          default_model: 'claude-haiku-4-5',
+          credentials: {api_key: 'sk-ant-secret-abcd'},
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().default_model).toBe('claude-haiku-4-5');
+      const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
+      expect(stored?.defaultModel).toBe('claude-haiku-4-5');
+    });
+
+    it('preserves the existing default model when replacing credentials without default_model', async () => {
+      await seedProviderConfig({providerId: 'anthropic'});
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/providers/anthropic`,
+        headers: {authorization: 'Bearer user'},
+        payload: {credentials: {api_key: 'sk-ant-rotated-wxyz'}},
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().default_model).toBe('claude-opus-4-8');
+      expect(res.json().key_fingerprints).toEqual({api_key: 'sk-ant-r...wxyz'});
+      const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
+      expect(stored?.defaultModel).toBe('claude-opus-4-8');
+    });
+
+    it('stores Latest when replacing credentials with a null default_model', async () => {
+      await seedProviderConfig({providerId: 'anthropic'});
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/providers/anthropic`,
+        headers: {authorization: 'Bearer user'},
+        payload: {default_model: null, credentials: {api_key: 'sk-ant-rotated-wxyz'}},
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().default_model).toBeNull();
+      expect(res.json().key_fingerprints).toEqual({api_key: 'sk-ant-r...wxyz'});
+      const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
+      expect(stored?.defaultModel).toBeNull();
     });
 
     it('returns sanitized provider validation errors without leaking the submitted secret', async () => {
@@ -266,6 +320,69 @@ describe('agent provider config routes', () => {
       expect(res.statusCode).toBe(204);
       const settings = await getAgentWorkspaceSettings(workspaceId);
       expect(settings?.defaultProviderId).toBeNull();
+    });
+  });
+
+  describe('PUT /workspaces/:workspaceId/agent/providers/:providerId/default-model', () => {
+    it('updates the provider default model without changing credentials', async () => {
+      await seedProviderConfig({providerId: 'anthropic'});
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/providers/anthropic/default-model`,
+        headers: {authorization: 'Bearer user'},
+        payload: {default_model: 'claude-haiku-4-5'},
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().default_model).toBe('claude-haiku-4-5');
+      expect(res.json().key_fingerprints).toEqual({api_key: 'sk-secre...abcd'});
+      const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
+      expect(stored?.defaultModel).toBe('claude-haiku-4-5');
+      expect(stored?.encryptedCredentials).toEqual({api_key: 'encrypted-secret'});
+    });
+
+    it('stores Latest as a null provider default model', async () => {
+      await seedProviderConfig({providerId: 'anthropic'});
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/providers/anthropic/default-model`,
+        headers: {authorization: 'Bearer user'},
+        payload: {default_model: null},
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().default_model).toBeNull();
+      const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
+      expect(stored?.defaultModel).toBeNull();
+    });
+
+    it('returns 422 when updating a default model for a missing provider config', async () => {
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/providers/anthropic/default-model`,
+        headers: {authorization: 'Bearer user'},
+        payload: {default_model: null},
+      });
+
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe('provider-not-configured');
+    });
+
+    it('returns 422 when the selected default model is unsupported', async () => {
+      await seedProviderConfig({providerId: 'anthropic'});
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/providers/anthropic/default-model`,
+        headers: {authorization: 'Bearer user'},
+        payload: {default_model: 'missing-model'},
+      });
+
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe('invalid-agent-model');
+      expect(res.json().details.model).toBe('missing-model');
     });
   });
 
