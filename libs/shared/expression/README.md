@@ -85,8 +85,6 @@ const passed = evaluateWorkflowPredicate(expression, {
 - Root extraction fails closed for trust decisions. It skips only identifiers
   that are provably not roots and may over-include comprehension variables or
   struct keys; downstream code maps roots to the known workflow contexts.
-- The CEL dependency has an ESM patch. Check the patch when upgrading it.
-
 Trigger filters can use `syntax` while integration event payloads are still open.
 Gate expressions can use `typed` because their local fields are known.
 

@@ -1,8 +1,4 @@
 const stringPrefixPatterns = [
-  {prefix: 'br', raw: true},
-  {prefix: 'bR', raw: true},
-  {prefix: 'Br', raw: true},
-  {prefix: 'BR', raw: true},
   {prefix: 'r', raw: true},
   {prefix: 'R', raw: true},
   {prefix: 'b', raw: false},

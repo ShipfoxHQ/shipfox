@@ -1,10 +1,9 @@
-import {Runtime} from '@gresb/cel-javascript';
+import {Environment, parse as parseCel} from '@marcbachmann/cel-js';
 import {InvalidWorkflowExpressionError} from './errors.js';
 import type {
   CreateWorkflowExpressionParams,
   ExpressionScalarType,
   ExpressionType,
-  ExpressionTypeEnvironment,
   ValidCelExpression,
   WorkflowExpression,
 } from './workflow-expression.js';
@@ -12,11 +11,15 @@ import type {
 const scalarTypeToCelType = {
   string: 'string',
   int: 'int',
-  double: 'float',
+  double: 'double',
   bool: 'bool',
   null: 'null',
-  timestamp: 'timestamp',
+  timestamp: 'dyn',
 } satisfies Record<ExpressionScalarType, string>;
+
+type CelSchema = {
+  [field: string]: string | CelSchema;
+};
 
 export function createWorkflowExpression(
   params: CreateWorkflowExpressionParams,
@@ -29,24 +32,31 @@ export function createWorkflowExpression(
     });
   }
 
-  const parseResult = Runtime.parseString(source);
-  if (!parseResult.success) {
+  try {
+    parseCel(source);
+  } catch (error) {
     throw new InvalidWorkflowExpressionError({
       source,
-      reason: parseResult.error ?? 'Expression source could not be parsed.',
+      reason: error instanceof Error ? error.message : 'Expression source could not be parsed.',
     });
   }
 
   if (params.check.mode === 'typed') {
-    const typeCheckResult = Runtime.typeCheck(
-      source,
-      {},
-      toCelTypeEnvironment(params.check.typeEnvironment ?? {}),
-    );
-    if (!typeCheckResult.success) {
+    const environment = new Environment({unlistedVariablesAreDyn: false});
+    for (const [name, type] of Object.entries(params.check.typeEnvironment ?? {})) {
+      const celType = toCelType(type);
+      if (typeof celType === 'string') {
+        environment.registerVariable(name, celType);
+      } else {
+        environment.registerVariable(name, celType);
+      }
+    }
+
+    const typeCheckResult = environment.check(source);
+    if (!typeCheckResult.valid) {
       throw new InvalidWorkflowExpressionError({
         source,
-        reason: typeCheckResult.error ?? 'Expression source did not type-check.',
+        reason: typeCheckResult.error?.message ?? 'Expression source did not type-check.',
       });
     }
   }
@@ -70,19 +80,26 @@ export function unsafeWorkflowExpressionFromSource(params: {
   };
 }
 
-function toCelTypeEnvironment(
-  typeEnvironment: ExpressionTypeEnvironment,
-): Record<string, string | Record<string, unknown> | unknown[]> {
+function toCelType(type: ExpressionType): string | {schema: CelSchema} {
+  if (typeof type === 'string') return scalarTypeToCelType[type];
+  if (type.kind === 'list') return `list<${toCelListElementType(type.element)}>`;
+
+  return {
+    schema: Object.fromEntries(
+      Object.entries(type.fields).map(([name, field]) => [name, toCelSchemaType(field)]),
+    ),
+  };
+}
+
+function toCelSchemaType(type: ExpressionType): string | CelSchema {
+  if (typeof type === 'string') return scalarTypeToCelType[type];
+  if (type.kind === 'list') return `list<${toCelListElementType(type.element)}>`;
   return Object.fromEntries(
-    Object.entries(typeEnvironment).map(([name, type]) => [name, toCelType(type)]),
+    Object.entries(type.fields).map(([name, field]) => [name, toCelSchemaType(field)]),
   );
 }
 
-function toCelType(type: ExpressionType): string | Record<string, unknown> | unknown[] {
+function toCelListElementType(type: ExpressionType): string {
   if (typeof type === 'string') return scalarTypeToCelType[type];
-  if (type.kind === 'list') return [toCelType(type.element)];
-
-  return Object.fromEntries(
-    Object.entries(type.fields).map(([name, field]) => [name, toCelType(field)]),
-  );
+  return 'dyn';
 }

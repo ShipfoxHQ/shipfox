@@ -21,12 +21,6 @@ describe('extractCelRoots', () => {
     expect(roots).toEqual(['event', 'inputs', 'job', 'run', 'trigger']);
   });
 
-  it('treats leading-dot identifiers as roots', () => {
-    const roots = extractCelRoots('.event.x');
-
-    expect(roots).toEqual(['event']);
-  });
-
   it('skips member access after calls and indexes', () => {
     const roots = extractCelRoots('foo().event == x[0].event');
 

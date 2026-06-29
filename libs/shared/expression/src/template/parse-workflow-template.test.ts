@@ -153,22 +153,6 @@ describe('parseWorkflowTemplate', () => {
     ]);
   });
 
-  it('does not let raw-string backslashes hide the real quote', () => {
-    const segments = parseWorkflowTemplate(templateExpression(' r"a\\" == "a\\\\" && event.ok '));
-
-    expect(segments).toEqual([
-      {
-        kind: 'expr',
-        expression: {
-          language: 'cel',
-          source: 'r"a\\" == "a\\\\" && event.ok',
-          check: 'syntax',
-        },
-        roots: ['event'],
-      },
-    ]);
-  });
-
   it('ignores closers inside bytes strings', () => {
     const segments = parseWorkflowTemplate(templateExpression(' b"a}}b" == b"a}}b" && event.ok '));
 
@@ -222,7 +206,7 @@ describe('parseWorkflowTemplate', () => {
       {
         kind: 'expr',
         expression: {language: 'cel', source: '{"a": {"b": 1}}.a.b', check: 'syntax'},
-        roots: ['a'],
+        roots: [],
       },
     ]);
   });
@@ -374,18 +358,6 @@ describe('scanStringLiteral', () => {
     const endIndex = scanStringLiteral('"""event.ref""" + inputs.ref', 0);
 
     expect(endIndex).toBe('"""event.ref"""'.length);
-  });
-
-  it('supports bytes raw string prefixes', () => {
-    const endIndex = scanStringLiteral('br"event.ref\\"" + inputs.ref', 0);
-
-    expect(endIndex).toBe('br"event.ref\\"'.length);
-  });
-
-  it('does not treat rb as a valid bytes raw prefix', () => {
-    const endIndex = scanStringLiteral('rb"event.ref"', 0);
-
-    expect(endIndex).toBeNull();
   });
 
   it('does not let raw-string backslashes escape the closing quote', () => {

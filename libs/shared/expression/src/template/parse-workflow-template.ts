@@ -40,7 +40,7 @@ export function parseWorkflowTemplate(source: string): WorkflowTemplateSegment[]
 
     const innerSource = source.slice(expressionStartIndex + 3, closeIndex);
     const expression = createTemplateExpression(source, expressionStartIndex, innerSource);
-    const roots = extractCelRoots(innerSource);
+    const roots = extractTemplateRoots(source, expressionStartIndex, expression.source);
 
     segments.push({kind: 'expr', expression, roots});
     index = closeIndex + 2;
@@ -80,6 +80,23 @@ function findExpressionCloseIndex(source: string, openerIndex: number): number |
   }
 
   return null;
+}
+
+function extractTemplateRoots(
+  source: string,
+  expressionStartIndex: number,
+  expressionSource: string,
+) {
+  try {
+    return extractCelRoots(expressionSource);
+  } catch (error) {
+    throw new InvalidWorkflowTemplateError({
+      source,
+      offset: expressionStartIndex,
+      reason: error instanceof Error ? error.message : 'Expression roots could not be extracted.',
+      cause: error,
+    });
+  }
 }
 
 function createTemplateExpression(
