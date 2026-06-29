@@ -1,4 +1,5 @@
 import {log, proxyActivities} from '@temporalio/workflow';
+import {STUCK_JOB_THRESHOLD_SECONDS} from '#core/maintenance-policy.js';
 
 import type {createRunnersMaintenanceActivities} from '../activities/index.js';
 
@@ -7,8 +8,6 @@ const {deleteExpiredReservationsActivity, detectAndExpireStuckJobsActivity} = pr
 >({
   startToCloseTimeout: '60s',
 });
-
-const STUCK_JOB_THRESHOLD_SECONDS = 180;
 
 export async function stuckJobDetector(): Promise<void> {
   try {

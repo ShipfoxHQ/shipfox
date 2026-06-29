@@ -6,7 +6,8 @@ import {
 } from '@shipfox/api-runners-dto';
 import {eq, sql} from 'drizzle-orm';
 import {EmptyRequiredLabelsError, RunnerSessionExhaustedError} from '#core/errors.js';
-import {claimJob, detectAndExpireStuckJobs} from '#core/jobs.js';
+import {claimJob} from '#core/jobs.js';
+import {detectAndExpireStuckJobs} from '#core/maintenance.js';
 import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
 import {db} from './db.js';
 import {
