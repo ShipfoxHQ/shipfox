@@ -97,8 +97,6 @@ export const HighlightedDeepInFile: Story = {
         (_, index) => `      - run: pnpm test --filter=@shipfox/package-${index + 1}`,
       ).join('\n'),
     },
-    // A range far down a long file: with scroll enabled the highlighted lines
-    // are centered in the panel rather than left off-screen at the bottom.
     highlightedLineRange: {startLine: 34, endLine: 36},
     scrollHighlightedIntoView: true,
   },

@@ -17,23 +17,10 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-/**
- * When `enabled` and a line range is highlighted, scrolls the first highlighted
- * line to the vertical center of its nearest scrollable ancestor. The owning
- * component holds the ref because only it knows when its highlighted markup has
- * rendered (the syntax-highlighted path swaps in asynchronously, so the effect
- * re-runs as the range or markup changes).
- *
- * Reduced motion and `scrollIntoView` are read at scroll time and guarded:
- * the scroll is a one-shot, best-effort nicety, and environments without layout
- * (e.g. jsdom) lack `matchMedia`/`scrollIntoView`, so neither should ever throw.
- */
 export function useScrollHighlightedLineIntoView(
   ref: RefObject<HTMLElement | null>,
   {enabled, highlightedLineRange}: ScrollHighlightedLineOptions,
 ): void {
-  // The scroll target is the first highlighted line, so its start line is the
-  // only range field that changes what we scroll to.
   const startLine = highlightedLineRange?.startLine;
 
   useEffect(() => {
@@ -48,7 +35,7 @@ export function useScrollHighlightedLineIntoView(
         behavior: prefersReducedMotion() ? 'auto' : 'smooth',
       });
     } catch {
-      // No layout in this environment (e.g. jsdom); skip the scroll nicety.
+      // Layout-less test environments may expose a partial scrollIntoView.
     }
   }, [enabled, startLine, ref]);
 }

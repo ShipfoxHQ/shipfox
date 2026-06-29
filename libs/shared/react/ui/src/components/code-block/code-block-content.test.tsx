@@ -95,8 +95,6 @@ describe('CodeBlockContent scroll-into-view', () => {
 
   beforeEach(() => {
     scrollCalls = [];
-    // jsdom does not implement scrollIntoView; install a recording stub on the
-    // (fallback path's) rendered lines so we can assert which line is scrolled.
     Element.prototype.scrollIntoView = function scrollIntoViewStub(
       this: Element,
       options?: boolean | ScrollIntoViewOptions,
@@ -110,9 +108,6 @@ describe('CodeBlockContent scroll-into-view', () => {
     window.matchMedia = originalMatchMedia;
   });
 
-  // jsdom never resolves the mocked Shiki highlighter, so CodeBlockContent only
-  // ever paints its fallback path here; these assertions exercise that path. The
-  // post-Shiki re-scroll is covered by the source-panel Storybook visual.
   test('scrolls the first highlighted line to center when enabled', () => {
     renderCodeBlockContent({
       code: 'one\ntwo\nthree\nfour',
