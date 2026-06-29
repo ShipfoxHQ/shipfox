@@ -79,7 +79,7 @@ function ProviderCard({
     <Link
       to={catalog.setupPath}
       params={{wid: workspaceId}}
-      aria-label={`Connect ${provider.display_name}`}
+      aria-label={`Install ${provider.display_name}`}
       className="group block h-full rounded-8 focus-visible:shadow-button-neutral-focus focus-visible:outline-none"
     >
       <Card className="h-full p-16 transition-colors hover:bg-background-components-hover">
@@ -95,7 +95,7 @@ function ProviderCard({
             </Text>
           </div>
           <div className="flex shrink-0 items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">
-            <Text size="sm">Connect</Text>
+            <Text size="sm">Install</Text>
             <Icon name="chevronRight" className="size-16" />
           </div>
         </div>

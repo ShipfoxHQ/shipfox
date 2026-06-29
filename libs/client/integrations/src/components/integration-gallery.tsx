@@ -80,7 +80,7 @@ export function IntegrationGallery({
         <div className="flex flex-col gap-4">
           <Header variant="h3">Installed integrations</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
-            Provider accounts linked to this workspace.
+            Provider accounts installed in this workspace.
           </Text>
         </div>
 
@@ -96,8 +96,8 @@ export function IntegrationGallery({
           <div className={cn(SURFACE_CLASS, 'px-16')}>
             <EmptyState
               icon="componentLine"
-              title="No integrations connected yet"
-              description="Connect a provider below to get started."
+              title="No integrations installed yet"
+              description="Install a provider below to get started."
             />
           </div>
         ) : null}
@@ -119,7 +119,7 @@ export function IntegrationGallery({
         <div className="flex flex-col gap-4">
           <Header variant="h3">Available integrations</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
-            Providers available to connect to this workspace.
+            Providers available to install in this workspace.
           </Text>
         </div>
 

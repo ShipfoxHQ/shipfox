@@ -17,7 +17,7 @@ export function giteaConnectErrorToFormError(error: unknown): GiteaConnectFormEr
     };
   }
   if (code === 'gitea-org-already-linked') {
-    return {kind: 'field', field: 'org', message: 'That organization is already connected.'};
+    return {kind: 'field', field: 'org', message: 'That organization is already installed.'};
   }
 
   return {kind: 'form', message: giteaConnectErrorMessage(error)};

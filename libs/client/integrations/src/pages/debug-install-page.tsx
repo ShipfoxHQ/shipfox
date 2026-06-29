@@ -28,12 +28,12 @@ export function DebugInstallPage() {
           // and leave the cache stale until the next navigation reads it.
           refetchType: 'all',
         });
-        toast.success('Debug source control connected.');
+        toast.success('Debug source control installed.');
         await navigate({to: '/workspaces/$wid', params: {wid: workspaceId}});
       })
       .catch((error: unknown) => {
         setErrorMessage(
-          error instanceof ApiError ? error.message : 'Could not connect Debug source control.',
+          error instanceof ApiError ? error.message : 'Could not install Debug source control.',
         );
       });
   }, [workspace, createConnection, queryClient, navigate]);

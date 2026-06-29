@@ -479,7 +479,7 @@ function AvailableProviderCard({
             {entry.label}
           </Text>
           <div className="flex shrink-0 items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">
-            <Text size="sm">Connect</Text>
+            <Text size="sm">Configure</Text>
             <Icon name="chevronRight" className="size-16" />
           </div>
         </div>
