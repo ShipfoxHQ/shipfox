@@ -1,5 +1,6 @@
 export {
   WorkflowExpressionEvaluationError,
+  type WorkflowExpressionEvaluationFailureReason,
   workflowExpressionEvaluationErrorCode,
 } from './evaluator/errors.js';
 export {
@@ -26,6 +27,17 @@ export type {
   WorkflowExpressionCheck,
   WorkflowExpressionCheckOptions,
 } from './expression/workflow-expression.js';
+export {
+  WorkflowTemplateResolutionError,
+  workflowTemplateResolutionErrorCode,
+} from './resolver/errors.js';
+export {
+  resolveWorkflowTemplate,
+  resolveWorkflowTemplateSource,
+  type WorkflowTemplateDiagnostic,
+  type WorkflowTemplateResolution,
+  type WorkflowTemplateResolutionOptions,
+} from './resolver/resolve-workflow-template.js';
 export {
   InvalidWorkflowTemplateError,
   invalidWorkflowTemplateErrorCode,
