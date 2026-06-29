@@ -38,6 +38,7 @@ describe('AgentProvidersSettingsPage', () => {
     expect(await screen.findByText('No providers configured')).toBeVisible();
     expect(screen.getByText('Available providers')).toBeVisible();
     expect(screen.getByRole('button', {name: 'Configure Anthropic'})).toBeVisible();
+    expect(screen.getByText('Configure')).toBeVisible();
     expect(screen.queryByText('Connect')).not.toBeInTheDocument();
   });
 });

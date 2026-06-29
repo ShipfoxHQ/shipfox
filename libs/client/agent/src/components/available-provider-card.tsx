@@ -1,5 +1,5 @@
 import type {AgentProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
-import {cn, Text} from '@shipfox/react-ui';
+import {cn, Icon, Text} from '@shipfox/react-ui';
 
 const SURFACE_CLASS =
   'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';
@@ -16,16 +16,22 @@ export function AvailableProviderCard({
       <button
         type="button"
         className={cn(
-          'block w-full cursor-pointer px-14 py-10 text-left outline-none transition-colors hover:bg-background-components-hover focus-visible:shadow-button-neutral-focus',
+          'group block w-full cursor-pointer px-14 py-10 text-left outline-none transition-colors hover:bg-background-components-hover focus-visible:shadow-button-neutral-focus',
           SURFACE_CLASS,
         )}
         aria-label={`Configure ${entry.label}`}
         onClick={onConfigure}
       >
-        <div className="min-w-0 flex-1">
-          <Text size="md" bold className="truncate">
-            {entry.label}
-          </Text>
+        <div className="flex min-w-0 items-center justify-between gap-12">
+          <div className="min-w-0 flex-1">
+            <Text size="md" bold className="truncate">
+              {entry.label}
+            </Text>
+          </div>
+          <div className="flex shrink-0 items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">
+            <Text size="sm">Configure</Text>
+            <Icon name="chevronRight" className="size-16" />
+          </div>
         </div>
       </button>
     </li>
