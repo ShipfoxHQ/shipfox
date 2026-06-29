@@ -185,8 +185,8 @@ function WorkflowStepListContent({
 
 function WorkflowStepListEmptyStateView({
   emptyState = {
-    title: 'No step attempts yet',
-    description: 'This job has not recorded step attempts.',
+    title: 'No steps recorded',
+    description: 'This job has not recorded any steps.',
   },
 }: {
   emptyState?: WorkflowStepListEmptyState | undefined;

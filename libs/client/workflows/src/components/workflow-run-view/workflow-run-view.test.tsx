@@ -131,7 +131,65 @@ describe('WorkflowRunView', () => {
     expect(
       screen.getByText('A required job did not complete, so this job was skipped.'),
     ).toBeInTheDocument();
-    expect(screen.queryByText('No step attempts yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('No steps recorded')).not.toBeInTheDocument();
+  });
+
+  test('renders pending zero-step jobs as waiting to start', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            workflowRunViewDetailDto({
+              jobs: [
+                workflowJobDto({
+                  id: DEPLOY_JOB_ID,
+                  run_id: RUN_ID,
+                  name: 'deploy',
+                  status: 'pending',
+                  steps: [],
+                }),
+              ],
+            }),
+          ),
+        ),
+      ),
+    });
+
+    renderView();
+
+    expect(await screen.findByText('Waiting for this job to start')).toBeInTheDocument();
+    expect(screen.getByText('Steps will appear here once the job starts.')).toBeInTheDocument();
+    expect(screen.queryByText('No steps recorded')).not.toBeInTheDocument();
+  });
+
+  test('renders running zero-step jobs as waiting for the first step', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            workflowRunViewDetailDto({
+              jobs: [
+                workflowJobDto({
+                  id: DEPLOY_JOB_ID,
+                  run_id: RUN_ID,
+                  name: 'deploy',
+                  status: 'running',
+                  steps: [],
+                }),
+              ],
+            }),
+          ),
+        ),
+      ),
+    });
+
+    renderView();
+
+    expect(await screen.findByText('Waiting for the first step')).toBeInTheDocument();
+    expect(
+      screen.getByText('This job is running, but no steps have started yet.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No steps recorded')).not.toBeInTheDocument();
   });
 
   test('renders cancelled zero-attempt jobs separately from skipped jobs', async () => {

@@ -349,7 +349,8 @@ describe('WorkflowStepList', () => {
   test('renders an empty state', () => {
     render(<WorkflowStepList job={makeJob({steps: []})} />);
 
-    expect(screen.getByText('No step attempts yet')).toBeInTheDocument();
+    expect(screen.getByText('No steps recorded')).toBeInTheDocument();
+    expect(screen.getByText('This job has not recorded any steps.')).toBeInTheDocument();
   });
 
   test('renders a skipped empty state with a status glyph', () => {

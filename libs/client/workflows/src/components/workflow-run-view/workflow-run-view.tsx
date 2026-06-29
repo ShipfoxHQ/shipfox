@@ -254,6 +254,22 @@ function emptyStateForJob(job: WorkflowJob): WorkflowStepListEmptyState | undefi
     };
   }
 
+  if (job.status === 'pending') {
+    return {
+      title: 'Waiting for this job to start',
+      description: 'Steps will appear here once the job starts.',
+      status: 'pending',
+    };
+  }
+
+  if (job.status === 'running') {
+    return {
+      title: 'Waiting for the first step',
+      description: 'This job is running, but no steps have started yet.',
+      status: 'running',
+    };
+  }
+
   if (job.status === 'skipped') {
     return {
       title: 'This job was skipped',
