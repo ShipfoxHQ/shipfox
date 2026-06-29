@@ -18,6 +18,15 @@ export {
   recordHeartbeat,
   releaseJob,
 } from './jobs.js';
+export type {CreateProvisionerTokenParams} from './provisioner-tokens.js';
+export {
+  createProvisionerToken,
+  listActiveProvisionerTokens,
+  listUsableProvisionerTokensByWorkspaceId,
+  resolveProvisionerTokenByHash,
+  revokeProvisionerToken,
+  touchProvisionerLastSeen,
+} from './provisioner-tokens.js';
 export type {
   DemandStat,
   PollDemandAndReserveParams,

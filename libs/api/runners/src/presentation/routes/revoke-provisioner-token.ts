@@ -1,5 +1,5 @@
 import {requireUserContext} from '@shipfox/api-auth-context';
-import {revokeProvisionerTokenResponseSchema} from '@shipfox/api-provisioners-dto';
+import {revokeProvisionerTokenResponseSchema} from '@shipfox/api-runners-dto';
 import {requireMembership} from '@shipfox/api-workspaces';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';

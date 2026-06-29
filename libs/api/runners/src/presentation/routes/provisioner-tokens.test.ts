@@ -43,7 +43,7 @@ describe('provisioner token routes', () => {
 
   beforeEach(async () => {
     await closeApp();
-    await db().execute(sql`TRUNCATE provisioners_provisioner_tokens CASCADE`);
+    await db().execute(sql`TRUNCATE runners_provisioner_tokens CASCADE`);
     workspaceId = crypto.randomUUID();
     vi.mocked(requireMembership).mockResolvedValue({
       workspaceId,
@@ -130,7 +130,7 @@ describe('provisioner token routes', () => {
     it('returns active provisioners for the workspace', async () => {
       const active = await provisionerTokenFactory.create({workspaceId, name: 'active'});
       await db().execute(
-        sql`UPDATE provisioners_provisioner_tokens SET last_seen_at = now() WHERE id = ${active.id}`,
+        sql`UPDATE runners_provisioner_tokens SET last_seen_at = now() WHERE id = ${active.id}`,
       );
 
       const res = await app.inject({

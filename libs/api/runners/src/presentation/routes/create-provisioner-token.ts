@@ -2,7 +2,7 @@ import {requireUserContext} from '@shipfox/api-auth-context';
 import {
   createProvisionerTokenBodySchema,
   createProvisionerTokenResponseSchema,
-} from '@shipfox/api-provisioners-dto';
+} from '@shipfox/api-runners-dto';
 import {requireMembership} from '@shipfox/api-workspaces';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';

@@ -13,11 +13,11 @@ import {provisionerTokenFactory} from '#test/index.js';
 
 describe('provisioner token db', () => {
   beforeEach(async () => {
-    await db().execute(sql`TRUNCATE provisioners_provisioner_tokens CASCADE`);
+    await db().execute(sql`TRUNCATE runners_provisioner_tokens CASCADE`);
   });
 
   it('creates and resolves a token', async () => {
-    const workspaceId = await createWorkspace();
+    const workspaceId = crypto.randomUUID();
     const rawToken = 'sf_pt_test-token';
     const createdByUserId = crypto.randomUUID();
     const token = await createProvisionerToken({
@@ -122,7 +122,7 @@ describe('provisioner token db', () => {
     await touchProvisionerLastSeen({tokenId: stale.id, throttleSeconds: 10});
     await touchProvisionerLastSeen({tokenId: revoked.id, throttleSeconds: 10});
     await db().execute(
-      sql`UPDATE provisioners_provisioner_tokens SET last_seen_at = now() - interval '10 minutes' WHERE id = ${stale.id}`,
+      sql`UPDATE runners_provisioner_tokens SET last_seen_at = now() - interval '10 minutes' WHERE id = ${stale.id}`,
     );
     await revokeProvisionerToken({
       tokenId: revoked.id,
@@ -135,13 +135,3 @@ describe('provisioner token db', () => {
     expect(tokens.map((token) => token.id)).toEqual([active.id]);
   });
 });
-
-async function createWorkspace(params?: {status?: 'active' | 'suspended' | 'deleted'}) {
-  const id = crypto.randomUUID();
-  await db().execute(
-    sql`INSERT INTO workspaces (id, name, status) VALUES (${id}, 'Test Workspace', ${
-      params?.status ?? 'active'
-    })`,
-  );
-  return id;
-}

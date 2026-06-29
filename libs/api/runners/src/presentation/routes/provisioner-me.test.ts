@@ -1,4 +1,5 @@
 import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
+import {getWorkspace, WorkspaceNotFoundError} from '@shipfox/api-workspaces';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {generateOpaqueToken} from '@shipfox/node-tokens';
@@ -30,6 +31,11 @@ vi.mock('@shipfox/node-opentelemetry', async (importOriginal) => ({
   logger: () => mocks.logger,
 }));
 
+vi.mock('@shipfox/api-workspaces', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shipfox/api-workspaces')>()),
+  getWorkspace: vi.fn(),
+}));
+
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
   authenticate: () => Promise.resolve(),
@@ -40,8 +46,11 @@ describe('provisioner me route', () => {
 
   beforeEach(async () => {
     await closeApp();
-    await db().execute(sql`TRUNCATE provisioners_provisioner_tokens CASCADE`);
+    await db().execute(sql`TRUNCATE runners_provisioner_tokens CASCADE`);
     mocks.logger.warn.mockReset();
+    vi.mocked(getWorkspace).mockImplementation(({workspaceId}) =>
+      Promise.resolve(workspace({id: workspaceId})),
+    );
     app = await createApp({
       auth: [fakeUserAuth, createProvisionerTokenAuthMethod()],
       routes: provisionerRoutes,
@@ -59,7 +68,7 @@ describe('provisioner me route', () => {
   });
 
   it('returns the authenticated provisioner identity', async () => {
-    const workspaceId = await createWorkspace();
+    const workspaceId = crypto.randomUUID();
     const rawToken = generateOpaqueToken('provisionerToken');
     const token = await provisionerTokenFactory.create({workspaceId}, {transient: {rawToken}});
 
@@ -75,7 +84,7 @@ describe('provisioner me route', () => {
 
   it('does not reject valid auth when the last-seen write fails', async () => {
     await closeApp();
-    const workspaceId = await createWorkspace();
+    const workspaceId = crypto.randomUUID();
     const rawToken = generateOpaqueToken('provisionerToken');
     const token = await provisionerTokenFactory.create({workspaceId}, {transient: {rawToken}});
     vi.spyOn(provisionerTokenDb, 'touchProvisionerLastSeen').mockRejectedValueOnce(
@@ -151,7 +160,7 @@ describe('provisioner me route', () => {
   });
 
   it('returns 401 for a revoked provisioner token', async () => {
-    const workspaceId = await createWorkspace();
+    const workspaceId = crypto.randomUUID();
     const rawToken = generateOpaqueToken('provisionerToken');
     const token = await provisionerTokenFactory.create({workspaceId}, {transient: {rawToken}});
     await revokeProvisionerToken({
@@ -171,7 +180,7 @@ describe('provisioner me route', () => {
   });
 
   it('returns 401 for an expired provisioner token', async () => {
-    const workspaceId = await createWorkspace();
+    const workspaceId = crypto.randomUUID();
     const rawToken = generateOpaqueToken('provisionerToken');
     await provisionerTokenFactory.create(
       {workspaceId, expiresAt: new Date(Date.now() - 60_000)},
@@ -190,7 +199,7 @@ describe('provisioner me route', () => {
 
   it('returns 401 for a provisioner token expiring at the current instant', async () => {
     const now = new Date('2026-01-01T00:00:00.000Z');
-    const workspaceId = await createWorkspace();
+    const workspaceId = crypto.randomUUID();
     const rawToken = generateOpaqueToken('provisionerToken');
     await provisionerTokenFactory.create({workspaceId, expiresAt: now}, {transient: {rawToken}});
 
@@ -208,11 +217,10 @@ describe('provisioner me route', () => {
   });
 
   it('returns 401 for a provisioner token whose workspace does not exist', async () => {
+    const workspaceId = crypto.randomUUID();
     const rawToken = generateOpaqueToken('provisionerToken');
-    await provisionerTokenFactory.create(
-      {workspaceId: crypto.randomUUID()},
-      {transient: {rawToken}},
-    );
+    await provisionerTokenFactory.create({workspaceId}, {transient: {rawToken}});
+    vi.mocked(getWorkspace).mockRejectedValueOnce(new WorkspaceNotFoundError(workspaceId));
 
     const res = await app.inject({
       method: 'GET',
@@ -229,9 +237,12 @@ describe('provisioner me route', () => {
   });
 
   it('returns 403 for a provisioner token in a suspended workspace', async () => {
-    const workspaceId = await createWorkspace({status: 'suspended'});
+    const workspaceId = crypto.randomUUID();
     const rawToken = generateOpaqueToken('provisionerToken');
     await provisionerTokenFactory.create({workspaceId}, {transient: {rawToken}});
+    vi.mocked(getWorkspace).mockResolvedValueOnce(
+      workspace({id: workspaceId, status: 'suspended'}),
+    );
 
     const res = await app.inject({
       method: 'GET',
@@ -244,12 +255,13 @@ describe('provisioner me route', () => {
   });
 });
 
-async function createWorkspace(params?: {status?: 'active' | 'suspended' | 'deleted'}) {
-  const id = crypto.randomUUID();
-  await db().execute(
-    sql`INSERT INTO workspaces (id, name, status) VALUES (${id}, 'Test Workspace', ${
-      params?.status ?? 'active'
-    })`,
-  );
-  return id;
+function workspace(params: {id: string; status?: 'active' | 'suspended' | 'deleted'}) {
+  return {
+    id: params.id,
+    name: 'Test Workspace',
+    status: params.status ?? 'active',
+    settings: {},
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
 }

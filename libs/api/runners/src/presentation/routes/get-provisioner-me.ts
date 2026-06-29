@@ -1,5 +1,5 @@
 import {requireProvisionerContext} from '@shipfox/api-auth-context';
-import {provisionerIdentityResponseSchema} from '@shipfox/api-provisioners-dto';
+import {provisionerIdentityResponseSchema} from '@shipfox/api-runners-dto';
 import {defineRoute} from '@shipfox/node-fastify';
 
 export const getProvisionerMeRoute = defineRoute({

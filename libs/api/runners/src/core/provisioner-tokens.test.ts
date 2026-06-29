@@ -11,7 +11,7 @@ import {
 
 describe('provisioner token core', () => {
   beforeEach(async () => {
-    await db().execute(sql`TRUNCATE provisioners_provisioner_tokens CASCADE`);
+    await db().execute(sql`TRUNCATE runners_provisioner_tokens CASCADE`);
   });
 
   it('creates a workspace provisioner token and stores only the hash', async () => {

@@ -1,3 +1,4 @@
+export {createProvisionerTokenAuthMethod} from './provisioner-token-auth.js';
 export {
   createRunnerTokenAuthMethod,
   getRunnerContext,

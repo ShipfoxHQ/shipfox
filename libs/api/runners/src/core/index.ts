@@ -1,4 +1,5 @@
 export type {EphemeralRegistrationToken} from './entities/ephemeral-registration-token.js';
+export type {ActiveProvisionerToken, ProvisionerToken} from './entities/provisioner-token.js';
 export type {Resource, ResourceState} from './entities/resource.js';
 export type {RunnerSession} from './entities/runner-session.js';
 export type {RunnerToken} from './entities/runner-token.js';
@@ -9,6 +10,7 @@ export {
 } from './ephemeral-registration-tokens.js';
 export {
   EmptyRunnerLabelsError,
+  ProvisionerTokenNotFoundError,
   RegistrationTokenConsumedError,
   RegistrationTokenExpiredError,
   RunnerSessionExhaustedError,
@@ -16,6 +18,12 @@ export {
   RunningJobNotFoundError,
 } from './errors.js';
 export {type ClaimJobResult, claimJob} from './jobs.js';
+export {
+  createWorkspaceProvisionerToken,
+  listActiveProvisioners,
+  listUsableProvisionerTokens,
+  revokeWorkspaceProvisionerToken,
+} from './provisioner-tokens.js';
 export {
   type ActiveRunner,
   listActiveRunners,

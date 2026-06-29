@@ -1,4 +1,4 @@
-import {listActiveProvisionersResponseSchema} from '@shipfox/api-provisioners-dto';
+import {listActiveProvisionersResponseSchema} from '@shipfox/api-runners-dto';
 import {requireMembership} from '@shipfox/api-workspaces';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';

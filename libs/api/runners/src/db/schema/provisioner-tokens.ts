@@ -20,8 +20,8 @@ export const provisionerTokens = pgTable(
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('provisioners_provisioner_tokens_hashed_token_unique').on(table.hashedToken),
-    index('provisioners_provisioner_tokens_workspace_id_idx').on(table.workspaceId),
+    uniqueIndex('runners_provisioner_tokens_hashed_token_unique').on(table.hashedToken),
+    index('runners_provisioner_tokens_workspace_id_idx').on(table.workspaceId),
   ],
 );
 
