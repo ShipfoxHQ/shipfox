@@ -54,7 +54,7 @@
 
 @font-face {
   font-family: "Commit Mono";
-  src: url("./src/fonts/commitmono-400-regular.otf") format("opentype");
+  src: url("./src/fonts/commitmono-400-regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -62,7 +62,7 @@
 
 @font-face {
   font-family: "Commit Mono";
-  src: url("./src/fonts/commitmono-700-regular.otf") format("opentype");
+  src: url("./src/fonts/commitmono-700-regular.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
