@@ -52,6 +52,28 @@ describe('evaluateGate', () => {
     expect(evaluateGate(gate, {status: 'failed', exitCode: 1})).toMatchObject({kind: 'passed'});
   });
 
+  test('exit_code arithmetic can pass using CEL int values at runtime', () => {
+    const gate = readStepGate(gateConfig('exit_code % 2 == 0'));
+
+    const result = evaluateGate(gate, {status: 'succeeded', exitCode: 2});
+
+    expect(result).toEqual({
+      kind: 'passed',
+      source: 'exit_code % 2 == 0',
+    });
+  });
+
+  test('exit_code arithmetic can fail using CEL int values at runtime', () => {
+    const gate = readStepGate(gateConfig('exit_code % 2 == 0'));
+
+    const result = evaluateGate(gate, {status: 'failed', exitCode: 3});
+
+    expect(result).toEqual({
+      kind: 'failed',
+      source: 'exit_code % 2 == 0',
+    });
+  });
+
   test('a missing exit code is uncheckable (never evaluated)', () => {
     const gate = readStepGate(gateConfig('exit_code == 0'));
     expect(evaluateGate(gate, {status: 'failed', exitCode: null})).toMatchObject({
