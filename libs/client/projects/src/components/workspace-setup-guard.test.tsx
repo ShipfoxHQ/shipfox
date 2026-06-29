@@ -125,6 +125,7 @@ function renderSetupRoute(
     guardedRoute('/workspaces/$wid/integrations', 'VCS onboarding'),
     guardedRoute('/workspaces/$wid/integrations/debug', 'Debug install'),
     guardedRoute('/workspaces/$wid/projects/new', 'Create project'),
+    guardedRoute('/workspaces/$wid/settings/agent-providers', 'Settings agent providers'),
     guardedRoute('/workspaces/$wid/settings/integrations', 'Settings integrations'),
   ]);
   const router = createRouter({
@@ -277,6 +278,20 @@ describe('workspace setup route hook', () => {
     );
 
     expect(await screen.findByText('Agent provider onboarding')).toBeInTheDocument();
+    expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
+  });
+
+  test('keeps agent provider settings available before first project creation', async () => {
+    renderSetupRoute(
+      `/workspaces/${WORKSPACE_ID}/settings/agent-providers`,
+      setupFetch({
+        connections: [sourceConnection()],
+        providerConfigs: [],
+        defaultProviderId: null,
+      }),
+    );
+
+    expect(await screen.findByText('Settings agent providers')).toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
   });
 

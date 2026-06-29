@@ -219,6 +219,25 @@ describe('agent provider config routes', () => {
       expect(settings?.defaultProviderId).toBe('anthropic');
     });
 
+    it('replaces the workspace default when set_as_default is requested with existing settings', async () => {
+      await seedProviderConfig({providerId: 'openai'});
+      await setDefaultAgentProvider({workspaceId, providerId: 'openai'});
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/providers/anthropic`,
+        headers: {authorization: 'Bearer user'},
+        payload: {
+          credentials: {api_key: 'sk-ant-secret-abcd'},
+          set_as_default: true,
+        },
+      });
+
+      const settings = await getAgentWorkspaceSettings(workspaceId);
+      expect(res.statusCode).toBe(200);
+      expect(settings?.defaultProviderId).toBe('anthropic');
+    });
+
     it('does not change the workspace default when set_as_default is omitted', async () => {
       await seedProviderConfig({providerId: 'openai'});
       await setDefaultAgentProvider({workspaceId, providerId: 'openai'});

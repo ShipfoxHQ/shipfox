@@ -69,6 +69,10 @@ export async function loadWorkspaceSetupRoute({
     });
   }
 
+  if (isAgentProviderSettingsPath(normalizedPathname, workspaceId)) {
+    return {hideProjectNavigation: true};
+  }
+
   const providerHandled = await hasHandledAgentProviderOnboarding(queryClient, workspaceId);
   if (!providerHandled) {
     if (isAgentProviderOnboardingPath(normalizedPathname, workspaceId)) {
@@ -253,4 +257,8 @@ function isProjectCreationPath(pathname: string, workspaceId: string) {
 
 function isAgentProviderOnboardingPath(pathname: string, workspaceId: string) {
   return pathname === workspacePath(workspaceId, '/agent-provider');
+}
+
+function isAgentProviderSettingsPath(pathname: string, workspaceId: string) {
+  return pathname === workspacePath(workspaceId, '/settings/agent-providers');
 }
