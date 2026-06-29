@@ -105,9 +105,7 @@ export const Basic: Story = {
 };
 
 export const SyntaxHighlighting: Story = {
-  // Cold CI can snapshot the plain fallback before Shiki's dynamic import finishes.
   play: async (ctx) => {
-    await document.fonts.ready;
     await waitFor(
       () => {
         if (!ctx.canvasElement.querySelector('.shiki-override')) {
@@ -122,9 +120,7 @@ export const SyntaxHighlighting: Story = {
 };
 
 export const DiffContent: Story = {
-  // Cold CI can snapshot the plain fallback before Shiki's dynamic import finishes.
   play: async (ctx) => {
-    await document.fonts.ready;
     await waitFor(
       () => {
         if (!ctx.canvasElement.querySelector('.shiki-override')) {

@@ -9,6 +9,14 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 
+if (typeof document !== 'undefined' && document.fonts) {
+  void Promise.all([
+    document.fonts.load("16px 'Inter'"),
+    document.fonts.load("italic 16px 'Inter'"),
+    document.fonts.load("16px 'Commit Mono'"),
+  ]);
+}
+
 const STORYBOOK_NOW_MS = Date.parse('2026-06-26T12:00:00.000Z');
 
 Object.defineProperty(Date, 'now', {

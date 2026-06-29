@@ -17,7 +17,10 @@ export default defineConfig({
       input: resolve(__dirname, 'src/build-css-entry.ts'),
       output: {
         entryFileNames: 'css-entry.js',
-        assetFileNames: 'styles.css',
+        assetFileNames: (assetInfo) => {
+          const name = assetInfo.names?.[0] ?? assetInfo.name ?? '';
+          return name.endsWith('.css') ? 'styles.css' : 'assets/[name][extname]';
+        },
       },
     },
   },

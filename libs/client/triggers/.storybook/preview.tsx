@@ -9,6 +9,14 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 
+if (typeof document !== 'undefined' && document.fonts) {
+  void Promise.all([
+    document.fonts.load("16px 'Inter'"),
+    document.fonts.load("italic 16px 'Inter'"),
+    document.fonts.load("16px 'Commit Mono'"),
+  ]);
+}
+
 const withTheme: Decorator = (Story, context) => {
   const theme = context.globals.theme;
   return (
