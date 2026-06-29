@@ -197,6 +197,31 @@ describe('definition queries', () => {
       expect(second.name).toBe('CI v2');
     });
 
+    test('manual and VCS definitions coexist at the same config_path (ENG-659)', async () => {
+      const manual = await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'ci.yml',
+        name: 'CI (manual)',
+        ...definitionFields('CI (manual)'),
+        source: 'manual',
+      });
+
+      const vcs = await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'ci.yml',
+        name: 'CI (vcs)',
+        ...definitionFields('CI (vcs)'),
+        source: 'vcs',
+        ref: 'main',
+      });
+
+      expect(vcs.id).not.toBe(manual.id);
+      expect(manual.source).toBe('manual');
+      expect(vcs.source).toBe('vcs');
+    });
+
     test('with neither sha nor ref uses base constraint', async () => {
       const first = await upsertDefinition({
         projectId,

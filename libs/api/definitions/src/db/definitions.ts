@@ -103,7 +103,7 @@ function buildUpsertQuery(tx: Tx, params: UpsertDefinitionParams) {
     .values(values)
     .onConflictDoUpdate({
       target: [workflowDefinitions.projectId, workflowDefinitions.configPath],
-      targetWhere: sql`"config_path" IS NOT NULL`,
+      targetWhere: sql`"config_path" IS NOT NULL AND "ref" IS NULL AND "sha" IS NULL`,
       set,
     })
     .returning();

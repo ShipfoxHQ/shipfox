@@ -45,7 +45,7 @@ CREATE TABLE "definitions_outbox" (
 	"dead_lettered_at" timestamp with time zone
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX "definitions_wd_project_id_config_path_unique" ON "definitions_workflow_definitions" USING btree ("project_id","config_path") WHERE "config_path" IS NOT NULL;
+CREATE UNIQUE INDEX "definitions_wd_manual_unique" ON "definitions_workflow_definitions" USING btree ("project_id","config_path") WHERE "config_path" IS NOT NULL AND "ref" IS NULL AND "sha" IS NULL;
 --> statement-breakpoint
 CREATE UNIQUE INDEX "definitions_wd_sha_lookup" ON "definitions_workflow_definitions" USING btree ("project_id","sha","config_path") WHERE "sha" IS NOT NULL;
 --> statement-breakpoint

@@ -27,9 +27,11 @@ export const workflowDefinitions = pgTable(
     deletedAt: timestamp('deleted_at', {withTimezone: true}),
   },
   (table) => [
-    uniqueIndex('definitions_wd_project_id_config_path_unique')
+    // Manual definitions only (no ref, no sha); VCS uniqueness is sha_lookup/ref_lookup.
+    // A source-agnostic predicate here collides VCS upserts on a non-arbiter index. ENG-659.
+    uniqueIndex('definitions_wd_manual_unique')
       .on(table.projectId, table.configPath)
-      .where(sql`"config_path" IS NOT NULL`),
+      .where(sql`"config_path" IS NOT NULL AND "ref" IS NULL AND "sha" IS NULL`),
     uniqueIndex('definitions_wd_sha_lookup')
       .on(table.projectId, table.sha, table.configPath)
       .where(sql`"sha" IS NOT NULL`),
