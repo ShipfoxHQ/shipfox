@@ -4,7 +4,6 @@ export const REGISTRATION_TOKEN_BATCH_HARD_MAX = 1000;
 
 export const mintRegistrationTokensResourceSchema = z.object({
   resource_id: z.string().min(1).max(200),
-  template_key: z.string().min(1),
 });
 
 export const mintRegistrationTokensBatchBodySchema = z

@@ -357,7 +357,6 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
       reservation_id: reservationId,
       resources: resourceIds.map((resourceId) => ({
         resource_id: resourceId,
-        template_key: 'linux',
       })),
     };
   }
