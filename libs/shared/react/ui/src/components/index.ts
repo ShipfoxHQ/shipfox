@@ -29,6 +29,7 @@ export * from './popover/index.js';
 export * from './radio-group/index.js';
 export * from './relative-time/index.js';
 export * from './scroll-area/index.js';
+export * from './search/index.js';
 export * from './select/index.js';
 export * from './sheet/index.js';
 export * from './shiny-text/index.js';
