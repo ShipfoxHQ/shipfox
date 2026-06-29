@@ -1,0 +1,91 @@
+// config.ts validates the control-loop env and throws fast on a bad value (AC#4). The
+// required connection env (SHIPFOX_API_URL, SHIPFOX_PROVISIONER_TOKEN) is set by
+// test/env.ts; each case stubs one tuning var, re-imports the module, and asserts it
+// rejects with that variable named. No static import of #config.js so each case re-runs
+// validation from a clean module.
+
+describe('provisioner core config validation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('rejects a negative poll wait', async () => {
+    vi.stubEnv('SHIPFOX_PROVISIONER_POLL_WAIT_SECONDS', '-1');
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('SHIPFOX_PROVISIONER_POLL_WAIT_SECONDS');
+  });
+
+  it('rejects a fractional poll wait (the API field is an integer)', async () => {
+    vi.stubEnv('SHIPFOX_PROVISIONER_POLL_WAIT_SECONDS', '0.5');
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('SHIPFOX_PROVISIONER_POLL_WAIT_SECONDS');
+  });
+
+  it('rejects a zero poll interval', async () => {
+    vi.stubEnv('SHIPFOX_PROVISIONER_POLL_INTERVAL_MS', '0');
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('SHIPFOX_PROVISIONER_POLL_INTERVAL_MS');
+  });
+
+  it('rejects a max interval below the base interval', async () => {
+    vi.stubEnv('SHIPFOX_PROVISIONER_POLL_INTERVAL_MS', '2000');
+    vi.stubEnv('SHIPFOX_PROVISIONER_POLL_MAX_INTERVAL_MS', '1000');
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('SHIPFOX_PROVISIONER_POLL_MAX_INTERVAL_MS');
+  });
+
+  it('rejects max reservations above the API cap', async () => {
+    vi.stubEnv('SHIPFOX_PROVISIONER_MAX_RESERVATIONS', '1001');
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('SHIPFOX_PROVISIONER_MAX_RESERVATIONS');
+  });
+
+  it('rejects a fractional max reservations', async () => {
+    vi.stubEnv('SHIPFOX_PROVISIONER_MAX_RESERVATIONS', '10.5');
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('SHIPFOX_PROVISIONER_MAX_RESERVATIONS');
+  });
+
+  it('rejects a zero registration-token batch size', async () => {
+    vi.stubEnv('SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE', '0');
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow(
+      'SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE',
+    );
+  });
+
+  it('rejects a fractional batch size', async () => {
+    vi.stubEnv('SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE', '12.5');
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow(
+      'SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE',
+    );
+  });
+
+  it('rejects a negative runner poll duration', async () => {
+    vi.stubEnv('SHIPFOX_RUNNER_POLL_MAX_DURATION_MS', '-1');
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('SHIPFOX_RUNNER_POLL_MAX_DURATION_MS');
+  });
+
+  it('accepts the documented defaults', async () => {
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.SHIPFOX_PROVISIONER_POLL_WAIT_SECONDS).toBe(30);
+    expect(config.SHIPFOX_PROVISIONER_MAX_RESERVATIONS).toBe(250);
+    expect(config.SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE).toBe(250);
+    expect(config.SHIPFOX_RUNNER_POLL_MAX_DURATION_MS).toBe(300_000);
+  });
+});

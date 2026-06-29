@@ -1,0 +1,123 @@
+// Exercises the real provisioner api-client against a stubbed fetch to prove each call
+// carries the provisioner bearer token, hits the right route, and maps a rejected token
+// to ProvisionerAuthenticationError. createProvisionerClient takes its baseUrl/token as
+// args, so no env is needed.
+
+import {createProvisionerClient, ProvisionerAuthenticationError} from '#api-client.js';
+
+const BASE_URL = 'https://api.test';
+const TOKEN = 'sfpt_test-token';
+const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001';
+const PROVISIONER_ID = '00000000-0000-4000-8000-000000000002';
+const RESERVATION_ID = '00000000-0000-4000-8000-000000000003';
+
+let calls: Array<{url: string; method: string; authorization: string | null; body: string}>;
+let originalFetch: typeof globalThis.fetch;
+
+beforeAll(() => {
+  originalFetch = globalThis.fetch;
+});
+
+afterAll(() => {
+  globalThis.fetch = originalFetch;
+});
+
+beforeEach(() => {
+  calls = [];
+});
+
+function client() {
+  return createProvisionerClient({baseUrl: BASE_URL, token: TOKEN});
+}
+
+describe('createProvisionerClient', () => {
+  it('getIdentity sends the provisioner token to /provisioners/me and parses identity', async () => {
+    stubFetch(() => jsonResponse({id: PROVISIONER_ID, workspace_id: WORKSPACE_ID}));
+
+    const identity = await client().getIdentity();
+
+    expect(identity).toEqual({id: PROVISIONER_ID, workspace_id: WORKSPACE_ID});
+    expect(calls[0]?.url).toContain('provisioners/me');
+    expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('pollDemand posts to /demand/poll with the token and parses the response', async () => {
+    stubFetch(() => jsonResponse({stats: [], reservations: []}));
+
+    const result = await client().pollDemand({
+      wait_seconds: 30,
+      max_reservations: 10,
+      templates: [
+        {template_key: 'small', labels: ['ubuntu22'], available_slots: 5, starting: 0, running: 0},
+      ],
+    });
+
+    expect(result).toEqual({stats: [], reservations: []});
+    expect(calls[0]?.url).toContain('provisioners/demand/poll');
+    expect(calls[0]?.method).toBe('POST');
+    expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('mintRegistrationTokens posts to the batch route with the token and parses tokens', async () => {
+    stubFetch(() =>
+      jsonResponse({
+        tokens: [
+          {
+            provisioned_runner_id: 'r1',
+            registration_token: 'sfrt_x',
+            expires_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    );
+
+    const result = await client().mintRegistrationTokens({
+      reservation_id: RESERVATION_ID,
+      provisioned_runners: [{provisioned_runner_id: 'r1'}],
+    });
+
+    expect(result.tokens[0]?.registration_token).toBe('sfrt_x');
+    expect(calls[0]?.url).toContain('provisioners/runner-registration-tokens/batch');
+    expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('maps a 401 on getIdentity to ProvisionerAuthenticationError', async () => {
+    stubFetch(() => new Response(null, {status: 401}));
+
+    await expect(client().getIdentity()).rejects.toThrow(ProvisionerAuthenticationError);
+  });
+
+  it('maps a 403 on pollDemand to ProvisionerAuthenticationError', async () => {
+    stubFetch(() => new Response(null, {status: 403}));
+
+    const request = client().pollDemand({
+      wait_seconds: 0,
+      max_reservations: 0,
+      templates: [
+        {template_key: 'small', labels: ['ubuntu22'], available_slots: 0, starting: 0, running: 0},
+      ],
+    });
+
+    await expect(request).rejects.toThrow(ProvisionerAuthenticationError);
+  });
+});
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {'content-type': 'application/json'},
+  });
+}
+
+function stubFetch(handler: (url: string) => Response): void {
+  globalThis.fetch = vi.fn(async (input: Request | string | URL, init?: RequestInit) => {
+    const request = input instanceof Request ? input : new Request(String(input), init);
+    calls.push({
+      url: request.url,
+      method: request.method,
+      authorization: request.headers.get('authorization'),
+      body: await request.clone().text(),
+    });
+    return handler(request.url);
+  }) as unknown as typeof globalThis.fetch;
+}
