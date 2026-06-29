@@ -1,12 +1,13 @@
+import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import type {ProjectResponseDto} from '@shipfox/api-projects-dto';
 import {useActiveWorkspace} from '@shipfox/client-auth';
+import {IntegrationIcon, useIntegrationConnectionsQuery} from '@shipfox/client-integrations';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {
   Alert,
   Button,
   Card,
   CardContent,
-  Code,
   EmptyState,
   Header,
   Icon,
@@ -26,6 +27,16 @@ export function ProjectsHubPage() {
   const debouncedSearch = useDebouncedValue(trimmedInput, 250);
   const query = useProjectsInfiniteQuery(workspace.id, debouncedSearch || undefined);
   const projects = query.data?.pages.flatMap((page) => page.projects) ?? [];
+
+  // The provider logo and connection health live on the integration connection,
+  // not the project, so resolve them once for the whole list and index by id.
+  // Skip the fetch when there are no cards to annotate.
+  const connectionsQuery = useIntegrationConnectionsQuery(
+    projects.length > 0 ? workspace.id : undefined,
+  );
+  const connectionsById = new Map(
+    (connectionsQuery.data?.connections ?? []).map((connection) => [connection.id, connection]),
+  );
 
   const isInitialLoading = query.isPending;
   const isDebouncePending = trimmedInput !== debouncedSearch;
@@ -85,7 +96,13 @@ export function ProjectsHubPage() {
         <section aria-label="Projects list">
           <ul className="grid gap-16 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => (
-              <ProjectCard project={project} key={project.id} workspaceId={workspace.id} />
+              <ProjectCard
+                project={project}
+                connection={connectionsById.get(project.source.connection_id)}
+                connectionsResolved={connectionsQuery.isSuccess}
+                key={project.id}
+                workspaceId={workspace.id}
+              />
             ))}
           </ul>
           {query.error && query.data ? (
@@ -131,11 +148,10 @@ function ProjectsSkeleton() {
       {[0, 1, 2, 3, 4, 5].map((row) => (
         <li key={row}>
           <Card className="p-20 h-full gap-12">
-            <div className="flex items-center justify-between gap-12">
+            <div className="flex items-center gap-12">
+              <Skeleton className="size-20 shrink-0 rounded-4" />
               <Skeleton className="h-20 w-1/2" />
-              <Skeleton className="h-20 w-72 shrink-0" />
             </div>
-            <Skeleton className="h-16 w-2/3" />
           </Card>
         </li>
       ))}
@@ -175,30 +191,69 @@ function NoSearchResults({search, onClear}: {search: string; onClear: () => void
   );
 }
 
-function ProjectCard({project, workspaceId}: {project: ProjectResponseDto; workspaceId: string}) {
+function ProjectCard({
+  project,
+  connection,
+  connectionsResolved,
+  workspaceId,
+}: {
+  project: ProjectResponseDto;
+  connection: IntegrationConnectionDto | undefined;
+  connectionsResolved: boolean;
+  workspaceId: string;
+}) {
+  // `active` is the expected state and stays unbadged. Once connections have
+  // resolved, any other state (disabled, error, or a connection that no longer
+  // exists) means the project's source needs attention, so flag it and offer a
+  // direct path to reconnect.
+  const isDisconnected = connectionsResolved && connection?.lifecycle_status !== 'active';
+
   return (
-    <li className="contents">
-      <Link
-        to="/workspaces/$wid/projects/$pid"
-        params={{wid: workspaceId, pid: project.id}}
-        className="block h-full rounded-8 focus-visible:outline-none focus-visible:shadow-button-neutral-focus"
-      >
-        <Card className="p-20 h-full gap-12 hover:bg-background-components-hover transition-colors">
-          <CardContent className="flex flex-col gap-8 p-0">
-            <div className="flex items-center justify-between gap-12">
+    <li className="relative h-full">
+      <Card className="relative p-20 h-full gap-12 hover:bg-background-components-hover transition-colors">
+        <CardContent className="flex flex-col gap-8 p-0">
+          <div className="flex items-center gap-12">
+            {connectionsResolved ? (
+              <IntegrationIcon
+                source={connection?.provider}
+                aria-hidden
+                className="size-20 shrink-0 text-foreground-neutral-base"
+              />
+            ) : (
+              <Skeleton className="size-20 shrink-0 rounded-4" />
+            )}
+            {/* Stretched link: the ::after covers the whole card so the card stays
+                fully clickable, while the Reconnect link below opts out with a
+                higher stacking context (no nested anchors). */}
+            <Link
+              to="/workspaces/$wid/projects/$pid"
+              params={{wid: workspaceId, pid: project.id}}
+              className="min-w-0 flex-1 rounded-4 outline-none after:absolute after:inset-0 after:rounded-8 after:content-[''] focus-visible:after:shadow-button-neutral-focus"
+            >
               <Text size="lg" bold className="truncate">
                 {project.name}
               </Text>
-              <StatusBadge variant="success" className="shrink-0">
-                Connected
+            </Link>
+            {isDisconnected ? (
+              <StatusBadge variant="warning" className="shrink-0">
+                Disconnected
               </StatusBadge>
+            ) : null}
+          </div>
+          {isDisconnected ? (
+            <div className="relative z-10 flex flex-wrap items-center gap-x-12 gap-y-4">
+              <Text size="sm" className="text-foreground-neutral-muted">
+                This project's source is disconnected.
+              </Text>
+              <Button asChild size="sm" variant="secondary" className="shrink-0">
+                <Link to="/workspaces/$wid/settings/integrations" params={{wid: workspaceId}}>
+                  Reconnect
+                </Link>
+              </Button>
             </div>
-            <Code variant="paragraph" className="text-foreground-neutral-muted truncate">
-              {project.source.external_repository_id}
-            </Code>
-          </CardContent>
-        </Card>
-      </Link>
+          ) : null}
+        </CardContent>
+      </Card>
     </li>
   );
 }
