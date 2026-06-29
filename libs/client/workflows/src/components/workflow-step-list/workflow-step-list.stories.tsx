@@ -238,6 +238,17 @@ export const SkippedBeforeStart: Story = {
   },
 };
 
+export const RunningBeforeFirstStep: Story = {
+  args: {
+    job: makeJob({status: 'running', steps: []}),
+    emptyState: {
+      title: 'Waiting for the first step',
+      description: 'This job is running, but no steps have started yet.',
+      status: 'running',
+    },
+  },
+};
+
 export const MultipleAttempts: Story = {
   args: {
     job: makeJob({

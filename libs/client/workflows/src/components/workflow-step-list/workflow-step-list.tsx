@@ -199,9 +199,7 @@ function WorkflowStepListEmptyStateView({
 
   return (
     <div className="flex min-h-120 flex-col items-center justify-center gap-10 px-16 py-20">
-      <div className="flex size-32 items-center justify-center rounded-6 border border-border-neutral-strong bg-background-neutral-base p-8">
-        <WorkflowStatusIcon status={emptyState.status} size={20} tooltip={false} />
-      </div>
+      <WorkflowStepListEmptyStateIcon status={emptyState.status} />
       <div className="text-center">
         <Text size="sm" className="text-foreground-neutral-subtle">
           {emptyState.title}
@@ -210,6 +208,22 @@ function WorkflowStepListEmptyStateView({
           {emptyState.description}
         </Text>
       </div>
+    </div>
+  );
+}
+
+function WorkflowStepListEmptyStateIcon({status}: {status: WorkflowJob['status']}) {
+  if (status !== 'running') {
+    return (
+      <div className="flex size-32 items-center justify-center rounded-6 border border-border-neutral-strong bg-background-neutral-base p-8">
+        <WorkflowStatusIcon status={status} size={20} tooltip={false} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex size-32 items-center justify-center rounded-6 border border-border-neutral-strong bg-background-neutral-base p-8 text-foreground-neutral-muted">
+      <Icon name="timerLine" size={18} aria-hidden="true" />
     </div>
   );
 }
