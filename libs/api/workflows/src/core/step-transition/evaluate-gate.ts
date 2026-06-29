@@ -67,7 +67,7 @@ export function evaluateGate(gate: StepGate | undefined, result: StepResult): Ga
   }
 
   try {
-    const passed = evaluateWorkflowPredicate(gate.successIf, {exit_code: result.exitCode});
+    const passed = evaluateWorkflowPredicate(gate.successIf, {exit_code: BigInt(result.exitCode)});
     return passed ? {kind: 'passed', source} : {kind: 'failed', source};
   } catch (error) {
     if (error instanceof WorkflowExpressionEvaluationError) {

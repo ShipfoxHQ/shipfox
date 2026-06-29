@@ -21,6 +21,12 @@ describe('extractCelContextRoots', () => {
     expect(contextRoots).toEqual(['event', 'inputs', 'job', 'run', 'trigger']);
   });
 
+  it('keeps the receiver context root for indexed member values', () => {
+    const contextRoots = extractCelContextRoots('event.x[0]');
+
+    expect(contextRoots).toEqual(['event']);
+  });
+
   it('skips member access after calls and indexes', () => {
     const contextRoots = extractCelContextRoots('foo().event == x[0].event');
 
@@ -105,5 +111,11 @@ describe('extractCelContextRoots', () => {
     );
 
     expect(contextRoots).toEqual(['event', 'inputs', 'job', 'run', 'trigger']);
+  });
+
+  it('throws when the CEL source cannot be parsed', () => {
+    const act = () => extractCelContextRoots('event.');
+
+    expect(act).toThrow();
   });
 });

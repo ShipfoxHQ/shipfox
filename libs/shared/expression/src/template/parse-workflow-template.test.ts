@@ -211,6 +211,18 @@ describe('parseWorkflowTemplate', () => {
     ]);
   });
 
+  it('closes after a map literal without requiring whitespace', () => {
+    const segments = parseWorkflowTemplate(`${templateOpen} {"k": event.v}${templateClose}`);
+
+    expect(segments).toEqual([
+      {
+        kind: 'expr',
+        expression: {language: 'cel', source: '{"k": event.v}', check: 'syntax'},
+        contextRoots: ['event'],
+      },
+    ]);
+  });
+
   it('escapes a literal opener with a leading dollar', () => {
     const segments = parseWorkflowTemplate(
       templateSpanFromOpen(escapedTemplateOpen, ' event.ref '),
@@ -270,6 +282,22 @@ describe('parseWorkflowTemplate', () => {
       offset: 7,
     });
     expect((error as Error).cause).toBeUndefined();
+  });
+
+  it('throws template errors when an unterminated CEL string consumes the closer', () => {
+    const source = templateExpression(' "event.ref ');
+
+    const act = () => parseWorkflowTemplate(source);
+
+    expect(act).toThrow(InvalidWorkflowTemplateError);
+  });
+
+  it('throws template errors for unbalanced opening braces', () => {
+    const source = `${templateOpen} {"k": event.v ${templateClose}`;
+
+    const act = () => parseWorkflowTemplate(source);
+
+    expect(act).toThrow(InvalidWorkflowTemplateError);
   });
 
   it('wraps empty expressions in template errors with the span offset', () => {
