@@ -6,6 +6,7 @@ import {
   type AgentDefaultsResolver,
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
+import type {MaterializedAgentStepConfigDto} from '@shipfox/api-agent-dto';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {AgentConfigUnresolvableError} from '#core/errors.js';
 
@@ -127,12 +128,7 @@ function agentStepConfig(
   step: Extract<WorkflowModelStep, {kind: 'agent'}>,
   resolveAgentDefaults: AgentDefaultsResolver,
   definitionId: string,
-): {
-  model: string;
-  provider: string;
-  thinking: string;
-  prompt: string;
-} {
+): MaterializedAgentStepConfigDto {
   try {
     const resolved = resolveAgentDefaults({
       provider: step.provider,

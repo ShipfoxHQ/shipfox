@@ -1,4 +1,5 @@
 export {
+  AgentRuntimeConfigRequestError,
   appendStepLogs,
   configuredRunnerLabels,
   createLeaseClient,
@@ -10,6 +11,7 @@ export {
   RunnerSessionExhaustedError,
   registerRunnerSession,
   reportStep,
+  requestAgentRuntimeConfig,
   requestCheckoutToken,
   requestJob,
   requestNextStep,

@@ -4,6 +4,7 @@
 
 import {RUNNER_SESSION_EXHAUSTED_CODE} from '@shipfox/api-runners-dto';
 import {
+  AgentRuntimeConfigRequestError,
   appendStepLogs,
   createLeaseClient,
   HTTPError,
@@ -11,6 +12,7 @@ import {
   RunnerSessionExhaustedError,
   registerRunnerSession,
   reportStep,
+  requestAgentRuntimeConfig,
   requestCheckoutToken,
   requestJob,
   requestNextStep,
@@ -157,6 +159,43 @@ describe('api-client auth contexts', () => {
     expect(checkout.ref).toBe('main');
     expect(calls[0]?.url).toContain('runs/jobs/current/checkout-token');
     expect(calls[0]?.authorization).toBe('Bearer lease-ghi');
+  });
+
+  it('requestAgentRuntimeConfig sends the lease token and parses credentials', async () => {
+    stubFetch(() =>
+      jsonResponse({
+        provider_id: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+        credentials: {api_key: 'sk-runtime'},
+      }),
+    );
+    const leaseClient = createLeaseClient('lease-runtime');
+
+    const runtimeConfig = await requestAgentRuntimeConfig(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 2,
+    });
+
+    expect(runtimeConfig.credentials.api_key).toBe('sk-runtime');
+    expect(calls[0]?.url).toContain('runs/jobs/current/agent-runtime-config');
+    expect(calls[0]?.url).toContain(`step_id=${STEP_ID}`);
+    expect(calls[0]?.url).toContain('attempt=2');
+    expect(calls[0]?.authorization).toBe('Bearer lease-runtime');
+  });
+
+  it('requestAgentRuntimeConfig preserves the server error code on failure', async () => {
+    stubFetch(() => jsonResponse({code: 'agent-config-invalid'}, 409));
+    const leaseClient = createLeaseClient('lease-runtime');
+
+    const request = requestAgentRuntimeConfig(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 2,
+    });
+
+    await expect(request).rejects.toMatchObject(
+      new AgentRuntimeConfigRequestError(409, 'agent-config-invalid'),
+    );
   });
 
   it('reportStep sends the lease token to the per-step report endpoint', async () => {

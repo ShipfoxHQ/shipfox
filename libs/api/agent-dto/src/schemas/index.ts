@@ -20,6 +20,10 @@ export {
   listSupportedAgentProviders,
 } from './catalog.js';
 export {
+  type MaterializedAgentStepConfigDto,
+  materializedAgentStepConfigSchema,
+} from './materialized-agent-step-config.js';
+export {
   type AgentProviderConfigDto,
   agentProviderConfigDtoSchema,
   agentProviderCredentialKeysMatch,

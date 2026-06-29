@@ -23,4 +23,8 @@ export {
   type ResolvedAgentConfig,
   resolveAgentConfig,
 } from './resolve-agent-config.js';
+export {
+  type ResolveRuntimeCredentialsParams,
+  resolveRuntimeCredentials,
+} from './resolve-runtime-credentials.js';
 export {createWorkspaceAgentDefaultsResolver} from './workspace-agent-defaults-resolver.js';

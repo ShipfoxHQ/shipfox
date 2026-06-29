@@ -20,6 +20,7 @@ export interface AgentInvocation {
   readonly provider: string;
   readonly thinking: string;
   readonly prompt: string;
+  readonly credentials?: Record<string, string> | undefined;
   readonly signal: AbortSignal;
   /**
    * Forwards each verbatim pi session entry line as it is persisted, in order. Best-effort
@@ -38,7 +39,16 @@ export interface AgentInvocation {
  * observability and never sent to the API, so it is optional.
  */
 export async function runAgent(invocation: AgentInvocation): Promise<{summary?: string}> {
-  const {cwd, model: modelId, provider, thinking, prompt, signal, onSessionEntry} = invocation;
+  const {
+    cwd,
+    model: modelId,
+    provider,
+    thinking,
+    prompt,
+    credentials,
+    signal,
+    onSessionEntry,
+  } = invocation;
 
   // A listener added to an already-aborted signal never fires, so an abort that lands
   // before this point (or during the awaits below) would leave pi running and burning
@@ -47,6 +57,15 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   if (signal.aborted) throw new Error('Agent step aborted before the pi session started');
 
   const authStorage = AuthStorage.create();
+  if (credentials !== undefined) {
+    const apiKey = credentials.api_key;
+    if (apiKey === undefined || apiKey === '') {
+      throw new AgentConfigError(
+        `No API key returned for provider "${provider}" in the agent runtime config.`,
+      );
+    }
+    authStorage.setRuntimeApiKey(provider, apiKey);
+  }
   const modelRegistry = ModelRegistry.create(authStorage);
   const model = resolveModel(modelRegistry, provider, modelId);
 

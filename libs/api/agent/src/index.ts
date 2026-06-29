@@ -19,7 +19,9 @@ export {
   InvalidCredentialFieldsError,
   ProviderValidationUnavailableError,
   type ResolvedAgentConfig,
+  type ResolveRuntimeCredentialsParams,
   resolveAgentConfig,
+  resolveRuntimeCredentials,
   testAndSaveProviderConfig,
   UnsupportedAgentProviderError,
 } from '#core/index.js';

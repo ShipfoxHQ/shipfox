@@ -1,3 +1,7 @@
+import {
+  type AgentRuntimeCredentialsResponseDto,
+  agentRuntimeCredentialsResponseSchema,
+} from '@shipfox/api-agent-dto';
 import {appendLogsResponseSchema, offsetGapResponseSchema} from '@shipfox/api-logs-dto';
 import {
   type ClaimedJobResponseDto,
@@ -86,6 +90,20 @@ export class RunnerSessionExhaustedError extends Error {
   constructor() {
     super('Runner session is exhausted.');
     this.name = 'RunnerSessionExhaustedError';
+  }
+}
+
+export class AgentRuntimeConfigRequestError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string | undefined,
+  ) {
+    super(
+      code === undefined
+        ? `Agent runtime config request failed with status ${status}.`
+        : `Agent runtime config request failed with status ${status}: ${code}.`,
+    );
+    this.name = 'AgentRuntimeConfigRequestError';
   }
 }
 
@@ -220,6 +238,27 @@ export async function requestCheckoutToken(
   return checkoutTokenResponseSchema.parse(await response.json());
 }
 
+export async function requestAgentRuntimeConfig(
+  leaseClient: KyInstance,
+  params: {
+    stepId: string;
+    attempt: number;
+    signal?: AbortSignal;
+  },
+): Promise<AgentRuntimeCredentialsResponseDto> {
+  const response = await leaseClient.get('runs/jobs/current/agent-runtime-config', {
+    searchParams: {step_id: params.stepId, attempt: params.attempt},
+    throwHttpErrors: false,
+    ...(params.signal ? {signal: params.signal} : {}),
+  });
+
+  if (response.ok) {
+    return agentRuntimeCredentialsResponseSchema.parse(await response.json());
+  }
+
+  throw new AgentRuntimeConfigRequestError(response.status, await errorCode(response));
+}
+
 // throwHttpErrors:false (below) turns off ky's status-code retry for this call, so no
 // HTTP status is retried in-transport here (only network/timeout errors are). Every
 // status is mapped explicitly: 409 and the terminal 4xx to outcomes, 5xx/unknown to a
@@ -288,3 +327,13 @@ export async function heartbeat(
 }
 
 export {HTTPError};
+
+async function errorCode(response: Response): Promise<string | undefined> {
+  try {
+    const body = (await response.json()) as unknown;
+    if (typeof body !== 'object' || body === null || !('code' in body)) return undefined;
+    return typeof body.code === 'string' ? body.code : undefined;
+  } catch {
+    return undefined;
+  }
+}

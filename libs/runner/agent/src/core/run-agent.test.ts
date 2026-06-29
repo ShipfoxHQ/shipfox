@@ -7,10 +7,11 @@ const {createAgentSessionMock, findMock, getAllMock, hasConfiguredAuthMock, prom
     promptMock: vi.fn(),
     abortMock: vi.fn(),
   }));
+const {setRuntimeApiKeyMock} = vi.hoisted(() => ({setRuntimeApiKeyMock: vi.fn()}));
 
 vi.mock('@earendil-works/pi-coding-agent', () => ({
   createAgentSession: createAgentSessionMock,
-  AuthStorage: {create: () => ({})},
+  AuthStorage: {create: () => ({setRuntimeApiKey: setRuntimeApiKeyMock})},
   ModelRegistry: {
     create: () => ({
       find: findMock,
@@ -50,6 +51,7 @@ describe('runAgent', () => {
     hasConfiguredAuthMock.mockReset();
     promptMock.mockReset();
     abortMock.mockReset();
+    setRuntimeApiKeyMock.mockReset();
     findMock.mockReturnValue({provider: 'anthropic', id: 'claude-opus-4-8'});
     getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);
     hasConfiguredAuthMock.mockReturnValue(true);
@@ -76,6 +78,34 @@ describe('runAgent', () => {
     );
     expect(promptMock).toHaveBeenCalledWith('Fix it.');
     expect(result).toEqual({});
+  });
+
+  it('injects runtime credentials into pi auth storage without persisting them', async () => {
+    const model = {provider: 'openai', id: 'gpt-5.1'};
+    findMock.mockReturnValue(model);
+
+    await runAgent(
+      invocation({
+        provider: 'openai',
+        model: 'gpt-5.1',
+        credentials: {api_key: 'sk-runtime-secret'},
+      }),
+    );
+
+    expect(setRuntimeApiKeyMock).toHaveBeenCalledWith('openai', 'sk-runtime-secret');
+    expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({model}));
+  });
+
+  it('throws an AgentConfigError when runtime credentials have no API key', async () => {
+    await expect(
+      runAgent(invocation({provider: 'openai', credentials: {account_id: 'acct-1'}})),
+    ).rejects.toThrow(
+      new AgentConfigError(
+        'No API key returned for provider "openai" in the agent runtime config.',
+      ),
+    );
+    expect(findMock).not.toHaveBeenCalled();
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
   it('forwards each persisted session entry to onSessionEntry in order', async () => {

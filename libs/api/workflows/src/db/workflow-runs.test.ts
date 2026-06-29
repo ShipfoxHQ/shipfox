@@ -32,6 +32,7 @@ import {
   getJobsByRunId,
   getLatestAttempt,
   getStepAttempts,
+  getStepByIdForJob,
   getStepsByJobId,
   getWorkflowExecutionDepth,
   getWorkflowRunById,
@@ -227,6 +228,30 @@ describe('workflow run queries', () => {
         definitionId: run.definitionId,
       });
       expect(matchingRow?.dispatchedAt).toBeNull();
+    });
+
+    test('gets a step only when it belongs to the requested job', async () => {
+      const runA = await createTestRun({workspaceId, projectId, definitionId});
+      const runB = await createTestRun({
+        workspaceId,
+        projectId,
+        definitionId: crypto.randomUUID(),
+      });
+      const [jobA] = await getJobsByRunId(runA.id);
+      const [jobB] = await getJobsByRunId(runB.id);
+      const [stepA] = await getStepsByJobId(jobA?.id as string);
+
+      const found = await getStepByIdForJob({
+        stepId: stepA?.id as string,
+        jobId: jobA?.id as string,
+      });
+      const wrongJob = await getStepByIdForJob({
+        stepId: stepA?.id as string,
+        jobId: jobB?.id as string,
+      });
+
+      expect(found?.id).toBe(stepA?.id);
+      expect(wrongJob).toBeUndefined();
     });
 
     test('rolls back outbox event when transaction fails', async () => {

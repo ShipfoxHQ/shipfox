@@ -71,6 +71,16 @@ describe('executeAgentStep', () => {
     expect(runAgentMock).toHaveBeenCalledWith(expect.objectContaining({provider: 'openai'}));
   });
 
+  it('forwards runtime credentials to the agent invocation', async () => {
+    runAgentMock.mockResolvedValue({});
+
+    await executeAgentStep(buildAgentStep(), {credentials: {api_key: 'sk-runtime-secret'}});
+
+    expect(runAgentMock).toHaveBeenCalledWith(
+      expect.objectContaining({credentials: {api_key: 'sk-runtime-secret'}}),
+    );
+  });
+
   it('fails with agent_invocation_failed when the agent run throws a generic error', async () => {
     runAgentMock.mockRejectedValue(new Error('provider returned 503'));
 

@@ -46,6 +46,16 @@
         "default": "./dist/core/resolve-agent-config.js"
       }
     },
+    "./core/resolve-runtime-credentials": {
+      "development": {
+        "types": "./src/core/resolve-runtime-credentials.ts",
+        "default": "./src/core/resolve-runtime-credentials.ts"
+      },
+      "default": {
+        "types": "./dist/core/resolve-runtime-credentials.d.ts",
+        "default": "./dist/core/resolve-runtime-credentials.js"
+      }
+    },
     "./core/workspace-agent-defaults-resolver": {
       "development": {
         "types": "./src/core/workspace-agent-defaults-resolver.ts",
