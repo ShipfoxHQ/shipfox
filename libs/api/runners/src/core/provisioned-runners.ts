@@ -103,11 +103,14 @@ function mergeActiveRunners(
       continue;
     }
 
+    let emitted = false;
     for (const job of provisionedRunnerJobs) {
       if (usedJobIds.has(job.jobId)) continue;
       usedJobIds.add(job.jobId);
       merged.push(toActiveRunner(provisionedRunner, job));
+      emitted = true;
     }
+    if (!emitted) merged.push(toActiveRunner(provisionedRunner, undefined));
   }
 
   for (const job of jobs) {

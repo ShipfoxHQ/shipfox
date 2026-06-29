@@ -277,6 +277,79 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     ]);
   });
 
+  it('keeps a provisioned runner visible when its session fallback job was already merged', async () => {
+    const provisionerId = crypto.randomUUID();
+    const runnerSessionId = crypto.randomUUID();
+    const jobId = crypto.randomUUID();
+    const older = new Date(Date.now() - 1000);
+    const newer = new Date();
+    await db()
+      .insert(provisionedRunners)
+      .values([
+        {
+          workspaceId,
+          provisionerId,
+          provisionedRunnerId: 'provisioned-runner-b',
+          labels: ['linux'],
+          state: 'running',
+          runnerSessionId,
+          providerKind: 'docker',
+          reportedAt: older,
+          updatedAt: older,
+        },
+        {
+          workspaceId,
+          provisionerId,
+          provisionedRunnerId: 'provisioned-runner-a',
+          labels: ['linux'],
+          state: 'running',
+          runnerSessionId: null,
+          providerKind: 'docker',
+          reportedAt: newer,
+          updatedAt: newer,
+        },
+      ]);
+    await db()
+      .insert(runningJobs)
+      .values({
+        workspaceId,
+        jobId,
+        runId: crypto.randomUUID(),
+        projectId: crypto.randomUUID(),
+        runnerSessionId,
+        provisionerId,
+        provisionedRunnerId: 'provisioned-runner-a',
+        requiredLabels: ['linux'],
+        runnerLabels: ['linux'],
+      });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/runners/active`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    const body = res.json();
+    expect(res.statusCode).toBe(200);
+    expect(body.runners).toHaveLength(2);
+    expect(body.runners).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          runner_session_id: runnerSessionId,
+          provisioned_runner_id: 'provisioned-runner-a',
+          state: 'busy',
+          job_id: jobId,
+        }),
+        expect.objectContaining({
+          runner_session_id: runnerSessionId,
+          provisioned_runner_id: 'provisioned-runner-b',
+          state: 'running',
+          job_id: null,
+        }),
+      ]),
+    );
+  });
+
   it('returns 403 when the user is not a workspace member', async () => {
     vi.mocked(requireMembership).mockRejectedValueOnce(
       new ClientError('Not a member of this workspace', 'forbidden', {status: 403}),
