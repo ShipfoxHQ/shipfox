@@ -167,9 +167,8 @@ function InstalledRow({
           Added {formatDate(connection.created_at)}
         </Text>
       </div>
-      {/* "Open" sits left of the pill (optional, only when external_url is set)
-          so the status pill stays the rightmost element on every row and the
-          pills align in a single scannable column. */}
+      {/* "Open" sits left of any status pill so non-active states align in a
+          single scannable column. */}
       {connection.external_url ? (
         <Button
           asChild
