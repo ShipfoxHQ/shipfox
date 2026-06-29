@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import type {Page} from '@shipfox/playwright';
+import {argosScreenshot, type Page} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
 const WORKSPACE_INTEGRATIONS_URL_RE = /\/workspaces\/[^/]+\/integrations\/?$/u;
@@ -14,10 +14,6 @@ function agentProviderUrlRe(wid: string): RegExp {
   return new RegExp(`/workspaces/${wid}/agent-provider/?$`, 'u');
 }
 
-function setupDestinationUrlRe(wid: string): RegExp {
-  return new RegExp(`/workspaces/${wid}/(agent-provider|projects/new)/?$`, 'u');
-}
-
 async function expectSetupNavigationHidden(page: Page): Promise<void> {
   await expect(page.getByRole('tab', {name: 'Projects'})).toHaveCount(0);
   await expect(page.getByRole('tab', {name: 'Settings'})).toHaveCount(0);
@@ -25,13 +21,11 @@ async function expectSetupNavigationHidden(page: Page): Promise<void> {
   await expect(page.getByLabel('Switch workspace')).toBeVisible();
 }
 
-async function skipAgentProviderSetupIfShown(page: Page, wid: string): Promise<void> {
-  await expect(page).toHaveURL(setupDestinationUrlRe(wid));
-
-  if (!agentProviderUrlRe(wid).test(page.url())) return;
-
+async function captureAndSkipAgentProviderSetup(page: Page, wid: string): Promise<void> {
+  await expect(page).toHaveURL(agentProviderUrlRe(wid));
   await expect(page.getByRole('heading', {name: 'Configure agent provider'})).toBeVisible();
   await expectSetupNavigationHidden(page);
+  await argosScreenshot(page, 'integrations/agent-provider-onboarding');
   await page.getByRole('button', {name: 'Skip for now'}).click();
 }
 
@@ -61,7 +55,7 @@ test('connecting Debug from onboarding flows into project creation', async ({pag
   await expect(page.getByText('Debug source control connected.')).toBeVisible();
   await expect(page).not.toHaveURL(DEBUG_INSTALL_URL_RE);
   await expect(page).not.toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
-  await skipAgentProviderSetupIfShown(page, wid as string);
+  await captureAndSkipAgentProviderSetup(page, wid as string);
 
   await expect(page).toHaveURL(projectsNewUrlRe(wid as string));
   await expectSetupNavigationHidden(page);
