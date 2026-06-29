@@ -8,6 +8,10 @@ const WORKSPACE_PROJECTS_NEW_HREF = `/workspaces/${PROJECT_TEST_WID}/projects/ne
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 
 describe('ProjectsHubPage', () => {
+  beforeEach(() => {
+    window.sessionStorage.clear();
+  });
+
   test('renders Projects H2 + New project button + empty state with create CTA', async () => {
     configureApiClient({
       fetchImpl: createHubFetch({
@@ -32,9 +36,44 @@ describe('ProjectsHubPage', () => {
     ).toBe(WORKSPACE_PROJECTS_NEW_HREF);
   });
 
+  test('shows and dismisses the agent provider reminder when no provider is configured', async () => {
+    const fetchImpl = createHubFetch({
+      projects: jsonResponse({projects: [], next_cursor: null}),
+      agentProviders: jsonResponse({configs: [], default_provider_id: null}),
+    });
+    configureApiClient({fetchImpl});
+
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
+
+    expect(await screen.findByText('Finish setting up an agent provider')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Agent Providers'})).toHaveAttribute(
+      'href',
+      `/workspaces/${PROJECT_TEST_WID}/settings/agent-providers`,
+    );
+    fireEvent.click(screen.getByRole('button', {name: 'Close'}));
+
+    expect(screen.queryByText('Finish setting up an agent provider')).not.toBeInTheDocument();
+  });
+
+  test('hides the agent provider reminder when a provider is configured', async () => {
+    const fetchImpl = createHubFetch({
+      projects: jsonResponse({projects: [], next_cursor: null}),
+      agentProviders: jsonResponse(agentProviderConfigsDto()),
+    });
+    configureApiClient({fetchImpl});
+
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
+
+    expect(await screen.findByText('Create your first project')).toBeInTheDocument();
+    expect(screen.queryByText('Finish setting up an agent provider')).not.toBeInTheDocument();
+  });
+
   test('renders projects and loads the next cursor page', async () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       const url = new URL(requestInputUrl(input));
+      if (url.pathname === '/agent/providers') {
+        return Promise.resolve(jsonResponse(agentProviderConfigsDto()));
+      }
       if (url.pathname === '/integration-connections') {
         return Promise.resolve(jsonResponse(connectionsDto()));
       }
@@ -180,12 +219,17 @@ function createHubFetch({
     next_cursor: null,
   }),
   connections = jsonResponse(connectionsDto()),
+  agentProviders = jsonResponse(agentProviderConfigsDto()),
 }: {
   projects?: Response;
   connections?: Response;
+  agentProviders?: Response;
 } = {}) {
   return vi.fn((input: RequestInfo | URL) => {
     const url = new URL(requestInputUrl(input));
+    if (url.pathname === '/agent/providers') {
+      return Promise.resolve(agentProviders.clone());
+    }
     if (url.pathname === '/integration-connections') {
       return Promise.resolve(connections.clone());
     }
@@ -222,6 +266,21 @@ function projectDto({
     },
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+  };
+}
+
+function agentProviderConfigsDto() {
+  return {
+    configs: [
+      {
+        provider_id: 'anthropic',
+        default_model: null,
+        key_fingerprints: {api_key: 'sk-ant-s...abcd'},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ],
+    default_provider_id: 'anthropic',
   };
 }
 

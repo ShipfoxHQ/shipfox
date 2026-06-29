@@ -31,6 +31,7 @@ export interface TestAndSaveProviderConfigParams {
   providerId: SupportedAgentProviderId;
   defaultModel?: string | null | undefined;
   credentials: Record<string, string>;
+  setAsDefault?: boolean | undefined;
 }
 
 export interface TestAndSaveProviderConfigOptions {
@@ -97,6 +98,7 @@ export async function testAndSaveProviderConfig(
     keyFingerprints: fingerprintCredentials(params.providerId, params.credentials),
     defaultModel: modelSelection.storedModel,
     defaultThinking: DEFAULT_AGENT_THINKING,
+    setAsDefault: params.setAsDefault,
   });
 }
 

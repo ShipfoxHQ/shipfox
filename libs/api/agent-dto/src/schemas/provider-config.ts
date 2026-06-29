@@ -29,6 +29,7 @@ export const updateAgentProviderConfigBodySchema = z.object({
   credentials: credentialRecordSchema.refine((credentials) => Object.keys(credentials).length > 0, {
     message: 'Credentials must include at least one key.',
   }),
+  set_as_default: z.boolean().optional(),
 });
 
 export type UpdateAgentProviderConfigBodyDto = z.infer<typeof updateAgentProviderConfigBodySchema>;

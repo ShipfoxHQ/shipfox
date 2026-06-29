@@ -203,6 +203,38 @@ describe('agent provider config routes', () => {
       expect(stored?.defaultModel).toBe('claude-haiku-4-5');
     });
 
+    it('sets the provider as the workspace default when requested', async () => {
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/providers/anthropic`,
+        headers: {authorization: 'Bearer user'},
+        payload: {
+          credentials: {api_key: 'sk-ant-secret-abcd'},
+          set_as_default: true,
+        },
+      });
+
+      const settings = await getAgentWorkspaceSettings(workspaceId);
+      expect(res.statusCode).toBe(200);
+      expect(settings?.defaultProviderId).toBe('anthropic');
+    });
+
+    it('does not change the workspace default when set_as_default is omitted', async () => {
+      await seedProviderConfig({providerId: 'openai'});
+      await setDefaultAgentProvider({workspaceId, providerId: 'openai'});
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/providers/anthropic`,
+        headers: {authorization: 'Bearer user'},
+        payload: {credentials: {api_key: 'sk-ant-secret-abcd'}},
+      });
+
+      const settings = await getAgentWorkspaceSettings(workspaceId);
+      expect(res.statusCode).toBe(200);
+      expect(settings?.defaultProviderId).toBe('openai');
+    });
+
     it('preserves the existing default model when replacing credentials without default_model', async () => {
       await seedProviderConfig({providerId: 'anthropic'});
 

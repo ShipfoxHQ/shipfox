@@ -34,6 +34,7 @@ export const upsertProviderConfigRoute = defineRoute({
       providerId,
       ...('default_model' in request.body ? {defaultModel: request.body.default_model} : {}),
       credentials: request.body.credentials,
+      setAsDefault: request.body.set_as_default,
     });
 
     return toAgentProviderConfigDto(config);

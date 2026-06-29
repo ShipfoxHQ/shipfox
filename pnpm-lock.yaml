@@ -2843,6 +2843,9 @@ importers:
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../../api/workflows-dto
+      '@shipfox/client-agent':
+        specifier: workspace:*
+        version: link:../agent
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api
@@ -2916,6 +2919,9 @@ importers:
 
   libs/client/router:
     dependencies:
+      '@shipfox/client-agent':
+        specifier: workspace:*
+        version: link:../agent
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api

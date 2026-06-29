@@ -1,0 +1,167 @@
+import {configureApiClient} from '@shipfox/client-api';
+import {Toaster} from '@shipfox/react-ui';
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
+import {render, screen, waitFor} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type {ReactElement} from 'react';
+import {isAgentProviderOnboardingDismissed} from '#state/agent-provider-onboarding.js';
+import {
+  AGENT_TEST_WORKSPACE_ID,
+  agentProviderCatalogResponse,
+  agentProviderConfig,
+  agentProviderEntry,
+} from '#test/fixtures/agent-providers.js';
+import {AgentProviderOnboardingPage} from './agent-provider-onboarding-page.js';
+
+function jsonResponse(body: unknown, init: ResponseInit = {}) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: {'content-type': 'application/json'},
+    ...init,
+  });
+}
+
+function requestPath(input: RequestInfo | URL): string {
+  return new URL((input as Request).url).pathname;
+}
+
+function renderOnboarding(element: ReactElement) {
+  const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {element}
+      <Toaster />
+    </QueryClientProvider>,
+  );
+}
+
+describe('AgentProviderOnboardingPage', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  test('skips setup, records the dismissed flag, and does not save a provider', async () => {
+    const user = userEvent.setup();
+    const onSkip = vi.fn();
+    const onConfigured = vi.fn();
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(agentProviderCatalogResponse()));
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderOnboarding(
+      <AgentProviderOnboardingPage
+        workspaceId={AGENT_TEST_WORKSPACE_ID}
+        onSkip={onSkip}
+        onConfigured={onConfigured}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', {name: 'Skip for now'}));
+
+    expect(onSkip).toHaveBeenCalledTimes(1);
+    expect(onConfigured).not.toHaveBeenCalled();
+    expect(isAgentProviderOnboardingDismissed(AGENT_TEST_WORKSPACE_ID)).toBe(true);
+    expect(fetchImpl.mock.calls.some(([input]) => (input as Request).method === 'PUT')).toBe(false);
+  });
+
+  test('skip still continues when localStorage rejects the dismissed write', async () => {
+    const user = userEvent.setup();
+    const onSkip = vi.fn();
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn().mockResolvedValue(jsonResponse(agentProviderCatalogResponse())),
+    });
+
+    renderOnboarding(
+      <AgentProviderOnboardingPage
+        workspaceId={AGENT_TEST_WORKSPACE_ID}
+        onSkip={onSkip}
+        onConfigured={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', {name: 'Skip for now'}));
+
+    expect(onSkip).toHaveBeenCalledTimes(1);
+    setItem.mockRestore();
+  });
+
+  test('saves the selected provider as default in one upsert request', async () => {
+    const user = userEvent.setup();
+    const onConfigured = vi.fn();
+    let requestBody: unknown;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (requestPath(input).endsWith('/agent/provider-catalog')) {
+        return jsonResponse(
+          agentProviderCatalogResponse([
+            agentProviderEntry({
+              id: 'openai',
+              label: 'OpenAI',
+              default_model: 'gpt-5.5-pro',
+              models: [{id: 'gpt-5.5-pro', label: 'GPT-5.5 Pro'}],
+            }),
+          ]),
+        );
+      }
+      if (request.method === 'PUT') {
+        requestBody = await request.clone().json();
+        return jsonResponse(
+          agentProviderConfig({
+            provider_id: 'openai',
+            default_model: null,
+            key_fingerprints: {api_key: 'sk-proj...abcd'},
+          }),
+        );
+      }
+      return jsonResponse({}, {status: 404});
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderOnboarding(
+      <AgentProviderOnboardingPage
+        workspaceId={AGENT_TEST_WORKSPACE_ID}
+        onSkip={vi.fn()}
+        onConfigured={onConfigured}
+      />,
+    );
+
+    await user.click(await screen.findByRole('button', {name: 'Configure OpenAI'}));
+    await user.type(await screen.findByLabelText('API key'), 'sk-proj-secret');
+    await user.click(screen.getByRole('button', {name: 'Test & save'}));
+
+    await waitFor(() =>
+      expect(requestBody).toEqual({
+        default_model: null,
+        credentials: {api_key: 'sk-proj-secret'},
+        set_as_default: true,
+      }),
+    );
+    expect(onConfigured).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps skip available when the catalog fails to load', async () => {
+    const user = userEvent.setup();
+    const onSkip = vi.fn();
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn().mockResolvedValue(jsonResponse({code: 'server-error'}, {status: 500})),
+    });
+
+    renderOnboarding(
+      <AgentProviderOnboardingPage
+        workspaceId={AGENT_TEST_WORKSPACE_ID}
+        onSkip={onSkip}
+        onConfigured={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("Couldn't load agent provider catalog")).toBeInTheDocument();
+    await user.click(screen.getByRole('button', {name: 'Skip for now'}));
+
+    expect(onSkip).toHaveBeenCalledTimes(1);
+  });
+});
