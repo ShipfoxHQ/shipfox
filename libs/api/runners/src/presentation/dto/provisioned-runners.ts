@@ -1,6 +1,6 @@
-import type {ActiveRunner, ReportResourcesResult} from '#core/resources.js';
+import type {ActiveRunner, ReportProvisionedRunnersResult} from '#core/provisioned-runners.js';
 
-export function toReportResourcesResponseDto(result: ReportResourcesResult): {
+export function toReportProvisionedRunnersResponseDto(result: ReportProvisionedRunnersResult): {
   accepted: number;
   reservations_released: number;
 } {
@@ -13,7 +13,7 @@ export function toReportResourcesResponseDto(result: ReportResourcesResult): {
 export function toActiveRunnersResponseDto(runners: ActiveRunner[]): {
   runners: Array<{
     runner_session_id: string | null;
-    resource_id: string | null;
+    provisioned_runner_id: string | null;
     provisioner_id: string | null;
     state: ActiveRunner['state'];
     labels: string[];
@@ -29,7 +29,7 @@ export function toActiveRunnersResponseDto(runners: ActiveRunner[]): {
   return {
     runners: runners.map((runner) => ({
       runner_session_id: runner.runnerSessionId,
-      resource_id: runner.resourceId,
+      provisioned_runner_id: runner.provisionedRunnerId,
       provisioner_id: runner.provisionerId,
       state: runner.state,
       labels: runner.labels,

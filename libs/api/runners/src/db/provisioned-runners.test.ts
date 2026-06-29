@@ -1,75 +1,80 @@
 import {and, desc, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
-import {listActiveResources, reportResources} from '#db/resources.js';
+import {listActiveProvisionedRunners, reportProvisionedRunners} from '#db/provisioned-runners.js';
+import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {reservations} from '#db/schema/reservations.js';
-import {resources} from '#db/schema/resources.js';
 import {reservationFactory} from '#test/index.js';
 
-describe('reportResources', () => {
+describe('reportProvisionedRunners', () => {
   let workspaceId: string;
   let provisionerId: string;
 
   beforeEach(async () => {
-    await db().execute(sql`TRUNCATE runners_resources, runners_reservations CASCADE`);
+    await db().execute(sql`TRUNCATE runners_provisioned_runners, runners_reservations CASCADE`);
     workspaceId = crypto.randomUUID();
     provisionerId = crypto.randomUUID();
   });
 
-  it('dedupes duplicate resource ids in one batch', async () => {
+  it('dedupes duplicate provisioned runner ids in one batch', async () => {
     const reportedAt = new Date();
 
-    const result = await reportResources({
+    const result = await reportProvisionedRunners({
       workspaceId,
       provisionerId,
       events: [
-        event({resourceId: 'resource-1', state: 'starting', reportedAt}),
+        event({provisionedRunnerId: 'provisioned-runner-1', state: 'starting', reportedAt}),
         event({
-          resourceId: 'resource-1',
+          provisionedRunnerId: 'provisioned-runner-1',
           state: 'running',
           reportedAt: new Date(reportedAt.getTime() + 1),
         }),
       ],
     });
 
-    const rows = await db().select().from(resources);
+    const rows = await db().select().from(provisionedRunners);
     expect(result).toEqual({accepted: 1, reservationsReleased: 0});
     expect(rows).toHaveLength(1);
     expect(rows[0]?.state).toBe('running');
   });
 
-  it('uses state progression to dedupe equal-timestamp resource reports', async () => {
+  it('uses state progression to dedupe equal-timestamp provisioned runner reports', async () => {
     const reportedAt = new Date();
 
-    const result = await reportResources({
+    const result = await reportProvisionedRunners({
       workspaceId,
       provisionerId,
       events: [
-        event({resourceId: 'resource-1', state: 'running', reportedAt}),
-        event({resourceId: 'resource-1', state: 'failed', reportedAt}),
-        event({resourceId: 'resource-2', state: 'failed', reportedAt}),
-        event({resourceId: 'resource-2', state: 'running', reportedAt}),
+        event({provisionedRunnerId: 'provisioned-runner-1', state: 'running', reportedAt}),
+        event({provisionedRunnerId: 'provisioned-runner-1', state: 'failed', reportedAt}),
+        event({provisionedRunnerId: 'provisioned-runner-2', state: 'failed', reportedAt}),
+        event({provisionedRunnerId: 'provisioned-runner-2', state: 'running', reportedAt}),
       ],
     });
 
-    const rows = await db().select().from(resources).orderBy(resources.resourceId);
+    const rows = await db()
+      .select()
+      .from(provisionedRunners)
+      .orderBy(provisionedRunners.provisionedRunnerId);
     expect(result).toEqual({accepted: 2, reservationsReleased: 0});
     expect(rows.map((row) => row.state)).toEqual(['failed', 'failed']);
   });
 
   it('rejects older out-of-order events', async () => {
     const newest = new Date();
-    await reportResources({
+    await reportProvisionedRunners({
       workspaceId,
       provisionerId,
-      events: [event({resourceId: 'resource-1', state: 'running', reportedAt: newest})],
+      events: [
+        event({provisionedRunnerId: 'provisioned-runner-1', state: 'running', reportedAt: newest}),
+      ],
     });
 
-    await reportResources({
+    await reportProvisionedRunners({
       workspaceId,
       provisionerId,
       events: [
         event({
-          resourceId: 'resource-1',
+          provisionedRunnerId: 'provisioned-runner-1',
           state: 'failed',
           reason: 'late stale failure',
           reportedAt: new Date(newest.getTime() - 1_000),
@@ -77,99 +82,128 @@ describe('reportResources', () => {
       ],
     });
 
-    const rows = await db().select().from(resources);
+    const rows = await db().select().from(provisionedRunners);
     expect(rows[0]?.state).toBe('running');
     expect(rows[0]?.reason).toBeNull();
   });
 
   it('does not let equal-timestamp lower-priority reports flip terminal state', async () => {
     const reservationId = await createReservation(1);
-    const reportedAt = new Date();
-    await reportResources({
-      workspaceId,
-      provisionerId,
-      events: [event({resourceId: 'resource-1', reservationId, state: 'running', reportedAt})],
-    });
-
-    const terminal = await reportResources({
-      workspaceId,
-      provisionerId,
-      events: [event({resourceId: 'resource-1', reservationId, state: 'failed', reportedAt})],
-    });
-    const revived = await reportResources({
-      workspaceId,
-      provisionerId,
-      events: [event({resourceId: 'resource-1', reservationId, state: 'running', reportedAt})],
-    });
-
-    const resourceRows = await db().select().from(resources);
-    const reservationRows = await db().select().from(reservations);
-    expect(terminal).toEqual({accepted: 1, reservationsReleased: 1});
-    expect(revived).toEqual({accepted: 1, reservationsReleased: 0});
-    expect(resourceRows[0]?.state).toBe('failed');
-    expect(resourceRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
-    expect(reservationRows).toHaveLength(0);
-  });
-
-  it('clamps future reported times so they do not pin resource state', async () => {
-    await reportResources({
+    const reportedAt = new Date('2025-01-01T00:00:00.000Z');
+    await reportProvisionedRunners({
       workspaceId,
       provisionerId,
       events: [
         event({
-          resourceId: 'resource-1',
+          provisionedRunnerId: 'provisioned-runner-1',
+          reservationId,
+          state: 'running',
+          reportedAt,
+        }),
+      ],
+    });
+
+    const terminal = await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          reservationId,
+          state: 'failed',
+          reportedAt,
+        }),
+      ],
+    });
+    const revived = await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
+          reservationId,
+          state: 'running',
+          reportedAt,
+        }),
+      ],
+    });
+
+    const provisionedRunnerRows = await db().select().from(provisionedRunners);
+    const reservationRows = await db().select().from(reservations);
+    expect(terminal).toEqual({accepted: 1, reservationsReleased: 1});
+    expect(revived).toEqual({accepted: 1, reservationsReleased: 0});
+    expect(provisionedRunnerRows[0]?.state).toBe('failed');
+    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(reservationRows).toHaveLength(0);
+  });
+
+  it('clamps future reported times so they do not pin provisioned runner state', async () => {
+    await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
           state: 'starting',
           reportedAt: new Date(Date.now() + 60 * 60 * 1000),
         }),
       ],
     });
 
-    await reportResources({
-      workspaceId,
-      provisionerId,
-      events: [event({resourceId: 'resource-1', state: 'running', reportedAt: new Date()})],
-    });
-
-    const rows = await db().select().from(resources);
-    expect(rows[0]?.state).toBe('running');
-    expect(rows[0]?.reportedAt.getTime()).toBeLessThan(Date.now() + 10_000);
-  });
-
-  it('uses server update time for active-resource windows', async () => {
-    await reportResources({
+    await reportProvisionedRunners({
       workspaceId,
       provisionerId,
       events: [
         event({
-          resourceId: 'resource-1',
+          provisionedRunnerId: 'provisioned-runner-1',
+          state: 'running',
+          reportedAt: new Date(),
+        }),
+      ],
+    });
+
+    const rows = await db().select().from(provisionedRunners);
+    expect(rows[0]?.state).toBe('running');
+    expect(rows[0]?.reportedAt.getTime()).toBeLessThan(Date.now() + 10_000);
+  });
+
+  it('uses server update time for active provisioned runner windows', async () => {
+    await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
           state: 'running',
           reportedAt: new Date(Date.now() + 60 * 60 * 1000),
         }),
       ],
     });
     await db().execute(
-      sql`UPDATE runners_resources SET updated_at = now() - interval '10 minutes'`,
+      sql`UPDATE runners_provisioned_runners SET updated_at = now() - interval '10 minutes'`,
     );
 
-    const active = await listActiveResources({workspaceId, windowSeconds: 60});
+    const active = await listActiveProvisionedRunners({workspaceId, windowSeconds: 60});
 
     expect(active).toEqual([]);
   });
 
-  it('releases one reservation unit for a terminal unclaimed resource', async () => {
+  it('releases one reservation unit for a terminal unclaimed provisioned runner', async () => {
     const reservationId = await createReservation(2);
 
-    const result = await reportResources({
+    const result = await reportProvisionedRunners({
       workspaceId,
       provisionerId,
-      events: [event({resourceId: 'resource-1', reservationId, state: 'failed'})],
+      events: [
+        event({provisionedRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'}),
+      ],
     });
 
     const reservationRows = await db().select().from(reservations);
-    const resourceRows = await db().select().from(resources);
+    const provisionedRunnerRows = await db().select().from(provisionedRunners);
     expect(result).toEqual({accepted: 1, reservationsReleased: 1});
     expect(reservationRows[0]?.count).toBe(1);
-    expect(resourceRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
   });
 
   it('does not release a reservation owned by another workspace or provisioner', async () => {
@@ -182,17 +216,17 @@ describe('reportResources', () => {
       provisionerId: crypto.randomUUID(),
     });
 
-    const result = await reportResources({
+    const result = await reportProvisionedRunners({
       workspaceId,
       provisionerId,
       events: [
         event({
-          resourceId: 'resource-1',
+          provisionedRunnerId: 'provisioned-runner-1',
           reservationId: otherWorkspaceReservationId,
           state: 'failed',
         }),
         event({
-          resourceId: 'resource-2',
+          provisionedRunnerId: 'provisioned-runner-2',
           reservationId: peerProvisionerReservationId,
           state: 'failed',
         }),
@@ -208,15 +242,19 @@ describe('reportResources', () => {
   it('releases a reservation only once across repeated terminal reports', async () => {
     const reservationId = await createReservation(2);
 
-    await reportResources({
+    await reportProvisionedRunners({
       workspaceId,
       provisionerId,
-      events: [event({resourceId: 'resource-1', reservationId, state: 'failed'})],
+      events: [
+        event({provisionedRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'}),
+      ],
     });
-    const result = await reportResources({
+    const result = await reportProvisionedRunners({
       workspaceId,
       provisionerId,
-      events: [event({resourceId: 'resource-1', reservationId, state: 'failed'})],
+      events: [
+        event({provisionedRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'}),
+      ],
     });
 
     const reservationRows = await db().select().from(reservations);
@@ -224,23 +262,28 @@ describe('reportResources', () => {
     expect(reservationRows[0]?.count).toBe(1);
   });
 
-  it('keeps reservation released when a newer running report revives the resource', async () => {
+  it('keeps reservation released when a newer running report revives the provisioned runner', async () => {
     const reservationId = await createReservation(2);
     const failedAt = new Date();
-    await reportResources({
-      workspaceId,
-      provisionerId,
-      events: [
-        event({resourceId: 'resource-1', reservationId, state: 'failed', reportedAt: failedAt}),
-      ],
-    });
-
-    await reportResources({
+    await reportProvisionedRunners({
       workspaceId,
       provisionerId,
       events: [
         event({
-          resourceId: 'resource-1',
+          provisionedRunnerId: 'provisioned-runner-1',
+          reservationId,
+          state: 'failed',
+          reportedAt: failedAt,
+        }),
+      ],
+    });
+
+    await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
           reservationId,
           state: 'running',
           reportedAt: new Date(failedAt.getTime() + 1_000),
@@ -248,22 +291,22 @@ describe('reportResources', () => {
       ],
     });
 
-    const resourceRows = await db().select().from(resources);
+    const provisionedRunnerRows = await db().select().from(provisionedRunners);
     const reservationRows = await db().select().from(reservations);
-    expect(resourceRows[0]?.state).toBe('running');
-    expect(resourceRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
+    expect(provisionedRunnerRows[0]?.state).toBe('running');
+    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
     expect(reservationRows[0]?.count).toBe(1);
   });
 
   it('releases multiple units from the same reservation in one batch', async () => {
     const reservationId = await createReservation(3);
 
-    const result = await reportResources({
+    const result = await reportProvisionedRunners({
       workspaceId,
       provisionerId,
       events: [
-        event({resourceId: 'resource-1', reservationId, state: 'failed'}),
-        event({resourceId: 'resource-2', reservationId, state: 'stopped'}),
+        event({provisionedRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'}),
+        event({provisionedRunnerId: 'provisioned-runner-2', reservationId, state: 'stopped'}),
       ],
     });
 
@@ -275,10 +318,12 @@ describe('reportResources', () => {
   it('deletes a one-unit reservation instead of violating the positive count check', async () => {
     const reservationId = await createReservation(1);
 
-    const result = await reportResources({
+    const result = await reportProvisionedRunners({
       workspaceId,
       provisionerId,
-      events: [event({resourceId: 'resource-1', reservationId, state: 'failed'})],
+      events: [
+        event({provisionedRunnerId: 'provisioned-runner-1', reservationId, state: 'failed'}),
+      ],
     });
 
     const reservationRows = await db().select().from(reservations);
@@ -297,26 +342,32 @@ describe('reportResources', () => {
     const [reservation] = await db().select().from(reservations);
     if (!reservation) throw new Error('Expected reservation');
 
-    const result = await reportResources({
-      workspaceId,
-      provisionerId,
-      events: [event({resourceId: 'resource-1', reservationId: reservation.id, state: 'failed'})],
-    });
-
-    const resourceRows = await db().select().from(resources);
-    expect(result).toEqual({accepted: 1, reservationsReleased: 0});
-    expect(resourceRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
-  });
-
-  it('does not release a reservation for a resource that already has a runner session', async () => {
-    const reservationId = await createReservation(1);
-
-    const result = await reportResources({
+    const result = await reportProvisionedRunners({
       workspaceId,
       provisionerId,
       events: [
         event({
-          resourceId: 'resource-1',
+          provisionedRunnerId: 'provisioned-runner-1',
+          reservationId: reservation.id,
+          state: 'failed',
+        }),
+      ],
+    });
+
+    const provisionedRunnerRows = await db().select().from(provisionedRunners);
+    expect(result).toEqual({accepted: 1, reservationsReleased: 0});
+    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeInstanceOf(Date);
+  });
+
+  it('does not release a reservation for a provisioned runner that already has a runner session', async () => {
+    const reservationId = await createReservation(1);
+
+    const result = await reportProvisionedRunners({
+      workspaceId,
+      provisionerId,
+      events: [
+        event({
+          provisionedRunnerId: 'provisioned-runner-1',
           reservationId,
           state: 'failed',
           runnerSessionId: crypto.randomUUID(),
@@ -325,10 +376,10 @@ describe('reportResources', () => {
     });
 
     const reservationRows = await db().select().from(reservations);
-    const resourceRows = await db().select().from(resources);
+    const provisionedRunnerRows = await db().select().from(provisionedRunners);
     expect(result).toEqual({accepted: 1, reservationsReleased: 0});
     expect(reservationRows[0]?.count).toBe(1);
-    expect(resourceRows[0]?.reservationReleasedAt).toBeNull();
+    expect(provisionedRunnerRows[0]?.reservationReleasedAt).toBeNull();
   });
 
   async function createReservation(
@@ -358,7 +409,7 @@ describe('reportResources', () => {
   }
 
   function event(params: {
-    resourceId?: string;
+    provisionedRunnerId?: string;
     reservationId?: string | null;
     state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed';
     reportedAt?: Date;
@@ -366,7 +417,7 @@ describe('reportResources', () => {
     runnerSessionId?: string | null;
   }) {
     return {
-      resourceId: params.resourceId ?? 'resource-1',
+      provisionedRunnerId: params.provisionedRunnerId ?? 'provisioned-runner-1',
       reservationId: params.reservationId ?? null,
       templateKey: 'linux',
       labels: ['linux'],

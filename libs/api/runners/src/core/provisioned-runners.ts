@@ -1,21 +1,21 @@
-import type {Resource, ResourceState} from '#core/entities/resource.js';
+import type {ProvisionedRunner, ProvisionedRunnerState} from '#core/entities/provisioned-runner.js';
 import {
-  listActiveResources,
+  listActiveProvisionedRunners,
   listActiveRunningJobs,
-  type ResourceReportEvent,
-  reportResources as reportResourcesDb,
+  type ProvisionedRunnerReportEvent,
+  reportProvisionedRunners as reportProvisionedRunnersDb,
 } from '#db/index.js';
 import type {ActiveRunningJob} from '#db/jobs.js';
-import {reservationReleasedCount, resourceReportCount} from '#metrics/instance.js';
+import {provisionedRunnerReportCount, reservationReleasedCount} from '#metrics/instance.js';
 import {config} from '../config.js';
 
-export interface ReportResourcesParams {
+export interface ReportProvisionedRunnersParams {
   workspaceId: string;
   provisionerId: string;
-  events: ResourceReportEvent[];
+  events: ProvisionedRunnerReportEvent[];
 }
 
-export interface ReportResourcesResult {
+export interface ReportProvisionedRunnersResult {
   accepted: number;
   reservationsReleased: number;
 }
@@ -24,7 +24,7 @@ export type ActiveRunnerState = 'starting' | 'running' | 'stopping' | 'busy';
 
 export interface ActiveRunner {
   runnerSessionId: string | null;
-  resourceId: string | null;
+  provisionedRunnerId: string | null;
   provisionerId: string | null;
   state: ActiveRunnerState;
   labels: string[];
@@ -37,13 +37,13 @@ export interface ActiveRunner {
   lastHeartbeatAt: Date | null;
 }
 
-export async function reportResources(
-  params: ReportResourcesParams,
-): Promise<ReportResourcesResult> {
-  const result = await reportResourcesDb(params);
+export async function reportProvisionedRunners(
+  params: ReportProvisionedRunnersParams,
+): Promise<ReportProvisionedRunnersResult> {
+  const result = await reportProvisionedRunnersDb(params);
 
   for (const event of params.events) {
-    resourceReportCount.add(1, {state: event.state});
+    provisionedRunnerReportCount.add(1, {state: event.state});
   }
   if (result.reservationsReleased > 0) reservationReleasedCount.add(result.reservationsReleased);
 
@@ -51,8 +51,8 @@ export async function reportResources(
 }
 
 export async function listActiveRunners(params: {workspaceId: string}): Promise<ActiveRunner[]> {
-  const [resourceRows, jobRows] = await Promise.all([
-    listActiveResources({
+  const [provisionedRunnerRows, jobRows] = await Promise.all([
+    listActiveProvisionedRunners({
       workspaceId: params.workspaceId,
       windowSeconds: config.RUNNER_ACTIVE_WINDOW_SECONDS,
     }),
@@ -62,10 +62,13 @@ export async function listActiveRunners(params: {workspaceId: string}): Promise<
     }),
   ]);
 
-  return mergeActiveRunners(resourceRows, jobRows);
+  return mergeActiveRunners(provisionedRunnerRows, jobRows);
 }
 
-function mergeActiveRunners(resources: Resource[], jobs: ActiveRunningJob[]): ActiveRunner[] {
+function mergeActiveRunners(
+  provisionedRunners: ProvisionedRunner[],
+  jobs: ActiveRunningJob[],
+): ActiveRunner[] {
   const jobsByRunnerSessionId = new Map<string, ActiveRunningJob[]>();
   for (const job of jobs) {
     const runnerJobs = jobsByRunnerSessionId.get(job.runnerSessionId) ?? [];
@@ -76,18 +79,18 @@ function mergeActiveRunners(resources: Resource[], jobs: ActiveRunningJob[]): Ac
   const merged: ActiveRunner[] = [];
   const usedJobIds = new Set<string>();
 
-  for (const resource of resources) {
-    const resourceJobs = resource.runnerSessionId
-      ? jobsByRunnerSessionId.get(resource.runnerSessionId)
+  for (const provisionedRunner of provisionedRunners) {
+    const provisionedRunnerJobs = provisionedRunner.runnerSessionId
+      ? jobsByRunnerSessionId.get(provisionedRunner.runnerSessionId)
       : undefined;
-    if (!resourceJobs || resourceJobs.length === 0) {
-      merged.push(toActiveRunner(resource, undefined));
+    if (!provisionedRunnerJobs || provisionedRunnerJobs.length === 0) {
+      merged.push(toActiveRunner(provisionedRunner, undefined));
       continue;
     }
 
-    for (const job of resourceJobs) {
+    for (const job of provisionedRunnerJobs) {
       usedJobIds.add(job.jobId);
-      merged.push(toActiveRunner(resource, job));
+      merged.push(toActiveRunner(provisionedRunner, job));
     }
   }
 
@@ -100,26 +103,26 @@ function mergeActiveRunners(resources: Resource[], jobs: ActiveRunningJob[]): Ac
 }
 
 function toActiveRunner(
-  resource: Resource | undefined,
+  provisionedRunner: ProvisionedRunner | undefined,
   job: ActiveRunningJob | undefined,
 ): ActiveRunner {
   return {
-    runnerSessionId: resource?.runnerSessionId ?? job?.runnerSessionId ?? null,
-    resourceId: resource?.resourceId ?? null,
-    provisionerId: resource?.provisionerId ?? null,
-    state: job ? 'busy' : toActiveRunnerState(resource?.state ?? 'running'),
-    labels: resource?.labels ?? job?.runnerLabels ?? [],
-    templateKey: resource?.templateKey ?? null,
-    providerKind: resource?.providerKind ?? null,
+    runnerSessionId: provisionedRunner?.runnerSessionId ?? job?.runnerSessionId ?? null,
+    provisionedRunnerId: provisionedRunner?.provisionedRunnerId ?? null,
+    provisionerId: provisionedRunner?.provisionerId ?? null,
+    state: job ? 'busy' : toActiveRunnerState(provisionedRunner?.state ?? 'running'),
+    labels: provisionedRunner?.labels ?? job?.runnerLabels ?? [],
+    templateKey: provisionedRunner?.templateKey ?? null,
+    providerKind: provisionedRunner?.providerKind ?? null,
     jobId: job?.jobId ?? null,
     runId: job?.runId ?? null,
     projectId: job?.projectId ?? null,
-    reportedAt: resource?.reportedAt ?? null,
+    reportedAt: provisionedRunner?.reportedAt ?? null,
     lastHeartbeatAt: job?.lastHeartbeatAt ?? null,
   };
 }
 
-function toActiveRunnerState(state: ResourceState): ActiveRunnerState {
+function toActiveRunnerState(state: ProvisionedRunnerState): ActiveRunnerState {
   if (state === 'starting' || state === 'stopping') return state;
   return 'running';
 }

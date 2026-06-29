@@ -17,7 +17,7 @@ import {listRunnerTokensRoute} from './list-runner-tokens.js';
 import {mintRegistrationTokensRoute} from './mint-registration-tokens.js';
 import {pollDemandRoute} from './poll-demand.js';
 import {registerRoute} from './register.js';
-import {reportResourcesRoute} from './report-resources.js';
+import {reportProvisionedRunnersRoute} from './report-provisioned-runners.js';
 import {requestJobRoute} from './request-job.js';
 import {revokeProvisionerTokenRoute} from './revoke-provisioner-token.js';
 import {revokeRunnerTokenRoute} from './revoke-runner-token.js';
@@ -51,7 +51,7 @@ const runnerOnlyRoutes: RouteGroup[] = [
   {
     prefix: '/provisioners',
     auth: AUTH_PROVISIONER_TOKEN,
-    routes: [pollDemandRoute, mintRegistrationTokensRoute, reportResourcesRoute],
+    routes: [pollDemandRoute, mintRegistrationTokensRoute, reportProvisionedRunnersRoute],
   },
 ];
 

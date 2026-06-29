@@ -16,7 +16,7 @@ import {
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
-import {resources} from '#db/schema/resources.js';
+import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {runnerRoutes} from './index.js';
 
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
@@ -26,7 +26,7 @@ const passthroughAuth = (name: string): AuthMethod => ({
   authenticate: () => Promise.resolve(),
 });
 
-describe('POST /provisioners/resources/report', () => {
+describe('POST /provisioners/provisioned-runners/report', () => {
   let app: FastifyInstance;
   let workspaceId: string;
   let provisionerTokenId: string;
@@ -63,22 +63,22 @@ describe('POST /provisioners/resources/report', () => {
   });
 
   beforeEach(async () => {
-    await db().execute(sql`TRUNCATE runners_resources, runners_reservations CASCADE`);
+    await db().execute(sql`TRUNCATE runners_provisioned_runners, runners_reservations CASCADE`);
     workspaceId = crypto.randomUUID();
     provisionerTokenId = crypto.randomUUID();
   });
 
-  it('accepts resource lifecycle reports from provisioner auth', async () => {
+  it('accepts provisioned runner lifecycle reports from provisioner auth', async () => {
     const reportedAt = '2025-01-01T00:00:00.000Z';
 
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/resources/report',
+      url: '/provisioners/provisioned-runners/report',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
       payload: {
         events: [
           {
-            resource_id: 'resource-1',
+            provisioned_runner_id: 'provisioned-runner-1',
             labels: ['linux'],
             state: 'starting',
             reported_at: reportedAt,
@@ -88,13 +88,13 @@ describe('POST /provisioners/resources/report', () => {
       },
     });
 
-    const rows = await db().select().from(resources);
+    const rows = await db().select().from(provisionedRunners);
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({accepted: 1, reservations_released: 0});
     expect(rows[0]).toMatchObject({
       workspaceId,
       provisionerId: provisionerTokenId,
-      resourceId: 'resource-1',
+      provisionedRunnerId: 'provisioned-runner-1',
       state: 'starting',
       labels: ['linux'],
       providerKind: 'docker',
@@ -104,7 +104,7 @@ describe('POST /provisioners/resources/report', () => {
 
   it('returns 400 when the batch exceeds the DTO limit', async () => {
     const event = {
-      resource_id: 'resource-1',
+      provisioned_runner_id: 'provisioned-runner-1',
       labels: ['linux'],
       state: 'running',
       reported_at: new Date().toISOString(),
@@ -112,12 +112,12 @@ describe('POST /provisioners/resources/report', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/resources/report',
+      url: '/provisioners/provisioned-runners/report',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
       payload: {
         events: Array.from({length: 1001}, (_, index) => ({
           ...event,
-          resource_id: `resource-${index}`,
+          provisioned_runner_id: `provisioned-runner-${index}`,
         })),
       },
     });
@@ -128,12 +128,12 @@ describe('POST /provisioners/resources/report', () => {
   it('returns 400 for provider-sensitive extra fields', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/resources/report',
+      url: '/provisioners/provisioned-runners/report',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
       payload: {
         events: [
           {
-            resource_id: 'resource-1',
+            provisioned_runner_id: 'provisioned-runner-1',
             labels: ['linux'],
             state: 'running',
             reported_at: new Date().toISOString(),
@@ -149,11 +149,11 @@ describe('POST /provisioners/resources/report', () => {
   it('returns 401 without provisioner auth', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/provisioners/resources/report',
+      url: '/provisioners/provisioned-runners/report',
       payload: {
         events: [
           {
-            resource_id: 'resource-1',
+            provisioned_runner_id: 'provisioned-runner-1',
             labels: ['linux'],
             state: 'running',
             reported_at: new Date().toISOString(),

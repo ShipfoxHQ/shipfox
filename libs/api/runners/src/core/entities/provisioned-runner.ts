@@ -1,14 +1,14 @@
-export type ResourceState = 'starting' | 'running' | 'stopping' | 'stopped' | 'failed';
+export type ProvisionedRunnerState = 'starting' | 'running' | 'stopping' | 'stopped' | 'failed';
 
-export interface Resource {
+export interface ProvisionedRunner {
   id: string;
   workspaceId: string;
   provisionerId: string;
-  resourceId: string;
+  provisionedRunnerId: string;
   reservationId: string | null;
   templateKey: string | null;
   labels: string[];
-  state: ResourceState;
+  state: ProvisionedRunnerState;
   reason: string | null;
   runnerSessionId: string | null;
   providerKind: string | null;

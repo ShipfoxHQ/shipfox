@@ -2,33 +2,42 @@ import {MAX_RUNNER_LABELS} from '@shipfox/runner-labels';
 import {z} from 'zod';
 import {runnerLabelSchema} from './register.js';
 
-export const MAX_RESOURCE_REPORT_EVENTS = 1000;
-export const MAX_RESOURCE_REASON_LENGTH = 500;
+export const MAX_PROVISIONED_RUNNER_REPORT_EVENTS = 1000;
+export const MAX_PROVISIONED_RUNNER_REASON_LENGTH = 500;
 export const MAX_PROVIDER_KIND_LENGTH = 64;
 
-export const resourceStateSchema = z.enum(['starting', 'running', 'stopping', 'stopped', 'failed']);
+export const provisionedRunnerStateSchema = z.enum([
+  'starting',
+  'running',
+  'stopping',
+  'stopped',
+  'failed',
+]);
 
 export const providerKindSchema = z.string().min(1).max(MAX_PROVIDER_KIND_LENGTH);
 
-export const resourceReportEventSchema = z
+export const provisionedRunnerReportEventSchema = z
   .object({
-    resource_id: z.string().min(1).max(255),
+    provisioned_runner_id: z.string().min(1).max(255),
     reservation_id: z.string().uuid().optional(),
     template_key: z.string().min(1).max(255).optional(),
     labels: z.array(runnerLabelSchema).min(1).max(MAX_RUNNER_LABELS),
-    state: resourceStateSchema,
-    reason: z.string().min(1).max(MAX_RESOURCE_REASON_LENGTH).optional(),
+    state: provisionedRunnerStateSchema,
+    reason: z.string().min(1).max(MAX_PROVISIONED_RUNNER_REASON_LENGTH).optional(),
     runner_session_id: z.string().uuid().optional(),
     reported_at: z.string().datetime(),
     provider_kind: providerKindSchema.optional(),
   })
   .strict();
 
-export const reportResourcesBodySchema = z.object({
-  events: z.array(resourceReportEventSchema).min(1).max(MAX_RESOURCE_REPORT_EVENTS),
+export const reportProvisionedRunnersBodySchema = z.object({
+  events: z
+    .array(provisionedRunnerReportEventSchema)
+    .min(1)
+    .max(MAX_PROVISIONED_RUNNER_REPORT_EVENTS),
 });
 
-export const reportResourcesResponseSchema = z.object({
+export const reportProvisionedRunnersResponseSchema = z.object({
   accepted: z.number().int().min(0),
   reservations_released: z.number().int().min(0),
 });
@@ -37,7 +46,7 @@ export const activeRunnerStateSchema = z.enum(['starting', 'running', 'stopping'
 
 export const activeRunnerDtoSchema = z.object({
   runner_session_id: z.string().uuid().nullable(),
-  resource_id: z.string().nullable(),
+  provisioned_runner_id: z.string().nullable(),
   provisioner_id: z.string().uuid().nullable(),
   state: activeRunnerStateSchema,
   labels: z.array(z.string()),
@@ -54,10 +63,12 @@ export const activeRunnersResponseSchema = z.object({
   runners: z.array(activeRunnerDtoSchema),
 });
 
-export type ResourceStateDto = z.infer<typeof resourceStateSchema>;
-export type ResourceReportEventDto = z.infer<typeof resourceReportEventSchema>;
-export type ReportResourcesBodyDto = z.infer<typeof reportResourcesBodySchema>;
-export type ReportResourcesResponseDto = z.infer<typeof reportResourcesResponseSchema>;
+export type ProvisionedRunnerStateDto = z.infer<typeof provisionedRunnerStateSchema>;
+export type ProvisionedRunnerReportEventDto = z.infer<typeof provisionedRunnerReportEventSchema>;
+export type ReportProvisionedRunnersBodyDto = z.infer<typeof reportProvisionedRunnersBodySchema>;
+export type ReportProvisionedRunnersResponseDto = z.infer<
+  typeof reportProvisionedRunnersResponseSchema
+>;
 export type ActiveRunnerStateDto = z.infer<typeof activeRunnerStateSchema>;
 export type ActiveRunnerDto = z.infer<typeof activeRunnerDtoSchema>;
 export type ActiveRunnersResponseDto = z.infer<typeof activeRunnersResponseSchema>;

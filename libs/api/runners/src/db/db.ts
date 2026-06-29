@@ -3,9 +3,9 @@ import {pgClient} from '@shipfox/node-postgres';
 import {ephemeralRegistrationTokens} from './schema/ephemeral-registration-tokens.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobs} from './schema/pending-jobs.js';
+import {provisionedRunners} from './schema/provisioned-runners.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
 import {reservations} from './schema/reservations.js';
-import {resources} from './schema/resources.js';
 import {runnerSessions} from './schema/runner-sessions.js';
 import {runnerTokens} from './schema/runner-tokens.js';
 import {runningJobs} from './schema/running-jobs.js';
@@ -13,9 +13,9 @@ import {runningJobs} from './schema/running-jobs.js';
 export const schema = {
   ephemeralRegistrationTokens,
   pendingJobs,
+  provisionedRunners,
   provisionerTokens,
   reservations,
-  resources,
   runnerSessions,
   runnerTokens,
   runningJobs,

@@ -1,9 +1,9 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {index, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
-import type {Resource} from '#core/entities/resource.js';
+import type {ProvisionedRunner} from '#core/entities/provisioned-runner.js';
 import {pgTable} from './common.js';
 
-export const resourceStateEnum = pgEnum('runners_resource_state', [
+export const provisionedRunnerStateEnum = pgEnum('runners_provisioned_runner_state', [
   'starting',
   'running',
   'stopping',
@@ -11,17 +11,17 @@ export const resourceStateEnum = pgEnum('runners_resource_state', [
   'failed',
 ]);
 
-export const resources = pgTable(
-  'resources',
+export const provisionedRunners = pgTable(
+  'provisioned_runners',
   {
     id: uuidv7PrimaryKey(),
     workspaceId: uuid('workspace_id').notNull(),
     provisionerId: uuid('provisioner_id').notNull(),
-    resourceId: text('resource_id').notNull(),
+    provisionedRunnerId: text('provisioned_runner_id').notNull(),
     reservationId: uuid('reservation_id'),
     templateKey: text('template_key'),
     labels: text('labels').array().notNull(),
-    state: resourceStateEnum('state').notNull(),
+    state: provisionedRunnerStateEnum('state').notNull(),
     reason: text('reason'),
     runnerSessionId: uuid('runner_session_id'),
     providerKind: text('provider_kind'),
@@ -31,29 +31,29 @@ export const resources = pgTable(
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('runners_resources_workspace_provisioner_resource_unique').on(
+    uniqueIndex('runners_provisioned_runners_workspace_provisioner_runner_unique').on(
       table.workspaceId,
       table.provisionerId,
-      table.resourceId,
+      table.provisionedRunnerId,
     ),
-    index('runners_resources_workspace_state_updated_idx').on(
+    index('runners_provisioned_runners_workspace_state_updated_idx').on(
       table.workspaceId,
       table.state,
       table.updatedAt,
     ),
-    index('runners_resources_reservation_id_idx').on(table.reservationId),
+    index('runners_provisioned_runners_reservation_id_idx').on(table.reservationId),
   ],
 );
 
-export type ResourceDb = typeof resources.$inferSelect;
-export type ResourceInsertDb = typeof resources.$inferInsert;
+export type ProvisionedRunnerDb = typeof provisionedRunners.$inferSelect;
+export type ProvisionedRunnerInsertDb = typeof provisionedRunners.$inferInsert;
 
-export function toResource(row: ResourceDb): Resource {
+export function toProvisionedRunner(row: ProvisionedRunnerDb): ProvisionedRunner {
   return {
     id: row.id,
     workspaceId: row.workspaceId,
     provisionerId: row.provisionerId,
-    resourceId: row.resourceId,
+    provisionedRunnerId: row.provisionedRunnerId,
     reservationId: row.reservationId,
     templateKey: row.templateKey,
     labels: row.labels,

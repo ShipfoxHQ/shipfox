@@ -9,7 +9,7 @@ import {RegistrationTokenBatchTooLargeError} from './errors.js';
 export interface MintEphemeralRegistrationTokenParams {
   workspaceId: string;
   provisionerId: string;
-  resourceId: string;
+  provisionedRunnerId: string;
   reservationId?: string | null | undefined;
   ttlSeconds: number;
 }
@@ -19,21 +19,21 @@ export interface MintEphemeralRegistrationTokenResult {
   rawToken: string;
 }
 
-export interface MintEphemeralRegistrationTokensBatchResource {
-  resourceId: string;
+export interface MintEphemeralRegistrationTokensBatchProvisionedRunner {
+  provisionedRunnerId: string;
 }
 
 export interface MintEphemeralRegistrationTokensBatchParams {
   workspaceId: string;
   provisionerId: string;
   reservationId: string;
-  resources: MintEphemeralRegistrationTokensBatchResource[];
+  provisionedRunners: MintEphemeralRegistrationTokensBatchProvisionedRunner[];
   ttlSeconds: number;
   maxBatchSize: number;
 }
 
 export interface MintEphemeralRegistrationTokensBatchResult {
-  resourceId: string;
+  provisionedRunnerId: string;
   token: EphemeralRegistrationToken;
   rawToken: string;
 }
@@ -42,12 +42,12 @@ export async function mintEphemeralRegistrationToken(
   params: MintEphemeralRegistrationTokenParams,
 ): Promise<MintEphemeralRegistrationTokenResult> {
   const expiresAt = new Date(Date.now() + params.ttlSeconds * 1000);
-  const row = buildEphemeralTokenRow(params.resourceId, expiresAt);
+  const row = buildEphemeralTokenRow(params.provisionedRunnerId, expiresAt);
   const token = await createEphemeralRegistrationToken({
     workspaceId: params.workspaceId,
     provisionerId: params.provisionerId,
     reservationId: params.reservationId ?? null,
-    resourceId: params.resourceId,
+    provisionedRunnerId: params.provisionedRunnerId,
     hashedToken: row.hashedToken,
     prefix: row.prefix,
     expiresAt: row.expiresAt,
@@ -59,13 +59,16 @@ export async function mintEphemeralRegistrationToken(
 export async function mintEphemeralRegistrationTokensBatch(
   params: MintEphemeralRegistrationTokensBatchParams,
 ): Promise<MintEphemeralRegistrationTokensBatchResult[]> {
-  if (params.resources.length > params.maxBatchSize) {
-    throw new RegistrationTokenBatchTooLargeError(params.resources.length, params.maxBatchSize);
+  if (params.provisionedRunners.length > params.maxBatchSize) {
+    throw new RegistrationTokenBatchTooLargeError(
+      params.provisionedRunners.length,
+      params.maxBatchSize,
+    );
   }
 
   const expiresAt = new Date(Date.now() + params.ttlSeconds * 1000);
-  const rows = params.resources.map((resource) =>
-    buildEphemeralTokenRow(resource.resourceId, expiresAt),
+  const rows = params.provisionedRunners.map((provisionedRunner) =>
+    buildEphemeralTokenRow(provisionedRunner.provisionedRunnerId, expiresAt),
   );
   const tokens = await createEphemeralRegistrationTokensBatch({
     workspaceId: params.workspaceId,
@@ -74,27 +77,33 @@ export async function mintEphemeralRegistrationTokensBatch(
     expiresAt,
     rows,
   });
-  const tokensByResourceId = new Map(tokens.map((token) => [token.resourceId, token]));
+  const tokensByProvisionedRunnerId = new Map(
+    tokens.map((token) => [token.provisionedRunnerId, token]),
+  );
 
   return rows.map((row) => {
-    const token = tokensByResourceId.get(row.resourceId);
-    if (!token) throw new Error(`Inserted token not returned for resource: ${row.resourceId}`);
-    return {resourceId: row.resourceId, rawToken: row.rawToken, token};
+    const token = tokensByProvisionedRunnerId.get(row.provisionedRunnerId);
+    if (!token) {
+      throw new Error(
+        `Inserted token not returned for provisioned runner: ${row.provisionedRunnerId}`,
+      );
+    }
+    return {provisionedRunnerId: row.provisionedRunnerId, rawToken: row.rawToken, token};
   });
 }
 
 interface EphemeralTokenRow {
-  resourceId: string;
+  provisionedRunnerId: string;
   rawToken: string;
   hashedToken: string;
   prefix: string;
   expiresAt: Date;
 }
 
-function buildEphemeralTokenRow(resourceId: string, expiresAt: Date): EphemeralTokenRow {
+function buildEphemeralTokenRow(provisionedRunnerId: string, expiresAt: Date): EphemeralTokenRow {
   const rawToken = generateOpaqueToken('ephemeralRegistrationToken');
   return {
-    resourceId,
+    provisionedRunnerId,
     rawToken,
     hashedToken: hashOpaqueToken(rawToken),
     prefix: extractDisplayPrefix(rawToken),

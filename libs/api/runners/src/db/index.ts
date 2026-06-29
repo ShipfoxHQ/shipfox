@@ -18,6 +18,14 @@ export {
   recordHeartbeat,
   releaseJob,
 } from './jobs.js';
+export type {
+  ProvisionedRunnerReportEvent,
+  ReportProvisionedRunnersParams,
+} from './provisioned-runners.js';
+export {
+  listActiveProvisionedRunners,
+  reportProvisionedRunners,
+} from './provisioned-runners.js';
 export type {CreateProvisionerTokenParams} from './provisioner-tokens.js';
 export {
   createProvisionerToken,
@@ -39,8 +47,6 @@ export {
   pollDemandAndReserve,
   releaseReservationUnits,
 } from './reservations.js';
-export type {ReportResourcesParams, ResourceReportEvent} from './resources.js';
-export {listActiveResources, reportResources} from './resources.js';
 export type {CreateRunnerSessionParams} from './runner-sessions.js';
 export {createRunnerSession} from './runner-sessions.js';
 export type {CreateRunnerTokenParams} from './runner-tokens.js';

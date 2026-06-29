@@ -1,25 +1,25 @@
 import {Factory} from 'fishery';
-import type {Resource} from '#core/entities/resource.js';
+import type {ProvisionedRunner} from '#core/entities/provisioned-runner.js';
 import {db} from '#db/db.js';
-import {resources} from '#db/schema/resources.js';
+import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 
-export const resourceFactory = Factory.define<Resource>(({onCreate}) => {
-  onCreate(async (resource) => {
+export const provisionedRunnerFactory = Factory.define<ProvisionedRunner>(({onCreate}) => {
+  onCreate(async (provisionedRunner) => {
     const [row] = await db()
-      .insert(resources)
+      .insert(provisionedRunners)
       .values({
-        workspaceId: resource.workspaceId,
-        provisionerId: resource.provisionerId,
-        resourceId: resource.resourceId,
-        reservationId: resource.reservationId,
-        templateKey: resource.templateKey,
-        labels: resource.labels,
-        state: resource.state,
-        reason: resource.reason,
-        runnerSessionId: resource.runnerSessionId,
-        providerKind: resource.providerKind,
-        reportedAt: resource.reportedAt,
-        reservationReleasedAt: resource.reservationReleasedAt,
+        workspaceId: provisionedRunner.workspaceId,
+        provisionerId: provisionedRunner.provisionerId,
+        provisionedRunnerId: provisionedRunner.provisionedRunnerId,
+        reservationId: provisionedRunner.reservationId,
+        templateKey: provisionedRunner.templateKey,
+        labels: provisionedRunner.labels,
+        state: provisionedRunner.state,
+        reason: provisionedRunner.reason,
+        runnerSessionId: provisionedRunner.runnerSessionId,
+        providerKind: provisionedRunner.providerKind,
+        reportedAt: provisionedRunner.reportedAt,
+        reservationReleasedAt: provisionedRunner.reservationReleasedAt,
       })
       .returning();
 
@@ -28,7 +28,7 @@ export const resourceFactory = Factory.define<Resource>(({onCreate}) => {
       id: row.id,
       workspaceId: row.workspaceId,
       provisionerId: row.provisionerId,
-      resourceId: row.resourceId,
+      provisionedRunnerId: row.provisionedRunnerId,
       reservationId: row.reservationId,
       templateKey: row.templateKey,
       labels: row.labels,
@@ -47,7 +47,7 @@ export const resourceFactory = Factory.define<Resource>(({onCreate}) => {
     id: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
     provisionerId: crypto.randomUUID(),
-    resourceId: crypto.randomUUID(),
+    provisionedRunnerId: crypto.randomUUID(),
     reservationId: null,
     templateKey: 'linux',
     labels: ['linux'],

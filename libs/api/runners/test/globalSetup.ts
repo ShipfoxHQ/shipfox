@@ -8,7 +8,7 @@ export async function setup() {
   createPostgresClient();
 
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_runners');
-  await db().execute(sql`TRUNCATE runners_resources, runners_reservations CASCADE`);
+  await db().execute(sql`TRUNCATE runners_provisioned_runners, runners_reservations CASCADE`);
   await db().execute(sql`TRUNCATE runners_provisioner_tokens CASCADE`);
   await db().execute(sql`TRUNCATE runners_ephemeral_registration_tokens CASCADE`);
   await db().execute(sql`TRUNCATE runners_runner_sessions CASCADE`);

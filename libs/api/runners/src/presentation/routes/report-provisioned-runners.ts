@@ -1,26 +1,29 @@
 import {requireProvisionerContext} from '@shipfox/api-auth-context';
-import {reportResourcesBodySchema, reportResourcesResponseSchema} from '@shipfox/api-runners-dto';
+import {
+  reportProvisionedRunnersBodySchema,
+  reportProvisionedRunnersResponseSchema,
+} from '@shipfox/api-runners-dto';
 import {defineRoute} from '@shipfox/node-fastify';
-import {reportResources} from '#core/index.js';
-import {toReportResourcesResponseDto} from '#presentation/dto/index.js';
+import {reportProvisionedRunners} from '#core/index.js';
+import {toReportProvisionedRunnersResponseDto} from '#presentation/dto/index.js';
 
-export const reportResourcesRoute = defineRoute({
+export const reportProvisionedRunnersRoute = defineRoute({
   method: 'POST',
-  path: '/resources/report',
-  description: 'Report provisioned runner resource lifecycle state',
+  path: '/provisioned-runners/report',
+  description: 'Report provisioned runner lifecycle state',
   schema: {
-    body: reportResourcesBodySchema,
+    body: reportProvisionedRunnersBodySchema,
     response: {
-      200: reportResourcesResponseSchema,
+      200: reportProvisionedRunnersResponseSchema,
     },
   },
   handler: async (request) => {
     const {provisionerTokenId, workspaceId} = requireProvisionerContext(request);
-    const result = await reportResources({
+    const result = await reportProvisionedRunners({
       workspaceId,
       provisionerId: provisionerTokenId,
       events: request.body.events.map((event) => ({
-        resourceId: event.resource_id,
+        provisionedRunnerId: event.provisioned_runner_id,
         reservationId: event.reservation_id ?? null,
         templateKey: event.template_key ?? null,
         labels: event.labels,
@@ -32,6 +35,6 @@ export const reportResourcesRoute = defineRoute({
       })),
     });
 
-    return toReportResourcesResponseDto(result);
+    return toReportProvisionedRunnersResponseDto(result);
   },
 });

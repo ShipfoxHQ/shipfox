@@ -29,7 +29,7 @@ export const config = createConfig({
     default: 5000,
   }),
   RUNNER_ACTIVE_WINDOW_SECONDS: num({
-    desc: 'Time window, in seconds, used to list active runners from recent heartbeats and resource reports.',
+    desc: 'Time window, in seconds, used to list active runners from recent heartbeats and provisioned runner reports.',
     default: 60,
   }),
   PROVISIONER_ACTIVE_WINDOW_SECONDS: num({

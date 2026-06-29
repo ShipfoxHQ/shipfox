@@ -13,7 +13,7 @@ import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
-import {resources} from '#db/schema/resources.js';
+import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {runningJobs} from '#db/schema/running-jobs.js';
 import {runnerRoutes} from './index.js';
 
@@ -51,7 +51,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
 
   beforeEach(async () => {
     await closeApp();
-    await db().execute(sql`TRUNCATE runners_resources, runners_running_jobs CASCADE`);
+    await db().execute(sql`TRUNCATE runners_provisioned_runners, runners_running_jobs CASCADE`);
     workspaceId = crypto.randomUUID();
     vi.mocked(requireMembership).mockResolvedValue({
       workspaceId,
@@ -84,14 +84,14 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     await closeApp();
   });
 
-  it('returns active resources merged with running jobs by runner session', async () => {
+  it('returns active provisioned runners merged with running jobs by runner session', async () => {
     const runnerSessionId = crypto.randomUUID();
     await db()
-      .insert(resources)
+      .insert(provisionedRunners)
       .values({
         workspaceId,
         provisionerId: crypto.randomUUID(),
-        resourceId: 'resource-1',
+        provisionedRunnerId: 'provisioned-runner-1',
         labels: ['linux'],
         state: 'running',
         runnerSessionId,
@@ -120,7 +120,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     expect(res.json().runners).toEqual([
       expect.objectContaining({
         runner_session_id: runnerSessionId,
-        resource_id: 'resource-1',
+        provisioned_runner_id: 'provisioned-runner-1',
         state: 'busy',
         labels: ['linux'],
       }),
@@ -132,11 +132,11 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     const firstJobId = crypto.randomUUID();
     const secondJobId = crypto.randomUUID();
     await db()
-      .insert(resources)
+      .insert(provisionedRunners)
       .values({
         workspaceId,
         provisionerId: crypto.randomUUID(),
-        resourceId: 'resource-1',
+        provisionedRunnerId: 'provisioned-runner-1',
         labels: ['linux'],
         state: 'running',
         runnerSessionId,
@@ -179,13 +179,13 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
       expect.arrayContaining([
         expect.objectContaining({
           runner_session_id: runnerSessionId,
-          resource_id: 'resource-1',
+          provisioned_runner_id: 'provisioned-runner-1',
           state: 'busy',
           job_id: firstJobId,
         }),
         expect.objectContaining({
           runner_session_id: runnerSessionId,
-          resource_id: 'resource-1',
+          provisioned_runner_id: 'provisioned-runner-1',
           state: 'busy',
           job_id: secondJobId,
         }),

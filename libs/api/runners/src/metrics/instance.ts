@@ -16,13 +16,13 @@ export const jobLeaseExpiredCount = meter.createCounter<Record<string, never>>(
   {description: 'Job leases reaped after passing the heartbeat threshold'},
 );
 
-export const resourceReportCount = meter.createCounter<{
+export const provisionedRunnerReportCount = meter.createCounter<{
   state: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed';
-}>('runners_resource_reported', {
-  description: 'Resource lifecycle reports accepted by state',
+}>('runners_provisioned_runner_reported', {
+  description: 'Provisioned runner lifecycle reports accepted by state',
 });
 
 export const reservationReleasedCount = meter.createCounter<Record<string, never>>(
   'runners_reservation_released',
-  {description: 'Reservation units released from terminal resource reports'},
+  {description: 'Reservation units released from terminal provisioned runner reports'},
 );

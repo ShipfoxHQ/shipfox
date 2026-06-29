@@ -8,7 +8,7 @@ import {requireRunnerTokenWorkspaceMembership} from './workspace-membership.js';
 export const listActiveRunnersRoute = defineRoute({
   method: 'GET',
   path: '/',
-  description: 'List active runners and provisioned runner resources for a workspace',
+  description: 'List active runners and provisioned runners for a workspace',
   schema: {
     params: z.object({workspaceId: z.string().uuid()}),
     response: {

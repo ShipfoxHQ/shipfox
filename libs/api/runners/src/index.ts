@@ -18,7 +18,7 @@ export {
   type MintEphemeralRegistrationTokenParams,
   type MintEphemeralRegistrationTokenResult,
   type MintEphemeralRegistrationTokensBatchParams,
-  type MintEphemeralRegistrationTokensBatchResource,
+  type MintEphemeralRegistrationTokensBatchProvisionedRunner,
   type MintEphemeralRegistrationTokensBatchResult,
   mintEphemeralRegistrationToken,
   mintEphemeralRegistrationTokensBatch,
