@@ -74,7 +74,7 @@ describe('WorkspaceAgentProvidersSection', () => {
     expect(screen.queryByText(ANTHROPIC_FINGERPRINT_RE)).not.toBeInTheDocument();
     expect(screen.getByText('Available providers')).toBeVisible();
     expect(
-      screen.getByText('Providers that can be configured with workspace-managed API keys.'),
+      screen.getByText('Providers that can be configured for agent jobs in this workspace.'),
     ).toBeVisible();
     expect(screen.getByText('OpenAI')).toBeVisible();
     expect(screen.getByText('Unsupported providers')).toBeVisible();

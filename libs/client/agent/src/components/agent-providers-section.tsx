@@ -138,7 +138,7 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
         <div className="flex flex-col gap-4">
           <Header variant="h3">Available providers</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
-            Providers that can be configured with workspace-managed API keys.
+            Providers that can be configured for agent jobs in this workspace.
           </Text>
         </div>
 
@@ -177,7 +177,7 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
         <div className="flex flex-col gap-4">
           <Header variant="h3">Unsupported providers</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
-            Providers that cannot use workspace-managed API keys yet.
+            Providers that cannot be configured in this workspace yet.
           </Text>
         </div>
 
