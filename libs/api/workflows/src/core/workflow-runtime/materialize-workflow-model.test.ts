@@ -1,6 +1,12 @@
+import {
+  InvalidAgentModelError,
+  UnsupportedAgentProviderError,
+} from '@shipfox/api-agent/core/errors';
+import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
+import {AgentConfigUnresolvableError} from '#core/errors.js';
 import {workflowModel} from '#test/index.js';
-import {materializeWorkflowModel} from './materialize-workflow-model.js';
+import {materializeWorkflowModel, modelHasAgentStep} from './materialize-workflow-model.js';
 
 type TestWorkflowExpression = NonNullable<
   NonNullable<WorkflowModel['jobs'][number]['steps'][number]['gate']>['successIf']
@@ -213,6 +219,73 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
+  it('routes agent steps through the provided resolver', () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {
+          steps: [{provider: 'anthropic', prompt: 'Fix the failing tests.'}],
+        },
+      },
+    });
+    const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+      provider: 'openai',
+      model: 'gpt-5.5-pro',
+      thinking: 'medium',
+    });
+
+    const rows = materializeWorkflowModel(model, resolveAgentDefaults, 'def-1');
+
+    expect(resolveAgentDefaults).toHaveBeenCalledWith({
+      provider: 'anthropic',
+      model: undefined,
+      thinking: undefined,
+    });
+    expect(rows[0]?.steps[1]).toMatchObject({
+      displayName: 'Fix the failing tests.',
+      config: {
+        model: 'gpt-5.5-pro',
+        provider: 'openai',
+        thinking: 'medium',
+        prompt: 'Fix the failing tests.',
+      },
+    });
+  });
+
+  it.each([
+    new UnsupportedAgentProviderError('unknown-provider'),
+    new InvalidAgentModelError('anthropic', 'missing-model'),
+  ])('wraps known resolver errors as permanent agent config errors', (cause) => {
+    const model = workflowModel({
+      jobs: {
+        fix: {steps: [{prompt: 'Fix the failing tests.'}]},
+      },
+    });
+    const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockImplementation(() => {
+      throw cause;
+    });
+
+    const materialize = () => materializeWorkflowModel(model, resolveAgentDefaults, 'def-1');
+
+    expect(materialize).toThrow(AgentConfigUnresolvableError);
+    expect(materialize).toThrow('Agent configuration cannot be resolved for definition def-1');
+  });
+
+  it('re-throws unknown resolver errors unchanged', () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {steps: [{prompt: 'Fix the failing tests.'}]},
+      },
+    });
+    const error = new Error('database unavailable');
+    const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockImplementation(() => {
+      throw error;
+    });
+
+    const materialize = () => materializeWorkflowModel(model, resolveAgentDefaults, 'def-1');
+
+    expect(materialize).toThrow(error);
+  });
+
   it('materializes merged env for run steps only', () => {
     const model = workflowModel({
       env: {SHARED: 'workflow', WORKFLOW_ONLY: 'yes'},
@@ -303,5 +376,17 @@ describe('materializeWorkflowModel', () => {
     expect(() => materializeWorkflowModel(model)).toThrow(
       'Unresolved workflow model dependency "missing" for job "test"',
     );
+  });
+
+  it('detects whether a workflow model contains agent steps', () => {
+    const runOnly = workflowModel();
+    const withAgent = workflowModel({
+      jobs: {
+        fix: {steps: [{prompt: 'Fix the failing tests.'}]},
+      },
+    });
+
+    expect(modelHasAgentStep(runOnly)).toBe(false);
+    expect(modelHasAgentStep(withAgent)).toBe(true);
   });
 });

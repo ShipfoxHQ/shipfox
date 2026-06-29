@@ -13,6 +13,7 @@ export type {
   WorkflowSourceSnapshot,
 } from './entities/workflow-run.js';
 export {
+  AgentConfigUnresolvableError,
   DefinitionNotFoundError,
   isPermanentRunWorkflowError,
   JobNotFoundError,
@@ -32,6 +33,7 @@ export {
   type MaterializedWorkflowJob,
   type MaterializedWorkflowStep,
   materializeWorkflowModel,
+  modelHasAgentStep,
   type ScheduleRuntimeDagInput,
   scheduleRuntimeDag,
 } from './workflow-runtime/index.js';

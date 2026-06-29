@@ -25,6 +25,36 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./core/errors": {
+      "development": {
+        "types": "./src/core/errors.ts",
+        "default": "./src/core/errors.ts"
+      },
+      "default": {
+        "types": "./dist/core/errors.d.ts",
+        "default": "./dist/core/errors.js"
+      }
+    },
+    "./core/resolve-agent-config": {
+      "development": {
+        "types": "./src/core/resolve-agent-config.ts",
+        "default": "./src/core/resolve-agent-config.ts"
+      },
+      "default": {
+        "types": "./dist/core/resolve-agent-config.d.ts",
+        "default": "./dist/core/resolve-agent-config.js"
+      }
+    },
+    "./core/workspace-agent-defaults-resolver": {
+      "development": {
+        "types": "./src/core/workspace-agent-defaults-resolver.ts",
+        "default": "./src/core/workspace-agent-defaults-resolver.ts"
+      },
+      "default": {
+        "types": "./dist/core/workspace-agent-defaults-resolver.d.ts",
+        "default": "./dist/core/workspace-agent-defaults-resolver.js"
+      }
     }
   },
   "scripts": {

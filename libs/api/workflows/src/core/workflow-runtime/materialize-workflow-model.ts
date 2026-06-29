@@ -1,9 +1,13 @@
 import {
-  DEFAULT_AGENT_PROVIDER,
-  DEFAULT_AGENT_THINKING,
-  getAgentProviderEntry,
-} from '@shipfox/api-agent-dto';
+  InvalidAgentModelError,
+  UnsupportedAgentProviderError,
+} from '@shipfox/api-agent/core/errors';
+import {
+  type AgentDefaultsResolver,
+  catalogDefaultAgentResolver,
+} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
+import {AgentConfigUnresolvableError} from '#core/errors.js';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelStep = WorkflowModelJob['steps'][number];
@@ -42,7 +46,11 @@ const SETUP_STEP: MaterializedWorkflowStep = {
   position: 0,
 };
 
-export function materializeWorkflowModel(model: WorkflowModel): readonly MaterializedWorkflowJob[] {
+export function materializeWorkflowModel(
+  model: WorkflowModel,
+  resolveAgentDefaults: AgentDefaultsResolver = catalogDefaultAgentResolver,
+  definitionId = model.name,
+): readonly MaterializedWorkflowJob[] {
   const jobsById = new Map(model.jobs.map((job) => [job.id, job]));
 
   return model.jobs.map((job, position) => ({
@@ -60,11 +68,15 @@ export function materializeWorkflowModel(model: WorkflowModel): readonly Materia
         sourceLocation: step.sourceLocation ?? null,
         status: 'pending' as const,
         type: step.kind,
-        config: stepConfig(step, model.env, job.env),
+        config: stepConfig(step, model.env, job.env, resolveAgentDefaults, definitionId),
         position: stepPosition + 1,
       })),
     ],
   }));
+}
+
+export function modelHasAgentStep(model: WorkflowModel): boolean {
+  return model.jobs.some((job) => job.steps.some((step) => step.kind === 'agent'));
 }
 
 function dependencySourceNames(
@@ -101,32 +113,39 @@ function stepConfig(
   step: WorkflowModelStep,
   workflowEnv: WorkflowModel['env'],
   jobEnv: WorkflowModelJob['env'],
+  resolveAgentDefaults: AgentDefaultsResolver,
+  definitionId: string,
 ): Record<string, unknown> {
   const gate = step.gate === undefined ? {} : {gate: stepGateConfig(step.gate)};
   const env = step.kind === 'run' ? mergedEnv(workflowEnv, jobEnv, step.env) : {};
   return step.kind === 'run'
     ? {run: step.command.value, ...env, ...gate}
-    : {...agentStepConfig(step), ...gate};
+    : {...agentStepConfig(step, resolveAgentDefaults, definitionId), ...gate};
 }
 
-function agentStepConfig(step: Extract<WorkflowModelStep, {kind: 'agent'}>): {
+function agentStepConfig(
+  step: Extract<WorkflowModelStep, {kind: 'agent'}>,
+  resolveAgentDefaults: AgentDefaultsResolver,
+  definitionId: string,
+): {
   model: string;
   provider: string;
   thinking: string;
   prompt: string;
 } {
-  const provider = step.provider ?? DEFAULT_AGENT_PROVIDER;
-  const model = step.model ?? defaultModelForProvider(provider);
-  const thinking = step.thinking ?? DEFAULT_AGENT_THINKING;
-  return {model, provider, thinking, prompt: step.prompt};
-}
-
-function defaultModelForProvider(provider: string): string {
-  const entry = getAgentProviderEntry(provider);
-  if (entry === undefined || entry.support_status !== 'supported' || entry.default_model === null) {
-    throw new Error(`No default agent model is cataloged for provider "${provider}"`);
+  try {
+    const resolved = resolveAgentDefaults({
+      provider: step.provider,
+      model: step.model,
+      thinking: step.thinking,
+    });
+    return {...resolved, prompt: step.prompt};
+  } catch (error) {
+    if (error instanceof UnsupportedAgentProviderError || error instanceof InvalidAgentModelError) {
+      throw new AgentConfigUnresolvableError(definitionId, {cause: error});
+    }
+    throw error;
   }
-  return entry.default_model;
 }
 
 function mergedEnv(

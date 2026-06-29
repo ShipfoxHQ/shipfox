@@ -4,9 +4,34 @@ import type {TriggerPayload} from './entities/workflow-run.js';
 import {DefinitionNotFoundError, ProjectMismatchError} from './errors.js';
 import {runWorkflow} from './run-workflow.js';
 
+const mockCreateWorkspaceAgentDefaultsResolver = vi.hoisted(() => vi.fn());
+const mockWorkspaceAgentDefaultsResolver = vi.hoisted(() =>
+  vi.fn().mockReturnValue({
+    provider: 'openai',
+    model: 'gpt-5.5-pro',
+    thinking: 'medium',
+  }),
+);
+
 vi.mock('@shipfox/api-definitions', () => ({
   getDefinitionById: vi.fn(),
 }));
+
+vi.mock('@shipfox/api-agent/core/resolve-agent-config', () => {
+  return {
+    catalogDefaultAgentResolver: vi.fn().mockReturnValue({
+      provider: 'anthropic',
+      model: 'claude-opus-4-8',
+      thinking: 'high',
+    }),
+  };
+});
+
+vi.mock('@shipfox/api-agent/core/workspace-agent-defaults-resolver', () => {
+  return {
+    createWorkspaceAgentDefaultsResolver: mockCreateWorkspaceAgentDefaultsResolver,
+  };
+});
 
 import {getDefinitionById} from '@shipfox/api-definitions';
 
@@ -57,6 +82,9 @@ describe('runWorkflow', () => {
   beforeEach(() => {
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
+    mockCreateWorkspaceAgentDefaultsResolver.mockClear();
+    mockCreateWorkspaceAgentDefaultsResolver.mockResolvedValue(mockWorkspaceAgentDefaultsResolver);
+    mockWorkspaceAgentDefaultsResolver.mockClear();
   });
 
   test('creates a run from a valid definition with the provided manual trigger payload', async () => {
@@ -79,6 +107,32 @@ describe('runWorkflow', () => {
     expect(run.triggerSource).toBe('manual');
     expect(run.triggerEvent).toBe('fire');
     expect(run.triggerPayload).toEqual(triggerPayload);
+    expect(mockCreateWorkspaceAgentDefaultsResolver).not.toHaveBeenCalled();
+  });
+
+  test('builds the workspace agent resolver only when the definition has an agent step', async () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {steps: [{prompt: 'Fix the failing tests.'}]},
+      },
+    });
+    const definition = buildDefinition({projectId, model});
+    mockGetDefinitionById.mockResolvedValue(definition);
+
+    const run = await runWorkflow({
+      workspaceId,
+      projectId,
+      definitionId: definition.id,
+      triggerPayload: manualPayload(),
+    });
+
+    expect(run.id).toBeDefined();
+    expect(mockCreateWorkspaceAgentDefaultsResolver).toHaveBeenCalledWith(workspaceId);
+    expect(mockWorkspaceAgentDefaultsResolver).toHaveBeenCalledWith({
+      provider: undefined,
+      model: undefined,
+      thinking: undefined,
+    });
   });
 
   test('persists an integration trigger payload intact', async () => {

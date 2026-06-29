@@ -8,7 +8,7 @@ import {
 } from '@temporalio/workflow';
 
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
-import {scheduleRuntimeDag} from '#core/workflow-runtime/index.js';
+import {scheduleRuntimeDag} from '#core/workflow-runtime/schedule-runtime-dag.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
 import type {DagJob, RunDag} from '../activities/orchestration-activities.js';

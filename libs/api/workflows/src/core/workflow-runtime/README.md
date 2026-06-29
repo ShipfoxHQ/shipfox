@@ -12,7 +12,7 @@ Pure scheduling decisions for workflow run orchestration.
 ## Usage
 
 ```ts
-import {scheduleRuntimeDag} from '#core/workflow-runtime/index.js';
+import {scheduleRuntimeDag} from '#core/workflow-runtime/schedule-runtime-dag.js';
 
 const commands = scheduleRuntimeDag({
   jobs: [
