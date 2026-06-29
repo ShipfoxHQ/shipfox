@@ -1,4 +1,4 @@
-import {canonicalizeRunnerLabels} from '@shipfox/api-runners-dto';
+import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {and, asc, eq, gt, inArray, lt, sql} from 'drizzle-orm';
 import type {Tx} from './db.js';
 import {db} from './db.js';
@@ -102,7 +102,7 @@ export async function pollDemandAndReserve(
 
     const templates = params.templates.map((template) => ({
       templateKey: template.templateKey,
-      labels: canonicalizeRunnerLabels(template.labels),
+      labels: [...canonicalizeLabels(template.labels)],
       remainingSlots: template.availableSlots,
     }));
     deductProvisionerReservations(templates, activeProvisionerReservationRows);

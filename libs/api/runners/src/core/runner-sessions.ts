@@ -1,5 +1,5 @@
 import {issueRunnerSessionToken} from '@shipfox/api-auth';
-import {canonicalizeRunnerLabels} from '@shipfox/api-runners-dto';
+import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {createRunnerSessionConsumingEphemeralToken} from '#db/ephemeral-registration-tokens.js';
 import {createRunnerSession} from '#db/runner-sessions.js';
 import type {RunnerSession} from './entities/runner-session.js';
@@ -31,7 +31,7 @@ export async function registerRunnerSession(params: {
   credential: RunnerRegistrationCredential;
   labels: string[];
 }): Promise<RegisterRunnerSessionResult> {
-  const labels = canonicalizeRunnerLabels(params.labels);
+  const labels = [...canonicalizeLabels(params.labels)];
   if (labels.length === 0) throw new EmptyRunnerLabelsError();
 
   const mode = params.credential.kind;

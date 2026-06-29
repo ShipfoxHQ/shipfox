@@ -1,4 +1,4 @@
-import {canonicalizeRunnerLabels} from '@shipfox/api-runners-dto';
+import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {and, desc, eq, inArray, isNotNull, isNull, type SQL, sql} from 'drizzle-orm';
 import type {ProvisionedRunner, ProvisionedRunnerState} from '#core/entities/provisioned-runner.js';
 import type {Tx} from './db.js';
@@ -71,7 +71,7 @@ export async function reportProvisionedRunners(params: ReportProvisionedRunnersP
       provisionedRunnerId: event.provisionedRunnerId,
       reservationId: event.reservationId,
       templateKey: event.templateKey,
-      labels: canonicalizeRunnerLabels(event.labels),
+      labels: [...canonicalizeLabels(event.labels)],
       state: event.state,
       reason: event.reason,
       runnerSessionId: event.runnerSessionId,
