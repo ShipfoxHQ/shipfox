@@ -94,6 +94,23 @@ describe('resolveWorkflowTemplate', () => {
     });
   });
 
+  it('resolves absent context roots to empty strings with diagnostics', () => {
+    const segments = parseWorkflowTemplate(`push-${templateExpression(' inputs.environment ')}`);
+
+    const result = resolveWorkflowTemplate(segments, {event: {}});
+
+    expect(result).toEqual({
+      value: 'push-',
+      diagnostics: [
+        {
+          reason: 'missing-path',
+          expression: 'inputs.environment',
+          contextRoots: ['inputs'],
+        },
+      ],
+    });
+  });
+
   it('wraps genuine evaluation exceptions in resolution errors', () => {
     const segments = parseWorkflowTemplate(templateExpression(' 1 / 0 '));
 

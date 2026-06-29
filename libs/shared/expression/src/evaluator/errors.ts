@@ -12,7 +12,8 @@ export class WorkflowExpressionEvaluationError extends Error {
     super('Workflow expression evaluation failed', {cause});
     this.name = 'WorkflowExpressionEvaluationError';
     this.reason =
-      cause instanceof EvaluationError && cause.code === 'no_such_key'
+      cause instanceof EvaluationError &&
+      (cause.code === 'no_such_key' || cause.code === 'unknown_variable')
         ? 'missing-path'
         : 'evaluation-error';
   }

@@ -141,6 +141,23 @@ describe('evaluateWorkflowExpression', () => {
     expect((error as WorkflowExpressionEvaluationError).reason).toBe('missing-path');
   });
 
+  it('classifies absent context roots as missing paths', () => {
+    const expression = createWorkflowExpression({
+      source: 'inputs.environment',
+      check: {mode: 'syntax'},
+    });
+
+    let error: unknown;
+    try {
+      evaluateWorkflowExpression(expression, {event: {}});
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(WorkflowExpressionEvaluationError);
+    expect((error as WorkflowExpressionEvaluationError).reason).toBe('missing-path');
+  });
+
   it('classifies genuine evaluation failures as evaluation errors', () => {
     const expression = createWorkflowExpression({
       source: '1 / 0',
