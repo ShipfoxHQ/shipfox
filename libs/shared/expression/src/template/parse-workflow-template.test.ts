@@ -47,19 +47,19 @@ describe('parseWorkflowTemplate', () => {
       {
         kind: 'expr',
         expression: {language: 'cel', source: 'event.ref', check: 'syntax'},
-        roots: ['event'],
+        contextRoots: ['event'],
       },
     ]);
   });
 
-  it('parses a single expression with trimmed syntax-checked source and roots', () => {
+  it('parses a single expression with trimmed syntax-checked source and context roots', () => {
     const segments = parseWorkflowTemplate(templateExpression(' event.ref '));
 
     expect(segments).toEqual([
       {
         kind: 'expr',
         expression: {language: 'cel', source: 'event.ref', check: 'syntax'},
-        roots: ['event'],
+        contextRoots: ['event'],
       },
     ]);
   });
@@ -72,7 +72,7 @@ describe('parseWorkflowTemplate', () => {
       {
         kind: 'expr',
         expression: {language: 'cel', source: 'event.ref', check: 'syntax'},
-        roots: ['event'],
+        contextRoots: ['event'],
       },
       {kind: 'literal', text: '/done'},
     ]);
@@ -88,13 +88,13 @@ describe('parseWorkflowTemplate', () => {
       {
         kind: 'expr',
         expression: {language: 'cel', source: 'event.ref', check: 'syntax'},
-        roots: ['event'],
+        contextRoots: ['event'],
       },
       {kind: 'literal', text: ' b '},
       {
         kind: 'expr',
         expression: {language: 'cel', source: 'inputs.name', check: 'syntax'},
-        roots: ['inputs'],
+        contextRoots: ['inputs'],
       },
       {kind: 'literal', text: ' c'},
     ]);
@@ -109,12 +109,12 @@ describe('parseWorkflowTemplate', () => {
       {
         kind: 'expr',
         expression: {language: 'cel', source: 'event.ref', check: 'syntax'},
-        roots: ['event'],
+        contextRoots: ['event'],
       },
       {
         kind: 'expr',
         expression: {language: 'cel', source: 'inputs.name', check: 'syntax'},
-        roots: ['inputs'],
+        contextRoots: ['inputs'],
       },
     ]);
   });
@@ -130,7 +130,7 @@ describe('parseWorkflowTemplate', () => {
           source: '"a}}b" + \'c}}d\' + """e}}f"""',
           check: 'syntax',
         },
-        roots: [],
+        contextRoots: [],
       },
     ]);
   });
@@ -148,7 +148,7 @@ describe('parseWorkflowTemplate', () => {
           source: '"a\\"}}b" == "a\\"}}b" && event.ok',
           check: 'syntax',
         },
-        roots: ['event'],
+        contextRoots: ['event'],
       },
     ]);
   });
@@ -164,7 +164,7 @@ describe('parseWorkflowTemplate', () => {
           source: 'b"a}}b" == b"a}}b" && event.ok',
           check: 'syntax',
         },
-        roots: ['event'],
+        contextRoots: ['event'],
       },
     ]);
   });
@@ -182,7 +182,7 @@ describe('parseWorkflowTemplate', () => {
           source: 'event.x // }} "ignored"\n && inputs.ok',
           check: 'syntax',
         },
-        roots: ['event', 'inputs'],
+        contextRoots: ['event', 'inputs'],
       },
     ]);
   });
@@ -194,7 +194,7 @@ describe('parseWorkflowTemplate', () => {
       {
         kind: 'expr',
         expression: {language: 'cel', source: '{"k": event.v}', check: 'syntax'},
-        roots: ['event'],
+        contextRoots: ['event'],
       },
     ]);
   });
@@ -206,7 +206,7 @@ describe('parseWorkflowTemplate', () => {
       {
         kind: 'expr',
         expression: {language: 'cel', source: '{"a": {"b": 1}}.a.b', check: 'syntax'},
-        roots: [],
+        contextRoots: [],
       },
     ]);
   });
@@ -248,7 +248,7 @@ describe('parseWorkflowTemplate', () => {
       {
         kind: 'expr',
         expression: {language: 'cel', source: 'event.ref', check: 'syntax'},
-        roots: ['event'],
+        contextRoots: ['event'],
       },
     ]);
   });
@@ -322,7 +322,7 @@ describe('parseWorkflowTemplate', () => {
       WorkflowTemplateExprSegment,
     ];
     expect(Object.keys(literalSegment)).toEqual(['kind', 'text']);
-    expect(Object.keys(expressionSegment)).toEqual(['kind', 'expression', 'roots']);
+    expect(Object.keys(expressionSegment)).toEqual(['kind', 'expression', 'contextRoots']);
     expect(Object.keys(expressionSegment.expression)).toEqual(['language', 'source', 'check']);
   });
 
@@ -334,7 +334,7 @@ describe('parseWorkflowTemplate', () => {
       {
         kind: 'expr',
         expression: {language: 'cel', source: 'event.ref', check: 'syntax'},
-        roots: ['event'],
+        contextRoots: ['event'],
       },
       {kind: 'literal', text: '\nb'},
     ]);

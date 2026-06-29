@@ -30,7 +30,7 @@ export {
   InvalidWorkflowTemplateError,
   invalidWorkflowTemplateErrorCode,
 } from './template/errors.js';
-export {extractCelRoots} from './template/extract-cel-roots.js';
+export {extractCelContextRoots} from './template/extract-cel-context-roots.js';
 export {parseWorkflowTemplate} from './template/parse-workflow-template.js';
 export type {
   WorkflowTemplateExprSegment,

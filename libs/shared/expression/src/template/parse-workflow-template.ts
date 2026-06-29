@@ -1,7 +1,7 @@
 import {createWorkflowExpression} from '../expression/create-workflow-expression.js';
 import {InvalidWorkflowExpressionError} from '../expression/errors.js';
 import {InvalidWorkflowTemplateError} from './errors.js';
-import {extractCelRoots} from './extract-cel-roots.js';
+import {extractCelContextRoots} from './extract-cel-context-roots.js';
 import {scanLineComment, scanStringLiteral} from './scan-cel-token.js';
 import type {WorkflowTemplateSegment} from './template-segment.js';
 
@@ -40,9 +40,13 @@ export function parseWorkflowTemplate(source: string): WorkflowTemplateSegment[]
 
     const innerSource = source.slice(expressionStartIndex + 3, closeIndex);
     const expression = createTemplateExpression(source, expressionStartIndex, innerSource);
-    const roots = extractTemplateRoots(source, expressionStartIndex, expression.source);
+    const contextRoots = extractTemplateContextRoots(
+      source,
+      expressionStartIndex,
+      expression.source,
+    );
 
-    segments.push({kind: 'expr', expression, roots});
+    segments.push({kind: 'expr', expression, contextRoots});
     index = closeIndex + 2;
   }
 
@@ -82,18 +86,19 @@ function findExpressionCloseIndex(source: string, openerIndex: number): number |
   return null;
 }
 
-function extractTemplateRoots(
+function extractTemplateContextRoots(
   source: string,
   expressionStartIndex: number,
   expressionSource: string,
 ) {
   try {
-    return extractCelRoots(expressionSource);
+    return extractCelContextRoots(expressionSource);
   } catch (error) {
     throw new InvalidWorkflowTemplateError({
       source,
       offset: expressionStartIndex,
-      reason: error instanceof Error ? error.message : 'Expression roots could not be extracted.',
+      reason:
+        error instanceof Error ? error.message : 'Expression context roots could not be extracted.',
       cause: error,
     });
   }

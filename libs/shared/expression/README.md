@@ -12,7 +12,7 @@ CEL checks and run-time evaluation for Shipfox workflow expressions.
 - **`evaluateWorkflowPredicate`**: Returns `true` only for the boolean `true`.
 - **`parseWorkflowTemplate`**: Splits strings with `${{ ... }}` spans into
   ordered literal and expression segments.
-- **`extractCelRoots`**: Returns the sorted top-level CEL identifiers mentioned
+- **`extractCelContextRoots`**: Returns the sorted top-level CEL identifiers mentioned
   by an expression for downstream context and trust checks.
 - **Typed errors**: Reports bad text and run failures with stable error classes.
 - **`workflowContextDefinitions`**: Names the v1 workflow contexts (`run`,
@@ -82,9 +82,9 @@ const passed = evaluateWorkflowPredicate(expression, {
 - Template closing scans are string-aware, line-comment-aware, and brace-aware,
   so `}}` inside CEL strings, `//` comments, or map literals does not close the
   expression span.
-- Root extraction fails closed for trust decisions. It skips only identifiers
-  that are provably not roots and may over-include comprehension variables or
-  struct keys; downstream code maps roots to the known workflow contexts.
+- Context root extraction fails closed for trust decisions. It skips only identifiers
+  that are provably not context roots and may over-include comprehension variables or
+  struct keys; downstream code maps context roots to the known workflow contexts.
 Trigger filters can use `syntax` while integration event payloads are still open.
 Gate expressions can use `typed` because their local fields are known.
 

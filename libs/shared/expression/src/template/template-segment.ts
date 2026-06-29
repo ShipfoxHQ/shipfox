@@ -8,7 +8,7 @@ export interface WorkflowTemplateLiteralSegment {
 export interface WorkflowTemplateExprSegment {
   readonly kind: 'expr';
   readonly expression: WorkflowExpression;
-  readonly roots: readonly string[];
+  readonly contextRoots: readonly string[];
 }
 
 export type WorkflowTemplateSegment = WorkflowTemplateLiteralSegment | WorkflowTemplateExprSegment;
