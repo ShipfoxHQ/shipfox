@@ -94,6 +94,7 @@ describe('hoistRunCommand', () => {
 
   it.each([
     [`echo $((1 + ${templateExpression(' run.id ')}))`, 'arith'],
+    [`echo $[1 + ${templateExpression(' run.id ')}]`, 'arith'],
     [`echo $(date ${templateExpression(' run.id ')})`, 'paren-sub'],
     [`echo \`date ${templateExpression(' run.id ')}\``, 'backtick'],
     [`echo ${'${value:-'}${templateExpression(' run.id ')}}`, 'param-brace'],
@@ -101,6 +102,8 @@ describe('hoistRunCommand', () => {
     [`echo $"${templateExpression(' run.id ')}"`, 'dollar-double'],
     [`cat <<EOF\n${templateExpression(' run.id ')}\nEOF`, 'heredoc'],
     [`cat <<${templateExpression(' run.id ')}\nbody\n`, 'heredoc'],
+    [`echo \\${templateExpression(' run.id ')}`, 'escape'],
+    [`echo "prefix\\${templateExpression(' run.id ')}"`, 'escape'],
   ] as const)('rejects interpolation inside %s', (source, region) => {
     const segments = parseWorkflowTemplate(source);
 

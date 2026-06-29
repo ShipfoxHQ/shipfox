@@ -54,6 +54,7 @@ describe('shell quoting scanner', () => {
   it.each([
     ['$((', 'arith'],
     ['((', 'arith'],
+    ['$[', 'arith'],
     ['$(', 'paren-sub'],
     ['$( ', 'paren-sub'],
     ['`', 'backtick'],
@@ -71,8 +72,20 @@ describe('shell quoting scanner', () => {
   });
 
   it.each([
+    'echo \\',
+    'echo "prefix\\',
+  ])('classifies a dangling escape after %s as unsafe', (literal) => {
+    const state = scanShellLiteral(literal, initialShellScanState);
+
+    const result = classifyShellSite(state);
+
+    expect(result).toEqual({kind: 'unsafe', region: 'escape'});
+  });
+
+  it.each([
     ['"${foo:-', 'param-brace'],
     ['"$(echo ', 'paren-sub'],
+    ['"$[1 + ', 'arith'],
     ['`echo ${', 'param-brace'],
   ] as const)('reports the innermost unsafe region for %s', (literal, region) => {
     const state = scanShellLiteral(literal, initialShellScanState);
@@ -83,7 +96,7 @@ describe('shell quoting scanner', () => {
   });
 
   it('returns to plain context after closed control constructs', () => {
-    const state = scanShellLiteral(`$(echo ok) ${'$'}{value:-fallback} $((1 + 2)) `, {
+    const state = scanShellLiteral(`$(echo ok) ${'$'}{value:-fallback} $((1 + 2)) $[1 + 2] `, {
       frames: [],
     });
 

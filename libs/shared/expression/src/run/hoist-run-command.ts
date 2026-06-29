@@ -10,9 +10,9 @@ import type {
 import {
   classifyShellSite,
   initialShellScanState,
-  type ShellFrame,
   type ShellScanState,
   type ShellSiteContext,
+  type ShellUnsafeRegion,
   scanShellLiteral,
 } from './shell-quoting.js';
 
@@ -44,10 +44,10 @@ interface HoistedRunCommand {
 
 export class UnsafeRunInterpolationError extends Error {
   readonly code = unsafeRunInterpolationErrorCode;
-  readonly region: ShellFrame;
+  readonly region: ShellUnsafeRegion;
   readonly source: string;
 
-  constructor(params: {readonly region: ShellFrame; readonly source: string}) {
+  constructor(params: {readonly region: ShellUnsafeRegion; readonly source: string}) {
     super(
       `Unsafe run interpolation inside ${params.region}. Bind the value to env and reference $VAR instead.`,
     );
