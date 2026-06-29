@@ -124,7 +124,8 @@ describe('evaluateWorkflowExpression', () => {
       check: {mode: 'syntax'},
     });
 
-    const act = () =>
+    let error: unknown;
+    try {
       evaluateWorkflowExpression(expression, {
         event: {
           pull_request: {
@@ -132,7 +133,28 @@ describe('evaluateWorkflowExpression', () => {
           },
         },
       });
+    } catch (caught) {
+      error = caught;
+    }
 
-    expect(act).toThrow(WorkflowExpressionEvaluationError);
+    expect(error).toBeInstanceOf(WorkflowExpressionEvaluationError);
+    expect((error as WorkflowExpressionEvaluationError).reason).toBe('missing-path');
+  });
+
+  it('classifies genuine evaluation failures as evaluation errors', () => {
+    const expression = createWorkflowExpression({
+      source: '1 / 0',
+      check: {mode: 'syntax'},
+    });
+
+    let error: unknown;
+    try {
+      evaluateWorkflowExpression(expression, {});
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(WorkflowExpressionEvaluationError);
+    expect((error as WorkflowExpressionEvaluationError).reason).toBe('evaluation-error');
   });
 });
