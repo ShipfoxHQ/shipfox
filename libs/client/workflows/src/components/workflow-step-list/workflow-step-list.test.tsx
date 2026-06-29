@@ -353,6 +353,25 @@ describe('WorkflowStepList', () => {
     expect(screen.getByText('This job has not recorded any steps.')).toBeInTheDocument();
   });
 
+  test('renders a running empty state without the animated status glyph', () => {
+    render(
+      <WorkflowStepList
+        job={makeJob({status: 'running', steps: []})}
+        emptyState={{
+          title: 'Waiting for the first step',
+          description: 'This job is running, but no steps have started yet.',
+          status: 'running',
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Waiting for the first step')).toBeInTheDocument();
+    expect(
+      screen.getByText('This job is running, but no steps have started yet.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('img', {name: 'Running'})).not.toBeInTheDocument();
+  });
+
   test('renders a skipped empty state with a status glyph', () => {
     render(
       <WorkflowStepList
