@@ -34,6 +34,8 @@ describe('registerRunnerSession', () => {
     expect(result.maxClaims).toBeNull();
     expect(result.session.labels).toEqual(['linux', 'x64']);
     expect(result.session.registrationTokenKind).toBe('manual');
+    expect(result.session.provisionerId).toBeNull();
+    expect(result.session.provisionedRunnerId).toBeNull();
     expect(result.session.maxClaims).toBeNull();
     expect(result.session.claimsUsed).toBe(0);
 
@@ -75,6 +77,8 @@ describe('registerRunnerSession', () => {
     expect(result.mode).toBe('ephemeral');
     expect(result.maxClaims).toBe(1);
     expect(result.session.registrationTokenKind).toBe('ephemeral');
+    expect(result.session.provisionerId).toBe(token.provisionerId);
+    expect(result.session.provisionedRunnerId).toBe(token.provisionedRunnerId);
     expect(result.session.maxClaims).toBe(1);
     expect(result.session.claimsUsed).toBe(0);
 
@@ -84,6 +88,13 @@ describe('registerRunnerSession', () => {
       .where(eq(ephemeralRegistrationTokens.id, token.id));
     expect(consumed?.consumedAt).toBeInstanceOf(Date);
     expect(consumed?.consumedSessionId).toBe(result.session.id);
+
+    const [session] = await db()
+      .select()
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, result.session.id));
+    expect(session?.provisionerId).toBe(token.provisionerId);
+    expect(session?.provisionedRunnerId).toBe(token.provisionedRunnerId);
 
     const claims = await verifyRunnerSessionToken(result.sessionToken);
     expect(claims?.maxClaims).toBe(1);
@@ -134,8 +145,26 @@ describe('registerRunnerSession', () => {
           scope: 'workspace',
           registrationTokenId: crypto.randomUUID(),
           registrationTokenKind: 'ephemeral',
+          provisionerId: crypto.randomUUID(),
+          provisionedRunnerId: `provisioned-runner-${crypto.randomUUID()}`,
           labels: ['linux'],
           maxClaims: null,
+          claimsUsed: 0,
+        }),
+    ).rejects.toThrow();
+  });
+
+  it('rejects an ephemeral session row without a provisioned-runner link', async () => {
+    await expect(
+      db()
+        .insert(runnerSessions)
+        .values({
+          workspaceId,
+          scope: 'workspace',
+          registrationTokenId: crypto.randomUUID(),
+          registrationTokenKind: 'ephemeral',
+          labels: ['linux'],
+          maxClaims: 1,
           claimsUsed: 0,
         }),
     ).rejects.toThrow();

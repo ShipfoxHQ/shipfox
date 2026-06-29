@@ -455,6 +455,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "provisioner_id": {
+          "name": "provisioner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provisioned_runner_id": {
+          "name": "provisioned_runner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "required_labels": {
           "name": "required_labels",
           "type": "text[]",
@@ -515,7 +527,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "runners_running_jobs_link_ck": {
+          "name": "runners_running_jobs_link_ck",
+          "value": "(\"runners_running_jobs\".\"provisioner_id\" IS NULL) = (\"runners_running_jobs\".\"provisioned_runner_id\" IS NULL)"
+        }
+      },
       "isRLSEnabled": false
     }
   },

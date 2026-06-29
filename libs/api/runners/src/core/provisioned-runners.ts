@@ -70,25 +70,41 @@ function mergeActiveRunners(
   jobs: ActiveRunningJob[],
 ): ActiveRunner[] {
   const jobsByRunnerSessionId = new Map<string, ActiveRunningJob[]>();
+  const jobsByProvisionedRunnerId = new Map<string, ActiveRunningJob[]>();
   for (const job of jobs) {
     const runnerJobs = jobsByRunnerSessionId.get(job.runnerSessionId) ?? [];
     runnerJobs.push(job);
     jobsByRunnerSessionId.set(job.runnerSessionId, runnerJobs);
+
+    if (job.provisionerId && job.provisionedRunnerId) {
+      const key = provisionedRunnerKey(job.provisionerId, job.provisionedRunnerId);
+      const provisionedRunnerJobs = jobsByProvisionedRunnerId.get(key) ?? [];
+      provisionedRunnerJobs.push(job);
+      jobsByProvisionedRunnerId.set(key, provisionedRunnerJobs);
+    }
   }
 
   const merged: ActiveRunner[] = [];
   const usedJobIds = new Set<string>();
 
   for (const provisionedRunner of provisionedRunners) {
-    const provisionedRunnerJobs = provisionedRunner.runnerSessionId
-      ? jobsByRunnerSessionId.get(provisionedRunner.runnerSessionId)
-      : undefined;
+    const provisionedRunnerJobs =
+      jobsByProvisionedRunnerId.get(
+        provisionedRunnerKey(
+          provisionedRunner.provisionerId,
+          provisionedRunner.provisionedRunnerId,
+        ),
+      ) ??
+      (provisionedRunner.runnerSessionId
+        ? jobsByRunnerSessionId.get(provisionedRunner.runnerSessionId)
+        : undefined);
     if (!provisionedRunnerJobs || provisionedRunnerJobs.length === 0) {
       merged.push(toActiveRunner(provisionedRunner, undefined));
       continue;
     }
 
     for (const job of provisionedRunnerJobs) {
+      if (usedJobIds.has(job.jobId)) continue;
       usedJobIds.add(job.jobId);
       merged.push(toActiveRunner(provisionedRunner, job));
     }
@@ -102,14 +118,18 @@ function mergeActiveRunners(
   return merged.sort(compareActiveRunners);
 }
 
+function provisionedRunnerKey(provisionerId: string, provisionedRunnerId: string): string {
+  return `${provisionerId}:${provisionedRunnerId}`;
+}
+
 function toActiveRunner(
   provisionedRunner: ProvisionedRunner | undefined,
   job: ActiveRunningJob | undefined,
 ): ActiveRunner {
   return {
     runnerSessionId: provisionedRunner?.runnerSessionId ?? job?.runnerSessionId ?? null,
-    provisionedRunnerId: provisionedRunner?.provisionedRunnerId ?? null,
-    provisionerId: provisionedRunner?.provisionerId ?? null,
+    provisionedRunnerId: provisionedRunner?.provisionedRunnerId ?? job?.provisionedRunnerId ?? null,
+    provisionerId: provisionedRunner?.provisionerId ?? job?.provisionerId ?? null,
     state: job ? 'busy' : toActiveRunnerState(provisionedRunner?.state ?? 'running'),
     labels: provisionedRunner?.labels ?? job?.runnerLabels ?? [],
     templateKey: provisionedRunner?.templateKey ?? null,

@@ -4,6 +4,8 @@ export interface RunnerSession {
   scope: 'workspace';
   registrationTokenId: string;
   registrationTokenKind: 'manual' | 'ephemeral';
+  provisionerId: string | null;
+  provisionedRunnerId: string | null;
   labels: string[];
   maxClaims: number | null;
   claimsUsed: number;

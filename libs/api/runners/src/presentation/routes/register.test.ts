@@ -90,6 +90,8 @@ describe('POST /runners/register', () => {
       .where(eq(runnerSessions.id, body.session_id));
     expect(rows[0]?.labels).toEqual(['linux', 'x64']);
     expect(rows[0]?.registrationTokenKind).toBe('manual');
+    expect(rows[0]?.provisionerId).toBeNull();
+    expect(rows[0]?.provisionedRunnerId).toBeNull();
   });
 
   it('exchanges an ephemeral registration token for a one-claim runner session', async () => {
@@ -119,6 +121,8 @@ describe('POST /runners/register', () => {
       .from(runnerSessions)
       .where(eq(runnerSessions.id, body.session_id));
     expect(session?.registrationTokenKind).toBe('ephemeral');
+    expect(session?.provisionerId).toBe(token.provisionerId);
+    expect(session?.provisionedRunnerId).toBe(token.provisionedRunnerId);
     expect(session?.maxClaims).toBe(1);
     expect(session?.claimsUsed).toBe(0);
 

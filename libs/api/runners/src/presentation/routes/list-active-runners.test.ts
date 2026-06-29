@@ -193,6 +193,90 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     );
   });
 
+  it('merges active jobs by provisioned-runner link when the session id is not reported', async () => {
+    const provisionerId = crypto.randomUUID();
+    const runnerSessionId = crypto.randomUUID();
+    const jobId = crypto.randomUUID();
+    await db()
+      .insert(provisionedRunners)
+      .values({
+        workspaceId,
+        provisionerId,
+        provisionedRunnerId: 'provisioned-runner-1',
+        labels: ['linux'],
+        state: 'running',
+        runnerSessionId: null,
+        providerKind: 'docker',
+        reportedAt: new Date(),
+      });
+    await db()
+      .insert(runningJobs)
+      .values({
+        workspaceId,
+        jobId,
+        runId: crypto.randomUUID(),
+        projectId: crypto.randomUUID(),
+        runnerSessionId,
+        provisionerId,
+        provisionedRunnerId: 'provisioned-runner-1',
+        requiredLabels: ['linux'],
+        runnerLabels: ['linux'],
+      });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/runners/active`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().runners).toEqual([
+      expect.objectContaining({
+        runner_session_id: runnerSessionId,
+        provisioned_runner_id: 'provisioned-runner-1',
+        provisioner_id: provisionerId,
+        state: 'busy',
+        job_id: jobId,
+      }),
+    ]);
+  });
+
+  it('surfaces the job link for a busy runner without an active provisioned-runner row', async () => {
+    const provisionerId = crypto.randomUUID();
+    const runnerSessionId = crypto.randomUUID();
+    const jobId = crypto.randomUUID();
+    await db()
+      .insert(runningJobs)
+      .values({
+        workspaceId,
+        jobId,
+        runId: crypto.randomUUID(),
+        projectId: crypto.randomUUID(),
+        runnerSessionId,
+        provisionerId,
+        provisionedRunnerId: 'provisioned-runner-1',
+        requiredLabels: ['linux'],
+        runnerLabels: ['linux'],
+      });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/runners/active`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().runners).toEqual([
+      expect.objectContaining({
+        runner_session_id: runnerSessionId,
+        provisioned_runner_id: 'provisioned-runner-1',
+        provisioner_id: provisionerId,
+        state: 'busy',
+        job_id: jobId,
+      }),
+    ]);
+  });
+
   it('returns 403 when the user is not a workspace member', async () => {
     vi.mocked(requireMembership).mockRejectedValueOnce(
       new ClientError('Not a member of this workspace', 'forbidden', {status: 403}),
