@@ -29,6 +29,7 @@ export interface WorkflowSourcePanelProps {
   open: boolean;
   onClose: () => void;
   highlightedLineRange?: CodeBlockHighlightedLineRange | null | undefined;
+  scrollHighlightedIntoView?: boolean | undefined;
   className?: string | undefined;
 }
 
@@ -38,6 +39,7 @@ export function WorkflowSourcePanel({
   open,
   onClose,
   highlightedLineRange,
+  scrollHighlightedIntoView,
   className,
 }: WorkflowSourcePanelProps) {
   const sheetOpen = open && source !== null;
@@ -62,7 +64,11 @@ export function WorkflowSourcePanel({
           )}
         >
           <SheetTitle className="sr-only">Workflow source</SheetTitle>
-          <WorkflowSourcePanelContent source={source} highlightedLineRange={highlightedLineRange} />
+          <WorkflowSourcePanelContent
+            source={source}
+            highlightedLineRange={highlightedLineRange}
+            scrollHighlightedIntoView={scrollHighlightedIntoView}
+          />
         </SheetContent>
       ) : null}
     </Sheet>
@@ -72,9 +78,11 @@ export function WorkflowSourcePanel({
 function WorkflowSourcePanelContent({
   source,
   highlightedLineRange,
+  scrollHighlightedIntoView,
 }: {
   source: WorkflowSourceSnapshot;
   highlightedLineRange: CodeBlockHighlightedLineRange | null | undefined;
+  scrollHighlightedIntoView: boolean | undefined;
 }) {
   const data = [
     {
@@ -119,6 +127,7 @@ function WorkflowSourcePanelContent({
               themes={WORKFLOW_SOURCE_CODE_THEMES}
               syntaxHighlighting
               highlightedLineRange={highlightedLineRange}
+              scrollHighlightedIntoView={scrollHighlightedIntoView}
             >
               {item.code}
             </CodeBlockContent>

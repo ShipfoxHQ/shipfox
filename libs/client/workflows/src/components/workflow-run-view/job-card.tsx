@@ -11,7 +11,7 @@ import {
   TooltipTrigger,
   useTimeTick,
 } from '@shipfox/react-ui';
-import type {ReactNode} from 'react';
+import type {ReactNode, RefObject} from 'react';
 import {Fragment, useId} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {
@@ -24,7 +24,12 @@ import {
   workflowRunTriggerDisplayLabel,
   workflowRunTriggerLabel,
 } from '#core/workflow-run.js';
-import {type StepExpandedContext, StepList, type StepListEmptyState} from '../step-list/index.js';
+import {
+  type StepExpandedContext,
+  StepList,
+  type StepListEmptyState,
+  type WorkflowStepSourceRequest,
+} from '../step-list/index.js';
 import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
 import {JobExecutionSwitcher} from './job-execution-switcher.js';
 import {formatJobExecutionTime, JobExecutionTimeText} from './job-execution-time-text.js';
@@ -42,6 +47,10 @@ export function JobCard({
   onSelectedJobExecutionChange,
   onSelectedAttemptChange,
   renderExpandedStep,
+  sourcePanelId,
+  sourceAvailable,
+  focusedSourceStepId,
+  onOpenStepSource,
 }: {
   workspaceId: string;
   job: Job;
@@ -50,6 +59,15 @@ export function JobCard({
   onSelectedJobExecutionChange: ((jobExecutionId: string | undefined) => void) | undefined;
   onSelectedAttemptChange: ((attemptId: string | undefined) => void) | undefined;
   renderExpandedStep?: ((context: StepExpandedContext) => ReactNode) | undefined;
+  sourcePanelId?: string | undefined;
+  sourceAvailable?: boolean | undefined;
+  focusedSourceStepId?: string | null | undefined;
+  onOpenStepSource?:
+    | ((
+        request: WorkflowStepSourceRequest,
+        triggerRef: RefObject<HTMLButtonElement | null>,
+      ) => void)
+    | undefined;
 }) {
   const titleId = useId();
   const selectedExecutionStatus = selectedJobExecution?.status ?? job.status;
@@ -125,6 +143,10 @@ export function JobCard({
             autoSelectActiveAttempt
             emptyState={emptyStateForJob(job, selectedJobExecution)}
             showHeader={false}
+            sourcePanelId={sourcePanelId}
+            sourceAvailable={sourceAvailable}
+            focusedSourceStepId={focusedSourceStepId}
+            onOpenStepSource={onOpenStepSource}
             className="rounded-none border-0 bg-transparent"
             renderExpandedStep={renderExpandedStep ?? defaultRenderExpandedStep}
           />

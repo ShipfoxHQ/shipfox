@@ -735,6 +735,55 @@ describe('WorkflowRunView', () => {
     expect(screen.queryByRole('button', {name: 'View source'})).not.toBeInTheDocument();
   });
 
+  test('opens the source panel highlighting a step from its row Source button', async () => {
+    const user = userEvent.setup();
+    configureApiClient({
+      fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(locatedStepSourceDetail()))),
+    });
+
+    renderView();
+
+    await screen.findByRole('region', {name: 'build'});
+    const stepSourceButton = screen.getByRole('button', {name: 'View step source'});
+    const summaryButton = screen.getByRole('button', {name: 'View source'});
+    expect(stepSourceButton).toHaveAttribute('aria-expanded', 'false');
+    expect(stepSourceButton).toHaveAttribute(
+      'aria-controls',
+      summaryButton.getAttribute('aria-controls'),
+    );
+
+    await user.click(stepSourceButton);
+
+    await screen.findByRole('dialog', {name: 'Workflow source'});
+    const highlighted = document.body.querySelectorAll('.line.highlighted-line');
+    expect(highlighted).toHaveLength(2);
+    expect(highlighted[0]).toHaveTextContent('build:');
+    expect(highlighted[1]).toHaveTextContent('steps:');
+    // Exactly one control reports the shared panel expanded.
+    expect(stepSourceButton).toHaveAttribute('aria-expanded', 'true');
+    expect(summaryButton).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('returns focus to the step Source button on close and preserves the selected job', async () => {
+    const user = userEvent.setup();
+    configureApiClient({
+      fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(locatedStepSourceDetail()))),
+    });
+
+    renderView();
+
+    await screen.findByRole('region', {name: 'build'});
+    const stepSourceButton = screen.getByRole('button', {name: 'View step source'});
+
+    await user.click(stepSourceButton);
+    await screen.findByRole('dialog', {name: 'Workflow source'});
+    await user.click(screen.getByRole('button', {name: 'Close source'}));
+
+    await waitFor(() => expect(stepSourceButton).toHaveFocus());
+    expect(stepSourceButton).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('region', {name: 'build'})).toBeInTheDocument();
+  });
+
   test('re-runs all jobs from a succeeded run and navigates to the new run', async () => {
     const user = userEvent.setup();
     const rerunId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -1000,6 +1049,43 @@ function mockRequests(fetchImpl: ReturnType<typeof vi.fn>): Request[] {
   return (fetchImpl.mock.calls as unknown[][])
     .map((call) => call[0])
     .filter((input): input is Request => input instanceof Request);
+}
+
+function locatedStepSourceDetail(): RunDetailResponseDto {
+  return workflowRunViewDetailDto({
+    source_snapshot: {
+      format: 'yaml',
+      content: 'jobs:\n  build:\n    steps:\n      - run: pnpm test',
+    },
+    jobs: [
+      workflowJobDto({
+        id: BUILD_JOB_ID,
+        run_id: RUN_ID,
+        name: 'build',
+        status: 'succeeded',
+        steps: [
+          workflowStepDto({
+            id: CHECKOUT_STEP_ID,
+            job_id: BUILD_JOB_ID,
+            name: 'checkout',
+            display_name: 'checkout',
+            status: 'succeeded',
+            source_location: {start_line: 2, end_line: 3},
+            attempts: [
+              workflowStepAttemptDto({
+                id: CHECKOUT_ATTEMPT_ID,
+                step_id: CHECKOUT_STEP_ID,
+                job_id: BUILD_JOB_ID,
+                status: 'succeeded',
+                exit_code: 0,
+                finished_at: '2026-05-07T01:01:20.000Z',
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
 }
 
 function workflowRunViewDetailDto(

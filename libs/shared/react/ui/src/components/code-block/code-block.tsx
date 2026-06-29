@@ -1,7 +1,7 @@
 'use client';
 
 import type {ComponentProps, HTMLAttributes, ReactNode} from 'react';
-import {createContext, useCallback, useContext, useState} from 'react';
+import {createContext, useCallback, useContext, useRef, useState} from 'react';
 import {useResolvedTheme} from '#hooks/useResolvedTheme.js';
 import {useShikiHighlight} from '#hooks/useShikiHighlight.js';
 import {useShikiStyleInjection} from '#hooks/useShikiStyleInjection.js';
@@ -9,6 +9,7 @@ import {cn} from '#utils/cn.js';
 import {CODE_BLOCK_HIGHLIGHTED_LINE_DESCENDANT_STYLE, CodeContent} from './code-content.js';
 import {CodeCopyButton} from './code-copy-button.js';
 import {type CodeBlockHighlightedLineRange, isCodeBlockLineHighlighted} from './line-highlight.js';
+import {useScrollHighlightedLineIntoView} from './use-scroll-highlighted-line.js';
 
 export type BundledLanguage = string;
 
@@ -164,6 +165,7 @@ export function CodeBlockCopyButton({
 
 type CodeBlockFallbackProps = Omit<HTMLAttributes<HTMLDivElement>, 'children'> & {
   highlightedLineRange?: CodeBlockHighlightedLineRange | null | undefined;
+  scrollHighlightedIntoView?: boolean | undefined;
   children: string;
 };
 
@@ -171,11 +173,22 @@ function CodeBlockFallback({
   children,
   className,
   highlightedLineRange,
+  scrollHighlightedIntoView = false,
   ...props
 }: CodeBlockFallbackProps) {
+  const rootRef = useRef<HTMLElement | null>(null);
   const lines = children?.toString().split('\n') ?? [];
+
+  useScrollHighlightedLineIntoView(rootRef, {
+    enabled: scrollHighlightedIntoView,
+    highlightedLineRange,
+  });
+
   return (
     <pre
+      ref={(node) => {
+        rootRef.current = node;
+      }}
       className={cn('w-full font-code', className)}
       {...(props as HTMLAttributes<HTMLPreElement>)}
     >
@@ -267,6 +280,7 @@ export type CodeBlockContentProps = Omit<HTMLAttributes<HTMLDivElement>, 'childr
   language?: BundledLanguage;
   syntaxHighlighting?: boolean;
   highlightedLineRange?: CodeBlockHighlightedLineRange | null | undefined;
+  scrollHighlightedIntoView?: boolean | undefined;
   children: string;
 };
 
@@ -279,6 +293,7 @@ export function CodeBlockContent({
   language = 'typescript',
   syntaxHighlighting = false,
   highlightedLineRange,
+  scrollHighlightedIntoView = false,
   ...props
 }: CodeBlockContentProps) {
   const resolvedTheme = useResolvedTheme();
@@ -295,7 +310,11 @@ export function CodeBlockContent({
 
   if (!syntaxHighlighting || isLoading) {
     return (
-      <CodeBlockFallback highlightedLineRange={highlightedLineRange} {...props}>
+      <CodeBlockFallback
+        highlightedLineRange={highlightedLineRange}
+        scrollHighlightedIntoView={scrollHighlightedIntoView}
+        {...props}
+      >
         {children}
       </CodeBlockFallback>
     );
@@ -308,6 +327,7 @@ export function CodeBlockContent({
       isLoading={isLoading}
       syntaxHighlighting={syntaxHighlighting}
       highlightedLineRange={highlightedLineRange}
+      scrollHighlightedIntoView={scrollHighlightedIntoView}
       {...props}
     />
   );

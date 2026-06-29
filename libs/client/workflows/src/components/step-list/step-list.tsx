@@ -14,10 +14,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@shipfox/react-ui';
-import type {ReactNode} from 'react';
+import type {ReactNode, RefObject} from 'react';
 import {useEffect, useId, useMemo, useRef, useState} from 'react';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
-import {isWorkflowStatus, type Job, type JobExecution, type Step} from '#core/workflow-run.js';
+import {
+  isWorkflowStatus,
+  type Job,
+  type JobExecution,
+  type Step,
+  type WorkflowStepSourceLocation,
+} from '#core/workflow-run.js';
+import {WorkflowStepSourceButton} from './step-source-button.js';
 import {
   buildStepListModel,
   defaultStepListJobExecution,
@@ -26,6 +33,11 @@ import {
   type StepListEntryModel,
   type StepListModel,
 } from './step-list-model.js';
+
+export interface WorkflowStepSourceRequest {
+  stepId: string;
+  location: WorkflowStepSourceLocation;
+}
 
 export interface StepExpandedContext {
   step: Step;
@@ -53,6 +65,15 @@ export interface StepListProps {
   emptyState?: StepListEmptyState | undefined;
   renderExpandedStep?: ((context: StepExpandedContext) => ReactNode) | undefined;
   showHeader?: boolean | undefined;
+  sourcePanelId?: string | undefined;
+  sourceAvailable?: boolean | undefined;
+  focusedSourceStepId?: string | null | undefined;
+  onOpenStepSource?:
+    | ((
+        request: WorkflowStepSourceRequest,
+        triggerRef: RefObject<HTMLButtonElement | null>,
+      ) => void)
+    | undefined;
   className?: string | undefined;
 }
 
@@ -66,6 +87,10 @@ export function StepList({
   emptyState,
   renderExpandedStep,
   showHeader = true,
+  sourcePanelId,
+  sourceAvailable,
+  focusedSourceStepId,
+  onOpenStepSource,
   className,
 }: StepListProps) {
   const selectedJobExecution = jobExecution ?? defaultStepListJobExecution(job);
@@ -85,6 +110,10 @@ export function StepList({
       emptyState={emptyState}
       renderExpandedStep={renderExpandedStep}
       showHeader={showHeader}
+      sourcePanelId={sourcePanelId}
+      sourceAvailable={sourceAvailable}
+      focusedSourceStepId={focusedSourceStepId}
+      onOpenStepSource={onOpenStepSource}
       className={className}
     />
   );
@@ -99,6 +128,10 @@ function StepListContent({
   emptyState,
   renderExpandedStep,
   showHeader,
+  sourcePanelId,
+  sourceAvailable,
+  focusedSourceStepId,
+  onOpenStepSource,
   className,
 }: Omit<StepListProps, 'job' | 'jobExecution'> & {model: StepListModel}) {
   const titleId = useId();
@@ -178,12 +211,31 @@ function StepListContent({
           <ol>
             {model.entries.map((entry) => {
               const selected = selectedAttemptIds.includes(entry.id);
+              const sourceLocation = entry.step.sourceLocation;
+              const sourceButton =
+                sourceAvailable &&
+                entry.isStepSourceAnchor &&
+                sourceLocation &&
+                sourcePanelId &&
+                onOpenStepSource ? (
+                  <WorkflowStepSourceButton
+                    sourcePanelId={sourcePanelId}
+                    expanded={focusedSourceStepId === entry.step.id}
+                    onOpen={(triggerRef) =>
+                      onOpenStepSource(
+                        {stepId: entry.step.id, location: sourceLocation},
+                        triggerRef,
+                      )
+                    }
+                  />
+                ) : null;
               return (
                 <StepRow
                   key={entry.id}
                   entry={entry}
                   selected={selected}
                   hasExpandedContent={hasExpandedContent}
+                  sourceButton={sourceButton}
                   onSelect={() => {
                     selectAttempt(
                       hasExpandedContent
@@ -271,12 +323,14 @@ function StepRow({
   entry,
   selected,
   hasExpandedContent,
+  sourceButton,
   onSelect,
   expandedContent,
 }: {
   entry: StepListEntryModel;
   selected: boolean;
   hasExpandedContent: boolean;
+  sourceButton: ReactNode;
   onSelect: () => void;
   expandedContent: ReactNode;
 }) {
@@ -307,6 +361,8 @@ function StepRow({
     'group grid min-h-44 w-full grid-cols-[14px_14px_minmax(0,1fr)] items-center gap-x-8 px-12 py-6 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
     selected && 'bg-background-components-hover',
     entry.carriedOver && 'opacity-[0.55]',
+    // Reserve room so the truncated label never sits under the absolute Source action.
+    sourceButton && 'pr-40',
   );
   const button = hasExpandedContent ? (
     <AccordionTrigger
@@ -327,18 +383,27 @@ function StepRow({
       {rowContent}
     </button>
   );
+  const triggerNode = shouldShowLabelTooltip ? (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent>
+        <span className="block max-w-320 break-words">{entry.step.label}</span>
+      </TooltipContent>
+    </Tooltip>
+  ) : (
+    button
+  );
   const row = (
     <>
-      {shouldShowLabelTooltip ? (
-        <Tooltip>
-          <TooltipTrigger asChild>{button}</TooltipTrigger>
-          <TooltipContent>
-            <span className="block max-w-320 break-words">{entry.step.label}</span>
-          </TooltipContent>
-        </Tooltip>
-      ) : (
-        button
-      )}
+      {/* `group/row` drives the Source action's hover/focus reveal without
+          clashing with the trigger's own `group`. The button is a sibling of the
+          trigger (never inside its Header/button), so it stays valid + focusable. */}
+      <div className="relative group/row">
+        {triggerNode}
+        {sourceButton ? (
+          <div className="absolute right-8 top-1/2 -translate-y-1/2">{sourceButton}</div>
+        ) : null}
+      </div>
       {selected && expandedContent ? (
         <AccordionContent className="border-t border-border-neutral-base bg-background-neutral-base px-12 py-12">
           <div className="grid grid-cols-[14px_14px_minmax(0,1fr)] gap-x-8">
