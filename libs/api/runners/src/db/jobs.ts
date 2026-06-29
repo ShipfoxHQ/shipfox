@@ -1,11 +1,11 @@
 import {
-  canonicalizeRunnerLabels,
   RUNNER_JOB_CLAIMED,
   RUNNER_JOB_LEASE_EXPIRED,
   RUNNER_JOB_QUEUED,
   type RunnersEventMap,
 } from '@shipfox/api-runners-dto';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
+import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {and, arrayContained, asc, count, desc, eq, inArray, lt, sql} from 'drizzle-orm';
 import {
   EmptyRequiredLabelsError,
@@ -35,7 +35,7 @@ export interface EnqueueJobParams {
 // can reinsert an orphan pending row, which a later `claimPendingJob` drops
 // via the running-job unique constraint (onConflictDoNothing) instead of failing.
 export async function enqueueJob(params: EnqueueJobParams): Promise<void> {
-  const requiredLabels = canonicalizeRunnerLabels(params.requiredLabels);
+  const requiredLabels = [...canonicalizeLabels(params.requiredLabels)];
   if (requiredLabels.length === 0) throw new EmptyRequiredLabelsError();
 
   const enqueued = await db().transaction(async (tx) => {

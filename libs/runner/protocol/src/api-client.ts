@@ -1,7 +1,6 @@
 import {appendLogsResponseSchema, offsetGapResponseSchema} from '@shipfox/api-logs-dto';
 import {
   type ClaimedJobResponseDto,
-  canonicalizeRunnerLabels,
   claimedJobResponseSchema,
   type HeartbeatResponseDto,
   heartbeatResponseSchema,
@@ -23,6 +22,7 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {isUuid} from '@shipfox/regex';
+import {canonicalizeLabels} from '@shipfox/runner-labels';
 import ky, {HTTPError, type KyInstance} from 'ky';
 import {config} from '#config.js';
 
@@ -72,7 +72,7 @@ export function runnerToken(): string {
 }
 
 export function configuredRunnerLabels(): string[] {
-  return canonicalizeRunnerLabels(config.SHIPFOX_RUNNER_LABELS.split(','));
+  return [...canonicalizeLabels(config.SHIPFOX_RUNNER_LABELS.split(','))];
 }
 
 export class RunnerLabelsRequiredError extends Error {

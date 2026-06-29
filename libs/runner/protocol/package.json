@@ -43,6 +43,7 @@
     "@shipfox/config": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/regex": "workspace:*",
+    "@shipfox/runner-labels": "workspace:*",
     "ky": "^2.0.0"
   },
   "devDependencies": {

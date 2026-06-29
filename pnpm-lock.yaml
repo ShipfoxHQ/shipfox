@@ -1720,6 +1720,9 @@ importers:
       '@shipfox/node-tokens':
         specifier: workspace:*
         version: link:../../shared/node/tokens
+      '@shipfox/runner-labels':
+        specifier: workspace:*
+        version: link:../../shared/common/runner-labels
       '@temporalio/workflow':
         specifier: ^1.16.1
         version: 1.18.1
@@ -3502,6 +3505,9 @@ importers:
       '@shipfox/regex':
         specifier: workspace:*
         version: link:../../shared/common/regex
+      '@shipfox/runner-labels':
+        specifier: workspace:*
+        version: link:../../shared/common/runner-labels
       ky:
         specifier: ^2.0.0
         version: 2.0.2

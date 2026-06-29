@@ -86,4 +86,3 @@ export {
   runnerJobQueuedEventSchema,
   runnersEventSchemas,
 } from './events.js';
-export {canonicalizeRunnerLabels} from './labels.js';
