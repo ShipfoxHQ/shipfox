@@ -14,9 +14,27 @@ export {
   claimPendingJob,
   enqueueJob,
   expireStuckJobs,
+  listActiveRunningJobs,
   recordHeartbeat,
   releaseJob,
 } from './jobs.js';
+export type {
+  ProvisionedRunnerReportEvent,
+  ReportProvisionedRunnersParams,
+} from './provisioned-runners.js';
+export {
+  listActiveProvisionedRunners,
+  reportProvisionedRunners,
+} from './provisioned-runners.js';
+export type {CreateProvisionerTokenParams} from './provisioner-tokens.js';
+export {
+  createProvisionerToken,
+  listActiveProvisionerTokens,
+  listUsableProvisionerTokensByWorkspaceId,
+  resolveProvisionerTokenByHash,
+  revokeProvisionerToken,
+  touchProvisionerLastSeen,
+} from './provisioner-tokens.js';
 export type {
   DemandStat,
   PollDemandAndReserveParams,
@@ -27,6 +45,7 @@ export {
   deleteExpiredReservations,
   deleteReservationsByIds,
   pollDemandAndReserve,
+  releaseReservationUnits,
 } from './reservations.js';
 export type {CreateRunnerSessionParams} from './runner-sessions.js';
 export {createRunnerSession} from './runner-sessions.js';

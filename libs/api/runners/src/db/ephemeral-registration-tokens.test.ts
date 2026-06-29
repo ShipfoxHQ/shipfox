@@ -36,24 +36,30 @@ describe('createEphemeralRegistrationTokensBatch', () => {
       provisionerId,
       reservationId,
       expiresAt,
-      rows: [row('resource-a', rawTokens[0] ?? ''), row('resource-b', rawTokens[1] ?? '')],
+      rows: [
+        row('provisioned-runner-a', rawTokens[0] ?? ''),
+        row('provisioned-runner-b', rawTokens[1] ?? ''),
+      ],
     });
 
     expect(result).toHaveLength(2);
-    expect(result.map((token) => token.resourceId).sort()).toEqual(['resource-a', 'resource-b']);
+    expect(result.map((token) => token.provisionedRunnerId).sort()).toEqual([
+      'provisioned-runner-a',
+      'provisioned-runner-b',
+    ]);
     expect(result.every((token) => token.reservationId === reservationId)).toBe(true);
     expect(result.every((token) => token.workspaceId === workspaceId)).toBe(true);
     expect(result.every((token) => token.provisionerId === provisionerId)).toBe(true);
     expect(
       await resolveEphemeralRegistrationTokenByHash(hashOpaqueToken(rawTokens[0] ?? '')),
-    ).toEqual(expect.objectContaining({resourceId: 'resource-a'}));
+    ).toEqual(expect.objectContaining({provisionedRunnerId: 'provisioned-runner-a'}));
   });
 
-  it('rejects the batch and inserts no rows when any resource already has an active token', async () => {
+  it('rejects the batch and inserts no rows when any provisioned runner already has an active token', async () => {
     await ephemeralRegistrationTokenFactory.create({
       workspaceId,
       provisionerId,
-      resourceId: 'resource-a',
+      provisionedRunnerId: 'provisioned-runner-a',
       expiresAt: new Date(Date.now() + 60_000),
     });
     const rawToken = generateOpaqueToken('ephemeralRegistrationToken');
@@ -64,13 +70,13 @@ describe('createEphemeralRegistrationTokensBatch', () => {
         provisionerId,
         reservationId,
         expiresAt: new Date(Date.now() + 300_000),
-        rows: [row('resource-a', rawToken), row('resource-b', rawToken)],
+        rows: [row('provisioned-runner-a', rawToken), row('provisioned-runner-b', rawToken)],
       }),
     ).rejects.toBeInstanceOf(ActiveEphemeralRegistrationTokensExistError);
 
     const rows = await db().select().from(ephemeralRegistrationTokens);
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.resourceId).toBe('resource-a');
+    expect(rows[0]?.provisionedRunnerId).toBe('provisioned-runner-a');
   });
 
   async function createReservation(params: {count: number}): Promise<string> {
@@ -88,9 +94,9 @@ describe('createEphemeralRegistrationTokensBatch', () => {
     return reservation.id;
   }
 
-  function row(resourceId: string, rawToken: string) {
+  function row(provisionedRunnerId: string, rawToken: string) {
     return {
-      resourceId,
+      provisionedRunnerId,
       hashedToken: hashOpaqueToken(rawToken),
       prefix: extractDisplayPrefix(rawToken),
     };

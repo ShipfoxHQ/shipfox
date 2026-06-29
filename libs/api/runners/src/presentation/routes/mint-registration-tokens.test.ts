@@ -83,7 +83,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
     provisionerTokenId = crypto.randomUUID();
   });
 
-  it('mints one registration token per resource for a valid reservation', async () => {
+  it('mints one registration token per provisioned runner for a valid reservation', async () => {
     const reservationId = await createReservation({count: 2});
     const before = Date.now();
 
@@ -91,18 +91,21 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
       method: 'POST',
       url: '/provisioners/runner-registration-tokens/batch',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: body(reservationId, ['resource-a', 'resource-b']),
+      payload: body(reservationId, ['provisioned-runner-a', 'provisioned-runner-b']),
     });
 
     const after = Date.now();
     expect(res.statusCode).toBe(200);
     const tokens = res.json().tokens as {
-      resource_id: string;
+      provisioned_runner_id: string;
       registration_token: string;
       expires_at: string;
     }[];
     expect(tokens).toHaveLength(2);
-    expect(tokens.map((token) => token.resource_id).sort()).toEqual(['resource-a', 'resource-b']);
+    expect(tokens.map((token) => token.provisioned_runner_id).sort()).toEqual([
+      'provisioned-runner-a',
+      'provisioned-runner-b',
+    ]);
     for (const minted of tokens) {
       expect(
         minted.registration_token.startsWith(`sf_${tokenTypeParts.ephemeralRegistrationToken}_`),
@@ -114,7 +117,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
         workspaceId,
         provisionerId: provisionerTokenId,
         reservationId,
-        resourceId: minted.resource_id,
+        provisionedRunnerId: minted.provisioned_runner_id,
       });
       const expiresMs = new Date(minted.expires_at).getTime();
       expect(expiresMs).toBeGreaterThanOrEqual(
@@ -131,7 +134,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
       method: 'POST',
       url: '/provisioners/runner-registration-tokens/batch',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: body(crypto.randomUUID(), ['resource-a']),
+      payload: body(crypto.randomUUID(), ['provisioned-runner-a']),
     });
 
     expect(res.statusCode).toBe(404);
@@ -148,7 +151,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
       method: 'POST',
       url: '/provisioners/runner-registration-tokens/batch',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: body(reservationId, ['resource-a']),
+      payload: body(reservationId, ['provisioned-runner-a']),
     });
 
     expect(res.statusCode).toBe(404);
@@ -165,7 +168,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
       method: 'POST',
       url: '/provisioners/runner-registration-tokens/batch',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: body(reservationId, ['resource-a']),
+      payload: body(reservationId, ['provisioned-runner-a']),
     });
 
     expect(res.statusCode).toBe(404);
@@ -182,7 +185,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
       method: 'POST',
       url: '/provisioners/runner-registration-tokens/batch',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: body(reservationId, ['resource-a']),
+      payload: body(reservationId, ['provisioned-runner-a']),
     });
 
     expect(res.statusCode).toBe(409);
@@ -196,7 +199,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
       method: 'POST',
       url: '/provisioners/runner-registration-tokens/batch',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: body(reservationId, ['resource-a', 'resource-b']),
+      payload: body(reservationId, ['provisioned-runner-a', 'provisioned-runner-b']),
     });
 
     expect(res.statusCode).toBe(200);
@@ -210,7 +213,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
       method: 'POST',
       url: '/provisioners/runner-registration-tokens/batch',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: body(reservationId, ['resource-a', 'resource-b']),
+      payload: body(reservationId, ['provisioned-runner-a', 'provisioned-runner-b']),
     });
 
     expect(res.statusCode).toBe(409);
@@ -220,12 +223,12 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
     });
   });
 
-  it('rejects the whole batch when a requested resource has an active token', async () => {
+  it('rejects the whole batch when a requested provisioned runner has an active token', async () => {
     const reservationId = await createReservation({count: 2});
     await ephemeralRegistrationTokenFactory.create({
       workspaceId,
       provisionerId: provisionerTokenId,
-      resourceId: 'resource-a',
+      provisionedRunnerId: 'provisioned-runner-a',
       expiresAt: new Date(Date.now() + 60_000),
     });
 
@@ -233,26 +236,26 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
       method: 'POST',
       url: '/provisioners/runner-registration-tokens/batch',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: body(reservationId, ['resource-a', 'resource-b']),
+      payload: body(reservationId, ['provisioned-runner-a', 'provisioned-runner-b']),
     });
 
     const persistedCount = await countEphemeralTokens();
     expect(res.statusCode).toBe(409);
     expect(res.json()).toMatchObject({
       code: 'registration-token-active',
-      details: {resource_ids: ['resource-a']},
+      details: {provisioned_runner_ids: ['provisioned-runner-a']},
     });
     expect(persistedCount).toBe(1);
   });
 
-  it('returns 400 for duplicate resource ids', async () => {
+  it('returns 400 for duplicate provisioned runner ids', async () => {
     const reservationId = await createReservation({count: 2});
 
     const res = await app.inject({
       method: 'POST',
       url: '/provisioners/runner-registration-tokens/batch',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: body(reservationId, ['resource-a', 'resource-a']),
+      payload: body(reservationId, ['provisioned-runner-a', 'provisioned-runner-a']),
     });
 
     expect(res.statusCode).toBe(400);
@@ -269,7 +272,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
         reservationId,
         Array.from(
           {length: config.REGISTRATION_TOKEN_BATCH_MAX + 1},
-          (_, index) => `resource-${index}`,
+          (_, index) => `provisioned-runner-${index}`,
         ),
       ),
     });
@@ -290,7 +293,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
       payload: body(
         reservationId,
-        Array.from({length: 1001}, (_, index) => `resource-${index}`),
+        Array.from({length: 1001}, (_, index) => `provisioned-runner-${index}`),
       ),
     });
 
@@ -303,7 +306,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
       method: 'POST',
       url: '/provisioners/runner-registration-tokens/batch',
       headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
-      payload: body(reservationId, ['resource-a']),
+      payload: body(reservationId, ['provisioned-runner-a']),
     });
     const registrationToken = mint.json().tokens[0].registration_token as string;
 
@@ -352,11 +355,11 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
     return row?.value ?? 0;
   }
 
-  function body(reservationId: string, resourceIds: string[]) {
+  function body(reservationId: string, provisionedRunnerIds: string[]) {
     return {
       reservation_id: reservationId,
-      resources: resourceIds.map((resourceId) => ({
-        resource_id: resourceId,
+      provisioned_runners: provisionedRunnerIds.map((provisionedRunnerId) => ({
+        provisioned_runner_id: provisionedRunnerId,
       })),
     };
   }

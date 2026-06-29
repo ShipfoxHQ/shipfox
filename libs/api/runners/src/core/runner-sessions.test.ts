@@ -67,7 +67,7 @@ describe('registerRunnerSession', () => {
         workspaceId,
         provisionerId: token.provisionerId,
         reservationId: token.reservationId,
-        resourceId: token.resourceId,
+        provisionedRunnerId: token.provisionedRunnerId,
       },
       labels: [' Linux ', 'x64'],
     });
@@ -97,7 +97,7 @@ describe('registerRunnerSession', () => {
       workspaceId,
       provisionerId: token.provisionerId,
       reservationId: token.reservationId,
-      resourceId: token.resourceId,
+      provisionedRunnerId: token.provisionedRunnerId,
     };
 
     await registerRunnerSession({credential, labels: ['linux']});
@@ -118,7 +118,7 @@ describe('registerRunnerSession', () => {
           workspaceId: crypto.randomUUID(),
           provisionerId: token.provisionerId,
           reservationId: token.reservationId,
-          resourceId: token.resourceId,
+          provisionedRunnerId: token.provisionedRunnerId,
         },
         labels: ['linux'],
       }),

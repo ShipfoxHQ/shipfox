@@ -22,14 +22,14 @@ export interface CreateEphemeralRegistrationTokenParams {
   workspaceId: string;
   provisionerId: string;
   reservationId?: string | null | undefined;
-  resourceId: string;
+  provisionedRunnerId: string;
   hashedToken: string;
   prefix: string;
   expiresAt: Date;
 }
 
 export interface CreateEphemeralRegistrationTokensBatchRow {
-  resourceId: string;
+  provisionedRunnerId: string;
   hashedToken: string;
   prefix: string;
 }
@@ -46,13 +46,13 @@ export async function createEphemeralRegistrationToken(
   params: CreateEphemeralRegistrationTokenParams,
 ): Promise<EphemeralRegistrationToken> {
   const rows = await db().transaction(async (tx) => {
-    const resourceLockKey = [
+    const provisionedRunnerLockKey = [
       'runners_ephemeral_registration_tokens',
       params.workspaceId,
       params.provisionerId,
-      params.resourceId,
+      params.provisionedRunnerId,
     ].join(':');
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${resourceLockKey}))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${provisionedRunnerLockKey}))`);
 
     const [active] = await tx
       .select({id: ephemeralRegistrationTokens.id})
@@ -61,7 +61,7 @@ export async function createEphemeralRegistrationToken(
         and(
           eq(ephemeralRegistrationTokens.workspaceId, params.workspaceId),
           eq(ephemeralRegistrationTokens.provisionerId, params.provisionerId),
-          eq(ephemeralRegistrationTokens.resourceId, params.resourceId),
+          eq(ephemeralRegistrationTokens.provisionedRunnerId, params.provisionedRunnerId),
           isNull(ephemeralRegistrationTokens.consumedAt),
           gt(ephemeralRegistrationTokens.expiresAt, sql`now()`),
         ),
@@ -72,7 +72,7 @@ export async function createEphemeralRegistrationToken(
       throw new ActiveEphemeralRegistrationTokenExistsError(
         params.workspaceId,
         params.provisionerId,
-        params.resourceId,
+        params.provisionedRunnerId,
       );
     }
 
@@ -82,7 +82,7 @@ export async function createEphemeralRegistrationToken(
         workspaceId: params.workspaceId,
         provisionerId: params.provisionerId,
         reservationId: params.reservationId ?? null,
-        resourceId: params.resourceId,
+        provisionedRunnerId: params.provisionedRunnerId,
         hashedToken: params.hashedToken,
         prefix: params.prefix,
         expiresAt: params.expiresAt,
@@ -104,16 +104,17 @@ export async function createEphemeralRegistrationTokensBatch(
       params.workspaceId,
       params.provisionerId,
     ].join(':');
-    // Serialize batch callers and compose with the single-token mint's resource locks.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${provisionerLockKey}))`);
-    for (const resourceId of [...new Set(params.rows.map((row) => row.resourceId))].sort()) {
-      const resourceLockKey = [
+    for (const provisionedRunnerId of [
+      ...new Set(params.rows.map((row) => row.provisionedRunnerId)),
+    ].sort()) {
+      const provisionedRunnerLockKey = [
         'runners_ephemeral_registration_tokens',
         params.workspaceId,
         params.provisionerId,
-        resourceId,
+        provisionedRunnerId,
       ].join(':');
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${resourceLockKey}))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${provisionedRunnerLockKey}))`);
     }
 
     const [reservation] = await tx
@@ -140,15 +141,15 @@ export async function createEphemeralRegistrationTokensBatch(
       );
     }
 
-    const resourceIds = params.rows.map((row) => row.resourceId);
+    const provisionedRunnerIds = params.rows.map((row) => row.provisionedRunnerId);
     const activeRows = await tx
-      .select({resourceId: ephemeralRegistrationTokens.resourceId})
+      .select({provisionedRunnerId: ephemeralRegistrationTokens.provisionedRunnerId})
       .from(ephemeralRegistrationTokens)
       .where(
         and(
           eq(ephemeralRegistrationTokens.workspaceId, params.workspaceId),
           eq(ephemeralRegistrationTokens.provisionerId, params.provisionerId),
-          inArray(ephemeralRegistrationTokens.resourceId, resourceIds),
+          inArray(ephemeralRegistrationTokens.provisionedRunnerId, provisionedRunnerIds),
           isNull(ephemeralRegistrationTokens.consumedAt),
           gt(ephemeralRegistrationTokens.expiresAt, sql`now()`),
         ),
@@ -156,7 +157,7 @@ export async function createEphemeralRegistrationTokensBatch(
 
     if (activeRows.length > 0) {
       throw new ActiveEphemeralRegistrationTokensExistError(
-        activeRows.map((row) => row.resourceId),
+        activeRows.map((row) => row.provisionedRunnerId),
       );
     }
 
@@ -167,7 +168,7 @@ export async function createEphemeralRegistrationTokensBatch(
           workspaceId: params.workspaceId,
           provisionerId: params.provisionerId,
           reservationId: params.reservationId,
-          resourceId: row.resourceId,
+          provisionedRunnerId: row.provisionedRunnerId,
           hashedToken: row.hashedToken,
           prefix: row.prefix,
           expiresAt: params.expiresAt,

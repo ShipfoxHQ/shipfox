@@ -14,14 +14,14 @@ import {
   ReservationNotFoundError,
 } from '#core/errors.js';
 import {
-  toMintRegistrationTokensResources,
+  toMintRegistrationTokensProvisionedRunners,
   toMintRegistrationTokensResponseDto,
 } from '#presentation/dto/index.js';
 
 export const mintRegistrationTokensRoute = defineRoute({
   method: 'POST',
   path: '/runner-registration-tokens/batch',
-  description: 'Mint ephemeral runner registration tokens for reserved resources',
+  description: 'Mint ephemeral runner registration tokens for reserved provisioned runners',
   schema: {
     body: mintRegistrationTokensBatchBodySchema,
     response: {
@@ -47,7 +47,7 @@ export const mintRegistrationTokensRoute = defineRoute({
     if (error instanceof ActiveEphemeralRegistrationTokensExistError) {
       throw new ClientError('Registration token already active', 'registration-token-active', {
         status: 409,
-        details: {resource_ids: error.resourceIds},
+        details: {provisioned_runner_ids: error.provisionedRunnerIds},
       });
     }
     if (error instanceof RegistrationTokenBatchTooLargeError) {
@@ -67,7 +67,9 @@ export const mintRegistrationTokensRoute = defineRoute({
       workspaceId,
       provisionerId: provisionerTokenId,
       reservationId: request.body.reservation_id,
-      resources: toMintRegistrationTokensResources(request.body.resources),
+      provisionedRunners: toMintRegistrationTokensProvisionedRunners(
+        request.body.provisioned_runners,
+      ),
       ttlSeconds: config.EPHEMERAL_REGISTRATION_TOKEN_TTL_SECONDS,
       maxBatchSize: config.REGISTRATION_TOKEN_BATCH_MAX,
     });

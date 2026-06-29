@@ -12,6 +12,13 @@ export class RunnerTokenNotFoundError extends Error {
   }
 }
 
+export class ProvisionerTokenNotFoundError extends Error {
+  constructor(tokenId: string) {
+    super(`Provisioner token not found: ${tokenId}`);
+    this.name = 'ProvisionerTokenNotFoundError';
+  }
+}
+
 export class EmptyRunnerLabelsError extends Error {
   constructor() {
     super('Runner labels cannot be empty');
@@ -56,10 +63,10 @@ export class ActiveEphemeralRegistrationTokenExistsError extends Error {
   constructor(
     public readonly workspaceId: string,
     public readonly provisionerId: string,
-    public readonly resourceId: string,
+    public readonly provisionedRunnerId: string,
   ) {
     super(
-      `Active ephemeral registration token already exists for resource ${resourceId} in workspace ${workspaceId}`,
+      `Active ephemeral registration token already exists for provisioned runner ${provisionedRunnerId} in workspace ${workspaceId}`,
     );
     this.name = 'ActiveEphemeralRegistrationTokenExistsError';
   }
@@ -84,7 +91,9 @@ export class RegistrationTokenBatchTooLargeError extends Error {
     public readonly requested: number,
     public readonly max: number,
   ) {
-    super(`Registration token batch requested ${requested} resources, exceeding max ${max}`);
+    super(
+      `Registration token batch requested ${requested} provisioned runners, exceeding max ${max}`,
+    );
     this.name = 'RegistrationTokenBatchTooLargeError';
   }
 }
@@ -95,16 +104,16 @@ export class RegistrationTokenBatchExceedsReservationError extends Error {
     public readonly reservationCount: number,
   ) {
     super(
-      `Registration token batch requested ${requested} resources, exceeding reservation count ${reservationCount}`,
+      `Registration token batch requested ${requested} provisioned runners, exceeding reservation count ${reservationCount}`,
     );
     this.name = 'RegistrationTokenBatchExceedsReservationError';
   }
 }
 
 export class ActiveEphemeralRegistrationTokensExistError extends Error {
-  constructor(public readonly resourceIds: string[]) {
+  constructor(public readonly provisionedRunnerIds: string[]) {
     super(
-      `Active ephemeral registration tokens already exist for resources: ${resourceIds.join(', ')}`,
+      `Active ephemeral registration tokens already exist for provisioned runners: ${provisionedRunnerIds.join(', ')}`,
     );
     this.name = 'ActiveEphemeralRegistrationTokensExistError';
   }

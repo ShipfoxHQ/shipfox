@@ -5,14 +5,20 @@ export {
 } from './claim-job.js';
 export {type HeartbeatResponseDto, heartbeatResponseSchema} from './heartbeat.js';
 export {
+  type ActiveProvisionerDto,
+  activeProvisionerDtoSchema,
+  type ListActiveProvisionersResponseDto,
+  listActiveProvisionersResponseSchema,
+} from './list-active-provisioners.js';
+export {
   type MintedRegistrationTokenDto,
   type MintRegistrationTokensBatchBodyDto,
   type MintRegistrationTokensBatchResponseDto,
-  type MintRegistrationTokensResourceDto,
+  type MintRegistrationTokensProvisionedRunnerDto,
   mintedRegistrationTokenSchema,
   mintRegistrationTokensBatchBodySchema,
   mintRegistrationTokensBatchResponseSchema,
-  mintRegistrationTokensResourceSchema,
+  mintRegistrationTokensProvisionedRunnerSchema,
   REGISTRATION_TOKEN_BATCH_HARD_MAX,
 } from './mint-registration-tokens.js';
 export {
@@ -28,12 +34,47 @@ export {
   reservationGrantSchema,
 } from './poll-demand.js';
 export {
+  type CreateProvisionerTokenBodyDto,
+  type CreateProvisionerTokenResponseDto,
+  createProvisionerTokenBodySchema,
+  createProvisionerTokenResponseSchema,
+  type ListProvisionerTokensResponseDto,
+  listProvisionerTokensResponseSchema,
+  MAX_PROVISIONER_TOKEN_TTL_SECONDS,
+  type ProvisionerIdentityResponseDto,
+  type ProvisionerTokenDto,
+  provisionerIdentityResponseSchema,
+  provisionerTokenDtoSchema,
+  type RevokeProvisionerTokenResponseDto,
+  revokeProvisionerTokenResponseSchema,
+} from './provisioner-token.js';
+export {
   type RegisterRunnerBodyDto,
   type RegisterRunnerResponseDto,
   registerRunnerBodySchema,
   registerRunnerResponseSchema,
   runnerLabelSchema,
 } from './register.js';
+export {
+  type ActiveRunnerDto,
+  type ActiveRunnerStateDto,
+  type ActiveRunnersResponseDto,
+  activeRunnerDtoSchema,
+  activeRunnerStateSchema,
+  activeRunnersResponseSchema,
+  MAX_PROVIDER_KIND_LENGTH,
+  MAX_PROVISIONED_RUNNER_REASON_LENGTH,
+  MAX_PROVISIONED_RUNNER_REPORT_EVENTS,
+  type ProvisionedRunnerReportEventDto,
+  type ProvisionedRunnerStateDto,
+  providerKindSchema,
+  provisionedRunnerReportEventSchema,
+  provisionedRunnerStateSchema,
+  type ReportProvisionedRunnersBodyDto,
+  type ReportProvisionedRunnersResponseDto,
+  reportProvisionedRunnersBodySchema,
+  reportProvisionedRunnersResponseSchema,
+} from './report-provisioned-runners.js';
 export {
   type CreateRunnerTokenBodyDto,
   type CreateRunnerTokenResponseDto,

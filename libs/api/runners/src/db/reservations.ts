@@ -1,5 +1,6 @@
 import {canonicalizeRunnerLabels} from '@shipfox/api-runners-dto';
 import {and, asc, eq, gt, inArray, lt, sql} from 'drizzle-orm';
+import type {Tx} from './db.js';
 import {db} from './db.js';
 import {pendingJobs} from './schema/pending-jobs.js';
 import {reservations} from './schema/reservations.js';
@@ -189,6 +190,57 @@ export async function deleteReservationsByIds(ids: string[]): Promise<number> {
     .returning({id: reservations.id});
 
   return deleted.length;
+}
+
+export async function releaseReservationUnits(
+  tx: Tx,
+  params: {
+    workspaceId: string;
+    provisionerId: string;
+    releases: Array<{reservationId: string; count: number}>;
+  },
+): Promise<number> {
+  let released = 0;
+
+  for (const release of params.releases) {
+    if (release.count <= 0) continue;
+
+    const decremented = await tx
+      .update(reservations)
+      .set({count: sql`${reservations.count} - ${release.count}`})
+      .where(
+        and(
+          eq(reservations.id, release.reservationId),
+          eq(reservations.workspaceId, params.workspaceId),
+          eq(reservations.provisionerId, params.provisionerId),
+          gt(reservations.count, release.count),
+          gt(reservations.expiresAt, sql`now()`),
+        ),
+      )
+      .returning({id: reservations.id});
+
+    if (decremented.length > 0) {
+      released += release.count;
+      continue;
+    }
+
+    const deleted = await tx
+      .delete(reservations)
+      .where(
+        and(
+          eq(reservations.id, release.reservationId),
+          eq(reservations.workspaceId, params.workspaceId),
+          eq(reservations.provisionerId, params.provisionerId),
+          sql`${reservations.count} <= ${release.count}`,
+          gt(reservations.expiresAt, sql`now()`),
+        ),
+      )
+      .returning({count: reservations.count});
+
+    released += deleted.reduce((total, row) => total + row.count, 0);
+  }
+
+  return released;
 }
 
 function deductProvisionerReservations(
