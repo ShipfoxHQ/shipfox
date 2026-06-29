@@ -1,16 +1,21 @@
-import {and, eq, gt, isNull, sql} from 'drizzle-orm';
+import {and, eq, gt, inArray, isNull, sql} from 'drizzle-orm';
 import type {EphemeralRegistrationToken} from '#core/entities/ephemeral-registration-token.js';
 import {
   ActiveEphemeralRegistrationTokenExistsError,
+  ActiveEphemeralRegistrationTokensExistError,
+  RegistrationTokenBatchExceedsReservationError,
   RegistrationTokenConsumedError,
   RegistrationTokenExpiredError,
   RegistrationTokenWorkspaceMismatchError,
+  ReservationExpiredError,
+  ReservationNotFoundError,
 } from '#core/errors.js';
 import {db} from './db.js';
 import {
   ephemeralRegistrationTokens,
   toEphemeralRegistrationToken,
 } from './schema/ephemeral-registration-tokens.js';
+import {reservations} from './schema/reservations.js';
 import {runnerSessions, toRunnerSession} from './schema/runner-sessions.js';
 
 export interface CreateEphemeralRegistrationTokenParams {
@@ -21,6 +26,20 @@ export interface CreateEphemeralRegistrationTokenParams {
   hashedToken: string;
   prefix: string;
   expiresAt: Date;
+}
+
+export interface CreateEphemeralRegistrationTokensBatchRow {
+  resourceId: string;
+  hashedToken: string;
+  prefix: string;
+}
+
+export interface CreateEphemeralRegistrationTokensBatchParams {
+  workspaceId: string;
+  provisionerId: string;
+  reservationId: string;
+  expiresAt: Date;
+  rows: CreateEphemeralRegistrationTokensBatchRow[];
 }
 
 export async function createEphemeralRegistrationToken(
@@ -74,6 +93,90 @@ export async function createEphemeralRegistrationToken(
   const row = rows[0];
   if (!row) throw new Error('Insert returned no rows');
   return toEphemeralRegistrationToken(row);
+}
+
+export async function createEphemeralRegistrationTokensBatch(
+  params: CreateEphemeralRegistrationTokensBatchParams,
+): Promise<EphemeralRegistrationToken[]> {
+  const rows = await db().transaction(async (tx) => {
+    const provisionerLockKey = [
+      'runners_ephemeral_registration_tokens',
+      params.workspaceId,
+      params.provisionerId,
+    ].join(':');
+    // Serialize batch callers and compose with the single-token mint's resource locks.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${provisionerLockKey}))`);
+    for (const resourceId of [...new Set(params.rows.map((row) => row.resourceId))].sort()) {
+      const resourceLockKey = [
+        'runners_ephemeral_registration_tokens',
+        params.workspaceId,
+        params.provisionerId,
+        resourceId,
+      ].join(':');
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${resourceLockKey}))`);
+    }
+
+    const [reservation] = await tx
+      .select({
+        count: reservations.count,
+        isExpired: sql<boolean>`${reservations.expiresAt} <= now()`,
+      })
+      .from(reservations)
+      .where(
+        and(
+          eq(reservations.id, params.reservationId),
+          eq(reservations.workspaceId, params.workspaceId),
+          eq(reservations.provisionerId, params.provisionerId),
+        ),
+      )
+      .limit(1);
+
+    if (!reservation) throw new ReservationNotFoundError(params.reservationId);
+    if (reservation.isExpired) throw new ReservationExpiredError(params.reservationId);
+    if (params.rows.length > reservation.count) {
+      throw new RegistrationTokenBatchExceedsReservationError(
+        params.rows.length,
+        reservation.count,
+      );
+    }
+
+    const resourceIds = params.rows.map((row) => row.resourceId);
+    const activeRows = await tx
+      .select({resourceId: ephemeralRegistrationTokens.resourceId})
+      .from(ephemeralRegistrationTokens)
+      .where(
+        and(
+          eq(ephemeralRegistrationTokens.workspaceId, params.workspaceId),
+          eq(ephemeralRegistrationTokens.provisionerId, params.provisionerId),
+          inArray(ephemeralRegistrationTokens.resourceId, resourceIds),
+          isNull(ephemeralRegistrationTokens.consumedAt),
+          gt(ephemeralRegistrationTokens.expiresAt, sql`now()`),
+        ),
+      );
+
+    if (activeRows.length > 0) {
+      throw new ActiveEphemeralRegistrationTokensExistError(
+        activeRows.map((row) => row.resourceId),
+      );
+    }
+
+    return await tx
+      .insert(ephemeralRegistrationTokens)
+      .values(
+        params.rows.map((row) => ({
+          workspaceId: params.workspaceId,
+          provisionerId: params.provisionerId,
+          reservationId: params.reservationId,
+          resourceId: row.resourceId,
+          hashedToken: row.hashedToken,
+          prefix: row.prefix,
+          expiresAt: params.expiresAt,
+        })),
+      )
+      .returning();
+  });
+
+  return rows.map(toEphemeralRegistrationToken);
 }
 
 export async function resolveEphemeralRegistrationTokenByHash(

@@ -9,6 +9,7 @@ import type {RouteGroup} from '@shipfox/node-fastify';
 import {createRunnerTokenRoute} from './create-runner-token.js';
 import {heartbeatRoute} from './heartbeat.js';
 import {listRunnerTokensRoute} from './list-runner-tokens.js';
+import {mintRegistrationTokensRoute} from './mint-registration-tokens.js';
 import {pollDemandRoute} from './poll-demand.js';
 import {registerRoute} from './register.js';
 import {requestJobRoute} from './request-job.js';
@@ -38,6 +39,6 @@ export const runnerRoutes: RouteGroup[] = [
   {
     prefix: '/provisioners',
     auth: AUTH_PROVISIONER_TOKEN,
-    routes: [pollDemandRoute],
+    routes: [pollDemandRoute, mintRegistrationTokensRoute],
   },
 ];
