@@ -1,4 +1,7 @@
-import {type AgentDefaultsResolver, catalogDefaultAgentResolver} from '@shipfox/api-agent';
+import {
+  type AgentDefaultsResolver,
+  catalogDefaultAgentResolver,
+} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {
   type LogOutcomeDto,

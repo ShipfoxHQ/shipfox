@@ -17,18 +17,19 @@ vi.mock('@shipfox/api-definitions', () => ({
   getDefinitionById: vi.fn(),
 }));
 
-vi.mock('@shipfox/api-agent', () => {
-  class UnsupportedAgentProviderError extends Error {}
-  class InvalidAgentModelError extends Error {}
+vi.mock('@shipfox/api-agent/core/resolve-agent-config', () => {
   return {
     catalogDefaultAgentResolver: vi.fn().mockReturnValue({
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
     }),
+  };
+});
+
+vi.mock('@shipfox/api-agent/core/workspace-agent-defaults-resolver', () => {
+  return {
     createWorkspaceAgentDefaultsResolver: mockCreateWorkspaceAgentDefaultsResolver,
-    UnsupportedAgentProviderError,
-    InvalidAgentModelError,
   };
 });
 

@@ -1,7 +1,5 @@
-import {
-  catalogDefaultAgentResolver,
-  createWorkspaceAgentDefaultsResolver,
-} from '@shipfox/api-agent';
+import {catalogDefaultAgentResolver} from '@shipfox/api-agent/core/resolve-agent-config';
+import {createWorkspaceAgentDefaultsResolver} from '@shipfox/api-agent/core/workspace-agent-defaults-resolver';
 import {getDefinitionById} from '@shipfox/api-definitions';
 import {createWorkflowRun} from '#db/workflow-runs.js';
 import type {TriggerPayload, WorkflowRun} from './entities/workflow-run.js';

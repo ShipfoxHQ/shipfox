@@ -17,7 +17,7 @@ export {
   type AgentDefaultsResolver,
   type ContextualAgentConfig,
   catalogDefaultAgentResolver,
-  createWorkspaceAgentDefaultsResolver,
   type ResolvedAgentConfig,
   resolveAgentConfig,
 } from './resolve-agent-config.js';
+export {createWorkspaceAgentDefaultsResolver} from './workspace-agent-defaults-resolver.js';

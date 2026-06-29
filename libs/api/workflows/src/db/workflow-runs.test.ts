@@ -1,4 +1,4 @@
-import type {AgentDefaultsResolver} from '@shipfox/api-agent';
+import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import {
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_JOB_TIMED_OUT,

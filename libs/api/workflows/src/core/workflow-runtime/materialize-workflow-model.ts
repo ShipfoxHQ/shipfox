@@ -1,9 +1,11 @@
 import {
-  type AgentDefaultsResolver,
-  catalogDefaultAgentResolver,
   InvalidAgentModelError,
   UnsupportedAgentProviderError,
-} from '@shipfox/api-agent';
+} from '@shipfox/api-agent/core/errors';
+import {
+  type AgentDefaultsResolver,
+  catalogDefaultAgentResolver,
+} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {AgentConfigUnresolvableError} from '#core/errors.js';
 

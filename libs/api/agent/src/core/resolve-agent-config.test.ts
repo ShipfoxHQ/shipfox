@@ -7,11 +7,8 @@ import {
   upsertAgentProviderConfig,
 } from '#db/index.js';
 import {InvalidAgentModelError, UnsupportedAgentProviderError} from './errors.js';
-import {
-  catalogDefaultAgentResolver,
-  createWorkspaceAgentDefaultsResolver,
-  resolveAgentConfig,
-} from './resolve-agent-config.js';
+import {catalogDefaultAgentResolver, resolveAgentConfig} from './resolve-agent-config.js';
+import {createWorkspaceAgentDefaultsResolver} from './workspace-agent-defaults-resolver.js';
 
 describe('resolveAgentConfig', () => {
   test('resolves provider from explicit step, workspace, instance, then catalog default', () => {
@@ -196,6 +193,26 @@ describe('createWorkspaceAgentDefaultsResolver', () => {
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
+    });
+  });
+
+  test('uses workspace provider config defaults when settings row does not exist', async () => {
+    await upsertAgentProviderConfig(
+      createProviderConfigParams({
+        workspaceId,
+        providerId: 'openai',
+        defaultModel: 'gpt-5.5-pro',
+        defaultThinking: 'medium',
+      }),
+    );
+
+    const resolver = await createWorkspaceAgentDefaultsResolver(workspaceId);
+    const resolved = resolver({provider: 'openai'});
+
+    expect(resolved).toEqual({
+      provider: 'openai',
+      model: 'gpt-5.5-pro',
+      thinking: 'medium',
     });
   });
 });

@@ -6,8 +6,6 @@ import {
   getAgentProviderEntry,
   type SupportedAgentProviderId,
 } from '@shipfox/api-agent-dto';
-import {config} from '#config.js';
-import {getAgentWorkspaceSettings, listAgentProviderConfigs} from '#db/index.js';
 import {InvalidAgentModelError, UnsupportedAgentProviderError} from './errors.js';
 
 export interface ContextualAgentConfig {
@@ -59,35 +57,6 @@ export function resolveAgentConfig(
 
   validateModel(provider, model);
   return {provider, model, thinking};
-}
-
-export async function createWorkspaceAgentDefaultsResolver(
-  workspaceId: string,
-): Promise<AgentDefaultsResolver> {
-  const [settings, providerConfigs] = await Promise.all([
-    getAgentWorkspaceSettings(workspaceId),
-    listAgentProviderConfigs(workspaceId),
-  ]);
-  const workspaceProviderConfigs = new Map(
-    providerConfigs.map((providerConfig) => [
-      providerConfig.providerId,
-      {
-        defaultModel: providerConfig.defaultModel,
-        defaultThinking: providerConfig.defaultThinking,
-      },
-    ]),
-  );
-  const ctx: AgentConfigResolutionContext = {
-    workspaceDefaultProviderId: settings?.defaultProviderId,
-    workspaceProviderConfigs,
-    instanceDefaultProvider: config.AGENT_DEFAULT_PROVIDER as SupportedAgentProviderId | undefined,
-    instanceDefaultProviderModel: config.AGENT_DEFAULT_PROVIDER_MODEL,
-    instanceDefaultProviderThinking: config.AGENT_DEFAULT_PROVIDER_THINKING as
-      | AgentThinking
-      | undefined,
-  };
-
-  return (step) => resolveAgentConfig(step, ctx);
 }
 
 export const catalogDefaultAgentResolver: AgentDefaultsResolver = (step) =>
