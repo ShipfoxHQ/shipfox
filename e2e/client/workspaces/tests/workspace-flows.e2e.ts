@@ -12,6 +12,18 @@ function workspaceUrlRe(wid: string): RegExp {
   return new RegExp(`/workspaces/${wid}(/|$)`, 'u');
 }
 
+function projectsNewUrlRe(wid: string): RegExp {
+  return new RegExp(`/workspaces/${wid}/projects/new/?$`, 'u');
+}
+
+function agentProviderUrlRe(wid: string): RegExp {
+  return new RegExp(`/workspaces/${wid}/agent-provider/?$`, 'u');
+}
+
+function setupDestinationUrlRe(wid: string): RegExp {
+  return new RegExp(`/workspaces/${wid}/(agent-provider|projects/new)/?$`, 'u');
+}
+
 async function readLastWorkspaceId(page: Page): Promise<string> {
   const raw = await page.evaluate((key) => window.localStorage.getItem(key), LAST_WORKSPACE_KEY);
   expect(raw, `localStorage[${LAST_WORKSPACE_KEY}]`).not.toBeNull();
@@ -60,8 +72,16 @@ async function stubProjectsExist(page: Page, workspaceIds: ReadonlyArray<string>
 
 async function completeWorkspaceSetup(page: Page, workspaceId: string): Promise<void> {
   await page.goto(`/workspaces/${workspaceId}/integrations/debug`);
-  await expect(page.getByText('Debug source control installed.')).toBeVisible();
-  await expect(page).toHaveURL(new RegExp(`/workspaces/${workspaceId}/projects/new/?$`, 'u'));
+  await expect(page.getByText('Debug source control connected.')).toBeVisible();
+
+  await expect(page).toHaveURL(setupDestinationUrlRe(workspaceId));
+  if (agentProviderUrlRe(workspaceId).test(page.url())) {
+    await expect(page.getByRole('heading', {name: 'Configure agent provider'})).toBeVisible();
+    await expectSetupNavigationHidden(page);
+    await page.getByRole('button', {name: 'Skip for now'}).click();
+  }
+
+  await expect(page).toHaveURL(projectsNewUrlRe(workspaceId));
   await expect(page.getByRole('radio', {name: DEBUG_REPOSITORY_RE})).toBeVisible();
   await expect(page.getByRole('button', {name: 'Create project'})).toBeEnabled();
   await page.getByRole('button', {name: 'Create project'}).click();

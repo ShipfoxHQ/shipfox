@@ -10,6 +10,14 @@ function projectsNewUrlRe(wid: string): RegExp {
   return new RegExp(`/workspaces/${wid}/projects/new/?$`, 'u');
 }
 
+function agentProviderUrlRe(wid: string): RegExp {
+  return new RegExp(`/workspaces/${wid}/agent-provider/?$`, 'u');
+}
+
+function setupDestinationUrlRe(wid: string): RegExp {
+  return new RegExp(`/workspaces/${wid}/(agent-provider|projects/new)/?$`, 'u');
+}
+
 async function expectSetupNavigationHidden(page: Page): Promise<void> {
   await expect(page.getByRole('tab', {name: 'Projects'})).toHaveCount(0);
   await expect(page.getByRole('tab', {name: 'Settings'})).toHaveCount(0);
@@ -17,7 +25,17 @@ async function expectSetupNavigationHidden(page: Page): Promise<void> {
   await expect(page.getByLabel('Switch workspace')).toBeVisible();
 }
 
-test('installing Debug from onboarding flows into project creation', async ({page, auth}) => {
+async function skipAgentProviderSetupIfShown(page: Page, wid: string): Promise<void> {
+  await expect(page).toHaveURL(setupDestinationUrlRe(wid));
+
+  if (!agentProviderUrlRe(wid).test(page.url())) return;
+
+  await expect(page.getByRole('heading', {name: 'Configure agent provider'})).toBeVisible();
+  await expectSetupNavigationHidden(page);
+  await page.getByRole('button', {name: 'Skip for now'}).click();
+}
+
+test('connecting Debug from onboarding flows into project creation', async ({page, auth}) => {
   const user = await auth.createUser();
   await auth.loginAs(page, user);
 
@@ -39,10 +57,12 @@ test('installing Debug from onboarding flows into project creation', async ({pag
 
   // DebugInstallPage creates the connection on mount, fires the success toast,
   // then navigates back to /workspaces/$wid. The setup guard should see the new
-  // connection plus zero projects and forward the user to /projects/new.
-  await expect(page.getByText('Debug source control installed.')).toBeVisible();
+  // connection plus zero projects and forward the user through provider setup.
+  await expect(page.getByText('Debug source control connected.')).toBeVisible();
   await expect(page).not.toHaveURL(DEBUG_INSTALL_URL_RE);
   await expect(page).not.toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
+  await skipAgentProviderSetupIfShown(page, wid as string);
+
   await expect(page).toHaveURL(projectsNewUrlRe(wid as string));
   await expectSetupNavigationHidden(page);
 
