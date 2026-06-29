@@ -44,8 +44,13 @@ export function AgentProviderOnboardingPage({
 
   return (
     <div className="mx-auto flex w-full max-w-[640px] flex-col gap-20">
-      <header className="flex flex-col gap-8">
-        <Header variant="h1">Configure agent provider</Header>
+      <header className="flex flex-col gap-12">
+        <div className="flex items-start justify-between gap-16 max-[520px]:flex-col max-[520px]:gap-8">
+          <Header variant="h1">Configure agent provider</Header>
+          <Button type="button" variant="secondary" onClick={handleSkip} className="shrink-0">
+            Skip for now
+          </Button>
+        </div>
         <Text size="md" className="text-foreground-neutral-muted">
           Agent jobs need an LLM provider. Add your own API key, or skip - Shipfox runs them with
           the instance default provider. You can add this anytime in Settings &gt; Agent Providers.
@@ -57,12 +62,6 @@ export function AgentProviderOnboardingPage({
         supportedProviders={supportedProviders}
         onSelect={setSelectedEntry}
       />
-
-      <div className="flex justify-end">
-        <Button type="button" variant="secondary" onClick={handleSkip}>
-          Skip for now
-        </Button>
-      </div>
 
       <Modal
         open={selectedEntry !== null}

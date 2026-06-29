@@ -64,6 +64,28 @@ describe('AgentProviderOnboardingPage', () => {
     expect(fetchImpl.mock.calls.some(([input]) => (input as Request).method === 'PUT')).toBe(false);
   });
 
+  test('places skip before the provider choices', async () => {
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn().mockResolvedValue(jsonResponse(agentProviderCatalogResponse())),
+    });
+
+    renderOnboarding(
+      <AgentProviderOnboardingPage
+        workspaceId={AGENT_TEST_WORKSPACE_ID}
+        onSkip={vi.fn()}
+        onConfigured={vi.fn()}
+      />,
+    );
+
+    const skip = screen.getByRole('button', {name: 'Skip for now'});
+    const provider = await screen.findByRole('button', {
+      name: `Configure ${agentProviderEntry().label}`,
+    });
+
+    expect(skip.compareDocumentPosition(provider)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
   test('skip still continues when localStorage rejects the dismissed write', async () => {
     const user = userEvent.setup();
     const onSkip = vi.fn();
