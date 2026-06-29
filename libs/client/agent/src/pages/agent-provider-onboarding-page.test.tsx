@@ -92,23 +92,26 @@ describe('AgentProviderOnboardingPage', () => {
     const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('quota exceeded');
     });
-    configureApiClient({
-      baseUrl: 'https://api.example.test',
-      fetchImpl: vi.fn().mockResolvedValue(jsonResponse(agentProviderCatalogResponse())),
-    });
+    try {
+      configureApiClient({
+        baseUrl: 'https://api.example.test',
+        fetchImpl: vi.fn().mockResolvedValue(jsonResponse(agentProviderCatalogResponse())),
+      });
 
-    renderOnboarding(
-      <AgentProviderOnboardingPage
-        workspaceId={AGENT_TEST_WORKSPACE_ID}
-        onSkip={onSkip}
-        onConfigured={vi.fn()}
-      />,
-    );
+      renderOnboarding(
+        <AgentProviderOnboardingPage
+          workspaceId={AGENT_TEST_WORKSPACE_ID}
+          onSkip={onSkip}
+          onConfigured={vi.fn()}
+        />,
+      );
 
-    await user.click(screen.getByRole('button', {name: 'Skip for now'}));
+      await user.click(screen.getByRole('button', {name: 'Skip for now'}));
 
-    expect(onSkip).toHaveBeenCalledTimes(1);
-    setItem.mockRestore();
+      expect(onSkip).toHaveBeenCalledTimes(1);
+    } finally {
+      setItem.mockRestore();
+    }
   });
 
   test('saves the selected provider as default in one upsert request', async () => {
