@@ -92,18 +92,18 @@ test('Sentry callback shows the workspace picker', async ({page, auth, workspace
 
   await page.goto(CALLBACK_URL);
 
-  await expect(page.getByRole('heading', {name: 'Connect Sentry'})).toBeVisible();
-  await expect(page.getByText('Connect the Sentry org "acme" to a workspace.')).toBeVisible();
-  await expect(page.getByRole('button', {name: 'Connect'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Install Sentry'})).toBeVisible();
+  await expect(page.getByText('Install the Sentry org "acme" in a workspace.')).toBeVisible();
+  await expect(page.getByRole('button', {name: 'Install'})).toBeVisible();
 
   await argosScreenshot(page, 'integrations/sentry-callback-pick-workspace');
 });
 
-test('Sentry callback connects to a workspace on success', async ({page, auth, workspaces}) => {
+test('Sentry callback installs to a workspace on success', async ({page, auth, workspaces}) => {
   const user = await auth.createUser();
   const workspace = await workspaces.create({
     userId: user.user.id,
-    name: 'Sentry Connect Workspace',
+    name: 'Sentry Install Workspace',
   });
   await auth.loginAs(page, user);
 
@@ -111,12 +111,12 @@ test('Sentry callback connects to a workspace on success', async ({page, auth, w
   await stubProjectExists(page, workspace.id);
 
   await page.goto(CALLBACK_URL);
-  await expect(page.getByRole('heading', {name: 'Connect Sentry'})).toBeVisible();
-  await page.getByRole('button', {name: 'Connect'}).click();
+  await expect(page.getByRole('heading', {name: 'Install Sentry'})).toBeVisible();
+  await page.getByRole('button', {name: 'Install'}).click();
 
   // The stub never persisted a connection, so we assert only the success toast
   // and the redirect target — not that Sentry appears in the gallery.
-  await expect(page.getByText('Sentry connected.')).toBeVisible();
+  await expect(page.getByText('Sentry installed.')).toBeVisible();
   await expect(page).toHaveURL(
     new RegExp(`/workspaces/${workspace.id}/settings/integrations/?$`, 'u'),
   );
@@ -144,7 +144,7 @@ test('Sentry callback offers Start over on a terminal failure', async ({
   await page.goto(
     '/integrations/sentry/callback?code=spent-code&installation_id=test-install&org_slug=acme',
   );
-  await page.getByRole('button', {name: 'Connect'}).click();
+  await page.getByRole('button', {name: 'Install'}).click();
 
   await expect(
     page.getByText('This Sentry link could not be completed. Start the install again.'),
@@ -167,7 +167,7 @@ test('Sentry callback offers Retry on a retryable failure', async ({page, auth, 
   });
 
   await page.goto(CALLBACK_URL);
-  await page.getByRole('button', {name: 'Connect'}).click();
+  await page.getByRole('button', {name: 'Install'}).click();
 
   await expect(
     page.getByText('Sentry is rate limiting requests. Try again in a moment.'),

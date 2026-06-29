@@ -17,11 +17,11 @@ async function expectSetupNavigationHidden(page: Page): Promise<void> {
   await expect(page.getByLabel('Switch workspace')).toBeVisible();
 }
 
-test('connecting Debug from onboarding flows into project creation', async ({page, auth}) => {
+test('installing Debug from onboarding flows into project creation', async ({page, auth}) => {
   const user = await auth.createUser();
   await auth.loginAs(page, user);
 
-  // Reproduces the user-reported flow: a fresh user lands on Connect source
+  // Reproduces the user-reported flow: a fresh user lands on Install source
   // control via the onboarding handoff (so WorkspaceSetupGuard has already
   // populated the projects + source-connections caches with empty data for this
   // workspace), then clicks Debug to create their first connection.
@@ -29,7 +29,7 @@ test('connecting Debug from onboarding flows into project creation', async ({pag
   await page.getByLabel('Workspace name').fill(`E2E Workspace ${randomUUID()}`);
   await page.getByRole('button', {name: 'Create workspace'}).click();
   await expect(page).toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
-  await expect(page.getByRole('heading', {name: 'Connect source control'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Install source control'})).toBeVisible();
   await expectSetupNavigationHidden(page);
 
   const wid = new URL(page.url()).pathname.split('/')[2];
@@ -40,7 +40,7 @@ test('connecting Debug from onboarding flows into project creation', async ({pag
   // DebugInstallPage creates the connection on mount, fires the success toast,
   // then navigates back to /workspaces/$wid. The setup guard should see the new
   // connection plus zero projects and forward the user to /projects/new.
-  await expect(page.getByText('Debug source control connected.')).toBeVisible();
+  await expect(page.getByText('Debug source control installed.')).toBeVisible();
   await expect(page).not.toHaveURL(DEBUG_INSTALL_URL_RE);
   await expect(page).not.toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
   await expect(page).toHaveURL(projectsNewUrlRe(wid as string));
