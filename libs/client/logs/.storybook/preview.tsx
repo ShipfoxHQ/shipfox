@@ -2,6 +2,15 @@ import './preview.css';
 import {ThemeProvider} from '@shipfox/react-ui';
 import type {Decorator, Preview} from '@storybook/react';
 
+if (typeof document !== 'undefined' && document.fonts) {
+  void Promise.all([
+    document.fonts.load("16px 'Inter'"),
+    document.fonts.load("italic 16px 'Inter'"),
+    document.fonts.load("16px 'Commit Mono'"),
+    document.fonts.load("bold 16px 'Commit Mono'"),
+  ]);
+}
+
 const withTheme: Decorator = (Story, context) => {
   const theme = context.globals.theme;
   return (

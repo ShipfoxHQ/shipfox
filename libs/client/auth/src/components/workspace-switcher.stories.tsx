@@ -98,7 +98,6 @@ type WorkspaceSwitcherStoryContext = Parameters<NonNullable<Story['play']>>[0];
 async function captureSwitcher(ctx: WorkspaceSwitcherStoryContext, screenshotName: string) {
   const canvas = within(ctx.canvasElement);
   await canvas.findByRole('option', {name: 'Create workspace'});
-  await document.fonts.ready;
   await argosScreenshot(ctx, screenshotName);
 }
 
@@ -128,7 +127,6 @@ export const EmptySearch: Story = {
 
     await canvas.findByText('No workspaces found.');
     await canvas.findByRole('option', {name: 'Create workspace'});
-    await document.fonts.ready;
     await argosScreenshot(ctx, 'Workspace Switcher Empty Search');
   },
 };
@@ -166,7 +164,6 @@ export const ManyOverflowScrolled: Story = {
     scrollContainer.scrollTop = scrollContainer.scrollHeight;
 
     await waitFor(() => expect(canvas.getByRole('option', {name: 'Workspace 20'})).toBeVisible());
-    await document.fonts.ready;
     await argosScreenshot(ctx, 'Workspace Switcher Many Overflow Scrolled');
   },
 };

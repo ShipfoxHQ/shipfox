@@ -137,7 +137,6 @@ async function captureOpenAttemptsMenu(ctx: WorkflowRunSummaryStoryContext) {
   await userEvent.click(await canvas.findByRole('button', {name: SWITCH_ATTEMPT_PATTERN}));
   await screen.findByRole('menu');
   await screen.findByRole('menuitem', {name: ATTEMPT_3_PATTERN});
-  await document.fonts.ready;
   await argosScreenshot(ctx, 'Workflow Run Summary Attempts Open');
 }
 

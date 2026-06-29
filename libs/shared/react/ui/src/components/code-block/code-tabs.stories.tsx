@@ -61,9 +61,7 @@ export const SourceFiles: Story = {
     syntaxHighlighting: true,
     lineNumbers: true,
   },
-  // Cold CI can snapshot the plain fallback before Shiki's dynamic import finishes.
   play: async (ctx) => {
-    await document.fonts.ready;
     await waitFor(
       () => {
         if (!ctx.canvasElement.querySelector('.shiki-override')) {

@@ -137,7 +137,6 @@ type Story = StoryObj<typeof meta>;
 
 async function captureDetail(ctx: Parameters<NonNullable<Story['play']>>[0], name: string) {
   await screen.findByRole('complementary', {name: 'Event details'});
-  await document.fonts.ready;
   await argosScreenshot(ctx, name);
 }
 
