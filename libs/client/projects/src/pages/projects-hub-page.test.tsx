@@ -1,5 +1,5 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {fireEvent, screen} from '@testing-library/react';
+import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {ProjectsHubPage} from './projects-hub-page.js';
 
@@ -104,6 +104,16 @@ describe('ProjectsHubPage', () => {
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
 
     expect(await screen.findByText('Platform')).toBeInTheDocument();
+
+    // The provider logo resolves to a real icon, not the neutral fallback
+    // (componentLine is the only icon with a 25x24 viewBox).
+    await waitFor(() => {
+      const card = screen.getByText('Platform').closest('li');
+      expect(card?.querySelector('[data-slot="skeleton"]')).toBeNull();
+      expect(card?.querySelector('svg')).toBeInTheDocument();
+      expect(card?.querySelector('svg[viewBox="0 0 25 24"]')).toBeNull();
+    });
+
     // "Connected" is the expected state, so it stays unbadged; the raw repository
     // id is dropped because it is meaningless to end users.
     expect(screen.queryByText('Connected')).not.toBeInTheDocument();
@@ -130,6 +140,38 @@ describe('ProjectsHubPage', () => {
       'href',
       `/workspaces/${PROJECT_TEST_WID}/settings/integrations`,
     );
+
+    fireEvent.click(reconnectLink);
+
+    expect(await screen.findByText('Integrations settings placeholder')).toBeInTheDocument();
+  });
+
+  test('keeps cards usable and unflagged when the connections request fails', async () => {
+    configureApiClient({
+      fetchImpl: createHubFetch({
+        projects: jsonResponse({
+          projects: [projectDto({id: 'project-1', name: 'Platform'})],
+          next_cursor: null,
+        }),
+        connections: jsonResponse({code: 'server-error'}, {status: 500}),
+      }),
+    });
+
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}`, <ProjectsHubPage />);
+
+    expect(await screen.findByText('Platform')).toBeInTheDocument();
+
+    // The icon settles to the neutral fallback rather than spinning on the
+    // loading skeleton forever when the connections fetch errors.
+    await waitFor(() => {
+      const card = screen.getByText('Platform').closest('li');
+      expect(card?.querySelector('[data-slot="skeleton"]')).toBeNull();
+      expect(card?.querySelector('svg')).toBeInTheDocument();
+    });
+
+    // A failed connections fetch is not mistaken for a disconnected source.
+    expect(screen.queryByText('Disconnected')).not.toBeInTheDocument();
+    expect(screen.queryByText('Connected')).not.toBeInTheDocument();
   });
 });
 

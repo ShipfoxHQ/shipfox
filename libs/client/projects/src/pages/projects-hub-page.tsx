@@ -100,6 +100,7 @@ export function ProjectsHubPage() {
                 project={project}
                 connection={connectionsById.get(project.source.connection_id)}
                 connectionsResolved={connectionsQuery.isSuccess}
+                connectionsSettled={connectionsQuery.isSuccess || connectionsQuery.isError}
                 key={project.id}
                 workspaceId={workspace.id}
               />
@@ -195,17 +196,20 @@ function ProjectCard({
   project,
   connection,
   connectionsResolved,
+  connectionsSettled,
   workspaceId,
 }: {
   project: ProjectResponseDto;
   connection: IntegrationConnectionDto | undefined;
   connectionsResolved: boolean;
+  connectionsSettled: boolean;
   workspaceId: string;
 }) {
   // `active` is the expected state and stays unbadged. Once connections have
   // resolved, any other state (disabled, error, or a connection that no longer
   // exists) means the project's source needs attention, so flag it and offer a
-  // direct path to reconnect.
+  // direct path to reconnect. Gate on resolved (not settled) so a failed
+  // connections fetch never falsely marks every card as disconnected.
   const isDisconnected = connectionsResolved && connection?.lifecycle_status !== 'active';
 
   return (
@@ -213,7 +217,9 @@ function ProjectCard({
       <Card className="relative p-20 h-full gap-12 hover:bg-background-components-hover transition-colors">
         <CardContent className="flex flex-col gap-8 p-0">
           <div className="flex items-center gap-12">
-            {connectionsResolved ? (
+            {/* Settle on success or error: a failed fetch falls back to the
+                neutral provider icon rather than spinning forever. */}
+            {connectionsSettled ? (
               <IntegrationIcon
                 source={connection?.provider}
                 aria-hidden
