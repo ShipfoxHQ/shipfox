@@ -37,6 +37,7 @@ describe('AvailableProvidersGrid', () => {
     render(<AvailableProvidersGrid entries={providerEntries(8)} onSelect={vi.fn()} />);
 
     expect(screen.queryByRole('searchbox', {name: 'Search providers'})).not.toBeInTheDocument();
+    expect(screen.getByRole('list', {name: 'Available providers'})).toBeVisible();
   });
 
   test('keeps the search field mounted when a query is active and the entries shrink below the threshold', async () => {
@@ -70,6 +71,7 @@ describe('AvailableProvidersGrid', () => {
 
     await user.type(screen.getByRole('searchbox', {name: 'Search providers'}), 'provider 1');
 
-    expect(screen.getByRole('status')).toHaveTextContent('1 providers match "provider 1"');
+    expect(screen.getByRole('status')).toHaveTextContent('1 provider matches "provider 1"');
+    expect(screen.getByRole('list', {name: 'Available providers matching search'})).toBeVisible();
   });
 });

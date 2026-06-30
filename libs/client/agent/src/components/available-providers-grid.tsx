@@ -24,6 +24,8 @@ export function AvailableProvidersGrid({
     () => entries.filter((entry) => providerMatchesSearch(entry, search)),
     [entries, search],
   );
+  const providerListLabel =
+    trimmedSearch !== '' ? 'Available providers matching search' : 'Available providers';
 
   function clearSearch() {
     setSearch('');
@@ -45,7 +47,7 @@ export function AvailableProvidersGrid({
       ) : null}
 
       {filteredEntries.length > 0 ? (
-        <ul className={PROVIDER_GRID_CLASS} aria-label="Available providers matching search">
+        <ul className={PROVIDER_GRID_CLASS} aria-label={providerListLabel}>
           {filteredEntries.map((entry) => (
             <AvailableProviderCard
               key={entry.id}
@@ -60,7 +62,7 @@ export function AvailableProvidersGrid({
 
       {trimmedSearch !== '' ? (
         <p role="status" aria-live="polite" className="sr-only">
-          {filteredEntries.length} providers match "{trimmedSearch}"
+          {providerResultCountText(filteredEntries.length, trimmedSearch)}
         </p>
       ) : null}
     </div>
@@ -85,4 +87,9 @@ function NoProviderSearchResults({search, onClear}: {search: string; onClear: ()
 function truncateQuery(query: string): string {
   if (query.length <= MAX_ECHOED_QUERY_LENGTH) return query;
   return `${query.slice(0, MAX_ECHOED_QUERY_LENGTH - 3)}...`;
+}
+
+function providerResultCountText(count: number, query: string): string {
+  if (count === 1) return `1 provider matches "${query}"`;
+  return `${count} providers match "${query}"`;
 }
