@@ -1,4 +1,4 @@
-import {stepAttemptDtoSchema} from './step.js';
+import {stepAttemptDtoSchema, stepErrorDtoSchema} from './step.js';
 
 const baseAttempt = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -15,6 +15,46 @@ const baseAttempt = {
   started_at: '2026-01-01T00:00:00.000Z',
   finished_at: '2026-01-01T00:01:00.000Z',
 };
+
+describe('stepErrorDtoSchema', () => {
+  it('accepts an agent config issue with an agent config failure reason', () => {
+    const result = stepErrorDtoSchema.parse({
+      message: 'Agent provider credentials are not configured',
+      reason: 'agent_config_invalid',
+      agent_config_issue: 'provider_not_configured',
+    });
+
+    expect(result).toEqual({
+      message: 'Agent provider credentials are not configured',
+      reason: 'agent_config_invalid',
+      agent_config_issue: 'provider_not_configured',
+    });
+  });
+
+  it('rejects unknown agent config issues', () => {
+    const result = stepErrorDtoSchema.safeParse({
+      message: 'Agent provider credentials are not configured',
+      reason: 'agent_config_invalid',
+      agent_config_issue: 'unknown',
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it.each([
+    undefined,
+    'workspace_prep_failed',
+    'agent_invocation_failed',
+  ] as const)('rejects an agent config issue when reason is %s', (reason) => {
+    const result = stepErrorDtoSchema.safeParse({
+      message: 'Agent provider credentials are not configured',
+      ...(reason === undefined ? {} : {reason}),
+      agent_config_issue: 'provider_not_configured',
+    });
+
+    expect(result.success).toBe(false);
+  });
+});
 
 describe('stepAttemptDtoSchema', () => {
   it('accepts an attempt with no gate or restart result', () => {

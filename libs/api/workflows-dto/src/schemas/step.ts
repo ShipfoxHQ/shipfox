@@ -21,6 +21,16 @@ export const stepErrorReasonSchema = z.enum([
 
 export type StepErrorReason = z.infer<typeof stepErrorReasonSchema>;
 
+export const agentConfigIssueSchema = z.enum([
+  'step_config_invalid',
+  'provider_not_configured',
+  'provider_unsupported',
+  'model_unavailable',
+  'credentials_invalid',
+]);
+
+export type AgentConfigIssue = z.infer<typeof agentConfigIssueSchema>;
+
 // Whether a failure is infrastructure (`setup`) or user-code (`user`). Server-derived
 // from the step's type on the read path; the runner never sends it.
 export const stepErrorCategorySchema = z.enum(['setup', 'user']);
@@ -33,8 +43,16 @@ export const stepErrorDtoSchema = z
     exit_code: z.number().int().nullable().optional(),
     signal: z.string().optional(),
     reason: stepErrorReasonSchema.optional(),
+    agent_config_issue: agentConfigIssueSchema.optional(),
     category: stepErrorCategorySchema.optional(),
   })
+  .refine(
+    (error) => error.agent_config_issue === undefined || error.reason === 'agent_config_invalid',
+    {
+      message: 'agent_config_issue requires reason to be agent_config_invalid',
+      path: ['agent_config_issue'],
+    },
+  )
   .nullable();
 
 export type StepErrorDtoShape = z.infer<typeof stepErrorDtoSchema>;

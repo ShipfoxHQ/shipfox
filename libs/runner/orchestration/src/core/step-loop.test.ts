@@ -1,4 +1,4 @@
-import type {NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
+import type {AgentConfigIssue, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {HTTPError} from 'ky';
 
 const {AgentRuntimeConfigRequestError} = vi.hoisted(() => ({
@@ -6,6 +6,7 @@ const {AgentRuntimeConfigRequestError} = vi.hoisted(() => ({
     constructor(
       public readonly status: number,
       public readonly code: string | undefined,
+      public readonly agentConfigIssue: AgentConfigIssue | undefined = undefined,
     ) {
       super(
         code === undefined
@@ -846,7 +847,7 @@ describe('runJobSteps', () => {
     });
   });
 
-  it('reports agent_config_invalid when runtime credentials are rejected by the API', async () => {
+  it('reports agent config issues when runtime credentials are rejected by the API', async () => {
     const setup = buildSetupStep();
     const agent = buildAgentStep();
     requestNextStepMock
@@ -854,7 +855,11 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce(stepResponse(agent, 1))
       .mockResolvedValueOnce({kind: 'done', status: 'failed'});
     requestAgentRuntimeConfigMock.mockRejectedValueOnce(
-      new AgentRuntimeConfigRequestError(409, 'agent-config-invalid'),
+      new AgentRuntimeConfigRequestError(
+        409,
+        'agent-provider-not-configured',
+        'provider_not_configured',
+      ),
     );
     const ac = new AbortController();
 
@@ -866,7 +871,10 @@ describe('runJobSteps', () => {
       expect.objectContaining({
         stepId: agent.id,
         status: 'failed',
-        error: expect.objectContaining({reason: 'agent_config_invalid'}),
+        error: expect.objectContaining({
+          reason: 'agent_config_invalid',
+          agent_config_issue: 'provider_not_configured',
+        }),
       }),
     );
   });

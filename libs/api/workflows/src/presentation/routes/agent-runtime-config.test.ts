@@ -242,7 +242,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     });
 
     expect(res.statusCode).toBe(409);
-    expect(res.json().code).toBe('agent-config-invalid');
+    expect(res.json().code).toBe('agent-step-config-invalid');
   });
 
   test('returns 409 when credentials are unavailable', async () => {
@@ -256,7 +256,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     });
 
     expect(res.statusCode).toBe(409);
-    expect(res.json().code).toBe('agent-config-invalid');
+    expect(res.json().code).toBe('agent-provider-not-configured');
   });
 
   test('returns 409 and reports when workspace credentials cannot be decrypted', async () => {
@@ -278,7 +278,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     });
 
     expect(res.statusCode).toBe(409);
-    expect(res.json().code).toBe('agent-config-invalid');
+    expect(res.json().code).toBe('agent-provider-credentials-invalid');
     expect(captureExceptionMock).toHaveBeenCalledWith(
       expect.objectContaining({name: 'CredentialDecryptionError'}),
     );

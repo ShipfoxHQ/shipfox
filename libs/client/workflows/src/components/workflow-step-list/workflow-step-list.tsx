@@ -17,7 +17,7 @@ import {
 import type {ReactNode} from 'react';
 import {useEffect, useId, useMemo, useRef, useState} from 'react';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
-import {isWorkflowStatus, type WorkflowJob} from '#core/workflow-run.js';
+import {isWorkflowStatus, type WorkflowJob, type WorkflowStep} from '#core/workflow-run.js';
 import {
   buildWorkflowStepListModel,
   humanizeStatus,
@@ -27,9 +27,11 @@ import {
 } from './workflow-step-list-model.js';
 
 export interface WorkflowStepExpandedContext {
+  step: WorkflowStep;
   stepId: string;
   attempt: number;
   attemptId: string;
+  attemptError: Record<string, unknown> | null;
   attemptStatus: string;
   carriedOver: boolean;
 }
@@ -181,9 +183,11 @@ function WorkflowStepListContent({
                   expandedContent={
                     selected
                       ? renderExpandedStep?.({
+                          step: entry.step,
                           stepId: entry.step.id,
                           attempt: entry.attempt,
                           attemptId: entry.id,
+                          attemptError: entry.error,
                           attemptStatus: entry.statusVisual.kind,
                           carriedOver: entry.carriedOver,
                         })

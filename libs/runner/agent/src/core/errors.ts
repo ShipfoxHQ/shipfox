@@ -1,3 +1,5 @@
+import type {AgentConfigIssue} from '@shipfox/api-workflows-dto';
+
 /**
  * A user-fixable agent-step configuration failure: an unknown provider, a
  * provider/model pair pi does not know, or workspace provider credentials that
@@ -6,7 +8,10 @@
  * (`agent_invocation_failed`).
  */
 export class AgentConfigError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly agentConfigIssue: AgentConfigIssue = 'step_config_invalid',
+  ) {
     super(message);
     this.name = 'AgentConfigError';
   }

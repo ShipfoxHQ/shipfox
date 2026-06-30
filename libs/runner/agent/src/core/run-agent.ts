@@ -69,6 +69,7 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
     throw new AgentConfigError(
       `No credentials configured for provider "${provider}". ` +
         'Verify the provider is configured for this workspace.',
+      'provider_not_configured',
     );
   }
 
@@ -141,6 +142,7 @@ function resolveModel(
     throw new AgentConfigError(
       `Unknown provider "${provider}" for agent step. ` +
         'Known providers are pi built-ins plus any from models.json.',
+      'provider_unsupported',
     );
   }
 
@@ -151,6 +153,7 @@ function resolveModel(
       : ` Did you mean to set provider: ${alternativeProvider}?`;
   throw new AgentConfigError(
     `Model "${modelId}" is not available for provider "${provider}".${hint}`,
+    'model_unavailable',
   );
 }
 
@@ -194,6 +197,7 @@ function credentialValue(
   if (value === undefined || value === '') {
     throw new AgentConfigError(
       `Runtime credentials for provider "${provider}" are missing "${key}".`,
+      'credentials_invalid',
     );
   }
   return value;

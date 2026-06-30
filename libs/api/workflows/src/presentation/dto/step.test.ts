@@ -23,9 +23,26 @@ function step(overrides: Partial<Step> & {type: string}): Step {
 
 describe('fromStepErrorDto', () => {
   it('persists the machine-readable reason in camelCase', () => {
-    const persisted = fromStepErrorDto({message: 'mkdir denied', reason: 'workspace_prep_failed'});
+    const persisted = fromStepErrorDto({
+      message: 'mkdir denied',
+      reason: 'workspace_prep_failed',
+    });
 
     expect(persisted).toEqual({message: 'mkdir denied', reason: 'workspace_prep_failed'});
+  });
+
+  it('persists the machine-readable agent config issue in camelCase', () => {
+    const persisted = fromStepErrorDto({
+      message: 'Missing credentials',
+      reason: 'agent_config_invalid',
+      agent_config_issue: 'provider_not_configured',
+    });
+
+    expect(persisted).toEqual({
+      message: 'Missing credentials',
+      reason: 'agent_config_invalid',
+      agentConfigIssue: 'provider_not_configured',
+    });
   });
 
   it('ignores a runner-supplied category (the server derives it on read)', () => {
@@ -73,13 +90,18 @@ describe('toStepDto error category', () => {
     const dto = toStepDto(
       step({
         type: 'agent',
-        error: {message: 'Unknown provider "foo" for agent step.', reason: 'agent_config_invalid'},
+        error: {
+          message: 'Unknown provider "foo" for agent step.',
+          reason: 'agent_config_invalid',
+          agentConfigIssue: 'provider_unsupported',
+        },
       }),
     );
 
     expect(dto.error).toEqual({
       message: 'Unknown provider "foo" for agent step.',
       reason: 'agent_config_invalid',
+      agent_config_issue: 'provider_unsupported',
       category: 'user',
     });
   });

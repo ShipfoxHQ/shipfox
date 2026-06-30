@@ -115,7 +115,9 @@ describe('executeAgentStep', () => {
   });
 
   it('fails with agent_config_invalid when the agent run throws an AgentConfigError', async () => {
-    runAgentMock.mockRejectedValue(new AgentConfigError('Unknown provider "foo" for agent step.'));
+    runAgentMock.mockRejectedValue(
+      new AgentConfigError('Unknown provider "foo" for agent step.', 'provider_unsupported'),
+    );
 
     const result = await executeAgentStep(buildAgentStep(), {runtime: RUNTIME});
 
@@ -123,6 +125,7 @@ describe('executeAgentStep', () => {
     expect(result.error).toEqual({
       message: 'Unknown provider "foo" for agent step.',
       reason: 'agent_config_invalid',
+      agent_config_issue: 'provider_unsupported',
     });
   });
 
@@ -143,6 +146,7 @@ describe('executeAgentStep', () => {
 
     expect(result.success).toBe(false);
     expect(result.error?.reason).toBe('agent_config_invalid');
+    expect(result.error?.agent_config_issue).toBe('step_config_invalid');
     expect(runAgentMock).not.toHaveBeenCalled();
   });
 
