@@ -8,6 +8,7 @@ import {
   TooltipContent,
   TooltipTrigger,
   useIsTextTruncated,
+  useTimeTick,
 } from '@shipfox/react-ui';
 import type {KeyboardEventHandler, Ref} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
@@ -66,6 +67,7 @@ export function WorkflowJobNode({
   onHoverEnd: () => void;
   ref?: Ref<HTMLButtonElement>;
 }) {
+  useTimeTick();
   const visual = getWorkflowStatusVisual(node.status);
   const dependencyText = dependencyLabel(node.currentDependencyCount);
   const accessibleLabel = [
@@ -167,6 +169,10 @@ function durationAccessibleLabel(duration: WorkflowJobDuration): string | undefi
       return `running ${humanDuration(duration.fromIso)}`;
     case 'finished':
       return `ran ${humanDuration(duration.fromIso, duration.toIso)}`;
+    default: {
+      const exhaustive: never = duration;
+      return exhaustive;
+    }
   }
 }
 

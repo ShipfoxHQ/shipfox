@@ -1,5 +1,6 @@
 import type {RunJobDetailDto} from '@shipfox/api-workflows-dto';
-import {render, screen} from '@testing-library/react';
+import {TimeTickerProvider} from '@shipfox/react-ui';
+import {act, render, screen} from '@testing-library/react';
 import {workflowJob} from '#test/fixtures/workflow-run.js';
 import type {WorkflowJobGraphNode} from './graph-model.js';
 import {WorkflowJobNode} from './workflow-job-node.js';
@@ -16,8 +17,8 @@ function makeNode(overrides: Partial<RunJobDetailDto> & {name: string}): Workflo
   };
 }
 
-function renderNode(node: WorkflowJobGraphNode) {
-  return render(
+function renderNode(node: WorkflowJobGraphNode, {live = false}: {live?: boolean} = {}) {
+  const element = (
     <WorkflowJobNode
       node={node}
       selected={false}
@@ -25,11 +26,49 @@ function renderNode(node: WorkflowJobGraphNode) {
       onKeyDown={() => undefined}
       onHoverStart={() => undefined}
       onHoverEnd={() => undefined}
-    />,
+    />
   );
+
+  if (live) {
+    return render(<TimeTickerProvider intervalMs={1000}>{element}</TimeTickerProvider>);
+  }
+
+  return render(element);
+}
+
+function setMatchMedia(reduced: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (query: string) => ({
+      matches: query.includes('reduce') ? reduced : query.includes('min-width'),
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }),
+  });
+}
+
+function setVisibility(state: 'visible' | 'hidden') {
+  Object.defineProperty(document, 'visibilityState', {configurable: true, value: state});
 }
 
 describe('WorkflowJobNode duration', () => {
+  beforeEach(() => {
+    setMatchMedia(false);
+    setVisibility('visible');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    setMatchMedia(false);
+    setVisibility('visible');
+  });
+
   test('shows the static span for a finished job', () => {
     const node = makeNode({
       name: 'build',
@@ -79,6 +118,29 @@ describe('WorkflowJobNode duration', () => {
 
     expect(screen.getByText('2m 14s')).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'test, Running, running 2m 14s'})).toBeInTheDocument();
+  });
+
+  test('keeps live accessible duration in sync with visible duration', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const node = makeNode({
+      name: 'test',
+      status: 'running',
+      queued_at: '2026-06-26T11:54:00.000Z',
+      started_at: '2026-06-26T11:57:46.000Z',
+    });
+
+    renderNode(node, {live: true});
+
+    expect(screen.getByText('2m 14s')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'test, Running, running 2m 14s'})).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(screen.getByText('2m 15s')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'test, Running, running 2m 15s'})).toBeInTheDocument();
   });
 
   test('shows live elapsed from queuedAt for a job waiting in the queue', () => {
