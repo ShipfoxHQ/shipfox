@@ -341,6 +341,7 @@ jobs:
   });
 
   test('returns 404 for inaccessible run', async () => {
+    const detailSpy = vi.spyOn(dbIndex, 'getWorkflowRunDetail');
     const run = await createWorkflowRun({
       workspaceId,
       projectId: crypto.randomUUID(),
@@ -364,6 +365,7 @@ jobs:
 
     expect(res.statusCode).toBe(404);
     expect(res.json().code).toBe('not-found');
+    expect(detailSpy).not.toHaveBeenCalled();
   });
 
   test('propagates unexpected errors from project access check', async () => {
