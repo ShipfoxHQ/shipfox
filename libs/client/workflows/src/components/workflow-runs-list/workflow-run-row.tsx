@@ -63,19 +63,7 @@ export function WorkflowRunRow({
 
       <div className="flex min-w-0 items-center gap-8">
         {run.triggerDisplayLabel ? (
-          <span className="flex min-w-0 flex-1 items-center gap-8">
-            <TriggerSourceIcon
-              source={run.triggerSource}
-              aria-hidden
-              className="size-14 shrink-0 text-foreground-neutral-muted"
-            />
-            <Code
-              variant="label"
-              className="min-w-0 flex-1 truncate text-foreground-neutral-subtle"
-            >
-              {run.triggerDisplayLabel}
-            </Code>
-          </span>
+          <TriggerLabel run={run} />
         ) : (
           <span className="flex min-w-0 flex-1 items-center gap-8 truncate text-foreground-neutral-muted">
             <span aria-hidden="true" className="size-14 shrink-0" />
@@ -93,27 +81,10 @@ export function WorkflowRunRow({
   // replaces them on the next poll, so they render non-interactively instead of as a link
   // that would navigate to a run id the detail route rejects.
   if (run.isTemporary) {
-    if (!run.triggerDisplayLabel) {
-      return (
-        <div className="relative flex w-full flex-col gap-4 rounded-8 border border-transparent px-10 py-8 text-left">
-          {body}
-        </div>
-      );
-    }
-
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            aria-label={run.triggerLabel}
-            className="relative flex w-full flex-col gap-4 rounded-8 border border-transparent bg-transparent px-10 py-8 text-left outline-none focus-visible:shadow-border-interactive-with-active"
-          >
-            {body}
-          </button>
-        </TooltipTrigger>
-        <TriggerTooltip label={run.triggerLabel} />
-      </Tooltip>
+      <div className="relative flex w-full flex-col gap-4 rounded-8 border border-transparent px-10 py-8 text-left">
+        {body}
+      </div>
     );
   }
 
@@ -136,13 +107,28 @@ export function WorkflowRunRow({
     </Link>
   );
 
-  if (!run.triggerDisplayLabel) return runLink;
+  return runLink;
+}
 
+function TriggerLabel({run}: {run: WorkflowRun}) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{runLink}</TooltipTrigger>
-      <TriggerTooltip label={run.triggerLabel} />
-    </Tooltip>
+    <span className="flex min-w-0 flex-1 items-center">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="flex w-fit max-w-full min-w-0 items-center gap-8 rounded-6 outline-none">
+            <TriggerSourceIcon
+              source={run.triggerSource}
+              aria-hidden
+              className="size-14 shrink-0 text-foreground-neutral-muted"
+            />
+            <Code variant="label" className="min-w-0 truncate text-foreground-neutral-subtle">
+              {run.triggerDisplayLabel}
+            </Code>
+          </span>
+        </TooltipTrigger>
+        <TriggerTooltip label={run.triggerLabel} />
+      </Tooltip>
+    </span>
   );
 }
 

@@ -62,6 +62,24 @@ describe('WorkflowRunsListView', () => {
     expect(screen.getByText('queued-build')).toBeInTheDocument();
   });
 
+  test('scopes the trigger tooltip to the trigger label', async () => {
+    const user = userEvent.setup();
+    renderListView([run('failed', 'integration-tests')]);
+
+    await user.hover(
+      await screen.findByRole('link', {
+        name: (name) =>
+          name.includes('integration-tests') && name.includes('github') && name.includes('push'),
+      }),
+    );
+
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+
+    await user.hover(screen.getByText('push'));
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('github · push');
+  });
+
   test('restores every row after the filters are cleared', async () => {
     const user = userEvent.setup();
     renderListView([
