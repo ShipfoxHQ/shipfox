@@ -1,4 +1,8 @@
-import type {AgentProviderCatalogEntryDto, AgentProviderConfigDto} from '@shipfox/api-agent-dto';
+import type {
+  AgentProviderCatalogEntryDto,
+  AgentProviderConfigDto,
+  SupportedAgentProviderId,
+} from '@shipfox/api-agent-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {Toaster} from '@shipfox/react-ui';
 import type {Meta, StoryObj} from '@storybook/react';
@@ -46,6 +50,48 @@ const CATALOG: AgentProviderCatalogEntryDto[] = [
     label: 'xAI',
     default_model: 'grok-code-fast-1',
     models: [{id: 'grok-code-fast-1', label: 'Grok Code Fast 1'}],
+  }),
+  providerEntry({
+    id: 'openrouter',
+    label: 'OpenRouter',
+    default_model: 'openrouter/auto',
+    models: [{id: 'openrouter/auto', label: 'OpenRouter Auto'}],
+  }),
+  providerEntry({
+    id: 'google',
+    label: 'Google Gemini',
+    default_model: 'gemini-3-pro',
+    models: [{id: 'gemini-3-pro', label: 'Gemini 3 Pro'}],
+  }),
+  providerEntry({
+    id: 'mistral',
+    label: 'Mistral AI',
+    default_model: 'codestral-latest',
+    models: [{id: 'codestral-latest', label: 'Codestral Latest'}],
+  }),
+  providerEntry({
+    id: 'groq',
+    label: 'Groq',
+    default_model: 'llama-4-fast',
+    models: [{id: 'llama-4-fast', label: 'Llama 4 Fast'}],
+  }),
+  providerEntry({
+    id: 'deepseek',
+    label: 'DeepSeek',
+    default_model: 'deepseek-coder',
+    models: [{id: 'deepseek-coder', label: 'DeepSeek Coder'}],
+  }),
+  providerEntry({
+    id: 'moonshotai',
+    label: 'Moonshot AI',
+    default_model: 'kimi-k2',
+    models: [{id: 'kimi-k2', label: 'Kimi K2'}],
+  }),
+  providerEntry({
+    id: 'azure-openai-responses',
+    label: 'Azure OpenAI Responses',
+    default_model: 'gpt-5.5-pro',
+    models: [{id: 'gpt-5.5-pro', label: 'GPT-5.5 Pro'}],
   }),
   providerEntry({
     id: 'amazon-bedrock',
@@ -114,6 +160,30 @@ export const LongNames: Story = {
   args: {scenario: 'long-names'},
 };
 
+export const FilteredAvailableProviders: Story = {
+  args: {scenario: 'empty-configured'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(
+      await canvas.findByRole('searchbox', {name: 'Search providers'}),
+      'openrouter',
+    );
+    await canvas.findByRole('button', {name: 'Configure OpenRouter'});
+  },
+};
+
+export const NoMatchingAvailableProviders: Story = {
+  args: {scenario: 'empty-configured'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(
+      await canvas.findByRole('searchbox', {name: 'Search providers'}),
+      'not-a-provider',
+    );
+    await canvas.findByRole('button', {name: 'Clear search'});
+  },
+};
+
 export const ConfigureModalOpen: Story = {
   args: {scenario: 'empty-configured'},
   play: async ({canvasElement}) => {
@@ -174,11 +244,12 @@ function configsForScenario(scenario: Scenario) {
   }
   if (scenario === 'all-configured') {
     return {
-      configs: [
-        providerConfig({provider_id: 'anthropic'}),
-        providerConfig({provider_id: 'openai', key_fingerprints: {api_key: 'sk-proj...abcd'}}),
-        providerConfig({provider_id: 'xai', key_fingerprints: {api_key: 'xai...abcd'}}),
-      ],
+      configs: CATALOG.filter((entry) => entry.support_status === 'supported').map((entry) =>
+        providerConfig({
+          provider_id: entry.id as SupportedAgentProviderId,
+          key_fingerprints: {api_key: `${entry.id}...abcd`},
+        }),
+      ),
       default_provider_id: 'anthropic',
     };
   }

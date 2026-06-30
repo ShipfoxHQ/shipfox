@@ -39,6 +39,29 @@ function requestPath(input: RequestInfo | URL): string {
   return new URL((input as Request).url).pathname;
 }
 
+const TEST_PROVIDER_IDS = [
+  'anthropic',
+  'openai',
+  'deepseek',
+  'nvidia',
+  'google',
+  'mistral',
+  'groq',
+  'cerebras',
+  'xai',
+] as const;
+
+function availableProviderEntries(count: number) {
+  return TEST_PROVIDER_IDS.slice(0, count).map((id, index) =>
+    agentProviderEntry({
+      id,
+      label: `Provider ${index}`,
+      default_model: `model-${index}`,
+      models: [{id: `model-${index}`, label: `Model ${index}`}],
+    }),
+  );
+}
+
 async function openProviderActions(user: ReturnType<typeof userEvent.setup>, label: string) {
   await user.click(screen.getByRole('button', {name: `Open ${label} provider actions`}));
 }
@@ -80,6 +103,55 @@ describe('WorkspaceAgentProvidersSection', () => {
     expect(screen.getByText('Unsupported providers')).toBeVisible();
     expect(screen.getByText('Amazon Bedrock')).toBeVisible();
     expect(screen.getByText('AWS cloud credentials are not supported yet.')).toBeVisible();
+  });
+
+  test('filters available providers and clears back to the full available list', async () => {
+    const user = userEvent.setup();
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      if (requestPath(input).endsWith('/agent/provider-catalog')) {
+        return Promise.resolve(
+          jsonResponse(agentProviderCatalogResponse(availableProviderEntries(9))),
+        );
+      }
+      return Promise.resolve(
+        jsonResponse(agentProviderConfigsResponse({configs: [], default_provider_id: null})),
+      );
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderAgentProviders(<WorkspaceAgentProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
+    const search = await screen.findByRole('searchbox', {name: 'Search providers'});
+
+    await user.type(search, 'provider 7');
+
+    expect(screen.getByRole('button', {name: 'Configure Provider 7'})).toBeVisible();
+    expect(screen.queryByRole('button', {name: 'Configure Provider 1'})).not.toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'missing');
+    expect(screen.getByText('No providers match "missing"')).toBeVisible();
+    await user.click(screen.getByRole('button', {name: 'Clear search'}));
+
+    expect(screen.getByRole('button', {name: 'Configure Provider 1'})).toBeVisible();
+    await waitFor(() => expect(search).toHaveFocus());
+  });
+
+  test('hides available provider search when the unfiltered list is small', async () => {
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      if (requestPath(input).endsWith('/agent/provider-catalog')) {
+        return Promise.resolve(
+          jsonResponse(agentProviderCatalogResponse(availableProviderEntries(8))),
+        );
+      }
+      return Promise.resolve(
+        jsonResponse(agentProviderConfigsResponse({configs: [], default_provider_id: null})),
+      );
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderAgentProviders(<WorkspaceAgentProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
+
+    expect(await screen.findByRole('button', {name: 'Configure Provider 0'})).toBeVisible();
+    expect(screen.queryByRole('searchbox', {name: 'Search providers'})).not.toBeInTheDocument();
   });
 
   test('waits for configured providers before rendering available provider cards', async () => {

@@ -36,6 +36,29 @@ function renderOnboarding(element: ReactElement) {
   );
 }
 
+const TEST_PROVIDER_IDS = [
+  'anthropic',
+  'openai',
+  'deepseek',
+  'nvidia',
+  'google',
+  'mistral',
+  'groq',
+  'cerebras',
+  'xai',
+] as const;
+
+function supportedProviderEntries(count: number) {
+  return TEST_PROVIDER_IDS.slice(0, count).map((id, index) =>
+    agentProviderEntry({
+      id,
+      label: `Provider ${index}`,
+      default_model: `model-${index}`,
+      models: [{id: `model-${index}`, label: `Model ${index}`}],
+    }),
+  );
+}
+
 describe('AgentProviderOnboardingPage', () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -84,6 +107,37 @@ describe('AgentProviderOnboardingPage', () => {
     });
 
     expect(skip.compareDocumentPosition(provider)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  test('filters supported providers and clears a no-match search', async () => {
+    const user = userEvent.setup();
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi
+        .fn()
+        .mockResolvedValue(jsonResponse(agentProviderCatalogResponse(supportedProviderEntries(9)))),
+    });
+
+    renderOnboarding(
+      <AgentProviderOnboardingPage
+        workspaceId={AGENT_TEST_WORKSPACE_ID}
+        onSkip={vi.fn()}
+        onConfigured={vi.fn()}
+      />,
+    );
+    const search = await screen.findByRole('searchbox', {name: 'Search providers'});
+
+    await user.type(search, 'provider 6');
+
+    expect(screen.getByRole('button', {name: 'Configure Provider 6'})).toBeVisible();
+    expect(screen.queryByRole('button', {name: 'Configure Provider 1'})).not.toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'missing');
+    expect(screen.getByText('No providers match "missing"')).toBeVisible();
+    await user.click(screen.getByRole('button', {name: 'Clear search'}));
+
+    expect(screen.getByRole('button', {name: 'Configure Provider 1'})).toBeVisible();
+    await waitFor(() => expect(search).toHaveFocus());
   });
 
   test('skip still continues when localStorage rejects the dismissed write', async () => {

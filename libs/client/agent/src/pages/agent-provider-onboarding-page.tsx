@@ -13,7 +13,7 @@ import {
   toast,
 } from '@shipfox/react-ui';
 import {useState} from 'react';
-import {AvailableProviderCard} from '#components/available-provider-card.js';
+import {AvailableProvidersGrid, PROVIDER_GRID_CLASS} from '#components/available-providers-grid.js';
 import {AgentProviderTestAndSaveForm} from '#components/test-and-save-form.js';
 import {useAgentProviderCatalogQuery} from '#hooks/api/agent-providers.js';
 import {dismissAgentProviderOnboarding} from '#state/agent-provider-onboarding.js';
@@ -130,18 +130,12 @@ function ProviderPicker({
     );
   }
 
-  return (
-    <ul className="grid grid-cols-2 gap-12 max-[760px]:grid-cols-1">
-      {supportedProviders.map((entry) => (
-        <AvailableProviderCard key={entry.id} entry={entry} onConfigure={() => onSelect(entry)} />
-      ))}
-    </ul>
-  );
+  return <AvailableProvidersGrid entries={supportedProviders} onSelect={onSelect} />;
 }
 
 function ProviderGridSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-12 max-[760px]:grid-cols-1">
+    <div className={PROVIDER_GRID_CLASS}>
       {[0, 1, 2, 3].map((card) => (
         <Skeleton key={card} className="h-136 w-full" />
       ))}

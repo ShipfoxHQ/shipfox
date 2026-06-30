@@ -33,14 +33,13 @@ import {
   useSetDefaultAgentProviderMutation,
 } from '#hooks/api/agent-providers.js';
 import {AgentProviderUsageModal} from './agent-provider-usage-modal.js';
-import {AvailableProviderCard} from './available-provider-card.js';
+import {AvailableProvidersGrid, PROVIDER_GRID_CLASS} from './available-providers-grid.js';
 import {ChangeDefaultModelForm} from './change-default-model-form.js';
 import {agentProviderConfigErrorToFormError} from './form-errors.js';
 import {AgentProviderTestAndSaveForm} from './test-and-save-form.js';
 
 const SURFACE_CLASS =
   'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';
-const PROVIDER_GRID_CLASS = 'grid grid-cols-2 gap-12 max-[760px]:grid-cols-1';
 
 type ProviderFormState =
   | {mode: 'configure'; entry: AgentProviderCatalogEntryDto; config?: undefined}
@@ -199,15 +198,10 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
         ) : null}
 
         {configsLoaded && availableProviders.length > 0 ? (
-          <ul className={PROVIDER_GRID_CLASS}>
-            {availableProviders.map((entry) => (
-              <AvailableProviderCard
-                key={entry.id}
-                entry={entry}
-                onConfigure={() => setFormState({mode: 'configure', entry})}
-              />
-            ))}
-          </ul>
+          <AvailableProvidersGrid
+            entries={availableProviders}
+            onSelect={(entry) => setFormState({mode: 'configure', entry})}
+          />
         ) : null}
       </section>
 
