@@ -12,11 +12,19 @@ export const config = createConfig({
     desc: 'Docker network attached to runner containers. Set it when containers must join a Compose or bridge network to reach SHIPFOX_RUNNER_API_URL.',
     default: undefined,
   }),
+  SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS: str({
+    desc: 'Comma-separated host mappings added to runner containers, such as host.docker.internal:host-gateway. Set it when containers need Docker host names that are not available by default.',
+    default: undefined,
+  }),
   SHIPFOX_PROVISIONER_REGISTRATION_DEADLINE_MS: num({
     desc: 'How long a created runner container may remain unstarted before the provisioner reaps it as a stale pre-run resource, in milliseconds.',
     default: 120_000,
   }),
 });
+
+export const dockerExtraHosts = parseDockerExtraHosts(
+  config.SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS,
+);
 
 if (
   !Number.isInteger(config.SHIPFOX_PROVISIONER_REGISTRATION_DEADLINE_MS) ||
@@ -25,4 +33,12 @@ if (
   throw new Error(
     `SHIPFOX_PROVISIONER_REGISTRATION_DEADLINE_MS must be a positive integer; got ${config.SHIPFOX_PROVISIONER_REGISTRATION_DEADLINE_MS}.`,
   );
+}
+
+function parseDockerExtraHosts(value: string | undefined): string[] | undefined {
+  const hosts = value
+    ?.split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return hosts && hosts.length > 0 ? hosts : undefined;
 }

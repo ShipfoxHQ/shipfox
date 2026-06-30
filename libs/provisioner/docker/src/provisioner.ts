@@ -1,5 +1,5 @@
 import {startProvisioner} from '@shipfox/provisioner-core';
-import {config} from '#config.js';
+import {config, dockerExtraHosts} from '#config.js';
 import {createDockerEngine} from '#docker-engine.js';
 import {createDockerLifecycle, type DockerLifecycle} from '#lifecycle.js';
 import {type DockerTemplateSpec, loadDockerTemplates} from '#templates.js';
@@ -17,6 +17,7 @@ export function startDockerProvisioner(): Promise<void> {
     ...(config.SHIPFOX_PROVISIONER_DOCKER_NETWORK
       ? {network: config.SHIPFOX_PROVISIONER_DOCKER_NETWORK}
       : {}),
+    ...(dockerExtraHosts ? {extraHosts: dockerExtraHosts} : {}),
   });
   let lifecycle: DockerLifecycle | undefined;
 

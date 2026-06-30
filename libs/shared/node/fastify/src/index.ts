@@ -46,6 +46,11 @@ export {
 
 let _app: FastifyInstance | undefined;
 
+export type ListenOptions = {
+  host?: string;
+  port?: number;
+};
+
 export async function createApp(appConfig?: AppConfig): Promise<FastifyInstance> {
   clearAuthMethods();
 
@@ -102,11 +107,14 @@ export function app(): FastifyInstance {
   return _app;
 }
 
-export async function listen(): Promise<string> {
+export async function listen(options: ListenOptions = {}): Promise<string> {
   if (!_app) {
     throw new Error('Fastify app has not been created');
   }
-  const address = await _app.listen({host: config.HOST, port: config.PORT});
+  const address = await _app.listen({
+    host: options.host ?? config.HOST,
+    port: options.port ?? config.PORT,
+  });
   return address;
 }
 

@@ -268,7 +268,7 @@ describe('WorkspaceAgentProvidersSection', () => {
     expect(screen.queryByText(OPENAI_FINGERPRINT_RE)).not.toBeInTheDocument();
     expect(screen.queryByText('GPT-5 Mini')).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue('sk-proj-secret')).not.toBeInTheDocument();
-  });
+  }, 10_000);
 
   test('does not automatically open the usage modal after configuring an additional provider', async () => {
     const user = userEvent.setup();

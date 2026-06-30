@@ -8,6 +8,7 @@ gh = "2.95.0"
 
 [env]
 _.path = ['{{config_root}}/node_modules/.bin']
+_.file = '.context/local-services/env'
 
 [settings]
 lockfile       = true

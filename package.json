@@ -9,6 +9,7 @@
   "packageManager": "pnpm@11.7.0",
   "type": "module",
   "scripts": {
+    "test": "node --test dev/*.test.mjs",
     "release:publish": "turbo type build type:emit --filter='./libs/**' --filter='./tools/**' && changeset publish"
   },
   "devDependencies": {
