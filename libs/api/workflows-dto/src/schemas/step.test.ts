@@ -40,6 +40,20 @@ describe('stepErrorDtoSchema', () => {
 
     expect(result.success).toBe(false);
   });
+
+  it.each([
+    undefined,
+    'workspace_prep_failed',
+    'agent_invocation_failed',
+  ] as const)('rejects an agent config issue when reason is %s', (reason) => {
+    const result = stepErrorDtoSchema.safeParse({
+      message: 'Agent provider credentials are not configured',
+      ...(reason === undefined ? {} : {reason}),
+      agent_config_issue: 'provider_not_configured',
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('stepAttemptDtoSchema', () => {

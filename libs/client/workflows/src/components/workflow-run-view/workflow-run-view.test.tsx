@@ -138,9 +138,8 @@ describe('WorkflowRunView', () => {
                       prompt: 'Fix the failing tests.',
                     },
                     error: {
-                      message: 'Agent provider credentials are not configured',
-                      reason: 'agent_config_invalid',
-                      agent_config_issue: 'provider_not_configured',
+                      message: 'Agent provider request failed',
+                      reason: 'agent_invocation_failed',
                       category: 'user',
                     },
                     attempts: [
@@ -150,6 +149,11 @@ describe('WorkflowRunView', () => {
                         job_id: BUILD_JOB_ID,
                         status: 'failed',
                         exit_code: 1,
+                        error: {
+                          message: 'Agent provider credentials are not configured',
+                          reason: 'agent_config_invalid',
+                          agentConfigIssue: 'provider_not_configured',
+                        },
                         finished_at: '2026-05-07T01:01:20.000Z',
                       }),
                     ],

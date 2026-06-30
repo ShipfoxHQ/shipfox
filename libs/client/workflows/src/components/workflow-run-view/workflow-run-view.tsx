@@ -1,10 +1,19 @@
-import type {RerunMode} from '@shipfox/api-workflows-dto';
+import {
+  agentConfigIssueSchema,
+  type RerunMode,
+  stepErrorReasonSchema,
+} from '@shipfox/api-workflows-dto';
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Code, EmptyState, RelativeTimeProvider, Text, toast} from '@shipfox/react-ui';
 import {useNavigate} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
-import type {WorkflowAgentStepConfig, WorkflowJob, WorkflowStep} from '#core/workflow-run.js';
+import type {
+  WorkflowAgentStepConfig,
+  WorkflowJob,
+  WorkflowStep,
+  WorkflowStepError,
+} from '#core/workflow-run.js';
 import {
   type WorkflowRunSelectionInput,
   withoutWorkflowRunSelectionSearch,
@@ -211,7 +220,14 @@ function RunViewContent({
                 onSelectedAttemptChange={selectionControlled ? selectAttempt : undefined}
                 autoSelectActiveAttempt
                 emptyState={emptyStateForJob(selectedJob)}
-                renderExpandedStep={({step, stepId, attempt, attemptStatus, carriedOver}) =>
+                renderExpandedStep={({
+                  step,
+                  stepId,
+                  attempt,
+                  attemptError,
+                  attemptStatus,
+                  carriedOver,
+                }) =>
                   carriedOver ? (
                     <CarriedOverStepPanel />
                   ) : (
@@ -220,6 +236,7 @@ function RunViewContent({
                       step={step}
                       stepId={stepId}
                       attempt={attempt}
+                      attemptError={attemptError}
                       attemptStatus={attemptStatus}
                     />
                   )
@@ -245,22 +262,26 @@ function StepAttemptDetailPanel({
   step,
   stepId,
   attempt,
+  attemptError,
   attemptStatus,
 }: {
   workspaceId: string;
   step: WorkflowStep;
   stepId: string;
   attempt: number;
+  attemptError: Record<string, unknown> | null;
   attemptStatus: string;
 }) {
+  const selectedAttemptError = toSelectedAttemptError(step, attemptError);
+
   return (
     <div className="flex min-w-0 flex-col gap-10">
       {step.agentConfig ? <AgentStepConfigPanel config={step.agentConfig} /> : null}
-      {isAgentConfigFailure(step) ? (
+      {isAgentConfigFailure(step, selectedAttemptError) ? (
         <AgentConfigFailureCallout
           workspaceId={workspaceId}
           config={step.agentConfig}
-          error={step.error}
+          error={selectedAttemptError}
         />
       ) : null}
       <StepAttemptLogPanel stepId={stepId} attempt={attempt} attemptStatus={attemptStatus} />
@@ -302,8 +323,30 @@ function AgentConfigValue({label, value}: {label: string; value: string | null})
   );
 }
 
-function isAgentConfigFailure(step: WorkflowStep): boolean {
-  return step.type === 'agent' && step.error?.reason === 'agent_config_invalid';
+function toSelectedAttemptError(
+  step: WorkflowStep,
+  error: Record<string, unknown> | null,
+): WorkflowStepError | null {
+  if (error === null) return null;
+
+  const reason = stepErrorReasonSchema.safeParse(error.reason);
+  const agentConfigIssue = agentConfigIssueSchema.safeParse(
+    error.agentConfigIssue ?? error.agent_config_issue,
+  );
+  const exitCode = error.exitCode ?? error.exit_code;
+
+  return {
+    message: typeof error.message === 'string' ? error.message : '',
+    exitCode: exitCode === null || typeof exitCode === 'number' ? exitCode : null,
+    signal: typeof error.signal === 'string' ? error.signal : undefined,
+    reason: reason.success ? reason.data : undefined,
+    agentConfigIssue: agentConfigIssue.success ? agentConfigIssue.data : undefined,
+    category: step.type === 'setup' ? 'setup' : 'user',
+  };
+}
+
+function isAgentConfigFailure(step: WorkflowStep, error: WorkflowStepError | null): boolean {
+  return step.type === 'agent' && error?.reason === 'agent_config_invalid';
 }
 
 function cancelErrorMessage(error: unknown): string {

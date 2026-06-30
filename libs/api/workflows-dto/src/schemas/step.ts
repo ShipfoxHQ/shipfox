@@ -46,6 +46,13 @@ export const stepErrorDtoSchema = z
     agent_config_issue: agentConfigIssueSchema.optional(),
     category: stepErrorCategorySchema.optional(),
   })
+  .refine(
+    (error) => error.agent_config_issue === undefined || error.reason === 'agent_config_invalid',
+    {
+      message: 'agent_config_issue requires reason to be agent_config_invalid',
+      path: ['agent_config_issue'],
+    },
+  )
   .nullable();
 
 export type StepErrorDtoShape = z.infer<typeof stepErrorDtoSchema>;

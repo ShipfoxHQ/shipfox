@@ -31,6 +31,7 @@ export interface WorkflowStepExpandedContext {
   stepId: string;
   attempt: number;
   attemptId: string;
+  attemptError: Record<string, unknown> | null;
   attemptStatus: string;
   carriedOver: boolean;
 }
@@ -186,6 +187,7 @@ function WorkflowStepListContent({
                           stepId: entry.step.id,
                           attempt: entry.attempt,
                           attemptId: entry.id,
+                          attemptError: entry.error,
                           attemptStatus: entry.statusVisual.kind,
                           carriedOver: entry.carriedOver,
                         })
