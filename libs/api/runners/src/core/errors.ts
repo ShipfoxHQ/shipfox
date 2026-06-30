@@ -1,6 +1,6 @@
 export class RunningJobExecutionNotFoundError extends Error {
-  constructor(executionId: string) {
-    super(`Running job execution not found: ${executionId}`);
+  constructor(jobExecutionId: string) {
+    super(`Running job execution not found: ${jobExecutionId}`);
     this.name = 'RunningJobExecutionNotFoundError';
   }
 }

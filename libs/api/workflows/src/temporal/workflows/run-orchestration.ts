@@ -125,7 +125,7 @@ function launchJobs(
             workspaceId: run.workspaceId,
             projectId: run.projectId,
             jobId: job.id,
-            executionId: job.executionId,
+            jobExecutionId: job.jobExecutionId,
             runId: run.runId,
             jobVersion: runtimeJobVersion(job, progress),
             executionVersion: job.executionVersion ?? runtimeJobVersion(job, progress),

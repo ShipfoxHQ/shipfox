@@ -30,7 +30,7 @@ const defaultJobInput = {
   runId: 'run-1',
   projectId: 'project-1',
   jobVersion: 1,
-  executionId: 'job-1',
+  jobExecutionId: 'job-1',
   executionVersion: 1,
   requiredLabels: ['ubuntu22'],
 };
@@ -38,10 +38,11 @@ const defaultJobInput = {
 function executeJob(input: typeof defaultJobInput): Promise<{status: string; jobVersion: number}> {
   const normalized = {
     ...input,
-    executionId:
-      input.executionId === defaultJobInput.executionId && input.jobId !== defaultJobInput.jobId
+    jobExecutionId:
+      input.jobExecutionId === defaultJobInput.jobExecutionId &&
+      input.jobId !== defaultJobInput.jobId
         ? input.jobId
-        : input.executionId,
+        : input.jobExecutionId,
   };
   return testEnv.client.workflow.execute('jobExecutionOrchestration', {
     taskQueue: TASK_QUEUE,
@@ -52,13 +53,13 @@ function executeJob(input: typeof defaultJobInput): Promise<{status: string; job
 
 function finalStatusesFor(jobId: string): string[] {
   return setExecutionStatusCalls()
-    .filter((c) => c.params.executionId === jobId)
+    .filter((c) => c.params.jobExecutionId === jobId)
     .map((c) => c.params.status);
 }
 
 function terminalSetJobCall(jobId: string) {
   return setExecutionStatusCalls().find(
-    (call) => call.params.executionId === jobId && call.params.status !== 'running',
+    (call) => call.params.jobExecutionId === jobId && call.params.status !== 'running',
   );
 }
 

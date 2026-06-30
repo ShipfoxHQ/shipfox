@@ -85,7 +85,7 @@ export interface WorkflowStepAttempt {
   id: string;
   stepId: string;
   jobId: string;
-  executionId: string;
+  jobExecutionId: string;
   attempt: number;
   executionOrder: number;
   status: string;
@@ -102,7 +102,7 @@ export interface WorkflowStepAttempt {
 export interface WorkflowStep {
   id: string;
   jobId: string;
-  executionId: string;
+  jobExecutionId: string;
   name: string | null;
   displayName: string;
   sourceLocation: WorkflowStepSourceLocation | null;
@@ -278,16 +278,18 @@ export function toWorkflowJob(dto: RunJobDetailDto): WorkflowJob {
     queuedAt: dto.queued_at ?? null,
     startedAt: dto.started_at ?? null,
     finishedAt: dto.finished_at ?? null,
-    // The current client UI is single-execution: multi-execution grouping belongs to ENG-675.
-    steps: dto.executions.flatMap((execution) => execution.steps.map(toWorkflowStep)),
+    // The current client UI is single-job-execution: multi-job-execution grouping belongs to ENG-675.
+    steps: dto.job_executions.flatMap((jobExecution) =>
+      jobExecution.steps.map((step) => toWorkflowStep(step, dto.id)),
+    ),
   };
 }
 
-export function toWorkflowStep(dto: RunStepDetailDto): WorkflowStep {
+export function toWorkflowStep(dto: RunStepDetailDto, jobId: string): WorkflowStep {
   return {
     id: dto.id,
-    jobId: dto.job_id,
-    executionId: dto.execution_id,
+    jobId,
+    jobExecutionId: dto.job_execution_id,
     name: dto.name,
     displayName: dto.display_name,
     sourceLocation: dto.source_location ? toWorkflowStepSourceLocation(dto.source_location) : null,
@@ -300,16 +302,16 @@ export function toWorkflowStep(dto: RunStepDetailDto): WorkflowStep {
     currentAttempt: dto.current_attempt,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
-    attempts: dto.attempts.map(toWorkflowStepAttempt),
+    attempts: dto.attempts.map((attempt) => toWorkflowStepAttempt(attempt, jobId)),
   };
 }
 
-export function toWorkflowStepAttempt(dto: StepAttemptDto): WorkflowStepAttempt {
+export function toWorkflowStepAttempt(dto: StepAttemptDto, jobId: string): WorkflowStepAttempt {
   return {
     id: dto.id,
     stepId: dto.step_id,
-    jobId: dto.job_id,
-    executionId: dto.execution_id,
+    jobId,
+    jobExecutionId: dto.job_execution_id,
     attempt: dto.attempt,
     executionOrder: dto.execution_order,
     status: dto.status,

@@ -28,22 +28,24 @@ import {
 import {nextStepForJob, recordStepResult as recordJobExecutionStepResult} from './job-execution.js';
 
 async function recordStepResult(
-  params: Omit<Parameters<typeof recordJobExecutionStepResult>[0], 'executionId'> & {jobId: string},
+  params: Omit<Parameters<typeof recordJobExecutionStepResult>[0], 'jobExecutionId'> & {
+    jobId: string;
+  },
 ) {
   const steps = await getStepsByJobId(params.jobId);
   const step = steps.find((candidate) => candidate.id === params.stepId);
   if (!step) throw new StepNotFoundError(params.stepId, params.jobId);
   const {jobId: _jobId, ...rest} = params;
-  return recordJobExecutionStepResult({...rest, executionId: step.executionId});
+  return recordJobExecutionStepResult({...rest, jobExecutionId: step.jobExecutionId});
 }
 
 async function bulkUpdateJobStepStatuses(
-  params: Omit<Parameters<typeof bulkUpdateStepStatuses>[0], 'executionId'> & {jobId: string},
+  params: Omit<Parameters<typeof bulkUpdateStepStatuses>[0], 'jobExecutionId'> & {jobId: string},
 ) {
   const steps = await getStepsByJobId(params.jobId);
-  const executionId = steps[0]?.executionId;
-  if (!executionId) throw new JobNotFoundError(params.jobId);
-  await bulkUpdateStepStatuses({executionId, status: params.status});
+  const jobExecutionId = steps[0]?.jobExecutionId;
+  if (!jobExecutionId) throw new JobNotFoundError(params.jobId);
+  await bulkUpdateStepStatuses({jobExecutionId, status: params.status});
 }
 
 async function jobStepsSettledEvents(jobId: string): Promise<Array<{status: string}>> {
@@ -95,7 +97,6 @@ describe('nextStepForJob', () => {
       .insert(jobExecutions)
       .values({
         jobId,
-        runId: firstExecution.runId,
         sequence: 2,
         name: 'build',
         status: 'pending',
@@ -105,8 +106,7 @@ describe('nextStepForJob', () => {
     const [latestStep] = await db()
       .insert(stepsTable)
       .values({
-        jobId,
-        executionId: latestExecution.id,
+        jobExecutionId: latestExecution.id,
         displayName: 'rerun',
         status: 'pending',
         type: 'run',
@@ -558,15 +558,14 @@ describe('step attempts', () => {
   });
 
   test('rejects non-positive attempt rows at the database boundary', async () => {
-    const {jobId, steps} = await arrangeJobWithSteps(1);
-    const executionId = steps[0]?.executionId as string;
+    const {steps} = await arrangeJobWithSteps(1);
+    const jobExecutionId = steps[0]?.jobExecutionId as string;
 
     await expect(
       db()
         .insert(stepAttemptsTable)
         .values({
-          jobId,
-          executionId,
+          jobExecutionId,
           stepId: steps[0]?.id as string,
           attempt: 0,
           executionOrder: 1,
@@ -576,15 +575,14 @@ describe('step attempts', () => {
   });
 
   test('rejects non-positive execution order rows at the database boundary', async () => {
-    const {jobId, steps} = await arrangeJobWithSteps(1);
-    const executionId = steps[0]?.executionId as string;
+    const {steps} = await arrangeJobWithSteps(1);
+    const jobExecutionId = steps[0]?.jobExecutionId as string;
 
     await expect(
       db()
         .insert(stepAttemptsTable)
         .values({
-          jobId,
-          executionId,
+          jobExecutionId,
           stepId: steps[0]?.id as string,
           attempt: 1,
           executionOrder: 0,
@@ -593,15 +591,14 @@ describe('step attempts', () => {
     ).rejects.toThrow();
   });
 
-  test('rejects duplicate execution order rows for the same job', async () => {
-    const {jobId, steps} = await arrangeJobWithSteps(2);
-    const executionId = steps[0]?.executionId as string;
+  test('rejects duplicate execution order rows for the same execution', async () => {
+    const {steps} = await arrangeJobWithSteps(2);
+    const jobExecutionId = steps[0]?.jobExecutionId as string;
 
     await db()
       .insert(stepAttemptsTable)
       .values({
-        jobId,
-        executionId,
+        jobExecutionId,
         stepId: steps[0]?.id as string,
         attempt: 1,
         executionOrder: 1,
@@ -612,8 +609,7 @@ describe('step attempts', () => {
       db()
         .insert(stepAttemptsTable)
         .values({
-          jobId,
-          executionId,
+          jobExecutionId,
           stepId: steps[1]?.id as string,
           attempt: 1,
           executionOrder: 1,
@@ -623,15 +619,14 @@ describe('step attempts', () => {
   });
 
   test('rejects pending attempt rows at the database boundary', async () => {
-    const {jobId, steps} = await arrangeJobWithSteps(1);
-    const executionId = steps[0]?.executionId as string;
+    const {steps} = await arrangeJobWithSteps(1);
+    const jobExecutionId = steps[0]?.jobExecutionId as string;
 
     await expect(
       db()
         .insert(stepAttemptsTable)
         .values({
-          jobId,
-          executionId,
+          jobExecutionId,
           stepId: steps[0]?.id as string,
           attempt: 1,
           executionOrder: 1,

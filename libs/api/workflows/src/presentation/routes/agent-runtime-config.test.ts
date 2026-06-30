@@ -3,18 +3,14 @@ import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createCapturingLogger} from '@shipfox/node-log/test';
-import {eq, sql} from 'drizzle-orm';
+import {eq} from 'drizzle-orm';
 import type {StepStatus} from '#core/entities/step.js';
 import {db} from '#db/db.js';
 import {jobs} from '#db/schema/jobs.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
-import {
-  createWorkflowRun,
-  getFirstJobExecutionByJobId,
-  getJobsByRunId,
-  getStepsByJobId,
-} from '#db/workflow-runs.js';
+import {createWorkflowRun, getJobsByRunId, getStepsByJobId} from '#db/workflow-runs.js';
 import {workflowModel} from '#test/factories/workflow-model.js';
+import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {leaseTokenRouteGroup} from './index.js';
 
@@ -57,7 +53,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     test('rejects an expired token', async () => {
       const token = await mintLeaseToken({
         jobId: crypto.randomUUID(),
-        executionId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
         expiresIn: '-1s',
       });
 
@@ -73,7 +69,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     test('rejects a token with the wrong audience', async () => {
       const token = await mintLeaseToken({
         jobId: crypto.randomUUID(),
-        executionId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
         audience: 'user-session',
       });
 
@@ -90,7 +86,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
   test('returns decrypted runtime credentials for a running leased agent step', async () => {
     const {run, job, step} = await createRunningAgentStep();
     await saveWorkspaceCredential(run.workspaceId, 'sk-workspace-secret');
-    const token = await mintActiveLeaseToken({run, job});
+    const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -113,7 +109,10 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     const hostileWorkspaceId = crypto.randomUUID();
     await saveWorkspaceCredential(run.workspaceId, 'sk-correct-workspace-secret');
     await saveWorkspaceCredential(hostileWorkspaceId, 'sk-hostile-workspace-secret');
-    const token = await mintActiveLeaseToken({run, job, workspaceId: hostileWorkspaceId});
+    const token = await mintActiveLeaseToken({
+      jobId: job.id,
+      token: {workspaceId: hostileWorkspaceId},
+    });
 
     const res = await app.inject({
       method: 'GET',
@@ -139,7 +138,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
       ],
     });
     await saveWorkspaceCredential(run.workspaceId, 'sk-gated-workspace-secret');
-    const token = await mintActiveLeaseToken({run, job});
+    const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -156,14 +155,14 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     await insertRunningJobLease({
       workspaceId: run.workspaceId,
       jobId: job.id,
-      executionId: step.executionId,
+      jobExecutionId: step.jobExecutionId,
       runId: run.id,
       projectId: run.projectId,
       runnerSessionId: crypto.randomUUID(),
     });
     const token = await mintLeaseToken({
       jobId: job.id,
-      executionId: step.executionId,
+      jobExecutionId: step.jobExecutionId,
       runId: run.id,
       projectId: run.projectId,
       workspaceId: run.workspaceId,
@@ -181,9 +180,9 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
   });
 
   test('returns 404 when the step belongs to a different job', async () => {
-    const {run: runA, job: jobA} = await createRunningAgentStep();
+    const {job: jobA} = await createRunningAgentStep();
     const {step: stepB} = await createRunningAgentStep();
-    const token = await mintActiveLeaseToken({run: runA, job: jobA});
+    const token = await mintActiveLeaseToken({jobId: jobA.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -196,8 +195,8 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
   });
 
   test('returns 409 when the requested attempt is stale', async () => {
-    const {run, job, step} = await createRunningAgentStep();
-    const token = await mintActiveLeaseToken({run, job});
+    const {job, step} = await createRunningAgentStep();
+    const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -215,8 +214,8 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     'failed',
     'cancelled',
   ] as const)('returns 409 when the step is %s', async (status) => {
-    const {run, job, step} = await createRunningAgentStep({status});
-    const token = await mintActiveLeaseToken({run, job});
+    const {job, step} = await createRunningAgentStep({status});
+    const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -229,8 +228,8 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
   });
 
   test('returns 409 when the step is not an agent step', async () => {
-    const {run, job, step} = await createRunningRunStep();
-    const token = await mintActiveLeaseToken({run, job});
+    const {job, step} = await createRunningRunStep();
+    const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -243,12 +242,12 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
   });
 
   test('returns 409 when the agent step config is malformed', async () => {
-    const {run, job, step} = await createRunningAgentStep();
+    const {job, step} = await createRunningAgentStep();
     await db()
       .update(stepsTable)
       .set({config: {provider: 'anthropic', model: 'claude-opus-4-8', prompt: 'missing thinking'}})
       .where(eq(stepsTable.id, step.id));
-    const token = await mintActiveLeaseToken({run, job});
+    const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -261,8 +260,8 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
   });
 
   test('returns 409 when credentials are unavailable', async () => {
-    const {run, job, step} = await createRunningAgentStep();
-    const token = await mintActiveLeaseToken({run, job});
+    const {job, step} = await createRunningAgentStep();
+    const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -284,7 +283,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
       defaultModel: null,
       defaultThinking: 'high',
     });
-    const token = await mintActiveLeaseToken({run, job});
+    const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -304,7 +303,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     const {run, job, step} = await createRunningAgentStep();
     const secret = 'sk-super-secret-runtime-credential';
     await saveWorkspaceCredential(run.workspaceId, secret);
-    const token = await mintActiveLeaseToken({run, job});
+    const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -350,65 +349,6 @@ type TestWorkflowExpression = NonNullable<
 
 function expression(source: string): TestWorkflowExpression {
   return {language: 'cel', check: 'typed', source: source as TestWorkflowExpression['source']};
-}
-
-async function mintActiveLeaseToken(params: {
-  run: {id: string; workspaceId: string; projectId: string};
-  job: {id: string};
-  workspaceId?: string;
-}) {
-  const runnerSessionId = crypto.randomUUID();
-  const execution = await getFirstJobExecutionByJobId(params.job.id);
-  if (!execution) throw new Error('Expected job execution to exist');
-  await insertRunningJobLease({
-    workspaceId: params.run.workspaceId,
-    jobId: params.job.id,
-    executionId: execution.id,
-    runId: params.run.id,
-    projectId: params.run.projectId,
-    runnerSessionId,
-  });
-
-  return await mintLeaseToken({
-    jobId: params.job.id,
-    executionId: execution.id,
-    runId: params.run.id,
-    projectId: params.run.projectId,
-    workspaceId: params.workspaceId ?? params.run.workspaceId,
-    runnerSessionId,
-  });
-}
-
-async function insertRunningJobLease(params: {
-  workspaceId: string;
-  jobId: string;
-  executionId: string;
-  runId: string;
-  projectId: string;
-  runnerSessionId: string;
-}) {
-  await db().execute(sql`
-    INSERT INTO runners_running_jobs (
-      workspace_id,
-      job_id,
-      execution_id,
-      run_id,
-      project_id,
-      runner_session_id,
-      required_labels,
-      runner_labels
-    )
-    VALUES (
-      ${params.workspaceId},
-      ${params.jobId},
-      ${params.executionId},
-      ${params.runId},
-      ${params.projectId},
-      ${params.runnerSessionId},
-      ARRAY['linux']::text[],
-      ARRAY['linux']::text[]
-    )
-  `);
 }
 
 async function createRunningAgentStep(

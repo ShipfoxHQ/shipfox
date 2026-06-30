@@ -57,12 +57,12 @@ export {
   jobExecutionDtoSchema,
   jobExecutionStatusSchema,
   type RunDetailResponseDto,
-  type RunExecutionDetailDto,
   type RunJobDetailDto,
+  type RunJobExecutionDetailDto,
   type RunStepDetailDto,
   runDetailResponseSchema,
-  runExecutionDetailDtoSchema,
   runJobDetailDtoSchema,
+  runJobExecutionDetailDtoSchema,
   runStepDetailDtoSchema,
 } from './run-detail.js';
 export {

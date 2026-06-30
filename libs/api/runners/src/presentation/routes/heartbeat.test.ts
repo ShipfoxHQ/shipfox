@@ -61,7 +61,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
 
   async function claimAvailableJob(): Promise<{
     jobId: string;
-    executionId: string;
+    jobExecutionId: string;
     leaseToken: string;
   }> {
     const pending = await pendingJobFactory.create({workspaceId});
@@ -74,7 +74,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     expect(claimed).not.toBeNull();
     return {
       jobId: pending.jobId,
-      executionId: claimed?.executionId as string,
+      jobExecutionId: claimed?.jobExecutionId as string,
       leaseToken: claimed?.leaseToken as string,
     };
   }
@@ -89,7 +89,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
   });
 
   it('returns 200 + cancel:false on a fresh row', async () => {
-    const {jobId, executionId, leaseToken} = await claimAvailableJob();
+    const {jobId, jobExecutionId, leaseToken} = await claimAvailableJob();
 
     const res = await app.inject({
       method: 'POST',
@@ -101,12 +101,12 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     const body = res.json<{cancel: boolean; lease_token: string}>();
     expect(body).toEqual({cancel: false, lease_token: expect.any(String)});
     const refreshedLease = await verifyJobLeaseToken(body.lease_token);
-    expect(refreshedLease).toMatchObject({jobId, executionId, runnerSessionId});
+    expect(refreshedLease).toMatchObject({jobId, jobExecutionId, runnerSessionId});
   });
 
   it('returns 200 + cancel:true after requestJobExecutionCancellation', async () => {
-    const {jobId, executionId, leaseToken} = await claimAvailableJob();
-    await requestJobExecutionCancellation({executionId});
+    const {jobId, jobExecutionId, leaseToken} = await claimAvailableJob();
+    await requestJobExecutionCancellation({jobExecutionId});
 
     const res = await app.inject({
       method: 'POST',
@@ -118,15 +118,15 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     const body = res.json<{cancel: boolean; lease_token: string}>();
     expect(body).toEqual({cancel: true, lease_token: expect.any(String)});
     const refreshedLease = await verifyJobLeaseToken(body.lease_token);
-    expect(refreshedLease).toMatchObject({jobId, executionId, runnerSessionId});
+    expect(refreshedLease).toMatchObject({jobId, jobExecutionId, runnerSessionId});
   });
 
   it('returns 404 when the jobId is unknown', async () => {
     const jobId = crypto.randomUUID();
-    const executionId = crypto.randomUUID();
+    const jobExecutionId = crypto.randomUUID();
     const leaseToken = await issueJobLeaseToken({
       jobId,
-      executionId,
+      jobExecutionId,
       runId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       workspaceId,
@@ -144,11 +144,11 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
   });
 
   it('returns 404 when the job belongs to a different session', async () => {
-    const {jobId, executionId} = await claimAvailableJob();
+    const {jobId, jobExecutionId} = await claimAvailableJob();
     const otherSession = await runnerSessionFactory.create({workspaceId});
     const leaseToken = await issueJobLeaseToken({
       jobId,
-      executionId,
+      jobExecutionId,
       runId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       workspaceId,

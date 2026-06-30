@@ -1,19 +1,9 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {
-  index,
-  integer,
-  jsonb,
-  pgEnum,
-  text,
-  timestamp,
-  uniqueIndex,
-  uuid,
-} from 'drizzle-orm/pg-core';
+import {index, integer, jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import {toJobStatusReason} from '#core/entities/job.js';
 import type {JobExecution} from '#core/entities/job-execution.js';
 import {pgTable} from './common.js';
 import {jobStatusReasonEnum, jobs} from './jobs.js';
-import {workflowRuns} from './workflow-runs.js';
 
 export const jobExecutionStatusEnum = pgEnum('workflows_job_execution_status', [
   'pending',
@@ -30,9 +20,6 @@ export const jobExecutions = pgTable(
     jobId: uuid('job_id')
       .notNull()
       .references(() => jobs.id, {onDelete: 'cascade'}),
-    runId: uuid('run_id')
-      .notNull()
-      .references(() => workflowRuns.id, {onDelete: 'cascade'}),
     sequence: integer('sequence').notNull(),
     name: text('name').notNull(),
     status: jobExecutionStatusEnum('status').notNull().default('pending'),
@@ -46,11 +33,7 @@ export const jobExecutions = pgTable(
     finishedAt: timestamp('finished_at', {withTimezone: true}),
     timedOutAt: timestamp('timed_out_at', {withTimezone: true}),
   },
-  (table) => [
-    index('workflows_job_executions_job_id_idx').on(table.jobId),
-    index('workflows_job_executions_run_id_idx').on(table.runId),
-    uniqueIndex('workflows_job_executions_id_job_id_uq').on(table.id, table.jobId),
-  ],
+  (table) => [index('workflows_job_executions_job_id_idx').on(table.jobId)],
 );
 
 export type JobExecutionDb = typeof jobExecutions.$inferSelect;
@@ -60,7 +43,6 @@ export function toJobExecution(row: JobExecutionDb): JobExecution {
   return {
     id: row.id,
     jobId: row.jobId,
-    runId: row.runId,
     sequence: row.sequence,
     name: row.name,
     status: row.status,

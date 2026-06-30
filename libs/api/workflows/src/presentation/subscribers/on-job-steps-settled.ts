@@ -12,7 +12,7 @@ export async function onJobStepsSettled(payload: WorkflowsJobStepsSettledEvent):
   logger().info(
     {
       jobId: payload.jobId,
-      executionId: payload.executionId,
+      jobExecutionId: payload.jobExecutionId,
       status: payload.status,
     },
     'Signaling job finished',
@@ -27,7 +27,7 @@ export async function onJobStepsSettled(payload: WorkflowsJobStepsSettledEvent):
       logger().debug(
         {
           jobId: payload.jobId,
-          executionId: payload.executionId,
+          jobExecutionId: payload.jobExecutionId,
           status: payload.status,
         },
         'Job workflow already terminated; job-finished event discarded',

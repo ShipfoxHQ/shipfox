@@ -108,7 +108,7 @@ const defaultJobInput = {
   runId: 'run-1',
   projectId: 'project-1',
   jobVersion: 1,
-  executionId: 'job-timeout',
+  jobExecutionId: 'job-timeout',
   executionVersion: 1,
   requiredLabels: ['ubuntu22'],
 };
@@ -116,10 +116,11 @@ const defaultJobInput = {
 function executeJob(input: typeof defaultJobInput): Promise<{status: string; jobVersion: number}> {
   const normalized = {
     ...input,
-    executionId:
-      input.executionId === defaultJobInput.executionId && input.jobId !== defaultJobInput.jobId
+    jobExecutionId:
+      input.jobExecutionId === defaultJobInput.jobExecutionId &&
+      input.jobId !== defaultJobInput.jobId
         ? input.jobId
-        : input.executionId,
+        : input.jobExecutionId,
   };
   return testEnv.client.workflow.execute('jobExecutionOrchestration', {
     taskQueue: TASK_QUEUE,

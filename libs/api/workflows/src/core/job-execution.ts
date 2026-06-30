@@ -2,9 +2,11 @@ import type {LogOutcomeDto} from '@shipfox/api-workflows-dto';
 import {type Tx, withTransaction} from '#db/db.js';
 import {
   countStepAttempts,
+  getJobExecutionById,
   getLatestJobExecutionByJobId,
   getStepsByJobExecutionIdForUpdate,
   insertRunningStepAttempt,
+  lockActiveJobExecutionLeaseForUpdate,
   markStepRunning,
 } from '#db/workflow-runs.js';
 import {
@@ -14,6 +16,7 @@ import {
 import type {RuntimeCompletionStatus} from './entities/runtime-dag.js';
 import type {Step} from './entities/step.js';
 import {
+  JobLeaseNotActiveError,
   JobNotFoundError,
   StepAttemptAheadError,
   StepNotFoundError,
@@ -36,14 +39,14 @@ type CompletionStatus = RuntimeCompletionStatus;
 export type NextStep = {kind: 'step'; step: Step} | {kind: 'done'; status: CompletionStatus};
 
 async function nextStepForJobExecutionInTransaction(
-  executionId: string,
+  jobExecutionId: string,
   tx: Tx,
 ): Promise<NextStep> {
-  const steps = await getStepsByJobExecutionIdForUpdate(executionId, tx);
+  const steps = await getStepsByJobExecutionIdForUpdate(jobExecutionId, tx);
 
   // An unknown or step-less execution has nothing to progress; rejecting it stops
   // a bad id from deriving a vacuous 'succeeded' completion below.
-  if (steps.length === 0) throw new JobNotFoundError(executionId);
+  if (steps.length === 0) throw new JobNotFoundError(jobExecutionId);
 
   // Re-deliver the in-flight step rather than advancing, so a retried pull
   // cannot skip a step.
@@ -52,16 +55,33 @@ async function nextStepForJobExecutionInTransaction(
 
   const pending = steps.find((step) => step.status === 'pending');
   if (pending) {
-    const marked = await markStepRunning({executionId, stepId: pending.id}, tx);
+    const marked = await markStepRunning({jobExecutionId, stepId: pending.id}, tx);
     return {kind: 'step', step: marked ?? pending};
   }
 
   return {kind: 'done', status: deriveCompletion(steps)};
 }
 
-export function nextStepForJobExecution(executionId: string): Promise<NextStep> {
+export function nextStepForJobExecution(jobExecutionId: string): Promise<NextStep> {
   // FOR UPDATE serializes concurrent pulls so a step is never dispatched twice.
-  return withTransaction((tx) => nextStepForJobExecutionInTransaction(executionId, tx));
+  return withTransaction((tx) => nextStepForJobExecutionInTransaction(jobExecutionId, tx));
+}
+
+export interface NextStepForLeasedJobExecutionParams {
+  jobId: string;
+  jobExecutionId: string;
+  runnerSessionId: string;
+}
+
+export function nextStepForLeasedJobExecution(
+  params: NextStepForLeasedJobExecutionParams,
+): Promise<NextStep> {
+  return withTransaction(async (tx) => {
+    const leaseIsActive = await lockActiveJobExecutionLeaseForUpdate(params, tx);
+    if (!leaseIsActive) throw new JobLeaseNotActiveError(params.jobExecutionId);
+
+    return nextStepForJobExecutionInTransaction(params.jobExecutionId, tx);
+  });
 }
 
 export function nextStepForJob(jobId: string): Promise<NextStep> {
@@ -74,7 +94,7 @@ export function nextStepForJob(jobId: string): Promise<NextStep> {
 }
 
 export interface RecordStepResultParams {
-  executionId: string;
+  jobExecutionId: string;
   stepId: string;
   status: 'succeeded' | 'failed';
   error?: Record<string, unknown> | null;
@@ -104,15 +124,18 @@ function outcomeFromSteps(steps: Step[]): RecordStepResultOutcome {
 export async function recordStepResult(
   params: RecordStepResultParams,
 ): Promise<RecordStepResultOutcome> {
-  const executionId = params.executionId;
+  const jobExecutionId = params.jobExecutionId;
   // One transaction keeps the attempt finalize, the step result, and any sibling
   // cancellations atomic, so a crashed-then-retried report can never leave
   // siblings stranded once the step itself is terminal.
   const progression = await withTransaction<RecordStepResultTransactionResult>(async (tx) => {
-    const steps = await getStepsByJobExecutionIdForUpdate(executionId, tx);
+    const jobExecution = await getJobExecutionById(jobExecutionId, tx);
+    if (!jobExecution) throw new JobNotFoundError(jobExecutionId);
+
+    const steps = await getStepsByJobExecutionIdForUpdate(jobExecutionId, tx);
     const target = steps.find((step) => step.id === params.stepId);
 
-    if (!target) throw new StepNotFoundError(params.stepId, executionId);
+    if (!target) throw new StepNotFoundError(params.stepId, jobExecutionId);
 
     // Attempt-aware idempotency, evaluated before the running/terminal checks and
     // anchored on the step's current attempt (the step_attempts unique constraint
@@ -122,7 +145,7 @@ export async function recordStepResult(
     const reported = params.attempt ?? current;
     if (reported > current) {
       // The host allocates attempts; a runner cannot report one ahead of dispatch.
-      throw new StepAttemptAheadError(params.stepId, target.jobId, reported, current);
+      throw new StepAttemptAheadError(params.stepId, jobExecution.jobId, reported, current);
     }
     if (reported < current) {
       // A stale report from a superseded attempt (e.g. after a rewind bumped the
@@ -133,7 +156,7 @@ export async function recordStepResult(
     if (isTerminal(target.status)) return {outcome: outcomeFromSteps(steps), metrics: {}};
     // A result may only land on a step that was actually handed out.
     if (target.status === 'pending') {
-      throw new StepNotRunningError(params.stepId, target.jobId);
+      throw new StepNotRunningError(params.stepId, jobExecution.jobId);
     }
 
     // Migration/back-compat boundary: a running step may predate the
@@ -141,8 +164,7 @@ export async function recordStepResult(
     // the audit row just before finalization if dispatch did not already do it.
     await insertRunningStepAttempt(
       {
-        jobId: target.jobId,
-        executionId,
+        jobExecutionId,
         stepId: params.stepId,
         attempt: current,
       },
@@ -176,8 +198,8 @@ export async function recordStepResult(
     return applyStepTransition(
       decision,
       {
-        jobId: target.jobId,
-        executionId,
+        jobId: jobExecution.jobId,
+        jobExecutionId,
         result,
         logOutcome: params.logOutcome ?? 'drained',
         gateResult: gateResultPayload(gateOutcome, result.exitCode),

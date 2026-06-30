@@ -824,17 +824,17 @@ describe('reconcileProvisionedRunners', () => {
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
     const lowerJobId = '00000000-0000-4000-8000-000000000001';
     const higherJobId = '00000000-0000-4000-8000-000000000002';
-    const lowerExecutionId = '10000000-0000-4000-8000-000000000001';
-    const higherExecutionId = '10000000-0000-4000-8000-000000000002';
+    const lowerJobExecutionId = '10000000-0000-4000-8000-000000000001';
+    const higherJobExecutionId = '10000000-0000-4000-8000-000000000002';
     await insertRunningJob({
       jobId: lowerJobId,
-      executionId: lowerExecutionId,
+      jobExecutionId: lowerJobExecutionId,
       provisionedRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
     });
     await insertRunningJob({
       jobId: higherJobId,
-      executionId: higherExecutionId,
+      jobExecutionId: higherJobExecutionId,
       provisionedRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
     });
@@ -847,8 +847,8 @@ describe('reconcileProvisionedRunners', () => {
     });
 
     expect(
-      result.boundJobExecutionsByProvisionedRunnerId.get('provisioned-runner-1')?.executionId,
-    ).toBe(higherExecutionId);
+      result.boundJobExecutionsByProvisionedRunnerId.get('provisioned-runner-1')?.jobExecutionId,
+    ).toBe(higherJobExecutionId);
   });
 
   it('does not let a later running report revive a reconcile-terminated runner', async () => {
@@ -919,7 +919,7 @@ describe('reconcileProvisionedRunners', () => {
 
   async function insertRunningJob(params: {
     jobId: string;
-    executionId?: string;
+    jobExecutionId?: string;
     provisionedRunnerId: string;
     startedAt: Date;
   }) {
@@ -928,7 +928,7 @@ describe('reconcileProvisionedRunners', () => {
       .values({
         workspaceId,
         jobId: params.jobId,
-        executionId: params.executionId ?? crypto.randomUUID(),
+        jobExecutionId: params.jobExecutionId ?? crypto.randomUUID(),
         runId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         runnerSessionId: crypto.randomUUID(),

@@ -37,7 +37,7 @@ export const reportStepRoute = defineRoute({
 
     const leaseIsActive = await isJobLeaseActive({
       jobId: leasedJob.jobId,
-      executionId: leasedJob.executionId,
+      jobExecutionId: leasedJob.jobExecutionId,
       runnerSessionId: leasedJob.runnerSessionId,
     });
     if (!leaseIsActive) {
@@ -45,7 +45,7 @@ export const reportStepRoute = defineRoute({
     }
 
     const outcome = await recordStepResult({
-      executionId: leasedJob.executionId,
+      jobExecutionId: leasedJob.jobExecutionId,
       stepId,
       status: request.body.status,
       error: fromStepErrorDto(request.body.error),

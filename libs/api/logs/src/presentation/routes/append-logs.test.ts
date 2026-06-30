@@ -14,7 +14,7 @@ vi.mock('@shipfox/api-workflows', () => ({
 
 const mockedGetStepByIdForJobExecution = vi.mocked(getStepByIdForJobExecution);
 const NDJSON = 'application/x-ndjson';
-const EXECUTION_ID = '00000000-0000-4000-8000-0000000000ee';
+const JOB_EXECUTION_ID = '00000000-0000-4000-8000-0000000000ee';
 
 // logsRoutes also carries the session-authed read group; register a no-op AUTH_USER method
 // so auth-reference validation passes (these tests only exercise the lease append route).
@@ -25,7 +25,7 @@ function logsUrl(stepId: string, attempt: number, offset: number): string {
 }
 
 function mintTestLeaseToken(jobId = crypto.randomUUID()): Promise<string> {
-  return mintLeaseToken({jobId, executionId: EXECUTION_ID});
+  return mintLeaseToken({jobId, jobExecutionId: JOB_EXECUTION_ID});
 }
 
 describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
@@ -77,7 +77,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
     expect(res.json()).toEqual({committed_length: body.length, capped: false});
     expect(mockedGetStepByIdForJobExecution).toHaveBeenCalledWith({
       stepId,
-      executionId: EXECUTION_ID,
+      jobExecutionId: JOB_EXECUTION_ID,
     });
   });
 
@@ -97,7 +97,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
     expect(res.json().code).toBe('step-not-found');
     expect(mockedGetStepByIdForJobExecution).toHaveBeenCalledWith({
       stepId,
-      executionId: EXECUTION_ID,
+      jobExecutionId: JOB_EXECUTION_ID,
     });
   });
 

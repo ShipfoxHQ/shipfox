@@ -8,7 +8,7 @@ export const pendingJobExecutions = pgTable(
     id: uuidv7PrimaryKey(),
     workspaceId: uuid('workspace_id').notNull(),
     jobId: uuid('job_id').notNull(),
-    executionId: uuid('execution_id').notNull().unique(),
+    jobExecutionId: uuid('job_execution_id').notNull().unique(),
     runId: uuid('run_id').notNull(),
     projectId: uuid('project_id').notNull(),
     requiredLabels: text('required_labels').array().notNull(),

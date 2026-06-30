@@ -315,8 +315,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "execution_id": {
-          "name": "execution_id",
+        "job_execution_id": {
+          "name": "job_execution_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -403,10 +403,10 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "runners_pending_jobs_execution_id_unique": {
-          "name": "runners_pending_jobs_execution_id_unique",
+        "runners_pending_jobs_job_execution_id_unique": {
+          "name": "runners_pending_jobs_job_execution_id_unique",
           "nullsNotDistinct": false,
-          "columns": ["execution_id"]
+          "columns": ["job_execution_id"]
         }
       },
       "policies": {},
@@ -1117,8 +1117,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "execution_id": {
-          "name": "execution_id",
+        "job_execution_id": {
+          "name": "job_execution_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1255,10 +1255,10 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "runners_running_jobs_execution_id_unique": {
-          "name": "runners_running_jobs_execution_id_unique",
+        "runners_running_jobs_job_execution_id_unique": {
+          "name": "runners_running_jobs_job_execution_id_unique",
           "nullsNotDistinct": false,
-          "columns": ["execution_id"]
+          "columns": ["job_execution_id"]
         }
       },
       "policies": {},

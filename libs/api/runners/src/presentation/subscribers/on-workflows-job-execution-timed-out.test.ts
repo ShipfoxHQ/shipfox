@@ -8,10 +8,10 @@ import {onWorkflowsJobExecutionTimedOut} from './on-workflows-job-execution-time
 
 function buildPayload(
   jobId: string,
-  executionId: string,
+  jobExecutionId: string,
   runId: string,
 ): WorkflowsJobExecutionTimedOutEvent {
-  return {jobId, executionId, runId};
+  return {jobId, jobExecutionId, runId};
 }
 
 describe('onWorkflowsJobExecutionTimedOut', () => {
@@ -37,7 +37,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
     await onWorkflowsJobExecutionTimedOut(
       buildPayload(
         claimed?.jobId as string,
-        claimed?.executionId as string,
+        claimed?.jobExecutionId as string,
         claimed?.runId as string,
       ),
     );
@@ -58,14 +58,14 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       maxClaims: null,
     });
     expect(claimed).not.toBeNull();
-    const siblingExecutionId = crypto.randomUUID();
+    const siblingJobExecutionId = crypto.randomUUID();
     const siblingRunnerSession = await runnerSessionFactory.create({workspaceId});
     await db()
       .insert(runningJobExecutions)
       .values({
         workspaceId,
         jobId: claimed?.jobId as string,
-        executionId: siblingExecutionId,
+        jobExecutionId: siblingJobExecutionId,
         runId: claimed?.runId as string,
         projectId: claimed?.projectId as string,
         runnerSessionId: siblingRunnerSession.id,
@@ -76,23 +76,23 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
     await onWorkflowsJobExecutionTimedOut(
       buildPayload(
         claimed?.jobId as string,
-        claimed?.executionId as string,
+        claimed?.jobExecutionId as string,
         claimed?.runId as string,
       ),
     );
 
     const rows = await db()
       .select({
-        executionId: runningJobExecutions.executionId,
+        jobExecutionId: runningJobExecutions.jobExecutionId,
         cancellationRequestedAt: runningJobExecutions.cancellationRequestedAt,
       })
       .from(runningJobExecutions)
       .where(eq(runningJobExecutions.jobId, claimed?.jobId as string));
-    const byExecutionId = new Map(
-      rows.map((row) => [row.executionId, row.cancellationRequestedAt]),
+    const byJobExecutionId = new Map(
+      rows.map((row) => [row.jobExecutionId, row.cancellationRequestedAt]),
     );
-    expect(byExecutionId.get(claimed?.executionId as string)).not.toBeNull();
-    expect(byExecutionId.get(siblingExecutionId)).toBeNull();
+    expect(byJobExecutionId.get(claimed?.jobExecutionId as string)).not.toBeNull();
+    expect(byJobExecutionId.get(siblingJobExecutionId)).toBeNull();
   });
 
   it('idempotent under double delivery: second call preserves the first timestamp', async () => {
@@ -107,7 +107,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
     await onWorkflowsJobExecutionTimedOut(
       buildPayload(
         claimed?.jobId as string,
-        claimed?.executionId as string,
+        claimed?.jobExecutionId as string,
         claimed?.runId as string,
       ),
     );
@@ -121,7 +121,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
     await onWorkflowsJobExecutionTimedOut(
       buildPayload(
         claimed?.jobId as string,
-        claimed?.executionId as string,
+        claimed?.jobExecutionId as string,
         claimed?.runId as string,
       ),
     );

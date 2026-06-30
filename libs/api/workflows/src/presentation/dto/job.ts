@@ -24,7 +24,6 @@ export function toJobExecutionDto(jobExecution: JobExecution): JobExecutionDto {
   return {
     id: jobExecution.id,
     job_id: jobExecution.jobId,
-    run_id: jobExecution.runId,
     sequence: jobExecution.sequence,
     name: jobExecution.name,
     status: jobExecution.status,

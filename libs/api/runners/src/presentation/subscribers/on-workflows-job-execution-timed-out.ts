@@ -6,8 +6,8 @@ export async function onWorkflowsJobExecutionTimedOut(
   payload: WorkflowsJobExecutionTimedOutEvent,
 ): Promise<void> {
   logger().info(
-    {jobId: payload.jobId, executionId: payload.executionId},
+    {jobId: payload.jobId, jobExecutionId: payload.jobExecutionId},
     'Requesting runner cancellation for timed-out job execution',
   );
-  await requestJobExecutionCancellation({executionId: payload.executionId});
+  await requestJobExecutionCancellation({jobExecutionId: payload.jobExecutionId});
 }

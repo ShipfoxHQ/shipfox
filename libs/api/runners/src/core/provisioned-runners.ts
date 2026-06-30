@@ -34,7 +34,7 @@ export type ReconcileDesiredIntent = 'keep' | 'terminate';
 
 export interface ReconciledBoundJobExecution {
   jobId: string;
-  executionId: string;
+  jobExecutionId: string;
   runId: string;
   lastHeartbeatAt: Date;
   cancellationRequestedAt: Date | null;
@@ -151,7 +151,7 @@ function toReconciledBoundJobExecution(
 ): ReconciledBoundJobExecution {
   return {
     jobId: jobExecution.jobId,
-    executionId: jobExecution.executionId,
+    jobExecutionId: jobExecution.jobExecutionId,
     runId: jobExecution.runId,
     lastHeartbeatAt: jobExecution.lastHeartbeatAt,
     cancellationRequestedAt: jobExecution.cancellationRequestedAt,
@@ -207,8 +207,8 @@ function mergeActiveRunners(
 
     let emitted = false;
     for (const jobExecution of provisionedRunnerJobExecutions) {
-      if (usedJobExecutionIds.has(jobExecution.executionId)) continue;
-      usedJobExecutionIds.add(jobExecution.executionId);
+      if (usedJobExecutionIds.has(jobExecution.jobExecutionId)) continue;
+      usedJobExecutionIds.add(jobExecution.jobExecutionId);
       merged.push(toActiveRunner(provisionedRunner, jobExecution));
       emitted = true;
     }
@@ -216,7 +216,7 @@ function mergeActiveRunners(
   }
 
   for (const jobExecution of jobExecutions) {
-    if (usedJobExecutionIds.has(jobExecution.executionId)) continue;
+    if (usedJobExecutionIds.has(jobExecution.jobExecutionId)) continue;
     merged.push(toActiveRunner(undefined, jobExecution));
   }
 

@@ -14,7 +14,6 @@ export const jobExecutionStatusSchema = z.enum([
 export const jobExecutionDtoSchema = z.object({
   id: z.string().uuid(),
   job_id: z.string().uuid(),
-  run_id: z.string().uuid(),
   sequence: z.number().int().positive(),
   name: z.string(),
   status: jobExecutionStatusSchema,
@@ -37,14 +36,14 @@ export const runStepDetailDtoSchema = stepDtoSchema.extend({
 
 export type RunStepDetailDto = z.infer<typeof runStepDetailDtoSchema>;
 
-export const runExecutionDetailDtoSchema = jobExecutionDtoSchema.extend({
+export const runJobExecutionDetailDtoSchema = jobExecutionDtoSchema.extend({
   steps: z.array(runStepDetailDtoSchema),
 });
 
-export type RunExecutionDetailDto = z.infer<typeof runExecutionDetailDtoSchema>;
+export type RunJobExecutionDetailDto = z.infer<typeof runJobExecutionDetailDtoSchema>;
 
 export const runJobDetailDtoSchema = jobDtoSchema.extend({
-  executions: z.array(runExecutionDetailDtoSchema),
+  job_executions: z.array(runJobExecutionDetailDtoSchema),
 });
 
 export type RunJobDetailDto = z.infer<typeof runJobDetailDtoSchema>;

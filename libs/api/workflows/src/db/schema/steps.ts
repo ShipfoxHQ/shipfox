@@ -1,5 +1,7 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
+import {sql} from 'drizzle-orm';
 import {
+  check,
   foreignKey,
   index,
   integer,
@@ -7,12 +9,12 @@ import {
   pgEnum,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import type {Step} from '#core/entities/step.js';
 import {pgTable} from './common.js';
 import {jobExecutions} from './job-executions.js';
-import {jobs} from './jobs.js';
 
 export const stepStatusEnum = pgEnum('workflows_step_status', [
   'pending',
@@ -26,10 +28,7 @@ export const steps = pgTable(
   'steps',
   {
     id: uuidv7PrimaryKey(),
-    jobId: uuid('job_id')
-      .notNull()
-      .references(() => jobs.id, {onDelete: 'cascade'}),
-    executionId: uuid('execution_id').notNull(),
+    jobExecutionId: uuid('job_execution_id').notNull(),
     name: text('name'),
     displayName: text('display_name').notNull(),
     sourceLocation: jsonb('source_location').$type<Step['sourceLocation']>(),
@@ -48,12 +47,13 @@ export const steps = pgTable(
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
-    index('workflows_steps_job_id_idx').on(table.jobId),
-    index('workflows_steps_execution_id_idx').on(table.executionId),
+    index('workflows_steps_job_execution_id_idx').on(table.jobExecutionId),
+    uniqueIndex('workflows_steps_id_job_execution_id_uq').on(table.id, table.jobExecutionId),
+    check('workflows_steps_current_attempt_positive_ck', sql`${table.currentAttempt} > 0`),
     foreignKey({
-      name: 'workflows_steps_execution_id_job_id_workflows_job_executions_fk',
-      columns: [table.executionId, table.jobId],
-      foreignColumns: [jobExecutions.id, jobExecutions.jobId],
+      name: 'workflows_steps_job_execution_id_workflows_job_executions_id_fk',
+      columns: [table.jobExecutionId],
+      foreignColumns: [jobExecutions.id],
     }).onDelete('cascade'),
   ],
 );
@@ -64,8 +64,7 @@ export type StepCreateDb = typeof steps.$inferInsert;
 export function toStep(row: StepDb): Step {
   return {
     id: row.id,
-    jobId: row.jobId,
-    executionId: row.executionId,
+    jobExecutionId: row.jobExecutionId,
     name: row.name,
     displayName: row.displayName,
     sourceLocation: row.sourceLocation ?? null,

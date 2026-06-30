@@ -9,7 +9,7 @@ import {
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
 } from '@shipfox/api-workflows-dto';
 import * as opentelemetry from '@shipfox/node-opentelemetry';
-import {and, eq, sql} from 'drizzle-orm';
+import {and, eq, inArray, sql} from 'drizzle-orm';
 import {
   JobNotFoundError,
   NoFailedJobsError,
@@ -67,21 +67,23 @@ function shellRef(name: string): string {
 }
 
 async function recordStepResult(
-  params: Omit<Parameters<typeof recordJobExecutionStepResult>[0], 'executionId'> & {jobId: string},
+  params: Omit<Parameters<typeof recordJobExecutionStepResult>[0], 'jobExecutionId'> & {
+    jobId: string;
+  },
 ) {
   const steps = await getStepsByJobId(params.jobId);
   const step = steps.find((candidate) => candidate.id === params.stepId);
   if (!step) throw new JobNotFoundError(params.jobId);
   const {jobId: _jobId, ...rest} = params;
-  return recordJobExecutionStepResult({...rest, executionId: step.executionId});
+  return recordJobExecutionStepResult({...rest, jobExecutionId: step.jobExecutionId});
 }
 
 async function bulkUpdateJobStepStatuses(
-  params: Omit<Parameters<typeof bulkUpdateStepStatuses>[0], 'executionId'> & {jobId: string},
+  params: Omit<Parameters<typeof bulkUpdateStepStatuses>[0], 'jobExecutionId'> & {jobId: string},
 ) {
-  const execution = await getFirstJobExecutionByJobId(params.jobId);
-  if (!execution) throw new JobNotFoundError(params.jobId);
-  await bulkUpdateStepStatuses({executionId: execution.id, status: params.status});
+  const jobExecution = await getFirstJobExecutionByJobId(params.jobId);
+  if (!jobExecution) throw new JobNotFoundError(params.jobId);
+  await bulkUpdateStepStatuses({jobExecutionId: jobExecution.id, status: params.status});
 }
 
 function createTestRun(scope: {workspaceId: string; projectId: string; definitionId: string}) {
@@ -291,15 +293,11 @@ describe('workflow run queries', () => {
       });
 
       const [job] = await getJobsByRunId(run.id);
-      const rows = await db()
-        .select({
-          type: stepsTable.type,
-          config: stepsTable.config,
-          authoredConfig: stepsTable.authoredConfig,
-        })
-        .from(stepsTable)
-        .where(eq(stepsTable.jobId, job?.id as string))
-        .orderBy(stepsTable.position);
+      const rows = (await getStepsByJobId(job?.id as string)).map((step) => ({
+        type: step.type,
+        config: step.config,
+        authoredConfig: step.authoredConfig,
+      }));
 
       expect(rows[1]).toEqual({
         type: 'run',
@@ -945,6 +943,7 @@ jobs:
       const job = runJobs.find((candidate) => candidate.name === name);
       if (!job) throw new Error(`Missing job ${name}`);
       await db().update(jobs).set({status}).where(eq(jobs.id, job.id));
+      const jobSteps = await getStepsByJobId(job.id);
       await db()
         .update(stepsTable)
         .set({
@@ -952,7 +951,12 @@ jobs:
           output: status === 'succeeded' ? {job: name} : null,
           error: status === 'failed' ? {message: 'failed'} : null,
         })
-        .where(eq(stepsTable.jobId, job.id));
+        .where(
+          inArray(
+            stepsTable.id,
+            jobSteps.map((step) => step.id),
+          ),
+        );
     }
 
     test('all mode resets every job and step to pending', async () => {
@@ -1050,13 +1054,7 @@ jobs:
         actorUserId: crypto.randomUUID(),
       });
       const rerunJobs = await getJobsByRunId(rerun.id);
-      const [userStep] = await db()
-        .select({authoredConfig: stepsTable.authoredConfig})
-        .from(stepsTable)
-        .where(eq(stepsTable.jobId, rerunJobs[0]?.id as string))
-        .orderBy(stepsTable.position)
-        .offset(1)
-        .limit(1);
+      const userStep = (await getStepsByJobId(rerunJobs[0]?.id as string))[1];
 
       expect(userStep?.authoredConfig).toEqual({run: `echo "${template('run.id')}"`});
     });
@@ -1109,7 +1107,6 @@ jobs:
       expect(buildExecutions).toHaveLength(1);
       expect(buildExecutions[0]).toMatchObject({
         jobId: build?.id,
-        runId: rerun.id,
         status: 'succeeded',
       });
       expect(buildExecutions[0]?.finishedAt).toBeInstanceOf(Date);
@@ -1421,7 +1418,7 @@ jobs:
   });
 
   describe('getWorkflowJobExecutionDepth', () => {
-    test('counts running runs and jobs for a workspace', async () => {
+    test('counts running runs and job executions globally', async () => {
       const runningRun = await createTestRun({workspaceId, projectId, definitionId});
       const pendingRun = await createTestRun({workspaceId, projectId, definitionId});
       const otherWorkspaceRun = await createTestRun({
@@ -1448,20 +1445,20 @@ jobs:
         expectedVersion: otherWorkspaceRun.version,
       });
       await updateJobExecutionStatus({
-        executionId: runningExecution.id,
+        jobExecutionId: runningExecution.id,
         status: 'running',
         expectedVersion: runningExecution.version,
       });
       await updateJobExecutionStatus({
-        executionId: otherWorkspaceExecution.id,
+        jobExecutionId: otherWorkspaceExecution.id,
         status: 'running',
         expectedVersion: otherWorkspaceExecution.version,
       });
 
-      const depth = await getWorkflowJobExecutionDepth({workspaceId});
+      const depth = await getWorkflowJobExecutionDepth({});
 
       expect(pendingRun.status).toBe('pending');
-      expect(depth).toEqual({runningRuns: 1, runningJobExecutions: 1});
+      expect(depth).toEqual({runningRuns: 2, runningJobExecutions: 3});
     });
   });
 
@@ -1511,12 +1508,12 @@ jobs:
       });
       const job = (await getJobsByRunId(run.id))[0];
       if (!job) throw new Error('Expected workflow job');
-      const execution = await getFirstJobExecutionByJobId(job.id);
-      if (!execution) throw new Error('Expected workflow job execution');
+      const jobExecution = await getFirstJobExecutionByJobId(job.id);
+      if (!jobExecution) throw new Error('Expected workflow job execution');
       await updateJobExecutionStatus({
-        executionId: execution.id,
+        jobExecutionId: jobExecution.id,
         status: 'succeeded',
-        expectedVersion: execution.version,
+        expectedVersion: jobExecution.version,
       });
 
       const resolved = await resolveJobStatusFromJobExecutions({jobId: job.id});
@@ -1540,12 +1537,12 @@ jobs:
       });
       const job = (await getJobsByRunId(run.id))[0];
       if (!job) throw new Error('Expected workflow job');
-      const execution = await getFirstJobExecutionByJobId(job.id);
-      if (!execution) throw new Error('Expected workflow job execution');
+      const jobExecution = await getFirstJobExecutionByJobId(job.id);
+      if (!jobExecution) throw new Error('Expected workflow job execution');
       await updateJobExecutionStatus({
-        executionId: execution.id,
+        jobExecutionId: jobExecution.id,
         status: 'failed',
-        expectedVersion: execution.version,
+        expectedVersion: jobExecution.version,
         statusReason: 'step_failed',
       });
 
@@ -1580,12 +1577,12 @@ jobs:
       });
       const job = (await getJobsByRunId(run.id))[0];
       if (!job) throw new Error('Expected workflow job');
-      const execution = await getFirstJobExecutionByJobId(job.id);
-      if (!execution) throw new Error('Expected workflow job execution');
+      const jobExecution = await getFirstJobExecutionByJobId(job.id);
+      if (!jobExecution) throw new Error('Expected workflow job execution');
       await updateJobExecutionStatus({
-        executionId: execution.id,
+        jobExecutionId: jobExecution.id,
         status: 'failed',
-        expectedVersion: execution.version,
+        expectedVersion: jobExecution.version,
         statusReason: 'step_failed',
       });
 
@@ -2267,8 +2264,8 @@ jobs:
       const runJobs = await getJobsByRunId(run.id);
       const job = runJobs[0];
       expect(job).toBeDefined();
-      const execution = await getFirstJobExecutionByJobId(job?.id as string);
-      expect(execution).toBeDefined();
+      const jobExecution = await getFirstJobExecutionByJobId(job?.id as string);
+      expect(jobExecution).toBeDefined();
 
       const updated = await failJobAsTimedOut({
         jobId: job?.id as string,
@@ -2284,7 +2281,7 @@ jobs:
       expect(outboxRows).toHaveLength(1);
       expect(outboxRows[0]?.payload).toEqual({
         jobId: job?.id,
-        executionId: execution?.id,
+        jobExecutionId: jobExecution?.id,
         runId: run.id,
       });
     });

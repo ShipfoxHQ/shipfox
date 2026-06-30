@@ -4,7 +4,7 @@ import {jobExecutionClaimedCount} from '#metrics/instance.js';
 
 export interface ClaimJobExecutionResult {
   jobId: string;
-  executionId: string;
+  jobExecutionId: string;
   runId: string;
   leaseToken: string;
 }
@@ -24,12 +24,17 @@ export async function claimJobExecution(params: {
 
   const leaseToken = await issueJobLeaseToken({
     jobId: claimed.jobId,
-    executionId: claimed.executionId,
+    jobExecutionId: claimed.jobExecutionId,
     runId: claimed.runId,
     projectId: claimed.projectId,
     workspaceId: params.workspaceId,
     runnerSessionId: params.runnerSessionId,
   });
 
-  return {jobId: claimed.jobId, executionId: claimed.executionId, runId: claimed.runId, leaseToken};
+  return {
+    jobId: claimed.jobId,
+    jobExecutionId: claimed.jobExecutionId,
+    runId: claimed.runId,
+    leaseToken,
+  };
 }

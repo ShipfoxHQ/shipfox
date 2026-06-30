@@ -66,7 +66,7 @@ export const jobLeaseExpiredSignal = defineSignal<[]>(JOB_LEASE_EXPIRED_SIGNAL);
 export interface JobExecutionOrchestrationInput {
   workspaceId: string;
   jobId: string;
-  executionId: string;
+  jobExecutionId: string;
   runId: string;
   projectId: string;
   jobVersion: number;
@@ -80,12 +80,12 @@ export interface JobExecutionOrchestrationResult {
   jobVersion: number;
 }
 
-async function releaseLeaseBestEffort(executionId: string): Promise<void> {
+async function releaseLeaseBestEffort(jobExecutionId: string): Promise<void> {
   try {
-    await releaseLeaseActivity({executionId});
+    await releaseLeaseActivity({jobExecutionId});
   } catch (err) {
     log.warn('lease release failed; stuck detector will reap the row', {
-      executionId,
+      jobExecutionId,
       error: String(err),
     });
   }
@@ -99,7 +99,7 @@ async function resolveJobStatusOrFailClosed(
   } catch (err) {
     log.error('job status resolution failed; failing job closed', {
       jobId: input.jobId,
-      executionId: input.executionId,
+      jobExecutionId: input.jobExecutionId,
       error: String(err),
     });
     const {newVersion} = await setJobStatus({
@@ -126,7 +126,7 @@ async function markJobExecutionRunningAndEnqueue(
   }
 
   const {newVersion: runningVersion, status} = await setJobExecutionStatus({
-    executionId: input.executionId,
+    jobExecutionId: input.jobExecutionId,
     status: 'running',
     version: input.executionVersion,
   });
@@ -137,7 +137,7 @@ async function markJobExecutionRunningAndEnqueue(
   await enqueueJobExecutionForRunner({
     workspaceId: input.workspaceId,
     jobId: input.jobId,
-    executionId: input.executionId,
+    jobExecutionId: input.jobExecutionId,
     runId: input.runId,
     projectId: input.projectId,
     requiredLabels: input.requiredLabels,
@@ -176,7 +176,7 @@ async function resolveFinishedJobExecution({
   status: RuntimeCompletionStatus;
 }): Promise<JobExecutionOrchestrationResult> {
   await setJobExecutionStatus({
-    executionId: input.executionId,
+    jobExecutionId: input.jobExecutionId,
     status,
     version: runningVersion,
     statusReason: status === 'failed' ? 'step_failed' : null,
@@ -184,11 +184,11 @@ async function resolveFinishedJobExecution({
   const resolved = await resolveJobStatusOrFailClosed(input);
   log.info('job execution terminated', {
     jobId: input.jobId,
-    executionId: input.executionId,
+    jobExecutionId: input.jobExecutionId,
     terminationReason: 'finished',
     status: resolved.status,
   });
-  await releaseLeaseBestEffort(input.executionId);
+  await releaseLeaseBestEffort(input.jobExecutionId);
   return resolved;
 }
 
@@ -197,17 +197,17 @@ async function resolveLeaseExpiredJobExecution({
   runningVersion,
 }: JobExecutionResolution): Promise<JobExecutionOrchestrationResult> {
   await resolveLeaseExpiredJobExecutionActivity({
-    executionId: input.executionId,
+    jobExecutionId: input.jobExecutionId,
     expectedVersion: runningVersion,
   });
   const {status, jobVersion} = await resolveJobStatusOrFailClosed(input);
   log.info('job execution terminated', {
     jobId: input.jobId,
-    executionId: input.executionId,
+    jobExecutionId: input.jobExecutionId,
     terminationReason: 'lease_expired',
     status,
   });
-  await releaseLeaseBestEffort(input.executionId);
+  await releaseLeaseBestEffort(input.jobExecutionId);
   return {status, jobVersion};
 }
 
@@ -219,15 +219,15 @@ async function resolveTimedOutJobExecution({
   runningVersion,
 }: JobExecutionResolution): Promise<JobExecutionOrchestrationResult> {
   await failJobExecutionAsTimedOutActivity({
-    executionId: input.executionId,
+    jobExecutionId: input.jobExecutionId,
     runId: input.runId,
     expectedVersion: runningVersion,
   });
-  await bulkSetStepStatuses({executionId: input.executionId, status: 'failed'});
+  await bulkSetStepStatuses({jobExecutionId: input.jobExecutionId, status: 'failed'});
   const {jobVersion} = await resolveJobStatusOrFailClosed(input);
   log.info('job execution terminated', {
     jobId: input.jobId,
-    executionId: input.executionId,
+    jobExecutionId: input.jobExecutionId,
     terminationReason: 'max_duration',
     status: 'failed',
   });

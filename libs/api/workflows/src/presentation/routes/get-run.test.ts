@@ -26,13 +26,15 @@ import {getRunRoute} from './get-run.js';
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
 
 async function recordStepResult(
-  params: Omit<Parameters<typeof recordJobExecutionStepResult>[0], 'executionId'> & {jobId: string},
+  params: Omit<Parameters<typeof recordJobExecutionStepResult>[0], 'jobExecutionId'> & {
+    jobId: string;
+  },
 ) {
   const steps = await getStepsByJobId(params.jobId);
   const step = steps.find((candidate) => candidate.id === params.stepId);
   if (!step) throw new JobNotFoundError(params.jobId);
   const {jobId: _jobId, ...rest} = params;
-  return recordJobExecutionStepResult({...rest, executionId: step.executionId});
+  return recordJobExecutionStepResult({...rest, jobExecutionId: step.jobExecutionId});
 }
 
 vi.mock('@shipfox/api-projects', () => ({
@@ -121,8 +123,8 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(body.source_snapshot).toBeNull();
     expect(body.jobs).toHaveLength(1);
     expect(body.jobs[0].name).toBe('build');
-    expect(body.jobs[0].executions).toHaveLength(1);
-    const steps = body.jobs[0].executions[0].steps;
+    expect(body.jobs[0].job_executions).toHaveLength(1);
+    const steps = body.jobs[0].job_executions[0].steps;
     // Synthetic setup step at position 0, then the two user steps.
     expect(steps).toHaveLength(3);
     expect(steps[0].name).toBe('Set up job');
@@ -256,7 +258,7 @@ jobs:
     expect(
       res
         .json()
-        .jobs[0].executions[0].steps.map(
+        .jobs[0].job_executions[0].steps.map(
           (step: {source_location: unknown}) => step.source_location,
         ),
     ).toEqual([null, {start_line: 5, end_line: 6}, {start_line: 7, end_line: 10}]);
@@ -312,7 +314,7 @@ jobs:
     const body = res.json();
     // steps[0] is the setup step (reported succeeded above); the failed user step
     // follows. A failed step's error carries the server-derived category 'user'.
-    const responseSteps = body.jobs[0].executions[0].steps as Array<{
+    const responseSteps = body.jobs[0].job_executions[0].steps as Array<{
       status: string;
       error: {message: string; exit_code?: number | null; category?: string} | null;
     }>;
@@ -417,7 +419,7 @@ jobs:
     const res = await app.inject({method: 'GET', url: `/api/workflows/runs/${run.id}`});
 
     expect(res.statusCode).toBe(200);
-    const [step0, step1] = res.json().jobs[0].executions[0].steps;
+    const [step0, step1] = res.json().jobs[0].job_executions[0].steps;
     expect(step0.current_attempt).toBe(1);
     expect(step0.attempts).toHaveLength(1);
     expect(step0.attempts[0]).toMatchObject({
@@ -489,7 +491,7 @@ jobs:
     const res = await app.inject({method: 'GET', url: `/api/workflows/runs/${run.id}`});
 
     expect(res.statusCode).toBe(200);
-    const [, producer, reviewer] = res.json().jobs[0].executions[0].steps;
+    const [, producer, reviewer] = res.json().jobs[0].job_executions[0].steps;
     expect(producer.current_attempt).toBe(2);
     expect(producer.attempts.map((a: {attempt: number}) => a.attempt)).toEqual([1, 2]);
     expect(reviewer.current_attempt).toBe(2);

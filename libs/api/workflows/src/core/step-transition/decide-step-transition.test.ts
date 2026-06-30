@@ -3,8 +3,7 @@ import {decideStepTransition, deriveCompletion, isTerminal} from './decide-step-
 
 function step(overrides: Partial<Step> & {id: string; position: number}): Step {
   return {
-    jobId: 'job-1',
-    executionId: 'execution-1',
+    jobExecutionId: 'execution-1',
     name: null,
     displayName: 'step',
     sourceLocation: null,

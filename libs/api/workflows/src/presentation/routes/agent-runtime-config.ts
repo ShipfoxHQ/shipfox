@@ -54,7 +54,10 @@ export const agentRuntimeConfigRoute = defineRoute({
     const leasedJob = requireLeasedJobContext(request);
     const {step_id: stepId, attempt} = request.query;
 
-    const step = await getStepByIdForJobExecution({stepId, executionId: leasedJob.executionId});
+    const step = await getStepByIdForJobExecution({
+      stepId,
+      jobExecutionId: leasedJob.jobExecutionId,
+    });
     if (!step) {
       throw new ClientError('Step not found for leased job', 'step-not-found', {status: 404});
     }
@@ -64,7 +67,7 @@ export const agentRuntimeConfigRoute = defineRoute({
     }
     const leaseIsActive = await isJobLeaseActive({
       jobId: leasedJob.jobId,
-      executionId: leasedJob.executionId,
+      jobExecutionId: leasedJob.jobExecutionId,
       runnerSessionId: leasedJob.runnerSessionId,
     });
     if (!leaseIsActive) {

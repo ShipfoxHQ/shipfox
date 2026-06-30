@@ -23,7 +23,7 @@ export interface DagJob extends RuntimeDagJob {
   id: string;
   name: string;
   status: JobStatus;
-  executionId: string;
+  jobExecutionId: string;
   executionVersion?: number;
   executionTimeoutMs?: number | null | undefined;
   dependencies: string[];
@@ -63,9 +63,9 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
 
   const stepsByJobExecutionId = new Map<string, typeof allSteps>();
   for (const step of allSteps) {
-    const arr = stepsByJobExecutionId.get(step.executionId) ?? [];
+    const arr = stepsByJobExecutionId.get(step.jobExecutionId) ?? [];
     arr.push(step);
-    stepsByJobExecutionId.set(step.executionId, arr);
+    stepsByJobExecutionId.set(step.jobExecutionId, arr);
   }
 
   return {
@@ -81,7 +81,7 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
           id: job.id,
           name: job.name,
           status: job.status,
-          executionId: jobExecution.id,
+          jobExecutionId: jobExecution.id,
           executionVersion: jobExecution.version,
           executionTimeoutMs: job.executionTimeoutMs,
           dependencies: job.dependencies,
@@ -129,13 +129,13 @@ export async function setJobStatus(params: {
 }
 
 export async function setJobExecutionStatus(params: {
-  executionId: string;
+  jobExecutionId: string;
   status: Exclude<JobStatus, 'skipped'>;
   version: number;
   statusReason?: JobStatusReason | null | undefined;
 }): Promise<{newVersion: number; status: Exclude<JobStatus, 'skipped'>}> {
   const updated = await updateJobExecutionStatus({
-    executionId: params.executionId,
+    jobExecutionId: params.jobExecutionId,
     status: params.status,
     expectedVersion: params.version,
     statusReason: params.statusReason,
@@ -144,14 +144,14 @@ export async function setJobExecutionStatus(params: {
 }
 
 export async function bulkSetStepStatuses(params: {
-  executionId: string;
+  jobExecutionId: string;
   status: StepStatus;
 }): Promise<void> {
   await bulkUpdateStepStatuses(params);
 }
 
 export async function resolveLeaseExpiredJobExecutionActivity(params: {
-  executionId: string;
+  jobExecutionId: string;
   expectedVersion: number;
 }): Promise<{status: RuntimeCompletionStatus; executionVersion: number}> {
   try {
@@ -167,14 +167,14 @@ export async function resolveLeaseExpiredJobExecutionActivity(params: {
 // Best-effort lease cleanup on job finalization. Idempotent: deleting an
 // already-released (or already-reaped) lease is a no-op. The workflow wraps the
 // call so a persistent failure never blocks the DAG result.
-export async function releaseLeaseActivity(params: {executionId: string}): Promise<void> {
-  await releaseJobExecution({executionId: params.executionId});
+export async function releaseLeaseActivity(params: {jobExecutionId: string}): Promise<void> {
+  await releaseJobExecution({jobExecutionId: params.jobExecutionId});
 }
 
 export async function enqueueJobExecutionForRunner(params: {
   workspaceId: string;
   jobId: string;
-  executionId: string;
+  jobExecutionId: string;
   runId: string;
   projectId: string;
   requiredLabels: string[];
@@ -183,7 +183,7 @@ export async function enqueueJobExecutionForRunner(params: {
     await enqueueJobExecution({
       workspaceId: params.workspaceId,
       jobId: params.jobId,
-      executionId: params.executionId,
+      jobExecutionId: params.jobExecutionId,
       runId: params.runId,
       projectId: params.projectId,
       requiredLabels: params.requiredLabels,
@@ -201,7 +201,7 @@ export async function cancelRunnerJobsActivity(params: {jobIds: string[]}): Prom
 }
 
 export async function failJobExecutionAsTimedOutActivity(params: {
-  executionId: string;
+  jobExecutionId: string;
   runId: string;
   expectedVersion: number;
 }): Promise<{newVersion: number}> {

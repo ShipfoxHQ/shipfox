@@ -265,7 +265,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
       .values({
         workspaceId,
         jobId: params.jobId,
-        executionId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
         runId: params.runId,
         projectId: crypto.randomUUID(),
         runnerSessionId: crypto.randomUUID(),

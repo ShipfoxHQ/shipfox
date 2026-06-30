@@ -5,7 +5,6 @@ export type JobExecutionStatus = Exclude<JobStatus, 'skipped'>;
 export interface JobExecution {
   id: string;
   jobId: string;
-  runId: string;
   sequence: number;
   name: string;
   status: JobExecutionStatus;

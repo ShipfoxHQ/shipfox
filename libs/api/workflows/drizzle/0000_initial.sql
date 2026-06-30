@@ -40,8 +40,7 @@ CREATE TABLE "workflows_outbox" (
 --> statement-breakpoint
 CREATE TABLE "workflows_steps" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
-	"job_id" uuid NOT NULL,
-	"execution_id" uuid NOT NULL,
+	"job_execution_id" uuid NOT NULL,
 	"name" text,
 	"display_name" text NOT NULL,
 	"source_location" jsonb,
@@ -55,7 +54,8 @@ CREATE TABLE "workflows_steps" (
 	"version" integer DEFAULT 1 NOT NULL,
 	"current_attempt" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "workflows_steps_current_attempt_positive_ck" CHECK ("workflows_steps"."current_attempt" > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "workflows_workflow_runs" (
@@ -86,7 +86,6 @@ CREATE TABLE "workflows_workflow_runs" (
 CREATE TABLE "workflows_job_executions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"job_id" uuid NOT NULL,
-	"run_id" uuid NOT NULL,
 	"sequence" integer NOT NULL,
 	"name" text NOT NULL,
 	"status" "workflows_job_execution_status" DEFAULT 'pending' NOT NULL,
@@ -104,8 +103,7 @@ CREATE TABLE "workflows_job_executions" (
 CREATE TABLE "workflows_step_attempts" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"step_id" uuid NOT NULL,
-	"job_id" uuid NOT NULL,
-	"execution_id" uuid NOT NULL,
+	"job_execution_id" uuid NOT NULL,
 	"attempt" integer NOT NULL,
 	"execution_order" integer NOT NULL,
 	"status" "workflows_step_status" NOT NULL,
@@ -119,7 +117,7 @@ CREATE TABLE "workflows_step_attempts" (
 	"finished_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "workflows_step_attempts_step_id_attempt_uq" UNIQUE("step_id","attempt"),
-	CONSTRAINT "workflows_step_attempts_execution_id_execution_order_uq" UNIQUE("execution_id","execution_order"),
+	CONSTRAINT "workflows_step_attempts_job_execution_id_execution_order_uq" UNIQUE("job_execution_id","execution_order"),
 	CONSTRAINT "workflows_step_attempts_attempt_positive_ck" CHECK ("workflows_step_attempts"."attempt" > 0),
 	CONSTRAINT "workflows_step_attempts_execution_order_positive_ck" CHECK ("workflows_step_attempts"."execution_order" > 0),
 	CONSTRAINT "workflows_step_attempts_status_not_pending_ck" CHECK ("workflows_step_attempts"."status" <> 'pending'),
@@ -130,23 +128,17 @@ ALTER TABLE "workflows_workflow_runs" ADD CONSTRAINT "workflows_workflow_runs_so
 ALTER TABLE "workflows_workflow_runs" ADD CONSTRAINT "workflows_workflow_runs_root_run_id_workflows_workflow_runs_id_fk" FOREIGN KEY ("root_run_id") REFERENCES "public"."workflows_workflow_runs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflows_jobs" ADD CONSTRAINT "workflows_jobs_run_id_workflows_workflow_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."workflows_workflow_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflows_job_executions" ADD CONSTRAINT "workflows_job_executions_job_id_workflows_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."workflows_jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workflows_job_executions" ADD CONSTRAINT "workflows_job_executions_run_id_workflows_workflow_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."workflows_workflow_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "workflows_job_executions_id_job_id_uq" ON "workflows_job_executions" USING btree ("id","job_id");--> statement-breakpoint
-ALTER TABLE "workflows_steps" ADD CONSTRAINT "workflows_steps_job_id_workflows_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."workflows_jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workflows_steps" ADD CONSTRAINT "workflows_steps_execution_id_job_id_workflows_job_executions_fk" FOREIGN KEY ("execution_id","job_id") REFERENCES "public"."workflows_job_executions"("id","job_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflows_steps" ADD CONSTRAINT "workflows_steps_job_execution_id_workflows_job_executions_id_fk" FOREIGN KEY ("job_execution_id") REFERENCES "public"."workflows_job_executions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "workflows_steps_id_job_execution_id_uq" ON "workflows_steps" USING btree ("id","job_execution_id");--> statement-breakpoint
 ALTER TABLE "workflows_step_attempts" ADD CONSTRAINT "workflows_step_attempts_step_id_workflows_steps_id_fk" FOREIGN KEY ("step_id") REFERENCES "public"."workflows_steps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workflows_step_attempts" ADD CONSTRAINT "workflows_step_attempts_job_id_workflows_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."workflows_jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workflows_step_attempts" ADD CONSTRAINT "workflows_step_attempts_execution_id_workflows_job_executions_id_fk" FOREIGN KEY ("execution_id") REFERENCES "public"."workflows_job_executions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflows_step_attempts" ADD CONSTRAINT "workflows_step_attempts_step_id_job_execution_id_workflows_steps_fk" FOREIGN KEY ("step_id","job_execution_id") REFERENCES "public"."workflows_steps"("id","job_execution_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "workflows_jobs_run_id_idx" ON "workflows_jobs" USING btree ("run_id");--> statement-breakpoint
 CREATE INDEX "workflows_job_executions_job_id_idx" ON "workflows_job_executions" USING btree ("job_id");--> statement-breakpoint
-CREATE INDEX "workflows_job_executions_run_id_idx" ON "workflows_job_executions" USING btree ("run_id");--> statement-breakpoint
-CREATE INDEX "workflows_step_attempts_job_id_idx" ON "workflows_step_attempts" USING btree ("job_id");--> statement-breakpoint
-CREATE INDEX "workflows_step_attempts_execution_id_idx" ON "workflows_step_attempts" USING btree ("execution_id");--> statement-breakpoint
+CREATE INDEX "workflows_step_attempts_job_execution_id_idx" ON "workflows_step_attempts" USING btree ("job_execution_id");--> statement-breakpoint
 CREATE INDEX "workflows_outbox_pending_idx" ON "workflows_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;
 --> statement-breakpoint
 CREATE INDEX "workflows_outbox_dispatched_retention_idx" ON "workflows_outbox" USING btree ("dispatched_at","id") WHERE "dispatched_at" IS NOT NULL;--> statement-breakpoint
-CREATE INDEX "workflows_steps_job_id_idx" ON "workflows_steps" USING btree ("job_id");--> statement-breakpoint
-CREATE INDEX "workflows_steps_execution_id_idx" ON "workflows_steps" USING btree ("execution_id");--> statement-breakpoint
+CREATE INDEX "workflows_steps_job_execution_id_idx" ON "workflows_steps" USING btree ("job_execution_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflows_wr_trigger_idempotency_key_unique" ON "workflows_workflow_runs" USING btree ("trigger_idempotency_key");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflows_wr_root_run_attempt_unique" ON "workflows_workflow_runs" USING btree ("root_run_id","attempt") WHERE "workflows_workflow_runs"."root_run_id" is not null;--> statement-breakpoint
 CREATE INDEX "workflows_wr_project_created_id_idx" ON "workflows_workflow_runs" USING btree ("project_id","created_at","id");--> statement-breakpoint

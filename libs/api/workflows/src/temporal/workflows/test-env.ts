@@ -88,7 +88,7 @@ export function setJobStatusCalls() {
 export function setExecutionStatusCalls() {
   return callsNamed('setJobExecutionStatus') as Array<{
     name: string;
-    params: {executionId: string; status: string; version: number; statusReason?: string | null};
+    params: {jobExecutionId: string; status: string; version: number; statusReason?: string | null};
   }>;
 }
 
@@ -106,7 +106,7 @@ export function dagJob(
     id,
     name,
     status: options.status ?? 'pending',
-    executionId: id,
+    jobExecutionId: id,
     executionVersion: 1,
     executionTimeoutMs: null,
     dependencies: deps,
@@ -179,7 +179,7 @@ function createMockActivities() {
     },
 
     setJobExecutionStatus: (params: {
-      executionId: string;
+      jobExecutionId: string;
       status: string;
       version: number;
       statusReason?: string | null;
@@ -190,7 +190,7 @@ function createMockActivities() {
       return {newVersion: nextVersion(), status};
     },
 
-    bulkSetStepStatuses: (params: {executionId: string; status: string}) => {
+    bulkSetStepStatuses: (params: {jobExecutionId: string; status: string}) => {
       calls.push({name: 'bulkSetStepStatuses', params});
     },
 
@@ -204,7 +204,7 @@ function createMockActivities() {
     enqueueJobExecutionForRunner: async (params: {
       workspaceId: string;
       jobId: string;
-      executionId: string;
+      jobExecutionId: string;
       runId: string;
       projectId: string;
       requiredLabels: string[];
@@ -240,7 +240,7 @@ function createMockActivities() {
     },
 
     resolveLeaseExpiredJobExecutionActivity: (params: {
-      executionId: string;
+      jobExecutionId: string;
       expectedVersion: number;
     }) => {
       calls.push({name: 'resolveLeaseExpiredJobExecutionActivity', params});
@@ -256,7 +256,7 @@ function createMockActivities() {
       const terminalExecutionStatus = [...setExecutionStatusCalls()]
         .reverse()
         .find(
-          (call) => call.params.executionId === params.jobId && call.params.status !== 'running',
+          (call) => call.params.jobExecutionId === params.jobId && call.params.status !== 'running',
         )?.params.status as RuntimeCompletionStatus | undefined;
       return {
         status: cfg.leaseExpiredStatus ?? terminalExecutionStatus ?? 'succeeded',
@@ -264,7 +264,7 @@ function createMockActivities() {
       };
     },
 
-    releaseLeaseActivity: async (params: {executionId: string}) => {
+    releaseLeaseActivity: async (params: {jobExecutionId: string}) => {
       calls.push({name: 'releaseLeaseActivity', params});
       if (cfg.releaseLeaseError) {
         const {ApplicationFailure} = await import('@temporalio/common');
@@ -273,7 +273,7 @@ function createMockActivities() {
     },
 
     failJobExecutionAsTimedOutActivity: async (params: {
-      executionId: string;
+      jobExecutionId: string;
       runId: string;
       expectedVersion: number;
     }) => {

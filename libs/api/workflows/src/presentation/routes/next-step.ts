@@ -1,9 +1,8 @@
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
-import {isJobLeaseActive} from '@shipfox/api-runners';
 import {nextStepResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
-import {JobNotFoundError} from '#core/errors.js';
-import {nextStepForJobExecution} from '#core/job-execution.js';
+import {JobLeaseNotActiveError, JobNotFoundError} from '#core/errors.js';
+import {nextStepForLeasedJobExecution} from '#core/job-execution.js';
 import {toStepDto} from '#presentation/dto/step.js';
 
 export const nextStepRoute = defineRoute({
@@ -20,21 +19,19 @@ export const nextStepRoute = defineRoute({
     if (error instanceof JobNotFoundError) {
       throw new ClientError(error.message, 'job-not-found', {status: 404});
     }
+    if (error instanceof JobLeaseNotActiveError) {
+      throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
+    }
     throw error;
   },
   handler: async (request) => {
     const leasedJob = requireLeasedJobContext(request);
 
-    const leaseIsActive = await isJobLeaseActive({
+    const next = await nextStepForLeasedJobExecution({
       jobId: leasedJob.jobId,
-      executionId: leasedJob.executionId,
+      jobExecutionId: leasedJob.jobExecutionId,
       runnerSessionId: leasedJob.runnerSessionId,
     });
-    if (!leaseIsActive) {
-      throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
-    }
-
-    const next = await nextStepForJobExecution(leasedJob.executionId);
 
     if (next.kind === 'step') {
       // The runner echoes this back on report so a stale report from a superseded

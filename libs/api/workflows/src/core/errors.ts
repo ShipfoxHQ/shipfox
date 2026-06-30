@@ -59,6 +59,13 @@ export class JobNotFoundError extends Error {
   }
 }
 
+export class JobLeaseNotActiveError extends Error {
+  constructor(readonly jobExecutionId: string) {
+    super(`Job lease is no longer active: ${jobExecutionId}`);
+    this.name = 'JobLeaseNotActiveError';
+  }
+}
+
 // The job named by a lease is terminal, so it must not exchange its lease for
 // fresh checkout credentials. Server state is the final gate, not the token.
 export class JobNotActiveError extends Error {

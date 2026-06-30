@@ -86,7 +86,7 @@ const mockStartHeartbeatLoop = vi.mocked(startHeartbeatLoop);
 
 const JOB = {
   job_id: '00000000-0000-0000-0000-000000000001',
-  execution_id: '00000000-0000-0000-0000-000000000003',
+  job_execution_id: '00000000-0000-0000-0000-000000000003',
   run_id: '00000000-0000-0000-0000-000000000002',
   job_name: 'test-job',
   steps: [],

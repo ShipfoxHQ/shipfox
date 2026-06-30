@@ -15,18 +15,18 @@ CREATE TABLE "runners_pending_jobs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"job_id" uuid NOT NULL,
-	"execution_id" uuid NOT NULL,
+	"job_execution_id" uuid NOT NULL,
 	"run_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "runners_pending_jobs_execution_id_unique" UNIQUE("execution_id")
+	CONSTRAINT "runners_pending_jobs_job_execution_id_unique" UNIQUE("job_execution_id")
 );
 --> statement-breakpoint
 CREATE TABLE "runners_running_jobs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"job_id" uuid NOT NULL,
-	"execution_id" uuid NOT NULL,
+	"job_execution_id" uuid NOT NULL,
 	"run_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"runner_token" text NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE "runners_running_jobs" (
 	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"last_heartbeat_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"cancellation_requested_at" timestamp with time zone,
-	CONSTRAINT "runners_running_jobs_execution_id_unique" UNIQUE("execution_id"),
+	CONSTRAINT "runners_running_jobs_job_execution_id_unique" UNIQUE("job_execution_id"),
 	CONSTRAINT "runners_running_jobs_link_ck" CHECK (("runners_running_jobs"."provisioner_id" IS NULL) = ("runners_running_jobs"."provisioned_runner_id" IS NULL))
 );
 --> statement-breakpoint

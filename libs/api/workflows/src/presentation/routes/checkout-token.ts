@@ -41,7 +41,7 @@ export const checkoutTokenRoute = defineRoute({
 
     const leaseIsActive = await isJobLeaseActive({
       jobId: leasedJob.jobId,
-      executionId: leasedJob.executionId,
+      jobExecutionId: leasedJob.jobExecutionId,
       runnerSessionId: leasedJob.runnerSessionId,
     });
     if (!leaseIsActive) {

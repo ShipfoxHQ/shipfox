@@ -45,13 +45,13 @@ const validRunCancelled = {
 
 const validJobExecutionTimedOut = {
   jobId: 'job-1',
-  executionId: 'execution-1',
+  jobExecutionId: 'execution-1',
   runId: 'run-1',
 };
 
 const validJobStepsSettled = {
   jobId: 'job-1',
-  executionId: 'execution-1',
+  jobExecutionId: 'execution-1',
   runId: 'run-1',
   status: 'failed',
 };

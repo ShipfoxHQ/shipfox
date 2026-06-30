@@ -9,14 +9,14 @@ export const RUNNER_JOB_CLAIMED = 'runners.job.claimed' as const;
 
 export const runnerJobLeaseExpiredEventSchema = z.object({
   jobId: nonEmptyStringSchema,
-  executionId: nonEmptyStringSchema,
+  jobExecutionId: nonEmptyStringSchema,
   runId: nonEmptyStringSchema,
 });
 export type RunnerJobLeaseExpiredEvent = z.infer<typeof runnerJobLeaseExpiredEventSchema>;
 
 export const runnerJobQueuedEventSchema = z.object({
   jobId: nonEmptyStringSchema,
-  executionId: nonEmptyStringSchema,
+  jobExecutionId: nonEmptyStringSchema,
   runId: nonEmptyStringSchema,
   queuedAt: isoDateTimeSchema,
 });
@@ -24,7 +24,7 @@ export type RunnerJobQueuedEvent = z.infer<typeof runnerJobQueuedEventSchema>;
 
 export const runnerJobClaimedEventSchema = z.object({
   jobId: nonEmptyStringSchema,
-  executionId: nonEmptyStringSchema,
+  jobExecutionId: nonEmptyStringSchema,
   runId: nonEmptyStringSchema,
   claimedAt: isoDateTimeSchema,
 });

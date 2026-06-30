@@ -70,7 +70,6 @@ describe('WorkflowRunView', () => {
                 steps: [
                   workflowStepDto({
                     id: stepId,
-                    job_id: BUILD_JOB_ID,
                     name: 'test',
                     display_name: 'test',
                     status: 'running',
@@ -78,7 +77,6 @@ describe('WorkflowRunView', () => {
                       workflowStepAttemptDto({
                         id: 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001',
                         step_id: stepId,
-                        job_id: BUILD_JOB_ID,
                         status: 'running',
                         exit_code: null,
                         finished_at: null,
@@ -126,7 +124,6 @@ describe('WorkflowRunView', () => {
                 steps: [
                   workflowStepDto({
                     id: stepId,
-                    job_id: BUILD_JOB_ID,
                     name: 'implement',
                     display_name: 'Fix the failing tests.',
                     type: 'agent',
@@ -146,7 +143,6 @@ describe('WorkflowRunView', () => {
                       workflowStepAttemptDto({
                         id: attemptId,
                         step_id: stepId,
-                        job_id: BUILD_JOB_ID,
                         status: 'failed',
                         exit_code: 1,
                         error: {
@@ -217,7 +213,6 @@ describe('WorkflowRunView', () => {
                   steps: [
                     workflowStepDto({
                       id: stepId,
-                      job_id: BUILD_JOB_ID,
                       name: 'implement',
                       display_name: 'Fix the failing tests.',
                       type: 'agent',
@@ -238,7 +233,6 @@ describe('WorkflowRunView', () => {
                         workflowStepAttemptDto({
                           id: attemptId,
                           step_id: stepId,
-                          job_id: BUILD_JOB_ID,
                           status: 'failed',
                           exit_code: 1,
                           error: null,
@@ -472,7 +466,6 @@ describe('WorkflowRunView', () => {
                   steps: [
                     workflowStepDto({
                       id: stepId,
-                      job_id: DEPLOY_JOB_ID,
                       name: 'deploy',
                       display_name: 'deploy',
                       source_location: {start_line: 2, end_line: 3},
@@ -702,7 +695,6 @@ describe('WorkflowRunView', () => {
                 steps: [
                   workflowStepDto({
                     id: CHECKOUT_STEP_ID,
-                    job_id: BUILD_JOB_ID,
                     name: 'checkout',
                     display_name: 'checkout',
                     status: 'succeeded',
@@ -792,7 +784,6 @@ function workflowRunViewDetailDto(
         steps: [
           workflowStepDto({
             id: CHECKOUT_STEP_ID,
-            job_id: BUILD_JOB_ID,
             name: 'checkout',
             display_name: 'checkout',
             status: 'succeeded',
@@ -800,7 +791,6 @@ function workflowRunViewDetailDto(
               workflowStepAttemptDto({
                 id: CHECKOUT_ATTEMPT_ID,
                 step_id: CHECKOUT_STEP_ID,
-                job_id: BUILD_JOB_ID,
                 status: 'succeeded',
                 exit_code: 0,
                 finished_at: '2026-05-07T01:01:20.000Z',

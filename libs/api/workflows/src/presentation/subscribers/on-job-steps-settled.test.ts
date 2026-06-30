@@ -13,7 +13,7 @@ function buildPayload(
 ): WorkflowsJobStepsSettledEvent {
   return {
     jobId: crypto.randomUUID(),
-    executionId: crypto.randomUUID(),
+    jobExecutionId: crypto.randomUUID(),
     runId: crypto.randomUUID(),
     status: 'succeeded',
     ...overrides,

@@ -36,23 +36,23 @@ describe('resolveLeaseExpiredJobExecutionActivity', () => {
       },
     });
     const jobId = (await getJobsByRunId(run.id))[0]?.id as string;
-    const executionId = (await getJobExecutionsByJobId(jobId))[0]?.id as string;
+    const jobExecutionId = (await getJobExecutionsByJobId(jobId))[0]?.id as string;
     const running = await updateJobExecutionStatus({
-      executionId,
+      jobExecutionId,
       status: 'running',
       expectedVersion: 1,
     });
-    return {jobId, executionId, runningVersion: running.version};
+    return {jobId, jobExecutionId, runningVersion: running.version};
   }
 
   test('a malformed job (no steps) fails non-retryably so it never loops to the backstop', async () => {
-    const {jobId, executionId, runningVersion} = await seedRunningJob(0);
+    const {jobId, jobExecutionId, runningVersion} = await seedRunningJob(0);
     // createWorkflowRun always prepends the synthetic setup step, so strip it to
     // reproduce a genuinely stepless (malformed) job.
     await stripSetupStep(jobId);
 
     const error = await resolveLeaseExpiredJobExecutionActivity({
-      executionId,
+      jobExecutionId,
       expectedVersion: runningVersion,
     }).catch((err: unknown) => err);
 
@@ -61,10 +61,10 @@ describe('resolveLeaseExpiredJobExecutionActivity', () => {
   });
 
   test('a well-formed job resolves without raising', async () => {
-    const {executionId, runningVersion} = await seedRunningJob(2);
+    const {jobExecutionId, runningVersion} = await seedRunningJob(2);
 
     const result = await resolveLeaseExpiredJobExecutionActivity({
-      executionId,
+      jobExecutionId,
       expectedVersion: runningVersion,
     });
 

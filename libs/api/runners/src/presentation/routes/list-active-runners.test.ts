@@ -103,7 +103,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
       .values({
         workspaceId,
         jobId: crypto.randomUUID(),
-        executionId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
         runId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         runnerSessionId,
@@ -150,7 +150,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
         {
           workspaceId,
           jobId: firstJobId,
-          executionId: crypto.randomUUID(),
+          jobExecutionId: crypto.randomUUID(),
           runId: crypto.randomUUID(),
           projectId: crypto.randomUUID(),
           runnerSessionId,
@@ -160,7 +160,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
         {
           workspaceId,
           jobId: secondJobId,
-          executionId: crypto.randomUUID(),
+          jobExecutionId: crypto.randomUUID(),
           runId: crypto.randomUUID(),
           projectId: crypto.randomUUID(),
           runnerSessionId,
@@ -217,7 +217,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
       .values({
         workspaceId,
         jobId,
-        executionId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
         runId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         runnerSessionId,
@@ -254,7 +254,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
       .values({
         workspaceId,
         jobId,
-        executionId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
         runId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         runnerSessionId,
@@ -319,7 +319,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
       .values({
         workspaceId,
         jobId,
-        executionId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
         runId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         runnerSessionId,

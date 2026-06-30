@@ -24,13 +24,13 @@ import {runningJobExecutions} from './schema/running-job-executions.js';
 export interface EnqueueJobExecutionParams {
   workspaceId: string;
   jobId: string;
-  executionId: string;
+  jobExecutionId: string;
   runId: string;
   projectId: string;
   requiredLabels: string[];
 }
 
-// Idempotent while the job execution is still pending: a duplicate executionId already in
+// Idempotent while the job execution is still pending: a duplicate jobExecutionId already in
 // `runners_pending_jobs` is a no-op. Temporal retries the enqueue activity
 // at-least-once, so a unique-violation throw on a retry-after-lost-result
 // would permanently fail a healthy job execution's workflow. The guard does not extend
@@ -47,12 +47,12 @@ export async function enqueueJobExecution(params: EnqueueJobExecutionParams): Pr
       .values({
         workspaceId: params.workspaceId,
         jobId: params.jobId,
-        executionId: params.executionId,
+        jobExecutionId: params.jobExecutionId,
         runId: params.runId,
         projectId: params.projectId,
         requiredLabels,
       })
-      .onConflictDoNothing({target: pendingJobExecutions.executionId})
+      .onConflictDoNothing({target: pendingJobExecutions.jobExecutionId})
       .returning({createdAt: pendingJobExecutions.createdAt});
 
     // A retry that hits the conflict inserts nothing: the first enqueue already
@@ -64,7 +64,7 @@ export async function enqueueJobExecution(params: EnqueueJobExecutionParams): Pr
       type: RUNNER_JOB_QUEUED,
       payload: {
         jobId: params.jobId,
-        executionId: params.executionId,
+        jobExecutionId: params.jobExecutionId,
         runId: params.runId,
         queuedAt: inserted.createdAt.toISOString(),
       },
@@ -77,14 +77,14 @@ export async function enqueueJobExecution(params: EnqueueJobExecutionParams): Pr
 
 export interface ClaimedJobExecution {
   jobId: string;
-  executionId: string;
+  jobExecutionId: string;
   runId: string;
   projectId: string;
 }
 
 export interface ActiveRunningJobExecution {
   jobId: string;
-  executionId: string;
+  jobExecutionId: string;
   runId: string;
   projectId: string;
   runnerSessionId: string;
@@ -98,7 +98,7 @@ export interface ActiveRunningJobExecution {
 
 export interface ProvisionedRunnerBoundJobExecution {
   jobId: string;
-  executionId: string;
+  jobExecutionId: string;
   runId: string;
   provisionedRunnerId: string;
   startedAt: Date;
@@ -161,8 +161,8 @@ export async function claimPendingJobExecution(params: {
     await tx.delete(pendingJobExecutions).where(eq(pendingJobExecutions.id, row.id));
 
     // An enqueue retry that lands after a prior claim can leave an orphan pending
-    // row whose executionId is already in `runners_running_jobs`. Insert-or-skip
-    // on the executionId unique constraint: when the execution is already running
+    // row whose jobExecutionId is already in `runners_running_jobs`. Insert-or-skip
+    // on the jobExecutionId unique constraint: when the job execution is already running
     // the insert touches no row, so we commit the orphan's deletion and return
     // null rather than let the unique violation roll the claim back into a poison
     // loop. The runner just re-polls for a real job execution.
@@ -171,7 +171,7 @@ export async function claimPendingJobExecution(params: {
       .values({
         workspaceId: row.workspaceId,
         jobId: row.jobId,
-        executionId: row.executionId,
+        jobExecutionId: row.jobExecutionId,
         runId: row.runId,
         projectId: row.projectId,
         runnerSessionId: params.runnerSessionId,
@@ -180,7 +180,7 @@ export async function claimPendingJobExecution(params: {
         requiredLabels: row.requiredLabels,
         runnerLabels: params.sessionLabels,
       })
-      .onConflictDoNothing({target: runningJobExecutions.executionId})
+      .onConflictDoNothing({target: runningJobExecutions.jobExecutionId})
       .returning({claimedAt: runningJobExecutions.startedAt});
 
     const claimed = inserted[0];
@@ -200,7 +200,7 @@ export async function claimPendingJobExecution(params: {
       type: RUNNER_JOB_CLAIMED,
       payload: {
         jobId: row.jobId,
-        executionId: row.executionId,
+        jobExecutionId: row.jobExecutionId,
         runId: row.runId,
         claimedAt: claimed.claimedAt.toISOString(),
       },
@@ -208,7 +208,7 @@ export async function claimPendingJobExecution(params: {
 
     return {
       jobId: row.jobId,
-      executionId: row.executionId,
+      jobExecutionId: row.jobExecutionId,
       runId: row.runId,
       projectId: row.projectId,
     };
@@ -223,7 +223,7 @@ export async function claimPendingJobExecution(params: {
  * too closes the at-least-once window where an enqueue retry left an orphan that a
  * later claim would otherwise pick up for an already-finished job execution.
  */
-export async function releaseJobExecution(params: {executionId: string}): Promise<void> {
+export async function releaseJobExecution(params: {jobExecutionId: string}): Promise<void> {
   await db().transaction(async (tx) => {
     // Delete pending before running to match `claimPendingJobExecution`'s lock-acquisition
     // order (it locks the pending row first, then the running row). A concurrent
@@ -231,10 +231,10 @@ export async function releaseJobExecution(params: {executionId: string}): Promis
     // deadlock against the reverse order here.
     await tx
       .delete(pendingJobExecutions)
-      .where(eq(pendingJobExecutions.executionId, params.executionId));
+      .where(eq(pendingJobExecutions.jobExecutionId, params.jobExecutionId));
     await tx
       .delete(runningJobExecutions)
-      .where(eq(runningJobExecutions.executionId, params.executionId));
+      .where(eq(runningJobExecutions.jobExecutionId, params.jobExecutionId));
   });
 }
 
@@ -254,7 +254,7 @@ export async function releaseJobExecution(params: {executionId: string}): Promis
 export async function expireStuckJobExecutions(params: {
   thresholdSeconds: number;
   limit?: number;
-}): Promise<Array<{jobId: string; executionId: string; runId: string}>> {
+}): Promise<Array<{jobId: string; jobExecutionId: string; runId: string}>> {
   const reaped = await db().transaction(async (tx) => {
     const cutoff = sql`now() - (${params.thresholdSeconds} || ' seconds')::interval`;
 
@@ -276,7 +276,7 @@ export async function expireStuckJobExecutions(params: {
       )
       .returning({
         jobId: runningJobExecutions.jobId,
-        executionId: runningJobExecutions.executionId,
+        jobExecutionId: runningJobExecutions.jobExecutionId,
         runId: runningJobExecutions.runId,
       });
 
@@ -284,8 +284,8 @@ export async function expireStuckJobExecutions(params: {
 
     await tx.delete(pendingJobExecutions).where(
       inArray(
-        pendingJobExecutions.executionId,
-        deleted.map((row) => row.executionId),
+        pendingJobExecutions.jobExecutionId,
+        deleted.map((row) => row.jobExecutionId),
       ),
     );
 
@@ -294,7 +294,7 @@ export async function expireStuckJobExecutions(params: {
       runnersOutbox,
       deleted.map((row) => ({
         type: RUNNER_JOB_LEASE_EXPIRED,
-        payload: {jobId: row.jobId, executionId: row.executionId, runId: row.runId},
+        payload: {jobId: row.jobId, jobExecutionId: row.jobExecutionId, runId: row.runId},
       })),
     );
 
@@ -326,7 +326,7 @@ export async function listActiveRunningJobExecutions(params: {
   return await db()
     .select({
       jobId: runningJobExecutions.jobId,
-      executionId: runningJobExecutions.executionId,
+      jobExecutionId: runningJobExecutions.jobExecutionId,
       runId: runningJobExecutions.runId,
       projectId: runningJobExecutions.projectId,
       runnerSessionId: runningJobExecutions.runnerSessionId,
@@ -390,7 +390,7 @@ export async function listRunningJobExecutionsByProvisionedRunnerTx(
 
   const result = await tx.execute<{
     jobId: string;
-    executionId: string;
+    jobExecutionId: string;
     runId: string;
     provisionedRunnerId: string;
     startedAt: Date | string;
@@ -399,7 +399,7 @@ export async function listRunningJobExecutionsByProvisionedRunnerTx(
   }>(sql`
     SELECT DISTINCT ON (${runningJobExecutions.provisionedRunnerId})
       ${runningJobExecutions.jobId} AS "jobId",
-      ${runningJobExecutions.executionId} AS "executionId",
+      ${runningJobExecutions.jobExecutionId} AS "jobExecutionId",
       ${runningJobExecutions.runId} AS "runId",
       ${runningJobExecutions.provisionedRunnerId} AS "provisionedRunnerId",
       ${runningJobExecutions.startedAt} AS "startedAt",
@@ -413,12 +413,12 @@ export async function listRunningJobExecutionsByProvisionedRunnerTx(
         params.provisionedRunnerIds.map((provisionedRunnerId) => sql`${provisionedRunnerId}`),
         sql`, `,
       )})
-    ORDER BY ${runningJobExecutions.provisionedRunnerId}, ${runningJobExecutions.startedAt} DESC, ${runningJobExecutions.executionId} DESC
+    ORDER BY ${runningJobExecutions.provisionedRunnerId}, ${runningJobExecutions.startedAt} DESC, ${runningJobExecutions.jobExecutionId} DESC
   `);
 
   return result.rows.map((row) => ({
     jobId: row.jobId,
-    executionId: row.executionId,
+    jobExecutionId: row.jobExecutionId,
     runId: row.runId,
     provisionedRunnerId: row.provisionedRunnerId,
     startedAt: toDate(row.startedAt),
@@ -435,7 +435,7 @@ function toDate(value: Date | string): Date {
 
 export async function isJobLeaseActive(params: {
   jobId?: string;
-  executionId: string;
+  jobExecutionId: string;
   runnerSessionId: string;
 }): Promise<boolean> {
   const [row] = await db()
@@ -443,7 +443,7 @@ export async function isJobLeaseActive(params: {
     .from(runningJobExecutions)
     .where(
       and(
-        eq(runningJobExecutions.executionId, params.executionId),
+        eq(runningJobExecutions.jobExecutionId, params.jobExecutionId),
         eq(runningJobExecutions.runnerSessionId, params.runnerSessionId),
         params.jobId === undefined ? undefined : eq(runningJobExecutions.jobId, params.jobId),
       ),
@@ -454,13 +454,13 @@ export async function isJobLeaseActive(params: {
 }
 
 export async function recordHeartbeat(params: {
-  executionId: string;
+  jobExecutionId: string;
   runnerSessionId: string;
 }): Promise<{
   cancellationRequested: boolean;
   runningJobExecution: {
     jobId: string;
-    executionId: string;
+    jobExecutionId: string;
     runId: string;
     projectId: string;
     workspaceId: string;
@@ -472,14 +472,14 @@ export async function recordHeartbeat(params: {
     .set({lastHeartbeatAt: sql`now()`})
     .where(
       and(
-        eq(runningJobExecutions.executionId, params.executionId),
+        eq(runningJobExecutions.jobExecutionId, params.jobExecutionId),
         eq(runningJobExecutions.runnerSessionId, params.runnerSessionId),
       ),
     )
     .returning({
       cancellationRequestedAt: runningJobExecutions.cancellationRequestedAt,
       jobId: runningJobExecutions.jobId,
-      executionId: runningJobExecutions.executionId,
+      jobExecutionId: runningJobExecutions.jobExecutionId,
       runId: runningJobExecutions.runId,
       projectId: runningJobExecutions.projectId,
       workspaceId: runningJobExecutions.workspaceId,
@@ -487,12 +487,12 @@ export async function recordHeartbeat(params: {
     });
 
   const row = updated[0];
-  if (!row) throw new RunningJobExecutionNotFoundError(params.executionId);
+  if (!row) throw new RunningJobExecutionNotFoundError(params.jobExecutionId);
   return {
     cancellationRequested: row.cancellationRequestedAt !== null,
     runningJobExecution: {
       jobId: row.jobId,
-      executionId: row.executionId,
+      jobExecutionId: row.jobExecutionId,
       runId: row.runId,
       projectId: row.projectId,
       workspaceId: row.workspaceId,
@@ -502,14 +502,14 @@ export async function recordHeartbeat(params: {
 }
 
 export async function requestJobExecutionCancellation(params: {
-  executionId: string;
+  jobExecutionId: string;
 }): Promise<void> {
   await db()
     .update(runningJobExecutions)
     .set({
       cancellationRequestedAt: sql`COALESCE(${runningJobExecutions.cancellationRequestedAt}, now())`,
     })
-    .where(eq(runningJobExecutions.executionId, params.executionId));
+    .where(eq(runningJobExecutions.jobExecutionId, params.jobExecutionId));
 }
 
 export async function cancelRunnerJobs(params: {jobIds: string[]}): Promise<void> {

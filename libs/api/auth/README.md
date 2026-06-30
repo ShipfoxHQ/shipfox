@@ -114,8 +114,8 @@ use the per-job lease token instead.
   blocks new sessions, but an existing session can keep claiming until
   `AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN` elapses. A job execution claimed before
   session expiry then moves to the narrower job lease token path: heartbeat can
-  renew that lease while server state still says the execution is live, and
-  cancellation or terminal execution state is the revocation boundary for that
+  renew that lease while server state still says the job execution is live, and
+  cancellation or terminal job execution state is the revocation boundary for that
   already-claimed work.
 
 ### Job lease token

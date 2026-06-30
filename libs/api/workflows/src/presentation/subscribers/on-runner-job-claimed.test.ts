@@ -3,15 +3,15 @@ import {workflowRunFactory} from '#test/index.js';
 import {onRunnerJobClaimed} from './on-runner-job-claimed.js';
 
 describe('onRunnerJobClaimed', () => {
-  it('stamps started_at on the job from the claim event payload', async () => {
+  it('stamps started_at on the job execution from the claim event payload', async () => {
     const run = await workflowRunFactory.create();
     const job = (await getJobsByRunId(run.id))[0];
-    const execution = (await getJobExecutionsByJobId(job?.id as string))[0];
+    const jobExecution = (await getJobExecutionsByJobId(job?.id as string))[0];
     const claimedAt = new Date('2026-06-22T10:05:00.000Z');
 
     await onRunnerJobClaimed({
       jobId: job?.id as string,
-      executionId: execution?.id as string,
+      jobExecutionId: jobExecution?.id as string,
       runId: run.id,
       claimedAt: claimedAt.toISOString(),
     });
@@ -23,19 +23,19 @@ describe('onRunnerJobClaimed', () => {
   it('is idempotent: a redelivered event keeps the first started_at (coalesce)', async () => {
     const run = await workflowRunFactory.create();
     const job = (await getJobsByRunId(run.id))[0];
-    const execution = (await getJobExecutionsByJobId(job?.id as string))[0];
+    const jobExecution = (await getJobExecutionsByJobId(job?.id as string))[0];
     const first = new Date('2026-06-22T10:05:00.000Z');
     const second = new Date('2026-06-22T10:06:00.000Z');
 
     await onRunnerJobClaimed({
       jobId: job?.id as string,
-      executionId: execution?.id as string,
+      jobExecutionId: jobExecution?.id as string,
       runId: run.id,
       claimedAt: first.toISOString(),
     });
     await onRunnerJobClaimed({
       jobId: job?.id as string,
-      executionId: execution?.id as string,
+      jobExecutionId: jobExecution?.id as string,
       runId: run.id,
       claimedAt: second.toISOString(),
     });

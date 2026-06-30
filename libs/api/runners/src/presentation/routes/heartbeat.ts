@@ -33,13 +33,13 @@ export const heartbeatRoute = defineRoute({
     }
 
     const {cancellationRequested, runningJobExecution} = await recordHeartbeat({
-      executionId: lease.executionId,
+      jobExecutionId: lease.jobExecutionId,
       runnerSessionId: lease.runnerSessionId,
     });
 
     const leaseToken = await issueJobLeaseToken({
       jobId: runningJobExecution.jobId,
-      executionId: runningJobExecution.executionId,
+      jobExecutionId: runningJobExecution.jobExecutionId,
       runId: runningJobExecution.runId,
       projectId: runningJobExecution.projectId,
       workspaceId: runningJobExecution.workspaceId,

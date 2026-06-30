@@ -57,7 +57,7 @@ export type WorkflowsWorkflowRunCancelledEvent = z.infer<
 
 export const workflowsJobExecutionTimedOutSchema = z.object({
   jobId: nonEmptyStringSchema,
-  executionId: nonEmptyStringSchema,
+  jobExecutionId: nonEmptyStringSchema,
   runId: nonEmptyStringSchema,
 });
 export type WorkflowsJobExecutionTimedOutEvent = z.infer<
@@ -76,7 +76,7 @@ const settledStatusSchema = z.enum(['succeeded', 'failed']);
 
 export const workflowsJobStepsSettledSchema = z.object({
   jobId: nonEmptyStringSchema,
-  executionId: nonEmptyStringSchema,
+  jobExecutionId: nonEmptyStringSchema,
   runId: nonEmptyStringSchema,
   status: settledStatusSchema,
 });

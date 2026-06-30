@@ -45,7 +45,7 @@ export const appendLogsRoute = defineRoute({
 
     const step = await getStepByIdForJobExecution({
       stepId,
-      executionId: leasedJob.executionId,
+      jobExecutionId: leasedJob.jobExecutionId,
     });
     if (!step) {
       throw new ClientError('Step not found for leased job execution', 'step-not-found', {
