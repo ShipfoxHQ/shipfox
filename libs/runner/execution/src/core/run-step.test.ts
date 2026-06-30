@@ -6,9 +6,11 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {type CommandStartMetadata, executeRunStep, type OutputSink} from '#core/run-step.js';
 
 const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
+const READY_REGEX = /READY/;
 const ESRCH_REGEX = /ESRCH/;
 const SHELL_EXECUTABLE_REGEX = /^(bash|sh)$/;
 const SCRIPT_PATH_REGEX = /shipfox-runner-.*\.sh$/;
+const PROCESS_TEST_WAIT_TIMEOUT_MS = 4_000;
 
 function collectOutput(): {sink: OutputSink; text: () => string; sources: () => string[]} {
   const chunks: Buffer[] = [];
@@ -26,6 +28,31 @@ function collectOutput(): {sink: OutputSink; text: () => string; sources: () => 
 function nodeEnvDumpCommand(keys: readonly string[]): string {
   const script = `const keys = ${JSON.stringify(keys)}; process.stdout.write(JSON.stringify(Object.fromEntries(keys.map((key) => [key, process.env[key] ?? null]))));`;
   return `node -e ${JSON.stringify(script)}`;
+}
+
+async function waitForOutputMatch(
+  output: Pick<ReturnType<typeof collectOutput>, 'text'>,
+  regex: RegExp,
+): Promise<RegExpMatchArray> {
+  await vi.waitFor(
+    () => {
+      expect(output.text()).toMatch(regex);
+    },
+    {timeout: PROCESS_TEST_WAIT_TIMEOUT_MS},
+  );
+
+  const match = output.text().match(regex);
+  if (!match) throw new Error(`Expected output to match ${regex}`);
+  return match;
+}
+
+async function waitForProcessExit(pid: number): Promise<void> {
+  await vi.waitFor(
+    () => {
+      expect(() => process.kill(pid, 0)).toThrow(ESRCH_REGEX);
+    },
+    {timeout: PROCESS_TEST_WAIT_TIMEOUT_MS},
+  );
 }
 
 describe('executeRunStep', () => {
@@ -173,11 +200,12 @@ describe('executeRunStep', () => {
   });
 
   it('reports signal kill on result.error when aborted', async () => {
-    const step = buildStep({config: {run: 'sleep 30'}});
+    const step = buildStep({config: {run: 'echo READY; sleep 30'}});
+    const output = collectOutput();
     const ac = new AbortController();
-    const promise = executeRunStep(step, {signal: ac.signal});
+    const promise = executeRunStep(step, {signal: ac.signal, onOutput: output.sink});
 
-    await new Promise((r) => setTimeout(r, 50));
+    await waitForOutputMatch(output, READY_REGEX);
     ac.abort();
 
     const result = await promise;
@@ -297,12 +325,12 @@ describe('executeRunStep', () => {
   });
 
   it('kills the running script when the AbortSignal fires', async () => {
-    const step = buildStep({config: {run: 'sleep 30'}});
+    const step = buildStep({config: {run: 'echo READY; sleep 30'}});
+    const output = collectOutput();
     const ac = new AbortController();
-    const promise = executeRunStep(step, {signal: ac.signal});
+    const promise = executeRunStep(step, {signal: ac.signal, onOutput: output.sink});
 
-    // Give the shell a moment to actually spawn before we abort.
-    await new Promise((r) => setTimeout(r, 50));
+    await waitForOutputMatch(output, READY_REGEX);
     ac.abort();
 
     const result = await promise;
@@ -317,20 +345,15 @@ describe('executeRunStep', () => {
     const ac = new AbortController();
     const promise = executeRunStep(step, {signal: ac.signal, onOutput: output.sink});
 
-    await new Promise((r) => setTimeout(r, 200));
+    const match = await waitForOutputMatch(output, GRANDCHILD_PID_REGEX);
     ac.abort();
 
     const result = await promise;
     expect(result.success).toBe(false);
 
-    const match = output.text().match(GRANDCHILD_PID_REGEX);
-    expect(match).not.toBeNull();
-    const grandchildPid = Number(match?.[1]);
+    const grandchildPid = Number(match[1]);
 
-    await new Promise((r) => setTimeout(r, 100));
-
-    // process.kill(pid, 0) throws ESRCH if the process is gone.
-    expect(() => process.kill(grandchildPid, 0)).toThrow(ESRCH_REGEX);
+    await waitForProcessExit(grandchildPid);
   });
 });
 
