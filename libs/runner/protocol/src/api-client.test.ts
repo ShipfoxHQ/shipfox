@@ -185,8 +185,8 @@ describe('api-client auth contexts', () => {
     expect(calls[0]?.authorization).toBe('Bearer lease-runtime');
   });
 
-  it('requestAgentRuntimeConfig preserves the server error code on failure', async () => {
-    stubFetch(() => jsonResponse({code: 'agent-config-invalid'}, 409));
+  it('requestAgentRuntimeConfig maps server config errors to agent config issues', async () => {
+    stubFetch(() => jsonResponse({code: 'agent-provider-not-configured'}, 409));
     const leaseClient = createLeaseClient('lease-runtime');
 
     const request = requestAgentRuntimeConfig(leaseClient, {
@@ -195,7 +195,11 @@ describe('api-client auth contexts', () => {
     });
 
     await expect(request).rejects.toMatchObject(
-      new AgentRuntimeConfigRequestError(409, 'agent-config-invalid'),
+      new AgentRuntimeConfigRequestError(
+        409,
+        'agent-provider-not-configured',
+        'provider_not_configured',
+      ),
     );
   });
 

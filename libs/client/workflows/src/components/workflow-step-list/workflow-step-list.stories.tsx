@@ -79,7 +79,7 @@ const withAgentProviderSettingsRoute: Decorator = (Story) => {
 async function assertAgentConfigFailureCallout(ctx: WorkflowStepListStoryContext) {
   const canvas = within(ctx.canvasElement);
 
-  await canvas.findByText("We couldn't load the agent configuration for this step");
+  await canvas.findByText('Configure credentials for anthropic');
   await canvas.findByRole('link', {name: AGENT_PROVIDERS_LINK_NAME});
 }
 
@@ -272,6 +272,7 @@ export const AgentConfigFailureCallout: Story = {
         message: 'Agent provider credentials are not configured',
         category: 'user',
         reason: 'agent_config_invalid',
+        agent_config_issue: 'provider_not_configured',
       },
       attempts: [attempt],
     });
@@ -280,7 +281,20 @@ export const AgentConfigFailureCallout: Story = {
       <WorkflowStepList
         job={makeJob({status: 'failed', steps: [step]})}
         defaultSelectedAttemptId={attempt.id}
-        renderExpandedStep={() => <AgentConfigFailureCalloutView workspaceId={WORKSPACE_ID} />}
+        renderExpandedStep={() => (
+          <AgentConfigFailureCalloutView
+            workspaceId={WORKSPACE_ID}
+            config={{provider: 'anthropic', model: 'claude-opus-4-8', thinking: 'high'}}
+            error={{
+              message: 'Agent provider credentials are not configured',
+              reason: 'agent_config_invalid',
+              agentConfigIssue: 'provider_not_configured',
+              category: 'user',
+              exitCode: null,
+              signal: undefined,
+            }}
+          />
+        )}
       />
     );
   },

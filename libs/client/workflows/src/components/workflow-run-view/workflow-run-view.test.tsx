@@ -138,8 +138,9 @@ describe('WorkflowRunView', () => {
                       prompt: 'Fix the failing tests.',
                     },
                     error: {
-                      message: 'Provider credentials unavailable',
+                      message: 'Agent provider credentials are not configured',
                       reason: 'agent_config_invalid',
+                      agent_config_issue: 'provider_not_configured',
                       category: 'user',
                     },
                     attempts: [
@@ -176,12 +177,10 @@ describe('WorkflowRunView', () => {
     expect(within(config).getByText('claude-opus-4-8')).toBeInTheDocument();
     expect(within(config).getByText('Thinking')).toBeInTheDocument();
     expect(within(config).getByText('high')).toBeInTheDocument();
-    expect(
-      screen.getByText("We couldn't load the agent configuration for this step"),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Configure credentials for anthropic')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Make sure the step prompt, provider, model, and thinking values are set. Then configure Agent Providers to add workspace credentials.',
+        'This step uses anthropic, but no workspace credentials are configured for that provider. Configure anthropic in Agent Providers, then re-run the workflow.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Configure Agent Providers'})).toHaveAttribute(

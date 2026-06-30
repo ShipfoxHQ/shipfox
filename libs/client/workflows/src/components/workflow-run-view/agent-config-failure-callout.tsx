@@ -7,24 +7,87 @@ import {
   Button,
 } from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
+import type {WorkflowAgentStepConfig, WorkflowStepError} from '#core/workflow-run.js';
 
-export function AgentConfigFailureCallout({workspaceId}: {workspaceId: string}) {
+export function AgentConfigFailureCallout({
+  workspaceId,
+  config,
+  error,
+}: {
+  workspaceId: string;
+  config: WorkflowAgentStepConfig | null;
+  error: WorkflowStepError | null;
+}) {
+  const copy = agentConfigFailureCopy(config, error);
+
   return (
     <Alert variant="warning" animated={false} className="px-10 py-8">
       <AlertContent>
-        <AlertTitle>We couldn't load the agent configuration for this step</AlertTitle>
-        <AlertDescription>
-          Make sure the step prompt, provider, model, and thinking values are set. Then configure
-          Agent Providers to add workspace credentials.
-        </AlertDescription>
-        <AlertActions>
-          <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
-            <Link to="/workspaces/$wid/settings/agent-providers" params={{wid: workspaceId}}>
-              Configure Agent Providers
-            </Link>
-          </Button>
-        </AlertActions>
+        <AlertTitle>{copy.title}</AlertTitle>
+        <AlertDescription>{copy.description}</AlertDescription>
+        {copy.showProviderCta ? (
+          <AlertActions>
+            <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
+              <Link to="/workspaces/$wid/settings/agent-providers" params={{wid: workspaceId}}>
+                Configure Agent Providers
+              </Link>
+            </Button>
+          </AlertActions>
+        ) : null}
       </AlertContent>
     </Alert>
   );
+}
+
+function agentConfigFailureCopy(
+  config: WorkflowAgentStepConfig | null,
+  error: WorkflowStepError | null,
+): {title: string; description: string; showProviderCta: boolean} {
+  const provider = configValue(config?.provider, 'the selected provider');
+  const model = configValue(config?.model, 'the selected model');
+
+  switch (error?.agentConfigIssue) {
+    case 'provider_not_configured':
+      return {
+        title: `Configure credentials for ${provider}`,
+        description: `This step uses ${provider}, but no workspace credentials are configured for that provider. Configure ${provider} in Agent Providers, then re-run the workflow.`,
+        showProviderCta: true,
+      };
+    case 'credentials_invalid':
+      return {
+        title: `Update credentials for ${provider}`,
+        description: `This step uses ${provider}, but the saved credentials could not be used. Reconfigure ${provider} in Agent Providers, then re-run the workflow.`,
+        showProviderCta: true,
+      };
+    case 'provider_unsupported':
+      return {
+        title: `Choose a supported agent provider`,
+        description: `This step references ${provider}, which is not available to the agent runner. Update the workflow to use a supported provider, then re-run it.`,
+        showProviderCta: false,
+      };
+    case 'model_unavailable':
+      return {
+        title: `Choose an available model`,
+        description: `This step uses ${model} with ${provider}, but that model is not available for the provider. Update the model or provider in the workflow, then re-run it.`,
+        showProviderCta: false,
+      };
+    case 'step_config_invalid':
+      return {
+        title: "Fix this step's agent settings",
+        description:
+          'Make sure the step has a prompt, provider, model, and thinking value, then re-run the workflow.',
+        showProviderCta: false,
+      };
+    case undefined:
+      return {
+        title: "We couldn't load the agent configuration for this step",
+        description:
+          'Make sure the step has a prompt, provider, model, and thinking value. Then configure credentials for the provider in Agent Providers and re-run the workflow.',
+        showProviderCta: true,
+      };
+  }
+}
+
+function configValue(value: string | null | undefined, fallback: string): string {
+  return value ?? fallback;
 }

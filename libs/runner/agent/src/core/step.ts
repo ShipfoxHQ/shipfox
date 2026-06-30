@@ -1,4 +1,9 @@
-import type {StepDto, StepErrorDtoShape, StepErrorReason} from '@shipfox/api-workflows-dto';
+import type {
+  AgentConfigIssue,
+  StepDto,
+  StepErrorDtoShape,
+  StepErrorReason,
+} from '@shipfox/api-workflows-dto';
 import type {StepResult} from '@shipfox/runner-execution';
 import {AgentConfigError} from '#core/errors.js';
 import {runAgent} from '#core/run-agent.js';
@@ -24,7 +29,11 @@ export function executeAgentStep(
   const {prompt} = step.config;
   if (typeof prompt !== 'string' || prompt === '') {
     return Promise.resolve(
-      agentFailure('Agent step config is missing prompt', 'agent_config_invalid'),
+      agentFailure(
+        'Agent step config is missing prompt',
+        'agent_config_invalid',
+        'step_config_invalid',
+      ),
     );
   }
 
@@ -71,7 +80,11 @@ async function runAgentStep(params: {
   } catch (error) {
     const reason: StepErrorReason =
       error instanceof AgentConfigError ? 'agent_config_invalid' : 'agent_invocation_failed';
-    return agentFailure(error instanceof Error ? error.message : String(error), reason);
+    return agentFailure(
+      error instanceof Error ? error.message : String(error),
+      reason,
+      error instanceof AgentConfigError ? error.agentConfigIssue : undefined,
+    );
   }
 }
 
@@ -115,7 +128,12 @@ function abortError(): Error {
 function agentFailure(
   message: string,
   reason: StepErrorReason = 'agent_invocation_failed',
+  agentConfigIssue?: AgentConfigIssue,
 ): StepResult {
-  const error: StepErrorDtoShape = {message, reason};
+  const error: StepErrorDtoShape = {
+    message,
+    reason,
+    ...(agentConfigIssue === undefined ? {} : {agent_config_issue: agentConfigIssue}),
+  };
   return {success: false, output: '', error, exit_code: null};
 }

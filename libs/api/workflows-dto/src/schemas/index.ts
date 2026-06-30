@@ -61,6 +61,8 @@ export {
   runStepDetailDtoSchema,
 } from './run-detail.js';
 export {
+  type AgentConfigIssue,
+  agentConfigIssueSchema,
   type StepAttemptDto,
   type StepDto,
   type StepErrorCategory,

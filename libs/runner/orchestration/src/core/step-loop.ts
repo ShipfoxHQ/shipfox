@@ -384,14 +384,15 @@ function maskAgentFailure(result: StepResult, secretVariants: string[]): StepRes
 
 function agentRuntimeConfigFailure(error: unknown): StepResult {
   if (error instanceof AgentRuntimeConfigRequestError) {
+    const agentConfigIssue =
+      error.agentConfigIssue ??
+      (error.code === 'agent-config-invalid' ? 'step_config_invalid' : undefined);
     return {
       success: false,
       error: {
         message: error.message,
-        reason:
-          error.code === 'agent-config-invalid'
-            ? 'agent_config_invalid'
-            : 'agent_invocation_failed',
+        reason: agentConfigIssue ? 'agent_config_invalid' : 'agent_invocation_failed',
+        ...(agentConfigIssue ? {agent_config_issue: agentConfigIssue} : {}),
       },
       exit_code: null,
     };

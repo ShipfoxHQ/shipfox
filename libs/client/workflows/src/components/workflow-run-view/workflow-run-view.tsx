@@ -256,7 +256,13 @@ function StepAttemptDetailPanel({
   return (
     <div className="flex min-w-0 flex-col gap-10">
       {step.agentConfig ? <AgentStepConfigPanel config={step.agentConfig} /> : null}
-      {isAgentConfigFailure(step) ? <AgentConfigFailureCallout workspaceId={workspaceId} /> : null}
+      {isAgentConfigFailure(step) ? (
+        <AgentConfigFailureCallout
+          workspaceId={workspaceId}
+          config={step.agentConfig}
+          error={step.error}
+        />
+      ) : null}
       <StepAttemptLogPanel stepId={stepId} attempt={attempt} attemptStatus={attemptStatus} />
     </div>
   );

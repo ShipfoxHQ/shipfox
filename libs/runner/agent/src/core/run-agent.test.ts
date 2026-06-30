@@ -162,7 +162,10 @@ describe('runAgent', () => {
     await expect(
       runAgent(invocation({provider: 'openai', credentials: {account_id: 'acct-1'}})),
     ).rejects.toThrow(
-      new AgentConfigError('Runtime credentials for provider "openai" are missing "api_key".'),
+      new AgentConfigError(
+        'Runtime credentials for provider "openai" are missing "api_key".',
+        'credentials_invalid',
+      ),
     );
     expect(findMock).not.toHaveBeenCalled();
     expect(createAgentSessionMock).not.toHaveBeenCalled();
@@ -179,6 +182,7 @@ describe('runAgent', () => {
     ).rejects.toThrow(
       new AgentConfigError(
         'Runtime credentials for provider "cloudflare-ai-gateway" are missing "gateway_id".',
+        'credentials_invalid',
       ),
     );
     expect(findMock).not.toHaveBeenCalled();
@@ -220,6 +224,7 @@ describe('runAgent', () => {
       new AgentConfigError(
         'Unknown provider "bogus" for agent step. ' +
           'Known providers are pi built-ins plus any from models.json.',
+        'provider_unsupported',
       ),
     );
     expect(createAgentSessionMock).not.toHaveBeenCalled();
@@ -236,6 +241,7 @@ describe('runAgent', () => {
       new AgentConfigError(
         'Model "gpt-5.1" is not available for provider "anthropic". ' +
           'Did you mean to set provider: openai?',
+        'model_unavailable',
       ),
     );
     expect(createAgentSessionMock).not.toHaveBeenCalled();
@@ -246,7 +252,10 @@ describe('runAgent', () => {
     getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);
 
     await expect(runAgent(invocation({provider: 'anthropic', model: 'gpt-5.1'}))).rejects.toThrow(
-      new AgentConfigError('Model "gpt-5.1" is not available for provider "anthropic".'),
+      new AgentConfigError(
+        'Model "gpt-5.1" is not available for provider "anthropic".',
+        'model_unavailable',
+      ),
     );
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
@@ -259,6 +268,7 @@ describe('runAgent', () => {
       new AgentConfigError(
         'No credentials configured for provider "openai". ' +
           'Verify the provider is configured for this workspace.',
+        'provider_not_configured',
       ),
     );
     expect(createAgentSessionMock).not.toHaveBeenCalled();

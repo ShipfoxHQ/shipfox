@@ -1,4 +1,5 @@
 export type {
+  WorkflowAgentConfigIssue,
   WorkflowJob,
   WorkflowJobStatus,
   WorkflowRun,

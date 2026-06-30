@@ -14,6 +14,7 @@ import {
   registerRunnerResponseSchema,
 } from '@shipfox/api-runners-dto';
 import {
+  type AgentConfigIssue,
   type CheckoutTokenResponseDto,
   checkoutTokenResponseSchema,
   type LogOutcomeDto,
@@ -97,6 +98,7 @@ export class AgentRuntimeConfigRequestError extends Error {
   constructor(
     public readonly status: number,
     public readonly code: string | undefined,
+    public readonly agentConfigIssue: AgentConfigIssue | undefined = agentConfigIssueForCode(code),
   ) {
     super(
       code === undefined
@@ -362,4 +364,23 @@ async function errorCode(response: Response): Promise<string | undefined> {
 function codeFromBody(body: unknown): string | undefined {
   if (typeof body !== 'object' || body === null || !('code' in body)) return undefined;
   return typeof body.code === 'string' ? body.code : undefined;
+}
+
+function agentConfigIssueForCode(code: string | undefined): AgentConfigIssue | undefined {
+  switch (code) {
+    case 'agent-config-invalid':
+    case 'agent-step-config-invalid':
+    case 'agent-runtime-config-invalid':
+      return 'step_config_invalid';
+    case 'agent-provider-not-configured':
+      return 'provider_not_configured';
+    case 'agent-provider-unsupported':
+      return 'provider_unsupported';
+    case 'agent-model-unavailable':
+      return 'model_unavailable';
+    case 'agent-provider-credentials-invalid':
+      return 'credentials_invalid';
+    default:
+      return undefined;
+  }
 }

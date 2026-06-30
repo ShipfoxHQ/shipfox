@@ -32,7 +32,7 @@ export const agentRuntimeConfigRoute = defineRoute({
       captureException(error);
       throw new ClientError(
         'Agent provider credentials could not be decrypted',
-        'agent-config-invalid',
+        'agent-provider-credentials-invalid',
         {
           status: 409,
           cause: error,
@@ -42,7 +42,7 @@ export const agentRuntimeConfigRoute = defineRoute({
     if (error instanceof AgentProviderConfigNotFoundError) {
       throw new ClientError(
         'Agent provider credentials are not configured',
-        'agent-config-invalid',
+        'agent-provider-not-configured',
         {
           status: 409,
         },
@@ -90,7 +90,7 @@ export const agentRuntimeConfigRoute = defineRoute({
       agentConfig = materializedAgentStepConfigSchema.parse(step.config);
     } catch (error) {
       if (error instanceof ZodError) {
-        throw new ClientError('Agent step config is invalid', 'agent-config-invalid', {
+        throw new ClientError('Agent step config is invalid', 'agent-step-config-invalid', {
           status: 409,
           cause: error,
         });

@@ -1,4 +1,5 @@
 import type {
+  AgentConfigIssue,
   JobStatusDto,
   JobStatusReasonDto,
   RunAttemptDto,
@@ -21,6 +22,7 @@ export type WorkflowJobStatus = JobStatusDto;
 export type WorkflowJobStatusReason = JobStatusReasonDto;
 export type WorkflowStatus = WorkflowRunStatus | WorkflowJobStatus;
 export type WorkflowStepErrorReason = StepErrorReason;
+export type WorkflowAgentConfigIssue = AgentConfigIssue;
 export type WorkflowStepErrorCategory = StepErrorCategory;
 export type WorkflowStepGateResult = StepGateResultDto;
 export type WorkflowStepRestartResult = StepRestartResultDto;
@@ -69,6 +71,7 @@ export interface WorkflowStepError {
   exitCode: number | null;
   signal: string | undefined;
   reason: WorkflowStepErrorReason | undefined;
+  agentConfigIssue: WorkflowAgentConfigIssue | undefined;
   category: WorkflowStepErrorCategory | undefined;
 }
 
@@ -346,6 +349,7 @@ function toWorkflowStepError(dto: NonNullable<RunStepDetailDto['error']>): Workf
     exitCode: dto.exit_code ?? null,
     signal: dto.signal,
     reason: dto.reason,
+    agentConfigIssue: dto.agent_config_issue,
     category: dto.category,
   };
 }
