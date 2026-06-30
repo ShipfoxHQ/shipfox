@@ -5,9 +5,11 @@ minimumReleaseAge: 2880
 allowBuilds:
   '@google/genai': true
   '@swc/core': true
+  cpu-features: true
   esbuild: true
   protobufjs: true
   sharp: true
+  ssh2: true
 
 packages:
   - "apps/*"

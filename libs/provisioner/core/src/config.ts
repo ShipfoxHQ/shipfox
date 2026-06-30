@@ -9,6 +9,10 @@ export const config = createConfig({
   SHIPFOX_API_URL: url({
     desc: 'Base URL of the Shipfox API the provisioner connects to, such as https://api.shipfox.io. Required.',
   }),
+  SHIPFOX_RUNNER_API_URL: url({
+    desc: 'Base URL injected into runner containers as SHIPFOX_API_URL. Defaults to SHIPFOX_API_URL; set it when containers reach the API through a different address than the provisioner uses.',
+    default: undefined,
+  }),
   SHIPFOX_PROVISIONER_TOKEN: str({
     desc: 'Long-lived provisioner token used to authenticate control-plane calls. Required, with no default, so startup fails when it is missing rather than sending a predictable token.',
   }),
