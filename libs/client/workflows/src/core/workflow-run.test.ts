@@ -269,6 +269,26 @@ describe('workflow run model mapping', () => {
     });
   });
 
+  test('maps queued jobs cancelled before start to no duration', () => {
+    const job = workflowJobDto({
+      status: 'cancelled',
+      queued_at: '2026-05-07T01:00:00.000Z',
+      started_at: null,
+      finished_at: '2026-05-07T01:01:00.000Z',
+    });
+    const dto = workflowRunDetailDto({jobs: [job]});
+
+    const detail = toWorkflowRunDetail(dto);
+
+    expect(detail.jobs[0]).toMatchObject({
+      status: 'cancelled',
+      queuedAt: '2026-05-07T01:00:00.000Z',
+      startedAt: null,
+      finishedAt: '2026-05-07T01:01:00.000Z',
+      duration: {kind: 'none'},
+    });
+  });
+
   test('maps run attempt summaries', () => {
     const dto = workflowRunAttemptDto({
       id: '77777777-7777-4777-8777-777777777777',

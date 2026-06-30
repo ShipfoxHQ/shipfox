@@ -33,6 +33,16 @@ describe('toJobDto', () => {
       to_iso: finishedAt.toISOString(),
     });
   });
+
+  it('maps a queued job cancelled before start to no duration', () => {
+    const queuedAt = new Date('2026-06-21T12:00:00.000Z');
+    const finishedAt = new Date('2026-06-21T12:01:00.000Z');
+    const job = jobEntity({status: 'cancelled', queuedAt, startedAt: null, finishedAt});
+
+    const dto = toJobDto(job);
+
+    expect(dto.duration).toEqual({kind: 'none'});
+  });
 });
 
 function jobEntity(overrides: Partial<Job> = {}): Job {

@@ -32,10 +32,12 @@ describe('jobDurationFor', () => {
     expect(result).toEqual({kind: 'none'});
   });
 
-  it('anchors jobs without startedAt on queuedAt regardless of status', () => {
-    const result = jobDurationFor(job({status: 'cancelled', queuedAt: QUEUED, startedAt: null}));
+  it('returns none for queued jobs that finished before starting', () => {
+    const result = jobDurationFor(
+      job({status: 'cancelled', queuedAt: QUEUED, startedAt: null, finishedAt: FINISHED}),
+    );
 
-    expect(result).toEqual({kind: 'queued', from: QUEUED});
+    expect(result).toEqual({kind: 'none'});
   });
 
   it('anchors jobs without finishedAt on startedAt regardless of status', () => {

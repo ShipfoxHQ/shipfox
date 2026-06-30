@@ -1,4 +1,5 @@
 import type {
+  JobStatusDto,
   RunAttemptDto,
   RunAttemptsResponseDto,
   RunDetailResponseDto,
@@ -209,11 +210,10 @@ function workflowJobDurationDto(
     return {kind: 'finished', from_iso: job.started_at, to_iso: job.finished_at};
   }
 
-  if (job.started_at !== null) {
-    return {kind: 'running', from_iso: job.started_at};
+  if (job.started_at !== null) return {kind: 'running', from_iso: job.started_at};
+  if (job.finished_at === null && job.queued_at !== null) {
+    return {kind: 'queued', from_iso: job.queued_at};
   }
-
-  if (job.queued_at !== null) return {kind: 'queued', from_iso: job.queued_at};
 
   return {kind: 'none'};
 }

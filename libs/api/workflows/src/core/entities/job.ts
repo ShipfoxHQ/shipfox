@@ -60,14 +60,8 @@ export function jobDurationFor(
     return {kind: 'finished', from: startedAt, to: finishedAt};
   }
 
-  if (startedAt !== null) {
-    return {kind: 'running', from: startedAt};
-  }
-
-  if (queuedAt !== null) {
-    return {kind: 'queued', from: queuedAt};
-  }
-
+  if (startedAt !== null) return {kind: 'running', from: startedAt};
+  if (finishedAt === null && queuedAt !== null) return {kind: 'queued', from: queuedAt};
   return {kind: 'none'};
 }
 
