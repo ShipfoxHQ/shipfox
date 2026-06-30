@@ -1,8 +1,9 @@
-import {execFileSync, spawn} from 'node:child_process';
+import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
+import {accessSync, constants, statSync} from 'node:fs';
 import {unlink, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {basename, delimiter, isAbsolute, join, resolve} from 'node:path';
 import type {StepDto, StepErrorDtoShape} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {StepResult} from '#core/step-result.js';
@@ -212,11 +213,32 @@ function readStepEnv(step: StepDto): Readonly<Record<string, string>> {
 }
 
 function findShell(): string {
+  return findExecutable('bash') ?? findExecutable('sh') ?? '/bin/sh';
+}
+
+function findExecutable(name: 'bash' | 'sh'): string | undefined {
+  for (const directory of (process.env.PATH ?? '').split(delimiter)) {
+    if (!directory) continue;
+
+    const candidate = isAbsolute(directory)
+      ? join(directory, name)
+      : resolve(process.cwd(), directory, name);
+    if (isExecutableFile(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+function isExecutableFile(path: string): boolean {
   try {
-    execFileSync('bash', ['--version'], {stdio: 'ignore'});
-    return 'bash';
+    if (!statSync(path).isFile()) {
+      return false;
+    }
+    accessSync(path, constants.X_OK);
+    return true;
   } catch {
-    return 'sh';
+    return false;
   }
 }
 
@@ -227,7 +249,7 @@ function commandStartMetadata(args: {
 }): CommandStartMetadata {
   const executable = findShell();
   const shellArgs =
-    executable === 'bash'
+    basename(executable) === 'bash'
       ? ['--noprofile', '--norc', '-eo', 'pipefail', args.scriptPath]
       : ['-e', args.scriptPath];
   const displayArgs = shellArgs.map((arg) => (arg === args.scriptPath ? '{0}' : arg));

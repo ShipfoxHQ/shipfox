@@ -1,13 +1,13 @@
-import {mkdtemp, rm} from 'node:fs/promises';
+import {mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {basename, join} from 'node:path';
+import {basename, isAbsolute, join} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {type CommandStartMetadata, executeRunStep, type OutputSink} from '#core/run-step.js';
 
 const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
 const ESRCH_REGEX = /ESRCH/;
-const SHELL_EXECUTABLE_REGEX = /^(bash|sh)$/;
+const SHELL_EXECUTABLE_REGEX = /(?:^|\/)(bash|sh)$/;
 const SCRIPT_PATH_REGEX = /shipfox-runner-.*\.sh$/;
 
 function collectOutput(): {sink: OutputSink; text: () => string; sources: () => string[]} {
@@ -72,6 +72,37 @@ describe('executeRunStep', () => {
       } else {
         process.env.SHIPFOX_ENV_TEST_EXISTING = previous;
       }
+    }
+  });
+
+  it('does not resolve the shell executable through step env PATH', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'shipfox-shell-path-test-'));
+    try {
+      await writeFile(join(dir, 'bash'), '#!/bin/sh\necho fake-bash\nexit 42\n', {mode: 0o700});
+      const step = buildStep({
+        config: {
+          run: 'printf "%s" "$PATH"',
+          env: {PATH: dir},
+        },
+      });
+      const output = collectOutput();
+      let metadata: CommandStartMetadata | undefined;
+
+      const result = await executeRunStep(step, {
+        onCommandStart: (value) => {
+          metadata = value;
+        },
+        onOutput: output.sink,
+      });
+
+      expect(result.success).toBe(true);
+      expect(output.text()).toBe(dir);
+      expect(metadata).toBeDefined();
+      if (!metadata) throw new Error('expected command metadata');
+      expect(isAbsolute(metadata.shell.executable)).toBe(true);
+      expect(metadata.shell.executable).not.toBe(join(dir, 'bash'));
+    } finally {
+      await rm(dir, {recursive: true, force: true});
     }
   });
 
@@ -231,6 +262,7 @@ describe('executeRunStep', () => {
         command: 'echo hello',
         cwd: dir,
       });
+      expect(isAbsolute(metadata.shell.executable)).toBe(true);
       expect(metadata.shell.executable).toMatch(SHELL_EXECUTABLE_REGEX);
       expect(metadata.shell.args.at(-1)).toMatch(SCRIPT_PATH_REGEX);
       expect(metadata.shell.display).toContain('{0}');
