@@ -63,7 +63,6 @@ configured root is empty, the filesystem root (`/`), or a home directory.
 | `SHIPFOX_POLL_MAX_DURATION_MS` | `300000` | Maximum time to poll without claiming a job. Set to `0` to poll forever for manual or self-hosted runners. |
 | `SHIPFOX_HEARTBEAT_INTERVAL_MS` | `10000` | Heartbeat tick interval for an in-flight job. |
 | `SHIPFOX_HEARTBEAT_MAX_STALE_MS` | `10000` | Max time a single heartbeat may stay outstanding before it is aborted. |
-| `ANTHROPIC_API_KEY` | none | Anthropic API key the embedded pi harness uses to run agent steps against Anthropic models. Read from the process environment. Unset or empty disables agent steps, which then fail at invocation; other step types are unaffected. |
 | `SHIPFOX_LOG_FLUSH_INTERVAL_MS` | `2000` | How often buffered step logs are uploaded. Bounds how much recent output is lost if the runner dies mid-step. |
 | `SHIPFOX_LOG_FLUSH_BYTES` | `262144` | Backlog size that triggers an early log upload before the interval elapses, so bursts do not wait for the timer. |
 | `SHIPFOX_LOG_SPOOL_MAX_BYTES` | `67108864` | Max not-yet-acknowledged log bytes kept on disk per step attempt. Beyond this, output is dropped and a gap marker is recorded. |

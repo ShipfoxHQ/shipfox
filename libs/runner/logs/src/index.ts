@@ -1,5 +1,6 @@
 export type {OutputSource} from '#core/framing.js';
 export type {LogDrainOutcome, LogStreamLifecycle} from '#core/lifecycle.js';
+export {buildSecretVariants} from '#core/secrets.js';
 export {
   createSessionLogStream,
   type SessionLogStream,

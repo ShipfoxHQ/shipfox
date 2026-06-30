@@ -246,14 +246,36 @@ export async function requestAgentRuntimeConfig(
     signal?: AbortSignal;
   },
 ): Promise<AgentRuntimeCredentialsResponseDto> {
-  const response = await leaseClient.get('runs/jobs/current/agent-runtime-config', {
-    searchParams: {step_id: params.stepId, attempt: params.attempt},
-    throwHttpErrors: false,
-    ...(params.signal ? {signal: params.signal} : {}),
-  });
+  let response: Response;
+  try {
+    response = await leaseClient.get('runs/jobs/current/agent-runtime-config', {
+      searchParams: {step_id: params.stepId, attempt: params.attempt},
+      retry: {
+        methods: ['get'],
+        statusCodes: [429, 500, 502, 503, 504],
+      },
+      ...(params.signal ? {signal: params.signal} : {}),
+    });
+  } catch (error) {
+    if (error instanceof HTTPError) {
+      throw new AgentRuntimeConfigRequestError(error.response.status, codeFromBody(error.data));
+    }
+    throw error;
+  }
 
   if (response.ok) {
-    return agentRuntimeCredentialsResponseSchema.parse(await response.json());
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      throw new AgentRuntimeConfigRequestError(200, 'agent-runtime-config-invalid');
+    }
+
+    const parsed = agentRuntimeCredentialsResponseSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new AgentRuntimeConfigRequestError(200, 'agent-runtime-config-invalid');
+    }
+    return parsed.data;
   }
 
   throw new AgentRuntimeConfigRequestError(response.status, await errorCode(response));
@@ -331,9 +353,13 @@ export {HTTPError};
 async function errorCode(response: Response): Promise<string | undefined> {
   try {
     const body = (await response.json()) as unknown;
-    if (typeof body !== 'object' || body === null || !('code' in body)) return undefined;
-    return typeof body.code === 'string' ? body.code : undefined;
+    return codeFromBody(body);
   } catch {
     return undefined;
   }
+}
+
+function codeFromBody(body: unknown): string | undefined {
+  if (typeof body !== 'object' || body === null || !('code' in body)) return undefined;
+  return typeof body.code === 'string' ? body.code : undefined;
 }

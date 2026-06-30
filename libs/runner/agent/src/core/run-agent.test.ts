@@ -38,6 +38,7 @@ function invocation(overrides: Partial<AgentInvocation> = {}): AgentInvocation {
     provider: 'anthropic',
     thinking: 'high',
     prompt: 'Fix it.',
+    credentials: {api_key: 'sk-runtime-secret'},
     signal: new AbortController().signal,
     ...overrides,
   };
@@ -68,6 +69,7 @@ describe('runAgent', () => {
   });
 
   afterEach(() => {
+    expect(authStorageCreateMock).not.toHaveBeenCalled();
     if (sessionDir) rmSync(sessionDir, {recursive: true, force: true});
     sessionDir = undefined;
   });
@@ -249,14 +251,14 @@ describe('runAgent', () => {
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
-  it('throws an AgentConfigError when the provider has no credentials on the runner', async () => {
+  it('throws an AgentConfigError when the provider has no configured workspace credentials', async () => {
     findMock.mockReturnValue({provider: 'openai', id: 'gpt-5.1'});
     hasConfiguredAuthMock.mockReturnValue(false);
 
     await expect(runAgent(invocation({provider: 'openai', model: 'gpt-5.1'}))).rejects.toThrow(
       new AgentConfigError(
-        'No credentials configured for provider "openai" on this runner. ' +
-          "Set the provider's API key in the runner environment.",
+        'No credentials configured for provider "openai". ' +
+          'Verify the provider is configured for this workspace.',
       ),
     );
     expect(createAgentSessionMock).not.toHaveBeenCalled();
