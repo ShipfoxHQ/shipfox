@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import type {
   DemandStatDto,
   MintRegistrationTokensBatchResponseDto,
@@ -6,7 +7,6 @@ import type {
 import {logger} from '@shipfox/node-opentelemetry';
 import type {ProvisionerClient} from '#api-client.js';
 import {type PlannedLaunchGroup, planLaunches, templateAvailableSlots} from '#capacity.js';
-import {newProvisionedRunnerId} from '#ids.js';
 import type {ProvisionedRunnerTracker} from '#tracker.js';
 import type {LaunchRunner, ProvisionerTemplate} from '#types.js';
 
@@ -109,13 +109,16 @@ async function launchReservation<Spec>(
   groups: readonly PlannedLaunchGroup<Spec>[],
   deps: ProvisionerTickDeps<Spec>,
 ): Promise<number> {
+  // A fresh, never-reused id per runner: it binds the ephemeral registration token,
+  // names the resource, and keys idempotent reporting and reconciliation. Uniqueness is
+  // all the loop needs, so a random UUID suffices.
   const plannedRunners = groups.flatMap((group) =>
     Array.from({length: group.count}, () => ({
-      provisionedRunnerId: newProvisionedRunnerId(),
+      provisionedRunnerId: randomUUID(),
       template: group.template,
     })),
   );
-  const templateById = new Map(
+  const templateById = new Map<string, ProvisionerTemplate<Spec>>(
     plannedRunners.map((runner) => [runner.provisionedRunnerId, runner.template]),
   );
 
