@@ -204,18 +204,18 @@ function AgentProviderModelRow({label, id}: {label: string; id: string}) {
           <button
             type="button"
             aria-label={`Copy ${label} model id ${id}`}
-            className="flex min-h-40 w-full min-w-0 items-center gap-8 px-12 py-8 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
+            className="flex min-h-40 w-full min-w-0 flex-col items-start gap-2 px-12 py-8 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none sm:flex-row sm:items-center sm:gap-8"
             onClick={() => {
               void handleCopy();
             }}
           >
-            <Text as="span" size="sm" bold className="max-w-[48%] shrink-0 truncate">
+            <Text as="span" size="sm" bold className="max-w-full shrink-0 truncate sm:max-w-[48%]">
               {label}
             </Text>
             <Code
               as="span"
               variant="label"
-              className="min-w-0 flex-1 truncate text-foreground-neutral-muted"
+              className="min-w-0 max-w-full truncate text-left text-foreground-neutral-muted sm:flex-1 sm:text-right"
             >
               {id}
             </Code>
