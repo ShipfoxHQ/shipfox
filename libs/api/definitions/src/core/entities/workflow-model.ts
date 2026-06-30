@@ -65,6 +65,8 @@ export interface WorkflowModelAgentStep extends WorkflowModelStepBase {
   readonly prompt: string;
   readonly templates?: {
     readonly prompt?: WorkflowFieldTemplate;
+    readonly model?: WorkflowFieldTemplate;
+    readonly provider?: WorkflowFieldTemplate;
     readonly name?: WorkflowFieldTemplate;
   };
 }

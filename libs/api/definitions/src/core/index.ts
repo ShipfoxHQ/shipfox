@@ -17,3 +17,4 @@ export {
   UNRESOLVED_SYNC_REF,
   WORKFLOW_PREFIX,
 } from './sync-definitions.js';
+export {normalizeWorkflowDocument} from './workflow-model/index.js';

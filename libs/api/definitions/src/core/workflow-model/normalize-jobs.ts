@@ -24,10 +24,7 @@ import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.
 import {normalizeEnv} from './normalize-env.js';
 import {normalizeNeeds} from './normalize-needs.js';
 import {normalizeStepGate} from './normalize-step-gate.js';
-import {
-  parseInterpolationField,
-  rejectUnsupportedInterpolationField,
-} from './parse-interpolation-field.js';
+import {parseInterpolationField} from './parse-interpolation-field.js';
 import {stableId} from './stable-id.js';
 import {issue} from './validation-issue.js';
 
@@ -276,32 +273,36 @@ function normalizeAgentStep(params: {
     path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'prompt'],
     issues: params.issues,
   });
-  if (params.step.model !== undefined) {
-    rejectUnsupportedInterpolationField({
-      field: 'agent.model',
-      source: params.step.model,
-      path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
-      issues: params.issues,
-    });
-  }
-  const providerHasInterpolation =
+  const modelTemplate =
+    params.step.model === undefined
+      ? undefined
+      : parseInterpolationField({
+          field: 'agent.model',
+          source: params.step.model,
+          path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
+          issues: params.issues,
+        });
+  const providerTemplate =
     params.step.provider === undefined
-      ? false
-      : rejectUnsupportedInterpolationField({
+      ? undefined
+      : parseInterpolationField({
           field: 'agent.provider',
           source: params.step.provider,
           path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
           issues: params.issues,
         });
-  if (!providerHasInterpolation)
+  if (providerTemplate === undefined) {
     validateAgentStep({
       step: params.step,
       sourceName: params.sourceName,
       stepIndex: params.stepIndex,
       issues: params.issues,
     });
+  }
   const templates = optionalAgentStepTemplates({
     prompt: promptTemplate,
+    model: modelTemplate,
+    provider: providerTemplate,
     name: params.nameTemplate,
   });
 
@@ -338,7 +339,6 @@ function validateAgentStep(params: {
     return;
   }
 }
-
 function normalizeRunner(params: {
   document: WorkflowDocument;
   job: WorkflowDocumentJob;
@@ -414,17 +414,30 @@ function optionalRunStepTemplates(params: {
 
 function optionalAgentStepTemplates(params: {
   prompt: WorkflowFieldTemplate | undefined;
+  model: WorkflowFieldTemplate | undefined;
+  provider: WorkflowFieldTemplate | undefined;
   name: WorkflowFieldTemplate | undefined;
 }):
   | {
       prompt?: WorkflowFieldTemplate;
+      model?: WorkflowFieldTemplate;
+      provider?: WorkflowFieldTemplate;
       name?: WorkflowFieldTemplate;
     }
   | undefined {
-  if (params.prompt === undefined && params.name === undefined) return undefined;
+  if (
+    params.prompt === undefined &&
+    params.model === undefined &&
+    params.provider === undefined &&
+    params.name === undefined
+  ) {
+    return undefined;
+  }
 
   return {
     ...(params.prompt === undefined ? {} : {prompt: params.prompt}),
+    ...(params.model === undefined ? {} : {model: params.model}),
+    ...(params.provider === undefined ? {} : {provider: params.provider}),
     ...(params.name === undefined ? {} : {name: params.name}),
   };
 }

@@ -1,4 +1,5 @@
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
+import {normalizeWorkflowDocument} from '@shipfox/api-definitions';
 import {
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_JOB_TIMED_OUT,
@@ -7,6 +8,7 @@ import {
   WORKFLOWS_WORKFLOW_RUN_CREATED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
 } from '@shipfox/api-workflows-dto';
+import * as opentelemetry from '@shipfox/node-opentelemetry';
 import {and, eq, sql} from 'drizzle-orm';
 import {
   JobNotFoundError,
@@ -47,6 +49,14 @@ type TestWorkflowModelInput = Parameters<typeof workflowModel>[0];
 
 function buildModel(overrides?: TestWorkflowModelInput) {
   return workflowModel(overrides);
+}
+
+function template(source: string): string {
+  return `\${{ ${source} }}`;
+}
+
+function shellRef(name: string): string {
+  return `\${${name}}`;
 }
 
 function createTestRun(scope: {workspaceId: string; projectId: string; definitionId: string}) {
@@ -228,6 +238,107 @@ describe('workflow run queries', () => {
         definitionId: run.definitionId,
       });
       expect(matchingRow?.dispatchedAt).toBeNull();
+    });
+
+    test('persists resolved step config and authored step config separately', async () => {
+      const model = normalizeWorkflowDocument({
+        name: 'Interpolated workflow',
+        runner: 'ubuntu-latest',
+        env: {RUN_ID: template('run.id'), REF: template('event.ref')},
+        jobs: {
+          build: {
+            steps: [{run: `echo "${template('run.id')}"`}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'github',
+          event: 'push',
+          deliveryId: 'delivery-1',
+          data: {ref: 'refs/heads/main'},
+        },
+      });
+
+      const [job] = await getJobsByRunId(run.id);
+      const rows = await db()
+        .select({
+          type: stepsTable.type,
+          config: stepsTable.config,
+          authoredConfig: stepsTable.authoredConfig,
+        })
+        .from(stepsTable)
+        .where(eq(stepsTable.jobId, job?.id as string))
+        .orderBy(stepsTable.position);
+
+      expect(rows[1]).toEqual({
+        type: 'run',
+        config: {
+          run: `echo "${shellRef('__sf_0')}"`,
+          env: {RUN_ID: run.id, REF: 'refs/heads/main', __sf_0: run.id},
+        },
+        authoredConfig: {
+          run: `echo "${template('run.id')}"`,
+          env: {RUN_ID: template('run.id'), REF: template('event.ref')},
+        },
+      });
+
+      const steps = await getStepsByJobId(job?.id as string);
+      expect(steps[1]?.authoredConfig).toEqual({
+        run: `echo "${template('run.id')}"`,
+        env: {RUN_ID: template('run.id'), REF: template('event.ref')},
+      });
+    });
+
+    test('logs enriched diagnostics for missing untrusted interpolation paths', async () => {
+      const warn = vi.fn();
+      vi.spyOn(opentelemetry, 'logger').mockReturnValue({warn} as never);
+      const model = normalizeWorkflowDocument({
+        name: 'Diagnostic workflow',
+        runner: 'ubuntu-latest',
+        env: {REF: template('event.ref')},
+        jobs: {
+          build: {
+            steps: [{run: 'echo ok'}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'github',
+          event: 'push',
+          deliveryId: 'delivery-1',
+          data: {},
+        },
+      });
+
+      expect(warn).toHaveBeenCalledWith(
+        {
+          runId: run.id,
+          diagnostics: [
+            {
+              jobName: 'build',
+              stepDisplayName: 'echo ok',
+              reason: 'missing-path',
+              expression: 'event.ref',
+              contextRoots: ['event'],
+              field: 'env',
+              envKey: 'REF',
+            },
+          ],
+        },
+        'Workflow interpolation resolved with diagnostics',
+      );
     });
 
     test('gets a step only when it belongs to the requested job', async () => {
@@ -675,7 +786,7 @@ jobs:
       expect(outboxRows).toHaveLength(1);
     });
 
-    test('duplicate triggerIdempotencyKey with an agent step re-resolves before returning the existing run', async () => {
+    test('duplicate triggerIdempotencyKey returns the existing run without re-materializing', async () => {
       const subscriptionId = crypto.randomUUID();
       const eventId = crypto.randomUUID();
       const idempotencyKey = `${subscriptionId}:${eventId}`;
@@ -707,7 +818,7 @@ jobs:
         resolveAgentDefaults: firstResolver,
       });
 
-      const replay = createWorkflowRun({
+      const replay = await createWorkflowRun({
         workspaceId,
         projectId,
         definitionId,
@@ -722,9 +833,9 @@ jobs:
         resolveAgentDefaults: secondResolver,
       });
 
-      await expect(replay).rejects.toThrow('agent defaults unavailable');
+      expect(replay.id).toBe(first.id);
       expect(firstResolver).toHaveBeenCalledTimes(1);
-      expect(secondResolver).toHaveBeenCalledTimes(1);
+      expect(secondResolver).not.toHaveBeenCalled();
 
       const allJobs = await getJobsByRunId(first.id);
       expect(allJobs).toHaveLength(1);
@@ -891,6 +1002,38 @@ jobs:
         thinking: 'medium',
         prompt: 'Fix the failing tests.',
       });
+    });
+
+    test('reruns clone authored step config', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({jobs: {build: {steps: [{run: `echo "${template('run.id')}"`}]}}}),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      await updateWorkflowRunStatus({runId: source.id, status: 'failed', expectedVersion: 1});
+
+      const rerun = await createRerunWorkflowRun({
+        sourceRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+      const rerunJobs = await getJobsByRunId(rerun.id);
+      const [userStep] = await db()
+        .select({authoredConfig: stepsTable.authoredConfig})
+        .from(stepsTable)
+        .where(eq(stepsTable.jobId, rerunJobs[0]?.id as string))
+        .orderBy(stepsTable.position)
+        .offset(1)
+        .limit(1);
+
+      expect(userStep?.authoredConfig).toEqual({run: `echo "${template('run.id')}"`});
     });
 
     test('writes one workflow_run.created outbox event for the rerun', async () => {

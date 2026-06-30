@@ -15,6 +15,7 @@ export type {
 export {
   AgentConfigUnresolvableError,
   DefinitionNotFoundError,
+  InterpolationUnresolvableError,
   isPermanentRunWorkflowError,
   JobNotFoundError,
   NoFailedJobsError,

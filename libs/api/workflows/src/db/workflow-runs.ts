@@ -20,6 +20,7 @@ import {
   type TimestampIdCursor,
   timestampIdCursorWhere,
 } from '@shipfox/node-drizzle';
+import {logger} from '@shipfox/node-opentelemetry';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
 import {
   and,
@@ -56,7 +57,11 @@ import {
   WorkflowRunNotFoundError,
 } from '#core/errors.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
-import {materializeWorkflowModel} from '#core/workflow-runtime/index.js';
+import type {WorkflowStepTemplateDiagnostic} from '#core/workflow-runtime/index.js';
+import {
+  assembleWorkflowRunContext,
+  materializeWorkflowModel,
+} from '#core/workflow-runtime/index.js';
 import {
   recordWorkflowJobLeaseExpiryResolved,
   recordWorkflowJobQueued,
@@ -90,12 +95,6 @@ export interface CreateWorkflowRunParams {
 }
 
 export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
-  const materializedJobs = materializeWorkflowModel(
-    params.model,
-    params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
-    params.definitionId,
-  );
-
   const result = await db().transaction(async (tx) => {
     const insertResult = await tx
       .insert(workflowRuns)
@@ -135,6 +134,20 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       return {run: toWorkflowRun(existingRow), created: false};
     }
 
+    const run = toWorkflowRun(runRow);
+    // Resolving templates here gives interpolation access to the inserted run id.
+    // If resolution fails, the transaction rolls back the run, jobs, steps, and outbox event together.
+    const materializedJobs = materializeWorkflowModel({
+      model: params.model,
+      context: assembleWorkflowRunContext({
+        run,
+        triggerPayload: params.triggerPayload,
+        inputs: params.inputs ?? null,
+      }),
+      resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
+      definitionId: params.definitionId,
+    });
+
     let jobRows: (typeof jobs.$inferSelect)[] = [];
 
     if (materializedJobs.length > 0) {
@@ -166,6 +179,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
           status: step.status,
           type: step.type,
           config: step.config,
+          authoredConfig: step.authoredConfig,
           position: step.position,
         });
       }
@@ -185,7 +199,20 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       },
     });
 
-    return {run: toWorkflowRun(runRow), created: true};
+    logTemplateDiagnostics({
+      runId: runRow.id,
+      diagnostics: materializedJobs.flatMap((job) =>
+        job.steps.flatMap((step) =>
+          (step.diagnostics ?? []).map((diagnostic) => ({
+            jobName: job.sourceName,
+            stepDisplayName: step.displayName,
+            ...diagnostic,
+          })),
+        ),
+      ),
+    });
+
+    return {run, created: true};
   });
 
   if (result.created) recordWorkflowRunCreated(result.run.triggerSource);
@@ -333,6 +360,7 @@ export async function createRerunWorkflowRun(
           status: carriedOver ? step.status : ('pending' as const),
           type: step.type,
           config: step.config,
+          authoredConfig: step.authoredConfig,
           output: carriedOver ? step.output : null,
           error: null,
           position: step.position,
@@ -361,6 +389,21 @@ export async function createRerunWorkflowRun(
   recordWorkflowRunCreated(result.triggerSource);
 
   return result;
+}
+
+function logTemplateDiagnostics(params: {
+  readonly runId: string;
+  readonly diagnostics: readonly (WorkflowStepTemplateDiagnostic & {
+    readonly jobName: string;
+    readonly stepDisplayName: string;
+  })[];
+}): void {
+  if (params.diagnostics.length === 0) return;
+
+  logger().warn(
+    {runId: params.runId, diagnostics: params.diagnostics},
+    'Workflow interpolation resolved with diagnostics',
+  );
 }
 
 export async function getWorkflowRunById(id: string): Promise<WorkflowRun | undefined> {

@@ -5,7 +5,6 @@ export type WorkflowModelValidationIssueCode =
   | 'duplicate-step-id'
   | 'duplicate-trigger-id'
   | 'invalid-agent-provider'
-  | 'interpolation-not-supported'
   | 'invalid-interpolation-expression'
   | 'invalid-interpolation-template'
   | 'invalid-runner-label'
