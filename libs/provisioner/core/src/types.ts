@@ -1,3 +1,6 @@
+import type {ProvisionerClient} from '#api-client.js';
+import type {ProvisionedRunnerTracker} from '#tracker.js';
+
 /**
  * A machine template the provisioner can start runners from. The control loop is
  * provider-agnostic and only reads the fields needed to match demand and respect
@@ -45,6 +48,17 @@ export interface ProvisionedRunnerLaunch<Spec = unknown> {
 /** Starts one provisioned runner. The provider implementation owns the side effect. */
 export type LaunchRunner<Spec = unknown> = (launch: ProvisionedRunnerLaunch<Spec>) => Promise<void>;
 
+export interface ProvisionerIdentity {
+  readonly id: string;
+  readonly workspaceId: string;
+}
+
+export interface ProvisionerRuntime {
+  readonly client: ProvisionerClient;
+  readonly identity: ProvisionerIdentity;
+  readonly tracker: ProvisionedRunnerTracker;
+}
+
 /**
  * The provider plug-in the control loop drives. A provider supplies its templates
  * (parsed and validated from local config) and a launcher that actually starts a
@@ -53,4 +67,7 @@ export type LaunchRunner<Spec = unknown> = (launch: ProvisionedRunnerLaunch<Spec
 export interface ProvisionerAdapter<Spec = unknown> {
   loadTemplates(): Promise<readonly ProvisionerTemplate<Spec>[]>;
   readonly launch: LaunchRunner<Spec>;
+  onStart?(runtime: ProvisionerRuntime): Promise<void>;
+  onTick?(): Promise<void>;
+  onStop?(): Promise<void>;
 }

@@ -34,6 +34,7 @@ export interface ProvisionerTickResult {
   readonly stats: readonly DemandStatDto[];
   readonly reservationCount: number;
   readonly plannedCount: number;
+  readonly launchAttemptedCount: number;
   readonly launchedCount: number;
 }
 
@@ -89,16 +90,20 @@ export async function runProvisionerTick<Spec>(
 
   const plannedCount = planned.reduce((sum, group) => sum + group.count, 0);
 
+  let launchAttemptedCount = 0;
   let launchedCount = 0;
   for (const [reservationId, groups] of groupByReservation(planned)) {
     if (deps.signal?.aborted) break;
-    launchedCount += await launchReservation(reservationId, groups, deps);
+    const result = await launchReservation(reservationId, groups, deps);
+    launchAttemptedCount += result.attempted;
+    launchedCount += result.launched;
   }
 
   return {
     stats: response.stats,
     reservationCount: response.reservations.length,
     plannedCount,
+    launchAttemptedCount,
     launchedCount,
   };
 }
@@ -107,7 +112,7 @@ async function launchReservation<Spec>(
   reservationId: string,
   groups: readonly PlannedLaunchGroup<Spec>[],
   deps: ProvisionerTickDeps<Spec>,
-): Promise<number> {
+): Promise<{attempted: number; launched: number}> {
   // A fresh, never-reused id per runner: it binds the ephemeral registration token,
   // names the resource, and keys idempotent reporting and reconciliation. Uniqueness is
   // all the loop needs, so a random UUID suffices.
@@ -121,6 +126,7 @@ async function launchReservation<Spec>(
     plannedRunners.map((runner) => [runner.provisionedRunnerId, runner.template]),
   );
 
+  let attempted = 0;
   let launched = 0;
   for (const batch of chunk(plannedRunners, deps.registrationTokenBatchSize)) {
     if (deps.signal?.aborted) break;
@@ -160,6 +166,7 @@ async function launchReservation<Spec>(
         provisionedRunnerId: token.provisioned_runner_id,
         templateKey: template.key,
       });
+      attempted += 1;
       try {
         await deps.launch({
           provisionedRunnerId: token.provisioned_runner_id,
@@ -183,7 +190,7 @@ async function launchReservation<Spec>(
     }
   }
 
-  return launched;
+  return {attempted, launched};
 }
 
 function groupByReservation<Spec>(

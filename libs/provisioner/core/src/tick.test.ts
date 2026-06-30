@@ -53,6 +53,7 @@ function harness(options: {response: PollDemandResponseDto; mintError?: Error}):
         })),
       });
     },
+    reportProvisionedRunners: () => Promise.resolve({accepted: 0, reservations_released: 0}),
   };
 
   return {pollBodies, mintBodies, launches, client, tracker: createInMemoryTracker()};
@@ -99,7 +100,12 @@ describe('runProvisionerTick', () => {
     expect(fixture.mintBodies[0]?.reservation_id).toBe('r1');
     expect(fixture.mintBodies[0]?.provisioned_runners).toHaveLength(3);
     expect(fixture.launches).toHaveLength(3);
-    expect(result).toMatchObject({reservationCount: 1, plannedCount: 3, launchedCount: 3});
+    expect(result).toMatchObject({
+      reservationCount: 1,
+      plannedCount: 3,
+      launchAttemptedCount: 3,
+      launchedCount: 3,
+    });
   });
 
   it('injects the minted token into the runner env and tracks each as starting', async () => {
@@ -221,6 +227,7 @@ describe('runProvisionerTick', () => {
             expires_at: EXPIRES_AT,
           })),
         }),
+      reportProvisionedRunners: () => Promise.resolve({accepted: 0, reservations_released: 0}),
     };
 
     const result = await runProvisionerTick({
@@ -238,6 +245,7 @@ describe('runProvisionerTick', () => {
     });
 
     expect(launches).toHaveLength(1);
+    expect(result.launchAttemptedCount).toBe(1);
     expect(result.launchedCount).toBe(1);
   });
 
@@ -257,6 +265,7 @@ describe('runProvisionerTick', () => {
     });
 
     expect(fixture.mintBodies).toHaveLength(1);
+    expect(result.launchAttemptedCount).toBe(1);
     expect(result.launchedCount).toBe(0);
     // The failed runner must not keep occupying a slot, or a persistent failure wedges the loop.
     expect(fixture.tracker.countsByTemplate()).toEqual(new Map());

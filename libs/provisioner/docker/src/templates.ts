@@ -3,6 +3,7 @@ import type {ProvisionerTemplate} from '@shipfox/provisioner-core';
 import {canonicalizeLabels, findInvalidLabels, MAX_RUNNER_LABELS} from '@shipfox/runner-labels';
 import yaml from 'js-yaml';
 import {z} from 'zod';
+import {MEMORY_PATTERN} from '#memory.js';
 
 /** Docker-specific launch details the launcher needs to run one runner container. */
 export interface DockerTemplateSpec {
@@ -18,11 +19,6 @@ export class DockerTemplateConfigError extends Error {
     this.name = 'DockerTemplateConfigError';
   }
 }
-
-// A memory size Docker understands, such as `4GiB`, `512m`, or `2g`. The unit is
-// required because a bare number like `512` would silently mean 512 bytes, which is
-// never the intent.
-const MEMORY_PATTERN = /^\d+(\.\d+)?\s*(b|kb|mb|gb|tb|kib|mib|gib|tib|k|m|g|t)$/i;
 
 const MAX_TEMPLATE_CONCURRENCY = 100_000;
 

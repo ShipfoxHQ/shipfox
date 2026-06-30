@@ -13,6 +13,13 @@ export interface ProvisionedRunnerTracker {
   recordStarting(args: {provisionedRunnerId: string; templateKey: string}): void;
   markRunning(provisionedRunnerId: string): void;
   remove(provisionedRunnerId: string): void;
+  replaceAll(
+    runners: readonly {
+      provisionedRunnerId: string;
+      templateKey: string;
+      state: ProvisionedRunnerLifecycle;
+    }[],
+  ): void;
   countsByTemplate(): Map<string, TemplateCounts>;
 }
 
@@ -34,6 +41,15 @@ export function createInMemoryTracker(): ProvisionedRunnerTracker {
     },
     remove(provisionedRunnerId) {
       runners.delete(provisionedRunnerId);
+    },
+    replaceAll(nextRunners) {
+      runners.clear();
+      for (const runner of nextRunners) {
+        runners.set(runner.provisionedRunnerId, {
+          templateKey: runner.templateKey,
+          state: runner.state,
+        });
+      }
     },
     countsByTemplate() {
       const counts = new Map<string, {starting: number; running: number}>();

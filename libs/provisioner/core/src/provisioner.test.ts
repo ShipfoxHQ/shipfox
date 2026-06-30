@@ -1,0 +1,172 @@
+import type {
+  MintRegistrationTokensBatchBodyDto,
+  PollDemandBodyDto,
+  PollDemandResponseDto,
+} from '@shipfox/api-runners-dto';
+import type {ProvisionerClient} from '#api-client.js';
+import {runProvisionerIteration} from '#provisioner.js';
+import {createInMemoryTracker} from '#tracker.js';
+import type {ProvisionerAdapter, ProvisionerTemplate} from '#types.js';
+
+const EXPIRES_AT = '2026-01-01T00:00:00.000Z';
+
+const template: ProvisionerTemplate<null> = {
+  key: 'small',
+  labels: ['ubuntu22'],
+  maxConcurrency: 5,
+  cost: 1,
+  spec: null,
+};
+
+describe('runProvisionerIteration', () => {
+  it('runs onTick before polling demand', async () => {
+    const events: string[] = [];
+    const {client} = harness({
+      response: {stats: [], reservations: []},
+      onPoll: () => events.push('poll'),
+    });
+    const adapter: ProvisionerAdapter<null> = {
+      loadTemplates: () => Promise.resolve([template]),
+      launch: () => Promise.resolve(),
+      onTick: () => {
+        events.push('observe');
+        return Promise.resolve();
+      },
+    };
+
+    await runProvisionerIteration({
+      adapter,
+      client,
+      templates: [template],
+      tracker: createInMemoryTracker(),
+      currentInterval: 1000,
+      degraded: false,
+    });
+
+    expect(events).toEqual(['observe', 'poll']);
+  });
+
+  it('advertises no free capacity and backs off when onTick fails', async () => {
+    const {client, pollBodies} = harness({response: {stats: [], reservations: []}});
+    const adapter: ProvisionerAdapter<null> = {
+      loadTemplates: () => Promise.resolve([template]),
+      launch: () => Promise.resolve(),
+      onTick: () => Promise.reject(new Error('docker daemon down')),
+    };
+
+    const result = await runProvisionerIteration({
+      adapter,
+      client,
+      templates: [template],
+      tracker: createInMemoryTracker(),
+      currentInterval: 1000,
+      degraded: false,
+    });
+
+    expect(pollBodies[0]?.max_reservations).toBe(0);
+    expect(result).toEqual({nextInterval: 1500, degraded: true});
+  });
+
+  it('keeps advertising no capacity while startup is degraded and observe still fails', async () => {
+    const {client, pollBodies} = harness({response: {stats: [], reservations: []}});
+    const adapter: ProvisionerAdapter<null> = {
+      loadTemplates: () => Promise.resolve([template]),
+      launch: () => Promise.resolve(),
+      onTick: () => Promise.reject(new Error('docker daemon down')),
+    };
+
+    const result = await runProvisionerIteration({
+      adapter,
+      client,
+      templates: [template],
+      tracker: createInMemoryTracker(),
+      currentInterval: 1000,
+      degraded: true,
+    });
+
+    expect(pollBodies[0]?.max_reservations).toBe(0);
+    expect(result).toEqual({nextInterval: 1500, degraded: true});
+  });
+
+  it('backs off when every attempted launch fails', async () => {
+    const {client} = harness({response: {stats: [], reservations: [reservation(2)]}});
+    const adapter: ProvisionerAdapter<null> = {
+      loadTemplates: () => Promise.resolve([template]),
+      launch: () => Promise.reject(new Error('start failed')),
+      onTick: () => Promise.resolve(),
+    };
+
+    const result = await runProvisionerIteration({
+      adapter,
+      client,
+      templates: [template],
+      tracker: createInMemoryTracker(),
+      currentInterval: 1000,
+      degraded: false,
+    });
+
+    expect(result).toEqual({nextInterval: 1500, degraded: false});
+  });
+
+  it('resets to the base interval after a healthy observe and successful launch', async () => {
+    const {client} = harness({response: {stats: [], reservations: [reservation(1)]}});
+    const adapter: ProvisionerAdapter<null> = {
+      loadTemplates: () => Promise.resolve([template]),
+      launch: () => Promise.resolve(),
+      onTick: () => Promise.resolve(),
+    };
+
+    const result = await runProvisionerIteration({
+      adapter,
+      client,
+      templates: [template],
+      tracker: createInMemoryTracker(),
+      currentInterval: 3000,
+      degraded: true,
+    });
+
+    expect(result).toEqual({nextInterval: 1000, degraded: false});
+  });
+});
+
+function harness(options: {response: PollDemandResponseDto; onPoll?: () => void}): {
+  client: ProvisionerClient;
+  pollBodies: PollDemandBodyDto[];
+  mintBodies: MintRegistrationTokensBatchBodyDto[];
+} {
+  const pollBodies: PollDemandBodyDto[] = [];
+  const mintBodies: MintRegistrationTokensBatchBodyDto[] = [];
+
+  return {
+    pollBodies,
+    mintBodies,
+    client: {
+      getIdentity: () => Promise.resolve({id: 'provisioner', workspace_id: 'workspace'}),
+      pollDemand: (body) => {
+        options.onPoll?.();
+        pollBodies.push(body);
+        return Promise.resolve(options.response);
+      },
+      mintRegistrationTokens: (body) => {
+        mintBodies.push(body);
+        return Promise.resolve({
+          tokens: body.provisioned_runners.map((runner) => ({
+            provisioned_runner_id: runner.provisioned_runner_id,
+            registration_token: `sfrt_${runner.provisioned_runner_id}`,
+            expires_at: EXPIRES_AT,
+          })),
+        });
+      },
+      reportProvisionedRunners: () => Promise.resolve({accepted: 0, reservations_released: 0}),
+    },
+  };
+}
+
+function reservation(count: number) {
+  return {
+    reservation_id: '00000000-0000-4000-8000-000000000001',
+    labels: ['ubuntu22'],
+    count,
+    expires_at: EXPIRES_AT,
+  };
+}

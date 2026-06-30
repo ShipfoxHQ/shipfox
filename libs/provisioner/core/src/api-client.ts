@@ -7,6 +7,9 @@ import {
   type ProvisionerIdentityResponseDto,
   pollDemandResponseSchema,
   provisionerIdentityResponseSchema,
+  type ReportProvisionedRunnersBodyDto,
+  type ReportProvisionedRunnersResponseDto,
+  reportProvisionedRunnersResponseSchema,
 } from '@shipfox/api-runners-dto';
 import ky, {HTTPError, type KyInstance} from 'ky';
 
@@ -31,6 +34,10 @@ export interface ProvisionerClient {
     body: MintRegistrationTokensBatchBodyDto,
     options?: {signal?: AbortSignal},
   ): Promise<MintRegistrationTokensBatchResponseDto>;
+  reportProvisionedRunners(
+    body: ReportProvisionedRunnersBodyDto,
+    options?: {signal?: AbortSignal},
+  ): Promise<ReportProvisionedRunnersResponseDto>;
 }
 
 export function createProvisionerClient(params: {
@@ -69,6 +76,16 @@ export function createProvisionerClient(params: {
           ...(options.signal ? {signal: options.signal} : {}),
         });
         return mintRegistrationTokensBatchResponseSchema.parse(await response.json());
+      });
+    },
+
+    reportProvisionedRunners(body, options = {}) {
+      return withAuthMapping(async () => {
+        const response = await api.post('provisioners/provisioned-runners/report', {
+          json: body,
+          ...(options.signal ? {signal: options.signal} : {}),
+        });
+        return reportProvisionedRunnersResponseSchema.parse(await response.json());
       });
     },
   };

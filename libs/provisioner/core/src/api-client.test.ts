@@ -78,6 +78,29 @@ describe('createProvisionerClient', () => {
     expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
   });
 
+  it('reportProvisionedRunners posts lifecycle events with the token and parses the response', async () => {
+    stubFetch(() => jsonResponse({accepted: 1, reservations_released: 1}));
+
+    const result = await client().reportProvisionedRunners({
+      events: [
+        {
+          provisioned_runner_id: 'provisioned-runner-1',
+          reservation_id: RESERVATION_ID,
+          template_key: 'small',
+          labels: ['ubuntu22'],
+          state: 'running',
+          reported_at: '2026-01-01T00:00:00.000Z',
+          provider_kind: 'docker',
+        },
+      ],
+    });
+
+    expect(result).toEqual({accepted: 1, reservations_released: 1});
+    expect(calls[0]?.url).toContain('provisioners/provisioned-runners/report');
+    expect(calls[0]?.method).toBe('POST');
+    expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
   it('maps a 401 on getIdentity to ProvisionerAuthenticationError', async () => {
     stubFetch(() => new Response(null, {status: 401}));
 
@@ -92,6 +115,23 @@ describe('createProvisionerClient', () => {
       max_reservations: 0,
       templates: [
         {template_key: 'small', labels: ['ubuntu22'], available_slots: 0, starting: 0, running: 0},
+      ],
+    });
+
+    await expect(request).rejects.toThrow(ProvisionerAuthenticationError);
+  });
+
+  it('maps a 403 on reportProvisionedRunners to ProvisionerAuthenticationError', async () => {
+    stubFetch(() => new Response(null, {status: 403}));
+
+    const request = client().reportProvisionedRunners({
+      events: [
+        {
+          provisioned_runner_id: 'provisioned-runner-1',
+          labels: ['ubuntu22'],
+          state: 'running',
+          reported_at: '2026-01-01T00:00:00.000Z',
+        },
       ],
     });
 

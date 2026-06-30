@@ -37,10 +37,12 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-runners-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/provisioner-core": "workspace:*",
     "@shipfox/runner-labels": "workspace:*",
+    "dockerode": "^4.0.9",
     "js-yaml": "^4.1.0",
     "zod": "^4.4.3"
   },
@@ -50,6 +52,7 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
+    "@types/dockerode": "^3.3.43",
     "@types/js-yaml": "^4.0.9"
   }
 }
