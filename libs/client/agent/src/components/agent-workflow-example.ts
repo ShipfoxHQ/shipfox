@@ -25,7 +25,7 @@ export function buildAgentWorkflowExample({
     '    runner: ubuntu-latest',
     '    steps:',
     '      - name: implement',
-    `        provider: ${providerId}`,
+    `        provider: ${formatYamlPlainOrSingleQuotedScalar(providerId)}`,
     `        model: ${formatYamlPlainOrSingleQuotedScalar(model)}`,
     '        prompt: Describe the change you want the agent to make.',
   ];

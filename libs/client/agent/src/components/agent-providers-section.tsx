@@ -157,6 +157,7 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
                   }}
                   onShowUsage={() => {
                     if (entry) {
+                      setPendingUsageTarget(null);
                       setUsageTarget({
                         entry,
                         initialModel: config.default_model,
