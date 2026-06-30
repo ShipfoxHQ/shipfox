@@ -1,22 +1,12 @@
 import type {
   IntegrationCapabilityDto,
   IntegrationConnectionDto,
-  IntegrationConnectionLifecycleStatusDto,
   IntegrationProviderDto,
 } from '@shipfox/api-integration-core-dto';
 import {useActiveWorkspace} from '@shipfox/client-auth';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {
-  Badge,
-  Button,
-  cn,
-  EmptyState,
-  formatDate,
-  Header,
-  type IconName,
-  Skeleton,
-  Text,
-} from '@shipfox/react-ui';
+import {Button, cn, EmptyState, formatDate, Header, Skeleton, Text} from '@shipfox/react-ui';
+import {ConnectionStatusBadge} from '#connection-status-badge.js';
 import {
   useIntegrationConnectionsQuery,
   useIntegrationProvidersQuery,
@@ -27,18 +17,8 @@ import {ProviderGrid} from './provider-grid.js';
 export interface IntegrationGalleryProps {
   capability?: IntegrationCapabilityDto;
   emptyProvidersMessage?: string;
+  workspaceId?: string;
 }
-
-const lifecyclePills: Record<
-  IntegrationConnectionLifecycleStatusDto,
-  {variant: 'success' | 'neutral' | 'error'; label: string; iconLeft?: IconName}
-> = {
-  active: {variant: 'success', label: 'Connected'},
-  // Mirrors the webhook-delivery taxonomy (DESIGN.md §9): disabled is quiet
-  // neutral with a warning icon, not warning-orange (which means "act now").
-  disabled: {variant: 'neutral', label: 'Disabled', iconLeft: 'errorWarningLine'},
-  error: {variant: 'error', label: 'Error'},
-};
 
 // Both gallery surfaces use the same card fill so they read as one system on
 // the subtle page canvas, rather than the list blending into the background.
@@ -48,10 +28,54 @@ const SURFACE_CLASS =
 export function IntegrationGallery({
   capability,
   emptyProvidersMessage = 'Enable at least one provider in the application settings.',
+  workspaceId,
 }: IntegrationGalleryProps) {
+  if (workspaceId) {
+    return (
+      <IntegrationGalleryForWorkspace
+        workspaceId={workspaceId}
+        capability={capability}
+        emptyProvidersMessage={emptyProvidersMessage}
+      />
+    );
+  }
+
+  return (
+    <RoutedIntegrationGallery
+      capability={capability}
+      emptyProvidersMessage={emptyProvidersMessage}
+    />
+  );
+}
+
+function RoutedIntegrationGallery({
+  capability,
+  emptyProvidersMessage,
+}: {
+  capability: IntegrationCapabilityDto | undefined;
+  emptyProvidersMessage: string;
+}) {
   const workspace = useActiveWorkspace();
+  return (
+    <IntegrationGalleryForWorkspace
+      workspaceId={workspace.id}
+      capability={capability}
+      emptyProvidersMessage={emptyProvidersMessage}
+    />
+  );
+}
+
+function IntegrationGalleryForWorkspace({
+  capability,
+  emptyProvidersMessage,
+  workspaceId,
+}: {
+  capability: IntegrationCapabilityDto | undefined;
+  emptyProvidersMessage: string;
+  workspaceId: string;
+}) {
   const providersQuery = useIntegrationProvidersQuery(capability ? {capability} : undefined);
-  const connectionsQuery = useIntegrationConnectionsQuery(workspace.id);
+  const connectionsQuery = useIntegrationConnectionsQuery(workspaceId);
 
   const providers = providersQuery.data?.providers ?? [];
   const providersMap = new Map<string, IntegrationProviderDto>(
@@ -80,7 +104,7 @@ export function IntegrationGallery({
         <div className="flex flex-col gap-4">
           <Header variant="h3">Installed integrations</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
-            Provider accounts linked to this workspace.
+            Provider accounts installed in this workspace.
           </Text>
         </div>
 
@@ -96,8 +120,8 @@ export function IntegrationGallery({
           <div className={cn(SURFACE_CLASS, 'px-16')}>
             <EmptyState
               icon="componentLine"
-              title="No integrations connected yet"
-              description="Connect a provider below to get started."
+              title="No integrations installed yet"
+              description="Install a provider below to get started."
             />
           </div>
         ) : null}
@@ -119,13 +143,13 @@ export function IntegrationGallery({
         <div className="flex flex-col gap-4">
           <Header variant="h3">Available integrations</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
-            Providers available to connect to this workspace.
+            Providers available to install in this workspace.
           </Text>
         </div>
 
         <ProviderGrid
           providersQuery={providersQuery}
-          workspaceId={workspace.id}
+          workspaceId={workspaceId}
           emptyMessage={emptyProvidersMessage}
         />
       </section>
@@ -140,11 +164,10 @@ function InstalledRow({
   connection: IntegrationConnectionDto;
   providerLabel: string;
 }) {
-  const pill = lifecyclePills[connection.lifecycle_status];
   const muted = connection.lifecycle_status === 'disabled';
 
   return (
-    <li className="flex items-center gap-12 px-16 py-10 transition-colors hover:bg-background-components-hover">
+    <li className="flex items-center gap-12 px-16 py-12 transition-colors hover:bg-background-components-hover">
       <IntegrationIcon
         source={connection.provider}
         aria-hidden
@@ -154,22 +177,22 @@ function InstalledRow({
         )}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <Text
-          size="md"
-          bold
-          className={cn('truncate', muted ? 'text-foreground-neutral-disabled' : undefined)}
-        >
-          {connection.display_name}
-        </Text>
+        <div className="flex min-w-0 items-center gap-8">
+          <Text
+            size="md"
+            bold
+            className={cn('truncate', muted ? 'text-foreground-neutral-disabled' : undefined)}
+          >
+            {connection.display_name}
+          </Text>
+          <ConnectionStatusBadge status={connection.lifecycle_status} className="shrink-0" />
+        </div>
         {/* Provider is already named by the icon (and the account name), so the
             meta line carries only the date — no third repeat of the provider. */}
         <Text size="sm" className="truncate text-foreground-neutral-muted">
           Added {formatDate(connection.created_at)}
         </Text>
       </div>
-      {/* "Open" sits left of the pill (optional, only when external_url is set)
-          so the status pill stays the rightmost element on every row and the
-          pills align in a single scannable column. */}
       {connection.external_url ? (
         <Button
           asChild
@@ -188,14 +211,6 @@ function InstalledRow({
           </a>
         </Button>
       ) : null}
-      <Badge
-        variant={pill.variant}
-        radius="rounded"
-        className="shrink-0"
-        {...(pill.iconLeft ? {iconLeft: pill.iconLeft} : {})}
-      >
-        {pill.label}
-      </Badge>
     </li>
   );
 }
@@ -208,7 +223,7 @@ function InstalledSkeleton({label}: {label: string}) {
       className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}
     >
       {[0, 1, 2].map((row) => (
-        <li key={row} className="flex items-center gap-12 px-16 py-10">
+        <li key={row} className="flex items-center gap-12 px-16 py-12">
           <Skeleton className="size-24 shrink-0" />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <Skeleton className="h-16 w-120" />

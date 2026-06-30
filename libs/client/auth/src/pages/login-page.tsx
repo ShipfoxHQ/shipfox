@@ -1,5 +1,14 @@
 import {loginBodySchema} from '@shipfox/api-auth-dto';
-import {Alert, Button, ButtonLink, FormField, FormFieldInput, Icon, Text} from '@shipfox/react-ui';
+import {
+  Alert,
+  Button,
+  ButtonLink,
+  FormField,
+  FormFieldInput,
+  fieldError,
+  Icon,
+  Text,
+} from '@shipfox/react-ui';
 import {useForm} from '@tanstack/react-form';
 import {Link, useSearch} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
@@ -173,19 +182,4 @@ export function LoginPage() {
       </Text>
     </AuthShell>
   );
-}
-
-interface FieldLike {
-  state: {meta: {errors: Array<unknown>; isBlurred: boolean}};
-}
-
-function fieldError(field: FieldLike): string | undefined {
-  if (!field.state.meta.isBlurred && field.state.meta.errors.length === 0) return undefined;
-  const first = field.state.meta.errors[0];
-  if (!first) return undefined;
-  if (typeof first === 'string') return first;
-  if (typeof first === 'object' && first !== null && 'message' in first) {
-    return String((first as {message: unknown}).message);
-  }
-  return undefined;
 }

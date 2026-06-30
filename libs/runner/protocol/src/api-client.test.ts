@@ -4,6 +4,7 @@
 
 import {RUNNER_SESSION_EXHAUSTED_CODE} from '@shipfox/api-runners-dto';
 import {
+  AgentRuntimeConfigRequestError,
   appendStepLogs,
   createLeaseClient,
   HTTPError,
@@ -11,6 +12,7 @@ import {
   RunnerSessionExhaustedError,
   registerRunnerSession,
   reportStep,
+  requestAgentRuntimeConfig,
   requestCheckoutToken,
   requestJob,
   requestNextStep,
@@ -22,6 +24,7 @@ const JOB_ID = crypto.randomUUID();
 const RUN_ID = crypto.randomUUID();
 const STEP_ID = crypto.randomUUID();
 const SESSION_ID = crypto.randomUUID();
+const ZOD_ERROR_TEXT_REGEX = /Zod|Invalid|Required/;
 
 let calls: Array<{url: string; method: string; authorization: string | null; body: string}>;
 let originalFetch: typeof globalThis.fetch;
@@ -157,6 +160,118 @@ describe('api-client auth contexts', () => {
     expect(checkout.ref).toBe('main');
     expect(calls[0]?.url).toContain('runs/jobs/current/checkout-token');
     expect(calls[0]?.authorization).toBe('Bearer lease-ghi');
+  });
+
+  it('requestAgentRuntimeConfig sends the lease token and parses credentials', async () => {
+    stubFetch(() =>
+      jsonResponse({
+        provider_id: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+        credentials: {api_key: 'sk-runtime'},
+      }),
+    );
+    const leaseClient = createLeaseClient('lease-runtime');
+
+    const runtimeConfig = await requestAgentRuntimeConfig(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 2,
+    });
+
+    expect(runtimeConfig.credentials.api_key).toBe('sk-runtime');
+    expect(calls[0]?.url).toContain('runs/jobs/current/agent-runtime-config');
+    expect(calls[0]?.url).toContain(`step_id=${STEP_ID}`);
+    expect(calls[0]?.url).toContain('attempt=2');
+    expect(calls[0]?.authorization).toBe('Bearer lease-runtime');
+  });
+
+  it('requestAgentRuntimeConfig maps server config errors to agent config issues', async () => {
+    stubFetch(() => jsonResponse({code: 'agent-provider-not-configured'}, 409));
+    const leaseClient = createLeaseClient('lease-runtime');
+
+    const request = requestAgentRuntimeConfig(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 2,
+    });
+
+    await expect(request).rejects.toMatchObject(
+      new AgentRuntimeConfigRequestError(
+        409,
+        'agent-provider-not-configured',
+        'provider_not_configured',
+      ),
+    );
+  });
+
+  it('requestAgentRuntimeConfig retries transient 429 and 5xx responses', async () => {
+    const responses = [
+      new Response(null, {status: 429}),
+      new Response(null, {status: 500}),
+      jsonResponse({
+        provider_id: 'openai',
+        model: 'gpt-5.1',
+        thinking: 'medium',
+        credentials: {api_key: 'sk-runtime'},
+      }),
+    ];
+    stubFetch(() => responses.shift() ?? new Response(null, {status: 500}));
+    const leaseClient = createLeaseClient('lease-runtime');
+
+    const runtimeConfig = await requestAgentRuntimeConfig(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 2,
+    });
+
+    expect(runtimeConfig.provider_id).toBe('openai');
+    expect(calls).toHaveLength(3);
+  });
+
+  it('requestAgentRuntimeConfig surfaces transient retry exhaustion as a typed request error', async () => {
+    stubFetch(() => jsonResponse({code: 'temporarily-unavailable'}, 503));
+    const leaseClient = createLeaseClient('lease-runtime');
+
+    const request = requestAgentRuntimeConfig(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 2,
+    });
+
+    await expect(request).rejects.toMatchObject(
+      new AgentRuntimeConfigRequestError(503, 'temporarily-unavailable'),
+    );
+    expect(calls).toHaveLength(3);
+  });
+
+  it('requestAgentRuntimeConfig classifies malformed success bodies without leaking Zod text', async () => {
+    stubFetch(() => jsonResponse({provider_id: 'openai', credentials: {api_key: 'sk-runtime'}}));
+    const leaseClient = createLeaseClient('lease-runtime');
+
+    const request = requestAgentRuntimeConfig(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 2,
+    });
+
+    await expect(request).rejects.toMatchObject(
+      new AgentRuntimeConfigRequestError(200, 'agent-runtime-config-invalid'),
+    );
+    await expect(request).rejects.not.toThrow(ZOD_ERROR_TEXT_REGEX);
+  });
+
+  it.each([
+    ['empty', ''],
+    ['invalid JSON', 'not json'],
+  ])('requestAgentRuntimeConfig classifies %s success bodies as invalid runtime config', async (_caseName, body) => {
+    stubFetch(() => new Response(body, {status: 200}));
+    const leaseClient = createLeaseClient('lease-runtime');
+
+    const request = requestAgentRuntimeConfig(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 2,
+    });
+
+    await expect(request).rejects.toMatchObject(
+      new AgentRuntimeConfigRequestError(200, 'agent-runtime-config-invalid'),
+    );
+    await expect(request).rejects.not.toThrow(SyntaxError);
   });
 
   it('reportStep sends the lease token to the per-step report endpoint', async () => {

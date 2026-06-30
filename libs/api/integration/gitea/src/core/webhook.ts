@@ -46,6 +46,7 @@ export interface HandleGiteaPushParams {
   tx: IntegrationTx;
   deliveryId: string;
   payload: GiteaPushPayloadDto;
+  rawPayload: unknown;
   publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
@@ -75,10 +76,12 @@ export async function handleGiteaWebhook(
     return {outcome: 'recorded-only'};
   }
 
+  const {payload, rawPayload} = parseGiteaPushPayload(params.rawBody);
   return handleGiteaPush({
     tx: params.tx,
     deliveryId: params.deliveryId,
-    payload: parseGiteaPushPayload(params.rawBody),
+    payload,
+    rawPayload,
     publishSourcePush: params.publishSourcePush,
     recordDeliveryOnly: params.recordDeliveryOnly,
     getIntegrationConnectionById: params.getIntegrationConnectionById,
@@ -168,6 +171,7 @@ export async function handleGiteaPush(
     connectionName: connection.displayName,
     deliveryId: params.deliveryId,
     receivedAt: new Date().toISOString(),
+    rawPayload: params.rawPayload,
     push,
   });
 
@@ -178,7 +182,10 @@ function stripRefsHeads(ref: string): string {
   return ref.startsWith(REFS_HEADS_PREFIX) ? ref.slice(REFS_HEADS_PREFIX.length) : ref;
 }
 
-function parseGiteaPushPayload(rawBody: string): GiteaPushPayloadDto {
+function parseGiteaPushPayload(rawBody: string): {
+  payload: GiteaPushPayloadDto;
+  rawPayload: unknown;
+} {
   let parsedJson: unknown;
   try {
     parsedJson = JSON.parse(rawBody);
@@ -191,5 +198,5 @@ function parseGiteaPushPayload(rawBody: string): GiteaPushPayloadDto {
     throw new GiteaWebhookMalformedPushPayloadError(validated.error.issues);
   }
 
-  return validated.data;
+  return {payload: validated.data, rawPayload: parsedJson};
 }

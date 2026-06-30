@@ -62,7 +62,7 @@ export function SentryCallbackPage() {
   const noWorkspace = !isLoading && preselection.kind === 'none';
   useEffect(() => {
     if (!noWorkspace) return;
-    toast.error('You need a workspace before connecting Sentry.');
+    toast.error('You need a workspace before installing Sentry.');
     navigate({to: '/', replace: true});
   }, [noWorkspace, navigate]);
 
@@ -134,7 +134,7 @@ export function SentryCallbackPage() {
           queryKey: integrationsQueryKeys.connectionsByWorkspace(workspaceId),
         });
         if (disposedRef.current) return;
-        toast.success('Sentry connected.');
+        toast.success('Sentry installed.');
         await navigate({
           to: '/workspaces/$wid/settings/integrations',
           params: {wid: workspaceId},
@@ -166,11 +166,11 @@ export function SentryCallbackPage() {
   return (
     <CallbackColumn>
       <header className="flex flex-col gap-8">
-        <Header variant="h2">Connect Sentry</Header>
+        <Header variant="h2">Install Sentry</Header>
         <Text size="sm" className="text-foreground-neutral-muted">
           {params.orgSlug
-            ? `Connect the Sentry org "${params.orgSlug}" to a workspace.`
-            : 'Connect this Sentry installation to a workspace.'}
+            ? `Install the Sentry org "${params.orgSlug}" in a workspace.`
+            : 'Install this Sentry integration in a workspace.'}
         </Text>
       </header>
 
@@ -213,7 +213,7 @@ export function SentryCallbackPage() {
                 isLoading={connectingId === workspace.id}
                 onClick={() => connect(workspace.id)}
               >
-                Connect
+                Install
               </Button>
             </div>
           </Card>

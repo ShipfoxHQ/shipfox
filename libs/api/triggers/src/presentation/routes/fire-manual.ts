@@ -3,6 +3,7 @@ import {
   fireManualTriggerBodySchema,
   fireManualTriggerResponseSchema,
 } from '@shipfox/api-triggers-dto';
+import {InterpolationUnresolvableError} from '@shipfox/api-workflows';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {ManualTriggerNotFoundError} from '#core/errors.js';
@@ -25,6 +26,9 @@ export const fireManualTriggerRoute = defineRoute({
   errorHandler: (error) => {
     if (error instanceof ManualTriggerNotFoundError) {
       throw new ClientError(error.message, 'manual-trigger-not-found', {status: 404});
+    }
+    if (error instanceof InterpolationUnresolvableError) {
+      throw new ClientError(error.message, 'workflow-interpolation-unresolvable', {status: 422});
     }
     throw error;
   },

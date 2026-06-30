@@ -23,6 +23,7 @@ import {
   FormField,
   FormFieldInput,
   FullPageLoader,
+  fieldError,
   Header,
   Text,
   toast,
@@ -31,6 +32,7 @@ import {useForm} from '@tanstack/react-form';
 import {type QueryClient, useQueryClient} from '@tanstack/react-query';
 import {Link, Navigate, useNavigate} from '@tanstack/react-router';
 import {useEffect, useRef, useState} from 'react';
+import {AgentProviderReminderBanner} from '#components/agent-provider-reminder-banner.js';
 import {projectsQueryKeys, useCreateProjectMutation} from '#hooks/api/projects.js';
 import {projectErrorCopy} from '#project-error.js';
 
@@ -185,6 +187,8 @@ export function CreateProjectPage() {
           Choose a repository to create a project from.
         </Text>
       </header>
+
+      <AgentProviderReminderBanner workspaceId={workspace.id} />
 
       {connectionsQuery.isError ? (
         <Alert variant="error">
@@ -378,19 +382,4 @@ function setWorkspaceProjectExists(
     projects: [project],
     next_cursor: null,
   });
-}
-
-interface FieldLike {
-  state: {meta: {errors: Array<unknown>; isBlurred: boolean}};
-}
-
-function fieldError(field: FieldLike): string | undefined {
-  if (!field.state.meta.isBlurred && field.state.meta.errors.length === 0) return undefined;
-  const first = field.state.meta.errors[0];
-  if (!first) return undefined;
-  if (typeof first === 'string') return first;
-  if (typeof first === 'object' && first !== null && 'message' in first) {
-    return String((first as {message: unknown}).message);
-  }
-  return undefined;
 }

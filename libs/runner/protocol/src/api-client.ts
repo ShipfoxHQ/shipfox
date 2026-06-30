@@ -1,7 +1,10 @@
+import {
+  type AgentRuntimeCredentialsResponseDto,
+  agentRuntimeCredentialsResponseSchema,
+} from '@shipfox/api-agent-dto';
 import {appendLogsResponseSchema, offsetGapResponseSchema} from '@shipfox/api-logs-dto';
 import {
   type ClaimedJobResponseDto,
-  canonicalizeRunnerLabels,
   claimedJobResponseSchema,
   type HeartbeatResponseDto,
   heartbeatResponseSchema,
@@ -11,6 +14,7 @@ import {
   registerRunnerResponseSchema,
 } from '@shipfox/api-runners-dto';
 import {
+  type AgentConfigIssue,
   type CheckoutTokenResponseDto,
   checkoutTokenResponseSchema,
   type LogOutcomeDto,
@@ -23,6 +27,7 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {isUuid} from '@shipfox/regex';
+import {canonicalizeLabels} from '@shipfox/runner-labels';
 import ky, {HTTPError, type KyInstance} from 'ky';
 import {config} from '#config.js';
 
@@ -72,7 +77,7 @@ export function runnerToken(): string {
 }
 
 export function configuredRunnerLabels(): string[] {
-  return canonicalizeRunnerLabels(config.SHIPFOX_RUNNER_LABELS.split(','));
+  return [...canonicalizeLabels(config.SHIPFOX_RUNNER_LABELS.split(','))];
 }
 
 export class RunnerLabelsRequiredError extends Error {
@@ -86,6 +91,21 @@ export class RunnerSessionExhaustedError extends Error {
   constructor() {
     super('Runner session is exhausted.');
     this.name = 'RunnerSessionExhaustedError';
+  }
+}
+
+export class AgentRuntimeConfigRequestError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string | undefined,
+    public readonly agentConfigIssue: AgentConfigIssue | undefined = agentConfigIssueForCode(code),
+  ) {
+    super(
+      code === undefined
+        ? `Agent runtime config request failed with status ${status}.`
+        : `Agent runtime config request failed with status ${status}: ${code}.`,
+    );
+    this.name = 'AgentRuntimeConfigRequestError';
   }
 }
 
@@ -220,6 +240,49 @@ export async function requestCheckoutToken(
   return checkoutTokenResponseSchema.parse(await response.json());
 }
 
+export async function requestAgentRuntimeConfig(
+  leaseClient: KyInstance,
+  params: {
+    stepId: string;
+    attempt: number;
+    signal?: AbortSignal;
+  },
+): Promise<AgentRuntimeCredentialsResponseDto> {
+  let response: Response;
+  try {
+    response = await leaseClient.get('runs/jobs/current/agent-runtime-config', {
+      searchParams: {step_id: params.stepId, attempt: params.attempt},
+      retry: {
+        methods: ['get'],
+        statusCodes: [429, 500, 502, 503, 504],
+      },
+      ...(params.signal ? {signal: params.signal} : {}),
+    });
+  } catch (error) {
+    if (error instanceof HTTPError) {
+      throw new AgentRuntimeConfigRequestError(error.response.status, codeFromBody(error.data));
+    }
+    throw error;
+  }
+
+  if (response.ok) {
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      throw new AgentRuntimeConfigRequestError(200, 'agent-runtime-config-invalid');
+    }
+
+    const parsed = agentRuntimeCredentialsResponseSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new AgentRuntimeConfigRequestError(200, 'agent-runtime-config-invalid');
+    }
+    return parsed.data;
+  }
+
+  throw new AgentRuntimeConfigRequestError(response.status, await errorCode(response));
+}
+
 // throwHttpErrors:false (below) turns off ky's status-code retry for this call, so no
 // HTTP status is retried in-transport here (only network/timeout errors are). Every
 // status is mapped explicitly: 409 and the terminal 4xx to outcomes, 5xx/unknown to a
@@ -288,3 +351,36 @@ export async function heartbeat(
 }
 
 export {HTTPError};
+
+async function errorCode(response: Response): Promise<string | undefined> {
+  try {
+    const body = (await response.json()) as unknown;
+    return codeFromBody(body);
+  } catch {
+    return undefined;
+  }
+}
+
+function codeFromBody(body: unknown): string | undefined {
+  if (typeof body !== 'object' || body === null || !('code' in body)) return undefined;
+  return typeof body.code === 'string' ? body.code : undefined;
+}
+
+function agentConfigIssueForCode(code: string | undefined): AgentConfigIssue | undefined {
+  switch (code) {
+    case 'agent-config-invalid':
+    case 'agent-step-config-invalid':
+    case 'agent-runtime-config-invalid':
+      return 'step_config_invalid';
+    case 'agent-provider-not-configured':
+      return 'provider_not_configured';
+    case 'agent-provider-unsupported':
+      return 'provider_unsupported';
+    case 'agent-model-unavailable':
+      return 'model_unavailable';
+    case 'agent-provider-credentials-invalid':
+      return 'credentials_invalid';
+    default:
+      return undefined;
+  }
+}

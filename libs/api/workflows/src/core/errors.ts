@@ -17,6 +17,26 @@ export class ProjectMismatchError extends Error {
   }
 }
 
+export class AgentConfigUnresolvableError extends Error {
+  constructor(
+    readonly definitionId: string,
+    options?: ErrorOptions | undefined,
+  ) {
+    super(`Agent configuration cannot be resolved for definition ${definitionId}`, options);
+    this.name = 'AgentConfigUnresolvableError';
+  }
+}
+
+export class InterpolationUnresolvableError extends Error {
+  constructor(
+    readonly definitionId: string,
+    options?: ErrorOptions | undefined,
+  ) {
+    super(`Workflow interpolation cannot be resolved for definition ${definitionId}`, options);
+    this.name = 'InterpolationUnresolvableError';
+  }
+}
+
 /**
  * True when a `runWorkflow` failure can never succeed on retry: the definition is gone or
  * the subscription points at the wrong project. Callers (e.g. the trigger dispatcher) use this
@@ -24,7 +44,12 @@ export class ProjectMismatchError extends Error {
  * treated as transient so at-least-once delivery can converge.
  */
 export function isPermanentRunWorkflowError(error: unknown): boolean {
-  return error instanceof DefinitionNotFoundError || error instanceof ProjectMismatchError;
+  return (
+    error instanceof DefinitionNotFoundError ||
+    error instanceof ProjectMismatchError ||
+    error instanceof AgentConfigUnresolvableError ||
+    error instanceof InterpolationUnresolvableError
+  );
 }
 
 export class JobNotFoundError extends Error {

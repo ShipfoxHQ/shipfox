@@ -240,6 +240,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "provisioner_id": {
+          "name": "provisioner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provisioned_runner_id": {
+          "name": "provisioned_runner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "started_at": {
           "name": "started_at",
           "type": "timestamp with time zone",
@@ -276,6 +288,40 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "runners_running_jobs_provisioned_runner_started_idx": {
+          "name": "runners_running_jobs_provisioned_runner_started_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provisioner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provisioned_runner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"provisioner_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {},
@@ -288,7 +334,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "runners_running_jobs_link_ck": {
+          "name": "runners_running_jobs_link_ck",
+          "value": "(\"runners_running_jobs\".\"provisioner_id\" IS NULL) = (\"runners_running_jobs\".\"provisioned_runner_id\" IS NULL)"
+        }
+      },
       "isRLSEnabled": false
     }
   },

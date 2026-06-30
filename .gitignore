@@ -139,6 +139,9 @@ vite.config.ts.timestamp-*
 # Turbo cache
 .turbo
 
+# GStack local agent artifacts
+.gstack/
+
 # Playwright
 test-results/
 playwright-report/

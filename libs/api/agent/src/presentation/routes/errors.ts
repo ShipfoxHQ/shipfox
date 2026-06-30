@@ -3,6 +3,7 @@ import {ClientError} from '@shipfox/node-fastify';
 import {
   AgentProviderConfigNotFoundError,
   AgentProviderValidationError,
+  InvalidAgentModelError,
   InvalidCredentialFieldsError,
   UnsupportedAgentProviderError,
 } from '#core/index.js';
@@ -24,6 +25,16 @@ export function translateAgentProviderRouteError(error: unknown): never {
       details: {
         provider_id: error.providerId,
         expected_keys: getAgentProviderCredentialKeys(error.providerId) ?? [],
+      },
+    });
+  }
+
+  if (error instanceof InvalidAgentModelError) {
+    throw new ClientError('Invalid agent model', 'invalid-agent-model', {
+      status: 422,
+      details: {
+        provider_id: error.providerId,
+        model: error.model,
       },
     });
   }

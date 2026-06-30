@@ -1,10 +1,14 @@
-import type {RerunMode} from '@shipfox/api-workflows-dto';
+import {
+  agentConfigIssueSchema,
+  type RerunMode,
+  stepErrorReasonSchema,
+} from '@shipfox/api-workflows-dto';
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {EmptyState, RelativeTimeProvider, toast} from '@shipfox/react-ui';
 import {useNavigate} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
-import type {WorkflowJob} from '#core/workflow-run.js';
+import type {WorkflowJob, WorkflowStep, WorkflowStepError} from '#core/workflow-run.js';
 import {
   type WorkflowRunSelectionInput,
   withoutWorkflowRunSelectionSearch,
@@ -18,6 +22,8 @@ import {WorkflowJobsGraph} from '../workflow-jobs-graph/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
 import {WorkflowSourcePanel} from '../workflow-source-panel/index.js';
 import {WorkflowStepList, type WorkflowStepListEmptyState} from '../workflow-step-list/index.js';
+import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
+import {AgentStepConfigPanel} from './agent-step-config-panel.js';
 import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 import {resolveWorkflowRunSelection} from './workflow-run-selection.js';
 import {
@@ -206,18 +212,27 @@ function RunViewContent({
             {selectedJob ? (
               <WorkflowStepList
                 job={selectedJob}
-                className="max-h-[50vh]"
                 selectedAttemptId={selectedJob.carriedOver ? undefined : selectedAttemptId}
                 onSelectedAttemptChange={selectionControlled ? selectAttempt : undefined}
                 autoSelectActiveAttempt
                 emptyState={emptyStateForJob(selectedJob)}
-                renderExpandedStep={({stepId, attempt, attemptStatus, carriedOver}) =>
+                renderExpandedStep={({
+                  step,
+                  stepId,
+                  attempt,
+                  attemptError,
+                  attemptStatus,
+                  carriedOver,
+                }) =>
                   carriedOver ? (
                     <CarriedOverStepPanel />
                   ) : (
-                    <StepAttemptLogPanel
+                    <StepAttemptDetailPanel
+                      workspaceId={workspaceId}
+                      step={step}
                       stepId={stepId}
                       attempt={attempt}
+                      attemptError={attemptError}
                       attemptStatus={attemptStatus}
                     />
                   )
@@ -238,6 +253,71 @@ function RunViewContent({
   );
 }
 
+function StepAttemptDetailPanel({
+  workspaceId,
+  step,
+  stepId,
+  attempt,
+  attemptError,
+  attemptStatus,
+}: {
+  workspaceId: string;
+  step: WorkflowStep;
+  stepId: string;
+  attempt: number;
+  attemptError: Record<string, unknown> | null;
+  attemptStatus: string;
+}) {
+  const selectedAttemptError = toSelectedAttemptError(step, attemptError) ?? step.error;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-10">
+      {step.agentConfig ? <AgentStepConfigPanel config={step.agentConfig} /> : null}
+      {isAgentConfigFailure(step, selectedAttemptError) ? (
+        <AgentConfigFailureCallout
+          workspaceId={workspaceId}
+          config={step.agentConfig}
+          error={selectedAttemptError}
+        />
+      ) : null}
+      <StepAttemptLogPanel stepId={stepId} attempt={attempt} attemptStatus={attemptStatus} />
+    </div>
+  );
+}
+
+function toSelectedAttemptError(
+  step: WorkflowStep,
+  error: Record<string, unknown> | null,
+): WorkflowStepError | null {
+  if (error === null) return null;
+
+  const reason = stepErrorReasonSchema.safeParse(error.reason);
+  const agentConfigIssue = agentConfigIssueSchema.safeParse(
+    error.agentConfigIssue ?? error.agent_config_issue,
+  );
+  const exitCode = error.exitCode ?? error.exit_code;
+  const parsedReason = reason.success
+    ? reason.data
+    : agentConfigIssue.success
+      ? 'agent_config_invalid'
+      : undefined;
+
+  if (parsedReason === undefined) return null;
+
+  return {
+    message: typeof error.message === 'string' ? error.message : '',
+    exitCode: exitCode === null || typeof exitCode === 'number' ? exitCode : null,
+    signal: typeof error.signal === 'string' ? error.signal : undefined,
+    reason: parsedReason,
+    agentConfigIssue: agentConfigIssue.success ? agentConfigIssue.data : undefined,
+    category: step.type === 'setup' ? 'setup' : 'user',
+  };
+}
+
+function isAgentConfigFailure(step: WorkflowStep, error: WorkflowStepError | null): boolean {
+  return step.type === 'agent' && error?.reason === 'agent_config_invalid';
+}
+
 function cancelErrorMessage(error: unknown): string {
   if (error instanceof ApiError && error.code === 'run-already-finished') {
     return 'This workflow run has already finished.';
@@ -251,6 +331,22 @@ function emptyStateForJob(job: WorkflowJob): WorkflowStepListEmptyState | undefi
       title: 'Carried over from a previous attempt',
       description: 'This job did not execute in this run.',
       status: 'succeeded',
+    };
+  }
+
+  if (job.status === 'pending') {
+    return {
+      title: 'Waiting for this job to start',
+      description: 'Steps will appear here once the job starts.',
+      status: 'pending',
+    };
+  }
+
+  if (job.status === 'running') {
+    return {
+      title: 'Waiting for the first step',
+      description: 'This job is running, but no steps have started yet.',
+      status: 'running',
     };
   }
 

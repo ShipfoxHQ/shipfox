@@ -46,6 +46,11 @@ function createTestRouter(path: string, element: ReactElement) {
     path: '/workspaces/$wid/settings/runners',
     component: () => element,
   });
+  const agentProvidersRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/settings/agent-providers',
+    component: () => element,
+  });
   const integrationsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/workspaces/$wid/settings/integrations',
@@ -54,7 +59,7 @@ function createTestRouter(path: string, element: ReactElement) {
 
   return createRouter({
     history: createMemoryHistory({initialEntries: [path]}),
-    routeTree: rootRoute.addChildren([runnersRoute, integrationsRoute]),
+    routeTree: rootRoute.addChildren([runnersRoute, agentProvidersRoute, integrationsRoute]),
   });
 }
 

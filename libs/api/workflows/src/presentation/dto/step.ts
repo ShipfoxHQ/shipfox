@@ -1,4 +1,5 @@
 import {
+  agentConfigIssueSchema,
   type StepAttemptDto,
   type StepDto,
   type StepErrorCategory,
@@ -23,11 +24,13 @@ function toStepErrorDto(
   const exitCode = error.exitCode;
   const signal = typeof error.signal === 'string' ? error.signal : undefined;
   const reason = stepErrorReasonSchema.safeParse(error.reason);
+  const agentConfigIssue = agentConfigIssueSchema.safeParse(error.agentConfigIssue);
   return {
     message,
     ...(exitCode === null || typeof exitCode === 'number' ? {exit_code: exitCode} : {}),
     ...(signal === undefined ? {} : {signal}),
     ...(reason.success ? {reason: reason.data} : {}),
+    ...(agentConfigIssue.success ? {agent_config_issue: agentConfigIssue.data} : {}),
     category,
   };
 }
@@ -47,6 +50,7 @@ export function fromStepErrorDto(
       : {}),
     ...(typeof error.signal === 'string' ? {signal: error.signal} : {}),
     ...(error.reason === undefined ? {} : {reason: error.reason}),
+    ...(error.agent_config_issue === undefined ? {} : {agentConfigIssue: error.agent_config_issue}),
   };
 }
 

@@ -1,5 +1,6 @@
 export {
   WorkflowExpressionEvaluationError,
+  type WorkflowExpressionEvaluationFailureReason,
   workflowExpressionEvaluationErrorCode,
 } from './errors.js';
 export {

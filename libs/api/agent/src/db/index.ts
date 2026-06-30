@@ -1,11 +1,16 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
+export {
+  type AgentWorkspaceDefaultsSnapshot,
+  getAgentWorkspaceDefaultsSnapshot,
+} from './agent-defaults-snapshot.js';
 export type {UpsertAgentProviderConfigParams} from './agent-provider-configs.js';
 export {
   deleteAgentProviderConfig,
   getAgentProviderConfig,
   listAgentProviderConfigs,
+  updateAgentProviderDefaultModel,
   upsertAgentProviderConfig,
 } from './agent-provider-configs.js';
 export {

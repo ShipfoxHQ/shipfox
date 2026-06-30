@@ -29,6 +29,8 @@ export {
   type ListAgentProviderConfigsResponseDto,
   listAgentProviderConfigsResponseSchema,
   listSupportedAgentProviders,
+  type MaterializedAgentStepConfigDto,
+  materializedAgentStepConfigSchema,
   type SetDefaultAgentProviderBodyDto,
   type SetDefaultAgentProviderResponseDto,
   SUPPORTED_AGENT_PROVIDER_IDS,
@@ -38,5 +40,7 @@ export {
   supportedAgentProviderIdSchema,
   UNSUPPORTED_AGENT_PROVIDER_IDS,
   type UpdateAgentProviderConfigBodyDto,
+  type UpdateAgentProviderDefaultModelBodyDto,
   updateAgentProviderConfigBodySchema,
+  updateAgentProviderDefaultModelBodySchema,
 } from '#schemas/index.js';

@@ -19,6 +19,7 @@ export interface Step {
   status: StepStatus;
   type: string;
   config: Record<string, unknown>;
+  authoredConfig: Record<string, unknown> | null;
   output: Record<string, unknown> | null;
   error: Record<string, unknown> | null;
   position: number;

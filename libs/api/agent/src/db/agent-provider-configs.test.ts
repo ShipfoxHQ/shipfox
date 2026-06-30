@@ -7,6 +7,7 @@ import {
   listAgentProviderConfigs,
   setDefaultAgentProvider,
   type UpsertAgentProviderConfigParams,
+  updateAgentProviderDefaultModel,
   upsertAgentProviderConfig,
 } from '#db/index.js';
 
@@ -77,6 +78,39 @@ describe('agent provider configs', () => {
     const configs = await listAgentProviderConfigs(workspaceId);
 
     expect(configs.map((config) => config.providerId)).toEqual(['anthropic', 'openai']);
+  });
+
+  it('updates only the provider default model', async () => {
+    const created = await upsertAgentProviderConfig(
+      createProviderConfigParams({
+        workspaceId,
+        providerId: 'anthropic',
+        defaultModel: 'claude-opus-4-8',
+      }),
+    );
+
+    const updated = await updateAgentProviderDefaultModel({
+      workspaceId,
+      providerId: 'anthropic',
+      defaultModel: 'claude-haiku-4-5',
+    });
+
+    expect(updated).toMatchObject({
+      encryptedCredentials: created.encryptedCredentials,
+      keyFingerprints: created.keyFingerprints,
+      defaultModel: 'claude-haiku-4-5',
+      defaultThinking: created.defaultThinking,
+    });
+  });
+
+  it('returns undefined when updating a missing provider default model', async () => {
+    const updated = await updateAgentProviderDefaultModel({
+      workspaceId,
+      providerId: 'anthropic',
+      defaultModel: null,
+    });
+
+    expect(updated).toBeUndefined();
   });
 
   it('hard-deletes a provider config', async () => {

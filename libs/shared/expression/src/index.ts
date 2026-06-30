@@ -1,5 +1,6 @@
 export {
   WorkflowExpressionEvaluationError,
+  type WorkflowExpressionEvaluationFailureReason,
   workflowExpressionEvaluationErrorCode,
 } from './evaluator/errors.js';
 export {
@@ -26,6 +27,35 @@ export type {
   WorkflowExpressionCheck,
   WorkflowExpressionCheckOptions,
 } from './expression/workflow-expression.js';
+export {
+  WorkflowTemplateResolutionError,
+  workflowTemplateResolutionErrorCode,
+} from './resolver/errors.js';
+export {
+  resolveWorkflowTemplate,
+  resolveWorkflowTemplateSource,
+  type WorkflowTemplateDiagnostic,
+  type WorkflowTemplateResolution,
+  type WorkflowTemplateResolutionOptions,
+} from './resolver/resolve-workflow-template.js';
+export {
+  type ResolvedRunCommand,
+  type RunCommandOptions,
+  resolveRunCommand,
+  UnsafeRunInterpolationError,
+  unsafeRunInterpolationErrorCode,
+} from './run/hoist-run-command.js';
+export {
+  InvalidWorkflowTemplateError,
+  invalidWorkflowTemplateErrorCode,
+} from './template/errors.js';
+export {extractCelContextRoots} from './template/extract-cel-context-roots.js';
+export {parseWorkflowTemplate} from './template/parse-workflow-template.js';
+export type {
+  WorkflowTemplateExprSegment,
+  WorkflowTemplateLiteralSegment,
+  WorkflowTemplateSegment,
+} from './template/template-segment.js';
 export {
   getWorkflowContextDefinition,
   getWorkflowContextTypeEnvironment,

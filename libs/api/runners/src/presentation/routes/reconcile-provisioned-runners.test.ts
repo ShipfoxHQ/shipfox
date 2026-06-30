@@ -1,0 +1,280 @@
+import {
+  AUTH_LEASED_JOB,
+  AUTH_PROVISIONER_TOKEN,
+  AUTH_RUNNER_SESSION,
+  AUTH_RUNNER_TOKEN,
+  AUTH_USER,
+  setProvisionerContext,
+} from '@shipfox/api-auth-context';
+import {
+  type AuthMethod,
+  ClientError,
+  closeApp,
+  createApp,
+  extractBearerToken,
+} from '@shipfox/node-fastify';
+import {vi} from '@shipfox/vitest/vi';
+import {and, desc, eq, sql} from 'drizzle-orm';
+import type {FastifyInstance, FastifyRequest} from 'fastify';
+import {db} from '#db/db.js';
+import {reservations} from '#db/schema/reservations.js';
+import {runningJobs} from '#db/schema/running-jobs.js';
+import {reservationReleasedCount} from '#metrics/instance.js';
+import {provisionedRunnerFactory, reservationFactory} from '#test/index.js';
+import {runnerRoutes} from './index.js';
+
+const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
+
+const passthroughAuth = (name: string): AuthMethod => ({
+  name,
+  authenticate: () => Promise.resolve(),
+});
+
+describe('POST /provisioners/provisioned-runners/reconcile', () => {
+  let app: FastifyInstance;
+  let workspaceId: string;
+  let provisionerTokenId: string;
+
+  const fakeProvisionerAuth: AuthMethod = {
+    name: AUTH_PROVISIONER_TOKEN,
+    authenticate: (request: FastifyRequest) => {
+      const rawToken = extractBearerToken(request.headers.authorization);
+      if (rawToken !== VALID_PROVISIONER_TOKEN) {
+        throw new ClientError('Invalid provisioner token', 'unauthorized', {status: 401});
+      }
+      setProvisionerContext(request, {workspaceId, provisionerTokenId});
+      return Promise.resolve();
+    },
+  };
+
+  beforeAll(async () => {
+    app = await createApp({
+      auth: [
+        passthroughAuth(AUTH_USER),
+        passthroughAuth(AUTH_RUNNER_TOKEN),
+        passthroughAuth(AUTH_RUNNER_SESSION),
+        passthroughAuth(AUTH_LEASED_JOB),
+        fakeProvisionerAuth,
+      ],
+      routes: runnerRoutes,
+      swagger: false,
+    });
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await closeApp();
+  });
+
+  beforeEach(async () => {
+    await db().execute(
+      sql`TRUNCATE runners_provisioned_runners, runners_reservations, runners_running_jobs CASCADE`,
+    );
+    workspaceId = crypto.randomUUID();
+    provisionerTokenId = crypto.randomUUID();
+  });
+
+  it('returns keep for an observed running runner and includes its bound job', async () => {
+    const jobId = crypto.randomUUID();
+    const runId = crypto.randomUUID();
+    await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
+    await insertRunningJob({
+      jobId,
+      runId,
+      provisionedRunnerId: 'provisioned-runner-1',
+      lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/provisioners/provisioned-runners/reconcile',
+      headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+      payload: {observed_provisioned_runner_ids: ['provisioned-runner-1']},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      runners: [
+        {
+          provisioned_runner_id: 'provisioned-runner-1',
+          state: 'running',
+          reservation_id: null,
+          runner_session_id: null,
+          bound_job: {
+            job_id: jobId,
+            run_id: runId,
+            last_heartbeat_at: '2025-01-01T00:00:00.000Z',
+            cancellation_requested_at: null,
+          },
+          desired_intent: 'keep',
+        },
+      ],
+      terminated_absent_provisioned_runner_ids: [],
+    });
+  });
+
+  it('returns terminate for an observed terminal runner', async () => {
+    await createProvisionedRunner({
+      provisionedRunnerId: 'provisioned-runner-1',
+      state: 'stopped',
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/provisioners/provisioned-runners/reconcile',
+      headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+      payload: {observed_provisioned_runner_ids: ['provisioned-runner-1']},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().runners[0]).toMatchObject({
+      provisioned_runner_id: 'provisioned-runner-1',
+      state: 'stopped',
+      desired_intent: 'terminate',
+    });
+  });
+
+  it('returns keep for orphan observed ids without leaking ownership details', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/provisioners/provisioned-runners/reconcile',
+      headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+      payload: {observed_provisioned_runner_ids: ['orphan-runner']},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().runners[0]).toMatchObject({
+      provisioned_runner_id: 'orphan-runner',
+      state: null,
+      desired_intent: 'keep',
+    });
+  });
+
+  it('surfaces cancellation on the bound job without deriving terminate intent', async () => {
+    await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
+    await insertRunningJob({
+      jobId: crypto.randomUUID(),
+      runId: crypto.randomUUID(),
+      provisionedRunnerId: 'provisioned-runner-1',
+      lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
+      cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/provisioners/provisioned-runners/reconcile',
+      headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+      payload: {observed_provisioned_runner_ids: ['provisioned-runner-1']},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().runners[0]).toMatchObject({
+      desired_intent: 'keep',
+      bound_job: {
+        cancellation_requested_at: '2025-01-01T00:01:00.000Z',
+      },
+    });
+  });
+
+  it('increments the reservation release metric when reconcile reaps an absent runner', async () => {
+    const addSpy = vi.spyOn(reservationReleasedCount, 'add');
+    const reservationId = await createReservation(2);
+    await createProvisionedRunner({
+      provisionedRunnerId: 'provisioned-runner-1',
+      reservationId,
+      reportedAt: new Date(Date.now() - 300_000),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/provisioners/provisioned-runners/reconcile',
+      headers: {authorization: `Bearer ${VALID_PROVISIONER_TOKEN}`},
+      payload: {observed_provisioned_runner_ids: []},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().terminated_absent_provisioned_runner_ids).toEqual(['provisioned-runner-1']);
+    expect(addSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('returns 401 without valid provisioner auth', async () => {
+    const missing = await app.inject({
+      method: 'POST',
+      url: '/provisioners/provisioned-runners/reconcile',
+      payload: {observed_provisioned_runner_ids: []},
+    });
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/provisioners/provisioned-runners/reconcile',
+      headers: {authorization: 'Bearer invalid'},
+      payload: {observed_provisioned_runner_ids: []},
+    });
+
+    expect(missing.statusCode).toBe(401);
+    expect(invalid.statusCode).toBe(401);
+  });
+
+  async function createReservation(count: number): Promise<string> {
+    await reservationFactory.create({
+      workspaceId,
+      provisionerId: provisionerTokenId,
+      requiredLabels: ['linux'],
+      count,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const [reservation] = await db()
+      .select()
+      .from(reservations)
+      .where(
+        and(
+          eq(reservations.workspaceId, workspaceId),
+          eq(reservations.provisionerId, provisionerTokenId),
+        ),
+      )
+      .orderBy(desc(reservations.id))
+      .limit(1);
+    if (!reservation) throw new Error('Expected reservation');
+    return reservation.id;
+  }
+
+  async function createProvisionedRunner(params: {
+    provisionedRunnerId: string;
+    state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
+    reservationId?: string | null;
+    reportedAt?: Date;
+  }) {
+    return await provisionedRunnerFactory.create({
+      workspaceId,
+      provisionerId: provisionerTokenId,
+      provisionedRunnerId: params.provisionedRunnerId,
+      reservationId: params.reservationId ?? null,
+      state: params.state ?? 'running',
+      reportedAt: params.reportedAt ?? new Date(),
+    });
+  }
+
+  async function insertRunningJob(params: {
+    jobId: string;
+    runId: string;
+    provisionedRunnerId: string;
+    lastHeartbeatAt: Date;
+    cancellationRequestedAt?: Date | null;
+  }) {
+    await db()
+      .insert(runningJobs)
+      .values({
+        workspaceId,
+        jobId: params.jobId,
+        runId: params.runId,
+        projectId: crypto.randomUUID(),
+        runnerSessionId: crypto.randomUUID(),
+        provisionerId: provisionerTokenId,
+        provisionedRunnerId: params.provisionedRunnerId,
+        requiredLabels: ['linux'],
+        runnerLabels: ['linux'],
+        startedAt: params.lastHeartbeatAt,
+        lastHeartbeatAt: params.lastHeartbeatAt,
+        cancellationRequestedAt: params.cancellationRequestedAt ?? null,
+      });
+  }
+});

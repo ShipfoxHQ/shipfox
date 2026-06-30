@@ -63,6 +63,27 @@ describe('createWorkflowExpression', () => {
     expect(act).toThrow(InvalidWorkflowExpressionError);
   });
 
+  it('rejects typed expressions with an unexpected result type', () => {
+    let error: unknown;
+    try {
+      createWorkflowExpression({
+        source: 'event.value + 1',
+        check: {
+          mode: 'typed',
+          typeEnvironment: {
+            event: {kind: 'object', fields: {value: 'int'}},
+          },
+          expectedResultType: 'bool',
+        },
+      });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(InvalidWorkflowExpressionError);
+    expect((error as InvalidWorkflowExpressionError).reason).toContain('must return bool; got int');
+  });
+
   it('exposes the source and type-check reason on invalid expression errors', () => {
     let error: unknown;
     try {
@@ -112,6 +133,49 @@ describe('createWorkflowExpression', () => {
     expect(expression).toEqual({
       language: 'cel',
       source,
+      check: 'typed',
+    });
+  });
+
+  it('rejects timestamp fields compared with non-timestamp values', () => {
+    const act = () =>
+      createWorkflowExpression({
+        source: 'event.value < 1',
+        check: {
+          mode: 'typed',
+          typeEnvironment: {
+            event: {kind: 'object', fields: {value: 'timestamp'}},
+          },
+        },
+      });
+
+    expect(act).toThrow(InvalidWorkflowExpressionError);
+  });
+
+  it('type-checks nested object fields registered through schemas', () => {
+    const expression = createWorkflowExpression({
+      source: 'event.pull_request.title == "ready"',
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          event: {
+            kind: 'object',
+            fields: {
+              pull_request: {
+                kind: 'object',
+                fields: {
+                  title: 'string',
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(expression).toEqual({
+      language: 'cel',
+      source: 'event.pull_request.title == "ready"',
       check: 'typed',
     });
   });

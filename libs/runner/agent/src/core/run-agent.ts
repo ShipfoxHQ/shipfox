@@ -1,5 +1,6 @@
 import {join} from 'node:path';
 import {
+  type ApiKeyCredential,
   AuthStorage,
   type CreateAgentSessionOptions,
   createAgentSession,
@@ -20,6 +21,7 @@ export interface AgentInvocation {
   readonly provider: string;
   readonly thinking: string;
   readonly prompt: string;
+  readonly credentials: Record<string, string>;
   readonly signal: AbortSignal;
   /**
    * Forwards each verbatim pi session entry line as it is persisted, in order. Best-effort
@@ -38,7 +40,16 @@ export interface AgentInvocation {
  * observability and never sent to the API, so it is optional.
  */
 export async function runAgent(invocation: AgentInvocation): Promise<{summary?: string}> {
-  const {cwd, model: modelId, provider, thinking, prompt, signal, onSessionEntry} = invocation;
+  const {
+    cwd,
+    model: modelId,
+    provider,
+    thinking,
+    prompt,
+    credentials,
+    signal,
+    onSessionEntry,
+  } = invocation;
 
   // A listener added to an already-aborted signal never fires, so an abort that lands
   // before this point (or during the awaits below) would leave pi running and burning
@@ -46,16 +57,19 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   // session exists so a mid-creation abort still stops pi.
   if (signal.aborted) throw new Error('Agent step aborted before the pi session started');
 
-  const authStorage = AuthStorage.create();
+  const authStorage = AuthStorage.inMemory({
+    [provider]: toPiRuntimeCredential(provider, credentials),
+  });
   const modelRegistry = ModelRegistry.create(authStorage);
   const model = resolveModel(modelRegistry, provider, modelId);
 
   // Surface a missing key up front as a config error: otherwise it fails deep inside the
-  // provider call as an opaque invocation failure, hiding that the fix is on the runner.
+  // provider call as an opaque invocation failure, hiding that the fix is workspace config.
   if (!modelRegistry.hasConfiguredAuth(model)) {
     throw new AgentConfigError(
-      `No credentials configured for provider "${provider}" on this runner. ` +
-        "Set the provider's API key in the runner environment.",
+      `No credentials configured for provider "${provider}". ` +
+        'Verify the provider is configured for this workspace.',
+      'provider_not_configured',
     );
   }
 
@@ -128,6 +142,7 @@ function resolveModel(
     throw new AgentConfigError(
       `Unknown provider "${provider}" for agent step. ` +
         'Known providers are pi built-ins plus any from models.json.',
+      'provider_unsupported',
     );
   }
 
@@ -138,5 +153,52 @@ function resolveModel(
       : ` Did you mean to set provider: ${alternativeProvider}?`;
   throw new AgentConfigError(
     `Model "${modelId}" is not available for provider "${provider}".${hint}`,
+    'model_unavailable',
   );
+}
+
+function toPiRuntimeCredential(
+  provider: string,
+  credentials: Record<string, string>,
+): ApiKeyCredential {
+  const credential: ApiKeyCredential = {
+    type: 'api_key',
+    key: credentialValue(provider, credentials, 'api_key'),
+  };
+  const env = providerCredentialEnv(provider, credentials);
+  return env === undefined ? credential : {...credential, env};
+}
+
+function providerCredentialEnv(
+  provider: string,
+  credentials: Record<string, string>,
+): Record<string, string> | undefined {
+  switch (provider) {
+    case 'azure-openai-responses':
+      return {AZURE_OPENAI_BASE_URL: credentialValue(provider, credentials, 'endpoint')};
+    case 'cloudflare-ai-gateway':
+      return {
+        CLOUDFLARE_ACCOUNT_ID: credentialValue(provider, credentials, 'account_id'),
+        CLOUDFLARE_GATEWAY_ID: credentialValue(provider, credentials, 'gateway_id'),
+      };
+    case 'cloudflare-workers-ai':
+      return {CLOUDFLARE_ACCOUNT_ID: credentialValue(provider, credentials, 'account_id')};
+    default:
+      return undefined;
+  }
+}
+
+function credentialValue(
+  provider: string,
+  credentials: Record<string, string>,
+  key: string,
+): string {
+  const value = credentials[key];
+  if (value === undefined || value === '') {
+    throw new AgentConfigError(
+      `Runtime credentials for provider "${provider}" are missing "${key}".`,
+      'credentials_invalid',
+    );
+  }
+  return value;
 }

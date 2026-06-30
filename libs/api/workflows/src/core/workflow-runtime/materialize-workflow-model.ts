@@ -1,9 +1,10 @@
 import {
-  DEFAULT_AGENT_PROVIDER,
-  DEFAULT_AGENT_THINKING,
-  getAgentProviderEntry,
-} from '@shipfox/api-agent-dto';
+  type AgentDefaultsResolver,
+  catalogDefaultAgentResolver,
+} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
+import type {WorkflowExpressionEvaluationContext} from '@shipfox/expression';
+import {resolveStepConfig, type WorkflowStepTemplateDiagnostic} from './resolve-step-config.js';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelStep = WorkflowModelJob['steps'][number];
@@ -25,6 +26,8 @@ export interface MaterializedWorkflowStep {
   readonly status: 'pending';
   readonly type: WorkflowModelStep['kind'] | 'setup';
   readonly config: Readonly<Record<string, unknown>>;
+  readonly authoredConfig: Readonly<Record<string, unknown>> | null;
+  readonly diagnostics?: readonly WorkflowStepTemplateDiagnostic[];
   readonly position: number;
 }
 
@@ -39,10 +42,26 @@ const SETUP_STEP: MaterializedWorkflowStep = {
   status: 'pending',
   type: 'setup',
   config: {},
+  authoredConfig: null,
   position: 0,
 };
 
-export function materializeWorkflowModel(model: WorkflowModel): readonly MaterializedWorkflowJob[] {
+export interface MaterializeWorkflowModelParams {
+  readonly model: WorkflowModel;
+  readonly context?: WorkflowExpressionEvaluationContext;
+  readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
+  readonly definitionId?: string | undefined;
+}
+
+export function materializeWorkflowModel(
+  params: MaterializeWorkflowModelParams,
+): readonly MaterializedWorkflowJob[] {
+  const {
+    model,
+    context = {},
+    resolveAgentDefaults = catalogDefaultAgentResolver,
+    definitionId = model.name,
+  } = params;
   const jobsById = new Map(model.jobs.map((job) => [job.id, job]));
 
   return model.jobs.map((job, position) => ({
@@ -54,17 +73,36 @@ export function materializeWorkflowModel(model: WorkflowModel): readonly Materia
     // so every job gets a setup step. User steps shift to position 1..n.
     steps: [
       SETUP_STEP,
-      ...job.steps.map((step, stepPosition) => ({
-        sourceName: step.sourceName ?? null,
-        displayName: step.sourceName ?? stepDisplayName(step),
-        sourceLocation: step.sourceLocation ?? null,
-        status: 'pending' as const,
-        type: step.kind,
-        config: stepConfig(step, model.env, job.env),
-        position: stepPosition + 1,
-      })),
+      ...job.steps.map((step, stepPosition) => {
+        const stepContext = {...context, job: {name: job.sourceName}};
+        const resolved = resolveStepConfig({
+          step,
+          workflowEnv: model.env,
+          workflowEnvTemplates: model.templates?.env,
+          jobEnv: job.env,
+          jobEnvTemplates: job.templates?.env,
+          context: stepContext,
+          resolveAgentDefaults,
+          definitionId,
+        });
+        return {
+          sourceName: step.sourceName ?? null,
+          displayName: step.sourceName ?? stepDisplayName(step),
+          sourceLocation: step.sourceLocation ?? null,
+          status: 'pending' as const,
+          type: step.kind,
+          config: resolved.config,
+          authoredConfig: resolved.authoredConfig,
+          ...(resolved.diagnostics.length === 0 ? {} : {diagnostics: resolved.diagnostics}),
+          position: stepPosition + 1,
+        };
+      }),
     ],
   }));
+}
+
+export function modelHasAgentStep(model: WorkflowModel): boolean {
+  return model.jobs.some((job) => job.steps.some((step) => step.kind === 'agent'));
 }
 
 function dependencySourceNames(
@@ -97,69 +135,6 @@ function firstLine(value: string): string {
   return value.split(FIRST_LINE_PATTERN, 1)[0]?.trim() || value.trim();
 }
 
-function stepConfig(
-  step: WorkflowModelStep,
-  workflowEnv: WorkflowModel['env'],
-  jobEnv: WorkflowModelJob['env'],
-): Record<string, unknown> {
-  const gate = step.gate === undefined ? {} : {gate: stepGateConfig(step.gate)};
-  const env = step.kind === 'run' ? mergedEnv(workflowEnv, jobEnv, step.env) : {};
-  return step.kind === 'run'
-    ? {run: step.command.value, ...env, ...gate}
-    : {...agentStepConfig(step), ...gate};
-}
-
-function agentStepConfig(step: Extract<WorkflowModelStep, {kind: 'agent'}>): {
-  model: string;
-  provider: string;
-  thinking: string;
-  prompt: string;
-} {
-  const provider = step.provider ?? DEFAULT_AGENT_PROVIDER;
-  const model = step.model ?? defaultModelForProvider(provider);
-  const thinking = step.thinking ?? DEFAULT_AGENT_THINKING;
-  return {model, provider, thinking, prompt: step.prompt};
-}
-
-function defaultModelForProvider(provider: string): string {
-  const entry = getAgentProviderEntry(provider);
-  if (entry === undefined || entry.support_status !== 'supported' || entry.default_model === null) {
-    throw new Error(`No default agent model is cataloged for provider "${provider}"`);
-  }
-  return entry.default_model;
-}
-
-function mergedEnv(
-  workflowEnv: WorkflowModel['env'],
-  jobEnv: WorkflowModelJob['env'],
-  stepEnv: Extract<WorkflowModelStep, {kind: 'run'}>['env'],
-): {env: Readonly<Record<string, string>>} | Record<string, never> {
-  const env = {...workflowEnv, ...jobEnv, ...stepEnv};
-  return Object.keys(env).length === 0 ? {} : {env};
-}
-
 function assertNever(value: never): never {
   throw new Error(`Unhandled workflow step kind: ${JSON.stringify(value)}`);
-}
-
-function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<string, unknown> {
-  return {
-    ...(gate.successIf === undefined
-      ? {}
-      : {
-          success_if: {
-            language: gate.successIf.language,
-            check: gate.successIf.check,
-            source: gate.successIf.source,
-          },
-        }),
-    ...(gate.onFailure === undefined
-      ? {}
-      : {
-          on_failure: {
-            restart_from: gate.onFailure.restartFrom,
-            ...(gate.onFailure.output === undefined ? {} : {output: gate.onFailure.output}),
-          },
-        }),
-  };
 }

@@ -264,6 +264,7 @@ describe('buildWorkflowStepListModel', () => {
       signal: undefined,
       category: 'setup',
       reason: 'checkout_failed',
+      agentConfigIssue: undefined,
     });
     expect(result.entries[0]?.error).toEqual({message: 'Opaque nested value', exitCode: 127});
     expect(result.entries[0]?.output).toEqual({tail: 'do not parse'});

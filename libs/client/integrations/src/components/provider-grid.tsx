@@ -17,8 +17,7 @@ export interface ProviderGridProps {
   errorSubject?: string;
 }
 
-export const PROVIDER_GRID_CLASS =
-  'grid gap-12 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]';
+export const PROVIDER_GRID_CLASS = 'grid grid-cols-2 gap-12 max-[760px]:grid-cols-1';
 
 export const PROVIDER_SURFACE_CLASS =
   'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';
@@ -80,23 +79,25 @@ function ProviderCard({
     <Link
       to={catalog.setupPath}
       params={{wid: workspaceId}}
-      aria-label={`Connect ${provider.display_name}`}
+      aria-label={`Install ${provider.display_name}`}
       className="group block h-full rounded-8 focus-visible:shadow-button-neutral-focus focus-visible:outline-none"
     >
-      <Card className="h-full gap-8 p-16 transition-colors hover:bg-background-components-hover">
-        <div className="flex min-w-0 items-center gap-12">
-          <IntegrationIcon
-            source={provider.provider}
-            aria-hidden
-            className="size-24 shrink-0 text-foreground-neutral-base"
-          />
-          <Text size="md" bold className="truncate">
-            {provider.display_name}
-          </Text>
-        </div>
-        <div className="flex items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">
-          <Text size="sm">Connect</Text>
-          <Icon name="chevronRight" className="size-16" />
+      <Card className="h-full p-16 transition-colors hover:bg-background-components-hover">
+        <div className="flex min-w-0 items-center justify-between gap-12">
+          <div className="flex min-w-0 items-center gap-12">
+            <IntegrationIcon
+              source={provider.provider}
+              aria-hidden
+              className="size-24 shrink-0 text-foreground-neutral-base"
+            />
+            <Text size="md" bold className="truncate">
+              {provider.display_name}
+            </Text>
+          </div>
+          <div className="flex shrink-0 items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">
+            <Text size="sm">Install</Text>
+            <Icon name="chevronRight" className="size-16" />
+          </div>
         </div>
       </Card>
     </Link>
@@ -108,12 +109,14 @@ function ProviderGridSkeleton({label}: {label: string}) {
     <ul role="status" aria-label={label} className={PROVIDER_GRID_CLASS}>
       {[0, 1, 2, 3].map((tile) => (
         <li key={tile}>
-          <Card className="h-full gap-8 p-16">
-            <div className="flex items-center gap-12">
-              <Skeleton className="size-24 shrink-0" />
-              <Skeleton className="h-16 w-100" />
+          <Card className="h-full p-16">
+            <div className="flex items-center justify-between gap-12">
+              <div className="flex min-w-0 items-center gap-12">
+                <Skeleton className="size-24 shrink-0" />
+                <Skeleton className="h-16 w-100" />
+              </div>
+              <Skeleton className="h-16 w-64 shrink-0" />
             </div>
-            <Skeleton className="h-16 w-64" />
           </Card>
         </li>
       ))}

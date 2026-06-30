@@ -15,9 +15,9 @@ import {
   TooltipTrigger,
 } from '@shipfox/react-ui';
 import type {ReactNode} from 'react';
-import {useEffect, useId, useMemo, useState} from 'react';
+import {useEffect, useId, useMemo, useRef, useState} from 'react';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
-import {isWorkflowStatus, type WorkflowJob} from '#core/workflow-run.js';
+import {isWorkflowStatus, type WorkflowJob, type WorkflowStep} from '#core/workflow-run.js';
 import {
   buildWorkflowStepListModel,
   humanizeStatus,
@@ -27,9 +27,11 @@ import {
 } from './workflow-step-list-model.js';
 
 export interface WorkflowStepExpandedContext {
+  step: WorkflowStep;
   stepId: string;
   attempt: number;
   attemptId: string;
+  attemptError: Record<string, unknown> | null;
   attemptStatus: string;
   carriedOver: boolean;
 }
@@ -89,34 +91,56 @@ function WorkflowStepListContent({
   className,
 }: Omit<WorkflowStepListProps, 'job'> & {model: WorkflowStepListModel}) {
   const titleId = useId();
-  const [localSelectedAttemptIds, setLocalSelectedAttemptIds] = useState<string[]>(
-    defaultSelectedAttemptId ? [defaultSelectedAttemptId] : [],
+  const [localSelectedAttemptIds, setLocalSelectedAttemptIds] = useState<string[]>(() =>
+    selectedAttemptId
+      ? [selectedAttemptId]
+      : defaultSelectedAttemptId
+        ? [defaultSelectedAttemptId]
+        : [],
   );
   const [userSelectedAttempt, setUserSelectedAttempt] = useState(false);
+  const lastNotifiedSelectedAttemptId = useRef<string | null>(null);
+  const shouldUseControlledCollapsedState =
+    selectedAttemptId === null && lastNotifiedSelectedAttemptId.current === null;
   const autoSelectedAttemptIds =
-    autoSelectActiveAttempt && !userSelectedAttempt && model.activeEntryId
+    selectedAttemptId === undefined &&
+    autoSelectActiveAttempt &&
+    !userSelectedAttempt &&
+    model.activeEntryId
       ? [model.activeEntryId]
       : [];
-  // `undefined` leaves selection uncontrolled; `null` is a controlled collapsed state.
-  const selectedAttemptIds =
-    selectedAttemptId !== undefined
-      ? selectedAttemptId
-        ? [selectedAttemptId]
-        : []
-      : localSelectedAttemptIds.length > 0
-        ? localSelectedAttemptIds
-        : autoSelectedAttemptIds;
+  const selectedAttemptIds = shouldUseControlledCollapsedState
+    ? []
+    : localSelectedAttemptIds.length > 0
+      ? localSelectedAttemptIds
+      : autoSelectedAttemptIds;
   const hasExpandedContent = renderExpandedStep !== undefined;
 
   useEffect(() => {
+    if (selectedAttemptId !== undefined) return;
+
     setLocalSelectedAttemptIds(defaultSelectedAttemptId ? [defaultSelectedAttemptId] : []);
     setUserSelectedAttempt(false);
-  }, [defaultSelectedAttemptId]);
+  }, [defaultSelectedAttemptId, selectedAttemptId]);
+
+  useEffect(() => {
+    if (selectedAttemptId === undefined) return;
+
+    const nextSelectedAttemptId = selectedAttemptId ?? null;
+    if (lastNotifiedSelectedAttemptId.current === nextSelectedAttemptId) {
+      lastNotifiedSelectedAttemptId.current = null;
+      return;
+    }
+
+    setLocalSelectedAttemptIds(selectedAttemptId ? [selectedAttemptId] : []);
+    setUserSelectedAttempt(true);
+  }, [selectedAttemptId]);
 
   function selectAttempt(nextAttemptIds: string[]) {
     const nextAttemptId = nextSelectedAttemptId(selectedAttemptIds, nextAttemptIds);
     setUserSelectedAttempt(true);
     setLocalSelectedAttemptIds(nextAttemptIds);
+    lastNotifiedSelectedAttemptId.current = nextAttemptId ?? null;
     onSelectedAttemptChange?.(nextAttemptId);
   }
 
@@ -137,13 +161,7 @@ function WorkflowStepListContent({
       {model.entries.length === 0 ? (
         <WorkflowStepListEmptyStateView emptyState={emptyState} />
       ) : (
-        <Accordion
-          type="multiple"
-          value={selectedAttemptIds}
-          onValueChange={selectAttempt}
-          className="min-h-0 overflow-auto"
-          asChild
-        >
+        <Accordion type="multiple" value={selectedAttemptIds} onValueChange={selectAttempt} asChild>
           <ol>
             {model.entries.map((entry) => {
               const selected = selectedAttemptIds.includes(entry.id);
@@ -165,9 +183,11 @@ function WorkflowStepListContent({
                   expandedContent={
                     selected
                       ? renderExpandedStep?.({
+                          step: entry.step,
                           stepId: entry.step.id,
                           attempt: entry.attempt,
                           attemptId: entry.id,
+                          attemptError: entry.error,
                           attemptStatus: entry.statusVisual.kind,
                           carriedOver: entry.carriedOver,
                         })
@@ -185,8 +205,8 @@ function WorkflowStepListContent({
 
 function WorkflowStepListEmptyStateView({
   emptyState = {
-    title: 'No step attempts yet',
-    description: 'This job has not recorded step attempts.',
+    title: 'No steps recorded',
+    description: 'This job has not recorded any steps.',
   },
 }: {
   emptyState?: WorkflowStepListEmptyState | undefined;
@@ -205,9 +225,7 @@ function WorkflowStepListEmptyStateView({
 
   return (
     <div className="flex min-h-120 flex-col items-center justify-center gap-10 px-16 py-20">
-      <div className="flex size-32 items-center justify-center rounded-6 border border-border-neutral-strong bg-background-neutral-base p-8">
-        <WorkflowStatusIcon status={emptyState.status} size={20} tooltip={false} />
-      </div>
+      <WorkflowStepListEmptyStateIcon status={emptyState.status} />
       <div className="text-center">
         <Text size="sm" className="text-foreground-neutral-subtle">
           {emptyState.title}
@@ -216,6 +234,22 @@ function WorkflowStepListEmptyStateView({
           {emptyState.description}
         </Text>
       </div>
+    </div>
+  );
+}
+
+function WorkflowStepListEmptyStateIcon({status}: {status: WorkflowJob['status']}) {
+  if (status !== 'running') {
+    return (
+      <div className="flex size-32 items-center justify-center rounded-6 border border-border-neutral-strong bg-background-neutral-base p-8">
+        <WorkflowStatusIcon status={status} size={20} tooltip={false} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex size-32 items-center justify-center rounded-6 border border-border-neutral-strong bg-background-neutral-base p-8 text-foreground-neutral-muted">
+      <Icon name="timerLine" size={18} aria-hidden="true" />
     </div>
   );
 }

@@ -19,6 +19,8 @@ export const runnerSessions = pgTable(
     registrationTokenId: uuid('registration_token_id').notNull(),
     registrationTokenKind:
       runnerSessionRegistrationTokenKindEnum('registration_token_kind').notNull(),
+    provisionerId: uuid('provisioner_id'),
+    provisionedRunnerId: text('provisioned_runner_id'),
     labels: text('labels').array().notNull(),
     maxClaims: integer('max_claims'),
     claimsUsed: integer('claims_used').notNull().default(0),
@@ -29,6 +31,10 @@ export const runnerSessions = pgTable(
     check(
       'runners_runner_sessions_claims_ck',
       sql`${table.claimsUsed} >= 0 AND ((${table.registrationTokenKind} = 'manual' AND ${table.maxClaims} IS NULL) OR (${table.registrationTokenKind} = 'ephemeral' AND ${table.maxClaims} IS NOT NULL AND ${table.maxClaims} > 0 AND ${table.claimsUsed} <= ${table.maxClaims}))`,
+    ),
+    check(
+      'runners_runner_sessions_link_ck',
+      sql`((${table.registrationTokenKind} = 'manual' AND ${table.provisionerId} IS NULL AND ${table.provisionedRunnerId} IS NULL) OR (${table.registrationTokenKind} = 'ephemeral' AND ${table.provisionerId} IS NOT NULL AND ${table.provisionedRunnerId} IS NOT NULL))`,
     ),
   ],
 );
@@ -47,6 +53,8 @@ export function toRunnerSession(row: RunnerSessionDb): RunnerSession {
     scope: row.scope,
     registrationTokenId: row.registrationTokenId,
     registrationTokenKind: row.registrationTokenKind,
+    provisionerId: row.provisionerId,
+    provisionedRunnerId: row.provisionedRunnerId,
     labels: row.labels,
     maxClaims: row.maxClaims,
     claimsUsed: row.claimsUsed,

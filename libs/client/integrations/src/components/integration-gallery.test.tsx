@@ -105,7 +105,7 @@ describe('IntegrationGallery — installed section', () => {
 
     expect(await screen.findByText('acme-one')).toBeVisible();
     expect(screen.getByText('acme-two')).toBeVisible();
-    expect(screen.getByText('Provider accounts linked to this workspace.')).toBeVisible();
+    expect(screen.getByText('Provider accounts installed in this workspace.')).toBeVisible();
   });
 
   test('sorts stably by provider name then created_at regardless of input order', async () => {
@@ -137,7 +137,7 @@ describe('IntegrationGallery — installed section', () => {
     expect(names).toEqual(['acme-early', 'acme-late']);
   });
 
-  test('renders the lifecycle badge label per status', async () => {
+  test('renders lifecycle badges only for states that need attention', async () => {
     renderGallery(
       {},
       {
@@ -163,7 +163,8 @@ describe('IntegrationGallery — installed section', () => {
       },
     );
 
-    expect(await screen.findByText('Connected')).toBeVisible();
+    expect(await screen.findByText('acme-corp')).toBeVisible();
+    expect(screen.queryByText('Connected')).not.toBeInTheDocument();
     expect(screen.getByText('Disabled')).toBeVisible();
     expect(screen.getByText('Error')).toBeVisible();
   });
@@ -262,32 +263,33 @@ describe('IntegrationGallery — installed section', () => {
 
     expect(await screen.findByText("Couldn't load integrations")).toBeInTheDocument();
     expect(screen.queryByText("Couldn't load available integrations")).not.toBeInTheDocument();
-    expect(within(availableRegion()).getByRole('link', {name: 'Connect GitHub'})).toBeVisible();
+    expect(within(availableRegion()).getByRole('link', {name: 'Install GitHub'})).toBeVisible();
   });
 
   test('shows the empty state in the settings context', async () => {
     renderGallery({}, {connections: []});
 
-    expect(await screen.findByText('No integrations connected yet')).toBeVisible();
+    expect(await screen.findByText('No integrations installed yet')).toBeVisible();
   });
 });
 
 describe('IntegrationGallery — available section', () => {
-  test('lists every provider with a Connect link, including connected ones', async () => {
+  test('lists every provider with an Install link, including installed ones', async () => {
     renderGallery({}, {connections: [githubConnection]});
 
-    expect(await screen.findByRole('link', {name: 'Connect GitHub'})).toBeVisible();
-    expect(screen.getByRole('link', {name: 'Connect Sentry'})).toBeVisible();
-    expect(screen.getByText('Providers available to connect to this workspace.')).toBeVisible();
+    expect(await screen.findByRole('link', {name: 'Install GitHub'})).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Install Sentry'})).toBeVisible();
+    expect(screen.getByText('Providers available to install in this workspace.')).toBeVisible();
   });
 
   test('exposes each available tile as a single link with no nested button', async () => {
     renderGallery({}, {connections: [githubConnection]});
 
-    const link = await screen.findByRole('link', {name: 'Connect GitHub'});
+    const link = await screen.findByRole('link', {name: 'Install GitHub'});
 
     expect(link).toHaveClass('focus-visible:shadow-button-neutral-focus');
     expect(link.className).not.toContain('shadow-button-secondary');
+    expect(within(link).getByText('Install')).toBeVisible();
     expect(within(link).queryByRole('button')).not.toBeInTheDocument();
   });
 
@@ -309,8 +311,8 @@ describe('IntegrationGallery — available section', () => {
       },
     );
 
-    await screen.findByRole('link', {name: 'Connect GitHub'});
+    await screen.findByRole('link', {name: 'Install GitHub'});
 
-    expect(screen.queryByRole('link', {name: 'Connect Mystery'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: 'Install Mystery'})).not.toBeInTheDocument();
   });
 });

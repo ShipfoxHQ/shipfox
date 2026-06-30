@@ -24,10 +24,12 @@ import {createDefinitionSyncActivities, DEFINITIONS_TASK_QUEUE} from '#temporal/
 export type {
   WorkflowDefinition,
   WorkflowDefinitionPayload,
+  WorkflowEnvTemplates,
   WorkflowModel,
   WorkflowSourceSnapshot,
   WorkflowSpec,
 } from '#core/index.js';
+export {normalizeWorkflowDocument} from '#core/index.js';
 export {db, definitionsOutbox, getDefinitionById, migrationsPath} from '#db/index.js';
 export {routes} from '#presentation/index.js';
 

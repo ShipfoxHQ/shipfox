@@ -1,4 +1,8 @@
 export {
+  type AgentConfigIssue,
+  type AgentRuntimeConfigQueryDto,
+  agentConfigIssueSchema,
+  agentRuntimeConfigQuerySchema,
   type CheckoutIntentDto,
   type CheckoutTokenAuthDto,
   type CheckoutTokenResponseDto,

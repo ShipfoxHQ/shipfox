@@ -30,12 +30,12 @@ describe('SourceControlOnboardingPage', () => {
       extraRoutes: ['/workspaces/$wid/integrations/github'],
     });
 
-    expect(await screen.findByRole('heading', {name: 'Connect source control'})).toBeVisible();
-    expect(screen.getByRole('link', {name: 'Connect GitHub'})).toBeVisible();
+    expect(await screen.findByRole('heading', {name: 'Install source control'})).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Install GitHub'})).toBeVisible();
     expect(screen.queryByRole('region', {name: 'Installed integrations'})).not.toBeInTheDocument();
     expect(screen.queryByRole('region', {name: 'Available integrations'})).not.toBeInTheDocument();
     expect(
-      screen.queryByText('Provider accounts linked to this workspace.'),
+      screen.queryByText('Provider accounts installed in this workspace.'),
     ).not.toBeInTheDocument();
 
     const urls = fetchImpl.mock.calls.map(([input]) =>

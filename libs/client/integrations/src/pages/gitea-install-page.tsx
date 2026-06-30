@@ -5,6 +5,7 @@ import {
   ButtonLink,
   FormField,
   FormFieldInput,
+  fieldError,
   Header,
   Text,
   toast,
@@ -37,7 +38,7 @@ export function GiteaInstallPage() {
           // after the home redirects back here.
           refetchType: 'all',
         });
-        toast.success('Gitea organization connected.');
+        toast.success('Gitea organization installed.');
         await navigate({to: '/workspaces/$wid', params: {wid: workspaceId}});
       } catch (error) {
         const mapped = giteaConnectErrorToFormError(error);
@@ -56,9 +57,9 @@ export function GiteaInstallPage() {
   return (
     <div className="mx-auto flex w-full max-w-[480px] flex-col gap-20">
       <header className="flex flex-col gap-8">
-        <Header variant="h1">Connect Gitea</Header>
+        <Header variant="h1">Install Gitea</Header>
         <Text size="md" className="text-foreground-neutral-muted">
-          Enter the Gitea organization to connect to this workspace.
+          Enter the Gitea organization to install in this workspace.
         </Text>
       </header>
 
@@ -95,7 +96,7 @@ export function GiteaInstallPage() {
         </form.Field>
         <div className="flex items-center gap-12">
           <Button type="submit" isLoading={connect.isPending}>
-            Connect
+            Install
           </Button>
           <ButtonLink asChild variant="muted">
             <Link to="/workspaces/$wid/integrations" params={{wid: workspace.id}}>
@@ -106,19 +107,4 @@ export function GiteaInstallPage() {
       </form>
     </div>
   );
-}
-
-interface FieldLike {
-  state: {meta: {errors: Array<unknown>; isBlurred: boolean}};
-}
-
-function fieldError(field: FieldLike): string | undefined {
-  if (!field.state.meta.isBlurred && field.state.meta.errors.length === 0) return undefined;
-  const first = field.state.meta.errors[0];
-  if (!first) return undefined;
-  if (typeof first === 'string') return first;
-  if (typeof first === 'object' && first !== null && 'message' in first) {
-    return String((first as {message: unknown}).message);
-  }
-  return undefined;
 }

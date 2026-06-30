@@ -1,22 +1,26 @@
+import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import type {ProjectResponseDto} from '@shipfox/api-projects-dto';
 import {useActiveWorkspace} from '@shipfox/client-auth';
+import {
+  ConnectionStatusBadge,
+  IntegrationIcon,
+  useIntegrationConnectionsQuery,
+} from '@shipfox/client-integrations';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {
   Alert,
   Button,
   Card,
-  CardContent,
-  Code,
   EmptyState,
   Header,
   Icon,
   Input,
   Skeleton,
-  StatusBadge,
   Text,
 } from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {useEffect, useState} from 'react';
+import {AgentProviderReminderBanner} from '#components/agent-provider-reminder-banner.js';
 import {useProjectsInfiniteQuery} from '#hooks/api/projects.js';
 
 export function ProjectsHubPage() {
@@ -26,6 +30,16 @@ export function ProjectsHubPage() {
   const debouncedSearch = useDebouncedValue(trimmedInput, 250);
   const query = useProjectsInfiniteQuery(workspace.id, debouncedSearch || undefined);
   const projects = query.data?.pages.flatMap((page) => page.projects) ?? [];
+
+  // The provider logo and connection health live on the integration connection,
+  // not the project, so resolve them once for the whole list and index by id.
+  // Skip the fetch when there are no cards to annotate.
+  const connectionsQuery = useIntegrationConnectionsQuery(
+    projects.length > 0 ? workspace.id : undefined,
+  );
+  const connectionsById = new Map(
+    (connectionsQuery.data?.connections ?? []).map((connection) => [connection.id, connection]),
+  );
 
   const isInitialLoading = query.isPending;
   const isDebouncePending = trimmedInput !== debouncedSearch;
@@ -67,6 +81,8 @@ export function ProjectsHubPage() {
         </div>
       </header>
 
+      <AgentProviderReminderBanner workspaceId={workspace.id} />
+
       {isInitialLoading || (debouncedSearch && hasNoData && query.isFetching) ? (
         <ProjectsSkeleton />
       ) : null}
@@ -83,9 +99,16 @@ export function ProjectsHubPage() {
 
       {projects.length > 0 ? (
         <section aria-label="Projects list">
-          <ul className="grid gap-16 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-2 gap-12 max-[760px]:grid-cols-1">
             {projects.map((project) => (
-              <ProjectCard project={project} key={project.id} workspaceId={workspace.id} />
+              <ProjectCard
+                project={project}
+                connection={connectionsById.get(project.source.connection_id)}
+                connectionsResolved={connectionsQuery.isSuccess}
+                connectionsSettled={connectionsQuery.isSuccess || connectionsQuery.isError}
+                key={project.id}
+                workspaceId={workspace.id}
+              />
             ))}
           </ul>
           {query.error && query.data ? (
@@ -126,16 +149,15 @@ function ProjectsSkeleton() {
     <ul
       role="status"
       aria-label="Loading projects"
-      className="grid gap-16 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+      className="grid grid-cols-2 gap-12 max-[760px]:grid-cols-1"
     >
       {[0, 1, 2, 3, 4, 5].map((row) => (
         <li key={row}>
-          <Card className="p-20 h-full gap-12">
-            <div className="flex items-center justify-between gap-12">
-              <Skeleton className="h-20 w-1/2" />
-              <Skeleton className="h-20 w-72 shrink-0" />
+          <Card className="h-full p-16">
+            <div className="flex items-center gap-12">
+              <Skeleton className="size-24 shrink-0" />
+              <Skeleton className="h-16 w-1/2" />
             </div>
-            <Skeleton className="h-16 w-2/3" />
           </Card>
         </li>
       ))}
@@ -175,28 +197,51 @@ function NoSearchResults({search, onClear}: {search: string; onClear: () => void
   );
 }
 
-function ProjectCard({project, workspaceId}: {project: ProjectResponseDto; workspaceId: string}) {
+function ProjectCard({
+  project,
+  connection,
+  connectionsResolved,
+  connectionsSettled,
+  workspaceId,
+}: {
+  project: ProjectResponseDto;
+  connection: IntegrationConnectionDto | undefined;
+  connectionsResolved: boolean;
+  connectionsSettled: boolean;
+  workspaceId: string;
+}) {
+  // On a resolved fetch, `active` carries no badge while a missing connection
+  // reads as an error so a broken source is still flagged. An unresolved or
+  // failed fetch shows nothing, so a fetch failure never flags every card.
+  const status = connectionsResolved ? (connection?.lifecycle_status ?? 'error') : undefined;
+
   return (
-    <li className="contents">
+    <li>
       <Link
         to="/workspaces/$wid/projects/$pid"
         params={{wid: workspaceId, pid: project.id}}
-        className="block h-full rounded-8 focus-visible:outline-none focus-visible:shadow-button-neutral-focus"
+        className="block h-full rounded-8 focus-visible:shadow-button-neutral-focus focus-visible:outline-none"
       >
-        <Card className="p-20 h-full gap-12 hover:bg-background-components-hover transition-colors">
-          <CardContent className="flex flex-col gap-8 p-0">
-            <div className="flex items-center justify-between gap-12">
-              <Text size="lg" bold className="truncate">
+        <Card className="h-full p-16 transition-colors hover:bg-background-components-hover">
+          <div className="flex min-w-0 items-center gap-12">
+            {/* Settle on success or error: a failed fetch falls back to the
+                neutral provider icon rather than spinning forever. */}
+            {connectionsSettled ? (
+              <IntegrationIcon
+                source={connection?.provider}
+                aria-hidden
+                className="size-24 shrink-0 text-foreground-neutral-base"
+              />
+            ) : (
+              <Skeleton className="size-24 shrink-0" />
+            )}
+            <div className="flex min-w-0 flex-1 items-center gap-8">
+              <Text size="md" bold className="truncate">
                 {project.name}
               </Text>
-              <StatusBadge variant="success" className="shrink-0">
-                Connected
-              </StatusBadge>
+              {status ? <ConnectionStatusBadge status={status} className="shrink-0" /> : null}
             </div>
-            <Code variant="paragraph" className="text-foreground-neutral-muted truncate">
-              {project.source.external_repository_id}
-            </Code>
-          </CardContent>
+          </div>
         </Card>
       </Link>
     </li>

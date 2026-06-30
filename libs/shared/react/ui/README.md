@@ -1,13 +1,14 @@
 # Shipfox React UI
 
-Shared React component library for Shipfox apps. It provides design tokens, Tailwind CSS setup, common components, icons, theme state, and small UI utilities.
+Shared React component library for Shipfox apps. It provides design tokens, Tailwind CSS setup, common components, icons, theme state, hooks, and small UI utilities.
 
 ## What it does
 
-- **Components**: Alert, Badge, Button, Card, Icon, Input, Label, Loader, Skeleton, ThemeProvider, Toast, Tooltip, and Typography.
+- **Components**: Accordion, Alert, Avatar, Badge, Button, Calendar, Card, CodeBlock, Collapsible, Combobox, Command, DatePicker, DateRangePicker, Dot, DropdownMenu, EmptyState, FormField, Icon, InlineTips, Input, Kbd, Label, LoadErrorState, Loader, Log, Logo, Modal, Popover, RadioGroup, RelativeTime, ScrollArea, Search, Select, Sheet, ShinyText, Skeleton, Table, Tabs, ThemeProvider, Toast, Tooltip, and Typography.
 - **Theme helpers**: `ThemeProvider`, `useTheme()`, and `useResolvedTheme()`.
+- **Hooks**: `useCopyToClipboard`, `useIsTextTruncated`, `useShikiHighlight`, `useShikiStyleInjection`, plus the theme hooks above.
+- **Utilities**: `cn()` for class name merging, `copyTextToClipboard`, `formatBytes`, `formatDate`/`formatTimestamp`, `formatDuration`/`humanDuration`, `formatRelative`, `debounce`, and avatar helpers (`getInitial`, `getPlaceholderImageUrl`).
 - **Icons**: Custom Shipfox icons plus the icon registry used by the `Icon` component.
-- **Utilities**: `cn()` for class name merging.
 - **CSS entry**: `@shipfox/react-ui/index.css` for fonts, Tailwind, animation utilities, and design tokens.
 
 ## Setup
@@ -60,6 +61,26 @@ export function EmptyState() {
 }
 ```
 
+`FormField` wires up label, input, error, and description with the correct `id`, `aria-invalid`, and `aria-describedby` plumbing. Render the input through `FormFieldInput` to inherit those props automatically:
+
+```tsx
+import {FormField, FormFieldInput} from '@shipfox/react-ui';
+
+<FormField label="Email" id="email" error={error}>
+  <FormFieldInput type="email" value={value} onChange={...} />
+</FormField>
+```
+
+## Storybook
+
+Components are documented in Storybook stories under `src/**/*.stories.tsx`:
+
+```sh
+pnpm --filter=@shipfox/react-ui storybook
+```
+
+Stories are also captured by Argos for visual regression under `turbo test` (light + dark).
+
 ## Build
 
 The package builds JavaScript with SWC and CSS with Vite:
@@ -76,6 +97,7 @@ The CSS build writes `dist/styles.css`. The package also exports `./index.css` f
 turbo check --filter=@shipfox/react-ui
 turbo type --filter=@shipfox/react-ui
 turbo build --filter=@shipfox/react-ui
+turbo test --filter=@shipfox/react-ui
 ```
 
 ## License

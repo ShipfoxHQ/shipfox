@@ -1,5 +1,10 @@
 import type {ListIntegrationConnectionsResponseDto} from '@shipfox/api-integration-core-dto';
 import type {ListProjectsResponseDto} from '@shipfox/api-projects-dto';
+import {
+  agentProviderQueryKeys,
+  isAgentProviderOnboardingDismissed,
+  listAgentProviderConfigs,
+} from '@shipfox/client-agent';
 import {ApiError} from '@shipfox/client-api';
 import {integrationsQueryKeys, listSourceConnections} from '@shipfox/client-integrations';
 import {Alert, Button, FullPageLoader, Header, Text} from '@shipfox/react-ui';
@@ -9,6 +14,7 @@ import {listProjects, projectsQueryKeys} from '#hooks/api/projects.js';
 
 const TRAILING_SLASHES_RE = /\/+$/u;
 const PROJECT_EXISTENCE_STALE_TIME_MS = 30_000;
+type ListAgentProviderConfigsResponseDto = Awaited<ReturnType<typeof listAgentProviderConfigs>>;
 
 export interface WorkspaceSetupState {
   hideProjectNavigation: boolean;
@@ -58,6 +64,23 @@ export async function loadWorkspaceSetupRoute({
 
     throw redirect({
       to: '/workspaces/$wid/integrations',
+      params: {wid: workspaceId},
+      replace: true,
+    });
+  }
+
+  if (isAgentProviderSettingsPath(normalizedPathname, workspaceId)) {
+    return {hideProjectNavigation: true};
+  }
+
+  const providerHandled = await hasHandledAgentProviderOnboarding(queryClient, workspaceId);
+  if (!providerHandled) {
+    if (isAgentProviderOnboardingPath(normalizedPathname, workspaceId)) {
+      return {hideProjectNavigation: true};
+    }
+
+    throw redirect({
+      to: '/workspaces/$wid/agent-provider',
       params: {wid: workspaceId},
       replace: true,
     });
@@ -182,6 +205,34 @@ async function fetchWorkspaceSourceConnections(queryClient: QueryClient, workspa
   }
 }
 
+async function hasHandledAgentProviderOnboarding(
+  queryClient: QueryClient,
+  workspaceId: string,
+): Promise<boolean> {
+  if (isAgentProviderOnboardingDismissed(workspaceId)) return true;
+
+  const configs = await fetchWorkspaceAgentProviderConfigs(queryClient, workspaceId);
+  return configs === null || configs.configs.length > 0;
+}
+
+async function fetchWorkspaceAgentProviderConfigs(
+  queryClient: QueryClient,
+  workspaceId: string,
+): Promise<ListAgentProviderConfigsResponseDto | null> {
+  const queryKey = agentProviderQueryKeys.configs(workspaceId);
+
+  try {
+    return await queryClient.fetchQuery({
+      queryKey,
+      queryFn: ({signal}) => listAgentProviderConfigs({workspaceId, signal}),
+    });
+  } catch {
+    const cached = queryClient.getQueryData<ListAgentProviderConfigsResponseDto>(queryKey);
+    if (cached !== undefined) return cached;
+    return null;
+  }
+}
+
 function normalizePath(pathname: string) {
   if (pathname === '/') return pathname;
   return pathname.replace(TRAILING_SLASHES_RE, '');
@@ -202,4 +253,12 @@ function isIntegrationsPath(pathname: string, workspaceId: string) {
 
 function isProjectCreationPath(pathname: string, workspaceId: string) {
   return pathname === workspacePath(workspaceId, '/projects/new');
+}
+
+function isAgentProviderOnboardingPath(pathname: string, workspaceId: string) {
+  return pathname === workspacePath(workspaceId, '/agent-provider');
+}
+
+function isAgentProviderSettingsPath(pathname: string, workspaceId: string) {
+  return pathname === workspacePath(workspaceId, '/settings/agent-providers');
 }

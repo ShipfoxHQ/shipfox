@@ -59,6 +59,17 @@ fires every subscription that matches its `(source, event)` in the
 workspace. Narrowing by branch, repository, or payload contents is left to
 user-defined filters, applied in a later iteration.
 
+GitHub triggers use the raw GitHub webhook resource name, plus the payload
+`action` when one is present. For example, a pull request open event is
+`pull_request.opened`, an issue close event is `issues.closed`, and a
+release publish event is `release.published`. Events without an action use
+the bare resource name, such as `push` or `fork`. Common GitHub events are:
+`push`, `pull_request.opened`, `pull_request.closed`, `issues.opened`,
+`issues.closed`, `issue_comment.created`, `release.published`,
+`workflow_run.completed`, `installation.created`, and
+`installation_repositories.added`. GitHub only sends events that the GitHub
+App is subscribed to in its Permissions & events settings.
+
 ## Setup
 
 This package is private to the workspace. Add it to another workspace
@@ -106,7 +117,7 @@ Three words, used the same way at every layer.
 | --- | --- | --- |
 | **source** | Where the trigger came from. | `github`, `gitlab`, `sentry`, `manual`, `cron` |
 | **event** | The specific thing that happened, scoped to a source. | `push`, `issue_comment`, `alert_triggered`, `fire`, `tick` |
-| **payload** | The data carried by the event, set by the producing integration. Triggers passes it through opaquely. | `{ref, headCommitSha, ...}` for `(github, push)` |
+| **payload** | The data carried by the event, set by the producing integration. Triggers passes it through opaquely. | GitHub's raw webhook JSON for `(github, push)` |
 
 The `name` field on a subscription is the YAML map key (for example
 `on_push`). It identifies the trigger inside a workflow definition and is

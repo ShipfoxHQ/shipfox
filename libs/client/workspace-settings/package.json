@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@shipfox/api-workspaces-dto": "workspace:*",
+    "@shipfox/client-agent": "workspace:*",
     "@shipfox/client-api": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/client-integrations": "workspace:*",

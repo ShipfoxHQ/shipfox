@@ -25,14 +25,26 @@ export const upsertProviderConfigRoute = defineRoute({
     },
   },
   errorHandler: translateAgentProviderRouteError,
-  handler: async (request) => {
+  handler: async (request, reply) => {
     const {workspaceId, providerId} = request.params;
+    const abortController = new AbortController();
+    let responseFinished = false;
+    reply.raw.on('finish', () => {
+      responseFinished = true;
+    });
+    reply.raw.on('close', () => {
+      if (!responseFinished) abortController.abort();
+    });
+
     await requireMembership({request, workspaceId});
 
     const config = await testAndSaveProviderConfig({
       workspaceId,
       providerId,
+      ...('default_model' in request.body ? {defaultModel: request.body.default_model} : {}),
       credentials: request.body.credentials,
+      setAsDefault: request.body.set_as_default,
+      signal: abortController.signal,
     });
 
     return toAgentProviderConfigDto(config);

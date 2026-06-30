@@ -1,5 +1,6 @@
 import type {LogOutcomeDto, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {redactSecrets} from '@shipfox/redact';
 import {executeAgentStep} from '@shipfox/runner-agent';
 import {
   type CommandStartMetadata,
@@ -9,6 +10,7 @@ import {
   type StepResult,
 } from '@shipfox/runner-execution';
 import {
+  buildSecretVariants,
   createSessionLogStream,
   createStepLogStream,
   type LogDrainOutcome,
@@ -17,10 +19,12 @@ import {
   type StepLogStream,
 } from '@shipfox/runner-logs';
 import {
+  AgentRuntimeConfigRequestError,
   appendStepLogs,
   HTTPError,
   type LogAppendFn,
   reportStep,
+  requestAgentRuntimeConfig,
   requestNextStep,
 } from '@shipfox/runner-protocol';
 import type {KyInstance} from 'ky';
@@ -261,13 +265,31 @@ export async function executeStep(params: {
     // pipeline as opaque `agent_session` records. Capture is best-effort: if the spool cannot
     // be opened, run the agent without it rather than failing the step.
     if (step.type === 'agent') {
+      let runtimeConfig: Awaited<ReturnType<typeof requestAgentRuntimeConfig>>;
+      try {
+        runtimeConfig = await requestAgentRuntimeConfig(leaseClient, {
+          stepId: step.id,
+          attempt,
+          signal,
+        });
+      } catch (error) {
+        return {
+          result: agentRuntimeConfigFailure(error),
+          logOutcome: 'drained',
+          preparedWorkspace: false,
+        };
+      }
+
       let sessionStream: SessionLogStream | undefined;
+      const runtimeCredentialValues = Object.values(runtimeConfig.credentials);
+      const runtimeSecretVariants = buildSecretVariants(runtimeCredentialValues);
+      const agentSecrets = [...secrets, ...runtimeCredentialValues];
       try {
         sessionStream = createSessionLogStream({
           logsDir,
           stepId: step.id,
           attempt,
-          secrets,
+          secrets: agentSecrets,
           append,
         });
       } catch (error) {
@@ -280,12 +302,18 @@ export async function executeStep(params: {
       const result = await executeAgentStep(step, {
         signal,
         cwd,
+        runtime: {
+          provider: runtimeConfig.provider_id,
+          model: runtimeConfig.model,
+          thinking: runtimeConfig.thinking,
+          credentials: runtimeConfig.credentials,
+        },
         ...(sessionStream
           ? {onSessionEntry: (line: string) => sessionStream?.writeEntry(line)}
           : {}),
       });
       return {
-        result,
+        result: maskAgentFailure(result, runtimeSecretVariants),
         stream,
         logOutcome: sessionStream ? undefined : 'abandoned',
         preparedWorkspace: false,
@@ -343,6 +371,38 @@ export async function executeStep(params: {
       preparedWorkspace: false,
     };
   }
+}
+
+function maskAgentFailure(result: StepResult, secretVariants: string[]): StepResult {
+  if (result.success) return result;
+  const error =
+    result.error === null || result.error === undefined
+      ? result.error
+      : {...result.error, message: redactSecrets(result.error.message, secretVariants)};
+  return {...result, output: '', error};
+}
+
+function agentRuntimeConfigFailure(error: unknown): StepResult {
+  if (error instanceof AgentRuntimeConfigRequestError) {
+    const agentConfigIssue =
+      error.agentConfigIssue ??
+      (error.code === 'agent-config-invalid' ? 'step_config_invalid' : undefined);
+    return {
+      success: false,
+      error: {
+        message: error.message,
+        reason: agentConfigIssue ? 'agent_config_invalid' : 'agent_invocation_failed',
+        ...(agentConfigIssue ? {agent_config_issue: agentConfigIssue} : {}),
+      },
+      exit_code: null,
+    };
+  }
+
+  return {
+    success: false,
+    error: {message: error instanceof Error ? error.message : String(error)},
+    exit_code: null,
+  };
 }
 
 function writeCommandMetadata(

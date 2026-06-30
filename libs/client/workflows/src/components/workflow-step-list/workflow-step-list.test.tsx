@@ -2,6 +2,7 @@ import type {RunJobDetailDto, RunStepDetailDto, StepAttemptDto} from '@shipfox/a
 import {Text} from '@shipfox/react-ui';
 import {render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {useState} from 'react';
 import type {WorkflowJob} from '#core/workflow-run.js';
 import {workflowJob, workflowStepAttemptDto, workflowStepDto} from '#test/fixtures/workflow-run.js';
 import {WorkflowStepList} from './workflow-step-list.js';
@@ -93,6 +94,40 @@ describe('WorkflowStepList', () => {
     expect(screen.getByText(`logs for ${deployAttempt.id}`)).toBeInTheDocument();
   });
 
+  test('keeps multiple expanded rows open when external attempt selection is singular', async () => {
+    const user = userEvent.setup();
+    const buildAttempt = makeAttempt({status: 'succeeded'});
+    const deployAttempt = makeAttempt({status: 'running'});
+    const build = makeStep({name: 'build', attempts: [buildAttempt]});
+    const deploy = makeStep({name: 'deploy', position: 1, attempts: [deployAttempt]});
+    const job = makeJob({steps: [build, deploy]});
+
+    function ControlledStepList() {
+      const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
+
+      return (
+        <WorkflowStepList
+          job={job}
+          selectedAttemptId={selectedAttemptId}
+          onSelectedAttemptChange={(attemptId) => setSelectedAttemptId(attemptId ?? null)}
+          renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
+        />
+      );
+    }
+
+    render(<ControlledStepList />);
+    const buildRow = screen.getByRole('button', {name: 'build, Succeeded, attempt 1'});
+    const deployRow = screen.getByRole('button', {name: 'deploy, Running, attempt 1'});
+
+    await user.click(buildRow);
+    await user.click(deployRow);
+
+    expect(buildRow).toHaveAttribute('aria-expanded', 'true');
+    expect(deployRow).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText(`logs for ${buildAttempt.id}`)).toBeInTheDocument();
+    expect(screen.getByText(`logs for ${deployAttempt.id}`)).toBeInTheDocument();
+  });
+
   test('reports selection changes including collapse', async () => {
     const user = userEvent.setup();
     const onSelectedAttemptChange = vi.fn();
@@ -148,7 +183,7 @@ describe('WorkflowStepList', () => {
     expect(screen.getByText(`logs for ${attempt.id}`)).toBeInTheDocument();
   });
 
-  test('respects a controlled empty selected attempt', async () => {
+  test('starts collapsed for a controlled empty selected attempt', async () => {
     const user = userEvent.setup();
     const onSelectedAttemptChange = vi.fn();
     const attempt = makeAttempt();
@@ -175,9 +210,11 @@ describe('WorkflowStepList', () => {
         renderExpandedStep={({attemptId}) => <Text size="sm">logs for {attemptId}</Text>}
       />,
     );
+    expect(screen.queryByText(`logs for ${attempt.id}`)).not.toBeInTheDocument();
+
     await user.click(deploy);
 
-    expect(screen.queryByText(`logs for ${attempt.id}`)).not.toBeInTheDocument();
+    expect(screen.getByText(`logs for ${attempt.id}`)).toBeInTheDocument();
     expect(onSelectedAttemptChange).toHaveBeenCalledWith(attempt.id);
   });
 
@@ -349,7 +386,27 @@ describe('WorkflowStepList', () => {
   test('renders an empty state', () => {
     render(<WorkflowStepList job={makeJob({steps: []})} />);
 
-    expect(screen.getByText('No step attempts yet')).toBeInTheDocument();
+    expect(screen.getByText('No steps recorded')).toBeInTheDocument();
+    expect(screen.getByText('This job has not recorded any steps.')).toBeInTheDocument();
+  });
+
+  test('renders a running empty state without the animated status glyph', () => {
+    render(
+      <WorkflowStepList
+        job={makeJob({status: 'running', steps: []})}
+        emptyState={{
+          title: 'Waiting for the first step',
+          description: 'This job is running, but no steps have started yet.',
+          status: 'running',
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Waiting for the first step')).toBeInTheDocument();
+    expect(
+      screen.getByText('This job is running, but no steps have started yet.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('img', {name: 'Running'})).not.toBeInTheDocument();
   });
 
   test('renders a skipped empty state with a status glyph', () => {

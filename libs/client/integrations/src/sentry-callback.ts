@@ -60,7 +60,7 @@ export type SentryWorkspacePreselection =
   | {kind: 'none'};
 
 // Sentry's redirect carries no state token, so the callback can never prove it
-// belongs to an install the user started — connecting always requires an
+// belongs to an install the user started — installation always requires an
 // explicit click. The stored id (and a sole workspace) only pre-select.
 export function preselectSentryWorkspace(
   storedId: string | undefined,
@@ -83,7 +83,7 @@ export function classifySentryConnectError(error: unknown): SentryConnectFailure
     if (error.code === 'sentry-installation-already-linked') {
       return {
         kind: 'terminal',
-        message: 'This Sentry org is already connected to another workspace.',
+        message: 'This Sentry org is already installed in another workspace.',
         // Retrying or starting over would fail identically.
         startOver: false,
       };
@@ -123,7 +123,7 @@ export function classifySentryConnectError(error: unknown): SentryConnectFailure
       return {kind: 'terminal', message: error.message, startOver: true};
     }
   }
-  return {kind: 'retryable', message: 'Could not connect Sentry. Try again.'};
+  return {kind: 'retryable', message: 'Could not install Sentry. Try again.'};
 }
 
 function retryAfterSeconds(details: unknown): number | undefined {

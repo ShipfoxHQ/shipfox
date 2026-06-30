@@ -1,3 +1,7 @@
+import {
+  type AgentDefaultsResolver,
+  catalogDefaultAgentResolver,
+} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
 import {
   type LogOutcomeDto,
@@ -16,6 +20,7 @@ import {
   type TimestampIdCursor,
   timestampIdCursorWhere,
 } from '@shipfox/node-drizzle';
+import {logger} from '@shipfox/node-opentelemetry';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
 import {
   and,
@@ -52,7 +57,11 @@ import {
   WorkflowRunNotFoundError,
 } from '#core/errors.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
-import {materializeWorkflowModel} from '#core/workflow-runtime/index.js';
+import type {WorkflowStepTemplateDiagnostic} from '#core/workflow-runtime/index.js';
+import {
+  assembleWorkflowRunContext,
+  materializeWorkflowModel,
+} from '#core/workflow-runtime/index.js';
 import {
   recordWorkflowJobLeaseExpiryResolved,
   recordWorkflowJobQueued,
@@ -82,11 +91,10 @@ export interface CreateWorkflowRunParams {
   inputs?: Record<string, unknown> | undefined;
   sourceSnapshot?: WorkflowSourceSnapshot | null | undefined;
   triggerIdempotencyKey?: string | undefined;
+  resolveAgentDefaults?: AgentDefaultsResolver | undefined;
 }
 
 export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
-  const materializedJobs = materializeWorkflowModel(params.model);
-
   const result = await db().transaction(async (tx) => {
     const insertResult = await tx
       .insert(workflowRuns)
@@ -126,6 +134,20 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       return {run: toWorkflowRun(existingRow), created: false};
     }
 
+    const run = toWorkflowRun(runRow);
+    // Resolving templates here gives interpolation access to the inserted run id.
+    // If resolution fails, the transaction rolls back the run, jobs, steps, and outbox event together.
+    const materializedJobs = materializeWorkflowModel({
+      model: params.model,
+      context: assembleWorkflowRunContext({
+        run,
+        triggerPayload: params.triggerPayload,
+        inputs: params.inputs ?? null,
+      }),
+      resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
+      definitionId: params.definitionId,
+    });
+
     let jobRows: (typeof jobs.$inferSelect)[] = [];
 
     if (materializedJobs.length > 0) {
@@ -157,6 +179,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
           status: step.status,
           type: step.type,
           config: step.config,
+          authoredConfig: step.authoredConfig,
           position: step.position,
         });
       }
@@ -176,12 +199,40 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       },
     });
 
-    return {run: toWorkflowRun(runRow), created: true};
+    logTemplateDiagnostics({
+      runId: runRow.id,
+      diagnostics: materializedJobs.flatMap((job) =>
+        job.steps.flatMap((step) =>
+          (step.diagnostics ?? []).map((diagnostic) => ({
+            jobName: job.sourceName,
+            stepDisplayName: step.displayName,
+            ...diagnostic,
+          })),
+        ),
+      ),
+    });
+
+    return {run, created: true};
   });
 
   if (result.created) recordWorkflowRunCreated(result.run.triggerSource);
 
   return result.run;
+}
+
+export async function getStepByIdForJob(params: {
+  stepId: string;
+  jobId: string;
+}): Promise<Step | undefined> {
+  const rows = await db()
+    .select()
+    .from(steps)
+    .where(and(eq(steps.id, params.stepId), eq(steps.jobId, params.jobId)))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return undefined;
+  return toStep(row);
 }
 
 export interface CreateRerunWorkflowRunParams {
@@ -309,6 +360,7 @@ export async function createRerunWorkflowRun(
           status: carriedOver ? step.status : ('pending' as const),
           type: step.type,
           config: step.config,
+          authoredConfig: step.authoredConfig,
           output: carriedOver ? step.output : null,
           error: null,
           position: step.position,
@@ -337,6 +389,21 @@ export async function createRerunWorkflowRun(
   recordWorkflowRunCreated(result.triggerSource);
 
   return result;
+}
+
+function logTemplateDiagnostics(params: {
+  readonly runId: string;
+  readonly diagnostics: readonly (WorkflowStepTemplateDiagnostic & {
+    readonly jobName: string;
+    readonly stepDisplayName: string;
+  })[];
+}): void {
+  if (params.diagnostics.length === 0) return;
+
+  logger().warn(
+    {runId: params.runId, diagnostics: params.diagnostics},
+    'Workflow interpolation resolved with diagnostics',
+  );
 }
 
 export async function getWorkflowRunById(id: string): Promise<WorkflowRun | undefined> {
@@ -596,6 +663,16 @@ export async function getJobById(id: string): Promise<Job | undefined> {
   const row = rows[0];
   if (!row) return undefined;
   return toJob(row);
+}
+
+export async function getJobWorkspaceId(jobId: string): Promise<string | undefined> {
+  const rows = await db()
+    .select({workspaceId: workflowRuns.workspaceId})
+    .from(jobs)
+    .innerJoin(workflowRuns, eq(jobs.runId, workflowRuns.id))
+    .where(eq(jobs.id, jobId))
+    .limit(1);
+  return rows[0]?.workspaceId;
 }
 
 export async function getStepsByJobId(jobId: string): Promise<Step[]> {

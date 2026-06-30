@@ -1,4 +1,4 @@
-import {Runtime} from '@gresb/cel-javascript';
+import {evaluate} from '@marcbachmann/cel-js';
 import type {WorkflowExpression} from '../expression/workflow-expression.js';
 import {WorkflowExpressionEvaluationError} from './errors.js';
 
@@ -10,7 +10,7 @@ export function evaluateWorkflowExpression(
   context: WorkflowExpressionEvaluationContext,
 ): WorkflowExpressionEvaluationValue {
   try {
-    return new Runtime(expression.source).evaluate(context);
+    return evaluate(expression.source, context);
   } catch (error) {
     throw new WorkflowExpressionEvaluationError(error);
   }

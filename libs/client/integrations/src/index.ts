@@ -2,6 +2,7 @@ export * from './components/connection-picker.js';
 export * from './components/integration-gallery.js';
 export * from './components/redirect-install-page.js';
 export * from './components/repository-picker.js';
+export * from './connection-status-badge.js';
 export * from './hooks/api/integrations.js';
 export * from './integration-icon.js';
 export * from './pages/debug-install-page.js';

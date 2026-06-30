@@ -7,10 +7,14 @@ const {createAgentSessionMock, findMock, getAllMock, hasConfiguredAuthMock, prom
     promptMock: vi.fn(),
     abortMock: vi.fn(),
   }));
+const {authStorageCreateMock, authStorageInMemoryMock} = vi.hoisted(() => ({
+  authStorageCreateMock: vi.fn(),
+  authStorageInMemoryMock: vi.fn(),
+}));
 
 vi.mock('@earendil-works/pi-coding-agent', () => ({
   createAgentSession: createAgentSessionMock,
-  AuthStorage: {create: () => ({})},
+  AuthStorage: {create: authStorageCreateMock, inMemory: authStorageInMemoryMock},
   ModelRegistry: {
     create: () => ({
       find: findMock,
@@ -34,6 +38,7 @@ function invocation(overrides: Partial<AgentInvocation> = {}): AgentInvocation {
     provider: 'anthropic',
     thinking: 'high',
     prompt: 'Fix it.',
+    credentials: {api_key: 'sk-runtime-secret'},
     signal: new AbortController().signal,
     ...overrides,
   };
@@ -50,6 +55,10 @@ describe('runAgent', () => {
     hasConfiguredAuthMock.mockReset();
     promptMock.mockReset();
     abortMock.mockReset();
+    authStorageCreateMock.mockReset();
+    authStorageInMemoryMock.mockReset();
+    authStorageCreateMock.mockReturnValue({});
+    authStorageInMemoryMock.mockReturnValue({});
     findMock.mockReturnValue({provider: 'anthropic', id: 'claude-opus-4-8'});
     getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);
     hasConfiguredAuthMock.mockReturnValue(true);
@@ -60,6 +69,7 @@ describe('runAgent', () => {
   });
 
   afterEach(() => {
+    expect(authStorageCreateMock).not.toHaveBeenCalled();
     if (sessionDir) rmSync(sessionDir, {recursive: true, force: true});
     sessionDir = undefined;
   });
@@ -76,6 +86,107 @@ describe('runAgent', () => {
     );
     expect(promptMock).toHaveBeenCalledWith('Fix it.');
     expect(result).toEqual({});
+  });
+
+  it('injects runtime credentials into in-memory pi auth storage without persisting them', async () => {
+    const model = {provider: 'openai', id: 'gpt-5.1'};
+    findMock.mockReturnValue(model);
+
+    await runAgent(
+      invocation({
+        provider: 'openai',
+        model: 'gpt-5.1',
+        credentials: {api_key: 'sk-runtime-secret'},
+      }),
+    );
+
+    expect(authStorageInMemoryMock).toHaveBeenCalledWith({
+      openai: {type: 'api_key', key: 'sk-runtime-secret'},
+    });
+    expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({model}));
+  });
+
+  it('maps Azure runtime credentials into pi provider env', async () => {
+    const model = {provider: 'azure-openai-responses', id: 'gpt-5.5-pro'};
+    findMock.mockReturnValue(model);
+
+    await runAgent(
+      invocation({
+        provider: 'azure-openai-responses',
+        model: 'gpt-5.5-pro',
+        credentials: {
+          endpoint: 'https://shipfox.openai.azure.com',
+          api_key: 'sk-azure-secret',
+        },
+      }),
+    );
+
+    expect(authStorageInMemoryMock).toHaveBeenCalledWith({
+      'azure-openai-responses': {
+        type: 'api_key',
+        key: 'sk-azure-secret',
+        env: {AZURE_OPENAI_BASE_URL: 'https://shipfox.openai.azure.com'},
+      },
+    });
+  });
+
+  it('maps Cloudflare runtime credentials into pi provider env', async () => {
+    const model = {provider: 'cloudflare-ai-gateway', id: 'claude-opus-4-8'};
+    findMock.mockReturnValue(model);
+
+    await runAgent(
+      invocation({
+        provider: 'cloudflare-ai-gateway',
+        model: 'claude-opus-4-8',
+        credentials: {
+          api_key: 'cf-secret',
+          account_id: 'account-1',
+          gateway_id: 'gateway-1',
+        },
+      }),
+    );
+
+    expect(authStorageInMemoryMock).toHaveBeenCalledWith({
+      'cloudflare-ai-gateway': {
+        type: 'api_key',
+        key: 'cf-secret',
+        env: {
+          CLOUDFLARE_ACCOUNT_ID: 'account-1',
+          CLOUDFLARE_GATEWAY_ID: 'gateway-1',
+        },
+      },
+    });
+  });
+
+  it('throws an AgentConfigError when runtime credentials have no API key', async () => {
+    await expect(
+      runAgent(invocation({provider: 'openai', credentials: {account_id: 'acct-1'}})),
+    ).rejects.toThrow(
+      new AgentConfigError(
+        'Runtime credentials for provider "openai" are missing "api_key".',
+        'credentials_invalid',
+      ),
+    );
+    expect(findMock).not.toHaveBeenCalled();
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
+  });
+
+  it('throws an AgentConfigError when provider-specific runtime fields are missing', async () => {
+    await expect(
+      runAgent(
+        invocation({
+          provider: 'cloudflare-ai-gateway',
+          credentials: {api_key: 'cf-secret', account_id: 'account-1'},
+        }),
+      ),
+    ).rejects.toThrow(
+      new AgentConfigError(
+        'Runtime credentials for provider "cloudflare-ai-gateway" are missing "gateway_id".',
+        'credentials_invalid',
+      ),
+    );
+    expect(findMock).not.toHaveBeenCalled();
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
   it('forwards each persisted session entry to onSessionEntry in order', async () => {
@@ -113,6 +224,7 @@ describe('runAgent', () => {
       new AgentConfigError(
         'Unknown provider "bogus" for agent step. ' +
           'Known providers are pi built-ins plus any from models.json.',
+        'provider_unsupported',
       ),
     );
     expect(createAgentSessionMock).not.toHaveBeenCalled();
@@ -129,6 +241,7 @@ describe('runAgent', () => {
       new AgentConfigError(
         'Model "gpt-5.1" is not available for provider "anthropic". ' +
           'Did you mean to set provider: openai?',
+        'model_unavailable',
       ),
     );
     expect(createAgentSessionMock).not.toHaveBeenCalled();
@@ -139,19 +252,23 @@ describe('runAgent', () => {
     getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);
 
     await expect(runAgent(invocation({provider: 'anthropic', model: 'gpt-5.1'}))).rejects.toThrow(
-      new AgentConfigError('Model "gpt-5.1" is not available for provider "anthropic".'),
+      new AgentConfigError(
+        'Model "gpt-5.1" is not available for provider "anthropic".',
+        'model_unavailable',
+      ),
     );
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
-  it('throws an AgentConfigError when the provider has no credentials on the runner', async () => {
+  it('throws an AgentConfigError when the provider has no configured workspace credentials', async () => {
     findMock.mockReturnValue({provider: 'openai', id: 'gpt-5.1'});
     hasConfiguredAuthMock.mockReturnValue(false);
 
     await expect(runAgent(invocation({provider: 'openai', model: 'gpt-5.1'}))).rejects.toThrow(
       new AgentConfigError(
-        'No credentials configured for provider "openai" on this runner. ' +
-          "Set the provider's API key in the runner environment.",
+        'No credentials configured for provider "openai". ' +
+          'Verify the provider is configured for this workspace.',
+        'provider_not_configured',
       ),
     );
     expect(createAgentSessionMock).not.toHaveBeenCalled();

@@ -10,38 +10,58 @@ export interface UpsertAgentProviderConfigParams {
   providerId: SupportedAgentProviderId;
   encryptedCredentials: Record<string, string>;
   keyFingerprints: Record<string, string>;
-  defaultModel: string;
+  defaultModel: string | null;
   defaultThinking: AgentThinking;
+  setAsDefault?: boolean | undefined;
 }
 
 export async function upsertAgentProviderConfig(
   params: UpsertAgentProviderConfigParams,
 ): Promise<AgentProviderConfig> {
-  const rows = await db()
-    .insert(agentProviderConfigs)
-    .values({
-      workspaceId: params.workspaceId,
-      providerId: params.providerId,
-      encryptedCredentials: params.encryptedCredentials,
-      keyFingerprints: params.keyFingerprints,
-      defaultModel: params.defaultModel,
-      defaultThinking: params.defaultThinking,
-    })
-    .onConflictDoUpdate({
-      target: [agentProviderConfigs.workspaceId, agentProviderConfigs.providerId],
-      set: {
+  return await db().transaction(async (tx) => {
+    const rows = await tx
+      .insert(agentProviderConfigs)
+      .values({
+        workspaceId: params.workspaceId,
+        providerId: params.providerId,
         encryptedCredentials: params.encryptedCredentials,
         keyFingerprints: params.keyFingerprints,
         defaultModel: params.defaultModel,
         defaultThinking: params.defaultThinking,
-        updatedAt: sql`NOW()`,
-      },
-    })
-    .returning();
+      })
+      .onConflictDoUpdate({
+        target: [agentProviderConfigs.workspaceId, agentProviderConfigs.providerId],
+        set: {
+          encryptedCredentials: params.encryptedCredentials,
+          keyFingerprints: params.keyFingerprints,
+          defaultModel: params.defaultModel,
+          defaultThinking: params.defaultThinking,
+          updatedAt: sql`NOW()`,
+        },
+      })
+      .returning();
 
-  const row = rows[0];
-  if (!row) throw new Error('Upsert returned no rows');
-  return toAgentProviderConfig(row);
+    const row = rows[0];
+    if (!row) throw new Error('Upsert returned no rows');
+
+    if (params.setAsDefault) {
+      await tx
+        .insert(agentWorkspaceSettings)
+        .values({
+          workspaceId: params.workspaceId,
+          defaultProviderId: params.providerId,
+        })
+        .onConflictDoUpdate({
+          target: agentWorkspaceSettings.workspaceId,
+          set: {
+            defaultProviderId: params.providerId,
+            updatedAt: sql`NOW()`,
+          },
+        });
+    }
+
+    return toAgentProviderConfig(row);
+  });
 }
 
 export async function getAgentProviderConfig(params: {
@@ -58,6 +78,27 @@ export async function getAgentProviderConfig(params: {
       ),
     )
     .limit(1);
+
+  const row = rows[0];
+  if (!row) return undefined;
+  return toAgentProviderConfig(row);
+}
+
+export async function updateAgentProviderDefaultModel(params: {
+  workspaceId: string;
+  providerId: SupportedAgentProviderId;
+  defaultModel: string | null;
+}): Promise<AgentProviderConfig | undefined> {
+  const rows = await db()
+    .update(agentProviderConfigs)
+    .set({defaultModel: params.defaultModel, updatedAt: sql`NOW()`})
+    .where(
+      and(
+        eq(agentProviderConfigs.workspaceId, params.workspaceId),
+        eq(agentProviderConfigs.providerId, params.providerId),
+      ),
+    )
+    .returning();
 
   const row = rows[0];
   if (!row) return undefined;

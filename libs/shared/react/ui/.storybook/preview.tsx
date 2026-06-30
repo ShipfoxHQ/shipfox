@@ -3,6 +3,20 @@ import type {Decorator, Preview} from '@storybook/react';
 import {MotionConfig} from 'framer-motion';
 import {ThemeProvider} from '#components/theme/index.js';
 
+// Proactively trigger font fetches before any story renders. Argos's built-in
+// waitForFonts only checks `document.fonts.status === "loaded"`, which is
+// trivially true before a `font-display: swap` face has started fetching — so
+// the fallback can be captured on cold CI. Calling `document.fonts.load()`
+// flips status to "loading", which Argos then correctly waits on.
+if (typeof document !== 'undefined' && document.fonts) {
+  void Promise.all([
+    document.fonts.load("16px 'Inter'"),
+    document.fonts.load("italic 16px 'Inter'"),
+    document.fonts.load("16px 'Commit Mono'"),
+    document.fonts.load("bold 16px 'Commit Mono'"),
+  ]);
+}
+
 const ignoredRadixActWarningComponents = new Set([
   'DismissableLayer',
   'FocusScope',

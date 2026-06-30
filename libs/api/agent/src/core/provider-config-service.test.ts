@@ -2,11 +2,15 @@ import crypto from 'node:crypto';
 import {getAgentProviderConfig, upsertAgentProviderConfig} from '#db/index.js';
 import {decryptCredentials} from './credential-encryption.js';
 import {
+  AgentProviderConfigNotFoundError,
   AgentProviderValidationError,
   InvalidAgentModelError,
   InvalidCredentialFieldsError,
 } from './errors.js';
-import {testAndSaveProviderConfig} from './provider-config-service.js';
+import {
+  testAndSaveProviderConfig,
+  updateProviderConfigDefaultModel,
+} from './provider-config-service.js';
 
 describe('testAndSaveProviderConfig', () => {
   let workspaceId: string;
@@ -45,8 +49,134 @@ describe('testAndSaveProviderConfig', () => {
       }),
     ).toEqual(credentials);
     expect(stored?.keyFingerprints).toEqual({api_key: 'sk-ant-s...abcd'});
-    expect(stored?.defaultModel).toBe('claude-opus-4-8');
+    expect(stored?.defaultModel).toBeNull();
     expect(stored?.defaultThinking).toBe('high');
+  });
+
+  it('validates and stores an explicit provider default model', async () => {
+    const credentials = {api_key: 'sk-ant-secret-abcd'};
+    const probe = vi.fn().mockResolvedValue(undefined);
+
+    const config = await testAndSaveProviderConfig(
+      {
+        workspaceId,
+        providerId: 'anthropic',
+        defaultModel: 'claude-haiku-4-5',
+        credentials,
+      },
+      {probe},
+    );
+
+    const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
+    expect(probe).toHaveBeenCalledWith({
+      providerId: 'anthropic',
+      model: 'claude-haiku-4-5',
+      credentials,
+    });
+    expect(stored).toEqual(config);
+    expect(stored?.defaultModel).toBe('claude-haiku-4-5');
+  });
+
+  it('passes the abort signal to the provider probe', async () => {
+    const credentials = {api_key: 'sk-ant-secret-abcd'};
+    const abortController = new AbortController();
+    const probe = vi.fn().mockResolvedValue(undefined);
+
+    await testAndSaveProviderConfig(
+      {workspaceId, providerId: 'anthropic', credentials, signal: abortController.signal},
+      {probe},
+    );
+
+    expect(probe).toHaveBeenCalledWith({
+      providerId: 'anthropic',
+      model: 'claude-opus-4-8',
+      credentials,
+      signal: abortController.signal,
+    });
+  });
+
+  it('rethrows aborted probe errors without treating them as validation failures', async () => {
+    const abortController = new AbortController();
+    const error = new Error('Provider probe aborted');
+    const probe = vi.fn().mockRejectedValue(error);
+    abortController.abort();
+
+    const save = testAndSaveProviderConfig(
+      {
+        workspaceId,
+        providerId: 'anthropic',
+        credentials: {api_key: 'sk-ant-secret-abcd'},
+        signal: abortController.signal,
+      },
+      {probe},
+    );
+
+    await expect(save).rejects.toBe(error);
+    const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
+    expect(stored).toBeUndefined();
+  });
+
+  it('preserves an existing default model when rotating credentials without a model selection', async () => {
+    await upsertAgentProviderConfig({
+      workspaceId,
+      providerId: 'anthropic',
+      encryptedCredentials: {api_key: 'already-encrypted'},
+      keyFingerprints: {api_key: 'sk-old...abcd'},
+      defaultModel: 'claude-haiku-4-5',
+      defaultThinking: 'high',
+    });
+    const credentials = {api_key: 'sk-ant-rotated-abcd'};
+    const probe = vi.fn().mockResolvedValue(undefined);
+
+    const config = await testAndSaveProviderConfig(
+      {
+        workspaceId,
+        providerId: 'anthropic',
+        credentials,
+      },
+      {probe},
+    );
+
+    const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
+    expect(probe).toHaveBeenCalledWith({
+      providerId: 'anthropic',
+      model: 'claude-haiku-4-5',
+      credentials,
+    });
+    expect(stored).toEqual(config);
+    expect(stored?.defaultModel).toBe('claude-haiku-4-5');
+  });
+
+  it('stores Latest when rotating credentials with a null default model selection', async () => {
+    await upsertAgentProviderConfig({
+      workspaceId,
+      providerId: 'anthropic',
+      encryptedCredentials: {api_key: 'already-encrypted'},
+      keyFingerprints: {api_key: 'sk-old...abcd'},
+      defaultModel: 'claude-haiku-4-5',
+      defaultThinking: 'high',
+    });
+    const credentials = {api_key: 'sk-ant-rotated-abcd'};
+    const probe = vi.fn().mockResolvedValue(undefined);
+
+    const config = await testAndSaveProviderConfig(
+      {
+        workspaceId,
+        providerId: 'anthropic',
+        defaultModel: null,
+        credentials,
+      },
+      {probe},
+    );
+
+    const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
+    expect(probe).toHaveBeenCalledWith({
+      providerId: 'anthropic',
+      model: 'claude-opus-4-8',
+      credentials,
+    });
+    expect(stored).toEqual(config);
+    expect(stored?.defaultModel).toBeNull();
   });
 
   it('does not persist when provider validation fails and sanitizes the surfaced error', async () => {
@@ -114,6 +244,97 @@ describe('testAndSaveProviderConfig', () => {
     await expect(save).rejects.toBe(error);
     const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
     expect(stored).toBeUndefined();
+  });
+
+  it('rejects an explicit default model outside the provider catalog', async () => {
+    const probe = vi.fn();
+
+    const save = testAndSaveProviderConfig(
+      {
+        workspaceId,
+        providerId: 'anthropic',
+        defaultModel: 'missing-model',
+        credentials: {api_key: 'sk-ant-secret-abcd'},
+      },
+      {probe},
+    );
+
+    await expect(save).rejects.toThrow(InvalidAgentModelError);
+    expect(probe).not.toHaveBeenCalled();
+    const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
+    expect(stored).toBeUndefined();
+  });
+
+  it('updates the default model without changing credentials', async () => {
+    const existing = await upsertAgentProviderConfig({
+      workspaceId,
+      providerId: 'anthropic',
+      encryptedCredentials: {api_key: 'already-encrypted'},
+      keyFingerprints: {api_key: 'sk-old...abcd'},
+      defaultModel: null,
+      defaultThinking: 'high',
+    });
+
+    const updated = await updateProviderConfigDefaultModel({
+      workspaceId,
+      providerId: 'anthropic',
+      defaultModel: 'claude-haiku-4-5',
+    });
+
+    expect(updated).toMatchObject({
+      encryptedCredentials: existing.encryptedCredentials,
+      keyFingerprints: existing.keyFingerprints,
+      defaultModel: 'claude-haiku-4-5',
+      defaultThinking: existing.defaultThinking,
+    });
+  });
+
+  it('stores null when the default model is set to Latest', async () => {
+    await upsertAgentProviderConfig({
+      workspaceId,
+      providerId: 'anthropic',
+      encryptedCredentials: {api_key: 'already-encrypted'},
+      keyFingerprints: {api_key: 'sk-old...abcd'},
+      defaultModel: 'claude-haiku-4-5',
+      defaultThinking: 'high',
+    });
+
+    const updated = await updateProviderConfigDefaultModel({
+      workspaceId,
+      providerId: 'anthropic',
+      defaultModel: null,
+    });
+
+    expect(updated.defaultModel).toBeNull();
+  });
+
+  it('rejects a default model update for a missing config', async () => {
+    const update = updateProviderConfigDefaultModel({
+      workspaceId,
+      providerId: 'anthropic',
+      defaultModel: null,
+    });
+
+    await expect(update).rejects.toThrow(AgentProviderConfigNotFoundError);
+  });
+
+  it('rejects a default model update outside the provider catalog', async () => {
+    await upsertAgentProviderConfig({
+      workspaceId,
+      providerId: 'anthropic',
+      encryptedCredentials: {api_key: 'already-encrypted'},
+      keyFingerprints: {api_key: 'sk-old...abcd'},
+      defaultModel: null,
+      defaultThinking: 'high',
+    });
+
+    const update = updateProviderConfigDefaultModel({
+      workspaceId,
+      providerId: 'anthropic',
+      defaultModel: 'missing-model',
+    });
+
+    await expect(update).rejects.toThrow(InvalidAgentModelError);
   });
 
   it('validates and stores Azure provider configs with multi-field credentials', async () => {

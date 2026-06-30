@@ -8,15 +8,38 @@ export {
   createRunnerSessionConsumingEphemeralToken,
   resolveEphemeralRegistrationTokenByHash,
 } from './ephemeral-registration-tokens.js';
-export type {ClaimedJob, EnqueueJobParams} from './jobs.js';
+export type {ClaimedJob, EnqueueJobParams, ProvisionedRunnerBoundJob} from './jobs.js';
 export {
   cancelRunnerJobs,
   claimPendingJob,
   enqueueJob,
   expireStuckJobs,
+  isJobLeaseActive,
+  listActiveRunningJobs,
+  listRunningJobsByProvisionedRunnerTx,
   recordHeartbeat,
   releaseJob,
 } from './jobs.js';
+export type {
+  ProvisionedRunnerReportEvent,
+  ReconcileProvisionedRunnersDbResult,
+  ReconcileProvisionedRunnersParams,
+  ReportProvisionedRunnersParams,
+} from './provisioned-runners.js';
+export {
+  listActiveProvisionedRunners,
+  reconcileProvisionedRunners,
+  reportProvisionedRunners,
+} from './provisioned-runners.js';
+export type {CreateProvisionerTokenParams} from './provisioner-tokens.js';
+export {
+  createProvisionerToken,
+  listActiveProvisionerTokens,
+  listUsableProvisionerTokensByWorkspaceId,
+  resolveProvisionerTokenByHash,
+  revokeProvisionerToken,
+  touchProvisionerLastSeen,
+} from './provisioner-tokens.js';
 export type {
   DemandStat,
   PollDemandAndReserveParams,
@@ -27,6 +50,7 @@ export {
   deleteExpiredReservations,
   deleteReservationsByIds,
   pollDemandAndReserve,
+  releaseReservationUnits,
 } from './reservations.js';
 export type {CreateRunnerSessionParams} from './runner-sessions.js';
 export {createRunnerSession} from './runner-sessions.js';

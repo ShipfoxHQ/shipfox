@@ -1,3 +1,7 @@
+export {
+  type AgentRuntimeConfigQueryDto,
+  agentRuntimeConfigQuerySchema,
+} from './agent-runtime-config.js';
 export {type CheckoutIntentDto, checkoutIntentSchema} from './checkout.js';
 export {
   type CheckoutTokenAuthDto,
@@ -59,6 +63,8 @@ export {
   runStepDetailDtoSchema,
 } from './run-detail.js';
 export {
+  type AgentConfigIssue,
+  agentConfigIssueSchema,
   type StepAttemptDto,
   type StepDto,
   type StepErrorCategory,

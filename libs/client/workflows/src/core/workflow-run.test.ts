@@ -289,6 +289,54 @@ describe('workflow run model mapping', () => {
     });
   });
 
+  test('maps resolved agent step configuration from the opaque step config', () => {
+    const step = workflowStepDto({
+      type: 'agent',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+        prompt: 'Fix the failing tests.',
+      },
+    });
+    const missingConfigStep = workflowStepDto({
+      type: 'agent',
+      config: {provider: '', model: 42},
+    });
+
+    const detail = toWorkflowRunDetail(
+      workflowRunDetailDto({
+        jobs: [workflowJobDto({steps: [step, missingConfigStep]})],
+      }),
+    );
+
+    expect(detail.jobs[0]?.steps[0]?.agentConfig).toEqual({
+      provider: 'anthropic',
+      model: 'claude-opus-4-8',
+      thinking: 'high',
+    });
+    expect(detail.jobs[0]?.steps[1]?.agentConfig).toEqual({
+      provider: null,
+      model: null,
+      thinking: null,
+    });
+  });
+
+  test('leaves non-agent steps without agent configuration', () => {
+    const step = workflowStepDto({
+      type: 'run',
+      config: {provider: 'anthropic', model: 'claude-opus-4-8', thinking: 'high'},
+    });
+
+    const detail = toWorkflowRunDetail(
+      workflowRunDetailDto({
+        jobs: [workflowJobDto({steps: [step]})],
+      }),
+    );
+
+    expect(detail.jobs[0]?.steps[0]?.agentConfig).toBeNull();
+  });
+
   test('maps run attempt summaries', () => {
     const dto = workflowRunAttemptDto({
       id: '77777777-7777-4777-8777-777777777777',

@@ -9,6 +9,10 @@ const REPOSITORY_NOT_FOUND_RE = /Repository not found/;
 const DEBUG_RADIO_LABEL_RE = /^Debug debug · debug$/;
 
 describe('CreateProjectPage', () => {
+  beforeEach(() => {
+    window.sessionStorage.clear();
+  });
+
   test('with a single connection: pre-selects, renders repos, creates a project', async () => {
     let createProjectBody: unknown;
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
@@ -153,6 +157,31 @@ describe('CreateProjectPage', () => {
     renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
     const link = await screen.findByRole('link', {name: 'Add another integration'});
     expect(link).toHaveAttribute('href', `/workspaces/${PROJECT_TEST_WID}/integrations`);
+  });
+
+  test('shows the agent provider reminder on project creation when no provider is configured', async () => {
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (request.url.endsWith('/agent/providers')) {
+        return Promise.resolve(jsonResponse({configs: [], default_provider_id: null}));
+      }
+      if (request.url.includes('/integration-connections?')) {
+        return Promise.resolve(jsonResponse({connections: [connectionDto()]}));
+      }
+      if (request.url.includes(`/integration-connections/${CONNECTION_ID}/repositories`)) {
+        return Promise.resolve(jsonResponse({repositories: [repositoryDto()], next_cursor: null}));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    configureApiClient({fetchImpl});
+
+    renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/new`, <CreateProjectPage />);
+
+    expect(await screen.findByText('Finish setting up an agent provider')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Agent Providers'})).toHaveAttribute(
+      'href',
+      `/workspaces/${PROJECT_TEST_WID}/settings/agent-providers`,
+    );
   });
 
   test('navigates to the existing project for duplicate recovery', async () => {

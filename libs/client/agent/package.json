@@ -1,0 +1,84 @@
+{
+  "name": "@shipfox/client-agent",
+  "license": "MIT",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "libs/client/agent"
+  },
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "imports": {
+    "#*": "./src/*",
+    "#test/*": "./test/*"
+  },
+  "exports": {
+    ".": {
+      "development": {
+        "types": "./src/index.ts",
+        "default": "./src/index.ts"
+      },
+      "default": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "shipfox-swc",
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "storybook": "storybook dev -p 6010",
+    "storybook:build": "storybook build -o storybook-static",
+    "test": "shipfox-vitest-run",
+    "test:watch": "shipfox-vitest-watch",
+    "type": "shipfox-tsc-check",
+    "type:emit": "shipfox-tsc-emit"
+  },
+  "dependencies": {
+    "@shipfox/api-agent-dto": "workspace:*",
+    "@shipfox/client-api": "workspace:*",
+    "@shipfox/client-ui": "workspace:*",
+    "@shipfox/react-ui": "workspace:*",
+    "@swc/helpers": "^0.5.17",
+    "@tanstack/react-form": "^1.32.0",
+    "@tanstack/react-query": "^5.101.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@argos-ci/cli": "^5.0.0",
+    "@argos-ci/storybook": "^6.0.0",
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/swc": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*",
+    "@shipfox/workflow-document": "workspace:*",
+    "@storybook/addon-vitest": "^10.3.6",
+    "@storybook/react": "^10.0.0",
+    "@storybook/react-vite": "^10.0.0",
+    "@tailwindcss/vite": "^4.1.13",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^19.1.11",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^6.0.0",
+    "@vitest/browser-playwright": "^4.1.5",
+    "jsdom": "^29.0.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "storybook": "^10.0.0",
+    "storybook-addon-pseudo-states": "^10.0.0",
+    "tailwindcss": "^4.1.13",
+    "vite": "^8.0.3",
+    "vitest": "^4.1.5",
+    "yaml": "^2.8.3"
+  }
+}

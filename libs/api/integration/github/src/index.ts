@@ -1,5 +1,6 @@
 import type {
   GetIntegrationConnectionByIdFn,
+  PublishIntegrationEventReceivedFn,
   PublishSourcePushFn,
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-core-dto';
@@ -20,8 +21,8 @@ export {GithubIntegrationProviderError} from '#core/errors.js';
 export type {ConnectGithubInstallationInput} from '#core/install.js';
 export {handleGithubCallback} from '#core/install.js';
 export {signGithubInstallState, verifyGithubInstallState} from '#core/state.js';
-export type {HandleGithubPushOutcome} from '#core/webhook.js';
-export {handleGithubPush} from '#core/webhook.js';
+export type {HandleGithubEventOutcome} from '#core/webhook.js';
+export {handleGithubEvent} from '#core/webhook.js';
 export type {GithubInstallation, UpsertGithubInstallationParams} from '#db/installations.js';
 export {
   getGithubInstallationByConnectionId,
@@ -34,6 +35,7 @@ export interface CreateGithubIntegrationProviderOptions
   extends Omit<CreateGithubIntegrationRoutesOptions, 'github'> {
   github?: GithubApiClient | undefined;
   coreDb: () => NodePgDatabase<Record<string, unknown>>;
+  publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
@@ -69,6 +71,7 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
       }),
       createGithubWebhookRoutes({
         coreDb: options.coreDb,
+        publishIntegrationEventReceived: options.publishIntegrationEventReceived,
         publishSourcePush: options.publishSourcePush,
         recordDeliveryOnly: options.recordDeliveryOnly,
         getIntegrationConnectionById: options.getIntegrationConnectionById,

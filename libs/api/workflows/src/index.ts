@@ -37,6 +37,7 @@ export type {
 } from '#core/index.js';
 export {
   DefinitionNotFoundError,
+  InterpolationUnresolvableError,
   isPermanentRunWorkflowError,
   ProjectMismatchError,
   runWorkflow,

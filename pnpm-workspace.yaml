@@ -5,9 +5,11 @@ minimumReleaseAge: 2880
 allowBuilds:
   '@google/genai': true
   '@swc/core': true
+  cpu-features: true
   esbuild: true
   protobufjs: true
   sharp: true
+  ssh2: true
 
 packages:
   - "apps/*"
@@ -18,6 +20,3 @@ packages:
   - "turbo/**"
   - "!**/vite/types/**"
   - "!**/node_modules/**"
-
-patchedDependencies:
-  '@gresb/cel-javascript@0.1.1': patches/@gresb__cel-javascript@0.1.1.patch

@@ -1,18 +1,20 @@
 import {
-  canonicalizeRunnerLabels,
   RUNNER_JOB_CLAIMED,
   RUNNER_JOB_LEASE_EXPIRED,
   RUNNER_JOB_QUEUED,
   type RunnersEventMap,
 } from '@shipfox/api-runners-dto';
+import {logger} from '@shipfox/node-opentelemetry';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
-import {and, arrayContained, asc, count, eq, inArray, lt, sql} from 'drizzle-orm';
+import {canonicalizeLabels} from '@shipfox/runner-labels';
+import {and, arrayContained, asc, count, desc, eq, inArray, lt, sql} from 'drizzle-orm';
 import {
   EmptyRequiredLabelsError,
   RunnerSessionExhaustedError,
   RunningJobNotFoundError,
 } from '#core/errors.js';
 import {jobEnqueuedCount, jobLeaseExpiredCount} from '#metrics/instance.js';
+import type {Tx} from './db.js';
 import {db} from './db.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobs} from './schema/pending-jobs.js';
@@ -35,7 +37,7 @@ export interface EnqueueJobParams {
 // can reinsert an orphan pending row, which a later `claimPendingJob` drops
 // via the running-job unique constraint (onConflictDoNothing) instead of failing.
 export async function enqueueJob(params: EnqueueJobParams): Promise<void> {
-  const requiredLabels = canonicalizeRunnerLabels(params.requiredLabels);
+  const requiredLabels = [...canonicalizeLabels(params.requiredLabels)];
   if (requiredLabels.length === 0) throw new EmptyRequiredLabelsError();
 
   const enqueued = await db().transaction(async (tx) => {
@@ -76,6 +78,28 @@ export interface ClaimedJob {
   projectId: string;
 }
 
+export interface ActiveRunningJob {
+  jobId: string;
+  runId: string;
+  projectId: string;
+  runnerSessionId: string;
+  provisionerId: string | null;
+  provisionedRunnerId: string | null;
+  requiredLabels: string[];
+  runnerLabels: string[];
+  startedAt: Date;
+  lastHeartbeatAt: Date;
+}
+
+export interface ProvisionedRunnerBoundJob {
+  jobId: string;
+  runId: string;
+  provisionedRunnerId: string;
+  startedAt: Date;
+  lastHeartbeatAt: Date;
+  cancellationRequestedAt: Date | null;
+}
+
 export async function claimPendingJob(params: {
   workspaceId: string;
   runnerSessionId: string;
@@ -85,11 +109,16 @@ export async function claimPendingJob(params: {
   if (params.sessionLabels.length === 0) return null;
 
   return await db().transaction(async (tx) => {
+    let provisionerId: string | null = null;
+    let provisionedRunnerId: string | null = null;
+
     if (params.maxClaims !== null) {
       const [session] = await tx
         .select({
           maxClaims: runnerSessions.maxClaims,
           claimsUsed: runnerSessions.claimsUsed,
+          provisionerId: runnerSessions.provisionerId,
+          provisionedRunnerId: runnerSessions.provisionedRunnerId,
         })
         .from(runnerSessions)
         .where(eq(runnerSessions.id, params.runnerSessionId))
@@ -99,6 +128,11 @@ export async function claimPendingJob(params: {
       if (!session || session.maxClaims === null || session.claimsUsed >= session.maxClaims) {
         throw new RunnerSessionExhaustedError(params.runnerSessionId);
       }
+
+      // Ephemeral sessions are the only capped sessions, and the DB check keeps
+      // their provisioned-runner link present as a pair.
+      provisionerId = session.provisionerId;
+      provisionedRunnerId = session.provisionedRunnerId;
     }
 
     // `id` is a uuidv7 (time-ordered), so it is a deterministic FIFO tiebreaker
@@ -134,6 +168,8 @@ export async function claimPendingJob(params: {
         runId: row.runId,
         projectId: row.projectId,
         runnerSessionId: params.runnerSessionId,
+        provisionerId,
+        provisionedRunnerId,
         requiredLabels: row.requiredLabels,
         runnerLabels: params.sessionLabels,
       })
@@ -252,6 +288,135 @@ export async function getJobQueueDepth(): Promise<{pending: number; running: num
   const [pending] = await db().select({value: count()}).from(pendingJobs);
   const [running] = await db().select({value: count()}).from(runningJobs);
   return {pending: pending?.value ?? 0, running: running?.value ?? 0};
+}
+
+export async function listActiveRunningJobs(params: {
+  workspaceId: string;
+  windowSeconds: number;
+  limit?: number;
+}): Promise<ActiveRunningJob[]> {
+  return await db()
+    .select({
+      jobId: runningJobs.jobId,
+      runId: runningJobs.runId,
+      projectId: runningJobs.projectId,
+      runnerSessionId: runningJobs.runnerSessionId,
+      provisionerId: runningJobs.provisionerId,
+      provisionedRunnerId: runningJobs.provisionedRunnerId,
+      requiredLabels: runningJobs.requiredLabels,
+      runnerLabels: runningJobs.runnerLabels,
+      startedAt: runningJobs.startedAt,
+      lastHeartbeatAt: runningJobs.lastHeartbeatAt,
+    })
+    .from(runningJobs)
+    .where(
+      and(
+        eq(runningJobs.workspaceId, params.workspaceId),
+        sql`${runningJobs.lastHeartbeatAt} > now() - (${params.windowSeconds} || ' seconds')::interval`,
+      ),
+    )
+    .orderBy(desc(runningJobs.lastHeartbeatAt), desc(runningJobs.id))
+    .limit(params.limit ?? 1000);
+}
+
+export async function listRunningJobsByProvisionedRunnerTx(
+  tx: Tx,
+  params: {
+    workspaceId: string;
+    provisionerId: string;
+    provisionedRunnerIds: string[];
+  },
+): Promise<ProvisionedRunnerBoundJob[]> {
+  if (params.provisionedRunnerIds.length === 0) return [];
+
+  const duplicateRows = await tx
+    .select({
+      provisionedRunnerId: runningJobs.provisionedRunnerId,
+      count: count(),
+    })
+    .from(runningJobs)
+    .where(
+      and(
+        eq(runningJobs.workspaceId, params.workspaceId),
+        eq(runningJobs.provisionerId, params.provisionerId),
+        inArray(runningJobs.provisionedRunnerId, params.provisionedRunnerIds),
+      ),
+    )
+    .groupBy(runningJobs.provisionedRunnerId)
+    .having(sql`count(*) > 1`);
+
+  const duplicateProvisionedRunnerIds = duplicateRows.flatMap((row) =>
+    row.provisionedRunnerId ? [row.provisionedRunnerId] : [],
+  );
+  if (duplicateProvisionedRunnerIds.length > 0) {
+    logger().warn(
+      {
+        workspaceId: params.workspaceId,
+        provisionerId: params.provisionerId,
+        provisionedRunnerIds: duplicateProvisionedRunnerIds,
+      },
+      'multiple running jobs are bound to the same provisioned runner',
+    );
+  }
+
+  const result = await tx.execute<{
+    jobId: string;
+    runId: string;
+    provisionedRunnerId: string;
+    startedAt: Date | string;
+    lastHeartbeatAt: Date | string;
+    cancellationRequestedAt: Date | string | null;
+  }>(sql`
+    SELECT DISTINCT ON (${runningJobs.provisionedRunnerId})
+      ${runningJobs.jobId} AS "jobId",
+      ${runningJobs.runId} AS "runId",
+      ${runningJobs.provisionedRunnerId} AS "provisionedRunnerId",
+      ${runningJobs.startedAt} AS "startedAt",
+      ${runningJobs.lastHeartbeatAt} AS "lastHeartbeatAt",
+      ${runningJobs.cancellationRequestedAt} AS "cancellationRequestedAt"
+    FROM ${runningJobs}
+    WHERE
+      ${runningJobs.workspaceId} = ${params.workspaceId}
+      AND ${runningJobs.provisionerId} = ${params.provisionerId}
+      AND ${runningJobs.provisionedRunnerId} IN (${sql.join(
+        params.provisionedRunnerIds.map((provisionedRunnerId) => sql`${provisionedRunnerId}`),
+        sql`, `,
+      )})
+    ORDER BY ${runningJobs.provisionedRunnerId}, ${runningJobs.startedAt} DESC, ${runningJobs.jobId} DESC
+  `);
+
+  return result.rows.map((row) => ({
+    jobId: row.jobId,
+    runId: row.runId,
+    provisionedRunnerId: row.provisionedRunnerId,
+    startedAt: toDate(row.startedAt),
+    lastHeartbeatAt: toDate(row.lastHeartbeatAt),
+    cancellationRequestedAt: row.cancellationRequestedAt
+      ? toDate(row.cancellationRequestedAt)
+      : null,
+  }));
+}
+
+function toDate(value: Date | string): Date {
+  return value instanceof Date ? value : new Date(value);
+}
+
+export async function isJobLeaseActive(params: {
+  jobId: string;
+  runnerSessionId: string;
+}): Promise<boolean> {
+  const [row] = await db()
+    .select({id: runningJobs.id})
+    .from(runningJobs)
+    .where(
+      and(
+        eq(runningJobs.jobId, params.jobId),
+        eq(runningJobs.runnerSessionId, params.runnerSessionId),
+      ),
+    )
+    .limit(1);
+
+  return row !== undefined;
 }
 
 export async function recordHeartbeat(params: {

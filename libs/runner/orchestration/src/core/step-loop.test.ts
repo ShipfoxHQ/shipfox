@@ -1,7 +1,25 @@
-import type {NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
+import type {AgentConfigIssue, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {HTTPError} from 'ky';
 
+const {AgentRuntimeConfigRequestError} = vi.hoisted(() => ({
+  AgentRuntimeConfigRequestError: class AgentRuntimeConfigRequestError extends Error {
+    constructor(
+      public readonly status: number,
+      public readonly code: string | undefined,
+      public readonly agentConfigIssue: AgentConfigIssue | undefined = undefined,
+    ) {
+      super(
+        code === undefined
+          ? `Agent runtime config request failed with status ${status}.`
+          : `Agent runtime config request failed with status ${status}: ${code}.`,
+      );
+      this.name = 'AgentRuntimeConfigRequestError';
+    }
+  },
+}));
+
 const requestNextStepMock = vi.fn();
+const requestAgentRuntimeConfigMock = vi.fn();
 const reportStepMock = vi.fn();
 const appendStepLogsMock = vi.fn();
 const executeRunStepMock = vi.fn();
@@ -12,8 +30,10 @@ const executeAgentStepMock = vi.fn();
 
 vi.mock('@shipfox/runner-protocol', () => ({
   requestNextStep: (...args: unknown[]) => requestNextStepMock(...args),
+  requestAgentRuntimeConfig: (...args: unknown[]) => requestAgentRuntimeConfigMock(...args),
   reportStep: (...args: unknown[]) => reportStepMock(...args),
   appendStepLogs: (...args: unknown[]) => appendStepLogsMock(...args),
+  AgentRuntimeConfigRequestError,
   HTTPError,
 }));
 
@@ -22,16 +42,21 @@ vi.mock('@shipfox/runner-execution', () => ({
   executeSetupStep: (...args: unknown[]) => executeSetupStepMock(...args),
 }));
 
-vi.mock('@shipfox/runner-logs', () => ({
-  createStepLogStream: (...args: unknown[]) => createStepLogStreamMock(...args),
-  createSessionLogStream: (...args: unknown[]) => createSessionLogStreamMock(...args),
-}));
+vi.mock('@shipfox/runner-logs', async () => {
+  const actual =
+    await vi.importActual<typeof import('@shipfox/runner-logs')>('@shipfox/runner-logs');
+  return {
+    createStepLogStream: (...args: unknown[]) => createStepLogStreamMock(...args),
+    createSessionLogStream: (...args: unknown[]) => createSessionLogStreamMock(...args),
+    buildSecretVariants: actual.buildSecretVariants,
+  };
+});
 
 vi.mock('@shipfox/runner-agent', () => ({
   executeAgentStep: (...args: unknown[]) => executeAgentStepMock(...args),
 }));
 
-const {runJobSteps} = await import('#core/step-loop.js');
+const {executeStep, runJobSteps} = await import('#core/step-loop.js');
 
 const JOB_ID = '00000000-0000-0000-0000-0000000000aa';
 const RUN_ID = '00000000-0000-0000-0000-0000000000ab';
@@ -121,6 +146,7 @@ function runLoop(params: {signal: AbortSignal; secrets?: string[]; cwd?: string}
 describe('runJobSteps', () => {
   beforeEach(() => {
     requestNextStepMock.mockReset();
+    requestAgentRuntimeConfigMock.mockReset();
     reportStepMock.mockReset();
     appendStepLogsMock.mockReset();
     executeRunStepMock.mockReset();
@@ -128,6 +154,12 @@ describe('runJobSteps', () => {
     createStepLogStreamMock.mockReset();
     createSessionLogStreamMock.mockReset();
     executeAgentStepMock.mockReset();
+    requestAgentRuntimeConfigMock.mockResolvedValue({
+      provider_id: 'anthropic',
+      model: 'claude-opus-4-8',
+      thinking: 'high',
+      credentials: {api_key: 'sk-runtime-secret'},
+    });
     events = [];
     createdStreams = new Map();
     reportStepMock.mockResolvedValue({ok: true, cancel: false});
@@ -620,7 +652,18 @@ describe('runJobSteps', () => {
     expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {
       signal: ac.signal,
       cwd: '/work',
+      runtime: {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+        credentials: {api_key: 'sk-runtime-secret'},
+      },
       onSessionEntry: expect.any(Function),
+    });
+    expect(requestAgentRuntimeConfigMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: agent.id,
+      attempt: 1,
+      signal: ac.signal,
     });
     expect(executeRunStepMock).not.toHaveBeenCalled();
     expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
@@ -632,6 +675,44 @@ describe('runJobSteps', () => {
       logOutcome: 'drained',
       signal: ac.signal,
     });
+  });
+
+  it('uses provider, model, and thinking from runtime config instead of stale step config', async () => {
+    const setup = buildSetupStep();
+    const agent = buildAgentStep({
+      config: {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+        prompt: 'Fix it.',
+      },
+    });
+    requestAgentRuntimeConfigMock.mockResolvedValueOnce({
+      provider_id: 'openai',
+      model: 'gpt-5.1',
+      thinking: 'medium',
+      credentials: {api_key: 'sk-openai-runtime'},
+    });
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(executeAgentStepMock).toHaveBeenCalledWith(
+      agent,
+      expect.objectContaining({
+        runtime: {
+          provider: 'openai',
+          model: 'gpt-5.1',
+          thinking: 'medium',
+          credentials: {api_key: 'sk-openai-runtime'},
+        },
+      }),
+    );
   });
 
   it('opens a session stream for an agent step, forwards entries, and settles it', async () => {
@@ -657,7 +738,7 @@ describe('runJobSteps', () => {
       logsDir: LOGS_DIR,
       stepId: agent.id,
       attempt: 1,
-      secrets: ['s3cr3t'],
+      secrets: ['s3cr3t', 'sk-runtime-secret'],
       append: expect.any(Function),
     });
     expect(sessionStream.writeEntry).toHaveBeenCalledWith('{"type":"message","id":"a"}');
@@ -683,7 +764,16 @@ describe('runJobSteps', () => {
 
     await runLoop({signal: ac.signal});
 
-    expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {signal: ac.signal, cwd: '/work'});
+    expect(executeAgentStepMock).toHaveBeenCalledWith(agent, {
+      signal: ac.signal,
+      cwd: '/work',
+      runtime: {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+        credentials: {api_key: 'sk-runtime-secret'},
+      },
+    });
     expect(reportStepMock).toHaveBeenCalledWith(
       leaseClient,
       expect.objectContaining({stepId: agent.id, status: 'succeeded', logOutcome: 'abandoned'}),
@@ -715,6 +805,77 @@ describe('runJobSteps', () => {
     expect(reportStepMock).not.toHaveBeenCalledWith(
       leaseClient,
       expect.objectContaining({stepId: agent.id}),
+    );
+  });
+
+  it('redacts runtime credential values from agent failures and blanks output before reporting', async () => {
+    const agent = buildAgentStep();
+    const hexCredential = Buffer.from('sk-runtime-secret').toString('hex');
+    executeAgentStepMock.mockResolvedValue({
+      success: false,
+      output: 'provider echoed sk-runtime-secret',
+      error: {
+        message: `provider rejected sk-runtime-secret and ${hexCredential}`,
+        reason: 'agent_invocation_failed' as const,
+      },
+      exit_code: null,
+    });
+    const ac = new AbortController();
+
+    const execution = await executeStep({
+      step: agent,
+      attempt: 1,
+      cwd: '/work',
+      logsDir: LOGS_DIR,
+      jobContext: JOB_CONTEXT,
+      leaseClient,
+      secrets: [],
+      signal: ac.signal,
+      workspacePrepared: true,
+      jobId: JOB_ID,
+      stepLabel: 'implement',
+    });
+
+    expect(execution.result).toEqual({
+      success: false,
+      output: '',
+      error: {
+        message: 'provider rejected *** and ***',
+        reason: 'agent_invocation_failed',
+      },
+      exit_code: null,
+    });
+  });
+
+  it('reports agent config issues when runtime credentials are rejected by the API', async () => {
+    const setup = buildSetupStep();
+    const agent = buildAgentStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'failed'});
+    requestAgentRuntimeConfigMock.mockRejectedValueOnce(
+      new AgentRuntimeConfigRequestError(
+        409,
+        'agent-provider-not-configured',
+        'provider_not_configured',
+      ),
+    );
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(executeAgentStepMock).not.toHaveBeenCalled();
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({
+        stepId: agent.id,
+        status: 'failed',
+        error: expect.objectContaining({
+          reason: 'agent_config_invalid',
+          agent_config_issue: 'provider_not_configured',
+        }),
+      }),
     );
   });
 });

@@ -260,11 +260,11 @@ Buttons are `rounded-6`. Status pills are `rounded-4` or `rounded-full`. Cards a
 
 ## 8. Components
 
-The system ships with batteries — use them. Inventory in this workspace:
+The system ships with batteries — use them. The `@shipfox/react-ui` package in this workspace exports the full inventory below. Reach for these before building anything new.
 
-`alert`, `badge`, `button`, `card`, `icon`, `input`, `label`, `loader`, `radio-group`, `skeleton`, `theme`, `toast`, `tooltip`, `typography`.
+`accordion`, `alert`, `avatar`, `badge`, `button`, `calendar`, `card`, `code-block`, `collapsible`, `combobox`, `command`, `date-picker`, `date-range-picker`, `dot`, `dropdown-menu`, `empty-state`, `form-field`, `icon`, `inline-tips`, `input`, `kbd`, `label`, `load-error-state`, `loader`, `log`, `logo`, `modal`, `popover`, `radio-group`, `relative-time`, `scroll-area`, `search`, `select`, `sheet`, `shiny-text`, `skeleton`, `table`, `tabs`, `theme`, `toast`, `tooltip`, `typography`.
 
-The broader `@shipfox/react-ui` catalog adds: `avatar`, `button-group`, `calendar`, `checkbox`, `code-block`, `combobox`, `command`, `confetti`, `count-up`, `dashboard`, `date-picker`, `date-range-picker`, `dot-grid`, `dropdown-menu`, `dynamic-item`, `empty-state`, `form`, `inline-tips`, `interval-selector`, `item`, `kbd`, `modal`, `moving-border`, `popover`, `scroll-area`, `search`, `select`, `sheet`, `shiny-text`, `shipql-editor`, `slider`, `switch`, `table`, `tabs`, `textarea`. When a surface needs one of these, copy it over from the broader catalog rather than rebuilding.
+Still absent from this package and living only in the broader external catalog: `button-group`, `checkbox`, `confetti`, `count-up`, `dashboard`, `dot-grid`, `dynamic-item`, `form`, `interval-selector`, `item`, `moving-border`, `shipql-editor`, `slider`, `switch`, `textarea`. When a surface needs one of these, copy it over from the broader catalog rather than rebuilding.
 
 ### Buttons (the one most people get wrong)
 

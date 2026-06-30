@@ -92,10 +92,11 @@ describe('runner token routes', () => {
 
   test('uses the expected auth method for each runner route group', () => {
     expect(runnerRoutes[0]?.auth).toBe(AUTH_USER);
-    expect(runnerRoutes[1]?.auth).toBe(AUTH_RUNNER_TOKEN);
-    expect(runnerRoutes[2]?.auth).toBe(AUTH_RUNNER_SESSION);
-    expect(runnerRoutes[3]?.auth).toBe(AUTH_LEASED_JOB);
-    expect(runnerRoutes[4]?.auth).toBe(AUTH_PROVISIONER_TOKEN);
+    expect(runnerRoutes[1]?.auth).toBe(AUTH_USER);
+    expect(runnerRoutes[2]?.auth).toBe(AUTH_RUNNER_TOKEN);
+    expect(runnerRoutes[3]?.auth).toBe(AUTH_RUNNER_SESSION);
+    expect(runnerRoutes[4]?.auth).toBe(AUTH_LEASED_JOB);
+    expect(runnerRoutes[5]?.auth).toBe(AUTH_PROVISIONER_TOKEN);
   });
 
   describe('GET /workspaces/:workspaceId/runners/tokens', () => {

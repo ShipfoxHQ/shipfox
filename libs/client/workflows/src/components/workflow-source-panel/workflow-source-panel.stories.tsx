@@ -53,7 +53,6 @@ async function captureHighlightedSourcePanel(
   screenshotName: string,
 ) {
   await screen.findByRole('dialog', {name: 'Workflow source'});
-  await document.fonts.ready;
   await waitFor(
     () => {
       if (!document.querySelector('.shiki-override')) {

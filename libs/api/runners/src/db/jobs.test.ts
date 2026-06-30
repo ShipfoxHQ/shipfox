@@ -6,7 +6,8 @@ import {
 } from '@shipfox/api-runners-dto';
 import {eq, sql} from 'drizzle-orm';
 import {EmptyRequiredLabelsError, RunnerSessionExhaustedError} from '#core/errors.js';
-import {claimJob, detectAndExpireStuckJobs} from '#core/jobs.js';
+import {claimJob} from '#core/jobs.js';
+import {detectAndExpireStuckJobs} from '#core/maintenance.js';
 import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
 import {db} from './db.js';
 import {
@@ -15,6 +16,7 @@ import {
   enqueueJob,
   expireStuckJobs,
   getJobQueueDepth,
+  isJobLeaseActive,
   recordHeartbeat,
   releaseJob,
   requestJobCancellation,
@@ -222,6 +224,21 @@ describe('claimPendingJob', () => {
     expect(claimed?.projectId).toBe(created.projectId);
   });
 
+  it('reports an active lease only for the session that claimed the job', async () => {
+    const created = await pendingJobFactory.create({workspaceId});
+    const otherRunnerSession = await runnerSessionFactory.create({workspaceId});
+
+    const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
+    const active = await isJobLeaseActive({jobId: claimed?.jobId as string, runnerSessionId});
+    const stale = await isJobLeaseActive({
+      jobId: created.jobId,
+      runnerSessionId: otherRunnerSession.id,
+    });
+
+    expect(active).toBe(true);
+    expect(stale).toBe(false);
+  });
+
   it('returns null when no jobs are pending', async () => {
     const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
@@ -229,9 +246,11 @@ describe('claimPendingJob', () => {
   });
 
   it('enforces a non-null session claim cap from the database', async () => {
+    const provisionerId = crypto.randomUUID();
+    const provisionedRunnerId = `provisioned-runner-${crypto.randomUUID()}`;
     await db()
       .update(runnerSessions)
-      .set({registrationTokenKind: 'ephemeral', maxClaims: 1})
+      .set({registrationTokenKind: 'ephemeral', maxClaims: 1, provisionerId, provisionedRunnerId})
       .where(eq(runnerSessions.id, runnerSessionId));
     await pendingJobFactory.create({workspaceId});
     await pendingJobFactory.create({workspaceId});
@@ -245,9 +264,11 @@ describe('claimPendingJob', () => {
   });
 
   it('does not spend a claim when a capped session polls an empty queue', async () => {
+    const provisionerId = crypto.randomUUID();
+    const provisionedRunnerId = `provisioned-runner-${crypto.randomUUID()}`;
     await db()
       .update(runnerSessions)
-      .set({registrationTokenKind: 'ephemeral', maxClaims: 1})
+      .set({registrationTokenKind: 'ephemeral', maxClaims: 1, provisionerId, provisionedRunnerId})
       .where(eq(runnerSessions.id, runnerSessionId));
 
     const empty = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: 1});
@@ -320,6 +341,44 @@ describe('claimPendingJob', () => {
     expect(running[0]?.projectId).toBe(created.projectId);
     expect(running[0]?.requiredLabels).toEqual(created.requiredLabels);
     expect(running[0]?.runnerLabels).toEqual(sessionLabels);
+    expect(running[0]?.provisionerId).toBeNull();
+    expect(running[0]?.provisionedRunnerId).toBeNull();
+  });
+
+  it('copies an ephemeral session provisioned-runner link onto the running job', async () => {
+    const provisionerId = crypto.randomUUID();
+    const provisionedRunnerId = `provisioned-runner-${crypto.randomUUID()}`;
+    await db()
+      .update(runnerSessions)
+      .set({registrationTokenKind: 'ephemeral', maxClaims: 1, provisionerId, provisionedRunnerId})
+      .where(eq(runnerSessions.id, runnerSessionId));
+    const created = await pendingJobFactory.create({workspaceId});
+
+    await claimPendingJob({workspaceId, runnerSessionId, maxClaims: 1});
+
+    const [running] = await db()
+      .select()
+      .from(runningJobs)
+      .where(eq(runningJobs.jobId, created.jobId));
+    expect(running?.provisionerId).toBe(provisionerId);
+    expect(running?.provisionedRunnerId).toBe(provisionedRunnerId);
+  });
+
+  it('rejects a running job row with a partial provisioned-runner link', async () => {
+    const created = await pendingJobFactory.create({workspaceId});
+
+    await expect(
+      db().insert(runningJobs).values({
+        workspaceId,
+        jobId: created.jobId,
+        runId: created.runId,
+        projectId: created.projectId,
+        runnerSessionId,
+        provisionerId: crypto.randomUUID(),
+        requiredLabels: created.requiredLabels,
+        runnerLabels: sessionLabels,
+      }),
+    ).rejects.toThrow();
   });
 
   it('claims a job whose required labels are a subset of the session labels', async () => {

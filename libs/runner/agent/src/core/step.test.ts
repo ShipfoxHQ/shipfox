@@ -7,6 +7,13 @@ import {AgentConfigError} from '#core/errors.js';
 import type {AgentInvocation} from '#core/run-agent.js';
 import {executeAgentStep} from '#core/step.js';
 
+const RUNTIME = {
+  provider: 'anthropic',
+  model: 'claude-opus-4-8',
+  thinking: 'high',
+  credentials: {api_key: 'sk-runtime-secret'},
+};
+
 function buildAgentStep(overrides: Partial<StepDto> = {}): StepDto {
   const displayName =
     overrides.display_name ??
@@ -37,7 +44,7 @@ describe('executeAgentStep', () => {
   it('runs the agent and reports process-success with exit_code 0', async () => {
     runAgentMock.mockResolvedValue({summary: 'done'});
 
-    const result = await executeAgentStep(buildAgentStep(), {cwd: '/work'});
+    const result = await executeAgentStep(buildAgentStep(), {cwd: '/work', runtime: RUNTIME});
 
     expect(result).toEqual({success: true, output: 'done', error: null, exit_code: 0});
     expect(runAgentMock).toHaveBeenCalledWith(
@@ -50,31 +57,54 @@ describe('executeAgentStep', () => {
     );
   });
 
-  it('defaults thinking to high and provider to anthropic when the config omits them', async () => {
+  it('forwards runtime provider, model, and thinking to the agent invocation', async () => {
     runAgentMock.mockResolvedValue({});
 
-    await executeAgentStep(buildAgentStep({config: {model: 'm', prompt: 'p'}}), {});
+    await executeAgentStep(buildAgentStep({config: {prompt: 'p'}}), {
+      runtime: {
+        provider: 'openai',
+        model: 'gpt-5.1',
+        thinking: 'medium',
+        credentials: {api_key: 'sk-openai'},
+      },
+    });
 
     expect(runAgentMock).toHaveBeenCalledWith(
-      expect.objectContaining({thinking: 'high', provider: 'anthropic'}),
+      expect.objectContaining({
+        provider: 'openai',
+        model: 'gpt-5.1',
+        thinking: 'medium',
+        credentials: {api_key: 'sk-openai'},
+      }),
     );
   });
 
-  it('forwards an explicit provider from the config', async () => {
+  it('ignores stale provider, model, and thinking values in step config', async () => {
     runAgentMock.mockResolvedValue({});
 
     await executeAgentStep(
-      buildAgentStep({config: {model: 'gpt-5.1', prompt: 'p', provider: 'openai'}}),
-      {},
+      buildAgentStep({
+        config: {provider: 'anthropic', model: 'claude-opus-4-8', thinking: 'high', prompt: 'p'},
+      }),
+      {
+        runtime: {
+          provider: 'openai',
+          model: 'gpt-5.1',
+          thinking: 'low',
+          credentials: {api_key: 'sk-openai'},
+        },
+      },
     );
 
-    expect(runAgentMock).toHaveBeenCalledWith(expect.objectContaining({provider: 'openai'}));
+    expect(runAgentMock).toHaveBeenCalledWith(
+      expect.objectContaining({provider: 'openai', model: 'gpt-5.1', thinking: 'low'}),
+    );
   });
 
   it('fails with agent_invocation_failed when the agent run throws a generic error', async () => {
     runAgentMock.mockRejectedValue(new Error('provider returned 503'));
 
-    const result = await executeAgentStep(buildAgentStep(), {});
+    const result = await executeAgentStep(buildAgentStep(), {runtime: RUNTIME});
 
     expect(result.success).toBe(false);
     expect(result.error).toEqual({
@@ -85,30 +115,38 @@ describe('executeAgentStep', () => {
   });
 
   it('fails with agent_config_invalid when the agent run throws an AgentConfigError', async () => {
-    runAgentMock.mockRejectedValue(new AgentConfigError('Unknown provider "foo" for agent step.'));
+    runAgentMock.mockRejectedValue(
+      new AgentConfigError('Unknown provider "foo" for agent step.', 'provider_unsupported'),
+    );
 
-    const result = await executeAgentStep(buildAgentStep(), {});
+    const result = await executeAgentStep(buildAgentStep(), {runtime: RUNTIME});
 
     expect(result.success).toBe(false);
     expect(result.error).toEqual({
       message: 'Unknown provider "foo" for agent step.',
       reason: 'agent_config_invalid',
+      agent_config_issue: 'provider_unsupported',
     });
   });
 
   it('rejects a non-agent step type without running the agent', async () => {
-    const result = await executeAgentStep(buildAgentStep({type: 'run', config: {run: 'x'}}), {});
+    const result = await executeAgentStep(buildAgentStep({type: 'run', config: {run: 'x'}}), {
+      runtime: RUNTIME,
+    });
 
     expect(result.success).toBe(false);
     expect(result.error?.message).toContain('Unsupported step type');
     expect(runAgentMock).not.toHaveBeenCalled();
   });
 
-  it('fails with agent_config_invalid when the config is missing model or prompt', async () => {
-    const result = await executeAgentStep(buildAgentStep({config: {model: 'm'}}), {});
+  it('fails with agent_config_invalid when the config is missing prompt', async () => {
+    const result = await executeAgentStep(buildAgentStep({config: {model: 'm'}}), {
+      runtime: RUNTIME,
+    });
 
     expect(result.success).toBe(false);
     expect(result.error?.reason).toBe('agent_config_invalid');
+    expect(result.error?.agent_config_issue).toBe('step_config_invalid');
     expect(runAgentMock).not.toHaveBeenCalled();
   });
 
@@ -123,7 +161,7 @@ describe('executeAgentStep', () => {
       });
     });
 
-    const promise = executeAgentStep(buildAgentStep(), {signal: ac.signal});
+    const promise = executeAgentStep(buildAgentStep(), {signal: ac.signal, runtime: RUNTIME});
     ac.abort();
     const result = await promise;
 
@@ -136,7 +174,10 @@ describe('executeAgentStep', () => {
     ac.abort();
     runAgentMock.mockRejectedValue(new Error('agent rejected after abort'));
 
-    const result = await executeAgentStep(buildAgentStep(), {signal: ac.signal});
+    const result = await executeAgentStep(buildAgentStep(), {
+      signal: ac.signal,
+      runtime: RUNTIME,
+    });
 
     expect(result.success).toBe(false);
   });

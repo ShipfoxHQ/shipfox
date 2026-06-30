@@ -1,10 +1,23 @@
 import type {RunJobDetailDto, RunStepDetailDto, StepAttemptDto} from '@shipfox/api-workflows-dto';
 import {LogView, type LogViewProps} from '@shipfox/client-logs';
 import {Text} from '@shipfox/react-ui';
-import type {Meta, StoryObj} from '@storybook/react';
+import type {Decorator, Meta, StoryObj} from '@storybook/react';
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from '@tanstack/react-router';
+import {within} from 'storybook/test';
 import type {WorkflowJob} from '#core/workflow-run.js';
 import {workflowJob, workflowStepAttemptDto, workflowStepDto} from '#test/fixtures/workflow-run.js';
+import {AgentConfigFailureCallout as AgentConfigFailureCalloutView} from '../workflow-run-view/agent-config-failure-callout.js';
 import {WorkflowStepList} from './workflow-step-list.js';
+
+const WORKSPACE_ID = '44444444-4444-4444-8444-444444444444';
+const AGENT_PROVIDERS_LINK_NAME = 'Configure Agent Providers';
 
 const meta = {
   title: 'Workflows/StepList',
@@ -41,6 +54,34 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+type WorkflowStepListStoryContext = Parameters<NonNullable<Story['play']>>[0];
+
+const withAgentProviderSettingsRoute: Decorator = (Story) => {
+  const rootRoute = createRootRoute({component: Outlet});
+  const storyRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/',
+    component: () => <Story />,
+  });
+  const agentProviderSettingsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/settings/agent-providers',
+    component: () => null,
+  });
+  const router = createRouter({
+    history: createMemoryHistory({initialEntries: ['/']}),
+    routeTree: rootRoute.addChildren([storyRoute, agentProviderSettingsRoute]),
+  });
+
+  return <RouterProvider router={router} />;
+};
+
+async function assertAgentConfigFailureCallout(ctx: WorkflowStepListStoryContext) {
+  const canvas = within(ctx.canvasElement);
+
+  await canvas.findByText('Configure credentials for anthropic');
+  await canvas.findByRole('link', {name: AGENT_PROVIDERS_LINK_NAME});
+}
 
 export const Default: Story = {};
 
@@ -212,6 +253,54 @@ export const FailedStep: Story = {
   },
 };
 
+export const AgentConfigFailureCallout: Story = {
+  decorators: [withAgentProviderSettingsRoute],
+  render: () => {
+    const attempt = makeAttempt({status: 'failed', exit_code: 1});
+    const step = makeStep({
+      name: 'implement',
+      display_name: 'Fix the failing tests.',
+      type: 'agent',
+      status: 'failed',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        thinking: 'high',
+        prompt: 'Fix the failing tests.',
+      },
+      error: {
+        message: 'Agent provider credentials are not configured',
+        category: 'user',
+        reason: 'agent_config_invalid',
+        agent_config_issue: 'provider_not_configured',
+      },
+      attempts: [attempt],
+    });
+
+    return (
+      <WorkflowStepList
+        job={makeJob({status: 'failed', steps: [step]})}
+        defaultSelectedAttemptId={attempt.id}
+        renderExpandedStep={() => (
+          <AgentConfigFailureCalloutView
+            workspaceId={WORKSPACE_ID}
+            config={{provider: 'anthropic', model: 'claude-opus-4-8', thinking: 'high'}}
+            error={{
+              message: 'Agent provider credentials are not configured',
+              reason: 'agent_config_invalid',
+              agentConfigIssue: 'provider_not_configured',
+              category: 'user',
+              exitCode: null,
+              signal: undefined,
+            }}
+          />
+        )}
+      />
+    );
+  },
+  play: assertAgentConfigFailureCallout,
+};
+
 export const CancelledAndPending: Story = {
   args: {
     job: makeJob({
@@ -234,6 +323,17 @@ export const SkippedBeforeStart: Story = {
       title: 'This job was skipped',
       description: 'A required job did not complete, so this job was skipped.',
       status: 'skipped',
+    },
+  },
+};
+
+export const RunningBeforeFirstStep: Story = {
+  args: {
+    job: makeJob({status: 'running', steps: []}),
+    emptyState: {
+      title: 'Waiting for the first step',
+      description: 'This job is running, but no steps have started yet.',
+      status: 'running',
     },
   },
 };

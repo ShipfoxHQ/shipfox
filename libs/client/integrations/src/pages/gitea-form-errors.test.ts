@@ -22,7 +22,7 @@ describe('giteaConnectErrorToFormError', () => {
     expect(result).toEqual({
       kind: 'field',
       field: 'org',
-      message: 'That organization is already connected.',
+      message: 'That organization is already installed.',
     });
   });
 
