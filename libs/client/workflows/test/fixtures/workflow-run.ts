@@ -209,8 +209,11 @@ function workflowJobDurationDto(
   const terminal = TERMINAL_JOB_STATUSES.has(job.status);
 
   if (job.started_at === null) {
-    if (terminal || job.queued_at === null) return {kind: 'none'};
-    return {kind: 'queued', from_iso: job.queued_at};
+    if (!terminal && job.queued_at !== null) {
+      return {kind: 'queued', from_iso: job.queued_at};
+    }
+
+    return {kind: 'none'};
   }
 
   if (job.finished_at !== null) {

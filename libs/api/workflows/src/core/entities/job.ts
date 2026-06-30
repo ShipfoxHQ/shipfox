@@ -58,8 +58,11 @@ export function jobDurationFor(
   const terminal = isJobTerminal(status);
 
   if (startedAt === null) {
-    if (terminal || queuedAt === null) return {kind: 'none'};
-    return {kind: 'queued', from: queuedAt};
+    if (!terminal && queuedAt !== null) {
+      return {kind: 'queued', from: queuedAt};
+    }
+
+    return {kind: 'none'};
   }
 
   if (finishedAt !== null) {
