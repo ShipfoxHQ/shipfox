@@ -1,5 +1,6 @@
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {WEBHOOK_RESERVED_SLUGS} from '@shipfox/api-integration-webhook-dto';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {CreateWebhookIntegrationProviderOptions} from '#index.js';
@@ -224,6 +225,48 @@ describe('webhook connection routes', () => {
     expect(res.json().lifecycle_status).toBe('disabled');
   });
 
+  it.each([
+    {description: 'missing connection', connectionId: crypto.randomUUID()},
+    {
+      description: 'non-webhook connection',
+      connectionId: undefined,
+      seed: (store: ReturnType<typeof createStore>) =>
+        store.seed(fakeConnection({provider: 'github'})).id,
+    },
+  ])('returns 404 when patching a $description', async ({connectionId, seed}) => {
+    const store = createStore();
+    const id = seed ? seed(store) : connectionId;
+    const {app} = await createTestApp(store);
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/integrations/webhook/connections/${id}`,
+      headers: {authorization: 'Bearer user'},
+      payload: {lifecycle_status: 'disabled'},
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('not-found');
+    expect(store.updateIntegrationConnectionLifecycleStatus).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when a webhook connection disappears during patch', async () => {
+    const store = createStore();
+    const connection = store.seed(fakeConnection());
+    store.updateIntegrationConnectionLifecycleStatus.mockResolvedValueOnce(undefined);
+    const {app} = await createTestApp(store);
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/integrations/webhook/connections/${connection.id}`,
+      headers: {authorization: 'Bearer user'},
+      payload: {lifecycle_status: 'disabled'},
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('not-found');
+  });
+
   it('deletes a webhook connection', async () => {
     const store = createStore();
     const connection = store.seed(fakeConnection());
@@ -240,16 +283,50 @@ describe('webhook connection routes', () => {
   });
 
   it.each([
-    {name: 'Reserved', slug: 'github'},
-    {name: 'Malformed', slug: 'Stripe_Prod'},
-  ])('rejects invalid slug $slug', async (payload) => {
+    {description: 'missing connection', connectionId: crypto.randomUUID()},
+    {
+      description: 'non-webhook connection',
+      connectionId: undefined,
+      seed: (store: ReturnType<typeof createStore>) =>
+        store.seed(fakeConnection({provider: 'github'})).id,
+    },
+  ])('returns 404 when deleting a $description', async ({connectionId, seed}) => {
+    const store = createStore();
+    const id = seed ? seed(store) : connectionId;
+    const {app} = await createTestApp(store);
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/integrations/webhook/connections/${id}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('not-found');
+    expect(store.deleteIntegrationConnection).not.toHaveBeenCalled();
+  });
+
+  it.each(WEBHOOK_RESERVED_SLUGS)('rejects reserved slug %s', async (slug) => {
     const {app} = await createTestApp();
 
     const res = await app.inject({
       method: 'POST',
       url: '/integrations/webhook/connections',
       headers: {authorization: 'Bearer user'},
-      payload: {workspace_id: crypto.randomUUID(), ...payload},
+      payload: {workspace_id: crypto.randomUUID(), name: 'Reserved', slug},
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects a malformed slug', async () => {
+    const {app} = await createTestApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/webhook/connections',
+      headers: {authorization: 'Bearer user'},
+      payload: {workspace_id: crypto.randomUUID(), name: 'Malformed', slug: 'Stripe_Prod'},
     });
 
     expect(res.statusCode).toBe(400);

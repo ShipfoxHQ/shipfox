@@ -187,4 +187,23 @@ describe('webhook inbound route', () => {
     const deliveryId = publishIntegrationEventReceived.mock.calls[0]?.[0].event.deliveryId;
     expect(deliveryId).toMatch(UUID_RE);
   });
+
+  it('rejects an overlong delivery ID header without publishing', async () => {
+    const connection = fakeConnection();
+    const {app, publishIntegrationEventReceived} = await createTestApp({connection});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/webhook/${connection.id}`,
+      headers: {
+        'content-type': 'application/json',
+        'x-delivery-id': 'x'.repeat(201),
+      },
+      payload: {ok: true},
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('delivery-id-too-long');
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+  });
 });
