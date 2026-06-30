@@ -164,9 +164,10 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
     }
 
     if (frame === 'arith') {
-      if (text.startsWith('))', index)) {
+      const arithEnd = matchShellLogicalPrefix(text, index, '))');
+      if (arithEnd !== undefined) {
         frames.pop();
-        advance(index + 2, false);
+        advance(arithEnd, false);
         continue;
       }
 
@@ -262,44 +263,58 @@ function scanShellPlainStart(
     return index + 1;
   }
 
-  if (text.startsWith('<<', index)) {
+  const heredocStripTabsStart = matchShellLogicalPrefix(text, index, '<<-');
+  if (heredocStripTabsStart !== undefined) {
     frames.push('heredoc');
-    return text.startsWith('<<-', index) ? index + 3 : index + 2;
+    return heredocStripTabsStart;
   }
 
-  if (text.startsWith('$((', index)) {
+  const heredocStart = matchShellLogicalPrefix(text, index, '<<');
+  if (heredocStart !== undefined) {
+    frames.push('heredoc');
+    return heredocStart;
+  }
+
+  const dollarArithStart = matchShellLogicalPrefix(text, index, '$((');
+  if (dollarArithStart !== undefined) {
     frames.push('arith');
-    return index + 3;
+    return dollarArithStart;
   }
 
-  if (text.startsWith('$[', index)) {
+  const arithSquareStart = matchShellLogicalPrefix(text, index, '$[');
+  if (arithSquareStart !== undefined) {
     frames.push({kind: 'arith-square', bracketDepth: 0});
-    return index + 2;
+    return arithSquareStart;
   }
 
-  if (text.startsWith('$(', index)) {
+  const parenSubStart = matchShellLogicalPrefix(text, index, '$(');
+  if (parenSubStart !== undefined) {
     frames.push('paren-sub');
-    return index + 2;
+    return parenSubStart;
   }
 
-  if (text.startsWith('${', index)) {
+  const paramBraceStart = matchShellLogicalPrefix(text, index, '${');
+  if (paramBraceStart !== undefined) {
     frames.push('param-brace');
-    return index + 2;
+    return paramBraceStart;
   }
 
-  if (text.startsWith("$'", index)) {
+  const dollarSingleStart = matchShellLogicalPrefix(text, index, "$'");
+  if (dollarSingleStart !== undefined) {
     frames.push('dollar-single');
-    return index + 2;
+    return dollarSingleStart;
   }
 
-  if (text.startsWith('$"', index)) {
+  const dollarDoubleStart = matchShellLogicalPrefix(text, index, '$"');
+  if (dollarDoubleStart !== undefined) {
     frames.push('dollar-double');
-    return index + 2;
+    return dollarDoubleStart;
   }
 
-  if (text.startsWith('((', index)) {
+  const arithStart = matchShellLogicalPrefix(text, index, '((');
+  if (arithStart !== undefined) {
     frames.push('arith');
-    return index + 2;
+    return arithStart;
   }
 
   if (text[index] === "'") {
@@ -321,37 +336,65 @@ function scanShellPlainStart(
 }
 
 function scanShellControlStart(text: string, index: number, frames: ShellScanFrame[]): number {
-  if (text.startsWith('$((', index)) {
+  const dollarArithStart = matchShellLogicalPrefix(text, index, '$((');
+  if (dollarArithStart !== undefined) {
     frames.push('arith');
-    return index + 3;
+    return dollarArithStart;
   }
 
-  if (text.startsWith('$[', index)) {
+  const arithSquareStart = matchShellLogicalPrefix(text, index, '$[');
+  if (arithSquareStart !== undefined) {
     frames.push({kind: 'arith-square', bracketDepth: 0});
-    return index + 2;
+    return arithSquareStart;
   }
 
-  if (text.startsWith('$(', index)) {
+  const parenSubStart = matchShellLogicalPrefix(text, index, '$(');
+  if (parenSubStart !== undefined) {
     frames.push('paren-sub');
-    return index + 2;
+    return parenSubStart;
   }
 
-  if (text.startsWith('${', index)) {
+  const paramBraceStart = matchShellLogicalPrefix(text, index, '${');
+  if (paramBraceStart !== undefined) {
     frames.push('param-brace');
-    return index + 2;
+    return paramBraceStart;
   }
 
-  if (text.startsWith("$'", index)) {
+  const dollarSingleStart = matchShellLogicalPrefix(text, index, "$'");
+  if (dollarSingleStart !== undefined) {
     frames.push('dollar-single');
-    return index + 2;
+    return dollarSingleStart;
   }
 
-  if (text.startsWith('$"', index)) {
+  const dollarDoubleStart = matchShellLogicalPrefix(text, index, '$"');
+  if (dollarDoubleStart !== undefined) {
     frames.push('dollar-double');
-    return index + 2;
+    return dollarDoubleStart;
   }
 
   return index + 1;
+}
+
+function matchShellLogicalPrefix(text: string, index: number, prefix: string): number | undefined {
+  let nextIndex = index;
+
+  for (let prefixIndex = 0; prefixIndex < prefix.length; prefixIndex += 1) {
+    if (text[nextIndex] !== prefix[prefixIndex]) return undefined;
+    nextIndex += 1;
+    if (prefixIndex + 1 < prefix.length) nextIndex = skipShellLineContinuations(text, nextIndex);
+  }
+
+  return nextIndex;
+}
+
+function skipShellLineContinuations(text: string, index: number): number {
+  let nextIndex = index;
+
+  while (text[nextIndex] === '\\' && text[nextIndex + 1] === '\n') {
+    nextIndex += 2;
+  }
+
+  return nextIndex;
 }
 
 function skipShellEscape(

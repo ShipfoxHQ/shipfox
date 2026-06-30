@@ -87,6 +87,10 @@ describe('shell quoting scanner', () => {
     ['"$(echo ', 'paren-sub'],
     ['"$[1 + ', 'arith'],
     ['$[ a[0] + ', 'arith'],
+    ['$\\\n(echo ', 'paren-sub'],
+    ['${' + '\\\n' + 'value:-', 'param-brace'],
+    ['$\\\n[1 + ', 'arith'],
+    ['$\\\n(\\\n(1 + ', 'arith'],
     ['`echo ${', 'param-brace'],
   ] as const)('reports the innermost unsafe region for %s', (literal, region) => {
     const state = scanShellLiteral(literal, initialShellScanState);
