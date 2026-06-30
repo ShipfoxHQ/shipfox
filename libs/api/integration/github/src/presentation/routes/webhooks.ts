@@ -2,10 +2,10 @@ import {Buffer} from 'node:buffer';
 import {Webhooks} from '@octokit/webhooks';
 import type {
   GetIntegrationConnectionByIdFn,
+  PublishIntegrationEventReceivedFn,
   PublishSourcePushFn,
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-core-dto';
-import {githubPushPayloadSchema} from '@shipfox/api-integration-github-dto';
 import {
   defineRoute,
   type RouteGroup,
@@ -15,15 +15,15 @@ import {
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {config} from '#config.js';
-import {handleGithubPush} from '#core/webhook.js';
+import {handleGithubEvent} from '#core/webhook.js';
 
 const SIGNATURE_HEADER = 'x-hub-signature-256';
 const EVENT_HEADER = 'x-github-event';
 const DELIVERY_HEADER = 'x-github-delivery';
-const GITHUB_PROVIDER = 'github';
 
 export interface CreateGithubWebhookRoutesOptions {
   coreDb: () => NodePgDatabase<Record<string, unknown>>;
+  publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
@@ -75,18 +75,6 @@ export function createGithubWebhookRoutes(options: CreateGithubWebhookRoutesOpti
         return {error: 'invalid signature'};
       }
 
-      if (event !== 'push') {
-        await options.coreDb().transaction(async (tx) => {
-          await options.recordDeliveryOnly({
-            tx,
-            provider: GITHUB_PROVIDER,
-            deliveryId,
-          });
-        });
-        reply.code(204);
-        return null;
-      }
-
       let parsedJson: unknown;
       try {
         parsedJson = JSON.parse(rawBody);
@@ -96,21 +84,13 @@ export function createGithubWebhookRoutes(options: CreateGithubWebhookRoutesOpti
         return {error: 'malformed JSON'};
       }
 
-      const validated = githubPushPayloadSchema.safeParse(parsedJson);
-      if (!validated.success) {
-        logger().warn(
-          {deliveryId, issues: validated.error.issues},
-          'github webhook push payload failed schema validation',
-        );
-        reply.code(400);
-        return {error: 'malformed push payload'};
-      }
-
       await options.coreDb().transaction(async (tx) => {
-        await handleGithubPush({
+        await handleGithubEvent({
           tx,
           deliveryId,
-          payload: validated.data,
+          event,
+          payload: parsedJson,
+          publishIntegrationEventReceived: options.publishIntegrationEventReceived,
           publishSourcePush: options.publishSourcePush,
           recordDeliveryOnly: options.recordDeliveryOnly,
           getIntegrationConnectionById: options.getIntegrationConnectionById,

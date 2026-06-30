@@ -56,6 +56,7 @@ export interface PublishSourcePushParams {
   connectionName: string;
   deliveryId: string;
   receivedAt: string;
+  rawPayload?: unknown;
   push: SourcePushPayload;
 }
 
@@ -91,7 +92,7 @@ export async function publishSourcePush(
         connectionName: params.connectionName,
         deliveryId: params.deliveryId,
         receivedAt: params.receivedAt,
-        payload: params.push,
+        payload: params.rawPayload ?? params.push,
       },
     },
     {
