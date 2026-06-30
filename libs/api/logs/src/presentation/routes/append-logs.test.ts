@@ -1,12 +1,20 @@
 import {Buffer} from 'node:buffer';
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import {AUTH_USER} from '@shipfox/api-auth-context';
+import {getStepByIdForJobExecution} from '@shipfox/api-workflows';
 import {type AuthMethod, closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {endLine, ndjsonBody, outputLine, recordLine} from '#test/fixtures/ndjson.js';
 import {logsRoutes} from './index.js';
 
+vi.mock('@shipfox/api-workflows', () => ({
+  getStepByIdForJobExecution: vi.fn(),
+  getTerminalStepAttemptLogState: vi.fn(),
+}));
+
+const mockedGetStepByIdForJobExecution = vi.mocked(getStepByIdForJobExecution);
 const NDJSON = 'application/x-ndjson';
+const EXECUTION_ID = '00000000-0000-4000-8000-0000000000ee';
 
 // logsRoutes also carries the session-authed read group; register a no-op AUTH_USER method
 // so auth-reference validation passes (these tests only exercise the lease append route).
@@ -17,7 +25,7 @@ function logsUrl(stepId: string, attempt: number, offset: number): string {
 }
 
 function mintTestLeaseToken(jobId = crypto.randomUUID()): Promise<string> {
-  return mintLeaseToken({jobId, executionId: crypto.randomUUID()});
+  return mintLeaseToken({jobId, executionId: EXECUTION_ID});
 }
 
 describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
@@ -30,6 +38,10 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
       swagger: false,
     });
     await app.ready();
+  });
+
+  beforeEach(() => {
+    mockedGetStepByIdForJobExecution.mockResolvedValue({id: crypto.randomUUID()} as never);
   });
 
   afterAll(async () => {
@@ -50,18 +62,43 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
 
   it('accepts an in-order append and returns the committed length', async () => {
     const jobId = crypto.randomUUID();
+    const stepId = crypto.randomUUID();
     const token = await mintTestLeaseToken(jobId);
     const body = ndjsonBody(outputLine('installing\n'));
 
     const res = await app.inject({
       method: 'POST',
-      url: logsUrl(crypto.randomUUID(), 1, 0),
+      url: logsUrl(stepId, 1, 0),
       headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
       payload: body,
     });
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({committed_length: body.length, capped: false});
+    expect(mockedGetStepByIdForJobExecution).toHaveBeenCalledWith({
+      stepId,
+      executionId: EXECUTION_ID,
+    });
+  });
+
+  it('rejects appends for a step outside the leased execution', async () => {
+    const stepId = crypto.randomUUID();
+    const token = await mintTestLeaseToken();
+    mockedGetStepByIdForJobExecution.mockResolvedValue(undefined);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: logsUrl(stepId, 1, 0),
+      headers: {authorization: `Bearer ${token}`, 'content-type': NDJSON},
+      payload: ndjsonBody(outputLine('wrong execution\n')),
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('step-not-found');
+    expect(mockedGetStepByIdForJobExecution).toHaveBeenCalledWith({
+      stepId,
+      executionId: EXECUTION_ID,
+    });
   });
 
   it('acks a re-sent append at an earlier offset', async () => {

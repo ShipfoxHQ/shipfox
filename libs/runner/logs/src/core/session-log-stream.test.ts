@@ -107,14 +107,32 @@ describe('createSessionLogStream', () => {
     expect(data).toContain('***');
   });
 
+  it('replaces rotating secrets without dropping static or added secrets', async () => {
+    const stream = open(4, {secrets: ['static-token']});
+
+    stream.addSecrets(['checkout-token']);
+    stream.setRotatingSecrets(['lease-old']);
+    stream.setRotatingSecrets(['lease-new']);
+    stream.writeEntry('static-token checkout-token lease-old lease-new');
+    await stream.close();
+    stream.dispose();
+
+    const [record] = await readRecords(4);
+    const data = record?.type === 'agent_session' ? record.data : '';
+    expect(data).not.toContain('static-token');
+    expect(data).not.toContain('checkout-token');
+    expect(data).not.toContain('lease-new');
+    expect(data).toContain('lease-old');
+  });
+
   it('ignores an empty entry', async () => {
-    const stream = open(4);
+    const stream = open(5);
 
     stream.writeEntry('');
     await stream.close();
     stream.dispose();
 
-    const records = await readRecords(4);
+    const records = await readRecords(5);
     expect(records).toEqual([{v: 1, ts: 1, type: 'end', total_bytes: 0}]);
   });
 });

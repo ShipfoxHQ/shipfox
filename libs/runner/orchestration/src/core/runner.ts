@@ -140,14 +140,24 @@ export async function runJob(
   const ac = new AbortController();
   currentJobAbortController = ac;
 
-  let currentLeaseToken = job.lease_token;
-  const secrets = [runnerToken(), job.lease_token];
+  const runnerSecret = runnerToken();
+  const initialLeaseToken = job.lease_token;
+  let currentLeaseToken = initialLeaseToken;
+  let previousRenewedLeaseToken: string | undefined;
+  let currentRenewedLeaseToken: string | undefined;
+  const secrets = [runnerSecret, initialLeaseToken];
   const leaseTokenSecretSubscribers = new Set<(secrets: string[]) => void>();
+  const rotatingLeaseSecrets = () =>
+    [previousRenewedLeaseToken, currentRenewedLeaseToken].filter(
+      (secret): secret is string => secret !== undefined,
+    );
   const rememberLeaseToken = (leaseToken: string) => {
     if (leaseToken === currentLeaseToken) return;
+    previousRenewedLeaseToken = currentRenewedLeaseToken;
+    currentRenewedLeaseToken = leaseToken;
     currentLeaseToken = leaseToken;
-    secrets.push(leaseToken);
-    for (const subscriber of leaseTokenSecretSubscribers) subscriber([leaseToken]);
+    secrets.splice(0, secrets.length, runnerSecret, initialLeaseToken, ...rotatingLeaseSecrets());
+    for (const subscriber of leaseTokenSecretSubscribers) subscriber(rotatingLeaseSecrets());
   };
 
   const heartbeatLoop = startHeartbeatLoop(job.job_id, job.lease_token, ac, {

@@ -73,6 +73,7 @@ let createdStreams: Map<string, FakeStream[]>;
 interface FakeStream {
   write: ReturnType<typeof vi.fn>;
   addSecrets: ReturnType<typeof vi.fn>;
+  setRotatingSecrets: ReturnType<typeof vi.fn>;
   writeGroupStart: ReturnType<typeof vi.fn>;
   writeGroupEnd: ReturnType<typeof vi.fn>;
   writeGroup: ReturnType<typeof vi.fn>;
@@ -93,6 +94,9 @@ function makeFakeStream(
     }),
     addSecrets: vi.fn(() => {
       events.push(`secrets:${label}`);
+    }),
+    setRotatingSecrets: vi.fn(() => {
+      events.push(`rotatingSecrets:${label}`);
     }),
     writeGroupStart: vi.fn(() => {
       events.push(`groupStart:${label}`);
@@ -273,7 +277,7 @@ describe('runJobSteps', () => {
       },
     });
 
-    expect(streamFor(run.id).addSecrets).toHaveBeenCalledWith(['lease-token-next']);
+    expect(streamFor(run.id).setRotatingSecrets).toHaveBeenCalledWith(['lease-token-next']);
     expect(publishSecrets).toBeUndefined();
   });
 

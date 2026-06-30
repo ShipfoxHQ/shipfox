@@ -161,12 +161,28 @@ describe('runJob', () => {
     await runJob(JOB, WORKSPACE_ROOT);
 
     const leaseTokenSource = mockCreateLeaseClient.mock.calls[0]?.[0];
+    const stepParams = mockRunJobSteps.mock.calls[0]?.[0];
     expect(typeof leaseTokenSource).toBe('function');
     expect((leaseTokenSource as () => string)()).toBe(JOB.lease_token);
+    expect(stepParams?.secrets).toEqual(['runner-token', JOB.lease_token]);
     const heartbeatOptions = mockStartHeartbeatLoop.mock.calls[0]?.[3];
     heartbeatOptions?.onLeaseTokenRenewed?.('lease-next');
     expect((leaseTokenSource as () => string)()).toBe('lease-next');
-    expect(observedSecrets).toEqual([['lease-next']]);
+    heartbeatOptions?.onLeaseTokenRenewed?.('lease-third');
+    heartbeatOptions?.onLeaseTokenRenewed?.('lease-fourth');
+
+    expect((leaseTokenSource as () => string)()).toBe('lease-fourth');
+    expect(observedSecrets).toEqual([
+      ['lease-next'],
+      ['lease-next', 'lease-third'],
+      ['lease-third', 'lease-fourth'],
+    ]);
+    expect(stepParams?.secrets).toEqual([
+      'runner-token',
+      JOB.lease_token,
+      'lease-third',
+      'lease-fourth',
+    ]);
   });
 
   it('cleans up the per-job cwd when the step loop throws', async () => {

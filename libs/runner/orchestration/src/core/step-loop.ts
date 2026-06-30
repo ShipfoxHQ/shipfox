@@ -207,12 +207,21 @@ export async function executeStep(params: {
   let runStream: StepLogStream | undefined;
   let unsubscribeSecrets: (() => void) | undefined;
   const registerStreamSecrets = (
-    target: {addSecrets?: (secrets: string[]) => void} | undefined,
+    target:
+      | {
+          addSecrets?: (secrets: string[]) => void;
+          setRotatingSecrets?: (secrets: string[]) => void;
+        }
+      | undefined,
   ) => {
-    if (!target?.addSecrets) return;
-    unsubscribeSecrets = subscribeSecrets?.((registeredSecrets) =>
-      target.addSecrets?.(registeredSecrets),
-    );
+    if (!target?.setRotatingSecrets && !target?.addSecrets) return;
+    unsubscribeSecrets = subscribeSecrets?.((registeredSecrets) => {
+      if (target.setRotatingSecrets) {
+        target.setRotatingSecrets(registeredSecrets);
+        return;
+      }
+      target.addSecrets?.(registeredSecrets);
+    });
   };
   try {
     // Both step kinds capture to the same per-attempt stream contract (one stream per

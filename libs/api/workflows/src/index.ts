@@ -47,6 +47,7 @@ export {setSourceControl} from '#core/source-control.js';
 export {
   closeDb,
   db,
+  getStepByIdForJobExecution,
   getTerminalStepAttemptLogState,
   migrationsPath,
   type TerminalStepAttemptLogState,
