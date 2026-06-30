@@ -1,5 +1,4 @@
 import type {
-  JobStatusDto,
   RunAttemptDto,
   RunAttemptsResponseDto,
   RunDetailResponseDto,
@@ -204,32 +203,20 @@ export function workflowStepAttempt(overrides: Partial<StepAttemptDto> = {}): Wo
 }
 
 function workflowJobDurationDto(
-  job: Pick<RunJobDetailDto, 'status' | 'queued_at' | 'started_at' | 'finished_at'>,
+  job: Pick<RunJobDetailDto, 'queued_at' | 'started_at' | 'finished_at'>,
 ): RunJobDetailDto['duration'] {
-  const terminal = TERMINAL_JOB_STATUSES.has(job.status);
-
-  if (job.started_at === null && !terminal && job.queued_at !== null) {
-    return {kind: 'queued', from_iso: job.queued_at};
-  }
-
   if (job.started_at !== null && job.finished_at !== null) {
     return {kind: 'finished', from_iso: job.started_at, to_iso: job.finished_at};
   }
 
-  if (job.started_at !== null && !terminal) {
+  if (job.started_at !== null) {
     return {kind: 'running', from_iso: job.started_at};
   }
 
+  if (job.queued_at !== null) return {kind: 'queued', from_iso: job.queued_at};
+
   return {kind: 'none'};
 }
-
-const TERMINAL_JOB_STATUSES = new Set<JobStatusDto>([
-  'succeeded',
-  'failed',
-  'cancelled',
-  'skipped',
-]);
-
 export function sequencedWorkflowRunDto(
   status: RunStatusDto,
   name: string,

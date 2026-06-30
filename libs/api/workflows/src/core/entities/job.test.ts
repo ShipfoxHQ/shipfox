@@ -32,16 +32,16 @@ describe('jobDurationFor', () => {
     expect(result).toEqual({kind: 'none'});
   });
 
-  it('returns none for terminal jobs cancelled before dispatch', () => {
+  it('anchors jobs without startedAt on queuedAt regardless of status', () => {
     const result = jobDurationFor(job({status: 'cancelled', queuedAt: QUEUED, startedAt: null}));
 
-    expect(result).toEqual({kind: 'none'});
+    expect(result).toEqual({kind: 'queued', from: QUEUED});
   });
 
-  it('returns none for terminal jobs without finishedAt', () => {
+  it('anchors jobs without finishedAt on startedAt regardless of status', () => {
     const result = jobDurationFor(job({status: 'failed', startedAt: STARTED, finishedAt: null}));
 
-    expect(result).toEqual({kind: 'none'});
+    expect(result).toEqual({kind: 'running', from: STARTED});
   });
 
   it('returns none before queue or claim events project', () => {

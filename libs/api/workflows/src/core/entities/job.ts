@@ -52,21 +52,20 @@ export function isJobTerminal(status: JobStatus): status is TerminalJobStatus {
 }
 
 export function jobDurationFor(
-  job: Pick<Job, 'status' | 'queuedAt' | 'startedAt' | 'finishedAt'>,
+  job: Pick<Job, 'queuedAt' | 'startedAt' | 'finishedAt'>,
 ): JobDuration {
-  const {status, queuedAt, startedAt, finishedAt} = job;
-  const terminal = isJobTerminal(status);
-
-  if (startedAt === null && !terminal && queuedAt !== null) {
-    return {kind: 'queued', from: queuedAt};
-  }
+  const {queuedAt, startedAt, finishedAt} = job;
 
   if (startedAt !== null && finishedAt !== null) {
     return {kind: 'finished', from: startedAt, to: finishedAt};
   }
 
-  if (startedAt !== null && !terminal) {
+  if (startedAt !== null) {
     return {kind: 'running', from: startedAt};
+  }
+
+  if (queuedAt !== null) {
+    return {kind: 'queued', from: queuedAt};
   }
 
   return {kind: 'none'};
