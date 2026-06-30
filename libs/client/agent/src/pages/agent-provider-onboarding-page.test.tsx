@@ -10,6 +10,7 @@ import {
   agentProviderCatalogResponse,
   agentProviderConfig,
   agentProviderEntry,
+  testAgentProviderEntries,
 } from '#test/fixtures/agent-providers.js';
 import {AgentProviderOnboardingPage} from './agent-provider-onboarding-page.js';
 
@@ -33,29 +34,6 @@ function renderOnboarding(element: ReactElement) {
       {element}
       <Toaster />
     </QueryClientProvider>,
-  );
-}
-
-const TEST_PROVIDER_IDS = [
-  'anthropic',
-  'openai',
-  'deepseek',
-  'nvidia',
-  'google',
-  'mistral',
-  'groq',
-  'cerebras',
-  'xai',
-] as const;
-
-function supportedProviderEntries(count: number) {
-  return TEST_PROVIDER_IDS.slice(0, count).map((id, index) =>
-    agentProviderEntry({
-      id,
-      label: `Provider ${index}`,
-      default_model: `model-${index}`,
-      models: [{id: `model-${index}`, label: `Model ${index}`}],
-    }),
   );
 }
 
@@ -115,7 +93,7 @@ describe('AgentProviderOnboardingPage', () => {
       baseUrl: 'https://api.example.test',
       fetchImpl: vi
         .fn()
-        .mockResolvedValue(jsonResponse(agentProviderCatalogResponse(supportedProviderEntries(9)))),
+        .mockResolvedValue(jsonResponse(agentProviderCatalogResponse(testAgentProviderEntries(9)))),
     });
 
     renderOnboarding(

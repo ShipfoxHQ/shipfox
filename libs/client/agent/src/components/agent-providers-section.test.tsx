@@ -10,6 +10,7 @@ import {
   agentProviderConfig,
   agentProviderConfigsResponse,
   agentProviderEntry,
+  testAgentProviderEntries,
   unsupportedAgentProviderEntry,
 } from '#test/fixtures/agent-providers.js';
 import {WorkspaceAgentProvidersSection} from './agent-providers-section.js';
@@ -37,29 +38,6 @@ const ANTHROPIC_FINGERPRINT_RE = /sk-ant-s\.\.\.abcd/;
 const OPENAI_FINGERPRINT_RE = /sk-proj\.\.\.abcd/;
 function requestPath(input: RequestInfo | URL): string {
   return new URL((input as Request).url).pathname;
-}
-
-const TEST_PROVIDER_IDS = [
-  'anthropic',
-  'openai',
-  'deepseek',
-  'nvidia',
-  'google',
-  'mistral',
-  'groq',
-  'cerebras',
-  'xai',
-] as const;
-
-function availableProviderEntries(count: number) {
-  return TEST_PROVIDER_IDS.slice(0, count).map((id, index) =>
-    agentProviderEntry({
-      id,
-      label: `Provider ${index}`,
-      default_model: `model-${index}`,
-      models: [{id: `model-${index}`, label: `Model ${index}`}],
-    }),
-  );
 }
 
 async function openProviderActions(user: ReturnType<typeof userEvent.setup>, label: string) {
@@ -110,7 +88,7 @@ describe('WorkspaceAgentProvidersSection', () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       if (requestPath(input).endsWith('/agent/provider-catalog')) {
         return Promise.resolve(
-          jsonResponse(agentProviderCatalogResponse(availableProviderEntries(9))),
+          jsonResponse(agentProviderCatalogResponse(testAgentProviderEntries(9))),
         );
       }
       return Promise.resolve(
@@ -139,7 +117,7 @@ describe('WorkspaceAgentProvidersSection', () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       if (requestPath(input).endsWith('/agent/provider-catalog')) {
         return Promise.resolve(
-          jsonResponse(agentProviderCatalogResponse(availableProviderEntries(8))),
+          jsonResponse(agentProviderCatalogResponse(testAgentProviderEntries(8))),
         );
       }
       return Promise.resolve(

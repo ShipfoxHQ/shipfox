@@ -26,6 +26,8 @@ export function AvailableProvidersGrid({
   );
   const providerListLabel =
     trimmedSearch !== '' ? 'Available providers matching search' : 'Available providers';
+  const resultCountText =
+    trimmedSearch === '' ? '' : providerResultCountText(filteredEntries.length, trimmedSearch);
 
   function clearSearch() {
     setSearch('');
@@ -60,11 +62,9 @@ export function AvailableProvidersGrid({
         <NoProviderSearchResults search={trimmedSearch} onClear={clearSearch} />
       )}
 
-      {trimmedSearch !== '' ? (
-        <p role="status" aria-live="polite" className="sr-only">
-          {providerResultCountText(filteredEntries.length, trimmedSearch)}
-        </p>
-      ) : null}
+      <p role="status" aria-live="polite" className="sr-only">
+        {resultCountText}
+      </p>
     </div>
   );
 }
