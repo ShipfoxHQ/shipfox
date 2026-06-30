@@ -27,9 +27,7 @@ export interface CreateInvitationParams {
   invitedByDisplay?: string | null;
 }
 
-function generateName(): string {
-  return `E2E Workspace ${crypto.randomUUID()}`;
-}
+const DEFAULT_WORKSPACE_NAME = 'E2E Workspace';
 
 export async function createWorkspace(
   params: CreateWorkspaceParams,
@@ -38,7 +36,7 @@ export async function createWorkspace(
     user_id: params.userId,
     user_email: params.userEmail,
     user_name: params.userName,
-    name: params.name ?? generateName(),
+    name: params.name ?? DEFAULT_WORKSPACE_NAME,
   };
   return await requestJson<E2eCreateWorkspaceResponseDto>('post', '/__e2e/workspaces', {
     json: body,

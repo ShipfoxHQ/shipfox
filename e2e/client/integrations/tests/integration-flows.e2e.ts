@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto';
 import {argosScreenshot, type Page} from '@shipfox/playwright';
 import {expect, test} from './test.js';
 
@@ -39,7 +38,7 @@ test('connecting Debug from onboarding flows into project creation', async ({pag
   // populated the projects + source-connections caches with empty data for this
   // workspace), then clicks Debug to create their first connection.
   await page.goto('/');
-  await page.getByLabel('Workspace name').fill(`E2E Workspace ${randomUUID()}`);
+  await page.getByLabel('Workspace name').fill('E2E Workspace');
   await page.getByRole('button', {name: 'Create workspace'}).click();
   await expect(page).toHaveURL(WORKSPACE_INTEGRATIONS_URL_RE);
   await expect(page.getByRole('heading', {name: 'Install source control'})).toBeVisible();
