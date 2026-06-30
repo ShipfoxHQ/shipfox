@@ -208,23 +208,19 @@ function workflowJobDurationDto(
 ): RunJobDetailDto['duration'] {
   const terminal = TERMINAL_JOB_STATUSES.has(job.status);
 
-  if (job.started_at === null) {
-    if (!terminal && job.queued_at !== null) {
-      return {kind: 'queued', from_iso: job.queued_at};
-    }
-
-    return {kind: 'none'};
+  if (job.started_at === null && !terminal && job.queued_at !== null) {
+    return {kind: 'queued', from_iso: job.queued_at};
   }
 
-  if (job.finished_at !== null) {
+  if (job.started_at !== null && job.finished_at !== null) {
     return {kind: 'finished', from_iso: job.started_at, to_iso: job.finished_at};
   }
 
-  if (terminal) {
-    return {kind: 'none'};
+  if (job.started_at !== null && !terminal) {
+    return {kind: 'running', from_iso: job.started_at};
   }
 
-  return {kind: 'running', from_iso: job.started_at};
+  return {kind: 'none'};
 }
 
 const TERMINAL_JOB_STATUSES = new Set<JobStatusDto>([
