@@ -26,7 +26,7 @@ const dockerTemplateSchema = z.object({
   labels: z.array(z.string()).min(1),
   image: z.string().trim().min(1),
   cpu: z.number().positive(),
-  memory: z.string().regex(MEMORY_PATTERN, 'must be a size like "4GiB", "512m", or "2g"'),
+  memory: z.string().regex(MEMORY_PATTERN, 'must be a size like "4GiB", "512m", "2g", or "512"'),
   max_concurrency: z.number().int().positive().max(MAX_TEMPLATE_CONCURRENCY),
 });
 

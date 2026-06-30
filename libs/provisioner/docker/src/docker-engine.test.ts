@@ -1,5 +1,5 @@
 import {Readable} from 'node:stream';
-import {createDockerEngine} from '#docker-engine.js';
+import {createDockerEngine, dockerOptionsForHost} from '#docker-engine.js';
 
 describe('createDockerEngine', () => {
   it('pulls an image when absent and skips pull when present', async () => {
@@ -71,6 +71,13 @@ describe('createDockerEngine', () => {
         memoryBytes: 1,
       }),
     ).rejects.toMatchObject({reason: 'name-conflict'});
+  });
+
+  it('preserves image-not-found for image 404s', async () => {
+    const docker = fakeDocker({pullError: statusError(404), missingImages: new Set(['missing'])});
+    const engine = createDockerEngine({docker: docker as never});
+
+    await expect(engine.ensureImage('missing')).rejects.toMatchObject({reason: 'image-not-found'});
   });
 
   it('maps connection errors to daemon-unreachable', async () => {
@@ -146,6 +153,21 @@ describe('createDockerEngine', () => {
 
     expect(docker.removed).toEqual(['runner-1']);
   });
+
+  it.each([
+    ['unix:///var/run/docker.sock', {socketPath: '/var/run/docker.sock'}],
+    ['tcp://127.0.0.1:2375', {protocol: 'http', host: '127.0.0.1', port: 2375}],
+    [
+      'https://docker.example.test:2376',
+      {protocol: 'https', host: 'docker.example.test', port: 2376},
+    ],
+    ['ssh://docker.example.test:22', {protocol: 'ssh', host: 'docker.example.test', port: 22}],
+    ['docker.example.test', {host: 'docker.example.test'}],
+  ])('parses Docker host %s', (host, expected) => {
+    const result = dockerOptionsForHost(host);
+
+    expect(result).toEqual(expected);
+  });
 });
 
 function fakeDocker(
@@ -153,6 +175,7 @@ function fakeDocker(
     missingImages?: Set<string>;
     createError?: Error;
     startError?: Error;
+    pullError?: Error;
     listError?: Error;
     containers?: unknown[];
     inspectById?: Map<string, unknown>;
@@ -185,6 +208,7 @@ function fakeDocker(
       },
     }),
     pull: (image: string) => {
+      if (options.pullError) return Promise.reject(options.pullError);
       pulled.push(image);
       return Promise.resolve(Readable.from([]));
     },

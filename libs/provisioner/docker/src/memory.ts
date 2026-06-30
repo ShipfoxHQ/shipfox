@@ -1,4 +1,4 @@
-export const MEMORY_PATTERN = /^\d+(\.\d+)?\s*(b|kb|mb|gb|tb|kib|mib|gib|tib|k|m|g|t)$/i;
+export const MEMORY_PATTERN = /^\d+(\.\d+)?\s*(b|kb|mb|gb|tb|kib|mib|gib|tib|k|m|g|t)?$/i;
 const MEMORY_PARTS_PATTERN = /^(\d+(?:\.\d+)?)\s*([a-z]+)?$/i;
 
 const UNITS: Record<string, number> = {

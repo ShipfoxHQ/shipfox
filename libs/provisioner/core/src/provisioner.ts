@@ -142,8 +142,10 @@ export async function runProvisionerIteration<Spec>(
   let maxReservations = config.SHIPFOX_PROVISIONER_MAX_RESERVATIONS;
 
   try {
-    await deps.adapter.onTick?.();
-    degraded = false;
+    if (deps.adapter.onTick) {
+      await deps.adapter.onTick();
+      degraded = false;
+    }
   } catch (error) {
     degraded = true;
     maxReservations = 0;

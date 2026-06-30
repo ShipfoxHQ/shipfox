@@ -120,7 +120,7 @@ templates:
     expect(() => loadDockerTemplates(path)).toThrow('memory');
   });
 
-  it('throws on a memory value with no unit', () => {
+  it('accepts a memory value with no unit as bytes', () => {
     const path = writeTemplates(`
 templates:
   t:
@@ -131,7 +131,8 @@ templates:
     max_concurrency: 1
 `);
 
-    expect(() => loadDockerTemplates(path)).toThrow('memory');
+    const [template] = loadDockerTemplates(path);
+    expect(template?.spec.memory).toBe('512');
   });
 
   it('throws on a label that cannot be a runner label', () => {

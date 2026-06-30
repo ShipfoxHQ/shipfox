@@ -88,6 +88,26 @@ describe('runProvisionerIteration', () => {
     expect(result).toEqual({nextInterval: 1500, degraded: true});
   });
 
+  it('keeps degraded mode when no observe hook is available', async () => {
+    const {client, pollBodies} = harness({response: {stats: [], reservations: []}});
+    const adapter: ProvisionerAdapter<null> = {
+      loadTemplates: () => Promise.resolve([template]),
+      launch: () => Promise.resolve(),
+    };
+
+    const result = await runProvisionerIteration({
+      adapter,
+      client,
+      templates: [template],
+      tracker: createInMemoryTracker(),
+      currentInterval: 1000,
+      degraded: true,
+    });
+
+    expect(pollBodies[0]?.max_reservations).toBe(0);
+    expect(result).toEqual({nextInterval: 1500, degraded: true});
+  });
+
   it('backs off when every attempted launch fails', async () => {
     const {client} = harness({response: {stats: [], reservations: [reservation(2)]}});
     const adapter: ProvisionerAdapter<null> = {

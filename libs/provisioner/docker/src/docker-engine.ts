@@ -65,7 +65,7 @@ export interface CreateDockerEngineOptions {
 }
 
 export function createDockerEngine(options: CreateDockerEngineOptions = {}): DockerEngine {
-  const docker = options.docker ?? new Docker(options.host ? {host: options.host} : {});
+  const docker = options.docker ?? new Docker(dockerOptionsForHost(options.host));
 
   return {
     async ensureImage(image) {
@@ -238,9 +238,39 @@ function mapError(
   if (error instanceof DockerEngineError) return error;
   if (isConnectionError(error))
     return new DockerEngineError('daemon-unreachable', message, {cause: error});
-  if (isNotFound(error)) return new DockerEngineError('not-found', message, {cause: error});
+  if (isNotFound(error))
+    return new DockerEngineError(fallback === 'image-not-found' ? fallback : 'not-found', message, {
+      cause: error,
+    });
   if (isConflict(error)) return new DockerEngineError('name-conflict', message, {cause: error});
   return new DockerEngineError(fallback, message, {cause: error});
+}
+
+export function dockerOptionsForHost(host: string | undefined): Docker.DockerOptions {
+  if (!host) return {};
+  if (host.startsWith('unix://')) return {socketPath: new URL(host).pathname};
+
+  try {
+    const url = new URL(host);
+    if (url.protocol === 'tcp:' || url.protocol === 'http:' || url.protocol === 'https:') {
+      return {
+        protocol: url.protocol === 'https:' ? 'https' : 'http',
+        host: url.hostname,
+        ...(url.port ? {port: Number(url.port)} : {}),
+      };
+    }
+    if (url.protocol === 'ssh:') {
+      return {
+        protocol: 'ssh',
+        host: url.hostname,
+        ...(url.port ? {port: Number(url.port)} : {}),
+      };
+    }
+  } catch {
+    return {host};
+  }
+
+  return {host};
 }
 
 function isConnectionError(error: unknown): boolean {
