@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import {agentProviderQueryKeys, dismissAgentProviderOnboarding} from '@shipfox/client-agent';
 import {configureApiClient} from '@shipfox/client-api';
 import {integrationsQueryKeys} from '@shipfox/client-integrations';
 import {FullPageLoader} from '@shipfox/react-ui';
@@ -50,8 +51,11 @@ function sourceConnection(overrides: {lifecycle_status?: string} = {}) {
 interface SetupFetchOptions {
   projects?: unknown[];
   connections?: unknown[];
+  providerConfigs?: unknown[];
+  defaultProviderId?: string | null;
   projectsFail?: boolean;
   connectionsFail?: boolean;
+  providerConfigsFail?: boolean;
   projectsPending?: boolean;
 }
 
@@ -59,8 +63,11 @@ function setupFetch(options: SetupFetchOptions = {}) {
   const {
     projects = [],
     connections = [],
+    providerConfigs = [agentProviderConfig()],
+    defaultProviderId = 'anthropic',
     projectsFail = false,
     connectionsFail = false,
+    providerConfigsFail = false,
     projectsPending = false,
   } = options;
 
@@ -75,6 +82,13 @@ function setupFetch(options: SetupFetchOptions = {}) {
       if (connectionsFail)
         return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
       return Promise.resolve(jsonResponse({connections}));
+    }
+    if (url.endsWith('/agent/providers')) {
+      if (providerConfigsFail)
+        return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
+      return Promise.resolve(
+        jsonResponse({configs: providerConfigs, default_provider_id: defaultProviderId}),
+      );
     }
     return Promise.resolve(jsonResponse({}, {status: 404}));
   });
@@ -107,9 +121,11 @@ function renderSetupRoute(
     });
   const routeTree = rootRoute.addChildren([
     guardedRoute('/workspaces/$wid', 'Workspace home'),
+    guardedRoute('/workspaces/$wid/agent-provider', 'Agent provider onboarding'),
     guardedRoute('/workspaces/$wid/integrations', 'VCS onboarding'),
     guardedRoute('/workspaces/$wid/integrations/debug', 'Debug install'),
     guardedRoute('/workspaces/$wid/projects/new', 'Create project'),
+    guardedRoute('/workspaces/$wid/settings/agent-providers', 'Settings agent providers'),
     guardedRoute('/workspaces/$wid/settings/integrations', 'Settings integrations'),
   ]);
   const router = createRouter({
@@ -145,6 +161,16 @@ function projectStub() {
   return {id: 'project-1', workspace_id: WORKSPACE_ID, name: 'Platform'};
 }
 
+function agentProviderConfig() {
+  return {
+    provider_id: 'anthropic',
+    default_model: null,
+    key_fingerprints: {api_key: 'sk-ant-s...abcd'},
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
 function calledUrls(fetchImpl: ReturnType<typeof setupFetch>) {
   return fetchImpl.mock.calls.map(([input]) =>
     input instanceof Request ? input.url : String(input),
@@ -152,6 +178,10 @@ function calledUrls(fetchImpl: ReturnType<typeof setupFetch>) {
 }
 
 describe('workspace setup route hook', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   test('renders a loader while the project existence query is pending', async () => {
     renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, setupFetch({projectsPending: true}));
 
@@ -221,6 +251,87 @@ describe('workspace setup route hook', () => {
 
     expect(await screen.findByText('Create project')).toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
+  });
+
+  test('sends a source-connected workspace with no provider config to provider onboarding', async () => {
+    renderSetupRoute(
+      `/workspaces/${WORKSPACE_ID}/integrations`,
+      setupFetch({
+        connections: [sourceConnection()],
+        providerConfigs: [],
+        defaultProviderId: null,
+      }),
+    );
+
+    expect(await screen.findByText('Agent provider onboarding')).toBeInTheDocument();
+    expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
+  });
+
+  test('keeps the provider onboarding route available while provider setup is pending', async () => {
+    renderSetupRoute(
+      `/workspaces/${WORKSPACE_ID}/agent-provider`,
+      setupFetch({
+        connections: [sourceConnection()],
+        providerConfigs: [],
+        defaultProviderId: null,
+      }),
+    );
+
+    expect(await screen.findByText('Agent provider onboarding')).toBeInTheDocument();
+    expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
+  });
+
+  test('keeps agent provider settings available before first project creation', async () => {
+    renderSetupRoute(
+      `/workspaces/${WORKSPACE_ID}/settings/agent-providers`,
+      setupFetch({
+        connections: [sourceConnection()],
+        providerConfigs: [],
+        defaultProviderId: null,
+      }),
+    );
+
+    expect(await screen.findByText('Settings agent providers')).toBeInTheDocument();
+    expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
+  });
+
+  test('uses a dismissed provider step without fetching provider configs', async () => {
+    const fetchImpl = setupFetch({connections: [sourceConnection()]});
+    dismissAgentProviderOnboarding(WORKSPACE_ID);
+
+    renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, fetchImpl);
+
+    expect(await screen.findByText('Create project')).toBeInTheDocument();
+    expect(calledUrls(fetchImpl).some((url) => url.endsWith('/agent/providers'))).toBe(false);
+  });
+
+  test('uses cached provider config state when the provider config refetch fails', async () => {
+    const fetchImpl = setupFetch({connections: [sourceConnection()], providerConfigsFail: true});
+
+    renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, fetchImpl, {
+      seedQueryClient: (queryClient) => {
+        queryClient.setQueryData(agentProviderQueryKeys.configs(WORKSPACE_ID), {
+          configs: [agentProviderConfig()],
+          default_provider_id: 'anthropic',
+        });
+      },
+    });
+
+    expect(await screen.findByText('Create project')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(calledUrls(fetchImpl).some((url) => url.endsWith('/agent/providers'))).toBe(true),
+    );
+    expect(screen.queryByText('Could not load workspace setup')).not.toBeInTheDocument();
+  });
+
+  test('fails open to project creation when provider configs cannot load without cache', async () => {
+    renderSetupRoute(
+      `/workspaces/${WORKSPACE_ID}`,
+      setupFetch({connections: [sourceConnection()], providerConfigsFail: true}),
+    );
+
+    expect(await screen.findByText('Create project')).toBeInTheDocument();
+    expect(screen.queryByText('Could not load workspace setup')).not.toBeInTheDocument();
   });
 
   test('keeps cached source-connection state when the source refetch fails', async () => {

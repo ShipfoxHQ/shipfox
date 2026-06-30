@@ -85,6 +85,11 @@ function createTestRouter(path: string, element: ReactElement) {
     path: '/workspaces/$wid/integrations',
     component: () => <div>Integrations gallery placeholder</div>,
   });
+  const agentProviderSettingsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/settings/agent-providers',
+    component: () => <div>Agent provider settings placeholder</div>,
+  });
   const projectDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/workspaces/$wid/projects/$pid',
@@ -120,6 +125,7 @@ function createTestRouter(path: string, element: ReactElement) {
       workspaceRoute,
       workspaceNewProjectRoute,
       integrationsRoute,
+      agentProviderSettingsRoute,
       projectDetailRoute,
       projectWorkflowsRoute,
     ]),

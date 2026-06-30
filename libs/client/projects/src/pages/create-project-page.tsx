@@ -32,6 +32,7 @@ import {useForm} from '@tanstack/react-form';
 import {type QueryClient, useQueryClient} from '@tanstack/react-query';
 import {Link, Navigate, useNavigate} from '@tanstack/react-router';
 import {useEffect, useRef, useState} from 'react';
+import {AgentProviderReminderBanner} from '#components/agent-provider-reminder-banner.js';
 import {projectsQueryKeys, useCreateProjectMutation} from '#hooks/api/projects.js';
 import {projectErrorCopy} from '#project-error.js';
 
@@ -186,6 +187,8 @@ export function CreateProjectPage() {
           Choose a repository to create a project from.
         </Text>
       </header>
+
+      <AgentProviderReminderBanner workspaceId={workspace.id} />
 
       {connectionsQuery.isError ? (
         <Alert variant="error">

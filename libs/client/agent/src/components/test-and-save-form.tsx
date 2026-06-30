@@ -32,11 +32,13 @@ export function AgentProviderTestAndSaveForm({
   entry,
   existingConfig,
   onSaved,
+  setAsDefaultOnSave = false,
 }: {
   workspaceId: string;
   entry: AgentProviderCatalogEntryDto;
   existingConfig?: AgentProviderConfigDto | undefined;
   onSaved: () => void;
+  setAsDefaultOnSave?: boolean | undefined;
 }) {
   const upsertConfig = useUpsertAgentProviderConfigMutation();
   const [formError, setFormError] = useState<string | undefined>();
@@ -63,6 +65,7 @@ export function AgentProviderTestAndSaveForm({
           body: {
             ...(defaultModel !== undefined ? {default_model: defaultModel} : {}),
             credentials,
+            ...(setAsDefaultOnSave ? {set_as_default: true} : {}),
           },
         });
         onSaved();
