@@ -134,6 +134,22 @@ describe('shell quoting scanner', () => {
     expect(result).toEqual({kind: 'double'});
   });
 
+  it('uses the effective previous character after line continuations', () => {
+    const state = scanShellLiteral('echo \\\n# "comment only"\nprintf ', initialShellScanState);
+
+    const result = classifyShellSite(state);
+
+    expect(result).toEqual({kind: 'unquoted'});
+  });
+
+  it('does not turn a hash after a continued word into a comment', () => {
+    const state = scanShellLiteral('foo\\\n# "unterminated', initialShellScanState);
+
+    const result = classifyShellSite(state);
+
+    expect(result).toEqual({kind: 'double'});
+  });
+
   it('does not mutate arithmetic-square frames from previous scan states', () => {
     const original = scanShellLiteral('$[a[', initialShellScanState);
 

@@ -50,6 +50,11 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
   function consumeShellEscape(): void {
     const result = skipShellEscape(text, index);
     pendingEscape = result.pendingEscape;
+    if (result.continuedLine) {
+      index = result.index;
+      return;
+    }
+
     advance(result.index, result.consumedEscapedCharacter);
   }
 
@@ -356,12 +361,23 @@ function skipShellEscape(
   readonly index: number;
   readonly pendingEscape: boolean;
   readonly consumedEscapedCharacter: boolean;
+  readonly continuedLine: boolean;
 } {
   if (index + 1 >= text.length) {
-    return {index: text.length, pendingEscape: true, consumedEscapedCharacter: false};
+    return {
+      index: text.length,
+      pendingEscape: true,
+      consumedEscapedCharacter: false,
+      continuedLine: false,
+    };
   }
 
-  return {index: index + 2, pendingEscape: false, consumedEscapedCharacter: true};
+  return {
+    index: index + 2,
+    pendingEscape: false,
+    consumedEscapedCharacter: true,
+    continuedLine: text[index + 1] === '\n',
+  };
 }
 
 function topFrame(frames: readonly ShellScanFrame[]): ShellScanFrame | undefined {
