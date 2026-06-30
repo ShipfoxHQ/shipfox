@@ -1,8 +1,3 @@
-// Exercises the real provisioner api-client against a stubbed fetch to prove each call
-// carries the provisioner bearer token, hits the right route, and maps a rejected token
-// to ProvisionerAuthenticationError. createProvisionerClient takes its baseUrl/token as
-// args, so no env is needed.
-
 import {createProvisionerClient, ProvisionerAuthenticationError} from '#api-client.js';
 
 const BASE_URL = 'https://api.test';

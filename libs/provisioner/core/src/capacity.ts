@@ -14,14 +14,12 @@ export function templateAvailableSlots(
   return Math.max(0, template.maxConcurrency - counts.starting - counts.running);
 }
 
-/** One reservation's worth of demand the API has granted to this provisioner. */
 export interface ReservationDemand {
   readonly reservationId: string;
   readonly labels: readonly string[];
   readonly count: number;
 }
 
-/** A decision to start `count` runners for one reservation from one template. */
 export interface PlannedLaunchGroup<Spec = unknown> {
   readonly reservationId: string;
   readonly template: ProvisionerTemplate<Spec>;

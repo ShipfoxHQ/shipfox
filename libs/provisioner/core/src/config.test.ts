@@ -1,8 +1,4 @@
-// config.ts validates the control-loop env and throws fast on a bad value (AC#4). The
-// required connection env (SHIPFOX_API_URL, SHIPFOX_PROVISIONER_TOKEN) is set by
-// test/env.ts; each case stubs one tuning var, re-imports the module, and asserts it
-// rejects with that variable named. No static import of #config.js so each case re-runs
-// validation from a clean module.
+// Import #config.js inside each test so env validation reruns after vi.stubEnv.
 
 describe('provisioner core config validation', () => {
   afterEach(() => {

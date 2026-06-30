@@ -10,13 +10,9 @@ export type ProvisionedRunnerLifecycle = 'starting' | 'running';
  * for demand and reconciliation.
  */
 export interface ProvisionedRunnerTracker {
-  /** Record a runner the loop has just asked the provider to create. */
   recordStarting(args: {provisionedRunnerId: string; templateKey: string}): void;
-  /** Promote a runner to running once the provider confirms it exists. */
   markRunning(provisionedRunnerId: string): void;
-  /** Drop a runner that has stopped, failed, or been terminated. */
   remove(provisionedRunnerId: string): void;
-  /** Current starting/running counts per template key. */
   countsByTemplate(): Map<string, TemplateCounts>;
 }
 

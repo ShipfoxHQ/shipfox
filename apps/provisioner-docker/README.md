@@ -8,7 +8,7 @@ This app is a thin entry point. The control loop lives in
 configuration and launcher live in
 [`@shipfox/provisioner-docker-provider`](../../libs/provisioner/docker).
 
-## What it does (ENG-617)
+## What it does
 
 On each cycle the provisioner:
 
@@ -21,9 +21,9 @@ On each cycle the provisioner:
 It respects each template's `max_concurrency` before requesting reservations, so it
 never reserves more than it can start.
 
-Actually launching the containers, reporting their lifecycle, reconciling on restart,
-and reaping stale containers are handled by the Docker launcher in a follow-up
-(ENG-618); until then the loop logs each planned runner.
+The current launcher logs each planned runner instead of starting containers,
+reporting lifecycle, reconciling on restart, or reaping stale containers. Do not run
+it against a production API until the launcher is configured to create containers.
 
 ## Configuration
 

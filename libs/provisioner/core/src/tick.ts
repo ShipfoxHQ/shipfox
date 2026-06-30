@@ -13,7 +13,6 @@ import type {LaunchRunner, ProvisionerTemplate} from '#types.js';
 /** The API caps reservations per poll at 1000; never advertise a larger appetite. */
 const MAX_RESERVATIONS_PER_POLL = 1000;
 
-/** Builds the env a runner container needs from its template and minted token. */
 export type RunnerEnvFactory<Spec> = (args: {
   template: ProvisionerTemplate<Spec>;
   registrationToken: string;

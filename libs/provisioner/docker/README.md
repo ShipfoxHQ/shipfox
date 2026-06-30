@@ -33,8 +33,8 @@ an invalid field, an unusable label, or an empty template set. Labels are canoni
 (trim, lowercase, dedupe, sort) with the shared runner-label rules. The vCPU count
 becomes the template's selection cost, so generic demand lands on the cheapest box.
 
-## Scope
+## Current behavior
 
-ENG-617 ships configuration, template selection, and minting; the launcher here logs
-each planned runner. Actually running containers, reporting lifecycle, and reconciling
-on restart land in ENG-618.
+This package loads and validates Docker template configuration, joins the shared
+provisioner control loop, and logs each planned runner. It does not start containers,
+report lifecycle, or reconcile existing containers on restart.

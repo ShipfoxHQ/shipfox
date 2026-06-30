@@ -21,16 +21,12 @@ export class ProvisionerAuthenticationError extends Error {
   }
 }
 
-/** Typed transport over the provisioner data-plane routes, authed with one token. */
 export interface ProvisionerClient {
-  /** Confirm the token and return the provisioner/workspace identity it resolves to. */
   getIdentity(): Promise<ProvisionerIdentityResponseDto>;
-  /** Long-poll aggregate demand, advertising capacity and reserving slots. */
   pollDemand(
     body: PollDemandBodyDto,
     options?: {signal?: AbortSignal},
   ): Promise<PollDemandResponseDto>;
-  /** Mint one single-use ephemeral registration token per planned runner. */
   mintRegistrationTokens(
     body: MintRegistrationTokensBatchBodyDto,
     options?: {signal?: AbortSignal},

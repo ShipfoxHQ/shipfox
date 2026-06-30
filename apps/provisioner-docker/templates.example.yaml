@@ -1,7 +1,7 @@
 # Example Docker runner templates for local development.
 # Point SHIPFOX_PROVISIONER_TEMPLATES_FILE at a copy of this file and edit to taste.
-# Each template advertises its labels and capacity to the API; the provisioner starts
-# runner containers from the matching template up to max_concurrency.
+# Each template advertises runner labels and the maximum concurrent containers this
+# provisioner may manage for that template.
 templates:
   docker-ubuntu22-2vcpu:
     labels: [ubuntu22, ubuntu22-2vcpu]
