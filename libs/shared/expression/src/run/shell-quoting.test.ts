@@ -87,12 +87,26 @@ describe('shell quoting scanner', () => {
     ['"$(echo ', 'paren-sub'],
     ['"$[1 + ', 'arith'],
     ['$[ a[0] + ', 'arith'],
-    ['$\\\n(echo ', 'paren-sub'],
-    ['${' + '\\\n' + 'value:-', 'param-brace'],
-    ['$\\\n[1 + ', 'arith'],
-    ['$\\\n(\\\n(1 + ', 'arith'],
     ['`echo ${', 'param-brace'],
   ] as const)('reports the innermost unsafe region for %s', (literal, region) => {
+    const state = scanShellLiteral(literal, initialShellScanState);
+
+    const result = classifyShellSite(state);
+
+    expect(result).toEqual({kind: 'unsafe', region: region satisfies ShellFrame});
+  });
+
+  it.each([
+    ...continuedForms('$((').map((prefix) => [`${prefix}1 + `, 'arith'] as const),
+    ...continuedForms('$[').map((prefix) => [`${prefix}1 + `, 'arith'] as const),
+    ...continuedForms('$(').map((prefix) => [`${prefix}echo `, 'paren-sub'] as const),
+    ...continuedForms('${').map((prefix) => [`${prefix}value:-`, 'param-brace'] as const),
+    ...continuedForms("$'").map((prefix) => [`${prefix}value`, 'dollar-single'] as const),
+    ...continuedForms('$"').map((prefix) => [`${prefix}value`, 'dollar-double'] as const),
+    ...continuedForms('((').map((prefix) => [`${prefix}1 + `, 'arith'] as const),
+    ...continuedForms('<<').map((prefix) => [`cat ${prefix}EOF\n`, 'heredoc'] as const),
+    ...continuedForms('<<-').map((prefix) => [`cat ${prefix}EOF\n`, 'heredoc'] as const),
+  ])('reports unsafe regions through line continuations in %s', (literal, region) => {
     const state = scanShellLiteral(literal, initialShellScanState);
 
     const result = classifyShellSite(state);
@@ -162,3 +176,19 @@ describe('shell quoting scanner', () => {
     expect(original.frames).toEqual([{kind: 'arith-square', bracketDepth: 1}]);
   });
 });
+
+function continuedForms(operator: string): string[] {
+  const forms: string[] = [];
+  const slots = operator.length - 1;
+
+  for (let mask = 1; mask < 1 << slots; mask += 1) {
+    let form = operator[0] ?? '';
+    for (let index = 1; index < operator.length; index += 1) {
+      if ((mask & (1 << (index - 1))) !== 0) form += '\\\n';
+      form += operator[index];
+    }
+    forms.push(form);
+  }
+
+  return forms;
+}
