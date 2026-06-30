@@ -434,6 +434,7 @@ function toDate(value: Date | string): Date {
 }
 
 export async function isJobLeaseActive(params: {
+  jobId?: string;
   executionId: string;
   runnerSessionId: string;
 }): Promise<boolean> {
@@ -444,6 +445,7 @@ export async function isJobLeaseActive(params: {
       and(
         eq(runningJobExecutions.executionId, params.executionId),
         eq(runningJobExecutions.runnerSessionId, params.runnerSessionId),
+        params.jobId === undefined ? undefined : eq(runningJobExecutions.jobId, params.jobId),
       ),
     )
     .limit(1);

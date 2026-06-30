@@ -250,16 +250,24 @@ describe('claimPendingJobExecution', () => {
 
     const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
     const active = await isJobLeaseActive({
+      jobId: created.jobId,
       executionId: claimed?.executionId as string,
       runnerSessionId,
     });
     const stale = await isJobLeaseActive({
+      jobId: created.jobId,
       executionId: created.executionId,
       runnerSessionId: otherRunnerSession.id,
+    });
+    const mismatchedJob = await isJobLeaseActive({
+      jobId: crypto.randomUUID(),
+      executionId: claimed?.executionId as string,
+      runnerSessionId,
     });
 
     expect(active).toBe(true);
     expect(stale).toBe(false);
+    expect(mismatchedJob).toBe(false);
   });
 
   it('returns null when no jobs are pending', async () => {

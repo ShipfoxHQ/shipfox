@@ -1,11 +1,11 @@
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {integrationRouteErrorHandler} from '@shipfox/api-integration-core';
+import {isJobLeaseActive} from '@shipfox/api-runners';
 import {checkoutTokenResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {createJobCheckoutSpec} from '#core/checkout.js';
 import {
   CheckoutIntentUnresolvedError,
-  JobNotActiveError,
   JobNotFoundError,
   WorkflowRunNotFoundError,
 } from '#core/errors.js';
@@ -26,9 +26,6 @@ export const checkoutTokenRoute = defineRoute({
     if (error instanceof JobNotFoundError) {
       throw new ClientError(error.message, 'job-not-found', {status: 404});
     }
-    if (error instanceof JobNotActiveError) {
-      throw new ClientError(error.message, 'job-not-active', {status: 409});
-    }
     if (error instanceof WorkflowRunNotFoundError) {
       throw new ClientError(error.message, 'run-not-found', {status: 404});
     }
@@ -41,6 +38,15 @@ export const checkoutTokenRoute = defineRoute({
   },
   handler: async (request, reply) => {
     const leasedJob = requireLeasedJobContext(request);
+
+    const leaseIsActive = await isJobLeaseActive({
+      jobId: leasedJob.jobId,
+      executionId: leasedJob.executionId,
+      runnerSessionId: leasedJob.runnerSessionId,
+    });
+    if (!leaseIsActive) {
+      throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
+    }
 
     const spec = await createJobCheckoutSpec({
       jobId: leasedJob.jobId,

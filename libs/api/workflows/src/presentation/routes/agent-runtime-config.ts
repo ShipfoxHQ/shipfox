@@ -63,6 +63,7 @@ export const agentRuntimeConfigRoute = defineRoute({
       throw new ClientError('Leased job not found', 'job-not-found', {status: 404});
     }
     const leaseIsActive = await isJobLeaseActive({
+      jobId: leasedJob.jobId,
       executionId: leasedJob.executionId,
       runnerSessionId: leasedJob.runnerSessionId,
     });

@@ -6,7 +6,6 @@ import {projectFactory} from '#test/factories/project.js';
 import {createJobCheckoutSpec, resolveCheckoutIntent} from './checkout.js';
 import {
   CheckoutIntentUnresolvedError,
-  JobNotActiveError,
   JobNotFoundError,
   WorkflowRunNotFoundError,
 } from './errors.js';
@@ -35,31 +34,17 @@ describe('resolveCheckoutIntent', () => {
     await expect(act).rejects.toBeInstanceOf(JobNotFoundError);
   });
 
-  it.each([
-    'succeeded',
-    'failed',
-    'cancelled',
-    'skipped',
-  ] as const)('throws JobNotActiveError when the job is %s (terminal)', async (status) => {
+  it('resolves the checkout target while the parent job projection is still pending', async () => {
     const project = projectFactory.build();
     mockGetProjectById.mockResolvedValue(project);
-    const job = await jobFactory.create({}, {transient: {projectId: project.id, status}});
+    const job = await jobFactory.create(
+      {},
+      {transient: {projectId: project.id, status: 'pending'}},
+    );
 
-    const act = resolveCheckoutIntent(job.id);
+    const intent = await resolveCheckoutIntent(job.id);
 
-    await expect(act).rejects.toBeInstanceOf(JobNotActiveError);
-  });
-
-  it.each([
-    'pending',
-  ] as const)('throws JobNotActiveError when the job is %s (not yet running)', async (status) => {
-    const project = projectFactory.build();
-    mockGetProjectById.mockResolvedValue(project);
-    const job = await jobFactory.create({}, {transient: {projectId: project.id, status}});
-
-    const act = resolveCheckoutIntent(job.id);
-
-    await expect(act).rejects.toBeInstanceOf(JobNotActiveError);
+    expect(intent.connectionId).toBe(project.sourceConnectionId);
   });
 
   it('throws WorkflowRunNotFoundError when the run is missing', async () => {
