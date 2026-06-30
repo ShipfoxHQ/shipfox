@@ -21,6 +21,7 @@ import {
 import {config} from '#config.js';
 
 const JOB_ID = crypto.randomUUID();
+const EXECUTION_ID = crypto.randomUUID();
 const RUN_ID = crypto.randomUUID();
 const STEP_ID = crypto.randomUUID();
 const SESSION_ID = crypto.randomUUID();
@@ -83,6 +84,7 @@ describe('api-client auth contexts', () => {
     const job = await requestJob('session-abc');
 
     expect(job?.job_id).toBe(JOB_ID);
+    expect(job?.execution_id).toBe(EXECUTION_ID);
     expect(job?.run_id).toBe(RUN_ID);
     expect(job?.lease_token).toBe('lease-xyz');
     // The claim is step-less: no job_name / steps are required to parse.
@@ -125,10 +127,11 @@ describe('api-client auth contexts', () => {
   });
 
   it('heartbeat sends the job lease token', async () => {
-    stubFetch(() => jsonResponse({cancel: false}));
+    stubFetch(() => jsonResponse({cancel: false, lease_token: 'lease-next'}));
 
-    await heartbeat(JOB_ID, 'lease-heartbeat');
+    const response = await heartbeat(JOB_ID, 'lease-heartbeat');
 
+    expect(response.lease_token).toBe('lease-next');
     expect(calls[0]?.url).toContain(`runners/jobs/${JOB_ID}/heartbeat`);
     expect(calls[0]?.authorization).toBe('Bearer lease-heartbeat');
   });
@@ -455,6 +458,7 @@ describe('appendStepLogs', () => {
 function claimResponse() {
   return {
     job_id: JOB_ID,
+    execution_id: EXECUTION_ID,
     run_id: RUN_ID,
     lease_token: 'lease-xyz',
   };

@@ -7,7 +7,7 @@ import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
 import {onWorkflowsJobTimedOut} from './on-workflows-job-timed-out.js';
 
 function buildPayload(jobId: string, runId: string): WorkflowsJobTimedOutEvent {
-  return {jobId, runId};
+  return {jobId, executionId: jobId, runId};
 }
 
 describe('onWorkflowsJobTimedOut', () => {

@@ -2,7 +2,7 @@ import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {nextStepResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {JobNotFoundError} from '#core/errors.js';
-import {nextStepForJob} from '#core/job-execution.js';
+import {nextStepForExecution} from '#core/job-execution.js';
 import {toStepDto} from '#presentation/dto/step.js';
 
 export const nextStepRoute = defineRoute({
@@ -24,7 +24,7 @@ export const nextStepRoute = defineRoute({
   handler: async (request) => {
     const leasedJob = requireLeasedJobContext(request);
 
-    const next = await nextStepForJob(leasedJob.jobId);
+    const next = await nextStepForExecution(leasedJob.executionId);
 
     if (next.kind === 'step') {
       // The runner echoes this back on report so a stale report from a superseded

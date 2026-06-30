@@ -119,6 +119,7 @@ function toStepEntries(
       id: `carried-over:${step.id}`,
       stepId: step.id,
       jobId: step.jobId,
+      executionId: step.executionId,
       attempt: step.currentAttempt,
       executionOrder: step.position,
       status: step.status,

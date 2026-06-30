@@ -7,7 +7,8 @@ export const pendingJobs = pgTable(
   {
     id: uuidv7PrimaryKey(),
     workspaceId: uuid('workspace_id').notNull(),
-    jobId: uuid('job_id').notNull().unique(),
+    jobId: uuid('job_id').notNull(),
+    executionId: uuid('execution_id').notNull().defaultRandom().unique(),
     runId: uuid('run_id').notNull(),
     projectId: uuid('project_id').notNull(),
     requiredLabels: text('required_labels').array().notNull(),
@@ -16,6 +17,7 @@ export const pendingJobs = pgTable(
   (table) => [
     index('runners_pending_jobs_created_idx').on(table.createdAt),
     index('runners_pending_jobs_workspace_created_idx').on(table.workspaceId, table.createdAt),
+    index('runners_pending_jobs_job_id_idx').on(table.jobId),
   ],
 );
 

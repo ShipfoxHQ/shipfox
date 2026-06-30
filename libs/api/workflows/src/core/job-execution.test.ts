@@ -504,12 +504,14 @@ describe('step attempts', () => {
 
   test('rejects non-positive attempt rows at the database boundary', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
+    const executionId = steps[0]?.executionId ?? jobId;
 
     await expect(
       db()
         .insert(stepAttemptsTable)
         .values({
           jobId,
+          executionId,
           stepId: steps[0]?.id as string,
           attempt: 0,
           executionOrder: 1,
@@ -520,12 +522,14 @@ describe('step attempts', () => {
 
   test('rejects non-positive execution order rows at the database boundary', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
+    const executionId = steps[0]?.executionId ?? jobId;
 
     await expect(
       db()
         .insert(stepAttemptsTable)
         .values({
           jobId,
+          executionId,
           stepId: steps[0]?.id as string,
           attempt: 1,
           executionOrder: 0,
@@ -536,11 +540,13 @@ describe('step attempts', () => {
 
   test('rejects duplicate execution order rows for the same job', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
+    const executionId = steps[0]?.executionId ?? jobId;
 
     await db()
       .insert(stepAttemptsTable)
       .values({
         jobId,
+        executionId,
         stepId: steps[0]?.id as string,
         attempt: 1,
         executionOrder: 1,
@@ -552,6 +558,7 @@ describe('step attempts', () => {
         .insert(stepAttemptsTable)
         .values({
           jobId,
+          executionId,
           stepId: steps[1]?.id as string,
           attempt: 1,
           executionOrder: 1,
@@ -562,12 +569,14 @@ describe('step attempts', () => {
 
   test('rejects pending attempt rows at the database boundary', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
+    const executionId = steps[0]?.executionId ?? jobId;
 
     await expect(
       db()
         .insert(stepAttemptsTable)
         .values({
           jobId,
+          executionId,
           stepId: steps[0]?.id as string,
           attempt: 1,
           executionOrder: 1,

@@ -4,6 +4,7 @@ import type {
   JobStatusReasonDto,
   RunAttemptDto,
   RunDetailResponseDto,
+  RunExecutionDetailDto,
   RunJobDetailDto,
   RunListResponseDto,
   RunResponseDto,
@@ -85,6 +86,7 @@ export interface WorkflowStepAttempt {
   id: string;
   stepId: string;
   jobId: string;
+  executionId: string;
   attempt: number;
   executionOrder: number;
   status: string;
@@ -101,6 +103,7 @@ export interface WorkflowStepAttempt {
 export interface WorkflowStep {
   id: string;
   jobId: string;
+  executionId: string;
   name: string | null;
   displayName: string;
   sourceLocation: WorkflowStepSourceLocation | null;
@@ -262,6 +265,8 @@ export function toWorkflowRunListPage(dto: RunListResponseDto): WorkflowRunListP
 }
 
 export function toWorkflowJob(dto: RunJobDetailDto): WorkflowJob {
+  const latestExecution = latestWorkflowExecution(dto.executions);
+
   return {
     id: dto.id,
     runId: dto.run_id,
@@ -276,7 +281,7 @@ export function toWorkflowJob(dto: RunJobDetailDto): WorkflowJob {
     queuedAt: dto.queued_at ?? null,
     startedAt: dto.started_at ?? null,
     finishedAt: dto.finished_at ?? null,
-    steps: dto.steps.map(toWorkflowStep),
+    steps: latestExecution?.steps.map(toWorkflowStep) ?? [],
   };
 }
 
@@ -284,6 +289,7 @@ export function toWorkflowStep(dto: RunStepDetailDto): WorkflowStep {
   return {
     id: dto.id,
     jobId: dto.job_id,
+    executionId: dto.execution_id,
     name: dto.name,
     displayName: dto.display_name,
     sourceLocation: dto.source_location ? toWorkflowStepSourceLocation(dto.source_location) : null,
@@ -305,6 +311,7 @@ export function toWorkflowStepAttempt(dto: StepAttemptDto): WorkflowStepAttempt 
     id: dto.id,
     stepId: dto.step_id,
     jobId: dto.job_id,
+    executionId: dto.execution_id,
     attempt: dto.attempt,
     executionOrder: dto.execution_order,
     status: dto.status,
@@ -369,4 +376,13 @@ function stringConfigValue(value: unknown): string | null {
 
   const trimmedValue = value.trim();
   return trimmedValue ? trimmedValue : null;
+}
+
+function latestWorkflowExecution(
+  executions: RunExecutionDetailDto[],
+): RunExecutionDetailDto | undefined {
+  return executions.reduce<RunExecutionDetailDto | undefined>((latest, execution) => {
+    if (!latest || execution.sequence > latest.sequence) return execution;
+    return latest;
+  }, undefined);
 }

@@ -3,6 +3,7 @@ import {stepDtoSchema, stepSourceLocationSchema} from './step.js';
 const baseStep = {
   id: '11111111-1111-4111-8111-111111111111',
   job_id: '22222222-2222-4222-8222-222222222222',
+  execution_id: '33333333-3333-4333-8333-333333333333',
   name: null,
   display_name: 'echo hello',
   status: 'pending',

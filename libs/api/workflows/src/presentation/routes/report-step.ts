@@ -35,7 +35,7 @@ export const reportStepRoute = defineRoute({
     const leasedJob = requireLeasedJobContext(request);
 
     const outcome = await recordStepResult({
-      jobId: leasedJob.jobId,
+      executionId: leasedJob.executionId,
       stepId,
       status: request.body.status,
       error: fromStepErrorDto(request.body.error),

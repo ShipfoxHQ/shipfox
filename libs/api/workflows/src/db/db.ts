@@ -1,12 +1,13 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
+import {jobExecutions} from './schema/job-executions.js';
 import {jobs} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
 import {stepAttempts} from './schema/step-attempts.js';
 import {steps} from './schema/steps.js';
 import {workflowRuns} from './schema/workflow-runs.js';
 
-export const schema = {workflowRuns, jobs, steps, stepAttempts, workflowsOutbox};
+export const schema = {workflowRuns, jobs, jobExecutions, steps, stepAttempts, workflowsOutbox};
 
 let _db: NodePgDatabase<typeof schema> | undefined;
 

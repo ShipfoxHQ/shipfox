@@ -38,6 +38,7 @@ export const requestJobRoute = defineRoute({
 
     return {
       job_id: job.jobId,
+      execution_id: job.executionId,
       run_id: job.runId,
       lease_token: job.leaseToken,
     };

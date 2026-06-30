@@ -22,6 +22,8 @@ export interface Job {
   status: JobStatus;
   statusReason: JobStatusReason | null;
   carriedOver: boolean;
+  success?: string | null;
+  executionTimeoutMs?: number | null;
   dependencies: string[];
   runner: string[] | null;
   position: number;

@@ -22,9 +22,14 @@ import type {
 } from '../entities/workflow-model.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {normalizeEnv} from './normalize-env.js';
+import {normalizeJobSuccess} from './normalize-job-success.js';
 import {normalizeNeeds} from './normalize-needs.js';
 import {normalizeStepGate} from './normalize-step-gate.js';
-import {parseInterpolationField} from './parse-interpolation-field.js';
+import {parseDurationMs} from './parse-duration-ms.js';
+import {
+  parseInterpolationField,
+  rejectUnsupportedInterpolationField,
+} from './parse-interpolation-field.js';
 import {stableId} from './stable-id.js';
 import {issue} from './validation-issue.js';
 
@@ -85,11 +90,23 @@ function normalizeJob(params: {
     path: ['jobs', params.sourceName, 'env'],
     issues: params.issues,
   });
+  const success = normalizeJobSuccess({
+    source: params.job.success,
+    sourceName: params.sourceName,
+    issues: params.issues,
+  });
+  const executionTimeoutMs = parseDurationMs({
+    source: params.job.execution_timeout,
+    path: ['jobs', params.sourceName, 'execution_timeout'],
+    issues: params.issues,
+  });
 
   return {
     id,
     sourceName: params.sourceName,
     runner,
+    ...(success === undefined ? {} : {success}),
+    ...(executionTimeoutMs === undefined ? {} : {executionTimeoutMs}),
     ...jobEnv,
     dependencies,
     steps,
@@ -273,25 +290,24 @@ function normalizeAgentStep(params: {
     path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'prompt'],
     issues: params.issues,
   });
-  const modelTemplate =
-    params.step.model === undefined
-      ? undefined
-      : parseInterpolationField({
-          field: 'agent.model',
-          source: params.step.model,
-          path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
-          issues: params.issues,
-        });
-  const providerTemplate =
+  if (params.step.model !== undefined) {
+    rejectUnsupportedInterpolationField({
+      field: 'agent.model',
+      source: params.step.model,
+      path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
+      issues: params.issues,
+    });
+  }
+  const providerHasInterpolation =
     params.step.provider === undefined
-      ? undefined
-      : parseInterpolationField({
+      ? false
+      : rejectUnsupportedInterpolationField({
           field: 'agent.provider',
           source: params.step.provider,
           path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
           issues: params.issues,
         });
-  if (providerTemplate === undefined) {
+  if (!providerHasInterpolation) {
     validateAgentStep({
       step: params.step,
       sourceName: params.sourceName,
@@ -301,8 +317,6 @@ function normalizeAgentStep(params: {
   }
   const templates = optionalAgentStepTemplates({
     prompt: promptTemplate,
-    model: modelTemplate,
-    provider: providerTemplate,
     name: params.nameTemplate,
   });
 
@@ -414,30 +428,19 @@ function optionalRunStepTemplates(params: {
 
 function optionalAgentStepTemplates(params: {
   prompt: WorkflowFieldTemplate | undefined;
-  model: WorkflowFieldTemplate | undefined;
-  provider: WorkflowFieldTemplate | undefined;
   name: WorkflowFieldTemplate | undefined;
 }):
   | {
       prompt?: WorkflowFieldTemplate;
-      model?: WorkflowFieldTemplate;
-      provider?: WorkflowFieldTemplate;
       name?: WorkflowFieldTemplate;
     }
   | undefined {
-  if (
-    params.prompt === undefined &&
-    params.model === undefined &&
-    params.provider === undefined &&
-    params.name === undefined
-  ) {
+  if (params.prompt === undefined && params.name === undefined) {
     return undefined;
   }
 
   return {
     ...(params.prompt === undefined ? {} : {prompt: params.prompt}),
-    ...(params.model === undefined ? {} : {model: params.model}),
-    ...(params.provider === undefined ? {} : {provider: params.provider}),
     ...(params.name === undefined ? {} : {name: params.name}),
   };
 }

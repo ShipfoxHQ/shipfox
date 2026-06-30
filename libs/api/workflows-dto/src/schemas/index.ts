@@ -53,10 +53,15 @@ export {
   workflowSourceSnapshotSchema,
 } from './run.js';
 export {
+  type JobExecutionDto,
+  jobExecutionDtoSchema,
+  jobExecutionStatusSchema,
   type RunDetailResponseDto,
+  type RunExecutionDetailDto,
   type RunJobDetailDto,
   type RunStepDetailDto,
   runDetailResponseSchema,
+  runExecutionDetailDtoSchema,
   runJobDetailDtoSchema,
   runStepDetailDtoSchema,
 } from './run-detail.js';

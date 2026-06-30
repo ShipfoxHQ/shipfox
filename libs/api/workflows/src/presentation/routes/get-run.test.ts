@@ -107,11 +107,13 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(body.source_snapshot).toBeNull();
     expect(body.jobs).toHaveLength(1);
     expect(body.jobs[0].name).toBe('build');
+    expect(body.jobs[0].executions).toHaveLength(1);
+    const steps = body.jobs[0].executions[0].steps;
     // Synthetic setup step at position 0, then the two user steps.
-    expect(body.jobs[0].steps).toHaveLength(3);
-    expect(body.jobs[0].steps[0].name).toBe('Set up job');
-    expect(body.jobs[0].steps[1].name).toBe('Install');
-    expect(body.jobs[0].steps[2].name).toBeNull();
+    expect(steps).toHaveLength(3);
+    expect(steps[0].name).toBe('Set up job');
+    expect(steps[1].name).toBe('Install');
+    expect(steps[2].name).toBeNull();
     // Timing fields flow through the read model (null on a fresh, unstamped run).
     expect(body).toMatchObject({latest_attempt: 1, started_at: null, finished_at: null});
     expect(body.jobs[0]).toMatchObject({queued_at: null, started_at: null, finished_at: null});
@@ -238,7 +240,11 @@ jobs:
 
     expect(res.statusCode).toBe(200);
     expect(
-      res.json().jobs[0].steps.map((step: {source_location: unknown}) => step.source_location),
+      res
+        .json()
+        .jobs[0].executions[0].steps.map(
+          (step: {source_location: unknown}) => step.source_location,
+        ),
     ).toEqual([null, {start_line: 5, end_line: 6}, {start_line: 7, end_line: 10}]);
   });
 
@@ -292,7 +298,7 @@ jobs:
     const body = res.json();
     // steps[0] is the setup step (reported succeeded above); the failed user step
     // follows. A failed step's error carries the server-derived category 'user'.
-    const responseSteps = body.jobs[0].steps as Array<{
+    const responseSteps = body.jobs[0].executions[0].steps as Array<{
       status: string;
       error: {message: string; exit_code?: number | null; category?: string} | null;
     }>;
@@ -397,7 +403,7 @@ jobs:
     const res = await app.inject({method: 'GET', url: `/api/workflows/runs/${run.id}`});
 
     expect(res.statusCode).toBe(200);
-    const [step0, step1] = res.json().jobs[0].steps;
+    const [step0, step1] = res.json().jobs[0].executions[0].steps;
     expect(step0.current_attempt).toBe(1);
     expect(step0.attempts).toHaveLength(1);
     expect(step0.attempts[0]).toMatchObject({
@@ -469,7 +475,7 @@ jobs:
     const res = await app.inject({method: 'GET', url: `/api/workflows/runs/${run.id}`});
 
     expect(res.statusCode).toBe(200);
-    const [, producer, reviewer] = res.json().jobs[0].steps;
+    const [, producer, reviewer] = res.json().jobs[0].executions[0].steps;
     expect(producer.current_attempt).toBe(2);
     expect(producer.attempts.map((a: {attempt: number}) => a.attempt)).toEqual([1, 2]);
     expect(reviewer.current_attempt).toBe(2);

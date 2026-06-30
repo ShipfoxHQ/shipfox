@@ -2,6 +2,7 @@ import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {index, integer, jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import type {Step} from '#core/entities/step.js';
 import {pgTable} from './common.js';
+import {jobExecutions} from './job-executions.js';
 import {jobs} from './jobs.js';
 
 export const stepStatusEnum = pgEnum('workflows_step_status', [
@@ -19,6 +20,9 @@ export const steps = pgTable(
     jobId: uuid('job_id')
       .notNull()
       .references(() => jobs.id),
+    executionId: uuid('execution_id')
+      .notNull()
+      .references(() => jobExecutions.id),
     name: text('name'),
     displayName: text('display_name').notNull(),
     sourceLocation: jsonb('source_location').$type<Step['sourceLocation']>(),
@@ -36,7 +40,10 @@ export const steps = pgTable(
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
-  (table) => [index('workflows_steps_job_id_idx').on(table.jobId)],
+  (table) => [
+    index('workflows_steps_job_id_idx').on(table.jobId),
+    index('workflows_steps_execution_id_idx').on(table.executionId),
+  ],
 );
 
 export type StepDb = typeof steps.$inferSelect;
@@ -46,6 +53,7 @@ export function toStep(row: StepDb): Step {
   return {
     id: row.id,
     jobId: row.jobId,
+    executionId: row.executionId,
     name: row.name,
     displayName: row.displayName,
     sourceLocation: row.sourceLocation ?? null,

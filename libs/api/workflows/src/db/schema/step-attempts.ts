@@ -3,6 +3,7 @@ import {sql} from 'drizzle-orm';
 import {check, index, integer, jsonb, text, timestamp, unique, uuid} from 'drizzle-orm/pg-core';
 import type {StepAttempt, StepAttemptLogOutcome, StepAttemptStatus} from '#core/entities/step.js';
 import {pgTable} from './common.js';
+import {jobExecutions} from './job-executions.js';
 import {jobs} from './jobs.js';
 import {stepStatusEnum, steps} from './steps.js';
 
@@ -21,6 +22,9 @@ export const stepAttempts = pgTable(
     jobId: uuid('job_id')
       .notNull()
       .references(() => jobs.id),
+    executionId: uuid('execution_id')
+      .notNull()
+      .references(() => jobExecutions.id),
     attempt: integer('attempt').notNull(),
     executionOrder: integer('execution_order').notNull(),
     // Reuses the step status enum, but a row is created only once dispatched, so
@@ -38,11 +42,12 @@ export const stepAttempts = pgTable(
   },
   (table) => [
     unique('workflows_step_attempts_step_id_attempt_uq').on(table.stepId, table.attempt),
-    unique('workflows_step_attempts_job_id_execution_order_uq').on(
-      table.jobId,
+    unique('workflows_step_attempts_execution_id_execution_order_uq').on(
+      table.executionId,
       table.executionOrder,
     ),
     index('workflows_step_attempts_job_id_idx').on(table.jobId),
+    index('workflows_step_attempts_execution_id_idx').on(table.executionId),
     check('workflows_step_attempts_attempt_positive_ck', sql`${table.attempt} > 0`),
     check('workflows_step_attempts_execution_order_positive_ck', sql`${table.executionOrder} > 0`),
     check('workflows_step_attempts_status_not_pending_ck', sql`${table.status} <> 'pending'`),
@@ -61,6 +66,7 @@ export function toStepAttempt(row: StepAttemptDb): StepAttempt {
     id: row.id,
     stepId: row.stepId,
     jobId: row.jobId,
+    executionId: row.executionId,
     attempt: row.attempt,
     executionOrder: row.executionOrder,
     status: row.status as StepAttemptStatus,

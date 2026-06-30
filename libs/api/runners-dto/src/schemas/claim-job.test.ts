@@ -4,6 +4,7 @@ describe('claimedJobResponseSchema', () => {
   it('parses a step-less claim response', () => {
     const parsed = claimedJobResponseSchema.parse({
       job_id: crypto.randomUUID(),
+      execution_id: crypto.randomUUID(),
       run_id: crypto.randomUUID(),
       lease_token: 'lease-abc',
     });

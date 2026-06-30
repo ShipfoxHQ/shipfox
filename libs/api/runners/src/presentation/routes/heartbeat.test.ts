@@ -2,6 +2,7 @@ import {
   createLeaseTokenAuthMethod,
   createRunnerSessionAuthMethod,
   issueJobLeaseToken,
+  verifyJobLeaseToken,
 } from '@shipfox/api-auth';
 import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
 import type {AuthMethod} from '@shipfox/node-fastify';
@@ -58,7 +59,11 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     runnerSessionId = session.id;
   });
 
-  async function claimAvailableJob(): Promise<{jobId: string; leaseToken: string}> {
+  async function claimAvailableJob(): Promise<{
+    jobId: string;
+    executionId: string;
+    leaseToken: string;
+  }> {
     const pending = await pendingJobFactory.create({workspaceId});
     const claimed = await claimJob({
       workspaceId,
@@ -67,7 +72,11 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
       maxClaims: null,
     });
     expect(claimed).not.toBeNull();
-    return {jobId: pending.jobId, leaseToken: claimed?.leaseToken as string};
+    return {
+      jobId: pending.jobId,
+      executionId: claimed?.executionId as string,
+      leaseToken: claimed?.leaseToken as string,
+    };
   }
 
   it('returns 401 without authorization', async () => {
@@ -80,7 +89,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
   });
 
   it('returns 200 + cancel:false on a fresh row', async () => {
-    const {jobId, leaseToken} = await claimAvailableJob();
+    const {jobId, executionId, leaseToken} = await claimAvailableJob();
 
     const res = await app.inject({
       method: 'POST',
@@ -89,11 +98,14 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({cancel: false});
+    const body = res.json<{cancel: boolean; lease_token: string}>();
+    expect(body).toEqual({cancel: false, lease_token: expect.any(String)});
+    const refreshedLease = await verifyJobLeaseToken(body.lease_token);
+    expect(refreshedLease).toMatchObject({jobId, executionId, runnerSessionId});
   });
 
   it('returns 200 + cancel:true after requestJobCancellation', async () => {
-    const {jobId, leaseToken} = await claimAvailableJob();
+    const {jobId, executionId, leaseToken} = await claimAvailableJob();
     await requestJobCancellation({jobId});
 
     const res = await app.inject({
@@ -103,7 +115,10 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({cancel: true});
+    const body = res.json<{cancel: boolean; lease_token: string}>();
+    expect(body).toEqual({cancel: true, lease_token: expect.any(String)});
+    const refreshedLease = await verifyJobLeaseToken(body.lease_token);
+    expect(refreshedLease).toMatchObject({jobId, executionId, runnerSessionId});
   });
 
   it('returns 404 when the jobId is unknown', async () => {

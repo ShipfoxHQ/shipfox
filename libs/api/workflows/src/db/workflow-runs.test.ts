@@ -31,6 +31,7 @@ import {
   createRerunWorkflowRun,
   createWorkflowRun,
   failJobAsTimedOut,
+  getFirstExecutionByJobId,
   getJobsByRunId,
   getLatestAttempt,
   getStepAttempts,
@@ -41,6 +42,7 @@ import {
   listRunAttempts,
   listWorkflowRunsByProject,
   resolveJobAfterLeaseExpiry,
+  updateExecutionStatus,
   updateJobStatus,
   updateWorkflowRunStatus,
 } from './workflow-runs.js';
@@ -1399,6 +1401,11 @@ jobs:
       const [runningJob] = await getJobsByRunId(runningRun.id);
       const [otherWorkspaceJob] = await getJobsByRunId(otherWorkspaceRun.id);
       if (!runningJob || !otherWorkspaceJob) throw new Error('Expected workflow jobs');
+      const runningExecution = await getFirstExecutionByJobId(runningJob.id);
+      const otherWorkspaceExecution = await getFirstExecutionByJobId(otherWorkspaceJob.id);
+      if (!runningExecution || !otherWorkspaceExecution) {
+        throw new Error('Expected workflow job executions');
+      }
       await updateWorkflowRunStatus({
         runId: runningRun.id,
         status: 'running',
@@ -1409,15 +1416,15 @@ jobs:
         status: 'running',
         expectedVersion: otherWorkspaceRun.version,
       });
-      await updateJobStatus({
-        jobId: runningJob.id,
+      await updateExecutionStatus({
+        executionId: runningExecution.id,
         status: 'running',
-        expectedVersion: runningJob.version,
+        expectedVersion: runningExecution.version,
       });
-      await updateJobStatus({
-        jobId: otherWorkspaceJob.id,
+      await updateExecutionStatus({
+        executionId: otherWorkspaceExecution.id,
         status: 'running',
-        expectedVersion: otherWorkspaceJob.version,
+        expectedVersion: otherWorkspaceExecution.version,
       });
 
       const depth = await getWorkflowExecutionDepth({workspaceId});
@@ -2095,6 +2102,8 @@ jobs:
       const runJobs = await getJobsByRunId(run.id);
       const job = runJobs[0];
       expect(job).toBeDefined();
+      const execution = await getFirstExecutionByJobId(job?.id as string);
+      expect(execution).toBeDefined();
 
       const updated = await failJobAsTimedOut({
         jobId: job?.id as string,
@@ -2108,7 +2117,11 @@ jobs:
 
       const outboxRows = await findOutboxForJob(job?.id as string);
       expect(outboxRows).toHaveLength(1);
-      expect(outboxRows[0]?.payload).toEqual({jobId: job?.id, runId: run.id});
+      expect(outboxRows[0]?.payload).toEqual({
+        jobId: job?.id,
+        executionId: execution?.id,
+        runId: run.id,
+      });
     });
 
     test('idempotent retry: row already timed out → returns current version, no second outbox', async () => {

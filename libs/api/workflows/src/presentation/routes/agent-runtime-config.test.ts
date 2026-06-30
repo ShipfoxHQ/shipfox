@@ -8,7 +8,12 @@ import type {StepStatus} from '#core/entities/step.js';
 import {db} from '#db/db.js';
 import {jobs} from '#db/schema/jobs.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
-import {createWorkflowRun, getJobsByRunId, getStepsByJobId} from '#db/workflow-runs.js';
+import {
+  createWorkflowRun,
+  getFirstExecutionByJobId,
+  getJobsByRunId,
+  getStepsByJobId,
+} from '#db/workflow-runs.js';
 import {workflowModel} from '#test/factories/workflow-model.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {leaseTokenRouteGroup} from './index.js';
@@ -343,9 +348,11 @@ async function mintActiveLeaseToken(params: {
   workspaceId?: string;
 }) {
   const runnerSessionId = crypto.randomUUID();
+  const executionId = (await getFirstExecutionByJobId(params.job.id))?.id ?? params.job.id;
   await insertRunningJobLease({
     workspaceId: params.run.workspaceId,
     jobId: params.job.id,
+    executionId,
     runId: params.run.id,
     projectId: params.run.projectId,
     runnerSessionId,
@@ -353,6 +360,7 @@ async function mintActiveLeaseToken(params: {
 
   return await mintLeaseToken({
     jobId: params.job.id,
+    executionId,
     runId: params.run.id,
     projectId: params.run.projectId,
     workspaceId: params.workspaceId ?? params.run.workspaceId,
@@ -363,6 +371,7 @@ async function mintActiveLeaseToken(params: {
 async function insertRunningJobLease(params: {
   workspaceId: string;
   jobId: string;
+  executionId?: string;
   runId: string;
   projectId: string;
   runnerSessionId: string;
@@ -371,6 +380,7 @@ async function insertRunningJobLease(params: {
     INSERT INTO runners_running_jobs (
       workspace_id,
       job_id,
+      execution_id,
       run_id,
       project_id,
       runner_session_id,
@@ -380,6 +390,7 @@ async function insertRunningJobLease(params: {
     VALUES (
       ${params.workspaceId},
       ${params.jobId},
+      ${params.executionId ?? params.jobId},
       ${params.runId},
       ${params.projectId},
       ${params.runnerSessionId},

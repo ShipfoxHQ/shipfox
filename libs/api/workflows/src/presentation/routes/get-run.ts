@@ -2,12 +2,19 @@ import {runDetailResponseSchema} from '@shipfox/api-workflows-dto';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {
+  getExecutionsByRunId,
   getJobsByRunId,
   getLatestAttempt,
   getStepAttemptsByJobIds,
-  getStepsByJobIds,
+  getStepsByExecutionIds,
 } from '#db/index.js';
-import {toJobDto, toRunDto, toStepAttemptDto, toStepDto} from '#presentation/dto/index.js';
+import {
+  toJobDto,
+  toJobExecutionDto,
+  toRunDto,
+  toStepAttemptDto,
+  toStepDto,
+} from '#presentation/dto/index.js';
 import {requireAccessibleRun} from './require-accessible-run.js';
 
 export const getRunRoute = defineRoute({
@@ -28,18 +35,25 @@ export const getRunRoute = defineRoute({
 
     const runJobs = await getJobsByRunId(run.id);
     const jobIds = runJobs.map((j) => j.id);
+    const executions = await getExecutionsByRunId(run.id);
+    const executionIds = executions.map((execution) => execution.id);
     const [allSteps, allAttempts] = await Promise.all([
-      getStepsByJobIds(jobIds),
+      getStepsByExecutionIds(executionIds),
       getStepAttemptsByJobIds(jobIds),
     ]);
 
     const jobDtos = runJobs.map((job) => ({
       ...toJobDto(job),
-      steps: allSteps
-        .filter((s) => s.jobId === job.id)
-        .map((step) => ({
-          ...toStepDto(step),
-          attempts: allAttempts.filter((a) => a.stepId === step.id).map(toStepAttemptDto),
+      executions: executions
+        .filter((execution) => execution.jobId === job.id)
+        .map((execution) => ({
+          ...toJobExecutionDto(execution),
+          steps: allSteps
+            .filter((s) => s.executionId === execution.id)
+            .map((step) => ({
+              ...toStepDto(step),
+              attempts: allAttempts.filter((a) => a.stepId === step.id).map(toStepAttemptDto),
+            })),
         })),
     }));
 

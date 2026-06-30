@@ -913,6 +913,7 @@ function buildStep(overrides: Partial<StepDto> = {}): StepDto {
   return {
     id: '00000000-0000-0000-0000-000000000001',
     job_id: JOB_ID,
+    execution_id: '00000000-0000-0000-0000-000000000003',
     name: 'test-step',
     display_name: displayName,
     source_location: null,

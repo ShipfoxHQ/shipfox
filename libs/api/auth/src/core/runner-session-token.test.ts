@@ -37,6 +37,7 @@ describe('runner-session-token', () => {
   test('rejects a job lease token', async () => {
     const leaseToken = await issueJobLeaseToken({
       jobId: crypto.randomUUID(),
+      executionId: crypto.randomUUID(),
       runId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       workspaceId: crypto.randomUUID(),

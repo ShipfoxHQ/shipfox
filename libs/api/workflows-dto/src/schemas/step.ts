@@ -72,6 +72,7 @@ export type StepSourceLocationDto = z.infer<typeof stepSourceLocationSchema>;
 export const stepDtoSchema = z.object({
   id: z.string().uuid(),
   job_id: z.string().uuid(),
+  execution_id: z.string().uuid(),
   name: z.string().nullable(),
   display_name: z.string(),
   source_location: stepSourceLocationSchema.nullable(),
@@ -151,6 +152,7 @@ export const stepAttemptDtoSchema = z.object({
   id: z.string().uuid(),
   step_id: z.string().uuid(),
   job_id: z.string().uuid(),
+  execution_id: z.string().uuid(),
   attempt: z.number().int().positive(),
   execution_order: z.number().int().positive(),
   status: z.string(),

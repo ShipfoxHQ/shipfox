@@ -8,7 +8,8 @@ export const runningJobs = pgTable(
   {
     id: uuidv7PrimaryKey(),
     workspaceId: uuid('workspace_id').notNull(),
-    jobId: uuid('job_id').notNull().unique(),
+    jobId: uuid('job_id').notNull(),
+    executionId: uuid('execution_id').notNull().defaultRandom().unique(),
     runId: uuid('run_id').notNull(),
     projectId: uuid('project_id').notNull(),
     runnerSessionId: uuid('runner_session_id').notNull(),
@@ -25,6 +26,7 @@ export const runningJobs = pgTable(
     index('runners_running_jobs_provisioned_runner_started_idx')
       .on(table.workspaceId, table.provisionerId, table.provisionedRunnerId, table.startedAt.desc())
       .where(sql`"provisioner_id" IS NOT NULL`),
+    index('runners_running_jobs_job_id_idx').on(table.jobId),
     check(
       'runners_running_jobs_link_ck',
       sql`(${table.provisionerId} IS NULL) = (${table.provisionedRunnerId} IS NULL)`,

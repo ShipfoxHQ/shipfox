@@ -200,6 +200,7 @@ describe('claimPendingJob', () => {
     await db().insert(pendingJobs).values({
       workspaceId,
       jobId: created.jobId,
+      executionId: created.jobId,
       runId: created.runId,
       projectId: created.projectId,
       requiredLabels: created.requiredLabels,
@@ -461,12 +462,14 @@ describe('claimPendingJob', () => {
   it('drops an orphan pending row whose job is already running, without a poison loop', async () => {
     const created = await pendingJobFactory.create({workspaceId});
     const first = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
-    expect(first?.jobId).toBe(created.jobId);
+    if (!first) throw new Error('Expected pending job to be claimed');
+    expect(first.jobId).toBe(created.jobId);
 
     // Simulate an enqueue retry that re-inserts a pending row after the claim.
     await db().insert(pendingJobs).values({
       workspaceId,
       jobId: created.jobId,
+      executionId: first.executionId,
       runId: created.runId,
       projectId: created.projectId,
       requiredLabels: created.requiredLabels,
@@ -484,10 +487,12 @@ describe('claimPendingJob', () => {
   it('leaves a non-matching orphan unclaimed until release sweeps it', async () => {
     const created = await pendingJobFactory.create({workspaceId});
     const first = await claimPendingJob({workspaceId, runnerSessionId});
-    expect(first?.jobId).toBe(created.jobId);
+    if (!first) throw new Error('Expected pending job to be claimed');
+    expect(first.jobId).toBe(created.jobId);
     await db().insert(pendingJobs).values({
       workspaceId,
       jobId: created.jobId,
+      executionId: first.executionId,
       runId: created.runId,
       projectId: created.projectId,
       requiredLabels: created.requiredLabels,
@@ -507,13 +512,15 @@ describe('claimPendingJob', () => {
 
   it('claims a real pending job ahead of a newer orphan', async () => {
     const alreadyRunning = await pendingJobFactory.create({workspaceId});
-    await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
+    const first = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
+    if (!first) throw new Error('Expected pending job to be claimed');
 
     // A genuinely new pending job (older), then an orphan re-insert for the running job (newer).
     const real = await pendingJobFactory.create({workspaceId});
     await db().insert(pendingJobs).values({
       workspaceId,
       jobId: alreadyRunning.jobId,
+      executionId: first.executionId,
       runId: alreadyRunning.runId,
       projectId: alreadyRunning.projectId,
       requiredLabels: alreadyRunning.requiredLabels,
@@ -612,6 +619,7 @@ describe('releaseJob', () => {
       .values({
         workspaceId,
         jobId: claimed?.jobId as string,
+        executionId: claimed?.executionId as string,
         runId: claimed?.runId as string,
         projectId: claimed?.projectId as string,
         requiredLabels: ['linux'],
@@ -653,7 +661,14 @@ describe('recordHeartbeat', () => {
       runnerSessionId,
     });
 
-    expect(result).toEqual({cancellationRequested: false});
+    expect(result).toMatchObject({
+      cancellationRequested: false,
+      runningJob: {
+        jobId: claimed?.jobId,
+        executionId: claimed?.executionId,
+        runnerSessionId,
+      },
+    });
 
     const after = await db()
       .select()
@@ -675,7 +690,14 @@ describe('recordHeartbeat', () => {
       runnerSessionId,
     });
 
-    expect(result).toEqual({cancellationRequested: true});
+    expect(result).toMatchObject({
+      cancellationRequested: true,
+      runningJob: {
+        jobId: claimed?.jobId,
+        executionId: claimed?.executionId,
+        runnerSessionId,
+      },
+    });
   });
 
   it('throws RunningJobNotFoundError when jobId is unknown', async () => {
@@ -806,7 +828,7 @@ describe('detectAndExpireStuckJobs', () => {
 
   async function makeStaleJob(
     staleSeconds: number,
-  ): Promise<{jobId: string; runId: string; projectId: string}> {
+  ): Promise<{jobId: string; executionId: string; runId: string; projectId: string}> {
     await pendingJobFactory.create({workspaceId});
     const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
     await db()
@@ -817,6 +839,7 @@ describe('detectAndExpireStuckJobs', () => {
       .where(eq(runningJobs.jobId, claimed?.jobId as string));
     return {
       jobId: claimed?.jobId as string,
+      executionId: claimed?.executionId as string,
       runId: claimed?.runId as string,
       projectId: claimed?.projectId as string,
     };
@@ -909,7 +932,7 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('sweeps an orphan pending row for the job it reaps (best-effort release may have failed)', async () => {
-    const {jobId, runId, projectId} = await makeStaleJob(600);
+    const {jobId, executionId, runId, projectId} = await makeStaleJob(600);
     // A post-claim enqueue retry left a pending row whose job is already running;
     // without this sweep it would stay re-claimable for an already-finished job.
     await db()
@@ -917,6 +940,7 @@ describe('detectAndExpireStuckJobs', () => {
       .values({
         workspaceId,
         jobId,
+        executionId,
         runId,
         projectId,
         requiredLabels: ['linux'],
@@ -931,12 +955,13 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('leaves the orphan pending row alone when the running row is not stale enough to reap', async () => {
-    const {jobId, runId, projectId} = await makeStaleJob(60);
+    const {jobId, executionId, runId, projectId} = await makeStaleJob(60);
     await db()
       .insert(pendingJobs)
       .values({
         workspaceId,
         jobId,
+        executionId,
         runId,
         projectId,
         requiredLabels: ['linux'],
@@ -952,12 +977,12 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('returns the reaped {jobId, runId} per row without leaking the internal id', async () => {
-    const {jobId, runId} = await makeStaleJob(600);
+    const {jobId, executionId, runId} = await makeStaleJob(600);
 
     const reaped = await expireStuckJobs({thresholdSeconds: 180});
 
     const mine = reaped.find((row) => row.jobId === jobId);
-    expect(mine).toEqual({jobId, runId});
+    expect(mine).toEqual({jobId, executionId, runId});
     expect(mine).not.toHaveProperty('id');
   });
 
@@ -986,13 +1011,14 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('a reaper tick and a concurrent claim of the same orphan-pending job leave consistent state', async () => {
-    const {jobId, runId, projectId} = await makeStaleJob(600);
+    const {jobId, executionId, runId, projectId} = await makeStaleJob(600);
     // Orphan pending row from a post-claim enqueue retry for an already-running job.
     await db()
       .insert(pendingJobs)
       .values({
         workspaceId,
         jobId,
+        executionId,
         runId,
         projectId,
         requiredLabels: ['linux'],

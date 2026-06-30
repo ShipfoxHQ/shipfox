@@ -83,6 +83,13 @@ export function setJobStatusCalls() {
   }>;
 }
 
+export function setExecutionStatusCalls() {
+  return callsNamed('setExecutionStatus') as Array<{
+    name: string;
+    params: {executionId: string; status: string; version: number; statusReason?: string | null};
+  }>;
+}
+
 // ---------------------------------------------------------------------------
 // DAG helpers
 // ---------------------------------------------------------------------------
@@ -97,6 +104,9 @@ export function dagJob(
     id,
     name,
     status: options.status ?? 'pending',
+    executionId: id,
+    executionVersion: 1,
+    executionTimeoutMs: null,
     dependencies: deps,
     runner: ['ubuntu22'],
     version: 1,
@@ -166,7 +176,19 @@ function createMockActivities() {
       return {newVersion: nextVersion(), status};
     },
 
-    bulkSetStepStatuses: (params: {jobId: string; status: string}) => {
+    setExecutionStatus: (params: {
+      executionId: string;
+      status: string;
+      version: number;
+      statusReason?: string | null;
+    }) => {
+      calls.push({name: 'setExecutionStatus', params});
+      const status =
+        params.status === 'running' && cfg.runningJobStatus ? cfg.runningJobStatus : params.status;
+      return {newVersion: nextVersion(), status};
+    },
+
+    bulkSetStepStatuses: (params: {executionId: string; status: string}) => {
       calls.push({name: 'bulkSetStepStatuses', params});
     },
 
@@ -180,6 +202,7 @@ function createMockActivities() {
     enqueueJobForRunner: async (params: {
       workspaceId: string;
       jobId: string;
+      executionId: string;
       runId: string;
       projectId: string;
       requiredLabels: string[];
@@ -219,7 +242,20 @@ function createMockActivities() {
       return {status: cfg.leaseExpiredStatus ?? 'failed', jobVersion: nextVersion()};
     },
 
-    releaseLeaseActivity: async (params: {jobId: string}) => {
+    resolveLeaseExpiredExecutionActivity: (params: {
+      executionId: string;
+      expectedVersion: number;
+    }) => {
+      calls.push({name: 'resolveLeaseExpiredExecutionActivity', params});
+      return {status: cfg.leaseExpiredStatus ?? 'failed', executionVersion: nextVersion()};
+    },
+
+    resolveJobStatusFromExecutionsActivity: (params: {jobId: string}) => {
+      calls.push({name: 'resolveJobStatusFromExecutionsActivity', params});
+      return {status: cfg.leaseExpiredStatus ?? 'succeeded', jobVersion: nextVersion()};
+    },
+
+    releaseLeaseActivity: async (params: {executionId: string}) => {
       calls.push({name: 'releaseLeaseActivity', params});
       if (cfg.releaseLeaseError) {
         const {ApplicationFailure} = await import('@temporalio/common');
@@ -233,6 +269,19 @@ function createMockActivities() {
       expectedVersion: number;
     }) => {
       calls.push({name: 'failJobAsTimedOutActivity', params});
+      if (cfg.failJobAsTimedOutError) {
+        const {ApplicationFailure} = await import('@temporalio/common');
+        throw ApplicationFailure.nonRetryable(cfg.failJobAsTimedOutError);
+      }
+      return {newVersion: nextVersion()};
+    },
+
+    failExecutionAsTimedOutActivity: async (params: {
+      executionId: string;
+      runId: string;
+      expectedVersion: number;
+    }) => {
+      calls.push({name: 'failExecutionAsTimedOutActivity', params});
       if (cfg.failJobAsTimedOutError) {
         const {ApplicationFailure} = await import('@temporalio/common');
         throw ApplicationFailure.nonRetryable(cfg.failJobAsTimedOutError);

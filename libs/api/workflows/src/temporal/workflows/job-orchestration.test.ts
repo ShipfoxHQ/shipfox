@@ -4,7 +4,7 @@ import {
   makeDag,
   resetCalls,
   setCfg,
-  setJobStatusCalls,
+  setExecutionStatusCalls,
   setupEnv,
   TASK_QUEUE,
   teardownEnv,
@@ -29,26 +29,35 @@ const defaultJobInput = {
   runId: 'run-1',
   projectId: 'project-1',
   jobVersion: 1,
+  executionId: 'job-1',
+  executionVersion: 1,
   requiredLabels: ['ubuntu22'],
 };
 
 function executeJob(input: typeof defaultJobInput): Promise<{status: string; jobVersion: number}> {
+  const normalized = {
+    ...input,
+    executionId:
+      input.executionId === defaultJobInput.executionId && input.jobId !== defaultJobInput.jobId
+        ? input.jobId
+        : input.executionId,
+  };
   return testEnv.client.workflow.execute('jobOrchestration', {
     taskQueue: TASK_QUEUE,
     workflowId: `job:${input.jobId}`,
-    args: [input],
+    args: [normalized],
   });
 }
 
 function finalStatusesFor(jobId: string): string[] {
-  return setJobStatusCalls()
-    .filter((c) => c.params.jobId === jobId)
+  return setExecutionStatusCalls()
+    .filter((c) => c.params.executionId === jobId)
     .map((c) => c.params.status);
 }
 
 function terminalSetJobCall(jobId: string) {
-  return setJobStatusCalls().find(
-    (call) => call.params.jobId === jobId && call.params.status !== 'running',
+  return setExecutionStatusCalls().find(
+    (call) => call.params.executionId === jobId && call.params.status !== 'running',
   );
 }
 
@@ -82,7 +91,7 @@ describe('jobOrchestration', () => {
     expect(result.status).toBe('succeeded');
     expect(finalStatusesFor('job-1')).toEqual(['running', 'succeeded']);
     expect(callsNamed('releaseLeaseActivity')).toHaveLength(1);
-    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(0);
+    expect(callsNamed('resolveLeaseExpiredExecutionActivity')).toHaveLength(0);
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
   });
 
@@ -98,7 +107,7 @@ describe('jobOrchestration', () => {
       requiredLabels: [],
     });
 
-    expect(setJobStatusCalls()).toHaveLength(0);
+    expect(setExecutionStatusCalls()).toHaveLength(0);
     expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
   });
 
@@ -114,7 +123,7 @@ describe('jobOrchestration', () => {
       requiredLabels: ['  '],
     });
 
-    expect(setJobStatusCalls()).toHaveLength(0);
+    expect(setExecutionStatusCalls()).toHaveLength(0);
     expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
   });
 
@@ -141,9 +150,9 @@ describe('jobOrchestration', () => {
     const result = await executeJob({...defaultJobInput, jobId: 'job-le'});
 
     expect(result.status).toBe('failed');
-    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(1);
+    expect(callsNamed('resolveLeaseExpiredExecutionActivity')).toHaveLength(1);
     expect(callsNamed('releaseLeaseActivity')).toHaveLength(1);
-    expect(callsNamed('failJobAsTimedOutActivity')).toHaveLength(0);
+    expect(callsNamed('failExecutionAsTimedOutActivity')).toHaveLength(0);
   });
 
   test('lease-expired adoption: resolver reports succeeded → job succeeds (server state wins)', async () => {
@@ -157,7 +166,7 @@ describe('jobOrchestration', () => {
     const result = await executeJob({...defaultJobInput, jobId: 'job-le2'});
 
     expect(result.status).toBe('succeeded');
-    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(1);
+    expect(callsNamed('resolveLeaseExpiredExecutionActivity')).toHaveLength(1);
   });
 
   test('both signals: finished wins, lease-expiry is ignored', async () => {
@@ -170,7 +179,7 @@ describe('jobOrchestration', () => {
     const result = await executeJob({...defaultJobInput, jobId: 'job-both'});
 
     expect(result.status).toBe('succeeded');
-    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(0);
+    expect(callsNamed('resolveLeaseExpiredExecutionActivity')).toHaveLength(0);
   });
 
   test('both signals with finished=failed: fails via the finished path, one terminal setJobStatus', async () => {
@@ -184,7 +193,7 @@ describe('jobOrchestration', () => {
 
     expect(result.status).toBe('failed');
     expect(finalStatusesFor('job-bf').filter((s) => s !== 'running')).toEqual(['failed']);
-    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(0);
+    expect(callsNamed('resolveLeaseExpiredExecutionActivity')).toHaveLength(0);
   });
 
   test('duplicate finished signal: first wins', async () => {

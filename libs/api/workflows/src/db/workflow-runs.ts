@@ -2,7 +2,7 @@ import {
   type AgentDefaultsResolver,
   catalogDefaultAgentResolver,
 } from '@shipfox/api-agent/core/resolve-agent-config';
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import {DEFAULT_JOB_SUCCESS, type WorkflowModel} from '@shipfox/api-definitions';
 import {
   type LogOutcomeDto,
   WORKFLOWS_JOB_STEPS_SETTLED,
@@ -15,6 +15,7 @@ import {
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   type WorkflowsEventMap,
 } from '@shipfox/api-workflows-dto';
+import {createWorkflowExpression, evaluateWorkflowPredicate} from '@shipfox/expression';
 import {
   paginateTimestampIdRows,
   type TimestampIdCursor,
@@ -37,7 +38,14 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm';
-import {isJobTerminal, type Job, type JobStatus, type JobStatusReason} from '#core/entities/job.js';
+import {
+  isJobTerminal,
+  type Job,
+  type JobStatus,
+  type JobStatusReason,
+  toJobStatusReason,
+} from '#core/entities/job.js';
+import type {JobExecution, JobExecutionStatus} from '#core/entities/job-execution.js';
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
 import {
@@ -72,6 +80,7 @@ import {
   recordWorkflowRunStatusChanged,
 } from '#metrics/instance.js';
 import {db, type Tx} from './db.js';
+import {jobExecutions, toJobExecution} from './schema/job-executions.js';
 import {jobs, toJob} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
 import {stepAttempts, toStepAttempt} from './schema/step-attempts.js';
@@ -80,6 +89,7 @@ import {toWorkflowRun, workflowRuns} from './schema/workflow-runs.js';
 
 const TERMINAL_WORKFLOW_RUN_STATUSES: WorkflowRunStatus[] = ['succeeded', 'failed', 'cancelled'];
 const TERMINAL_JOB_STATUSES: JobStatus[] = ['succeeded', 'failed', 'cancelled', 'skipped'];
+const TERMINAL_EXECUTION_STATUSES: JobExecutionStatus[] = ['succeeded', 'failed', 'cancelled'];
 
 export interface CreateWorkflowRunParams {
   workspaceId: string;
@@ -158,6 +168,8 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
             runId: runRow.id,
             name: job.sourceName,
             status: 'pending' as const,
+            success: job.success ?? null,
+            executionTimeoutMs: job.executionTimeoutMs ?? null,
             dependencies: [...job.dependencies],
             runner: job.runner.length === 0 ? null : [...job.runner],
             position: job.position,
@@ -166,13 +178,36 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         .returning();
     }
 
+    const executionRows =
+      jobRows.length === 0
+        ? []
+        : await tx
+            .insert(jobExecutions)
+            .values(
+              jobRows.map((jobRow) => ({
+                jobId: jobRow.id,
+                runId: runRow.id,
+                sequence: 1,
+                name: jobRow.name,
+                status: 'pending' as const,
+              })),
+            )
+            .returning();
+
+    const executionByJobId = new Map(
+      executionRows.map((execution) => [execution.jobId, execution]),
+    );
+
     const stepValues: (typeof steps.$inferInsert)[] = [];
     for (const [jobIndex, jobRow] of jobRows.entries()) {
       const job = materializedJobs[jobIndex];
+      const execution = executionByJobId.get(jobRow.id);
+      if (!execution) continue;
       if (!job) continue;
       for (const step of job.steps) {
         stepValues.push({
           jobId: jobRow.id,
+          executionId: execution.id,
           name: step.sourceName,
           displayName: step.displayName,
           sourceLocation: step.sourceLocation,
@@ -228,6 +263,21 @@ export async function getStepByIdForJob(params: {
     .select()
     .from(steps)
     .where(and(eq(steps.id, params.stepId), eq(steps.jobId, params.jobId)))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return undefined;
+  return toStep(row);
+}
+
+export async function getStepByIdForExecution(params: {
+  stepId: string;
+  executionId: string;
+}): Promise<Step | undefined> {
+  const rows = await db()
+    .select()
+    .from(steps)
+    .where(and(eq(steps.id, params.stepId), eq(steps.executionId, params.executionId)))
     .limit(1);
 
   const row = rows[0];
@@ -335,6 +385,8 @@ export async function createRerunWorkflowRun(
                   status: carriedOver ? ('succeeded' as const) : ('pending' as const),
                   statusReason: null,
                   carriedOver,
+                  success: job.success,
+                  executionTimeoutMs: job.executionTimeoutMs,
                   dependencies: [...job.dependencies],
                   runner: job.runner ? [...job.runner] : null,
                   position: job.position,
@@ -343,17 +395,44 @@ export async function createRerunWorkflowRun(
             )
             .returning();
 
+    const clonedExecutionRows =
+      clonedJobRows.length === 0
+        ? []
+        : await tx
+            .insert(jobExecutions)
+            .values(
+              clonedJobRows.map((job) => {
+                const carriedOver = params.mode === 'failed' && job.status === 'succeeded';
+                return {
+                  jobId: job.id,
+                  runId: newRunRow.id,
+                  sequence: 1,
+                  name: job.name,
+                  status: carriedOver ? ('succeeded' as const) : ('pending' as const),
+                  statusReason: null,
+                  ...(carriedOver ? {finishedAt: sql`now()`} : {}),
+                };
+              }),
+            )
+            .returning();
+
     const sourceJobById = new Map(sourceJobs.map((job) => [job.id, job]));
     const clonedJobByPosition = new Map(clonedJobRows.map((job) => [job.position, job]));
+    const clonedExecutionByJobId = new Map(
+      clonedExecutionRows.map((execution) => [execution.jobId, execution]),
+    );
     const stepValues = sourceSteps.flatMap((step) => {
       const sourceJob = sourceJobById.get(step.jobId);
       if (!sourceJob) return [];
       const clonedJob = clonedJobByPosition.get(sourceJob.position);
       if (!clonedJob) return [];
+      const clonedExecution = clonedExecutionByJobId.get(clonedJob.id);
+      if (!clonedExecution) return [];
       const carriedOver = params.mode === 'failed' && sourceJob.status === 'succeeded';
       return [
         {
           jobId: clonedJob.id,
+          executionId: clonedExecution.id,
           name: step.name,
           displayName: step.displayName,
           sourceLocation: step.sourceLocation,
@@ -618,7 +697,7 @@ export async function getWorkflowExecutionDepth(
   params: WorkflowExecutionDepthParams = {},
 ): Promise<WorkflowExecutionDepth> {
   const runConditions = [eq(workflowRuns.status, 'running')];
-  const jobConditions = [eq(jobs.status, 'running')];
+  const jobConditions = [eq(jobExecutions.status, 'running')];
   if (params.workspaceId) {
     runConditions.push(eq(workflowRuns.workspaceId, params.workspaceId));
     jobConditions.push(eq(workflowRuns.workspaceId, params.workspaceId));
@@ -627,12 +706,12 @@ export async function getWorkflowExecutionDepth(
   const jobQuery = params.workspaceId
     ? db()
         .select({value: count()})
-        .from(jobs)
-        .innerJoin(workflowRuns, eq(jobs.runId, workflowRuns.id))
+        .from(jobExecutions)
+        .innerJoin(workflowRuns, eq(jobExecutions.runId, workflowRuns.id))
         .where(and(...jobConditions))
     : db()
         .select({value: count()})
-        .from(jobs)
+        .from(jobExecutions)
         .where(and(...jobConditions));
 
   const [runRows, jobRows] = await Promise.all([
@@ -682,6 +761,57 @@ export async function getStepsByJobId(jobId: string): Promise<Step[]> {
     .where(eq(steps.jobId, jobId))
     .orderBy(asc(steps.position));
   return rows.map(toStep);
+}
+
+export async function getStepsByExecutionId(executionId: string): Promise<Step[]> {
+  const rows = await db()
+    .select()
+    .from(steps)
+    .where(eq(steps.executionId, executionId))
+    .orderBy(asc(steps.position));
+  return rows.map(toStep);
+}
+
+export async function getStepsByExecutionIds(executionIds: string[]): Promise<Step[]> {
+  if (executionIds.length === 0) return [];
+  const rows = await db()
+    .select()
+    .from(steps)
+    .where(inArray(steps.executionId, executionIds))
+    .orderBy(asc(steps.executionId), asc(steps.position));
+  return rows.map(toStep);
+}
+
+export async function getExecutionsByRunId(runId: string): Promise<JobExecution[]> {
+  const rows = await db()
+    .select()
+    .from(jobExecutions)
+    .where(eq(jobExecutions.runId, runId))
+    .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
+  return rows.map(toJobExecution);
+}
+
+export async function getExecutionsByJobId(jobId: string): Promise<JobExecution[]> {
+  const rows = await db()
+    .select()
+    .from(jobExecutions)
+    .where(eq(jobExecutions.jobId, jobId))
+    .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
+  return rows.map(toJobExecution);
+}
+
+export async function getFirstExecutionByJobId(
+  jobId: string,
+  tx?: Tx,
+): Promise<JobExecution | undefined> {
+  const rows = await (tx ?? db())
+    .select()
+    .from(jobExecutions)
+    .where(eq(jobExecutions.jobId, jobId))
+    .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id))
+    .limit(1);
+  const row = rows[0];
+  return row ? toJobExecution(row) : undefined;
 }
 
 export async function getStepsByJobIds(jobIds: string[]): Promise<Step[]> {
@@ -741,6 +871,21 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
         statusReason: 'run_cancelled',
       });
       if (updated?.changed) cancelledJobs.push(updated.job);
+      await tx
+        .update(jobExecutions)
+        .set({
+          status: 'cancelled',
+          statusReason: 'run_cancelled',
+          version: sql`${jobExecutions.version} + 1`,
+          updatedAt: new Date(),
+          finishedAt: sql`now()`,
+        })
+        .where(
+          and(
+            eq(jobExecutions.jobId, jobRow.id),
+            notInArray(jobExecutions.status, TERMINAL_EXECUTION_STATUSES),
+          ),
+        );
       await bulkUpdateStepStatuses({jobId: jobRow.id, status: 'cancelled'}, tx);
     }
 
@@ -868,6 +1013,86 @@ export interface UpdateJobStatusAtVersionParams {
   markTimedOut?: boolean;
 }
 
+export interface UpdateExecutionStatusAtVersionParams {
+  executionId: string;
+  status: JobExecutionStatus;
+  expectedVersion: number;
+  statusReason?: JobStatusReason | null | undefined;
+  markTimedOut?: boolean;
+}
+
+async function updateExecutionStatusAtVersion(
+  tx: Tx,
+  params: UpdateExecutionStatusAtVersionParams,
+): Promise<{execution: JobExecution; changed: boolean} | null> {
+  const rows = await tx
+    .update(jobExecutions)
+    .set({
+      status: params.status,
+      statusReason: params.statusReason ?? null,
+      version: sql`${jobExecutions.version} + 1`,
+      updatedAt: new Date(),
+      ...(params.status === 'running'
+        ? {startedAt: sql`coalesce(${jobExecutions.startedAt}, now())`}
+        : {}),
+      ...(params.markTimedOut ? {timedOutAt: new Date()} : {}),
+      ...(TERMINAL_EXECUTION_STATUSES.includes(params.status) ? {finishedAt: sql`now()`} : {}),
+    })
+    .where(
+      and(
+        eq(jobExecutions.id, params.executionId),
+        eq(jobExecutions.version, params.expectedVersion),
+        notInArray(jobExecutions.status, TERMINAL_EXECUTION_STATUSES),
+      ),
+    )
+    .returning();
+
+  const row = rows[0];
+  if (!row) return null;
+  return {execution: toJobExecution(row), changed: true};
+}
+
+export interface UpdateExecutionStatusParams {
+  executionId: string;
+  status: JobExecutionStatus;
+  expectedVersion: number;
+  statusReason?: JobStatusReason | null | undefined;
+}
+
+export async function updateExecutionStatus(
+  params: UpdateExecutionStatusParams,
+): Promise<JobExecution> {
+  const statusReason = params.statusReason ?? null;
+  const result = await db().transaction(async (tx) => {
+    const updated = await updateExecutionStatusAtVersion(tx, {
+      executionId: params.executionId,
+      status: params.status,
+      expectedVersion: params.expectedVersion,
+      statusReason,
+    });
+    if (updated) return updated;
+
+    const existing = await tx
+      .select()
+      .from(jobExecutions)
+      .where(eq(jobExecutions.id, params.executionId))
+      .limit(1);
+    const row = existing[0];
+    if (
+      row &&
+      ((row.status === params.status && row.statusReason === statusReason) ||
+        TERMINAL_EXECUTION_STATUSES.includes(row.status))
+    ) {
+      return {execution: toJobExecution(row), changed: false};
+    }
+    throw new Error(
+      `Optimistic lock failure: execution ${params.executionId} version ${params.expectedVersion}`,
+    );
+  });
+
+  return result.execution;
+}
+
 // Returns null on version mismatch so callers can choose throw vs treat-as-success.
 async function updateJobStatusAtVersion(
   tx: Tx,
@@ -981,10 +1206,82 @@ export async function recordJobStartedAt(params: {jobId: string; startedAt: Date
   if (updated.length > 0) recordWorkflowJobStarted();
 }
 
+export async function recordExecutionQueuedAt(params: {
+  executionId: string;
+  queuedAt: Date;
+}): Promise<void> {
+  const updated = await db()
+    .update(jobExecutions)
+    .set({queuedAt: params.queuedAt})
+    .where(and(eq(jobExecutions.id, params.executionId), isNull(jobExecutions.queuedAt)))
+    .returning({id: jobExecutions.id});
+
+  if (updated.length > 0) recordWorkflowJobQueued();
+}
+
+export async function recordExecutionStartedAt(params: {
+  executionId: string;
+  startedAt: Date;
+}): Promise<void> {
+  const updated = await db()
+    .update(jobExecutions)
+    .set({startedAt: params.startedAt})
+    .where(and(eq(jobExecutions.id, params.executionId), isNull(jobExecutions.startedAt)))
+    .returning({id: jobExecutions.id});
+
+  if (updated.length > 0) recordWorkflowJobStarted();
+}
+
 export interface FailJobAsTimedOutParams {
   jobId: string;
   runId: string;
   expectedVersion: number;
+}
+
+export async function failExecutionAsTimedOut(params: {
+  executionId: string;
+  runId: string;
+  expectedVersion: number;
+}): Promise<JobExecution> {
+  const result = await db().transaction(async (tx) => {
+    const updated = await updateExecutionStatusAtVersion(tx, {
+      executionId: params.executionId,
+      status: 'failed',
+      expectedVersion: params.expectedVersion,
+      statusReason: 'timed_out',
+      markTimedOut: true,
+    });
+
+    if (!updated) {
+      const existing = await tx
+        .select()
+        .from(jobExecutions)
+        .where(eq(jobExecutions.id, params.executionId))
+        .limit(1);
+      const row = existing[0];
+      if (row && row.timedOutAt !== null) {
+        return {execution: toJobExecution(row), changed: false};
+      }
+      throw new Error(
+        `Optimistic lock failure: execution ${params.executionId} version ${params.expectedVersion}`,
+      );
+    }
+
+    await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+      type: WORKFLOWS_JOB_TIMED_OUT,
+      payload: {
+        jobId: updated.execution.jobId,
+        executionId: params.executionId,
+        runId: params.runId,
+      },
+    });
+
+    return updated;
+  });
+
+  if (result.changed) recordWorkflowJobTimedOut();
+
+  return result.execution;
 }
 
 // Idempotent under retry: a 0-row UPDATE re-reads the row, and a non-null
@@ -1011,9 +1308,19 @@ export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promis
       );
     }
 
+    const executionRow = (
+      await tx
+        .select({id: jobExecutions.id})
+        .from(jobExecutions)
+        .where(eq(jobExecutions.jobId, params.jobId))
+        .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id))
+        .limit(1)
+    )[0];
+    if (!executionRow) throw new Error(`Cannot time out job ${params.jobId}: no execution found`);
+
     await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
       type: WORKFLOWS_JOB_TIMED_OUT,
-      payload: {jobId: params.jobId, runId: params.runId},
+      payload: {jobId: params.jobId, executionId: executionRow.id, runId: params.runId},
     });
 
     return updated;
@@ -1092,8 +1399,106 @@ export async function resolveJobAfterLeaseExpiry(params: {
   return {status: result.status, jobVersion: result.jobVersion};
 }
 
+export async function resolveExecutionAfterLeaseExpiry(params: {
+  executionId: string;
+  expectedVersion: number;
+}): Promise<{status: RuntimeCompletionStatus; executionVersion: number}> {
+  const result = await db().transaction(async (tx) => {
+    const executionSteps = await getStepsByExecutionIdForUpdate(params.executionId, tx);
+    let changedExecution: JobExecution | null = null;
+
+    if (executionSteps.length === 0) {
+      throw new JobNotFoundError(params.executionId);
+    }
+
+    if (executionSteps.every((step) => isTerminal(step.status))) {
+      const status = deriveCompletion(executionSteps);
+      const updated = await updateExecutionStatusAtVersion(tx, {
+        executionId: params.executionId,
+        status,
+        expectedVersion: params.expectedVersion,
+        statusReason: statusReasonForStepCompletion(status),
+      });
+      changedExecution = updated?.changed ? updated.execution : null;
+    } else {
+      const updated = await updateExecutionStatusAtVersion(tx, {
+        executionId: params.executionId,
+        status: 'failed',
+        expectedVersion: params.expectedVersion,
+        statusReason: 'runner_lost',
+      });
+      changedExecution = updated?.changed ? updated.execution : null;
+      await bulkUpdateStepStatuses({executionId: params.executionId, status: 'cancelled'}, tx);
+    }
+
+    const row = (
+      await tx.select().from(jobExecutions).where(eq(jobExecutions.id, params.executionId)).limit(1)
+    )[0];
+    if (!row) throw new Error(`Execution not found resolving lease expiry: ${params.executionId}`);
+    const status: RuntimeCompletionStatus = row.status === 'succeeded' ? 'succeeded' : 'failed';
+    return {status, executionVersion: row.version, changedExecution};
+  });
+
+  recordWorkflowJobLeaseExpiryResolved(result.status);
+
+  return {status: result.status, executionVersion: result.executionVersion};
+}
+
 function statusReasonForStepCompletion(status: RuntimeCompletionStatus): JobStatusReason | null {
   return status === 'failed' ? 'step_failed' : null;
+}
+
+export async function resolveJobStatusFromExecutions(params: {
+  jobId: string;
+}): Promise<{status: RuntimeCompletionStatus; jobVersion: number}> {
+  const result = await db().transaction(async (tx) => {
+    const jobRow = (await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1))[0];
+    if (!jobRow) throw new JobNotFoundError(params.jobId);
+
+    const executionRows = await tx
+      .select()
+      .from(jobExecutions)
+      .where(eq(jobExecutions.jobId, params.jobId))
+      .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
+
+    if (executionRows.length === 0) {
+      throw new Error(`Cannot resolve job ${params.jobId}: no executions found`);
+    }
+
+    const expression = createWorkflowExpression({
+      source: jobRow.success ?? DEFAULT_JOB_SUCCESS,
+      check: {mode: 'syntax'},
+    });
+    const passed = evaluateWorkflowPredicate(expression, {
+      executions: executionRows.map((execution, index) => ({
+        index,
+        status: execution.status,
+      })),
+    });
+    const status: RuntimeCompletionStatus = passed ? 'succeeded' : 'failed';
+    const statusReason =
+      status === 'failed'
+        ? (executionRows.find((execution) => execution.statusReason)?.statusReason ?? 'step_failed')
+        : null;
+
+    const updated = await updateJobStatusAtVersion(tx, {
+      jobId: params.jobId,
+      status,
+      expectedVersion: jobRow.version,
+      statusReason: toJobStatusReason(statusReason),
+    });
+    if (updated) return updated.job;
+
+    const existing = (await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1))[0];
+    if (!existing) throw new JobNotFoundError(params.jobId);
+    return toJob(existing);
+  });
+
+  recordWorkflowJobStatusChanged(result.status);
+  return {
+    status: result.status === 'succeeded' ? 'succeeded' : 'failed',
+    jobVersion: result.version,
+  };
 }
 
 // Enqueue the steps-settled signal in the same transaction as the final per-step
@@ -1102,7 +1507,7 @@ function statusReasonForStepCompletion(status: RuntimeCompletionStatus): JobStat
 // job's terminal fact is emitted separately by updateJobStatusAtVersion.
 export async function writeJobStepsSettledOutbox(
   tx: Tx,
-  params: {jobId: string; status: 'succeeded' | 'failed'},
+  params: {jobId: string; executionId: string; status: 'succeeded' | 'failed'},
 ): Promise<void> {
   const rows = await tx
     .select({runId: jobs.runId})
@@ -1116,12 +1521,13 @@ export async function writeJobStepsSettledOutbox(
 
   await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
     type: WORKFLOWS_JOB_STEPS_SETTLED,
-    payload: {jobId: params.jobId, runId, status: params.status},
+    payload: {jobId: params.jobId, executionId: params.executionId, runId, status: params.status},
   });
 }
 
 export interface BulkUpdateStepStatusesParams {
-  jobId: string;
+  jobId?: string;
+  executionId?: string;
   status: StepStatus;
 }
 
@@ -1134,18 +1540,21 @@ export async function bulkUpdateStepStatuses(
     return;
   }
 
+  const scope =
+    params.executionId !== undefined
+      ? eq(steps.executionId, params.executionId)
+      : params.jobId !== undefined
+        ? eq(steps.jobId, params.jobId)
+        : undefined;
+  if (!scope) throw new Error('bulkUpdateStepStatuses requires jobId or executionId');
+
   await tx
     .update(steps)
     .set({
       status: params.status,
       updatedAt: new Date(),
     })
-    .where(
-      and(
-        eq(steps.jobId, params.jobId),
-        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
-      ),
-    );
+    .where(and(scope, sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`));
 
   // Finalize any open attempt rows for the steps just terminalized, so a
   // dispatched-then-timed-out/cancelled step never leaves a `running` audit row
@@ -1158,7 +1567,14 @@ export async function bulkUpdateStepStatuses(
     const finalizedAttempts = await tx
       .update(stepAttempts)
       .set({status: params.status, logOutcome: 'abandoned', finishedAt: new Date()})
-      .where(and(eq(stepAttempts.jobId, params.jobId), eq(stepAttempts.status, 'running')))
+      .where(
+        and(
+          params.executionId !== undefined
+            ? eq(stepAttempts.executionId, params.executionId)
+            : eq(stepAttempts.jobId, params.jobId ?? ''),
+          eq(stepAttempts.status, 'running'),
+        ),
+      )
       .returning({
         jobId: stepAttempts.jobId,
         stepId: stepAttempts.stepId,
@@ -1167,7 +1583,9 @@ export async function bulkUpdateStepStatuses(
       });
 
     if (finalizedAttempts.length > 0) {
-      const identity = await getStepAttemptTerminatedOutboxIdentity(tx, params.jobId);
+      const firstAttempt = finalizedAttempts[0];
+      if (!firstAttempt) return;
+      const identity = await getStepAttemptTerminatedOutboxIdentity(tx, firstAttempt.jobId);
       await writeOutboxEvents<WorkflowsEventMap>(
         tx,
         workflowsOutbox,
@@ -1205,8 +1623,18 @@ export async function getStepsByJobIdForUpdate(jobId: string, tx: Tx): Promise<S
   return rows.map(toStep);
 }
 
+export async function getStepsByExecutionIdForUpdate(executionId: string, tx: Tx): Promise<Step[]> {
+  const rows = await tx
+    .select()
+    .from(steps)
+    .where(eq(steps.executionId, executionId))
+    .orderBy(asc(steps.position))
+    .for('update');
+  return rows.map(toStep);
+}
+
 export interface MarkStepRunningParams {
-  jobId: string;
+  executionId: string;
   stepId: string;
 }
 
@@ -1217,7 +1645,7 @@ export async function markStepRunning(params: MarkStepRunningParams, tx: Tx): Pr
     .where(
       and(
         eq(steps.id, params.stepId),
-        eq(steps.jobId, params.jobId),
+        eq(steps.executionId, params.executionId),
         sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
       ),
     )
@@ -1229,7 +1657,12 @@ export async function markStepRunning(params: MarkStepRunningParams, tx: Tx): Pr
   // re-dispatch a no-op against the unique (step_id, attempt) anchor; normal
   // re-delivery returns the already-running step without calling this.
   await insertRunningStepAttempt(
-    {jobId: step.jobId, stepId: step.id, attempt: step.currentAttempt},
+    {
+      jobId: step.jobId,
+      executionId: step.executionId ?? step.jobId,
+      stepId: step.id,
+      attempt: step.currentAttempt,
+    },
     tx,
   );
   return step;
@@ -1237,6 +1670,7 @@ export async function markStepRunning(params: MarkStepRunningParams, tx: Tx): Pr
 
 export interface InsertRunningStepAttemptParams {
   jobId: string;
+  executionId: string;
   stepId: string;
   attempt: number;
 }
@@ -1250,12 +1684,13 @@ export async function insertRunningStepAttempt(
       nextExecutionOrder: sql<number>`coalesce(max(${stepAttempts.executionOrder}), 0) + 1`,
     })
     .from(stepAttempts)
-    .where(eq(stepAttempts.jobId, params.jobId));
+    .where(eq(stepAttempts.executionId, params.executionId));
 
   await tx
     .insert(stepAttempts)
     .values({
       jobId: params.jobId,
+      executionId: params.executionId,
       stepId: params.stepId,
       attempt: params.attempt,
       executionOrder: nextExecutionOrder,
@@ -1410,7 +1845,7 @@ export async function getTerminalStepAttemptLogState(params: {
 }
 
 export interface RewindStepsToPendingParams {
-  jobId: string;
+  executionId: string;
   fromPosition: number;
 }
 
@@ -1434,7 +1869,9 @@ export async function rewindStepsToPending(
       currentAttempt: sql`${steps.currentAttempt} + 1`,
       updatedAt: new Date(),
     })
-    .where(and(eq(steps.jobId, params.jobId), gte(steps.position, params.fromPosition)));
+    .where(
+      and(eq(steps.executionId, params.executionId), gte(steps.position, params.fromPosition)),
+    );
 }
 
 // Enqueue the durable audit record of a restart, in the same transaction as the
@@ -1504,7 +1941,7 @@ export async function getStepAttemptsByJobIds(jobIds: string[]): Promise<StepAtt
 }
 
 export interface ApplyStepResultParams {
-  jobId: string;
+  executionId: string;
   stepId: string;
   status: 'succeeded' | 'failed';
   error: Record<string, unknown> | null;
@@ -1517,14 +1954,14 @@ export async function applyStepResult(params: ApplyStepResultParams, tx: Tx): Pr
     .where(
       and(
         eq(steps.id, params.stepId),
-        eq(steps.jobId, params.jobId),
+        eq(steps.executionId, params.executionId),
         sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
       ),
     );
 }
 
 export interface CancelRemainingStepsParams {
-  jobId: string;
+  executionId: string;
 }
 
 // The just-failed step is already terminal, so the shared guarded sweep leaves
@@ -1533,5 +1970,5 @@ export async function cancelRemainingSteps(
   params: CancelRemainingStepsParams,
   tx: Tx,
 ): Promise<void> {
-  await bulkUpdateStepStatuses({jobId: params.jobId, status: 'cancelled'}, tx);
+  await bulkUpdateStepStatuses({executionId: params.executionId, status: 'cancelled'}, tx);
 }

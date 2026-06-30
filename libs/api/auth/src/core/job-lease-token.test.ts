@@ -8,6 +8,7 @@ const SECRET = process.env.AUTH_JOB_LEASE_TOKEN_SECRET ?? 'test-lease-secret';
 function claims() {
   return {
     jobId: crypto.randomUUID(),
+    executionId: crypto.randomUUID(),
     runId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
@@ -64,6 +65,7 @@ describe('job-lease-token', () => {
   test('accepts UUIDv7 ids (job/run primary keys are uuidv7)', async () => {
     const input = {
       jobId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d0e',
+      executionId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d10',
       runId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d0f',
       projectId: crypto.randomUUID(),
       workspaceId: crypto.randomUUID(),
