@@ -106,6 +106,23 @@ describe('createDockerLifecycle', () => {
     expect(engine.removed).toEqual([]);
   });
 
+  it('does not reap stale created containers when reporting fails', async () => {
+    const engine = fakeEngine({
+      containers: [
+        container({
+          state: 'created',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        }),
+      ],
+    });
+    const client = fakeClient({reportError: new Error('api down')});
+    const lifecycle = makeLifecycle({engine, client, registrationDeadlineMs: 60_000});
+
+    await expect(lifecycle.observe()).rejects.toThrow('api down');
+
+    expect(engine.killedAndRemoved).toEqual([]);
+  });
+
   it('marks OOM exits as failed with an oom reason', async () => {
     const engine = fakeEngine({
       containers: [container({state: 'exited', exitCode: 137, oomKilled: true})],

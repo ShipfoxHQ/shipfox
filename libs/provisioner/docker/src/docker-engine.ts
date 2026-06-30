@@ -143,8 +143,7 @@ export function createDockerEngine(options: CreateDockerEngineOptions = {}): Doc
         return Promise.all(
           containers.map(async (container) => {
             const state = normalizeState(container.State);
-            const inspected =
-              state === 'exited' ? await docker.getContainer(container.Id).inspect() : undefined;
+            const inspected = state === 'exited' ? await inspectContainer(container.Id) : undefined;
             return {
               id: container.Id,
               name: container.Names?.[0]?.replace(LEADING_SLASH, '') ?? container.Id,
@@ -179,7 +178,7 @@ export function createDockerEngine(options: CreateDockerEngineOptions = {}): Doc
       try {
         await container.kill();
       } catch (error) {
-        if (!isNotFound(error)) {
+        if (!isNotFound(error) && !isConflict(error)) {
           throw mapError(error, 'unknown', `Cannot kill Docker container ${name}.`);
         }
       }
@@ -192,6 +191,15 @@ export function createDockerEngine(options: CreateDockerEngineOptions = {}): Doc
       }
     },
   };
+
+  async function inspectContainer(id: string): Promise<Docker.ContainerInspectInfo | undefined> {
+    try {
+      return await docker.getContainer(id).inspect();
+    } catch (error) {
+      if (isNotFound(error)) return undefined;
+      throw error;
+    }
+  }
 }
 
 async function followProgress(docker: Docker, stream: NodeJS.ReadableStream): Promise<void> {

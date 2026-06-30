@@ -130,8 +130,8 @@ export function createDockerLifecycle(args: {
     if (liveEvents.length > 0) await report(liveEvents);
 
     for (const action of terminalActions) {
-      if (action.killAndRemove) await args.engine.killAndRemove(action.killAndRemove);
       await report([action.event]);
+      if (action.killAndRemove) await args.engine.killAndRemove(action.killAndRemove);
       if (action.remove) await args.engine.remove(action.remove);
       knownLiveIds.delete(action.event.provisioned_runner_id);
       knownTemplateKeys.delete(action.event.provisioned_runner_id);
