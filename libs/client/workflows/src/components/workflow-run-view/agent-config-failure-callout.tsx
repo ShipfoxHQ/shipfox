@@ -14,8 +14,8 @@ export function AgentConfigFailureCallout({workspaceId}: {workspaceId: string}) 
       <AlertContent>
         <AlertTitle>We couldn't load the agent configuration for this step</AlertTitle>
         <AlertDescription>
-          Check the step prompt, provider, model, and thinking values. Then configure Agent
-          Providers to add workspace credentials, or ask an admin to set a default provider.
+          Make sure the step prompt, provider, model, and thinking values are set. Then configure
+          Agent Providers to add workspace credentials.
         </AlertDescription>
         <AlertActions>
           <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">

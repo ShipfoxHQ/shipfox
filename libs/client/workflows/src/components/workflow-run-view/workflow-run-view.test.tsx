@@ -181,7 +181,7 @@ describe('WorkflowRunView', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Check the step prompt, provider, model, and thinking values. Then configure Agent Providers to add workspace credentials, or ask an admin to set a default provider.',
+        'Make sure the step prompt, provider, model, and thinking values are set. Then configure Agent Providers to add workspace credentials.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Configure Agent Providers'})).toHaveAttribute(
