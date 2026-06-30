@@ -10,6 +10,10 @@ export function JobDurationLabel({duration}: {duration: WorkflowJobDuration}) {
     case 'queued':
     case 'running':
       return <LiveDurationText fromIso={duration.fromIso} />;
+    default: {
+      const exhaustive: never = duration;
+      return exhaustive;
+    }
   }
 }
 
