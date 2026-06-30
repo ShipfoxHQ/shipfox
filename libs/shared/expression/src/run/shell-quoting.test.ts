@@ -116,4 +116,20 @@ describe('shell quoting scanner', () => {
 
     expect(result).toEqual({kind: 'unquoted'});
   });
+
+  it('does not start a line comment after escaped whitespace', () => {
+    const state = scanShellLiteral('foo\\ # "unterminated', initialShellScanState);
+
+    const result = classifyShellSite(state);
+
+    expect(result).toEqual({kind: 'double'});
+  });
+
+  it('does not mutate arithmetic-square frames from previous scan states', () => {
+    const original = scanShellLiteral('$[a[', initialShellScanState);
+
+    scanShellLiteral('0] + ', original);
+
+    expect(original.frames).toEqual([{kind: 'arith-square', bracketDepth: 1}]);
+  });
 });

@@ -13,7 +13,7 @@ export type ShellFrame =
 export type ShellUnsafeRegion = ShellFrame | 'escape';
 interface ArithSquareFrame {
   readonly kind: 'arith-square';
-  bracketDepth: number;
+  readonly bracketDepth: number;
 }
 type ShellScanFrame = ShellFrame | ArithSquareFrame;
 
@@ -24,6 +24,8 @@ export type ShellSiteContext =
 export interface ShellScanState {
   readonly frames: readonly ShellScanFrame[];
   readonly pendingEscape?: boolean;
+  readonly previousCharacter?: string;
+  readonly previousCharacterEscaped?: boolean;
 }
 
 export const initialShellScanState: ShellScanState = {frames: []};
@@ -31,14 +33,24 @@ export const initialShellScanState: ShellScanState = {frames: []};
 const shellCommentStarterPrefixPattern = /\s|[;&|()<>]/;
 
 export function scanShellLiteral(text: string, state: ShellScanState): ShellScanState {
-  const frames = [...state.frames];
+  const frames = state.frames.map(cloneShellScanFrame);
   let pendingEscape = state.pendingEscape ?? false;
+  let previousCharacter = state.previousCharacter;
+  let previousCharacterEscaped = state.previousCharacterEscaped ?? false;
   let index = 0;
+
+  function advance(nextIndex: number, escaped: boolean): void {
+    if (nextIndex > index) {
+      previousCharacter = text[nextIndex - 1];
+      previousCharacterEscaped = escaped;
+    }
+    index = nextIndex;
+  }
 
   while (index < text.length) {
     if (pendingEscape) {
       pendingEscape = false;
-      index += 1;
+      advance(index + 1, true);
       continue;
     }
 
@@ -46,7 +58,7 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
 
     if (frame === 'single') {
       if (text[index] === "'") frames.pop();
-      index += 1;
+      advance(index + 1, false);
       continue;
     }
 
@@ -57,7 +69,7 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
       }
 
       if (text[index] === "'") frames.pop();
-      index += 1;
+      advance(index + 1, false);
       continue;
     }
 
@@ -69,11 +81,11 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
 
       if (text[index] === '`') {
         frames.pop();
-        index += 1;
+        advance(index + 1, false);
         continue;
       }
 
-      index = scanShellControlStart(text, index, frames);
+      advance(scanShellControlStart(text, index, frames), false);
       continue;
     }
 
@@ -85,17 +97,17 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
 
       if (text[index] === '"') {
         frames.pop();
-        index += 1;
+        advance(index + 1, false);
         continue;
       }
 
       if (text[index] === '`') {
         frames.push('backtick');
-        index += 1;
+        advance(index + 1, false);
         continue;
       }
 
-      index = scanShellControlStart(text, index, frames);
+      advance(scanShellControlStart(text, index, frames), false);
       continue;
     }
 
@@ -107,17 +119,17 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
 
       if (text[index] === '}') {
         frames.pop();
-        index += 1;
+        advance(index + 1, false);
         continue;
       }
 
       if (text[index] === '`') {
         frames.push('backtick');
-        index += 1;
+        advance(index + 1, false);
         continue;
       }
 
-      index = scanShellControlStart(text, index, frames);
+      advance(scanShellControlStart(text, index, frames), false);
       continue;
     }
 
@@ -129,18 +141,21 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
 
       if (text[index] === ')') {
         frames.pop();
-        index += 1;
+        advance(index + 1, false);
         continue;
       }
 
-      index = scanShellPlainStart(text, index, frames);
+      advance(
+        scanShellPlainStart(text, index, frames, previousCharacter, previousCharacterEscaped),
+        false,
+      );
       continue;
     }
 
     if (frame === 'arith') {
       if (text.startsWith('))', index)) {
         frames.pop();
-        index += 2;
+        advance(index + 2, false);
         continue;
       }
 
@@ -149,25 +164,28 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
         continue;
       }
 
-      index = scanShellPlainStart(text, index, frames);
+      advance(
+        scanShellPlainStart(text, index, frames, previousCharacter, previousCharacterEscaped),
+        false,
+      );
       continue;
     }
 
     if (frame === 'heredoc') {
-      index += 1;
+      advance(index + 1, false);
       continue;
     }
 
     if (frame === 'line-comment') {
       if (text[index] === '\n') frames.pop();
-      index += 1;
+      advance(index + 1, false);
       continue;
     }
 
     if (isArithSquareFrame(frame)) {
       if (text[index] === '[') {
-        frame.bracketDepth += 1;
-        index += 1;
+        replaceTopArithSquareFrame(frames, frame.bracketDepth + 1);
+        advance(index + 1, false);
         continue;
       }
 
@@ -175,9 +193,9 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
         if (frame.bracketDepth === 0) {
           frames.pop();
         } else {
-          frame.bracketDepth -= 1;
+          replaceTopArithSquareFrame(frames, frame.bracketDepth - 1);
         }
-        index += 1;
+        advance(index + 1, false);
         continue;
       }
 
@@ -186,7 +204,10 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
         continue;
       }
 
-      index = scanShellPlainStart(text, index, frames);
+      advance(
+        scanShellPlainStart(text, index, frames, previousCharacter, previousCharacterEscaped),
+        false,
+      );
       continue;
     }
 
@@ -195,10 +216,18 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
       continue;
     }
 
-    index = scanShellPlainStart(text, index, frames);
+    advance(
+      scanShellPlainStart(text, index, frames, previousCharacter, previousCharacterEscaped),
+      false,
+    );
   }
 
-  return pendingEscape ? {frames, pendingEscape} : {frames};
+  return {
+    frames,
+    ...(pendingEscape ? {pendingEscape} : {}),
+    ...(previousCharacter === undefined ? {} : {previousCharacter}),
+    ...(previousCharacterEscaped ? {previousCharacterEscaped} : {}),
+  };
 }
 
 export function classifyShellSite(state: ShellScanState): ShellSiteContext {
@@ -210,8 +239,14 @@ export function classifyShellSite(state: ShellScanState): ShellSiteContext {
   return {kind: 'unsafe', region: findUnsafeRegion(state.frames)};
 }
 
-function scanShellPlainStart(text: string, index: number, frames: ShellScanFrame[]): number {
-  if (startsShellLineComment(text, index)) {
+function scanShellPlainStart(
+  text: string,
+  index: number,
+  frames: ShellScanFrame[],
+  previousCharacter: string | undefined,
+  previousCharacterEscaped: boolean,
+): number {
+  if (startsShellLineComment(text, index, previousCharacter, previousCharacterEscaped)) {
     frames.push('line-comment');
     return index + 1;
   }
@@ -320,6 +355,11 @@ function topFrame(frames: readonly ShellScanFrame[]): ShellScanFrame | undefined
   return frames.at(-1);
 }
 
+function cloneShellScanFrame(frame: ShellScanFrame): ShellScanFrame {
+  if (isArithSquareFrame(frame)) return {...frame};
+  return frame;
+}
+
 function findUnsafeRegion(frames: readonly ShellScanFrame[]): ShellFrame {
   for (let index = frames.length - 1; index >= 0; index -= 1) {
     const frame = frames[index];
@@ -335,10 +375,21 @@ function isArithSquareFrame(frame: ShellScanFrame | undefined): frame is ArithSq
   return typeof frame === 'object' && frame.kind === 'arith-square';
 }
 
-function startsShellLineComment(text: string, index: number): boolean {
-  if (text[index] !== '#') return false;
-  if (index === 0) return true;
+function replaceTopArithSquareFrame(frames: ShellScanFrame[], bracketDepth: number): void {
+  const topIndex = frames.length - 1;
+  const frame = frames[topIndex];
+  if (isArithSquareFrame(frame)) frames[topIndex] = {...frame, bracketDepth};
+}
 
-  const previous = text[index - 1];
-  return previous === undefined || shellCommentStarterPrefixPattern.test(previous);
+function startsShellLineComment(
+  text: string,
+  index: number,
+  previousCharacter: string | undefined,
+  previousCharacterEscaped: boolean,
+): boolean {
+  if (text[index] !== '#') return false;
+  if (previousCharacterEscaped) return false;
+  if (previousCharacter === undefined) return true;
+
+  return shellCommentStarterPrefixPattern.test(previousCharacter);
 }

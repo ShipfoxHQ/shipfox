@@ -134,6 +134,14 @@ describe('hoistRunCommand', () => {
 
     expect(result.command).toBe(`# "comment only"\nprintf '%s\\n' ${shellRef('__sf_0')}`);
   });
+
+  it('does not treat a hash after escaped whitespace as a comment', () => {
+    const segments = parseWorkflowTemplate(`printf %s foo\\ #${templateExpression(' run.id ')}`);
+
+    const result = hoistRunCommand(segments);
+
+    expect(result.command).toBe(`printf %s foo\\ #${shellRef('__sf_0')}`);
+  });
 });
 
 describe('resolveRunCommand', () => {
