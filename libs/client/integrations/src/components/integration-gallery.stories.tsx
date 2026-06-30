@@ -68,26 +68,33 @@ function IntegrationGalleryStory({scenario}: IntegrationGalleryStoryProps) {
   }, []);
   const router = useMemo(() => {
     const rootRoute = createRootRoute({component: Outlet});
-    const galleryRoute = createRoute({
+    const workspaceRoute = createRoute({
       getParentRoute: () => rootRoute,
-      path: '/workspaces/$wid/settings/integrations',
+      path: '/workspaces/$wid',
+      component: Outlet,
+    });
+    const galleryRoute = createRoute({
+      getParentRoute: () => workspaceRoute,
+      path: 'settings/integrations',
       component: () => (
         <div className="mx-auto w-full max-w-[760px] bg-background-neutral-background p-24">
-          <IntegrationGallery />
+          <IntegrationGallery workspaceId={WORKSPACE_ID} />
         </div>
       ),
     });
     const setupRoutes = SETUP_PATHS.map((path) =>
       createRoute({
-        getParentRoute: () => rootRoute,
-        path,
+        getParentRoute: () => workspaceRoute,
+        path: path.replace('/workspaces/$wid/', ''),
         component: () => <div />,
       }),
     );
 
     return createRouter({
       history: createMemoryHistory({initialEntries: [WORKSPACE_PATH]}),
-      routeTree: rootRoute.addChildren([galleryRoute, ...setupRoutes]),
+      routeTree: rootRoute.addChildren([
+        workspaceRoute.addChildren([galleryRoute, ...setupRoutes]),
+      ]),
     });
   }, []);
 

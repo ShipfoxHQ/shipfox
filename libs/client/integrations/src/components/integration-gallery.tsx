@@ -17,6 +17,7 @@ import {ProviderGrid} from './provider-grid.js';
 export interface IntegrationGalleryProps {
   capability?: IntegrationCapabilityDto;
   emptyProvidersMessage?: string;
+  workspaceId?: string;
 }
 
 // Both gallery surfaces use the same card fill so they read as one system on
@@ -27,10 +28,54 @@ const SURFACE_CLASS =
 export function IntegrationGallery({
   capability,
   emptyProvidersMessage = 'Enable at least one provider in the application settings.',
+  workspaceId,
 }: IntegrationGalleryProps) {
+  if (workspaceId) {
+    return (
+      <IntegrationGalleryForWorkspace
+        workspaceId={workspaceId}
+        capability={capability}
+        emptyProvidersMessage={emptyProvidersMessage}
+      />
+    );
+  }
+
+  return (
+    <RoutedIntegrationGallery
+      capability={capability}
+      emptyProvidersMessage={emptyProvidersMessage}
+    />
+  );
+}
+
+function RoutedIntegrationGallery({
+  capability,
+  emptyProvidersMessage,
+}: {
+  capability: IntegrationCapabilityDto | undefined;
+  emptyProvidersMessage: string;
+}) {
   const workspace = useActiveWorkspace();
+  return (
+    <IntegrationGalleryForWorkspace
+      workspaceId={workspace.id}
+      capability={capability}
+      emptyProvidersMessage={emptyProvidersMessage}
+    />
+  );
+}
+
+function IntegrationGalleryForWorkspace({
+  capability,
+  emptyProvidersMessage,
+  workspaceId,
+}: {
+  capability: IntegrationCapabilityDto | undefined;
+  emptyProvidersMessage: string;
+  workspaceId: string;
+}) {
   const providersQuery = useIntegrationProvidersQuery(capability ? {capability} : undefined);
-  const connectionsQuery = useIntegrationConnectionsQuery(workspace.id);
+  const connectionsQuery = useIntegrationConnectionsQuery(workspaceId);
 
   const providers = providersQuery.data?.providers ?? [];
   const providersMap = new Map<string, IntegrationProviderDto>(
@@ -104,7 +149,7 @@ export function IntegrationGallery({
 
         <ProviderGrid
           providersQuery={providersQuery}
-          workspaceId={workspace.id}
+          workspaceId={workspaceId}
           emptyMessage={emptyProvidersMessage}
         />
       </section>
