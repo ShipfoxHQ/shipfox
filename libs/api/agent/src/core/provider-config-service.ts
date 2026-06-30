@@ -79,6 +79,7 @@ export async function testAndSaveProviderConfig(
       ...(params.signal ? {signal: params.signal} : {}),
     });
   } catch (error) {
+    if (params.signal?.aborted) throw error;
     providerValidationCount.add(1, {provider: params.providerId, outcome: 'failed'});
     if (error instanceof InvalidAgentModelError) throw error;
 

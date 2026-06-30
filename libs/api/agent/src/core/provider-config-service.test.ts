@@ -95,6 +95,27 @@ describe('testAndSaveProviderConfig', () => {
     });
   });
 
+  it('rethrows aborted probe errors without treating them as validation failures', async () => {
+    const abortController = new AbortController();
+    const error = new Error('Provider probe aborted');
+    const probe = vi.fn().mockRejectedValue(error);
+    abortController.abort();
+
+    const save = testAndSaveProviderConfig(
+      {
+        workspaceId,
+        providerId: 'anthropic',
+        credentials: {api_key: 'sk-ant-secret-abcd'},
+        signal: abortController.signal,
+      },
+      {probe},
+    );
+
+    await expect(save).rejects.toBe(error);
+    const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
+    expect(stored).toBeUndefined();
+  });
+
   it('preserves an existing default model when rotating credentials without a model selection', async () => {
     await upsertAgentProviderConfig({
       workspaceId,

@@ -51,6 +51,7 @@ describe('agent provider config routes', () => {
     await db().execute(sql`TRUNCATE agent_provider_configs CASCADE`);
     await db().execute(sql`TRUNCATE agent_workspace_settings CASCADE`);
     workspaceId = crypto.randomUUID();
+    vi.mocked(complete).mockReset();
     vi.mocked(complete).mockResolvedValue({
       role: 'assistant',
       content: [{type: 'text', text: 'OK'}],
@@ -229,6 +230,7 @@ describe('agent provider config routes', () => {
 
       const [, , options] = vi.mocked(complete).mock.calls[0] ?? [];
       expect(res.statusCode).toBe(200);
+      expect(complete).toHaveBeenCalledTimes(1);
       expect(options?.signal).toBeInstanceOf(AbortSignal);
       expect(options?.signal?.aborted).toBe(false);
     });
