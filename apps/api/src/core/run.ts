@@ -66,7 +66,8 @@ export async function run(): Promise<void> {
   await startModuleWorkers({workers, onWorkerFailure: handleModuleWorkerFailure});
 
   logger().info('Starting HTTP server');
-  const address = await listen();
+  const address =
+    config.API_PORT === undefined ? await listen() : await listen({port: config.API_PORT});
   logger().info({address}, 'HTTP server listening');
 }
 

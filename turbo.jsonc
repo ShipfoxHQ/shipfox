@@ -42,6 +42,17 @@
     },
     "test": {
       "cache": true,
+      "passThroughEnv": [
+        "CLIENT_BASE_URL",
+        "GITEA_BASE_URL",
+        "LOG_STORAGE_S3_ENDPOINT",
+        "OTEL_INSTANCE_METRICS_PORT",
+        "OTEL_SERVICE_METRICS_PORT",
+        "POSTGRES_*",
+        "SHIPFOX_*",
+        "TEMPORAL_ADDRESS",
+        "VITE_API_URL"
+      ],
       "dependsOn": ["^build", "build"]
     },
     "test:e2e": {

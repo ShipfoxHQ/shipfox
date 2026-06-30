@@ -1,7 +1,7 @@
 services:
   postgres:
-    container_name: postgres
     image: postgres:18.4
+    network_mode: bridge
     environment:
       POSTGRES_USER: "shipfox"
       POSTGRES_PASSWORD: "password"
@@ -10,7 +10,7 @@ services:
       - postgres:/data/postgres
       - ./dev/postgres/init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
     ports:
-      - 127.0.0.1:5432:5432
+      - 127.0.0.1:${SHIPFOX_POSTGRES_PORT:-5432}:5432
     restart: unless-stopped
     healthcheck:
       test: [CMD, pg_isready, -U, shipfox, -d, api]
@@ -19,26 +19,26 @@ services:
       retries: 5
 
   temporal:
-    container_name: temporal
     image: temporalio/temporal:1.7.2
+    network_mode: bridge
     ports:
-      - 127.0.0.1:7233:7233
-      - 127.0.0.1:8233:8233
+      - 127.0.0.1:${SHIPFOX_TEMPORAL_PORT:-7233}:7233
+      - 127.0.0.1:${SHIPFOX_TEMPORAL_UI_PORT:-8233}:8233
     volumes:
       - temporal:/home/temporal
     command: "server start-dev --ip 0.0.0.0 --db-filename /home/temporal/temporal.db"
 
   garage:
-    container_name: garage
     image: dxflrs/garage:v2.3.0
+    network_mode: bridge
     volumes:
       - garage_meta:/var/lib/garage/meta
       - garage_data:/var/lib/garage/data
       - ./dev/garage/garage.toml:/etc/garage.toml:ro
     ports:
-      - 127.0.0.1:3900:3900
-      - 127.0.0.1:3901:3901
-      - 127.0.0.1:3903:3903
+      - 127.0.0.1:${SHIPFOX_GARAGE_S3_PORT:-3900}:3900
+      - 127.0.0.1:${SHIPFOX_GARAGE_RPC_PORT-3901}:3901
+      - 127.0.0.1:${SHIPFOX_GARAGE_ADMIN_PORT-3903}:3903
     restart: unless-stopped
     healthcheck:
       test: [CMD, /garage, status]
@@ -48,21 +48,25 @@ services:
 
   garage-init:
     image: alpine:3.24
+    network_mode: bridge
     depends_on:
       garage:
         condition: service_healthy
+    links:
+      - garage
     volumes:
       - ./dev/garage/bootstrap.sh:/bootstrap.sh:ro
     environment:
       GARAGE_URL: http://garage:3903
       GARAGE_S3_ENDPOINT: http://garage:3900
+      GARAGE_CORS_ALLOWED_ORIGINS: http://localhost:${SHIPFOX_CLIENT_PORT:-5173}
     entrypoint: [sh, -c, apk add --no-cache curl jq aws-cli >/dev/null && /bootstrap.sh]
     restart: "no"
 
   gitea:
-    container_name: gitea
     # This release fixes CVE-2026-28744 / CVE-2026-28699 on the git-http checkout path.
     image: gitea/gitea:1.26.2
+    network_mode: bridge
     environment:
       USER_UID: "1000"
       USER_GID: "1000"
@@ -71,13 +75,13 @@ services:
       # Bootstrap needs one open registration to create the first site admin.
       GITEA__service__DISABLE_REGISTRATION: "false"
       # Gitea derives clone/html URLs from ROOT_URL; the dev API and runner reach it via localhost.
-      GITEA__server__ROOT_URL: http://localhost:3000/
+      GITEA__server__ROOT_URL: http://localhost:${SHIPFOX_GITEA_HTTP_PORT:-3000}/
       GITEA__server__DOMAIN: localhost
       GITEA__server__HTTP_PORT: "3000"
       # Advertise SSH clone URLs on the published dev port.
       GITEA__server__START_SSH_SERVER: "true"
       GITEA__server__SSH_DOMAIN: localhost
-      GITEA__server__SSH_PORT: "2222"
+      GITEA__server__SSH_PORT: "${SHIPFOX_GITEA_SSH_PORT:-2222}"
       GITEA__server__SSH_LISTEN_PORT: "2222"
       # Dev webhooks target host.docker.internal, which Gitea blocks by default.
       GITEA__webhook__ALLOWED_HOST_LIST: "*"
@@ -85,8 +89,8 @@ services:
     volumes:
       - gitea:/data
     ports:
-      - 127.0.0.1:3000:3000
-      - 127.0.0.1:2222:2222
+      - 127.0.0.1:${SHIPFOX_GITEA_HTTP_PORT:-3000}:3000
+      - 127.0.0.1:${SHIPFOX_GITEA_SSH_PORT:-2222}:2222
     restart: unless-stopped
     healthcheck:
       test: [CMD, wget, -q, -O, "-", "http://127.0.0.1:3000/api/healthz"]
@@ -97,9 +101,12 @@ services:
 
   gitea-init:
     image: alpine:3.24
+    network_mode: bridge
     depends_on:
       gitea:
         condition: service_healthy
+    links:
+      - gitea
     volumes:
       - ./dev/gitea/bootstrap.sh:/bootstrap.sh:ro
       - ./dev/gitea/seed:/seed:ro
@@ -110,7 +117,7 @@ services:
       GITEA_SERVICE_TOKEN: shipfox-bot-dev-password
       GITEA_ORG: shipfox
       # Register the org push webhook as admin; the service account is read-only.
-      GITEA_WEBHOOK_TARGET_URL: http://host.docker.internal:16101/webhooks/integrations/gitea
+      GITEA_WEBHOOK_TARGET_URL: http://host.docker.internal:${SHIPFOX_API_PORT:-16101}/webhooks/integrations/gitea
       GITEA_WEBHOOK_SECRET: shipfox-gitea-dev-webhook-secret
     entrypoint: [sh, -c, apk add --no-cache curl jq >/dev/null && /bootstrap.sh]
     restart: "no"

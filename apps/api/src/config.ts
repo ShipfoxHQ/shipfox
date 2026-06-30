@@ -1,5 +1,5 @@
 import {isIP} from 'node:net';
-import {bool, createConfig, str} from '@shipfox/config';
+import {bool, createConfig, port, str} from '@shipfox/config';
 
 export type ApiTrustProxy = false | true | number | string;
 
@@ -12,6 +12,10 @@ export const config = createConfig({
   }),
   E2E_ADMIN_API_KEY: str({
     desc: 'Bearer token that protects the E2E admin routes. Set it when E2E_ENABLED is true.',
+    default: undefined,
+  }),
+  API_PORT: port({
+    desc: 'Port the API HTTP server listens on. When unset, the shared PORT setting controls the server port.',
     default: undefined,
   }),
   API_TRUST_PROXY: str({
