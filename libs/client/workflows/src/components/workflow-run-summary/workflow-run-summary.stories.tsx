@@ -18,7 +18,6 @@ import type {WorkflowRunStatus} from '#core/workflow-run.js';
 import {
   runAttemptsResponseDto,
   workflowJobDto,
-  workflowRun,
   workflowRunAttemptDto,
   workflowRunDetail,
 } from '#test/fixtures/workflow-run.js';
@@ -124,7 +123,7 @@ const meta = {
     },
   },
   decorators: [withFrame],
-  args: {run: workflowRun({status: 'succeeded'})},
+  args: {run: workflowRunDetail({status: 'succeeded'})},
 } satisfies Meta<typeof WorkflowRunSummary>;
 
 export default meta;
@@ -144,10 +143,10 @@ const noop = () => undefined;
 const noopRerun = (_mode: RerunMode) => undefined;
 
 const ATTEMPT_SUMMARY_ARGS = {
-  run: workflowRun({
+  run: workflowRunDetail({
     id: CURRENT_RUN_ID,
-    root_run_id: ROOT_RUN_ID,
-    attempt: 2,
+    current_attempt: 2,
+    run_attempt: workflowRunAttemptDto({id: CURRENT_RUN_ID, run_id: CURRENT_RUN_ID, attempt: 2}),
     status: 'failed',
   }),
   workspaceId: WORKSPACE_ID,
@@ -159,7 +158,7 @@ export const Default: Story = {};
 
 export const WithSourceButton: Story = {
   args: {
-    run: workflowRun({
+    run: workflowRunDetail({
       status: 'succeeded',
       source_snapshot: {format: 'yaml', content: 'jobs:\n  build:\n    steps: []'},
     }),
@@ -171,7 +170,7 @@ export const WithSourceButton: Story = {
 
 export const SourceOpen: Story = {
   args: {
-    run: workflowRun({
+    run: workflowRunDetail({
       status: 'succeeded',
       source_snapshot: {format: 'yaml', content: 'jobs:\n  build:\n    steps: []'},
     }),
@@ -194,14 +193,14 @@ export const WithAttemptsOpen: Story = {
 
 export const Cancellable: Story = {
   args: {
-    run: workflowRun({status: 'running'}),
+    run: workflowRunDetail({status: 'running'}),
     onCancel: noop,
   },
 };
 
 export const Cancelling: Story = {
   args: {
-    run: workflowRun({status: 'running'}),
+    run: workflowRunDetail({status: 'running'}),
     onCancel: noop,
     cancelling: true,
   },
@@ -221,7 +220,7 @@ export const Statuses: Story = {
       {ALL_STATUSES.map((status, index) => (
         <WorkflowRunSummary
           key={status}
-          run={workflowRun({
+          run={workflowRunDetail({
             id: `11111111-1111-4111-8111-${String(index + 2).padStart(12, '0')}`,
             status,
             name: `${status}-pipeline`,
@@ -235,22 +234,22 @@ export const Statuses: Story = {
 const ACTION_VARIANTS = [
   {
     label: 'Running',
-    run: workflowRun({status: 'running', name: 'running-pipeline'}),
+    run: workflowRunDetail({status: 'running', name: 'running-pipeline'}),
     props: {onCancel: noop},
   },
   {
     label: 'Cancelling',
-    run: workflowRun({status: 'running', name: 'cancelling-pipeline'}),
+    run: workflowRunDetail({status: 'running', name: 'cancelling-pipeline'}),
     props: {cancelling: true, onCancel: noop},
   },
   {
     label: 'Succeeded',
-    run: workflowRun({status: 'succeeded', name: 'succeeded-pipeline'}),
+    run: workflowRunDetail({status: 'succeeded', name: 'succeeded-pipeline'}),
     props: {onRerun: noopRerun},
   },
   {
     label: 'Re-running',
-    run: workflowRun({status: 'succeeded', name: 'rerun-pending-pipeline'}),
+    run: workflowRunDetail({status: 'succeeded', name: 'rerun-pending-pipeline'}),
     props: {rerunPending: true, onRerun: noopRerun},
   },
   {
@@ -321,8 +320,17 @@ export const ActionVariantsWithAttempts: Story = {
           run={{
             ...run,
             id: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
-            rootRunId: ROOT_RUN_ID,
-            attempt: 2,
+            currentAttempt: 2,
+            runAttempt: {
+              id: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
+              runId: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
+              attempt: 2,
+              status: run.status,
+              createdAt: run.createdAt,
+              startedAt: null,
+              finishedAt: null,
+              rerunMode: null,
+            },
           }}
           latestAttempt={3}
           {...props}
@@ -334,7 +342,7 @@ export const ActionVariantsWithAttempts: Story = {
 
 export const MissingTriggerMetadata: Story = {
   args: {
-    run: workflowRun({
+    run: workflowRunDetail({
       status: 'succeeded',
       trigger_source: '',
       trigger_event: '',
@@ -344,13 +352,13 @@ export const MissingTriggerMetadata: Story = {
 
 export const EmptyTriggerPayload: Story = {
   args: {
-    run: workflowRun({status: 'succeeded', trigger_payload: {}}),
+    run: workflowRunDetail({status: 'succeeded', trigger_payload: {}}),
   },
 };
 
 export const LongRunName: Story = {
   args: {
-    run: workflowRun({
+    run: workflowRunDetail({
       status: 'succeeded',
       name: 'release-production-multi-region-with-canary-and-smoke-tests-and-progressive-delivery-observability-and-post-deploy-validation-for-enterprise-workspaces',
     }),
@@ -359,7 +367,7 @@ export const LongRunName: Story = {
 
 export const LongTriggerMetadata: Story = {
   args: {
-    run: workflowRun({
+    run: workflowRunDetail({
       status: 'succeeded',
       trigger_source: 'github-enterprise-cloud-production-organization',
       trigger_event: 'workflow_dispatch_with_release_candidate_payload',

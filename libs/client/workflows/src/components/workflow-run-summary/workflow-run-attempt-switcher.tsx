@@ -11,7 +11,7 @@ import {
 } from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {useState} from 'react';
-import type {WorkflowRun, WorkflowRunAttempt} from '#core/workflow-run.js';
+import type {WorkflowRunAttempt, WorkflowRunDetail} from '#core/workflow-run.js';
 import {withoutWorkflowRunSelectionSearch} from '#core/workflow-run-url-state.js';
 import {useWorkflowRunAttemptsQuery} from '#hooks/api/workflow-runs.js';
 import {WorkflowStatusIcon} from '../workflow-status/workflow-status-icon.js';
@@ -19,7 +19,7 @@ import {WorkflowStatusIcon} from '../workflow-status/workflow-status-icon.js';
 export interface WorkflowRunAttemptSwitcherProps {
   workspaceId: string;
   projectId: string;
-  run: WorkflowRun;
+  run: WorkflowRunDetail;
   latestAttempt: number;
 }
 
@@ -32,7 +32,6 @@ export function WorkflowRunAttemptSwitcher({
   const [open, setOpen] = useState(false);
   const attemptsQuery = useWorkflowRunAttemptsQuery({
     runId: run.id,
-    rootRunId: run.rootRunId,
     enabled: open,
   });
 
@@ -40,7 +39,7 @@ export function WorkflowRunAttemptSwitcher({
 
   const attempts = attemptsQuery.data ?? [];
   const latestLoadedAttempt = Math.max(0, ...attempts.map((attempt) => attempt.attempt));
-  const maxAttempt = Math.max(latestAttempt, run.attempt, latestLoadedAttempt);
+  const maxAttempt = Math.max(latestAttempt, run.runAttempt.attempt, latestLoadedAttempt);
   const isLoadingMissingAttempt =
     attempts.length > 0 && attemptsQuery.isFetching && latestLoadedAttempt < maxAttempt;
 
@@ -52,11 +51,11 @@ export function WorkflowRunAttemptSwitcher({
           variant="transparentMuted"
           size="2xs"
           iconRight="arrowDownSLine"
-          aria-label={`Switch attempt, currently ${run.attempt} of ${maxAttempt}`}
+          aria-label={`Switch attempt, currently ${run.runAttempt.attempt} of ${maxAttempt}`}
           className="h-20 px-4 text-foreground-neutral-muted hover:text-foreground-neutral-base"
         >
           <Code as="span" variant="label" className="text-inherit">
-            Attempt {run.attempt} of {maxAttempt}
+            Attempt {run.runAttempt.attempt} of {maxAttempt}
           </Code>
         </Button>
       </DropdownMenuTrigger>
@@ -73,7 +72,8 @@ export function WorkflowRunAttemptSwitcher({
                 <AttemptItem
                   key={attempt.id}
                   attempt={attempt}
-                  current={attempt.id === run.id}
+                  current={attempt.id === run.runAttempt.id}
+                  runId={run.id}
                   workspaceId={workspaceId}
                   projectId={projectId}
                 />
@@ -107,11 +107,13 @@ function ErrorRow({onRetry}: {onRetry: () => void}) {
 function AttemptItem({
   attempt,
   current,
+  runId,
   workspaceId,
   projectId,
 }: {
   attempt: WorkflowRunAttempt;
   current: boolean;
+  runId: string;
   workspaceId: string;
   projectId: string;
 }) {
@@ -119,10 +121,15 @@ function AttemptItem({
     <DropdownMenuItem asChild className={cn(current && 'text-foreground-neutral-base')}>
       <Link
         to="/workspaces/$wid/projects/$pid/runs/$runId"
-        params={{wid: workspaceId, pid: projectId, runId: attempt.id}}
+        params={{wid: workspaceId, pid: projectId, runId}}
         search={
-          ((previous: Record<string, unknown>) =>
-            current ? previous : withoutWorkflowRunSelectionSearch(previous)) as never
+          ((previous: Record<string, unknown>) => {
+            if (current) return previous;
+            return {
+              ...withoutWorkflowRunSelectionSearch(previous),
+              runAttempt: attempt.attempt,
+            };
+          }) as never
         }
         aria-current={current ? 'page' : undefined}
       >

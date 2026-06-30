@@ -64,7 +64,7 @@ describe('WorkflowRunView', () => {
             jobs: [
               workflowJobDto({
                 id: BUILD_JOB_ID,
-                run_id: RUN_ID,
+                run_attempt_id: RUN_ID,
                 name: 'build',
                 status: 'running',
                 steps: [
@@ -118,7 +118,7 @@ describe('WorkflowRunView', () => {
             jobs: [
               workflowJobDto({
                 id: BUILD_JOB_ID,
-                run_id: RUN_ID,
+                run_attempt_id: RUN_ID,
                 name: 'build',
                 status: 'failed',
                 steps: [
@@ -207,7 +207,7 @@ describe('WorkflowRunView', () => {
               jobs: [
                 workflowJobDto({
                   id: BUILD_JOB_ID,
-                  run_id: RUN_ID,
+                  run_attempt_id: RUN_ID,
                   name: 'build',
                   status: 'failed',
                   steps: [
@@ -272,7 +272,7 @@ describe('WorkflowRunView', () => {
               jobs: [
                 workflowJobDto({
                   id: DEPLOY_JOB_ID,
-                  run_id: RUN_ID,
+                  run_attempt_id: RUN_ID,
                   name: 'deploy',
                   status: 'skipped',
                   status_reason: 'dependency_not_completed',
@@ -303,7 +303,7 @@ describe('WorkflowRunView', () => {
               jobs: [
                 workflowJobDto({
                   id: DEPLOY_JOB_ID,
-                  run_id: RUN_ID,
+                  run_attempt_id: RUN_ID,
                   name: 'deploy',
                   status: 'pending',
                   steps: [],
@@ -331,7 +331,7 @@ describe('WorkflowRunView', () => {
               jobs: [
                 workflowJobDto({
                   id: DEPLOY_JOB_ID,
-                  run_id: RUN_ID,
+                  run_attempt_id: RUN_ID,
                   name: 'deploy',
                   status: 'running',
                   steps: [],
@@ -361,7 +361,7 @@ describe('WorkflowRunView', () => {
               jobs: [
                 workflowJobDto({
                   id: DEPLOY_JOB_ID,
-                  run_id: RUN_ID,
+                  run_attempt_id: RUN_ID,
                   name: 'deploy',
                   status: 'cancelled',
                   steps: [],
@@ -460,7 +460,7 @@ describe('WorkflowRunView', () => {
               jobs: [
                 workflowJobDto({
                   id: DEPLOY_JOB_ID,
-                  run_id: RUN_ID,
+                  run_attempt_id: RUN_ID,
                   name: 'deploy',
                   status: 'running',
                   steps: [
@@ -522,7 +522,7 @@ describe('WorkflowRunView', () => {
           jobs: [
             workflowJobDto({
               id: BUILD_JOB_ID,
-              run_id: RUN_ID,
+              run_attempt_id: RUN_ID,
               name: 'build',
               status: 'succeeded',
             }),
@@ -562,13 +562,13 @@ describe('WorkflowRunView', () => {
           jobs: [
             workflowJobDto({
               id: BUILD_JOB_ID,
-              run_id: RUN_ID,
+              run_attempt_id: RUN_ID,
               name: 'build',
               status: 'failed',
             }),
             workflowJobDto({
               id: DEPLOY_JOB_ID,
-              run_id: RUN_ID,
+              run_attempt_id: RUN_ID,
               name: 'deploy',
               status: 'cancelled',
               position: 1,
@@ -611,7 +611,7 @@ describe('WorkflowRunView', () => {
 
   test('selects another run attempt and clears job selection search', async () => {
     const user = userEvent.setup();
-    const secondRunId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const secondAttemptId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       const url = requestUrl(input);
       if (url.pathname === `/workflows/runs/${RUN_ID}/attempts`) {
@@ -626,7 +626,7 @@ describe('WorkflowRunView', () => {
                   created_at: '2026-05-07T01:01:00.000Z',
                 }),
                 workflowRunAttemptDto({
-                  id: secondRunId,
+                  id: secondAttemptId,
                   attempt: 2,
                   status: 'running',
                   created_at: '2026-05-07T01:02:00.000Z',
@@ -640,9 +640,9 @@ describe('WorkflowRunView', () => {
       return Promise.resolve(
         jsonResponse(
           workflowRunViewDetailDto({
-            root_run_id: RUN_ID,
-            attempt: 1,
+            current_attempt: 1,
             latest_attempt: 2,
+            run_attempt: workflowRunAttemptDto({id: RUN_ID, run_id: RUN_ID, attempt: 1}),
           }),
         ),
       );
@@ -650,7 +650,7 @@ describe('WorkflowRunView', () => {
     configureApiClient({fetchImpl: fetchImpl as typeof fetch});
 
     const {router} = renderProjectPage(
-      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${RUN_ID}?job=${BUILD_JOB_ID}&step=${CHECKOUT_STEP_ID}&attempt=${CHECKOUT_ATTEMPT_ID}`,
+      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${RUN_ID}?job=${BUILD_JOB_ID}&step=${CHECKOUT_STEP_ID}&stepAttempt=${CHECKOUT_ATTEMPT_ID}`,
       () => (
         <WorkflowRunView workspaceId={PROJECT_TEST_WID} projectId={PROJECT_ID} runId={RUN_ID} />
       ),
@@ -661,10 +661,10 @@ describe('WorkflowRunView', () => {
 
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
-        `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${secondRunId}`,
+        `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${RUN_ID}`,
       ),
     );
-    expect(router.state.location.search).toEqual({});
+    expect(router.state.location.search).toEqual({runAttempt: 2});
   });
 
   test('does not render rerun controls for non-terminal runs', async () => {
@@ -688,7 +688,7 @@ describe('WorkflowRunView', () => {
             jobs: [
               workflowJobDto({
                 id: BUILD_JOB_ID,
-                run_id: RUN_ID,
+                run_attempt_id: RUN_ID,
                 name: 'build',
                 status: 'succeeded',
                 carried_over: true,
@@ -778,7 +778,7 @@ function workflowRunViewDetailDto(
     jobs: [
       workflowJobDto({
         id: BUILD_JOB_ID,
-        run_id: RUN_ID,
+        run_attempt_id: RUN_ID,
         name: 'build',
         status: 'succeeded',
         steps: [
@@ -801,7 +801,7 @@ function workflowRunViewDetailDto(
       }),
       workflowJobDto({
         id: DEPLOY_JOB_ID,
-        run_id: RUN_ID,
+        run_attempt_id: RUN_ID,
         name: 'deploy',
         status: 'running',
         position: 1,

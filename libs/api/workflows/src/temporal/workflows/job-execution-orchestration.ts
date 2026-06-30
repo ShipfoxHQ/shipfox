@@ -67,7 +67,7 @@ export interface JobExecutionOrchestrationInput {
   workspaceId: string;
   jobId: string;
   jobExecutionId: string;
-  runId: string;
+  runAttemptId: string;
   projectId: string;
   jobVersion: number;
   executionVersion: number;
@@ -138,7 +138,7 @@ async function markJobExecutionRunningAndEnqueue(
     workspaceId: input.workspaceId,
     jobId: input.jobId,
     jobExecutionId: input.jobExecutionId,
-    runId: input.runId,
+    runAttemptId: input.runAttemptId,
     projectId: input.projectId,
     requiredLabels: input.requiredLabels,
   });
@@ -220,7 +220,7 @@ async function resolveTimedOutJobExecution({
 }: JobExecutionResolution): Promise<JobExecutionOrchestrationResult> {
   await failJobExecutionAsTimedOutActivity({
     jobExecutionId: input.jobExecutionId,
-    runId: input.runId,
+    runAttemptId: input.runAttemptId,
     expectedVersion: runningVersion,
   });
   await bulkSetStepStatuses({jobExecutionId: input.jobExecutionId, status: 'failed'});

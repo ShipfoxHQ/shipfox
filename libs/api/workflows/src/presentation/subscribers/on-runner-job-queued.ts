@@ -8,7 +8,11 @@ import {recordJobExecutionQueuedAt} from '#db/index.js';
 // so outbox replay cannot move the queue boundary.
 export async function onRunnerJobQueued(payload: RunnerJobQueuedEvent): Promise<void> {
   logger().debug(
-    {jobId: payload.jobId, jobExecutionId: payload.jobExecutionId, runId: payload.runId},
+    {
+      jobId: payload.jobId,
+      jobExecutionId: payload.jobExecutionId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
+    },
     'Recording job execution queued_at',
   );
   await recordJobExecutionQueuedAt({

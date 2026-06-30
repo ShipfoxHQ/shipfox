@@ -4,7 +4,8 @@ import {logOutcomeSchema} from './schemas/log-outcome.js';
 
 const nonEmptyStringSchema = z.string().nonempty();
 
-export const WORKFLOWS_WORKFLOW_RUN_CREATED = 'workflows.workflow_run.created' as const;
+export const WORKFLOWS_RUN_ATTEMPT_CREATED = 'workflows.run_attempt.created' as const;
+export const WORKFLOWS_WORKFLOW_RUN_CREATED = WORKFLOWS_RUN_ATTEMPT_CREATED;
 // Terminal fact for a workflow run, written in the same transaction as the status flip.
 export const WORKFLOWS_WORKFLOW_RUN_TERMINATED = 'workflows.workflow_run.terminated' as const;
 // Intent fact for cooperative run cancellation. Consumers use this to stop orchestration.
@@ -24,13 +25,17 @@ export const WORKFLOWS_JOB_STEPS_SETTLED = 'workflows.job.steps_settled' as cons
 export const WORKFLOWS_STEP_RESTART_ENQUEUED = 'workflows.step.restart_enqueued' as const;
 export const WORKFLOWS_STEP_ATTEMPT_TERMINATED = 'workflows.step_attempt.terminated' as const;
 
-export const workflowsWorkflowRunCreatedSchema = z.object({
-  runId: nonEmptyStringSchema,
+export const workflowsRunAttemptCreatedSchema = z.object({
+  workflowRunId: nonEmptyStringSchema,
+  workflowRunAttemptId: nonEmptyStringSchema,
+  attempt: z.number().int().positive(),
   workspaceId: nonEmptyStringSchema,
   projectId: nonEmptyStringSchema,
   definitionId: nonEmptyStringSchema,
 });
-export type WorkflowsWorkflowRunCreatedEvent = z.infer<typeof workflowsWorkflowRunCreatedSchema>;
+export type WorkflowsRunAttemptCreatedEvent = z.infer<typeof workflowsRunAttemptCreatedSchema>;
+export type WorkflowsWorkflowRunCreatedEvent = WorkflowsRunAttemptCreatedEvent;
+export const workflowsWorkflowRunCreatedSchema = workflowsRunAttemptCreatedSchema;
 
 // Keep outbox terminal statuses narrower than the public status schemas, which
 // also carry pending/running and job-only skipped.
@@ -40,6 +45,7 @@ export const terminalStatusSchema = workflowRunTerminalStatusSchema;
 
 export const workflowsWorkflowRunTerminatedSchema = z.object({
   runId: nonEmptyStringSchema,
+  workflowRunAttemptId: nonEmptyStringSchema,
   projectId: nonEmptyStringSchema,
   status: workflowRunTerminalStatusSchema,
 });
@@ -49,6 +55,7 @@ export type WorkflowsWorkflowRunTerminatedEvent = z.infer<
 
 export const workflowsWorkflowRunCancelledSchema = z.object({
   runId: nonEmptyStringSchema,
+  workflowRunAttemptId: nonEmptyStringSchema,
   projectId: nonEmptyStringSchema,
 });
 export type WorkflowsWorkflowRunCancelledEvent = z.infer<
@@ -59,6 +66,7 @@ export const workflowsJobExecutionTimedOutSchema = z.object({
   jobId: nonEmptyStringSchema,
   jobExecutionId: nonEmptyStringSchema,
   runId: nonEmptyStringSchema,
+  workflowRunAttemptId: nonEmptyStringSchema,
 });
 export type WorkflowsJobExecutionTimedOutEvent = z.infer<
   typeof workflowsJobExecutionTimedOutSchema
@@ -67,6 +75,7 @@ export type WorkflowsJobExecutionTimedOutEvent = z.infer<
 export const workflowsJobTerminatedSchema = z.object({
   jobId: nonEmptyStringSchema,
   runId: nonEmptyStringSchema,
+  workflowRunAttemptId: nonEmptyStringSchema,
   status: jobTerminalStatusSchema,
   statusReason: jobStatusReasonSchema.nullable(),
 });
@@ -78,6 +87,7 @@ export const workflowsJobStepsSettledSchema = z.object({
   jobId: nonEmptyStringSchema,
   jobExecutionId: nonEmptyStringSchema,
   runId: nonEmptyStringSchema,
+  workflowRunAttemptId: nonEmptyStringSchema,
   status: settledStatusSchema,
 });
 export type WorkflowsJobStepsSettledEvent = z.infer<typeof workflowsJobStepsSettledSchema>;
@@ -85,6 +95,7 @@ export type WorkflowsJobStepsSettledEvent = z.infer<typeof workflowsJobStepsSett
 export const workflowsStepRestartEnqueuedSchema = z.object({
   jobId: nonEmptyStringSchema,
   runId: nonEmptyStringSchema,
+  workflowRunAttemptId: nonEmptyStringSchema,
   failedStepId: nonEmptyStringSchema,
   failedStepAttempt: z.number(),
   restartFromStepId: nonEmptyStringSchema,
@@ -95,6 +106,7 @@ export type WorkflowsStepRestartEnqueuedEvent = z.infer<typeof workflowsStepRest
 export const workflowsStepAttemptTerminatedSchema = z.object({
   jobId: nonEmptyStringSchema,
   runId: nonEmptyStringSchema,
+  workflowRunAttemptId: nonEmptyStringSchema,
   workspaceId: nonEmptyStringSchema,
   projectId: nonEmptyStringSchema,
   stepId: nonEmptyStringSchema,
@@ -106,7 +118,7 @@ export type WorkflowsStepAttemptTerminatedEvent = z.infer<
 >;
 
 export interface WorkflowsEventMap {
-  [WORKFLOWS_WORKFLOW_RUN_CREATED]: WorkflowsWorkflowRunCreatedEvent;
+  [WORKFLOWS_RUN_ATTEMPT_CREATED]: WorkflowsRunAttemptCreatedEvent;
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: WorkflowsWorkflowRunTerminatedEvent;
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: WorkflowsWorkflowRunCancelledEvent;
   [WORKFLOWS_JOB_EXECUTION_TIMED_OUT]: WorkflowsJobExecutionTimedOutEvent;
@@ -117,7 +129,7 @@ export interface WorkflowsEventMap {
 }
 
 export const workflowsEventSchemas = {
-  [WORKFLOWS_WORKFLOW_RUN_CREATED]: workflowsWorkflowRunCreatedSchema,
+  [WORKFLOWS_RUN_ATTEMPT_CREATED]: workflowsRunAttemptCreatedSchema,
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: workflowsWorkflowRunTerminatedSchema,
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: workflowsWorkflowRunCancelledSchema,
   [WORKFLOWS_JOB_EXECUTION_TIMED_OUT]: workflowsJobExecutionTimedOutSchema,

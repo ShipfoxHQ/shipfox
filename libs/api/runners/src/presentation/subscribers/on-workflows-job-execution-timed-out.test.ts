@@ -9,9 +9,9 @@ import {onWorkflowsJobExecutionTimedOut} from './on-workflows-job-execution-time
 function buildPayload(
   jobId: string,
   jobExecutionId: string,
-  runId: string,
+  workflowRunAttemptId: string,
 ): WorkflowsJobExecutionTimedOutEvent {
-  return {jobId, jobExecutionId, runId};
+  return {jobId, jobExecutionId, runId: crypto.randomUUID(), workflowRunAttemptId};
 }
 
 describe('onWorkflowsJobExecutionTimedOut', () => {
@@ -38,7 +38,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       buildPayload(
         claimed?.jobId as string,
         claimed?.jobExecutionId as string,
-        claimed?.runId as string,
+        claimed?.workflowRunAttemptId as string,
       ),
     );
 
@@ -66,7 +66,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
         workspaceId,
         jobId: claimed?.jobId as string,
         jobExecutionId: siblingJobExecutionId,
-        runId: claimed?.runId as string,
+        workflowRunAttemptId: claimed?.workflowRunAttemptId as string,
         projectId: claimed?.projectId as string,
         runnerSessionId: siblingRunnerSession.id,
         requiredLabels: ['linux'],
@@ -77,7 +77,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       buildPayload(
         claimed?.jobId as string,
         claimed?.jobExecutionId as string,
-        claimed?.runId as string,
+        claimed?.workflowRunAttemptId as string,
       ),
     );
 
@@ -108,7 +108,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       buildPayload(
         claimed?.jobId as string,
         claimed?.jobExecutionId as string,
-        claimed?.runId as string,
+        claimed?.workflowRunAttemptId as string,
       ),
     );
     const after1 = await db()
@@ -122,7 +122,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       buildPayload(
         claimed?.jobId as string,
         claimed?.jobExecutionId as string,
-        claimed?.runId as string,
+        claimed?.workflowRunAttemptId as string,
       ),
     );
 

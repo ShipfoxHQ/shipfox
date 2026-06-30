@@ -56,7 +56,7 @@ describe('WorkflowRunPage', () => {
     configureApiClient({fetchImpl: createRunsListFetch()});
 
     const {router} = renderRunsPath(
-      `?job=${DEPLOY_JOB_ID}&step=${DEPLOY_STEP_ID}&attempt=${DEPLOY_ATTEMPT_TWO_ID}`,
+      `?job=${DEPLOY_JOB_ID}&step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}`,
     );
 
     // Landing on /runs with runs present redirects to the newest run, so its row becomes the
@@ -65,7 +65,7 @@ describe('WorkflowRunPage', () => {
     expect(selectedRow).toHaveTextContent('deploy-web');
     expect(currentSearch(router).job).toBeUndefined();
     expect(currentSearch(router).step).toBeUndefined();
-    expect(currentSearch(router).attempt).toBeUndefined();
+    expect(currentSearch(router).stepAttempt).toBeUndefined();
   });
 
   test('shows the first-time-use surface when the project has no runs', async () => {
@@ -82,7 +82,9 @@ describe('WorkflowRunPage', () => {
   test('restores a deep-linked job and exact attempt after data loads', async () => {
     configureApiClient({fetchImpl: createRunDetailFetch()});
 
-    renderRunPath(`?job=${BUILD_JOB_ID}&step=${DEPLOY_STEP_ID}&attempt=${DEPLOY_ATTEMPT_TWO_ID}`);
+    renderRunPath(
+      `?job=${BUILD_JOB_ID}&step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}`,
+    );
 
     const deployJob = await screen.findByRole('button', {name: 'deploy, Running'});
     const deployAttempt = await screen.findByRole('button', {
@@ -97,7 +99,7 @@ describe('WorkflowRunPage', () => {
   test('selecting a job writes job search state and clears stale step state', async () => {
     const user = userEvent.setup();
     configureApiClient({fetchImpl: createRunDetailFetch()});
-    const {router} = renderRunPath(`?step=${DEPLOY_STEP_ID}&attempt=${DEPLOY_ATTEMPT_TWO_ID}`);
+    const {router} = renderRunPath(`?step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}`);
 
     await user.click(await screen.findByRole('button', {name: 'build, Succeeded'}));
 
@@ -105,7 +107,7 @@ describe('WorkflowRunPage', () => {
       expect(currentSearch(router)).toMatchObject({job: BUILD_JOB_ID});
     });
     expect(currentSearch(router).step).toBeUndefined();
-    expect(currentSearch(router).attempt).toBeUndefined();
+    expect(currentSearch(router).stepAttempt).toBeUndefined();
     expect(screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'})).toHaveAttribute(
       'aria-expanded',
       'false',
@@ -123,7 +125,7 @@ describe('WorkflowRunPage', () => {
       expect(currentSearch(router)).toMatchObject({
         job: DEPLOY_JOB_ID,
         step: DEPLOY_STEP_ID,
-        attempt: DEPLOY_ATTEMPT_TWO_ID,
+        stepAttempt: DEPLOY_ATTEMPT_TWO_ID,
       });
     });
   });
@@ -131,7 +133,7 @@ describe('WorkflowRunPage', () => {
   test('collapsing an attempt removes step and attempt while preserving job', async () => {
     const user = userEvent.setup();
     configureApiClient({fetchImpl: createRunDetailFetch()});
-    const {router} = renderRunPath(`?step=${DEPLOY_STEP_ID}&attempt=${DEPLOY_ATTEMPT_TWO_ID}`);
+    const {router} = renderRunPath(`?step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}`);
 
     const deployAttempt = await screen.findByRole('button', {
       name: 'deploy, Running, attempt 2',
@@ -142,7 +144,7 @@ describe('WorkflowRunPage', () => {
       expect(currentSearch(router)).toMatchObject({job: DEPLOY_JOB_ID});
     });
     expect(currentSearch(router).step).toBeUndefined();
-    expect(currentSearch(router).attempt).toBeUndefined();
+    expect(currentSearch(router).stepAttempt).toBeUndefined();
     expect(deployAttempt).toHaveAttribute('aria-expanded', 'false');
   });
 
@@ -153,7 +155,7 @@ describe('WorkflowRunPage', () => {
 
     await user.click(await screen.findByRole('button', {name: 'deploy, Running, attempt 2'}));
     await waitFor(() => {
-      expect(currentSearch(router).attempt).toBe(DEPLOY_ATTEMPT_TWO_ID);
+      expect(currentSearch(router).stepAttempt).toBe(DEPLOY_ATTEMPT_TWO_ID);
     });
 
     await act(() => {
@@ -163,7 +165,7 @@ describe('WorkflowRunPage', () => {
       expect(currentSearch(router)).toMatchObject({job: DEPLOY_JOB_ID});
     });
     expect(currentSearch(router).step).toBeUndefined();
-    expect(currentSearch(router).attempt).toBeUndefined();
+    expect(currentSearch(router).stepAttempt).toBeUndefined();
     expect(screen.getByRole('button', {name: 'deploy, Running, attempt 2'})).toHaveAttribute(
       'aria-expanded',
       'false',
@@ -173,7 +175,7 @@ describe('WorkflowRunPage', () => {
       router.history.forward();
     });
     await waitFor(() => {
-      expect(currentSearch(router).attempt).toBe(DEPLOY_ATTEMPT_TWO_ID);
+      expect(currentSearch(router).stepAttempt).toBe(DEPLOY_ATTEMPT_TWO_ID);
     });
     expect(screen.getByRole('button', {name: 'deploy, Running, attempt 2'})).toHaveAttribute(
       'aria-expanded',
@@ -192,7 +194,7 @@ describe('WorkflowRunPage', () => {
         },
       }),
     });
-    const {router} = renderRunPath(`?step=${DEPLOY_STEP_ID}&attempt=${DEPLOY_ATTEMPT_TWO_ID}`);
+    const {router} = renderRunPath(`?step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}`);
 
     await user.click(await screen.findByRole('link', {name: SMOKE_WEB_RE}));
 
@@ -201,7 +203,7 @@ describe('WorkflowRunPage', () => {
     });
     expect(currentSearch(router).job).toBeUndefined();
     expect(currentSearch(router).step).toBeUndefined();
-    expect(currentSearch(router).attempt).toBeUndefined();
+    expect(currentSearch(router).stepAttempt).toBeUndefined();
   });
 });
 
@@ -302,7 +304,7 @@ function defaultRunDetailDto(overrides: Partial<RunDetailResponseDto> = {}): Run
     jobs: [
       workflowJobDto({
         id: BUILD_JOB_ID,
-        run_id: RUN_ID,
+        run_attempt_id: RUN_ID,
         name: 'build',
         status: 'succeeded',
         steps: [
@@ -324,7 +326,7 @@ function defaultRunDetailDto(overrides: Partial<RunDetailResponseDto> = {}): Run
       }),
       workflowJobDto({
         id: DEPLOY_JOB_ID,
-        run_id: RUN_ID,
+        run_attempt_id: RUN_ID,
         name: 'deploy',
         status: 'running',
         position: 1,

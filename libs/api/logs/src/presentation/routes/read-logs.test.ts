@@ -90,6 +90,7 @@ async function arrangeStream(opts: {
     workspaceId: opts.workspaceId,
     projectId: crypto.randomUUID(),
     runId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
   };
   await db().transaction(async (tx) => {
     const stream = await getOrCreateAttemptStream(tx, identity);
@@ -134,6 +135,7 @@ function arrangeWorkflowAttempt(opts: {
     workspaceId: opts.workspaceId,
     projectId: crypto.randomUUID(),
     runId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
   };
 
   if (opts.status !== 'running' && opts.logOutcome) {

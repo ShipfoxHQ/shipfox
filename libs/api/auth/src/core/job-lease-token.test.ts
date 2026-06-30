@@ -9,7 +9,7 @@ function claims() {
   return {
     jobId: crypto.randomUUID(),
     jobExecutionId: crypto.randomUUID(),
-    runId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
     runnerSessionId: crypto.randomUUID(),
@@ -25,7 +25,7 @@ describe('job-lease-token', () => {
 
     expect(verified).not.toBeNull();
     expect(verified?.jobId).toBe(input.jobId);
-    expect(verified?.runId).toBe(input.runId);
+    expect(verified?.workflowRunAttemptId).toBe(input.workflowRunAttemptId);
     expect(verified?.projectId).toBe(input.projectId);
     expect(verified?.workspaceId).toBe(input.workspaceId);
     expect(verified?.runnerSessionId).toBe(input.runnerSessionId);
@@ -66,7 +66,7 @@ describe('job-lease-token', () => {
     const input = {
       jobId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d0e',
       jobExecutionId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d10',
-      runId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d0f',
+      workflowRunAttemptId: '018f6b1e-7e2a-7b3c-8d4e-5f6a7b8c9d0f',
       projectId: crypto.randomUUID(),
       workspaceId: crypto.randomUUID(),
       runnerSessionId: crypto.randomUUID(),

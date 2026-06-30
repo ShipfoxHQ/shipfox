@@ -61,7 +61,7 @@ const {executeStep, runJobSteps} = await import('#core/step-loop.js');
 const JOB_ID = '00000000-0000-0000-0000-0000000000aa';
 const RUN_ID = '00000000-0000-0000-0000-0000000000ab';
 const LOGS_DIR = '/runner-logs/job-1';
-const JOB_CONTEXT = {jobId: JOB_ID, runId: RUN_ID};
+const JOB_CONTEXT = {jobId: JOB_ID, workflowRunAttemptId: RUN_ID};
 const leaseClient = {} as never;
 const STREAM_LENGTH = 128;
 

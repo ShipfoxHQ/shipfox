@@ -94,7 +94,7 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
     return run;
   }
 
-  test('creates a new run for all mode', async () => {
+  test('creates a new attempt for all mode', async () => {
     const source = await createTerminalRun('failed');
 
     const res = await app.inject({
@@ -105,15 +105,14 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({
-      source_run_id: source.id,
-      root_run_id: source.id,
-      attempt: 2,
-      rerun_mode: 'all',
+      id: source.id,
+      current_attempt: 2,
+      latest_attempt: 2,
       status: 'pending',
     });
   });
 
-  test('creates a new run for failed mode', async () => {
+  test('creates a new attempt for failed mode', async () => {
     const source = await createFailedRunWithFailedJob();
 
     const res = await app.inject({
@@ -124,10 +123,9 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({
-      source_run_id: source.id,
-      root_run_id: source.id,
-      attempt: 2,
-      rerun_mode: 'failed',
+      id: source.id,
+      current_attempt: 2,
+      latest_attempt: 2,
       status: 'pending',
     });
   });

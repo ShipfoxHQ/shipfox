@@ -24,7 +24,7 @@ export function resolveWorkflowRunSelection({
   const stepMatch = findStep(run, selection.stepId);
 
   if (stepMatch) {
-    const attempt = resolveStepAttempt(stepMatch.step, selection.attemptId);
+    const attempt = resolveStepAttempt(stepMatch.step, selection.stepAttemptId);
     return {
       job: stepMatch.job,
       step: stepMatch.step,

@@ -35,7 +35,7 @@ export type ReconcileDesiredIntent = 'keep' | 'terminate';
 export interface ReconciledBoundJobExecution {
   jobId: string;
   jobExecutionId: string;
-  runId: string;
+  workflowRunAttemptId: string;
   lastHeartbeatAt: Date;
   cancellationRequestedAt: Date | null;
 }
@@ -65,7 +65,7 @@ export interface ActiveRunner {
   templateKey: string | null;
   providerKind: string | null;
   jobId: string | null;
-  runId: string | null;
+  workflowRunAttemptId: string | null;
   projectId: string | null;
   reportedAt: Date | null;
   lastHeartbeatAt: Date | null;
@@ -152,7 +152,7 @@ function toReconciledBoundJobExecution(
   return {
     jobId: jobExecution.jobId,
     jobExecutionId: jobExecution.jobExecutionId,
-    runId: jobExecution.runId,
+    workflowRunAttemptId: jobExecution.workflowRunAttemptId,
     lastHeartbeatAt: jobExecution.lastHeartbeatAt,
     cancellationRequestedAt: jobExecution.cancellationRequestedAt,
   };
@@ -241,7 +241,7 @@ function toActiveRunner(
     templateKey: provisionedRunner?.templateKey ?? null,
     providerKind: provisionedRunner?.providerKind ?? null,
     jobId: jobExecution?.jobId ?? null,
-    runId: jobExecution?.runId ?? null,
+    workflowRunAttemptId: jobExecution?.workflowRunAttemptId ?? null,
     projectId: jobExecution?.projectId ?? null,
     reportedAt: provisionedRunner?.reportedAt ?? null,
     lastHeartbeatAt: jobExecution?.lastHeartbeatAt ?? null,

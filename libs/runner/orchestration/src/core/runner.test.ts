@@ -87,7 +87,7 @@ const mockStartHeartbeatLoop = vi.mocked(startHeartbeatLoop);
 const JOB = {
   job_id: '00000000-0000-0000-0000-000000000001',
   job_execution_id: '00000000-0000-0000-0000-000000000003',
-  run_id: '00000000-0000-0000-0000-000000000002',
+  workflow_run_attempt_id: '00000000-0000-0000-0000-000000000002',
   job_name: 'test-job',
   steps: [],
   lease_token: 'lease-token',
@@ -142,7 +142,7 @@ describe('runJob', () => {
         jobId: JOB.job_id,
         cwd: JOB_CWD,
         logsDir: JOB_LOGS_DIR,
-        jobContext: {jobId: JOB.job_id, runId: JOB.run_id},
+        jobContext: {jobId: JOB.job_id, workflowRunAttemptId: JOB.workflow_run_attempt_id},
       }),
     );
     expect(mockCleanupWorkspace).toHaveBeenCalledWith(JOB_CWD);

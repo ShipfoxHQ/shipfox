@@ -33,8 +33,8 @@ beforeEach(() => {
 async function executeRun(): Promise<void> {
   await testEnv.client.workflow.execute('runOrchestration', {
     taskQueue: TASK_QUEUE,
-    workflowId: `run:${runId}`,
-    args: [{runId, workspaceId}],
+    workflowId: `run-attempt:${runId}-attempt-1`,
+    args: [{runId, runAttemptId: `${runId}-attempt-1`, workspaceId}],
   });
 }
 
@@ -66,7 +66,7 @@ describe('runOrchestration', () => {
       expect(call.params).toMatchObject({
         workspaceId: 'workspace-1',
         projectId: 'project-1',
-        runId: 'r1',
+        runAttemptId: 'r1-attempt-1',
         requiredLabels: ['ubuntu22'],
       });
     }

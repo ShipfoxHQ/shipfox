@@ -43,6 +43,18 @@ beforeAll(async () => {
         runVersion: 1,
         jobs: [],
       }),
+      loadRunAttemptDag: () => ({
+        runId: 'run-1',
+        runAttemptId: 'run-attempt-1',
+        workspaceId: 'workspace-1',
+        projectId: 'project-1',
+        runVersion: 1,
+        jobs: [],
+      }),
+      setRunAttemptStatus: (params: unknown) => {
+        calls.push({name: 'setRunAttemptStatus', params});
+        return {newVersion: nextVersion()};
+      },
       setRunStatus: (params: unknown) => {
         calls.push({name: 'setRunStatus', params});
         return {newVersion: nextVersion()};
@@ -105,7 +117,7 @@ beforeEach(() => {
 const defaultJobInput = {
   workspaceId: 'workspace-1',
   jobId: 'job-timeout',
-  runId: 'run-1',
+  runAttemptId: 'run-attempt-1',
   projectId: 'project-1',
   jobVersion: 1,
   jobExecutionId: 'job-timeout',

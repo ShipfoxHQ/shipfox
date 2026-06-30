@@ -71,37 +71,32 @@ describe('GET /api/workflows/runs/:id/attempts', () => {
     );
   });
 
-  test('returns attempts for the root run and a child run', async () => {
+  test('returns attempts for the run', async () => {
     const {source, rerun} = await createLineage();
 
     const rootRes = await app.inject({
       method: 'GET',
       url: `/api/workflows/runs/${source.id}/attempts`,
     });
-    const childRes = await app.inject({
-      method: 'GET',
-      url: `/api/workflows/runs/${rerun.id}/attempts`,
-    });
 
     expect(rootRes.statusCode).toBe(200);
-    expect(childRes.statusCode).toBe(200);
-    expect(rootRes.json().attempts.map((attempt: {id: string}) => attempt.id)).toEqual([
+    expect(rootRes.json().attempts.map((attempt: {run_id: string}) => attempt.run_id)).toEqual([
       source.id,
-      rerun.id,
+      source.id,
     ]);
-    expect(childRes.json()).toEqual(rootRes.json());
     expect(rootRes.json().attempts[0]).toMatchObject({
-      id: source.id,
+      run_id: source.id,
       attempt: 1,
       status: 'failed',
       rerun_mode: null,
     });
     expect(rootRes.json().attempts[1]).toMatchObject({
-      id: rerun.id,
+      run_id: source.id,
       attempt: 2,
       status: 'pending',
       rerun_mode: 'all',
     });
+    expect(rerun.id).toBe(source.id);
   });
 
   test('returns one attempt for a run without lineage', async () => {
@@ -114,7 +109,11 @@ describe('GET /api/workflows/runs/:id/attempts', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().attempts).toHaveLength(1);
-    expect(res.json().attempts[0]).toMatchObject({id: run.id, attempt: 1, rerun_mode: null});
+    expect(res.json().attempts[0]).toMatchObject({
+      run_id: run.id,
+      attempt: 1,
+      rerun_mode: null,
+    });
   });
 
   test('returns 404 for a missing or inaccessible run', async () => {

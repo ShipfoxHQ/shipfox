@@ -16,7 +16,7 @@ CREATE TABLE "runners_pending_jobs" (
 	"workspace_id" uuid NOT NULL,
 	"job_id" uuid NOT NULL,
 	"job_execution_id" uuid NOT NULL,
-	"run_id" uuid NOT NULL,
+	"workflow_run_attempt_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "runners_pending_jobs_job_execution_id_unique" UNIQUE("job_execution_id")
@@ -27,7 +27,7 @@ CREATE TABLE "runners_running_jobs" (
 	"workspace_id" uuid NOT NULL,
 	"job_id" uuid NOT NULL,
 	"job_execution_id" uuid NOT NULL,
-	"run_id" uuid NOT NULL,
+	"workflow_run_attempt_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"runner_token" text NOT NULL,
 	"provisioner_id" uuid,

@@ -11,7 +11,9 @@ function buildPayload(
   overrides: Partial<WorkflowsWorkflowRunCreatedEvent> = {},
 ): WorkflowsWorkflowRunCreatedEvent {
   return {
-    runId: crypto.randomUUID(),
+    workflowRunId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
+    attempt: 1,
     workspaceId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     definitionId: crypto.randomUUID(),
@@ -32,8 +34,14 @@ describe('onWorkflowRunCreated', () => {
 
     expect(startMock).toHaveBeenCalledWith('runOrchestration', {
       taskQueue: 'workflows-orchestrator',
-      workflowId: `run:${payload.runId}`,
-      args: [{runId: payload.runId, workspaceId: payload.workspaceId}],
+      workflowId: `run-attempt:${payload.workflowRunAttemptId}`,
+      args: [
+        {
+          runId: payload.workflowRunId,
+          runAttemptId: payload.workflowRunAttemptId,
+          workspaceId: payload.workspaceId,
+        },
+      ],
     });
   });
 

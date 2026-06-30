@@ -11,7 +11,7 @@ export interface AttemptStreamIdentity {
   attempt: number;
   workspaceId: string;
   projectId: string;
-  runId: string;
+  workflowRunAttemptId: string;
 }
 
 export interface AttemptStreamLookup {
@@ -90,7 +90,7 @@ export async function getOrCreateAttemptStreamWithStatus(
   if (
     row.workspaceId !== identity.workspaceId ||
     row.projectId !== identity.projectId ||
-    row.runId !== identity.runId
+    row.workflowRunAttemptId !== identity.workflowRunAttemptId
   ) {
     throw new LeaseStreamMismatchError();
   }

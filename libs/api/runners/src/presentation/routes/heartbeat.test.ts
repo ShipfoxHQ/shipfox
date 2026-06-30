@@ -127,7 +127,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     const leaseToken = await issueJobLeaseToken({
       jobId,
       jobExecutionId,
-      runId: crypto.randomUUID(),
+      workflowRunAttemptId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       workspaceId,
       runnerSessionId,
@@ -149,7 +149,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     const leaseToken = await issueJobLeaseToken({
       jobId,
       jobExecutionId,
-      runId: crypto.randomUUID(),
+      workflowRunAttemptId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       workspaceId,
       runnerSessionId: otherSession.id,

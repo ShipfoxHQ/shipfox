@@ -5,7 +5,7 @@ import {createBearerTokenAuthMethod} from './bearer-token-auth.js';
 
 /**
  * Trust boundary: the signed token is the sole authority — `claims.jobId` scopes
- * every runner request to exactly one job. `runId`/`workspaceId` are carried for
+ * every runner request to exactly one job. `workflowRunAttemptId`/`workspaceId` are carried for
  * consumers but are NOT verified against the database here.
  *
  * Revocation tradeoff: `runnerSessionId` is carried in the claims but is not checked

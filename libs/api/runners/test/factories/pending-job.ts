@@ -5,7 +5,7 @@ interface PendingJobAttrs {
   workspaceId: string;
   jobId: string;
   jobExecutionId: string;
-  runId: string;
+  workflowRunAttemptId: string;
   projectId: string;
   requiredLabels: string[];
 }
@@ -13,7 +13,7 @@ interface PendingJobAttrs {
 export const pendingJobFactory = Factory.define<PendingJobAttrs>(({onCreate}) => {
   const jobId = crypto.randomUUID();
   const jobExecutionId = crypto.randomUUID();
-  const runId = crypto.randomUUID();
+  const workflowRunAttemptId = crypto.randomUUID();
   const workspaceId = crypto.randomUUID();
   const projectId = crypto.randomUUID();
 
@@ -22,7 +22,7 @@ export const pendingJobFactory = Factory.define<PendingJobAttrs>(({onCreate}) =>
       workspaceId: attrs.workspaceId,
       jobId: attrs.jobId,
       jobExecutionId: attrs.jobExecutionId,
-      runId: attrs.runId,
+      workflowRunAttemptId: attrs.workflowRunAttemptId,
       projectId: attrs.projectId,
       requiredLabels: attrs.requiredLabels,
     });
@@ -33,7 +33,7 @@ export const pendingJobFactory = Factory.define<PendingJobAttrs>(({onCreate}) =>
     workspaceId,
     jobId,
     jobExecutionId,
-    runId,
+    workflowRunAttemptId,
     projectId,
     requiredLabels: ['linux'],
   };

@@ -72,9 +72,9 @@ export function callsNamed(name: string): ActivityCall[] {
 }
 
 export function setRunStatusCalls() {
-  return callsNamed('setRunStatus') as Array<{
+  return callsNamed('setRunAttemptStatus') as Array<{
     name: string;
-    params: {runId: string; status: string; version: number};
+    params: {runAttemptId: string; status: string; version: number};
   }>;
 }
 
@@ -116,7 +116,14 @@ export function dagJob(
 }
 
 export function makeDag(jobs: RunDag['jobs'], runId = 'run-1'): RunDag {
-  return {runId, workspaceId: 'workspace-1', projectId: 'project-1', runVersion: 1, jobs};
+  return {
+    runId,
+    runAttemptId: `${runId}-attempt-1`,
+    workspaceId: 'workspace-1',
+    projectId: 'project-1',
+    runVersion: 1,
+    jobs,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -153,9 +160,21 @@ export async function teardownEnv(): Promise<void> {
 
 function createMockActivities() {
   return {
+    loadRunAttemptDag: (runAttemptId: string): RunDag => {
+      calls.push({name: 'loadRunAttemptDag', params: runAttemptId});
+      return cfg.dag;
+    },
+
     loadRunDag: (runId: string): RunDag => {
       calls.push({name: 'loadRunDag', params: runId});
       return cfg.dag;
+    },
+
+    setRunAttemptStatus: (params: {runAttemptId: string; status: string; version: number}) => {
+      calls.push({name: 'setRunAttemptStatus', params});
+      const status =
+        params.status === 'running' && cfg.initialRunStatus ? cfg.initialRunStatus : params.status;
+      return {newVersion: nextVersion(), status};
     },
 
     setRunStatus: (params: {runId: string; status: string; version: number}) => {
@@ -273,7 +292,7 @@ function createMockActivities() {
 
     failJobExecutionAsTimedOutActivity: async (params: {
       jobExecutionId: string;
-      runId: string;
+      runAttemptId: string;
       expectedVersion: number;
     }) => {
       calls.push({name: 'failJobExecutionAsTimedOutActivity', params});

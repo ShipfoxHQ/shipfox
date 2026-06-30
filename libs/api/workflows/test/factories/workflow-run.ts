@@ -28,6 +28,7 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
     definitionId,
     name: 'Test Workflow',
     status: 'pending',
+    currentAttempt: 1,
     sourceRunId: null,
     rootRunId: null,
     attempt: 1,

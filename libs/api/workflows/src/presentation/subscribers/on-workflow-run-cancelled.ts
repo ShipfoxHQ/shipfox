@@ -7,15 +7,18 @@ import {isWorkflowNotFound} from '#temporal/workflow-not-found.js';
 export async function onWorkflowRunCancelled(
   payload: WorkflowsWorkflowRunCancelledEvent,
 ): Promise<void> {
-  logger().info({runId: payload.runId}, 'Signaling run orchestration cancellation');
-  const handle = temporalClient().workflow.getHandle(`run:${payload.runId}`);
+  logger().info(
+    {runId: payload.runId, workflowRunAttemptId: payload.workflowRunAttemptId},
+    'Signaling run attempt orchestration cancellation',
+  );
+  const handle = temporalClient().workflow.getHandle(`run-attempt:${payload.workflowRunAttemptId}`);
   try {
     await handle.signal(RUN_CANCEL_SIGNAL);
   } catch (err) {
     if (isWorkflowNotFound(err)) {
       logger().debug(
-        {runId: payload.runId},
-        'Run workflow already terminated; cancel event discarded',
+        {runId: payload.runId, workflowRunAttemptId: payload.workflowRunAttemptId},
+        'Run attempt workflow already terminated; cancel event discarded',
       );
       return;
     }

@@ -6,7 +6,7 @@ export async function onStepAttemptTerminated(
 ): Promise<void> {
   await finalizeAttemptLogStream({
     jobId: payload.jobId,
-    runId: payload.runId,
+    workflowRunAttemptId: payload.workflowRunAttemptId,
     workspaceId: payload.workspaceId,
     projectId: payload.projectId,
     stepId: payload.stepId,

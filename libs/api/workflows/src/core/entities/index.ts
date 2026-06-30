@@ -8,3 +8,4 @@ export type {
   WorkflowRunStatus,
   WorkflowSourceSnapshot,
 } from './workflow-run.js';
+export type {RerunMode, WorkflowRunAttempt} from './workflow-run-attempt.js';

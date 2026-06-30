@@ -17,7 +17,7 @@ interface Ctx {
   stepId: string;
   workspaceId: string;
   projectId: string;
-  runId: string;
+  workflowRunAttemptId: string;
 }
 
 function newCtx(): Ctx {
@@ -26,7 +26,7 @@ function newCtx(): Ctx {
     stepId: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
-    runId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
   };
 }
 
@@ -366,14 +366,14 @@ describe('appendLogs', () => {
       const jobB = crypto.randomUUID();
       const workspaceId = crypto.randomUUID();
       const projectId = crypto.randomUUID();
-      const runId = crypto.randomUUID();
+      const workflowRunAttemptId = crypto.randomUUID();
       const bodyA = ndjsonBody(outputLine('a\n'));
       const bodyB = ndjsonBody(outputLine('bbbb\n'));
 
       const common = {
         workspaceId,
         projectId,
-        runId,
+        workflowRunAttemptId,
         stepId,
         attempt: 1,
         offset: 0,

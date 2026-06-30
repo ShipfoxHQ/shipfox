@@ -17,6 +17,7 @@ const JOB_STATUS_REASON_SET = new Set<JobStatusReason>(JOB_STATUS_REASONS);
 
 export interface Job {
   id: string;
+  workflowRunAttemptId: string;
   runId: string;
   name: string;
   status: JobStatus;

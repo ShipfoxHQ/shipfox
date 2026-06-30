@@ -22,7 +22,7 @@ import {
   isWorkflowRunTerminal,
   WORKFLOW_RUN_STATUSES,
   type WorkflowJob,
-  type WorkflowRun,
+  type WorkflowRunDetail,
 } from '#core/workflow-run.js';
 import {Identifier} from '../identifier/index.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
@@ -37,7 +37,7 @@ type WorkflowRunAction = 'cancel' | 'rerun-all' | 'rerun-menu';
 export interface WorkflowRunSummaryProps {
   workspaceId?: string | undefined;
   projectId?: string | undefined;
-  run: WorkflowRun;
+  run: WorkflowRunDetail;
   sourceAvailable?: boolean | undefined;
   sourceOpen?: boolean | undefined;
   sourcePanelId?: string | undefined;
@@ -257,19 +257,21 @@ function WorkflowRunActionSlot({
   );
 }
 
-function workflowRunActionForRun(run: WorkflowRun): WorkflowRunAction {
+function workflowRunActionForRun(run: WorkflowRunDetail): WorkflowRunAction {
   if (!isWorkflowRunTerminal(run.status)) return 'cancel';
   if (run.status === 'succeeded' || !hasFailedOrCancelledJobs(run)) return 'rerun-all';
   return 'rerun-menu';
 }
 
-function hasFailedOrCancelledJobs(run: WorkflowRun): boolean {
+function hasFailedOrCancelledJobs(run: WorkflowRunDetail): boolean {
   if (!workflowRunHasJobs(run)) return false;
 
   return run.jobs.some((job) => job.status === 'failed' || job.status === 'cancelled');
 }
 
-function workflowRunHasJobs(run: WorkflowRun): run is WorkflowRun & {jobs: WorkflowJob[]} {
+function workflowRunHasJobs(
+  run: WorkflowRunDetail,
+): run is WorkflowRunDetail & {jobs: WorkflowJob[]} {
   return 'jobs' in run && Array.isArray(run.jobs);
 }
 

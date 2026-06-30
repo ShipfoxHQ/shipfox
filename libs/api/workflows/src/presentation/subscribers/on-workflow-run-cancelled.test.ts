@@ -11,7 +11,12 @@ vi.mock('@shipfox/node-temporal', () => ({
 function buildPayload(
   overrides: Partial<WorkflowsWorkflowRunCancelledEvent> = {},
 ): WorkflowsWorkflowRunCancelledEvent {
-  return {runId: crypto.randomUUID(), projectId: crypto.randomUUID(), ...overrides};
+  return {
+    runId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
+    projectId: crypto.randomUUID(),
+    ...overrides,
+  };
 }
 
 describe('onWorkflowRunCancelled', () => {
@@ -26,7 +31,7 @@ describe('onWorkflowRunCancelled', () => {
 
     await onWorkflowRunCancelled(payload);
 
-    expect(getHandleMock).toHaveBeenCalledWith(`run:${payload.runId}`);
+    expect(getHandleMock).toHaveBeenCalledWith(`run-attempt:${payload.workflowRunAttemptId}`);
     expect(signalMock).toHaveBeenCalledWith('run-cancel');
   });
 

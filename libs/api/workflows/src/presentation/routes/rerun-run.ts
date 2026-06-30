@@ -38,11 +38,11 @@ export const rerunRunRoute = defineRoute({
 
     const actor = requireUserContext(request);
     const run = await createRerunWorkflowRun({
-      sourceRunId: sourceRun.id,
+      workflowRunId: sourceRun.id,
       mode: request.body.mode,
       actorUserId: actor.userId,
     });
 
-    return toRunDto(run);
+    return toRunDto(run, run.currentAttempt);
   },
 });

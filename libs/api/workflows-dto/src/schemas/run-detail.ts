@@ -51,7 +51,17 @@ export type RunJobDetailDto = z.infer<typeof runJobDetailDtoSchema>;
 // The run detail read model returned by `GET /workflows/runs/:id`: a run plus its
 // jobs, each job's steps, and each step's attempt history.
 export const runDetailResponseSchema = runResponseSchema.extend({
-  latest_attempt: z.number().int().positive(),
+  attempt: z.number().int().positive().optional(),
+  run_attempt: z.object({
+    id: z.string().uuid(),
+    run_id: z.string().uuid(),
+    attempt: z.number().int().positive(),
+    status: z.enum(['pending', 'running', 'succeeded', 'failed', 'cancelled']),
+    created_at: z.string(),
+    started_at: z.string().nullable(),
+    finished_at: z.string().nullable(),
+    rerun_mode: z.enum(['all', 'failed']).nullable(),
+  }),
   jobs: z.array(runJobDetailDtoSchema),
 });
 

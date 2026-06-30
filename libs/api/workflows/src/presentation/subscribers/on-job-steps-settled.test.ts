@@ -15,6 +15,7 @@ function buildPayload(
     jobId: crypto.randomUUID(),
     jobExecutionId: crypto.randomUUID(),
     runId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
     status: 'succeeded',
     ...overrides,
   };

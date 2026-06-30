@@ -42,7 +42,7 @@ export {
   rerunRunBodySchema,
   runAggregatesQuerySchema,
   runAggregatesResponseSchema,
-  runAttemptSchema,
+  runAttemptDtoSchema,
   runAttemptsResponseSchema,
   runDtoSchema,
   runListQuerySchema,

@@ -38,7 +38,7 @@ describe('runner-session-token', () => {
     const leaseToken = await issueJobLeaseToken({
       jobId: crypto.randomUUID(),
       jobExecutionId: crypto.randomUUID(),
-      runId: crypto.randomUUID(),
+      workflowRunAttemptId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       workspaceId: crypto.randomUUID(),
       runnerSessionId: crypto.randomUUID(),

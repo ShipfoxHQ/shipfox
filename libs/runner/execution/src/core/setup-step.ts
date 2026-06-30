@@ -27,7 +27,7 @@ interface SetupLogSink {
 
 export interface SetupJobContext {
   jobId: string;
-  runId: string;
+  workflowRunAttemptId: string;
 }
 
 // The synthetic "Set up job" step body. It owns per-job workspace preparation and the
@@ -258,7 +258,7 @@ function writeJobContext(
   if (!jobContext) return;
   log?.writeGroup({
     name: 'Job details',
-    lines: [`Job: ${jobContext.jobId}`, `Run: ${jobContext.runId}`],
+    lines: [`Job: ${jobContext.jobId}`, `Workflow run attempt: ${jobContext.workflowRunAttemptId}`],
   });
 }
 

@@ -25,7 +25,7 @@ export interface EnqueueJobExecutionParams {
   workspaceId: string;
   jobId: string;
   jobExecutionId: string;
-  runId: string;
+  workflowRunAttemptId: string;
   projectId: string;
   requiredLabels: string[];
 }
@@ -48,7 +48,7 @@ export async function enqueueJobExecution(params: EnqueueJobExecutionParams): Pr
         workspaceId: params.workspaceId,
         jobId: params.jobId,
         jobExecutionId: params.jobExecutionId,
-        runId: params.runId,
+        workflowRunAttemptId: params.workflowRunAttemptId,
         projectId: params.projectId,
         requiredLabels,
       })
@@ -65,7 +65,7 @@ export async function enqueueJobExecution(params: EnqueueJobExecutionParams): Pr
       payload: {
         jobId: params.jobId,
         jobExecutionId: params.jobExecutionId,
-        runId: params.runId,
+        workflowRunAttemptId: params.workflowRunAttemptId,
         queuedAt: inserted.createdAt.toISOString(),
       },
     });
@@ -78,14 +78,14 @@ export async function enqueueJobExecution(params: EnqueueJobExecutionParams): Pr
 export interface ClaimedJobExecution {
   jobId: string;
   jobExecutionId: string;
-  runId: string;
+  workflowRunAttemptId: string;
   projectId: string;
 }
 
 export interface ActiveRunningJobExecution {
   jobId: string;
   jobExecutionId: string;
-  runId: string;
+  workflowRunAttemptId: string;
   projectId: string;
   runnerSessionId: string;
   provisionerId: string | null;
@@ -99,7 +99,7 @@ export interface ActiveRunningJobExecution {
 export interface ProvisionedRunnerBoundJobExecution {
   jobId: string;
   jobExecutionId: string;
-  runId: string;
+  workflowRunAttemptId: string;
   provisionedRunnerId: string;
   startedAt: Date;
   lastHeartbeatAt: Date;
@@ -172,7 +172,7 @@ export async function claimPendingJobExecution(params: {
         workspaceId: row.workspaceId,
         jobId: row.jobId,
         jobExecutionId: row.jobExecutionId,
-        runId: row.runId,
+        workflowRunAttemptId: row.workflowRunAttemptId,
         projectId: row.projectId,
         runnerSessionId: params.runnerSessionId,
         provisionerId,
@@ -201,7 +201,7 @@ export async function claimPendingJobExecution(params: {
       payload: {
         jobId: row.jobId,
         jobExecutionId: row.jobExecutionId,
-        runId: row.runId,
+        workflowRunAttemptId: row.workflowRunAttemptId,
         claimedAt: claimed.claimedAt.toISOString(),
       },
     });
@@ -209,7 +209,7 @@ export async function claimPendingJobExecution(params: {
     return {
       jobId: row.jobId,
       jobExecutionId: row.jobExecutionId,
-      runId: row.runId,
+      workflowRunAttemptId: row.workflowRunAttemptId,
       projectId: row.projectId,
     };
   });
@@ -254,7 +254,7 @@ export async function releaseJobExecution(params: {jobExecutionId: string}): Pro
 export async function expireStuckJobExecutions(params: {
   thresholdSeconds: number;
   limit?: number;
-}): Promise<Array<{jobId: string; jobExecutionId: string; runId: string}>> {
+}): Promise<Array<{jobId: string; jobExecutionId: string; workflowRunAttemptId: string}>> {
   const reaped = await db().transaction(async (tx) => {
     const cutoff = sql`now() - (${params.thresholdSeconds} || ' seconds')::interval`;
 
@@ -277,7 +277,7 @@ export async function expireStuckJobExecutions(params: {
       .returning({
         jobId: runningJobExecutions.jobId,
         jobExecutionId: runningJobExecutions.jobExecutionId,
-        runId: runningJobExecutions.runId,
+        workflowRunAttemptId: runningJobExecutions.workflowRunAttemptId,
       });
 
     if (deleted.length === 0) return [];
@@ -294,7 +294,11 @@ export async function expireStuckJobExecutions(params: {
       runnersOutbox,
       deleted.map((row) => ({
         type: RUNNER_JOB_LEASE_EXPIRED,
-        payload: {jobId: row.jobId, jobExecutionId: row.jobExecutionId, runId: row.runId},
+        payload: {
+          jobId: row.jobId,
+          jobExecutionId: row.jobExecutionId,
+          workflowRunAttemptId: row.workflowRunAttemptId,
+        },
       })),
     );
 
@@ -327,7 +331,7 @@ export async function listActiveRunningJobExecutions(params: {
     .select({
       jobId: runningJobExecutions.jobId,
       jobExecutionId: runningJobExecutions.jobExecutionId,
-      runId: runningJobExecutions.runId,
+      workflowRunAttemptId: runningJobExecutions.workflowRunAttemptId,
       projectId: runningJobExecutions.projectId,
       runnerSessionId: runningJobExecutions.runnerSessionId,
       provisionerId: runningJobExecutions.provisionerId,
@@ -391,7 +395,7 @@ export async function listRunningJobExecutionsByProvisionedRunnerTx(
   const result = await tx.execute<{
     jobId: string;
     jobExecutionId: string;
-    runId: string;
+    workflowRunAttemptId: string;
     provisionedRunnerId: string;
     startedAt: Date | string;
     lastHeartbeatAt: Date | string;
@@ -400,7 +404,7 @@ export async function listRunningJobExecutionsByProvisionedRunnerTx(
     SELECT DISTINCT ON (${runningJobExecutions.provisionedRunnerId})
       ${runningJobExecutions.jobId} AS "jobId",
       ${runningJobExecutions.jobExecutionId} AS "jobExecutionId",
-      ${runningJobExecutions.runId} AS "runId",
+      ${runningJobExecutions.workflowRunAttemptId} AS "workflowRunAttemptId",
       ${runningJobExecutions.provisionedRunnerId} AS "provisionedRunnerId",
       ${runningJobExecutions.startedAt} AS "startedAt",
       ${runningJobExecutions.lastHeartbeatAt} AS "lastHeartbeatAt",
@@ -419,7 +423,7 @@ export async function listRunningJobExecutionsByProvisionedRunnerTx(
   return result.rows.map((row) => ({
     jobId: row.jobId,
     jobExecutionId: row.jobExecutionId,
-    runId: row.runId,
+    workflowRunAttemptId: row.workflowRunAttemptId,
     provisionedRunnerId: row.provisionedRunnerId,
     startedAt: toDate(row.startedAt),
     lastHeartbeatAt: toDate(row.lastHeartbeatAt),
@@ -461,7 +465,7 @@ export async function recordHeartbeat(params: {
   runningJobExecution: {
     jobId: string;
     jobExecutionId: string;
-    runId: string;
+    workflowRunAttemptId: string;
     projectId: string;
     workspaceId: string;
     runnerSessionId: string;
@@ -480,7 +484,7 @@ export async function recordHeartbeat(params: {
       cancellationRequestedAt: runningJobExecutions.cancellationRequestedAt,
       jobId: runningJobExecutions.jobId,
       jobExecutionId: runningJobExecutions.jobExecutionId,
-      runId: runningJobExecutions.runId,
+      workflowRunAttemptId: runningJobExecutions.workflowRunAttemptId,
       projectId: runningJobExecutions.projectId,
       workspaceId: runningJobExecutions.workspaceId,
       runnerSessionId: runningJobExecutions.runnerSessionId,
@@ -493,7 +497,7 @@ export async function recordHeartbeat(params: {
     runningJobExecution: {
       jobId: row.jobId,
       jobExecutionId: row.jobExecutionId,
-      runId: row.runId,
+      workflowRunAttemptId: row.workflowRunAttemptId,
       projectId: row.projectId,
       workspaceId: row.workspaceId,
       runnerSessionId: row.runnerSessionId,

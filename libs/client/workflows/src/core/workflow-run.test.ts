@@ -27,10 +27,8 @@ describe('workflow run model mapping', () => {
       definition_id: '55555555-5555-4555-8555-555555555555',
       name: 'deploy-web',
       status: 'running',
-      source_run_id: '77777777-7777-4777-8777-777777777777',
-      root_run_id: '88888888-8888-4888-8888-888888888888',
-      attempt: 3,
-      rerun_mode: 'failed',
+      current_attempt: 3,
+      latest_attempt: 4,
       trigger_source: 'github',
       trigger_event: 'push',
       trigger_payload: {ref: 'refs/heads/main'},
@@ -50,10 +48,7 @@ describe('workflow run model mapping', () => {
       definitionId: '55555555-5555-4555-8555-555555555555',
       name: 'deploy-web',
       status: 'running',
-      sourceRunId: '77777777-7777-4777-8777-777777777777',
-      rootRunId: '88888888-8888-4888-8888-888888888888',
-      attempt: 3,
-      rerunMode: 'failed',
+      currentAttempt: 3,
       triggerSource: 'github',
       triggerEvent: 'push',
       triggerDisplayLabel: 'push',
@@ -169,7 +164,7 @@ describe('workflow run model mapping', () => {
     expect(detail.latestAttempt).toBe(4);
     expect(detail.jobs[0]).toMatchObject({
       id: '44444444-4444-4444-8444-000000000001',
-      runId: '11111111-1111-4111-8111-111111111111',
+      runAttemptId: '11111111-1111-4111-8111-111111111111',
       name: 'test',
       status: 'failed',
       statusReason: 'step_failed',
@@ -314,9 +309,12 @@ describe('workflow run model mapping', () => {
   test('maps run attempt summaries', () => {
     const dto = workflowRunAttemptDto({
       id: '77777777-7777-4777-8777-777777777777',
+      run_id: '11111111-1111-4111-8111-111111111111',
       attempt: 2,
       status: 'failed',
       created_at: '2026-05-07T01:02:00.000Z',
+      started_at: '2026-05-07T01:02:10.000Z',
+      finished_at: '2026-05-07T01:03:00.000Z',
       rerun_mode: 'all',
     });
 
@@ -324,9 +322,12 @@ describe('workflow run model mapping', () => {
 
     expect(attempt).toEqual({
       id: '77777777-7777-4777-8777-777777777777',
+      runId: '11111111-1111-4111-8111-111111111111',
       attempt: 2,
       status: 'failed',
       createdAt: '2026-05-07T01:02:00.000Z',
+      startedAt: '2026-05-07T01:02:10.000Z',
+      finishedAt: '2026-05-07T01:03:00.000Z',
       rerunMode: 'all',
     });
   });

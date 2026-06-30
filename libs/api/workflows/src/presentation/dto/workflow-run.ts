@@ -1,17 +1,16 @@
 import type {RunAttemptDto, RunDto} from '@shipfox/api-workflows-dto';
-import type {RunAttemptSummary, WorkflowRun} from '#core/entities/workflow-run.js';
+import type {WorkflowRun} from '#core/entities/workflow-run.js';
+import type {WorkflowRunAttempt} from '#core/entities/workflow-run-attempt.js';
 
-export function toRunDto(run: WorkflowRun): RunDto {
+export function toRunDto(run: WorkflowRun, latestAttempt = run.currentAttempt): RunDto {
   return {
     id: run.id,
     project_id: run.projectId,
     definition_id: run.definitionId,
     name: run.name,
     status: run.status,
-    source_run_id: run.sourceRunId,
-    root_run_id: run.rootRunId,
-    attempt: run.attempt,
-    rerun_mode: run.rerunMode,
+    current_attempt: run.currentAttempt,
+    latest_attempt: latestAttempt,
     trigger_source: run.triggerSource,
     trigger_event: run.triggerEvent,
     trigger_payload: run.triggerPayload,
@@ -24,12 +23,15 @@ export function toRunDto(run: WorkflowRun): RunDto {
   };
 }
 
-export function toRunAttemptDto(summary: RunAttemptSummary): RunAttemptDto {
+export function toRunAttemptDto(attempt: WorkflowRunAttempt): RunAttemptDto {
   return {
-    id: summary.id,
-    attempt: summary.attempt,
-    status: summary.status,
-    created_at: summary.createdAt.toISOString(),
-    rerun_mode: summary.rerunMode,
+    id: attempt.id,
+    run_id: attempt.workflowRunId,
+    attempt: attempt.attempt,
+    status: attempt.status,
+    created_at: attempt.createdAt.toISOString(),
+    started_at: attempt.startedAt?.toISOString() ?? null,
+    finished_at: attempt.finishedAt?.toISOString() ?? null,
+    rerun_mode: attempt.rerunMode,
   };
 }

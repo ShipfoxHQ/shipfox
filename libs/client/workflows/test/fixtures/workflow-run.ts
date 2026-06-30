@@ -53,10 +53,8 @@ export function workflowRunDto(overrides: Partial<RunResponseDto> = {}): RunResp
     definition_id: DEFINITION_ID,
     name: 'deploy-web',
     status: 'running',
-    source_run_id: null,
-    root_run_id: null,
-    attempt: 1,
-    rerun_mode: null,
+    current_attempt: 1,
+    latest_attempt: 1,
     trigger_source: 'manual',
     trigger_event: 'fire',
     trigger_payload: {},
@@ -97,6 +95,7 @@ export function workflowRunDetailDto(
   return {
     ...workflowRunDto(),
     latest_attempt: 1,
+    run_attempt: workflowRunAttemptDto(),
     jobs: [],
     ...overrides,
   };
@@ -111,9 +110,12 @@ export function workflowRunDetail(
 export function workflowRunAttemptDto(overrides: Partial<RunAttemptDto> = {}): RunAttemptDto {
   return {
     id: RUN_ID,
+    run_id: RUN_ID,
     attempt: 1,
     status: 'running',
     created_at: '2026-06-21T12:00:00.000Z',
+    started_at: null,
+    finished_at: null,
     rerun_mode: null,
     ...overrides,
   };
@@ -133,7 +135,7 @@ export function workflowJobDto(overrides: WorkflowJobDtoOverrides = {}): RunJobD
   const {job_executions, steps, ...jobOverrides} = overrides;
   const job: WorkflowJobDtoBase = {
     id: `44444444-4444-4444-8444-${String(jobSequence).padStart(12, '0')}`,
-    run_id: RUN_ID,
+    run_attempt_id: RUN_ID,
     name: 'build',
     status: 'pending',
     status_reason: null,

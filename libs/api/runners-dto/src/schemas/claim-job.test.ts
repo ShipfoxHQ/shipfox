@@ -5,7 +5,7 @@ describe('claimedJobResponseSchema', () => {
     const parsed = claimedJobResponseSchema.parse({
       job_id: crypto.randomUUID(),
       job_execution_id: crypto.randomUUID(),
-      run_id: crypto.randomUUID(),
+      workflow_run_attempt_id: crypto.randomUUID(),
       lease_token: 'lease-abc',
     });
 
@@ -16,7 +16,7 @@ describe('claimedJobResponseSchema', () => {
     const parse = () =>
       claimedJobResponseSchema.parse({
         job_id: crypto.randomUUID(),
-        run_id: crypto.randomUUID(),
+        workflow_run_attempt_id: crypto.randomUUID(),
       });
 
     expect(parse).toThrow();
@@ -26,7 +26,7 @@ describe('claimedJobResponseSchema', () => {
     const parse = () =>
       claimedJobResponseSchema.parse({
         job_id: crypto.randomUUID(),
-        run_id: crypto.randomUUID(),
+        workflow_run_attempt_id: crypto.randomUUID(),
         lease_token: '',
       });
 
@@ -37,7 +37,7 @@ describe('claimedJobResponseSchema', () => {
     const parse = () =>
       claimedJobResponseSchema.parse({
         job_id: 'not-a-uuid',
-        run_id: crypto.randomUUID(),
+        workflow_run_attempt_id: crypto.randomUUID(),
         lease_token: 'lease-abc',
       });
 

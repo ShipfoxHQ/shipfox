@@ -16,7 +16,7 @@ import {
 import {
   useCancelWorkflowRunMutation,
   useRerunWorkflowRunMutation,
-  useWorkflowRunQuery,
+  useWorkflowRunAttemptQuery,
 } from '#hooks/api/workflow-runs.js';
 import {WorkflowJobsGraph} from '../workflow-jobs-graph/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
@@ -52,7 +52,7 @@ export function WorkflowRunView({
   selection,
   onSelectionChange,
 }: WorkflowRunViewProps) {
-  const runQuery = useWorkflowRunQuery(runId);
+  const runQuery = useWorkflowRunAttemptQuery({runId, runAttempt: selection?.runAttempt});
   const rerunMutation = useRerunWorkflowRunMutation(projectId);
 
   return (
@@ -81,7 +81,7 @@ function RunViewContent({
 }: {
   workspaceId: string;
   projectId: string;
-  query: ReturnType<typeof useWorkflowRunQuery>;
+  query: ReturnType<typeof useWorkflowRunAttemptQuery>;
   rerunMutation: ReturnType<typeof useRerunWorkflowRunMutation>;
   selection: WorkflowRunSelectionInput | undefined;
   onSelectionChange: ((selection: WorkflowRunSelectionInput) => void) | undefined;
@@ -147,14 +147,16 @@ function RunViewContent({
       return;
     }
 
-    onSelectionChange?.(jobId ? {jobId} : {});
+    onSelectionChange?.(
+      jobId ? {jobId, runAttempt: selection?.runAttempt} : {runAttempt: selection?.runAttempt},
+    );
   }
 
   function selectAttempt(attemptId: string | undefined) {
     if (!selectionControlled || !selectedJob) return;
 
     if (!attemptId) {
-      onSelectionChange?.({jobId: selectedJob.id});
+      onSelectionChange?.({jobId: selectedJob.id, runAttempt: selection?.runAttempt});
       return;
     }
 
@@ -164,7 +166,8 @@ function RunViewContent({
     onSelectionChange?.({
       jobId: selectedJob.id,
       stepId: match.stepId,
-      attemptId: match.attemptId,
+      stepAttemptId: match.attemptId,
+      runAttempt: selection?.runAttempt,
     });
   }
 

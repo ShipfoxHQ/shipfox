@@ -8,9 +8,12 @@ import {JobNotFoundError} from '#core/errors.js';
 import {
   bulkUpdateStepStatuses,
   failJobExecutionAsTimedOut,
-  getJobExecutionsByRunId,
-  getJobsByRunId,
+  getJobExecutionsByWorkflowRunAttemptId,
+  getJobsByWorkflowRunAttemptId,
+  getWorkflowRunAttemptById,
+  getWorkflowRunByAttemptId,
   getWorkflowRunById,
+  listRunAttempts,
   resolveJobExecutionAfterLeaseExpiry,
   resolveJobStatusFromJobExecutions,
   updateJobExecutionStatus,
@@ -32,18 +35,21 @@ export interface DagJob extends RuntimeDagJob {
 
 export interface RunDag {
   runId: string;
+  runAttemptId: string;
   workspaceId: string;
   projectId: string;
   runVersion: number;
   jobs: DagJob[];
 }
 
-export async function loadRunDag(runId: string): Promise<RunDag> {
-  const run = await getWorkflowRunById(runId);
-  if (!run) throw new Error(`Run not found: ${runId}`);
+export async function loadRunAttemptDag(runAttemptId: string): Promise<RunDag> {
+  const run = await getWorkflowRunByAttemptId(runAttemptId);
+  if (!run) throw new Error(`Run not found for attempt: ${runAttemptId}`);
+  const attempt = await getWorkflowRunAttemptById(runAttemptId);
+  if (!attempt) throw new Error(`Run attempt not found: ${runAttemptId}`);
 
-  const jobs = await getJobsByRunId(runId);
-  const jobExecutions = await getJobExecutionsByRunId(runId);
+  const jobs = await getJobsByWorkflowRunAttemptId(runAttemptId);
+  const jobExecutions = await getJobExecutionsByWorkflowRunAttemptId(runAttemptId);
   const firstJobExecutions = new Map<string, (typeof jobExecutions)[number]>();
   for (const jobExecution of jobExecutions) {
     if (!firstJobExecutions.has(jobExecution.jobId)) {
@@ -53,9 +59,10 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
 
   return {
     runId: run.id,
+    runAttemptId,
     workspaceId: run.workspaceId,
     projectId: run.projectId,
-    runVersion: run.version,
+    runVersion: attempt.version,
     jobs: jobs.flatMap((job) => {
       const jobExecution = firstJobExecutions.get(job.id);
       if (!jobExecution) return [];
@@ -76,13 +83,22 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
   };
 }
 
-export async function setRunStatus(params: {
-  runId: string;
+export async function loadRunDag(runId: string): Promise<RunDag> {
+  const run = await getWorkflowRunById(runId);
+  if (!run) throw new Error(`Run not found: ${runId}`);
+  const attempts = await listRunAttempts({workflowRunId: run.id, projectId: run.projectId});
+  const attempt = attempts.find((candidate) => candidate.attempt === run.currentAttempt);
+  if (!attempt) throw new Error(`Run attempt not found for run: ${runId}`);
+  return loadRunAttemptDag(attempt.id);
+}
+
+export async function setRunAttemptStatus(params: {
+  runAttemptId: string;
   status: WorkflowRunStatus;
   version: number;
 }): Promise<{newVersion: number; status: WorkflowRunStatus}> {
   const updated = await updateWorkflowRunStatus({
-    runId: params.runId,
+    workflowRunAttemptId: params.runAttemptId,
     status: params.status,
     expectedVersion: params.version,
   });
@@ -151,7 +167,7 @@ export async function enqueueJobExecutionForRunner(params: {
   workspaceId: string;
   jobId: string;
   jobExecutionId: string;
-  runId: string;
+  runAttemptId: string;
   projectId: string;
   requiredLabels: string[];
 }): Promise<void> {
@@ -160,7 +176,7 @@ export async function enqueueJobExecutionForRunner(params: {
       workspaceId: params.workspaceId,
       jobId: params.jobId,
       jobExecutionId: params.jobExecutionId,
-      runId: params.runId,
+      workflowRunAttemptId: params.runAttemptId,
       projectId: params.projectId,
       requiredLabels: params.requiredLabels,
     });
@@ -178,10 +194,14 @@ export async function cancelRunnerJobsActivity(params: {jobIds: string[]}): Prom
 
 export async function failJobExecutionAsTimedOutActivity(params: {
   jobExecutionId: string;
-  runId: string;
+  runAttemptId: string;
   expectedVersion: number;
 }): Promise<{newVersion: number}> {
-  const jobExecution = await failJobExecutionAsTimedOut(params);
+  const jobExecution = await failJobExecutionAsTimedOut({
+    jobExecutionId: params.jobExecutionId,
+    workflowRunAttemptId: params.runAttemptId,
+    expectedVersion: params.expectedVersion,
+  });
   return {newVersion: jobExecution.version};
 }
 

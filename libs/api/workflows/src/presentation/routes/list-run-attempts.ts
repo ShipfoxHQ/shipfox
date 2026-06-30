@@ -20,8 +20,7 @@ export const listRunAttemptsRoute = defineRoute({
   handler: async (request) => {
     const {id} = request.params;
     const run = await requireAccessibleRun({request, id});
-    const rootRunId = run.rootRunId ?? run.id;
-    const attempts = await listRunAttempts({rootRunId, projectId: run.projectId});
+    const attempts = await listRunAttempts({workflowRunId: run.id, projectId: run.projectId});
 
     return {attempts: attempts.map(toRunAttemptDto)};
   },

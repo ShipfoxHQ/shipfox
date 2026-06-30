@@ -24,16 +24,16 @@ import type {DagJob, RunDag} from '../activities/orchestration-activities.js';
 import {RUN_CANCEL_SIGNAL} from '../constants.js';
 import {jobExecutionOrchestration} from './job-execution-orchestration.js';
 
-const {loadRunDag, setRunStatus, setJobStatus, cancelRunnerJobsActivity} = proxyActivities<
-  ReturnType<typeof createOrchestrationActivities>
->({
-  startToCloseTimeout: '30s',
-});
+const {loadRunAttemptDag, setRunAttemptStatus, setJobStatus, cancelRunnerJobsActivity} =
+  proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
+    startToCloseTimeout: '30s',
+  });
 
 export const runCancelSignal = defineSignal<[]>(RUN_CANCEL_SIGNAL);
 
 export interface RunOrchestrationInput {
   runId: string;
+  runAttemptId: string;
   workspaceId: string;
 }
 
@@ -43,11 +43,11 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
     cancelRequested = true;
   });
 
-  const dag = await loadRunDag(input.runId);
+  const dag = await loadRunAttemptDag(input.runAttemptId);
 
   let runVersion = dag.runVersion;
-  const {newVersion, status} = await setRunStatus({
-    runId: input.runId,
+  const {newVersion, status} = await setRunAttemptStatus({
+    runAttemptId: input.runAttemptId,
     status: 'running',
     version: runVersion,
   });
@@ -85,8 +85,8 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
     }
 
     if (completeRun) {
-      await setRunStatus({
-        runId: input.runId,
+      await setRunAttemptStatus({
+        runAttemptId: input.runAttemptId,
         status: completeRun.status,
         version: runVersion,
       });
@@ -126,7 +126,7 @@ function launchJobs(
             projectId: run.projectId,
             jobId: job.id,
             jobExecutionId: job.jobExecutionId,
-            runId: run.runId,
+            runAttemptId: run.runAttemptId,
             jobVersion: runtimeJobVersion(job, progress),
             executionVersion: job.executionVersion ?? runtimeJobVersion(job, progress),
             ...(job.executionTimeoutMs === undefined

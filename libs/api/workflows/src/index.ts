@@ -8,8 +8,8 @@ import {
 } from '@shipfox/api-runners-dto';
 import {
   WORKFLOWS_JOB_STEPS_SETTLED,
+  WORKFLOWS_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
-  WORKFLOWS_WORKFLOW_RUN_CREATED,
   type WorkflowsEventMap,
   workflowsEventSchemas,
 } from '@shipfox/api-workflows-dto';
@@ -18,11 +18,11 @@ import {db, migrationsPath, workflowsOutbox} from '#db/index.js';
 import {registerWorkflowsServiceMetrics} from '#metrics/index.js';
 import {
   onJobStepsSettled,
+  onRunAttemptCreated,
   onRunnerJobClaimed,
   onRunnerJobLeaseExpired,
   onRunnerJobQueued,
   onWorkflowRunCancelled,
-  onWorkflowRunCreated,
   routes,
 } from '#presentation/index.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
@@ -69,7 +69,7 @@ export const workflowsModule: ShipfoxModule = {
     {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
   ],
   subscribers: [
-    subscriber(WORKFLOWS_WORKFLOW_RUN_CREATED, onWorkflowRunCreated),
+    subscriber(WORKFLOWS_RUN_ATTEMPT_CREATED, onRunAttemptCreated),
     subscriber(WORKFLOWS_WORKFLOW_RUN_CANCELLED, onWorkflowRunCancelled),
     subscriber(WORKFLOWS_JOB_STEPS_SETTLED, onJobStepsSettled),
     subscriber(RUNNER_JOB_LEASE_EXPIRED, onRunnerJobLeaseExpired),

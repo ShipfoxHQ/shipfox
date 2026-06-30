@@ -72,7 +72,7 @@ export const listRunsRoute = defineRoute({
     );
 
     return {
-      runs: result.runs.map(toRunDto),
+      runs: result.runs.map((run) => toRunDto(run)),
       next_cursor: result.nextCursor ? encodeTimestampIdCursor(result.nextCursor) : null,
       filtered_total_count: result.filteredTotalCount,
     };

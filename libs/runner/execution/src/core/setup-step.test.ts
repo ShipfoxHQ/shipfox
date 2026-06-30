@@ -32,7 +32,7 @@ const leaseClient = {} as never;
 const signal = new AbortController().signal;
 const jobContext = {
   jobId: '00000000-0000-0000-0000-0000000000aa',
-  runId: '00000000-0000-0000-0000-0000000000ab',
+  workflowRunAttemptId: '00000000-0000-0000-0000-0000000000ab',
 };
 
 function checkoutResponse(auth?: unknown) {
@@ -113,7 +113,10 @@ describe('executeSetupStep', () => {
     expect(result.success).toBe(true);
     expect(log.writeGroup).toHaveBeenCalledWith({
       name: 'Job details',
-      lines: [`Job: ${jobContext.jobId}`, `Run: ${jobContext.runId}`],
+      lines: [
+        `Job: ${jobContext.jobId}`,
+        `Workflow run attempt: ${jobContext.workflowRunAttemptId}`,
+      ],
     });
     expect(log.writeGroupStart).toHaveBeenCalledWith('Checkout');
     expect(log.writeGroupEnd).toHaveBeenCalledTimes(1);

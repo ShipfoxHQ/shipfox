@@ -17,6 +17,7 @@ function buildPayload(jobId: string): WorkflowsJobTerminatedEvent {
   return {
     jobId,
     runId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
     status: 'failed',
     statusReason: null,
   };

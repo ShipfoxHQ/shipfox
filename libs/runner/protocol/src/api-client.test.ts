@@ -22,7 +22,7 @@ import {config} from '#config.js';
 
 const JOB_ID = crypto.randomUUID();
 const JOB_EXECUTION_ID = crypto.randomUUID();
-const RUN_ID = crypto.randomUUID();
+const WORKFLOW_RUN_ATTEMPT_ID = crypto.randomUUID();
 const STEP_ID = crypto.randomUUID();
 const SESSION_ID = crypto.randomUUID();
 const ZOD_ERROR_TEXT_REGEX = /Zod|Invalid|Required/;
@@ -85,7 +85,7 @@ describe('api-client auth contexts', () => {
 
     expect(job?.job_id).toBe(JOB_ID);
     expect(job?.job_execution_id).toBe(JOB_EXECUTION_ID);
-    expect(job?.run_id).toBe(RUN_ID);
+    expect(job?.workflow_run_attempt_id).toBe(WORKFLOW_RUN_ATTEMPT_ID);
     expect(job?.lease_token).toBe('lease-xyz');
     // The claim is step-less: no job_name / steps are required to parse.
     expect(job).not.toHaveProperty('steps');
@@ -474,7 +474,7 @@ function claimResponse() {
   return {
     job_id: JOB_ID,
     job_execution_id: JOB_EXECUTION_ID,
-    run_id: RUN_ID,
+    workflow_run_attempt_id: WORKFLOW_RUN_ATTEMPT_ID,
     lease_token: 'lease-xyz',
   };
 }

@@ -103,7 +103,7 @@ describe('workflow run API hooks', () => {
       id: RUN_ID,
       trigger_source: 'manual',
       trigger_event: 'fire',
-      jobs: [workflowJobDto({run_id: RUN_ID, name: 'build'})],
+      jobs: [workflowJobDto({run_attempt_id: RUN_ID, name: 'build'})],
     });
     const fetchImpl = vi.fn(async () => jsonResponse(body));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
@@ -117,7 +117,7 @@ describe('workflow run API hooks', () => {
       triggerEvent: 'fire',
       triggerDisplayLabel: 'fire',
       triggerLabel: 'manual · fire',
-      jobs: [{name: 'build', runId: RUN_ID}],
+      jobs: [{name: 'build', runAttemptId: RUN_ID}],
     });
 
     const cached = queryClient.getQueryData<RunDetailResponseDto>(
@@ -127,7 +127,7 @@ describe('workflow run API hooks', () => {
       id: RUN_ID,
       trigger_source: 'manual',
       trigger_event: 'fire',
-      jobs: [{name: 'build', run_id: RUN_ID}],
+      jobs: [{name: 'build', run_attempt_id: RUN_ID}],
     });
     expect(cached).not.toHaveProperty('triggerSource');
   });
@@ -154,7 +154,7 @@ describe('workflow run API hooks', () => {
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
     const {result, queryClient} = renderWithQueryClient(() =>
-      useWorkflowRunAttemptsQuery({runId: RUN_ID, rootRunId: ROOT_RUN_ID, enabled: true}),
+      useWorkflowRunAttemptsQuery({runId: RUN_ID, enabled: true}),
     );
 
     await waitFor(() => expect(result.current.data?.[1]?.attempt).toBe(2));
@@ -167,7 +167,7 @@ describe('workflow run API hooks', () => {
     expect(firstRequest(fetchImpl).url).toBe(
       `https://api.example.test/workflows/runs/${RUN_ID}/attempts`,
     );
-    expect(queryClient.getQueryData(workflowRunsQueryKeys.attempts(ROOT_RUN_ID))).toEqual(body);
+    expect(queryClient.getQueryData(workflowRunsQueryKeys.attempts(RUN_ID))).toEqual(body);
   });
 
   test('posts manual fire requests with and without inputs', async () => {
@@ -307,9 +307,7 @@ describe('workflow run API hooks', () => {
     const fetchImpl = vi.fn(async () => jsonResponse(runAttemptsResponseDto()));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
-    renderWithQueryClient(() =>
-      useWorkflowRunAttemptsQuery({runId: RUN_ID, rootRunId: ROOT_RUN_ID, enabled: false}),
-    );
+    renderWithQueryClient(() => useWorkflowRunAttemptsQuery({runId: RUN_ID, enabled: false}));
 
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -349,7 +347,8 @@ describe('workflow run API hooks', () => {
       return jsonResponse(
         workflowRunDto({
           id: '77777777-7777-4777-8777-777777777777',
-          root_run_id: ROOT_RUN_ID,
+          current_attempt: 2,
+          latest_attempt: 2,
           status: 'pending',
         }),
       );
@@ -376,7 +375,7 @@ describe('workflow run API hooks', () => {
       queryKey: workflowRunsQueryKeys.detail(RUN_ID),
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: workflowRunsQueryKeys.attempts(ROOT_RUN_ID),
+      queryKey: workflowRunsQueryKeys.attempts(RUN_ID),
     });
   });
 });

@@ -29,6 +29,7 @@ export const jobFactory = Factory.define<Job, JobTransientParams>(({transientPar
 
   return {
     id: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
     runId: crypto.randomUUID(),
     name: 'build',
     status: 'running',

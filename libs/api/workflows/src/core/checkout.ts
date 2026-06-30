@@ -1,6 +1,6 @@
 import type {CheckoutSpec, IntegrationSourceControlService} from '@shipfox/api-integration-core';
 import {getProjectById} from '@shipfox/api-projects';
-import {getJobById, getWorkflowRunById} from '#db/workflow-runs.js';
+import {getJobById, getWorkflowRunByAttemptId} from '#db/workflow-runs.js';
 import {
   CheckoutIntentUnresolvedError,
   JobNotFoundError,
@@ -15,17 +15,15 @@ export interface CheckoutIntent {
 
 /**
  * Resolves what to check out for a job, keyed off the authoritative `jobId`
- * (`runId`/`workspaceId` in the lease claim are informational).
- * Chain: job → job.runId → run → project source metadata. Credential-free.
+ * (`workflowRunAttemptId`/`workspaceId` in the lease claim are informational).
+ * Chain: job → attempt → run → project source metadata. Credential-free.
  */
 export async function resolveCheckoutIntent(jobId: string): Promise<CheckoutIntent> {
   const job = await getJobById(jobId);
   if (!job) throw new JobNotFoundError(jobId);
 
-  // job.runId is a NOT NULL FK to workflow_runs, so the run effectively always
-  // exists; the guard stays only to keep the resolution total.
-  const run = await getWorkflowRunById(job.runId);
-  if (!run) throw new WorkflowRunNotFoundError(job.runId);
+  const run = await getWorkflowRunByAttemptId(job.workflowRunAttemptId);
+  if (!run) throw new WorkflowRunNotFoundError(job.workflowRunAttemptId);
 
   const project = await getProjectById(run.projectId);
   if (!project) throw new CheckoutIntentUnresolvedError(run.projectId);

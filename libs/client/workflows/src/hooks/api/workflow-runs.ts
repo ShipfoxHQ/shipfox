@@ -42,8 +42,9 @@ export const workflowRunsQueryKeys = {
   lists: (projectId: string) => [...workflowRunsQueryKeys.all, 'list', projectId] as const,
   list: (projectId: string, filters: WorkflowRunFilters) =>
     [...workflowRunsQueryKeys.lists(projectId), normalizeFilters(filters)] as const,
-  detail: (runId: string) => [...workflowRunsQueryKeys.all, 'detail', runId] as const,
-  attempts: (rootRunId: string) => [...workflowRunsQueryKeys.all, 'attempts', rootRunId] as const,
+  detail: (runId: string, runAttempt?: number | undefined) =>
+    [...workflowRunsQueryKeys.all, 'detail', runId, runAttempt ?? null] as const,
+  attempts: (runId: string) => [...workflowRunsQueryKeys.all, 'attempts', runId] as const,
 };
 
 function normalizeFilters(filters: WorkflowRunFilters) {
@@ -158,8 +159,19 @@ export function useWorkflowRunsInfiniteQuery(
   });
 }
 
-async function getWorkflowRunDto({runId, signal}: {runId: string; signal?: AbortSignal}) {
-  return await apiRequest<RunDetailResponseDto>(`/workflows/runs/${runId}`, {signal});
+async function getWorkflowRunDto({
+  runId,
+  runAttempt,
+  signal,
+}: {
+  runId: string;
+  runAttempt?: number | undefined;
+  signal?: AbortSignal;
+}) {
+  const params = new URLSearchParams();
+  if (runAttempt) params.set('attempt', String(runAttempt));
+  const query = params.size > 0 ? `?${params.toString()}` : '';
+  return await apiRequest<RunDetailResponseDto>(`/workflows/runs/${runId}${query}`, {signal});
 }
 
 async function getWorkflowRunAttemptsDto({runId, signal}: {runId: string; signal?: AbortSignal}) {
@@ -182,12 +194,11 @@ export function useRerunWorkflowRunMutation(projectId: string) {
 
   return useMutation({
     mutationFn: rerunWorkflowRun,
-    onSuccess: async (run, variables) => {
-      const rootRunId = run.root_run_id ?? variables.runId;
+    onSuccess: async (_run, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.lists(projectId)}),
         queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.detail(variables.runId)}),
-        queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.attempts(rootRunId)}),
+        queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.attempts(variables.runId)}),
       ]);
     },
   });
@@ -223,10 +234,8 @@ function buildTempRun({
     definition_id: definitionId,
     name,
     status: 'pending',
-    source_run_id: null,
-    root_run_id: null,
-    attempt: 1,
-    rerun_mode: null,
+    current_attempt: 1,
+    latest_attempt: 1,
     trigger_source: 'manual',
     trigger_event: 'fire',
     trigger_payload: {source: 'manual', event: 'fire'},
@@ -370,14 +379,24 @@ function lookupDefinitionName(
 }
 
 export function useWorkflowRunQuery(runId: string | undefined) {
+  return useWorkflowRunAttemptQuery({runId, runAttempt: undefined});
+}
+
+export function useWorkflowRunAttemptQuery({
+  runId,
+  runAttempt,
+}: {
+  runId: string | undefined;
+  runAttempt?: number | undefined;
+}) {
   // Poll a non-terminal run so the open run detail stays live (same cadence as the run
   // list); stop once the run is terminal.
   return useQuery({
     queryKey: runId
-      ? workflowRunsQueryKeys.detail(runId)
+      ? workflowRunsQueryKeys.detail(runId, runAttempt)
       : [...workflowRunsQueryKeys.all, 'detail'],
     enabled: Boolean(runId),
-    queryFn: ({signal}) => getWorkflowRunDto({runId: runId ?? '', signal}),
+    queryFn: ({signal}) => getWorkflowRunDto({runId: runId ?? '', runAttempt, signal}),
     select: toWorkflowRunDetail,
     staleTime: 2_000,
     refetchOnWindowFocus: true,
@@ -392,18 +411,14 @@ export function useWorkflowRunQuery(runId: string | undefined) {
 
 export function useWorkflowRunAttemptsQuery({
   runId,
-  rootRunId,
   enabled,
 }: {
   runId: string | undefined;
-  rootRunId?: string | null | undefined;
   enabled: boolean;
 }) {
-  const cacheRootRunId = rootRunId ?? runId ?? '';
-
   return useQuery({
-    queryKey: cacheRootRunId
-      ? workflowRunsQueryKeys.attempts(cacheRootRunId)
+    queryKey: runId
+      ? workflowRunsQueryKeys.attempts(runId)
       : [...workflowRunsQueryKeys.all, 'attempts'],
     enabled: Boolean(runId) && enabled,
     queryFn: ({signal}) => getWorkflowRunAttemptsDto({runId: runId ?? '', signal}),
@@ -426,6 +441,7 @@ export function useCancelWorkflowRunMutation(run: WorkflowRun | undefined) {
       await Promise.all([
         queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.detail(run.id)}),
         queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.lists(run.projectId)}),
+        queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.attempts(run.id)}),
       ]);
     },
   });

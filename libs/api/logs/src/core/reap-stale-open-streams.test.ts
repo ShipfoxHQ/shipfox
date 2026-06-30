@@ -13,7 +13,7 @@ interface Ctx {
   stepId: string;
   workspaceId: string;
   projectId: string;
-  runId: string;
+  workflowRunAttemptId: string;
 }
 
 function newCtx(): Ctx {
@@ -22,7 +22,7 @@ function newCtx(): Ctx {
     stepId: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
-    runId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
   };
 }
 

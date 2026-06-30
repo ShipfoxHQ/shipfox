@@ -9,6 +9,8 @@ const baseRun = {
   source_run_id: null,
   root_run_id: null,
   attempt: 1,
+  current_attempt: 1,
+  latest_attempt: 1,
   rerun_mode: null,
   trigger_source: 'manual',
   trigger_event: 'fire',

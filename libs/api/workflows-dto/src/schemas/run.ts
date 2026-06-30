@@ -75,10 +75,8 @@ export const runDtoSchema = z.object({
   definition_id: z.string().uuid(),
   name: z.string(),
   status: runStatusSchema,
-  source_run_id: z.string().uuid().nullable(),
-  root_run_id: z.string().uuid().nullable(),
-  attempt: z.number().int().positive(),
-  rerun_mode: rerunModeSchema.nullable(),
+  current_attempt: z.number().int().positive(),
+  latest_attempt: z.number().int().positive(),
   trigger_source: z.string(),
   trigger_event: z.string(),
   trigger_payload: z.record(z.string(), z.unknown()),
@@ -92,22 +90,25 @@ export const runDtoSchema = z.object({
 
 export type RunDto = z.infer<typeof runDtoSchema>;
 
-export const runAttemptSchema = z.object({
+export const runAttemptDtoSchema = z.object({
   id: z.string().uuid(),
+  run_id: z.string().uuid(),
   attempt: z.number().int().positive(),
   status: runStatusSchema,
   created_at: z.string(),
+  started_at: z.string().nullable(),
+  finished_at: z.string().nullable(),
   rerun_mode: rerunModeSchema.nullable(),
 });
 
-export type RunAttemptDto = z.infer<typeof runAttemptSchema>;
+export type RunAttemptDto = z.infer<typeof runAttemptDtoSchema>;
 
 export const runResponseSchema = runDtoSchema;
 
 export type RunResponseDto = z.infer<typeof runResponseSchema>;
 
 export const runAttemptsResponseSchema = z.object({
-  attempts: z.array(runAttemptSchema),
+  attempts: z.array(runAttemptDtoSchema),
 });
 
 export type RunAttemptsResponseDto = z.infer<typeof runAttemptsResponseSchema>;
