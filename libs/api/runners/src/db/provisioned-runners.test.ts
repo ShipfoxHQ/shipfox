@@ -820,19 +820,19 @@ describe('reconcileProvisionedRunners', () => {
     expect(reservation?.count).toBe(1);
   });
 
-  it('returns the newest running job bound to an observed provisioned runner', async () => {
+  it('returns a deterministic newest running job bound to an observed provisioned runner', async () => {
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
-    const olderJobId = crypto.randomUUID();
-    const newerJobId = crypto.randomUUID();
+    const lowerJobId = '00000000-0000-4000-8000-000000000001';
+    const higherJobId = '00000000-0000-4000-8000-000000000002';
     await insertRunningJob({
-      jobId: olderJobId,
+      jobId: lowerJobId,
       provisionedRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
     });
     await insertRunningJob({
-      jobId: newerJobId,
+      jobId: higherJobId,
       provisionedRunnerId: 'provisioned-runner-1',
-      startedAt: new Date('2025-01-01T00:01:00.000Z'),
+      startedAt: new Date('2025-01-01T00:00:00.000Z'),
     });
 
     const result = await reconcileProvisionedRunners({
@@ -843,7 +843,7 @@ describe('reconcileProvisionedRunners', () => {
     });
 
     expect(result.boundJobsByProvisionedRunnerId.get('provisioned-runner-1')?.jobId).toBe(
-      newerJobId,
+      higherJobId,
     );
   });
 

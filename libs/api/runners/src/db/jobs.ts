@@ -382,7 +382,7 @@ export async function listRunningJobsByProvisionedRunnerTx(
         params.provisionedRunnerIds.map((provisionedRunnerId) => sql`${provisionedRunnerId}`),
         sql`, `,
       )})
-    ORDER BY ${runningJobs.provisionedRunnerId}, ${runningJobs.startedAt} DESC
+    ORDER BY ${runningJobs.provisionedRunnerId}, ${runningJobs.startedAt} DESC, ${runningJobs.jobId} DESC
   `);
 
   return result.rows.map((row) => ({
