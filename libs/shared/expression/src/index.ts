@@ -39,6 +39,13 @@ export {
   type WorkflowTemplateResolutionOptions,
 } from './resolver/resolve-workflow-template.js';
 export {
+  type ResolvedRunCommand,
+  type RunCommandOptions,
+  resolveRunCommand,
+  UnsafeRunInterpolationError,
+  unsafeRunInterpolationErrorCode,
+} from './run/hoist-run-command.js';
+export {
   InvalidWorkflowTemplateError,
   invalidWorkflowTemplateErrorCode,
 } from './template/errors.js';
