@@ -1,7 +1,14 @@
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
+import {sql} from 'drizzle-orm';
 import {nextStepForJob} from '#core/job-execution.js';
-import {getStepAttempts, getStepsByJobId} from '#db/workflow-runs.js';
+import {db} from '#db/db.js';
+import {
+  getFirstJobExecutionByJobId,
+  getStepAttempts,
+  getStepsByJobId,
+  getWorkflowRunById,
+} from '#db/workflow-runs.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {leaseTokenRouteGroup} from './index.js';
@@ -41,9 +48,44 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     expect(res.json().code).toBe('unauthorized');
   });
 
+  test('returns 404 when the lease token is no longer the active job lease', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    await nextStepForJob(jobId);
+    const execution = await getFirstJobExecutionByJobId(jobId);
+    if (!execution) throw new Error('Expected job execution to exist');
+    const run = await getWorkflowRunById(execution.runId);
+    if (!run) throw new Error('Expected workflow run to exist');
+    await insertRunningJobLease({
+      workspaceId: run.workspaceId,
+      jobId,
+      executionId: execution.id,
+      runId: run.id,
+      projectId: run.projectId,
+      runnerSessionId: crypto.randomUUID(),
+    });
+    const token = await mintLeaseToken({
+      jobId,
+      executionId: execution.id,
+      runId: run.id,
+      projectId: run.projectId,
+      workspaceId: run.workspaceId,
+      runnerSessionId: crypto.randomUUID(),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: reportUrl(steps[0]?.id as string),
+      headers: {authorization: `Bearer ${token}`},
+      payload: reportPayload({status: 'succeeded'}),
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('lease-not-active');
+  });
+
   test('records a succeeded mid-job step → {ok, cancel:false}', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken(jobId);
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -60,7 +102,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('finishing the job fully succeeded → {ok, cancel:false}', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken(jobId);
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -76,7 +118,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('a failed report cancels the remaining steps → {ok, cancel:true}', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(3);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken(jobId);
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -96,7 +138,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('persists the wire error snake_case fields as camelCase on the step row', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken(jobId);
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -118,7 +160,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('persists structured output on the attempt row', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken(jobId);
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -140,7 +182,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('rejects a failed report without an error', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken(jobId);
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -156,7 +198,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('rejects a succeeded report with an error', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken(jobId);
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -172,7 +214,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('a duplicate succeeded report is a no-op with the same response', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken(jobId);
     await nextStepForJob(jobId);
     const first = await app.inject({
       method: 'POST',
@@ -198,7 +240,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('a late succeeded report on a dead job never downgrades and says cancel', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken(jobId);
     await nextStepForJob(jobId);
     await app.inject({
       method: 'POST',
@@ -223,7 +265,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('rejects a result for a pending (never-dispatched) step with 409', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken(jobId);
 
     const res = await app.inject({
       method: 'POST',
@@ -238,7 +280,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('rejects an unknown stepId with 404', async () => {
     const {jobId} = await arrangeJobWithSteps(1);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken(jobId);
 
     const res = await app.inject({
       method: 'POST',
@@ -254,7 +296,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
   test("rejects another job's stepId with 404", async () => {
     const a = await arrangeJobWithSteps(1);
     const b = await arrangeJobWithSteps(1);
-    const token = await mintLeaseToken({jobId: a.jobId});
+    const token = await mintActiveLeaseToken(a.jobId);
     await nextStepForJob(b.jobId);
 
     const res = await app.inject({
@@ -270,7 +312,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('concurrent duplicate reports all succeed and land one result', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken(jobId);
     await nextStepForJob(jobId);
 
     const responses = await Promise.all(
@@ -295,7 +337,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('a report whose attempt is ahead of the current attempt → 409 step-attempt-ahead', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken(jobId);
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -309,3 +351,61 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     expect(res.json().code).toBe('step-attempt-ahead');
   });
 });
+
+async function mintActiveLeaseToken(jobId: string): Promise<string> {
+  const runnerSessionId = crypto.randomUUID();
+  const execution = await getFirstJobExecutionByJobId(jobId);
+  if (!execution) throw new Error('Expected job execution to exist');
+  const run = await getWorkflowRunById(execution.runId);
+  if (!run) throw new Error('Expected workflow run to exist');
+
+  await insertRunningJobLease({
+    workspaceId: run.workspaceId,
+    jobId,
+    executionId: execution.id,
+    runId: run.id,
+    projectId: run.projectId,
+    runnerSessionId,
+  });
+
+  return await mintLeaseToken({
+    jobId,
+    executionId: execution.id,
+    runId: run.id,
+    projectId: run.projectId,
+    workspaceId: run.workspaceId,
+    runnerSessionId,
+  });
+}
+
+async function insertRunningJobLease(params: {
+  workspaceId: string;
+  jobId: string;
+  executionId: string;
+  runId: string;
+  projectId: string;
+  runnerSessionId: string;
+}): Promise<void> {
+  await db().execute(sql`
+    INSERT INTO runners_running_jobs (
+      workspace_id,
+      job_id,
+      execution_id,
+      run_id,
+      project_id,
+      runner_session_id,
+      required_labels,
+      runner_labels
+    )
+    VALUES (
+      ${params.workspaceId},
+      ${params.jobId},
+      ${params.executionId},
+      ${params.runId},
+      ${params.projectId},
+      ${params.runnerSessionId},
+      ARRAY['linux']::text[],
+      ARRAY['linux']::text[]
+    )
+  `);
+}

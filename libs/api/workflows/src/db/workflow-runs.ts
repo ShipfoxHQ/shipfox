@@ -5,9 +5,9 @@ import {
 import {DEFAULT_JOB_SUCCESS, type WorkflowModel} from '@shipfox/api-definitions';
 import {
   type LogOutcomeDto,
+  WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_JOB_TERMINATED,
-  WORKFLOWS_JOB_TIMED_OUT,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
@@ -815,6 +815,20 @@ export async function getFirstJobExecutionByJobId(
   return row ? toJobExecution(row) : undefined;
 }
 
+export async function getLatestJobExecutionByJobId(
+  jobId: string,
+  tx?: Tx,
+): Promise<JobExecution | undefined> {
+  const rows = await (tx ?? db())
+    .select()
+    .from(jobExecutions)
+    .where(eq(jobExecutions.jobId, jobId))
+    .orderBy(desc(jobExecutions.sequence), desc(jobExecutions.id))
+    .limit(1);
+  const row = rows[0];
+  return row ? toJobExecution(row) : undefined;
+}
+
 export async function getStepsByJobIds(jobIds: string[]): Promise<Step[]> {
   if (jobIds.length === 0) return [];
   const rows = await db()
@@ -1247,7 +1261,7 @@ export async function failJobExecutionAsTimedOut(params: {
     }
 
     await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
-      type: WORKFLOWS_JOB_TIMED_OUT,
+      type: WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
       payload: {
         jobId: updated.execution.jobId,
         executionId: params.executionId,
@@ -1301,7 +1315,7 @@ export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promis
     if (!executionRow) throw new Error(`Cannot time out job ${params.jobId}: no execution found`);
 
     await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
-      type: WORKFLOWS_JOB_TIMED_OUT,
+      type: WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
       payload: {jobId: params.jobId, executionId: executionRow.id, runId: params.runId},
     });
 

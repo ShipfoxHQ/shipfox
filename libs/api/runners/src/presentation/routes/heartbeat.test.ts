@@ -11,7 +11,7 @@ import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import {claimJobExecution} from '#core/job-executions.js';
 import {db} from '#db/db.js';
-import {requestJobCancellation} from '#db/job-executions.js';
+import {requestJobExecutionCancellation} from '#db/job-executions.js';
 import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';
 import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
@@ -104,9 +104,9 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     expect(refreshedLease).toMatchObject({jobId, executionId, runnerSessionId});
   });
 
-  it('returns 200 + cancel:true after requestJobCancellation', async () => {
+  it('returns 200 + cancel:true after requestJobExecutionCancellation', async () => {
     const {jobId, executionId, leaseToken} = await claimAvailableJob();
-    await requestJobCancellation({jobId});
+    await requestJobExecutionCancellation({executionId});
 
     const res = await app.inject({
       method: 'POST',

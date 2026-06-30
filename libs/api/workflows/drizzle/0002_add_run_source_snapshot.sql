@@ -1,1 +1,0 @@
-ALTER TABLE "workflows_workflow_runs" ADD COLUMN "source_snapshot" jsonb;

@@ -1,8 +1,8 @@
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import {normalizeWorkflowDocument} from '@shipfox/api-definitions';
 import {
+  WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
   WORKFLOWS_JOB_TERMINATED,
-  WORKFLOWS_JOB_TIMED_OUT,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
   WORKFLOWS_WORKFLOW_RUN_CREATED,
@@ -2223,7 +2223,7 @@ jobs:
         .from(workflowsOutbox)
         .where(
           and(
-            eq(workflowsOutbox.eventType, WORKFLOWS_JOB_TIMED_OUT),
+            eq(workflowsOutbox.eventType, WORKFLOWS_JOB_EXECUTION_TIMED_OUT),
             sql`${workflowsOutbox.payload}->>'jobId' = ${jobId}`,
           ),
         );
@@ -2247,7 +2247,7 @@ jobs:
       const all = await db()
         .select()
         .from(workflowsOutbox)
-        .where(eq(workflowsOutbox.eventType, WORKFLOWS_JOB_TIMED_OUT));
+        .where(eq(workflowsOutbox.eventType, WORKFLOWS_JOB_EXECUTION_TIMED_OUT));
       return all.filter((row) => (row.payload as Record<string, unknown>).jobId === jobId);
     }
 

@@ -1,1 +1,0 @@
-ALTER TABLE "workflows_steps" ADD COLUMN "source_location" jsonb;

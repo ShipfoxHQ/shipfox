@@ -21,7 +21,7 @@ export const jobs = pgTable(
     id: uuidv7PrimaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => workflowRuns.id),
+      .references(() => workflowRuns.id, {onDelete: 'cascade'}),
     name: text('name').notNull(),
     status: jobStatusEnum('status').notNull().default('pending'),
     statusReason: jobStatusReasonEnum('status_reason'),

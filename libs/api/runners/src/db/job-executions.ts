@@ -501,15 +501,15 @@ export async function recordHeartbeat(params: {
   };
 }
 
-// `COALESCE` keeps the original timestamp so concurrent or redelivered calls
-// are no-ops; missing rows are silently skipped.
-export async function requestJobCancellation(params: {jobId: string}): Promise<void> {
+export async function requestJobExecutionCancellation(params: {
+  executionId: string;
+}): Promise<void> {
   await db()
     .update(runningJobExecutions)
     .set({
       cancellationRequestedAt: sql`COALESCE(${runningJobExecutions.cancellationRequestedAt}, now())`,
     })
-    .where(eq(runningJobExecutions.jobId, params.jobId));
+    .where(eq(runningJobExecutions.executionId, params.executionId));
 }
 
 export async function cancelRunnerJobs(params: {jobIds: string[]}): Promise<void> {

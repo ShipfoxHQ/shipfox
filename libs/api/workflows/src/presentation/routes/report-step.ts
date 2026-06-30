@@ -1,4 +1,5 @@
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
+import {isJobLeaseActive} from '@shipfox/api-runners';
 import {reportStepBodySchema, reportStepResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
@@ -33,6 +34,15 @@ export const reportStepRoute = defineRoute({
   handler: async (request) => {
     const {stepId} = request.params;
     const leasedJob = requireLeasedJobContext(request);
+
+    const leaseIsActive = await isJobLeaseActive({
+      jobId: leasedJob.jobId,
+      executionId: leasedJob.executionId,
+      runnerSessionId: leasedJob.runnerSessionId,
+    });
+    if (!leaseIsActive) {
+      throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
+    }
 
     const outcome = await recordStepResult({
       executionId: leasedJob.executionId,

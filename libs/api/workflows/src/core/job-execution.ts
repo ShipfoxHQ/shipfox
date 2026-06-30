@@ -2,7 +2,7 @@ import type {LogOutcomeDto} from '@shipfox/api-workflows-dto';
 import {type Tx, withTransaction} from '#db/db.js';
 import {
   countStepAttempts,
-  getFirstJobExecutionByJobId,
+  getLatestJobExecutionByJobId,
   getStepsByJobExecutionIdForUpdate,
   insertRunningStepAttempt,
   markStepRunning,
@@ -66,7 +66,7 @@ export function nextStepForJobExecution(executionId: string): Promise<NextStep> 
 
 export function nextStepForJob(jobId: string): Promise<NextStep> {
   return withTransaction(async (tx) => {
-    const jobExecution = await getFirstJobExecutionByJobId(jobId, tx);
+    const jobExecution = await getLatestJobExecutionByJobId(jobId, tx);
     if (!jobExecution) throw new JobNotFoundError(jobId);
 
     return nextStepForJobExecutionInTransaction(jobExecution.id, tx);

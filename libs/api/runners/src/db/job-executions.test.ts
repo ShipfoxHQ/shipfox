@@ -19,7 +19,7 @@ import {
   isJobLeaseActive,
   recordHeartbeat,
   releaseJobExecution,
-  requestJobCancellation,
+  requestJobExecutionCancellation,
 } from './job-executions.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
@@ -732,11 +732,11 @@ describe('recordHeartbeat', () => {
     );
   });
 
-  it('returns cancel:true after requestJobCancellation', async () => {
+  it('returns cancel:true after requestJobExecutionCancellation', async () => {
     await pendingJobFactory.create({workspaceId});
     const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
 
-    await requestJobCancellation({jobId: claimed?.jobId as string});
+    await requestJobExecutionCancellation({executionId: claimed?.executionId as string});
 
     const result = await recordHeartbeat({
       executionId: claimed?.executionId as string,
@@ -773,7 +773,7 @@ describe('recordHeartbeat', () => {
   });
 });
 
-describe('requestJobCancellation', () => {
+describe('requestJobExecutionCancellation', () => {
   let workspaceId: string;
   let runnerSessionId: string;
 
@@ -787,7 +787,7 @@ describe('requestJobCancellation', () => {
     await pendingJobFactory.create({workspaceId});
     const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
 
-    await requestJobCancellation({jobId: claimed?.jobId as string});
+    await requestJobExecutionCancellation({executionId: claimed?.executionId as string});
 
     const rows = await db()
       .select()
@@ -800,7 +800,7 @@ describe('requestJobCancellation', () => {
     await pendingJobFactory.create({workspaceId});
     const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
 
-    await requestJobCancellation({jobId: claimed?.jobId as string});
+    await requestJobExecutionCancellation({executionId: claimed?.executionId as string});
     const after1 = await db()
       .select()
       .from(runningJobExecutions)
@@ -808,7 +808,7 @@ describe('requestJobCancellation', () => {
     const firstTs = after1[0]?.cancellationRequestedAt;
 
     await new Promise((r) => setTimeout(r, 10));
-    await requestJobCancellation({jobId: claimed?.jobId as string});
+    await requestJobExecutionCancellation({executionId: claimed?.executionId as string});
 
     const after2 = await db()
       .select()
@@ -817,8 +817,10 @@ describe('requestJobCancellation', () => {
     expect(after2[0]?.cancellationRequestedAt?.getTime()).toBe(firstTs?.getTime());
   });
 
-  it('is a no-op when the job is missing (does not throw)', async () => {
-    await expect(requestJobCancellation({jobId: crypto.randomUUID()})).resolves.toBeUndefined();
+  it('is a no-op when the job execution is missing (does not throw)', async () => {
+    await expect(
+      requestJobExecutionCancellation({executionId: crypto.randomUUID()}),
+    ).resolves.toBeUndefined();
   });
 });
 

@@ -17,14 +17,14 @@ export const stepAttempts = pgTable(
     id: uuidv7PrimaryKey(),
     stepId: uuid('step_id')
       .notNull()
-      .references(() => steps.id),
+      .references(() => steps.id, {onDelete: 'cascade'}),
     // Denormalized so attempt history is queryable per job without a join.
     jobId: uuid('job_id')
       .notNull()
-      .references(() => jobs.id),
+      .references(() => jobs.id, {onDelete: 'cascade'}),
     executionId: uuid('execution_id')
       .notNull()
-      .references(() => jobExecutions.id),
+      .references(() => jobExecutions.id, {onDelete: 'cascade'}),
     attempt: integer('attempt').notNull(),
     executionOrder: integer('execution_order').notNull(),
     // Reuses the step status enum, but a row is created only once dispatched, so

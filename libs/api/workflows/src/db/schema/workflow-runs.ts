@@ -37,8 +37,12 @@ export const workflowRuns = pgTable(
     definitionId: uuid('definition_id').notNull(),
     name: text('name').notNull(),
     status: workflowRunStatusEnum('status').notNull().default('pending'),
-    sourceRunId: uuid('source_run_id').references((): AnyPgColumn => workflowRuns.id),
-    rootRunId: uuid('root_run_id').references((): AnyPgColumn => workflowRuns.id),
+    sourceRunId: uuid('source_run_id').references((): AnyPgColumn => workflowRuns.id, {
+      onDelete: 'set null',
+    }),
+    rootRunId: uuid('root_run_id').references((): AnyPgColumn => workflowRuns.id, {
+      onDelete: 'set null',
+    }),
     attempt: integer('attempt').notNull().default(1),
     rerunMode: workflowRunRerunModeEnum('rerun_mode'),
     rerunByUserId: uuid('rerun_by_user_id'),

@@ -1,5 +1,14 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {index, integer, jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
+import {
+  foreignKey,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import type {Step} from '#core/entities/step.js';
 import {pgTable} from './common.js';
 import {jobExecutions} from './job-executions.js';
@@ -19,10 +28,8 @@ export const steps = pgTable(
     id: uuidv7PrimaryKey(),
     jobId: uuid('job_id')
       .notNull()
-      .references(() => jobs.id),
-    executionId: uuid('execution_id')
-      .notNull()
-      .references(() => jobExecutions.id),
+      .references(() => jobs.id, {onDelete: 'cascade'}),
+    executionId: uuid('execution_id').notNull(),
     name: text('name'),
     displayName: text('display_name').notNull(),
     sourceLocation: jsonb('source_location').$type<Step['sourceLocation']>(),
@@ -43,6 +50,11 @@ export const steps = pgTable(
   (table) => [
     index('workflows_steps_job_id_idx').on(table.jobId),
     index('workflows_steps_execution_id_idx').on(table.executionId),
+    foreignKey({
+      name: 'workflows_steps_execution_id_job_id_workflows_job_executions_fk',
+      columns: [table.executionId, table.jobId],
+      foreignColumns: [jobExecutions.id, jobExecutions.jobId],
+    }).onDelete('cascade'),
   ],
 );
 

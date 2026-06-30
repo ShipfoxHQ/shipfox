@@ -212,7 +212,7 @@ async function resolveLeaseExpiredJobExecution({
 }
 
 // Timeout backstop. The activity atomically fails the execution, marks
-// `timed_out_at`, and enqueues WORKFLOWS_JOB_TIMED_OUT; the runners subscriber
+// `timed_out_at`, and enqueues WORKFLOWS_JOB_EXECUTION_TIMED_OUT; the runners subscriber
 // then asks the runner to cancel. The lease is intentionally NOT released here.
 async function resolveTimedOutJobExecution({
   input,

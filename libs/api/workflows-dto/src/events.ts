@@ -9,7 +9,7 @@ export const WORKFLOWS_WORKFLOW_RUN_CREATED = 'workflows.workflow_run.created' a
 export const WORKFLOWS_WORKFLOW_RUN_TERMINATED = 'workflows.workflow_run.terminated' as const;
 // Intent fact for cooperative run cancellation. Consumers use this to stop orchestration.
 export const WORKFLOWS_WORKFLOW_RUN_CANCELLED = 'workflows.workflow_run.cancelled' as const;
-export const WORKFLOWS_JOB_TIMED_OUT = 'workflows.job.timed_out' as const;
+export const WORKFLOWS_JOB_EXECUTION_TIMED_OUT = 'workflows.job_execution.timed_out' as const;
 // Terminal fact for a job: the single reliable "this job is over" signal, written in
 // the same transaction as the status flip, on every terminal path.
 export const WORKFLOWS_JOB_TERMINATED = 'workflows.job.terminated' as const;
@@ -55,12 +55,14 @@ export type WorkflowsWorkflowRunCancelledEvent = z.infer<
   typeof workflowsWorkflowRunCancelledSchema
 >;
 
-export const workflowsJobTimedOutSchema = z.object({
+export const workflowsJobExecutionTimedOutSchema = z.object({
   jobId: nonEmptyStringSchema,
   executionId: nonEmptyStringSchema,
   runId: nonEmptyStringSchema,
 });
-export type WorkflowsJobTimedOutEvent = z.infer<typeof workflowsJobTimedOutSchema>;
+export type WorkflowsJobExecutionTimedOutEvent = z.infer<
+  typeof workflowsJobExecutionTimedOutSchema
+>;
 
 export const workflowsJobTerminatedSchema = z.object({
   jobId: nonEmptyStringSchema,
@@ -107,7 +109,7 @@ export interface WorkflowsEventMap {
   [WORKFLOWS_WORKFLOW_RUN_CREATED]: WorkflowsWorkflowRunCreatedEvent;
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: WorkflowsWorkflowRunTerminatedEvent;
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: WorkflowsWorkflowRunCancelledEvent;
-  [WORKFLOWS_JOB_TIMED_OUT]: WorkflowsJobTimedOutEvent;
+  [WORKFLOWS_JOB_EXECUTION_TIMED_OUT]: WorkflowsJobExecutionTimedOutEvent;
   [WORKFLOWS_JOB_TERMINATED]: WorkflowsJobTerminatedEvent;
   [WORKFLOWS_JOB_STEPS_SETTLED]: WorkflowsJobStepsSettledEvent;
   [WORKFLOWS_STEP_RESTART_ENQUEUED]: WorkflowsStepRestartEnqueuedEvent;
@@ -118,7 +120,7 @@ export const workflowsEventSchemas = {
   [WORKFLOWS_WORKFLOW_RUN_CREATED]: workflowsWorkflowRunCreatedSchema,
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: workflowsWorkflowRunTerminatedSchema,
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: workflowsWorkflowRunCancelledSchema,
-  [WORKFLOWS_JOB_TIMED_OUT]: workflowsJobTimedOutSchema,
+  [WORKFLOWS_JOB_EXECUTION_TIMED_OUT]: workflowsJobExecutionTimedOutSchema,
   [WORKFLOWS_JOB_TERMINATED]: workflowsJobTerminatedSchema,
   [WORKFLOWS_JOB_STEPS_SETTLED]: workflowsJobStepsSettledSchema,
   [WORKFLOWS_STEP_RESTART_ENQUEUED]: workflowsStepRestartEnqueuedSchema,

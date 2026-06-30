@@ -8,41 +8,6 @@
       "when": 1778685886013,
       "tag": "0000_initial",
       "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1781129096855,
-      "tag": "0001_step_attempts",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1781631593340,
-      "tag": "0002_add_run_source_snapshot",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1781638291837,
-      "tag": "0003_motionless_pandemic",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1782353148802,
-      "tag": "0004_sloppy_miss_america",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1782629554065,
-      "tag": "0005_ancient_iceman",
-      "breakpoints": true
     }
   ]
 }
