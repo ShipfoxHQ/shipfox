@@ -5,15 +5,10 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {Code, EmptyState, RelativeTimeProvider, Text, toast} from '@shipfox/react-ui';
+import {EmptyState, RelativeTimeProvider, toast} from '@shipfox/react-ui';
 import {useNavigate} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
-import type {
-  WorkflowAgentStepConfig,
-  WorkflowJob,
-  WorkflowStep,
-  WorkflowStepError,
-} from '#core/workflow-run.js';
+import type {WorkflowJob, WorkflowStep, WorkflowStepError} from '#core/workflow-run.js';
 import {
   type WorkflowRunSelectionInput,
   withoutWorkflowRunSelectionSearch,
@@ -28,6 +23,7 @@ import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
 import {WorkflowSourcePanel} from '../workflow-source-panel/index.js';
 import {WorkflowStepList, type WorkflowStepListEmptyState} from '../workflow-step-list/index.js';
 import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
+import {AgentStepConfigPanel} from './agent-step-config-panel.js';
 import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 import {resolveWorkflowRunSelection} from './workflow-run-selection.js';
 import {
@@ -285,40 +281,6 @@ function StepAttemptDetailPanel({
         />
       ) : null}
       <StepAttemptLogPanel stepId={stepId} attempt={attempt} attemptStatus={attemptStatus} />
-    </div>
-  );
-}
-
-function AgentStepConfigPanel({config}: {config: WorkflowAgentStepConfig}) {
-  return (
-    <section aria-label="Resolved agent configuration" className="flex min-w-0 flex-col gap-6">
-      <Text as="h3" size="xs" bold className="text-foreground-neutral-subtle">
-        Resolved agent configuration
-      </Text>
-      <dl className="grid min-w-0 gap-8 sm:grid-cols-3">
-        <AgentConfigValue label="Provider" value={config.provider} />
-        <AgentConfigValue label="Model" value={config.model} />
-        <AgentConfigValue label="Thinking" value={config.thinking} />
-      </dl>
-    </section>
-  );
-}
-
-function AgentConfigValue({label, value}: {label: string; value: string | null}) {
-  return (
-    <div className="min-w-0">
-      <Text as="dt" size="xs" className="text-foreground-neutral-muted">
-        {label}
-      </Text>
-      <Code
-        as="dd"
-        variant="label"
-        className={
-          value ? 'truncate text-foreground-neutral-base' : 'text-foreground-neutral-muted'
-        }
-      >
-        {value ?? 'Not recorded'}
-      </Code>
     </div>
   );
 }
