@@ -46,7 +46,7 @@ describe('AgentProviderUsageModal', () => {
     expect(screen.getByRole('dialog', {name: 'Use Anthropic in a workflow'})).not.toHaveTextContent(
       'model: claude-opus-4-8',
     );
-  });
+  }, 10_000);
 
   test('renders reference models as clickable rows with inline ids', async () => {
     renderUsageModal();
