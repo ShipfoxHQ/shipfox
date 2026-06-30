@@ -176,13 +176,15 @@ describe('WorkflowRunView', () => {
     expect(within(config).getByText('claude-opus-4-8')).toBeInTheDocument();
     expect(within(config).getByText('Thinking')).toBeInTheDocument();
     expect(within(config).getByText('high')).toBeInTheDocument();
-    expect(screen.getByText('Agent configuration blocked this step')).toBeInTheDocument();
+    expect(
+      screen.getByText("We couldn't load the agent configuration for this step"),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Review the workflow definition values for provider, model, thinking, and prompt. Configure workspace provider credentials, or ask the instance operator to set default provider credentials.',
+        'Check the step prompt, provider, model, and thinking values. Then configure Agent Providers to add workspace credentials, or ask an admin to set a default provider.',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'Agent Providers'})).toHaveAttribute(
+    expect(screen.getByRole('link', {name: 'Configure Agent Providers'})).toHaveAttribute(
       'href',
       `/workspaces/${PROJECT_TEST_WID}/settings/agent-providers`,
     );

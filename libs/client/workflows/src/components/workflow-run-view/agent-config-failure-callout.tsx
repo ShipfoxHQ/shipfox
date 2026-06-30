@@ -12,16 +12,15 @@ export function AgentConfigFailureCallout({workspaceId}: {workspaceId: string}) 
   return (
     <Alert variant="warning" animated={false} className="px-10 py-8">
       <AlertContent>
-        <AlertTitle>Agent configuration blocked this step</AlertTitle>
+        <AlertTitle>We couldn't load the agent configuration for this step</AlertTitle>
         <AlertDescription>
-          Review the workflow definition values for provider, model, thinking, and prompt. Configure
-          workspace provider credentials, or ask the instance operator to set default provider
-          credentials.
+          Check the step prompt, provider, model, and thinking values. Then configure Agent
+          Providers to add workspace credentials, or ask an admin to set a default provider.
         </AlertDescription>
         <AlertActions>
           <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
             <Link to="/workspaces/$wid/settings/agent-providers" params={{wid: workspaceId}}>
-              Agent Providers
+              Configure Agent Providers
             </Link>
           </Button>
         </AlertActions>

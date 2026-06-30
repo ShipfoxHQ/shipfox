@@ -17,7 +17,7 @@ import {AgentConfigFailureCallout as AgentConfigFailureCalloutView} from '../wor
 import {WorkflowStepList} from './workflow-step-list.js';
 
 const WORKSPACE_ID = '44444444-4444-4444-8444-444444444444';
-const AGENT_PROVIDERS_LINK_NAME = 'Agent Providers';
+const AGENT_PROVIDERS_LINK_NAME = 'Configure Agent Providers';
 
 const meta = {
   title: 'Workflows/StepList',
@@ -79,7 +79,7 @@ const withAgentProviderSettingsRoute: Decorator = (Story) => {
 async function assertAgentConfigFailureCallout(ctx: WorkflowStepListStoryContext) {
   const canvas = within(ctx.canvasElement);
 
-  await canvas.findByText('Agent configuration blocked this step');
+  await canvas.findByText("We couldn't load the agent configuration for this step");
   await canvas.findByRole('link', {name: AGENT_PROVIDERS_LINK_NAME});
 }
 
