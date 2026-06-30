@@ -32,14 +32,21 @@ import {JOB_FINISHED_SIGNAL, JOB_LEASE_EXPIRED_SIGNAL} from '../constants.js';
  */
 
 const {
+  setJobStatus,
   setJobExecutionStatus,
   enqueueJobExecutionForRunner,
   bulkSetStepStatuses,
   failJobExecutionAsTimedOutActivity,
   resolveLeaseExpiredJobExecutionActivity,
-  resolveJobStatusFromJobExecutionsActivity,
 } = proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
   startToCloseTimeout: '30s',
+});
+
+const {resolveJobStatusFromJobExecutionsActivity} = proxyActivities<
+  ReturnType<typeof createOrchestrationActivities>
+>({
+  startToCloseTimeout: '30s',
+  retry: {maximumAttempts: 5},
 });
 
 // Lease cleanup gets a bounded retry policy of its own: after a few attempts the
@@ -81,6 +88,27 @@ async function releaseLeaseBestEffort(executionId: string): Promise<void> {
       executionId,
       error: String(err),
     });
+  }
+}
+
+async function resolveJobStatusOrFailClosed(
+  input: JobExecutionOrchestrationInput,
+): Promise<{status: RuntimeCompletionStatus; jobVersion: number}> {
+  try {
+    return await resolveJobStatusFromJobExecutionsActivity({jobId: input.jobId});
+  } catch (err) {
+    log.error('job status resolution failed; failing job closed', {
+      jobId: input.jobId,
+      executionId: input.executionId,
+      error: String(err),
+    });
+    const {newVersion} = await setJobStatus({
+      jobId: input.jobId,
+      status: 'failed',
+      version: input.jobVersion,
+      statusReason: 'step_failed',
+    });
+    return {status: 'failed', jobVersion: newVersion};
   }
 }
 
@@ -153,15 +181,15 @@ async function resolveFinishedJobExecution({
     version: runningVersion,
     statusReason: status === 'failed' ? 'step_failed' : null,
   });
-  const {jobVersion} = await resolveJobStatusFromJobExecutionsActivity({jobId: input.jobId});
+  const resolved = await resolveJobStatusOrFailClosed(input);
   log.info('job execution terminated', {
     jobId: input.jobId,
     executionId: input.executionId,
     terminationReason: 'finished',
-    status,
+    status: resolved.status,
   });
   await releaseLeaseBestEffort(input.executionId);
-  return {status, jobVersion};
+  return resolved;
 }
 
 async function resolveLeaseExpiredJobExecution({
@@ -172,9 +200,7 @@ async function resolveLeaseExpiredJobExecution({
     executionId: input.executionId,
     expectedVersion: runningVersion,
   });
-  const {status, jobVersion} = await resolveJobStatusFromJobExecutionsActivity({
-    jobId: input.jobId,
-  });
+  const {status, jobVersion} = await resolveJobStatusOrFailClosed(input);
   log.info('job execution terminated', {
     jobId: input.jobId,
     executionId: input.executionId,
@@ -198,7 +224,7 @@ async function resolveTimedOutJobExecution({
     expectedVersion: runningVersion,
   });
   await bulkSetStepStatuses({executionId: input.executionId, status: 'failed'});
-  const {jobVersion} = await resolveJobStatusFromJobExecutionsActivity({jobId: input.jobId});
+  const {jobVersion} = await resolveJobStatusOrFailClosed(input);
   log.info('job execution terminated', {
     jobId: input.jobId,
     executionId: input.executionId,

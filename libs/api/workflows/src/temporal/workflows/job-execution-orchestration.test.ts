@@ -5,6 +5,7 @@ import {
   resetCalls,
   setCfg,
   setExecutionStatusCalls,
+  setJobStatusCalls,
   setupEnv,
   TASK_QUEUE,
   teardownEnv,
@@ -137,6 +138,29 @@ describe('jobExecutionOrchestration', () => {
     expect(terminalSetJobCall('job-2')?.params.statusReason).toBe('step_failed');
     expect(callsNamed('releaseLeaseActivity')).toHaveLength(1);
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
+  });
+
+  test('job status resolution failure fails the job closed', async () => {
+    setCfg({
+      dag: makeDag([dagJob('job-resolve-fail', 'build')]),
+      jobResults: new Map([['job-resolve-fail', 'succeeded']]),
+      resolveJobStatusError: 'invalid job success expression',
+    });
+
+    const result = await executeJob({...defaultJobInput, jobId: 'job-resolve-fail'});
+
+    expect(result.status).toBe('failed');
+    expect(finalStatusesFor('job-resolve-fail')).toEqual(['running', 'succeeded']);
+    expect(setJobStatusCalls()).toContainEqual({
+      name: 'setJobStatus',
+      params: {
+        jobId: 'job-resolve-fail',
+        status: 'failed',
+        version: 1,
+        statusReason: 'step_failed',
+      },
+    });
+    expect(callsNamed('releaseLeaseActivity')).toHaveLength(1);
   });
 
   test('lease-expired signal resolves via the activity and releases the lease', async () => {

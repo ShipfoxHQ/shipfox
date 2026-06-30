@@ -31,6 +31,8 @@ export interface TestConfig {
   signalBoth?: boolean;
   /** Status resolveLeaseExpiredJobExecutionActivity returns (defaults to 'failed') */
   leaseExpiredStatus?: RuntimeCompletionStatus;
+  /** If set, resolveJobStatusFromJobExecutionsActivity throws with this message */
+  resolveJobStatusError?: string;
   /** If set, releaseLeaseActivity throws (non-retryable) to prove the workflow still returns */
   releaseLeaseError?: string;
   /** If set, failJobExecutionAsTimedOutActivity throws (for timeout error-path testing) */
@@ -245,9 +247,21 @@ function createMockActivities() {
       return {status: cfg.leaseExpiredStatus ?? 'failed', executionVersion: nextVersion()};
     },
 
-    resolveJobStatusFromJobExecutionsActivity: (params: {jobId: string}) => {
+    resolveJobStatusFromJobExecutionsActivity: async (params: {jobId: string}) => {
       calls.push({name: 'resolveJobStatusFromJobExecutionsActivity', params});
-      return {status: cfg.leaseExpiredStatus ?? 'succeeded', jobVersion: nextVersion()};
+      if (cfg.resolveJobStatusError) {
+        const {ApplicationFailure} = await import('@temporalio/common');
+        throw ApplicationFailure.nonRetryable(cfg.resolveJobStatusError);
+      }
+      const terminalExecutionStatus = [...setExecutionStatusCalls()]
+        .reverse()
+        .find(
+          (call) => call.params.executionId === params.jobId && call.params.status !== 'running',
+        )?.params.status as RuntimeCompletionStatus | undefined;
+      return {
+        status: cfg.leaseExpiredStatus ?? terminalExecutionStatus ?? 'succeeded',
+        jobVersion: nextVersion(),
+      };
     },
 
     releaseLeaseActivity: async (params: {executionId: string}) => {
