@@ -17,6 +17,7 @@ export {
   createManualRegistrationTokenResponseSchema,
   type ListManualRegistrationTokensResponseDto,
   listManualRegistrationTokensResponseSchema,
+  MAX_MANUAL_REGISTRATION_TOKEN_TTL_SECONDS,
   type ManualRegistrationTokenDto,
   manualRegistrationTokenDtoSchema,
   type RevokeManualRegistrationTokenResponseDto,

@@ -1,8 +1,15 @@
 import {z} from 'zod';
 
+export const MAX_MANUAL_REGISTRATION_TOKEN_TTL_SECONDS = 31_536_000;
+
 export const createManualRegistrationTokenBodySchema = z.object({
   name: z.string().min(1).optional(),
-  ttl_seconds: z.number().int().positive().optional(),
+  ttl_seconds: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_MANUAL_REGISTRATION_TOKEN_TTL_SECONDS)
+    .optional(),
 });
 
 export type CreateManualRegistrationTokenBodyDto = z.infer<

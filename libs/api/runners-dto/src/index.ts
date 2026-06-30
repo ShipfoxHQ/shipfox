@@ -27,6 +27,7 @@ export {
   listActiveProvisionersResponseSchema,
   listManualRegistrationTokensResponseSchema,
   listProvisionerTokensResponseSchema,
+  MAX_MANUAL_REGISTRATION_TOKEN_TTL_SECONDS,
   MAX_OBSERVED_PROVISIONED_RUNNER_ID_LENGTH,
   MAX_PROVIDER_KIND_LENGTH,
   MAX_PROVISIONED_RUNNER_REASON_LENGTH,
