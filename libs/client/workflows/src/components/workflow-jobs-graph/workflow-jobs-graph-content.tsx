@@ -1,10 +1,9 @@
-import {cn, EmptyState} from '@shipfox/react-ui';
+import {cn, EmptyState, TimeTickerProvider} from '@shipfox/react-ui';
 import type {KeyboardEvent} from 'react';
 import {useRef, useState} from 'react';
 import type {WorkflowRunDetail} from '#core/workflow-run.js';
 import type {WorkflowJobGraphModel, WorkflowJobGraphNavigationKey} from './graph-model.js';
 import {nextWorkflowJobGraphNodeId} from './graph-model.js';
-import {JobDurationTickerProvider} from './job-duration-ticker.js';
 import {TriggerNode, WorkflowJobNode} from './workflow-job-node.js';
 
 const NODE_WIDTH = 208;
@@ -75,7 +74,7 @@ export function WorkflowJobsGraphContent({
   }
 
   return (
-    <JobDurationTickerProvider>
+    <TimeTickerProvider intervalMs={1000} reducedMotionIntervalMs={10_000}>
       <div className="min-h-0 overflow-auto bg-background-neutral-base">
         <div className="relative" style={{width: contentWidth, minHeight: contentHeight}}>
           <GraphEdges model={model} hoveredJobId={hoveredJobId} />
@@ -109,7 +108,7 @@ export function WorkflowJobsGraphContent({
           ))}
         </div>
       </div>
-    </JobDurationTickerProvider>
+    </TimeTickerProvider>
   );
 }
 

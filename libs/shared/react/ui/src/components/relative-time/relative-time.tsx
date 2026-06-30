@@ -1,61 +1,14 @@
-import {createContext, type ReactNode, useContext, useEffect, useState} from 'react';
+import type {ReactNode} from 'react';
 import {useMediaQuery} from '#hooks/useMediaQuery.js';
 import {formatTimestamp} from '#utils/datetime.js';
 import {formatRelative} from '#utils/relative-time.js';
+import {TimeTickerProvider, useTimeTick} from '../time-ticker/index.js';
 import {Tooltip, TooltipContent, TooltipTrigger} from '../tooltip/index.js';
-
-/**
- * Shared 30s ticker for `<RelativeTime>` instances on a page.
- *
- * One `setInterval` per page (mounted via `<RelativeTimeProvider>`),
- * shared by every `<RelativeTime>`. Without this, a list of 100 rows
- * would mount 100 independent timers (DESIGN.md §10 live-data rule and
- * basic perf hygiene).
- *
- * The ticker pauses while `document.visibilityState === 'hidden'` and
- * resumes on visibility change, so tab-away doesn't keep timers alive.
- */
-
-const TickContext = createContext<number>(0);
 
 const TICK_MS = 30_000;
 
 export function RelativeTimeProvider({children}: {children: ReactNode}) {
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-
-    let interval: number | undefined;
-
-    const start = () => {
-      if (interval !== undefined) return;
-      interval = window.setInterval(() => {
-        setTick((current) => current + 1);
-      }, TICK_MS);
-    };
-
-    const stop = () => {
-      if (interval === undefined) return;
-      window.clearInterval(interval);
-      interval = undefined;
-    };
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') stop();
-      else start();
-    };
-
-    if (document.visibilityState !== 'hidden') start();
-    document.addEventListener('visibilitychange', onVisibilityChange);
-
-    return () => {
-      stop();
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
-  }, []);
-
-  return <TickContext.Provider value={tick}>{children}</TickContext.Provider>;
+  return <TimeTickerProvider intervalMs={TICK_MS}>{children}</TimeTickerProvider>;
 }
 
 /**
@@ -68,10 +21,7 @@ export function RelativeTimeProvider({children}: {children: ReactNode}) {
  * stays still for those users instead of ticking every 30s.
  */
 export function RelativeTime({value, className}: {value: string; className?: string}) {
-  // Subscribe to the provider's tick so this component re-renders on
-  // each cycle. Re-reading useContext is intentional; the empty body
-  // is a subscription, not dead code.
-  useContext(TickContext);
+  useTimeTick();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
   const display = formatRelative(value, {reducedMotion});

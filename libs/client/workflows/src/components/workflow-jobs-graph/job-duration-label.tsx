@@ -1,6 +1,5 @@
-import {Code, humanDuration} from '@shipfox/react-ui';
+import {Code, humanDuration, useTimeTick} from '@shipfox/react-ui';
 import type {WorkflowJobDuration} from '#core/workflow-run.js';
-import {useDurationTick} from './job-duration-ticker.js';
 
 /**
  * Renders a job node's duration as a bare, muted, monospace number. There is no
@@ -22,7 +21,7 @@ export function JobDurationLabel({duration}: {duration: WorkflowJobDuration}) {
 
 /** Subscribes to the shared 1s ticker so the elapsed value advances each second. */
 function LiveDurationText({fromIso}: {fromIso: string}) {
-  useDurationTick();
+  useTimeTick();
   return <DurationText>{humanDuration(fromIso)}</DurationText>;
 }
 
