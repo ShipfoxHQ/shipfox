@@ -193,6 +193,82 @@ describe('WorkflowRunView', () => {
     );
   });
 
+  test('falls back to the step error when an agent attempt has no typed error', async () => {
+    const user = userEvent.setup();
+    const stepId = '99999999-9999-4999-8999-000000000005';
+    const attemptId = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000005';
+    configureApiClient({
+      fetchImpl: vi.fn((input: RequestInfo | URL) => {
+        const url = requestUrl(input);
+        if (url.pathname === `/steps/${stepId}/attempts/1/logs`) {
+          return Promise.resolve(
+            jsonResponse(inlineLogBody(outputLine('configuration failed\n'), 1)),
+          );
+        }
+        return Promise.resolve(
+          jsonResponse(
+            workflowRunViewDetailDto({
+              jobs: [
+                workflowJobDto({
+                  id: BUILD_JOB_ID,
+                  run_id: RUN_ID,
+                  name: 'build',
+                  status: 'failed',
+                  steps: [
+                    workflowStepDto({
+                      id: stepId,
+                      job_id: BUILD_JOB_ID,
+                      name: 'implement',
+                      display_name: 'Fix the failing tests.',
+                      type: 'agent',
+                      status: 'failed',
+                      config: {
+                        provider: 'anthropic',
+                        model: 'claude-opus-4-8',
+                        thinking: 'high',
+                        prompt: 'Fix the failing tests.',
+                      },
+                      error: {
+                        message: 'Agent provider credentials are not configured',
+                        reason: 'agent_config_invalid',
+                        agent_config_issue: 'provider_not_configured',
+                        category: 'user',
+                      },
+                      attempts: [
+                        workflowStepAttemptDto({
+                          id: attemptId,
+                          step_id: stepId,
+                          job_id: BUILD_JOB_ID,
+                          status: 'failed',
+                          exit_code: 1,
+                          error: null,
+                          finished_at: '2026-05-07T01:01:20.000Z',
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ),
+        );
+      }),
+    });
+
+    renderView();
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Fix the failing tests., Failed, attempt 1, User',
+      }),
+    );
+
+    expect(screen.getByText('Configure credentials for anthropic')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Configure Agent Providers'})).toHaveAttribute(
+      'href',
+      `/workspaces/${PROJECT_TEST_WID}/settings/agent-providers`,
+    );
+  });
+
   test('renders skipped zero-attempt jobs as skipped instead of missing attempts', async () => {
     configureApiClient({
       fetchImpl: vi.fn(() =>

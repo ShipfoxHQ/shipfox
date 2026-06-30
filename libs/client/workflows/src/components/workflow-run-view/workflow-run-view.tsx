@@ -268,7 +268,7 @@ function StepAttemptDetailPanel({
   attemptError: Record<string, unknown> | null;
   attemptStatus: string;
 }) {
-  const selectedAttemptError = toSelectedAttemptError(step, attemptError);
+  const selectedAttemptError = toSelectedAttemptError(step, attemptError) ?? step.error;
 
   return (
     <div className="flex min-w-0 flex-col gap-10">
@@ -296,12 +296,19 @@ function toSelectedAttemptError(
     error.agentConfigIssue ?? error.agent_config_issue,
   );
   const exitCode = error.exitCode ?? error.exit_code;
+  const parsedReason = reason.success
+    ? reason.data
+    : agentConfigIssue.success
+      ? 'agent_config_invalid'
+      : undefined;
+
+  if (parsedReason === undefined) return null;
 
   return {
     message: typeof error.message === 'string' ? error.message : '',
     exitCode: exitCode === null || typeof exitCode === 'number' ? exitCode : null,
     signal: typeof error.signal === 'string' ? error.signal : undefined,
-    reason: reason.success ? reason.data : undefined,
+    reason: parsedReason,
     agentConfigIssue: agentConfigIssue.success ? agentConfigIssue.data : undefined,
     category: step.type === 'setup' ? 'setup' : 'user',
   };
