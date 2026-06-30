@@ -11,6 +11,7 @@ import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 export interface DispatchIntegrationEventParams {
   eventRef: string;
   workspaceId: string;
+  provider: string;
   source: string;
   event: string;
   deliveryId: string;
@@ -34,7 +35,7 @@ export interface DispatchIntegrationEventParams {
 export async function dispatchIntegrationEvent(
   params: DispatchIntegrationEventParams,
 ): Promise<void> {
-  eventReceivedCount.add(1, {source: params.source});
+  eventReceivedCount.add(1, {provider: params.provider});
 
   const history = await beginTriggerHistory({
     eventRef: params.eventRef,
@@ -56,7 +57,7 @@ export async function dispatchIntegrationEvent(
   });
 
   if (subscriptions.length === 0) {
-    eventOutcomeCount.add(1, {source: params.source, outcome: 'discarded'});
+    eventOutcomeCount.add(1, {provider: params.provider, outcome: 'discarded'});
     await history.discarded();
     return;
   }
@@ -72,6 +73,7 @@ export async function dispatchIntegrationEvent(
         projectId: subscription.projectId,
         definitionId: subscription.workflowDefinitionId,
         triggerPayload: {
+          provider: params.provider,
           source: params.source,
           event: params.event,
           deliveryId: params.deliveryId,
@@ -82,7 +84,7 @@ export async function dispatchIntegrationEvent(
       });
       await history.triggered(subscription, run);
       triggeredCount += 1;
-      subscriptionTriggeredCount.add(1, {source: params.source});
+      subscriptionTriggeredCount.add(1, {provider: params.provider});
     } catch (error) {
       await history.errored(subscription, toReason(error));
       // Track presence with a flag, not `firstTransientError === undefined`: a thrown
@@ -95,17 +97,17 @@ export async function dispatchIntegrationEvent(
   }
 
   if (sawTransientError) {
-    eventOutcomeCount.add(1, {source: params.source, outcome: 'failed'});
+    eventOutcomeCount.add(1, {provider: params.provider, outcome: 'failed'});
     await history.failed(subscriptions.length);
     throw firstTransientError;
   }
 
   if (triggeredCount > 0) {
-    eventOutcomeCount.add(1, {source: params.source, outcome: 'routed'});
+    eventOutcomeCount.add(1, {provider: params.provider, outcome: 'routed'});
     await history.routed(subscriptions.length);
     return;
   }
 
-  eventOutcomeCount.add(1, {source: params.source, outcome: 'errored'});
+  eventOutcomeCount.add(1, {provider: params.provider, outcome: 'errored'});
   await history.allErrored(subscriptions.length);
 }

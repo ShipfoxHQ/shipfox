@@ -4,6 +4,7 @@ import type {
   IntegrationConnectionLifecycleStatus,
 } from '#core/entities/connection.js';
 import type {IntegrationProviderKind} from '#core/entities/provider.js';
+import {IntegrationConnectionAlreadyExistsError} from '#core/errors.js';
 import {db} from './db.js';
 import {integrationConnections, toIntegrationConnection} from './schema/connections.js';
 
@@ -51,6 +52,62 @@ export async function upsertIntegrationConnection(
   return toIntegrationConnection(row);
 }
 
+export interface CreateIntegrationConnectionParams {
+  workspaceId: string;
+  provider: IntegrationProviderKind;
+  externalAccountId: string;
+  displayName: string;
+  lifecycleStatus?: IntegrationConnectionLifecycleStatus | undefined;
+}
+
+function isIntegrationConnectionUniqueViolation(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current != null; depth += 1) {
+    if (typeof current !== 'object') return false;
+    const {code, constraint} = current as {code?: unknown; constraint?: unknown};
+    if (code === '23505' && constraint === 'integrations_connections_workspace_external_unique') {
+      return true;
+    }
+    current = (current as {cause?: unknown}).cause;
+  }
+  return false;
+}
+
+export async function createIntegrationConnection(
+  params: CreateIntegrationConnectionParams,
+  options: {tx?: IntegrationDb | IntegrationTx | undefined} = {},
+): Promise<IntegrationConnection> {
+  const executor = options.tx ?? db();
+  let rows: (typeof integrationConnections.$inferSelect)[];
+  try {
+    rows = await executor
+      .insert(integrationConnections)
+      .values({
+        workspaceId: params.workspaceId,
+        provider: params.provider,
+        externalAccountId: params.externalAccountId,
+        displayName: params.displayName,
+        lifecycleStatus: params.lifecycleStatus ?? 'active',
+      })
+      .returning();
+  } catch (error) {
+    if (isIntegrationConnectionUniqueViolation(error)) {
+      throw new IntegrationConnectionAlreadyExistsError(
+        params.workspaceId,
+        params.provider,
+        params.externalAccountId,
+      );
+    }
+    throw error;
+  }
+
+  const row = rows[0];
+  if (!row) throw new Error('Integration connection insert returned no rows');
+  return toIntegrationConnection(row);
+}
+
+export type CreateIntegrationConnectionFn = typeof createIntegrationConnection;
+
 export async function getIntegrationConnectionById(
   id: string,
   options: {tx?: IntegrationDb | IntegrationTx | undefined} = {},
@@ -89,6 +146,19 @@ export async function updateIntegrationConnectionLifecycleStatus(
 
 export type UpdateIntegrationConnectionLifecycleStatusFn =
   typeof updateIntegrationConnectionLifecycleStatus;
+
+export async function deleteIntegrationConnection(
+  params: {id: string},
+  options: {tx?: IntegrationDb | IntegrationTx | undefined} = {},
+): Promise<boolean> {
+  const executor = options.tx ?? db();
+  const result = await executor
+    .delete(integrationConnections)
+    .where(eq(integrationConnections.id, params.id));
+  return (result.rowCount ?? 0) > 0;
+}
+
+export type DeleteIntegrationConnectionFn = typeof deleteIntegrationConnection;
 
 export interface ListIntegrationConnectionsParams {
   workspaceId: string;

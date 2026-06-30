@@ -30,7 +30,7 @@ export async function publishIntegrationEventReceived(
   const inserted = await params.tx
     .insert(integrationsWebhookDeliveries)
     .values({
-      provider: params.event.source,
+      provider: params.event.provider,
       deliveryId: params.event.deliveryId,
     })
     .onConflictDoNothing({
@@ -85,6 +85,7 @@ export async function publishSourcePush(
     {
       type: INTEGRATION_EVENT_RECEIVED,
       payload: {
+        provider: params.provider,
         source: params.provider,
         event: 'push',
         workspaceId: params.workspaceId,

@@ -5,8 +5,8 @@ import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 
 const meter = instanceMetrics.getMeter('workflows');
 
-const runCreatedCount = meter.createCounter<{trigger_source: string}>('workflows_run_created', {
-  description: 'Workflow runs created by trigger source',
+const runCreatedCount = meter.createCounter<{provider: string}>('workflows_run_created', {
+  description: 'Workflow runs created by bounded trigger provider',
 });
 
 const runStatusChangedCount = meter.createCounter<{status: WorkflowRunStatus}>(
@@ -47,8 +47,8 @@ const stepRestartEnqueuedCount = meter.createCounter<Record<string, never>>(
   {description: 'Durable step restart events enqueued after a restartable gate failure'},
 );
 
-export function recordWorkflowRunCreated(triggerSource: string): void {
-  runCreatedCount.add(1, {trigger_source: triggerSource});
+export function recordWorkflowRunCreated(provider: string): void {
+  runCreatedCount.add(1, {provider});
 }
 
 export function recordWorkflowRunStatusChanged(status: WorkflowRunStatus): void {

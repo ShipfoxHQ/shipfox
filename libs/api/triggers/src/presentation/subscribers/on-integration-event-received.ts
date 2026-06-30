@@ -9,6 +9,7 @@ export async function onIntegrationEventReceived(
   await dispatchIntegrationEvent({
     eventRef: event.id,
     workspaceId: envelope.workspaceId,
+    provider: envelope.provider,
     source: envelope.source,
     event: envelope.event,
     deliveryId: envelope.deliveryId,

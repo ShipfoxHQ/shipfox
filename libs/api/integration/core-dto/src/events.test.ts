@@ -7,6 +7,7 @@ import {
 } from './events.js';
 
 const validEventReceived = {
+  provider: 'github',
   source: 'github',
   event: 'push',
   workspaceId: 'ws-1',

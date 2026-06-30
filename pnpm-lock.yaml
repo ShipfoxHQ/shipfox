@@ -942,6 +942,9 @@ importers:
       '@shipfox/api-integration-sentry':
         specifier: workspace:*
         version: link:../sentry
+      '@shipfox/api-integration-webhook':
+        specifier: workspace:*
+        version: link:../webhook
       '@shipfox/api-workspaces':
         specifier: workspace:*
         version: link:../../workspaces
@@ -1419,6 +1422,95 @@ importers:
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../core-dto
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+
+  libs/api/integration/webhook:
+    dependencies:
+      '@fastify/formbody':
+        specifier: ^8.0.2
+        version: 8.0.2
+      '@shipfox/api-auth-context':
+        specifier: workspace:*
+        version: link:../../auth-context
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../core-dto
+      '@shipfox/api-integration-webhook-dto':
+        specifier: workspace:*
+        version: link:../webhook-dto
+      '@shipfox/api-workspaces':
+        specifier: workspace:*
+        version: link:../../workspaces
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../../shared/common/config
+      '@shipfox/node-fastify':
+        specifier: workspace:*
+        version: link:../../../shared/node/fastify
+      fastify-plugin:
+        specifier: ^5.1.0
+        version: 5.1.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/node-drizzle':
+        specifier: workspace:*
+        version: link:../../../shared/node/drizzle
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../../shared/node/opentelemetry
+      '@shipfox/node-postgres':
+        specifier: workspace:*
+        version: link:../../../shared/node/postgres
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      fastify-type-provider-zod:
+        specifier: ^6.0.0
+        version: 6.1.0(@fastify/swagger@9.7.0)(fastify@5.8.5)(openapi-types@12.1.3)(zod@4.4.3)
+
+  libs/api/integration/webhook-dto:
+    dependencies:
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -5666,6 +5758,9 @@ packages:
 
   '@fastify/fast-json-stringify-compiler@5.0.3':
     resolution: {integrity: sha512-uik7yYHkLr6fxd8hJSZ8c+xF4WafPK+XzneQDPU+D10r5X19GW8lJcom2YijX2+qtFF1ENJlHXKFM9ouXNJYgQ==}
+
+  '@fastify/formbody@8.0.2':
+    resolution: {integrity: sha512-84v5J2KrkXzjgBpYnaNRPqwgMsmY7ZDjuj0YVuMR3NXCJRCgKEZy/taSP1wUYGn0onfxJpLyRGDLa+NMaDJtnA==}
 
   '@fastify/forwarded@3.0.1':
     resolution: {integrity: sha512-JqDochHFqXs3C3Ml3gOY58zM7OqO9ENqPo0UqAjAjH8L01fRZqwX9iLeX34//kiJubF7r2ZQHtBRU36vONbLlw==}
@@ -13524,6 +13619,11 @@ snapshots:
   '@fastify/fast-json-stringify-compiler@5.0.3':
     dependencies:
       fast-json-stringify: 6.3.0
+
+  '@fastify/formbody@8.0.2':
+    dependencies:
+      fast-querystring: 1.1.2
+      fastify-plugin: 5.1.0
 
   '@fastify/forwarded@3.0.1': {}
 

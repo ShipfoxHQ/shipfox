@@ -215,7 +215,8 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
     return {run, created: true};
   });
 
-  if (result.created) recordWorkflowRunCreated(result.run.triggerSource);
+  if (result.created)
+    recordWorkflowRunCreated(result.run.triggerPayload.provider ?? result.run.triggerSource);
 
   return result.run;
 }
@@ -386,7 +387,7 @@ export async function createRerunWorkflowRun(
     return toWorkflowRun(newRunRow);
   });
 
-  recordWorkflowRunCreated(result.triggerSource);
+  recordWorkflowRunCreated(result.triggerPayload.provider ?? result.triggerSource);
 
   return result;
 }

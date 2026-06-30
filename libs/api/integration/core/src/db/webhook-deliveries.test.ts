@@ -19,6 +19,7 @@ function buildEvent(
   overrides: Partial<IntegrationEventReceivedEvent> = {},
 ): IntegrationEventReceivedEvent {
   return {
+    provider: 'github',
     source: 'github',
     event: 'push',
     workspaceId: crypto.randomUUID(),
@@ -92,11 +93,12 @@ describe('integration webhook delivery persistence', () => {
     const result = await publishIntegrationEventReceived({tx: db(), event});
 
     expect(result.published).toBe(true);
-    expect(await deliveriesFor(event.source, event.deliveryId)).toHaveLength(1);
+    expect(await deliveriesFor(event.provider, event.deliveryId)).toHaveLength(1);
     const outbox = await outboxFor(event.deliveryId);
     expect(outbox).toHaveLength(1);
     expect(outbox[0]?.eventType).toBe(INTEGRATION_EVENT_RECEIVED);
     expect(outbox[0]?.payload).toMatchObject({
+      provider: 'github',
       source: 'github',
       event: 'push',
       deliveryId: event.deliveryId,
@@ -112,7 +114,7 @@ describe('integration webhook delivery persistence', () => {
 
     expect(first.published).toBe(true);
     expect(second.published).toBe(false);
-    expect(await deliveriesFor(event.source, event.deliveryId)).toHaveLength(1);
+    expect(await deliveriesFor(event.provider, event.deliveryId)).toHaveLength(1);
     expect(await outboxFor(event.deliveryId)).toHaveLength(1);
   });
 
@@ -156,6 +158,7 @@ describe('publishSourcePush', () => {
     const envelope = outbox.find((row) => row.eventType === INTEGRATION_EVENT_RECEIVED);
     const typed = outbox.find((row) => row.eventType === INTEGRATION_SOURCE_COMMIT_PUSHED);
     expect(envelope?.payload).toMatchObject({
+      provider: 'github',
       source: 'github',
       event: 'push',
       deliveryId: params.deliveryId,
