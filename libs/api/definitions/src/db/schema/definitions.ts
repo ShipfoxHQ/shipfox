@@ -1,6 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
-import {index, jsonb, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {check, index, jsonb, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {
   WorkflowDefinition,
   WorkflowDefinitionPayload,
@@ -41,6 +41,12 @@ export const workflowDefinitions = pgTable(
     index('definitions_wd_project_name_id_idx')
       .on(table.projectId, table.name, table.id)
       .where(sql`"deleted_at" IS NULL`),
+    // Binds source to its git coordinates so the partial indexes above stay
+    // unambiguous: vcs rows carry a ref or sha; manual rows carry neither.
+    check(
+      'definitions_wd_source_ref_sha_consistent',
+      sql`("source" = 'vcs') = ("ref" IS NOT NULL OR "sha" IS NOT NULL)`,
+    ),
   ],
 );
 

@@ -130,6 +130,7 @@ describe('definition queries', () => {
         configPath: 'ci.yml',
         name: 'CI',
         ...definitionFields('CI'),
+        source: 'vcs',
         sha: 'abc123',
       });
 
@@ -144,6 +145,7 @@ describe('definition queries', () => {
         configPath: 'ci.yml',
         name: 'CI v1',
         ...definitionFields('CI v1'),
+        source: 'vcs',
         sha: 'abc123',
       });
 
@@ -153,6 +155,7 @@ describe('definition queries', () => {
         configPath: 'ci.yml',
         name: 'CI v2',
         ...definitionFields('CI v2'),
+        source: 'vcs',
         sha: 'abc123',
       });
 
@@ -167,6 +170,7 @@ describe('definition queries', () => {
         configPath: 'ci.yml',
         name: 'CI',
         ...definitionFields('CI'),
+        source: 'vcs',
         ref: 'main',
       });
 
@@ -181,6 +185,7 @@ describe('definition queries', () => {
         configPath: 'ci.yml',
         name: 'CI v1',
         ...definitionFields('CI v1'),
+        source: 'vcs',
         ref: 'main',
       });
 
@@ -190,6 +195,7 @@ describe('definition queries', () => {
         configPath: 'ci.yml',
         name: 'CI v2',
         ...definitionFields('CI v2'),
+        source: 'vcs',
         ref: 'main',
       });
 
@@ -220,6 +226,57 @@ describe('definition queries', () => {
       expect(vcs.id).not.toBe(manual.id);
       expect(manual.source).toBe('manual');
       expect(vcs.source).toBe('vcs');
+    });
+
+    test('VCS definitions on two branches coexist at the same config_path', async () => {
+      const main = await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'ci.yml',
+        name: 'CI main',
+        ...definitionFields('CI main'),
+        source: 'vcs',
+        ref: 'main',
+      });
+
+      const dev = await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'ci.yml',
+        name: 'CI dev',
+        ...definitionFields('CI dev'),
+        source: 'vcs',
+        ref: 'dev',
+      });
+
+      expect(dev.id).not.toBe(main.id);
+    });
+
+    test('rejects a vcs definition with neither ref nor sha', async () => {
+      const upsert = upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'ci.yml',
+        name: 'CI',
+        ...definitionFields('CI'),
+        source: 'vcs',
+      });
+
+      await expect(upsert).rejects.toThrow();
+    });
+
+    test('rejects a manual definition that sets a sha', async () => {
+      const upsert = upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'ci.yml',
+        name: 'CI',
+        ...definitionFields('CI'),
+        source: 'manual',
+        sha: 'abc123',
+      });
+
+      await expect(upsert).rejects.toThrow();
     });
 
     test('with neither sha nor ref uses base constraint', async () => {
@@ -516,6 +573,7 @@ describe('definition queries', () => {
         configPath: 'ci.yml',
         name: 'CI',
         ...definitionFields('CI'),
+        source: 'vcs',
         ref: 'main',
       });
 
@@ -532,6 +590,7 @@ describe('definition queries', () => {
         configPath: 'ci.yml',
         name: 'CI',
         ...definitionFields('CI'),
+        source: 'vcs',
         sha: 'abc123',
       });
 

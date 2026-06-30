@@ -38,6 +38,14 @@ function buildUpsertQuery(tx: Tx, params: UpsertDefinitionParams) {
   if (source === 'vcs' && !params.configPath) {
     throw new Error('configPath is required for VCS definitions');
   }
+  // Keep source aligned with the conflict arbiter (chosen by ref/sha presence):
+  // vcs rows are versioned by ref/sha, manual rows have neither.
+  const hasRefOrSha = params.ref != null || params.sha != null;
+  if ((source === 'vcs') !== hasRefOrSha) {
+    throw new Error(
+      'Definition source/ref/sha mismatch: vcs requires a ref or sha, manual requires neither',
+    );
+  }
 
   const definition: WorkflowDefinitionPayload = {
     document: params.document,
