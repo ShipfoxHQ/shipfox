@@ -32,12 +32,14 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
 
 interface TestApp {
   app: FastifyInstance;
+  publishIntegrationEventReceived: ReturnType<typeof vi.fn>;
   publishSourcePush: ReturnType<typeof vi.fn>;
   recordDeliveryOnly: ReturnType<typeof vi.fn>;
   getIntegrationConnectionById: ReturnType<typeof vi.fn>;
 }
 
 async function createTestApp(options: {connection?: IntegrationConnection} = {}): Promise<TestApp> {
+  const publishIntegrationEventReceived = vi.fn(() => Promise.resolve({published: true}));
   const publishSourcePush = vi.fn(() => Promise.resolve({published: true}));
   const recordDeliveryOnly = vi.fn(() => Promise.resolve());
   const getIntegrationConnectionById = vi.fn(() =>
@@ -45,13 +47,20 @@ async function createTestApp(options: {connection?: IntegrationConnection} = {})
   );
   const routes = createGithubWebhookRoutes({
     coreDb: db,
+    publishIntegrationEventReceived,
     publishSourcePush,
     recordDeliveryOnly,
     getIntegrationConnectionById,
   });
   const app = await createApp({routes: [routes], swagger: false});
   await app.ready();
-  return {app, publishSourcePush, recordDeliveryOnly, getIntegrationConnectionById};
+  return {
+    app,
+    publishIntegrationEventReceived,
+    publishSourcePush,
+    recordDeliveryOnly,
+    getIntegrationConnectionById,
+  };
 }
 
 async function seedInstallation(installationId: number, connectionId?: string): Promise<void> {
@@ -98,15 +107,14 @@ describe('GitHub webhook route', () => {
     const {app, publishSourcePush, recordDeliveryOnly, getIntegrationConnectionById} =
       await createTestApp({connection});
     const deliveryId = randomUUID();
-    const body = JSON.stringify(
-      githubPushPayload({
-        installationId,
-        repositoryId: 42,
-        ref: 'refs/heads/main',
-        defaultBranch: 'main',
-        sha: 'abc123',
-      }),
-    );
+    const rawPayload = githubPushPayload({
+      installationId,
+      repositoryId: 42,
+      ref: 'refs/heads/main',
+      defaultBranch: 'main',
+      sha: 'abc123',
+    });
+    const body = JSON.stringify(rawPayload);
 
     const res = await app.inject({
       method: 'POST',
@@ -131,6 +139,7 @@ describe('GitHub webhook route', () => {
       workspaceId: connection.workspaceId,
       connectionId: connection.id,
       connectionName: connection.displayName,
+      rawPayload,
       push: {
         externalRepositoryId: 'github:42',
         ref: 'main',
@@ -170,21 +179,21 @@ describe('GitHub webhook route', () => {
     });
   });
 
-  it('ignores a branch deletion (all-zero after SHA) without publishing', async () => {
+  it('publishes a generic envelope for a branch deletion without publishing a typed push', async () => {
     const installationId = 7783;
     const connection = fakeConnection();
     await seedInstallation(installationId, connection.id);
-    const {app, publishSourcePush, recordDeliveryOnly} = await createTestApp({connection});
+    const {app, publishIntegrationEventReceived, publishSourcePush, recordDeliveryOnly} =
+      await createTestApp({connection});
     const deliveryId = randomUUID();
-    const body = JSON.stringify(
-      githubPushPayload({
-        installationId,
-        repositoryId: 42,
-        ref: 'refs/heads/main',
-        defaultBranch: 'main',
-        sha: '0000000000000000000000000000000000000000',
-      }),
-    );
+    const rawPayload = githubPushPayload({
+      installationId,
+      repositoryId: 42,
+      ref: 'refs/heads/main',
+      defaultBranch: 'main',
+      sha: '0000000000000000000000000000000000000000',
+    });
+    const body = JSON.stringify(rawPayload);
 
     const res = await app.inject({
       method: 'POST',
@@ -195,11 +204,24 @@ describe('GitHub webhook route', () => {
 
     expect(res.statusCode).toBe(204);
     expect(publishSourcePush).not.toHaveBeenCalled();
+    expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
+    expect(publishIntegrationEventReceived.mock.calls[0]?.[0]).toMatchObject({
+      event: {
+        source: 'github',
+        event: 'push',
+        workspaceId: connection.workspaceId,
+        connectionId: connection.id,
+        connectionName: connection.displayName,
+        deliveryId,
+        payload: rawPayload,
+      },
+    });
     expect(recordDeliveryOnly).not.toHaveBeenCalled();
   });
 
-  it('records the delivery only for non-push events', async () => {
-    const {app, publishSourcePush, recordDeliveryOnly} = await createTestApp();
+  it('records the delivery only for events without an installation id', async () => {
+    const {app, publishIntegrationEventReceived, publishSourcePush, recordDeliveryOnly} =
+      await createTestApp();
     const deliveryId = randomUUID();
     const body = JSON.stringify({zen: 'Practicality beats purity.'});
 
@@ -211,9 +233,85 @@ describe('GitHub webhook route', () => {
     });
 
     expect(res.statusCode).toBe(204);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
     expect(publishSourcePush).not.toHaveBeenCalled();
     expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
     expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'github', deliveryId});
+  });
+
+  it('publishes a generic envelope for a non-push event with an action', async () => {
+    const installationId = 7784;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const {app, publishIntegrationEventReceived, publishSourcePush, recordDeliveryOnly} =
+      await createTestApp({connection});
+    const deliveryId = randomUUID();
+    const rawPayload = {
+      action: 'opened',
+      installation: {id: installationId},
+      pull_request: {number: 17},
+    };
+    const body = JSON.stringify(rawPayload);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/github',
+      headers: signedHeaders(body, 'pull_request', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(publishSourcePush).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).not.toHaveBeenCalled();
+    expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
+    expect(publishIntegrationEventReceived.mock.calls[0]?.[0]).toMatchObject({
+      event: {
+        source: 'github',
+        event: 'pull_request.opened',
+        workspaceId: connection.workspaceId,
+        connectionId: connection.id,
+        connectionName: connection.displayName,
+        deliveryId,
+        payload: rawPayload,
+      },
+    });
+  });
+
+  it('publishes a generic envelope for a non-push event without an action', async () => {
+    const installationId = 7785;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const {app, publishIntegrationEventReceived, publishSourcePush, recordDeliveryOnly} =
+      await createTestApp({connection});
+    const deliveryId = randomUUID();
+    const rawPayload = {
+      installation: {id: installationId},
+      forkee: {full_name: 'shipfox/forked'},
+    };
+    const body = JSON.stringify(rawPayload);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/github',
+      headers: signedHeaders(body, 'fork', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(publishSourcePush).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).not.toHaveBeenCalled();
+    expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
+    expect(publishIntegrationEventReceived.mock.calls[0]?.[0]).toMatchObject({
+      event: {
+        source: 'github',
+        event: 'fork',
+        workspaceId: connection.workspaceId,
+        connectionId: connection.id,
+        connectionName: connection.displayName,
+        deliveryId,
+        payload: rawPayload,
+      },
+    });
   });
 
   it('records the delivery only for pushes from unknown installations', async () => {
@@ -309,7 +407,7 @@ describe('GitHub webhook route', () => {
     expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'github', deliveryId});
   });
 
-  it('ignores pushes whose payload has no installation id', async () => {
+  it('records the delivery only when a push payload has no installation id', async () => {
     const {app, publishSourcePush, recordDeliveryOnly} = await createTestApp();
     const deliveryId = randomUUID();
     const body = JSON.stringify({
@@ -327,7 +425,28 @@ describe('GitHub webhook route', () => {
 
     expect(res.statusCode).toBe(204);
     expect(publishSourcePush).not.toHaveBeenCalled();
-    expect(recordDeliveryOnly).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
+    expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'github', deliveryId});
+  });
+
+  it('records the delivery only when a malformed push payload has no installation id', async () => {
+    const {app, publishIntegrationEventReceived, publishSourcePush, recordDeliveryOnly} =
+      await createTestApp();
+    const deliveryId = randomUUID();
+    const body = JSON.stringify({ref: 'refs/heads/main'});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/github',
+      headers: signedHeaders(body, 'push', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(publishSourcePush).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
+    expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'github', deliveryId});
   });
 
   it('rejects an invalid signature with 401 and persists nothing', async () => {
@@ -405,20 +524,36 @@ describe('GitHub webhook route', () => {
     expect(recordDeliveryOnly).not.toHaveBeenCalled();
   });
 
-  it('rejects push payloads that fail schema validation with 400', async () => {
-    const {app, publishSourcePush, recordDeliveryOnly} = await createTestApp();
-    const body = JSON.stringify({ref: 'refs/heads/main'});
+  it('publishes a generic envelope when a routable push payload fails schema validation', async () => {
+    const installationId = 7786;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const {app, publishIntegrationEventReceived, publishSourcePush, recordDeliveryOnly} =
+      await createTestApp({connection});
+    const deliveryId = randomUUID();
+    const rawPayload = {ref: 'refs/heads/main', installation: {id: installationId}};
+    const body = JSON.stringify(rawPayload);
 
     const res = await app.inject({
       method: 'POST',
       url: '/webhooks/integrations/github',
-      headers: signedHeaders(body, 'push', randomUUID()),
+      headers: signedHeaders(body, 'push', deliveryId),
       payload: body,
     });
 
-    expect(res.statusCode).toBe(400);
-    expect(res.json()).toMatchObject({error: 'malformed push payload'});
+    expect(res.statusCode).toBe(204);
     expect(publishSourcePush).not.toHaveBeenCalled();
     expect(recordDeliveryOnly).not.toHaveBeenCalled();
+    expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
+    expect(publishIntegrationEventReceived.mock.calls[0]?.[0]).toMatchObject({
+      event: {
+        source: 'github',
+        event: 'push',
+        workspaceId: connection.workspaceId,
+        connectionId: connection.id,
+        deliveryId,
+        payload: rawPayload,
+      },
+    });
   });
 });

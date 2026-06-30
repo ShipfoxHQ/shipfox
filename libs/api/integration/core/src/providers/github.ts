@@ -3,7 +3,11 @@ import type {ConnectGithubInstallationInput} from '@shipfox/api-integration-gith
 import {config} from '#config.js';
 import {getIntegrationConnectionById, upsertIntegrationConnection} from '#db/connections.js';
 import {db} from '#db/db.js';
-import {publishSourcePush, recordDeliveryOnly} from '#db/webhook-deliveries.js';
+import {
+  publishIntegrationEventReceived,
+  publishSourcePush,
+  recordDeliveryOnly,
+} from '#db/webhook-deliveries.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
 // Stable migration-tracking table name for the GitHub provider database. This
@@ -62,6 +66,7 @@ async function loadGithubModuleParts(): Promise<IntegrationModuleParts> {
     provider: createGithubIntegrationProvider({
       getExistingGithubConnection,
       connectGithubInstallation,
+      publishIntegrationEventReceived,
       publishSourcePush,
       recordDeliveryOnly,
       getIntegrationConnectionById,

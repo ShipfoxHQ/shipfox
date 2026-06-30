@@ -1,0 +1,454 @@
+import {randomUUID} from 'node:crypto';
+import type {
+  GetIntegrationConnectionByIdFn,
+  IntegrationConnection,
+  PublishIntegrationEventReceivedFn,
+  PublishSourcePushFn,
+  RecordDeliveryOnlyFn,
+} from '@shipfox/api-integration-core-dto';
+import {db} from '#db/db.js';
+import {githubInstallations} from '#db/schema/installations.js';
+import {githubInstallationFactory, githubPushPayload} from '#test/index.js';
+import {handleGithubEvent} from './webhook.js';
+
+function fakeConnection(overrides: Partial<IntegrationConnection> = {}): IntegrationConnection {
+  return {
+    id: randomUUID(),
+    workspaceId: randomUUID(),
+    provider: 'github',
+    externalAccountId: '123',
+    displayName: 'GitHub shipfox',
+    lifecycleStatus: 'active',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+function deps(
+  options: {
+    connection?: IntegrationConnection | undefined;
+    publishIntegrationEventReceivedResult?: {published: boolean};
+    publishSourcePushResult?: {published: boolean};
+  } = {},
+) {
+  return {
+    publishIntegrationEventReceived: vi.fn<PublishIntegrationEventReceivedFn>(() =>
+      Promise.resolve(options.publishIntegrationEventReceivedResult ?? {published: true}),
+    ),
+    publishSourcePush: vi.fn<PublishSourcePushFn>(() =>
+      Promise.resolve(options.publishSourcePushResult ?? {published: true}),
+    ),
+    recordDeliveryOnly: vi.fn<RecordDeliveryOnlyFn>(() => Promise.resolve()),
+    getIntegrationConnectionById: vi.fn<GetIntegrationConnectionByIdFn>(() =>
+      Promise.resolve(options.connection ?? fakeConnection()),
+    ),
+  };
+}
+
+function firstPublishSourcePushCall(publishSourcePush: {
+  mock: {calls: Array<Parameters<PublishSourcePushFn>>};
+}): Parameters<PublishSourcePushFn>[0] {
+  const [call] = publishSourcePush.mock.calls;
+  if (!call) {
+    throw new Error('Expected publishSourcePush to be called');
+  }
+
+  return call[0];
+}
+
+function firstPublishIntegrationEventReceivedCall(publishIntegrationEventReceived: {
+  mock: {calls: Array<Parameters<PublishIntegrationEventReceivedFn>>};
+}): Parameters<PublishIntegrationEventReceivedFn>[0] {
+  const [call] = publishIntegrationEventReceived.mock.calls;
+  if (!call) {
+    throw new Error('Expected publishIntegrationEventReceived to be called');
+  }
+
+  return call[0];
+}
+
+function firstRecordDeliveryOnlyCall(recordDeliveryOnly: {
+  mock: {calls: Array<Parameters<RecordDeliveryOnlyFn>>};
+}): Parameters<RecordDeliveryOnlyFn>[0] {
+  const [call] = recordDeliveryOnly.mock.calls;
+  if (!call) {
+    throw new Error('Expected recordDeliveryOnly to be called');
+  }
+
+  return call[0];
+}
+
+async function seedInstallation(installationId: number, connectionId?: string): Promise<void> {
+  await githubInstallationFactory.create({
+    installationId: String(installationId),
+    ...(connectionId !== undefined && {connectionId}),
+  });
+}
+
+describe('handleGithubEvent', () => {
+  beforeEach(async () => {
+    await db().delete(githubInstallations);
+  });
+
+  it('publishes a mapped event for a valid push from a known installation', async () => {
+    const installationId = 7777;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+    const deliveryId = randomUUID();
+    const payload = githubPushPayload({
+      installationId,
+      repositoryId: 42,
+      ref: 'refs/heads/main',
+      defaultBranch: 'main',
+      sha: 'abc123',
+    });
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId,
+      event: 'push',
+      payload,
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('published');
+    expect(handlers.recordDeliveryOnly).not.toHaveBeenCalled();
+    expect(handlers.publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(handlers.getIntegrationConnectionById).toHaveBeenCalledWith(
+      connection.id,
+      expect.objectContaining({tx: expect.anything()}),
+    );
+    expect(firstPublishSourcePushCall(handlers.publishSourcePush)).toMatchObject({
+      provider: 'github',
+      deliveryId,
+      workspaceId: connection.workspaceId,
+      connectionId: connection.id,
+      connectionName: connection.displayName,
+      rawPayload: payload,
+      push: {
+        externalRepositoryId: 'github:42',
+        ref: 'main',
+        headCommitSha: 'abc123',
+        isDefaultBranch: true,
+      },
+    });
+  });
+
+  it('returns duplicate when a push delivery was already published', async () => {
+    const installationId = 7778;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection, publishSourcePushResult: {published: false}});
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: randomUUID(),
+      event: 'push',
+      payload: githubPushPayload({
+        installationId,
+        repositoryId: 42,
+        ref: 'refs/heads/main',
+        defaultBranch: 'main',
+        sha: 'abc123',
+      }),
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('duplicate');
+    expect(handlers.publishSourcePush).toHaveBeenCalledTimes(1);
+    expect(handlers.publishIntegrationEventReceived).not.toHaveBeenCalled();
+  });
+
+  it('publishes a generic envelope for a branch deletion', async () => {
+    const installationId = 7779;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+    const deliveryId = randomUUID();
+    const payload = githubPushPayload({
+      installationId,
+      repositoryId: 42,
+      ref: 'refs/heads/main',
+      defaultBranch: 'main',
+      sha: '0000000000000000000000000000000000000000',
+    });
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId,
+      event: 'push',
+      payload,
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('published-push-envelope-only');
+    expect(handlers.publishSourcePush).not.toHaveBeenCalled();
+    expect(
+      firstPublishIntegrationEventReceivedCall(handlers.publishIntegrationEventReceived),
+    ).toMatchObject({
+      event: {
+        source: 'github',
+        event: 'push',
+        workspaceId: connection.workspaceId,
+        connectionId: connection.id,
+        connectionName: connection.displayName,
+        deliveryId,
+        payload,
+      },
+    });
+  });
+
+  it('returns duplicate-push-envelope-only when a branch deletion was already published', async () => {
+    const installationId = 7780;
+    await seedInstallation(installationId);
+    const handlers = deps({publishIntegrationEventReceivedResult: {published: false}});
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: randomUUID(),
+      event: 'push',
+      payload: githubPushPayload({
+        installationId,
+        repositoryId: 42,
+        ref: 'refs/heads/main',
+        defaultBranch: 'main',
+        sha: '0000000000000000000000000000000000000000',
+      }),
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('duplicate-push-envelope-only');
+    expect(handlers.publishSourcePush).not.toHaveBeenCalled();
+    expect(handlers.publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
+  });
+
+  it('publishes a generic envelope when a push payload fails schema validation', async () => {
+    const installationId = 7786;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+    const deliveryId = randomUUID();
+    const payload = {
+      installation: {id: installationId},
+      ref: 'refs/heads/main',
+    };
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId,
+      event: 'push',
+      payload,
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('published-envelope');
+    expect(handlers.publishSourcePush).not.toHaveBeenCalled();
+    expect(
+      firstPublishIntegrationEventReceivedCall(handlers.publishIntegrationEventReceived),
+    ).toMatchObject({
+      event: {
+        source: 'github',
+        event: 'push',
+        workspaceId: connection.workspaceId,
+        connectionId: connection.id,
+        connectionName: connection.displayName,
+        deliveryId,
+        payload,
+      },
+    });
+    expect(handlers.recordDeliveryOnly).not.toHaveBeenCalled();
+  });
+
+  it('publishes a generic envelope for a non-push event with an action', async () => {
+    const installationId = 7781;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+    const deliveryId = randomUUID();
+    const payload = {
+      action: 'opened',
+      installation: {id: installationId},
+      pull_request: {number: 17},
+    };
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId,
+      event: 'pull_request',
+      payload,
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('published-envelope');
+    expect(handlers.publishSourcePush).not.toHaveBeenCalled();
+    expect(
+      firstPublishIntegrationEventReceivedCall(handlers.publishIntegrationEventReceived),
+    ).toMatchObject({
+      event: {
+        source: 'github',
+        event: 'pull_request.opened',
+        workspaceId: connection.workspaceId,
+        connectionId: connection.id,
+        deliveryId,
+        payload,
+      },
+    });
+  });
+
+  it('publishes a bare resource envelope when action is malformed', async () => {
+    const installationId = 7782;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+    const deliveryId = randomUUID();
+    const payload = {
+      action: null,
+      installation: {id: installationId},
+      pull_request: {number: 17},
+    };
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId,
+      event: 'pull_request',
+      payload,
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('published-envelope');
+    expect(
+      firstPublishIntegrationEventReceivedCall(handlers.publishIntegrationEventReceived),
+    ).toMatchObject({
+      event: {
+        source: 'github',
+        event: 'pull_request',
+        workspaceId: connection.workspaceId,
+        connectionId: connection.id,
+        connectionName: connection.displayName,
+        deliveryId,
+        payload,
+      },
+    });
+    expect(handlers.recordDeliveryOnly).not.toHaveBeenCalled();
+  });
+
+  it('returns duplicate-envelope when a generic envelope delivery was already published', async () => {
+    const installationId = 7783;
+    await seedInstallation(installationId);
+    const handlers = deps({publishIntegrationEventReceivedResult: {published: false}});
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: randomUUID(),
+      event: 'fork',
+      payload: {installation: {id: installationId}},
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('duplicate-envelope');
+    expect(handlers.publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
+  });
+
+  it('records the delivery only when there is no installation id', async () => {
+    const handlers = deps();
+    const deliveryId = randomUUID();
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId,
+      event: 'push',
+      payload: {ref: 'refs/heads/main'},
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('no-installation-id');
+    expect(handlers.publishSourcePush).not.toHaveBeenCalled();
+    expect(handlers.publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(firstRecordDeliveryOnlyCall(handlers.recordDeliveryOnly)).toMatchObject({
+      provider: 'github',
+      deliveryId,
+    });
+  });
+
+  it('records the delivery only for an unknown installation', async () => {
+    const handlers = deps();
+    const deliveryId = randomUUID();
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId,
+      event: 'push',
+      payload: githubPushPayload({
+        installationId: 999999,
+        repositoryId: 42,
+        ref: 'refs/heads/main',
+        defaultBranch: 'main',
+        sha: 'abc123',
+      }),
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('unknown-installation');
+    expect(handlers.getIntegrationConnectionById).not.toHaveBeenCalled();
+    expect(handlers.publishSourcePush).not.toHaveBeenCalled();
+    expect(firstRecordDeliveryOnlyCall(handlers.recordDeliveryOnly)).toMatchObject({
+      provider: 'github',
+      deliveryId,
+    });
+  });
+
+  it('records the delivery only when the installation has no connection', async () => {
+    const installationId = 7784;
+    await seedInstallation(installationId);
+    const handlers = deps();
+    handlers.getIntegrationConnectionById.mockResolvedValue(undefined);
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: randomUUID(),
+      event: 'push',
+      payload: githubPushPayload({
+        installationId,
+        repositoryId: 42,
+        ref: 'refs/heads/main',
+        defaultBranch: 'main',
+        sha: 'abc123',
+      }),
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('missing-connection');
+    expect(handlers.publishSourcePush).not.toHaveBeenCalled();
+    expect(handlers.recordDeliveryOnly).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    'disabled',
+    'error',
+  ] as const)('records the delivery only when the connection is %s', async (lifecycleStatus) => {
+    const installationId = 7785;
+    const connection = fakeConnection({lifecycleStatus});
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: randomUUID(),
+      event: 'push',
+      payload: githubPushPayload({
+        installationId,
+        repositoryId: 42,
+        ref: 'refs/heads/main',
+        defaultBranch: 'main',
+        sha: 'abc123',
+      }),
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('inactive-connection');
+    expect(handlers.publishSourcePush).not.toHaveBeenCalled();
+    expect(handlers.recordDeliveryOnly).toHaveBeenCalledTimes(1);
+  });
+});

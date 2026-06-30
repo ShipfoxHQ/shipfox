@@ -2,11 +2,17 @@ import {
   buildProviderRepositoryId,
   type GetIntegrationConnectionByIdFn,
   type IntegrationTx,
+  type PublishIntegrationEventReceivedFn,
   type PublishSourcePushFn,
   type RecordDeliveryOnlyFn,
   type SourcePushPayload,
 } from '@shipfox/api-integration-core-dto';
-import type {GithubPushPayloadDto} from '@shipfox/api-integration-github-dto';
+import {
+  type GithubPushPayloadDto,
+  githubPushPayloadSchema,
+  githubWebhookActionSchema,
+  githubWebhookInstallationSchema,
+} from '@shipfox/api-integration-github-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {getGithubInstallationByInstallationId} from '#db/installations.js';
 
@@ -15,20 +21,26 @@ const GITHUB_SOURCE = 'github';
 // GitHub sends a `push` webhook for a branch deletion with `after` set to this all-zero SHA.
 const DELETED_BRANCH_SHA = '0'.repeat(40);
 
-export interface HandleGithubPushParams {
+export interface HandleGithubEventParams {
   tx: IntegrationTx;
   deliveryId: string;
-  payload: GithubPushPayloadDto;
+  event: string;
+  payload: unknown;
+  publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   publishSourcePush: PublishSourcePushFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
 }
 
-export type HandleGithubPushOutcome =
+export type HandleGithubEventOutcome =
   | 'published'
   | 'duplicate'
-  | 'deleted'
+  | 'published-envelope'
+  | 'duplicate-envelope'
+  | 'published-push-envelope-only'
+  | 'duplicate-push-envelope-only'
   | 'unknown-installation'
+  | 'missing-connection'
   | 'inactive-connection'
   | 'no-installation-id';
 
@@ -36,18 +48,21 @@ function isBranchDeletion(after: string): boolean {
   return after === DELETED_BRANCH_SHA;
 }
 
-export async function handleGithubPush(
-  params: HandleGithubPushParams,
-): Promise<{outcome: HandleGithubPushOutcome}> {
-  // A branch deletion is not a commit. Dropping it here, before `publishSourcePush`,
-  // emits neither the typed source-commit event (projects) nor the generic
-  // `INTEGRATION_EVENT_RECEIVED` envelope (triggers), so a deletion triggers nothing.
-  if (isBranchDeletion(params.payload.after)) {
-    return {outcome: 'deleted'};
-  }
-
-  const installationId = params.payload.installation?.id;
+export async function handleGithubEvent(
+  params: HandleGithubEventParams,
+): Promise<{outcome: HandleGithubEventOutcome}> {
+  const actionEnvelope = githubWebhookActionSchema.safeParse(params.payload);
+  const action = actionEnvelope.success ? actionEnvelope.data.action : undefined;
+  const installationEnvelope = githubWebhookInstallationSchema.safeParse(params.payload);
+  const installationId = installationEnvelope.success
+    ? installationEnvelope.data.installation?.id
+    : undefined;
   if (installationId === undefined) {
+    await params.recordDeliveryOnly({
+      tx: params.tx,
+      provider: GITHUB_SOURCE,
+      deliveryId: params.deliveryId,
+    });
     return {outcome: 'no-installation-id'};
   }
 
@@ -80,7 +95,7 @@ export async function handleGithubPush(
       provider: GITHUB_SOURCE,
       deliveryId: params.deliveryId,
     });
-    return {outcome: 'unknown-installation'};
+    return {outcome: 'missing-connection'};
   }
 
   if (connection.lifecycleStatus !== 'active') {
@@ -105,30 +120,123 @@ export async function handleGithubPush(
     return {outcome: 'inactive-connection'};
   }
 
-  const ref = stripRefsHeads(params.payload.ref);
-  const defaultBranch = params.payload.repository.default_branch;
+  if (params.event === 'push') {
+    const validated = githubPushPayloadSchema.safeParse(params.payload);
+    if (!validated.success) {
+      logger().warn(
+        {deliveryId: params.deliveryId, issues: validated.error.issues},
+        'github webhook push payload failed schema validation; publishing generic envelope only',
+      );
+      return publishGithubEnvelopeOnly({
+        tx: params.tx,
+        deliveryId: params.deliveryId,
+        payload: params.payload,
+        publishIntegrationEventReceived: params.publishIntegrationEventReceived,
+        connection,
+        event: 'push',
+      });
+    }
+
+    return publishGithubPush({
+      ...params,
+      eventPayload: validated.data,
+      rawPayload: params.payload,
+      connection,
+    });
+  }
+
+  const eventName = action ? `${params.event}.${action}` : params.event;
+  return publishGithubEnvelopeOnly({
+    tx: params.tx,
+    deliveryId: params.deliveryId,
+    payload: params.payload,
+    publishIntegrationEventReceived: params.publishIntegrationEventReceived,
+    connection,
+    event: eventName,
+  });
+}
+
+async function publishGithubPush(params: {
+  tx: IntegrationTx;
+  deliveryId: string;
+  publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
+  publishSourcePush: PublishSourcePushFn;
+  eventPayload: GithubPushPayloadDto;
+  rawPayload: unknown;
+  connection: {
+    id: string;
+    workspaceId: string;
+    displayName: string;
+  };
+}): Promise<{outcome: HandleGithubEventOutcome}> {
+  if (isBranchDeletion(params.eventPayload.after)) {
+    const result = await params.publishIntegrationEventReceived({
+      tx: params.tx,
+      event: {
+        source: GITHUB_SOURCE,
+        event: 'push',
+        workspaceId: params.connection.workspaceId,
+        connectionId: params.connection.id,
+        connectionName: params.connection.displayName,
+        deliveryId: params.deliveryId,
+        receivedAt: new Date().toISOString(),
+        payload: params.rawPayload,
+      },
+    });
+    return {
+      outcome: result.published ? 'published-push-envelope-only' : 'duplicate-push-envelope-only',
+    };
+  }
+
+  const ref = stripRefsHeads(params.eventPayload.ref);
+  const defaultBranch = params.eventPayload.repository.default_branch;
   const push: SourcePushPayload = {
     externalRepositoryId: buildProviderRepositoryId(
       GITHUB_SOURCE,
-      String(params.payload.repository.id),
+      String(params.eventPayload.repository.id),
     ),
     ref,
-    headCommitSha: params.payload.after,
+    headCommitSha: params.eventPayload.after,
     defaultBranch,
     isDefaultBranch: ref === defaultBranch,
   };
   const result = await params.publishSourcePush({
     tx: params.tx,
     provider: GITHUB_SOURCE,
-    workspaceId: connection.workspaceId,
-    connectionId: connection.id,
-    connectionName: connection.displayName,
+    workspaceId: params.connection.workspaceId,
+    connectionId: params.connection.id,
+    connectionName: params.connection.displayName,
     deliveryId: params.deliveryId,
     receivedAt: new Date().toISOString(),
+    rawPayload: params.rawPayload,
     push,
   });
 
   return {outcome: result.published ? 'published' : 'duplicate'};
+}
+
+async function publishGithubEnvelopeOnly(params: {
+  tx: IntegrationTx;
+  deliveryId: string;
+  payload: unknown;
+  publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
+  connection: {id: string; workspaceId: string; displayName: string};
+  event: string;
+}): Promise<{outcome: HandleGithubEventOutcome}> {
+  const result = await params.publishIntegrationEventReceived({
+    tx: params.tx,
+    event: {
+      source: GITHUB_SOURCE,
+      event: params.event,
+      workspaceId: params.connection.workspaceId,
+      connectionId: params.connection.id,
+      connectionName: params.connection.displayName,
+      deliveryId: params.deliveryId,
+      receivedAt: new Date().toISOString(),
+      payload: params.payload,
+    },
+  });
+  return {outcome: result.published ? 'published-envelope' : 'duplicate-envelope'};
 }
 
 function stripRefsHeads(ref: string): string {

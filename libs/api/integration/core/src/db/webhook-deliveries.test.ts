@@ -49,6 +49,11 @@ function buildPush(overrides: Partial<SourcePushPayload> = {}): SourcePushPayloa
 }
 
 function buildSourcePushParams() {
+  const rawPayload = {
+    ref: 'refs/heads/main',
+    after: 'abc123',
+    repository: {id: 42, default_branch: 'main'},
+  };
   return {
     provider: 'github',
     workspaceId: crypto.randomUUID(),
@@ -56,6 +61,7 @@ function buildSourcePushParams() {
     connectionName: 'Acme Production',
     deliveryId: crypto.randomUUID(),
     receivedAt: new Date().toISOString(),
+    rawPayload,
     push: buildPush(),
   };
 }
@@ -153,7 +159,7 @@ describe('publishSourcePush', () => {
       source: 'github',
       event: 'push',
       deliveryId: params.deliveryId,
-      payload: {externalRepositoryId: 'github:42', isDefaultBranch: true},
+      payload: params.rawPayload,
     });
     expect(typed?.payload).toMatchObject({
       provider: 'github',
