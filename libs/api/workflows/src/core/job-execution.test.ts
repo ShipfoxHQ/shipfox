@@ -23,16 +23,16 @@ import {
   StepNotFoundError,
   StepNotRunningError,
 } from './errors.js';
-import {nextStepForJob, recordStepResult as recordExecutionStepResult} from './job-execution.js';
+import {nextStepForJob, recordStepResult as recordJobExecutionStepResult} from './job-execution.js';
 
 async function recordStepResult(
-  params: Omit<Parameters<typeof recordExecutionStepResult>[0], 'executionId'> & {jobId: string},
+  params: Omit<Parameters<typeof recordJobExecutionStepResult>[0], 'executionId'> & {jobId: string},
 ) {
   const steps = await getStepsByJobId(params.jobId);
   const step = steps.find((candidate) => candidate.id === params.stepId);
   if (!step) throw new StepNotFoundError(params.stepId, params.jobId);
   const {jobId: _jobId, ...rest} = params;
-  return recordExecutionStepResult({...rest, executionId: step.executionId});
+  return recordJobExecutionStepResult({...rest, executionId: step.executionId});
 }
 
 async function bulkUpdateJobStepStatuses(

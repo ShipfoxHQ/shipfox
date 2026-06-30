@@ -19,7 +19,7 @@ import {
 } from '#core/errors.js';
 import {
   nextStepForJob,
-  recordStepResult as recordExecutionStepResult,
+  recordStepResult as recordJobExecutionStepResult,
 } from '#core/job-execution.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
@@ -34,18 +34,18 @@ import {
   createRerunWorkflowRun,
   createWorkflowRun,
   failJobAsTimedOut,
-  getFirstExecutionByJobId,
+  getFirstJobExecutionByJobId,
   getJobsByRunId,
   getLatestAttempt,
   getStepAttempts,
   getStepByIdForJob,
   getStepsByJobId,
-  getWorkflowExecutionDepth,
+  getWorkflowJobExecutionDepth,
   getWorkflowRunById,
   listRunAttempts,
   listWorkflowRunsByProject,
   resolveJobAfterLeaseExpiry,
-  updateExecutionStatus,
+  updateJobExecutionStatus,
   updateJobStatus,
   updateWorkflowRunStatus,
 } from './workflow-runs.js';
@@ -65,19 +65,19 @@ function shellRef(name: string): string {
 }
 
 async function recordStepResult(
-  params: Omit<Parameters<typeof recordExecutionStepResult>[0], 'executionId'> & {jobId: string},
+  params: Omit<Parameters<typeof recordJobExecutionStepResult>[0], 'executionId'> & {jobId: string},
 ) {
   const steps = await getStepsByJobId(params.jobId);
   const step = steps.find((candidate) => candidate.id === params.stepId);
   if (!step) throw new JobNotFoundError(params.jobId);
   const {jobId: _jobId, ...rest} = params;
-  return recordExecutionStepResult({...rest, executionId: step.executionId});
+  return recordJobExecutionStepResult({...rest, executionId: step.executionId});
 }
 
 async function bulkUpdateJobStepStatuses(
   params: Omit<Parameters<typeof bulkUpdateStepStatuses>[0], 'executionId'> & {jobId: string},
 ) {
-  const execution = await getFirstExecutionByJobId(params.jobId);
+  const execution = await getFirstJobExecutionByJobId(params.jobId);
   if (!execution) throw new JobNotFoundError(params.jobId);
   await bulkUpdateStepStatuses({executionId: execution.id, status: params.status});
 }
@@ -1410,7 +1410,7 @@ jobs:
     });
   });
 
-  describe('getWorkflowExecutionDepth', () => {
+  describe('getWorkflowJobExecutionDepth', () => {
     test('counts running runs and jobs for a workspace', async () => {
       const runningRun = await createTestRun({workspaceId, projectId, definitionId});
       const pendingRun = await createTestRun({workspaceId, projectId, definitionId});
@@ -1419,11 +1419,11 @@ jobs:
         projectId: crypto.randomUUID(),
         definitionId: crypto.randomUUID(),
       });
-      const [runningJob] = await getJobsByRunId(runningRun.id);
+      const [runningJobExecution] = await getJobsByRunId(runningRun.id);
       const [otherWorkspaceJob] = await getJobsByRunId(otherWorkspaceRun.id);
-      if (!runningJob || !otherWorkspaceJob) throw new Error('Expected workflow jobs');
-      const runningExecution = await getFirstExecutionByJobId(runningJob.id);
-      const otherWorkspaceExecution = await getFirstExecutionByJobId(otherWorkspaceJob.id);
+      if (!runningJobExecution || !otherWorkspaceJob) throw new Error('Expected workflow jobs');
+      const runningExecution = await getFirstJobExecutionByJobId(runningJobExecution.id);
+      const otherWorkspaceExecution = await getFirstJobExecutionByJobId(otherWorkspaceJob.id);
       if (!runningExecution || !otherWorkspaceExecution) {
         throw new Error('Expected workflow job executions');
       }
@@ -1437,21 +1437,21 @@ jobs:
         status: 'running',
         expectedVersion: otherWorkspaceRun.version,
       });
-      await updateExecutionStatus({
+      await updateJobExecutionStatus({
         executionId: runningExecution.id,
         status: 'running',
         expectedVersion: runningExecution.version,
       });
-      await updateExecutionStatus({
+      await updateJobExecutionStatus({
         executionId: otherWorkspaceExecution.id,
         status: 'running',
         expectedVersion: otherWorkspaceExecution.version,
       });
 
-      const depth = await getWorkflowExecutionDepth({workspaceId});
+      const depth = await getWorkflowJobExecutionDepth({workspaceId});
 
       expect(pendingRun.status).toBe('pending');
-      expect(depth).toEqual({runningRuns: 1, runningJobs: 1});
+      expect(depth).toEqual({runningRuns: 1, runningJobExecutions: 1});
     });
   });
 
@@ -1645,10 +1645,10 @@ jobs:
         },
       });
       await updateWorkflowRunStatus({runId: run.id, status: 'running', expectedVersion: 1});
-      const [runningJob, succeededJob, skippedJob] = await getJobsByRunId(run.id);
-      if (!runningJob || !succeededJob || !skippedJob) throw new Error('Expected jobs');
-      await updateJobStatus({jobId: runningJob.id, status: 'running', expectedVersion: 1});
-      await nextStepForJob(runningJob.id);
+      const [runningJobExecution, succeededJob, skippedJob] = await getJobsByRunId(run.id);
+      if (!runningJobExecution || !succeededJob || !skippedJob) throw new Error('Expected jobs');
+      await updateJobStatus({jobId: runningJobExecution.id, status: 'running', expectedVersion: 1});
+      await nextStepForJob(runningJobExecution.id);
       await updateJobStatus({jobId: succeededJob.id, status: 'succeeded', expectedVersion: 1});
       await updateJobStatus({
         jobId: skippedJob.id,
@@ -1668,7 +1668,7 @@ jobs:
         status: 'skipped',
         statusReason: 'dependency_not_completed',
       });
-      expect((await getStepsByJobId(runningJob.id)).map((step) => step.status)).toEqual([
+      expect((await getStepsByJobId(runningJobExecution.id)).map((step) => step.status)).toEqual([
         'cancelled',
         'cancelled',
         'cancelled',
@@ -1680,15 +1680,15 @@ jobs:
         {runId: run.id, projectId, status: 'cancelled'},
       ]);
       expect(await runCancelledEvents(run.id)).toEqual([{runId: run.id, projectId}]);
-      expect(await jobTerminatedEvents(runningJob.id)).toEqual([
+      expect(await jobTerminatedEvents(runningJobExecution.id)).toEqual([
         {
-          jobId: runningJob.id,
+          jobId: runningJobExecution.id,
           runId: run.id,
           status: 'cancelled',
           statusReason: 'run_cancelled',
         },
       ]);
-      expect(await stepAttemptTerminatedEvents(runningJob.id)).toHaveLength(1);
+      expect(await stepAttemptTerminatedEvents(runningJobExecution.id)).toHaveLength(1);
       expect(await jobTerminatedEvents(succeededJob.id)).toHaveLength(1);
       expect(await jobTerminatedEvents(skippedJob.id)).toHaveLength(1);
     });
@@ -2123,7 +2123,7 @@ jobs:
       const runJobs = await getJobsByRunId(run.id);
       const job = runJobs[0];
       expect(job).toBeDefined();
-      const execution = await getFirstExecutionByJobId(job?.id as string);
+      const execution = await getFirstJobExecutionByJobId(job?.id as string);
       expect(execution).toBeDefined();
 
       const updated = await failJobAsTimedOut({

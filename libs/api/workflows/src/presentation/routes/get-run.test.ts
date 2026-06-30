@@ -8,7 +8,7 @@ import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {JobNotFoundError} from '#core/errors.js';
 import {
   nextStepForJob,
-  recordStepResult as recordExecutionStepResult,
+  recordStepResult as recordJobExecutionStepResult,
 } from '#core/job-execution.js';
 import {db} from '#db/db.js';
 import * as dbIndex from '#db/index.js';
@@ -26,13 +26,13 @@ import {getRunRoute} from './get-run.js';
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
 
 async function recordStepResult(
-  params: Omit<Parameters<typeof recordExecutionStepResult>[0], 'executionId'> & {jobId: string},
+  params: Omit<Parameters<typeof recordJobExecutionStepResult>[0], 'executionId'> & {jobId: string},
 ) {
   const steps = await getStepsByJobId(params.jobId);
   const step = steps.find((candidate) => candidate.id === params.stepId);
   if (!step) throw new JobNotFoundError(params.jobId);
   const {jobId: _jobId, ...rest} = params;
-  return recordExecutionStepResult({...rest, executionId: step.executionId});
+  return recordJobExecutionStepResult({...rest, executionId: step.executionId});
 }
 
 vi.mock('@shipfox/api-projects', () => ({

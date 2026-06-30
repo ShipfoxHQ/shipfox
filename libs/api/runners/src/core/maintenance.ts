@@ -1,4 +1,4 @@
-import {expireStuckJobs} from '#db/jobs.js';
+import {expireStuckJobExecutions} from '#db/job-executions.js';
 import {deleteExpiredReservations} from '#db/reservations.js';
 import {STUCK_JOB_THRESHOLD_SECONDS} from './maintenance-policy.js';
 
@@ -9,7 +9,7 @@ export interface DetectAndExpireStuckJobsParams {
 export async function detectAndExpireStuckJobs(
   params: DetectAndExpireStuckJobsParams = {},
 ): Promise<{expired: number}> {
-  const reaped = await expireStuckJobs({
+  const reaped = await expireStuckJobExecutions({
     thresholdSeconds: params.thresholdSeconds ?? STUCK_JOB_THRESHOLD_SECONDS,
   });
   return {expired: reaped.length};

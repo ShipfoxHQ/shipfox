@@ -38,13 +38,13 @@ export function toReconcileProvisionedRunnersResponseDto(
       state: runner.state,
       reservation_id: runner.reservationId,
       runner_session_id: runner.runnerSessionId,
-      bound_job: runner.boundJob
+      bound_job: runner.boundJobExecution
         ? {
-            job_id: runner.boundJob.jobId,
-            run_id: runner.boundJob.runId,
-            last_heartbeat_at: runner.boundJob.lastHeartbeatAt.toISOString(),
+            job_id: runner.boundJobExecution.jobId,
+            run_id: runner.boundJobExecution.runId,
+            last_heartbeat_at: runner.boundJobExecution.lastHeartbeatAt.toISOString(),
             cancellation_requested_at:
-              runner.boundJob.cancellationRequestedAt?.toISOString() ?? null,
+              runner.boundJobExecution.cancellationRequestedAt?.toISOString() ?? null,
           }
         : null,
       desired_intent: runner.desiredIntent,

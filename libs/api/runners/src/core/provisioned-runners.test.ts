@@ -5,7 +5,7 @@ describe('reconcileProvisionedRunnersFromDbResult', () => {
     const result = reconcileProvisionedRunnersFromDbResult({
       observedProvisionedRunnerIds: ['provisioned-runner-1'],
       observedRows: [provisionedRunner({provisionedRunnerId: 'provisioned-runner-1'})],
-      boundJobsByProvisionedRunnerId: new Map(),
+      boundJobExecutionsByProvisionedRunnerId: new Map(),
     });
 
     expect(result[0]?.desiredIntent).toBe('keep');
@@ -17,7 +17,7 @@ describe('reconcileProvisionedRunnersFromDbResult', () => {
       observedRows: [
         provisionedRunner({provisionedRunnerId: 'provisioned-runner-1', state: 'terminated'}),
       ],
-      boundJobsByProvisionedRunnerId: new Map(),
+      boundJobExecutionsByProvisionedRunnerId: new Map(),
     });
 
     expect(result[0]?.desiredIntent).toBe('terminate');
@@ -27,7 +27,7 @@ describe('reconcileProvisionedRunnersFromDbResult', () => {
     const result = reconcileProvisionedRunnersFromDbResult({
       observedProvisionedRunnerIds: ['provisioned-runner-1'],
       observedRows: [],
-      boundJobsByProvisionedRunnerId: new Map(),
+      boundJobExecutionsByProvisionedRunnerId: new Map(),
     });
 
     expect(result[0]).toMatchObject({

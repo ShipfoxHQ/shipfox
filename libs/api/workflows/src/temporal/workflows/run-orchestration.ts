@@ -8,12 +8,21 @@ import {
 } from '@temporalio/workflow';
 
 import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
+import {
+  createRuntimeRunProgress,
+  nonCompletedRuntimeJobIds,
+  type RuntimeRunProgress,
+  recordRuntimeJobResult,
+  recordSkippedRuntimeJob,
+  runtimeJobVersion,
+  shouldContinueStartedRun,
+} from '#core/workflow-runtime/run-progress.js';
 import {scheduleRuntimeDag} from '#core/workflow-runtime/schedule-runtime-dag.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
 import type {DagJob, RunDag} from '../activities/orchestration-activities.js';
 import {RUN_CANCEL_SIGNAL} from '../constants.js';
-import {jobOrchestration} from './job-orchestration.js';
+import {jobExecutionOrchestration} from './job-execution-orchestration.js';
 
 const {loadRunDag, setRunStatus, setJobStatus, cancelRunnerJobsActivity} = proxyActivities<
   ReturnType<typeof createOrchestrationActivities>
@@ -43,47 +52,36 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
     version: runVersion,
   });
   runVersion = newVersion;
-  if (status !== undefined && status !== 'pending' && status !== 'running') return;
+  if (!shouldContinueStartedRun(status)) return;
 
-  const completed = new Map<string, RuntimeCompletionStatus>();
-  const jobVersions = new Map<string, number>();
-  for (const job of dag.jobs) {
-    jobVersions.set(job.id, job.version);
-    if (job.status === 'succeeded') completed.set(job.name, 'succeeded');
-  }
+  const progress = createRuntimeRunProgress(dag.jobs);
 
   while (true) {
     if (cancelRequested) {
-      await cancelNonCompletedRunnerJobs(dag, completed);
+      await cancelNonCompletedRunnerJobs(dag, progress);
       return;
     }
 
-    const commands = scheduleRuntimeDag({jobs: dag.jobs, completed});
+    const commands = scheduleRuntimeDag({jobs: dag.jobs, completed: progress.completed});
     const completeRun = commands.find((command) => command.kind === 'complete-run');
 
     for (const command of commands) {
       if (command.kind !== 'skip-job') continue;
-      await skipJob(command.job, completed, jobVersions);
+      await skipJob(command.job, progress);
     }
 
     const jobsToStart = commands.flatMap((command) =>
       command.kind === 'start-job' ? [command.job] : [],
     );
-    const outcome = await launchJobsUntilCancel(
-      jobsToStart,
-      dag,
-      jobVersions,
-      () => cancelRequested,
-    );
+    const outcome = await launchJobsUntilCancel(jobsToStart, dag, progress, () => cancelRequested);
     if (outcome.kind === 'cancelled') {
-      await cancelNonCompletedRunnerJobs(dag, completed);
+      await cancelNonCompletedRunnerJobs(dag, progress);
       return;
     }
     const results = outcome.results;
     for (const [job, result] of jobsToStart.map((j, i) => [j, results[i]] as const)) {
       if (!result) continue;
-      completed.set(job.name, result.status);
-      jobVersions.set(job.id, result.jobVersion);
+      recordRuntimeJobResult(job, progress, result);
     }
 
     if (completeRun) {
@@ -97,20 +95,15 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
   }
 }
 
-async function skipJob(
-  job: DagJob,
-  completed: Map<string, RuntimeCompletionStatus>,
-  jobVersions: Map<string, number>,
-): Promise<void> {
-  const version = jobVersions.get(job.id) ?? job.version;
+async function skipJob(job: DagJob, progress: RuntimeRunProgress): Promise<void> {
+  const version = runtimeJobVersion(job, progress);
   const {newVersion} = await setJobStatus({
     jobId: job.id,
     status: 'skipped',
     version,
     statusReason: 'dependency_not_completed',
   });
-  jobVersions.set(job.id, newVersion);
-  completed.set(job.name, 'failed');
+  recordSkippedRuntimeJob(job, progress, newVersion);
 }
 
 interface LaunchResult {
@@ -121,11 +114,11 @@ interface LaunchResult {
 function launchJobs(
   jobs: DagJob[],
   run: RunDag,
-  jobVersions: Map<string, number>,
+  progress: RuntimeRunProgress,
 ): Promise<LaunchResult[]> {
   return Promise.all(
     jobs.map(async (job) => {
-      const result = await executeChild(jobOrchestration, {
+      const result = await executeChild(jobExecutionOrchestration, {
         workflowId: `job:${job.id}`,
         args: [
           {
@@ -134,8 +127,8 @@ function launchJobs(
             jobId: job.id,
             executionId: job.executionId,
             runId: run.runId,
-            jobVersion: jobVersions.get(job.id) ?? job.version,
-            executionVersion: job.executionVersion ?? jobVersions.get(job.id) ?? job.version,
+            jobVersion: runtimeJobVersion(job, progress),
+            executionVersion: job.executionVersion ?? runtimeJobVersion(job, progress),
             ...(job.executionTimeoutMs === undefined
               ? {}
               : {executionTimeoutMs: job.executionTimeoutMs}),
@@ -152,11 +145,11 @@ function launchJobs(
 async function launchJobsUntilCancel(
   jobs: DagJob[],
   run: RunDag,
-  jobVersions: Map<string, number>,
+  progress: RuntimeRunProgress,
   isCancelRequested: () => boolean,
 ): Promise<{kind: 'completed'; results: LaunchResult[]} | {kind: 'cancelled'}> {
   if (jobs.length === 0) return {kind: 'completed', results: []};
-  const results = launchJobs(jobs, run, jobVersions);
+  const results = launchJobs(jobs, run, progress);
   const cancel = condition(isCancelRequested).then(() => ({kind: 'cancelled' as const}));
   return await Promise.race([
     results.then((value) => ({kind: 'completed' as const, results: value})),
@@ -166,8 +159,8 @@ async function launchJobsUntilCancel(
 
 async function cancelNonCompletedRunnerJobs(
   dag: RunDag,
-  completed: Map<string, RuntimeCompletionStatus>,
+  progress: RuntimeRunProgress,
 ): Promise<void> {
-  const jobIds = dag.jobs.filter((job) => !completed.has(job.name)).map((job) => job.id);
+  const jobIds = nonCompletedRuntimeJobIds(dag.jobs, progress);
   await cancelRunnerJobsActivity({jobIds});
 }

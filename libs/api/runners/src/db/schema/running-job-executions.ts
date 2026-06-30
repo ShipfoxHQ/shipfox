@@ -3,7 +3,7 @@ import {sql} from 'drizzle-orm';
 import {check, index, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import {pgTable} from './common.js';
 
-export const runningJobs = pgTable(
+export const runningJobExecutions = pgTable(
   'running_jobs',
   {
     id: uuidv7PrimaryKey(),
@@ -34,5 +34,5 @@ export const runningJobs = pgTable(
   ],
 );
 
-export type RunningJobDb = typeof runningJobs.$inferSelect;
-export type RunningJobInsertDb = typeof runningJobs.$inferInsert;
+export type RunningJobExecutionDb = typeof runningJobExecutions.$inferSelect;
+export type RunningJobExecutionInsertDb = typeof runningJobExecutions.$inferInsert;

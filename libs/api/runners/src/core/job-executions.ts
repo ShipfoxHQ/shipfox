@@ -1,26 +1,26 @@
 import {issueJobLeaseToken} from '@shipfox/api-auth';
-import {claimPendingJob} from '#db/jobs.js';
-import {jobClaimedCount} from '#metrics/instance.js';
+import {claimPendingJobExecution} from '#db/job-executions.js';
+import {jobExecutionClaimedCount} from '#metrics/instance.js';
 
-export interface ClaimJobResult {
+export interface ClaimJobExecutionResult {
   jobId: string;
   executionId: string;
   runId: string;
   leaseToken: string;
 }
 
-export async function claimJob(params: {
+export async function claimJobExecution(params: {
   workspaceId: string;
   runnerSessionId: string;
   sessionLabels: string[];
   maxClaims: number | null;
-}): Promise<ClaimJobResult | null> {
-  const claimed = await claimPendingJob(params);
+}): Promise<ClaimJobExecutionResult | null> {
+  const claimed = await claimPendingJobExecution(params);
   if (!claimed) {
-    jobClaimedCount.add(1, {outcome: 'empty'});
+    jobExecutionClaimedCount.add(1, {outcome: 'empty'});
     return null;
   }
-  jobClaimedCount.add(1, {outcome: 'claimed'});
+  jobExecutionClaimedCount.add(1, {outcome: 'claimed'});
 
   const leaseToken = await issueJobLeaseToken({
     jobId: claimed.jobId,

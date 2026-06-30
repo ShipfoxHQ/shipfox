@@ -1,6 +1,6 @@
 import type {RunnerJobQueuedEvent} from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
-import {recordExecutionQueuedAt} from '#db/index.js';
+import {recordJobExecutionQueuedAt} from '#db/index.js';
 
 // Anticorruption layer for the runner's `queued` fact. Here the two contexts happen to
 // share the word, so this is an identity mapping (unlike claimed → started_at). Use the
@@ -11,7 +11,7 @@ export async function onRunnerJobQueued(payload: RunnerJobQueuedEvent): Promise<
     {jobId: payload.jobId, executionId: payload.executionId, runId: payload.runId},
     'Recording execution queued_at',
   );
-  await recordExecutionQueuedAt({
+  await recordJobExecutionQueuedAt({
     executionId: payload.executionId,
     queuedAt: new Date(payload.queuedAt),
   });

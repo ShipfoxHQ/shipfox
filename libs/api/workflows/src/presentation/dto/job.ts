@@ -20,20 +20,20 @@ export function toJobDto(job: Job): JobDto {
   };
 }
 
-export function toJobExecutionDto(execution: JobExecution): JobExecutionDto {
+export function toJobExecutionDto(jobExecution: JobExecution): JobExecutionDto {
   return {
-    id: execution.id,
-    job_id: execution.jobId,
-    run_id: execution.runId,
-    sequence: execution.sequence,
-    name: execution.name,
-    status: execution.status,
-    status_reason: execution.statusReason,
-    queued_at: execution.queuedAt?.toISOString() ?? null,
-    started_at: execution.startedAt?.toISOString() ?? null,
-    finished_at: execution.finishedAt?.toISOString() ?? null,
-    timed_out_at: execution.timedOutAt?.toISOString() ?? null,
-    created_at: execution.createdAt.toISOString(),
-    updated_at: execution.updatedAt.toISOString(),
+    id: jobExecution.id,
+    job_id: jobExecution.jobId,
+    run_id: jobExecution.runId,
+    sequence: jobExecution.sequence,
+    name: jobExecution.name,
+    status: jobExecution.status,
+    status_reason: jobExecution.statusReason,
+    queued_at: jobExecution.queuedAt?.toISOString() ?? null,
+    started_at: jobExecution.startedAt?.toISOString() ?? null,
+    finished_at: jobExecution.finishedAt?.toISOString() ?? null,
+    timed_out_at: jobExecution.timedOutAt?.toISOString() ?? null,
+    created_at: jobExecution.createdAt.toISOString(),
+    updated_at: jobExecution.updatedAt.toISOString(),
   };
 }

@@ -1,4 +1,4 @@
-import {cancelRunnerJobs, enqueueJob, releaseJob} from '@shipfox/api-runners';
+import {cancelRunnerJobs, enqueueJobExecution, releaseJobExecution} from '@shipfox/api-runners';
 import {ApplicationFailure} from '@temporalio/common';
 import type {JobStatus, JobStatusReason} from '#core/entities/job.js';
 import type {RuntimeCompletionStatus, RuntimeDagJob} from '#core/entities/runtime-dag.js';
@@ -7,14 +7,14 @@ import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {JobNotFoundError} from '#core/errors.js';
 import {
   bulkUpdateStepStatuses,
-  failExecutionAsTimedOut,
-  getExecutionsByJobId,
+  failJobExecutionAsTimedOut,
+  getJobExecutionsByJobId,
   getJobsByRunId,
-  getStepsByExecutionIds,
+  getStepsByJobExecutionIds,
   getWorkflowRunById,
-  resolveExecutionAfterLeaseExpiry,
-  resolveJobStatusFromExecutions,
-  updateExecutionStatus,
+  resolveJobExecutionAfterLeaseExpiry,
+  resolveJobStatusFromJobExecutions,
+  updateJobExecutionStatus,
   updateJobStatus,
   updateWorkflowRunStatus,
 } from '#db/index.js';
@@ -51,18 +51,18 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
   if (!run) throw new Error(`Run not found: ${runId}`);
 
   const jobs = await getJobsByRunId(runId);
-  const executions = await Promise.all(jobs.map((job) => getExecutionsByJobId(job.id)));
-  const firstExecutions = new Map(
-    executions.flatMap((rows) => (rows[0] ? [[rows[0].jobId, rows[0]]] : [])),
+  const jobExecutions = await Promise.all(jobs.map((job) => getJobExecutionsByJobId(job.id)));
+  const firstJobExecutions = new Map(
+    jobExecutions.flatMap((rows) => (rows[0] ? [[rows[0].jobId, rows[0]]] : [])),
   );
-  const executionIds = [...firstExecutions.values()].map((execution) => execution.id);
-  const allSteps = await getStepsByExecutionIds(executionIds);
+  const jobExecutionIds = [...firstJobExecutions.values()].map((jobExecution) => jobExecution.id);
+  const allSteps = await getStepsByJobExecutionIds(jobExecutionIds);
 
-  const stepsByExecutionId = new Map<string, typeof allSteps>();
+  const stepsByJobExecutionId = new Map<string, typeof allSteps>();
   for (const step of allSteps) {
-    const arr = stepsByExecutionId.get(step.executionId) ?? [];
+    const arr = stepsByJobExecutionId.get(step.executionId) ?? [];
     arr.push(step);
-    stepsByExecutionId.set(step.executionId, arr);
+    stepsByJobExecutionId.set(step.executionId, arr);
   }
 
   return {
@@ -71,20 +71,20 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
     projectId: run.projectId,
     runVersion: run.version,
     jobs: jobs.flatMap((job) => {
-      const execution = firstExecutions.get(job.id);
-      if (!execution) return [];
+      const jobExecution = firstJobExecutions.get(job.id);
+      if (!jobExecution) return [];
       return [
         {
           id: job.id,
           name: job.name,
           status: job.status,
-          executionId: execution.id,
-          executionVersion: execution.version,
+          executionId: jobExecution.id,
+          executionVersion: jobExecution.version,
           executionTimeoutMs: job.executionTimeoutMs,
           dependencies: job.dependencies,
           runner: job.runner ?? [],
           version: job.version,
-          steps: (stepsByExecutionId.get(execution.id) ?? []).map((s) => ({
+          steps: (stepsByJobExecutionId.get(jobExecution.id) ?? []).map((s) => ({
             id: s.id,
             name: s.name,
             type: s.type,
@@ -125,13 +125,13 @@ export async function setJobStatus(params: {
   return {newVersion: updated.version, status: updated.status};
 }
 
-export async function setExecutionStatus(params: {
+export async function setJobExecutionStatus(params: {
   executionId: string;
   status: Exclude<JobStatus, 'skipped'>;
   version: number;
   statusReason?: JobStatusReason | null | undefined;
 }): Promise<{newVersion: number; status: Exclude<JobStatus, 'skipped'>}> {
-  const updated = await updateExecutionStatus({
+  const updated = await updateJobExecutionStatus({
     executionId: params.executionId,
     status: params.status,
     expectedVersion: params.version,
@@ -147,12 +147,12 @@ export async function bulkSetStepStatuses(params: {
   await bulkUpdateStepStatuses(params);
 }
 
-export async function resolveLeaseExpiredExecutionActivity(params: {
+export async function resolveLeaseExpiredJobExecutionActivity(params: {
   executionId: string;
   expectedVersion: number;
 }): Promise<{status: RuntimeCompletionStatus; executionVersion: number}> {
   try {
-    return await resolveExecutionAfterLeaseExpiry(params);
+    return await resolveJobExecutionAfterLeaseExpiry(params);
   } catch (err) {
     if (err instanceof JobNotFoundError) {
       throw ApplicationFailure.nonRetryable(err.message, err.name);
@@ -165,10 +165,10 @@ export async function resolveLeaseExpiredExecutionActivity(params: {
 // already-released (or already-reaped) lease is a no-op. The workflow wraps the
 // call so a persistent failure never blocks the DAG result.
 export async function releaseLeaseActivity(params: {executionId: string}): Promise<void> {
-  await releaseJob({executionId: params.executionId});
+  await releaseJobExecution({executionId: params.executionId});
 }
 
-export async function enqueueJobForRunner(params: {
+export async function enqueueJobExecutionForRunner(params: {
   workspaceId: string;
   jobId: string;
   executionId: string;
@@ -177,7 +177,7 @@ export async function enqueueJobForRunner(params: {
   requiredLabels: string[];
 }): Promise<void> {
   try {
-    await enqueueJob({
+    await enqueueJobExecution({
       workspaceId: params.workspaceId,
       jobId: params.jobId,
       executionId: params.executionId,
@@ -197,17 +197,17 @@ export async function cancelRunnerJobsActivity(params: {jobIds: string[]}): Prom
   await cancelRunnerJobs({jobIds: params.jobIds});
 }
 
-export async function failExecutionAsTimedOutActivity(params: {
+export async function failJobExecutionAsTimedOutActivity(params: {
   executionId: string;
   runId: string;
   expectedVersion: number;
 }): Promise<{newVersion: number}> {
-  const execution = await failExecutionAsTimedOut(params);
-  return {newVersion: execution.version};
+  const jobExecution = await failJobExecutionAsTimedOut(params);
+  return {newVersion: jobExecution.version};
 }
 
-export async function resolveJobStatusFromExecutionsActivity(params: {
+export async function resolveJobStatusFromJobExecutionsActivity(params: {
   jobId: string;
 }): Promise<{status: RuntimeCompletionStatus; jobVersion: number}> {
-  return await resolveJobStatusFromExecutions(params);
+  return await resolveJobStatusFromJobExecutions(params);
 }

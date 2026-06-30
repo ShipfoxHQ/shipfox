@@ -71,11 +71,12 @@ import {
   materializeWorkflowModel,
 } from '#core/workflow-runtime/index.js';
 import {
-  recordWorkflowJobLeaseExpiryResolved,
-  recordWorkflowJobQueued,
-  recordWorkflowJobStarted,
+  recordWorkflowJobExecutionLeaseExpiryResolved,
+  recordWorkflowJobExecutionQueued,
+  recordWorkflowJobExecutionStarted,
+  recordWorkflowJobExecutionStatusChanged,
+  recordWorkflowJobExecutionTimedOut,
   recordWorkflowJobStatusChanged,
-  recordWorkflowJobTimedOut,
   recordWorkflowRunCreated,
   recordWorkflowRunStatusChanged,
 } from '#metrics/instance.js';
@@ -178,7 +179,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         .returning();
     }
 
-    const executionRows =
+    const jobExecutionRows =
       jobRows.length === 0
         ? []
         : await tx
@@ -194,20 +195,20 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
             )
             .returning();
 
-    const executionByJobId = new Map(
-      executionRows.map((execution) => [execution.jobId, execution]),
+    const jobExecutionByJobId = new Map(
+      jobExecutionRows.map((jobExecution) => [jobExecution.jobId, jobExecution]),
     );
 
     const stepValues: (typeof steps.$inferInsert)[] = [];
     for (const [jobIndex, jobRow] of jobRows.entries()) {
       const job = materializedJobs[jobIndex];
-      const execution = executionByJobId.get(jobRow.id);
-      if (!execution) continue;
+      const jobExecution = jobExecutionByJobId.get(jobRow.id);
+      if (!jobExecution) continue;
       if (!job) continue;
       for (const step of job.steps) {
         stepValues.push({
           jobId: jobRow.id,
-          executionId: execution.id,
+          executionId: jobExecution.id,
           name: step.sourceName,
           displayName: step.displayName,
           sourceLocation: step.sourceLocation,
@@ -270,7 +271,7 @@ export async function getStepByIdForJob(params: {
   return toStep(row);
 }
 
-export async function getStepByIdForExecution(params: {
+export async function getStepByIdForJobExecution(params: {
   stepId: string;
   executionId: string;
 }): Promise<Step | undefined> {
@@ -684,18 +685,18 @@ export async function getWorkflowRunAggregates(params: {
   };
 }
 
-export interface WorkflowExecutionDepth {
+export interface WorkflowJobExecutionDepth {
   runningRuns: number;
-  runningJobs: number;
+  runningJobExecutions: number;
 }
 
-export interface WorkflowExecutionDepthParams {
+export interface WorkflowJobExecutionDepthParams {
   workspaceId?: string;
 }
 
-export async function getWorkflowExecutionDepth(
-  params: WorkflowExecutionDepthParams = {},
-): Promise<WorkflowExecutionDepth> {
+export async function getWorkflowJobExecutionDepth(
+  params: WorkflowJobExecutionDepthParams = {},
+): Promise<WorkflowJobExecutionDepth> {
   const runConditions = [eq(workflowRuns.status, 'running')];
   const jobConditions = [eq(jobExecutions.status, 'running')];
   if (params.workspaceId) {
@@ -724,7 +725,7 @@ export async function getWorkflowExecutionDepth(
 
   return {
     runningRuns: runRows[0]?.value ?? 0,
-    runningJobs: jobRows[0]?.value ?? 0,
+    runningJobExecutions: jobRows[0]?.value ?? 0,
   };
 }
 
@@ -763,7 +764,7 @@ export async function getStepsByJobId(jobId: string): Promise<Step[]> {
   return rows.map(toStep);
 }
 
-export async function getStepsByExecutionId(executionId: string): Promise<Step[]> {
+export async function getStepsByJobExecutionId(executionId: string): Promise<Step[]> {
   const rows = await db()
     .select()
     .from(steps)
@@ -772,17 +773,17 @@ export async function getStepsByExecutionId(executionId: string): Promise<Step[]
   return rows.map(toStep);
 }
 
-export async function getStepsByExecutionIds(executionIds: string[]): Promise<Step[]> {
-  if (executionIds.length === 0) return [];
+export async function getStepsByJobExecutionIds(jobExecutionIds: string[]): Promise<Step[]> {
+  if (jobExecutionIds.length === 0) return [];
   const rows = await db()
     .select()
     .from(steps)
-    .where(inArray(steps.executionId, executionIds))
+    .where(inArray(steps.executionId, jobExecutionIds))
     .orderBy(asc(steps.executionId), asc(steps.position));
   return rows.map(toStep);
 }
 
-export async function getExecutionsByRunId(runId: string): Promise<JobExecution[]> {
+export async function getJobExecutionsByRunId(runId: string): Promise<JobExecution[]> {
   const rows = await db()
     .select()
     .from(jobExecutions)
@@ -791,7 +792,7 @@ export async function getExecutionsByRunId(runId: string): Promise<JobExecution[
   return rows.map(toJobExecution);
 }
 
-export async function getExecutionsByJobId(jobId: string): Promise<JobExecution[]> {
+export async function getJobExecutionsByJobId(jobId: string): Promise<JobExecution[]> {
   const rows = await db()
     .select()
     .from(jobExecutions)
@@ -800,7 +801,7 @@ export async function getExecutionsByJobId(jobId: string): Promise<JobExecution[
   return rows.map(toJobExecution);
 }
 
-export async function getFirstExecutionByJobId(
+export async function getFirstJobExecutionByJobId(
   jobId: string,
   tx?: Tx,
 ): Promise<JobExecution | undefined> {
@@ -871,7 +872,7 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
         statusReason: 'run_cancelled',
       });
       if (updated?.changed) cancelledJobs.push(updated.job);
-      const cancelledExecutions = await tx
+      const cancelledJobExecutions = await tx
         .update(jobExecutions)
         .set({
           status: 'cancelled',
@@ -887,8 +888,8 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
           ),
         )
         .returning({id: jobExecutions.id});
-      for (const execution of cancelledExecutions) {
-        await bulkUpdateStepStatuses({executionId: execution.id, status: 'cancelled'}, tx);
+      for (const jobExecution of cancelledJobExecutions) {
+        await bulkUpdateStepStatuses({executionId: jobExecution.id, status: 'cancelled'}, tx);
       }
     }
 
@@ -1016,7 +1017,7 @@ export interface UpdateJobStatusAtVersionParams {
   markTimedOut?: boolean;
 }
 
-export interface UpdateExecutionStatusAtVersionParams {
+export interface UpdateJobExecutionStatusAtVersionParams {
   executionId: string;
   status: JobExecutionStatus;
   expectedVersion: number;
@@ -1024,9 +1025,9 @@ export interface UpdateExecutionStatusAtVersionParams {
   markTimedOut?: boolean;
 }
 
-async function updateExecutionStatusAtVersion(
+async function updateJobExecutionStatusAtVersion(
   tx: Tx,
-  params: UpdateExecutionStatusAtVersionParams,
+  params: UpdateJobExecutionStatusAtVersionParams,
 ): Promise<{execution: JobExecution; changed: boolean} | null> {
   const rows = await tx
     .update(jobExecutions)
@@ -1055,19 +1056,19 @@ async function updateExecutionStatusAtVersion(
   return {execution: toJobExecution(row), changed: true};
 }
 
-export interface UpdateExecutionStatusParams {
+export interface UpdateJobExecutionStatusParams {
   executionId: string;
   status: JobExecutionStatus;
   expectedVersion: number;
   statusReason?: JobStatusReason | null | undefined;
 }
 
-export async function updateExecutionStatus(
-  params: UpdateExecutionStatusParams,
+export async function updateJobExecutionStatus(
+  params: UpdateJobExecutionStatusParams,
 ): Promise<JobExecution> {
   const statusReason = params.statusReason ?? null;
   const result = await db().transaction(async (tx) => {
-    const updated = await updateExecutionStatusAtVersion(tx, {
+    const updated = await updateJobExecutionStatusAtVersion(tx, {
       executionId: params.executionId,
       status: params.status,
       expectedVersion: params.expectedVersion,
@@ -1092,6 +1093,8 @@ export async function updateExecutionStatus(
       `Optimistic lock failure: execution ${params.executionId} version ${params.expectedVersion}`,
     );
   });
+
+  if (result.changed) recordWorkflowJobExecutionStatusChanged(result.execution.status);
 
   return result.execution;
 }
@@ -1185,7 +1188,7 @@ export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Jo
   return result.job;
 }
 
-export async function recordExecutionQueuedAt(params: {
+export async function recordJobExecutionQueuedAt(params: {
   executionId: string;
   queuedAt: Date;
 }): Promise<void> {
@@ -1195,10 +1198,10 @@ export async function recordExecutionQueuedAt(params: {
     .where(and(eq(jobExecutions.id, params.executionId), isNull(jobExecutions.queuedAt)))
     .returning({id: jobExecutions.id});
 
-  if (updated.length > 0) recordWorkflowJobQueued();
+  if (updated.length > 0) recordWorkflowJobExecutionQueued();
 }
 
-export async function recordExecutionStartedAt(params: {
+export async function recordJobExecutionStartedAt(params: {
   executionId: string;
   startedAt: Date;
 }): Promise<void> {
@@ -1208,7 +1211,7 @@ export async function recordExecutionStartedAt(params: {
     .where(and(eq(jobExecutions.id, params.executionId), isNull(jobExecutions.startedAt)))
     .returning({id: jobExecutions.id});
 
-  if (updated.length > 0) recordWorkflowJobStarted();
+  if (updated.length > 0) recordWorkflowJobExecutionStarted();
 }
 
 export interface FailJobAsTimedOutParams {
@@ -1217,13 +1220,13 @@ export interface FailJobAsTimedOutParams {
   expectedVersion: number;
 }
 
-export async function failExecutionAsTimedOut(params: {
+export async function failJobExecutionAsTimedOut(params: {
   executionId: string;
   runId: string;
   expectedVersion: number;
 }): Promise<JobExecution> {
   const result = await db().transaction(async (tx) => {
-    const updated = await updateExecutionStatusAtVersion(tx, {
+    const updated = await updateJobExecutionStatusAtVersion(tx, {
       executionId: params.executionId,
       status: 'failed',
       expectedVersion: params.expectedVersion,
@@ -1258,7 +1261,10 @@ export async function failExecutionAsTimedOut(params: {
     return updated;
   });
 
-  if (result.changed) recordWorkflowJobTimedOut();
+  if (result.changed) {
+    recordWorkflowJobExecutionStatusChanged(result.execution.status);
+    recordWorkflowJobExecutionTimedOut();
+  }
 
   return result.execution;
 }
@@ -1307,7 +1313,7 @@ export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promis
 
   if (result.changed) {
     recordWorkflowJobStatusChanged(result.job.status);
-    recordWorkflowJobTimedOut();
+    recordWorkflowJobExecutionTimedOut();
   }
 
   return result.job;
@@ -1363,7 +1369,7 @@ export async function resolveJobAfterLeaseExpiry(params: {
         statusReason: 'runner_lost',
       });
       changedJob = updated?.changed ? updated.job : null;
-      const execution = (
+      const jobExecution = (
         await tx
           .select({id: jobExecutions.id})
           .from(jobExecutions)
@@ -1371,8 +1377,8 @@ export async function resolveJobAfterLeaseExpiry(params: {
           .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id))
           .limit(1)
       )[0];
-      if (!execution) throw new JobNotFoundError(params.jobId);
-      await bulkUpdateStepStatuses({executionId: execution.id, status: 'cancelled'}, tx);
+      if (!jobExecution) throw new JobNotFoundError(params.jobId);
+      await bulkUpdateStepStatuses({executionId: jobExecution.id, status: 'cancelled'}, tx);
     }
 
     const row = (await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1))[0];
@@ -1381,53 +1387,59 @@ export async function resolveJobAfterLeaseExpiry(params: {
     return {status, jobVersion: row.version, changedJob};
   });
 
-  recordWorkflowJobLeaseExpiryResolved(result.status);
+  recordWorkflowJobExecutionLeaseExpiryResolved(result.status);
   if (result.changedJob) recordWorkflowJobStatusChanged(result.changedJob.status);
 
   return {status: result.status, jobVersion: result.jobVersion};
 }
 
-export async function resolveExecutionAfterLeaseExpiry(params: {
+export async function resolveJobExecutionAfterLeaseExpiry(params: {
   executionId: string;
   expectedVersion: number;
 }): Promise<{status: RuntimeCompletionStatus; executionVersion: number}> {
   const result = await db().transaction(async (tx) => {
-    const executionSteps = await getStepsByExecutionIdForUpdate(params.executionId, tx);
-    let changedExecution: JobExecution | null = null;
+    const jobExecutionSteps = await getStepsByJobExecutionIdForUpdate(params.executionId, tx);
+    let changedJobExecution: JobExecution | null = null;
 
-    if (executionSteps.length === 0) {
+    if (jobExecutionSteps.length === 0) {
       throw new JobNotFoundError(params.executionId);
     }
 
-    if (executionSteps.every((step) => isTerminal(step.status))) {
-      const status = deriveCompletion(executionSteps);
-      const updated = await updateExecutionStatusAtVersion(tx, {
+    if (jobExecutionSteps.every((step) => isTerminal(step.status))) {
+      const status = deriveCompletion(jobExecutionSteps);
+      const updated = await updateJobExecutionStatusAtVersion(tx, {
         executionId: params.executionId,
         status,
         expectedVersion: params.expectedVersion,
         statusReason: statusReasonForStepCompletion(status),
       });
-      changedExecution = updated?.changed ? updated.execution : null;
+      changedJobExecution = updated?.changed ? updated.execution : null;
     } else {
-      const updated = await updateExecutionStatusAtVersion(tx, {
+      const updated = await updateJobExecutionStatusAtVersion(tx, {
         executionId: params.executionId,
         status: 'failed',
         expectedVersion: params.expectedVersion,
         statusReason: 'runner_lost',
       });
-      changedExecution = updated?.changed ? updated.execution : null;
+      changedJobExecution = updated?.changed ? updated.execution : null;
       await bulkUpdateStepStatuses({executionId: params.executionId, status: 'cancelled'}, tx);
     }
 
-    const row = (
+    const jobExecutionRow = (
       await tx.select().from(jobExecutions).where(eq(jobExecutions.id, params.executionId)).limit(1)
     )[0];
-    if (!row) throw new Error(`Execution not found resolving lease expiry: ${params.executionId}`);
-    const status: RuntimeCompletionStatus = row.status === 'succeeded' ? 'succeeded' : 'failed';
-    return {status, executionVersion: row.version, changedExecution};
+    if (!jobExecutionRow) {
+      throw new Error(`Job execution not found resolving lease expiry: ${params.executionId}`);
+    }
+    const status: RuntimeCompletionStatus =
+      jobExecutionRow.status === 'succeeded' ? 'succeeded' : 'failed';
+    return {status, executionVersion: jobExecutionRow.version, changedJobExecution};
   });
 
-  recordWorkflowJobLeaseExpiryResolved(result.status);
+  recordWorkflowJobExecutionLeaseExpiryResolved(result.status);
+  if (result.changedJobExecution) {
+    recordWorkflowJobExecutionStatusChanged(result.changedJobExecution.status);
+  }
 
   return {status: result.status, executionVersion: result.executionVersion};
 }
@@ -1436,21 +1448,21 @@ function statusReasonForStepCompletion(status: RuntimeCompletionStatus): JobStat
   return status === 'failed' ? 'step_failed' : null;
 }
 
-export async function resolveJobStatusFromExecutions(params: {
+export async function resolveJobStatusFromJobExecutions(params: {
   jobId: string;
 }): Promise<{status: RuntimeCompletionStatus; jobVersion: number}> {
   const result = await db().transaction(async (tx) => {
     const jobRow = (await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1))[0];
     if (!jobRow) throw new JobNotFoundError(params.jobId);
 
-    const executionRows = await tx
+    const jobExecutionRows = await tx
       .select()
       .from(jobExecutions)
       .where(eq(jobExecutions.jobId, params.jobId))
       .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
 
-    if (executionRows.length === 0) {
-      throw new Error(`Cannot resolve job ${params.jobId}: no executions found`);
+    if (jobExecutionRows.length === 0) {
+      throw new Error(`Cannot resolve job ${params.jobId}: no job executions found`);
     }
 
     const expression = createWorkflowExpression({
@@ -1458,15 +1470,16 @@ export async function resolveJobStatusFromExecutions(params: {
       check: {mode: 'syntax'},
     });
     const passed = evaluateWorkflowPredicate(expression, {
-      executions: executionRows.map((execution, index) => ({
+      executions: jobExecutionRows.map((jobExecution, index) => ({
         index,
-        status: execution.status,
+        status: jobExecution.status,
       })),
     });
     const status: RuntimeCompletionStatus = passed ? 'succeeded' : 'failed';
     const statusReason =
       status === 'failed'
-        ? (executionRows.find((execution) => execution.statusReason)?.statusReason ?? 'step_failed')
+        ? (jobExecutionRows.find((jobExecution) => jobExecution.statusReason)?.statusReason ??
+          'step_failed')
         : null;
 
     const updated = await updateJobStatusAtVersion(tx, {
@@ -1602,7 +1615,10 @@ export async function getStepsByJobIdForUpdate(jobId: string, tx: Tx): Promise<S
   return rows.map(toStep);
 }
 
-export async function getStepsByExecutionIdForUpdate(executionId: string, tx: Tx): Promise<Step[]> {
+export async function getStepsByJobExecutionIdForUpdate(
+  executionId: string,
+  tx: Tx,
+): Promise<Step[]> {
   const rows = await tx
     .select()
     .from(steps)

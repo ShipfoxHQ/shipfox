@@ -2,7 +2,7 @@ import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {index, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import {pgTable} from './common.js';
 
-export const pendingJobs = pgTable(
+export const pendingJobExecutions = pgTable(
   'pending_jobs',
   {
     id: uuidv7PrimaryKey(),
@@ -21,5 +21,5 @@ export const pendingJobs = pgTable(
   ],
 );
 
-export type PendingJobDb = typeof pendingJobs.$inferSelect;
-export type PendingJobInsertDb = typeof pendingJobs.$inferInsert;
+export type PendingJobExecutionDb = typeof pendingJobExecutions.$inferSelect;
+export type PendingJobExecutionInsertDb = typeof pendingJobExecutions.$inferInsert;

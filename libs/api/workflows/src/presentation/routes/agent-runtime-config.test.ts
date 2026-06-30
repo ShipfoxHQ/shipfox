@@ -10,7 +10,7 @@ import {jobs} from '#db/schema/jobs.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
 import {
   createWorkflowRun,
-  getFirstExecutionByJobId,
+  getFirstJobExecutionByJobId,
   getJobsByRunId,
   getStepsByJobId,
 } from '#db/workflow-runs.js';
@@ -358,7 +358,7 @@ async function mintActiveLeaseToken(params: {
   workspaceId?: string;
 }) {
   const runnerSessionId = crypto.randomUUID();
-  const execution = await getFirstExecutionByJobId(params.job.id);
+  const execution = await getFirstJobExecutionByJobId(params.job.id);
   if (!execution) throw new Error('Expected job execution to exist');
   await insertRunningJobLease({
     workspaceId: params.run.workspaceId,

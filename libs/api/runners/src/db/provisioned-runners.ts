@@ -14,7 +14,10 @@ import {
 import type {ProvisionedRunner, ProvisionedRunnerState} from '#core/entities/provisioned-runner.js';
 import type {Tx} from './db.js';
 import {db} from './db.js';
-import {listRunningJobsByProvisionedRunnerTx, type ProvisionedRunnerBoundJob} from './jobs.js';
+import {
+  listRunningJobExecutionsByProvisionedRunnerTx,
+  type ProvisionedRunnerBoundJobExecution,
+} from './job-executions.js';
 import {releaseReservationUnits} from './reservations.js';
 import {provisionedRunners, toProvisionedRunner} from './schema/provisioned-runners.js';
 
@@ -56,7 +59,7 @@ export interface ReconcileProvisionedRunnersParams {
 
 export interface ReconcileProvisionedRunnersDbResult {
   observedRows: ProvisionedRunner[];
-  boundJobsByProvisionedRunnerId: Map<string, ProvisionedRunnerBoundJob>;
+  boundJobExecutionsByProvisionedRunnerId: Map<string, ProvisionedRunnerBoundJobExecution>;
   absentIds: string[];
   reservationsReleased: number;
 }
@@ -250,7 +253,7 @@ export async function reconcileProvisionedRunners(
               )
           ).map(toProvisionedRunner);
 
-    const boundJobs = await listRunningJobsByProvisionedRunnerTx(tx, {
+    const boundJobExecutions = await listRunningJobExecutionsByProvisionedRunnerTx(tx, {
       workspaceId: params.workspaceId,
       provisionerId: params.provisionerId,
       provisionedRunnerIds: observedProvisionedRunnerIds,
@@ -258,8 +261,8 @@ export async function reconcileProvisionedRunners(
 
     return {
       observedRows,
-      boundJobsByProvisionedRunnerId: new Map(
-        boundJobs.map((job) => [job.provisionedRunnerId, job]),
+      boundJobExecutionsByProvisionedRunnerId: new Map(
+        boundJobExecutions.map((jobExecution) => [jobExecution.provisionedRunnerId, jobExecution]),
       ),
       absentIds,
       reservationsReleased,

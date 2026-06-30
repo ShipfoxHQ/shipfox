@@ -16,7 +16,7 @@ let workerRunPromise: Promise<void> | undefined;
 
 let calls: ActivityCall[] = [];
 let versionSeq = 0;
-let failExecutionAsTimedOutShouldThrow = false;
+let failJobExecutionAsTimedOutShouldThrow = false;
 
 function nextVersion(): number {
   return ++versionSeq;
@@ -51,31 +51,31 @@ beforeAll(async () => {
         calls.push({name: 'setJobStatus', params});
         return {newVersion: nextVersion()};
       },
-      setExecutionStatus: (params: unknown) => {
-        calls.push({name: 'setExecutionStatus', params});
+      setJobExecutionStatus: (params: unknown) => {
+        calls.push({name: 'setJobExecutionStatus', params});
         return {newVersion: nextVersion(), status: (params as {status?: string}).status};
       },
       bulkSetStepStatuses: (params: unknown) => {
         calls.push({name: 'bulkSetStepStatuses', params});
       },
-      resolveLeaseExpiredExecutionActivity: (params: unknown) => {
-        calls.push({name: 'resolveLeaseExpiredExecutionActivity', params});
+      resolveLeaseExpiredJobExecutionActivity: (params: unknown) => {
+        calls.push({name: 'resolveLeaseExpiredJobExecutionActivity', params});
         return {status: 'failed', executionVersion: nextVersion()};
       },
-      resolveJobStatusFromExecutionsActivity: (params: unknown) => {
-        calls.push({name: 'resolveJobStatusFromExecutionsActivity', params});
+      resolveJobStatusFromJobExecutionsActivity: (params: unknown) => {
+        calls.push({name: 'resolveJobStatusFromJobExecutionsActivity', params});
         return {status: 'failed', jobVersion: nextVersion()};
       },
       releaseLeaseActivity: (params: unknown) => {
         calls.push({name: 'releaseLeaseActivity', params});
       },
-      enqueueJobForRunner: (params: unknown) => {
+      enqueueJobExecutionForRunner: (params: unknown) => {
         // No-op — we want the workflow to block on the signal until the timeout fires.
-        calls.push({name: 'enqueueJobForRunner', params});
+        calls.push({name: 'enqueueJobExecutionForRunner', params});
       },
-      failExecutionAsTimedOutActivity: async (params: unknown) => {
-        calls.push({name: 'failExecutionAsTimedOutActivity', params});
-        if (failExecutionAsTimedOutShouldThrow) {
+      failJobExecutionAsTimedOutActivity: async (params: unknown) => {
+        calls.push({name: 'failJobExecutionAsTimedOutActivity', params});
+        if (failJobExecutionAsTimedOutShouldThrow) {
           const {ApplicationFailure} = await import('@temporalio/common');
           throw ApplicationFailure.nonRetryable('simulated DB outage');
         }
@@ -99,7 +99,7 @@ afterAll(async () => {
 beforeEach(() => {
   calls = [];
   versionSeq = 0;
-  failExecutionAsTimedOutShouldThrow = false;
+  failJobExecutionAsTimedOutShouldThrow = false;
 });
 
 const defaultJobInput = {
@@ -121,22 +121,22 @@ function executeJob(input: typeof defaultJobInput): Promise<{status: string; job
         ? input.jobId
         : input.executionId,
   };
-  return testEnv.client.workflow.execute('jobOrchestration', {
+  return testEnv.client.workflow.execute('jobExecutionOrchestration', {
     taskQueue: TASK_QUEUE,
     workflowId: `job:${input.jobId}-${Math.random()}`,
     args: [normalized],
   });
 }
 
-describe('jobOrchestration timeout path', () => {
-  test('times out after JOB_MAX_DURATION; calls failExecutionAsTimedOutActivity then bulkSetStepStatuses', async () => {
+describe('jobExecutionOrchestration timeout path', () => {
+  test('times out after JOB_MAX_DURATION; calls failJobExecutionAsTimedOutActivity then bulkSetStepStatuses', async () => {
     const result = await executeJob(defaultJobInput);
 
     expect(result.status).toBe('failed');
 
-    expect(callsNamed('failExecutionAsTimedOutActivity')).toHaveLength(1);
+    expect(callsNamed('failJobExecutionAsTimedOutActivity')).toHaveLength(1);
 
-    const setJobStatuses = callsNamed('setExecutionStatus').map(
+    const setJobStatuses = callsNamed('setJobExecutionStatus').map(
       (c) => (c.params as {status: string}).status,
     );
     expect(setJobStatuses).toEqual(['running']);
@@ -147,15 +147,15 @@ describe('jobOrchestration timeout path', () => {
     // The lease is intentionally NOT released on the timeout path (the TIMED_OUT
     // event drives cooperative cancel; the stuck detector reaps the row).
     expect(callsNamed('releaseLeaseActivity')).toHaveLength(0);
-    expect(callsNamed('resolveLeaseExpiredExecutionActivity')).toHaveLength(0);
+    expect(callsNamed('resolveLeaseExpiredJobExecutionActivity')).toHaveLength(0);
   }, 60_000);
 
-  test('failExecutionAsTimedOutActivity throws → workflow surfaces the error', async () => {
-    failExecutionAsTimedOutShouldThrow = true;
+  test('failJobExecutionAsTimedOutActivity throws → workflow surfaces the error', async () => {
+    failJobExecutionAsTimedOutShouldThrow = true;
 
     await expect(executeJob({...defaultJobInput, jobId: 'job-fail-error'})).rejects.toThrow();
 
-    const setJobStatuses = callsNamed('setExecutionStatus').map(
+    const setJobStatuses = callsNamed('setJobExecutionStatus').map(
       (c) => (c.params as {status: string}).status,
     );
     expect(setJobStatuses).toEqual(['running']);

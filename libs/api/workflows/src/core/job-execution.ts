@@ -2,13 +2,13 @@ import type {LogOutcomeDto} from '@shipfox/api-workflows-dto';
 import {type Tx, withTransaction} from '#db/db.js';
 import {
   countStepAttempts,
-  getFirstExecutionByJobId,
-  getStepsByExecutionIdForUpdate,
+  getFirstJobExecutionByJobId,
+  getStepsByJobExecutionIdForUpdate,
   insertRunningStepAttempt,
   markStepRunning,
 } from '#db/workflow-runs.js';
 import {
-  recordWorkflowJobStepsSettled,
+  recordWorkflowJobExecutionStepsSettled,
   recordWorkflowStepRestartEnqueued,
 } from '#metrics/instance.js';
 import type {RuntimeCompletionStatus} from './entities/runtime-dag.js';
@@ -35,8 +35,11 @@ type CompletionStatus = RuntimeCompletionStatus;
 
 export type NextStep = {kind: 'step'; step: Step} | {kind: 'done'; status: CompletionStatus};
 
-async function nextStepForExecutionInTransaction(executionId: string, tx: Tx): Promise<NextStep> {
-  const steps = await getStepsByExecutionIdForUpdate(executionId, tx);
+async function nextStepForJobExecutionInTransaction(
+  executionId: string,
+  tx: Tx,
+): Promise<NextStep> {
+  const steps = await getStepsByJobExecutionIdForUpdate(executionId, tx);
 
   // An unknown or step-less execution has nothing to progress; rejecting it stops
   // a bad id from deriving a vacuous 'succeeded' completion below.
@@ -56,17 +59,17 @@ async function nextStepForExecutionInTransaction(executionId: string, tx: Tx): P
   return {kind: 'done', status: deriveCompletion(steps)};
 }
 
-export function nextStepForExecution(executionId: string): Promise<NextStep> {
+export function nextStepForJobExecution(executionId: string): Promise<NextStep> {
   // FOR UPDATE serializes concurrent pulls so a step is never dispatched twice.
-  return withTransaction((tx) => nextStepForExecutionInTransaction(executionId, tx));
+  return withTransaction((tx) => nextStepForJobExecutionInTransaction(executionId, tx));
 }
 
 export function nextStepForJob(jobId: string): Promise<NextStep> {
   return withTransaction(async (tx) => {
-    const execution = await getFirstExecutionByJobId(jobId, tx);
-    if (!execution) throw new JobNotFoundError(jobId);
+    const jobExecution = await getFirstJobExecutionByJobId(jobId, tx);
+    if (!jobExecution) throw new JobNotFoundError(jobId);
 
-    return nextStepForExecutionInTransaction(execution.id, tx);
+    return nextStepForJobExecutionInTransaction(jobExecution.id, tx);
   });
 }
 
@@ -106,7 +109,7 @@ export async function recordStepResult(
   // cancellations atomic, so a crashed-then-retried report can never leave
   // siblings stranded once the step itself is terminal.
   const progression = await withTransaction<RecordStepResultTransactionResult>(async (tx) => {
-    const steps = await getStepsByExecutionIdForUpdate(executionId, tx);
+    const steps = await getStepsByJobExecutionIdForUpdate(executionId, tx);
     const target = steps.find((step) => step.id === params.stepId);
 
     if (!target) throw new StepNotFoundError(params.stepId, executionId);
@@ -184,7 +187,7 @@ export async function recordStepResult(
   });
 
   if (progression.metrics.jobStepsSettledStatus) {
-    recordWorkflowJobStepsSettled(progression.metrics.jobStepsSettledStatus);
+    recordWorkflowJobExecutionStepsSettled(progression.metrics.jobStepsSettledStatus);
   }
   if (progression.metrics.stepRestartEnqueued) recordWorkflowStepRestartEnqueued();
 

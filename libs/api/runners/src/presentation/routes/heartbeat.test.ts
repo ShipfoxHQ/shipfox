@@ -9,9 +9,9 @@ import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
-import {claimJob} from '#core/jobs.js';
+import {claimJobExecution} from '#core/job-executions.js';
 import {db} from '#db/db.js';
-import {requestJobCancellation} from '#db/jobs.js';
+import {requestJobCancellation} from '#db/job-executions.js';
 import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';
 import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
@@ -65,7 +65,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     leaseToken: string;
   }> {
     const pending = await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({
+    const claimed = await claimJobExecution({
       workspaceId,
       runnerSessionId,
       sessionLabels: ['linux', 'x64'],
@@ -140,7 +140,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json().code).toBe('running-job-not-found');
+    expect(res.json().code).toBe('running-job-execution-not-found');
   });
 
   it('returns 404 when the job belongs to a different session', async () => {
@@ -162,7 +162,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json().code).toBe('running-job-not-found');
+    expect(res.json().code).toBe('running-job-execution-not-found');
   });
 
   it('returns 404 when the path job id does not match the lease token job id', async () => {

@@ -18,7 +18,7 @@ import {and, desc, eq, sql} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {reservations} from '#db/schema/reservations.js';
-import {runningJobs} from '#db/schema/running-jobs.js';
+import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {reservationReleasedCount} from '#metrics/instance.js';
 import {provisionedRunnerFactory, reservationFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
@@ -261,10 +261,11 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     cancellationRequestedAt?: Date | null;
   }) {
     await db()
-      .insert(runningJobs)
+      .insert(runningJobExecutions)
       .values({
         workspaceId,
         jobId: params.jobId,
+        executionId: crypto.randomUUID(),
         runId: params.runId,
         projectId: crypto.randomUUID(),
         runnerSessionId: crypto.randomUUID(),

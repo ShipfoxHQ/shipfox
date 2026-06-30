@@ -4,7 +4,7 @@ import {
   applyStepResult,
   cancelRemainingSteps,
   finishStepAttempt,
-  getStepsByExecutionIdForUpdate,
+  getStepsByJobExecutionIdForUpdate,
   rewindStepsToPending,
   writeJobStepsSettledOutbox,
   writeStepRestartEnqueuedOutbox,
@@ -138,7 +138,7 @@ export async function applyStepTransition(
   // Re-derive completion from the post-apply projection so the outcome is robust
   // to the cancel sweep above; emit the steps-settled signal exactly once, here on
   // the applied path.
-  const after = await getStepsByExecutionIdForUpdate(ctx.executionId, tx);
+  const after = await getStepsByJobExecutionIdForUpdate(ctx.executionId, tx);
   if (after.every((step) => isTerminal(step.status))) {
     const status = deriveCompletion(after);
     await writeJobStepsSettledOutbox(tx, {jobId: ctx.jobId, executionId: ctx.executionId, status});

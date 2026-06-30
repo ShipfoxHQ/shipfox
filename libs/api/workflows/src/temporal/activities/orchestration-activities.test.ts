@@ -1,15 +1,15 @@
 import {ApplicationFailure} from '@temporalio/common';
 import {
   createWorkflowRun,
-  getExecutionsByJobId,
+  getJobExecutionsByJobId,
   getJobsByRunId,
-  updateExecutionStatus,
+  updateJobExecutionStatus,
 } from '#db/index.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
-import {loadRunDag, resolveLeaseExpiredExecutionActivity} from './orchestration-activities.js';
+import {loadRunDag, resolveLeaseExpiredJobExecutionActivity} from './orchestration-activities.js';
 
-describe('resolveLeaseExpiredExecutionActivity', () => {
+describe('resolveLeaseExpiredJobExecutionActivity', () => {
   let workspaceId: string;
   let projectId: string;
   let definitionId: string;
@@ -36,8 +36,8 @@ describe('resolveLeaseExpiredExecutionActivity', () => {
       },
     });
     const jobId = (await getJobsByRunId(run.id))[0]?.id as string;
-    const executionId = (await getExecutionsByJobId(jobId))[0]?.id as string;
-    const running = await updateExecutionStatus({
+    const executionId = (await getJobExecutionsByJobId(jobId))[0]?.id as string;
+    const running = await updateJobExecutionStatus({
       executionId,
       status: 'running',
       expectedVersion: 1,
@@ -51,7 +51,7 @@ describe('resolveLeaseExpiredExecutionActivity', () => {
     // reproduce a genuinely stepless (malformed) job.
     await stripSetupStep(jobId);
 
-    const error = await resolveLeaseExpiredExecutionActivity({
+    const error = await resolveLeaseExpiredJobExecutionActivity({
       executionId,
       expectedVersion: runningVersion,
     }).catch((err: unknown) => err);
@@ -63,7 +63,7 @@ describe('resolveLeaseExpiredExecutionActivity', () => {
   test('a well-formed job resolves without raising', async () => {
     const {executionId, runningVersion} = await seedRunningJob(2);
 
-    const result = await resolveLeaseExpiredExecutionActivity({
+    const result = await resolveLeaseExpiredJobExecutionActivity({
       executionId,
       expectedVersion: runningVersion,
     });

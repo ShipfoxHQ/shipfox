@@ -18,14 +18,14 @@ export {
   RegistrationTokenExpiredError,
   RunnerSessionExhaustedError,
   RunnerTokenNotFoundError,
-  RunningJobNotFoundError,
+  RunningJobExecutionNotFoundError,
 } from './errors.js';
-export {type ClaimJobResult, claimJob} from './jobs.js';
+export {type ClaimJobExecutionResult, claimJobExecution} from './job-executions.js';
 export {
   type ActiveRunner,
   listActiveRunners,
   type ReconcileDesiredIntent,
-  type ReconciledBoundJob,
+  type ReconciledBoundJobExecution,
   type ReconciledProvisionedRunner,
   type ReconcileProvisionedRunnersParams,
   type ReconcileProvisionedRunnersResult,

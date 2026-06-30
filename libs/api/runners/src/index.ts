@@ -25,10 +25,10 @@ export {
 } from '#core/ephemeral-registration-tokens.js';
 export {
   cancelRunnerJobs,
-  type EnqueueJobParams,
-  enqueueJob,
+  type EnqueueJobExecutionParams,
+  enqueueJobExecution,
   isJobLeaseActive,
-  releaseJob,
+  releaseJobExecution,
 } from '#db/index.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
