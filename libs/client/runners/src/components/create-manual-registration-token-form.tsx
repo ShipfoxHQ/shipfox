@@ -29,7 +29,7 @@ import {
 } from '#hooks/api/manual-registration-tokens.js';
 import {manualRegistrationTokenCreateErrorToFormError} from './form-errors.js';
 
-export const CREATE_RUNNER_TOKEN_FORM_ID = 'create-manual-registration-token-form';
+export const CREATE_MANUAL_REGISTRATION_TOKEN_FORM_ID = 'create-manual-registration-token-form';
 
 export type ManualRegistrationTokenExpirationOption =
   | '86400'
@@ -95,7 +95,7 @@ export function CreateManualRegistrationTokenForm({
     <>
       <ModalBody className="gap-16">
         <form
-          id={CREATE_RUNNER_TOKEN_FORM_ID}
+          id={CREATE_MANUAL_REGISTRATION_TOKEN_FORM_ID}
           className="flex w-full flex-col gap-8"
           noValidate
           onSubmit={(event) => {
@@ -165,7 +165,11 @@ export function CreateManualRegistrationTokenForm({
         ) : null}
       </ModalBody>
       <ModalFooter>
-        <Button type="submit" form={CREATE_RUNNER_TOKEN_FORM_ID} isLoading={createToken.isPending}>
+        <Button
+          type="submit"
+          form={CREATE_MANUAL_REGISTRATION_TOKEN_FORM_ID}
+          isLoading={createToken.isPending}
+        >
           Create token
         </Button>
       </ModalFooter>
