@@ -22,6 +22,17 @@ export class IntegrationConnectionWorkspaceMismatchError extends Error {
   }
 }
 
+export class IntegrationConnectionAlreadyExistsError extends Error {
+  constructor(
+    public readonly workspaceId: string,
+    public readonly provider: IntegrationProviderKind,
+    public readonly externalAccountId: string,
+  ) {
+    super(`Integration connection already exists: ${workspaceId}/${provider}/${externalAccountId}`);
+    this.name = 'IntegrationConnectionAlreadyExistsError';
+  }
+}
+
 export class IntegrationCapabilityUnavailableError extends Error {
   constructor(capability: IntegrationCapability, provider: IntegrationProviderKind) {
     super(`Integration provider ${provider} does not expose ${capability}`);

@@ -24,6 +24,17 @@ export type PublishIntegrationEventReceivedFn = (params: {
   event: IntegrationEventReceivedEvent;
 }) => Promise<{published: boolean}>;
 
+export type CreateIntegrationConnectionFn = (
+  params: {
+    workspaceId: string;
+    provider: string;
+    externalAccountId: string;
+    displayName: string;
+    lifecycleStatus?: IntegrationConnectionLifecycleStatus | undefined;
+  },
+  options?: {tx?: IntegrationTx},
+) => Promise<IntegrationConnection>;
+
 // Emitted by source-control providers for a single push. The delivery dedup and the outbox
 // rows it writes must commit together, so it requires a transaction, never a bare connection.
 export type PublishSourcePushFn = (params: {
@@ -52,4 +63,9 @@ export type GetIntegrationConnectionByIdFn = (
 export type UpdateIntegrationConnectionLifecycleStatusFn = (
   params: {id: string; lifecycleStatus: IntegrationConnectionLifecycleStatus},
   options?: {tx?: IntegrationTx},
-) => Promise<unknown>;
+) => Promise<IntegrationConnection | undefined>;
+
+export type DeleteIntegrationConnectionFn = (
+  params: {id: string},
+  options?: {tx?: IntegrationTx},
+) => Promise<boolean>;

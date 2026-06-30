@@ -68,6 +68,7 @@ export async function handleSentryIssueEvent(params: HandleSentryIssueEventParam
   await params.publishIntegrationEventReceived({
     tx: params.tx,
     event: {
+      provider: SENTRY_SOURCE,
       source: SENTRY_SOURCE,
       event: `issue.${params.payload.action}`,
       workspaceId: connection.workspaceId,

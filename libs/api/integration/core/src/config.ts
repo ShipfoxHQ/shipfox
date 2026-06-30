@@ -17,4 +17,8 @@ export const config = createConfig({
     desc: 'Enables the Sentry integration provider so users can connect Sentry.',
     default: false,
   }),
+  INTEGRATIONS_ENABLE_WEBHOOK_PROVIDER: bool({
+    desc: 'Enables the generic webhook integration provider so users can create inbound webhook URLs.',
+    default: false,
+  }),
 });

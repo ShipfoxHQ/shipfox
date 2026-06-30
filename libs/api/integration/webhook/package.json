@@ -1,11 +1,11 @@
 {
-  "name": "@shipfox/api-integration-core",
+  "name": "@shipfox/api-integration-webhook",
   "license": "MIT",
   "version": "0.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "libs/api/integration/core"
+    "directory": "libs/api/integration/webhook"
   },
   "private": true,
   "type": "module",
@@ -37,26 +37,14 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@fastify/formbody": "^8.0.2",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
-    "@shipfox/api-integration-debug": "workspace:*",
-    "@shipfox/api-integration-gitea": "workspace:*",
-    "@shipfox/api-integration-github": "workspace:*",
-    "@shipfox/api-integration-sentry": "workspace:*",
-    "@shipfox/api-integration-webhook": "workspace:*",
+    "@shipfox/api-integration-webhook-dto": "workspace:*",
     "@shipfox/api-workspaces": "workspace:*",
     "@shipfox/config": "workspace:*",
-    "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
-    "@shipfox/node-module": "workspace:*",
-    "@shipfox/node-opentelemetry": "workspace:*",
-    "@shipfox/node-outbox": "workspace:*",
-    "@shipfox/node-postgres": "workspace:*",
-    "@shipfox/node-temporal": "workspace:*",
-    "@shipfox/regex": "workspace:*",
-    "@shipfox/redact": "workspace:*",
-    "@temporalio/workflow": "^1.16.1",
-    "drizzle-orm": "^0.45.2",
+    "fastify-plugin": "^5.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -65,15 +53,7 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "@temporalio/activity": "^1.16.1",
-    "@temporalio/client": "^1.16.1",
-    "@temporalio/common": "^1.16.1",
-    "@temporalio/testing": "^1.16.1",
-    "@temporalio/worker": "^1.16.1",
-    "@types/pg": "^8.15.5",
-    "drizzle-kit": "^0.31.10",
     "fastify": "^5.3.3",
-    "fastify-type-provider-zod": "^6.0.0",
-    "fishery": "^2.2.2"
+    "fastify-type-provider-zod": "^6.0.0"
   }
 }

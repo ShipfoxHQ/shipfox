@@ -29,12 +29,14 @@ export interface WorkflowSourceSnapshot {
 export type TriggerPayload =
   | {
       source: 'manual';
+      provider?: 'manual' | undefined;
       event: 'fire';
       subscriptionId: string;
       userId: string;
     }
   | {
       source: 'cron';
+      provider?: 'cron' | undefined;
       event: 'tick';
       scheduleId: string;
     }
@@ -43,6 +45,7 @@ export type TriggerPayload =
   // triggers module having to know each source's shape.
   | {
       source: string;
+      provider?: string | undefined;
       event: string;
       deliveryId: string;
       data: unknown;
