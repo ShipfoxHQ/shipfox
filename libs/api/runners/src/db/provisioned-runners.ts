@@ -219,6 +219,10 @@ export async function reconcileProvisionedRunners(
               staleAbsentRows.map((row) => row.id),
             ),
             inArray(provisionedRunners.state, activeStates),
+            lt(
+              provisionedRunners.reportedAt,
+              sql`now() - (${params.terminateGraceSeconds} || ' seconds')::interval`,
+            ),
           ),
         )
         .returning({provisionedRunnerId: provisionedRunners.provisionedRunnerId});

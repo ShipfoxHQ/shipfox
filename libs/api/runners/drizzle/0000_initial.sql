@@ -43,4 +43,4 @@ CREATE INDEX "runners_outbox_dispatched_retention_idx" ON "runners_outbox" USING
 CREATE INDEX "runners_pending_jobs_created_idx" ON "runners_pending_jobs" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "runners_running_jobs_last_heartbeat_at_idx" ON "runners_running_jobs" USING btree ("last_heartbeat_at");
 --> statement-breakpoint
-CREATE INDEX "runners_running_jobs_provisioned_runner_started_idx" ON "runners_running_jobs" USING btree ("workspace_id","provisioner_id","provisioned_runner_id","started_at" DESC);
+CREATE INDEX "runners_running_jobs_provisioned_runner_started_idx" ON "runners_running_jobs" USING btree ("workspace_id","provisioner_id","provisioned_runner_id","started_at" DESC) WHERE "provisioner_id" IS NOT NULL;

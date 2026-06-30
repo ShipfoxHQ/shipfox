@@ -1,5 +1,6 @@
 ---
-"@shipfox/api-runners-dto": patch
+"@shipfox/api-runners": minor
+"@shipfox/api-runners-dto": minor
 ---
 
-Adds the provisioned-runner reconcile request and response schemas for provisioner state recovery.
+Adds the provisioned-runner reconcile endpoint and shared request/response schemas for provisioner state recovery.

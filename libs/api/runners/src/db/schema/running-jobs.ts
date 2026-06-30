@@ -22,12 +22,9 @@ export const runningJobs = pgTable(
   },
   (table) => [
     index('runners_running_jobs_last_heartbeat_at_idx').on(table.lastHeartbeatAt),
-    index('runners_running_jobs_provisioned_runner_started_idx').on(
-      table.workspaceId,
-      table.provisionerId,
-      table.provisionedRunnerId,
-      table.startedAt.desc(),
-    ),
+    index('runners_running_jobs_provisioned_runner_started_idx')
+      .on(table.workspaceId, table.provisionerId, table.provisionedRunnerId, table.startedAt.desc())
+      .where(sql`"provisioner_id" IS NOT NULL`),
     check(
       'runners_running_jobs_link_ck',
       sql`(${table.provisionerId} IS NULL) = (${table.provisionedRunnerId} IS NULL)`,

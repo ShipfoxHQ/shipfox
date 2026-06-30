@@ -2,7 +2,7 @@ import {z} from 'zod';
 import {provisionedRunnerStateSchema} from './report-provisioned-runners.js';
 
 export const MAX_RECONCILE_OBSERVED_RUNNERS = 5000;
-export const MAX_OBSERVED_PROVISIONED_RUNNER_ID_LENGTH = 64;
+export const MAX_OBSERVED_PROVISIONED_RUNNER_ID_LENGTH = 255;
 
 export const reconcileProvisionedRunnersBodySchema = z
   .object({
