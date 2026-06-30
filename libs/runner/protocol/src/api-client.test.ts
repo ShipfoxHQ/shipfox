@@ -147,6 +147,21 @@ describe('api-client auth contexts', () => {
     expect(calls[0]?.authorization).toBe('Bearer lease-abc');
   });
 
+  it('lease clients read rotated lease tokens before each request', async () => {
+    stubFetch(() => jsonResponse({kind: 'done', status: 'succeeded'}));
+    let leaseToken = 'lease-initial';
+    const leaseClient = createLeaseClient(() => leaseToken);
+
+    await requestNextStep(leaseClient);
+    leaseToken = 'lease-next';
+    await requestNextStep(leaseClient);
+
+    expect(calls.map((call) => call.authorization)).toEqual([
+      'Bearer lease-initial',
+      'Bearer lease-next',
+    ]);
+  });
+
   it('requestCheckoutToken sends the lease token and parses the checkout response', async () => {
     stubFetch(() =>
       jsonResponse({

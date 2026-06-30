@@ -44,6 +44,7 @@ export async function runJobSteps(params: {
   leaseClient: KyInstance;
   /** Secrets masked out of captured output before it reaches the spool. */
   secrets: string[];
+  subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
   signal: AbortSignal;
   cwd: string;
   logsDir: string;
@@ -85,6 +86,7 @@ export async function runJobSteps(params: {
         cwd,
         leaseClient,
         secrets,
+        ...(params.subscribeSecrets ? {subscribeSecrets: params.subscribeSecrets} : {}),
         signal,
         workspacePrepared,
         jobId,
@@ -180,6 +182,7 @@ export async function executeStep(params: {
   jobContext: SetupJobContext;
   leaseClient: KyInstance;
   secrets: string[];
+  subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
   signal: AbortSignal;
   workspacePrepared: boolean;
   jobId: string;
@@ -193,6 +196,7 @@ export async function executeStep(params: {
     jobContext,
     leaseClient,
     secrets,
+    subscribeSecrets,
     signal,
     workspacePrepared,
     jobId,
@@ -201,6 +205,15 @@ export async function executeStep(params: {
 
   let stream: LogStreamLifecycle | undefined;
   let runStream: StepLogStream | undefined;
+  let unsubscribeSecrets: (() => void) | undefined;
+  const registerStreamSecrets = (
+    target: {addSecrets?: (secrets: string[]) => void} | undefined,
+  ) => {
+    if (!target?.addSecrets) return;
+    unsubscribeSecrets = subscribeSecrets?.((registeredSecrets) =>
+      target.addSecrets?.(registeredSecrets),
+    );
+  };
   try {
     // Both step kinds capture to the same per-attempt stream contract (one stream per
     // job/step/attempt). The append port is bound to the lease client, step, and attempt.
@@ -230,6 +243,7 @@ export async function executeStep(params: {
         );
       }
       stream = setupStream;
+      registerStreamSecrets(setupStream);
 
       const result = await executeSetupStep({
         cwd,
@@ -299,6 +313,7 @@ export async function executeStep(params: {
         );
       }
       stream = sessionStream;
+      registerStreamSecrets(sessionStream);
       const result = await executeAgentStep(step, {
         signal,
         cwd,
@@ -339,6 +354,7 @@ export async function executeStep(params: {
     }
     stream = stepStream;
     runStream = stepStream;
+    registerStreamSecrets(stepStream);
 
     const result = await executeRunStep(step, {
       signal,
@@ -370,6 +386,9 @@ export async function executeStep(params: {
       logOutcome: stream ? undefined : step.type === 'setup' ? 'drained' : 'abandoned',
       preparedWorkspace: false,
     };
+  } finally {
+    unsubscribeSecrets?.();
+    runStream?.writeGroupEnd();
   }
 }
 

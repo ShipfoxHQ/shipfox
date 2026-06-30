@@ -84,6 +84,35 @@ describe('createWorkflowExpression', () => {
     expect((error as InvalidWorkflowExpressionError).reason).toContain('must return bool; got int');
   });
 
+  it('rejects misspelled fields on typed list object elements', () => {
+    let error: unknown;
+    try {
+      createWorkflowExpression({
+        source: 'executions.all(e, e.statsu == "succeeded")',
+        check: {
+          mode: 'typed',
+          typeEnvironment: {
+            executions: {
+              kind: 'list',
+              element: {
+                kind: 'object',
+                fields: {
+                  index: 'int',
+                  status: 'string',
+                },
+              },
+            },
+          },
+        },
+      });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(InvalidWorkflowExpressionError);
+    expect((error as InvalidWorkflowExpressionError).reason).toContain('statsu');
+  });
+
   it('exposes the source and type-check reason on invalid expression errors', () => {
     let error: unknown;
     try {

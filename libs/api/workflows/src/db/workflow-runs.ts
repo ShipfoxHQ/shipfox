@@ -1036,9 +1036,6 @@ async function updateJobExecutionStatusAtVersion(
       statusReason: params.statusReason ?? null,
       version: sql`${jobExecutions.version} + 1`,
       updatedAt: new Date(),
-      ...(params.status === 'running'
-        ? {startedAt: sql`coalesce(${jobExecutions.startedAt}, now())`}
-        : {}),
       ...(params.markTimedOut ? {timedOutAt: new Date()} : {}),
       ...(TERMINAL_EXECUTION_STATUSES.includes(params.status) ? {finishedAt: sql`now()`} : {}),
     })

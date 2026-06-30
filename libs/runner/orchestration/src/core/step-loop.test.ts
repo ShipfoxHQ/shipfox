@@ -131,11 +131,17 @@ function streamFor(stepId: string): FakeStream {
   return stream;
 }
 
-function runLoop(params: {signal: AbortSignal; secrets?: string[]; cwd?: string}): Promise<void> {
+function runLoop(params: {
+  signal: AbortSignal;
+  secrets?: string[];
+  cwd?: string;
+  subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
+}): Promise<void> {
   return runJobSteps({
     jobId: JOB_ID,
     leaseClient,
     secrets: params.secrets ?? [],
+    ...(params.subscribeSecrets ? {subscribeSecrets: params.subscribeSecrets} : {}),
     signal: params.signal,
     cwd: params.cwd ?? '/work',
     logsDir: LOGS_DIR,
@@ -241,6 +247,34 @@ describe('runJobSteps', () => {
     expect(createStepLogStreamMock).toHaveBeenCalledTimes(2);
     expect(events).toContain(`drain:${run.id}`);
     expect(events).toContain(`dispose:${run.id}`);
+  });
+
+  it('adds renewed lease tokens to the active step log stream', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    let publishSecrets: ((secrets: string[]) => void) | undefined;
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeRunStepMock.mockImplementation(() => {
+      publishSecrets?.(['lease-token-next']);
+      return Promise.resolve({success: true, error: null, exit_code: 0});
+    });
+    const ac = new AbortController();
+
+    await runLoop({
+      signal: ac.signal,
+      subscribeSecrets: (subscriber) => {
+        publishSecrets = subscriber;
+        return () => {
+          if (publishSecrets === subscriber) publishSecrets = undefined;
+        };
+      },
+    });
+
+    expect(streamFor(run.id).addSecrets).toHaveBeenCalledWith(['lease-token-next']);
+    expect(publishSecrets).toBeUndefined();
   });
 
   it('routes captured output through the stream write sink', async () => {

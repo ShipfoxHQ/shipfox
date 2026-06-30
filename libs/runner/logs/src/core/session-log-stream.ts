@@ -4,7 +4,7 @@ import {config} from '#config.js';
 import {type FramedOutput, StreamFramer} from '#core/framing.js';
 import type {LogStreamLifecycle} from '#core/lifecycle.js';
 import {createRecordSink} from '#core/record-sink.js';
-import {buildSecretVariants} from '#core/secrets.js';
+import {buildSecretVariants, mergeSecretVariants} from '#core/secrets.js';
 
 export interface SessionLogStreamOptions {
   logsDir: string;
@@ -28,6 +28,8 @@ export interface SessionLogStreamOptions {
 
 export interface SessionLogStream extends LogStreamLifecycle {
   writeEntry(line: string): void;
+  /** Registers additional secrets for subsequent agent session entries. */
+  addSecrets(secrets: string[]): void;
 }
 
 /**
@@ -40,7 +42,7 @@ export function createSessionLogStream(options: SessionLogStreamOptions): Sessio
   const now = options.now ?? Date.now;
   const flushBytes = options.flushBytes ?? config.SHIPFOX_AGENT_SESSION_FLUSH_BYTES;
   const framer = new StreamFramer(now);
-  const variants = buildSecretVariants(options.secrets ?? []);
+  let variants = buildSecretVariants(options.secrets ?? []);
 
   const sink = createRecordSink({
     logsDir: options.logsDir,
@@ -79,6 +81,11 @@ export function createSessionLogStream(options: SessionLogStreamOptions): Sessio
 
       sink.spool(framed);
       sink.notify();
+    },
+
+    addSecrets(secrets) {
+      if (secrets.length === 0) return;
+      variants = mergeSecretVariants(variants, secrets);
     },
 
     close() {

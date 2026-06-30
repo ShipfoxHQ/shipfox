@@ -1113,12 +1113,16 @@ describe('getJobExecutionQueueDepth', () => {
   });
 
   it('counts pending and running jobs separately', async () => {
+    const baseline = await getJobExecutionQueueDepth();
     await pendingJobFactory.create({workspaceId});
     await pendingJobFactory.create({workspaceId});
     await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
 
     const depth = await getJobExecutionQueueDepth();
 
-    expect(depth).toEqual({pendingJobExecutions: 1, runningJobExecutions: 1});
+    expect(depth).toEqual({
+      pendingJobExecutions: baseline.pendingJobExecutions + 1,
+      runningJobExecutions: baseline.runningJobExecutions + 1,
+    });
   });
 });

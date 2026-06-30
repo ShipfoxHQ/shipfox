@@ -8,7 +8,7 @@ import {JobNotFoundError} from '#core/errors.js';
 import {
   bulkUpdateStepStatuses,
   failJobExecutionAsTimedOut,
-  getJobExecutionsByJobId,
+  getJobExecutionsByRunId,
   getJobsByRunId,
   getStepsByJobExecutionIds,
   getWorkflowRunById,
@@ -51,10 +51,13 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
   if (!run) throw new Error(`Run not found: ${runId}`);
 
   const jobs = await getJobsByRunId(runId);
-  const jobExecutions = await Promise.all(jobs.map((job) => getJobExecutionsByJobId(job.id)));
-  const firstJobExecutions = new Map(
-    jobExecutions.flatMap((rows) => (rows[0] ? [[rows[0].jobId, rows[0]]] : [])),
-  );
+  const jobExecutions = await getJobExecutionsByRunId(runId);
+  const firstJobExecutions = new Map<string, (typeof jobExecutions)[number]>();
+  for (const jobExecution of jobExecutions) {
+    if (!firstJobExecutions.has(jobExecution.jobId)) {
+      firstJobExecutions.set(jobExecution.jobId, jobExecution);
+    }
+  }
   const jobExecutionIds = [...firstJobExecutions.values()].map((jobExecution) => jobExecution.id);
   const allSteps = await getStepsByJobExecutionIds(jobExecutionIds);
 

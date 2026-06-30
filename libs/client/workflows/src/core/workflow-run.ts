@@ -278,6 +278,7 @@ export function toWorkflowJob(dto: RunJobDetailDto): WorkflowJob {
     queuedAt: dto.queued_at ?? null,
     startedAt: dto.started_at ?? null,
     finishedAt: dto.finished_at ?? null,
+    // The current client UI is single-execution: multi-execution grouping belongs to ENG-675.
     steps: dto.executions.flatMap((execution) => execution.steps.map(toWorkflowStep)),
   };
 }

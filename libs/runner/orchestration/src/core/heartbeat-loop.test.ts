@@ -25,7 +25,7 @@ function buildHTTPError(status: number): HTTPError {
 
 describe('startHeartbeatLoop', () => {
   test('schedules first tick at intervalMs and calls heartbeat with the job id', async () => {
-    heartbeatMock.mockResolvedValue({cancel: false});
+    heartbeatMock.mockResolvedValue({cancel: false, lease_token: 'lease-1'});
     const ac = new AbortController();
 
     const handle = startHeartbeatLoop('job-1', 'lease-1', ac, {
@@ -48,8 +48,10 @@ describe('startHeartbeatLoop', () => {
   });
 
   test('single-flight: does not start a second tick until the first heartbeat resolves', async () => {
-    let resolve: ((v: {cancel: boolean}) => void) | undefined;
-    heartbeatMock.mockImplementation(() => new Promise<{cancel: boolean}>((r) => (resolve = r)));
+    let resolve: ((v: {cancel: boolean; lease_token: string}) => void) | undefined;
+    heartbeatMock.mockImplementation(
+      () => new Promise<{cancel: boolean; lease_token: string}>((r) => (resolve = r)),
+    );
     const ac = new AbortController();
 
     const handle = startHeartbeatLoop('job-1', 'lease-1', ac, {
@@ -63,9 +65,31 @@ describe('startHeartbeatLoop', () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(heartbeatMock).toHaveBeenCalledTimes(1);
 
-    resolve?.({cancel: false});
+    resolve?.({cancel: false, lease_token: 'lease-1'});
     await vi.advanceTimersByTimeAsync(100);
     expect(heartbeatMock).toHaveBeenCalledTimes(2);
+
+    handle.stop();
+  });
+
+  test('uses the renewed lease token on the next heartbeat tick', async () => {
+    const renewedTokens: string[] = [];
+    heartbeatMock
+      .mockResolvedValueOnce({cancel: false, lease_token: 'lease-2'})
+      .mockResolvedValueOnce({cancel: false, lease_token: 'lease-3'});
+    const ac = new AbortController();
+
+    const handle = startHeartbeatLoop('job-1', 'lease-1', ac, {
+      intervalMs: 100,
+      maxStaleMs: 1000,
+      onLeaseTokenRenewed: (leaseToken) => renewedTokens.push(leaseToken),
+    });
+
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(heartbeatMock.mock.calls.map((call) => call[1])).toEqual(['lease-1', 'lease-2']);
+    expect(renewedTokens).toEqual(['lease-2', 'lease-3']);
 
     handle.stop();
   });
@@ -74,7 +98,7 @@ describe('startHeartbeatLoop', () => {
     let receivedSignal: AbortSignal | undefined;
     heartbeatMock.mockImplementation(
       (_jobId: string, _leaseToken: string, opts?: {signal?: AbortSignal}) =>
-        new Promise<{cancel: boolean}>((_resolve, reject) => {
+        new Promise<{cancel: boolean; lease_token: string}>((_resolve, reject) => {
           receivedSignal = opts?.signal;
           opts?.signal?.addEventListener('abort', () => {
             const err = new Error('aborted');
@@ -107,7 +131,7 @@ describe('startHeartbeatLoop', () => {
   });
 
   test('cancel:true aborts the job AbortController and stops the loop', async () => {
-    heartbeatMock.mockResolvedValueOnce({cancel: true});
+    heartbeatMock.mockResolvedValueOnce({cancel: true, lease_token: 'lease-2'});
     const ac = new AbortController();
 
     const handle = startHeartbeatLoop('job-1', 'lease-1', ac, {
@@ -145,7 +169,9 @@ describe('startHeartbeatLoop', () => {
   });
 
   test('non-404 errors are transient: log and schedule next tick', async () => {
-    heartbeatMock.mockRejectedValueOnce(buildHTTPError(500)).mockResolvedValueOnce({cancel: false});
+    heartbeatMock
+      .mockRejectedValueOnce(buildHTTPError(500))
+      .mockResolvedValueOnce({cancel: false, lease_token: 'lease-1'});
     const ac = new AbortController();
 
     const handle = startHeartbeatLoop('job-1', 'lease-1', ac, {
@@ -167,7 +193,7 @@ describe('startHeartbeatLoop', () => {
     let aborted = false;
     heartbeatMock.mockImplementation(
       (_jobId: string, _leaseToken: string, opts?: {signal?: AbortSignal}) =>
-        new Promise<{cancel: boolean}>((_resolve, reject) => {
+        new Promise<{cancel: boolean; lease_token: string}>((_resolve, reject) => {
           opts?.signal?.addEventListener('abort', () => {
             aborted = true;
             const err = new Error('aborted');

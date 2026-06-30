@@ -626,6 +626,31 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('reports misspelled execution fields in job success expressions', () => {
+    const document: WorkflowDocument = {
+      name: 'misspelled job success',
+      jobs: {
+        build: {
+          success: 'executions.all(e, e.statsu == "succeeded")',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-job-success',
+        path: ['jobs', 'build', 'success'],
+        details: expect.objectContaining({
+          source: 'executions.all(e, e.statsu == "succeeded")',
+          reason: expect.stringContaining('statsu'),
+        }),
+      }),
+    ]);
+  });
+
   it('reports malformed job execution timeouts', () => {
     const document: WorkflowDocument = {
       name: 'invalid timeout',
