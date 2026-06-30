@@ -1,6 +1,7 @@
 import type {CodeBlockHighlightedLineRange} from '@shipfox/react-ui';
 
-const YAML_PLAIN_SCALAR_LEADING_INDICATOR_RE = /^[@`[\]{}#,&*!?|>'"%:]/;
+const YAML_SAFE_PLAIN_SCALAR_RE = /^[A-Za-z][A-Za-z0-9._/-]*$/;
+const YAML_AMBIGUOUS_PLAIN_SCALAR_RE = /^(?:false|n|no|null|off|on|true|y|yes)$/i;
 
 export interface AgentWorkflowExample {
   code: string;
@@ -47,9 +48,5 @@ function formatYamlPlainOrSingleQuotedScalar(value: string): string {
 }
 
 function requiresYamlSingleQuotes(value: string): boolean {
-  return (
-    YAML_PLAIN_SCALAR_LEADING_INDICATOR_RE.test(value) ||
-    value.includes(': ') ||
-    value.includes('#')
-  );
+  return !YAML_SAFE_PLAIN_SCALAR_RE.test(value) || YAML_AMBIGUOUS_PLAIN_SCALAR_RE.test(value);
 }

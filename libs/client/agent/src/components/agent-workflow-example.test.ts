@@ -28,6 +28,12 @@ describe('buildAgentWorkflowExample', () => {
       expectedProvider: "        provider: 'provider#beta'",
       expectedModel: "        model: 'model: beta''s'",
     },
+    {
+      providerId: 'true',
+      model: '123',
+      expectedProvider: "        provider: 'true'",
+      expectedModel: "        model: '123'",
+    },
   ])('builds valid workflow YAML for provider $providerId and model $model', ({
     providerId,
     model,
@@ -38,9 +44,14 @@ describe('buildAgentWorkflowExample', () => {
 
     const lines = example.code.split('\n');
     const parsed = parse(example.code);
+    const parsedStep = parsed as {
+      jobs: {agent: {steps: Array<{provider?: unknown; model?: unknown}>}};
+    };
     const result = workflowDocumentSchema.safeParse(parsed);
 
     expect(result.success).toBe(true);
+    expect(parsedStep.jobs.agent.steps[0]?.provider).toBe(providerId);
+    expect(parsedStep.jobs.agent.steps[0]?.model).toBe(model);
     expect(lines).toContain(expectedProvider);
     expect(lines).toContain(expectedModel);
     expect(example.highlightedLineRange).toEqual({startLine: 11, endLine: 12});

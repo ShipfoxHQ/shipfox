@@ -220,6 +220,74 @@ describe('WorkspaceAgentProvidersSection', () => {
     expect(screen.queryByDisplayValue('sk-proj-secret')).not.toBeInTheDocument();
   });
 
+  test('does not automatically open the usage modal after configuring an additional provider', async () => {
+    const user = userEvent.setup();
+    let isOpenAiConfigured = false;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (requestPath(input).endsWith('/agent/provider-catalog')) {
+        return Promise.resolve(
+          jsonResponse(
+            agentProviderCatalogResponse([
+              agentProviderEntry(),
+              agentProviderEntry({
+                id: 'openai',
+                label: 'OpenAI',
+                default_model: 'gpt-5.5-pro',
+                models: [{id: 'gpt-5.5-pro', label: 'GPT-5.5 Pro'}],
+              }),
+            ]),
+          ),
+        );
+      }
+      if (request.method === 'PUT') {
+        isOpenAiConfigured = true;
+        return Promise.resolve(
+          jsonResponse(
+            agentProviderConfig({
+              provider_id: 'openai',
+              default_model: 'gpt-5.5-pro',
+              key_fingerprints: {api_key: 'sk-proj...abcd'},
+            }),
+          ),
+        );
+      }
+      return Promise.resolve(
+        jsonResponse(
+          agentProviderConfigsResponse({
+            configs: [
+              agentProviderConfig(),
+              ...(isOpenAiConfigured
+                ? [
+                    agentProviderConfig({
+                      provider_id: 'openai',
+                      default_model: 'gpt-5.5-pro',
+                      key_fingerprints: {api_key: 'sk-proj...abcd'},
+                    }),
+                  ]
+                : []),
+            ],
+            default_provider_id: 'anthropic',
+          }),
+        ),
+      );
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderAgentProviders(<WorkspaceAgentProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
+    expect(await screen.findByText('Anthropic')).toBeVisible();
+    await user.click(screen.getByRole('button', {name: 'Configure OpenAI'}));
+    await user.type(await screen.findByLabelText('API key'), 'sk-proj-secret');
+    await user.click(screen.getByRole('button', {name: 'Test & save'}));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(
+      screen.queryByRole('dialog', {name: 'Use OpenAI in a workflow'}),
+    ).not.toBeInTheDocument();
+    expect(await screen.findByText('OpenAI')).toBeVisible();
+  });
+
   test('submits null default model when configuring a provider with Latest selected', async () => {
     const user = userEvent.setup();
     let requestBody: unknown;

@@ -265,7 +265,7 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
               existingConfig={formState.config}
               onSaved={(savedDefaultModel) => {
                 toast.success(`${formState.entry.label} saved`);
-                if (formState.mode === 'configure') {
+                if (formState.mode === 'configure' && configs.length === 0) {
                   setPendingUsageTarget({
                     entry: formState.entry,
                     initialModel: savedDefaultModel,
