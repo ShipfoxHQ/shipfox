@@ -3,6 +3,9 @@ import userEvent from '@testing-library/user-event';
 import {agentProviderEntry} from '#test/fixtures/agent-providers.js';
 import {AgentProviderUsageModal} from './agent-provider-usage-modal.js';
 
+const CLAUDE_MODEL_ROW_NAME = 'Copy Claude Opus 4.8 model id claude-opus-4-8';
+const KIMI_MODEL_ROW_NAME = 'Copy Kimi K2.7 Code model id @cf/moonshotai/kimi-k2.7-code';
+
 function renderUsageModal() {
   const onOpenChange = vi.fn();
   const entry = agentProviderEntry({
@@ -45,25 +48,13 @@ describe('AgentProviderUsageModal', () => {
     );
   });
 
-  test('renders reference model copy buttons', async () => {
+  test('renders reference models as clickable rows with inline ids', async () => {
     renderUsageModal();
 
     const list = await screen.findByRole('list');
     expect(within(list).getByText('Claude Opus 4.8')).toBeVisible();
-    expect(within(list).getByRole('button', {name: 'Copy Claude Opus 4.8 id'})).toBeVisible();
-    expect(within(list).getByRole('button', {name: 'Copy Kimi K2.7 Code id'})).toBeVisible();
-  });
-
-  test('shows model ids in a tooltip instead of the row', async () => {
-    const user = userEvent.setup();
-
-    renderUsageModal();
-    expect(screen.queryByText('@cf/moonshotai/kimi-k2.7-code')).not.toBeInTheDocument();
-
-    await user.hover(await screen.findByText('Kimi K2.7 Code'));
-
-    const matches = await screen.findAllByText('@cf/moonshotai/kimi-k2.7-code');
-    expect(matches.length).toBeGreaterThan(0);
+    expect(within(list).getByText('@cf/moonshotai/kimi-k2.7-code')).toBeVisible();
+    expect(within(list).getByRole('button', {name: KIMI_MODEL_ROW_NAME})).toBeVisible();
   });
 
   test('copies the full model id', async () => {
@@ -75,9 +66,10 @@ describe('AgentProviderUsageModal', () => {
     });
 
     renderUsageModal();
-    await user.click(await screen.findByRole('button', {name: 'Copy Kimi K2.7 Code id'}));
+    await user.click(await screen.findByRole('button', {name: KIMI_MODEL_ROW_NAME}));
 
     expect(writeText).toHaveBeenCalledWith('@cf/moonshotai/kimi-k2.7-code');
+    expect(await screen.findAllByText('Copied')).toHaveLength(2);
     expect(await screen.findByRole('status')).toHaveTextContent('Copied Kimi K2.7 Code id');
   });
 
@@ -94,7 +86,7 @@ describe('AgentProviderUsageModal', () => {
     });
 
     renderUsageModal();
-    await user.click(await screen.findByRole('button', {name: 'Copy Claude Opus 4.8 id'}));
+    await user.click(await screen.findByRole('button', {name: CLAUDE_MODEL_ROW_NAME}));
 
     await waitFor(() => expect(document.execCommand).toHaveBeenCalledWith('copy'));
     expect(await screen.findByRole('status')).toHaveTextContent(

@@ -11,7 +11,6 @@ import {
   CodeBlockHeader,
   CodeBlockItem,
   Combobox,
-  IconButton,
   Modal,
   ModalBody,
   ModalContent,
@@ -199,35 +198,33 @@ function AgentProviderModelRow({label, id}: {label: string; id: string}) {
   }
 
   return (
-    <li className="flex min-h-40 items-center gap-12 border-b border-border-neutral-base px-12 py-8 last:border-b-0">
-      <Tooltip>
+    <li className="border-b border-border-neutral-base last:border-b-0">
+      <Tooltip open={copyState === 'copied'}>
         <TooltipTrigger asChild>
-          <Text
-            as="span"
-            size="sm"
-            bold
-            tabIndex={0}
-            className="min-w-0 flex-1 truncate outline-none focus-visible:ring-2 focus-visible:ring-border-highlights-interactive"
+          <button
+            type="button"
+            aria-label={`Copy ${label} model id ${id}`}
+            className="flex min-h-40 w-full min-w-0 items-center gap-8 px-12 py-8 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
+            onClick={() => {
+              void handleCopy();
+            }}
           >
-            {label}
-          </Text>
+            <Text as="span" size="sm" bold className="max-w-[48%] shrink-0 truncate">
+              {label}
+            </Text>
+            <Code
+              as="span"
+              variant="label"
+              className="min-w-0 flex-1 truncate text-foreground-neutral-muted"
+            >
+              {id}
+            </Code>
+          </button>
         </TooltipTrigger>
-        <TooltipContent side="top" align="start" className="max-w-[min(520px,calc(100vw-32px))]">
-          <Code as="span" variant="label" className="break-all text-foreground-neutral-base">
-            {id}
-          </Code>
+        <TooltipContent side="top" align="center">
+          Copied
         </TooltipContent>
       </Tooltip>
-      <IconButton
-        type="button"
-        size="sm"
-        variant="transparent"
-        icon={copyState === 'copied' ? 'check' : copyState === 'failed' ? 'xCircleSolid' : 'copy'}
-        aria-label={`Copy ${label} id`}
-        onClick={() => {
-          void handleCopy();
-        }}
-      />
       {copyState === 'copied' ? (
         <span className="sr-only" role="status">
           Copied {label} id
