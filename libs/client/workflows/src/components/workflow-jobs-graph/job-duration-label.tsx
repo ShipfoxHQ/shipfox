@@ -1,12 +1,6 @@
 import {Code, humanDuration, useTimeTick} from '@shipfox/react-ui';
 import type {WorkflowJobDuration} from '#core/workflow-run.js';
 
-/**
- * Renders a job node's duration as a bare, muted, monospace number. There is no
- * verb: the node's status icon already names the state, so `6m` beside a queued
- * job and `2m 14s` beside a succeeded one read unambiguously. The verb-bearing
- * phrasing lives in the node's `aria-label` for screen readers.
- */
 export function JobDurationLabel({duration}: {duration: WorkflowJobDuration}) {
   switch (duration.kind) {
     case 'none':
@@ -19,13 +13,13 @@ export function JobDurationLabel({duration}: {duration: WorkflowJobDuration}) {
   }
 }
 
-/** Subscribes to the shared 1s ticker so the elapsed value advances each second. */
 function LiveDurationText({fromIso}: {fromIso: string}) {
   useTimeTick();
   return <DurationText>{humanDuration(fromIso)}</DurationText>;
 }
 
 function DurationText({children}: {children: string}) {
+  // The status icon names the state; the node aria-label carries the verb.
   return (
     <Code as="span" variant="label" className="shrink-0 tabular-nums text-foreground-neutral-muted">
       {children}
