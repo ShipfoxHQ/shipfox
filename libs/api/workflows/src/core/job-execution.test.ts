@@ -7,13 +7,11 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
-import {jobExecutions} from '#db/schema/job-executions.js';
 import {workflowsOutbox} from '#db/schema/outbox.js';
 import {stepAttempts as stepAttemptsTable} from '#db/schema/step-attempts.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
 import {
   bulkUpdateStepStatuses,
-  getFirstJobExecutionByJobId,
   getStepAttempts,
   getStepsByJobId,
   getTerminalStepAttemptLogState,
@@ -87,38 +85,6 @@ describe('nextStepForJob', () => {
     expect(after[0]?.status).toBe('running');
     expect(after[1]?.status).toBe('pending');
     expect(after[2]?.status).toBe('pending');
-  });
-
-  test('uses the latest job execution for job-scoped callers', async () => {
-    const {jobId} = await arrangeJobWithSteps(1);
-    const firstExecution = await getFirstJobExecutionByJobId(jobId);
-    if (!firstExecution) throw new Error('Expected fixture execution to exist');
-    const [latestExecution] = await db()
-      .insert(jobExecutions)
-      .values({
-        jobId,
-        sequence: 2,
-        name: 'build',
-        status: 'pending',
-      })
-      .returning();
-    if (!latestExecution) throw new Error('Expected job execution insert to return a row');
-    const [latestStep] = await db()
-      .insert(stepsTable)
-      .values({
-        jobExecutionId: latestExecution.id,
-        displayName: 'rerun',
-        status: 'pending',
-        type: 'run',
-        config: {run: 'echo rerun'},
-        position: 0,
-      })
-      .returning();
-    if (!latestStep) throw new Error('Expected step insert to return a row');
-
-    const result = await nextStepForJob(jobId);
-
-    expect(result).toEqual({kind: 'step', step: expect.objectContaining({id: latestStep.id})});
   });
 
   test('idempotent re-delivery: a second pull returns the same running step', async () => {

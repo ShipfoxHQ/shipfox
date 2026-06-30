@@ -10,7 +10,6 @@ import {
   failJobExecutionAsTimedOut,
   getJobExecutionsByRunId,
   getJobsByRunId,
-  getStepsByJobExecutionIds,
   getWorkflowRunById,
   resolveJobExecutionAfterLeaseExpiry,
   resolveJobStatusFromJobExecutions,
@@ -29,13 +28,6 @@ export interface DagJob extends RuntimeDagJob {
   dependencies: string[];
   runner: string[];
   version: number;
-  steps: Array<{
-    id: string;
-    name: string | null;
-    type: string;
-    config: Record<string, unknown>;
-    position: number;
-  }>;
 }
 
 export interface RunDag {
@@ -58,15 +50,6 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
       firstJobExecutions.set(jobExecution.jobId, jobExecution);
     }
   }
-  const jobExecutionIds = [...firstJobExecutions.values()].map((jobExecution) => jobExecution.id);
-  const allSteps = await getStepsByJobExecutionIds(jobExecutionIds);
-
-  const stepsByJobExecutionId = new Map<string, typeof allSteps>();
-  for (const step of allSteps) {
-    const arr = stepsByJobExecutionId.get(step.jobExecutionId) ?? [];
-    arr.push(step);
-    stepsByJobExecutionId.set(step.jobExecutionId, arr);
-  }
 
   return {
     runId: run.id,
@@ -87,13 +70,6 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
           dependencies: job.dependencies,
           runner: job.runner ?? [],
           version: job.version,
-          steps: (stepsByJobExecutionId.get(jobExecution.id) ?? []).map((s) => ({
-            id: s.id,
-            name: s.name,
-            type: s.type,
-            config: s.config,
-            position: s.position,
-          })),
         },
       ];
     }),

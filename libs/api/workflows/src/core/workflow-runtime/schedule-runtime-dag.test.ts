@@ -2,7 +2,7 @@ import type {RuntimeCompletionStatus, RuntimeDagJob} from '../entities/runtime-d
 import {scheduleRuntimeDag} from './schedule-runtime-dag.js';
 
 function job(name: string, dependencies: readonly string[] = []): RuntimeDagJob {
-  return {id: `job-${name}`, name, dependencies, version: 1, steps: []};
+  return {id: `job-${name}`, name, dependencies, version: 1};
 }
 
 function completed(

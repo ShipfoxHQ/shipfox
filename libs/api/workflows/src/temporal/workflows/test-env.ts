@@ -112,7 +112,6 @@ export function dagJob(
     dependencies: deps,
     runner: ['ubuntu22'],
     version: 1,
-    steps: [{id: `${id}-step`, name: null, type: 'run', config: {cmd: 'echo'}, position: 0}],
   };
 }
 

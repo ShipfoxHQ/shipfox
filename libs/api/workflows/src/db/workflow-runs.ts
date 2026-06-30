@@ -259,22 +259,6 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
   return result.run;
 }
 
-export async function getStepByIdForJob(params: {
-  stepId: string;
-  jobId: string;
-}): Promise<Step | undefined> {
-  const rows = await db()
-    .select({step: steps})
-    .from(steps)
-    .innerJoin(jobExecutions, eq(steps.jobExecutionId, jobExecutions.id))
-    .where(and(eq(steps.id, params.stepId), eq(jobExecutions.jobId, params.jobId)))
-    .limit(1);
-
-  const row = rows[0]?.step;
-  if (!row) return undefined;
-  return toStep(row);
-}
-
 export async function getStepByIdForJobExecution(params: {
   stepId: string;
   jobExecutionId: string;
@@ -939,16 +923,6 @@ export async function getStepsByJobExecutionId(jobExecutionId: string): Promise<
   return rows.map(toStep);
 }
 
-export async function getStepsByJobExecutionIds(jobExecutionIds: string[]): Promise<Step[]> {
-  if (jobExecutionIds.length === 0) return [];
-  const rows = await db()
-    .select()
-    .from(steps)
-    .where(inArray(steps.jobExecutionId, jobExecutionIds))
-    .orderBy(asc(steps.jobExecutionId), asc(steps.position));
-  return rows.map(toStep);
-}
-
 export async function getJobExecutionsByRunId(runId: string): Promise<JobExecution[]> {
   const rows = await db()
     .select({jobExecution: jobExecutions})
@@ -994,17 +968,6 @@ export async function getLatestJobExecutionByJobId(
     .limit(1);
   const row = rows[0];
   return row ? toJobExecution(row) : undefined;
-}
-
-export async function getStepsByJobIds(jobIds: string[]): Promise<Step[]> {
-  if (jobIds.length === 0) return [];
-  const rows = await db()
-    .select({step: steps})
-    .from(steps)
-    .innerJoin(jobExecutions, eq(steps.jobExecutionId, jobExecutions.id))
-    .where(inArray(jobExecutions.jobId, jobIds))
-    .orderBy(asc(jobExecutions.jobId), asc(steps.position));
-  return rows.map((row) => toStep(row.step));
 }
 
 export interface CancelWorkflowRunParams {
@@ -1397,12 +1360,6 @@ export async function recordJobExecutionStartedAt(params: {
   if (updated.length > 0) recordWorkflowJobExecutionStarted();
 }
 
-export interface FailJobAsTimedOutParams {
-  jobId: string;
-  runId: string;
-  expectedVersion: number;
-}
-
 export async function failJobExecutionAsTimedOut(params: {
   jobExecutionId: string;
   runId: string;
@@ -1450,132 +1407,6 @@ export async function failJobExecutionAsTimedOut(params: {
   }
 
   return result.execution;
-}
-
-// Idempotent under retry: a 0-row UPDATE re-reads the row, and a non-null
-// `timed_out_at` proves an earlier attempt of this same activity already
-// finalized — return its version without writing a second outbox event.
-export async function failJobAsTimedOut(params: FailJobAsTimedOutParams): Promise<Job> {
-  const result = await db().transaction(async (tx) => {
-    const updated = await updateJobStatusAtVersion(tx, {
-      jobId: params.jobId,
-      status: 'failed',
-      expectedVersion: params.expectedVersion,
-      statusReason: 'timed_out',
-      markTimedOut: true,
-    });
-
-    if (!updated) {
-      const existing = await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1);
-      const row = existing[0];
-      if (row && row.timedOutAt !== null) {
-        return {job: toJob(row), changed: false};
-      }
-      throw new Error(
-        `Optimistic lock failure: job ${params.jobId} version ${params.expectedVersion}`,
-      );
-    }
-
-    const executionRow = (
-      await tx
-        .select({id: jobExecutions.id})
-        .from(jobExecutions)
-        .where(eq(jobExecutions.jobId, params.jobId))
-        .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id))
-        .limit(1)
-    )[0];
-    if (!executionRow) {
-      throw new Error(`Cannot time out job ${params.jobId}: no job execution found`);
-    }
-
-    await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
-      type: WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
-      payload: {jobId: params.jobId, jobExecutionId: executionRow.id, runId: params.runId},
-    });
-
-    return updated;
-  });
-
-  if (result.changed) {
-    recordWorkflowJobStatusChanged(result.job.status);
-    recordWorkflowJobExecutionTimedOut();
-  }
-
-  return result.job;
-}
-
-/**
- * Resolves a job whose runner lease expired, in a SINGLE transaction so a
- * concurrent `recordStepResult` cannot interleave between the terminal check and
- * the writes. Server state is the final gate:
- *
- *   getStepsByJobExecutionIdForUpdate (FOR UPDATE, position order — same lock order as
- *   recordStepResult, so the two never deadlock)
- *        │
- *        ├─ all steps terminal ─► the job finished concurrently (e.g. a lagging
- *        │                        WORKFLOWS_JOB_STEPS_SETTLED). Adopt deriveCompletion.
- *        └─ otherwise ──────────► the runner died mid-job: fail it + cancel the
- *                                 remaining (non-terminal) steps.
- *
- * Returns the job's ACTUAL persisted terminal status (+version) by re-reading the
- * row, never a hardcoded 'failed' — so a row a concurrent DAG-cancel already
- * terminalised (the guarded UPDATE then matches 0 rows) is reported truthfully.
- * A non-`succeeded` terminal status maps to `failed` for the run-orchestration DAG.
- */
-export async function resolveJobAfterLeaseExpiry(params: {
-  jobId: string;
-  expectedVersion: number;
-}): Promise<{status: RuntimeCompletionStatus; jobVersion: number}> {
-  const result = await db().transaction(async (tx) => {
-    const jobExecution = (
-      await tx
-        .select({id: jobExecutions.id})
-        .from(jobExecutions)
-        .where(eq(jobExecutions.jobId, params.jobId))
-        .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id))
-        .limit(1)
-    )[0];
-    if (!jobExecution) throw new JobNotFoundError(params.jobId);
-    const jobSteps = await getStepsByJobExecutionIdForUpdate(jobExecution.id, tx);
-    let changedJob: Job | null = null;
-
-    // A job with no steps is malformed, not a runner-died-mid-job failure. Surface
-    // it loudly instead of silently marking the job failed and hiding the bad state.
-    // The activity translates this to a non-retryable failure so it fails fast.
-    if (jobSteps.length === 0) {
-      throw new JobNotFoundError(params.jobId);
-    }
-
-    if (jobSteps.every((step) => isTerminal(step.status))) {
-      const status = deriveCompletion(jobSteps);
-      const updated = await updateJobStatusAtVersion(tx, {
-        jobId: params.jobId,
-        status,
-        expectedVersion: params.expectedVersion,
-        statusReason: statusReasonForStepCompletion(status),
-      });
-      changedJob = updated?.changed ? updated.job : null;
-    } else {
-      const updated = await updateJobStatusAtVersion(tx, {
-        jobId: params.jobId,
-        status: 'failed',
-        expectedVersion: params.expectedVersion,
-        statusReason: 'runner_lost',
-      });
-      changedJob = updated?.changed ? updated.job : null;
-      await bulkUpdateStepStatuses({jobExecutionId: jobExecution.id, status: 'cancelled'}, tx);
-    }
-
-    const row = (await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1))[0];
-    if (!row) throw new Error(`Job not found resolving lease expiry: ${params.jobId}`);
-    const status: RuntimeCompletionStatus = row.status === 'succeeded' ? 'succeeded' : 'failed';
-    return {status, jobVersion: row.version, changedJob};
-  });
-
-  recordWorkflowJobExecutionLeaseExpiryResolved(result.status);
-  if (result.changedJob) recordWorkflowJobStatusChanged(result.changedJob.status);
-
-  return {status: result.status, jobVersion: result.jobVersion};
 }
 
 export async function resolveJobExecutionAfterLeaseExpiry(params: {

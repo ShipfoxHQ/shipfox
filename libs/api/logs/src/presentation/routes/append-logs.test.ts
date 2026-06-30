@@ -65,6 +65,11 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
     const stepId = crypto.randomUUID();
     const token = await mintTestLeaseToken(jobId);
     const body = ndjsonBody(outputLine('installing\n'));
+    mockedGetStepByIdForJobExecution.mockImplementation((params) =>
+      params.stepId === stepId && params.jobExecutionId === JOB_EXECUTION_ID
+        ? Promise.resolve({id: stepId} as never)
+        : Promise.resolve(undefined),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -75,10 +80,6 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({committed_length: body.length, capped: false});
-    expect(mockedGetStepByIdForJobExecution).toHaveBeenCalledWith({
-      stepId,
-      jobExecutionId: JOB_EXECUTION_ID,
-    });
   });
 
   it('rejects appends for a step outside the leased execution', async () => {
@@ -95,10 +96,6 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
 
     expect(res.statusCode).toBe(404);
     expect(res.json().code).toBe('step-not-found');
-    expect(mockedGetStepByIdForJobExecution).toHaveBeenCalledWith({
-      stepId,
-      jobExecutionId: JOB_EXECUTION_ID,
-    });
   });
 
   it('acks a re-sent append at an earlier offset', async () => {

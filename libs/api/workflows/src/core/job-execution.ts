@@ -62,11 +62,6 @@ async function nextStepForJobExecutionInTransaction(
   return {kind: 'done', status: deriveCompletion(steps)};
 }
 
-export function nextStepForJobExecution(jobExecutionId: string): Promise<NextStep> {
-  // FOR UPDATE serializes concurrent pulls so a step is never dispatched twice.
-  return withTransaction((tx) => nextStepForJobExecutionInTransaction(jobExecutionId, tx));
-}
-
 export interface NextStepForLeasedJobExecutionParams {
   jobId: string;
   jobExecutionId: string;
