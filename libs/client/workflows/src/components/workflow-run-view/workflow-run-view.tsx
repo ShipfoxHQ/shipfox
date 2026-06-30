@@ -1,20 +1,8 @@
 import type {RerunMode} from '@shipfox/api-workflows-dto';
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {
-  Alert,
-  AlertActions,
-  AlertContent,
-  AlertDescription,
-  AlertTitle,
-  Button,
-  Code,
-  EmptyState,
-  RelativeTimeProvider,
-  Text,
-  toast,
-} from '@shipfox/react-ui';
-import {Link, useNavigate} from '@tanstack/react-router';
+import {Code, EmptyState, RelativeTimeProvider, Text, toast} from '@shipfox/react-ui';
+import {useNavigate} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
 import type {WorkflowAgentStepConfig, WorkflowJob, WorkflowStep} from '#core/workflow-run.js';
 import {
@@ -30,6 +18,7 @@ import {WorkflowJobsGraph} from '../workflow-jobs-graph/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
 import {WorkflowSourcePanel} from '../workflow-source-panel/index.js';
 import {WorkflowStepList, type WorkflowStepListEmptyState} from '../workflow-step-list/index.js';
+import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
 import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 import {resolveWorkflowRunSelection} from './workflow-run-selection.js';
 import {
@@ -304,28 +293,6 @@ function AgentConfigValue({label, value}: {label: string; value: string | null})
         {value ?? 'Not recorded'}
       </Code>
     </div>
-  );
-}
-
-function AgentConfigFailureCallout({workspaceId}: {workspaceId: string}) {
-  return (
-    <Alert variant="warning" animated={false} className="px-10 py-8">
-      <AlertContent>
-        <AlertTitle>Agent configuration blocked this step</AlertTitle>
-        <AlertDescription>
-          Review the workflow definition values for provider, model, thinking, and prompt. Configure
-          workspace provider credentials, or ask the instance operator to set default provider
-          credentials.
-        </AlertDescription>
-        <AlertActions>
-          <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
-            <Link to="/workspaces/$wid/settings/agent-providers" params={{wid: workspaceId}}>
-              Agent Providers
-            </Link>
-          </Button>
-        </AlertActions>
-      </AlertContent>
-    </Alert>
   );
 }
 

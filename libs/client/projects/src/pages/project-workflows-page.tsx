@@ -413,10 +413,6 @@ function DefinitionSheet({
                 <Text size="sm" bold>
                   Normalized definition
                 </Text>
-                <Text size="xs" className="text-foreground-neutral-muted">
-                  Agent steps require prompt. Provider, model, and thinking are optional and resolve
-                  when a run starts.
-                </Text>
                 <pre className="max-h-[52vh] w-full overflow-auto rounded-8 border border-border-neutral-base bg-background-neutral-subtle p-12 scrollbar">
                   <Code as="code" className="whitespace-pre text-foreground-neutral-base">
                     {normalizedJson}

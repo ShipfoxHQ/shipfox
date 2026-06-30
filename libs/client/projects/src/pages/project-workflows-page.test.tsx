@@ -90,14 +90,6 @@ describe('ProjectWorkflowsPage', () => {
     fireEvent.click(workflowName);
 
     expect(await screen.findByText('Normalized definition')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Agent steps require prompt. Provider, model, and thinking are optional and resolve when a run starts.',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText((content) => content.includes('"prompt": "Fix the failing tests."')),
-    ).toBeInTheDocument();
     expect(screen.getByText((content) => content.includes('"deploy"'))).toBeInTheDocument();
 
     fireEvent.keyDown(document, {key: 'Escape'});
@@ -238,7 +230,7 @@ function baseDefinitionsDto() {
         workflow_document: {
           name: 'Deploy production',
           triggers: {on_demand: {source: 'manual', event: 'fire'}},
-          jobs: {deploy: {steps: [{prompt: 'Fix the failing tests.'}, {run: './deploy.sh'}]}},
+          jobs: {deploy: {steps: [{run: './deploy.sh'}]}},
         },
         workflow_model: {kind: 'workflow', name: 'Deploy production'},
         manual_trigger: {name: 'on_demand'},
