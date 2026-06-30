@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {describe, test} from 'node:test';
 
 import {
+  appEnv,
   composeProjectName,
   parseBasePort,
   parseEnvFile,
@@ -9,7 +10,7 @@ import {
   portsFromBase,
 } from './worktree-services.mjs';
 
-const longShipfoxProjectName = /^shipfox-a+$/;
+const longShipfoxProjectName = /^shipfox-a+-[a-f0-9]{8}$/;
 
 describe('portsFromBase', () => {
   test('assigns stable offsets from the base port', () => {
@@ -35,20 +36,38 @@ describe('composeProjectName', () => {
   test('normalizes workspace names into Compose project names', () => {
     const projectName = composeProjectName('Kolkata ! Workspace');
 
-    assert.equal(projectName, 'shipfox-kolkata-workspace');
+    assert.equal(projectName, 'shipfox-kolkata-workspace-f5f09833');
   });
 
-  test('caps project names at the Docker Compose limit', () => {
+  test('caps project names at the Docker Compose limit with a stable hash suffix', () => {
     const projectName = composeProjectName('a'.repeat(100));
 
     assert.equal(projectName.length, 63);
     assert.match(projectName, longShipfoxProjectName);
   });
 
+  test('keeps long workspace names distinct after truncation', () => {
+    const first = composeProjectName(`${'a'.repeat(100)}-first`);
+    const second = composeProjectName(`${'a'.repeat(100)}-second`);
+
+    assert.notEqual(first, second);
+    assert.equal(first.length, 63);
+    assert.equal(second.length, 63);
+  });
+
   test('uses a fallback when normalization removes every character', () => {
     const projectName = composeProjectName('!!!');
 
-    assert.equal(projectName, 'shipfox-workspace');
+    assert.equal(projectName, 'shipfox-workspace-e84c538e');
+  });
+});
+
+describe('appEnv', () => {
+  test('sets runner container host access for worktree APIs', () => {
+    const env = appEnv(portsFromBase(55_290));
+
+    assert.equal(env.SHIPFOX_RUNNER_API_URL, 'http://host.docker.internal:55291');
+    assert.equal(env.SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS, 'host.docker.internal:host-gateway');
   });
 });
 

@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 import {spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
 import {existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
+const composeProjectNameMaxLength = 63;
+const composeProjectNamePrefix = 'shipfox-';
 const stateDir = resolve('.context/local-services');
 const portsFile = resolve(stateDir, 'ports.env');
 const composeEnvFile = resolve(stateDir, 'compose.env');
 const appEnvFile = resolve(stateDir, 'env');
 const composeProjectNameInvalidChars = /[^a-z0-9_-]+/g;
 const composeProjectNameLeadingDashes = /^-+/;
+const composeProjectNameTrailingDashes = /-+$/;
 
 if (isCliEntryPoint()) {
   main(process.argv[2]);
@@ -173,7 +177,7 @@ function composeEnv(ports) {
   };
 }
 
-function appEnv(ports) {
+export function appEnv(ports) {
   const apiUrl = `http://localhost:${ports.api}`;
   const clientUrl = `http://localhost:${ports.client}`;
   return {
@@ -193,6 +197,7 @@ function appEnv(ports) {
     SHIPFOX_CLIENT_PORT: String(ports.client),
     SHIPFOX_API_URL: apiUrl,
     SHIPFOX_RUNNER_API_URL: `http://host.docker.internal:${ports.api}`,
+    SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS: 'host.docker.internal:host-gateway',
   };
 }
 
@@ -216,8 +221,14 @@ export function composeProjectName(workspaceName) {
     .toLowerCase()
     .replace(composeProjectNameInvalidChars, '-')
     .replace(composeProjectNameLeadingDashes, '');
-  const suffix = normalized || 'workspace';
-  return `shipfox-${suffix}`.slice(0, 63);
+  const hash = createHash('sha256').update(workspaceName).digest('hex').slice(0, 8);
+  const suffixLength =
+    composeProjectNameMaxLength - composeProjectNamePrefix.length - hash.length - 1;
+  const suffix =
+    (normalized || 'workspace')
+      .slice(0, suffixLength)
+      .replace(composeProjectNameTrailingDashes, '') || 'workspace';
+  return `${composeProjectNamePrefix}${suffix}-${hash}`;
 }
 
 function readEnvFile(file) {

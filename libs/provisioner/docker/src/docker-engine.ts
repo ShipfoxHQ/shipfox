@@ -61,6 +61,7 @@ export interface DockerEngine {
 export interface CreateDockerEngineOptions {
   readonly host?: string;
   readonly network?: string;
+  readonly extraHosts?: readonly string[];
   readonly docker?: Docker;
 }
 
@@ -115,6 +116,7 @@ export function createDockerEngine(options: CreateDockerEngineOptions = {}): Doc
             Memory: args.memoryBytes,
             RestartPolicy: {Name: 'no'},
             ...(options.network ? {NetworkMode: options.network} : {}),
+            ...(options.extraHosts ? {ExtraHosts: [...options.extraHosts]} : {}),
           },
         });
       } catch (error) {

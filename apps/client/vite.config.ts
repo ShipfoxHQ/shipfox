@@ -6,7 +6,9 @@ const rawPort = process.env.SHIPFOX_CLIENT_PORT ?? process.env.VITE_PORT;
 const port = Number(rawPort ?? 5173);
 
 if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
-  throw new Error(`SHIPFOX_CLIENT_PORT must be a valid TCP port; got ${rawPort}`);
+  throw new Error(
+    `Client port must be a valid TCP port (1-65535); got ${rawPort} from SHIPFOX_CLIENT_PORT or VITE_PORT`,
+  );
 }
 
 export default defineConfig({

@@ -43,6 +43,7 @@ until observation succeeds.
 | `SHIPFOX_PROVISIONER_TEMPLATES_FILE` | yes | — | Path to the YAML template file (see `templates.example.yaml`). |
 | `SHIPFOX_PROVISIONER_DOCKER_HOST` | no | local Docker socket | Docker daemon host used by dockerode. |
 | `SHIPFOX_PROVISIONER_DOCKER_NETWORK` | no | — | Docker network attached to runner containers, for example a Compose network that can reach the API. |
+| `SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS` | no | — | Comma-separated host mappings added to runner containers, such as `host.docker.internal:host-gateway`. |
 | `SHIPFOX_PROVISIONER_REGISTRATION_DEADLINE_MS` | no | `120000` | How long a `created` runner container may linger before being reaped as stale. |
 | `SHIPFOX_PROVISIONER_POLL_WAIT_SECONDS` | no | `30` | Long-poll wait per demand request. |
 | `SHIPFOX_PROVISIONER_POLL_INTERVAL_MS` | no | `1000` | Base delay between polls; backs off on error. |

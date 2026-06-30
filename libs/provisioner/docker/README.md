@@ -62,6 +62,7 @@ variables:
 | `SHIPFOX_PROVISIONER_TEMPLATES_FILE` | yes | - | YAML template file describing labels, image, cpu, memory, and max concurrency. |
 | `SHIPFOX_PROVISIONER_DOCKER_HOST` | no | local Docker socket | Docker daemon host used by dockerode. |
 | `SHIPFOX_PROVISIONER_DOCKER_NETWORK` | no | - | Docker network attached to runner containers, useful for Compose-local API access. |
+| `SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS` | no | - | Comma-separated host mappings added to runner containers, such as `host.docker.internal:host-gateway`. |
 | `SHIPFOX_PROVISIONER_REGISTRATION_DEADLINE_MS` | no | `120000` | Maximum time a `created` container may linger before being reaped as stale. |
 
 The core `SHIPFOX_RUNNER_API_URL` variable is injected into runner containers as
