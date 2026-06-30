@@ -1,5 +1,8 @@
 import {upsertGithubInstallation} from '@shipfox/api-integration-github';
+import {IntegrationConnectionAlreadyExistsError} from '#core/errors.js';
 import {
+  createIntegrationConnection,
+  deleteIntegrationConnection,
   getIntegrationConnectionById,
   listIntegrationConnections,
   listIntegrationConnectionsByProvider,
@@ -51,6 +54,28 @@ describe('integration connection queries', () => {
     const result = await listIntegrationConnections({workspaceId});
 
     expect(result).toHaveLength(2);
+  });
+
+  it('creates a connection without upserting duplicates', async () => {
+    const first = await createIntegrationConnection({
+      workspaceId,
+      provider: 'webhook',
+      externalAccountId: 'stripe',
+      displayName: 'Stripe',
+    });
+
+    const result = createIntegrationConnection({
+      workspaceId,
+      provider: 'webhook',
+      externalAccountId: 'stripe',
+      displayName: 'Renamed Stripe',
+    });
+
+    await expect(result).rejects.toBeInstanceOf(IntegrationConnectionAlreadyExistsError);
+    const connections = await listIntegrationConnections({workspaceId});
+    expect(connections).toHaveLength(1);
+    expect(connections[0]?.id).toBe(first.id);
+    expect(connections[0]?.displayName).toBe('Stripe');
   });
 
   it('lists workspace connections across all lifecycle statuses', async () => {
@@ -137,6 +162,22 @@ describe('integration connection queries', () => {
     });
 
     expect(result).toBeUndefined();
+  });
+
+  it('deletes a connection and reports whether a row was removed', async () => {
+    const connection = await upsertIntegrationConnection({
+      workspaceId,
+      provider: 'webhook',
+      externalAccountId: 'stripe',
+      displayName: 'Stripe',
+    });
+
+    const deleted = await deleteIntegrationConnection({id: connection.id});
+    const deletedAgain = await deleteIntegrationConnection({id: connection.id});
+
+    expect(deleted).toBe(true);
+    expect(deletedAgain).toBe(false);
+    expect(await getIntegrationConnectionById(connection.id)).toBeUndefined();
   });
 
   it('rolls back a connection when provider-specific installation persistence fails', async () => {

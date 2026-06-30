@@ -11,7 +11,12 @@ vi.mock('@shipfox/node-temporal', () => ({
 function buildPayload(
   overrides: Partial<RunnerJobLeaseExpiredEvent> = {},
 ): RunnerJobLeaseExpiredEvent {
-  return {jobId: crypto.randomUUID(), runId: crypto.randomUUID(), ...overrides};
+  return {
+    jobId: crypto.randomUUID(),
+    jobExecutionId: crypto.randomUUID(),
+    runId: crypto.randomUUID(),
+    ...overrides,
+  };
 }
 
 describe('onRunnerJobLeaseExpired', () => {

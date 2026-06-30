@@ -18,6 +18,7 @@ describe('onIntegrationEventReceived', () => {
   test('passes the integration envelope to the core dispatcher', async () => {
     const receivedAt = '2026-06-21T03:20:00.000Z';
     const envelope: IntegrationEventReceivedEvent = {
+      provider: 'github',
       source: 'github',
       event: 'push',
       workspaceId: crypto.randomUUID(),
@@ -39,6 +40,7 @@ describe('onIntegrationEventReceived', () => {
     expect(dispatchIntegrationEvent).toHaveBeenCalledWith({
       eventRef: event.id,
       workspaceId: envelope.workspaceId,
+      provider: envelope.provider,
       source: envelope.source,
       event: envelope.event,
       deliveryId: envelope.deliveryId,

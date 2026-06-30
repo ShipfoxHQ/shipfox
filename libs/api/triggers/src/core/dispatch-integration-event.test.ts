@@ -40,6 +40,7 @@ const {dispatchIntegrationEvent} = await import('./dispatch-integration-event.js
 interface DispatchOverrides {
   eventRef?: string;
   workspaceId?: string;
+  provider?: string;
   source?: string;
   event?: string;
   deliveryId?: string;
@@ -51,6 +52,7 @@ interface DispatchOverrides {
 function dispatch(overrides: DispatchOverrides = {}): Promise<void> {
   return dispatchIntegrationEvent({
     eventRef: overrides.eventRef ?? crypto.randomUUID(),
+    provider: overrides.provider ?? overrides.source ?? 'github',
     source: overrides.source ?? 'github',
     event: overrides.event ?? 'push',
     workspaceId: overrides.workspaceId ?? crypto.randomUUID(),
@@ -121,7 +123,13 @@ describe('dispatchIntegrationEvent', () => {
 
     expect(runWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({
-        triggerPayload: {source: 'github', event: 'push', deliveryId, data: payload},
+        triggerPayload: {
+          provider: 'github',
+          source: 'github',
+          event: 'push',
+          deliveryId,
+          data: payload,
+        },
       }),
     );
   });

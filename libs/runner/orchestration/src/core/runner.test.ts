@@ -86,6 +86,7 @@ const mockStartHeartbeatLoop = vi.mocked(startHeartbeatLoop);
 
 const JOB = {
   job_id: '00000000-0000-0000-0000-000000000001',
+  job_execution_id: '00000000-0000-0000-0000-000000000003',
   run_id: '00000000-0000-0000-0000-000000000002',
   job_name: 'test-job',
   steps: [],
@@ -134,7 +135,8 @@ describe('runJob', () => {
         maxStaleMs: 10_000,
       }),
     );
-    expect(mockCreateLeaseClient).toHaveBeenCalledWith(JOB.lease_token);
+    const leaseTokenSource = mockCreateLeaseClient.mock.calls[0]?.[0];
+    expect(leaseTokenSource).toEqual(expect.any(Function));
     expect(mockRunJobSteps).toHaveBeenCalledWith(
       expect.objectContaining({
         jobId: JOB.job_id,
@@ -145,6 +147,42 @@ describe('runJob', () => {
     );
     expect(mockCleanupWorkspace).toHaveBeenCalledWith(JOB_CWD);
     expect(mockCleanupJobLogs).toHaveBeenCalledWith(JOB_LOGS_DIR);
+  });
+
+  it('rotates the lease token used by step requests and redaction', async () => {
+    mockJobWorkspacePath.mockReturnValue(JOB_CWD);
+    mockJobLogsPath.mockReturnValue(JOB_LOGS_DIR);
+    const observedSecrets: string[][] = [];
+    mockRunJobSteps.mockImplementation((params) => {
+      params.subscribeSecrets?.((secrets) => observedSecrets.push(secrets));
+      return Promise.resolve();
+    });
+
+    await runJob(JOB, WORKSPACE_ROOT);
+
+    const leaseTokenSource = mockCreateLeaseClient.mock.calls[0]?.[0];
+    const stepParams = mockRunJobSteps.mock.calls[0]?.[0];
+    expect(typeof leaseTokenSource).toBe('function');
+    expect((leaseTokenSource as () => string)()).toBe(JOB.lease_token);
+    expect(stepParams?.secrets).toEqual(['runner-token', JOB.lease_token]);
+    const heartbeatOptions = mockStartHeartbeatLoop.mock.calls[0]?.[3];
+    heartbeatOptions?.onLeaseTokenRenewed?.('lease-next');
+    expect((leaseTokenSource as () => string)()).toBe('lease-next');
+    heartbeatOptions?.onLeaseTokenRenewed?.('lease-third');
+    heartbeatOptions?.onLeaseTokenRenewed?.('lease-fourth');
+
+    expect((leaseTokenSource as () => string)()).toBe('lease-fourth');
+    expect(observedSecrets).toEqual([
+      ['lease-next'],
+      ['lease-next', 'lease-third'],
+      ['lease-third', 'lease-fourth'],
+    ]);
+    expect(stepParams?.secrets).toEqual([
+      'runner-token',
+      JOB.lease_token,
+      'lease-third',
+      'lease-fourth',
+    ]);
   });
 
   it('cleans up the per-job cwd when the step loop throws', async () => {

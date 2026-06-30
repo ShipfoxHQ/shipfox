@@ -173,6 +173,7 @@ async function publishGithubPush(params: {
     const result = await params.publishIntegrationEventReceived({
       tx: params.tx,
       event: {
+        provider: GITHUB_SOURCE,
         source: GITHUB_SOURCE,
         event: 'push',
         workspaceId: params.connection.workspaceId,
@@ -226,6 +227,7 @@ async function publishGithubEnvelopeOnly(params: {
   const result = await params.publishIntegrationEventReceived({
     tx: params.tx,
     event: {
+      provider: GITHUB_SOURCE,
       source: GITHUB_SOURCE,
       event: params.event,
       workspaceId: params.connection.workspaceId,

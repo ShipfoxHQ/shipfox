@@ -146,6 +146,26 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('normalizes job success expressions and execution timeouts', () => {
+    const document: WorkflowDocument = {
+      name: 'job controls',
+      jobs: {
+        test: {
+          success: 'executions.exists(e, e.index == 0 && e.status == "succeeded")',
+          execution_timeout: '90m',
+          steps: [{run: 'npm test'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]).toMatchObject({
+      success: 'executions.exists(e, e.index == 0 && e.status == "succeeded")',
+      executionTimeoutMs: 90 * 60 * 1000,
+    });
+  });
+
   it('preserves explicit model ids even when the seed catalog only knows provider defaults', () => {
     const document: WorkflowDocument = {
       name: 'agent build',
@@ -557,6 +577,147 @@ describe('normalizeWorkflowDocument', () => {
       source: 'exit_code == 0',
       check: 'typed',
     });
+  });
+
+  it('reports invalid job success expressions', () => {
+    const document: WorkflowDocument = {
+      name: 'invalid job success',
+      jobs: {
+        build: {
+          success: 'executions.exists(e, e.status == )',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-job-success',
+        path: ['jobs', 'build', 'success'],
+        details: expect.objectContaining({source: 'executions.exists(e, e.status == )'}),
+      }),
+    ]);
+  });
+
+  it('reports non-boolean job success expressions', () => {
+    const document: WorkflowDocument = {
+      name: 'non-boolean job success',
+      jobs: {
+        build: {
+          success: 'executions.size()',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-job-success',
+        path: ['jobs', 'build', 'success'],
+        details: expect.objectContaining({
+          source: 'executions.size()',
+          reason: expect.stringContaining('must return bool'),
+        }),
+      }),
+    ]);
+  });
+
+  it('reports misspelled execution fields in job success expressions', () => {
+    const document: WorkflowDocument = {
+      name: 'misspelled job success',
+      jobs: {
+        build: {
+          success: 'executions.all(e, e.statsu == "succeeded")',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-job-success',
+        path: ['jobs', 'build', 'success'],
+        details: expect.objectContaining({
+          source: 'executions.all(e, e.statsu == "succeeded")',
+          reason: expect.stringContaining('statsu'),
+        }),
+      }),
+    ]);
+  });
+
+  it('reports malformed job execution timeouts', () => {
+    const document: WorkflowDocument = {
+      name: 'invalid timeout',
+      jobs: {
+        build: {
+          execution_timeout: 'ten minutes',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-duration',
+        message: 'Duration must be an integer followed by ms, s, m, or h.',
+        path: ['jobs', 'build', 'execution_timeout'],
+        details: {source: 'ten minutes'},
+      },
+    ]);
+  });
+
+  it('reports job execution timeouts below 1s', () => {
+    const document: WorkflowDocument = {
+      name: 'short timeout',
+      jobs: {
+        build: {
+          execution_timeout: '999ms',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-duration',
+        message: 'Duration must be between 1s and 24h.',
+        path: ['jobs', 'build', 'execution_timeout'],
+        details: {source: '999ms', min_ms: 1000, max_ms: 24 * 60 * 60 * 1000},
+      },
+    ]);
+  });
+
+  it('reports job execution timeouts above 24h', () => {
+    const document: WorkflowDocument = {
+      name: 'long timeout',
+      jobs: {
+        build: {
+          execution_timeout: '25h',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-duration',
+        message: 'Duration must be between 1s and 24h.',
+        path: ['jobs', 'build', 'execution_timeout'],
+        details: {source: '25h', min_ms: 1000, max_ms: 24 * 60 * 60 * 1000},
+      },
+    ]);
   });
 
   it('normalizes on_failure-only gates', () => {

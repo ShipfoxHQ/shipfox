@@ -52,7 +52,7 @@ export async function fireManualSubscription(
     receivedAt: new Date(),
   };
 
-  eventReceivedCount.add(1, {source: 'manual'});
+  eventReceivedCount.add(1, {provider: 'manual'});
 
   let run: WorkflowRun;
   try {
@@ -61,6 +61,7 @@ export async function fireManualSubscription(
       projectId: subscription.projectId,
       definitionId: subscription.workflowDefinitionId,
       triggerPayload: {
+        provider: 'manual',
         source: 'manual',
         event: 'fire',
         subscriptionId: subscription.id,
@@ -72,10 +73,10 @@ export async function fireManualSubscription(
     const failure = await beginTriggerHistory({...historyBase, eventRef: randomUUID()});
     await failure.errored(subscription, toReason(error));
     if (isPermanentRunWorkflowError(error)) {
-      eventOutcomeCount.add(1, {source: 'manual', outcome: 'errored'});
+      eventOutcomeCount.add(1, {provider: 'manual', outcome: 'errored'});
       await failure.allErrored(1);
     } else {
-      eventOutcomeCount.add(1, {source: 'manual', outcome: 'failed'});
+      eventOutcomeCount.add(1, {provider: 'manual', outcome: 'failed'});
       await failure.failed(1);
     }
     throw error;
@@ -83,8 +84,8 @@ export async function fireManualSubscription(
 
   const history = await beginTriggerHistory({...historyBase, eventRef: run.id});
   await history.triggered(subscription, run);
-  subscriptionTriggeredCount.add(1, {source: 'manual'});
-  eventOutcomeCount.add(1, {source: 'manual', outcome: 'routed'});
+  subscriptionTriggeredCount.add(1, {provider: 'manual'});
+  eventOutcomeCount.add(1, {provider: 'manual', outcome: 'routed'});
   await history.routed(1);
   return run;
 }

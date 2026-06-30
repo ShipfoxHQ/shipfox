@@ -42,6 +42,7 @@ describe('dispatchIntegrationEvent resilience to history-write failure', () => {
       dispatchIntegrationEvent({
         eventRef: crypto.randomUUID(),
         workspaceId,
+        provider: 'github',
         source: 'github',
         event: 'push',
         connectionId: crypto.randomUUID(),

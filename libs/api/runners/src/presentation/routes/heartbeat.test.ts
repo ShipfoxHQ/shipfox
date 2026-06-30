@@ -2,15 +2,16 @@ import {
   createLeaseTokenAuthMethod,
   createRunnerSessionAuthMethod,
   issueJobLeaseToken,
+  verifyJobLeaseToken,
 } from '@shipfox/api-auth';
 import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
-import {claimJob} from '#core/jobs.js';
+import {claimJobExecution} from '#core/job-executions.js';
 import {db} from '#db/db.js';
-import {requestJobCancellation} from '#db/jobs.js';
+import {requestJobExecutionCancellation} from '#db/job-executions.js';
 import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';
 import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
@@ -58,16 +59,24 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     runnerSessionId = session.id;
   });
 
-  async function claimAvailableJob(): Promise<{jobId: string; leaseToken: string}> {
+  async function claimAvailableJob(): Promise<{
+    jobId: string;
+    jobExecutionId: string;
+    leaseToken: string;
+  }> {
     const pending = await pendingJobFactory.create({workspaceId});
-    const claimed = await claimJob({
+    const claimed = await claimJobExecution({
       workspaceId,
       runnerSessionId,
       sessionLabels: ['linux', 'x64'],
       maxClaims: null,
     });
     expect(claimed).not.toBeNull();
-    return {jobId: pending.jobId, leaseToken: claimed?.leaseToken as string};
+    return {
+      jobId: pending.jobId,
+      jobExecutionId: claimed?.jobExecutionId as string,
+      leaseToken: claimed?.leaseToken as string,
+    };
   }
 
   it('returns 401 without authorization', async () => {
@@ -80,7 +89,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
   });
 
   it('returns 200 + cancel:false on a fresh row', async () => {
-    const {jobId, leaseToken} = await claimAvailableJob();
+    const {jobId, jobExecutionId, leaseToken} = await claimAvailableJob();
 
     const res = await app.inject({
       method: 'POST',
@@ -89,12 +98,15 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({cancel: false});
+    const body = res.json<{cancel: boolean; lease_token: string}>();
+    expect(body).toEqual({cancel: false, lease_token: expect.any(String)});
+    const refreshedLease = await verifyJobLeaseToken(body.lease_token);
+    expect(refreshedLease).toMatchObject({jobId, jobExecutionId, runnerSessionId});
   });
 
-  it('returns 200 + cancel:true after requestJobCancellation', async () => {
-    const {jobId, leaseToken} = await claimAvailableJob();
-    await requestJobCancellation({jobId});
+  it('returns 200 + cancel:true after requestJobExecutionCancellation', async () => {
+    const {jobId, jobExecutionId, leaseToken} = await claimAvailableJob();
+    await requestJobExecutionCancellation({jobExecutionId});
 
     const res = await app.inject({
       method: 'POST',
@@ -103,13 +115,18 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({cancel: true});
+    const body = res.json<{cancel: boolean; lease_token: string}>();
+    expect(body).toEqual({cancel: true, lease_token: expect.any(String)});
+    const refreshedLease = await verifyJobLeaseToken(body.lease_token);
+    expect(refreshedLease).toMatchObject({jobId, jobExecutionId, runnerSessionId});
   });
 
   it('returns 404 when the jobId is unknown', async () => {
     const jobId = crypto.randomUUID();
+    const jobExecutionId = crypto.randomUUID();
     const leaseToken = await issueJobLeaseToken({
       jobId,
+      jobExecutionId,
       runId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       workspaceId,
@@ -123,14 +140,15 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json().code).toBe('running-job-not-found');
+    expect(res.json().code).toBe('running-job-execution-not-found');
   });
 
   it('returns 404 when the job belongs to a different session', async () => {
-    const {jobId} = await claimAvailableJob();
+    const {jobId, jobExecutionId} = await claimAvailableJob();
     const otherSession = await runnerSessionFactory.create({workspaceId});
     const leaseToken = await issueJobLeaseToken({
       jobId,
+      jobExecutionId,
       runId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       workspaceId,
@@ -144,7 +162,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json().code).toBe('running-job-not-found');
+    expect(res.json().code).toBe('running-job-execution-not-found');
   });
 
   it('returns 404 when the path job id does not match the lease token job id', async () => {

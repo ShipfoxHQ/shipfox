@@ -16,6 +16,11 @@ const mocks = vi.hoisted(() => {
     createIntegrationsContext: vi.fn(),
     createPostgresClient: vi.fn(),
     createProjectsModule: vi.fn(),
+    apiConfig: {
+      API_PORT: undefined as number | undefined,
+      API_TRUST_PROXY: 'false',
+      E2E_ENABLED: false,
+    },
     initializeModules: vi.fn(),
     listen: vi.fn(),
     logger: {
@@ -73,7 +78,7 @@ vi.mock('@shipfox/node-opentelemetry', () => ({
 }));
 vi.mock('@shipfox/node-postgres', () => ({createPostgresClient: mocks.createPostgresClient}));
 vi.mock('../config.js', () => ({
-  config: {API_TRUST_PROXY: 'false', E2E_ENABLED: false},
+  config: mocks.apiConfig,
   parseApiTrustProxy: mocks.parseApiTrustProxy,
 }));
 vi.mock('./e2e.js', () => ({
@@ -109,6 +114,9 @@ describe('run', () => {
     mocks.createIntegrationsContext.mockReset();
     mocks.createPostgresClient.mockReset();
     mocks.createProjectsModule.mockReset();
+    mocks.apiConfig.API_PORT = undefined;
+    mocks.apiConfig.API_TRUST_PROXY = 'false';
+    mocks.apiConfig.E2E_ENABLED = false;
     mocks.initializeModules.mockReset();
     mocks.listen.mockReset();
     mocks.logger.error.mockReset();
@@ -172,6 +180,14 @@ describe('run', () => {
     expect(mocks.startModuleWorkers.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.listen.mock.invocationCallOrder[0] ?? 0,
     );
+  });
+
+  it('passes API_PORT to the HTTP listener when configured', async () => {
+    mocks.apiConfig.API_PORT = 55_291;
+
+    await run();
+
+    expect(mocks.listen).toHaveBeenCalledWith({port: 55_291});
   });
 
   it('does not listen when module worker startup fails', async () => {

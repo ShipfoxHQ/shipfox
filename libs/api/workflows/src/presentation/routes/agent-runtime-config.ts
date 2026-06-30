@@ -14,7 +14,7 @@ import {agentRuntimeConfigQuerySchema} from '@shipfox/api-workflows-dto';
 import {captureException} from '@shipfox/node-error-monitoring';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {ZodError} from 'zod';
-import {getJobWorkspaceId, getStepByIdForJob} from '#db/index.js';
+import {getJobWorkspaceId, getStepByIdForJobExecution} from '#db/index.js';
 
 export const agentRuntimeConfigRoute = defineRoute({
   method: 'GET',
@@ -54,7 +54,10 @@ export const agentRuntimeConfigRoute = defineRoute({
     const leasedJob = requireLeasedJobContext(request);
     const {step_id: stepId, attempt} = request.query;
 
-    const step = await getStepByIdForJob({stepId, jobId: leasedJob.jobId});
+    const step = await getStepByIdForJobExecution({
+      stepId,
+      jobExecutionId: leasedJob.jobExecutionId,
+    });
     if (!step) {
       throw new ClientError('Step not found for leased job', 'step-not-found', {status: 404});
     }
@@ -64,6 +67,7 @@ export const agentRuntimeConfigRoute = defineRoute({
     }
     const leaseIsActive = await isJobLeaseActive({
       jobId: leasedJob.jobId,
+      jobExecutionId: leasedJob.jobExecutionId,
       runnerSessionId: leasedJob.runnerSessionId,
     });
     if (!leaseIsActive) {

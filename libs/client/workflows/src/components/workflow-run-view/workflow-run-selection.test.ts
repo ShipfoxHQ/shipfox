@@ -27,7 +27,6 @@ describe('resolveWorkflowRunSelection', () => {
     const attempt = workflowStepAttemptDto({id: 'attempt-1', step_id: 'step-deploy'});
     const step = workflowStepDto({
       id: 'step-deploy',
-      job_id: 'job-deploy',
       current_attempt: 1,
       attempts: [attempt],
     });
@@ -62,7 +61,6 @@ describe('resolveWorkflowRunSelection', () => {
     });
     const step = workflowStepDto({
       id: 'step-deploy',
-      job_id: 'job-deploy',
       current_attempt: 1,
       attempts: [firstAttempt, secondAttempt],
     });
@@ -82,7 +80,6 @@ describe('resolveWorkflowRunSelection', () => {
   test('lets a valid step override a mismatched job id', () => {
     const step = workflowStepDto({
       id: 'step-deploy',
-      job_id: 'job-deploy',
       attempts: [workflowStepAttemptDto({id: 'attempt-1', step_id: 'step-deploy'})],
     });
     const run = workflowRunDetail({

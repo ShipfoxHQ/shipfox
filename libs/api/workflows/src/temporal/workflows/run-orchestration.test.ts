@@ -59,7 +59,7 @@ describe('runOrchestration', () => {
 
     const runStatuses = setRunStatusCalls().map((c) => c.params.status);
     expect(runStatuses).toEqual(['running', 'succeeded']);
-    const enqueueCalls = callsNamed('enqueueJobForRunner');
+    const enqueueCalls = callsNamed('enqueueJobExecutionForRunner');
     expect(enqueueCalls).toHaveLength(3);
     // The lease tuple is sourced from the loaded dag (workspace/project/run together).
     for (const call of enqueueCalls) {
@@ -83,7 +83,7 @@ describe('runOrchestration', () => {
 
     const runStatuses = setRunStatusCalls().map((c) => c.params.status);
     expect(runStatuses).toEqual(['running', 'succeeded']);
-    const enqueueCalls = callsNamed('enqueueJobForRunner');
+    const enqueueCalls = callsNamed('enqueueJobExecutionForRunner');
     expect(enqueueCalls).toHaveLength(1);
     expect(enqueueCalls[0]?.params).toMatchObject({jobId: 'j2'});
   });
@@ -99,7 +99,7 @@ describe('runOrchestration', () => {
 
     const runStatuses = setRunStatusCalls().map((c) => c.params.status);
     expect(runStatuses).toEqual(['running', 'failed']);
-    const enqueueCalls = callsNamed('enqueueJobForRunner');
+    const enqueueCalls = callsNamed('enqueueJobExecutionForRunner');
     expect(enqueueCalls).toHaveLength(1);
     expect(enqueueCalls[0]?.params).toMatchObject({jobId: 'j2'});
   });
@@ -116,7 +116,7 @@ describe('runOrchestration', () => {
 
     const runStatuses = setRunStatusCalls().map((c) => c.params.status);
     expect(runStatuses).toEqual(['running', 'succeeded']);
-    expect(callsNamed('enqueueJobForRunner')).toHaveLength(3);
+    expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(3);
   });
 
   test('single job fails, dependents are skipped', async () => {
@@ -132,7 +132,7 @@ describe('runOrchestration', () => {
     const runStatuses = setRunStatusCalls().map((c) => c.params.status);
     expect(runStatuses).toEqual(['running', 'failed']);
 
-    expect(callsNamed('enqueueJobForRunner')).toHaveLength(1);
+    expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(1);
     const jobStatuses = setJobStatusCalls().map((c) => ({
       id: c.params.jobId,
       status: c.params.status,
@@ -162,7 +162,7 @@ describe('runOrchestration', () => {
 
     const runStatuses = setRunStatusCalls().map((c) => c.params.status);
     expect(runStatuses).toEqual(['running', 'failed']);
-    expect(callsNamed('enqueueJobForRunner')).toHaveLength(1);
+    expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(1);
 
     const jobStatuses = setJobStatusCalls().map((c) => ({
       id: c.params.jobId,
@@ -201,13 +201,13 @@ describe('runOrchestration', () => {
       workflowId: `run:${runId}`,
       args: [{runId, workspaceId}],
     });
-    await waitForActivity('enqueueJobForRunner');
+    await waitForActivity('enqueueJobExecutionForRunner');
 
     await handle.signal('run-cancel');
     await handle.result();
 
     expect(setRunStatusCalls().map((c) => c.params.status)).toEqual(['running']);
-    expect(callsNamed('enqueueJobForRunner')).toHaveLength(1);
+    expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(1);
     expect(callsNamed('cancelRunnerJobsActivity')).toEqual([
       {name: 'cancelRunnerJobsActivity', params: {jobIds: ['j1', 'j2']}},
     ]);
@@ -224,7 +224,7 @@ describe('runOrchestration', () => {
     await executeRun();
 
     expect(setRunStatusCalls().map((c) => c.params.status)).toEqual(['running']);
-    expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
+    expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(0);
     expect(callsNamed('cancelRunnerJobsActivity')).toHaveLength(0);
   });
 
@@ -243,7 +243,7 @@ describe('runOrchestration', () => {
     expect(runStatuses).toEqual(['running', 'failed']);
 
     // A, B, C enqueued — D skipped because B failed
-    expect(callsNamed('enqueueJobForRunner')).toHaveLength(3);
+    expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(3);
     const jobStatuses = setJobStatusCalls().map((c) => ({
       id: c.params.jobId,
       status: c.params.status,

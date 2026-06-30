@@ -1,3 +1,7 @@
+import type {Job} from './job.js';
+import type {JobExecution} from './job-execution.js';
+import type {Step, StepAttempt} from './step.js';
+
 export type WorkflowRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
 export type TerminalWorkflowRunStatus = Extract<
@@ -25,12 +29,14 @@ export interface WorkflowSourceSnapshot {
 export type TriggerPayload =
   | {
       source: 'manual';
+      provider?: 'manual' | undefined;
       event: 'fire';
       subscriptionId: string;
       userId: string;
     }
   | {
       source: 'cron';
+      provider?: 'cron' | undefined;
       event: 'tick';
       scheduleId: string;
     }
@@ -39,6 +45,7 @@ export type TriggerPayload =
   // triggers module having to know each source's shape.
   | {
       source: string;
+      provider?: string | undefined;
       event: string;
       deliveryId: string;
       data: unknown;
@@ -75,4 +82,20 @@ export interface RunAttemptSummary {
   status: WorkflowRunStatus;
   createdAt: Date;
   rerunMode: 'all' | 'failed' | null;
+}
+
+export interface StepDetail extends Step {
+  attempts: StepAttempt[];
+}
+
+export interface JobExecutionDetail extends JobExecution {
+  steps: StepDetail[];
+}
+
+export interface WorkflowJobDetail extends Job {
+  jobExecutions: JobExecutionDetail[];
+}
+
+export interface WorkflowRunDetail extends WorkflowRun {
+  jobs: WorkflowJobDetail[];
 }

@@ -13,6 +13,8 @@ type WorkflowSourceLocation = NonNullable<WorkflowModelStep['sourceLocation']>;
 const FIRST_LINE_PATTERN = /\r?\n/;
 export interface MaterializedWorkflowJob {
   readonly sourceName: string;
+  readonly success?: string;
+  readonly executionTimeoutMs?: number;
   readonly dependencies: readonly string[];
   readonly runner: readonly string[];
   readonly position: number;
@@ -66,6 +68,8 @@ export function materializeWorkflowModel(
 
   return model.jobs.map((job, position) => ({
     sourceName: job.sourceName,
+    ...(job.success === undefined ? {} : {success: job.success}),
+    ...(job.executionTimeoutMs === undefined ? {} : {executionTimeoutMs: job.executionTimeoutMs}),
     dependencies: dependencySourceNames(job, jobsById),
     runner: job.runner,
     position,

@@ -14,7 +14,11 @@ describe('createDockerEngine', () => {
 
   it('creates and starts a container with Docker resource limits', async () => {
     const docker = fakeDocker();
-    const engine = createDockerEngine({docker: docker as never, network: 'shipfox'});
+    const engine = createDockerEngine({
+      docker: docker as never,
+      extraHosts: ['host.docker.internal:host-gateway'],
+      network: 'shipfox',
+    });
 
     await engine.createAndStart({
       name: 'runner-1',
@@ -33,6 +37,7 @@ describe('createDockerEngine', () => {
         NanoCpus: 1_000_000_000,
         Memory: 1024,
         RestartPolicy: {Name: 'no'},
+        ExtraHosts: ['host.docker.internal:host-gateway'],
         NetworkMode: 'shipfox',
       },
     });

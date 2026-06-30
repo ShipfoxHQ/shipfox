@@ -9,7 +9,14 @@ import {isWorkflowNotFound} from '#temporal/workflow-not-found.js';
 // persisted per-step projection is already terminal, so the workflow only flips
 // the job status — no steps are carried.
 export async function onJobStepsSettled(payload: WorkflowsJobStepsSettledEvent): Promise<void> {
-  logger().info({jobId: payload.jobId, status: payload.status}, 'Signaling job finished');
+  logger().info(
+    {
+      jobId: payload.jobId,
+      jobExecutionId: payload.jobExecutionId,
+      status: payload.status,
+    },
+    'Signaling job finished',
+  );
   const handle = temporalClient().workflow.getHandle(`job:${payload.jobId}`);
   try {
     await handle.signal(JOB_FINISHED_SIGNAL, {status: payload.status});
@@ -18,7 +25,11 @@ export async function onJobStepsSettled(payload: WorkflowsJobStepsSettledEvent):
     // authoritative, drop this late event.
     if (isWorkflowNotFound(err)) {
       logger().debug(
-        {jobId: payload.jobId, status: payload.status},
+        {
+          jobId: payload.jobId,
+          jobExecutionId: payload.jobExecutionId,
+          status: payload.status,
+        },
         'Job workflow already terminated; job-finished event discarded',
       );
       return;

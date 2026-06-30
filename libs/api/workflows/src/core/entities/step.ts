@@ -12,7 +12,7 @@ export interface StepSourceLocation {
 
 export interface Step {
   id: string;
-  jobId: string;
+  jobExecutionId: string;
   name: string | null;
   displayName: string;
   sourceLocation: StepSourceLocation | null;
@@ -38,7 +38,6 @@ export interface Step {
 export interface StepAttempt {
   id: string;
   stepId: string;
-  jobId: string;
   attempt: number;
   executionOrder: number;
   status: StepAttemptStatus;

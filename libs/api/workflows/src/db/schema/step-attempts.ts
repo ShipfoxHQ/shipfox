@@ -1,9 +1,18 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
-import {check, index, integer, jsonb, text, timestamp, unique, uuid} from 'drizzle-orm/pg-core';
+import {
+  check,
+  foreignKey,
+  index,
+  integer,
+  jsonb,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import type {StepAttempt, StepAttemptLogOutcome, StepAttemptStatus} from '#core/entities/step.js';
 import {pgTable} from './common.js';
-import {jobs} from './jobs.js';
 import {stepStatusEnum, steps} from './steps.js';
 
 // Append-only execution history. One row per dispatched attempt of a step,
@@ -16,11 +25,8 @@ export const stepAttempts = pgTable(
     id: uuidv7PrimaryKey(),
     stepId: uuid('step_id')
       .notNull()
-      .references(() => steps.id),
-    // Denormalized so attempt history is queryable per job without a join.
-    jobId: uuid('job_id')
-      .notNull()
-      .references(() => jobs.id),
+      .references(() => steps.id, {onDelete: 'cascade'}),
+    jobExecutionId: uuid('job_execution_id').notNull(),
     attempt: integer('attempt').notNull(),
     executionOrder: integer('execution_order').notNull(),
     // Reuses the step status enum, but a row is created only once dispatched, so
@@ -38,11 +44,16 @@ export const stepAttempts = pgTable(
   },
   (table) => [
     unique('workflows_step_attempts_step_id_attempt_uq').on(table.stepId, table.attempt),
-    unique('workflows_step_attempts_job_id_execution_order_uq').on(
-      table.jobId,
+    unique('workflows_step_attempts_job_execution_id_execution_order_uq').on(
+      table.jobExecutionId,
       table.executionOrder,
     ),
-    index('workflows_step_attempts_job_id_idx').on(table.jobId),
+    index('workflows_step_attempts_job_execution_id_idx').on(table.jobExecutionId),
+    foreignKey({
+      name: 'workflows_step_attempts_step_id_job_execution_id_workflows_steps_fk',
+      columns: [table.stepId, table.jobExecutionId],
+      foreignColumns: [steps.id, steps.jobExecutionId],
+    }).onDelete('cascade'),
     check('workflows_step_attempts_attempt_positive_ck', sql`${table.attempt} > 0`),
     check('workflows_step_attempts_execution_order_positive_ck', sql`${table.executionOrder} > 0`),
     check('workflows_step_attempts_status_not_pending_ck', sql`${table.status} <> 'pending'`),
@@ -60,7 +71,6 @@ export function toStepAttempt(row: StepAttemptDb): StepAttempt {
   return {
     id: row.id,
     stepId: row.stepId,
-    jobId: row.jobId,
     attempt: row.attempt,
     executionOrder: row.executionOrder,
     status: row.status as StepAttemptStatus,

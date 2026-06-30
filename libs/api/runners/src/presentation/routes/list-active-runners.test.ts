@@ -14,7 +14,7 @@ import {sql} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {provisionedRunners} from '#db/schema/provisioned-runners.js';
-import {runningJobs} from '#db/schema/running-jobs.js';
+import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {runnerRoutes} from './index.js';
 
 vi.mock('@shipfox/api-workspaces', () => ({
@@ -99,10 +99,11 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
         reportedAt: new Date(),
       });
     await db()
-      .insert(runningJobs)
+      .insert(runningJobExecutions)
       .values({
         workspaceId,
         jobId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
         runId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         runnerSessionId,
@@ -144,11 +145,12 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
         reportedAt: new Date(),
       });
     await db()
-      .insert(runningJobs)
+      .insert(runningJobExecutions)
       .values([
         {
           workspaceId,
           jobId: firstJobId,
+          jobExecutionId: crypto.randomUUID(),
           runId: crypto.randomUUID(),
           projectId: crypto.randomUUID(),
           runnerSessionId,
@@ -158,6 +160,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
         {
           workspaceId,
           jobId: secondJobId,
+          jobExecutionId: crypto.randomUUID(),
           runId: crypto.randomUUID(),
           projectId: crypto.randomUUID(),
           runnerSessionId,
@@ -210,10 +213,11 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
         reportedAt: new Date(),
       });
     await db()
-      .insert(runningJobs)
+      .insert(runningJobExecutions)
       .values({
         workspaceId,
         jobId,
+        jobExecutionId: crypto.randomUUID(),
         runId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         runnerSessionId,
@@ -246,10 +250,11 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     const runnerSessionId = crypto.randomUUID();
     const jobId = crypto.randomUUID();
     await db()
-      .insert(runningJobs)
+      .insert(runningJobExecutions)
       .values({
         workspaceId,
         jobId,
+        jobExecutionId: crypto.randomUUID(),
         runId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         runnerSessionId,
@@ -310,10 +315,11 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
         },
       ]);
     await db()
-      .insert(runningJobs)
+      .insert(runningJobExecutions)
       .values({
         workspaceId,
         jobId,
+        jobExecutionId: crypto.randomUUID(),
         runId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         runnerSessionId,

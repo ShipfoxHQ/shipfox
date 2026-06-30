@@ -175,11 +175,21 @@ function hasRunnerSessionExhaustedCode(body: unknown): boolean {
 // next/report are idempotent, so we widen ky's retry to POST (off by default): a lost
 // response is retried in place, never re-pulling or re-executing a step. A 404 is not
 // retried — it surfaces so the loop can stop.
-export function createLeaseClient(leaseToken: string): KyInstance {
+export type LeaseTokenSource = string | (() => string);
+
+function readLeaseToken(leaseToken: LeaseTokenSource): string {
+  return typeof leaseToken === 'function' ? leaseToken() : leaseToken;
+}
+
+export function createLeaseClient(leaseToken: LeaseTokenSource): KyInstance {
   return ky.create({
     baseUrl,
-    headers: {
-      Authorization: `Bearer ${leaseToken}`,
+    hooks: {
+      beforeRequest: [
+        ({request}) => {
+          request.headers.set('Authorization', `Bearer ${readLeaseToken(leaseToken)}`);
+        },
+      ],
     },
     retry: {
       methods: ['post'],

@@ -4,7 +4,7 @@ import type {LogAppendFn} from '@shipfox/runner-protocol';
 import {type FramedOutput, type OutputSource, StreamFramer} from '#core/framing.js';
 import type {LogStreamLifecycle} from '#core/lifecycle.js';
 import {createRecordSink} from '#core/record-sink.js';
-import {buildSecretVariants, mergeSecretVariants} from '#core/secrets.js';
+import {buildSecretVariants} from '#core/secrets.js';
 import {LogTransformer, type TransformEvent} from '#core/transform.js';
 
 const EMPTY_FRAMED: FramedOutput = {bytes: Buffer.alloc(0), payloadBytes: 0};
@@ -33,6 +33,8 @@ export interface StepLogStream extends LogStreamLifecycle {
   write(chunk: Buffer, source: OutputSource): void;
   /** Registers additional secrets for subsequent runner metadata and captured output. */
   addSecrets(secrets: string[]): void;
+  /** Replaces the bounded rotating secret slot for renewed lease tokens. */
+  setRotatingSecrets(secrets: string[]): void;
   /** Opens a runner-originated group without writing marker text into the output stream. */
   writeGroupStart(name: string): void;
   /** Closes the most recent open runner-originated or marker-originated group. */
@@ -59,8 +61,11 @@ export interface StepLogGroupOptions {
 export function createStepLogStream(options: StepLogStreamOptions): StepLogStream {
   const now = options.now ?? Date.now;
   const framer = new StreamFramer(now);
-  let secretVariants = buildSecretVariants(options.secrets ?? []);
-  const transformer = new LogTransformer(options.secrets ?? []);
+  const baseSecrets = [...(options.secrets ?? [])];
+  let addedSecrets: string[] = [];
+  let rotatingSecrets: string[] = [];
+  let secretVariants = buildSecretVariants(baseSecrets);
+  const transformer = new LogTransformer(baseSecrets);
   const sink = createRecordSink({
     logsDir: options.logsDir,
     stepId: options.stepId,
@@ -137,11 +142,24 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
     return redactSecrets(text, secretVariants);
   }
 
+  function refreshSecrets(): void {
+    const secrets = [...baseSecrets, ...addedSecrets, ...rotatingSecrets];
+    secretVariants = buildSecretVariants(secrets);
+    transformer.setSecrets(secrets);
+  }
+
   return {
     addSecrets(secrets) {
       if (secrets.length === 0) return;
-      secretVariants = mergeSecretVariants(secretVariants, secrets);
-      transformer.addSecrets(secrets);
+      addedSecrets = [
+        ...new Set([...addedSecrets, ...secrets.filter((secret) => secret.length > 0)]),
+      ];
+      refreshSecrets();
+    },
+
+    setRotatingSecrets(secrets) {
+      rotatingSecrets = [...new Set(secrets.filter((secret) => secret.length > 0))];
+      refreshSecrets();
     },
 
     write(chunk, source) {

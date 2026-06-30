@@ -21,11 +21,13 @@ export const jobs = pgTable(
     id: uuidv7PrimaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => workflowRuns.id),
+      .references(() => workflowRuns.id, {onDelete: 'cascade'}),
     name: text('name').notNull(),
     status: jobStatusEnum('status').notNull().default('pending'),
     statusReason: jobStatusReasonEnum('status_reason'),
     carriedOver: boolean('carried_over').notNull().default(false),
+    success: text('success'),
+    executionTimeoutMs: integer('execution_timeout_ms'),
     dependencies: jsonb('dependencies').notNull().$type<string[]>(),
     runner: jsonb('runner').$type<string[]>(),
     position: integer('position').notNull(),
@@ -54,6 +56,8 @@ export function toJob(row: JobDb): Job {
     status: row.status,
     statusReason: toJobStatusReason(row.statusReason),
     carriedOver: row.carriedOver,
+    success: row.success,
+    executionTimeoutMs: row.executionTimeoutMs,
     dependencies: row.dependencies as string[],
     runner: row.runner as string[] | null,
     position: row.position,

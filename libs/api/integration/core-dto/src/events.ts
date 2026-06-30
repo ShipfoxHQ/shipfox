@@ -8,6 +8,7 @@ const requiredUnknownSchema = z.custom<unknown>((value) => value !== undefined);
 const nullableConnectionNameSchema = nonEmptyStringSchema.nullish().default(null);
 
 export const integrationEventReceivedSchema = z.object({
+  provider: nonEmptyStringSchema,
   source: nonEmptyStringSchema,
   event: nonEmptyStringSchema,
   workspaceId: nonEmptyStringSchema,

@@ -7,7 +7,7 @@ Pure scheduling decisions for workflow run orchestration.
 - **`scheduleRuntimeDag`**: Reads a runtime DAG and completed job statuses, then returns the next scheduling commands.
 - **`materializeWorkflowModel`**: Converts a normalized workflow model into the job and step shape persisted for a run.
 - **Runtime commands**: Describe host actions such as starting a job, cancelling a job, or completing a run.
-- **Runtime DAG entities**: Define the small job and step shape the scheduler needs.
+- **Runtime DAG entities**: Define the small job shape the scheduler needs.
 
 ## Usage
 
@@ -16,8 +16,8 @@ import {scheduleRuntimeDag} from '#core/workflow-runtime/schedule-runtime-dag.js
 
 const commands = scheduleRuntimeDag({
   jobs: [
-    {id: 'job-1', name: 'build', dependencies: [], version: 1, steps: []},
-    {id: 'job-2', name: 'test', dependencies: ['build'], version: 1, steps: []},
+    {id: 'job-1', name: 'build', dependencies: [], version: 1},
+    {id: 'job-2', name: 'test', dependencies: ['build'], version: 1},
   ],
   completed: new Map(),
   running: new Set(),

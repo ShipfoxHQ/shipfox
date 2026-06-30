@@ -1,14 +1,16 @@
-import {mkdtemp, rm} from 'node:fs/promises';
+import {mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {basename, join} from 'node:path';
+import {basename, isAbsolute, join} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {type CommandStartMetadata, executeRunStep, type OutputSink} from '#core/run-step.js';
 
 const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
+const READY_REGEX = /READY/;
 const ESRCH_REGEX = /ESRCH/;
-const SHELL_EXECUTABLE_REGEX = /^(bash|sh)$/;
+const SHELL_EXECUTABLE_REGEX = /(?:^|\/)(bash|sh)$/;
 const SCRIPT_PATH_REGEX = /shipfox-runner-.*\.sh$/;
+const PROCESS_TEST_WAIT_TIMEOUT_MS = 4_000;
 
 function collectOutput(): {sink: OutputSink; text: () => string; sources: () => string[]} {
   const chunks: Buffer[] = [];
@@ -26,6 +28,31 @@ function collectOutput(): {sink: OutputSink; text: () => string; sources: () => 
 function nodeEnvDumpCommand(keys: readonly string[]): string {
   const script = `const keys = ${JSON.stringify(keys)}; process.stdout.write(JSON.stringify(Object.fromEntries(keys.map((key) => [key, process.env[key] ?? null]))));`;
   return `node -e ${JSON.stringify(script)}`;
+}
+
+async function waitForOutputMatch(
+  output: Pick<ReturnType<typeof collectOutput>, 'text'>,
+  regex: RegExp,
+): Promise<RegExpMatchArray> {
+  await vi.waitFor(
+    () => {
+      expect(output.text()).toMatch(regex);
+    },
+    {timeout: PROCESS_TEST_WAIT_TIMEOUT_MS},
+  );
+
+  const match = output.text().match(regex);
+  if (!match) throw new Error(`Expected output to match ${regex}`);
+  return match;
+}
+
+async function waitForProcessExit(pid: number): Promise<void> {
+  await vi.waitFor(
+    () => {
+      expect(() => process.kill(pid, 0)).toThrow(ESRCH_REGEX);
+    },
+    {timeout: PROCESS_TEST_WAIT_TIMEOUT_MS},
+  );
 }
 
 describe('executeRunStep', () => {
@@ -72,6 +99,37 @@ describe('executeRunStep', () => {
       } else {
         process.env.SHIPFOX_ENV_TEST_EXISTING = previous;
       }
+    }
+  });
+
+  it('does not resolve the shell executable through step env PATH', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'shipfox-shell-path-test-'));
+    try {
+      await writeFile(join(dir, 'bash'), '#!/bin/sh\necho fake-bash\nexit 42\n', {mode: 0o700});
+      const step = buildStep({
+        config: {
+          run: 'printf "%s" "$PATH"',
+          env: {PATH: dir},
+        },
+      });
+      const output = collectOutput();
+      let metadata: CommandStartMetadata | undefined;
+
+      const result = await executeRunStep(step, {
+        onCommandStart: (value) => {
+          metadata = value;
+        },
+        onOutput: output.sink,
+      });
+
+      expect(result.success).toBe(true);
+      expect(output.text()).toBe(dir);
+      expect(metadata).toBeDefined();
+      if (!metadata) throw new Error('expected command metadata');
+      expect(isAbsolute(metadata.shell.executable)).toBe(true);
+      expect(metadata.shell.executable).not.toBe(join(dir, 'bash'));
+    } finally {
+      await rm(dir, {recursive: true, force: true});
     }
   });
 
@@ -173,11 +231,12 @@ describe('executeRunStep', () => {
   });
 
   it('reports signal kill on result.error when aborted', async () => {
-    const step = buildStep({config: {run: 'sleep 30'}});
+    const step = buildStep({config: {run: 'echo READY; sleep 30'}});
+    const output = collectOutput();
     const ac = new AbortController();
-    const promise = executeRunStep(step, {signal: ac.signal});
+    const promise = executeRunStep(step, {signal: ac.signal, onOutput: output.sink});
 
-    await new Promise((r) => setTimeout(r, 50));
+    await waitForOutputMatch(output, READY_REGEX);
     ac.abort();
 
     const result = await promise;
@@ -231,6 +290,7 @@ describe('executeRunStep', () => {
         command: 'echo hello',
         cwd: dir,
       });
+      expect(isAbsolute(metadata.shell.executable)).toBe(true);
       expect(metadata.shell.executable).toMatch(SHELL_EXECUTABLE_REGEX);
       expect(metadata.shell.args.at(-1)).toMatch(SCRIPT_PATH_REGEX);
       expect(metadata.shell.display).toContain('{0}');
@@ -297,12 +357,12 @@ describe('executeRunStep', () => {
   });
 
   it('kills the running script when the AbortSignal fires', async () => {
-    const step = buildStep({config: {run: 'sleep 30'}});
+    const step = buildStep({config: {run: 'echo READY; sleep 30'}});
+    const output = collectOutput();
     const ac = new AbortController();
-    const promise = executeRunStep(step, {signal: ac.signal});
+    const promise = executeRunStep(step, {signal: ac.signal, onOutput: output.sink});
 
-    // Give the shell a moment to actually spawn before we abort.
-    await new Promise((r) => setTimeout(r, 50));
+    await waitForOutputMatch(output, READY_REGEX);
     ac.abort();
 
     const result = await promise;
@@ -317,20 +377,15 @@ describe('executeRunStep', () => {
     const ac = new AbortController();
     const promise = executeRunStep(step, {signal: ac.signal, onOutput: output.sink});
 
-    await new Promise((r) => setTimeout(r, 200));
+    const match = await waitForOutputMatch(output, GRANDCHILD_PID_REGEX);
     ac.abort();
 
     const result = await promise;
     expect(result.success).toBe(false);
 
-    const match = output.text().match(GRANDCHILD_PID_REGEX);
-    expect(match).not.toBeNull();
-    const grandchildPid = Number(match?.[1]);
+    const grandchildPid = Number(match[1]);
 
-    await new Promise((r) => setTimeout(r, 100));
-
-    // process.kill(pid, 0) throws ESRCH if the process is gone.
-    expect(() => process.kill(grandchildPid, 0)).toThrow(ESRCH_REGEX);
+    await waitForProcessExit(grandchildPid);
   });
 });
 
@@ -340,7 +395,7 @@ function buildStep(
   const name = overrides.name ?? 'test-step';
   return {
     id: '00000000-0000-0000-0000-000000000001',
-    job_id: '00000000-0000-0000-0000-000000000002',
+    job_execution_id: '00000000-0000-0000-0000-000000000003',
     name,
     display_name: name ?? 'test-step',
     source_location: null,

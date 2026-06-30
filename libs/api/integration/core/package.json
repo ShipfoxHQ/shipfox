@@ -43,6 +43,7 @@
     "@shipfox/api-integration-gitea": "workspace:*",
     "@shipfox/api-integration-github": "workspace:*",
     "@shipfox/api-integration-sentry": "workspace:*",
+    "@shipfox/api-integration-webhook": "workspace:*",
     "@shipfox/api-workspaces": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",

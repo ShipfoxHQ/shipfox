@@ -7,6 +7,8 @@ export type WorkflowModelValidationIssueCode =
   | 'invalid-agent-provider'
   | 'invalid-interpolation-expression'
   | 'invalid-interpolation-template'
+  | 'invalid-duration'
+  | 'invalid-job-success'
   | 'invalid-runner-label'
   | 'invalid-step-gate-restart-from'
   | 'invalid-step-gate-success-if'

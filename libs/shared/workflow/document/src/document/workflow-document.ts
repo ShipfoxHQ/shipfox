@@ -117,6 +117,8 @@ export const workflowDocumentStepSchema = z
 export const workflowDocumentJobSchema = z.strictObject({
   needs: stringOrStringArraySchema.optional(),
   runner: stringOrStringArraySchema.optional(),
+  success: z.string().min(1).optional(),
+  execution_timeout: z.string().min(1).optional(),
   env: workflowDocumentEnvSchema.optional(),
   steps: z.array(workflowDocumentStepSchema).min(1),
 });

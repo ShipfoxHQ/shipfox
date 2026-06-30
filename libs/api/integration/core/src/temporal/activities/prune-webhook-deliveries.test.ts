@@ -7,7 +7,7 @@ import {pruneWebhookDeliveriesActivity} from './prune-webhook-deliveries.js';
 async function insertDelivery(deliveryId: string, receivedAt: Date): Promise<void> {
   await db()
     .insert(integrationsWebhookDeliveries)
-    .values({provider: 'github', deliveryId, receivedAt});
+    .values({provider: 'github', dedupScope: 'provider:github', deliveryId, receivedAt});
 }
 
 describe('pruneWebhookDeliveriesActivity', () => {

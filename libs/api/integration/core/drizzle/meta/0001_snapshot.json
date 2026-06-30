@@ -244,6 +244,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "dedup_scope": {
+          "name": "dedup_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "delivery_id": {
           "name": "delivery_id",
           "type": "text",
@@ -277,9 +283,9 @@
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "integrations_webhook_deliveries_provider_delivery_id_pk": {
-          "name": "integrations_webhook_deliveries_provider_delivery_id_pk",
-          "columns": ["provider", "delivery_id"]
+        "integrations_webhook_deliveries_dedup_pk": {
+          "name": "integrations_webhook_deliveries_dedup_pk",
+          "columns": ["provider", "dedup_scope", "delivery_id"]
         }
       },
       "uniqueConstraints": {},

@@ -7,7 +7,7 @@ import {
 } from '#db/provisioned-runners.js';
 import {provisionedRunners} from '#db/schema/provisioned-runners.js';
 import {reservations} from '#db/schema/reservations.js';
-import {runningJobs} from '#db/schema/running-jobs.js';
+import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {provisionedRunnerFactory, reservationFactory} from '#test/index.js';
 
 describe('reportProvisionedRunners', () => {
@@ -820,17 +820,21 @@ describe('reconcileProvisionedRunners', () => {
     expect(reservation?.count).toBe(1);
   });
 
-  it('returns a deterministic newest running job bound to an observed provisioned runner', async () => {
+  it('returns a deterministic newest running job execution bound to an observed provisioned runner', async () => {
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
     const lowerJobId = '00000000-0000-4000-8000-000000000001';
     const higherJobId = '00000000-0000-4000-8000-000000000002';
+    const lowerJobExecutionId = '10000000-0000-4000-8000-000000000001';
+    const higherJobExecutionId = '10000000-0000-4000-8000-000000000002';
     await insertRunningJob({
       jobId: lowerJobId,
+      jobExecutionId: lowerJobExecutionId,
       provisionedRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
     });
     await insertRunningJob({
       jobId: higherJobId,
+      jobExecutionId: higherJobExecutionId,
       provisionedRunnerId: 'provisioned-runner-1',
       startedAt: new Date('2025-01-01T00:00:00.000Z'),
     });
@@ -842,9 +846,9 @@ describe('reconcileProvisionedRunners', () => {
       terminateGraceSeconds: 60,
     });
 
-    expect(result.boundJobsByProvisionedRunnerId.get('provisioned-runner-1')?.jobId).toBe(
-      higherJobId,
-    );
+    expect(
+      result.boundJobExecutionsByProvisionedRunnerId.get('provisioned-runner-1')?.jobExecutionId,
+    ).toBe(higherJobExecutionId);
   });
 
   it('does not let a later running report revive a reconcile-terminated runner', async () => {
@@ -915,14 +919,16 @@ describe('reconcileProvisionedRunners', () => {
 
   async function insertRunningJob(params: {
     jobId: string;
+    jobExecutionId?: string;
     provisionedRunnerId: string;
     startedAt: Date;
   }) {
     await db()
-      .insert(runningJobs)
+      .insert(runningJobExecutions)
       .values({
         workspaceId,
         jobId: params.jobId,
+        jobExecutionId: params.jobExecutionId ?? crypto.randomUUID(),
         runId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         runnerSessionId: crypto.randomUUID(),

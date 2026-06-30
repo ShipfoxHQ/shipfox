@@ -1,8 +1,20 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {index, integer, jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
+import {sql} from 'drizzle-orm';
+import {
+  check,
+  foreignKey,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import type {Step} from '#core/entities/step.js';
 import {pgTable} from './common.js';
-import {jobs} from './jobs.js';
+import {jobExecutions} from './job-executions.js';
 
 export const stepStatusEnum = pgEnum('workflows_step_status', [
   'pending',
@@ -16,9 +28,7 @@ export const steps = pgTable(
   'steps',
   {
     id: uuidv7PrimaryKey(),
-    jobId: uuid('job_id')
-      .notNull()
-      .references(() => jobs.id),
+    jobExecutionId: uuid('job_execution_id').notNull(),
     name: text('name'),
     displayName: text('display_name').notNull(),
     sourceLocation: jsonb('source_location').$type<Step['sourceLocation']>(),
@@ -36,7 +46,16 @@ export const steps = pgTable(
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
-  (table) => [index('workflows_steps_job_id_idx').on(table.jobId)],
+  (table) => [
+    index('workflows_steps_job_execution_id_idx').on(table.jobExecutionId),
+    uniqueIndex('workflows_steps_id_job_execution_id_uq').on(table.id, table.jobExecutionId),
+    check('workflows_steps_current_attempt_positive_ck', sql`${table.currentAttempt} > 0`),
+    foreignKey({
+      name: 'workflows_steps_job_execution_id_workflows_job_executions_id_fk',
+      columns: [table.jobExecutionId],
+      foreignColumns: [jobExecutions.id],
+    }).onDelete('cascade'),
+  ],
 );
 
 export type StepDb = typeof steps.$inferSelect;
@@ -45,7 +64,7 @@ export type StepCreateDb = typeof steps.$inferInsert;
 export function toStep(row: StepDb): Step {
   return {
     id: row.id,
-    jobId: row.jobId,
+    jobExecutionId: row.jobExecutionId,
     name: row.name,
     displayName: row.displayName,
     sourceLocation: row.sourceLocation ?? null,

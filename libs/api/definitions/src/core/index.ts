@@ -18,3 +18,4 @@ export {
   WORKFLOW_PREFIX,
 } from './sync-definitions.js';
 export {normalizeWorkflowDocument} from './workflow-model/index.js';
+export {DEFAULT_JOB_SUCCESS} from './workflow-model/normalize-job-success.js';

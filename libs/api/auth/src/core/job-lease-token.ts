@@ -14,6 +14,7 @@ export async function issueJobLeaseToken(claims: IssueJobLeaseTokenParams): Prom
   const token = await signHs256({
     payload: {
       jobId: claims.jobId,
+      jobExecutionId: claims.jobExecutionId,
       runId: claims.runId,
       projectId: claims.projectId,
       workspaceId: claims.workspaceId,
