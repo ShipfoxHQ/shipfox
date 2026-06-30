@@ -3,7 +3,7 @@ import {eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
 import {runnerSessions} from '#db/schema/runner-sessions.js';
-import {ephemeralRegistrationTokenFactory, runnerTokenFactory} from '#test/index.js';
+import {ephemeralRegistrationTokenFactory, manualRegistrationTokenFactory} from '#test/index.js';
 import {
   EmptyRunnerLabelsError,
   RegistrationTokenConsumedError,
@@ -17,10 +17,10 @@ describe('registerRunnerSession', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_runner_sessions, runners_runner_tokens CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_runner_sessions, runners_manual_registration_tokens CASCADE`,
     );
     workspaceId = crypto.randomUUID();
-    const token = await runnerTokenFactory.create({workspaceId});
+    const token = await manualRegistrationTokenFactory.create({workspaceId});
     registrationTokenId = token.id;
   });
 

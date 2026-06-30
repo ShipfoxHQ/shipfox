@@ -1,9 +1,9 @@
-import {runnerTokenErrorMessage} from './runner-token-errors.js';
+import {manualRegistrationTokenErrorMessage} from './manual-registration-token-errors.js';
 
-export type RunnerTokenCreateFormErrorMapping = {kind: 'form'; message: string};
+export type ManualRegistrationTokenCreateFormErrorMapping = {kind: 'form'; message: string};
 
-export function runnerTokenCreateErrorToFormError(
+export function manualRegistrationTokenCreateErrorToFormError(
   error: unknown,
-): RunnerTokenCreateFormErrorMapping {
-  return {kind: 'form', message: runnerTokenErrorMessage(error)};
+): ManualRegistrationTokenCreateFormErrorMapping {
+  return {kind: 'form', message: manualRegistrationTokenErrorMessage(error)};
 }

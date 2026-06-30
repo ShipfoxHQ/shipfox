@@ -12,11 +12,11 @@ import {generateOpaqueToken} from '@shipfox/node-tokens';
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import {db} from '#db/db.js';
-import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';
+import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
 import {
   ephemeralRegistrationTokenFactory,
+  manualRegistrationTokenFactory,
   pendingJobFactory,
-  runnerTokenFactory,
 } from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
@@ -41,7 +41,7 @@ describe('POST /runners/jobs/request', () => {
     app = await createApp({
       auth: [
         fakeUserAuth,
-        createRunnerTokenAuthMethod(),
+        createRunnerRegistrationTokenAuthMethod(),
         createRunnerSessionAuthMethod(),
         createLeaseTokenAuthMethod(),
         fakeProvisionerAuth,
@@ -58,11 +58,11 @@ describe('POST /runners/jobs/request', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_manual_registration_tokens CASCADE`,
     );
-    rawToken = `sf_r_${crypto.randomUUID()}`;
+    rawToken = `sf_mrt_${crypto.randomUUID()}`;
     workspaceId = crypto.randomUUID();
-    await runnerTokenFactory.create({workspaceId}, {transient: {rawToken}});
+    await manualRegistrationTokenFactory.create({workspaceId}, {transient: {rawToken}});
     const registered = await registerSession(rawToken);
     sessionToken = registered.sessionToken;
     runnerSessionId = registered.runnerSessionId;

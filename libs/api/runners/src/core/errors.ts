@@ -5,10 +5,10 @@ export class RunningJobExecutionNotFoundError extends Error {
   }
 }
 
-export class RunnerTokenNotFoundError extends Error {
+export class ManualRegistrationTokenNotFoundError extends Error {
   constructor(tokenId: string) {
-    super(`Runner token not found: ${tokenId}`);
-    this.name = 'RunnerTokenNotFoundError';
+    super(`Manual registration token not found: ${tokenId}`);
+    this.name = 'ManualRegistrationTokenNotFoundError';
   }
 }
 

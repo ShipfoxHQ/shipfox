@@ -1,4 +1,4 @@
-import type {CreateRunnerTokenResponseDto} from '@shipfox/api-runners-dto';
+import type {CreateManualRegistrationTokenResponseDto} from '@shipfox/api-runners-dto';
 import {
   Alert,
   Button,
@@ -23,40 +23,43 @@ import {
 import {useForm} from '@tanstack/react-form';
 import {useQueryClient} from '@tanstack/react-query';
 import {useState} from 'react';
-import {runnerTokenQueryKeys, useCreateRunnerTokenMutation} from '#hooks/api/runner-tokens.js';
-import {runnerTokenCreateErrorToFormError} from './form-errors.js';
+import {
+  manualRegistrationTokenQueryKeys,
+  useCreateManualRegistrationTokenMutation,
+} from '#hooks/api/manual-registration-tokens.js';
+import {manualRegistrationTokenCreateErrorToFormError} from './form-errors.js';
 
-export const CREATE_RUNNER_TOKEN_FORM_ID = 'create-runner-token-form';
+export const CREATE_RUNNER_TOKEN_FORM_ID = 'create-manual-registration-token-form';
 
-export type RunnerTokenExpirationOption = '3600' | '86400' | '604800' | 'never';
+export type ManualRegistrationTokenExpirationOption = '3600' | '86400' | '604800' | 'never';
 
-const expirationOptions: Array<{value: RunnerTokenExpirationOption; label: string}> = [
+const expirationOptions: Array<{value: ManualRegistrationTokenExpirationOption; label: string}> = [
   {value: '3600', label: '1 hour'},
   {value: '86400', label: '1 day'},
   {value: '604800', label: '7 days'},
   {value: 'never', label: 'Never'},
 ];
 
-function expirationHint(expiration: RunnerTokenExpirationOption): string {
+function expirationHint(expiration: ManualRegistrationTokenExpirationOption): string {
   if (expiration === 'never') return 'Token will not expire.';
   const expiresAt = new Date(Date.now() + Number(expiration) * 1000);
   const formatted = new Intl.DateTimeFormat(undefined, {dateStyle: 'medium'}).format(expiresAt);
   return `Expires on ${formatted}.`;
 }
 
-export function CreateRunnerTokenForm({
+export function CreateManualRegistrationTokenForm({
   workspaceId,
   onCreated,
 }: {
   workspaceId: string;
-  onCreated: (token: CreateRunnerTokenResponseDto) => void;
+  onCreated: (token: CreateManualRegistrationTokenResponseDto) => void;
 }) {
   const queryClient = useQueryClient();
-  const createToken = useCreateRunnerTokenMutation();
+  const createToken = useCreateManualRegistrationTokenMutation();
   const [formError, setFormError] = useState<string | undefined>();
 
   const form = useForm({
-    defaultValues: {name: '', expiration: '86400' as RunnerTokenExpirationOption},
+    defaultValues: {name: '', expiration: '86400' as ManualRegistrationTokenExpirationOption},
     onSubmit: async ({value}) => {
       setFormError(undefined);
       const trimmedName = value.name.trim();
@@ -67,10 +70,12 @@ export function CreateRunnerTokenForm({
 
       try {
         const token = await createToken.mutateAsync({workspaceId, body});
-        await queryClient.invalidateQueries({queryKey: runnerTokenQueryKeys.list(workspaceId)});
+        await queryClient.invalidateQueries({
+          queryKey: manualRegistrationTokenQueryKeys.list(workspaceId),
+        });
         onCreated(token);
       } catch (error) {
-        const mapped = runnerTokenCreateErrorToFormError(error);
+        const mapped = manualRegistrationTokenCreateErrorToFormError(error);
         setFormError(mapped.message);
       }
     },
@@ -101,7 +106,7 @@ export function CreateRunnerTokenForm({
                 <FormField
                   className="flex-1"
                   label="Token name"
-                  id="runner-token-name"
+                  id="manual-registration-token-name"
                   error={fieldError(field)}
                 >
                   <FormFieldInput
@@ -119,7 +124,7 @@ export function CreateRunnerTokenForm({
                 <FormField
                   className="flex-1"
                   label="Expires"
-                  id="runner-token-expiration"
+                  id="manual-registration-token-expiration"
                   error={fieldError(field)}
                 >
                   <ExpirationSelect
@@ -162,14 +167,14 @@ function ExpirationSelect({
   value,
   onValueChange,
 }: {
-  value: RunnerTokenExpirationOption;
-  onValueChange: (next: RunnerTokenExpirationOption) => void;
+  value: ManualRegistrationTokenExpirationOption;
+  onValueChange: (next: ManualRegistrationTokenExpirationOption) => void;
 }) {
   const wiring = useFormField();
   return (
     <Select
       value={value}
-      onValueChange={(next) => onValueChange(next as RunnerTokenExpirationOption)}
+      onValueChange={(next) => onValueChange(next as ManualRegistrationTokenExpirationOption)}
     >
       <SelectTrigger
         id={wiring.id}
@@ -191,7 +196,11 @@ function ExpirationSelect({
   );
 }
 
-export function CreatedRunnerTokenPanel({token}: {token: CreateRunnerTokenResponseDto}) {
+export function CreatedManualRegistrationTokenPanel({
+  token,
+}: {
+  token: CreateManualRegistrationTokenResponseDto;
+}) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   async function copy(value: string) {

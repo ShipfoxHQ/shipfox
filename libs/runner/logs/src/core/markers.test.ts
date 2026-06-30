@@ -38,11 +38,11 @@ describe('parseMarker', () => {
   });
 
   it('keeps the group name verbatim (downstream masks and truncates it)', () => {
-    const result = parseMarker('::group::token=sf_rt_abc and spaces  ');
+    const result = parseMarker('::group::token=sf_mrt_abc and spaces  ');
 
     expect(result).toEqual<MarkerEvent>({
       kind: 'group_start',
-      name: 'token=sf_rt_abc and spaces  ',
+      name: 'token=sf_mrt_abc and spaces  ',
     });
   });
 });

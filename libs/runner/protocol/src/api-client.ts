@@ -63,17 +63,16 @@ const baseUrl = config.SHIPFOX_API_URL.endsWith('/')
 const registrationApi = ky.create({
   baseUrl,
   headers: {
-    Authorization: `Bearer ${config.SHIPFOX_RUNNER_TOKEN}`,
+    Authorization: `Bearer ${config.SHIPFOX_RUNNER_REGISTRATION_TOKEN}`,
   },
 });
 
 /**
- * The runner's long-lived bearer credential, exposed so the log masker can scrub it from
- * captured step output: a step that echoes its environment must never leak it to the
- * plaintext spool. For masking only — never log this value.
+ * The runner's registration bearer credential, exposed so the log masker can scrub it
+ * from captured step output. For masking only — never log this value.
  */
-export function runnerToken(): string {
-  return config.SHIPFOX_RUNNER_TOKEN;
+export function runnerRegistrationToken(): string {
+  return config.SHIPFOX_RUNNER_REGISTRATION_TOKEN;
 }
 
 export function configuredRunnerLabels(): string[] {

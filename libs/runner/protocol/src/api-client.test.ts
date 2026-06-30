@@ -74,7 +74,7 @@ describe('api-client auth contexts', () => {
 
     expect(session).toEqual(registerResponse());
     expect(calls[0]?.url).toContain('runners/register');
-    expect(calls[0]?.authorization).toBe(`Bearer ${config.SHIPFOX_RUNNER_TOKEN}`);
+    expect(calls[0]?.authorization).toBe(`Bearer ${config.SHIPFOX_RUNNER_REGISTRATION_TOKEN}`);
     expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({labels: ['linux', 'x64']});
   });
 
@@ -136,7 +136,7 @@ describe('api-client auth contexts', () => {
     expect(calls[0]?.authorization).toBe('Bearer lease-heartbeat');
   });
 
-  it('requestNextStep sends the lease token, not the runner token', async () => {
+  it('requestNextStep sends the lease token, not the runner registration token', async () => {
     stubFetch(() => jsonResponse({kind: 'done', status: 'succeeded'}));
     const leaseClient = createLeaseClient('lease-abc');
 

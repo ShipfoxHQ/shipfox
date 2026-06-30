@@ -1,2 +1,2 @@
-export * from './components/runner-tokens-settings-section.js';
-export * from './hooks/api/runner-tokens.js';
+export * from './components/manual-registration-tokens-settings-section.js';
+export * from './hooks/api/manual-registration-tokens.js';

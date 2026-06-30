@@ -19,7 +19,9 @@ Supported token types:
 | `emailVerification` | `v` |
 | `passwordReset` | `pr` |
 | `refreshToken` | `r` |
-| `runnerToken` | `rt` |
+| `manualRegistrationToken` | `mrt` |
+| `ephemeralRegistrationToken` | `ert` |
+| `provisionerToken` | `pt` |
 
 ## Usage
 

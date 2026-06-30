@@ -10,11 +10,11 @@ import {generateOpaqueToken} from '@shipfox/node-tokens';
 import {eq, sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import {db} from '#db/db.js';
-import {revokeRunnerToken} from '#db/runner-tokens.js';
+import {revokeManualRegistrationToken} from '#db/manual-registration-tokens.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
 import {runnerSessions} from '#db/schema/runner-sessions.js';
-import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';
-import {ephemeralRegistrationTokenFactory, runnerTokenFactory} from '#test/index.js';
+import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
+import {ephemeralRegistrationTokenFactory, manualRegistrationTokenFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
 const fakeUserAuth: AuthMethod = {
@@ -36,7 +36,7 @@ describe('POST /runners/register', () => {
     app = await createApp({
       auth: [
         fakeUserAuth,
-        createRunnerTokenAuthMethod(),
+        createRunnerRegistrationTokenAuthMethod(),
         createRunnerSessionAuthMethod(),
         createLeaseTokenAuthMethod(),
         fakeProvisionerAuth,
@@ -53,11 +53,11 @@ describe('POST /runners/register', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_runner_sessions, runners_runner_tokens CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_runner_sessions, runners_manual_registration_tokens CASCADE`,
     );
-    rawToken = `sf_r_${crypto.randomUUID()}`;
+    rawToken = generateOpaqueToken('manualRegistrationToken');
     workspaceId = crypto.randomUUID();
-    await runnerTokenFactory.create({workspaceId}, {transient: {rawToken}});
+    await manualRegistrationTokenFactory.create({workspaceId}, {transient: {rawToken}});
   });
 
   it('exchanges a registration token for a manual runner session', async () => {
@@ -157,8 +157,8 @@ describe('POST /runners/register', () => {
   });
 
   it('returns 401 when the registration token is expired', async () => {
-    const expiredRawToken = `sf_r_${crypto.randomUUID()}`;
-    await runnerTokenFactory.create(
+    const expiredRawToken = generateOpaqueToken('manualRegistrationToken');
+    await manualRegistrationTokenFactory.create(
       {workspaceId, expiresAt: new Date(Date.now() - 1000)},
       {transient: {rawToken: expiredRawToken}},
     );
@@ -171,7 +171,7 @@ describe('POST /runners/register', () => {
     });
 
     expect(res.statusCode).toBe(401);
-    expect(res.json().code).toBe('runner-token-expired');
+    expect(res.json().code).toBe('registration-token-expired');
   });
 
   it('returns 409 when an ephemeral registration token is reused', async () => {
@@ -226,12 +226,12 @@ describe('POST /runners/register', () => {
   });
 
   it('returns 401 when the registration token is revoked', async () => {
-    const revokedRawToken = `sf_r_${crypto.randomUUID()}`;
-    const token = await runnerTokenFactory.create(
+    const revokedRawToken = generateOpaqueToken('manualRegistrationToken');
+    const token = await manualRegistrationTokenFactory.create(
       {workspaceId},
       {transient: {rawToken: revokedRawToken}},
     );
-    await revokeRunnerToken({tokenId: token.id, workspaceId});
+    await revokeManualRegistrationToken({tokenId: token.id, workspaceId});
 
     const res = await app.inject({
       method: 'POST',
@@ -241,7 +241,19 @@ describe('POST /runners/register', () => {
     });
 
     expect(res.statusCode).toBe(401);
-    expect(res.json().code).toBe('runner-token-revoked');
+    expect(res.json().code).toBe('manual-registration-token-revoked');
+  });
+
+  it('returns 401 when the registration token prefix is unknown', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/runners/register',
+      headers: {authorization: 'Bearer sf_unknown_token'},
+      payload: {labels: ['linux']},
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().code).toBe('unauthorized');
   });
 
   it.each([

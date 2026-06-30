@@ -1,4 +1,5 @@
 export {toActiveProvisionerDto} from './active-provisioner.js';
+export {toManualRegistrationTokenDto} from './manual-registration-token.js';
 export {
   toMintRegistrationTokensProvisionedRunners,
   toMintRegistrationTokensResponseDto,
@@ -10,4 +11,3 @@ export {
   toReportProvisionedRunnersResponseDto,
 } from './provisioned-runners.js';
 export {toProvisionerTokenDto} from './provisioner-token.js';
-export {toRunnerTokenDto} from './runner-token.js';

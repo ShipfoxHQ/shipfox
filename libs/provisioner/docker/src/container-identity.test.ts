@@ -11,7 +11,7 @@ const identity: ProvisionerIdentity = {
 const launch: ProvisionedRunnerLaunch<DockerTemplateSpec> = {
   provisionedRunnerId: 'runner-1',
   reservationId: '00000000-0000-4000-8000-000000000003',
-  registrationToken: 'sfrt_secret',
+  registrationToken: 'sf_ert_secret',
   registrationTokenExpiresAt: '2026-01-01T00:00:00.000Z',
   runnerEnv: {},
   template: {

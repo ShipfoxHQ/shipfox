@@ -307,8 +307,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.runners_runner_tokens": {
-      "name": "runners_runner_tokens",
+    "public.runners_manual_registration_tokens": {
+      "name": "runners_manual_registration_tokens",
       "schema": "",
       "columns": {
         "id": {
@@ -370,8 +370,8 @@
         }
       },
       "indexes": {
-        "runners_runner_tokens_hashed_token_unique": {
-          "name": "runners_runner_tokens_hashed_token_unique",
+        "runners_manual_registration_tokens_hashed_token_unique": {
+          "name": "runners_manual_registration_tokens_hashed_token_unique",
           "columns": [
             {
               "expression": "hashed_token",
@@ -385,8 +385,8 @@
           "method": "btree",
           "with": {}
         },
-        "runners_runner_tokens_workspace_id_idx": {
-          "name": "runners_runner_tokens_workspace_id_idx",
+        "runners_manual_registration_tokens_workspace_id_idx": {
+          "name": "runners_manual_registration_tokens_workspace_id_idx",
           "columns": [
             {
               "expression": "workspace_id",
@@ -400,8 +400,8 @@
           "method": "btree",
           "with": {}
         },
-        "runners_runner_tokens_active_lookup_idx": {
-          "name": "runners_runner_tokens_active_lookup_idx",
+        "runners_manual_registration_tokens_active_lookup_idx": {
+          "name": "runners_manual_registration_tokens_active_lookup_idx",
           "columns": [
             {
               "expression": "hashed_token",

@@ -126,7 +126,7 @@ describe('provisioner me route', () => {
   });
 
   it('returns 401 for a non-provisioner token type before lookup', async () => {
-    const rawToken = generateOpaqueToken('runnerToken');
+    const rawToken = generateOpaqueToken('manualRegistrationToken');
 
     const res = await app.inject({
       method: 'GET',

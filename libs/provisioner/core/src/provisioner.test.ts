@@ -172,7 +172,7 @@ function harness(options: {response: PollDemandResponseDto; onPoll?: () => void}
         return Promise.resolve({
           tokens: body.provisioned_runners.map((runner) => ({
             provisioned_runner_id: runner.provisioned_runner_id,
-            registration_token: `sfrt_${runner.provisioned_runner_id}`,
+            registration_token: `sf_ert_${runner.provisioned_runner_id}`,
             expires_at: EXPIRES_AT,
           })),
         });

@@ -11,6 +11,18 @@ export {
   listActiveProvisionersResponseSchema,
 } from './list-active-provisioners.js';
 export {
+  type CreateManualRegistrationTokenBodyDto,
+  type CreateManualRegistrationTokenResponseDto,
+  createManualRegistrationTokenBodySchema,
+  createManualRegistrationTokenResponseSchema,
+  type ListManualRegistrationTokensResponseDto,
+  listManualRegistrationTokensResponseSchema,
+  type ManualRegistrationTokenDto,
+  manualRegistrationTokenDtoSchema,
+  type RevokeManualRegistrationTokenResponseDto,
+  revokeManualRegistrationTokenResponseSchema,
+} from './manual-registration-token.js';
+export {
   type MintedRegistrationTokenDto,
   type MintRegistrationTokensBatchBodyDto,
   type MintRegistrationTokensBatchResponseDto,
@@ -89,15 +101,3 @@ export {
   reportProvisionedRunnersBodySchema,
   reportProvisionedRunnersResponseSchema,
 } from './report-provisioned-runners.js';
-export {
-  type CreateRunnerTokenBodyDto,
-  type CreateRunnerTokenResponseDto,
-  createRunnerTokenBodySchema,
-  createRunnerTokenResponseSchema,
-  type ListRunnerTokensResponseDto,
-  listRunnerTokensResponseSchema,
-  type RevokeRunnerTokenResponseDto,
-  type RunnerTokenDto,
-  revokeRunnerTokenResponseSchema,
-  runnerTokenDtoSchema,
-} from './runner-token.js';

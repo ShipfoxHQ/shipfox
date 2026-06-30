@@ -1,8 +1,8 @@
 import {
   AUTH_LEASED_JOB,
   AUTH_PROVISIONER_TOKEN,
+  AUTH_RUNNER_REGISTRATION_TOKEN,
   AUTH_RUNNER_SESSION,
-  AUTH_RUNNER_TOKEN,
   AUTH_USER,
   setProvisionerContext,
 } from '@shipfox/api-auth-context';
@@ -51,7 +51,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     app = await createApp({
       auth: [
         passthroughAuth(AUTH_USER),
-        passthroughAuth(AUTH_RUNNER_TOKEN),
+        passthroughAuth(AUTH_RUNNER_REGISTRATION_TOKEN),
         passthroughAuth(AUTH_RUNNER_SESSION),
         passthroughAuth(AUTH_LEASED_JOB),
         fakeProvisionerAuth,

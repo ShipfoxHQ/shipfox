@@ -4,7 +4,7 @@ const REPLACEMENT = '�';
 
 // An 18-byte (multiple-of-3) secret so its standalone base64 has no padding and the phase-0
 // wire form equals the full encoding — keeps the encoded-form assertions exact.
-const SECRET = 'sf_rt_SECRET123456';
+const SECRET = 'sf_mrt_SECRET12345';
 
 function outputText(events: TransformEvent[]): string {
   return events
@@ -70,8 +70,8 @@ describe('LogTransformer secret masking', () => {
   it('masks a secret split across two pushes within a line', () => {
     const transformer = new LogTransformer([SECRET]);
 
-    transformer.push(Buffer.from('token=sf_rt_SE'), 'stdout');
-    const events = transformer.push(Buffer.from('CRET123456\n'), 'stdout');
+    transformer.push(Buffer.from('token=sf_mrt_SE'), 'stdout');
+    const events = transformer.push(Buffer.from('CRET12345\n'), 'stdout');
 
     expect(outputText(events)).toBe('token=***\n');
   });
@@ -129,12 +129,12 @@ describe('LogTransformer secret masking', () => {
     // the partial secret back, then mask it once the rest arrives — no plaintext on the way out.
     const head = 'x'.repeat(40_000);
 
-    const first = transformer.push(Buffer.from(`${head}sf_rt_SE`), 'stdout');
-    const second = transformer.push(Buffer.from('CRET123456 done\n'), 'stdout');
+    const first = transformer.push(Buffer.from(`${head}sf_mrt_SE`), 'stdout');
+    const second = transformer.push(Buffer.from('CRET12345 done\n'), 'stdout');
     const combined = outputText(first) + outputText(second);
 
     expect(combined).toBe(`${head}*** done\n`);
-    expect(combined).not.toContain('sf_rt_SE');
+    expect(combined).not.toContain('sf_mrt_SE');
   });
 
   it('masks a secret straddling the release of an over-long marker candidate', () => {
@@ -144,20 +144,20 @@ describe('LogTransformer secret masking', () => {
     // hold the secret that straddles that release boundary.
     const head = `::group::${'x'.repeat(20_000)}`;
 
-    const first = transformer.push(Buffer.from(`${head}sf_rt_SE`), 'stdout');
-    const second = transformer.push(Buffer.from('CRET123456 done\n'), 'stdout');
+    const first = transformer.push(Buffer.from(`${head}sf_mrt_SE`), 'stdout');
+    const second = transformer.push(Buffer.from('CRET12345 done\n'), 'stdout');
     const combined = outputText(first) + outputText(second);
 
     expect(combined).toBe(`${head}*** done\n`);
-    expect(combined).not.toContain('sf_rt_SE');
+    expect(combined).not.toContain('sf_mrt_SE');
   });
 
   it('passes output through unchanged when no secrets are registered', () => {
     const transformer = new LogTransformer([]);
 
-    const events = transformer.push(Buffer.from('token=sf_rt_SECRET123456\n'), 'stdout');
+    const events = transformer.push(Buffer.from('token=sf_mrt_SECRET123456\n'), 'stdout');
 
-    expect(outputText(events)).toBe('token=sf_rt_SECRET123456\n');
+    expect(outputText(events)).toBe('token=sf_mrt_SECRET123456\n');
   });
 
   it('masks secrets registered after construction', () => {

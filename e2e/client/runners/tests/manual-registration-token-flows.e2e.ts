@@ -2,10 +2,10 @@ import {argosScreenshot, type Page} from '@shipfox/playwright';
 import {createShipfoxTokenPrefixRegexes} from '@shipfox/regex';
 import {expect, test} from './test.js';
 
-const RUNNER_TOKEN_PREFIX_RE = createShipfoxTokenPrefixRegexes(['rt']).unqualified;
+const RUNNER_TOKEN_PREFIX_RE = createShipfoxTokenPrefixRegexes(['mrt']).unqualified;
 const VISUAL_TEST_NOW = new Date('2026-01-15T12:00:00Z');
-const VISUAL_TEST_RUNNER_TOKEN_PREFIX = 'sf_rt_visual';
-const VISUAL_TEST_RUNNER_TOKEN = 'sf_rt_visual_regression_token';
+const VISUAL_TEST_RUNNER_TOKEN_PREFIX = 'sf_mrt_visual';
+const VISUAL_TEST_RUNNER_TOKEN = 'sf_mrt_visual_regression_token';
 const VISUAL_TEST_CREATED_AT = 'Jan 15, 2026, 12:00 PM';
 const VISUAL_TEST_EXPIRES_AT = 'Jan 16, 2026, 12:00 PM';
 
@@ -40,7 +40,11 @@ async function stubProjectExists(page: Page, workspaceId: string): Promise<void>
   });
 }
 
-test('manages workspace runner tokens from settings', async ({page, auth, workspaces}) => {
+test('manages workspace manual registration tokens from settings', async ({
+  page,
+  auth,
+  workspaces,
+}) => {
   await page.clock.setFixedTime(VISUAL_TEST_NOW);
 
   const user = await auth.createUser();
@@ -54,11 +58,11 @@ test('manages workspace runner tokens from settings', async ({page, auth, worksp
   await page.goto(`/workspaces/${workspace.id}/settings/runners`);
   await expect(page).toHaveURL(new RegExp(`/workspaces/${workspace.id}/settings/runners/?$`, 'u'));
   await expect(page.getByRole('heading', {name: 'Workspace settings'})).toBeVisible();
-  await expect(page.getByText('No usable runner tokens')).toBeVisible();
+  await expect(page.getByText('No usable manual registration tokens')).toBeVisible();
   await argosScreenshot(page, 'runners/settings-runners-empty');
 
   await page.getByRole('button', {name: 'Create token'}).click();
-  const createTokenDialog = page.getByRole('dialog', {name: 'Create runner token'});
+  const createTokenDialog = page.getByRole('dialog', {name: 'Create manual registration token'});
   await expect(createTokenDialog).toBeVisible();
   await expect(page.getByLabel('Token name')).toBeVisible();
   await expect(page.getByRole('button', {name: 'Create token'}).last()).toBeVisible();
@@ -77,16 +81,16 @@ test('manages workspace runner tokens from settings', async ({page, auth, worksp
   }, VISUAL_TEST_RUNNER_TOKEN);
   await expect(createTokenDialog.getByText(VISUAL_TEST_RUNNER_TOKEN)).toBeVisible();
 
-  const runnerTokenRow = page.locator('tr', {hasText: 'E2E runner'});
-  await expect(runnerTokenRow).toBeVisible();
-  const runnerTokenCells = runnerTokenRow.locator('td');
-  await runnerTokenCells.nth(1).evaluate((element: Element, prefix) => {
+  const manualRegistrationTokenRow = page.locator('tr', {hasText: 'E2E runner'});
+  await expect(manualRegistrationTokenRow).toBeVisible();
+  const manualRegistrationTokenCells = manualRegistrationTokenRow.locator('td');
+  await manualRegistrationTokenCells.nth(1).evaluate((element: Element, prefix) => {
     element.textContent = prefix;
   }, VISUAL_TEST_RUNNER_TOKEN_PREFIX);
-  await runnerTokenCells.nth(2).evaluate((element: Element, expiresAt) => {
+  await manualRegistrationTokenCells.nth(2).evaluate((element: Element, expiresAt) => {
     element.textContent = expiresAt;
   }, VISUAL_TEST_EXPIRES_AT);
-  await runnerTokenCells.nth(3).evaluate((element: Element, createdAt) => {
+  await manualRegistrationTokenCells.nth(3).evaluate((element: Element, createdAt) => {
     element.textContent = createdAt;
   }, VISUAL_TEST_CREATED_AT);
   await argosScreenshot(page, 'runners/settings-runners-create-token-success');
@@ -98,5 +102,5 @@ test('manages workspace runner tokens from settings', async ({page, auth, worksp
   await page.getByRole('button', {name: 'Revoke', exact: true}).last().click();
 
   await expect(page.getByRole('button', {name: 'Revoke E2E runner'})).toHaveCount(0);
-  await expect(page.getByText('No usable runner tokens')).toBeVisible();
+  await expect(page.getByText('No usable manual registration tokens')).toBeVisible();
 });

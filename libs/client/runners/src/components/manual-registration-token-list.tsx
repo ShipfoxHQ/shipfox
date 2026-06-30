@@ -1,4 +1,4 @@
-import type {RunnerTokenDto} from '@shipfox/api-runners-dto';
+import type {ManualRegistrationTokenDto} from '@shipfox/api-runners-dto';
 import {
   Alert,
   Button,
@@ -19,16 +19,22 @@ import {
 } from '@shipfox/react-ui';
 import {useQueryClient} from '@tanstack/react-query';
 import {useState} from 'react';
-import {runnerTokenQueryKeys, useRevokeRunnerTokenMutation} from '#hooks/api/runner-tokens.js';
-import {runnerTokenErrorMessage} from './runner-token-errors.js';
-import {formatRunnerTokenDate, runnerTokenDisplayName} from './runner-token-format.js';
+import {
+  manualRegistrationTokenQueryKeys,
+  useRevokeManualRegistrationTokenMutation,
+} from '#hooks/api/manual-registration-tokens.js';
+import {manualRegistrationTokenErrorMessage} from './manual-registration-token-errors.js';
+import {
+  formatManualRegistrationTokenDate,
+  manualRegistrationTokenDisplayName,
+} from './manual-registration-token-format.js';
 
-export function RunnerTokenList({
+export function ManualRegistrationTokenList({
   workspaceId,
   tokens,
 }: {
   workspaceId: string;
-  tokens: RunnerTokenDto[];
+  tokens: ManualRegistrationTokenDto[];
 }) {
   return (
     <>
@@ -46,21 +52,26 @@ export function RunnerTokenList({
           <TableBody>
             {tokens.map((token) => (
               <TableRow key={token.id}>
-                <TableCell className="font-medium">{runnerTokenDisplayName(token)}</TableCell>
+                <TableCell className="font-medium">
+                  {manualRegistrationTokenDisplayName(token)}
+                </TableCell>
                 <TableCell>
                   <Code variant="paragraph">{token.prefix}</Code>
                 </TableCell>
-                <TableCell>{formatRunnerTokenDate(token.expires_at)}</TableCell>
-                <TableCell>{formatRunnerTokenDate(token.created_at)}</TableCell>
+                <TableCell>{formatManualRegistrationTokenDate(token.expires_at)}</TableCell>
+                <TableCell>{formatManualRegistrationTokenDate(token.created_at)}</TableCell>
                 <TableCell className="text-right">
-                  <RevokeRunnerTokenButton workspaceId={workspaceId} token={token} />
+                  <RevokeManualRegistrationTokenButton workspaceId={workspaceId} token={token} />
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
-      <ul className="hidden flex-col gap-10 max-[760px]:flex" aria-label="Runner tokens">
+      <ul
+        className="hidden flex-col gap-10 max-[760px]:flex"
+        aria-label="Manual registration tokens"
+      >
         {tokens.map((token) => (
           <li
             key={token.id}
@@ -69,22 +80,22 @@ export function RunnerTokenList({
             <div className="flex items-start justify-between gap-12">
               <div className="min-w-0 flex-1">
                 <Text size="sm" bold className="truncate">
-                  {runnerTokenDisplayName(token)}
+                  {manualRegistrationTokenDisplayName(token)}
                 </Text>
                 <Code variant="paragraph" className="text-foreground-neutral-muted">
                   {token.prefix}
                 </Code>
               </div>
-              <RevokeRunnerTokenButton workspaceId={workspaceId} token={token} />
+              <RevokeManualRegistrationTokenButton workspaceId={workspaceId} token={token} />
             </div>
             <dl className="mt-12 grid grid-cols-2 gap-10 text-sm">
               <div>
                 <dt className="text-foreground-neutral-muted">Expires</dt>
-                <dd>{formatRunnerTokenDate(token.expires_at)}</dd>
+                <dd>{formatManualRegistrationTokenDate(token.expires_at)}</dd>
               </div>
               <div>
                 <dt className="text-foreground-neutral-muted">Created</dt>
-                <dd>{formatRunnerTokenDate(token.created_at)}</dd>
+                <dd>{formatManualRegistrationTokenDate(token.created_at)}</dd>
               </div>
             </dl>
           </li>
@@ -94,22 +105,24 @@ export function RunnerTokenList({
   );
 }
 
-function RevokeRunnerTokenButton({
+function RevokeManualRegistrationTokenButton({
   workspaceId,
   token,
 }: {
   workspaceId: string;
-  token: RunnerTokenDto;
+  token: ManualRegistrationTokenDto;
 }) {
   const queryClient = useQueryClient();
-  const revokeToken = useRevokeRunnerTokenMutation();
+  const revokeToken = useRevokeManualRegistrationTokenMutation();
   const [open, setOpen] = useState(false);
-  const tokenName = runnerTokenDisplayName(token);
+  const tokenName = manualRegistrationTokenDisplayName(token);
 
   async function handleRevoke() {
     try {
       await revokeToken.mutateAsync({workspaceId, tokenId: token.id});
-      await queryClient.invalidateQueries({queryKey: runnerTokenQueryKeys.list(workspaceId)});
+      await queryClient.invalidateQueries({
+        queryKey: manualRegistrationTokenQueryKeys.list(workspaceId),
+      });
       setOpen(false);
     } catch {
       // React Query stores the error for the inline popover alert.
@@ -149,7 +162,7 @@ function RevokeRunnerTokenButton({
           </div>
           {revokeToken.isError ? (
             <Alert variant="error" animated={false}>
-              <Text size="sm">{runnerTokenErrorMessage(revokeToken.error)}</Text>
+              <Text size="sm">{manualRegistrationTokenErrorMessage(revokeToken.error)}</Text>
             </Alert>
           ) : null}
           <div className="flex justify-end gap-8">
@@ -172,19 +185,23 @@ function RevokeRunnerTokenButton({
   );
 }
 
-export function EmptyRunnerTokens() {
+export function EmptyManualRegistrationTokens() {
   return (
     <EmptyState
       icon="key2Line"
-      title="No usable runner tokens"
+      title="No usable manual registration tokens"
       description="Create a token to connect a runner to this workspace."
     />
   );
 }
 
-export function RunnerTokenTableSkeleton() {
+export function ManualRegistrationTokenTableSkeleton() {
   return (
-    <div role="status" aria-label="Loading runner tokens" className="flex flex-col gap-8">
+    <div
+      role="status"
+      aria-label="Loading manual registration tokens"
+      className="flex flex-col gap-8"
+    >
       {[0, 1, 2].map((row) => (
         <Skeleton key={row} className="h-44 w-full" />
       ))}
