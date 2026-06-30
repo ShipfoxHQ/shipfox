@@ -47,6 +47,12 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
     index = nextIndex;
   }
 
+  function consumeShellEscape(): void {
+    const result = skipShellEscape(text, index);
+    pendingEscape = result.pendingEscape;
+    advance(result.index, result.consumedEscapedCharacter);
+  }
+
   while (index < text.length) {
     if (pendingEscape) {
       pendingEscape = false;
@@ -64,7 +70,7 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
 
     if (frame === 'dollar-single') {
       if (text[index] === '\\') {
-        ({index, pendingEscape} = skipShellEscape(text, index));
+        consumeShellEscape();
         continue;
       }
 
@@ -75,7 +81,7 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
 
     if (frame === 'backtick') {
       if (text[index] === '\\') {
-        ({index, pendingEscape} = skipShellEscape(text, index));
+        consumeShellEscape();
         continue;
       }
 
@@ -91,7 +97,7 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
 
     if (frame === 'double' || frame === 'dollar-double') {
       if (text[index] === '\\') {
-        ({index, pendingEscape} = skipShellEscape(text, index));
+        consumeShellEscape();
         continue;
       }
 
@@ -113,7 +119,7 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
 
     if (frame === 'param-brace') {
       if (text[index] === '\\') {
-        ({index, pendingEscape} = skipShellEscape(text, index));
+        consumeShellEscape();
         continue;
       }
 
@@ -135,7 +141,7 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
 
     if (frame === 'paren-sub') {
       if (text[index] === '\\') {
-        ({index, pendingEscape} = skipShellEscape(text, index));
+        consumeShellEscape();
         continue;
       }
 
@@ -160,7 +166,7 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
       }
 
       if (text[index] === '\\') {
-        ({index, pendingEscape} = skipShellEscape(text, index));
+        consumeShellEscape();
         continue;
       }
 
@@ -200,7 +206,7 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
       }
 
       if (text[index] === '\\') {
-        ({index, pendingEscape} = skipShellEscape(text, index));
+        consumeShellEscape();
         continue;
       }
 
@@ -212,7 +218,7 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
     }
 
     if (text[index] === '\\') {
-      ({index, pendingEscape} = skipShellEscape(text, index));
+      consumeShellEscape();
       continue;
     }
 
@@ -346,9 +352,16 @@ function scanShellControlStart(text: string, index: number, frames: ShellScanFra
 function skipShellEscape(
   text: string,
   index: number,
-): {readonly index: number; readonly pendingEscape: boolean} {
-  if (index + 1 >= text.length) return {index: text.length, pendingEscape: true};
-  return {index: index + 2, pendingEscape: false};
+): {
+  readonly index: number;
+  readonly pendingEscape: boolean;
+  readonly consumedEscapedCharacter: boolean;
+} {
+  if (index + 1 >= text.length) {
+    return {index: text.length, pendingEscape: true, consumedEscapedCharacter: false};
+  }
+
+  return {index: index + 2, pendingEscape: false, consumedEscapedCharacter: true};
 }
 
 function topFrame(frames: readonly ShellScanFrame[]): ShellScanFrame | undefined {

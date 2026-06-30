@@ -125,6 +125,15 @@ describe('shell quoting scanner', () => {
     expect(result).toEqual({kind: 'double'});
   });
 
+  it('preserves escaped whitespace before comments across scan calls', () => {
+    let state = scanShellLiteral('foo\\ ', initialShellScanState);
+    state = scanShellLiteral('# "unterminated', state);
+
+    const result = classifyShellSite(state);
+
+    expect(result).toEqual({kind: 'double'});
+  });
+
   it('does not mutate arithmetic-square frames from previous scan states', () => {
     const original = scanShellLiteral('$[a[', initialShellScanState);
 
