@@ -871,7 +871,7 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
         statusReason: 'run_cancelled',
       });
       if (updated?.changed) cancelledJobs.push(updated.job);
-      await tx
+      const cancelledExecutions = await tx
         .update(jobExecutions)
         .set({
           status: 'cancelled',
@@ -885,8 +885,11 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
             eq(jobExecutions.jobId, jobRow.id),
             notInArray(jobExecutions.status, TERMINAL_EXECUTION_STATUSES),
           ),
-        );
-      await bulkUpdateStepStatuses({jobId: jobRow.id, status: 'cancelled'}, tx);
+        )
+        .returning({id: jobExecutions.id});
+      for (const execution of cancelledExecutions) {
+        await bulkUpdateStepStatuses({executionId: execution.id, status: 'cancelled'}, tx);
+      }
     }
 
     const [cancelledRunRow] = await tx
@@ -1182,30 +1185,6 @@ export async function updateJobStatus(params: UpdateJobStatusParams): Promise<Jo
   return result.job;
 }
 
-// Project the runner-owned queue/claim moments onto the durable job row. The null
-// guard makes redelivery and out-of-order delivery first-write-wins, so the
-// at-least-once outbox can replay these freely. Eventually consistent by design:
-// the column stays null until the runner event drains.
-export async function recordJobQueuedAt(params: {jobId: string; queuedAt: Date}): Promise<void> {
-  const updated = await db()
-    .update(jobs)
-    .set({queuedAt: params.queuedAt})
-    .where(and(eq(jobs.id, params.jobId), isNull(jobs.queuedAt)))
-    .returning({id: jobs.id});
-
-  if (updated.length > 0) recordWorkflowJobQueued();
-}
-
-export async function recordJobStartedAt(params: {jobId: string; startedAt: Date}): Promise<void> {
-  const updated = await db()
-    .update(jobs)
-    .set({startedAt: params.startedAt})
-    .where(and(eq(jobs.id, params.jobId), isNull(jobs.startedAt)))
-    .returning({id: jobs.id});
-
-  if (updated.length > 0) recordWorkflowJobStarted();
-}
-
 export async function recordExecutionQueuedAt(params: {
   executionId: string;
   queuedAt: Date;
@@ -1384,7 +1363,16 @@ export async function resolveJobAfterLeaseExpiry(params: {
         statusReason: 'runner_lost',
       });
       changedJob = updated?.changed ? updated.job : null;
-      await bulkUpdateStepStatuses({jobId: params.jobId, status: 'cancelled'}, tx);
+      const execution = (
+        await tx
+          .select({id: jobExecutions.id})
+          .from(jobExecutions)
+          .where(eq(jobExecutions.jobId, params.jobId))
+          .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id))
+          .limit(1)
+      )[0];
+      if (!execution) throw new JobNotFoundError(params.jobId);
+      await bulkUpdateStepStatuses({executionId: execution.id, status: 'cancelled'}, tx);
     }
 
     const row = (await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1))[0];
@@ -1487,17 +1475,17 @@ export async function resolveJobStatusFromExecutions(params: {
       expectedVersion: jobRow.version,
       statusReason: toJobStatusReason(statusReason),
     });
-    if (updated) return updated.job;
+    if (updated) return {job: updated.job, changed: updated.changed};
 
     const existing = (await tx.select().from(jobs).where(eq(jobs.id, params.jobId)).limit(1))[0];
     if (!existing) throw new JobNotFoundError(params.jobId);
-    return toJob(existing);
+    return {job: toJob(existing), changed: false};
   });
 
-  recordWorkflowJobStatusChanged(result.status);
+  if (result.changed) recordWorkflowJobStatusChanged(result.job.status);
   return {
-    status: result.status === 'succeeded' ? 'succeeded' : 'failed',
-    jobVersion: result.version,
+    status: result.job.status === 'succeeded' ? 'succeeded' : 'failed',
+    jobVersion: result.job.version,
   };
 }
 
@@ -1526,8 +1514,7 @@ export async function writeJobStepsSettledOutbox(
 }
 
 export interface BulkUpdateStepStatusesParams {
-  jobId?: string;
-  executionId?: string;
+  executionId: string;
   status: StepStatus;
 }
 
@@ -1540,21 +1527,18 @@ export async function bulkUpdateStepStatuses(
     return;
   }
 
-  const scope =
-    params.executionId !== undefined
-      ? eq(steps.executionId, params.executionId)
-      : params.jobId !== undefined
-        ? eq(steps.jobId, params.jobId)
-        : undefined;
-  if (!scope) throw new Error('bulkUpdateStepStatuses requires jobId or executionId');
-
   await tx
     .update(steps)
     .set({
       status: params.status,
       updatedAt: new Date(),
     })
-    .where(and(scope, sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`));
+    .where(
+      and(
+        eq(steps.executionId, params.executionId),
+        sql`${steps.status} NOT IN ('succeeded','failed','cancelled')`,
+      ),
+    );
 
   // Finalize any open attempt rows for the steps just terminalized, so a
   // dispatched-then-timed-out/cancelled step never leaves a `running` audit row
@@ -1568,12 +1552,7 @@ export async function bulkUpdateStepStatuses(
       .update(stepAttempts)
       .set({status: params.status, logOutcome: 'abandoned', finishedAt: new Date()})
       .where(
-        and(
-          params.executionId !== undefined
-            ? eq(stepAttempts.executionId, params.executionId)
-            : eq(stepAttempts.jobId, params.jobId ?? ''),
-          eq(stepAttempts.status, 'running'),
-        ),
+        and(eq(stepAttempts.executionId, params.executionId), eq(stepAttempts.status, 'running')),
       )
       .returning({
         jobId: stepAttempts.jobId,
@@ -1659,7 +1638,7 @@ export async function markStepRunning(params: MarkStepRunningParams, tx: Tx): Pr
   await insertRunningStepAttempt(
     {
       jobId: step.jobId,
-      executionId: step.executionId ?? step.jobId,
+      executionId: step.executionId,
       stepId: step.id,
       attempt: step.currentAttempt,
     },

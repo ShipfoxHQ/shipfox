@@ -8,18 +8,13 @@ import {config} from '#config.js';
 import {recordTokenIssued, recordTokenVerified} from '#metrics/index.js';
 
 // `aud`, `iat` and `exp` are set by the codec (jose); callers supply the business ids only.
-export type IssueJobLeaseTokenParams = Omit<
-  JobLeaseTokenClaims,
-  'aud' | 'iat' | 'exp' | 'executionId'
-> & {
-  executionId?: string;
-};
+export type IssueJobLeaseTokenParams = Omit<JobLeaseTokenClaims, 'aud' | 'iat' | 'exp'>;
 
 export async function issueJobLeaseToken(claims: IssueJobLeaseTokenParams): Promise<string> {
   const token = await signHs256({
     payload: {
       jobId: claims.jobId,
-      executionId: claims.executionId ?? claims.jobId,
+      executionId: claims.executionId,
       runId: claims.runId,
       projectId: claims.projectId,
       workspaceId: claims.workspaceId,

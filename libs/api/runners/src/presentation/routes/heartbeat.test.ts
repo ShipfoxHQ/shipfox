@@ -123,8 +123,10 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
 
   it('returns 404 when the jobId is unknown', async () => {
     const jobId = crypto.randomUUID();
+    const executionId = crypto.randomUUID();
     const leaseToken = await issueJobLeaseToken({
       jobId,
+      executionId,
       runId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       workspaceId,
@@ -142,10 +144,11 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
   });
 
   it('returns 404 when the job belongs to a different session', async () => {
-    const {jobId} = await claimAvailableJob();
+    const {jobId, executionId} = await claimAvailableJob();
     const otherSession = await runnerSessionFactory.create({workspaceId});
     const leaseToken = await issueJobLeaseToken({
       jobId,
+      executionId,
       runId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       workspaceId,

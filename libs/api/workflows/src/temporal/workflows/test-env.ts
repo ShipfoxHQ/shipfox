@@ -29,12 +29,12 @@ export interface TestConfig {
   signalLeaseExpired?: boolean;
   /** If true, signal BOTH job-finished and job-lease-expired (precedence testing) */
   signalBoth?: boolean;
-  /** Status resolveLeaseExpiredJobActivity returns (defaults to 'failed') */
+  /** Status resolveLeaseExpiredExecutionActivity returns (defaults to 'failed') */
   leaseExpiredStatus?: RuntimeCompletionStatus;
   /** If set, releaseLeaseActivity throws (non-retryable) to prove the workflow still returns */
   releaseLeaseError?: string;
-  /** If set, failJobAsTimedOutActivity throws (for timeout error-path testing) */
-  failJobAsTimedOutError?: string;
+  /** If set, failExecutionAsTimedOutActivity throws (for timeout error-path testing) */
+  failExecutionAsTimedOutError?: string;
   /** Effective status returned by the initial running setRunStatus call */
   initialRunStatus?: string;
   /** Effective status returned by a running setJobStatus call */
@@ -237,11 +237,6 @@ function createMockActivities() {
       }
     },
 
-    resolveLeaseExpiredJobActivity: (params: {jobId: string; expectedVersion: number}) => {
-      calls.push({name: 'resolveLeaseExpiredJobActivity', params});
-      return {status: cfg.leaseExpiredStatus ?? 'failed', jobVersion: nextVersion()};
-    },
-
     resolveLeaseExpiredExecutionActivity: (params: {
       executionId: string;
       expectedVersion: number;
@@ -263,28 +258,15 @@ function createMockActivities() {
       }
     },
 
-    failJobAsTimedOutActivity: async (params: {
-      jobId: string;
-      runId: string;
-      expectedVersion: number;
-    }) => {
-      calls.push({name: 'failJobAsTimedOutActivity', params});
-      if (cfg.failJobAsTimedOutError) {
-        const {ApplicationFailure} = await import('@temporalio/common');
-        throw ApplicationFailure.nonRetryable(cfg.failJobAsTimedOutError);
-      }
-      return {newVersion: nextVersion()};
-    },
-
     failExecutionAsTimedOutActivity: async (params: {
       executionId: string;
       runId: string;
       expectedVersion: number;
     }) => {
       calls.push({name: 'failExecutionAsTimedOutActivity', params});
-      if (cfg.failJobAsTimedOutError) {
+      if (cfg.failExecutionAsTimedOutError) {
         const {ApplicationFailure} = await import('@temporalio/common');
-        throw ApplicationFailure.nonRetryable(cfg.failJobAsTimedOutError);
+        throw ApplicationFailure.nonRetryable(cfg.failExecutionAsTimedOutError);
       }
       return {newVersion: nextVersion()};
     },

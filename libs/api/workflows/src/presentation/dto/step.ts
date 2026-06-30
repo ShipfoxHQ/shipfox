@@ -122,7 +122,7 @@ export function toStepDto(step: Step): StepDto {
   return {
     id: step.id,
     job_id: step.jobId,
-    execution_id: step.executionId ?? step.jobId,
+    execution_id: step.executionId,
     name: step.name,
     display_name: step.displayName,
     source_location: toStepSourceLocationDto(step.sourceLocation),
@@ -152,7 +152,7 @@ export function toStepAttemptDto(attempt: StepAttempt): StepAttemptDto {
     id: attempt.id,
     step_id: attempt.stepId,
     job_id: attempt.jobId,
-    execution_id: attempt.executionId ?? attempt.jobId,
+    execution_id: attempt.executionId,
     attempt: attempt.attempt,
     execution_order: attempt.executionOrder,
     status: attempt.status,

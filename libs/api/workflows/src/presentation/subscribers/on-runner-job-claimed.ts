@@ -12,7 +12,7 @@ export async function onRunnerJobClaimed(payload: RunnerJobClaimedEvent): Promis
     'Recording execution started_at from claim',
   );
   await recordExecutionStartedAt({
-    executionId: payload.executionId ?? payload.jobId,
+    executionId: payload.executionId,
     startedAt: new Date(payload.claimedAt),
   });
 }

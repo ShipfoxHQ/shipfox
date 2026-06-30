@@ -11,7 +11,7 @@ describe('onRunnerJobQueued', () => {
 
     await onRunnerJobQueued({
       jobId: job?.id as string,
-      executionId: execution?.id,
+      executionId: execution?.id as string,
       runId: run.id,
       queuedAt: queuedAt.toISOString(),
     });
@@ -29,13 +29,13 @@ describe('onRunnerJobQueued', () => {
 
     await onRunnerJobQueued({
       jobId: job?.id as string,
-      executionId: execution?.id,
+      executionId: execution?.id as string,
       runId: run.id,
       queuedAt: first.toISOString(),
     });
     await onRunnerJobQueued({
       jobId: job?.id as string,
-      executionId: execution?.id,
+      executionId: execution?.id as string,
       runId: run.id,
       queuedAt: second.toISOString(),
     });

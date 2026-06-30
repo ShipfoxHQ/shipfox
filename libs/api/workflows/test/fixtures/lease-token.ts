@@ -20,11 +20,13 @@ export interface MintLeaseTokenParams {
 }
 
 export async function mintLeaseToken(params: MintLeaseTokenParams): Promise<string> {
-  const executionId = params.executionId ?? (await getFirstExecutionByJobId(params.jobId))?.id;
+  const executionId =
+    params.executionId ?? (await getFirstExecutionByJobId(params.jobId))?.id ?? crypto.randomUUID();
+
   return signHs256({
     payload: {
       jobId: params.jobId,
-      executionId: executionId ?? params.jobId,
+      executionId,
       runId: params.runId ?? crypto.randomUUID(),
       projectId: params.projectId ?? crypto.randomUUID(),
       workspaceId: params.workspaceId ?? crypto.randomUUID(),

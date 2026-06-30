@@ -12,10 +12,10 @@ import {JOB_FINISHED_SIGNAL, JOB_LEASE_EXPIRED_SIGNAL} from '../constants.js';
  *   job-finished (recordStepResult exhausted the steps) ─┐
  *   job-lease-expired (runner heartbeat went stale) ─────┤
  *                                                        ▼
- *   condition(finished ∥ leaseExpired, JOB_MAX_DURATION)
- *     ├─ finished      → setJobStatus(status)                              ─┐
- *     ├─ leaseExpired  → resolveLeaseExpiredJobActivity (server state wins) ─┤→ releaseLease
- *     └─ neither (60m) → failJobAsTimedOutActivity + sweep steps (NO release; the
+ *   condition(finished ∥ leaseExpired, executionTimeout)
+ *     ├─ finished      → setExecutionStatus(status) + resolve job status     ─┐
+ *     ├─ leaseExpired  → resolveLeaseExpiredExecutionActivity                 ─┤→ releaseLease
+ *     └─ neither (6h)  → failExecutionAsTimedOutActivity + sweep steps (NO release; the
  *                        TIMED_OUT event drives cooperative cancel, the detector reaps)
  *
  * Both signals can be delivered before condition() resumes (independent outboxes,
@@ -177,9 +177,9 @@ async function resolveLeaseExpiredJob({
   return {status, jobVersion};
 }
 
-// Timeout backstop. The activity atomically fails the job, marks `timed_out_at`,
-// and enqueues WORKFLOWS_JOB_TIMED_OUT; the runners subscriber then asks the
-// runner to cancel. The lease is intentionally NOT released here.
+// Timeout backstop. The activity atomically fails the execution, marks
+// `timed_out_at`, and enqueues WORKFLOWS_JOB_TIMED_OUT; the runners subscriber
+// then asks the runner to cancel. The lease is intentionally NOT released here.
 async function resolveTimedOutJob({
   input,
   runningVersion,

@@ -16,7 +16,7 @@ let workerRunPromise: Promise<void> | undefined;
 
 let calls: ActivityCall[] = [];
 let versionSeq = 0;
-let failJobAsTimedOutShouldThrow = false;
+let failExecutionAsTimedOutShouldThrow = false;
 
 function nextVersion(): number {
   return ++versionSeq;
@@ -27,8 +27,8 @@ function callsNamed(name: string): ActivityCall[] {
 }
 
 beforeAll(async () => {
-  // Time-skipping environment lets us advance virtual time past JOB_MAX_DURATION
-  // (60 minutes) without waiting in real wall time.
+  // Time-skipping environment lets us advance virtual time past the execution
+  // timeout without waiting in real wall time.
   testEnv = await TestWorkflowEnvironment.createTimeSkipping();
 
   worker = await Worker.create({
@@ -58,10 +58,6 @@ beforeAll(async () => {
       bulkSetStepStatuses: (params: unknown) => {
         calls.push({name: 'bulkSetStepStatuses', params});
       },
-      resolveLeaseExpiredJobActivity: (params: unknown) => {
-        calls.push({name: 'resolveLeaseExpiredJobActivity', params});
-        return {status: 'failed', jobVersion: nextVersion()};
-      },
       resolveLeaseExpiredExecutionActivity: (params: unknown) => {
         calls.push({name: 'resolveLeaseExpiredExecutionActivity', params});
         return {status: 'failed', executionVersion: nextVersion()};
@@ -77,17 +73,9 @@ beforeAll(async () => {
         // No-op — we want the workflow to block on the signal until the timeout fires.
         calls.push({name: 'enqueueJobForRunner', params});
       },
-      failJobAsTimedOutActivity: async (params: unknown) => {
-        calls.push({name: 'failJobAsTimedOutActivity', params});
-        if (failJobAsTimedOutShouldThrow) {
-          const {ApplicationFailure} = await import('@temporalio/common');
-          throw ApplicationFailure.nonRetryable('simulated DB outage');
-        }
-        return {newVersion: nextVersion()};
-      },
       failExecutionAsTimedOutActivity: async (params: unknown) => {
         calls.push({name: 'failExecutionAsTimedOutActivity', params});
-        if (failJobAsTimedOutShouldThrow) {
+        if (failExecutionAsTimedOutShouldThrow) {
           const {ApplicationFailure} = await import('@temporalio/common');
           throw ApplicationFailure.nonRetryable('simulated DB outage');
         }
@@ -111,7 +99,7 @@ afterAll(async () => {
 beforeEach(() => {
   calls = [];
   versionSeq = 0;
-  failJobAsTimedOutShouldThrow = false;
+  failExecutionAsTimedOutShouldThrow = false;
 });
 
 const defaultJobInput = {
@@ -163,7 +151,7 @@ describe('jobOrchestration timeout path', () => {
   }, 60_000);
 
   test('failExecutionAsTimedOutActivity throws → workflow surfaces the error', async () => {
-    failJobAsTimedOutShouldThrow = true;
+    failExecutionAsTimedOutShouldThrow = true;
 
     await expect(executeJob({...defaultJobInput, jobId: 'job-fail-error'})).rejects.toThrow();
 

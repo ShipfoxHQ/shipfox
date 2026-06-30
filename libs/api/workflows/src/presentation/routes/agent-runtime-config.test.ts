@@ -148,12 +148,14 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     await insertRunningJobLease({
       workspaceId: run.workspaceId,
       jobId: job.id,
+      executionId: step.executionId,
       runId: run.id,
       projectId: run.projectId,
       runnerSessionId: crypto.randomUUID(),
     });
     const token = await mintLeaseToken({
       jobId: job.id,
+      executionId: step.executionId,
       runId: run.id,
       projectId: run.projectId,
       workspaceId: run.workspaceId,
@@ -348,11 +350,12 @@ async function mintActiveLeaseToken(params: {
   workspaceId?: string;
 }) {
   const runnerSessionId = crypto.randomUUID();
-  const executionId = (await getFirstExecutionByJobId(params.job.id))?.id ?? params.job.id;
+  const execution = await getFirstExecutionByJobId(params.job.id);
+  if (!execution) throw new Error('Expected job execution to exist');
   await insertRunningJobLease({
     workspaceId: params.run.workspaceId,
     jobId: params.job.id,
-    executionId,
+    executionId: execution.id,
     runId: params.run.id,
     projectId: params.run.projectId,
     runnerSessionId,
@@ -360,7 +363,7 @@ async function mintActiveLeaseToken(params: {
 
   return await mintLeaseToken({
     jobId: params.job.id,
-    executionId,
+    executionId: execution.id,
     runId: params.run.id,
     projectId: params.run.projectId,
     workspaceId: params.workspaceId ?? params.run.workspaceId,
@@ -371,7 +374,7 @@ async function mintActiveLeaseToken(params: {
 async function insertRunningJobLease(params: {
   workspaceId: string;
   jobId: string;
-  executionId?: string;
+  executionId: string;
   runId: string;
   projectId: string;
   runnerSessionId: string;
@@ -390,7 +393,7 @@ async function insertRunningJobLease(params: {
     VALUES (
       ${params.workspaceId},
       ${params.jobId},
-      ${params.executionId ?? params.jobId},
+      ${params.executionId},
       ${params.runId},
       ${params.projectId},
       ${params.runnerSessionId},

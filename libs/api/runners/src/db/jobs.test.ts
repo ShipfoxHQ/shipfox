@@ -50,15 +50,24 @@ describe('enqueueJob', () => {
 
   it('stores a pending assignment row', async () => {
     const jobId = crypto.randomUUID();
+    const executionId = crypto.randomUUID();
     const runId = crypto.randomUUID();
     const workspaceId = crypto.randomUUID();
     const projectId = crypto.randomUUID();
 
-    await enqueueJob({workspaceId, jobId, runId, projectId, requiredLabels: ['linux']});
+    await enqueueJob({
+      workspaceId,
+      jobId,
+      executionId,
+      runId,
+      projectId,
+      requiredLabels: ['linux'],
+    });
 
     const rows = await db().select().from(pendingJobs);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.jobId).toBe(jobId);
+    expect(rows[0]?.executionId).toBe(executionId);
     expect(rows[0]?.runId).toBe(runId);
     expect(rows[0]?.projectId).toBe(projectId);
     expect(rows[0]?.workspaceId).toBe(workspaceId);
@@ -68,10 +77,12 @@ describe('enqueueJob', () => {
 
   it('stores canonical required labels', async () => {
     const jobId = crypto.randomUUID();
+    const executionId = crypto.randomUUID();
 
     await enqueueJob({
       workspaceId: crypto.randomUUID(),
       jobId,
+      executionId,
       runId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       requiredLabels: ['Ubuntu22', ' ubuntu22 ', 'LINUX'],
@@ -86,6 +97,7 @@ describe('enqueueJob', () => {
       enqueueJob({
         workspaceId: crypto.randomUUID(),
         jobId: crypto.randomUUID(),
+        executionId: crypto.randomUUID(),
         runId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         requiredLabels: [],
@@ -100,6 +112,7 @@ describe('enqueueJob', () => {
       runId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       jobId,
+      executionId: crypto.randomUUID(),
       requiredLabels: ['linux'],
     };
 
@@ -117,6 +130,7 @@ describe('enqueueJob', () => {
     await enqueueJob({
       workspaceId: crypto.randomUUID(),
       jobId,
+      executionId: crypto.randomUUID(),
       runId,
       projectId: crypto.randomUUID(),
       requiredLabels: ['linux'],
@@ -138,6 +152,7 @@ describe('enqueueJob', () => {
       runId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
       jobId: crypto.randomUUID(),
+      executionId: crypto.randomUUID(),
       requiredLabels: ['linux'],
     };
 
@@ -196,11 +211,12 @@ describe('claimPendingJob', () => {
 
   it('emits no claimed event when dropping an orphan pending row', async () => {
     const created = await pendingJobFactory.create({workspaceId});
-    await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
+    const first = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
+    if (!first) throw new Error('Expected pending job to be claimed');
     await db().insert(pendingJobs).values({
       workspaceId,
       jobId: created.jobId,
-      executionId: created.jobId,
+      executionId: first.executionId,
       runId: created.runId,
       projectId: created.projectId,
       requiredLabels: created.requiredLabels,
@@ -230,9 +246,12 @@ describe('claimPendingJob', () => {
     const otherRunnerSession = await runnerSessionFactory.create({workspaceId});
 
     const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
-    const active = await isJobLeaseActive({jobId: claimed?.jobId as string, runnerSessionId});
+    const active = await isJobLeaseActive({
+      executionId: claimed?.executionId as string,
+      runnerSessionId,
+    });
     const stale = await isJobLeaseActive({
-      jobId: created.jobId,
+      executionId: created.executionId,
       runnerSessionId: otherRunnerSession.id,
     });
 
@@ -503,7 +522,7 @@ describe('claimPendingJob', () => {
       runnerSessionId,
       sessionLabels: ['macos'],
     });
-    await releaseJob({jobId: created.jobId});
+    await releaseJob({executionId: created.executionId});
 
     expect(second).toBeNull();
     expect(await db().select().from(runningJobs)).toHaveLength(0);
@@ -590,14 +609,14 @@ describe('releaseJob', () => {
     const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
     const before = await db().select().from(runnersOutbox);
 
-    await releaseJob({jobId: claimed?.jobId as string});
+    await releaseJob({executionId: claimed?.executionId as string});
 
     expect(await db().select().from(runningJobs)).toHaveLength(0);
     expect(await db().select().from(runnersOutbox)).toHaveLength(before.length);
   });
 
   it('is a no-op when the job is absent (idempotent)', async () => {
-    await expect(releaseJob({jobId: crypto.randomUUID()})).resolves.toBeUndefined();
+    await expect(releaseJob({executionId: crypto.randomUUID()})).resolves.toBeUndefined();
   });
 
   it('releases regardless of which session holds the lease', async () => {
@@ -605,7 +624,7 @@ describe('releaseJob', () => {
     const claimed = await claimPendingJob({workspaceId, runnerSessionId, maxClaims: null});
 
     // No token is passed: the workflow is authoritative over the lease.
-    await releaseJob({jobId: claimed?.jobId as string});
+    await releaseJob({executionId: claimed?.executionId as string});
 
     expect(await db().select().from(runningJobs)).toHaveLength(0);
   });
@@ -625,7 +644,7 @@ describe('releaseJob', () => {
         requiredLabels: ['linux'],
       });
 
-    await releaseJob({jobId: claimed?.jobId as string});
+    await releaseJob({executionId: claimed?.executionId as string});
 
     expect(await db().select().from(runningJobs)).toHaveLength(0);
     expect(await db().select().from(pendingJobs)).toHaveLength(0);
@@ -657,7 +676,7 @@ describe('recordHeartbeat', () => {
       .where(eq(runningJobs.jobId, claimed?.jobId as string));
 
     const result = await recordHeartbeat({
-      jobId: claimed?.jobId as string,
+      executionId: claimed?.executionId as string,
       runnerSessionId,
     });
 
@@ -686,7 +705,7 @@ describe('recordHeartbeat', () => {
     await requestJobCancellation({jobId: claimed?.jobId as string});
 
     const result = await recordHeartbeat({
-      jobId: claimed?.jobId as string,
+      executionId: claimed?.executionId as string,
       runnerSessionId,
     });
 
@@ -701,9 +720,9 @@ describe('recordHeartbeat', () => {
   });
 
   it('throws RunningJobNotFoundError when jobId is unknown', async () => {
-    await expect(recordHeartbeat({jobId: crypto.randomUUID(), runnerSessionId})).rejects.toThrow(
-      'Running job not found',
-    );
+    await expect(
+      recordHeartbeat({executionId: crypto.randomUUID(), runnerSessionId}),
+    ).rejects.toThrow('Running job not found');
   });
 
   it('throws when jobId belongs to a different session', async () => {
@@ -713,7 +732,7 @@ describe('recordHeartbeat', () => {
 
     await expect(
       recordHeartbeat({
-        jobId: claimed?.jobId as string,
+        executionId: claimed?.executionId as string,
         runnerSessionId: otherRunnerSession.id,
       }),
     ).rejects.toThrow('Running job not found');

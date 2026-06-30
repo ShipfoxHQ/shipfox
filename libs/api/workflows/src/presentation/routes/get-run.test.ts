@@ -5,7 +5,11 @@ import {eq} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
-import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
+import {JobNotFoundError} from '#core/errors.js';
+import {
+  nextStepForJob,
+  recordStepResult as recordExecutionStepResult,
+} from '#core/job-execution.js';
 import {db} from '#db/db.js';
 import * as dbIndex from '#db/index.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
@@ -20,6 +24,16 @@ import {workflowModel} from '#test/index.js';
 import {getRunRoute} from './get-run.js';
 
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
+
+async function recordStepResult(
+  params: Omit<Parameters<typeof recordExecutionStepResult>[0], 'executionId'> & {jobId: string},
+) {
+  const steps = await getStepsByJobId(params.jobId);
+  const step = steps.find((candidate) => candidate.id === params.stepId);
+  if (!step) throw new JobNotFoundError(params.jobId);
+  const {jobId: _jobId, ...rest} = params;
+  return recordExecutionStepResult({...rest, executionId: step.executionId});
+}
 
 vi.mock('@shipfox/api-projects', () => ({
   requireProjectAccess: vi.fn(({projectId}) =>

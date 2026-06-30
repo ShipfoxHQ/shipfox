@@ -8,13 +8,11 @@ import {JobNotFoundError} from '#core/errors.js';
 import {
   bulkUpdateStepStatuses,
   failExecutionAsTimedOut,
-  failJobAsTimedOut,
   getExecutionsByJobId,
   getJobsByRunId,
   getStepsByExecutionIds,
   getWorkflowRunById,
   resolveExecutionAfterLeaseExpiry,
-  resolveJobAfterLeaseExpiry,
   resolveJobStatusFromExecutions,
   updateExecutionStatus,
   updateJobStatus,
@@ -25,7 +23,7 @@ export interface DagJob extends RuntimeDagJob {
   id: string;
   name: string;
   status: JobStatus;
-  executionId?: string;
+  executionId: string;
   executionVersion?: number;
   executionTimeoutMs?: number | null | undefined;
   dependencies: string[];
@@ -62,10 +60,9 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
 
   const stepsByExecutionId = new Map<string, typeof allSteps>();
   for (const step of allSteps) {
-    const executionId = step.executionId ?? step.jobId;
-    const arr = stepsByExecutionId.get(executionId) ?? [];
+    const arr = stepsByExecutionId.get(step.executionId) ?? [];
     arr.push(step);
-    stepsByExecutionId.set(executionId, arr);
+    stepsByExecutionId.set(step.executionId, arr);
   }
 
   return {
@@ -150,26 +147,6 @@ export async function bulkSetStepStatuses(params: {
   await bulkUpdateStepStatuses(params);
 }
 
-// Lease-expiry resolution is a single guarded DB transaction (server state is the
-// final gate); the activity is a thin pass-through that returns the job's actual
-// persisted terminal status so the workflow hands run-orchestration the truth.
-export async function resolveLeaseExpiredJobActivity(params: {
-  jobId: string;
-  expectedVersion: number;
-}): Promise<{status: RuntimeCompletionStatus; jobVersion: number}> {
-  try {
-    return await resolveJobAfterLeaseExpiry(params);
-  } catch (err) {
-    // A job with no steps is a data-integrity bug, not a transient fault. Retrying
-    // it would loop until the workflow's 60-min backstop; surface it immediately
-    // as a non-retryable failure instead.
-    if (err instanceof JobNotFoundError) {
-      throw ApplicationFailure.nonRetryable(err.message, err.name);
-    }
-    throw err;
-  }
-}
-
 export async function resolveLeaseExpiredExecutionActivity(params: {
   executionId: string;
   expectedVersion: number;
@@ -218,15 +195,6 @@ export async function enqueueJobForRunner(params: {
 
 export async function cancelRunnerJobsActivity(params: {jobIds: string[]}): Promise<void> {
   await cancelRunnerJobs({jobIds: params.jobIds});
-}
-
-export async function failJobAsTimedOutActivity(params: {
-  jobId: string;
-  runId: string;
-  expectedVersion: number;
-}): Promise<{newVersion: number}> {
-  const job = await failJobAsTimedOut(params);
-  return {newVersion: job.version};
 }
 
 export async function failExecutionAsTimedOutActivity(params: {

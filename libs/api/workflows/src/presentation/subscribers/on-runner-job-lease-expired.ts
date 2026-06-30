@@ -10,7 +10,7 @@ import {isWorkflowNotFound} from '#temporal/workflow-not-found.js';
 // otherwise fail the job and cancel the remaining steps).
 export async function onRunnerJobLeaseExpired(payload: RunnerJobLeaseExpiredEvent): Promise<void> {
   logger().info(
-    {jobId: payload.jobId, executionId: payload.executionId ?? payload.jobId, runId: payload.runId},
+    {jobId: payload.jobId, executionId: payload.executionId, runId: payload.runId},
     'Signaling job orchestration of lease expiry',
   );
   const handle = temporalClient().workflow.getHandle(`job:${payload.jobId}`);
@@ -21,7 +21,7 @@ export async function onRunnerJobLeaseExpired(payload: RunnerJobLeaseExpiredEven
     // its status is authoritative, drop this late event.
     if (isWorkflowNotFound(err)) {
       logger().debug(
-        {jobId: payload.jobId, executionId: payload.executionId ?? payload.jobId},
+        {jobId: payload.jobId, executionId: payload.executionId},
         'Job workflow already terminated; lease-expired event discarded',
       );
       return;

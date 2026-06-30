@@ -71,8 +71,7 @@ export function nextStepForJob(jobId: string): Promise<NextStep> {
 }
 
 export interface RecordStepResultParams {
-  executionId?: string;
-  jobId?: string;
+  executionId: string;
   stepId: string;
   status: 'succeeded' | 'failed';
   error?: Record<string, unknown> | null;
@@ -99,20 +98,10 @@ function outcomeFromSteps(steps: Step[]): RecordStepResultOutcome {
     : {jobFinished: false};
 }
 
-async function resolveExecutionId(params: Pick<RecordStepResultParams, 'executionId' | 'jobId'>) {
-  if (params.executionId) return params.executionId;
-  if (!params.jobId) throw new JobNotFoundError('unknown');
-
-  const execution = await getFirstExecutionByJobId(params.jobId);
-  if (!execution) throw new JobNotFoundError(params.jobId);
-
-  return execution.id;
-}
-
 export async function recordStepResult(
   params: RecordStepResultParams,
 ): Promise<RecordStepResultOutcome> {
-  const executionId = await resolveExecutionId(params);
+  const executionId = params.executionId;
   // One transaction keeps the attempt finalize, the step result, and any sibling
   // cancellations atomic, so a crashed-then-retried report can never leave
   // siblings stranded once the step itself is terminal.

@@ -24,7 +24,7 @@ import {runningJobs} from './schema/running-jobs.js';
 export interface EnqueueJobParams {
   workspaceId: string;
   jobId: string;
-  executionId?: string;
+  executionId: string;
   runId: string;
   projectId: string;
   requiredLabels: string[];
@@ -39,7 +39,6 @@ export interface EnqueueJobParams {
 // via the running-execution unique constraint (onConflictDoNothing) instead of failing.
 export async function enqueueJob(params: EnqueueJobParams): Promise<void> {
   const requiredLabels = [...canonicalizeLabels(params.requiredLabels)];
-  const executionId = params.executionId ?? params.jobId;
   if (requiredLabels.length === 0) throw new EmptyRequiredLabelsError();
 
   const enqueued = await db().transaction(async (tx) => {
@@ -48,7 +47,7 @@ export async function enqueueJob(params: EnqueueJobParams): Promise<void> {
       .values({
         workspaceId: params.workspaceId,
         jobId: params.jobId,
-        executionId,
+        executionId: params.executionId,
         runId: params.runId,
         projectId: params.projectId,
         requiredLabels,
@@ -65,7 +64,7 @@ export async function enqueueJob(params: EnqueueJobParams): Promise<void> {
       type: RUNNER_JOB_QUEUED,
       payload: {
         jobId: params.jobId,
-        executionId,
+        executionId: params.executionId,
         runId: params.runId,
         queuedAt: inserted.createdAt.toISOString(),
       },
@@ -223,16 +222,14 @@ export async function claimPendingJob(params: {
  * too closes the at-least-once window where an enqueue retry left an orphan that a
  * later claim would otherwise pick up for an already-finished job.
  */
-export async function releaseJob(params: {executionId?: string; jobId?: string}): Promise<void> {
-  const executionId = params.executionId ?? params.jobId;
-  if (!executionId) throw new Error('releaseJob requires executionId or jobId');
+export async function releaseJob(params: {executionId: string}): Promise<void> {
   await db().transaction(async (tx) => {
     // Delete pending before running to match `claimPendingJob`'s lock-acquisition
     // order (it locks the pending row first, then the running row). A concurrent
     // claim picking up an orphan pending row for this same job would otherwise
     // deadlock against the reverse order here.
-    await tx.delete(pendingJobs).where(eq(pendingJobs.executionId, executionId));
-    await tx.delete(runningJobs).where(eq(runningJobs.executionId, executionId));
+    await tx.delete(pendingJobs).where(eq(pendingJobs.executionId, params.executionId));
+    await tx.delete(runningJobs).where(eq(runningJobs.executionId, params.executionId));
   });
 }
 
@@ -418,18 +415,15 @@ function toDate(value: Date | string): Date {
 }
 
 export async function isJobLeaseActive(params: {
-  executionId?: string;
-  jobId?: string;
+  executionId: string;
   runnerSessionId: string;
 }): Promise<boolean> {
-  const executionId = params.executionId ?? params.jobId;
-  if (!executionId) return false;
   const [row] = await db()
     .select({id: runningJobs.id})
     .from(runningJobs)
     .where(
       and(
-        eq(runningJobs.executionId, executionId),
+        eq(runningJobs.executionId, params.executionId),
         eq(runningJobs.runnerSessionId, params.runnerSessionId),
       ),
     )
@@ -439,8 +433,7 @@ export async function isJobLeaseActive(params: {
 }
 
 export async function recordHeartbeat(params: {
-  executionId?: string;
-  jobId?: string;
+  executionId: string;
   runnerSessionId: string;
 }): Promise<{
   cancellationRequested: boolean;
@@ -453,14 +446,12 @@ export async function recordHeartbeat(params: {
     runnerSessionId: string;
   };
 }> {
-  const executionId = params.executionId ?? params.jobId;
-  if (!executionId) throw new RunningJobNotFoundError('unknown');
   const updated = await db()
     .update(runningJobs)
     .set({lastHeartbeatAt: sql`now()`})
     .where(
       and(
-        eq(runningJobs.executionId, executionId),
+        eq(runningJobs.executionId, params.executionId),
         eq(runningJobs.runnerSessionId, params.runnerSessionId),
       ),
     )
@@ -475,7 +466,7 @@ export async function recordHeartbeat(params: {
     });
 
   const row = updated[0];
-  if (!row) throw new RunningJobNotFoundError(executionId);
+  if (!row) throw new RunningJobNotFoundError(params.executionId);
   return {
     cancellationRequested: row.cancellationRequestedAt !== null,
     runningJob: {

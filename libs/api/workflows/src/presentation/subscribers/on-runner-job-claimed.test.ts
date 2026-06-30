@@ -11,7 +11,7 @@ describe('onRunnerJobClaimed', () => {
 
     await onRunnerJobClaimed({
       jobId: job?.id as string,
-      executionId: execution?.id,
+      executionId: execution?.id as string,
       runId: run.id,
       claimedAt: claimedAt.toISOString(),
     });
@@ -29,13 +29,13 @@ describe('onRunnerJobClaimed', () => {
 
     await onRunnerJobClaimed({
       jobId: job?.id as string,
-      executionId: execution?.id,
+      executionId: execution?.id as string,
       runId: run.id,
       claimedAt: first.toISOString(),
     });
     await onRunnerJobClaimed({
       jobId: job?.id as string,
-      executionId: execution?.id,
+      executionId: execution?.id as string,
       runId: run.id,
       claimedAt: second.toISOString(),
     });

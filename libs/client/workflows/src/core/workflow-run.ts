@@ -4,7 +4,6 @@ import type {
   JobStatusReasonDto,
   RunAttemptDto,
   RunDetailResponseDto,
-  RunExecutionDetailDto,
   RunJobDetailDto,
   RunListResponseDto,
   RunResponseDto,
@@ -265,8 +264,6 @@ export function toWorkflowRunListPage(dto: RunListResponseDto): WorkflowRunListP
 }
 
 export function toWorkflowJob(dto: RunJobDetailDto): WorkflowJob {
-  const latestExecution = latestWorkflowExecution(dto.executions);
-
   return {
     id: dto.id,
     runId: dto.run_id,
@@ -281,7 +278,7 @@ export function toWorkflowJob(dto: RunJobDetailDto): WorkflowJob {
     queuedAt: dto.queued_at ?? null,
     startedAt: dto.started_at ?? null,
     finishedAt: dto.finished_at ?? null,
-    steps: latestExecution?.steps.map(toWorkflowStep) ?? [],
+    steps: dto.executions.flatMap((execution) => execution.steps.map(toWorkflowStep)),
   };
 }
 
@@ -376,13 +373,4 @@ function stringConfigValue(value: unknown): string | null {
 
   const trimmedValue = value.trim();
   return trimmedValue ? trimmedValue : null;
-}
-
-function latestWorkflowExecution(
-  executions: RunExecutionDetailDto[],
-): RunExecutionDetailDto | undefined {
-  return executions.reduce<RunExecutionDetailDto | undefined>((latest, execution) => {
-    if (!latest || execution.sequence > latest.sequence) return execution;
-    return latest;
-  }, undefined);
 }

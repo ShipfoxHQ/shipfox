@@ -12,7 +12,7 @@ export async function onRunnerJobQueued(payload: RunnerJobQueuedEvent): Promise<
     'Recording execution queued_at',
   );
   await recordExecutionQueuedAt({
-    executionId: payload.executionId ?? payload.jobId,
+    executionId: payload.executionId,
     queuedAt: new Date(payload.queuedAt),
   });
 }

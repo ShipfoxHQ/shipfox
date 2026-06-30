@@ -19,7 +19,7 @@ export function mintLeaseToken(params: MintLeaseTokenParams): Promise<string> {
   return signHs256({
     payload: {
       jobId: params.jobId,
-      executionId: params.executionId ?? params.jobId,
+      executionId: params.executionId ?? crypto.randomUUID(),
       runId: params.runId ?? crypto.randomUUID(),
       projectId: params.projectId ?? crypto.randomUUID(),
       workspaceId: params.workspaceId ?? crypto.randomUUID(),

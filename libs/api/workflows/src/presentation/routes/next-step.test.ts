@@ -1,7 +1,8 @@
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {eq} from 'drizzle-orm';
-import {recordStepResult} from '#core/job-execution.js';
+import {JobNotFoundError} from '#core/errors.js';
+import {recordStepResult as recordExecutionStepResult} from '#core/job-execution.js';
 import {db} from '#db/db.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
 import {getStepsByJobId} from '#db/workflow-runs.js';
@@ -10,6 +11,16 @@ import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {leaseTokenRouteGroup} from './index.js';
 
 const URL = '/runs/jobs/current/steps/next';
+
+async function recordStepResult(
+  params: Omit<Parameters<typeof recordExecutionStepResult>[0], 'executionId'> & {jobId: string},
+) {
+  const steps = await getStepsByJobId(params.jobId);
+  const step = steps.find((candidate) => candidate.id === params.stepId);
+  if (!step) throw new JobNotFoundError(params.jobId);
+  const {jobId: _jobId, ...rest} = params;
+  return recordExecutionStepResult({...rest, executionId: step.executionId});
+}
 
 describe('POST /runs/jobs/current/steps/next', () => {
   let app: FastifyInstance;

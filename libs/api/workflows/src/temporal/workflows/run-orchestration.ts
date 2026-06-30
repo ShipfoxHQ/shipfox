@@ -132,7 +132,7 @@ function launchJobs(
             workspaceId: run.workspaceId,
             projectId: run.projectId,
             jobId: job.id,
-            executionId: job.executionId ?? job.id,
+            executionId: job.executionId,
             runId: run.runId,
             jobVersion: jobVersions.get(job.id) ?? job.version,
             executionVersion: job.executionVersion ?? jobVersions.get(job.id) ?? job.version,
