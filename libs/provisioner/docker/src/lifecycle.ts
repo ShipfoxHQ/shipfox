@@ -28,7 +28,7 @@ export interface DockerLifecycle {
   flush(): Promise<void>;
 }
 
-export function createDockerLifecycle(args: {
+interface DockerLifecycleOptions {
   engine: DockerEngine;
   client: ProvisionerClient;
   identity: ProvisionerIdentity;
@@ -37,162 +37,265 @@ export function createDockerLifecycle(args: {
   now?: () => Date;
   registrationDeadlineMs: number;
   providerKind: string;
-}): DockerLifecycle {
+}
+
+interface DockerLifecycleContext {
+  readonly engine: DockerEngine;
+  readonly client: ProvisionerClient;
+  readonly identity: ProvisionerIdentity;
+  readonly tracker: ProvisionedRunnerTracker;
+  readonly templatesByKey: ReadonlyMap<string, ProvisionerTemplate<DockerTemplateSpec>>;
+  readonly now: () => Date;
+  readonly registrationDeadlineMs: number;
+  readonly providerKind: string;
+  readonly knownLiveIds: Set<string>;
+  readonly knownTemplateKeys: Map<string, string>;
+}
+
+interface ObservationPlan {
+  readonly trackerRunners: TrackerSeed[];
+  readonly liveEvents: ProvisionedRunnerReportEventDto[];
+  readonly terminalActions: TerminalAction[];
+}
+
+interface TerminalAction {
+  readonly event: ProvisionedRunnerReportEventDto;
+  readonly remove?: string;
+  readonly killAndRemove?: string;
+}
+
+type LiveContainerState = {
+  state: 'starting' | 'running';
+  reason?: string;
+};
+type ParsedContainerIdentity = ReturnType<typeof parseContainerIdentity>;
+
+export function createDockerLifecycle(args: DockerLifecycleOptions): DockerLifecycle {
   const now = args.now ?? (() => new Date());
-  const templatesByKey = new Map(args.templates.map((template) => [template.key, template]));
-  const knownLiveIds = new Set<string>();
-  const knownTemplateKeys = new Map<string, string>();
-
-  async function report(events: ProvisionedRunnerReportEventDto[]): Promise<void> {
-    for (const batch of chunk(events, MAX_REPORT_BATCH)) {
-      await args.client.reportProvisionedRunners({events: batch});
-    }
-  }
-
-  async function observe(): Promise<void> {
-    const containers = await args.engine.listManaged(args.identity.id);
-    const listedIds = new Set<string>();
-    const trackerRunners: TrackerSeed[] = [];
-    const liveEvents: ProvisionedRunnerReportEventDto[] = [];
-    const terminalActions: Array<{
-      event: ProvisionedRunnerReportEventDto;
-      remove?: string;
-      killAndRemove?: string;
-    }> = [];
-
-    for (const container of containers) {
-      const parsed = parseContainerIdentity(container);
-      listedIds.add(parsed.provisionedRunnerId);
-      const labels = labelsFor(parsed.templateKey, parsed.labels);
-      if (labels.length === 0) {
-        logger().warn(
-          {provisionedRunnerId: parsed.provisionedRunnerId},
-          'Skipping provisioned runner report because labels are unavailable',
-        );
-        continue;
-      }
-
-      if (
-        container.state === 'created' &&
-        isPastDeadline(container.createdAt, now(), args.registrationDeadlineMs)
-      ) {
-        terminalActions.push({
-          event: eventFor(container, 'terminated', labels, args.providerKind, now()),
-          killAndRemove: container.name,
-        });
-        continue;
-      }
-
-      const mapped = mapContainerState(container);
-      if (mapped.state === 'starting' || mapped.state === 'running') {
-        knownLiveIds.add(parsed.provisionedRunnerId);
-        if (parsed.templateKey)
-          knownTemplateKeys.set(parsed.provisionedRunnerId, parsed.templateKey);
-        liveEvents.push(
-          eventFor(container, mapped.state, labels, args.providerKind, now(), mapped.reason),
-        );
-        const templateKey = parsed.templateKey;
-        if (templateKey) {
-          trackerRunners.push({
-            provisionedRunnerId: parsed.provisionedRunnerId,
-            templateKey,
-            state: mapped.state,
-          });
-        }
-      } else {
-        terminalActions.push({
-          event: eventFor(container, mapped.state, labels, args.providerKind, now(), mapped.reason),
-          remove: container.name,
-        });
-      }
-    }
-
-    for (const provisionedRunnerId of [...knownLiveIds]) {
-      if (listedIds.has(provisionedRunnerId)) continue;
-      knownLiveIds.delete(provisionedRunnerId);
-      const templateKey = knownTemplateKeys.get(provisionedRunnerId);
-      knownTemplateKeys.delete(provisionedRunnerId);
-      const template = templateKey ? templatesByKey.get(templateKey) : undefined;
-      if (!template) continue;
-      terminalActions.push({
-        event: {
-          provisioned_runner_id: provisionedRunnerId,
-          template_key: template.key,
-          labels: [...template.labels],
-          state: 'terminated',
-          reported_at: now().toISOString(),
-          provider_kind: args.providerKind,
-        },
-      });
-    }
-
-    args.tracker.replaceAll(trackerRunners);
-    if (liveEvents.length > 0) await report(liveEvents);
-
-    for (const action of terminalActions) {
-      await report([action.event]);
-      if (action.killAndRemove) await args.engine.killAndRemove(action.killAndRemove);
-      if (action.remove) await args.engine.remove(action.remove);
-      knownLiveIds.delete(action.event.provisioned_runner_id);
-      knownTemplateKeys.delete(action.event.provisioned_runner_id);
-      args.tracker.remove(action.event.provisioned_runner_id);
-    }
-  }
-
-  return {
-    async launch(launch) {
-      const labels = buildContainerLabels({launch, identity: args.identity});
-      await report([
-        {
-          provisioned_runner_id: launch.provisionedRunnerId,
-          reservation_id: launch.reservationId,
-          template_key: launch.template.key,
-          labels: [...launch.template.labels],
-          state: 'starting',
-          reported_at: now().toISOString(),
-          provider_kind: args.providerKind,
-        },
-      ]);
-
-      try {
-        await args.engine.createAndStart({
-          name: launch.provisionedRunnerId,
-          image: launch.template.spec.image,
-          env: launch.runnerEnv,
-          labels,
-          nanoCpus: Math.round(launch.template.spec.cpu * 1_000_000_000),
-          memoryBytes: parseMemoryToBytes(launch.template.spec.memory),
-        });
-        knownLiveIds.add(launch.provisionedRunnerId);
-        knownTemplateKeys.set(launch.provisionedRunnerId, launch.template.key);
-      } catch (error) {
-        await report([
-          {
-            provisioned_runner_id: launch.provisionedRunnerId,
-            reservation_id: launch.reservationId,
-            template_key: launch.template.key,
-            labels: [...launch.template.labels],
-            state: 'failed',
-            reason: truncateReason(errorReason(error)),
-            reported_at: now().toISOString(),
-            provider_kind: args.providerKind,
-          },
-        ]);
-        throw error;
-      }
-    },
-    observe,
-    reconcile: observe,
-    flush: () => Promise.resolve(),
+  const context: DockerLifecycleContext = {
+    engine: args.engine,
+    client: args.client,
+    identity: args.identity,
+    tracker: args.tracker,
+    templatesByKey: new Map(args.templates.map((template) => [template.key, template])),
+    now,
+    registrationDeadlineMs: args.registrationDeadlineMs,
+    providerKind: args.providerKind,
+    knownLiveIds: new Set<string>(),
+    knownTemplateKeys: new Map<string, string>(),
   };
 
-  function labelsFor(
-    templateKey: string | undefined,
-    labels: readonly string[],
-  ): readonly string[] {
-    if (labels.length > 0) return labels;
-    return templateKey ? (templatesByKey.get(templateKey)?.labels ?? []) : [];
+  return {
+    launch: (runner) => launch(context, runner),
+    observe: () => observe(context),
+    reconcile: () => observe(context),
+    flush: () => Promise.resolve(),
+  };
+}
+
+async function launch(
+  context: DockerLifecycleContext,
+  runner: ProvisionedRunnerLaunch<DockerTemplateSpec>,
+): Promise<void> {
+  const labels = buildContainerLabels({launch: runner, identity: context.identity});
+  await reportEvents(context, [
+    {
+      provisioned_runner_id: runner.provisionedRunnerId,
+      reservation_id: runner.reservationId,
+      template_key: runner.template.key,
+      labels: [...runner.template.labels],
+      state: 'starting',
+      reported_at: context.now().toISOString(),
+      provider_kind: context.providerKind,
+    },
+  ]);
+
+  try {
+    await context.engine.createAndStart({
+      name: runner.provisionedRunnerId,
+      image: runner.template.spec.image,
+      env: runner.runnerEnv,
+      labels,
+      nanoCpus: Math.round(runner.template.spec.cpu * 1_000_000_000),
+      memoryBytes: parseMemoryToBytes(runner.template.spec.memory),
+    });
+    context.knownLiveIds.add(runner.provisionedRunnerId);
+    context.knownTemplateKeys.set(runner.provisionedRunnerId, runner.template.key);
+  } catch (error) {
+    await reportEvents(context, [
+      {
+        provisioned_runner_id: runner.provisionedRunnerId,
+        reservation_id: runner.reservationId,
+        template_key: runner.template.key,
+        labels: [...runner.template.labels],
+        state: 'failed',
+        reason: truncateReason(errorReason(error)),
+        reported_at: context.now().toISOString(),
+        provider_kind: context.providerKind,
+      },
+    ]);
+    throw error;
   }
+}
+
+async function observe(context: DockerLifecycleContext): Promise<void> {
+  const containers = await context.engine.listManaged(context.identity.id);
+  const plan = buildObservationPlan(context, containers);
+
+  context.tracker.replaceAll(plan.trackerRunners);
+  if (plan.liveEvents.length > 0) await reportEvents(context, plan.liveEvents);
+  await applyTerminalActions(context, plan.terminalActions);
+}
+
+function buildObservationPlan(
+  context: DockerLifecycleContext,
+  containers: readonly DockerContainerView[],
+): ObservationPlan {
+  const listedIds = new Set<string>();
+  const plan: ObservationPlan = {
+    trackerRunners: [],
+    liveEvents: [],
+    terminalActions: [],
+  };
+
+  for (const container of containers) {
+    recordContainerObservation(context, plan, listedIds, container);
+  }
+  synthesizeVanishedContainers(context, plan, listedIds);
+
+  return plan;
+}
+
+function recordContainerObservation(
+  context: DockerLifecycleContext,
+  plan: ObservationPlan,
+  listedIds: Set<string>,
+  container: DockerContainerView,
+): void {
+  const parsed = parseContainerIdentity(container);
+  listedIds.add(parsed.provisionedRunnerId);
+  const labels = labelsFor(context, parsed.templateKey, parsed.labels);
+  if (labels.length === 0) {
+    logger().warn(
+      {provisionedRunnerId: parsed.provisionedRunnerId},
+      'Skipping provisioned runner report because labels are unavailable',
+    );
+    return;
+  }
+
+  if (
+    container.state === 'created' &&
+    isPastDeadline(container.createdAt, context.now(), context.registrationDeadlineMs)
+  ) {
+    plan.terminalActions.push({
+      event: eventFor(container, 'terminated', labels, context.providerKind, context.now()),
+      killAndRemove: container.name,
+    });
+    return;
+  }
+
+  const mapped = mapContainerState(container);
+  if (mapped.state === 'starting' || mapped.state === 'running') {
+    const liveState: LiveContainerState = {
+      state: mapped.state,
+      ...(mapped.reason ? {reason: mapped.reason} : {}),
+    };
+    recordLiveContainer(context, plan, container, parsed, labels, liveState);
+    return;
+  }
+
+  plan.terminalActions.push({
+    event: eventFor(
+      container,
+      mapped.state,
+      labels,
+      context.providerKind,
+      context.now(),
+      mapped.reason,
+    ),
+    remove: container.name,
+  });
+}
+
+function recordLiveContainer(
+  context: DockerLifecycleContext,
+  plan: ObservationPlan,
+  container: DockerContainerView,
+  parsed: ParsedContainerIdentity,
+  labels: readonly string[],
+  mapped: LiveContainerState,
+): void {
+  context.knownLiveIds.add(parsed.provisionedRunnerId);
+  if (parsed.templateKey) {
+    context.knownTemplateKeys.set(parsed.provisionedRunnerId, parsed.templateKey);
+  }
+  plan.liveEvents.push(
+    eventFor(container, mapped.state, labels, context.providerKind, context.now(), mapped.reason),
+  );
+  if (parsed.templateKey) {
+    plan.trackerRunners.push({
+      provisionedRunnerId: parsed.provisionedRunnerId,
+      templateKey: parsed.templateKey,
+      state: mapped.state,
+    });
+  }
+}
+
+function synthesizeVanishedContainers(
+  context: DockerLifecycleContext,
+  plan: ObservationPlan,
+  listedIds: ReadonlySet<string>,
+): void {
+  for (const provisionedRunnerId of [...context.knownLiveIds]) {
+    if (listedIds.has(provisionedRunnerId)) continue;
+    context.knownLiveIds.delete(provisionedRunnerId);
+    const templateKey = context.knownTemplateKeys.get(provisionedRunnerId);
+    context.knownTemplateKeys.delete(provisionedRunnerId);
+    const template = templateKey ? context.templatesByKey.get(templateKey) : undefined;
+    if (!template) continue;
+    plan.terminalActions.push({
+      event: {
+        provisioned_runner_id: provisionedRunnerId,
+        template_key: template.key,
+        labels: [...template.labels],
+        state: 'terminated',
+        reported_at: context.now().toISOString(),
+        provider_kind: context.providerKind,
+      },
+    });
+  }
+}
+
+async function applyTerminalActions(
+  context: DockerLifecycleContext,
+  actions: readonly TerminalAction[],
+): Promise<void> {
+  for (const action of actions) {
+    await reportEvents(context, [action.event]);
+    if (action.killAndRemove) await context.engine.killAndRemove(action.killAndRemove);
+    if (action.remove) await context.engine.remove(action.remove);
+    context.knownLiveIds.delete(action.event.provisioned_runner_id);
+    context.knownTemplateKeys.delete(action.event.provisioned_runner_id);
+    context.tracker.remove(action.event.provisioned_runner_id);
+  }
+}
+
+async function reportEvents(
+  context: DockerLifecycleContext,
+  events: readonly ProvisionedRunnerReportEventDto[],
+): Promise<void> {
+  for (const batch of chunk(events, MAX_REPORT_BATCH)) {
+    await context.client.reportProvisionedRunners({events: batch});
+  }
+}
+
+function labelsFor(
+  context: DockerLifecycleContext,
+  templateKey: string | undefined,
+  labels: readonly string[],
+): readonly string[] {
+  if (labels.length > 0) return labels;
+  return templateKey ? (context.templatesByKey.get(templateKey)?.labels ?? []) : [];
 }
 
 function eventFor(
