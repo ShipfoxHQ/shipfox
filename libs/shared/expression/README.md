@@ -88,8 +88,9 @@ const passed = evaluateWorkflowPredicate(expression, {
 - Run command interpolation hoists expression values into generated environment
   variables and references them through double-quoted shell expansion. This keeps
   interpolated values from being parsed as shell syntax, but it does not make
-  commands that deliberately re-evaluate their arguments safe, such as `eval`,
-  `sh -c "$value"`, `let`, or `declare -i`.
+  commands and shell positions that deliberately re-evaluate their arguments
+  safe, such as `eval`, `sh -c "$value"`, `let`, `declare -i`, arithmetic
+  expressions, or array subscripts like `array[$value]`.
 Trigger filters can use `syntax` while integration event payloads are still open.
 Gate expressions can use `typed` because their local fields are known.
 

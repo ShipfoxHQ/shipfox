@@ -7,10 +7,15 @@ export type ShellFrame =
   | 'arith'
   | 'backtick'
   | 'param-brace'
-  | 'heredoc';
+  | 'heredoc'
+  | 'line-comment';
 
 export type ShellUnsafeRegion = ShellFrame | 'escape';
-type ShellScanFrame = ShellFrame | 'arith-square';
+interface ArithSquareFrame {
+  readonly kind: 'arith-square';
+  bracketDepth: number;
+}
+type ShellScanFrame = ShellFrame | ArithSquareFrame;
 
 export type ShellSiteContext =
   | {readonly kind: 'unquoted' | 'single' | 'double'}
@@ -22,6 +27,8 @@ export interface ShellScanState {
 }
 
 export const initialShellScanState: ShellScanState = {frames: []};
+
+const shellCommentStarterPrefixPattern = /\s|[;&|()<>]/;
 
 export function scanShellLiteral(text: string, state: ShellScanState): ShellScanState {
   const frames = [...state.frames];
@@ -146,9 +153,30 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
       continue;
     }
 
-    if (frame === 'arith-square') {
+    if (frame === 'heredoc') {
+      index += 1;
+      continue;
+    }
+
+    if (frame === 'line-comment') {
+      if (text[index] === '\n') frames.pop();
+      index += 1;
+      continue;
+    }
+
+    if (isArithSquareFrame(frame)) {
+      if (text[index] === '[') {
+        frame.bracketDepth += 1;
+        index += 1;
+        continue;
+      }
+
       if (text[index] === ']') {
-        frames.pop();
+        if (frame.bracketDepth === 0) {
+          frames.pop();
+        } else {
+          frame.bracketDepth -= 1;
+        }
         index += 1;
         continue;
       }
@@ -159,11 +187,6 @@ export function scanShellLiteral(text: string, state: ShellScanState): ShellScan
       }
 
       index = scanShellPlainStart(text, index, frames);
-      continue;
-    }
-
-    if (frame === 'heredoc') {
-      index += 1;
       continue;
     }
 
@@ -188,6 +211,11 @@ export function classifyShellSite(state: ShellScanState): ShellSiteContext {
 }
 
 function scanShellPlainStart(text: string, index: number, frames: ShellScanFrame[]): number {
+  if (startsShellLineComment(text, index)) {
+    frames.push('line-comment');
+    return index + 1;
+  }
+
   if (text.startsWith('<<', index)) {
     frames.push('heredoc');
     return text.startsWith('<<-', index) ? index + 3 : index + 2;
@@ -199,7 +227,7 @@ function scanShellPlainStart(text: string, index: number, frames: ShellScanFrame
   }
 
   if (text.startsWith('$[', index)) {
-    frames.push('arith-square');
+    frames.push({kind: 'arith-square', bracketDepth: 0});
     return index + 2;
   }
 
@@ -253,7 +281,7 @@ function scanShellControlStart(text: string, index: number, frames: ShellScanFra
   }
 
   if (text.startsWith('$[', index)) {
-    frames.push('arith-square');
+    frames.push({kind: 'arith-square', bracketDepth: 0});
     return index + 2;
   }
 
@@ -296,9 +324,21 @@ function findUnsafeRegion(frames: readonly ShellScanFrame[]): ShellFrame {
   for (let index = frames.length - 1; index >= 0; index -= 1) {
     const frame = frames[index];
     if (frame === undefined) continue;
-    if (frame === 'arith-square') return 'arith';
+    if (isArithSquareFrame(frame)) return 'arith';
     if (frame !== 'single' && frame !== 'double') return frame;
   }
 
   return 'heredoc';
+}
+
+function isArithSquareFrame(frame: ShellScanFrame | undefined): frame is ArithSquareFrame {
+  return typeof frame === 'object' && frame.kind === 'arith-square';
+}
+
+function startsShellLineComment(text: string, index: number): boolean {
+  if (text[index] !== '#') return false;
+  if (index === 0) return true;
+
+  const previous = text[index - 1];
+  return previous === undefined || shellCommentStarterPrefixPattern.test(previous);
 }

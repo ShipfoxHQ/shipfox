@@ -86,6 +86,7 @@ describe('shell quoting scanner', () => {
     ['"${foo:-', 'param-brace'],
     ['"$(echo ', 'paren-sub'],
     ['"$[1 + ', 'arith'],
+    ['$[ a[0] + ', 'arith'],
     ['`echo ${', 'param-brace'],
   ] as const)('reports the innermost unsafe region for %s', (literal, region) => {
     const state = scanShellLiteral(literal, initialShellScanState);
@@ -96,9 +97,20 @@ describe('shell quoting scanner', () => {
   });
 
   it('returns to plain context after closed control constructs', () => {
-    const state = scanShellLiteral(`$(echo ok) ${'$'}{value:-fallback} $((1 + 2)) $[1 + 2] `, {
-      frames: [],
-    });
+    const state = scanShellLiteral(
+      `$(echo ok) ${'$'}{value:-fallback} $((1 + 2)) $[array[0] + 2] `,
+      {
+        frames: [],
+      },
+    );
+
+    const result = classifyShellSite(state);
+
+    expect(result).toEqual({kind: 'unquoted'});
+  });
+
+  it('ignores quotes inside line comments', () => {
+    const state = scanShellLiteral('# "not an open quote"\nprintf ', initialShellScanState);
 
     const result = classifyShellSite(state);
 

@@ -95,6 +95,7 @@ describe('hoistRunCommand', () => {
   it.each([
     [`echo $((1 + ${templateExpression(' run.id ')}))`, 'arith'],
     [`echo $[1 + ${templateExpression(' run.id ')}]`, 'arith'],
+    [`echo $[a[0] + ${templateExpression(' run.id ')}]`, 'arith'],
     [`echo $(date ${templateExpression(' run.id ')})`, 'paren-sub'],
     [`echo \`date ${templateExpression(' run.id ')}\``, 'backtick'],
     [`echo ${'${value:-'}${templateExpression(' run.id ')}}`, 'param-brace'],
@@ -122,6 +123,16 @@ describe('hoistRunCommand', () => {
       source: 'run.id',
     });
     expect((error as Error).message).toContain('Bind the value to env and reference $VAR');
+  });
+
+  it('does not let quotes inside comments affect later interpolation sites', () => {
+    const segments = parseWorkflowTemplate(
+      `# "comment only"\nprintf '%s\\n' ${templateExpression(' run.id ')}`,
+    );
+
+    const result = hoistRunCommand(segments);
+
+    expect(result.command).toBe(`# "comment only"\nprintf '%s\\n' ${shellRef('__sf_0')}`);
   });
 });
 
