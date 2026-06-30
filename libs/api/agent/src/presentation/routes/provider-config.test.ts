@@ -51,6 +51,7 @@ describe('agent provider config routes', () => {
     await db().execute(sql`TRUNCATE agent_provider_configs CASCADE`);
     await db().execute(sql`TRUNCATE agent_workspace_settings CASCADE`);
     workspaceId = crypto.randomUUID();
+    vi.mocked(complete).mockReset();
     vi.mocked(complete).mockResolvedValue({
       role: 'assistant',
       content: [{type: 'text', text: 'OK'}],
@@ -217,6 +218,21 @@ describe('agent provider config routes', () => {
       const settings = await getAgentWorkspaceSettings(workspaceId);
       expect(res.statusCode).toBe(200);
       expect(settings?.defaultProviderId).toBe('anthropic');
+    });
+
+    it('passes a request-scoped abort signal to provider validation', async () => {
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/workspaces/${workspaceId}/agent/providers/anthropic`,
+        headers: {authorization: 'Bearer user'},
+        payload: {credentials: {api_key: 'sk-ant-secret-abcd'}},
+      });
+
+      const [, , options] = vi.mocked(complete).mock.calls[0] ?? [];
+      expect(res.statusCode).toBe(200);
+      expect(complete).toHaveBeenCalledTimes(1);
+      expect(options?.signal).toBeInstanceOf(AbortSignal);
+      expect(options?.signal?.aborted).toBe(false);
     });
 
     it('replaces the workspace default when set_as_default is requested with existing settings', async () => {

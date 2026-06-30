@@ -32,6 +32,7 @@ export interface TestAndSaveProviderConfigParams {
   defaultModel?: string | null | undefined;
   credentials: Record<string, string>;
   setAsDefault?: boolean | undefined;
+  signal?: AbortSignal | undefined;
 }
 
 export interface TestAndSaveProviderConfigOptions {
@@ -75,8 +76,10 @@ export async function testAndSaveProviderConfig(
       providerId: params.providerId,
       model: modelSelection.probeModel,
       credentials: params.credentials,
+      ...(params.signal ? {signal: params.signal} : {}),
     });
   } catch (error) {
+    if (params.signal?.aborted) throw error;
     providerValidationCount.add(1, {provider: params.providerId, outcome: 'failed'});
     if (error instanceof InvalidAgentModelError) throw error;
 
