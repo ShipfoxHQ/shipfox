@@ -252,6 +252,24 @@ describe('api-client auth contexts', () => {
     await expect(request).rejects.not.toThrow(ZOD_ERROR_TEXT_REGEX);
   });
 
+  it.each([
+    ['empty', ''],
+    ['invalid JSON', 'not json'],
+  ])('requestAgentRuntimeConfig classifies %s success bodies as invalid runtime config', async (_caseName, body) => {
+    stubFetch(() => new Response(body, {status: 200}));
+    const leaseClient = createLeaseClient('lease-runtime');
+
+    const request = requestAgentRuntimeConfig(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 2,
+    });
+
+    await expect(request).rejects.toMatchObject(
+      new AgentRuntimeConfigRequestError(200, 'agent-runtime-config-invalid'),
+    );
+    await expect(request).rejects.not.toThrow(SyntaxError);
+  });
+
   it('reportStep sends the lease token to the per-step report endpoint', async () => {
     stubFetch(() => jsonResponse({ok: true, cancel: false}));
     const leaseClient = createLeaseClient('lease-def');

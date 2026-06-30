@@ -264,7 +264,14 @@ export async function requestAgentRuntimeConfig(
   }
 
   if (response.ok) {
-    const parsed = agentRuntimeCredentialsResponseSchema.safeParse(await response.json());
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      throw new AgentRuntimeConfigRequestError(200, 'agent-runtime-config-invalid');
+    }
+
+    const parsed = agentRuntimeCredentialsResponseSchema.safeParse(body);
     if (!parsed.success) {
       throw new AgentRuntimeConfigRequestError(200, 'agent-runtime-config-invalid');
     }
