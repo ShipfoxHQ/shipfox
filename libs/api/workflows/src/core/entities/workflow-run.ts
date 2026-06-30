@@ -1,3 +1,7 @@
+import type {Job} from './job.js';
+import type {JobExecution} from './job-execution.js';
+import type {Step, StepAttempt} from './step.js';
+
 export type WorkflowRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
 export type TerminalWorkflowRunStatus = Extract<
@@ -75,4 +79,20 @@ export interface RunAttemptSummary {
   status: WorkflowRunStatus;
   createdAt: Date;
   rerunMode: 'all' | 'failed' | null;
+}
+
+export interface StepDetail extends Step {
+  attempts: StepAttempt[];
+}
+
+export interface JobExecutionDetail extends JobExecution {
+  steps: StepDetail[];
+}
+
+export interface WorkflowJobDetail extends Job {
+  jobExecutions: JobExecutionDetail[];
+}
+
+export interface WorkflowRunDetail extends WorkflowRun {
+  jobs: WorkflowJobDetail[];
 }

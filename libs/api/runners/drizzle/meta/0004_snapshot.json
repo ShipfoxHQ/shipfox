@@ -1,5 +1,5 @@
 {
-  "id": "e7bb8076-07b1-42e8-99e2-a9382b3a8a73",
+  "id": "9303441d-cd09-4c5f-825e-2babb63b2b7d",
   "prevId": "3a960c2d-7e04-4124-8632-3f7cf6952dbe",
   "version": "7",
   "dialect": "postgresql",
@@ -315,6 +315,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "job_execution_id": {
+          "name": "job_execution_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "run_id": {
           "name": "run_id",
           "type": "uuid",
@@ -377,15 +383,30 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "runners_pending_jobs_job_id_idx": {
+          "name": "runners_pending_jobs_job_id_idx",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "runners_pending_jobs_job_id_unique": {
-          "name": "runners_pending_jobs_job_id_unique",
+        "runners_pending_jobs_job_execution_id_unique": {
+          "name": "runners_pending_jobs_job_execution_id_unique",
           "nullsNotDistinct": false,
-          "columns": ["job_id"]
+          "columns": ["job_execution_id"]
         }
       },
       "policies": {},
@@ -1096,6 +1117,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "job_execution_id": {
+          "name": "job_execution_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "run_id": {
           "name": "run_id",
           "type": "uuid",
@@ -1208,15 +1235,30 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "runners_running_jobs_job_id_idx": {
+          "name": "runners_running_jobs_job_id_idx",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "runners_running_jobs_job_id_unique": {
-          "name": "runners_running_jobs_job_id_unique",
+        "runners_running_jobs_job_execution_id_unique": {
+          "name": "runners_running_jobs_job_execution_id_unique",
           "nullsNotDistinct": false,
-          "columns": ["job_id"]
+          "columns": ["job_execution_id"]
         }
       },
       "policies": {},

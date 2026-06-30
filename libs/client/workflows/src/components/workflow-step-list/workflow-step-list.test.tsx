@@ -1,10 +1,15 @@
-import type {RunJobDetailDto, RunStepDetailDto, StepAttemptDto} from '@shipfox/api-workflows-dto';
+import type {RunStepDetailDto, StepAttemptDto} from '@shipfox/api-workflows-dto';
 import {Text} from '@shipfox/react-ui';
 import {render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {useState} from 'react';
 import type {WorkflowJob} from '#core/workflow-run.js';
-import {workflowJob, workflowStepAttemptDto, workflowStepDto} from '#test/fixtures/workflow-run.js';
+import {
+  type WorkflowJobDtoOverrides,
+  workflowJob,
+  workflowStepAttemptDto,
+  workflowStepDto,
+} from '#test/fixtures/workflow-run.js';
 import {WorkflowStepList} from './workflow-step-list.js';
 
 const LOGS_FOR_RE = /^logs for /u;
@@ -455,7 +460,7 @@ describe('WorkflowStepList', () => {
   });
 });
 
-function makeJob(overrides: Partial<RunJobDetailDto> = {}): WorkflowJob {
+function makeJob(overrides: WorkflowJobDtoOverrides = {}): WorkflowJob {
   return workflowJob(overrides);
 }
 

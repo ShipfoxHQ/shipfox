@@ -15,16 +15,18 @@ CREATE TABLE "runners_pending_jobs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"job_id" uuid NOT NULL,
+	"job_execution_id" uuid NOT NULL,
 	"run_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "runners_pending_jobs_job_id_unique" UNIQUE("job_id")
+	CONSTRAINT "runners_pending_jobs_job_execution_id_unique" UNIQUE("job_execution_id")
 );
 --> statement-breakpoint
 CREATE TABLE "runners_running_jobs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"job_id" uuid NOT NULL,
+	"job_execution_id" uuid NOT NULL,
 	"run_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"runner_token" text NOT NULL,
@@ -33,7 +35,7 @@ CREATE TABLE "runners_running_jobs" (
 	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"last_heartbeat_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"cancellation_requested_at" timestamp with time zone,
-	CONSTRAINT "runners_running_jobs_job_id_unique" UNIQUE("job_id"),
+	CONSTRAINT "runners_running_jobs_job_execution_id_unique" UNIQUE("job_execution_id"),
 	CONSTRAINT "runners_running_jobs_link_ck" CHECK (("runners_running_jobs"."provisioner_id" IS NULL) = ("runners_running_jobs"."provisioned_runner_id" IS NULL))
 );
 --> statement-breakpoint
@@ -41,6 +43,8 @@ CREATE INDEX "runners_outbox_pending_idx" ON "runners_outbox" USING btree ("next
 --> statement-breakpoint
 CREATE INDEX "runners_outbox_dispatched_retention_idx" ON "runners_outbox" USING btree ("dispatched_at","id") WHERE "dispatched_at" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "runners_pending_jobs_created_idx" ON "runners_pending_jobs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "runners_pending_jobs_job_id_idx" ON "runners_pending_jobs" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX "runners_running_jobs_job_id_idx" ON "runners_running_jobs" USING btree ("job_id");--> statement-breakpoint
 CREATE INDEX "runners_running_jobs_last_heartbeat_at_idx" ON "runners_running_jobs" USING btree ("last_heartbeat_at");
 --> statement-breakpoint
 CREATE INDEX "runners_running_jobs_provisioned_runner_started_idx" ON "runners_running_jobs" USING btree ("workspace_id","provisioner_id","provisioned_runner_id","started_at" DESC) WHERE "provisioner_id" IS NOT NULL;

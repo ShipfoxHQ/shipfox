@@ -9,6 +9,7 @@ export interface HeartbeatLoopOptions {
    * call in flight" under any API latency.
    */
   maxStaleMs: number;
+  onLeaseTokenRenewed?: (leaseToken: string) => void;
 }
 
 export interface HeartbeatLoopHandle {
@@ -34,6 +35,7 @@ export function startHeartbeatLoop(
   options: HeartbeatLoopOptions,
 ): HeartbeatLoopHandle {
   let stopped = false;
+  let currentLeaseToken = leaseToken;
   let pendingTimer: NodeJS.Timeout | undefined;
   let currentHttpAc: AbortController | undefined;
 
@@ -57,8 +59,14 @@ export function startHeartbeatLoop(
     }, options.maxStaleMs);
 
     try {
-      const {cancel} = await heartbeat(jobId, leaseToken, {signal: httpAc.signal});
+      const {cancel, lease_token: renewedLeaseToken} = await heartbeat(jobId, currentLeaseToken, {
+        signal: httpAc.signal,
+      });
       if (stopped) return;
+      if (renewedLeaseToken !== currentLeaseToken) {
+        currentLeaseToken = renewedLeaseToken;
+        options.onLeaseTokenRenewed?.(renewedLeaseToken);
+      }
       if (cancel) {
         logger().info({jobId}, 'Heartbeat returned cancel:true; aborting job');
         jobAbortController.abort('cancelled');

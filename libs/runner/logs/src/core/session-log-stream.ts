@@ -28,6 +28,10 @@ export interface SessionLogStreamOptions {
 
 export interface SessionLogStream extends LogStreamLifecycle {
   writeEntry(line: string): void;
+  /** Registers additional secrets for subsequent agent session entries. */
+  addSecrets(secrets: string[]): void;
+  /** Replaces the bounded rotating secret slot for renewed lease tokens. */
+  setRotatingSecrets(secrets: string[]): void;
 }
 
 /**
@@ -40,7 +44,10 @@ export function createSessionLogStream(options: SessionLogStreamOptions): Sessio
   const now = options.now ?? Date.now;
   const flushBytes = options.flushBytes ?? config.SHIPFOX_AGENT_SESSION_FLUSH_BYTES;
   const framer = new StreamFramer(now);
-  const variants = buildSecretVariants(options.secrets ?? []);
+  const baseSecrets = [...(options.secrets ?? [])];
+  let addedSecrets: string[] = [];
+  let rotatingSecrets: string[] = [];
+  let variants = buildSecretVariants(baseSecrets);
 
   const sink = createRecordSink({
     logsDir: options.logsDir,
@@ -81,6 +88,19 @@ export function createSessionLogStream(options: SessionLogStreamOptions): Sessio
       sink.notify();
     },
 
+    addSecrets(secrets) {
+      if (secrets.length === 0) return;
+      addedSecrets = [
+        ...new Set([...addedSecrets, ...secrets.filter((secret) => secret.length > 0)]),
+      ];
+      refreshSecrets();
+    },
+
+    setRotatingSecrets(secrets) {
+      rotatingSecrets = [...new Set(secrets.filter((secret) => secret.length > 0))];
+      refreshSecrets();
+    },
+
     close() {
       return Promise.resolve(sink.closeWithEnd());
     },
@@ -93,4 +113,8 @@ export function createSessionLogStream(options: SessionLogStreamOptions): Sessio
       sink.dispose();
     },
   };
+
+  function refreshSecrets(): void {
+    variants = buildSecretVariants([...baseSecrets, ...addedSecrets, ...rotatingSecrets]);
+  }
 }

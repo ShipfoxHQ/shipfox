@@ -23,7 +23,28 @@ import {
   StepNotFoundError,
   StepNotRunningError,
 } from './errors.js';
-import {nextStepForJob, recordStepResult} from './job-execution.js';
+import {nextStepForJob, recordStepResult as recordJobExecutionStepResult} from './job-execution.js';
+
+async function recordStepResult(
+  params: Omit<Parameters<typeof recordJobExecutionStepResult>[0], 'jobExecutionId'> & {
+    jobId: string;
+  },
+) {
+  const steps = await getStepsByJobId(params.jobId);
+  const step = steps.find((candidate) => candidate.id === params.stepId);
+  if (!step) throw new StepNotFoundError(params.stepId, params.jobId);
+  const {jobId: _jobId, ...rest} = params;
+  return recordJobExecutionStepResult({...rest, jobExecutionId: step.jobExecutionId});
+}
+
+async function bulkUpdateJobStepStatuses(
+  params: Omit<Parameters<typeof bulkUpdateStepStatuses>[0], 'jobExecutionId'> & {jobId: string},
+) {
+  const steps = await getStepsByJobId(params.jobId);
+  const jobExecutionId = steps[0]?.jobExecutionId;
+  if (!jobExecutionId) throw new JobNotFoundError(params.jobId);
+  await bulkUpdateStepStatuses({jobExecutionId, status: params.status});
+}
 
 async function jobStepsSettledEvents(jobId: string): Promise<Array<{status: string}>> {
   const rows = await db()
@@ -121,7 +142,7 @@ describe('nextStepForJob', () => {
     const {jobId} = await arrangeJobWithSteps(2);
     // A cancelled job with no failure must still report 'failed', not a vacuous
     // success.
-    await bulkUpdateStepStatuses({jobId, status: 'cancelled'});
+    await bulkUpdateJobStepStatuses({jobId, status: 'cancelled'});
 
     const result = await nextStepForJob(jobId);
 
@@ -503,13 +524,14 @@ describe('step attempts', () => {
   });
 
   test('rejects non-positive attempt rows at the database boundary', async () => {
-    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const {steps} = await arrangeJobWithSteps(1);
+    const jobExecutionId = steps[0]?.jobExecutionId as string;
 
     await expect(
       db()
         .insert(stepAttemptsTable)
         .values({
-          jobId,
+          jobExecutionId,
           stepId: steps[0]?.id as string,
           attempt: 0,
           executionOrder: 1,
@@ -519,13 +541,14 @@ describe('step attempts', () => {
   });
 
   test('rejects non-positive execution order rows at the database boundary', async () => {
-    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const {steps} = await arrangeJobWithSteps(1);
+    const jobExecutionId = steps[0]?.jobExecutionId as string;
 
     await expect(
       db()
         .insert(stepAttemptsTable)
         .values({
-          jobId,
+          jobExecutionId,
           stepId: steps[0]?.id as string,
           attempt: 1,
           executionOrder: 0,
@@ -534,13 +557,14 @@ describe('step attempts', () => {
     ).rejects.toThrow();
   });
 
-  test('rejects duplicate execution order rows for the same job', async () => {
-    const {jobId, steps} = await arrangeJobWithSteps(2);
+  test('rejects duplicate execution order rows for the same execution', async () => {
+    const {steps} = await arrangeJobWithSteps(2);
+    const jobExecutionId = steps[0]?.jobExecutionId as string;
 
     await db()
       .insert(stepAttemptsTable)
       .values({
-        jobId,
+        jobExecutionId,
         stepId: steps[0]?.id as string,
         attempt: 1,
         executionOrder: 1,
@@ -551,7 +575,7 @@ describe('step attempts', () => {
       db()
         .insert(stepAttemptsTable)
         .values({
-          jobId,
+          jobExecutionId,
           stepId: steps[1]?.id as string,
           attempt: 1,
           executionOrder: 1,
@@ -561,13 +585,14 @@ describe('step attempts', () => {
   });
 
   test('rejects pending attempt rows at the database boundary', async () => {
-    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const {steps} = await arrangeJobWithSteps(1);
+    const jobExecutionId = steps[0]?.jobExecutionId as string;
 
     await expect(
       db()
         .insert(stepAttemptsTable)
         .values({
-          jobId,
+          jobExecutionId,
           stepId: steps[0]?.id as string,
           attempt: 1,
           executionOrder: 1,
@@ -709,7 +734,7 @@ describe('bulkUpdateStepStatuses attempt finalization', () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
     await nextStepForJob(jobId); // opens a running attempt for step 0
 
-    await bulkUpdateStepStatuses({jobId, status: 'cancelled'});
+    await bulkUpdateJobStepStatuses({jobId, status: 'cancelled'});
 
     const [attempt] = await getStepAttempts(jobId);
     expect(attempt).toMatchObject({stepId: steps[0]?.id, status: 'cancelled'});

@@ -44,7 +44,7 @@ export function createWorkflowExpression(
   if (params.check.mode === 'typed') {
     const environment = new Environment({unlistedVariablesAreDyn: false});
     for (const [name, type] of Object.entries(params.check.typeEnvironment ?? {})) {
-      const celType = toCelType(type);
+      const celType = toCelType(type, environment, name);
       if (typeof celType === 'string') {
         environment.registerVariable(name, celType);
       } else {
@@ -89,9 +89,15 @@ export function unsafeWorkflowExpressionFromSource(params: {
   };
 }
 
-function toCelType(type: ExpressionType): string | {schema: CelSchema} {
+function toCelType(
+  type: ExpressionType,
+  environment: Environment,
+  variableName: string,
+): string | {schema: CelSchema} {
   if (typeof type === 'string') return scalarTypeToCelType[type];
-  if (type.kind === 'list') return `list<${toCelListElementType(type.element)}>`;
+  if (type.kind === 'list') {
+    return `list<${toCelListElementType(type.element, environment, variableName)}>`;
+  }
 
   return {
     schema: Object.fromEntries(
@@ -102,13 +108,33 @@ function toCelType(type: ExpressionType): string | {schema: CelSchema} {
 
 function toCelSchemaType(type: ExpressionType): string | CelSchema {
   if (typeof type === 'string') return scalarTypeToCelType[type];
-  if (type.kind === 'list') return `list<${toCelListElementType(type.element)}>`;
+  if (type.kind === 'list') return `list<${toCelSchemaListElementType(type.element)}>`;
   return Object.fromEntries(
     Object.entries(type.fields).map(([name, field]) => [name, toCelSchemaType(field)]),
   );
 }
 
-function toCelListElementType(type: ExpressionType): string {
+function toCelSchemaListElementType(type: ExpressionType): string {
   if (typeof type === 'string') return scalarTypeToCelType[type];
+  if (type.kind === 'object') return 'dyn';
+  return `list<${toCelSchemaListElementType(type.element)}>`;
+}
+
+function toCelListElementType(
+  type: ExpressionType,
+  environment: Environment,
+  variableName: string,
+): string {
+  if (typeof type === 'string') return scalarTypeToCelType[type];
+  if (type.kind === 'object') {
+    const typeName = `$${variableName}.item`;
+    environment.registerType({
+      name: typeName,
+      schema: Object.fromEntries(
+        Object.entries(type.fields).map(([name, field]) => [name, toCelSchemaType(field)]),
+      ),
+    });
+    return typeName;
+  }
   return 'dyn';
 }

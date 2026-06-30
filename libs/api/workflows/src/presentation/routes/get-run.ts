@@ -1,13 +1,14 @@
 import {runDetailResponseSchema} from '@shipfox/api-workflows-dto';
-import {defineRoute} from '@shipfox/node-fastify';
+import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
+import {getLatestAttempt, getWorkflowRunDetail} from '#db/index.js';
 import {
-  getJobsByRunId,
-  getLatestAttempt,
-  getStepAttemptsByJobIds,
-  getStepsByJobIds,
-} from '#db/index.js';
-import {toJobDto, toRunDto, toStepAttemptDto, toStepDto} from '#presentation/dto/index.js';
+  toJobDto,
+  toJobExecutionDto,
+  toRunDto,
+  toStepAttemptDto,
+  toStepDto,
+} from '#presentation/dto/index.js';
 import {requireAccessibleRun} from './require-accessible-run.js';
 
 export const getRunRoute = defineRoute({
@@ -24,23 +25,22 @@ export const getRunRoute = defineRoute({
   },
   handler: async (request) => {
     const {id} = request.params;
-    const run = await requireAccessibleRun({request, id});
+    await requireAccessibleRun({request, id});
 
-    const runJobs = await getJobsByRunId(run.id);
-    const jobIds = runJobs.map((j) => j.id);
-    const [allSteps, allAttempts] = await Promise.all([
-      getStepsByJobIds(jobIds),
-      getStepAttemptsByJobIds(jobIds),
-    ]);
+    const run = await getWorkflowRunDetail(id);
+    if (!run) {
+      throw new ClientError('Run not found', 'not-found', {status: 404});
+    }
 
-    const jobDtos = runJobs.map((job) => ({
+    const jobDtos = run.jobs.map((job) => ({
       ...toJobDto(job),
-      steps: allSteps
-        .filter((s) => s.jobId === job.id)
-        .map((step) => ({
+      job_executions: job.jobExecutions.map((jobExecution) => ({
+        ...toJobExecutionDto(jobExecution),
+        steps: jobExecution.steps.map((step) => ({
           ...toStepDto(step),
-          attempts: allAttempts.filter((a) => a.stepId === step.id).map(toStepAttemptDto),
+          attempts: step.attempts.map(toStepAttemptDto),
         })),
+      })),
     }));
 
     return {

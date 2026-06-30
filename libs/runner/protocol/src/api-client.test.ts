@@ -21,6 +21,7 @@ import {
 import {config} from '#config.js';
 
 const JOB_ID = crypto.randomUUID();
+const JOB_EXECUTION_ID = crypto.randomUUID();
 const RUN_ID = crypto.randomUUID();
 const STEP_ID = crypto.randomUUID();
 const SESSION_ID = crypto.randomUUID();
@@ -83,6 +84,7 @@ describe('api-client auth contexts', () => {
     const job = await requestJob('session-abc');
 
     expect(job?.job_id).toBe(JOB_ID);
+    expect(job?.job_execution_id).toBe(JOB_EXECUTION_ID);
     expect(job?.run_id).toBe(RUN_ID);
     expect(job?.lease_token).toBe('lease-xyz');
     // The claim is step-less: no job_name / steps are required to parse.
@@ -125,10 +127,11 @@ describe('api-client auth contexts', () => {
   });
 
   it('heartbeat sends the job lease token', async () => {
-    stubFetch(() => jsonResponse({cancel: false}));
+    stubFetch(() => jsonResponse({cancel: false, lease_token: 'lease-next'}));
 
-    await heartbeat(JOB_ID, 'lease-heartbeat');
+    const response = await heartbeat(JOB_ID, 'lease-heartbeat');
 
+    expect(response.lease_token).toBe('lease-next');
     expect(calls[0]?.url).toContain(`runners/jobs/${JOB_ID}/heartbeat`);
     expect(calls[0]?.authorization).toBe('Bearer lease-heartbeat');
   });
@@ -142,6 +145,21 @@ describe('api-client auth contexts', () => {
     expect(next).toEqual({kind: 'done', status: 'succeeded'});
     expect(calls[0]?.url).toContain('runs/jobs/current/steps/next');
     expect(calls[0]?.authorization).toBe('Bearer lease-abc');
+  });
+
+  it('lease clients read rotated lease tokens before each request', async () => {
+    stubFetch(() => jsonResponse({kind: 'done', status: 'succeeded'}));
+    let leaseToken = 'lease-initial';
+    const leaseClient = createLeaseClient(() => leaseToken);
+
+    await requestNextStep(leaseClient);
+    leaseToken = 'lease-next';
+    await requestNextStep(leaseClient);
+
+    expect(calls.map((call) => call.authorization)).toEqual([
+      'Bearer lease-initial',
+      'Bearer lease-next',
+    ]);
   });
 
   it('requestCheckoutToken sends the lease token and parses the checkout response', async () => {
@@ -455,6 +473,7 @@ describe('appendStepLogs', () => {
 function claimResponse() {
   return {
     job_id: JOB_ID,
+    job_execution_id: JOB_EXECUTION_ID,
     run_id: RUN_ID,
     lease_token: 'lease-xyz',
   };

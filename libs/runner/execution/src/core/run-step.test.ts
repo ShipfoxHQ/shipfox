@@ -395,7 +395,7 @@ function buildStep(
   const name = overrides.name ?? 'test-step';
   return {
     id: '00000000-0000-0000-0000-000000000001',
-    job_id: '00000000-0000-0000-0000-000000000002',
+    job_execution_id: '00000000-0000-0000-0000-000000000003',
     name,
     display_name: name ?? 'test-step',
     source_location: null,

@@ -1,15 +1,34 @@
 import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {eq} from 'drizzle-orm';
-import {recordStepResult} from '#core/job-execution.js';
+import {JobNotFoundError} from '#core/errors.js';
+import {recordStepResult as recordJobExecutionStepResult} from '#core/job-execution.js';
 import {db} from '#db/db.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
-import {getStepsByJobId} from '#db/workflow-runs.js';
+import {
+  getFirstJobExecutionByJobId,
+  getJobById,
+  getStepsByJobId,
+  getWorkflowRunById,
+} from '#db/workflow-runs.js';
+import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {leaseTokenRouteGroup} from './index.js';
 
 const URL = '/runs/jobs/current/steps/next';
+
+async function recordStepResult(
+  params: Omit<Parameters<typeof recordJobExecutionStepResult>[0], 'jobExecutionId'> & {
+    jobId: string;
+  },
+) {
+  const steps = await getStepsByJobId(params.jobId);
+  const step = steps.find((candidate) => candidate.id === params.stepId);
+  if (!step) throw new JobNotFoundError(params.jobId);
+  const {jobId: _jobId, ...rest} = params;
+  return recordJobExecutionStepResult({...rest, jobExecutionId: step.jobExecutionId});
+}
 
 describe('POST /runs/jobs/current/steps/next', () => {
   let app: FastifyInstance;
@@ -58,7 +77,11 @@ describe('POST /runs/jobs/current/steps/next', () => {
     });
 
     test('rejects an expired token', async () => {
-      const token = await mintLeaseToken({jobId: crypto.randomUUID(), expiresIn: '-1s'});
+      const token = await mintLeaseToken({
+        jobId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
+        expiresIn: '-1s',
+      });
 
       const res = await app.inject({
         method: 'POST',
@@ -71,7 +94,11 @@ describe('POST /runs/jobs/current/steps/next', () => {
     });
 
     test('rejects a token signed with the wrong secret', async () => {
-      const token = await mintLeaseToken({jobId: crypto.randomUUID(), secret: 'wrong-secret'});
+      const token = await mintLeaseToken({
+        jobId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
+        secret: 'wrong-secret',
+      });
 
       const res = await app.inject({
         method: 'POST',
@@ -84,7 +111,11 @@ describe('POST /runs/jobs/current/steps/next', () => {
     });
 
     test('rejects a token with the wrong audience (e.g. a user JWT)', async () => {
-      const token = await mintLeaseToken({jobId: crypto.randomUUID(), audience: 'user-session'});
+      const token = await mintLeaseToken({
+        jobId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
+        audience: 'user-session',
+      });
 
       const res = await app.inject({
         method: 'POST',
@@ -99,7 +130,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
   test('returns the lowest-position pending step and marks it running', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(3);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({jobId});
 
     const res = await app.inject({
       method: 'POST',
@@ -119,7 +150,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
   test('re-delivers the in-flight step on a retried pull', async () => {
     const {jobId} = await arrangeJobWithSteps(3);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({jobId});
     const first = await app.inject({
       method: 'POST',
       url: URL,
@@ -138,8 +169,11 @@ describe('POST /runs/jobs/current/steps/next', () => {
     expect(running).toHaveLength(1);
   });
 
-  test('returns 404 for a valid token naming an unknown job', async () => {
-    const token = await mintLeaseToken({jobId: crypto.randomUUID()});
+  test('returns 404 for a valid token without an active lease', async () => {
+    const token = await mintLeaseToken({
+      jobId: crypto.randomUUID(),
+      jobExecutionId: crypto.randomUUID(),
+    });
 
     const res = await app.inject({
       method: 'POST',
@@ -148,12 +182,47 @@ describe('POST /runs/jobs/current/steps/next', () => {
     });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json().code).toBe('job-not-found');
+    expect(res.json().code).toBe('lease-not-active');
+  });
+
+  test('returns 404 when the lease token is no longer the active job lease', async () => {
+    const {jobId} = await arrangeJobWithSteps(1);
+    const jobExecution = await getFirstJobExecutionByJobId(jobId);
+    if (!jobExecution) throw new Error('Expected job execution to exist');
+    const job = await getJobById(jobId);
+    if (!job) throw new Error('Expected job to exist');
+    const run = await getWorkflowRunById(job.runId);
+    if (!run) throw new Error('Expected workflow run to exist');
+    await insertRunningJobLease({
+      workspaceId: run.workspaceId,
+      jobId,
+      jobExecutionId: jobExecution.id,
+      runId: run.id,
+      projectId: run.projectId,
+      runnerSessionId: crypto.randomUUID(),
+    });
+    const token = await mintLeaseToken({
+      jobId,
+      jobExecutionId: jobExecution.id,
+      runId: run.id,
+      projectId: run.projectId,
+      workspaceId: run.workspaceId,
+      runnerSessionId: crypto.randomUUID(),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: URL,
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('lease-not-active');
   });
 
   test('reports {done, succeeded} once every step succeeded', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({jobId});
     for (const step of steps) {
       await app.inject({method: 'POST', url: URL, headers: {authorization: `Bearer ${token}`}});
       await recordStepResult({jobId, stepId: step.id, status: 'succeeded'});
@@ -171,7 +240,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
   test('reports {done, failed} after a failed step cancelled the rest', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({jobId});
     await app.inject({method: 'POST', url: URL, headers: {authorization: `Bearer ${token}`}});
     await recordStepResult({jobId, stepId: steps[0]?.id as string, status: 'failed'});
 
@@ -187,7 +256,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
   test('concurrent pulls hand out the same step exactly once', async () => {
     const {jobId} = await arrangeJobWithSteps(3);
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({jobId});
 
     const responses = await Promise.all(
       Array.from({length: 5}, () =>
@@ -211,7 +280,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
       .update(stepsTable)
       .set({currentAttempt: 2})
       .where(eq(stepsTable.id, steps[0]?.id as string));
-    const token = await mintLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({jobId});
 
     const res = await app.inject({
       method: 'POST',

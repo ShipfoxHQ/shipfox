@@ -308,7 +308,6 @@ function defaultRunDetailDto(overrides: Partial<RunDetailResponseDto> = {}): Run
         steps: [
           workflowStepDto({
             id: BUILD_STEP_ID,
-            job_id: BUILD_JOB_ID,
             name: 'checkout',
             display_name: 'checkout',
             status: 'succeeded',
@@ -317,7 +316,6 @@ function defaultRunDetailDto(overrides: Partial<RunDetailResponseDto> = {}): Run
               workflowStepAttemptDto({
                 id: BUILD_ATTEMPT_ID,
                 step_id: BUILD_STEP_ID,
-                job_id: BUILD_JOB_ID,
                 status: 'succeeded',
               }),
             ],
@@ -334,7 +332,6 @@ function defaultRunDetailDto(overrides: Partial<RunDetailResponseDto> = {}): Run
         steps: [
           workflowStepDto({
             id: DEPLOY_STEP_ID,
-            job_id: DEPLOY_JOB_ID,
             name: 'deploy',
             display_name: 'deploy',
             status: 'running',
@@ -343,7 +340,6 @@ function defaultRunDetailDto(overrides: Partial<RunDetailResponseDto> = {}): Run
               workflowStepAttemptDto({
                 id: DEPLOY_ATTEMPT_ONE_ID,
                 step_id: DEPLOY_STEP_ID,
-                job_id: DEPLOY_JOB_ID,
                 attempt: 1,
                 execution_order: 1,
                 status: 'failed',
@@ -352,7 +348,6 @@ function defaultRunDetailDto(overrides: Partial<RunDetailResponseDto> = {}): Run
               workflowStepAttemptDto({
                 id: DEPLOY_ATTEMPT_TWO_ID,
                 step_id: DEPLOY_STEP_ID,
-                job_id: DEPLOY_JOB_ID,
                 attempt: 2,
                 execution_order: 2,
                 status: 'running',

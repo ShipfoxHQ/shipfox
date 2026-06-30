@@ -4,7 +4,7 @@ import {fromStepErrorDto, toStepAttemptDto, toStepDto} from './step.js';
 function step(overrides: Partial<Step> & {type: string}): Step {
   return {
     id: '00000000-0000-0000-0000-000000000001',
-    jobId: '00000000-0000-0000-0000-0000000000aa',
+    jobExecutionId: '00000000-0000-0000-0000-0000000000bb',
     name: null,
     displayName: 'step',
     sourceLocation: null,
@@ -131,7 +131,6 @@ describe('toStepDto error category', () => {
 const baseAttempt: StepAttempt = {
   id: '11111111-1111-4111-8111-111111111111',
   stepId: '22222222-2222-4222-8222-222222222222',
-  jobId: '33333333-3333-4333-8333-333333333333',
   attempt: 1,
   executionOrder: 1,
   status: 'failed',

@@ -30,6 +30,7 @@ const DEFAULT_RUNNER_LABELS = ['ubuntu-latest'] as const;
 interface TestWorkflowJob {
   readonly needs?: string | readonly string[] | undefined;
   readonly runner?: string | readonly string[] | undefined;
+  readonly success?: string | undefined;
   readonly env?: WorkflowModel['env'] | undefined;
   readonly steps: readonly TestWorkflowStep[];
 }
@@ -53,6 +54,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
       id: jobId,
       sourceName,
       runner: normalizeStringArray(job.runner ?? input.runner ?? DEFAULT_RUNNER_LABELS),
+      ...(job.success === undefined ? {} : {success: job.success}),
       ...optionalScopedEnv(job.env),
       dependencies: normalizeStringArray(job.needs).map(stableId),
       steps: job.steps.map((step, stepIndex) => normalizeStep(step, jobId, stepIndex)),

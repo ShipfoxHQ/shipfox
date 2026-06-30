@@ -57,6 +57,11 @@ export class LogTransformer {
     this.maxVariantLen = this.variants.reduce((max, form) => Math.max(max, form.length), 0);
   }
 
+  setSecrets(secrets: string[]): void {
+    this.variants = buildSecretVariants(secrets);
+    this.maxVariantLen = this.variants.reduce((max, form) => Math.max(max, form.length), 0);
+  }
+
   push(chunk: Buffer, source: OutputSource): TransformEvent[] {
     const state = this.sources[source];
     state.buffer += state.decoder.decode(chunk, {stream: true});

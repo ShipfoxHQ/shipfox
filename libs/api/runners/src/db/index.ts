@@ -8,18 +8,22 @@ export {
   createRunnerSessionConsumingEphemeralToken,
   resolveEphemeralRegistrationTokenByHash,
 } from './ephemeral-registration-tokens.js';
-export type {ClaimedJob, EnqueueJobParams, ProvisionedRunnerBoundJob} from './jobs.js';
+export type {
+  ClaimedJobExecution,
+  EnqueueJobExecutionParams,
+  ProvisionedRunnerBoundJobExecution,
+} from './job-executions.js';
 export {
   cancelRunnerJobs,
-  claimPendingJob,
-  enqueueJob,
-  expireStuckJobs,
+  claimPendingJobExecution,
+  enqueueJobExecution,
+  expireStuckJobExecutions,
   isJobLeaseActive,
-  listActiveRunningJobs,
-  listRunningJobsByProvisionedRunnerTx,
+  listActiveRunningJobExecutions,
+  listRunningJobExecutionsByProvisionedRunnerTx,
   recordHeartbeat,
-  releaseJob,
-} from './jobs.js';
+  releaseJobExecution,
+} from './job-executions.js';
 export type {
   ProvisionedRunnerReportEvent,
   ReconcileProvisionedRunnersDbResult,

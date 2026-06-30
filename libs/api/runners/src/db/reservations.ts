@@ -2,7 +2,7 @@ import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {and, asc, eq, gt, inArray, lt, sql} from 'drizzle-orm';
 import type {Tx} from './db.js';
 import {db} from './db.js';
-import {pendingJobs} from './schema/pending-jobs.js';
+import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {reservations} from './schema/reservations.js';
 
 export interface ReservationTemplate {
@@ -56,13 +56,13 @@ export async function pollDemandAndReserve(
     const demandRows = (
       await tx
         .select({
-          requiredLabels: pendingJobs.requiredLabels,
+          requiredLabels: pendingJobExecutions.requiredLabels,
           queued: sql<number>`count(*)::int`,
-          oldestQueuedAt: sql<Date | string>`min(${pendingJobs.createdAt})`,
+          oldestQueuedAt: sql<Date | string>`min(${pendingJobExecutions.createdAt})`,
         })
-        .from(pendingJobs)
-        .where(eq(pendingJobs.workspaceId, params.workspaceId))
-        .groupBy(pendingJobs.requiredLabels)
+        .from(pendingJobExecutions)
+        .where(eq(pendingJobExecutions.workspaceId, params.workspaceId))
+        .groupBy(pendingJobExecutions.requiredLabels)
     ).map((row) => ({
       ...row,
       oldestQueuedAt: new Date(row.oldestQueuedAt),

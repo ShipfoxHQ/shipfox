@@ -1,9 +1,10 @@
 import {Factory} from 'fishery';
-import {enqueueJob} from '#db/jobs.js';
+import {enqueueJobExecution} from '#db/job-executions.js';
 
 interface PendingJobAttrs {
   workspaceId: string;
   jobId: string;
+  jobExecutionId: string;
   runId: string;
   projectId: string;
   requiredLabels: string[];
@@ -11,14 +12,16 @@ interface PendingJobAttrs {
 
 export const pendingJobFactory = Factory.define<PendingJobAttrs>(({onCreate}) => {
   const jobId = crypto.randomUUID();
+  const jobExecutionId = crypto.randomUUID();
   const runId = crypto.randomUUID();
   const workspaceId = crypto.randomUUID();
   const projectId = crypto.randomUUID();
 
   onCreate(async (attrs) => {
-    await enqueueJob({
+    await enqueueJobExecution({
       workspaceId: attrs.workspaceId,
       jobId: attrs.jobId,
+      jobExecutionId: attrs.jobExecutionId,
       runId: attrs.runId,
       projectId: attrs.projectId,
       requiredLabels: attrs.requiredLabels,
@@ -29,6 +32,7 @@ export const pendingJobFactory = Factory.define<PendingJobAttrs>(({onCreate}) =>
   return {
     workspaceId,
     jobId,
+    jobExecutionId,
     runId,
     projectId,
     requiredLabels: ['linux'],

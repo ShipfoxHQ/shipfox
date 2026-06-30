@@ -1,4 +1,4 @@
-import type {RunJobDetailDto, RunStepDetailDto, StepAttemptDto} from '@shipfox/api-workflows-dto';
+import type {RunStepDetailDto, StepAttemptDto} from '@shipfox/api-workflows-dto';
 import {LogView, type LogViewProps} from '@shipfox/client-logs';
 import {Text} from '@shipfox/react-ui';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
@@ -12,7 +12,12 @@ import {
 } from '@tanstack/react-router';
 import {within} from 'storybook/test';
 import type {WorkflowJob} from '#core/workflow-run.js';
-import {workflowJob, workflowStepAttemptDto, workflowStepDto} from '#test/fixtures/workflow-run.js';
+import {
+  type WorkflowJobDtoOverrides,
+  workflowJob,
+  workflowStepAttemptDto,
+  workflowStepDto,
+} from '#test/fixtures/workflow-run.js';
 import {AgentConfigFailureCallout as AgentConfigFailureCalloutView} from '../workflow-run-view/agent-config-failure-callout.js';
 import {WorkflowStepList} from './workflow-step-list.js';
 
@@ -497,7 +502,7 @@ export const ExpandedSlot: Story = {
   },
 };
 
-function makeJob(overrides: Partial<RunJobDetailDto> = {}): WorkflowJob {
+function makeJob(overrides: WorkflowJobDtoOverrides = {}): WorkflowJob {
   return workflowJob(overrides);
 }
 

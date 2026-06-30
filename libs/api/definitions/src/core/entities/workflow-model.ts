@@ -29,6 +29,8 @@ export interface WorkflowModelJob {
   readonly id: string;
   readonly sourceName: string;
   readonly runner: readonly string[];
+  readonly success?: string;
+  readonly executionTimeoutMs?: number;
   readonly env?: Readonly<Record<string, string>>;
   readonly templates?: {
     readonly env?: WorkflowEnvTemplates;

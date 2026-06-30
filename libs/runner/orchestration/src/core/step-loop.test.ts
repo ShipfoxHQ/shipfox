@@ -73,6 +73,7 @@ let createdStreams: Map<string, FakeStream[]>;
 interface FakeStream {
   write: ReturnType<typeof vi.fn>;
   addSecrets: ReturnType<typeof vi.fn>;
+  setRotatingSecrets: ReturnType<typeof vi.fn>;
   writeGroupStart: ReturnType<typeof vi.fn>;
   writeGroupEnd: ReturnType<typeof vi.fn>;
   writeGroup: ReturnType<typeof vi.fn>;
@@ -93,6 +94,9 @@ function makeFakeStream(
     }),
     addSecrets: vi.fn(() => {
       events.push(`secrets:${label}`);
+    }),
+    setRotatingSecrets: vi.fn(() => {
+      events.push(`rotatingSecrets:${label}`);
     }),
     writeGroupStart: vi.fn(() => {
       events.push(`groupStart:${label}`);
@@ -131,11 +135,17 @@ function streamFor(stepId: string): FakeStream {
   return stream;
 }
 
-function runLoop(params: {signal: AbortSignal; secrets?: string[]; cwd?: string}): Promise<void> {
+function runLoop(params: {
+  signal: AbortSignal;
+  secrets?: string[];
+  cwd?: string;
+  subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
+}): Promise<void> {
   return runJobSteps({
     jobId: JOB_ID,
     leaseClient,
     secrets: params.secrets ?? [],
+    ...(params.subscribeSecrets ? {subscribeSecrets: params.subscribeSecrets} : {}),
     signal: params.signal,
     cwd: params.cwd ?? '/work',
     logsDir: LOGS_DIR,
@@ -912,7 +922,7 @@ function buildStep(overrides: Partial<StepDto> = {}): StepDto {
     (typeof overrides.name === 'string' && overrides.name.trim() ? overrides.name : 'test-step');
   return {
     id: '00000000-0000-0000-0000-000000000001',
-    job_id: JOB_ID,
+    job_execution_id: '00000000-0000-0000-0000-000000000003',
     name: 'test-step',
     display_name: displayName,
     source_location: null,

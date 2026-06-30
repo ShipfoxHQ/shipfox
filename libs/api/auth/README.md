@@ -112,10 +112,11 @@ use the per-job lease token instead.
 - **Tradeoff — no per-session revocation in v1.** Claim stays stateless and does
   not check the runner session row on each poll. Revoking the registration token
   blocks new sessions, but an existing session can keep claiming until
-  `AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN` elapses. If it claimed a job just before
-  session expiry, that job can keep heartbeating until its already-issued
-  `AUTH_JOB_LEASE_TOKEN_EXPIRES_IN` lease expires. With the defaults, the
-  worst-case residual window is about 2.5 hours.
+  `AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN` elapses. A job execution claimed before
+  session expiry then moves to the narrower job lease token path: heartbeat can
+  renew that lease while server state still says the job execution is live, and
+  cancellation or terminal job execution state is the revocation boundary for that
+  already-claimed work.
 
 ### Job lease token
 
@@ -123,23 +124,25 @@ A single-job **capability** token, not a session. It is the means by which a
 runner proves it is the legitimate holder of one specific job while it reports
 progress and drives that job to completion.
 
-- **Scope — exactly one job.** The token authorizes action on the single job it
-  names, for the runner holding it. It is **not** a runner identity, it is **not**
-  workspace-wide, and it is **not** a substitute for the long-lived runner
-  credential used to claim work in the first place. The surrounding identifiers it
-  carries (run, workspace, the claiming runner) are context for consumers; they do
-  not widen what the bearer may touch.
+- **Scope — exactly one job execution.** The token authorizes action on the
+  single job execution it names, for the runner holding it. It is **not** a runner
+  identity, it is **not** workspace-wide, and it is **not** a substitute for the
+  long-lived runner credential used to claim work in the first place. The
+  surrounding identifiers it carries (job, run, workspace, the claiming runner)
+  are context for consumers; they do not widen what the bearer may touch.
 - **Trust boundary.** There is exactly one issuer: the scheduling side mints a
-  lease only when a runner claims a job. Everything downstream only *verifies* — an
-  in-process signature check, with no callback to the issuer. The runner, and the
-  untrusted agent workload it hosts, never mints or modifies a token; it only
-  presents the one it was handed.
+  lease when a runner claims a job execution, and heartbeat re-mints the same
+  narrow capability after server state accepts the heartbeat. Everything
+  downstream only *verifies* — an in-process signature check, with no callback to
+  the issuer. The runner, and the untrusted agent workload it hosts, never mints
+  or modifies a token; it only presents the one it was handed.
 - **Mechanics.** Signed with HMAC-SHA256 using a dedicated secret, separate from
-  the user-session secret. Its claims name the job and its surrounding context and
-  nothing more, and it carries a fixed audience so a token minted for one purpose
-  cannot be replayed against another. It is short-lived (bounded in hours, not
-  days). The signing secret is supplied through configuration, never embedded in
-  code or committed. The raw token must **never** be written to logs, traces, or
+  the user-session secret. Its claims name the job, job execution, and surrounding
+  context and nothing more, and it carries a fixed audience so a token minted for
+  one purpose cannot be replayed against another. It is short-lived (bounded in
+  hours, not days), with heartbeat issuing a fresh short lease for the same live
+  execution. The signing secret is supplied through configuration, never embedded
+  in code or committed. The raw token must **never** be written to logs, traces, or
   error payloads — there is no automatic redaction to fall back on.
 - **Defense in depth — server state is the final authority.** A valid token is
   never sufficient on its own to advance work. On the lease's own request path the
@@ -150,18 +153,19 @@ progress and drives that job to completion.
   as well — the server can ask the runner to stop at any point, and that request
   rides on the response to each heartbeat rather than depending on the token.
 - **Threat model.** A leaked or replayed token has a deliberately small blast
-  radius: it grants action on one already-claimed job, and only until it expires.
-  It cannot claim new work, impersonate a runner, or reach other workspaces. If the
-  *signing secret* leaks, the response is to rotate it; rotation invalidates every
-  live lease at once (they fail signature verification) and forces fresh claims.
-  Isolating this secret from the user-session secret is what lets one be rotated
-  without disrupting the other.
+  radius: it grants action on one already-claimed job execution while that
+  execution remains live. It cannot claim new work, impersonate a runner, or reach
+  other workspaces. If the *signing secret* leaks, the response is to rotate it;
+  rotation invalidates every live lease at once (they fail signature verification)
+  and forces fresh claims. Isolating this secret from the user-session secret is
+  what lets one be rotated without disrupting the other.
 - **Tradeoff — no per-token revocation.** A single outstanding lease cannot be
-  revoked on its own; it simply expires. The claiming runner's credential is not
-  re-checked on each request, so a lease minted just before that credential is
-  revoked stays usable until it expires. Accepted because access is bounded in both
-  time (short lease) and scope (one job), keeping the blast radius small, and
-  because a per-request check would sit on the hot progress-reporting path.
+  revoked on its own by token ID. The claiming runner's credential is not
+  re-checked on each request, so a lease for already-claimed work can continue to
+  be renewed by heartbeat until server state cancels, completes, times out, or
+  otherwise terminates the job execution. Accepted because access is bounded in
+  scope (one execution) and server state is checked on the hot path; a
+  per-request credential lookup would sit on the hot progress-reporting path.
 - **Guidelines for future changes.** Keep the authority narrow: do not add claims
   that grant access beyond the single job, keep the lifetime bounded, keep a single
   issuer, and keep every other side verify-only. If the no-revocation window ever

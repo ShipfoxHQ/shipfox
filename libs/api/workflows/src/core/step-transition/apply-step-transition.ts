@@ -4,7 +4,7 @@ import {
   applyStepResult,
   cancelRemainingSteps,
   finishStepAttempt,
-  getStepsByJobIdForUpdate,
+  getStepsByJobExecutionIdForUpdate,
   rewindStepsToPending,
   writeJobStepsSettledOutbox,
   writeStepRestartEnqueuedOutbox,
@@ -32,6 +32,7 @@ export interface StepProgressionResult {
 
 export interface ApplyStepTransitionContext {
   jobId: string;
+  jobExecutionId: string;
   result: StepResult;
   logOutcome: LogOutcomeDto;
   // Gate evaluation audit payload to record on the attempt, when a gate ran.
@@ -66,7 +67,12 @@ export async function applyStepTransition(
         tx,
       );
       await applyStepResult(
-        {jobId: ctx.jobId, stepId: decision.stepId, status: 'succeeded', error: null},
+        {
+          jobExecutionId: ctx.jobExecutionId,
+          stepId: decision.stepId,
+          status: 'succeeded',
+          error: null,
+        },
         tx,
       );
       break;
@@ -88,7 +94,7 @@ export async function applyStepTransition(
       );
       await applyStepResult(
         {
-          jobId: ctx.jobId,
+          jobExecutionId: ctx.jobExecutionId,
           stepId: decision.failedStepId,
           status: 'failed',
           error: decision.failureError,
@@ -96,7 +102,7 @@ export async function applyStepTransition(
         tx,
       );
       // The just-failed step is terminal, so this cancels only the steps after it.
-      await cancelRemainingSteps({jobId: ctx.jobId}, tx);
+      await cancelRemainingSteps({jobExecutionId: ctx.jobExecutionId}, tx);
       break;
     }
     case 'restart-job-from-step': {
@@ -118,7 +124,7 @@ export async function applyStepTransition(
         tx,
       );
       await rewindStepsToPending(
-        {jobId: ctx.jobId, fromPosition: decision.restartFromPosition},
+        {jobExecutionId: ctx.jobExecutionId, fromPosition: decision.restartFromPosition},
         tx,
       );
       await writeStepRestartEnqueuedOutbox(tx, {
@@ -137,10 +143,14 @@ export async function applyStepTransition(
   // Re-derive completion from the post-apply projection so the outcome is robust
   // to the cancel sweep above; emit the steps-settled signal exactly once, here on
   // the applied path.
-  const after = await getStepsByJobIdForUpdate(ctx.jobId, tx);
+  const after = await getStepsByJobExecutionIdForUpdate(ctx.jobExecutionId, tx);
   if (after.every((step) => isTerminal(step.status))) {
     const status = deriveCompletion(after);
-    await writeJobStepsSettledOutbox(tx, {jobId: ctx.jobId, status});
+    await writeJobStepsSettledOutbox(tx, {
+      jobId: ctx.jobId,
+      jobExecutionId: ctx.jobExecutionId,
+      status,
+    });
     return {
       outcome: {jobFinished: true, status},
       metrics: {jobStepsSettledStatus: status},

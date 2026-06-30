@@ -140,20 +140,42 @@ export async function runJob(
   const ac = new AbortController();
   currentJobAbortController = ac;
 
+  const runnerSecret = runnerToken();
+  const initialLeaseToken = job.lease_token;
+  let currentLeaseToken = initialLeaseToken;
+  let previousRenewedLeaseToken: string | undefined;
+  let currentRenewedLeaseToken: string | undefined;
+  const secrets = [runnerSecret, initialLeaseToken];
+  const leaseTokenSecretSubscribers = new Set<(secrets: string[]) => void>();
+  const rotatingLeaseSecrets = () =>
+    [previousRenewedLeaseToken, currentRenewedLeaseToken].filter(
+      (secret): secret is string => secret !== undefined,
+    );
+  const rememberLeaseToken = (leaseToken: string) => {
+    if (leaseToken === currentLeaseToken) return;
+    previousRenewedLeaseToken = currentRenewedLeaseToken;
+    currentRenewedLeaseToken = leaseToken;
+    currentLeaseToken = leaseToken;
+    secrets.splice(0, secrets.length, runnerSecret, initialLeaseToken, ...rotatingLeaseSecrets());
+    for (const subscriber of leaseTokenSecretSubscribers) subscriber(rotatingLeaseSecrets());
+  };
+
   const heartbeatLoop = startHeartbeatLoop(job.job_id, job.lease_token, ac, {
     intervalMs: config.SHIPFOX_HEARTBEAT_INTERVAL_MS,
     maxStaleMs: config.SHIPFOX_HEARTBEAT_MAX_STALE_MS,
+    onLeaseTokenRenewed: rememberLeaseToken,
   });
 
   try {
-    const leaseClient = createLeaseClient(job.lease_token);
-    // Both runner credentials can reach a step's environment, so scrub them from
-    // captured output before it touches the spool.
-    const secrets = [runnerToken(), job.lease_token];
+    const leaseClient = createLeaseClient(() => currentLeaseToken);
     await runJobSteps({
       jobId: job.job_id,
       leaseClient,
       secrets,
+      subscribeSecrets: (subscriber) => {
+        leaseTokenSecretSubscribers.add(subscriber);
+        return () => leaseTokenSecretSubscribers.delete(subscriber);
+      },
       signal: ac.signal,
       cwd,
       logsDir,

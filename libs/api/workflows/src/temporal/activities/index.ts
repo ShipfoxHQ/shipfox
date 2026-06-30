@@ -1,11 +1,13 @@
 import {
   bulkSetStepStatuses,
   cancelRunnerJobsActivity,
-  enqueueJobForRunner,
-  failJobAsTimedOutActivity,
+  enqueueJobExecutionForRunner,
+  failJobExecutionAsTimedOutActivity,
   loadRunDag,
   releaseLeaseActivity,
-  resolveLeaseExpiredJobActivity,
+  resolveJobStatusFromJobExecutionsActivity,
+  resolveLeaseExpiredJobExecutionActivity,
+  setJobExecutionStatus,
   setJobStatus,
   setRunStatus,
 } from './orchestration-activities.js';
@@ -15,11 +17,13 @@ export function createOrchestrationActivities() {
     loadRunDag,
     setRunStatus,
     setJobStatus,
+    setJobExecutionStatus,
     bulkSetStepStatuses,
     cancelRunnerJobsActivity,
-    enqueueJobForRunner,
-    failJobAsTimedOutActivity,
-    resolveLeaseExpiredJobActivity,
+    enqueueJobExecutionForRunner,
+    failJobExecutionAsTimedOutActivity,
+    resolveLeaseExpiredJobExecutionActivity,
+    resolveJobStatusFromJobExecutionsActivity,
     releaseLeaseActivity,
   };
 }

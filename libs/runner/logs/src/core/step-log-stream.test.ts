@@ -561,6 +561,31 @@ describe('createStepLogStream', () => {
     expect(raw).toContain('***');
   });
 
+  it('replaces rotating secrets without dropping static or added secrets', async () => {
+    const stream = createStepLogStream({
+      logsDir: join(dir, 'logs'),
+      stepId: STEP_ID,
+      attempt: 19,
+      append: hangingAppend,
+      secrets: ['static-token'],
+      flushIntervalMs: 100000,
+      now: () => 1,
+    });
+
+    stream.addSecrets(['checkout-token']);
+    stream.setRotatingSecrets(['lease-old']);
+    stream.setRotatingSecrets(['lease-new']);
+    stream.writeOutputLine('static-token checkout-token lease-old lease-new');
+    await stream.close();
+    stream.dispose();
+
+    const raw = await readFile(join(dir, 'logs', `${STEP_ID}-19.ndjson`), 'utf8');
+    expect(raw).not.toContain('static-token');
+    expect(raw).not.toContain('checkout-token');
+    expect(raw).not.toContain('lease-new');
+    expect(raw).toContain('lease-old');
+  });
+
   it('abandons capture without crashing when a runner-originated metadata write fails', async () => {
     let appends = 0;
     const appendSpy = vi.spyOn(AttemptSpool.prototype, 'append').mockImplementation(() => {

@@ -4,6 +4,7 @@ import {
   makeDag,
   resetCalls,
   setCfg,
+  setExecutionStatusCalls,
   setJobStatusCalls,
   setupEnv,
   TASK_QUEUE,
@@ -29,26 +30,36 @@ const defaultJobInput = {
   runId: 'run-1',
   projectId: 'project-1',
   jobVersion: 1,
+  jobExecutionId: 'job-1',
+  executionVersion: 1,
   requiredLabels: ['ubuntu22'],
 };
 
 function executeJob(input: typeof defaultJobInput): Promise<{status: string; jobVersion: number}> {
-  return testEnv.client.workflow.execute('jobOrchestration', {
+  const normalized = {
+    ...input,
+    jobExecutionId:
+      input.jobExecutionId === defaultJobInput.jobExecutionId &&
+      input.jobId !== defaultJobInput.jobId
+        ? input.jobId
+        : input.jobExecutionId,
+  };
+  return testEnv.client.workflow.execute('jobExecutionOrchestration', {
     taskQueue: TASK_QUEUE,
     workflowId: `job:${input.jobId}`,
-    args: [input],
+    args: [normalized],
   });
 }
 
 function finalStatusesFor(jobId: string): string[] {
-  return setJobStatusCalls()
-    .filter((c) => c.params.jobId === jobId)
+  return setExecutionStatusCalls()
+    .filter((c) => c.params.jobExecutionId === jobId)
     .map((c) => c.params.status);
 }
 
 function terminalSetJobCall(jobId: string) {
-  return setJobStatusCalls().find(
-    (call) => call.params.jobId === jobId && call.params.status !== 'running',
+  return setExecutionStatusCalls().find(
+    (call) => call.params.jobExecutionId === jobId && call.params.status !== 'running',
   );
 }
 
@@ -70,7 +81,7 @@ async function expectEmptyRequiredLabelsFailure(input: typeof defaultJobInput): 
   });
 }
 
-describe('jobOrchestration', () => {
+describe('jobExecutionOrchestration', () => {
   test('finished signal (succeeded) flips status and releases the lease', async () => {
     setCfg({
       dag: makeDag([dagJob('job-1', 'build')]),
@@ -82,7 +93,7 @@ describe('jobOrchestration', () => {
     expect(result.status).toBe('succeeded');
     expect(finalStatusesFor('job-1')).toEqual(['running', 'succeeded']);
     expect(callsNamed('releaseLeaseActivity')).toHaveLength(1);
-    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(0);
+    expect(callsNamed('resolveLeaseExpiredJobExecutionActivity')).toHaveLength(0);
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
   });
 
@@ -98,8 +109,8 @@ describe('jobOrchestration', () => {
       requiredLabels: [],
     });
 
-    expect(setJobStatusCalls()).toHaveLength(0);
-    expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
+    expect(setExecutionStatusCalls()).toHaveLength(0);
+    expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(0);
   });
 
   test('whitespace-only required labels fail before the job is marked running', async () => {
@@ -114,8 +125,8 @@ describe('jobOrchestration', () => {
       requiredLabels: ['  '],
     });
 
-    expect(setJobStatusCalls()).toHaveLength(0);
-    expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
+    expect(setExecutionStatusCalls()).toHaveLength(0);
+    expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(0);
   });
 
   test('finished signal (failed) flips status without sweeping steps', async () => {
@@ -130,6 +141,29 @@ describe('jobOrchestration', () => {
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
   });
 
+  test('job status resolution failure fails the job closed', async () => {
+    setCfg({
+      dag: makeDag([dagJob('job-resolve-fail', 'build')]),
+      jobResults: new Map([['job-resolve-fail', 'succeeded']]),
+      resolveJobStatusError: 'invalid job success expression',
+    });
+
+    const result = await executeJob({...defaultJobInput, jobId: 'job-resolve-fail'});
+
+    expect(result.status).toBe('failed');
+    expect(finalStatusesFor('job-resolve-fail')).toEqual(['running', 'succeeded']);
+    expect(setJobStatusCalls()).toContainEqual({
+      name: 'setJobStatus',
+      params: {
+        jobId: 'job-resolve-fail',
+        status: 'failed',
+        version: 1,
+        statusReason: 'step_failed',
+      },
+    });
+    expect(callsNamed('releaseLeaseActivity')).toHaveLength(1);
+  });
+
   test('lease-expired signal resolves via the activity and releases the lease', async () => {
     setCfg({
       dag: makeDag([]),
@@ -141,9 +175,9 @@ describe('jobOrchestration', () => {
     const result = await executeJob({...defaultJobInput, jobId: 'job-le'});
 
     expect(result.status).toBe('failed');
-    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(1);
+    expect(callsNamed('resolveLeaseExpiredJobExecutionActivity')).toHaveLength(1);
     expect(callsNamed('releaseLeaseActivity')).toHaveLength(1);
-    expect(callsNamed('failJobAsTimedOutActivity')).toHaveLength(0);
+    expect(callsNamed('failJobExecutionAsTimedOutActivity')).toHaveLength(0);
   });
 
   test('lease-expired adoption: resolver reports succeeded → job succeeds (server state wins)', async () => {
@@ -157,7 +191,7 @@ describe('jobOrchestration', () => {
     const result = await executeJob({...defaultJobInput, jobId: 'job-le2'});
 
     expect(result.status).toBe('succeeded');
-    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(1);
+    expect(callsNamed('resolveLeaseExpiredJobExecutionActivity')).toHaveLength(1);
   });
 
   test('both signals: finished wins, lease-expiry is ignored', async () => {
@@ -170,7 +204,7 @@ describe('jobOrchestration', () => {
     const result = await executeJob({...defaultJobInput, jobId: 'job-both'});
 
     expect(result.status).toBe('succeeded');
-    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(0);
+    expect(callsNamed('resolveLeaseExpiredJobExecutionActivity')).toHaveLength(0);
   });
 
   test('both signals with finished=failed: fails via the finished path, one terminal setJobStatus', async () => {
@@ -184,7 +218,7 @@ describe('jobOrchestration', () => {
 
     expect(result.status).toBe('failed');
     expect(finalStatusesFor('job-bf').filter((s) => s !== 'running')).toEqual(['failed']);
-    expect(callsNamed('resolveLeaseExpiredJobActivity')).toHaveLength(0);
+    expect(callsNamed('resolveLeaseExpiredJobExecutionActivity')).toHaveLength(0);
   });
 
   test('duplicate finished signal: first wins', async () => {
@@ -210,7 +244,7 @@ describe('jobOrchestration', () => {
     const result = await executeJob({...defaultJobInput, jobId: 'job-cancelled'});
 
     expect(result).toMatchObject({status: 'failed'});
-    expect(callsNamed('enqueueJobForRunner')).toHaveLength(0);
+    expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(0);
     expect(callsNamed('releaseLeaseActivity')).toHaveLength(0);
   });
 
@@ -230,7 +264,7 @@ describe('jobOrchestration', () => {
   test('no signal — workflow stays blocked indefinitely', async () => {
     setCfg({dag: makeDag([]), jobResults: new Map(), skipSignal: true});
 
-    const handle = await testEnv.client.workflow.start('jobOrchestration', {
+    const handle = await testEnv.client.workflow.start('jobExecutionOrchestration', {
       taskQueue: TASK_QUEUE,
       workflowId: 'job:job-stuck',
       args: [{...defaultJobInput, jobId: 'job-stuck'}],

@@ -31,17 +31,15 @@ async function exhaustBucket(params: {
   limit: number;
   windowSeconds: number;
 }): Promise<void> {
-  await Promise.all(
-    Array.from({length: params.limit}, () =>
-      checkAuthRateLimit({
-        action: params.action,
-        scope: params.scope,
-        identifier: params.identifier,
-        limit: params.limit,
-        windowSeconds: params.windowSeconds,
-      }),
-    ),
-  );
+  for (let index = 0; index < params.limit; index += 1) {
+    await checkAuthRateLimit({
+      action: params.action,
+      scope: params.scope,
+      identifier: params.identifier,
+      limit: params.limit,
+      windowSeconds: params.windowSeconds,
+    });
+  }
 }
 
 async function countBucket(params: {

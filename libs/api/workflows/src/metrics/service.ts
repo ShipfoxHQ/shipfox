@@ -1,5 +1,5 @@
 import {getServiceMetricsProvider} from '@shipfox/node-opentelemetry';
-import {getWorkflowExecutionDepth} from '#db/workflow-runs.js';
+import {getWorkflowJobExecutionDepth} from '#db/workflow-runs.js';
 
 export function registerWorkflowsServiceMetrics(): void {
   const meter = getServiceMetricsProvider().getMeter('workflows');
@@ -7,16 +7,16 @@ export function registerWorkflowsServiceMetrics(): void {
   const runningRuns = meter.createObservableGauge('workflows_running_runs', {
     description: 'Workflow runs currently marked running',
   });
-  const runningJobs = meter.createObservableGauge('workflows_running_jobs', {
-    description: 'Workflow jobs currently marked running',
+  const runningJobExecutions = meter.createObservableGauge('workflows_running_job_executions', {
+    description: 'Workflow job executions currently marked running',
   });
 
   meter.addBatchObservableCallback(
     async (observer) => {
-      const depth = await getWorkflowExecutionDepth();
+      const depth = await getWorkflowJobExecutionDepth();
       observer.observe(runningRuns, depth.runningRuns);
-      observer.observe(runningJobs, depth.runningJobs);
+      observer.observe(runningJobExecutions, depth.runningJobExecutions);
     },
-    [runningRuns, runningJobs],
+    [runningRuns, runningJobExecutions],
   );
 }
