@@ -224,6 +224,43 @@ describe('handleGithubEvent', () => {
     expect(handlers.publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
   });
 
+  it('publishes a generic envelope when a push payload fails schema validation', async () => {
+    const installationId = 7786;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+    const deliveryId = randomUUID();
+    const payload = {
+      installation: {id: installationId},
+      ref: 'refs/heads/main',
+    };
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId,
+      event: 'push',
+      payload,
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('published-envelope');
+    expect(handlers.publishSourcePush).not.toHaveBeenCalled();
+    expect(
+      firstPublishIntegrationEventReceivedCall(handlers.publishIntegrationEventReceived),
+    ).toMatchObject({
+      event: {
+        source: 'github',
+        event: 'push',
+        workspaceId: connection.workspaceId,
+        connectionId: connection.id,
+        connectionName: connection.displayName,
+        deliveryId,
+        payload,
+      },
+    });
+    expect(handlers.recordDeliveryOnly).not.toHaveBeenCalled();
+  });
+
   it('publishes a generic envelope for a non-push event with an action', async () => {
     const installationId = 7781;
     const connection = fakeConnection();
@@ -265,6 +302,7 @@ describe('handleGithubEvent', () => {
     const connection = fakeConnection();
     await seedInstallation(installationId, connection.id);
     const handlers = deps({connection});
+    const deliveryId = randomUUID();
     const payload = {
       action: null,
       installation: {id: installationId},
@@ -273,7 +311,7 @@ describe('handleGithubEvent', () => {
 
     const result = await handleGithubEvent({
       tx: db(),
-      deliveryId: randomUUID(),
+      deliveryId,
       event: 'pull_request',
       payload,
       ...handlers,
@@ -284,7 +322,12 @@ describe('handleGithubEvent', () => {
       firstPublishIntegrationEventReceivedCall(handlers.publishIntegrationEventReceived),
     ).toMatchObject({
       event: {
+        source: 'github',
         event: 'pull_request',
+        workspaceId: connection.workspaceId,
+        connectionId: connection.id,
+        connectionName: connection.displayName,
+        deliveryId,
         payload,
       },
     });

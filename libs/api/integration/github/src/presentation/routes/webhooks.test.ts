@@ -305,6 +305,9 @@ describe('GitHub webhook route', () => {
       event: {
         source: 'github',
         event: 'fork',
+        workspaceId: connection.workspaceId,
+        connectionId: connection.id,
+        connectionName: connection.displayName,
         deliveryId,
         payload: rawPayload,
       },

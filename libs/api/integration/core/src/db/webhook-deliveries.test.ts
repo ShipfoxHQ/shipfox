@@ -168,24 +168,6 @@ describe('publishSourcePush', () => {
     });
   });
 
-  it('uses the raw provider payload for the generic envelope', async () => {
-    const params = buildSourcePushParams();
-
-    await db().transaction((tx) => publishSourcePush({tx, ...params}));
-
-    const outbox = await outboxFor(params.deliveryId);
-    const envelope = outbox.find((row) => row.eventType === INTEGRATION_EVENT_RECEIVED);
-    const typed = outbox.find((row) => row.eventType === INTEGRATION_SOURCE_COMMIT_PUSHED);
-    expect(envelope?.payload).toMatchObject({
-      deliveryId: params.deliveryId,
-      payload: params.rawPayload,
-    });
-    expect(typed?.payload).toMatchObject({
-      deliveryId: params.deliveryId,
-      push: {externalRepositoryId: 'github:42', ref: 'main', headCommitSha: 'abc123'},
-    });
-  });
-
   it('writes nothing for a duplicate delivery', async () => {
     const params = buildSourcePushParams();
 
