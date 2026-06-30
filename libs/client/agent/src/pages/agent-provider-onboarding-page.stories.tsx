@@ -41,6 +41,48 @@ const CATALOG: AgentProviderCatalogEntryDto[] = [
     models: [{id: 'grok-code-fast-1', label: 'Grok Code Fast 1'}],
   }),
   providerEntry({
+    id: 'openrouter',
+    label: 'OpenRouter',
+    default_model: 'openrouter/auto',
+    models: [{id: 'openrouter/auto', label: 'OpenRouter Auto'}],
+  }),
+  providerEntry({
+    id: 'google',
+    label: 'Google Gemini',
+    default_model: 'gemini-3-pro',
+    models: [{id: 'gemini-3-pro', label: 'Gemini 3 Pro'}],
+  }),
+  providerEntry({
+    id: 'mistral',
+    label: 'Mistral AI',
+    default_model: 'codestral-latest',
+    models: [{id: 'codestral-latest', label: 'Codestral Latest'}],
+  }),
+  providerEntry({
+    id: 'groq',
+    label: 'Groq',
+    default_model: 'llama-4-fast',
+    models: [{id: 'llama-4-fast', label: 'Llama 4 Fast'}],
+  }),
+  providerEntry({
+    id: 'deepseek',
+    label: 'DeepSeek',
+    default_model: 'deepseek-coder',
+    models: [{id: 'deepseek-coder', label: 'DeepSeek Coder'}],
+  }),
+  providerEntry({
+    id: 'moonshotai',
+    label: 'Moonshot AI',
+    default_model: 'kimi-k2',
+    models: [{id: 'kimi-k2', label: 'Kimi K2'}],
+  }),
+  providerEntry({
+    id: 'azure-openai-responses',
+    label: 'Azure OpenAI Responses',
+    default_model: 'gpt-5.5-pro',
+    models: [{id: 'gpt-5.5-pro', label: 'GPT-5.5 Pro'}],
+  }),
+  providerEntry({
     id: 'amazon-bedrock',
     label: 'Amazon Bedrock',
     support_status: 'unsupported',
@@ -101,6 +143,30 @@ export const NoProvidersAvailable: Story = {
 
 export const LongNames: Story = {
   args: {scenario: 'long-names'},
+};
+
+export const FilteredProviders: Story = {
+  args: {scenario: 'available'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(
+      await canvas.findByRole('searchbox', {name: 'Search providers'}),
+      'openrouter',
+    );
+    await canvas.findByRole('button', {name: 'Configure OpenRouter'});
+  },
+};
+
+export const NoMatchingProviders: Story = {
+  args: {scenario: 'available'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(
+      await canvas.findByRole('searchbox', {name: 'Search providers'}),
+      'not-a-provider',
+    );
+    await canvas.findByRole('button', {name: 'Clear search'});
+  },
 };
 
 export const ConfigureModalOpen: Story = {

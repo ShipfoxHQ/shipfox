@@ -7,6 +7,18 @@ import type {
 
 export const AGENT_TEST_WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 
+const TEST_PROVIDER_IDS = [
+  'anthropic',
+  'openai',
+  'deepseek',
+  'nvidia',
+  'google',
+  'mistral',
+  'groq',
+  'cerebras',
+  'xai',
+] as const;
+
 export function agentProviderEntry(
   overrides: Partial<AgentProviderCatalogEntryDto> = {},
 ): AgentProviderCatalogEntryDto {
@@ -35,6 +47,17 @@ export function unsupportedAgentProviderEntry(
     models: [],
     ...overrides,
   };
+}
+
+export function testAgentProviderEntries(count: number): AgentProviderCatalogEntryDto[] {
+  return TEST_PROVIDER_IDS.slice(0, count).map((id, index) =>
+    agentProviderEntry({
+      id,
+      label: `Provider ${index}`,
+      default_model: `model-${index}`,
+      models: [{id: `model-${index}`, label: `Model ${index}`}],
+    }),
+  );
 }
 
 export function agentProviderConfig(
