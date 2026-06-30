@@ -54,6 +54,18 @@ describe('AgentProviderUsageModal', () => {
     expect(within(list).getByRole('button', {name: 'Copy Kimi K2.7 Code id'})).toBeVisible();
   });
 
+  test('shows model ids in a tooltip instead of the row', async () => {
+    const user = userEvent.setup();
+
+    renderUsageModal();
+    expect(screen.queryByText('@cf/moonshotai/kimi-k2.7-code')).not.toBeInTheDocument();
+
+    await user.hover(await screen.findByText('Kimi K2.7 Code'));
+
+    const matches = await screen.findAllByText('@cf/moonshotai/kimi-k2.7-code');
+    expect(matches.length).toBeGreaterThan(0);
+  });
+
   test('copies the full model id', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn().mockResolvedValue(undefined);

@@ -19,6 +19,9 @@ import {
   ModalHeader,
   ModalTitle,
   Text,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
   useCopyToClipboard,
 } from '@shipfox/react-ui';
 import {useEffect, useMemo, useRef, useState} from 'react';
@@ -69,7 +72,10 @@ export function AgentProviderUsageModal({
 
   return (
     <Modal open={open && entry !== null} onOpenChange={handleOpenChange}>
-      <ModalContent aria-describedby={undefined} className="max-w-[640px]">
+      <ModalContent
+        aria-describedby={undefined}
+        className="max-h-[calc(100vh-32px)] max-w-[640px] [&>div]:flex [&>div]:min-h-0 [&>div]:flex-col"
+      >
         <ModalTitle className="sr-only">
           {entry ? `Use ${entry.label} in a workflow` : 'Use provider in a workflow'}
         </ModalTitle>
@@ -85,12 +91,9 @@ export function AgentProviderUsageModal({
         </ModalHeader>
         {entry && example ? (
           <>
-            <ModalBody className="gap-0">
-              <div className="flex max-h-[70vh] w-full flex-col gap-16 overflow-y-auto pr-2 scrollbar">
-                <div className="flex flex-col gap-6">
-                  <Text size="sm" bold>
-                    Model
-                  </Text>
+            <ModalBody className="min-h-0 flex-1 gap-0 overflow-y-auto overflow-x-clip scrollbar">
+              <div className="flex w-full flex-col gap-20">
+                <div>
                   <Combobox
                     aria-label="Model"
                     options={modelOptions}
@@ -105,43 +108,47 @@ export function AgentProviderUsageModal({
                   />
                 </div>
 
-                <CodeBlock data={data} className="h-auto min-h-0 rounded-8">
-                  <CodeBlockHeader>
-                    <CodeBlockFiles>
+                <div className="flex flex-col gap-8">
+                  <CodeBlock data={data} className="h-auto min-h-0 rounded-8">
+                    <CodeBlockHeader>
+                      <CodeBlockFiles>
+                        {(item) => (
+                          <CodeBlockFilename value={item.filename}>
+                            {item.filename}
+                          </CodeBlockFilename>
+                        )}
+                      </CodeBlockFiles>
+                      <CodeBlockCopyButton />
+                    </CodeBlockHeader>
+                    <CodeBlockBody>
                       {(item) => (
-                        <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>
+                        <CodeBlockItem value={item.filename}>
+                          <CodeBlockContent
+                            language="yaml"
+                            syntaxHighlighting
+                            highlightedLineRange={example.highlightedLineRange}
+                          >
+                            {item.code}
+                          </CodeBlockContent>
+                        </CodeBlockItem>
                       )}
-                    </CodeBlockFiles>
-                    <CodeBlockCopyButton />
-                  </CodeBlockHeader>
-                  <CodeBlockBody className="overflow-auto scrollbar">
-                    {(item) => (
-                      <CodeBlockItem value={item.filename}>
-                        <CodeBlockContent
-                          language="yaml"
-                          syntaxHighlighting
-                          highlightedLineRange={example.highlightedLineRange}
-                        >
-                          {item.code}
-                        </CodeBlockContent>
-                      </CodeBlockItem>
-                    )}
-                  </CodeBlockBody>
-                </CodeBlock>
+                    </CodeBlockBody>
+                  </CodeBlock>
 
-                <Text size="sm" className="text-foreground-neutral-muted">
-                  Add this to a workflow file under{' '}
-                  <Code as="span" variant="label">
-                    .shipfox/workflows/
-                  </Code>{' '}
-                  in your repository to run it.
-                </Text>
+                  <Text size="sm" className="text-foreground-neutral-muted">
+                    Add this to a workflow file under{' '}
+                    <Code as="span" variant="label">
+                      .shipfox/workflows/
+                    </Code>{' '}
+                    in your repository to run it.
+                  </Text>
+                </div>
 
                 <div className="flex flex-col gap-8">
                   <Text size="sm" bold>
                     Available models ({entry.models.length})
                   </Text>
-                  <ul className="max-h-240 overflow-auto rounded-8 border border-border-neutral-base scrollbar">
+                  <ul className="rounded-8 border border-border-neutral-base">
                     {entry.models.map((model) => (
                       <AgentProviderModelRow key={model.id} label={model.label} id={model.id} />
                     ))}
@@ -192,15 +199,25 @@ function AgentProviderModelRow({label, id}: {label: string; id: string}) {
   }
 
   return (
-    <li className="flex items-center gap-12 border-b border-border-neutral-base px-12 py-10 last:border-b-0">
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <Text size="sm" bold className="truncate">
-          {label}
-        </Text>
-        <Code as="p" variant="label" className="truncate text-foreground-neutral-muted">
-          {id}
-        </Code>
-      </div>
+    <li className="flex min-h-40 items-center gap-12 border-b border-border-neutral-base px-12 py-8 last:border-b-0">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Text
+            as="span"
+            size="sm"
+            bold
+            tabIndex={0}
+            className="min-w-0 flex-1 truncate outline-none focus-visible:ring-2 focus-visible:ring-border-highlights-interactive"
+          >
+            {label}
+          </Text>
+        </TooltipTrigger>
+        <TooltipContent side="top" align="start" className="max-w-[min(520px,calc(100vw-32px))]">
+          <Code as="span" variant="label" className="break-all text-foreground-neutral-base">
+            {id}
+          </Code>
+        </TooltipContent>
+      </Tooltip>
       <IconButton
         type="button"
         size="sm"
