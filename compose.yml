@@ -36,6 +36,7 @@ services:
       - garage_data:/var/lib/garage/data
       - ./dev/garage/garage.toml:/etc/garage.toml:ro
     ports:
+      # RPC/admin take ephemeral host ports per worktree (empty env + bare -); only S3 needs a fixed host port.
       - 127.0.0.1:${SHIPFOX_GARAGE_S3_PORT:-3900}:3900
       - 127.0.0.1:${SHIPFOX_GARAGE_RPC_PORT-3901}:3901
       - 127.0.0.1:${SHIPFOX_GARAGE_ADMIN_PORT-3903}:3903

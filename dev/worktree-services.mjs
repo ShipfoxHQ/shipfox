@@ -2,36 +2,43 @@
 import {spawnSync} from 'node:child_process';
 import {existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 const stateDir = resolve('.context/local-services');
 const portsFile = resolve(stateDir, 'ports.env');
 const composeEnvFile = resolve(stateDir, 'compose.env');
 const appEnvFile = resolve(stateDir, 'env');
+const composeProjectNameInvalidChars = /[^a-z0-9_-]+/g;
+const composeProjectNameLeadingDashes = /^-+/;
 
-const commands = new Set(['up', 'stop', 'destroy', 'status']);
-const command = process.argv[2];
-
-if (!commands.has(command)) {
-  usage();
-  process.exit(1);
+if (isCliEntryPoint()) {
+  main(process.argv[2]);
 }
 
-const workspaceName = requireConductorWorkspace();
-const projectName = resolveProjectName(workspaceName);
+export function main(command) {
+  const commands = new Set(['up', 'stop', 'destroy', 'status']);
+  if (!commands.has(command)) {
+    usage();
+    process.exit(1);
+  }
 
-switch (command) {
-  case 'up':
-    up(workspaceName, projectName);
-    break;
-  case 'stop':
-    stop(projectName);
-    break;
-  case 'destroy':
-    destroy(projectName);
-    break;
-  case 'status':
-    status(projectName);
-    break;
+  const workspaceName = requireConductorWorkspace();
+  const projectName = resolveProjectName(workspaceName);
+
+  switch (command) {
+    case 'up':
+      up(workspaceName, projectName);
+      break;
+    case 'stop':
+      stop(projectName);
+      break;
+    case 'destroy':
+      destroy(projectName);
+      break;
+    case 'status':
+      status(projectName);
+      break;
+  }
 }
 
 function up(workspaceName, projectName) {
@@ -54,9 +61,9 @@ function up(workspaceName, projectName) {
   runDockerCompose(projectName, ['run', '--rm', 'garage-init']);
   runDockerCompose(projectName, ['run', '--rm', 'gitea-init']);
 
-  console.log(`Worktree services are ready for ${workspaceName}.`);
-  console.log(`Docker Compose project: ${projectName}`);
-  console.log(`Mise environment: ${relativePath(appEnvFile)}`);
+  printLine(`Worktree services are ready for ${workspaceName}.`);
+  printLine(`Docker Compose project: ${projectName}`);
+  printLine(`Mise environment: ${relativePath(appEnvFile)}`);
 }
 
 function stop(projectName) {
@@ -88,8 +95,8 @@ function requireConductorWorkspace() {
 
 function requireBasePort() {
   const raw = process.env.CONDUCTOR_PORT;
-  const port = Number(raw);
-  if (!raw || !Number.isInteger(port) || port <= 0 || port > 65_526) {
+  const port = parseBasePort(raw);
+  if (port === undefined) {
     fail('CONDUCTOR_PORT must be set to a valid base port for worktree services.');
   }
   return port;
@@ -101,7 +108,7 @@ function requireComposeState() {
   }
 }
 
-function portsFromBase(base) {
+export function portsFromBase(base) {
   return {
     base,
     client: base,
@@ -136,8 +143,8 @@ function portsFromEnv(env) {
 }
 
 function numberFromEnv(env, key) {
-  const port = Number(env[key]);
-  if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
+  const port = parsePort(env[key]);
+  if (port === undefined) {
     fail(`${portsFile} contains an invalid ${key}: ${env[key] ?? '<missing>'}`);
   }
   return port;
@@ -204,17 +211,22 @@ function resolveProjectName(workspaceName) {
   return existing.SHIPFOX_WORKTREE_SERVICES_PROJECT || composeProjectName(workspaceName);
 }
 
-function composeProjectName(workspaceName) {
-  const normalized = workspaceName.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+/, '');
+export function composeProjectName(workspaceName) {
+  const normalized = workspaceName
+    .toLowerCase()
+    .replace(composeProjectNameInvalidChars, '-')
+    .replace(composeProjectNameLeadingDashes, '');
   const suffix = normalized || 'workspace';
   return `shipfox-${suffix}`.slice(0, 63);
 }
 
 function readEnvFile(file) {
-  if (!existsSync(file)) return {};
+  return existsSync(file) ? parseEnvFile(readFileSync(file, 'utf8')) : {};
+}
 
+export function parseEnvFile(content) {
   const entries = {};
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
+  for (const line of content.split('\n')) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
 
@@ -226,6 +238,16 @@ function readEnvFile(file) {
     entries[key] = value;
   }
   return entries;
+}
+
+export function parsePort(raw) {
+  const port = Number(raw);
+  return Number.isInteger(port) && port > 0 && port <= 65_535 ? port : undefined;
+}
+
+export function parseBasePort(raw) {
+  const port = parsePort(raw);
+  return port !== undefined && port <= 65_526 ? port : undefined;
 }
 
 function writeEnvFile(file, values) {
@@ -254,10 +276,24 @@ function relativePath(file) {
 }
 
 function usage() {
-  console.error('Usage: node dev/worktree-services.mjs <up|stop|destroy|status>');
+  printError('Usage: node dev/worktree-services.mjs <up|stop|destroy|status>');
 }
 
 function fail(message) {
-  console.error(message);
+  printError(message);
   process.exit(1);
+}
+
+function isCliEntryPoint() {
+  return (
+    process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+  );
+}
+
+function printLine(message) {
+  process.stdout.write(`${message}\n`);
+}
+
+function printError(message) {
+  process.stderr.write(`${message}\n`);
 }

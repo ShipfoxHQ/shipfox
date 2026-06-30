@@ -13,6 +13,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port,
+    // Worktree ports must fail fast instead of silently shifting to another port.
     strictPort: true,
   },
   preview: {
