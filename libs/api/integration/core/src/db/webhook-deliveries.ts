@@ -15,6 +15,19 @@ type IntegrationDb = ReturnType<typeof db>;
 type IntegrationTx = Parameters<Parameters<IntegrationDb['transaction']>[0]>[0];
 type Executor = IntegrationDb | IntegrationTx;
 
+function connectionDedupScope(connectionId: string): string {
+  return `connection:${connectionId}`;
+}
+
+function providerDedupScope(provider: string): string {
+  return `provider:${provider}`;
+}
+
+function receivedEventDedupScope(event: IntegrationEventReceivedEvent): string {
+  if (event.provider === 'webhook') return connectionDedupScope(event.connectionId);
+  return providerDedupScope(event.provider);
+}
+
 export interface PublishIntegrationEventReceivedParams {
   tx: Executor;
   event: IntegrationEventReceivedEvent;
@@ -31,10 +44,15 @@ export async function publishIntegrationEventReceived(
     .insert(integrationsWebhookDeliveries)
     .values({
       provider: params.event.provider,
+      dedupScope: receivedEventDedupScope(params.event),
       deliveryId: params.event.deliveryId,
     })
     .onConflictDoNothing({
-      target: [integrationsWebhookDeliveries.provider, integrationsWebhookDeliveries.deliveryId],
+      target: [
+        integrationsWebhookDeliveries.provider,
+        integrationsWebhookDeliveries.dedupScope,
+        integrationsWebhookDeliveries.deliveryId,
+      ],
     })
     .returning({deliveryId: integrationsWebhookDeliveries.deliveryId});
 
@@ -72,10 +90,15 @@ export async function publishSourcePush(
     .insert(integrationsWebhookDeliveries)
     .values({
       provider: params.provider,
+      dedupScope: providerDedupScope(params.provider),
       deliveryId: params.deliveryId,
     })
     .onConflictDoNothing({
-      target: [integrationsWebhookDeliveries.provider, integrationsWebhookDeliveries.deliveryId],
+      target: [
+        integrationsWebhookDeliveries.provider,
+        integrationsWebhookDeliveries.dedupScope,
+        integrationsWebhookDeliveries.deliveryId,
+      ],
     })
     .returning({deliveryId: integrationsWebhookDeliveries.deliveryId});
 
@@ -152,10 +175,15 @@ export async function recordDeliveryOnly(params: RecordDeliveryOnlyParams): Prom
     .insert(integrationsWebhookDeliveries)
     .values({
       provider: params.provider,
+      dedupScope: providerDedupScope(params.provider),
       deliveryId: params.deliveryId,
     })
     .onConflictDoNothing({
-      target: [integrationsWebhookDeliveries.provider, integrationsWebhookDeliveries.deliveryId],
+      target: [
+        integrationsWebhookDeliveries.provider,
+        integrationsWebhookDeliveries.dedupScope,
+        integrationsWebhookDeliveries.deliveryId,
+      ],
     });
 }
 

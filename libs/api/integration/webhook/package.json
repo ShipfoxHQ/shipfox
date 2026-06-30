@@ -49,14 +49,10 @@
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
-    "@shipfox/node-drizzle": "workspace:*",
-    "@shipfox/node-opentelemetry": "workspace:*",
-    "@shipfox/node-postgres": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "drizzle-orm": "^0.45.2",
     "fastify": "^5.3.3",
     "fastify-type-provider-zod": "^6.0.0"
   }

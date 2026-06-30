@@ -55,13 +55,13 @@ function contentType(requestContentType: string | undefined): string | undefined
   return requestContentType?.split(';', 1)[0]?.trim().toLowerCase();
 }
 
-function deliveryIdFor(connectionId: string, header: string | string[] | undefined): string {
+function deliveryIdFor(header: string | string[] | undefined): string {
   const value = Array.isArray(header) ? header[0] : header;
   if (!value) return randomUUID();
   if (value.length > MAX_DELIVERY_ID_HEADER_LENGTH) {
     throw new ClientError('Delivery ID header is too long', 'delivery-id-too-long', {status: 400});
   }
-  return `${connectionId}:${value}`;
+  return value;
 }
 
 export function createWebhookInboundRoutes(options: CreateWebhookInboundRoutesOptions): RouteGroup {
@@ -94,7 +94,7 @@ export function createWebhookInboundRoutes(options: CreateWebhookInboundRoutesOp
         throw new ClientError('Webhook connection not found', 'not-found', {status: 404});
       }
 
-      const deliveryId = deliveryIdFor(connectionId, request.headers['x-delivery-id']);
+      const deliveryId = deliveryIdFor(request.headers['x-delivery-id']);
       const receivedAt = new Date().toISOString();
       await options.coreDb().transaction(async (tx) => {
         await options.publishIntegrationEventReceived({

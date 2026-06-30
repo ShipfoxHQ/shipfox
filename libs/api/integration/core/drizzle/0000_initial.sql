@@ -24,9 +24,10 @@ CREATE TABLE "integrations_outbox" (
 --> statement-breakpoint
 CREATE TABLE "integrations_webhook_deliveries" (
 	"provider" text NOT NULL,
+	"dedup_scope" text NOT NULL,
 	"delivery_id" text NOT NULL,
 	"received_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "integrations_webhook_deliveries_provider_delivery_id_pk" PRIMARY KEY("provider","delivery_id")
+	CONSTRAINT "integrations_webhook_deliveries_dedup_pk" PRIMARY KEY("provider","dedup_scope","delivery_id")
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX "integrations_connections_workspace_external_unique" ON "integrations_connections" USING btree ("workspace_id","provider","external_account_id");--> statement-breakpoint

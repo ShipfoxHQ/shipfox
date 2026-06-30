@@ -67,7 +67,7 @@ describe('webhook inbound route', () => {
     });
 
     expect(res.statusCode).toBe(202);
-    expect(res.json().delivery_id).toBe(`${connection.id}:evt-1`);
+    expect(res.json().delivery_id).toBe('evt-1');
     expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
     expect(publishIntegrationEventReceived.mock.calls[0]?.[0].event).toMatchObject({
       provider: 'webhook',
@@ -76,7 +76,7 @@ describe('webhook inbound route', () => {
       workspaceId: connection.workspaceId,
       connectionId: connection.id,
       connectionName: 'Stripe Production',
-      deliveryId: `${connection.id}:evt-1`,
+      deliveryId: 'evt-1',
       payload: {
         method: 'POST',
         query: {mode: 'test'},

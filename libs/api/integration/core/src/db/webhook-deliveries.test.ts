@@ -118,6 +118,35 @@ describe('integration webhook delivery persistence', () => {
     expect(await outboxFor(event.deliveryId)).toHaveLength(1);
   });
 
+  it('deduplicates received events per connection', async () => {
+    const deliveryId = crypto.randomUUID();
+    const firstConnectionEvent = buildEvent({
+      provider: 'webhook',
+      source: 'stripe-prod',
+      event: 'received',
+      deliveryId,
+    });
+    const secondConnectionEvent = buildEvent({
+      provider: 'webhook',
+      source: 'stripe-dev',
+      event: 'received',
+      deliveryId,
+    });
+
+    const first = await publishIntegrationEventReceived({tx: db(), event: firstConnectionEvent});
+    const second = await publishIntegrationEventReceived({tx: db(), event: secondConnectionEvent});
+    const duplicate = await publishIntegrationEventReceived({
+      tx: db(),
+      event: firstConnectionEvent,
+    });
+
+    expect(first.published).toBe(true);
+    expect(second.published).toBe(true);
+    expect(duplicate.published).toBe(false);
+    expect(await deliveriesFor('webhook', deliveryId)).toHaveLength(2);
+    expect(await outboxFor(deliveryId)).toHaveLength(2);
+  });
+
   it('records a delivery without writing an outbox event', async () => {
     const deliveryId = crypto.randomUUID();
 
