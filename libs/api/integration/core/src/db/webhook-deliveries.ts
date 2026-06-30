@@ -56,15 +56,15 @@ export interface PublishSourcePushParams {
   connectionName: string;
   deliveryId: string;
   receivedAt: string;
-  rawPayload?: unknown;
+  rawPayload: unknown;
   push: SourcePushPayload;
 }
 
 // Emits a single source-control push as two outbox rows: the generic
-// `INTEGRATION_EVENT_RECEIVED` envelope (consumed opaquely by triggers) and the typed
-// `INTEGRATION_SOURCE_COMMIT_PUSHED` event (consumed by domain modules). One delivery-dedup
-// gates both, so a redelivered webhook writes nothing. Requires a transaction: the dedup
-// insert and both outbox rows must commit or roll back together.
+// `INTEGRATION_EVENT_RECEIVED` envelope with the raw provider payload for triggers, and the
+// typed `INTEGRATION_SOURCE_COMMIT_PUSHED` event for domain modules. One delivery-dedup gates
+// both, so a redelivered webhook writes nothing. Requires a transaction: the dedup insert and
+// both outbox rows must commit or roll back together.
 export async function publishSourcePush(
   params: PublishSourcePushParams,
 ): Promise<{published: boolean}> {
@@ -92,7 +92,7 @@ export async function publishSourcePush(
         connectionName: params.connectionName,
         deliveryId: params.deliveryId,
         receivedAt: params.receivedAt,
-        payload: params.rawPayload ?? params.push,
+        payload: params.rawPayload,
       },
     },
     {

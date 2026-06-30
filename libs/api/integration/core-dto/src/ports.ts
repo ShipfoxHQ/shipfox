@@ -34,7 +34,7 @@ export type PublishSourcePushFn = (params: {
   connectionName: string;
   deliveryId: string;
   receivedAt: string;
-  rawPayload?: unknown;
+  rawPayload: unknown;
   push: SourcePushPayload;
 }) => Promise<{published: boolean}>;
 

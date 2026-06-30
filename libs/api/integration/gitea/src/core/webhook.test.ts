@@ -77,15 +77,14 @@ describe('handleGiteaWebhook', () => {
     await seedConnection('shipfox', connection.id);
     const deliveryId = randomUUID();
     const handlers = deps({connection});
-    const rawBody = JSON.stringify(
-      giteaPushPayload({
-        owner: 'shipfox',
-        repo: 'api',
-        ref: 'refs/heads/main',
-        defaultBranch: 'main',
-        sha: 'abc123',
-      }),
-    );
+    const payload = giteaPushPayload({
+      owner: 'shipfox',
+      repo: 'api',
+      ref: 'refs/heads/main',
+      defaultBranch: 'main',
+      sha: 'abc123',
+    });
+    const rawBody = JSON.stringify(payload);
 
     const result = await handleGiteaWebhook({
       tx: db(),
@@ -111,6 +110,7 @@ describe('handleGiteaWebhook', () => {
       workspaceId: connection.workspaceId,
       connectionId: connection.id,
       connectionName: connection.displayName,
+      rawPayload: payload,
       push: {
         externalRepositoryId: 'gitea:shipfox/api',
         ref: 'main',
@@ -141,6 +141,7 @@ describe('handleGiteaWebhook', () => {
       deliveryId,
       workspaceId: connection.workspaceId,
       connectionId: connection.id,
+      rawPayload: capturedGiteaPushPayload,
       push: {
         externalRepositoryId: 'gitea:shipfox/api',
         ref: 'main',

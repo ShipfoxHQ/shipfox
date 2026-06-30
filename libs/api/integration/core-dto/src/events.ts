@@ -21,9 +21,8 @@ export const integrationEventReceivedSchema = z.object({
 });
 export type IntegrationEventReceivedEvent = z.infer<typeof integrationEventReceivedSchema>;
 
-// A source-control push, normalized by the producing provider. Carried both as the
-// generic `INTEGRATION_EVENT_RECEIVED` envelope payload (consumed opaquely by triggers)
-// and nested inside `INTEGRATION_SOURCE_COMMIT_PUSHED` (consumed by domain modules).
+// A source-control push, normalized by the producing provider and carried by
+// `INTEGRATION_SOURCE_COMMIT_PUSHED` for domain consumers.
 export const sourcePushSchema = z.object({
   externalRepositoryId: nonEmptyStringSchema,
   ref: nonEmptyStringSchema,

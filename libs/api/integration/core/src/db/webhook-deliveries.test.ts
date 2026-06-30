@@ -49,6 +49,11 @@ function buildPush(overrides: Partial<SourcePushPayload> = {}): SourcePushPayloa
 }
 
 function buildSourcePushParams() {
+  const rawPayload = {
+    ref: 'refs/heads/main',
+    after: 'abc123',
+    repository: {id: 42, default_branch: 'main'},
+  };
   return {
     provider: 'github',
     workspaceId: crypto.randomUUID(),
@@ -56,6 +61,7 @@ function buildSourcePushParams() {
     connectionName: 'Acme Production',
     deliveryId: crypto.randomUUID(),
     receivedAt: new Date().toISOString(),
+    rawPayload,
     push: buildPush(),
   };
 }
@@ -153,7 +159,7 @@ describe('publishSourcePush', () => {
       source: 'github',
       event: 'push',
       deliveryId: params.deliveryId,
-      payload: {externalRepositoryId: 'github:42', isDefaultBranch: true},
+      payload: params.rawPayload,
     });
     expect(typed?.payload).toMatchObject({
       provider: 'github',
@@ -162,13 +168,8 @@ describe('publishSourcePush', () => {
     });
   });
 
-  it('uses a raw payload for the generic envelope when provided', async () => {
-    const rawPayload = {
-      ref: 'refs/heads/main',
-      after: 'abc123',
-      repository: {id: 42, default_branch: 'main'},
-    };
-    const params = {...buildSourcePushParams(), rawPayload};
+  it('uses the raw provider payload for the generic envelope', async () => {
+    const params = buildSourcePushParams();
 
     await db().transaction((tx) => publishSourcePush({tx, ...params}));
 
@@ -177,24 +178,11 @@ describe('publishSourcePush', () => {
     const typed = outbox.find((row) => row.eventType === INTEGRATION_SOURCE_COMMIT_PUSHED);
     expect(envelope?.payload).toMatchObject({
       deliveryId: params.deliveryId,
-      payload: rawPayload,
+      payload: params.rawPayload,
     });
     expect(typed?.payload).toMatchObject({
       deliveryId: params.deliveryId,
       push: {externalRepositoryId: 'github:42', ref: 'main', headCommitSha: 'abc123'},
-    });
-  });
-
-  it('falls back to the normalized push payload for the generic envelope', async () => {
-    const params = buildSourcePushParams();
-
-    await db().transaction((tx) => publishSourcePush({tx, ...params}));
-
-    const outbox = await outboxFor(params.deliveryId);
-    const envelope = outbox.find((row) => row.eventType === INTEGRATION_EVENT_RECEIVED);
-    expect(envelope?.payload).toMatchObject({
-      deliveryId: params.deliveryId,
-      payload: params.push,
     });
   });
 
