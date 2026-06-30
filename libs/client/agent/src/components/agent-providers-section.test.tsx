@@ -1,7 +1,7 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {Toaster} from '@shipfox/react-ui';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {render, screen, waitFor} from '@testing-library/react';
+import {render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {ReactElement} from 'react';
 import {
@@ -118,7 +118,7 @@ describe('WorkspaceAgentProvidersSection', () => {
     expect(await screen.findByRole('button', {name: 'Configure OpenAI'})).toBeVisible();
   });
 
-  test('configures a provider and moves it to configured after save', async () => {
+  test('configures a provider, opens the usage modal, and moves focus back on close', async () => {
     const user = userEvent.setup();
     let isConfigured = false;
     let requestBody: unknown;
@@ -198,12 +198,21 @@ describe('WorkspaceAgentProvidersSection', () => {
     await user.type(await screen.findByLabelText('API key'), 'sk-proj-secret');
     await user.click(screen.getByRole('button', {name: 'Test & save'}));
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    const usageDialog = await screen.findByRole('dialog', {name: 'Use OpenAI in a workflow'});
+    expect(within(usageDialog).getByText('model: gpt-5-mini')).toBeVisible();
     await waitFor(() =>
       expect(requestBody).toEqual({
         default_model: 'gpt-5-mini',
         credentials: {api_key: 'sk-proj-secret'},
       }),
+    );
+    await user.click(within(usageDialog).getByRole('button', {name: 'Done'}));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('region', {name: 'Configured providers'}),
+      ),
     );
     expect(await screen.findByText('OpenAI')).toBeVisible();
     expect(screen.queryByText(OPENAI_FINGERPRINT_RE)).not.toBeInTheDocument();
@@ -324,7 +333,48 @@ describe('WorkspaceAgentProvidersSection', () => {
     await user.click(screen.getByRole('button', {name: 'Test & save'}));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(
+      screen.queryByRole('dialog', {name: 'Use Anthropic in a workflow'}),
+    ).not.toBeInTheDocument();
     await waitFor(() => expect(requestBody).toEqual({credentials: {api_key: 'sk-ant-rotated'}}));
+  });
+
+  test('opens the usage modal from a configured provider action', async () => {
+    const user = userEvent.setup();
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      if (requestPath(input).endsWith('/agent/provider-catalog')) {
+        return Promise.resolve(
+          jsonResponse(
+            agentProviderCatalogResponse([
+              agentProviderEntry({
+                default_model: 'claude-opus-4-8',
+                models: [
+                  {id: 'claude-opus-4-8', label: 'Claude Opus 4.8'},
+                  {id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5'},
+                ],
+              }),
+            ]),
+          ),
+        );
+      }
+      return Promise.resolve(
+        jsonResponse(
+          agentProviderConfigsResponse({
+            configs: [agentProviderConfig({default_model: 'claude-haiku-4-5'})],
+            default_provider_id: 'anthropic',
+          }),
+        ),
+      );
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderAgentProviders(<WorkspaceAgentProvidersSection workspaceId={AGENT_TEST_WORKSPACE_ID} />);
+    expect(await screen.findByText('Anthropic')).toBeVisible();
+    await openProviderActions(user, 'Anthropic');
+    await user.click(screen.getByRole('menuitem', {name: 'View workflow example'}));
+
+    const usageDialog = await screen.findByRole('dialog', {name: 'Use Anthropic in a workflow'});
+    expect(usageDialog).toHaveTextContent('model: claude-haiku-4-5');
   });
 
   test('surfaces provider validation errors without clearing the form', async () => {
@@ -558,6 +608,9 @@ describe('WorkspaceAgentProvidersSection', () => {
     expect(await screen.findByText('anthropic')).toBeVisible();
     await openProviderActions(user, 'anthropic');
     expect(screen.getByRole('menuitem', {name: 'Change default model'})).toHaveAttribute(
+      'data-disabled',
+    );
+    expect(screen.getByRole('menuitem', {name: 'View workflow example'})).toHaveAttribute(
       'data-disabled',
     );
     expect(screen.getByRole('menuitem', {name: 'Edit credentials'})).toHaveAttribute(

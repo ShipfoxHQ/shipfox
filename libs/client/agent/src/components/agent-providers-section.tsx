@@ -25,7 +25,7 @@ import {
   TooltipTrigger,
   toast,
 } from '@shipfox/react-ui';
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {
   useAgentProviderCatalogQuery,
   useAgentProviderConfigsQuery,
@@ -33,6 +33,7 @@ import {
   useSetDefaultAgentProviderMutation,
 } from '#hooks/api/agent-providers.js';
 import {AvailableProviderCard} from './available-provider-card.js';
+import {AgentProviderUsageModal} from './agent-provider-usage-modal.js';
 import {ChangeDefaultModelForm} from './change-default-model-form.js';
 import {agentProviderConfigErrorToFormError} from './form-errors.js';
 import {AgentProviderTestAndSaveForm} from './test-and-save-form.js';
@@ -45,12 +46,22 @@ type ProviderFormState =
   | {mode: 'configure'; entry: AgentProviderCatalogEntryDto; config?: undefined}
   | {mode: 'edit'; entry: AgentProviderCatalogEntryDto; config: AgentProviderConfigDto};
 type ModelFormState = {entry: AgentProviderCatalogEntryDto; config: AgentProviderConfigDto};
+type UsageTarget = {
+  entry: AgentProviderCatalogEntryDto;
+  initialModel: string | null;
+  restoreFocusToConfiguredProviders: boolean;
+};
+
+const USAGE_MODAL_OPEN_DELAY_MS = 250;
 
 export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: string}) {
   const catalogQuery = useAgentProviderCatalogQuery();
   const configsQuery = useAgentProviderConfigsQuery(workspaceId);
   const [formState, setFormState] = useState<ProviderFormState | null>(null);
   const [modelFormState, setModelFormState] = useState<ModelFormState | null>(null);
+  const [usageTarget, setUsageTarget] = useState<UsageTarget | null>(null);
+  const [pendingUsageTarget, setPendingUsageTarget] = useState<UsageTarget | null>(null);
+  const configuredProvidersRegionRef = useRef<HTMLElement | null>(null);
 
   const providers = catalogQuery.data?.providers ?? [];
   const configs = configsQuery.data?.configs ?? [];
@@ -81,9 +92,25 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
     setModelFormState(null);
   }
 
+  useEffect(() => {
+    if (pendingUsageTarget === null || formState !== null) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setUsageTarget(pendingUsageTarget);
+      setPendingUsageTarget(null);
+    }, USAGE_MODAL_OPEN_DELAY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [formState, pendingUsageTarget]);
+
   return (
     <div className="flex min-w-0 flex-col gap-32">
-      <section className="flex flex-col gap-16" aria-label="Configured providers">
+      <section
+        ref={configuredProvidersRegionRef}
+        className="flex flex-col gap-16 outline-none"
+        aria-label="Configured providers"
+        tabIndex={-1}
+      >
         <div className="flex flex-col gap-4">
           <Header variant="h3">Configured providers</Header>
           <Text size="sm" className="text-foreground-neutral-muted">
@@ -127,6 +154,15 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
                   }}
                   onChangeDefaultModel={() => {
                     if (entry) setModelFormState({entry, config});
+                  }}
+                  onShowUsage={() => {
+                    if (entry) {
+                      setUsageTarget({
+                        entry,
+                        initialModel: config.default_model,
+                        restoreFocusToConfiguredProviders: false,
+                      });
+                    }
                   }}
                 />
               );
@@ -226,8 +262,15 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
               workspaceId={workspaceId}
               entry={formState.entry}
               existingConfig={formState.config}
-              onSaved={() => {
+              onSaved={(savedDefaultModel) => {
                 toast.success(`${formState.entry.label} saved`);
+                if (formState.mode === 'configure') {
+                  setPendingUsageTarget({
+                    entry: formState.entry,
+                    initialModel: savedDefaultModel,
+                    restoreFocusToConfiguredProviders: true,
+                  });
+                }
                 closeForm();
               }}
             />
@@ -263,6 +306,20 @@ export function WorkspaceAgentProvidersSection({workspaceId}: {workspaceId: stri
           ) : null}
         </ModalContent>
       </Modal>
+
+      <AgentProviderUsageModal
+        entry={usageTarget?.entry ?? null}
+        initialModel={usageTarget?.initialModel ?? null}
+        open={usageTarget !== null}
+        closeFocusTarget={
+          usageTarget?.restoreFocusToConfiguredProviders
+            ? configuredProvidersRegionRef.current
+            : null
+        }
+        onOpenChange={(open) => {
+          if (!open) setUsageTarget(null);
+        }}
+      />
     </div>
   );
 }
@@ -280,6 +337,7 @@ function ConfiguredProviderRow({
   isDefault,
   onEdit,
   onChangeDefaultModel,
+  onShowUsage,
 }: {
   workspaceId: string;
   config: AgentProviderConfigDto;
@@ -287,6 +345,7 @@ function ConfiguredProviderRow({
   isDefault: boolean;
   onEdit: () => void;
   onChangeDefaultModel: () => void;
+  onShowUsage: () => void;
 }) {
   const setDefault = useSetDefaultAgentProviderMutation();
   const deleteConfig = useDeleteAgentProviderConfigMutation();
@@ -381,6 +440,9 @@ function ConfiguredProviderRow({
               onSelect={onChangeDefaultModel}
             >
               Change default model
+            </DropdownMenuItem>
+            <DropdownMenuItem icon="bookOpenLine" disabled={!entry} onSelect={onShowUsage}>
+              View workflow example
             </DropdownMenuItem>
             <DropdownMenuItem icon="editLine" disabled={!entry} onSelect={onEdit}>
               Edit credentials
