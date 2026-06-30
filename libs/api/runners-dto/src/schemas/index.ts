@@ -49,6 +49,20 @@ export {
   revokeProvisionerTokenResponseSchema,
 } from './provisioner-token.js';
 export {
+  MAX_OBSERVED_PROVISIONED_RUNNER_ID_LENGTH,
+  MAX_RECONCILE_OBSERVED_RUNNERS,
+  type ReconcileDesiredIntentDto,
+  type ReconciledBoundJobDto,
+  type ReconciledProvisionedRunnerDto,
+  type ReconcileProvisionedRunnersBodyDto,
+  type ReconcileProvisionedRunnersResponseDto,
+  reconcileDesiredIntentSchema,
+  reconciledBoundJobSchema,
+  reconciledProvisionedRunnerSchema,
+  reconcileProvisionedRunnersBodySchema,
+  reconcileProvisionedRunnersResponseSchema,
+} from './reconcile-provisioned-runners.js';
+export {
   type RegisterRunnerBodyDto,
   type RegisterRunnerResponseDto,
   registerRunnerBodySchema,

@@ -24,8 +24,14 @@ export {type ClaimJobResult, claimJob} from './jobs.js';
 export {
   type ActiveRunner,
   listActiveRunners,
+  type ReconcileDesiredIntent,
+  type ReconciledBoundJob,
+  type ReconciledProvisionedRunner,
+  type ReconcileProvisionedRunnersParams,
+  type ReconcileProvisionedRunnersResult,
   type ReportProvisionedRunnersParams,
   type ReportProvisionedRunnersResult,
+  reconcileProvisionedRunners,
   reportProvisionedRunners,
 } from './provisioned-runners.js';
 export {

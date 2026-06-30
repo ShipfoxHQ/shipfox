@@ -32,6 +32,10 @@ export const config = createConfig({
     desc: 'Time window, in seconds, used to list active runners from recent heartbeats and provisioned runner reports.',
     default: 60,
   }),
+  RUNNER_RECONCILE_TERMINATE_GRACE_SECONDS: num({
+    desc: 'Grace window, in seconds, before reconcile marks an absent provisioned runner as terminated. Set this higher than the provisioner report interval so a transient empty or partial observed set does not kill a live runner.',
+    default: 120,
+  }),
   PROVISIONER_ACTIVE_WINDOW_SECONDS: num({
     desc: 'Time window, in seconds, used to list active provisioners from recent authenticated requests.',
     default: 120,
@@ -102,6 +106,15 @@ if (
 ) {
   throw new Error(
     `RUNNER_ACTIVE_WINDOW_SECONDS (${config.RUNNER_ACTIVE_WINDOW_SECONDS}) must be a whole number of seconds >= 1.`,
+  );
+}
+
+if (
+  !Number.isInteger(config.RUNNER_RECONCILE_TERMINATE_GRACE_SECONDS) ||
+  config.RUNNER_RECONCILE_TERMINATE_GRACE_SECONDS < 1
+) {
+  throw new Error(
+    `RUNNER_RECONCILE_TERMINATE_GRACE_SECONDS (${config.RUNNER_RECONCILE_TERMINATE_GRACE_SECONDS}) must be a whole number of seconds >= 1.`,
   );
 }
 

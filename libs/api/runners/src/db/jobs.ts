@@ -4,6 +4,7 @@ import {
   RUNNER_JOB_QUEUED,
   type RunnersEventMap,
 } from '@shipfox/api-runners-dto';
+import {logger} from '@shipfox/node-opentelemetry';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {and, arrayContained, asc, count, desc, eq, inArray, lt, sql} from 'drizzle-orm';
@@ -13,6 +14,7 @@ import {
   RunningJobNotFoundError,
 } from '#core/errors.js';
 import {jobEnqueuedCount, jobLeaseExpiredCount} from '#metrics/instance.js';
+import type {Tx} from './db.js';
 import {db} from './db.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobs} from './schema/pending-jobs.js';
@@ -87,6 +89,15 @@ export interface ActiveRunningJob {
   runnerLabels: string[];
   startedAt: Date;
   lastHeartbeatAt: Date;
+}
+
+export interface ProvisionedRunnerBoundJob {
+  jobId: string;
+  runId: string;
+  provisionedRunnerId: string;
+  startedAt: Date;
+  lastHeartbeatAt: Date;
+  cancellationRequestedAt: Date | null;
 }
 
 export async function claimPendingJob(params: {
@@ -306,6 +317,88 @@ export async function listActiveRunningJobs(params: {
     )
     .orderBy(desc(runningJobs.lastHeartbeatAt), desc(runningJobs.id))
     .limit(params.limit ?? 1000);
+}
+
+export async function listRunningJobsByProvisionedRunnerTx(
+  tx: Tx,
+  params: {
+    workspaceId: string;
+    provisionerId: string;
+    provisionedRunnerIds: string[];
+  },
+): Promise<ProvisionedRunnerBoundJob[]> {
+  if (params.provisionedRunnerIds.length === 0) return [];
+
+  const duplicateRows = await tx
+    .select({
+      provisionedRunnerId: runningJobs.provisionedRunnerId,
+      count: count(),
+    })
+    .from(runningJobs)
+    .where(
+      and(
+        eq(runningJobs.workspaceId, params.workspaceId),
+        eq(runningJobs.provisionerId, params.provisionerId),
+        inArray(runningJobs.provisionedRunnerId, params.provisionedRunnerIds),
+      ),
+    )
+    .groupBy(runningJobs.provisionedRunnerId)
+    .having(sql`count(*) > 1`);
+
+  const duplicateProvisionedRunnerIds = duplicateRows.flatMap((row) =>
+    row.provisionedRunnerId ? [row.provisionedRunnerId] : [],
+  );
+  if (duplicateProvisionedRunnerIds.length > 0) {
+    logger().warn(
+      {
+        workspaceId: params.workspaceId,
+        provisionerId: params.provisionerId,
+        provisionedRunnerIds: duplicateProvisionedRunnerIds,
+      },
+      'multiple running jobs are bound to the same provisioned runner',
+    );
+  }
+
+  const result = await tx.execute<{
+    jobId: string;
+    runId: string;
+    provisionedRunnerId: string;
+    startedAt: Date | string;
+    lastHeartbeatAt: Date | string;
+    cancellationRequestedAt: Date | string | null;
+  }>(sql`
+    SELECT DISTINCT ON (${runningJobs.provisionedRunnerId})
+      ${runningJobs.jobId} AS "jobId",
+      ${runningJobs.runId} AS "runId",
+      ${runningJobs.provisionedRunnerId} AS "provisionedRunnerId",
+      ${runningJobs.startedAt} AS "startedAt",
+      ${runningJobs.lastHeartbeatAt} AS "lastHeartbeatAt",
+      ${runningJobs.cancellationRequestedAt} AS "cancellationRequestedAt"
+    FROM ${runningJobs}
+    WHERE
+      ${runningJobs.workspaceId} = ${params.workspaceId}
+      AND ${runningJobs.provisionerId} = ${params.provisionerId}
+      AND ${runningJobs.provisionedRunnerId} IN (${sql.join(
+        params.provisionedRunnerIds.map((provisionedRunnerId) => sql`${provisionedRunnerId}`),
+        sql`, `,
+      )})
+    ORDER BY ${runningJobs.provisionedRunnerId}, ${runningJobs.startedAt} DESC, ${runningJobs.jobId} DESC
+  `);
+
+  return result.rows.map((row) => ({
+    jobId: row.jobId,
+    runId: row.runId,
+    provisionedRunnerId: row.provisionedRunnerId,
+    startedAt: toDate(row.startedAt),
+    lastHeartbeatAt: toDate(row.lastHeartbeatAt),
+    cancellationRequestedAt: row.cancellationRequestedAt
+      ? toDate(row.cancellationRequestedAt)
+      : null,
+  }));
+}
+
+function toDate(value: Date | string): Date {
+  return value instanceof Date ? value : new Date(value);
 }
 
 export async function isJobLeaseActive(params: {
