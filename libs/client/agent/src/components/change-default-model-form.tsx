@@ -1,5 +1,5 @@
 import type {AgentProviderCatalogEntryDto, AgentProviderConfigDto} from '@shipfox/api-agent-dto';
-import {Alert, Button, ModalBody, ModalFooter, Text} from '@shipfox/react-ui';
+import {Alert, Button, fieldError, ModalBody, ModalFooter, Text} from '@shipfox/react-ui';
 import {useForm} from '@tanstack/react-form';
 import {useState} from 'react';
 import {useUpdateAgentProviderDefaultModelMutation} from '#hooks/api/agent-providers.js';
@@ -8,7 +8,6 @@ import {
   defaultModelFormValue,
   selectedModelForModelPayload,
 } from './default-model-field.js';
-import {fieldError} from './field-error.js';
 import {agentProviderConfigErrorToFormError} from './form-errors.js';
 
 const CHANGE_DEFAULT_MODEL_FORM_ID = 'agent-provider-change-default-model-form';

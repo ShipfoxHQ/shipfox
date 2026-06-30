@@ -9,6 +9,7 @@ import {
   Code,
   FormField,
   FormFieldInput,
+  fieldError,
   ModalBody,
   ModalFooter,
   Text,
@@ -22,7 +23,6 @@ import {
   LATEST_MODEL_VALUE,
   selectedModelForCredentialsPayload,
 } from './default-model-field.js';
-import {fieldError} from './field-error.js';
 import {agentProviderConfigErrorToFormError} from './form-errors.js';
 
 export const AGENT_PROVIDER_TEST_AND_SAVE_FORM_ID = 'agent-provider-test-and-save-form';
