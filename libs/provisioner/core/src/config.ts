@@ -29,7 +29,7 @@ export const config = createConfig({
     default: 250,
   }),
   SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE: num({
-    desc: 'How many ephemeral registration tokens the provisioner mints per request, between 1 and 1000. Larger batches reduce request volume at the cost of bigger responses.',
+    desc: "How many ephemeral registration tokens the provisioner mints per request, between 1 and 1000. It must not exceed the API's own batch limit (REGISTRATION_TOKEN_BATCH_MAX, default 500), or the request is rejected and the reservation goes unlaunched. Larger batches reduce request volume at the cost of bigger responses.",
     default: 250,
   }),
   SHIPFOX_RUNNER_POLL_MAX_DURATION_MS: num({

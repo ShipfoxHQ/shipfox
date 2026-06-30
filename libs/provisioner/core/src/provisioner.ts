@@ -6,6 +6,9 @@ import {runProvisionerTick} from '#tick.js';
 import {createInMemoryTracker} from '#tracker.js';
 import type {ProvisionerAdapter} from '#types.js';
 
+/** The demand poll accepts at most 100 advertised templates per request. */
+const MAX_TEMPLATES_PER_POLL = 100;
+
 let running = true;
 let shuttingDown = false;
 let signalHandlersRegistered = false;
@@ -33,6 +36,13 @@ export async function startProvisioner<Spec>(
   const templates = await options.adapter.loadTemplates();
   if (templates.length === 0) {
     throw new Error('Provisioner started with no templates; configure at least one template.');
+  }
+  if (templates.length > MAX_TEMPLATES_PER_POLL) {
+    // The demand poll advertises every template at once and the API caps that list, so a
+    // larger set would fail schema validation on every poll. Fail fast instead.
+    throw new Error(
+      `Provisioner has ${templates.length} templates; the demand poll accepts at most ${MAX_TEMPLATES_PER_POLL}. Reduce the configured templates.`,
+    );
   }
 
   const client = createProvisionerClient({

@@ -36,7 +36,7 @@ it against a production API until the launcher is configured to create container
 | `SHIPFOX_PROVISIONER_POLL_INTERVAL_MS` | no | `1000` | Base delay between polls; backs off on error. |
 | `SHIPFOX_PROVISIONER_POLL_MAX_INTERVAL_MS` | no | `5000` | Backoff ceiling. |
 | `SHIPFOX_PROVISIONER_MAX_RESERVATIONS` | no | `250` | Most reservations requested per poll (also capped by free capacity and the API's limit of 1000). |
-| `SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE` | no | `250` | Tokens minted per request (1–1000). |
+| `SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE` | no | `250` | Tokens minted per request (1–1000); must not exceed the API's `REGISTRATION_TOKEN_BATCH_MAX` (default 500), or the mint is rejected. |
 | `SHIPFOX_RUNNER_POLL_MAX_DURATION_MS` | no | `300000` | Injected into each runner as `SHIPFOX_POLL_MAX_DURATION_MS`. |
 
 ## Run locally

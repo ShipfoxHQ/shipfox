@@ -147,4 +147,18 @@ templates:
 
     expect(() => loadDockerTemplates(path)).toThrow('invalid labels');
   });
+
+  it('throws on a whitespace-only image', () => {
+    const path = writeTemplates(`
+templates:
+  t:
+    labels: [ubuntu22]
+    image: "   "
+    cpu: 1
+    memory: 2g
+    max_concurrency: 1
+`);
+
+    expect(() => loadDockerTemplates(path)).toThrow('image');
+  });
 });

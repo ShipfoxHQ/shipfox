@@ -33,6 +33,7 @@ describe('createProvisionerClient', () => {
 
     expect(identity).toEqual({id: PROVISIONER_ID, workspace_id: WORKSPACE_ID});
     expect(calls[0]?.url).toContain('provisioners/me');
+    expect(calls[0]?.method).toBe('GET');
     expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
   });
 
@@ -73,6 +74,7 @@ describe('createProvisionerClient', () => {
 
     expect(result.tokens[0]?.registration_token).toBe('sfrt_x');
     expect(calls[0]?.url).toContain('provisioners/runner-registration-tokens/batch');
+    expect(calls[0]?.method).toBe('POST');
     expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
   });
 
