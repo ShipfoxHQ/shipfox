@@ -170,6 +170,31 @@ importers:
         specifier: ^8.0.3
         version: 8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
 
+  apps/provisioner-docker:
+    dependencies:
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../libs/shared/node/opentelemetry
+      '@shipfox/provisioner-docker-provider':
+        specifier: workspace:*
+        version: link:../../libs/provisioner/docker
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../tools/typescript
+      tsx:
+        specifier: ^4.21.0
+        version: 4.22.4
+
   apps/runner:
     dependencies:
       '@shipfox/node-opentelemetry':
@@ -3471,6 +3496,77 @@ importers:
       react-dom:
         specifier: ^19.1.1
         version: 19.2.7(react@19.2.7)
+
+  libs/provisioner/core:
+    dependencies:
+      '@shipfox/api-runners-dto':
+        specifier: workspace:*
+        version: link:../../api/runners-dto
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../shared/common/config
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../shared/node/opentelemetry
+      ky:
+        specifier: ^2.0.0
+        version: 2.0.2
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
+  libs/provisioner/docker:
+    dependencies:
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../shared/common/config
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../shared/node/opentelemetry
+      '@shipfox/provisioner-core':
+        specifier: workspace:*
+        version: link:../core
+      '@shipfox/runner-labels':
+        specifier: workspace:*
+        version: link:../../shared/common/runner-labels
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.2.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
 
   libs/runner/agent:
     dependencies:

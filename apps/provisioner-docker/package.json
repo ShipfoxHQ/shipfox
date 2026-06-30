@@ -1,0 +1,33 @@
+{
+  "name": "@shipfox/provisioner-docker",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "apps/provisioner-docker"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#*": "./src/*"
+  },
+  "scripts": {
+    "build": "shipfox-swc",
+    "dev": "tsx watch --conditions=development --env-file-if-exists=../../.env --env-file-if-exists=.env --env-file-if-exists=.env.local src/index.ts",
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "type": "shipfox-tsc-check",
+    "type:emit": "shipfox-tsc-emit"
+  },
+  "dependencies": {
+    "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/provisioner-docker-provider": "workspace:*"
+  },
+  "devDependencies": {
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/swc": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "tsx": "^4.21.0"
+  }
+}
