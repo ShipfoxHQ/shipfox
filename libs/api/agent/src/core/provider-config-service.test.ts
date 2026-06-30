@@ -77,6 +77,24 @@ describe('testAndSaveProviderConfig', () => {
     expect(stored?.defaultModel).toBe('claude-haiku-4-5');
   });
 
+  it('passes the abort signal to the provider probe', async () => {
+    const credentials = {api_key: 'sk-ant-secret-abcd'};
+    const abortController = new AbortController();
+    const probe = vi.fn().mockResolvedValue(undefined);
+
+    await testAndSaveProviderConfig(
+      {workspaceId, providerId: 'anthropic', credentials, signal: abortController.signal},
+      {probe},
+    );
+
+    expect(probe).toHaveBeenCalledWith({
+      providerId: 'anthropic',
+      model: 'claude-opus-4-8',
+      credentials,
+      signal: abortController.signal,
+    });
+  });
+
   it('preserves an existing default model when rotating credentials without a model selection', async () => {
     await upsertAgentProviderConfig({
       workspaceId,
