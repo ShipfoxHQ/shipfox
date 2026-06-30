@@ -10,7 +10,8 @@ import {
 import {
   type GithubPushPayloadDto,
   githubPushPayloadSchema,
-  githubWebhookEnvelopeSchema,
+  githubWebhookActionSchema,
+  githubWebhookInstallationSchema,
 } from '@shipfox/api-integration-github-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {getGithubInstallationByInstallationId} from '#db/installations.js';
@@ -50,9 +51,12 @@ function isBranchDeletion(after: string): boolean {
 export async function handleGithubEvent(
   params: HandleGithubEventParams,
 ): Promise<{outcome: HandleGithubEventOutcome}> {
-  const envelope = githubWebhookEnvelopeSchema.safeParse(params.payload);
-  const action = envelope.success ? envelope.data.action : undefined;
-  const installationId = envelope.success ? envelope.data.installation?.id : undefined;
+  const actionEnvelope = githubWebhookActionSchema.safeParse(params.payload);
+  const action = actionEnvelope.success ? actionEnvelope.data.action : undefined;
+  const installationEnvelope = githubWebhookInstallationSchema.safeParse(params.payload);
+  const installationId = installationEnvelope.success
+    ? installationEnvelope.data.installation?.id
+    : undefined;
   if (installationId === undefined) {
     await params.recordDeliveryOnly({
       tx: params.tx,
@@ -123,7 +127,14 @@ export async function handleGithubEvent(
         {deliveryId: params.deliveryId, issues: validated.error.issues},
         'github webhook push payload failed schema validation; publishing generic envelope only',
       );
-      return publishGithubEnvelopeOnly({params, connection, event: 'push'});
+      return publishGithubEnvelopeOnly({
+        tx: params.tx,
+        deliveryId: params.deliveryId,
+        payload: params.payload,
+        publishIntegrationEventReceived: params.publishIntegrationEventReceived,
+        connection,
+        event: 'push',
+      });
     }
 
     return publishGithubPush({
@@ -135,7 +146,14 @@ export async function handleGithubEvent(
   }
 
   const eventName = action ? `${params.event}.${action}` : params.event;
-  return publishGithubEnvelopeOnly({params, connection, event: eventName});
+  return publishGithubEnvelopeOnly({
+    tx: params.tx,
+    deliveryId: params.deliveryId,
+    payload: params.payload,
+    publishIntegrationEventReceived: params.publishIntegrationEventReceived,
+    connection,
+    event: eventName,
+  });
 }
 
 async function publishGithubPush(params: {
@@ -198,21 +216,24 @@ async function publishGithubPush(params: {
 }
 
 async function publishGithubEnvelopeOnly(params: {
-  params: HandleGithubEventParams;
+  tx: IntegrationTx;
+  deliveryId: string;
+  payload: unknown;
+  publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   connection: {id: string; workspaceId: string; displayName: string};
   event: string;
 }): Promise<{outcome: HandleGithubEventOutcome}> {
-  const result = await params.params.publishIntegrationEventReceived({
-    tx: params.params.tx,
+  const result = await params.publishIntegrationEventReceived({
+    tx: params.tx,
     event: {
       source: GITHUB_SOURCE,
       event: params.event,
       workspaceId: params.connection.workspaceId,
       connectionId: params.connection.id,
       connectionName: params.connection.displayName,
-      deliveryId: params.params.deliveryId,
+      deliveryId: params.deliveryId,
       receivedAt: new Date().toISOString(),
-      payload: params.params.payload,
+      payload: params.payload,
     },
   });
   return {outcome: result.published ? 'published-envelope' : 'duplicate-envelope'};

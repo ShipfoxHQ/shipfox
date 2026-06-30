@@ -426,6 +426,26 @@ describe('GitHub webhook route', () => {
     expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'github', deliveryId});
   });
 
+  it('records the delivery only when a malformed push payload has no installation id', async () => {
+    const {app, publishIntegrationEventReceived, publishSourcePush, recordDeliveryOnly} =
+      await createTestApp();
+    const deliveryId = randomUUID();
+    const body = JSON.stringify({ref: 'refs/heads/main'});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/github',
+      headers: signedHeaders(body, 'push', deliveryId),
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(publishSourcePush).not.toHaveBeenCalled();
+    expect(recordDeliveryOnly).toHaveBeenCalledTimes(1);
+    expect(recordDeliveryOnly.mock.calls[0]?.[0]).toMatchObject({provider: 'github', deliveryId});
+  });
+
   it('rejects an invalid signature with 401 and persists nothing', async () => {
     const {app, publishSourcePush, recordDeliveryOnly} = await createTestApp();
     const body = JSON.stringify(
