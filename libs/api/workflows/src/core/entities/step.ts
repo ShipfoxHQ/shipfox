@@ -38,7 +38,6 @@ export interface Step {
 export interface StepAttempt {
   id: string;
   stepId: string;
-  jobExecutionId: string;
   attempt: number;
   executionOrder: number;
   status: StepAttemptStatus;

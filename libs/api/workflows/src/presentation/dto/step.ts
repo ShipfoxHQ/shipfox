@@ -150,7 +150,6 @@ export function toStepAttemptDto(attempt: StepAttempt): StepAttemptDto {
   return {
     id: attempt.id,
     step_id: attempt.stepId,
-    job_execution_id: attempt.jobExecutionId,
     attempt: attempt.attempt,
     execution_order: attempt.executionOrder,
     status: attempt.status,

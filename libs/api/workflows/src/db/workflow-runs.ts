@@ -1592,9 +1592,11 @@ export async function bulkUpdateStepStatuses(
     const finalizedAttempts = await tx
       .update(stepAttempts)
       .set({status: params.status, logOutcome: 'abandoned', finishedAt: new Date()})
+      .from(steps)
       .where(
         and(
-          eq(stepAttempts.jobExecutionId, params.jobExecutionId),
+          eq(stepAttempts.stepId, steps.id),
+          eq(steps.jobExecutionId, params.jobExecutionId),
           eq(stepAttempts.status, 'running'),
         ),
       )

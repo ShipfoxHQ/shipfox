@@ -215,7 +215,6 @@ export function workflowStepAttemptDto(overrides: Partial<StepAttemptDto> = {}):
   return {
     id: `66666666-6666-4666-8666-${String(attemptSequence).padStart(12, '0')}`,
     step_id: STEP_ID,
-    job_execution_id: JOB_EXECUTION_ID,
     attempt: 1,
     execution_order: attemptSequence,
     status: 'pending',
@@ -232,7 +231,7 @@ export function workflowStepAttemptDto(overrides: Partial<StepAttemptDto> = {}):
 }
 
 export function workflowStepAttempt(overrides: Partial<StepAttemptDto> = {}): WorkflowStepAttempt {
-  return toWorkflowStepAttempt(workflowStepAttemptDto(overrides), JOB_ID);
+  return toWorkflowStepAttempt(workflowStepAttemptDto(overrides), JOB_ID, JOB_EXECUTION_ID);
 }
 
 export function sequencedWorkflowRunDto(

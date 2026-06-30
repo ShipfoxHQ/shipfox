@@ -150,7 +150,6 @@ export type StepRestartResultDto = z.infer<typeof stepRestartResultDtoSchema>;
 export const stepAttemptDtoSchema = z.object({
   id: z.string().uuid(),
   step_id: z.string().uuid(),
-  job_execution_id: z.string().uuid(),
   attempt: z.number().int().positive(),
   execution_order: z.number().int().positive(),
   status: z.string(),

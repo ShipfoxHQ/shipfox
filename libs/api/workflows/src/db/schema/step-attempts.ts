@@ -71,7 +71,6 @@ export function toStepAttempt(row: StepAttemptDb): StepAttempt {
   return {
     id: row.id,
     stepId: row.stepId,
-    jobExecutionId: row.jobExecutionId,
     attempt: row.attempt,
     executionOrder: row.executionOrder,
     status: row.status as StepAttemptStatus,

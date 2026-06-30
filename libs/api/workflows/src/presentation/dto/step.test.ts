@@ -131,7 +131,6 @@ describe('toStepDto error category', () => {
 const baseAttempt: StepAttempt = {
   id: '11111111-1111-4111-8111-111111111111',
   stepId: '22222222-2222-4222-8222-222222222222',
-  jobExecutionId: '44444444-4444-4444-8444-444444444444',
   attempt: 1,
   executionOrder: 1,
   status: 'failed',

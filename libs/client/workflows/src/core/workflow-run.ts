@@ -302,16 +302,22 @@ export function toWorkflowStep(dto: RunStepDetailDto, jobId: string): WorkflowSt
     currentAttempt: dto.current_attempt,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
-    attempts: dto.attempts.map((attempt) => toWorkflowStepAttempt(attempt, jobId)),
+    attempts: dto.attempts.map((attempt) =>
+      toWorkflowStepAttempt(attempt, jobId, dto.job_execution_id),
+    ),
   };
 }
 
-export function toWorkflowStepAttempt(dto: StepAttemptDto, jobId: string): WorkflowStepAttempt {
+export function toWorkflowStepAttempt(
+  dto: StepAttemptDto,
+  jobId: string,
+  jobExecutionId: string,
+): WorkflowStepAttempt {
   return {
     id: dto.id,
     stepId: dto.step_id,
     jobId,
-    jobExecutionId: dto.job_execution_id,
+    jobExecutionId,
     attempt: dto.attempt,
     executionOrder: dto.execution_order,
     status: dto.status,
