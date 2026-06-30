@@ -45,10 +45,15 @@ function createTestRouter(
       return renderPage({runId});
     },
   });
+  const agentProviderSettingsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/settings/agent-providers',
+    component: () => <div>Agent provider settings placeholder</div>,
+  });
 
   return createRouter({
     history: createMemoryHistory({initialEntries: [path]}),
-    routeTree: rootRoute.addChildren([runsRoute, runDetailRoute]),
+    routeTree: rootRoute.addChildren([runsRoute, runDetailRoute, agentProviderSettingsRoute]),
   });
 }
 

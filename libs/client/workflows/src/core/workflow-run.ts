@@ -72,6 +72,12 @@ export interface WorkflowStepError {
   category: WorkflowStepErrorCategory | undefined;
 }
 
+export interface WorkflowAgentStepConfig {
+  provider: string | null;
+  model: string | null;
+  thinking: string | null;
+}
+
 export interface WorkflowStepAttempt {
   id: string;
   stepId: string;
@@ -98,6 +104,7 @@ export interface WorkflowStep {
   status: string;
   type: string;
   config: Record<string, unknown>;
+  agentConfig: WorkflowAgentStepConfig | null;
   error: WorkflowStepError | null;
   position: number;
   currentAttempt: number;
@@ -280,6 +287,7 @@ export function toWorkflowStep(dto: RunStepDetailDto): WorkflowStep {
     status: dto.status,
     type: dto.type,
     config: dto.config,
+    agentConfig: toWorkflowAgentStepConfig(dto),
     error: dto.error ? toWorkflowStepError(dto.error) : null,
     position: dto.position,
     currentAttempt: dto.current_attempt,
@@ -340,4 +348,21 @@ function toWorkflowStepError(dto: NonNullable<RunStepDetailDto['error']>): Workf
     reason: dto.reason,
     category: dto.category,
   };
+}
+
+function toWorkflowAgentStepConfig(dto: RunStepDetailDto): WorkflowAgentStepConfig | null {
+  if (dto.type !== 'agent') return null;
+
+  return {
+    provider: stringConfigValue(dto.config.provider),
+    model: stringConfigValue(dto.config.model),
+    thinking: stringConfigValue(dto.config.thinking),
+  };
+}
+
+function stringConfigValue(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+
+  const trimmedValue = value.trim();
+  return trimmedValue ? trimmedValue : null;
 }

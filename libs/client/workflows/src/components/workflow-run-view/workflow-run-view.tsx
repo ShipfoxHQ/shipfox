@@ -1,10 +1,22 @@
 import type {RerunMode} from '@shipfox/api-workflows-dto';
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {EmptyState, RelativeTimeProvider, toast} from '@shipfox/react-ui';
-import {useNavigate} from '@tanstack/react-router';
+import {
+  Alert,
+  AlertActions,
+  AlertContent,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Code,
+  EmptyState,
+  RelativeTimeProvider,
+  Text,
+  toast,
+} from '@shipfox/react-ui';
+import {Link, useNavigate} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
-import type {WorkflowJob} from '#core/workflow-run.js';
+import type {WorkflowAgentStepConfig, WorkflowJob, WorkflowStep} from '#core/workflow-run.js';
 import {
   type WorkflowRunSelectionInput,
   withoutWorkflowRunSelectionSearch,
@@ -210,11 +222,13 @@ function RunViewContent({
                 onSelectedAttemptChange={selectionControlled ? selectAttempt : undefined}
                 autoSelectActiveAttempt
                 emptyState={emptyStateForJob(selectedJob)}
-                renderExpandedStep={({stepId, attempt, attemptStatus, carriedOver}) =>
+                renderExpandedStep={({step, stepId, attempt, attemptStatus, carriedOver}) =>
                   carriedOver ? (
                     <CarriedOverStepPanel />
                   ) : (
-                    <StepAttemptLogPanel
+                    <StepAttemptDetailPanel
+                      workspaceId={workspaceId}
+                      step={step}
                       stepId={stepId}
                       attempt={attempt}
                       attemptStatus={attemptStatus}
@@ -235,6 +249,88 @@ function RunViewContent({
       />
     </>
   );
+}
+
+function StepAttemptDetailPanel({
+  workspaceId,
+  step,
+  stepId,
+  attempt,
+  attemptStatus,
+}: {
+  workspaceId: string;
+  step: WorkflowStep;
+  stepId: string;
+  attempt: number;
+  attemptStatus: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-10">
+      {step.agentConfig ? <AgentStepConfigPanel config={step.agentConfig} /> : null}
+      {isAgentConfigFailure(step) ? <AgentConfigFailureCallout workspaceId={workspaceId} /> : null}
+      <StepAttemptLogPanel stepId={stepId} attempt={attempt} attemptStatus={attemptStatus} />
+    </div>
+  );
+}
+
+function AgentStepConfigPanel({config}: {config: WorkflowAgentStepConfig}) {
+  return (
+    <section aria-label="Resolved agent configuration" className="flex min-w-0 flex-col gap-6">
+      <Text as="h3" size="xs" bold className="text-foreground-neutral-subtle">
+        Resolved agent configuration
+      </Text>
+      <dl className="grid min-w-0 gap-8 sm:grid-cols-3">
+        <AgentConfigValue label="Provider" value={config.provider} />
+        <AgentConfigValue label="Model" value={config.model} />
+        <AgentConfigValue label="Thinking" value={config.thinking} />
+      </dl>
+    </section>
+  );
+}
+
+function AgentConfigValue({label, value}: {label: string; value: string | null}) {
+  return (
+    <div className="min-w-0">
+      <Text as="dt" size="xs" className="text-foreground-neutral-muted">
+        {label}
+      </Text>
+      <Code
+        as="dd"
+        variant="label"
+        className={
+          value ? 'truncate text-foreground-neutral-base' : 'text-foreground-neutral-muted'
+        }
+      >
+        {value ?? 'Not recorded'}
+      </Code>
+    </div>
+  );
+}
+
+function AgentConfigFailureCallout({workspaceId}: {workspaceId: string}) {
+  return (
+    <Alert variant="warning" animated={false} className="px-10 py-8">
+      <AlertContent>
+        <AlertTitle>Agent configuration blocked this step</AlertTitle>
+        <AlertDescription>
+          Review the workflow definition values for provider, model, thinking, and prompt. Configure
+          workspace provider credentials, or ask the instance operator to set default provider
+          credentials.
+        </AlertDescription>
+        <AlertActions>
+          <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
+            <Link to="/workspaces/$wid/settings/agent-providers" params={{wid: workspaceId}}>
+              Agent Providers
+            </Link>
+          </Button>
+        </AlertActions>
+      </AlertContent>
+    </Alert>
+  );
+}
+
+function isAgentConfigFailure(step: WorkflowStep): boolean {
+  return step.type === 'agent' && step.error?.reason === 'agent_config_invalid';
 }
 
 function cancelErrorMessage(error: unknown): string {
