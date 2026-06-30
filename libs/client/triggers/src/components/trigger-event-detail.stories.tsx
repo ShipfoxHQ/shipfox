@@ -17,6 +17,10 @@ const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
 const RUN_ID = '33333333-3333-4333-8333-333333333333';
 
+function minutesAgo(minutes: number): string {
+  return new Date(Date.now() - minutes * 60_000).toISOString();
+}
+
 const withRouter: Decorator = (Story) => {
   function StoryRoute() {
     return (
@@ -66,7 +70,7 @@ const routedEvent: TriggerEventDetailResponseDto = {
     repository: {full_name: 'ShipfoxHQ/platform'},
     head_commit: {id: '9f1a0f2c7a1b', message: 'Deploy event detail'},
   },
-  received_at: '2026-06-25T19:30:00.000Z',
+  received_at: minutesAgo(15),
   processed_at: '2026-06-25T19:30:02.000Z',
   created_at: '2026-06-25T19:30:00.000Z',
   decisions: [
