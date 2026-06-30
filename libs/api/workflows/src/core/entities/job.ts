@@ -55,16 +55,22 @@ export function jobDurationFor(
   job: Pick<Job, 'status' | 'queuedAt' | 'startedAt' | 'finishedAt'>,
 ): JobDuration {
   const {status, queuedAt, startedAt, finishedAt} = job;
+  const terminal = isJobTerminal(status);
 
-  if (startedAt !== null) {
-    if (finishedAt !== null) return {kind: 'finished', from: startedAt, to: finishedAt};
-    if (!isJobTerminal(status)) return {kind: 'running', from: startedAt};
+  if (startedAt === null) {
+    if (terminal || queuedAt === null) return {kind: 'none'};
+    return {kind: 'queued', from: queuedAt};
+  }
+
+  if (finishedAt !== null) {
+    return {kind: 'finished', from: startedAt, to: finishedAt};
+  }
+
+  if (terminal) {
     return {kind: 'none'};
   }
 
-  if (isJobTerminal(status)) return {kind: 'none'};
-  if (queuedAt !== null) return {kind: 'queued', from: queuedAt};
-  return {kind: 'none'};
+  return {kind: 'running', from: startedAt};
 }
 
 export function toJobStatusReason(value: string | null): JobStatusReason | null {
