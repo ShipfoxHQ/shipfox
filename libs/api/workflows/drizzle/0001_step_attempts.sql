@@ -2,6 +2,7 @@ CREATE TABLE "workflows_step_attempts" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"step_id" uuid NOT NULL,
 	"job_id" uuid NOT NULL,
+	"execution_id" uuid NOT NULL,
 	"attempt" integer NOT NULL,
 	"execution_order" integer NOT NULL,
 	"status" "workflows_step_status" NOT NULL,
@@ -14,7 +15,7 @@ CREATE TABLE "workflows_step_attempts" (
 	"finished_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "workflows_step_attempts_step_id_attempt_uq" UNIQUE("step_id","attempt"),
-	CONSTRAINT "workflows_step_attempts_job_id_execution_order_uq" UNIQUE("job_id","execution_order"),
+	CONSTRAINT "workflows_step_attempts_execution_id_execution_order_uq" UNIQUE("execution_id","execution_order"),
 	CONSTRAINT "workflows_step_attempts_attempt_positive_ck" CHECK ("workflows_step_attempts"."attempt" > 0),
 	CONSTRAINT "workflows_step_attempts_execution_order_positive_ck" CHECK ("workflows_step_attempts"."execution_order" > 0),
 	CONSTRAINT "workflows_step_attempts_status_not_pending_ck" CHECK ("workflows_step_attempts"."status" <> 'pending')
@@ -23,4 +24,6 @@ CREATE TABLE "workflows_step_attempts" (
 ALTER TABLE "workflows_steps" ADD COLUMN "current_attempt" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
 ALTER TABLE "workflows_step_attempts" ADD CONSTRAINT "workflows_step_attempts_step_id_workflows_steps_id_fk" FOREIGN KEY ("step_id") REFERENCES "public"."workflows_steps"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflows_step_attempts" ADD CONSTRAINT "workflows_step_attempts_job_id_workflows_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."workflows_jobs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "workflows_step_attempts_job_id_idx" ON "workflows_step_attempts" USING btree ("job_id");
+ALTER TABLE "workflows_step_attempts" ADD CONSTRAINT "workflows_step_attempts_execution_id_workflows_job_executions_id_fk" FOREIGN KEY ("execution_id") REFERENCES "public"."workflows_job_executions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "workflows_step_attempts_job_id_idx" ON "workflows_step_attempts" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX "workflows_step_attempts_execution_id_idx" ON "workflows_step_attempts" USING btree ("execution_id");

@@ -20,8 +20,12 @@ export interface MintLeaseTokenParams {
 }
 
 export async function mintLeaseToken(params: MintLeaseTokenParams): Promise<string> {
-  const executionId =
-    params.executionId ?? (await getFirstExecutionByJobId(params.jobId))?.id ?? crypto.randomUUID();
+  let executionId = params.executionId;
+  if (executionId === undefined) {
+    const execution = await getFirstExecutionByJobId(params.jobId);
+    if (!execution) throw new Error('Expected job execution to exist');
+    executionId = execution.id;
+  }
 
   return signHs256({
     payload: {

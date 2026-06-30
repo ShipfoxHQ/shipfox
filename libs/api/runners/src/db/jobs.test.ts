@@ -391,6 +391,7 @@ describe('claimPendingJob', () => {
       db().insert(runningJobs).values({
         workspaceId,
         jobId: created.jobId,
+        executionId: created.executionId,
         runId: created.runId,
         projectId: created.projectId,
         runnerSessionId,

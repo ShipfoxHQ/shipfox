@@ -55,7 +55,11 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     });
 
     test('rejects an expired token', async () => {
-      const token = await mintLeaseToken({jobId: crypto.randomUUID(), expiresIn: '-1s'});
+      const token = await mintLeaseToken({
+        jobId: crypto.randomUUID(),
+        executionId: crypto.randomUUID(),
+        expiresIn: '-1s',
+      });
 
       const res = await app.inject({
         method: 'GET',
@@ -67,7 +71,11 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     });
 
     test('rejects a token with the wrong audience', async () => {
-      const token = await mintLeaseToken({jobId: crypto.randomUUID(), audience: 'user-session'});
+      const token = await mintLeaseToken({
+        jobId: crypto.randomUUID(),
+        executionId: crypto.randomUUID(),
+        audience: 'user-session',
+      });
 
       const res = await app.inject({
         method: 'GET',

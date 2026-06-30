@@ -43,13 +43,6 @@
       "when": 1782629554065,
       "tag": "0005_ancient_iceman",
       "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1782827277843,
-      "tag": "0006_glamorous_namora",
-      "breakpoints": true
     }
   ]
 }

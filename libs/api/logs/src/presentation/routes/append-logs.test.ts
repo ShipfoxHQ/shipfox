@@ -16,6 +16,10 @@ function logsUrl(stepId: string, attempt: number, offset: number): string {
   return `/runs/jobs/current/steps/${stepId}/logs?attempt=${attempt}&offset=${offset}`;
 }
 
+function mintTestLeaseToken(jobId = crypto.randomUUID()): Promise<string> {
+  return mintLeaseToken({jobId, executionId: crypto.randomUUID()});
+}
+
 describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   let app: FastifyInstance;
 
@@ -46,7 +50,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
 
   it('accepts an in-order append and returns the committed length', async () => {
     const jobId = crypto.randomUUID();
-    const token = await mintLeaseToken({jobId});
+    const token = await mintTestLeaseToken(jobId);
     const body = ndjsonBody(outputLine('installing\n'));
 
     const res = await app.inject({
@@ -63,7 +67,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   it('acks a re-sent append at an earlier offset', async () => {
     const jobId = crypto.randomUUID();
     const stepId = crypto.randomUUID();
-    const token = await mintLeaseToken({jobId});
+    const token = await mintTestLeaseToken(jobId);
     const body = ndjsonBody(outputLine('once\n'));
     await app.inject({
       method: 'POST',
@@ -86,7 +90,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   it('rejects an offset gap with 409 and the committed length', async () => {
     const jobId = crypto.randomUUID();
     const stepId = crypto.randomUUID();
-    const token = await mintLeaseToken({jobId});
+    const token = await mintTestLeaseToken(jobId);
     const body = ndjsonBody(outputLine('first\n'));
     await app.inject({
       method: 'POST',
@@ -108,7 +112,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   });
 
   it('rejects a forged server-only tombstone with 400', async () => {
-    const token = await mintLeaseToken({jobId: crypto.randomUUID()});
+    const token = await mintTestLeaseToken();
 
     const res = await app.inject({
       method: 'POST',
@@ -122,7 +126,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   });
 
   it('rejects a body that is not newline-terminated with 400', async () => {
-    const token = await mintLeaseToken({jobId: crypto.randomUUID()});
+    const token = await mintTestLeaseToken();
 
     const res = await app.inject({
       method: 'POST',
@@ -136,7 +140,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   });
 
   it('rejects a record whose data exceeds the per-record byte cap with 400', async () => {
-    const token = await mintLeaseToken({jobId: crypto.randomUUID()});
+    const token = await mintTestLeaseToken();
 
     const res = await app.inject({
       method: 'POST',
@@ -150,7 +154,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   });
 
   it('treats an empty body as a no-op', async () => {
-    const token = await mintLeaseToken({jobId: crypto.randomUUID()});
+    const token = await mintTestLeaseToken();
 
     const res = await app.inject({
       method: 'POST',
@@ -164,7 +168,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   });
 
   it('rejects a non-ndjson content type with 415', async () => {
-    const token = await mintLeaseToken({jobId: crypto.randomUUID()});
+    const token = await mintTestLeaseToken();
 
     const res = await app.inject({
       method: 'POST',
@@ -177,7 +181,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
   });
 
   it('rejects a body over the configured size limit with 413', async () => {
-    const token = await mintLeaseToken({jobId: crypto.randomUUID()});
+    const token = await mintTestLeaseToken();
     // Test body limit is 64 KiB (LOG_APPEND_BODY_LIMIT_BYTES in test/env.ts).
     const oversize = Buffer.alloc(65536 + 1024, 0x61).toString('utf8');
 
@@ -193,7 +197,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
 
   it('reports capped once the budget is crossed', async () => {
     const jobId = crypto.randomUUID();
-    const token = await mintLeaseToken({jobId});
+    const token = await mintTestLeaseToken(jobId);
 
     const res = await app.inject({
       method: 'POST',

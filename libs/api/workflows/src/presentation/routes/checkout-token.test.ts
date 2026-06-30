@@ -62,7 +62,11 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     });
 
     test('rejects an expired token', async () => {
-      const token = await mintLeaseToken({jobId: crypto.randomUUID(), expiresIn: '-1s'});
+      const token = await mintLeaseToken({
+        jobId: crypto.randomUUID(),
+        executionId: crypto.randomUUID(),
+        expiresIn: '-1s',
+      });
 
       const res = await app.inject({
         method: 'POST',
@@ -74,7 +78,11 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     });
 
     test('rejects a token with the wrong audience', async () => {
-      const token = await mintLeaseToken({jobId: crypto.randomUUID(), audience: 'user-session'});
+      const token = await mintLeaseToken({
+        jobId: crypto.randomUUID(),
+        executionId: crypto.randomUUID(),
+        audience: 'user-session',
+      });
 
       const res = await app.inject({
         method: 'POST',
@@ -137,7 +145,10 @@ describe('POST /runs/jobs/current/checkout-token', () => {
   });
 
   test('returns 404 for a valid token naming an unknown job', async () => {
-    const token = await mintLeaseToken({jobId: crypto.randomUUID()});
+    const token = await mintLeaseToken({
+      jobId: crypto.randomUUID(),
+      executionId: crypto.randomUUID(),
+    });
 
     const res = await app.inject({
       method: 'POST',

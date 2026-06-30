@@ -104,6 +104,18 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "success": {
+          "name": "success",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "execution_timeout_ms": {
+          "name": "execution_timeout_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -359,6 +371,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "execution_id": {
+          "name": "execution_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {
@@ -367,6 +385,21 @@
           "columns": [
             {
               "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workflows_step_attempts_execution_id_idx": {
+          "name": "workflows_step_attempts_execution_id_idx",
+          "columns": [
+            {
+              "expression": "execution_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -396,6 +429,15 @@
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "workflows_step_attempts_execution_id_workflows_job_executions_id_fk": {
+          "name": "workflows_step_attempts_execution_id_workflows_job_executions_id_fk",
+          "tableFrom": "workflows_step_attempts",
+          "tableTo": "workflows_job_executions",
+          "columnsFrom": ["execution_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -405,10 +447,10 @@
           "nullsNotDistinct": false,
           "columns": ["step_id", "attempt"]
         },
-        "workflows_step_attempts_job_id_execution_order_uq": {
-          "name": "workflows_step_attempts_job_id_execution_order_uq",
+        "workflows_step_attempts_execution_id_execution_order_uq": {
+          "name": "workflows_step_attempts_execution_id_execution_order_uq",
           "nullsNotDistinct": false,
-          "columns": ["job_id", "execution_order"]
+          "columns": ["execution_id", "execution_order"]
         }
       },
       "policies": {},
@@ -532,6 +574,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "execution_id": {
+          "name": "execution_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {
@@ -549,6 +597,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "workflows_steps_execution_id_idx": {
+          "name": "workflows_steps_execution_id_idx",
+          "columns": [
+            {
+              "expression": "execution_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -557,6 +620,15 @@
           "tableFrom": "workflows_steps",
           "tableTo": "workflows_jobs",
           "columnsFrom": ["job_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "workflows_steps_execution_id_workflows_job_executions_id_fk": {
+          "name": "workflows_steps_execution_id_workflows_job_executions_id_fk",
+          "tableFrom": "workflows_steps",
+          "tableTo": "workflows_job_executions",
+          "columnsFrom": ["execution_id"],
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -830,6 +902,167 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.workflows_job_executions": {
+      "name": "workflows_job_executions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuidv7()"
+        },
+        "job_id": {
+          "name": "job_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "workflows_job_execution_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "status_reason": {
+          "name": "status_reason",
+          "type": "workflows_job_status_reason",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trigger_events": {
+          "name": "trigger_events",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "queued_at": {
+          "name": "queued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "timed_out_at": {
+          "name": "timed_out_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "workflows_job_executions_job_id_idx": {
+          "name": "workflows_job_executions_job_id_idx",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workflows_job_executions_run_id_idx": {
+          "name": "workflows_job_executions_run_id_idx",
+          "columns": [
+            {
+              "expression": "run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workflows_job_executions_job_id_workflows_jobs_id_fk": {
+          "name": "workflows_job_executions_job_id_workflows_jobs_id_fk",
+          "tableFrom": "workflows_job_executions",
+          "tableTo": "workflows_jobs",
+          "columnsFrom": ["job_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "workflows_job_executions_run_id_workflows_workflow_runs_id_fk": {
+          "name": "workflows_job_executions_run_id_workflows_workflow_runs_id_fk",
+          "tableFrom": "workflows_job_executions",
+          "tableTo": "workflows_workflow_runs",
+          "columnsFrom": ["run_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -861,6 +1094,11 @@
         "step_failed",
         "unknown"
       ]
+    },
+    "public.workflows_job_execution_status": {
+      "name": "workflows_job_execution_status",
+      "schema": "public",
+      "values": ["pending", "running", "succeeded", "failed", "cancelled"]
     }
   },
   "schemas": {},

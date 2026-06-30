@@ -6,7 +6,7 @@ const SECRET = process.env.AUTH_JOB_LEASE_TOKEN_SECRET ?? 'test-lease-secret';
 
 export interface MintLeaseTokenParams {
   jobId: string;
-  executionId?: string;
+  executionId: string;
   workspaceId?: string;
   projectId?: string;
   runId?: string;
@@ -19,7 +19,7 @@ export function mintLeaseToken(params: MintLeaseTokenParams): Promise<string> {
   return signHs256({
     payload: {
       jobId: params.jobId,
-      executionId: params.executionId ?? crypto.randomUUID(),
+      executionId: params.executionId,
       runId: params.runId ?? crypto.randomUUID(),
       projectId: params.projectId ?? crypto.randomUUID(),
       workspaceId: params.workspaceId ?? crypto.randomUUID(),

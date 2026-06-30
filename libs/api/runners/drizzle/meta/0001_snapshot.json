@@ -333,6 +333,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "execution_id": {
+          "name": "execution_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {
@@ -371,15 +377,30 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "runners_pending_jobs_job_id_idx": {
+          "name": "runners_pending_jobs_job_id_idx",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "runners_pending_jobs_job_id_unique": {
-          "name": "runners_pending_jobs_job_id_unique",
+        "runners_pending_jobs_execution_id_unique": {
+          "name": "runners_pending_jobs_execution_id_unique",
           "nullsNotDistinct": false,
-          "columns": ["job_id"]
+          "columns": ["execution_id"]
         }
       },
       "policies": {},
@@ -687,6 +708,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "execution_id": {
+          "name": "execution_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {
@@ -738,15 +765,30 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "runners_running_jobs_job_id_idx": {
+          "name": "runners_running_jobs_job_id_idx",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "runners_running_jobs_job_id_unique": {
-          "name": "runners_running_jobs_job_id_unique",
+        "runners_running_jobs_execution_id_unique": {
+          "name": "runners_running_jobs_execution_id_unique",
           "nullsNotDistinct": false,
-          "columns": ["job_id"]
+          "columns": ["execution_id"]
         }
       },
       "policies": {},
