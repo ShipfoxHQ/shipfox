@@ -2,7 +2,6 @@ import type {RunJobDetailDto} from '@shipfox/api-workflows-dto';
 import {render, screen} from '@testing-library/react';
 import {workflowJob} from '#test/fixtures/workflow-run.js';
 import type {WorkflowJobGraphNode} from './graph-model.js';
-import {jobDurationDisplay} from './job-duration.js';
 import {WorkflowJobNode} from './workflow-job-node.js';
 
 const NOW = Date.parse('2026-06-26T12:00:00.000Z');
@@ -14,7 +13,6 @@ function makeNode(overrides: Partial<RunJobDetailDto> & {name: string}): Workflo
     column: 0,
     row: 0,
     currentDependencyCount: 0,
-    duration: jobDurationDisplay(job),
   };
 }
 

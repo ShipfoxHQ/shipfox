@@ -120,7 +120,7 @@ export function runAttemptsResponseDto(
 
 export function workflowJobDto(overrides: Partial<RunJobDetailDto> = {}): RunJobDetailDto {
   jobSequence += 1;
-  return {
+  const job: RunJobDetailDto = {
     id: `44444444-4444-4444-8444-${String(jobSequence).padStart(12, '0')}`,
     run_id: RUN_ID,
     name: 'build',
@@ -134,8 +134,14 @@ export function workflowJobDto(overrides: Partial<RunJobDetailDto> = {}): RunJob
     queued_at: null,
     started_at: null,
     finished_at: null,
+    duration: {kind: 'none'},
     steps: [],
     ...overrides,
+  };
+
+  return {
+    ...job,
+    duration: overrides.duration ?? workflowJobDurationDto(job),
   };
 }
 
@@ -196,6 +202,29 @@ export function workflowStepAttemptDto(overrides: Partial<StepAttemptDto> = {}):
 export function workflowStepAttempt(overrides: Partial<StepAttemptDto> = {}): WorkflowStepAttempt {
   return toWorkflowStepAttempt(workflowStepAttemptDto(overrides));
 }
+
+function workflowJobDurationDto(
+  job: Pick<RunJobDetailDto, 'status' | 'queued_at' | 'started_at' | 'finished_at'>,
+): RunJobDetailDto['duration'] {
+  if (job.started_at !== null) {
+    if (job.finished_at !== null) {
+      return {kind: 'finished', from_iso: job.started_at, to_iso: job.finished_at};
+    }
+    if (!TERMINAL_JOB_STATUSES.has(job.status)) return {kind: 'running', from_iso: job.started_at};
+    return {kind: 'none'};
+  }
+
+  if (TERMINAL_JOB_STATUSES.has(job.status)) return {kind: 'none'};
+  if (job.queued_at !== null) return {kind: 'queued', from_iso: job.queued_at};
+  return {kind: 'none'};
+}
+
+const TERMINAL_JOB_STATUSES = new Set<JobStatusDto>([
+  'succeeded',
+  'failed',
+  'cancelled',
+  'skipped',
+]);
 
 export function sequencedWorkflowRunDto(
   status: RunStatusDto,

@@ -12,9 +12,8 @@ import {
 import type {KeyboardEventHandler, Ref} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
-import type {WorkflowRunDetail} from '#core/workflow-run.js';
+import type {WorkflowJobDuration, WorkflowRunDetail} from '#core/workflow-run.js';
 import type {WorkflowJobGraphNode} from './graph-model.js';
-import type {JobDurationDisplay} from './job-duration.js';
 import {JobDurationLabel} from './job-duration-label.js';
 
 const TRIGGER_SIZE = 36;
@@ -158,7 +157,7 @@ function JobLabel({label}: {label: string}) {
   );
 }
 
-function durationAccessibleLabel(duration: JobDurationDisplay): string | undefined {
+function durationAccessibleLabel(duration: WorkflowJobDuration): string | undefined {
   switch (duration.kind) {
     case 'none':
       return undefined;

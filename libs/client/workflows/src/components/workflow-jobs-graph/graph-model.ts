@@ -1,11 +1,9 @@
 import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
-import {type JobDurationDisplay, jobDurationDisplay} from './job-duration.js';
 
 export interface WorkflowJobGraphNode extends WorkflowJob {
   column: number;
   row: number;
   currentDependencyCount: number;
-  duration: JobDurationDisplay;
 }
 
 export type WorkflowJobGraphNavigationKey =
@@ -57,7 +55,6 @@ export function buildWorkflowJobGraphModel({run}: {run: WorkflowRunDetail}): Wor
     column: columnFor(job),
     row: 0,
     currentDependencyCount: currentDependencyCount(job, byName),
-    duration: jobDurationDisplay(job),
   }));
 
   const grouped = groupColumns(nodesWithoutRows);

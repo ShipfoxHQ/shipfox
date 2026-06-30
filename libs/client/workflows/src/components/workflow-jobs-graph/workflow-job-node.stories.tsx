@@ -4,7 +4,6 @@ import type {KeyboardEventHandler} from 'react';
 import type {WorkflowJobStatus} from '#core/workflow-run.js';
 import {workflowJob} from '#test/fixtures/workflow-run.js';
 import type {WorkflowJobGraphNode} from './graph-model.js';
-import {jobDurationDisplay} from './job-duration.js';
 import {WorkflowJobNode} from './workflow-job-node.js';
 
 const statuses: WorkflowJobStatus[] = [
@@ -193,6 +192,5 @@ function makeNode({
     column: 0,
     row: position,
     currentDependencyCount: dependencies.length,
-    duration: jobDurationDisplay(job),
   };
 }

@@ -25,6 +25,14 @@ export type WorkflowStepErrorCategory = StepErrorCategory;
 export type WorkflowStepGateResult = StepGateResultDto;
 export type WorkflowStepRestartResult = StepRestartResultDto;
 
+export type WorkflowJobDuration =
+  | {kind: 'none'}
+  | {kind: 'queued'; fromIso: string}
+  | {kind: 'running'; fromIso: string}
+  | {kind: 'finished'; fromIso: string; toIso: string};
+
+type WorkflowJobDurationDto = RunJobDetailDto['duration'];
+
 export const WORKFLOW_RUN_STATUSES = [
   'pending',
   'running',
@@ -128,6 +136,7 @@ export interface WorkflowJob {
   queuedAt: string | null;
   startedAt: string | null;
   finishedAt: string | null;
+  duration: WorkflowJobDuration;
   steps: WorkflowStep[];
 }
 
@@ -278,8 +287,26 @@ export function toWorkflowJob(dto: RunJobDetailDto): WorkflowJob {
     queuedAt: dto.queued_at ?? null,
     startedAt: dto.started_at ?? null,
     finishedAt: dto.finished_at ?? null,
+    duration: toWorkflowJobDuration(dto.duration),
     steps: dto.steps.map(toWorkflowStep),
   };
+}
+
+function toWorkflowJobDuration(dto: WorkflowJobDurationDto): WorkflowJobDuration {
+  switch (dto.kind) {
+    case 'none':
+      return {kind: 'none'};
+    case 'queued':
+      return {kind: 'queued', fromIso: dto.from_iso};
+    case 'running':
+      return {kind: 'running', fromIso: dto.from_iso};
+    case 'finished':
+      return {kind: 'finished', fromIso: dto.from_iso, toIso: dto.to_iso};
+    default: {
+      const exhaustive: never = dto;
+      return exhaustive;
+    }
+  }
 }
 
 export function toWorkflowStep(dto: RunStepDetailDto): WorkflowStep {

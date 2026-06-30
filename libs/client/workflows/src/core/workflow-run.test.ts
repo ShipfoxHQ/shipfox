@@ -177,6 +177,11 @@ describe('workflow run model mapping', () => {
       queuedAt: '2026-05-07T01:00:00.000Z',
       startedAt: '2026-05-07T01:00:05.000Z',
       finishedAt: '2026-05-07T01:02:00.000Z',
+      duration: {
+        kind: 'finished',
+        fromIso: '2026-05-07T01:00:05.000Z',
+        toIso: '2026-05-07T01:02:00.000Z',
+      },
     });
     expect(detail.jobs[0]?.steps[0]).toMatchObject({
       id: '55555555-5555-4555-8555-000000000001',
@@ -247,6 +252,7 @@ describe('workflow run model mapping', () => {
       queuedAt: null,
       startedAt: null,
       finishedAt: null,
+      duration: {kind: 'none'},
     });
     expect(detail.jobs[0]?.steps[0]).toMatchObject({
       sourceLocation: null,

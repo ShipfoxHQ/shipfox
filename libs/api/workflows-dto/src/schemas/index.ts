@@ -7,9 +7,11 @@ export {
 } from './checkout-token.js';
 export {
   type JobDto,
+  type JobDurationDto,
   type JobStatusDto,
   type JobStatusReasonDto,
   jobDtoSchema,
+  jobDurationDtoSchema,
   jobStatusReasonSchema,
   jobStatusSchema,
 } from './job.js';

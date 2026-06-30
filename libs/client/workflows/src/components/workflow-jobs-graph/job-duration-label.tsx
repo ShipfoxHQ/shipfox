@@ -1,5 +1,5 @@
 import {Code, humanDuration} from '@shipfox/react-ui';
-import type {JobDurationDisplay} from './job-duration.js';
+import type {WorkflowJobDuration} from '#core/workflow-run.js';
 import {useDurationTick} from './job-duration-ticker.js';
 
 /**
@@ -8,7 +8,7 @@ import {useDurationTick} from './job-duration-ticker.js';
  * job and `2m 14s` beside a succeeded one read unambiguously. The verb-bearing
  * phrasing lives in the node's `aria-label` for screen readers.
  */
-export function JobDurationLabel({duration}: {duration: JobDurationDisplay}) {
+export function JobDurationLabel({duration}: {duration: WorkflowJobDuration}) {
   switch (duration.kind) {
     case 'none':
       return null;
