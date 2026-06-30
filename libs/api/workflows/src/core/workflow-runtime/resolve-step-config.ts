@@ -1,0 +1,358 @@
+import {
+  InvalidAgentModelError,
+  UnsupportedAgentProviderError,
+} from '@shipfox/api-agent/core/errors';
+import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
+import type {MaterializedAgentStepConfigDto} from '@shipfox/api-agent-dto';
+import type {WorkflowEnvTemplates, WorkflowModel} from '@shipfox/api-definitions';
+import {
+  getWorkflowContextDefinition,
+  resolveRunCommand,
+  resolveWorkflowTemplate,
+  UnsafeRunInterpolationError,
+  type WorkflowContextName,
+  type WorkflowExpressionEvaluationContext,
+  type WorkflowTemplateDiagnostic,
+  WorkflowTemplateResolutionError,
+} from '@shipfox/expression';
+import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
+
+type WorkflowModelJob = WorkflowModel['jobs'][number];
+type WorkflowModelStep = WorkflowModelJob['steps'][number];
+type WorkflowModelRunStep = Extract<WorkflowModelStep, {kind: 'run'}>;
+type WorkflowModelAgentStep = Extract<WorkflowModelStep, {kind: 'agent'}>;
+type WorkflowFieldTemplate = NonNullable<NonNullable<WorkflowModelRunStep['templates']>['command']>;
+
+export type StepConfigField = 'run' | 'env' | 'agent.prompt' | 'agent.model' | 'agent.provider';
+
+export interface WorkflowStepTemplateDiagnostic extends WorkflowTemplateDiagnostic {
+  readonly field: StepConfigField;
+  readonly envKey?: string;
+}
+
+export interface ResolvedStepConfig {
+  readonly config: Record<string, unknown>;
+  readonly authoredConfig: Record<string, unknown> | null;
+  readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
+}
+
+export interface ResolveStepConfigParams {
+  readonly step: WorkflowModelStep;
+  readonly workflowEnv: WorkflowModel['env'];
+  readonly workflowEnvTemplates: WorkflowEnvTemplates | undefined;
+  readonly jobEnv: WorkflowModelJob['env'];
+  readonly jobEnvTemplates: WorkflowEnvTemplates | undefined;
+  readonly context: WorkflowExpressionEvaluationContext;
+  readonly resolveAgentDefaults: AgentDefaultsResolver;
+  readonly definitionId: string;
+}
+
+interface WinningEnvValue {
+  readonly value: string;
+  readonly template?: WorkflowFieldTemplate;
+}
+
+export function resolveStepConfig(params: ResolveStepConfigParams): ResolvedStepConfig {
+  try {
+    const effective = buildStepConfig({...params, mode: 'effective'});
+    const authoredConfig = effective.hasTemplates
+      ? buildStepConfig({...params, mode: 'authored'}).config
+      : null;
+
+    return {
+      config: effective.config,
+      authoredConfig,
+      diagnostics: effective.diagnostics,
+    };
+  } catch (error) {
+    if (
+      error instanceof UnsafeRunInterpolationError ||
+      error instanceof WorkflowTemplateResolutionError
+    ) {
+      throw new InterpolationUnresolvableError(params.definitionId, {cause: error});
+    }
+    throw error;
+  }
+}
+
+function buildStepConfig(
+  params: ResolveStepConfigParams & {readonly mode: 'effective' | 'authored'},
+): {
+  readonly config: Record<string, unknown>;
+  readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
+  readonly hasTemplates: boolean;
+} {
+  const gate = params.step.gate === undefined ? {} : {gate: stepGateConfig(params.step.gate)};
+
+  if (params.step.kind === 'run') {
+    const env = winningEnv(params);
+    const envResolution = resolveEnv(env, params.context, params.mode);
+    const commandResolution = resolveCommand({
+      step: params.step,
+      envKeys: Object.keys(envResolution.env),
+      context: params.context,
+      mode: params.mode,
+    });
+    const mergedEnv = {...envResolution.env, ...commandResolution.env};
+    const envConfig = Object.keys(mergedEnv).length === 0 ? {} : {env: mergedEnv};
+
+    return {
+      config: {run: commandResolution.command, ...envConfig, ...gate},
+      diagnostics: [...envResolution.diagnostics, ...commandResolution.diagnostics],
+      hasTemplates: envResolution.hasTemplates || commandResolution.hasTemplate,
+    };
+  }
+
+  const agent = agentStepConfig(params.step, params.context, params);
+  return {
+    config: {...agent.config, ...gate},
+    diagnostics: agent.diagnostics,
+    hasTemplates: agent.hasTemplates,
+  };
+}
+
+function resolveCommand(params: {
+  readonly step: WorkflowModelRunStep;
+  readonly envKeys: readonly string[];
+  readonly context: WorkflowExpressionEvaluationContext;
+  readonly mode: 'effective' | 'authored';
+}): {
+  readonly command: string;
+  readonly env: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
+  readonly hasTemplate: boolean;
+} {
+  const template = params.step.templates?.command;
+  if (template === undefined) {
+    return {command: params.step.command.value, env: {}, diagnostics: [], hasTemplate: false};
+  }
+
+  if (params.mode === 'authored') {
+    return {command: params.step.command.value, env: {}, diagnostics: [], hasTemplate: true};
+  }
+
+  const resolved = resolveRunCommand(template, params.context, {
+    reservedNames: params.envKeys,
+    requiredContextRoots: requiredTrustedRoots(template),
+  });
+
+  return {
+    command: resolved.command,
+    env: resolved.env,
+    diagnostics: resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: 'run'})),
+    hasTemplate: true,
+  };
+}
+
+function resolveEnv(
+  env: Readonly<Record<string, WinningEnvValue>>,
+  context: WorkflowExpressionEvaluationContext,
+  mode: 'effective' | 'authored',
+): {
+  readonly env: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
+  readonly hasTemplates: boolean;
+} {
+  const resolvedEnv: Record<string, string> = {};
+  const diagnostics: WorkflowStepTemplateDiagnostic[] = [];
+  let hasTemplates = false;
+
+  for (const [key, entry] of Object.entries(env)) {
+    if (entry.template === undefined || mode === 'authored') {
+      resolvedEnv[key] = entry.value;
+      hasTemplates ||= entry.template !== undefined;
+      continue;
+    }
+
+    hasTemplates = true;
+    const resolved = resolveWorkflowTemplate(entry.template, context, {
+      requiredContextRoots: requiredTrustedRoots(entry.template),
+    });
+    resolvedEnv[key] = resolved.value;
+    diagnostics.push(
+      ...resolved.diagnostics.map((diagnostic) => ({
+        ...diagnostic,
+        field: 'env' as const,
+        envKey: key,
+      })),
+    );
+  }
+
+  return {env: resolvedEnv, diagnostics, hasTemplates};
+}
+
+function agentStepConfig(
+  step: WorkflowModelAgentStep,
+  context: WorkflowExpressionEvaluationContext,
+  params: ResolveStepConfigParams & {readonly mode: 'effective' | 'authored'},
+): {
+  readonly config: MaterializedAgentStepConfigDto | Pick<MaterializedAgentStepConfigDto, 'prompt'>;
+  readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
+  readonly hasTemplates: boolean;
+} {
+  const diagnostics: WorkflowStepTemplateDiagnostic[] = [];
+  const prompt = resolveAgentField({
+    field: 'agent.prompt',
+    value: step.prompt,
+    template: step.templates?.prompt,
+    context,
+    mode: params.mode,
+    diagnostics,
+  });
+  const model = resolveOptionalAgentField({
+    field: 'agent.model',
+    value: step.model,
+    template: step.templates?.model,
+    context,
+    mode: params.mode,
+    diagnostics,
+  });
+  const provider = resolveOptionalAgentField({
+    field: 'agent.provider',
+    value: step.provider,
+    template: step.templates?.provider,
+    context,
+    mode: params.mode,
+    diagnostics,
+  });
+  const hasTemplates =
+    step.templates?.prompt !== undefined ||
+    step.templates?.model !== undefined ||
+    step.templates?.provider !== undefined;
+
+  if (params.mode === 'authored') {
+    return {
+      config: {
+        ...(provider === undefined ? {} : {provider}),
+        ...(model === undefined ? {} : {model}),
+        ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
+        prompt,
+      },
+      diagnostics,
+      hasTemplates,
+    };
+  }
+
+  try {
+    const resolved = params.resolveAgentDefaults({
+      provider,
+      model,
+      thinking: step.thinking,
+    });
+    return {config: {...resolved, prompt}, diagnostics, hasTemplates};
+  } catch (error) {
+    if (error instanceof UnsupportedAgentProviderError || error instanceof InvalidAgentModelError) {
+      throw new AgentConfigUnresolvableError(params.definitionId, {cause: error});
+    }
+    throw error;
+  }
+}
+
+function resolveAgentField(params: {
+  readonly field: Extract<StepConfigField, `agent.${string}`>;
+  readonly value: string;
+  readonly template: WorkflowFieldTemplate | undefined;
+  readonly context: WorkflowExpressionEvaluationContext;
+  readonly mode: 'effective' | 'authored';
+  readonly diagnostics: WorkflowStepTemplateDiagnostic[];
+}): string {
+  if (params.template === undefined || params.mode === 'authored') return params.value;
+
+  const resolved = resolveWorkflowTemplate(params.template, params.context, {
+    requiredContextRoots: requiredTrustedRoots(params.template),
+  });
+  params.diagnostics.push(
+    ...resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: params.field})),
+  );
+  return resolved.value;
+}
+
+function resolveOptionalAgentField(params: {
+  readonly field: Extract<StepConfigField, `agent.${string}`>;
+  readonly value: string | undefined;
+  readonly template: WorkflowFieldTemplate | undefined;
+  readonly context: WorkflowExpressionEvaluationContext;
+  readonly mode: 'effective' | 'authored';
+  readonly diagnostics: WorkflowStepTemplateDiagnostic[];
+}): string | undefined {
+  if (params.value === undefined) return undefined;
+  return resolveAgentField({...params, value: params.value});
+}
+
+function winningEnv(params: {
+  readonly workflowEnv: WorkflowModel['env'];
+  readonly workflowEnvTemplates: ResolveStepConfigParams['workflowEnvTemplates'];
+  readonly jobEnv: WorkflowModelJob['env'];
+  readonly jobEnvTemplates: ResolveStepConfigParams['jobEnvTemplates'];
+  readonly step: WorkflowModelStep;
+}): Readonly<Record<string, WinningEnvValue>> {
+  if (params.step.kind !== 'run') return {};
+
+  return mergeEnvLayers(
+    {env: params.workflowEnv, templates: params.workflowEnvTemplates},
+    {env: params.jobEnv, templates: params.jobEnvTemplates},
+    {env: params.step.env, templates: params.step.templates?.env},
+  );
+}
+
+function mergeEnvLayers(
+  ...layers: readonly {
+    readonly env: Readonly<Record<string, string>> | undefined;
+    readonly templates: Readonly<Record<string, WorkflowFieldTemplate>> | undefined;
+  }[]
+): Readonly<Record<string, WinningEnvValue>> {
+  const merged: Record<string, WinningEnvValue> = {};
+
+  for (const layer of layers) {
+    for (const [key, value] of Object.entries(layer.env ?? {})) {
+      const template = layer.templates?.[key];
+      merged[key] = template === undefined ? {value} : {value, template};
+    }
+  }
+
+  return merged;
+}
+
+function requiredTrustedRoots(segments: readonly unknown[]): WorkflowContextName[] {
+  const roots = new Set<WorkflowContextName>();
+
+  for (const segment of segments) {
+    if (!hasContextRoots(segment)) continue;
+    for (const root of segment.contextRoots) {
+      if (!isWorkflowContextName(root)) continue;
+      if (getWorkflowContextDefinition(root).trustTier === 'trusted') roots.add(root);
+    }
+  }
+
+  return [...roots];
+}
+
+function hasContextRoots(value: unknown): value is {readonly contextRoots: readonly string[]} {
+  return typeof value === 'object' && value !== null && 'contextRoots' in value;
+}
+
+function isWorkflowContextName(value: string): value is WorkflowContextName {
+  return ['run', 'trigger', 'event', 'inputs', 'job'].includes(value);
+}
+
+function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<string, unknown> {
+  return {
+    ...(gate.successIf === undefined
+      ? {}
+      : {
+          success_if: {
+            language: gate.successIf.language,
+            check: gate.successIf.check,
+            source: gate.successIf.source,
+          },
+        }),
+    ...(gate.onFailure === undefined
+      ? {}
+      : {
+          on_failure: {
+            restart_from: gate.onFailure.restartFrom,
+            ...(gate.onFailure.output === undefined ? {} : {output: gate.onFailure.output}),
+          },
+        }),
+  };
+}

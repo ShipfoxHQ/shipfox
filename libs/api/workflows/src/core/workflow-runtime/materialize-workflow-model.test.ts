@@ -4,7 +4,7 @@ import {
 } from '@shipfox/api-agent/core/errors';
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
 import type {WorkflowModel} from '@shipfox/api-definitions';
-import {AgentConfigUnresolvableError} from '#core/errors.js';
+import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {workflowModel} from '#test/index.js';
 import {materializeWorkflowModel, modelHasAgentStep} from './materialize-workflow-model.js';
 
@@ -14,6 +14,31 @@ type TestWorkflowExpression = NonNullable<
 
 function expression(source: string): TestWorkflowExpression {
   return {language: 'cel', check: 'typed', source: source as TestWorkflowExpression['source']};
+}
+
+function template(source: string): string {
+  return `\${{ ${source} }}`;
+}
+
+function shellRef(name: string): string {
+  return `\${${name}}`;
+}
+
+function runContext(overrides: Record<string, unknown> = {}) {
+  return {
+    run: {
+      id: 'run-1',
+      name: 'Build',
+      definition_id: 'def-1',
+      project_id: 'proj-1',
+      workspace_id: 'workspace-1',
+      created_at: new Date('2026-06-30T12:00:00.000Z'),
+      ...overrides,
+    },
+    trigger: {source: 'manual', event: 'fire'},
+    event: null,
+    inputs: null,
+  };
 }
 
 describe('materializeWorkflowModel', () => {
@@ -42,7 +67,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel(model);
+    const rows = materializeWorkflowModel({model});
 
     const setupStep = {
       sourceName: 'Set up job',
@@ -51,6 +76,7 @@ describe('materializeWorkflowModel', () => {
       status: 'pending',
       type: 'setup',
       config: {},
+      authoredConfig: null,
       position: 0,
     };
 
@@ -69,6 +95,7 @@ describe('materializeWorkflowModel', () => {
             status: 'pending',
             type: 'run',
             config: {run: 'npm install'},
+            authoredConfig: null,
             position: 1,
           },
           {
@@ -84,6 +111,7 @@ describe('materializeWorkflowModel', () => {
                 on_failure: {restart_from: 'install', output: 'Build failed'},
               },
             },
+            authoredConfig: null,
             position: 2,
           },
         ],
@@ -102,6 +130,7 @@ describe('materializeWorkflowModel', () => {
             status: 'pending',
             type: 'run',
             config: {run: 'npm test'},
+            authoredConfig: null,
             position: 1,
           },
         ],
@@ -137,7 +166,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel(model);
+    const rows = materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[2]).toEqual({
       sourceName: 'implement',
@@ -151,6 +180,7 @@ describe('materializeWorkflowModel', () => {
         thinking: 'high',
         prompt: 'Fix the tests.',
       },
+      authoredConfig: null,
       position: 2,
     });
     expect(rows[0]?.steps[3]).toEqual({
@@ -169,6 +199,7 @@ describe('materializeWorkflowModel', () => {
           on_failure: {restart_from: 'implement'},
         },
       },
+      authoredConfig: null,
       position: 3,
     });
   });
@@ -182,7 +213,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel(model);
+    const rows = materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[1]).toEqual({
       sourceName: null,
@@ -196,6 +227,7 @@ describe('materializeWorkflowModel', () => {
         thinking: 'high',
         prompt: 'Fix the failing tests.',
       },
+      authoredConfig: null,
       position: 1,
     });
   });
@@ -209,7 +241,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel(model);
+    const rows = materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[1]?.config).toEqual({
       model: 'gpt-5.5-pro',
@@ -233,7 +265,7 @@ describe('materializeWorkflowModel', () => {
       thinking: 'medium',
     });
 
-    const rows = materializeWorkflowModel(model, resolveAgentDefaults, 'def-1');
+    const rows = materializeWorkflowModel({model, resolveAgentDefaults, definitionId: 'def-1'});
 
     expect(resolveAgentDefaults).toHaveBeenCalledWith({
       provider: 'anthropic',
@@ -264,7 +296,8 @@ describe('materializeWorkflowModel', () => {
       throw cause;
     });
 
-    const materialize = () => materializeWorkflowModel(model, resolveAgentDefaults, 'def-1');
+    const materialize = () =>
+      materializeWorkflowModel({model, resolveAgentDefaults, definitionId: 'def-1'});
 
     expect(materialize).toThrow(AgentConfigUnresolvableError);
     expect(materialize).toThrow('Agent configuration cannot be resolved for definition def-1');
@@ -281,7 +314,8 @@ describe('materializeWorkflowModel', () => {
       throw error;
     });
 
-    const materialize = () => materializeWorkflowModel(model, resolveAgentDefaults, 'def-1');
+    const materialize = () =>
+      materializeWorkflowModel({model, resolveAgentDefaults, definitionId: 'def-1'});
 
     expect(materialize).toThrow(error);
   });
@@ -306,7 +340,7 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel(model);
+    const rows = materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[0]?.config).toEqual({});
     expect(rows[0]?.steps[1]?.config).toEqual({
@@ -335,15 +369,204 @@ describe('materializeWorkflowModel', () => {
       },
     });
 
-    const rows = materializeWorkflowModel(model);
+    const rows = materializeWorkflowModel({model});
 
     expect(rows[0]?.steps[1]?.config).toEqual({run: 'npm test'});
+  });
+
+  it('hoists run interpolation into generated env vars with shell references', () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [{run: `echo "${template('run.id')}" && echo "${template('run.created_at')}"`}],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({model, context: runContext()});
+
+    expect(rows[0]?.steps[1]?.config).toEqual({
+      run: `echo "${shellRef('__sf_0')}" && echo "${shellRef('__sf_1')}"`,
+      env: {
+        __sf_0: 'run-1',
+        __sf_1: '2026-06-30T12:00:00.000Z',
+      },
+    });
+    expect(rows[0]?.steps[1]?.authoredConfig).toEqual({
+      run: `echo "${template('run.id')}" && echo "${template('run.created_at')}"`,
+    });
+  });
+
+  it('merges env before resolving and only resolves the winning values', () => {
+    const model = workflowModel({
+      env: {SHARED: template('event.missing'), WORKFLOW_ONLY: template('run.id')},
+      jobs: {
+        build: {
+          env: {JOB_ONLY: template('trigger.source')},
+          steps: [
+            {
+              run: 'echo ok',
+              env: {SHARED: 'step', __sf_0: 'reserved'},
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({model, context: runContext()});
+
+    expect(rows[0]?.steps[1]?.config).toEqual({
+      run: 'echo ok',
+      env: {
+        SHARED: 'step',
+        WORKFLOW_ONLY: 'run-1',
+        JOB_ONLY: 'manual',
+        __sf_0: 'reserved',
+      },
+    });
+    expect(rows[0]?.steps[1]?.authoredConfig).toEqual({
+      run: 'echo ok',
+      env: {
+        SHARED: 'step',
+        WORKFLOW_ONLY: template('run.id'),
+        JOB_ONLY: template('trigger.source'),
+        __sf_0: 'reserved',
+      },
+    });
+    expect(rows[0]?.steps[1]?.diagnostics).toBeUndefined();
+  });
+
+  it('records missing untrusted env paths as diagnostics', () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [{run: 'echo ok', env: {REF: template('event.ref')}}],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({model, context: {...runContext(), event: {}}});
+
+    expect(rows[0]?.steps[1]?.config).toEqual({
+      run: 'echo ok',
+      env: {REF: ''},
+    });
+    expect(rows[0]?.steps[1]?.diagnostics).toEqual([
+      {
+        reason: 'missing-path',
+        expression: 'event.ref',
+        contextRoots: ['event'],
+        field: 'env',
+        envKey: 'REF',
+      },
+    ]);
+  });
+
+  it('reserves user env names when generating run interpolation env vars', () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [{run: `echo "${template('run.id')}"`, env: {__sf_0: 'user'}}],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({model, context: runContext()});
+
+    expect(rows[0]?.steps[1]?.config).toEqual({
+      run: `echo "${shellRef('__sf_1')}"`,
+      env: {__sf_0: 'user', __sf_1: 'run-1'},
+    });
+  });
+
+  it('resolves agent prompt, model, and provider before catalog defaults', () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {
+          steps: [
+            {
+              provider: template('trigger.source'),
+              model: template('run.name'),
+              prompt: `Fix ${template('run.id')}`,
+            },
+          ],
+        },
+      },
+    });
+    const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+      provider: 'openai',
+      model: 'gpt-5.5-pro',
+      thinking: 'medium',
+    });
+
+    const rows = materializeWorkflowModel({
+      model,
+      context: {...runContext({name: 'gpt-5.5-pro'}), trigger: {source: 'openai', event: 'fire'}},
+      resolveAgentDefaults,
+      definitionId: 'def-1',
+    });
+
+    expect(resolveAgentDefaults).toHaveBeenCalledWith({
+      provider: 'openai',
+      model: 'gpt-5.5-pro',
+      thinking: undefined,
+    });
+    expect(rows[0]?.steps[1]?.config).toEqual({
+      provider: 'openai',
+      model: 'gpt-5.5-pro',
+      thinking: 'medium',
+      prompt: 'Fix run-1',
+    });
+    expect(rows[0]?.steps[1]?.authoredConfig).toEqual({
+      provider: template('trigger.source'),
+      model: template('run.name'),
+      prompt: `Fix ${template('run.id')}`,
+    });
+  });
+
+  it('throws a permanent interpolation error for unsafe run interpolation', () => {
+    const model = workflowModel({
+      jobs: {
+        build: {steps: [{run: `echo \`${template('run.id')}\``}]},
+      },
+    });
+
+    const materialize = () =>
+      materializeWorkflowModel({model, context: runContext(), definitionId: 'def-1'});
+
+    expect(materialize).toThrow(InterpolationUnresolvableError);
+  });
+
+  it('throws a permanent interpolation error for a missing trusted run path', () => {
+    const model = workflowModel({
+      jobs: {
+        build: {steps: [{run: `echo "${template('run.id')}"`}]},
+      },
+    });
+
+    const materialize = () => materializeWorkflowModel({model, context: {}, definitionId: 'def-1'});
+
+    expect(materialize).toThrow(InterpolationUnresolvableError);
+  });
+
+  it('uses the supplied context for each materialization call', () => {
+    const model = workflowModel({
+      jobs: {
+        build: {steps: [{run: `echo "${template('run.id')}"`}]},
+      },
+    });
+
+    const first = materializeWorkflowModel({model, context: runContext({id: 'run-a'})});
+    const second = materializeWorkflowModel({model, context: runContext({id: 'run-b'})});
+
+    expect(first[0]?.steps[1]?.config).toMatchObject({env: {__sf_0: 'run-a'}});
+    expect(second[0]?.steps[1]?.config).toMatchObject({env: {__sf_0: 'run-b'}});
   });
 
   it('gives a job with no user steps just the synthetic setup step', () => {
     const model = workflowModel({jobs: {noop: {steps: []}}});
 
-    const rows = materializeWorkflowModel(model);
+    const rows = materializeWorkflowModel({model});
 
     expect(rows[0]?.steps).toEqual([
       {
@@ -353,6 +576,7 @@ describe('materializeWorkflowModel', () => {
         status: 'pending',
         type: 'setup',
         config: {},
+        authoredConfig: null,
         position: 0,
       },
     ]);
@@ -373,7 +597,7 @@ describe('materializeWorkflowModel', () => {
       dependencies: [{from: 'missing', to: 'test'}],
     };
 
-    expect(() => materializeWorkflowModel(model)).toThrow(
+    expect(() => materializeWorkflowModel({model})).toThrow(
       'Unresolved workflow model dependency "missing" for job "test"',
     );
   });

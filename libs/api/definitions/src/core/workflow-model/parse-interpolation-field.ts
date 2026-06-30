@@ -20,8 +20,13 @@ import type {
   WorkflowModelValidationIssuePathSegment,
 } from './invalid-workflow-model-error.js';
 
-export type StoredInterpolationField = 'run' | 'env.value' | 'agent.prompt' | 'step.name';
-export type UnsupportedInterpolationField = 'agent.model' | 'agent.provider';
+export type StoredInterpolationField =
+  | 'run'
+  | 'env.value'
+  | 'agent.prompt'
+  | 'agent.model'
+  | 'agent.provider'
+  | 'step.name';
 
 export function parseInterpolationField(params: {
   field: StoredInterpolationField;
@@ -43,56 +48,6 @@ export function parseInterpolationField(params: {
   });
 
   return checkedSegments;
-}
-
-export function rejectUnsupportedInterpolationField(params: {
-  field: UnsupportedInterpolationField;
-  source: string;
-  path: readonly WorkflowModelValidationIssuePathSegment[];
-  issues: WorkflowModelValidationIssue[];
-}): boolean {
-  const segments = parseTemplate(params);
-  if (segments === undefined) return true;
-  if (!segments.some(isExpressionSegment)) return false;
-
-  const contextRoots = uniqueStrings(
-    segments.filter(isExpressionSegment).flatMap((segment) => segment.contextRoots),
-  );
-  const knownRoots = contextRoots.filter(isWorkflowContextName);
-  const unknownRoots = contextRoots.filter((root) => !isWorkflowContextName(root));
-  if (unknownRoots.length > 0) {
-    params.issues.push(
-      issue({
-        code: 'unknown-interpolation-context',
-        message: `${fieldLabel(params.field)} interpolation references unknown context ${formatList(
-          unknownRoots,
-        )}.`,
-        path: params.path,
-        details: {field: params.field, source: params.source, contextRoots, unknownRoots},
-      }),
-    );
-    return true;
-  }
-
-  const rejectedRoots = knownRoots.filter(
-    (root) => !workflowInterpolationFieldAcceptsContext(params.field, root),
-  );
-  if (rejectedRoots.length > 0) {
-    params.issues.push(untrustedContextIssue({...params, contextRoots, rejectedRoots}));
-    return true;
-  }
-
-  params.issues.push(
-    issue({
-      code: 'interpolation-not-supported',
-      message: `${fieldLabel(
-        params.field,
-      )} interpolation is not supported until run-creation interpolation resolution lands in ENG-637.`,
-      path: params.path,
-      details: {field: params.field, source: params.source, contextRoots},
-    }),
-  );
-  return true;
 }
 
 function parseTemplate(params: {

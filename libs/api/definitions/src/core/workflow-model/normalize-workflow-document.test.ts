@@ -1322,9 +1322,9 @@ describe('normalizeWorkflowDocument', () => {
     it.each([
       ['model', {model: interpolation('run.name'), prompt: 'Fix it.'}],
       ['provider', {provider: interpolation('run.name'), prompt: 'Fix it.'}],
-    ] as const)('rejects trusted agent %s interpolation until resolution lands', (_field, step) => {
+    ] as const)('stores trusted agent %s interpolation templates', (field, step) => {
       const document: WorkflowDocument = {
-        name: 'unsupported agent field',
+        name: 'supported agent field',
         jobs: {
           fix: {
             steps: [step],
@@ -1332,14 +1332,30 @@ describe('normalizeWorkflowDocument', () => {
         },
       };
 
-      const error = expectInvalid(document);
+      const model = normalizeWorkflowDocument(document);
 
-      expect(error.issues).toEqual([
-        expect.objectContaining({
-          code: 'interpolation-not-supported',
-          message: expect.stringContaining('ENG-637'),
-        }),
-      ]);
+      expect(model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'agent',
+        templates: {[field]: [{kind: 'expr', contextRoots: ['run']}]},
+      });
+    });
+
+    it('skips static provider catalog validation when provider is interpolated', () => {
+      const document: WorkflowDocument = {
+        name: 'templated provider',
+        jobs: {
+          fix: {
+            steps: [{provider: interpolation('run.name'), prompt: 'Fix it.'}],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'agent',
+        templates: {provider: [{kind: 'expr', contextRoots: ['run']}]},
+      });
     });
 
     it('still validates literal agent providers through the catalog', () => {

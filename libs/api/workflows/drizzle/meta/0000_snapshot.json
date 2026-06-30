@@ -311,6 +311,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "authored_config": {
+          "name": "authored_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "output": {
           "name": "output",
           "type": "jsonb",

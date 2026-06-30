@@ -41,6 +41,7 @@ CREATE TABLE "workflows_steps" (
 	"status" "workflows_step_status" DEFAULT 'pending' NOT NULL,
 	"type" text NOT NULL,
 	"config" jsonb NOT NULL,
+	"authored_config" jsonb,
 	"output" jsonb,
 	"error" jsonb,
 	"position" integer NOT NULL,
