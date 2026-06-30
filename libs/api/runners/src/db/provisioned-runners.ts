@@ -1,8 +1,20 @@
 import {canonicalizeLabels} from '@shipfox/runner-labels';
-import {and, desc, eq, inArray, isNotNull, isNull, type SQL, sql} from 'drizzle-orm';
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  notInArray,
+  type SQL,
+  sql,
+} from 'drizzle-orm';
 import type {ProvisionedRunner, ProvisionedRunnerState} from '#core/entities/provisioned-runner.js';
 import type {Tx} from './db.js';
 import {db} from './db.js';
+import {listRunningJobsByProvisionedRunnerTx, type ProvisionedRunnerBoundJob} from './jobs.js';
 import {releaseReservationUnits} from './reservations.js';
 import {provisionedRunners, toProvisionedRunner} from './schema/provisioned-runners.js';
 
@@ -33,6 +45,20 @@ export interface ReportProvisionedRunnersParams {
   workspaceId: string;
   provisionerId: string;
   events: ProvisionedRunnerReportEvent[];
+}
+
+export interface ReconcileProvisionedRunnersParams {
+  workspaceId: string;
+  provisionerId: string;
+  observedProvisionedRunnerIds: string[];
+  terminateGraceSeconds: number;
+}
+
+export interface ReconcileProvisionedRunnersDbResult {
+  observedRows: ProvisionedRunner[];
+  boundJobsByProvisionedRunnerId: Map<string, ProvisionedRunnerBoundJob>;
+  absentIds: string[];
+  reservationsReleased: number;
 }
 
 interface ProvisionedRunnerReportRow extends ProvisionedRunnerReportEvent {
@@ -147,6 +173,96 @@ export async function listActiveProvisionedRunners(params: {
   return rows.map(toProvisionedRunner);
 }
 
+export async function reconcileProvisionedRunners(
+  params: ReconcileProvisionedRunnersParams,
+): Promise<ReconcileProvisionedRunnersDbResult> {
+  const observedProvisionedRunnerIds = [...new Set(params.observedProvisionedRunnerIds)];
+
+  return await db().transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${params.workspaceId}))`);
+
+    const staleAbsentWhere = and(
+      eq(provisionedRunners.workspaceId, params.workspaceId),
+      eq(provisionedRunners.provisionerId, params.provisionerId),
+      inArray(provisionedRunners.state, activeStates),
+      lt(
+        provisionedRunners.reportedAt,
+        sql`now() - (${params.terminateGraceSeconds} || ' seconds')::interval`,
+      ),
+      observedProvisionedRunnerIds.length > 0
+        ? notInArray(provisionedRunners.provisionedRunnerId, observedProvisionedRunnerIds)
+        : undefined,
+    );
+
+    const staleAbsentRows = await tx
+      .select({
+        id: provisionedRunners.id,
+        provisionedRunnerId: provisionedRunners.provisionedRunnerId,
+      })
+      .from(provisionedRunners)
+      .where(staleAbsentWhere);
+
+    const absentIds = staleAbsentRows.map((row) => row.provisionedRunnerId);
+    let reservationsReleased = 0;
+    if (staleAbsentRows.length > 0) {
+      const updated = await tx
+        .update(provisionedRunners)
+        .set({
+          state: 'terminated',
+          terminatedAt: sql`coalesce(${provisionedRunners.terminatedAt}, now())`,
+          updatedAt: sql`now()`,
+        })
+        .where(
+          and(
+            inArray(
+              provisionedRunners.id,
+              staleAbsentRows.map((row) => row.id),
+            ),
+            inArray(provisionedRunners.state, activeStates),
+          ),
+        )
+        .returning({provisionedRunnerId: provisionedRunners.provisionedRunnerId});
+
+      reservationsReleased = await releaseTerminalProvisionedRunnerReservationsByIds(tx, {
+        workspaceId: params.workspaceId,
+        provisionerId: params.provisionerId,
+        provisionedRunnerIds: updated.map((row) => row.provisionedRunnerId),
+      });
+    }
+
+    const observedRows =
+      observedProvisionedRunnerIds.length === 0
+        ? []
+        : (
+            await tx
+              .select()
+              .from(provisionedRunners)
+              .where(
+                and(
+                  eq(provisionedRunners.workspaceId, params.workspaceId),
+                  eq(provisionedRunners.provisionerId, params.provisionerId),
+                  inArray(provisionedRunners.provisionedRunnerId, observedProvisionedRunnerIds),
+                ),
+              )
+          ).map(toProvisionedRunner);
+
+    const boundJobs = await listRunningJobsByProvisionedRunnerTx(tx, {
+      workspaceId: params.workspaceId,
+      provisionerId: params.provisionerId,
+      provisionedRunnerIds: observedProvisionedRunnerIds,
+    });
+
+    return {
+      observedRows,
+      boundJobsByProvisionedRunnerId: new Map(
+        boundJobs.map((job) => [job.provisionedRunnerId, job]),
+      ),
+      absentIds,
+      reservationsReleased,
+    };
+  });
+}
+
 async function releaseTerminalProvisionedRunnerReservations(
   tx: Tx,
   params: ReportProvisionedRunnersParams,
@@ -154,6 +270,23 @@ async function releaseTerminalProvisionedRunnerReservations(
 ): Promise<number> {
   const terminalEvents = events.filter((event) => isTerminalState(event.state));
   if (terminalEvents.length === 0) return 0;
+
+  return await releaseTerminalProvisionedRunnerReservationsByIds(tx, {
+    workspaceId: params.workspaceId,
+    provisionerId: params.provisionerId,
+    provisionedRunnerIds: terminalEvents.map((event) => event.provisionedRunnerId),
+  });
+}
+
+async function releaseTerminalProvisionedRunnerReservationsByIds(
+  tx: Tx,
+  params: {
+    workspaceId: string;
+    provisionerId: string;
+    provisionedRunnerIds: string[];
+  },
+): Promise<number> {
+  if (params.provisionedRunnerIds.length === 0) return 0;
 
   const rows = await tx
     .select({
@@ -165,10 +298,7 @@ async function releaseTerminalProvisionedRunnerReservations(
       and(
         eq(provisionedRunners.workspaceId, params.workspaceId),
         eq(provisionedRunners.provisionerId, params.provisionerId),
-        inArray(
-          provisionedRunners.provisionedRunnerId,
-          terminalEvents.map((event) => event.provisionedRunnerId),
-        ),
+        inArray(provisionedRunners.provisionedRunnerId, params.provisionedRunnerIds),
         inArray(provisionedRunners.state, terminalStates),
         isNotNull(provisionedRunners.reservationId),
         isNull(provisionedRunners.runnerSessionId),

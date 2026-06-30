@@ -1,4 +1,8 @@
-import type {ActiveRunner, ReportProvisionedRunnersResult} from '#core/provisioned-runners.js';
+import type {
+  ActiveRunner,
+  ReconcileProvisionedRunnersResult,
+  ReportProvisionedRunnersResult,
+} from '#core/provisioned-runners.js';
 
 export function toReportProvisionedRunnersResponseDto(result: ReportProvisionedRunnersResult): {
   accepted: number;
@@ -7,6 +11,45 @@ export function toReportProvisionedRunnersResponseDto(result: ReportProvisionedR
   return {
     accepted: result.accepted,
     reservations_released: result.reservationsReleased,
+  };
+}
+
+export function toReconcileProvisionedRunnersResponseDto(
+  result: ReconcileProvisionedRunnersResult,
+): {
+  runners: Array<{
+    provisioned_runner_id: string;
+    state: ReconcileProvisionedRunnersResult['runners'][number]['state'];
+    reservation_id: string | null;
+    runner_session_id: string | null;
+    bound_job: {
+      job_id: string;
+      run_id: string;
+      last_heartbeat_at: string;
+      cancellation_requested_at: string | null;
+    } | null;
+    desired_intent: ReconcileProvisionedRunnersResult['runners'][number]['desiredIntent'];
+  }>;
+  terminated_absent_provisioned_runner_ids: string[];
+} {
+  return {
+    runners: result.runners.map((runner) => ({
+      provisioned_runner_id: runner.provisionedRunnerId,
+      state: runner.state,
+      reservation_id: runner.reservationId,
+      runner_session_id: runner.runnerSessionId,
+      bound_job: runner.boundJob
+        ? {
+            job_id: runner.boundJob.jobId,
+            run_id: runner.boundJob.runId,
+            last_heartbeat_at: runner.boundJob.lastHeartbeatAt.toISOString(),
+            cancellation_requested_at:
+              runner.boundJob.cancellationRequestedAt?.toISOString() ?? null,
+          }
+        : null,
+      desired_intent: runner.desiredIntent,
+    })),
+    terminated_absent_provisioned_runner_ids: result.terminatedAbsentProvisionedRunnerIds,
   };
 }
 

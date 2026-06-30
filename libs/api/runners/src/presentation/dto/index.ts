@@ -6,6 +6,7 @@ export {
 export {toPollDemandResponseDto} from './poll-demand.js';
 export {
   toActiveRunnersResponseDto,
+  toReconcileProvisionedRunnersResponseDto,
   toReportProvisionedRunnersResponseDto,
 } from './provisioned-runners.js';
 export {toProvisionerTokenDto} from './provisioner-token.js';

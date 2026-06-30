@@ -3,9 +3,10 @@ import {
   listActiveProvisionedRunners,
   listActiveRunningJobs,
   type ProvisionedRunnerReportEvent,
+  reconcileProvisionedRunners as reconcileProvisionedRunnersDb,
   reportProvisionedRunners as reportProvisionedRunnersDb,
 } from '#db/index.js';
-import type {ActiveRunningJob} from '#db/jobs.js';
+import type {ActiveRunningJob, ProvisionedRunnerBoundJob} from '#db/jobs.js';
 import {provisionedRunnerReportCount, reservationReleasedCount} from '#metrics/instance.js';
 import {config} from '../config.js';
 
@@ -18,6 +19,35 @@ export interface ReportProvisionedRunnersParams {
 export interface ReportProvisionedRunnersResult {
   accepted: number;
   reservationsReleased: number;
+}
+
+export interface ReconcileProvisionedRunnersParams {
+  workspaceId: string;
+  provisionerId: string;
+  observedProvisionedRunnerIds: string[];
+}
+
+export type ReconcileDesiredIntent = 'keep' | 'terminate';
+
+export interface ReconciledBoundJob {
+  jobId: string;
+  runId: string;
+  lastHeartbeatAt: Date;
+  cancellationRequestedAt: Date | null;
+}
+
+export interface ReconciledProvisionedRunner {
+  provisionedRunnerId: string;
+  state: ProvisionedRunnerState | null;
+  reservationId: string | null;
+  runnerSessionId: string | null;
+  boundJob: ReconciledBoundJob | null;
+  desiredIntent: ReconcileDesiredIntent;
+}
+
+export interface ReconcileProvisionedRunnersResult {
+  runners: ReconciledProvisionedRunner[];
+  terminatedAbsentProvisionedRunnerIds: string[];
 }
 
 export type ActiveRunnerState = 'starting' | 'running' | 'stopping' | 'busy';
@@ -50,6 +80,50 @@ export async function reportProvisionedRunners(
   return result;
 }
 
+export async function reconcileProvisionedRunners(
+  params: ReconcileProvisionedRunnersParams,
+): Promise<ReconcileProvisionedRunnersResult> {
+  const result = await reconcileProvisionedRunnersDb({
+    ...params,
+    terminateGraceSeconds: config.RUNNER_RECONCILE_TERMINATE_GRACE_SECONDS,
+  });
+
+  if (result.reservationsReleased > 0) reservationReleasedCount.add(result.reservationsReleased);
+
+  return {
+    runners: reconcileProvisionedRunnersFromDbResult({
+      observedProvisionedRunnerIds: params.observedProvisionedRunnerIds,
+      observedRows: result.observedRows,
+      boundJobsByProvisionedRunnerId: result.boundJobsByProvisionedRunnerId,
+    }),
+    terminatedAbsentProvisionedRunnerIds: result.absentIds,
+  };
+}
+
+export function reconcileProvisionedRunnersFromDbResult(params: {
+  observedProvisionedRunnerIds: string[];
+  observedRows: ProvisionedRunner[];
+  boundJobsByProvisionedRunnerId: Map<string, ProvisionedRunnerBoundJob>;
+}): ReconciledProvisionedRunner[] {
+  const rowsByProvisionedRunnerId = new Map(
+    params.observedRows.map((row) => [row.provisionedRunnerId, row]),
+  );
+
+  return params.observedProvisionedRunnerIds.map((provisionedRunnerId) => {
+    const row = rowsByProvisionedRunnerId.get(provisionedRunnerId);
+    const boundJob = params.boundJobsByProvisionedRunnerId.get(provisionedRunnerId);
+
+    return {
+      provisionedRunnerId,
+      state: row?.state ?? null,
+      reservationId: row?.reservationId ?? null,
+      runnerSessionId: row?.runnerSessionId ?? null,
+      boundJob: boundJob ? toReconciledBoundJob(boundJob) : null,
+      desiredIntent: row ? desiredIntentForState(row.state) : 'keep',
+    };
+  });
+}
+
 export async function listActiveRunners(params: {workspaceId: string}): Promise<ActiveRunner[]> {
   const [provisionedRunnerRows, jobRows] = await Promise.all([
     listActiveProvisionedRunners({
@@ -63,6 +137,20 @@ export async function listActiveRunners(params: {workspaceId: string}): Promise<
   ]);
 
   return mergeActiveRunners(provisionedRunnerRows, jobRows);
+}
+
+function toReconciledBoundJob(job: ProvisionedRunnerBoundJob): ReconciledBoundJob {
+  return {
+    jobId: job.jobId,
+    runId: job.runId,
+    lastHeartbeatAt: job.lastHeartbeatAt,
+    cancellationRequestedAt: job.cancellationRequestedAt,
+  };
+}
+
+function desiredIntentForState(state: ProvisionedRunnerState): ReconcileDesiredIntent {
+  if (state === 'starting' || state === 'running' || state === 'stopping') return 'keep';
+  return 'terminate';
 }
 
 function mergeActiveRunners(
