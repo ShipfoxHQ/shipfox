@@ -123,6 +123,18 @@ export const ConfigureModalOpen: Story = {
   },
 };
 
+export const WorkflowExampleModalOpen: Story = {
+  args: {scenario: 'mixed'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole('button', {name: 'Open Anthropic provider actions'}),
+    );
+    await userEvent.click(await screen.findByRole('menuitem', {name: 'View workflow example'}));
+    await screen.findByRole('dialog', {name: 'Use Anthropic in a workflow'});
+  },
+};
+
 function fetchForScenario(scenario: Scenario): typeof fetch {
   return (input) => {
     const url = requestUrl(input);

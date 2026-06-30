@@ -166,6 +166,9 @@ describe('AgentProviderOnboardingPage', () => {
       }),
     );
     expect(onConfigured).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole('dialog', {name: 'Use OpenAI in a workflow'}),
+    ).not.toBeInTheDocument();
   });
 
   test('keeps skip available when the catalog fails to load', async () => {

@@ -37,7 +37,7 @@ export function AgentProviderTestAndSaveForm({
   workspaceId: string;
   entry: AgentProviderCatalogEntryDto;
   existingConfig?: AgentProviderConfigDto | undefined;
-  onSaved: () => void;
+  onSaved: (savedDefaultModel: string | null) => void;
   setAsDefaultOnSave?: boolean | undefined;
 }) {
   const upsertConfig = useUpsertAgentProviderConfigMutation();
@@ -68,7 +68,7 @@ export function AgentProviderTestAndSaveForm({
             ...(setAsDefaultOnSave ? {set_as_default: true} : {}),
           },
         });
-        onSaved();
+        onSaved(selectedModelForCredentialsPayload(selectedModel));
       } catch (error) {
         const mapped = agentProviderConfigErrorToFormError(error);
         setFormError(mapped.message);
