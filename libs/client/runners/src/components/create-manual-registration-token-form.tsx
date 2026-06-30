@@ -31,12 +31,22 @@ import {manualRegistrationTokenCreateErrorToFormError} from './form-errors.js';
 
 export const CREATE_RUNNER_TOKEN_FORM_ID = 'create-manual-registration-token-form';
 
-export type ManualRegistrationTokenExpirationOption = '3600' | '86400' | '604800' | 'never';
+export type ManualRegistrationTokenExpirationOption =
+  | '86400'
+  | '604800'
+  | '2592000'
+  | '7776000'
+  | '15552000'
+  | '31536000'
+  | 'never';
 
 const expirationOptions: Array<{value: ManualRegistrationTokenExpirationOption; label: string}> = [
-  {value: '3600', label: '1 hour'},
   {value: '86400', label: '1 day'},
   {value: '604800', label: '7 days'},
+  {value: '2592000', label: '30 days'},
+  {value: '7776000', label: '90 days'},
+  {value: '15552000', label: '180 days'},
+  {value: '31536000', label: '1 year'},
   {value: 'never', label: 'Never'},
 ];
 
