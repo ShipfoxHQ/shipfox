@@ -1,15 +1,20 @@
 import type {
   AgentProviderApi,
+  AgentProviderRef,
   AgentThinking,
   CustomAgentModelDto,
   CustomProviderHeaderDto,
-  SupportedAgentProviderId,
 } from '@shipfox/api-agent-dto';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
-import {check, jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {check, jsonb, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {AgentProviderConfig} from '#core/entities/agent-provider-config.js';
 import {pgTable} from './common.js';
+
+export const agentProviderConfigKindEnum = pgEnum('agent_provider_config_kind', [
+  'builtin',
+  'custom',
+]);
 
 export const agentProviderConfigs = pgTable(
   'provider_configs',
@@ -17,7 +22,7 @@ export const agentProviderConfigs = pgTable(
     id: uuidv7PrimaryKey(),
     workspaceId: uuid('workspace_id').notNull(),
     providerId: text('provider_id').notNull(),
-    kind: text('kind').$type<'builtin' | 'custom'>().notNull().default('builtin'),
+    kind: agentProviderConfigKindEnum('kind').notNull().default('builtin'),
     displayName: text('display_name'),
     api: text('api').$type<AgentProviderApi>(),
     baseUrl: text('base_url'),
@@ -49,7 +54,7 @@ export function toAgentProviderConfig(row: AgentProviderConfigDb): AgentProvider
   return {
     id: row.id,
     workspaceId: row.workspaceId,
-    providerId: row.providerId as SupportedAgentProviderId,
+    providerId: row.providerId as AgentProviderRef,
     kind: row.kind,
     displayName: row.displayName,
     api: row.api,

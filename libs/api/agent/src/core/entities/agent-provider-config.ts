@@ -1,15 +1,15 @@
 import type {
   AgentProviderApi,
+  AgentProviderRef,
   AgentThinking,
   CustomAgentModelDto,
   CustomProviderHeaderDto,
-  SupportedAgentProviderId,
 } from '@shipfox/api-agent-dto';
 
 export interface AgentProviderConfig {
   id: string;
   workspaceId: string;
-  providerId: SupportedAgentProviderId;
+  providerId: AgentProviderRef;
   kind: 'builtin' | 'custom';
   displayName: string | null;
   api: AgentProviderApi | null;

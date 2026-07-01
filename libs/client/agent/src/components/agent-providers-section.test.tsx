@@ -787,7 +787,9 @@ describe('WorkspaceAgentProvidersSection', () => {
       if (requestPath(input).endsWith('/agent/provider-catalog')) {
         return Promise.resolve(jsonResponse(agentProviderCatalogResponse([])));
       }
-      return Promise.resolve(jsonResponse(agentProviderConfigsResponse()));
+      return Promise.resolve(
+        jsonResponse(agentProviderConfigsResponse({default_provider_id: null})),
+      );
     });
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
@@ -795,6 +797,7 @@ describe('WorkspaceAgentProvidersSection', () => {
 
     expect(await screen.findByText('anthropic')).toBeVisible();
     await openProviderActions(user, 'anthropic');
+    expect(screen.getByRole('menuitem', {name: 'Set as default'})).toHaveAttribute('data-disabled');
     expect(screen.getByRole('menuitem', {name: 'Change default model'})).toHaveAttribute(
       'data-disabled',
     );

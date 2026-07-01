@@ -29,7 +29,7 @@
         },
         "kind": {
           "name": "kind",
-          "type": "text",
+          "type": "agent_provider_config_kind",
           "primaryKey": false,
           "notNull": true,
           "default": "'builtin'"
@@ -178,7 +178,13 @@
       "isRLSEnabled": false
     }
   },
-  "enums": {},
+  "enums": {
+    "public.agent_provider_config_kind": {
+      "name": "agent_provider_config_kind",
+      "schema": "public",
+      "values": ["builtin", "custom"]
+    }
+  },
   "schemas": {},
   "sequences": {},
   "roles": {},

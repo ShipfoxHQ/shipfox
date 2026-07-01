@@ -359,6 +359,8 @@ function ConfiguredProviderRow({
   const label = entry?.label ?? config.provider_id;
 
   async function handleSetDefault() {
+    if (!entry) return;
+
     setDefaultError(undefined);
     try {
       await setDefault.mutateAsync({
@@ -430,7 +432,7 @@ function ConfiguredProviderRow({
             {!isDefault ? (
               <DropdownMenuItem
                 icon="starLine"
-                disabled={setDefault.isPending}
+                disabled={setDefault.isPending || !entry}
                 onSelect={() => {
                   void handleSetDefault();
                 }}

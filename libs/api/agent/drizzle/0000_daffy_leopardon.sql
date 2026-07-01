@@ -1,8 +1,9 @@
+CREATE TYPE "public"."agent_provider_config_kind" AS ENUM('builtin', 'custom');--> statement-breakpoint
 CREATE TABLE "agent_provider_configs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"provider_id" text NOT NULL,
-	"kind" text DEFAULT 'builtin' NOT NULL,
+	"kind" "agent_provider_config_kind" DEFAULT 'builtin' NOT NULL,
 	"display_name" text,
 	"api" text,
 	"base_url" text,

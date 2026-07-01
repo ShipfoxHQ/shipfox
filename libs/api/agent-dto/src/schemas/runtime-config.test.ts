@@ -31,6 +31,18 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
     expect(parsed.custom_provider?.api).toBe('openai-responses');
   });
 
+  it('rejects custom provider runtime credentials without a custom provider descriptor', () => {
+    const parse = () =>
+      agentRuntimeCredentialsResponseSchema.parse({
+        provider_id: 'local-vllm',
+        model: 'llama-3.1',
+        thinking: 'high',
+        credentials: {api_key: 'secret'},
+      });
+
+    expect(parse).toThrow();
+  });
+
   it('rejects a response without a model', () => {
     const parse = () =>
       agentRuntimeCredentialsResponseSchema.parse({

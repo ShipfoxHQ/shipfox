@@ -204,7 +204,7 @@ describe('custom provider schemas', () => {
 
     expect(parsed.secret_header_names).toEqual(['authorization']);
     expect(parsed.key_fingerprints).toEqual({'credential:api_key': 'sk-test...abcd'});
-    expect(secretFingerprint).toThrow();
+    expect(secretFingerprint).not.toThrow();
   });
 });
 
