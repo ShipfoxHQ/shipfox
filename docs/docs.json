@@ -8,6 +8,10 @@
     "dark": "#1A0F0B"
   },
   "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
   "navigation": {
     "tabs": [
       {
@@ -16,69 +20,6 @@
           {
             "group": "Get Started",
             "pages": ["introduction", "getting-started"]
-          },
-          {
-            "group": "Core Concepts",
-            "pages": [
-              "concepts/workflows",
-              "concepts/jobs-steps",
-              "concepts/gates",
-              "concepts/triggers",
-              "concepts/runners",
-              "concepts/runner-provisioners",
-              "concepts/logging",
-              "concepts/event-driven-jobs"
-            ]
-          },
-          {
-            "group": "Integrations",
-            "pages": [
-              "integrations/overview",
-              "integrations/github",
-              "integrations/sentry",
-              "integrations/webhooks"
-            ]
-          },
-          {
-            "group": "Guides",
-            "pages": [
-              "guides/checks-on-push",
-              "guides/agent-steps",
-              "guides/gate-and-retry",
-              "guides/multi-job-pipeline",
-              "guides/model-providers"
-            ]
-          },
-          {
-            "group": "AI Assistance",
-            "pages": ["ai/overview", "ai/authoring-prompt", "ai/skills-package"]
-          },
-          {
-            "group": "Reference",
-            "pages": [
-              "reference/workflow-schema",
-              "reference/trigger-sources",
-              "reference/step-types",
-              "reference/expressions",
-              "reference/model-providers",
-              "reference/rest-api",
-              "reference/glossary"
-            ]
-          },
-          {
-            "group": "Installation",
-            "pages": [
-              "installation",
-              "installation/local",
-              "installation/self-hosting",
-              "installation/aws",
-              "installation/kubernetes",
-              "installation/cloud"
-            ]
-          },
-          {
-            "group": "Help",
-            "pages": ["troubleshooting", "faq"]
           }
         ]
       }
