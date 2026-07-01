@@ -84,10 +84,6 @@ export class Job {
     return this.name || this.key;
   }
 
-  get listenerArmed(): boolean {
-    return this.mode === 'listening' && this.listenerStatus === 'listening';
-  }
-
   get displayDuration(): JobDisplayDuration | null {
     if (this.mode === 'listening') return null;
     return this.jobExecutions[0]?.displayDuration ?? null;

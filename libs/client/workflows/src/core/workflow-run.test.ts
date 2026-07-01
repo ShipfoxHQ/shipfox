@@ -14,6 +14,7 @@ import {
   toWorkflowRun,
   toWorkflowRunAttempt,
   toWorkflowRunDetail,
+  toWorkflowRunListItem,
   toWorkflowRunListPage,
   workflowRunShortId,
   workflowRunTriggerDisplayLabel,
@@ -49,7 +50,6 @@ describe('workflow run model mapping', () => {
       projectId: '44444444-4444-4444-8444-444444444444',
       definitionId: '55555555-5555-4555-8555-555555555555',
       name: 'deploy-web',
-      status: 'running',
       currentAttempt: 3,
       triggerProvider: 'github',
       triggerSource: 'github_acme',
@@ -61,11 +61,12 @@ describe('workflow run model mapping', () => {
       sourceSnapshot: {format: 'yaml', content: 'jobs: {}'},
       createdAt: '2026-05-07T01:01:00.000Z',
       updatedAt: '2026-05-07T01:02:00.000Z',
-      startedAt: '2026-05-07T01:01:10.000Z',
-      finishedAt: null,
       shortId: '66666666',
       isTemporary: false,
     });
+    expect(run).not.toHaveProperty('status');
+    expect(run).not.toHaveProperty('startedAt');
+    expect(run).not.toHaveProperty('finishedAt');
   });
 
   test('normalizes missing nullable fields and marks temporary optimistic runs', () => {
@@ -88,10 +89,26 @@ describe('workflow run model mapping', () => {
       triggerLabel: '',
       inputs: null,
       sourceSnapshot: null,
-      startedAt: null,
-      finishedAt: null,
       shortId: 'temp-123',
       isTemporary: true,
+    });
+  });
+
+  test('maps run list projection fields from the current attempt mirror', () => {
+    const dto = workflowRunDto({
+      status: 'running',
+      latest_attempt: 4,
+      started_at: '2026-05-07T01:01:10.000Z',
+      finished_at: null,
+    });
+
+    const run = toWorkflowRunListItem(dto);
+
+    expect(run).toMatchObject({
+      status: 'running',
+      latestAttempt: 4,
+      startedAt: '2026-05-07T01:01:10.000Z',
+      finishedAt: null,
     });
   });
 
@@ -213,7 +230,6 @@ describe('workflow run model mapping', () => {
     });
     expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]).toMatchObject({
       id: '55555555-5555-4555-8555-000000000001',
-      jobId: '44444444-4444-4444-8444-000000000001',
       jobExecutionId: detail.jobs[0]?.jobExecutions[0]?.id,
       key: null,
       name: 'Run tests',
@@ -258,6 +274,19 @@ describe('workflow run model mapping', () => {
       },
       listener_status: 'listening',
       resolution_reason: null,
+      job_executions: [
+        workflowJobExecutionDto({
+          trigger_events: [
+            {
+              source: 'github',
+              event: 'deployment_status',
+              delivery_id: 'delivery-1',
+              received_at: '2026-05-07T01:00:00.000Z',
+              data: {state: 'success'},
+            },
+          ],
+        }),
+      ],
     });
     const dto = workflowRunDetailDto({jobs: [job]});
 
@@ -279,7 +308,17 @@ describe('workflow run model mapping', () => {
       listenerStatus: 'listening',
       resolutionReason: null,
     });
-    expect(detail.jobs[0]?.listenerArmed).toBe(true);
+    expect(detail.jobs[0]?.jobExecutions[0]).toMatchObject({
+      triggerEvents: [
+        {
+          source: 'github',
+          event: 'deployment_status',
+          delivery_id: 'delivery-1',
+          received_at: '2026-05-07T01:00:00.000Z',
+          data: {state: 'success'},
+        },
+      ],
+    });
     expect(detail.jobs[0]?.displayDuration).toBeNull();
   });
 
@@ -389,8 +428,6 @@ describe('workflow run model mapping', () => {
     expect(detail).toMatchObject({
       inputs: null,
       sourceSnapshot: null,
-      startedAt: null,
-      finishedAt: null,
     });
     expect(detail.jobs[0]?.displayDuration).toBeNull();
     expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]).toMatchObject({

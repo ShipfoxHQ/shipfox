@@ -1,5 +1,5 @@
 import {QueryLoadError} from '@shipfox/client-ui';
-import type {WorkflowRun} from '#core/workflow-run.js';
+import type {WorkflowRunListItem} from '#core/workflow-run.js';
 import type {WorkflowRunsListQuery} from './types.js';
 import {WorkflowRunRowList} from './workflow-run-row.js';
 import {
@@ -12,7 +12,7 @@ import {
 interface WorkflowRunsListContentProps {
   query: WorkflowRunsListQuery;
   totalRuns: number;
-  runs: WorkflowRun[];
+  runs: WorkflowRunListItem[];
   workspaceId: string;
   projectId: string;
   selectedWorkflowRunId?: string | undefined;

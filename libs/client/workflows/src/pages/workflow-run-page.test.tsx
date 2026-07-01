@@ -32,6 +32,7 @@ const DEPLOY_ATTEMPT_TWO_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000002';
 const DEPLOY_EXECUTION_ONE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-000000000001';
 const DEPLOY_EXECUTION_TWO_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-000000000002';
 const SMOKE_WEB_RE = /smoke-web/u;
+const EXECUTION_ONE_MENU_ITEM_PATTERN = /#1/;
 const RUN_DETAIL_PATH_RE = /^\/workflows\/runs\/([^/]+)$/u;
 const RUN_OVERRIDES = {
   id: RUN_ID,
@@ -140,7 +141,7 @@ describe('WorkflowRunPage', () => {
     });
   });
 
-  test('selecting an execution writes job execution search state and scopes step selection', async () => {
+  test('selecting a listening execution writes job execution search state and scopes step selection', async () => {
     const user = userEvent.setup();
     configureApiClient({
       fetchImpl: createRunDetailFetch({details: {[RUN_ID]: retryRunDetailDto()}}),
@@ -149,9 +150,10 @@ describe('WorkflowRunPage', () => {
 
     await user.click(
       await screen.findByRole('button', {
-        name: 'deploy execution 1, failed, not selected',
+        name: 'Switch job execution, currently execution 2',
       }),
     );
+    await user.click(screen.getByRole('menuitem', {name: EXECUTION_ONE_MENU_ITEM_PATTERN}));
 
     await waitFor(() => {
       expect(currentSearch(router)).toMatchObject({
@@ -450,7 +452,9 @@ function retryRunDetailDto(): WorkflowRunDetailResponseDto {
         id: DEPLOY_JOB_ID,
         run_attempt_id: RUN_ID,
         name: 'deploy',
+        mode: 'listening',
         status: 'running',
+        listener_status: 'listening',
         position: 1,
         dependencies: ['build'],
         job_executions: [

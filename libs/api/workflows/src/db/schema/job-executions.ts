@@ -1,7 +1,7 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {index, integer, jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import {toJobStatusReason} from '#core/entities/job.js';
-import type {JobExecution} from '#core/entities/job-execution.js';
+import type {JobExecution, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
 import {pgTable} from './common.js';
 import {jobStatusReasonEnum, jobs} from './jobs.js';
 
@@ -24,7 +24,7 @@ export const jobExecutions = pgTable(
     name: text('name').notNull(),
     status: jobExecutionStatusEnum('status').notNull().default('pending'),
     statusReason: jobStatusReasonEnum('status_reason'),
-    triggerEvents: jsonb('trigger_events').notNull().default([]).$type<unknown[]>(),
+    triggerEvents: jsonb('trigger_events').notNull().default([]).$type<WorkflowExecutionEvent[]>(),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),

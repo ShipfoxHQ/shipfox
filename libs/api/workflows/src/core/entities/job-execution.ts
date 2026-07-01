@@ -2,6 +2,14 @@ import type {JobStatus, JobStatusReason} from './job.js';
 
 export type JobExecutionStatus = Exclude<JobStatus, 'skipped'>;
 
+export interface WorkflowExecutionEvent {
+  source: string;
+  event: string;
+  delivery_id: string;
+  received_at: string;
+  data: unknown;
+}
+
 export interface JobExecution {
   id: string;
   jobId: string;
@@ -9,7 +17,7 @@ export interface JobExecution {
   name: string;
   status: JobExecutionStatus;
   statusReason: JobStatusReason | null;
-  triggerEvents: unknown[];
+  triggerEvents: WorkflowExecutionEvent[];
   version: number;
   createdAt: Date;
   updatedAt: Date;

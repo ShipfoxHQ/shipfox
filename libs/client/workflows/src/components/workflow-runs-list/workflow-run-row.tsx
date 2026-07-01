@@ -1,8 +1,16 @@
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
-import {Code, cn, RelativeTime, Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui';
+import {
+  Code,
+  cn,
+  RelativeTime,
+  Text,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
-import type {WorkflowRun} from '#core/workflow-run.js';
+import type {WorkflowRunListItem} from '#core/workflow-run.js';
 import {withoutWorkflowRunSelectionSearch} from '#core/workflow-run-url-state.js';
 
 export function WorkflowRunRowList({
@@ -11,7 +19,7 @@ export function WorkflowRunRowList({
   projectId,
   selectedWorkflowRunId,
 }: {
-  runs: WorkflowRun[];
+  runs: WorkflowRunListItem[];
   workspaceId: string;
   projectId: string;
   selectedWorkflowRunId?: string | undefined;
@@ -40,7 +48,7 @@ export function WorkflowRunRow({
   projectId,
   selected,
 }: {
-  run: WorkflowRun;
+  run: WorkflowRunListItem;
   workspaceId: string;
   projectId: string;
   selected: boolean;
@@ -70,9 +78,10 @@ export function WorkflowRunRow({
             <span className="sr-only">Run updated </span>
           </span>
         )}
-        <Code variant="label" className="shrink-0 text-foreground-neutral-disabled">
-          <RelativeTime value={run.updatedAt} />
-        </Code>
+        <RelativeTime
+          value={run.updatedAt}
+          className="shrink-0 whitespace-nowrap text-xs leading-20 text-foreground-neutral-disabled"
+        />
       </div>
     </>
   );
@@ -110,7 +119,7 @@ export function WorkflowRunRow({
   return runLink;
 }
 
-function TriggerLabel({run}: {run: WorkflowRun}) {
+function TriggerLabel({run}: {run: WorkflowRunListItem}) {
   return (
     <span className="flex min-w-0 flex-1 items-center">
       <Tooltip>
@@ -122,9 +131,9 @@ function TriggerLabel({run}: {run: WorkflowRun}) {
               aria-hidden
               className="size-14 shrink-0 text-foreground-neutral-muted"
             />
-            <Code variant="label" className="min-w-0 truncate text-foreground-neutral-subtle">
+            <Text as="span" size="xs" className="min-w-0 truncate text-foreground-neutral-subtle">
               {run.triggerDisplayLabel}
-            </Code>
+            </Text>
           </span>
         </TooltipTrigger>
         <TriggerTooltip label={run.triggerLabel} />
@@ -136,9 +145,9 @@ function TriggerLabel({run}: {run: WorkflowRun}) {
 function TriggerTooltip({label}: {label: string}) {
   return (
     <TooltipContent>
-      <Code as="span" variant="label" className="block max-w-[360px] break-words">
+      <Text as="span" size="xs" className="block max-w-[360px] break-words">
         {label}
-      </Code>
+      </Text>
     </TooltipContent>
   );
 }

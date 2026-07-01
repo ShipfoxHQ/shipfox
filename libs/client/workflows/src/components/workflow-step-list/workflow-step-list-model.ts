@@ -70,6 +70,7 @@ function emptyJobExecutionForJob(job: Job): JobExecution {
     name: job.name ?? job.key,
     status: job.status === 'skipped' ? 'cancelled' : job.status,
     statusReason: job.statusReason,
+    triggerEvents: [],
     queuedAt: null,
     startedAt: null,
     finishedAt: null,
@@ -143,7 +144,6 @@ function toStepEntries(step: StepModel, carriedOverJob: boolean): WorkflowStepLi
     {
       id: `carried-over:${step.id}`,
       stepId: step.id,
-      jobId: step.jobId,
       jobExecutionId: step.jobExecutionId,
       attempt: step.currentAttempt,
       executionOrder: step.position,

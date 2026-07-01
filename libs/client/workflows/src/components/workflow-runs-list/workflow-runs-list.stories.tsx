@@ -2,8 +2,8 @@ import {Code} from '@shipfox/react-ui';
 import type {Meta, StoryObj} from '@storybook/react';
 import type {ReactNode} from 'react';
 import {expect, userEvent, within} from 'storybook/test';
-import type {WorkflowRun, WorkflowRunStatus} from '#core/workflow-run.js';
-import {sequencedWorkflowRun} from '#test/fixtures/workflow-run.js';
+import type {WorkflowRunListItem, WorkflowRunStatus} from '#core/workflow-run.js';
+import {sequencedWorkflowRunListItem} from '#test/fixtures/workflow-run.js';
 import type {WorkflowRunsListQuery} from './types.js';
 import {WorkflowRunsListView} from './workflow-runs-list-view.js';
 
@@ -21,11 +21,11 @@ function makeQuery(overrides: Partial<WorkflowRunsListQuery> = {}): WorkflowRuns
   };
 }
 
-function makeRun(status: WorkflowRunStatus, name: string, minutesAgo: number): WorkflowRun {
-  return sequencedWorkflowRun(status, name, minutesAgo);
+function makeRun(status: WorkflowRunStatus, name: string, minutesAgo: number): WorkflowRunListItem {
+  return sequencedWorkflowRunListItem(status, name, minutesAgo);
 }
 
-const SAMPLE_RUNS: WorkflowRun[] = [
+const SAMPLE_RUNS: WorkflowRunListItem[] = [
   makeRun('running', 'deploy-web', 1),
   makeRun('failed', 'integration-tests', 4),
   makeRun('succeeded', 'build-image', 12),

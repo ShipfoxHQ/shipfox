@@ -8,38 +8,7 @@ import {WorkflowJobNode} from './workflow-job-node.js';
 
 const statuses: JobStatus[] = ['pending', 'running', 'succeeded', 'failed', 'cancelled', 'skipped'];
 const ignoreKeyDown: KeyboardEventHandler<HTMLButtonElement> = () => undefined;
-const storyNodes = [
-  ...statuses.map((status, index) =>
-    makeNode({
-      id: `job-${status}`,
-      label: `${status}-job`,
-      status,
-      position: index,
-      dependencies: index === 0 ? [] : ['build'],
-    }),
-  ),
-  makeNode({
-    id: 'job-long-name',
-    label: 'release-production-multi-region-with-canary-and-smoke-tests',
-    status: 'pending',
-    position: 5,
-    dependencies: [],
-  }),
-  makeNode({
-    id: 'job-multiple-dependencies',
-    label: 'deploy',
-    status: 'pending',
-    position: 6,
-    dependencies: ['build', 'lint'],
-  }),
-  makeNode({
-    id: 'job-no-dependencies',
-    label: 'manual-approval',
-    status: 'succeeded',
-    position: 7,
-    dependencies: [],
-  }),
-];
+const statusModes: WorkflowRunJobDetailDto['mode'][] = ['one_shot', 'listening'];
 
 const meta = {
   title: 'Workflows/WorkflowJobNode',
@@ -76,15 +45,29 @@ export const Playground: Story = {
 
 export const Statuses: Story = {
   render: () => (
-    <div className="grid w-720 grid-cols-2 gap-12">
-      {storyNodes.map((node) => (
-        <WorkflowJobNode
-          key={node.id}
-          node={node}
-          selected={node.status === 'running'}
-          onSelect={() => undefined}
-          onKeyDown={ignoreKeyDown}
-        />
+    <div className="grid w-440 grid-cols-2 gap-18">
+      {statusModes.map((mode) => (
+        <div key={mode} className="flex flex-col gap-12">
+          <span className="font-code text-xs text-foreground-neutral-muted">{mode}</span>
+          {statuses.map((status, row) => (
+            <WorkflowJobNode
+              key={`${mode}-${status}`}
+              node={makeNode({
+                id: `job-${mode}-${status}`,
+                label: status,
+                mode,
+                status,
+                listenerStatus:
+                  mode === 'listening' && status === 'running' ? 'listening' : undefined,
+                position: row,
+                dependencies: [],
+              })}
+              selected={false}
+              onSelect={() => undefined}
+              onKeyDown={ignoreKeyDown}
+            />
+          ))}
+        </div>
       ))}
     </div>
   ),
@@ -98,8 +81,8 @@ const FINISHED_AT = '2026-06-26T12:00:00.000Z'; // started→finished span 2m 14
 
 const durationNodes = [
   makeNode({
-    id: 'job-queued',
-    label: 'queued-job',
+    id: 'job-queueing',
+    label: 'queueing',
     status: 'pending',
     position: 0,
     dependencies: [],
@@ -107,7 +90,7 @@ const durationNodes = [
   }),
   makeNode({
     id: 'job-running',
-    label: 'running-job',
+    label: 'running',
     status: 'running',
     position: 1,
     dependencies: [],
@@ -115,8 +98,8 @@ const durationNodes = [
     startedAt: STARTED_AT,
   }),
   makeNode({
-    id: 'job-finished',
-    label: 'finished-job',
+    id: 'job-ran',
+    label: 'ran',
     status: 'succeeded',
     position: 2,
     dependencies: [],
@@ -125,35 +108,35 @@ const durationNodes = [
     finishedAt: FINISHED_AT,
   }),
   makeNode({
-    id: 'job-skipped',
-    label: 'skipped-job',
-    status: 'skipped',
-    position: 3,
-    dependencies: [],
-  }),
-  makeNode({
     id: 'job-terminal-no-finish',
-    label: 'crashed-job',
+    label: 'terminal no finish',
     status: 'failed',
-    position: 4,
+    position: 3,
     dependencies: [],
     queuedAt: QUEUED_AT,
     startedAt: STARTED_AT,
   }),
   makeNode({
-    id: 'job-long-name-running',
-    label: 'release-production-multi-region-with-canary-and-smoke-tests',
-    status: 'running',
+    id: 'job-skipped',
+    label: 'skipped',
+    status: 'skipped',
+    position: 4,
+    dependencies: [],
+  }),
+  makeNode({
+    id: 'job-cancelled-before-start',
+    label: 'cancelled before start',
+    status: 'cancelled',
     position: 5,
     dependencies: [],
     queuedAt: QUEUED_AT,
-    startedAt: STARTED_AT,
+    finishedAt: FINISHED_AT,
   }),
 ];
 
-export const WithDurations: Story = {
+export const Durations: Story = {
   render: () => (
-    <div className="grid w-720 grid-cols-2 gap-12">
+    <div className="grid w-440 grid-cols-1 gap-12">
       {durationNodes.map((node) => (
         <WorkflowJobNode
           key={node.id}
@@ -169,11 +152,11 @@ export const WithDurations: Story = {
 
 export const ListeningProgression: Story = {
   render: () => (
-    <div className="grid w-720 grid-cols-2 gap-12">
+    <div className="grid w-440 grid-cols-1 gap-12">
       <WorkflowJobNode
         node={makeNode({
-          id: 'job-one-shot',
-          label: 'build',
+          id: 'job-completed-dependency',
+          label: 'completed dependency',
           status: 'succeeded',
           position: 0,
           dependencies: [],
@@ -185,7 +168,7 @@ export const ListeningProgression: Story = {
       <WorkflowJobNode
         node={makeNode({
           id: 'job-listening-pending',
-          label: 'no-events-yet',
+          label: 'pending listener',
           mode: 'listening',
           status: 'pending',
           position: 1,
@@ -199,8 +182,8 @@ export const ListeningProgression: Story = {
       />
       <WorkflowJobNode
         node={makeNode({
-          id: 'job-listening-armed',
-          label: 'deploy-window',
+          id: 'job-listening-running',
+          label: 'running, 0 executions',
           mode: 'listening',
           status: 'running',
           listenerStatus: 'listening',
@@ -217,7 +200,7 @@ export const ListeningProgression: Story = {
       <WorkflowJobNode
         node={makeNode({
           id: 'job-one-running-execution',
-          label: 'one-running',
+          label: 'running, 1 running execution',
           mode: 'listening',
           status: 'running',
           listenerStatus: 'listening',
@@ -234,7 +217,7 @@ export const ListeningProgression: Story = {
       <WorkflowJobNode
         node={makeNode({
           id: 'job-mixed-executions',
-          label: 'mixed-release-gates',
+          label: 'running, mixed executions',
           mode: 'listening',
           status: 'running',
           listenerStatus: 'listening',
@@ -257,35 +240,14 @@ export const ListeningProgression: Story = {
       />
       <WorkflowJobNode
         node={makeNode({
-          id: 'job-high-volume-executions',
-          label: 'high-volume-events',
-          mode: 'listening',
-          status: 'running',
-          listenerStatus: 'listening',
-          position: 5,
-          dependencies: [],
-          jobExecutions: makeExecutionsFromCounts('job-high-volume-executions', {
-            running: 12,
-            succeeded: 82,
-            failed: 6,
-          }),
-          queuedAt: QUEUED_AT,
-          startedAt: STARTED_AT,
-        })}
-        selected={false}
-        onSelect={() => undefined}
-        onKeyDown={ignoreKeyDown}
-      />
-      <WorkflowJobNode
-        node={makeNode({
-          id: 'job-all-success-executions',
-          label: 'all-success',
+          id: 'job-listener-succeeded',
+          label: 'resolved succeeded',
           mode: 'listening',
           status: 'succeeded',
           listenerStatus: 'resolved',
-          position: 6,
+          position: 5,
           dependencies: [],
-          jobExecutions: makeExecutionsByStatus('job-all-success-executions', [
+          jobExecutions: makeExecutionsByStatus('job-listener-succeeded', [
             'succeeded',
             'succeeded',
             'succeeded',
@@ -301,18 +263,18 @@ export const ListeningProgression: Story = {
       />
       <WorkflowJobNode
         node={makeNode({
-          id: 'job-failed-heavy-executions',
-          label: 'failed-heavy',
+          id: 'job-listener-failed',
+          label: 'resolved failed',
           mode: 'listening',
           status: 'failed',
           listenerStatus: 'resolved',
-          position: 7,
+          position: 6,
           dependencies: [],
-          jobExecutions: makeExecutionsFromCounts('job-failed-heavy-executions', {
-            running: 1,
-            succeeded: 3,
-            failed: 8,
-          }),
+          jobExecutions: makeExecutionsByStatus('job-listener-failed', [
+            'succeeded',
+            'failed',
+            'failed',
+          ]),
           queuedAt: QUEUED_AT,
           startedAt: STARTED_AT,
           finishedAt: FINISHED_AT,
@@ -378,17 +340,6 @@ function makeNode({
     row: position,
     currentDependencyCount: dependencies.length,
   });
-}
-
-function makeExecutionsFromCounts(
-  jobId: string,
-  counts: Partial<Record<'running' | 'succeeded' | 'failed', number>>,
-): WorkflowRunJobDetailDto['job_executions'] {
-  return makeExecutionsByStatus(jobId, [
-    ...Array.from<JobExecutionStatus>({length: counts.running ?? 0}).fill('running'),
-    ...Array.from<JobExecutionStatus>({length: counts.succeeded ?? 0}).fill('succeeded'),
-    ...Array.from<JobExecutionStatus>({length: counts.failed ?? 0}).fill('failed'),
-  ]);
 }
 
 function makeExecutionsByStatus(

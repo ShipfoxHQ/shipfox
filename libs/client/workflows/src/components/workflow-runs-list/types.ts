@@ -1,5 +1,5 @@
 import type {QueryLoadErrorQuery} from '@shipfox/client-ui';
-import type {WorkflowRun} from '#core/workflow-run.js';
+import type {WorkflowRunListItem} from '#core/workflow-run.js';
 
 export type RunsListStatusFilter = 'all' | 'failed' | 'running';
 
@@ -13,7 +13,7 @@ export interface WorkflowRunsListProps {
 export type WorkflowRunsListQuery = QueryLoadErrorQuery & {isPending: boolean};
 
 export interface WorkflowRunsListViewProps {
-  runs: WorkflowRun[];
+  runs: WorkflowRunListItem[];
   query: WorkflowRunsListQuery;
   workspaceId: string;
   projectId: string;

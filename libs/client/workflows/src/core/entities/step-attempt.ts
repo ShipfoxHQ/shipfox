@@ -10,7 +10,6 @@ export type StepRestartResult = StepRestartResultDto;
 export interface StepAttempt {
   id: string;
   stepId: string;
-  jobId: string;
   jobExecutionId: string;
   attempt: number;
   executionOrder: number;
@@ -25,15 +24,10 @@ export interface StepAttempt {
   finishedAt: string | null;
 }
 
-export function toStepAttempt(
-  dto: StepAttemptDto,
-  jobId: string,
-  jobExecutionId: string,
-): StepAttempt {
+export function toStepAttempt(dto: StepAttemptDto, jobExecutionId: string): StepAttempt {
   return {
     id: dto.id,
     stepId: dto.step_id,
-    jobId,
     jobExecutionId,
     attempt: dto.attempt,
     executionOrder: dto.execution_order,

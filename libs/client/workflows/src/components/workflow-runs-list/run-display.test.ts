@@ -1,15 +1,15 @@
-import {workflowRun} from '#test/fixtures/workflow-run.js';
+import {workflowRunListItem} from '#test/fixtures/workflow-run.js';
 import {runMatchesSearch, runMatchesStatusFilter} from './run-display.js';
 
 describe('runMatchesSearch', () => {
   test('matches every run on a blank query', () => {
-    const matches = runMatchesSearch(workflowRun(), '   ');
+    const matches = runMatchesSearch(workflowRunListItem(), '   ');
 
     expect(matches).toBe(true);
   });
 
   test('matches case-insensitively across id, name, status, and trigger', () => {
-    const run = workflowRun({
+    const run = workflowRunListItem({
       id: 'ABCD1234-X',
       name: 'Deploy Production',
       status: 'running',
@@ -25,7 +25,7 @@ describe('runMatchesSearch', () => {
   });
 
   test('returns false when nothing in the run contains the query', () => {
-    const matches = runMatchesSearch(workflowRun(), 'no-such-run');
+    const matches = runMatchesSearch(workflowRunListItem(), 'no-such-run');
 
     expect(matches).toBe(false);
   });

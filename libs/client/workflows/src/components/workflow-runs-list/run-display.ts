@@ -1,7 +1,7 @@
-import type {WorkflowRun, WorkflowRunStatus} from '#core/workflow-run.js';
+import type {WorkflowRunListItem, WorkflowRunStatus} from '#core/workflow-run.js';
 import type {RunsListStatusFilter} from './types.js';
 
-export function runMatchesSearch(run: WorkflowRun, query: string): boolean {
+export function runMatchesSearch(run: WorkflowRunListItem, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (needle === '') return true;
   const haystack = `${run.id} ${run.name} ${run.status} ${run.triggerLabel}`.toLowerCase();

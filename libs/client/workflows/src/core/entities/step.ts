@@ -33,7 +33,6 @@ export interface AgentStepConfig {
 
 export interface Step {
   id: string;
-  jobId: string;
   jobExecutionId: string;
   key: string | null;
   name: string;
@@ -50,10 +49,9 @@ export interface Step {
   attempts: StepAttempt[];
 }
 
-export function toStep(dto: WorkflowRunStepDetailDto, jobId: string): Step {
+export function toStep(dto: WorkflowRunStepDetailDto): Step {
   return {
     id: dto.id,
-    jobId,
     jobExecutionId: dto.job_execution_id,
     key: dto.key,
     name: dto.name,
@@ -67,7 +65,7 @@ export function toStep(dto: WorkflowRunStepDetailDto, jobId: string): Step {
     currentAttempt: dto.current_attempt,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
-    attempts: dto.attempts.map((attempt) => toStepAttempt(attempt, jobId, dto.job_execution_id)),
+    attempts: dto.attempts.map((attempt) => toStepAttempt(attempt, dto.job_execution_id)),
   };
 }
 

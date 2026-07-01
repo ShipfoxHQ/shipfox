@@ -200,9 +200,7 @@ describe('WorkflowJobNode duration', () => {
     renderNode(node);
 
     expect(screen.queryByText('2m 14s')).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('button', {name: 'deploy-window, Running, listener armed'}),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'deploy-window, Running'})).toBeInTheDocument();
   });
 });
 
@@ -218,7 +216,7 @@ describe('WorkflowJobNode listening indicator', () => {
     setVisibility('visible');
   });
 
-  test('shows the armed listener icon with tooltip for active listening jobs', async () => {
+  test('shows active listening jobs through the status icon', async () => {
     const user = userEvent.setup();
     const node = makeNode({
       name: 'deploy-window',
@@ -229,13 +227,12 @@ describe('WorkflowJobNode listening indicator', () => {
 
     renderNode(node);
 
-    expect(
-      screen.getByRole('button', {name: 'deploy-window, Running, listener armed'}),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'deploy-window, Running'})).toBeInTheDocument();
+    expect(screen.queryByLabelText('Waiting for events to start job')).not.toBeInTheDocument();
 
-    await user.hover(screen.getByLabelText('Waiting for events to start job'));
+    await user.hover(screen.getByRole('img', {name: 'Running'}));
 
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Waiting for events to start job');
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Running');
   });
 
   test('does not show the listener icon before the listener is armed or after it resolves', () => {
@@ -302,7 +299,7 @@ describe('WorkflowJobNode execution count indicator', () => {
     setVisibility('visible');
   });
 
-  test('shows a number-only badge with status segments for job executions', async () => {
+  test('shows a muted execution count with status tooltip', async () => {
     const user = userEvent.setup();
     const node = makeNode({
       name: 'release-gates',
@@ -323,14 +320,7 @@ describe('WorkflowJobNode execution count indicator', () => {
     const button = screen.getByRole('button', {name: 'release-gates, Running, 6 executions'});
     expect(within(button).getByText('6')).toBeInTheDocument();
     expect(within(button).queryByText('6 exec')).not.toBeInTheDocument();
-
-    const segments = button.querySelectorAll('[data-execution-status-segment]');
-    expect(
-      [...segments].map((segment) => segment.getAttribute('data-execution-status-segment')),
-    ).toEqual(['running', 'succeeded', 'failed']);
-    expect(segments[0]).toHaveStyle({height: '33.33333333333333%'});
-    expect(segments[1]).toHaveStyle({height: '50%'});
-    expect(segments[2]).toHaveStyle({height: '16.666666666666664%'});
+    expect(button.querySelector('[data-execution-status-segment]')).not.toBeInTheDocument();
 
     await user.hover(within(button).getByText('6'));
 
@@ -350,7 +340,6 @@ describe('WorkflowJobNode execution count indicator', () => {
     renderNode(node);
 
     const button = screen.getByRole('button', {name: 'release-gates, Pending'});
-    expect(button.querySelector('[data-execution-status-rail]')).not.toBeInTheDocument();
     expect(within(button).queryByText('0')).not.toBeInTheDocument();
   });
 });

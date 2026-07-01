@@ -1,4 +1,7 @@
-import type {WorkflowRunJobExecutionDetailDto} from '@shipfox/api-workflows-dto';
+import type {
+  WorkflowExecutionEventDto,
+  WorkflowRunJobExecutionDetailDto,
+} from '@shipfox/api-workflows-dto';
 import {type Duration, intervalToDuration} from 'date-fns';
 import {type Step, toStep} from './step.js';
 
@@ -17,6 +20,7 @@ interface JobExecutionFields {
   name: string;
   status: JobExecutionStatus;
   statusReason: string | null;
+  triggerEvents: WorkflowExecutionEventDto[];
   queuedAt: string | null;
   startedAt: string | null;
   finishedAt: string | null;
@@ -33,6 +37,7 @@ export class JobExecution {
   name!: string;
   status!: JobExecutionStatus;
   statusReason!: string | null;
+  triggerEvents!: WorkflowExecutionEventDto[];
   queuedAt!: string | null;
   startedAt!: string | null;
   finishedAt!: string | null;
@@ -66,13 +71,14 @@ export function toJobExecution(dto: WorkflowRunJobExecutionDetailDto): JobExecut
     name: dto.name,
     status: dto.status,
     statusReason: dto.status_reason,
+    triggerEvents: dto.trigger_events ?? [],
     queuedAt: dto.queued_at ?? null,
     startedAt: dto.started_at ?? null,
     finishedAt: dto.finished_at ?? null,
     timedOutAt: dto.timed_out_at ?? null,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
-    steps: dto.steps.map((step) => toStep(step, dto.job_id)),
+    steps: dto.steps.map(toStep),
   });
 }
 

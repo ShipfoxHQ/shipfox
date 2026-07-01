@@ -51,6 +51,7 @@ export function toJobExecutionDto(jobExecution: JobExecution): JobExecutionDto {
     name: jobExecution.name,
     status: jobExecution.status,
     status_reason: jobExecution.statusReason,
+    trigger_events: jobExecution.triggerEvents,
     queued_at: jobExecution.queuedAt?.toISOString() ?? null,
     started_at: jobExecution.startedAt?.toISOString() ?? null,
     finished_at: jobExecution.finishedAt?.toISOString() ?? null,

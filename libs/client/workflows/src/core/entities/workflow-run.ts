@@ -40,7 +40,6 @@ export interface WorkflowRun {
   projectId: string;
   definitionId: string;
   name: string;
-  status: WorkflowRunStatus;
   currentAttempt: number;
   triggerProvider: string | null;
   triggerSource: string;
@@ -52,10 +51,15 @@ export interface WorkflowRun {
   sourceSnapshot: WorkflowSourceSnapshot | null;
   createdAt: string;
   updatedAt: string;
-  startedAt: string | null;
-  finishedAt: string | null;
   shortId: string;
   isTemporary: boolean;
+}
+
+export interface WorkflowRunListItem extends WorkflowRun {
+  status: WorkflowRunStatus;
+  latestAttempt: number;
+  startedAt: string | null;
+  finishedAt: string | null;
 }
 
 export interface WorkflowRunDetail extends WorkflowRun {
@@ -65,7 +69,7 @@ export interface WorkflowRunDetail extends WorkflowRun {
 }
 
 export interface WorkflowRunListPage {
-  runs: WorkflowRun[];
+  runs: WorkflowRunListItem[];
   nextCursor: string | null;
   filteredTotalCount: number | null;
 }
@@ -117,7 +121,6 @@ export function toWorkflowRun(dto: WorkflowRunResponseDto): WorkflowRun {
     projectId: dto.project_id,
     definitionId: dto.definition_id,
     name: dto.name,
-    status: dto.status,
     currentAttempt: dto.current_attempt,
     triggerProvider: dto.trigger_provider,
     triggerSource: dto.trigger_source,
@@ -129,10 +132,18 @@ export function toWorkflowRun(dto: WorkflowRunResponseDto): WorkflowRun {
     sourceSnapshot: dto.source_snapshot ? toWorkflowSourceSnapshot(dto.source_snapshot) : null,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
-    startedAt: dto.started_at ?? null,
-    finishedAt: dto.finished_at ?? null,
     shortId: workflowRunShortId(dto.id),
     isTemporary: dto.id.startsWith('temp-'),
+  };
+}
+
+export function toWorkflowRunListItem(dto: WorkflowRunResponseDto): WorkflowRunListItem {
+  return {
+    ...toWorkflowRun(dto),
+    status: dto.status,
+    latestAttempt: dto.latest_attempt,
+    startedAt: dto.started_at ?? null,
+    finishedAt: dto.finished_at ?? null,
   };
 }
 
@@ -147,7 +158,7 @@ export function toWorkflowRunDetail(dto: WorkflowRunDetailResponseDto): Workflow
 
 export function toWorkflowRunListPage(dto: WorkflowRunListResponseDto): WorkflowRunListPage {
   return {
-    runs: dto.runs.map(toWorkflowRun),
+    runs: dto.runs.map(toWorkflowRunListItem),
     nextCursor: dto.next_cursor,
     filteredTotalCount: dto.filtered_total_count,
   };

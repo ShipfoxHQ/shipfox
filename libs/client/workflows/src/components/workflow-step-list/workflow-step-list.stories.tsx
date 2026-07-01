@@ -1,6 +1,6 @@
 import type {StepAttemptDto, WorkflowRunStepDetailDto} from '@shipfox/api-workflows-dto';
 import {LogView, type LogViewProps} from '@shipfox/client-logs';
-import {Code, Text} from '@shipfox/react-ui';
+import {Text} from '@shipfox/react-ui';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {
   createMemoryHistory,
@@ -10,7 +10,6 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router';
-import type {ReactNode} from 'react';
 import {within} from 'storybook/test';
 import type {Job} from '#core/workflow-run.js';
 import {
@@ -33,7 +32,7 @@ const meta = {
   },
   decorators: [
     (Story) => (
-      <div className="w-720 bg-background-neutral-base p-16">
+      <div className="h-520 w-720 overflow-auto bg-background-neutral-base p-16">
         <Story />
       </div>
     ),
@@ -92,101 +91,49 @@ async function assertAgentConfigFailureCallout(ctx: WorkflowStepListStoryContext
 export const Playground: Story = {};
 
 export const Statuses: Story = {
-  render: () => {
-    return (
-      <div className="flex flex-col gap-24">
-        <StoryExample label="All statuses">
-          <WorkflowStepList
-            job={makeJob({
-              steps: [
-                makeStep({
-                  name: 'running',
-                  position: 3,
-                  status: 'running',
-                  attempts: [makeAttempt({status: 'running'})],
-                }),
-                makeStep({
-                  name: 'succeeded',
-                  position: 4,
-                  status: 'succeeded',
-                  attempts: [makeAttempt({status: 'succeeded'})],
-                }),
-                makeStep({
-                  name: 'failed',
-                  position: 5,
-                  status: 'failed',
-                  attempts: [makeAttempt({status: 'failed', exit_code: 1})],
-                }),
-                makeStep({
-                  name: 'cancelled',
-                  position: 6,
-                  status: 'cancelled',
-                  attempts: [makeAttempt({status: 'cancelled'})],
-                }),
-                makeStep({
-                  name: 'timed-out',
-                  position: 7,
-                  status: 'timed_out',
-                  attempts: [makeAttempt({status: 'timed_out'})],
-                }),
-              ],
-            })}
-          />
-        </StoryExample>
-        <StoryExample label="Failed step">
-          <WorkflowStepList
-            job={makeJob({
-              steps: [
-                makeStep({
-                  name: 'test',
-                  status: 'failed',
-                  error: {
-                    message: 'Tests failed',
-                    category: 'user',
-                    reason: 'agent_invocation_failed',
-                  },
-                  attempts: [makeAttempt({status: 'failed', exit_code: 1})],
-                }),
-              ],
-            })}
-          />
-        </StoryExample>
-        <StoryExample label="Cancelled and pending">
-          <WorkflowStepList
-            job={makeJob({
-              steps: [
-                makeStep({
-                  name: 'package',
-                  status: 'cancelled',
-                  attempts: [makeAttempt({status: 'cancelled'})],
-                }),
-                makeStep({name: 'deploy', position: 1, status: 'pending'}),
-              ],
-            })}
-          />
-        </StoryExample>
-        <StoryExample label="Skipped before start">
-          <WorkflowStepList
-            job={makeJob({status: 'skipped', status_reason: 'dependency_not_completed', steps: []})}
-            emptyState={{
-              title: 'This job was skipped',
-              description: 'A required job did not complete, so this job was skipped.',
-              status: 'skipped',
-            }}
-          />
-        </StoryExample>
-        <StoryExample label="Running before first step">
-          <WorkflowStepList
-            job={makeJob({status: 'running', steps: []})}
-            emptyState={{
-              title: 'Waiting for the first step',
-              description: 'This job is running, but no steps have started yet.',
-              status: 'running',
-            }}
-          />
-        </StoryExample>
-      </div>
-    );
+  args: {
+    job: makeJob({
+      name: 'release-production',
+      status: 'running',
+      steps: [
+        makeStep({name: 'pending', status: 'pending'}),
+        makeStep({
+          name: 'running',
+          position: 1,
+          status: 'running',
+          attempts: [makeAttempt({status: 'running'})],
+        }),
+        makeStep({
+          name: 'succeeded',
+          position: 2,
+          status: 'succeeded',
+          attempts: [makeAttempt({status: 'succeeded'})],
+        }),
+        makeStep({
+          name: 'failed',
+          position: 3,
+          status: 'failed',
+          error: {
+            message: 'Tests failed',
+            category: 'user',
+            reason: 'agent_invocation_failed',
+          },
+          attempts: [makeAttempt({status: 'failed', exit_code: 1})],
+        }),
+        makeStep({
+          name: 'cancelled',
+          position: 4,
+          status: 'cancelled',
+          attempts: [makeAttempt({status: 'cancelled'})],
+        }),
+        makeStep({
+          name: 'timed-out',
+          position: 5,
+          status: 'timed_out',
+          attempts: [makeAttempt({status: 'timed_out'})],
+        }),
+      ],
+    }),
   },
 };
 
@@ -222,195 +169,137 @@ const activeLogRecords: LogViewProps['records'] = [
 ];
 
 export const Attempts: Story = {
-  render: () => {
-    return (
-      <div className="flex flex-col gap-24">
-        <StoryExample label="Multiple attempts">
-          <WorkflowStepList
-            job={makeJob({
-              steps: [
-                makeStep({
-                  name: 'release',
-                  status: 'succeeded',
-                  current_attempt: 3,
-                  attempts: [
-                    makeAttempt({attempt: 1, status: 'failed', exit_code: 1}),
-                    makeAttempt({
-                      attempt: 2,
-                      status: 'failed',
-                      exit_code: 1,
-                      restart_reason: 'retry',
-                    }),
-                    makeAttempt({attempt: 3, status: 'succeeded', restart_reason: 'retry'}),
-                  ],
-                }),
-              ],
-            })}
-          />
-        </StoryExample>
-        <StoryExample label="Restart execution timeline">
-          <WorkflowStepList
-            job={makeJob({
-              name: 'build',
-              status: 'succeeded',
-              steps: [
-                makeStep({
-                  name: 'checkout',
-                  position: 0,
-                  status: 'succeeded',
-                  attempts: [makeAttempt({attempt: 1, execution_order: 1, status: 'succeeded'})],
-                }),
-                makeStep({
-                  name: 'compile',
-                  position: 1,
-                  status: 'succeeded',
-                  current_attempt: 2,
-                  attempts: [
-                    makeAttempt({attempt: 1, execution_order: 2, status: 'failed', exit_code: 1}),
-                    makeAttempt({attempt: 2, execution_order: 4, status: 'succeeded'}),
-                  ],
-                }),
-                makeStep({
-                  name: 'test',
-                  position: 2,
-                  status: 'succeeded',
-                  current_attempt: 2,
-                  attempts: [
-                    makeAttempt({attempt: 1, execution_order: 3, status: 'failed', exit_code: 1}),
-                    makeAttempt({attempt: 2, execution_order: 5, status: 'succeeded'}),
-                  ],
-                }),
-                makeStep({
-                  name: 'package',
-                  position: 3,
-                  status: 'succeeded',
-                  attempts: [makeAttempt({attempt: 1, execution_order: 6, status: 'succeeded'})],
-                }),
-              ],
-            })}
-          />
-        </StoryExample>
-        <StoryExample label="Running retry attempts">
-          <WorkflowStepList
-            job={makeJob({
-              steps: [
-                makeStep({
-                  name: 'gate',
-                  status: 'running',
-                  attempts: [
-                    makeAttempt({attempt: 1, status: 'failed', exit_code: 1}),
-                    makeAttempt({attempt: 2, status: 'running', restart_reason: 'manual approval'}),
-                  ],
-                }),
-              ],
-            })}
-          />
-        </StoryExample>
-        <StoryExample label="Long name with attempt chips" className="w-440">
-          <WorkflowStepList
-            job={makeJob({
-              name: 'release-production',
-              steps: [
-                makeStep({
-                  name: 'run-production-canary-smoke-tests-with-cross-region-checkout-payment-and-notification-validation',
-                  status: 'running',
-                  current_attempt: 4,
-                  attempts: [
-                    makeAttempt({attempt: 1, status: 'failed', exit_code: 1}),
-                    makeAttempt({attempt: 2, status: 'failed', exit_code: 1}),
-                    makeAttempt({attempt: 3, status: 'succeeded'}),
-                    makeAttempt({attempt: 4, status: 'running'}),
-                  ],
-                }),
-              ],
-            })}
-          />
-        </StoryExample>
-      </div>
-    );
+  args: {
+    job: makeJob({
+      name: 'release-production',
+      status: 'running',
+      steps: [
+        makeStep({
+          name: 'checkout',
+          position: 0,
+          status: 'succeeded',
+          attempts: [makeAttempt({attempt: 1, execution_order: 1, status: 'succeeded'})],
+        }),
+        makeStep({
+          name: 'compile',
+          position: 1,
+          status: 'succeeded',
+          current_attempt: 2,
+          attempts: [
+            makeAttempt({attempt: 1, execution_order: 2, status: 'failed', exit_code: 1}),
+            makeAttempt({attempt: 2, execution_order: 4, status: 'succeeded'}),
+          ],
+        }),
+        makeStep({
+          name: 'test',
+          position: 2,
+          status: 'succeeded',
+          current_attempt: 2,
+          attempts: [
+            makeAttempt({attempt: 1, execution_order: 3, status: 'failed', exit_code: 1}),
+            makeAttempt({attempt: 2, execution_order: 5, status: 'succeeded'}),
+          ],
+        }),
+        makeStep({
+          name: 'deploy',
+          position: 3,
+          status: 'running',
+          current_attempt: 2,
+          attempts: [
+            makeAttempt({attempt: 1, execution_order: 6, status: 'failed', exit_code: 1}),
+            makeAttempt({
+              attempt: 2,
+              execution_order: 7,
+              status: 'running',
+              restart_reason: 'manual approval',
+            }),
+          ],
+        }),
+      ],
+    }),
   },
 };
 
 export const ContentVariants: Story = {
+  args: {
+    job: makeJob({
+      name: 'release-production-multi-region-with-canary-validation-and-post-deploy-observability',
+      steps: [
+        makeStep({
+          name: 'Set up job',
+          type: 'setup',
+          status: 'succeeded',
+          attempts: [makeAttempt({status: 'succeeded'})],
+        }),
+        makeStep({
+          key: null,
+          name: 'pnpm test --filter=@shipfox/client-workflows',
+          position: 1,
+          type: 'run',
+          config: {run: 'pnpm test --filter=@shipfox/client-workflows'},
+          status: 'succeeded',
+          attempts: [makeAttempt({status: 'succeeded'})],
+        }),
+        makeStep({
+          key: null,
+          name: 'claude-opus-4-8 · Review the failing workflow step tests and propose the smallest fix.',
+          position: 2,
+          type: 'agent',
+          config: {
+            model: 'claude-opus-4-8',
+            prompt: 'Review the failing workflow step tests and propose the smallest fix.',
+          },
+          status: 'failed',
+          error: {
+            message: 'Agent invocation failed',
+            category: 'user',
+            reason: 'agent_invocation_failed',
+          },
+          attempts: [makeAttempt({status: 'failed', exit_code: 1})],
+        }),
+        makeStep({
+          name: 'publish-observability-summary-with-alert-links-and-rollout-decision',
+          position: 3,
+          status: 'pending',
+        }),
+      ],
+    }),
+  },
+};
+
+export const DataStates: Story = {
   render: () => (
-    <div className="flex flex-col gap-24">
-      <StoryExample label="Setup and unnamed steps">
-        <WorkflowStepList
-          job={makeJob({
-            steps: [
-              makeStep({
-                name: 'Set up job',
-                type: 'setup',
-                status: 'succeeded',
-                attempts: [makeAttempt({status: 'succeeded'})],
-              }),
-              makeStep({
-                key: null,
-                name: 'pnpm test --filter=@shipfox/client-workflows',
-                position: 1,
-                type: 'run',
-                config: {run: 'pnpm test --filter=@shipfox/client-workflows'},
-                status: 'succeeded',
-                attempts: [makeAttempt({status: 'succeeded'})],
-              }),
-              makeStep({
-                key: null,
-                name: 'claude-opus-4-8 · Review the failing workflow step tests and propose the smallest fix.',
-                position: 2,
-                type: 'agent',
-                config: {
-                  model: 'claude-opus-4-8',
-                  prompt: 'Review the failing workflow step tests and propose the smallest fix.',
-                },
-                status: 'failed',
-                error: {
-                  message: 'Agent invocation failed',
-                  category: 'user',
-                  reason: 'agent_invocation_failed',
-                },
-                attempts: [makeAttempt({status: 'failed', exit_code: 1})],
-              }),
-            ],
-          })}
-        />
-      </StoryExample>
-      <StoryExample label="Long content" className="w-360">
-        <WorkflowStepList
-          job={makeJob({
-            name: 'release-production-multi-region-with-canary-validation-and-post-deploy-observability',
-            steps: [
-              makeStep({
-                name: 'prepare-release-artifacts-for-production-eu-west-and-us-east-regions',
-                status: 'succeeded',
-                attempts: [makeAttempt({status: 'succeeded'})],
-              }),
-              makeStep({
-                name: 'run-canary-smoke-tests-against-checkout-payment-and-notification-services',
-                position: 1,
-                status: 'running',
-                attempts: [makeAttempt({status: 'running'})],
-              }),
-              makeStep({
-                name: 'publish-observability-summary-with-alert-links-and-rollout-decision',
-                position: 2,
-                status: 'pending',
-              }),
-            ],
-          })}
-        />
-      </StoryExample>
+    <div className="grid gap-16">
+      <WorkflowStepList
+        job={makeJob({status: 'skipped', status_reason: 'dependency_not_completed', steps: []})}
+        emptyState={{
+          title: 'This job was skipped',
+          description: 'A required job did not complete, so this job was skipped.',
+          status: 'skipped',
+        }}
+      />
+      <WorkflowStepList
+        job={makeJob({status: 'running', steps: []})}
+        emptyState={{
+          title: 'Waiting for the first step',
+          description: 'This job is running, but no steps have started yet.',
+          status: 'running',
+        }}
+      />
     </div>
   ),
 };
 
-export const Compositions: Story = {
-  render: () => (
-    <div className="flex flex-col gap-24">
-      <StoryExample label="Collapsed and expanded">{renderCollapsedAndExpanded()}</StoryExample>
-      <StoryExample label="Active expanded logs">{renderActiveExpandedLogs()}</StoryExample>
-      <StoryExample label="Expanded slot">{renderExpandedSlot()}</StoryExample>
-    </div>
-  ),
+export const CollapsedAndExpanded: Story = {
+  render: renderCollapsedAndExpanded,
+};
+
+export const ActiveExpandedLogs: Story = {
+  render: renderActiveExpandedLogs,
+};
+
+export const ExpandedSlot: Story = {
+  render: renderExpandedSlot,
 };
 
 export const TestAgentConfigFailureCallout: Story = {
@@ -418,34 +307,6 @@ export const TestAgentConfigFailureCallout: Story = {
   render: renderAgentConfigFailureCallout,
   play: assertAgentConfigFailureCallout,
 };
-
-function StoryExample({
-  label,
-  children,
-  className,
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-8">
-      <Code variant="label" className="text-foreground-neutral-subtle">
-        {label}
-      </Code>
-      <div
-        className={[
-          'rounded-8 border border-border-neutral-base bg-background-neutral-base p-12',
-          className,
-        ]
-          .filter(Boolean)
-          .join(' ')}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
 
 function renderCollapsedAndExpanded() {
   const build = makeStep({name: 'build', attempts: [makeAttempt()]});

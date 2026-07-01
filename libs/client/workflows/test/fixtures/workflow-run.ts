@@ -18,11 +18,11 @@ import {
   toJob,
   toStep,
   toStepAttempt,
-  toWorkflowRun,
   toWorkflowRunDetail,
+  toWorkflowRunListItem,
   toWorkflowRunListPage,
-  type WorkflowRun,
   type WorkflowRunDetail,
+  type WorkflowRunListItem,
   type WorkflowRunListPage,
 } from '#core/workflow-run.js';
 
@@ -72,8 +72,10 @@ export function workflowRunDto(
   };
 }
 
-export function workflowRun(overrides: Partial<WorkflowRunResponseDto> = {}): WorkflowRun {
-  return toWorkflowRun(workflowRunDto(overrides));
+export function workflowRunListItem(
+  overrides: Partial<WorkflowRunResponseDto> = {},
+): WorkflowRunListItem {
+  return toWorkflowRunListItem(workflowRunDto(overrides));
 }
 
 export function workflowRunListResponseDto(
@@ -96,12 +98,22 @@ export function workflowRunListPage(
 export function workflowRunDetailDto(
   overrides: Partial<WorkflowRunDetailResponseDto> = {},
 ): WorkflowRunDetailResponseDto {
+  const {jobs, run_attempt: runAttemptOverride, ...runOverrides} = overrides;
+  const run = workflowRunDto(runOverrides);
+
   return {
-    ...workflowRunDto(),
-    latest_attempt: 1,
-    run_attempt: workflowRunAttemptDto(),
-    jobs: [],
-    ...overrides,
+    ...run,
+    latest_attempt: run.latest_attempt,
+    run_attempt:
+      runAttemptOverride ??
+      workflowRunAttemptDto({
+        workflow_run_id: run.id,
+        attempt: run.current_attempt,
+        status: run.status,
+        started_at: run.started_at,
+        finished_at: run.finished_at,
+      }),
+    jobs: jobs ?? [],
   };
 }
 
@@ -187,6 +199,7 @@ export function workflowJobExecutionDto(
     name: 'build',
     status: 'pending',
     status_reason: null,
+    trigger_events: [],
     queued_at: null,
     started_at: null,
     finished_at: null,
@@ -223,7 +236,7 @@ export function workflowStepDto(
 }
 
 export function workflowStep(overrides: Partial<WorkflowRunStepDetailDto> = {}): Step {
-  return toStep(workflowStepDto(overrides), JOB_ID);
+  return toStep(workflowStepDto(overrides));
 }
 
 export function workflowStepAttemptDto(overrides: Partial<StepAttemptDto> = {}): StepAttemptDto {
@@ -247,7 +260,7 @@ export function workflowStepAttemptDto(overrides: Partial<StepAttemptDto> = {}):
 }
 
 export function workflowStepAttempt(overrides: Partial<StepAttemptDto> = {}): StepAttempt {
-  return toStepAttempt(workflowStepAttemptDto(overrides), JOB_ID, JOB_EXECUTION_ID);
+  return toStepAttempt(workflowStepAttemptDto(overrides), JOB_EXECUTION_ID);
 }
 
 export function sequencedWorkflowRunDto(
@@ -272,13 +285,13 @@ export function sequencedWorkflowRunDto(
   });
 }
 
-export function sequencedWorkflowRun(
+export function sequencedWorkflowRunListItem(
   status: WorkflowRunStatusDto,
   name: string,
   minutesAgo: number,
   overrides: Partial<WorkflowRunResponseDto> = {},
-): WorkflowRun {
-  return toWorkflowRun(sequencedWorkflowRunDto(status, name, minutesAgo, overrides));
+): WorkflowRunListItem {
+  return toWorkflowRunListItem(sequencedWorkflowRunDto(status, name, minutesAgo, overrides));
 }
 
 export function workflowJobWithName(

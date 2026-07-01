@@ -1,7 +1,7 @@
 import {screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type {WorkflowRun, WorkflowRunStatus} from '#core/workflow-run.js';
-import {workflowRun} from '#test/fixtures/workflow-run.js';
+import type {WorkflowRunListItem, WorkflowRunStatus} from '#core/workflow-run.js';
+import {workflowRunListItem} from '#test/fixtures/workflow-run.js';
 import {PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import type {WorkflowRunsListQuery} from './types.js';
 import {WorkflowRunsListView} from './workflow-runs-list-view.js';
@@ -100,7 +100,7 @@ describe('WorkflowRunsListView', () => {
   });
 });
 
-function renderListView(runs: WorkflowRun[]) {
+function renderListView(runs: WorkflowRunListItem[]) {
   renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs`, () => (
     <WorkflowRunsListView
       runs={runs}
@@ -111,8 +111,8 @@ function renderListView(runs: WorkflowRun[]) {
   ));
 }
 
-function run(status: WorkflowRunStatus, name: string, id = `run-${name}`): WorkflowRun {
-  return workflowRun({
+function run(status: WorkflowRunStatus, name: string, id = `run-${name}`): WorkflowRunListItem {
+  return workflowRunListItem({
     id,
     project_id: PROJECT_ID,
     definition_id: '55555555-5555-4555-8555-555555555555',

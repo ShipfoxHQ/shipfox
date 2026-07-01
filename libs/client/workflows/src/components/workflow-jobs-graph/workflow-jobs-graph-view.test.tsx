@@ -95,7 +95,7 @@ describe('WorkflowJobsGraph', () => {
     expect(screen.getByRole('button', {name: `${name}, Pending`})).toBeInTheDocument();
   });
 
-  test('includes dependency context in the job node accessible name', () => {
+  test('does not show dependency counts in the job node label', () => {
     render(
       <WorkflowJobsGraph
         run={makeRun({
@@ -107,15 +107,11 @@ describe('WorkflowJobsGraph', () => {
       />,
     );
 
-    expect(
-      screen.getByRole('button', {
-        name: 'deploy, Running, 1 dependency is pending or running',
-      }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText('Depends on 1 job')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'deploy, Running'})).toBeInTheDocument();
+    expect(screen.queryByText('1')).not.toBeInTheDocument();
   });
 
-  test('summarizes multiple pending dependencies visually and keeps count accessible', () => {
+  test('does not show multiple pending dependency counts', () => {
     render(
       <WorkflowJobsGraph
         run={makeRun({
@@ -128,12 +124,9 @@ describe('WorkflowJobsGraph', () => {
       />,
     );
 
-    const deploy = screen.getByRole('button', {
-      name: 'deploy, Pending, 2 dependencies are pending or running',
-    });
+    const deploy = screen.getByRole('button', {name: 'deploy, Pending'});
     expect(deploy).toBeInTheDocument();
-    expect(within(deploy).getByText('2')).toBeInTheDocument();
-    expect(screen.queryByText('Depends on 2 jobs')).not.toBeInTheDocument();
+    expect(within(deploy).queryByText('2')).not.toBeInTheDocument();
   });
 
   test('hides the dependency pill when upstream jobs are resolved', () => {
@@ -152,7 +145,7 @@ describe('WorkflowJobsGraph', () => {
     expect(within(deploy).queryByText('1')).not.toBeInTheDocument();
   });
 
-  test('marks jobs with multiple executions without changing dependency counts', () => {
+  test('marks jobs with multiple executions without showing dependency counts', () => {
     render(
       <WorkflowJobsGraph
         run={makeRun({
@@ -171,12 +164,10 @@ describe('WorkflowJobsGraph', () => {
     );
 
     const build = screen.getByRole('button', {name: 'build, Pending, 2 executions'});
-    const deploy = screen.getByRole('button', {
-      name: 'deploy, Pending, 1 dependency is pending or running',
-    });
+    const deploy = screen.getByRole('button', {name: 'deploy, Pending'});
     expect(within(build).getByText('2')).toBeInTheDocument();
     expect(within(build).queryByText('2 exec')).not.toBeInTheDocument();
-    expect(within(deploy).getByText('1')).toBeInTheDocument();
+    expect(within(deploy).queryByText('1')).not.toBeInTheDocument();
   });
 
   test('moves selection and focus with graph keyboard navigation', async () => {
@@ -193,9 +184,7 @@ describe('WorkflowJobsGraph', () => {
     );
 
     const build = screen.getByRole('button', {name: 'build, Pending'});
-    const deploy = screen.getByRole('button', {
-      name: 'deploy, Pending, 1 dependency is pending or running',
-    });
+    const deploy = screen.getByRole('button', {name: 'deploy, Pending'});
     build.focus();
 
     await user.keyboard('{ArrowRight}');
@@ -212,9 +201,7 @@ describe('WorkflowJobsGraph', () => {
     const {container} = render(<WorkflowJobsGraph run={makeRun({jobs: [build, deploy]})} />);
     const triggerEdge = container.querySelector(`[data-edge-id="trigger:${build.id}"]`);
     const deployEdge = container.querySelector(`[data-edge-id="${build.id}:${deploy.id}"]`);
-    const deployNode = screen.getByRole('button', {
-      name: 'deploy, Pending, 1 dependency is pending or running',
-    });
+    const deployNode = screen.getByRole('button', {name: 'deploy, Pending'});
 
     fireEvent.click(deployNode);
 

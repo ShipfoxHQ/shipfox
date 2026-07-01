@@ -34,6 +34,7 @@ export {toStepAttempt} from './entities/step-attempt.js';
 export type {
   WorkflowRun,
   WorkflowRunDetail,
+  WorkflowRunListItem,
   WorkflowRunListPage,
   WorkflowRunStatus,
   WorkflowSourceSnapshot,
@@ -45,6 +46,7 @@ export {
   TERMINAL_WORKFLOW_RUN_STATUSES,
   toWorkflowRun,
   toWorkflowRunDetail,
+  toWorkflowRunListItem,
   toWorkflowRunListPage,
   WORKFLOW_RUN_STATUSES,
   workflowRunShortId,
