@@ -150,7 +150,7 @@ function spawnAndCapture(
 
     child.on('close', (code, signal) => {
       cleanupAbortListener();
-      if (abortKillSignal) {
+      if (abortKillSignal && isSignalKillResult(code, abortKillSignal)) {
         const resultSignal = signal ?? abortKillSignal;
         resolve({
           success: false,
@@ -190,6 +190,15 @@ function spawnAndCapture(
       });
     });
   });
+}
+
+function isSignalKillResult(code: number | null, signal: NodeJS.Signals): boolean {
+  return code === null || code === signalExitCode(signal);
+}
+
+function signalExitCode(signal: NodeJS.Signals): number | undefined {
+  if (signal === 'SIGKILL') return 137;
+  return undefined;
 }
 
 function readStepEnv(step: StepDto): Readonly<Record<string, string>> {
