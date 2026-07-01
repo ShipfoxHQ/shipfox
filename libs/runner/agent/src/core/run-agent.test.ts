@@ -100,8 +100,11 @@ function customProvider(
 describe('runAgent', () => {
   // Tracked so the temp dir is removed in afterEach even if an assertion throws first.
   let sessionDir: string | undefined;
+  let priorGitConfigGlobal: string | undefined;
 
   beforeEach(() => {
+    priorGitConfigGlobal = process.env.GIT_CONFIG_GLOBAL;
+    delete process.env.GIT_CONFIG_GLOBAL;
     createAgentSessionMock.mockReset();
     findMock.mockReset();
     getAllMock.mockReset();
@@ -126,6 +129,8 @@ describe('runAgent', () => {
 
   afterEach(() => {
     expect(authStorageCreateMock).not.toHaveBeenCalled();
+    if (priorGitConfigGlobal === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+    else process.env.GIT_CONFIG_GLOBAL = priorGitConfigGlobal;
     if (sessionDir) rmSync(sessionDir, {recursive: true, force: true});
     sessionDir = undefined;
   });
@@ -575,6 +580,51 @@ describe('runAgent', () => {
     await runAgent(invocation({onSessionEntry: (line) => entries.push(line)}));
 
     expect(entries).toEqual([]);
+  });
+
+  it('sets GIT_CONFIG_GLOBAL for the prompt and restores the previous value', async () => {
+    process.env.GIT_CONFIG_GLOBAL = '/runner/base.gitconfig';
+    promptMock.mockImplementation(() => {
+      expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/job/git-cred.config');
+      return Promise.resolve();
+    });
+
+    await runAgent(invocation({gitConfigGlobal: '/runner/job/git-cred.config'}));
+
+    expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/base.gitconfig');
+  });
+
+  it('deletes GIT_CONFIG_GLOBAL after the prompt when it was previously unset', async () => {
+    promptMock.mockImplementation(() => {
+      expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/job/git-cred.config');
+      return Promise.resolve();
+    });
+
+    await runAgent(invocation({gitConfigGlobal: '/runner/job/git-cred.config'}));
+
+    expect(process.env.GIT_CONFIG_GLOBAL).toBeUndefined();
+  });
+
+  it('restores GIT_CONFIG_GLOBAL synchronously when the signal aborts mid-prompt', async () => {
+    const ac = new AbortController();
+    process.env.GIT_CONFIG_GLOBAL = '/runner/base.gitconfig';
+    let resolvePrompt: () => void = () => undefined;
+    promptMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolvePrompt = resolve;
+        }),
+    );
+
+    const promise = runAgent(
+      invocation({signal: ac.signal, gitConfigGlobal: '/runner/job/git-cred.config'}),
+    );
+    await vi.waitFor(() => expect(promptMock).toHaveBeenCalled());
+    ac.abort();
+
+    expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/base.gitconfig');
+    resolvePrompt();
+    await promise;
   });
 
   it('throws an AgentConfigError naming the provider when it is unknown', async () => {

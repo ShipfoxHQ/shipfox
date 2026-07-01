@@ -1,4 +1,4 @@
-export type {Job, JobStatus} from './job.js';
+export type {Job, JobCheckout, JobStatus} from './job.js';
 export type {Step, StepStatus} from './step.js';
 export type {
   TriggerPayload,

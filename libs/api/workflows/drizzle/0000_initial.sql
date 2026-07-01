@@ -1,6 +1,7 @@
 CREATE TYPE "public"."workflows_job_execution_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."workflows_job_listener_event_disposition" AS ENUM('fire', 'resolve');--> statement-breakpoint
 CREATE TYPE "public"."workflows_job_mode" AS ENUM('one_shot', 'listening');--> statement-breakpoint
+CREATE TYPE "public"."workflows_checkout_contents" AS ENUM('read', 'write');--> statement-breakpoint
 CREATE TYPE "public"."workflows_job_on_resolve" AS ENUM('finish', 'cancel');--> statement-breakpoint
 CREATE TYPE "public"."workflows_job_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled', 'skipped');--> statement-breakpoint
 CREATE TYPE "public"."workflows_job_status_reason" AS ENUM('dependency_not_completed', 'condition_false', 'user_cancelled', 'run_cancelled', 'timed_out', 'runner_lost', 'step_failed', 'unknown');--> statement-breakpoint
@@ -49,6 +50,8 @@ CREATE TABLE "workflows_jobs" (
 	"status" "workflows_job_status" DEFAULT 'pending' NOT NULL,
 	"status_reason" "workflows_job_status_reason",
 	"carried_over" boolean DEFAULT false NOT NULL,
+	"checkout_persist_credentials" boolean NOT NULL,
+	"checkout_permissions_contents" "workflows_checkout_contents" NOT NULL,
 	"success" text,
 	"execution_timeout_ms" integer,
 	"listening_timeout_ms" bigint,

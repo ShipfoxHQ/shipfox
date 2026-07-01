@@ -2,10 +2,12 @@ import {mkdir, mkdtemp, rm, stat, writeFile} from 'node:fs/promises';
 import {homedir, tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {
+  cleanupJobCredentials,
   cleanupJobLogs,
   cleanupWorkspace,
   createJobDir,
   InvalidJobIdError,
+  jobCredentialsPath,
   jobLogsPath,
   jobWorkspacePath,
   resolveWorkspaceRoot,
@@ -80,6 +82,24 @@ describe('jobLogsPath', () => {
   });
 });
 
+describe('jobCredentialsPath', () => {
+  const root = '/var/shipfox/work';
+
+  it('names the runner-owned credential directory after the job id under the root', () => {
+    const jobId = '66666666-6666-4666-8666-666666666666';
+
+    const credentialsDir = jobCredentialsPath(jobId, root);
+
+    expect(credentialsDir).toBe(join(root, '.shipfox-runner-cred', `job-${jobId}`));
+  });
+
+  it('rejects a job id that is not a UUID', () => {
+    const resolve = () => jobCredentialsPath('../../etc/passwd', root);
+
+    expect(resolve).toThrow(InvalidJobIdError);
+  });
+});
+
 describe('createJobDir', () => {
   let root: string;
 
@@ -149,6 +169,39 @@ describe('cleanupJobLogs', () => {
     const missing = join(root, 'shipfox-job-logs-does-not-exist-xyz');
 
     const result = await cleanupJobLogs(missing);
+
+    expect(result).toBeUndefined();
+  });
+});
+
+describe('cleanupJobCredentials', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'shipfox-job-cred-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(root, {recursive: true, force: true});
+  });
+
+  it('removes an existing job credential directory without touching the root', async () => {
+    const credentialsDir = join(root, 'job-77777777-7777-4777-8777-777777777777');
+    await mkdir(credentialsDir, {recursive: true});
+    await writeFile(join(credentialsDir, 'git-cred.config'), '[http]\n');
+
+    const result = await cleanupJobCredentials(credentialsDir);
+
+    const readCredentialsDir = () => stat(credentialsDir);
+    await expect(readCredentialsDir()).rejects.toThrow();
+    expect((await stat(root)).isDirectory()).toBe(true);
+    expect(result).toBeUndefined();
+  });
+
+  it('does not throw when the directory is missing', async () => {
+    const missing = join(root, 'shipfox-job-cred-does-not-exist-xyz');
+
+    const result = await cleanupJobCredentials(missing);
 
     expect(result).toBeUndefined();
   });

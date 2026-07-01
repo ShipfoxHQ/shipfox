@@ -7,6 +7,8 @@ const bearerResponse = {
     kind: 'bearer',
     token: 'gh-token',
     expires_at: '2026-06-10T12:00:00.000Z',
+    carry: 'header',
+    persist: true,
   },
 };
 
@@ -18,6 +20,8 @@ const basicResponse = {
     username: 'x-access-token',
     token: 'gh-token',
     expires_at: '2026-06-10T12:00:00.000Z',
+    carry: 'header',
+    persist: false,
   },
 };
 
@@ -92,6 +96,23 @@ describe('checkoutTokenResponseSchema', () => {
 
   it('rejects an empty token', () => {
     const input = {...bearerResponse, auth: {...bearerResponse.auth, token: ''}};
+
+    const parse = () => checkoutTokenResponseSchema.parse(input);
+
+    expect(parse).toThrow();
+  });
+
+  it('rejects an unsupported carry mode', () => {
+    const input = {...bearerResponse, auth: {...bearerResponse.auth, carry: 'userinfo'}};
+
+    const parse = () => checkoutTokenResponseSchema.parse(input);
+
+    expect(parse).toThrow();
+  });
+
+  it('rejects auth missing persist', () => {
+    const {persist: _persist, ...auth} = bearerResponse.auth;
+    const input = {...bearerResponse, auth};
 
     const parse = () => checkoutTokenResponseSchema.parse(input);
 

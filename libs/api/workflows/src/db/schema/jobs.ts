@@ -33,6 +33,8 @@ export const jobStatusReasonEnum = pgEnum('workflows_job_status_reason', JOB_STA
 
 export const jobModeEnum = pgEnum('workflows_job_mode', ['one_shot', 'listening']);
 
+export const jobCheckoutContentsEnum = pgEnum('workflows_checkout_contents', ['read', 'write']);
+
 export const jobOnResolveEnum = pgEnum('workflows_job_on_resolve', ['finish', 'cancel']);
 
 export const listenerStatusEnum = pgEnum('workflows_listener_status', [
@@ -61,6 +63,8 @@ export const jobs = pgTable(
     status: jobStatusEnum('status').notNull().default('pending'),
     statusReason: jobStatusReasonEnum('status_reason'),
     carriedOver: boolean('carried_over').notNull().default(false),
+    checkoutPersistCredentials: boolean('checkout_persist_credentials').notNull(),
+    checkoutPermissionsContents: jobCheckoutContentsEnum('checkout_permissions_contents').notNull(),
     success: text('success'),
     executionTimeoutMs: integer('execution_timeout_ms'),
     listeningTimeoutMs: bigint('listening_timeout_ms', {mode: 'number'}),
@@ -101,6 +105,10 @@ export function toJob(row: JobDb): Job {
     status: row.status,
     statusReason: toJobStatusReason(row.statusReason),
     carriedOver: row.carriedOver,
+    checkout: {
+      permissions: {contents: row.checkoutPermissionsContents},
+      persistCredentials: row.checkoutPersistCredentials,
+    },
     success: row.success,
     executionTimeoutMs: row.executionTimeoutMs,
     listeningTimeoutMs: row.listeningTimeoutMs,

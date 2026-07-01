@@ -35,6 +35,10 @@ export const jobFactory = Factory.define<Job, JobTransientParams>(({transientPar
     status: 'running',
     statusReason: null,
     carriedOver: false,
+    checkout: {
+      permissions: {contents: 'read'},
+      persistCredentials: true,
+    },
     success: null,
     executionTimeoutMs: null,
     listeningTimeoutMs: null,

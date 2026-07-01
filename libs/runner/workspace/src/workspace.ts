@@ -6,6 +6,7 @@ import {isUuid} from '@shipfox/regex';
 import {config} from '#config.js';
 
 const RUNNER_LOGS_DIR = '.shipfox-runner-logs';
+const RUNNER_CRED_DIR = '.shipfox-runner-cred';
 
 /**
  * Thrown when `SHIPFOX_RUNNER_WORKSPACE_ROOT` resolves to a path we refuse to
@@ -81,6 +82,13 @@ export function jobLogsPath(jobId: string, root: string): string {
   return join(root, RUNNER_LOGS_DIR, `job-${jobId}`);
 }
 
+export function jobCredentialsPath(jobId: string, root: string): string {
+  if (!isUuid(jobId)) {
+    throw new InvalidJobIdError(jobId);
+  }
+  return join(root, RUNNER_CRED_DIR, `job-${jobId}`);
+}
+
 /**
  * Pre-cleans the per-job directory before creating it, so a directory left by a
  * previous crash is never reused. Run inside the setup step so a prep failure is
@@ -109,5 +117,13 @@ export async function cleanupJobLogs(logsDir: string): Promise<void> {
     await rm(logsDir, {recursive: true, force: true});
   } catch (err) {
     logger().warn({err, logsDir}, 'Failed to clean up job logs');
+  }
+}
+
+export async function cleanupJobCredentials(credentialsDir: string): Promise<void> {
+  try {
+    await rm(credentialsDir, {recursive: true, force: true});
+  } catch (err) {
+    logger().warn({err, credentialsDir}, 'Failed to clean up job credentials');
   }
 }

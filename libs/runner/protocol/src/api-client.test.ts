@@ -195,7 +195,13 @@ describe('api-client auth contexts', () => {
       jsonResponse({
         repository_url: 'https://github.com/acme/repo.git',
         ref: 'main',
-        auth: {kind: 'bearer', token: 'tok-123', expires_at: '2026-01-01T00:00:00.000Z'},
+        auth: {
+          kind: 'bearer',
+          token: 'tok-123',
+          expires_at: '2026-01-01T00:00:00.000Z',
+          carry: 'header',
+          persist: true,
+        },
       }),
     );
     const leaseClient = createLeaseClient('lease-ghi');

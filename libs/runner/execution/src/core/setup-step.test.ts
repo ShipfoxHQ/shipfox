@@ -5,6 +5,7 @@ const requestCheckoutTokenMock = vi.fn();
 const assertGitAvailableMock = vi.fn();
 const createJobDirMock = vi.fn();
 const checkoutRepositoryMock = vi.fn();
+const writeAmbientGitCredentialMock = vi.fn();
 
 vi.mock('@shipfox/runner-protocol', () => ({
   requestCheckoutToken: (...args: unknown[]) => requestCheckoutTokenMock(...args),
@@ -22,6 +23,7 @@ vi.mock('@shipfox/runner-workspace', async () => {
     assertGitAvailable: (...args: unknown[]) => assertGitAvailableMock(...args),
     createJobDir: (...args: unknown[]) => createJobDirMock(...args),
     checkoutRepository: (...args: unknown[]) => checkoutRepositoryMock(...args),
+    writeAmbientGitCredential: (...args: unknown[]) => writeAmbientGitCredentialMock(...args),
   };
 });
 
@@ -29,6 +31,7 @@ const {executeSetupStep} = await import('#core/setup-step.js');
 const {CheckoutError} = await import('@shipfox/runner-workspace');
 
 const CWD = '/tmp/shipfox-test-root/job-1';
+const GIT_CONFIG_PATH = '/tmp/shipfox-test-root/.shipfox-runner-cred/job-1/git-cred.config';
 const leaseClient = {} as never;
 const signal = new AbortController().signal;
 const jobContext = {
@@ -47,7 +50,14 @@ function checkoutResponse(auth?: unknown) {
 }
 
 function run(log?: ReturnType<typeof fakeLog>) {
-  return executeSetupStep({cwd: CWD, leaseClient, signal, ...(log ? {log} : {}), jobContext});
+  return executeSetupStep({
+    cwd: CWD,
+    gitConfigPath: GIT_CONFIG_PATH,
+    leaseClient,
+    signal,
+    ...(log ? {log} : {}),
+    jobContext,
+  });
 }
 
 function fakeLog() {
@@ -92,6 +102,7 @@ beforeEach(() => {
   createJobDirMock.mockResolvedValue(undefined);
   requestCheckoutTokenMock.mockResolvedValue(checkoutResponse());
   checkoutRepositoryMock.mockResolvedValue('abc123');
+  writeAmbientGitCredentialMock.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -101,7 +112,13 @@ afterEach(() => {
 describe('executeSetupStep', () => {
   it('prepares the workspace, checks out the repo, and succeeds', async () => {
     requestCheckoutTokenMock.mockResolvedValue(
-      checkoutResponse({kind: 'bearer', token: 't', expires_at: '2026-01-01T00:00:00Z'}),
+      checkoutResponse({
+        kind: 'bearer',
+        token: 't',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
+      }),
     );
 
     const result = await run();
@@ -113,14 +130,77 @@ describe('executeSetupStep', () => {
       expect.objectContaining({
         repositoryUrl: 'https://github.com/acme/repo.git',
         ref: 'main',
-        auth: {kind: 'bearer', token: 't', expires_at: '2026-01-01T00:00:00Z'},
+        auth: {
+          kind: 'bearer',
+          token: 't',
+          expires_at: '2026-01-01T00:00:00Z',
+          carry: 'header',
+          persist: true,
+        },
         cwd: CWD,
         signal,
         onSecrets: expect.any(Function),
         onCommandStart: expect.any(Function),
       }),
     );
-    expect(result).toEqual({success: true, error: null, exit_code: 0});
+    expect(writeAmbientGitCredentialMock).toHaveBeenCalledWith({
+      configPath: GIT_CONFIG_PATH,
+      repositoryUrl: 'https://github.com/acme/repo.git',
+      auth: {
+        kind: 'bearer',
+        token: 't',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
+      },
+    });
+    expect(result).toEqual({
+      result: {success: true, error: null, exit_code: 0},
+      ambientGitConfigPath: GIT_CONFIG_PATH,
+    });
+  });
+
+  it('does not persist ambient credentials when persist is false', async () => {
+    requestCheckoutTokenMock.mockResolvedValue(
+      checkoutResponse({
+        kind: 'bearer',
+        token: 't',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: false,
+      }),
+    );
+
+    const result = await run();
+
+    expect(writeAmbientGitCredentialMock).not.toHaveBeenCalled();
+    expect(result).toEqual({result: {success: true, error: null, exit_code: 0}});
+  });
+
+  it('warns and succeeds when ambient credential writing fails', async () => {
+    const log = fakeLog();
+    requestCheckoutTokenMock.mockResolvedValue(
+      checkoutResponse({
+        kind: 'bearer',
+        token: 't',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
+      }),
+    );
+    writeAmbientGitCredentialMock.mockRejectedValue(new Error('disk denied'));
+
+    const result = await run(log);
+
+    expect(result).toEqual({result: {success: true, error: null, exit_code: 0}});
+    expect(log.writeGroup).toHaveBeenCalledWith({
+      name: 'Repository access was not persisted',
+      lines: [
+        'The checkout succeeded, but agent steps will run without ambient git authentication. Details: disk denied',
+        'Git commands in later steps may need their own credentials.',
+      ],
+      source: 'stderr',
+    });
   });
 
   it('writes setup groups and the final checked-out commit', async () => {
@@ -128,7 +208,7 @@ describe('executeSetupStep', () => {
 
     const result = await run(log);
 
-    expect(result.success).toBe(true);
+    expect(result.result.success).toBe(true);
     expect(log.writeGroup).toHaveBeenCalledWith({
       name: 'Job details',
       lines: [
@@ -168,7 +248,7 @@ describe('executeSetupStep', () => {
 
     const result = await run();
 
-    expect(result.success).toBe(true);
+    expect(result.result.success).toBe(true);
     expect(info).toHaveBeenCalledWith(jobContext, 'Setup step started');
     expect(info).toHaveBeenCalledWith(jobContext, 'Setup step completed');
   });
@@ -205,8 +285,8 @@ describe('executeSetupStep', () => {
 
     expect(requestCheckoutTokenMock).not.toHaveBeenCalled();
     expect(createJobDirMock).not.toHaveBeenCalled();
-    expect(result.success).toBe(false);
-    expect(result.error?.reason).toBe('git_unavailable');
+    expect(result.result.success).toBe(false);
+    expect(result.result.error?.reason).toBe('git_unavailable');
     expect(log.writeOutputLine).toHaveBeenCalledWith(
       'Setup failed because Git is not available on the runner. Details: git is not available on the runner host',
       'stderr',
@@ -226,7 +306,7 @@ describe('executeSetupStep', () => {
     const result = await run(log);
 
     expect(requestCheckoutTokenMock).not.toHaveBeenCalled();
-    expect(result.error).toEqual({message: 'mkdir denied', reason: 'workspace_prep_failed'});
+    expect(result.result.error).toEqual({message: 'mkdir denied', reason: 'workspace_prep_failed'});
     expect(log.writeOutputLine).toHaveBeenCalledWith(
       'Setup failed because the runner could not prepare the workspace. Details: mkdir denied',
       'stderr',
@@ -253,8 +333,8 @@ describe('executeSetupStep', () => {
     const result = await run();
 
     expect(checkoutRepositoryMock).not.toHaveBeenCalled();
-    expect(result.success).toBe(false);
-    expect(result.error?.reason).toBe(reason);
+    expect(result.result.success).toBe(false);
+    expect(result.result.error?.reason).toBe(reason);
     expectSetupFailureWarning(warn, reason);
   });
 
@@ -268,7 +348,7 @@ describe('executeSetupStep', () => {
 
     const result = await run();
 
-    expect(result.error?.reason).toBe(reason);
+    expect(result.result.error?.reason).toBe(reason);
     expectSetupFailureWarning(warn, reason);
   });
 
@@ -278,7 +358,7 @@ describe('executeSetupStep', () => {
 
     const result = await run();
 
-    expect(result.error).toEqual({message: 'socket hang up', reason: 'checkout_failed'});
+    expect(result.result.error).toEqual({message: 'socket hang up', reason: 'checkout_failed'});
     expectSetupFailureWarning(warn, 'checkout_failed');
   });
 
@@ -293,8 +373,8 @@ describe('executeSetupStep', () => {
 
     const result = await run();
 
-    expect(result.success).toBe(false);
-    expect(result.error?.reason).toBe(reason);
+    expect(result.result.success).toBe(false);
+    expect(result.result.error?.reason).toBe(reason);
     expectSetupFailureWarning(warn, reason);
   });
 
@@ -307,7 +387,7 @@ describe('executeSetupStep', () => {
 
     const result = await run(log);
 
-    expect(result.error?.reason).toBe('checkout_failed');
+    expect(result.result.error?.reason).toBe('checkout_failed');
     expect(log.writeGroupStart).toHaveBeenCalledWith('Checkout');
     expect(log.writeGroupEnd).toHaveBeenCalledTimes(1);
     expect(log.writeOutputLine).toHaveBeenCalledWith(
@@ -327,7 +407,7 @@ describe('executeSetupStep', () => {
 
     const result = await run();
 
-    expect(result.error).toEqual({message: 'weird', reason: 'checkout_failed'});
+    expect(result.result.error).toEqual({message: 'weird', reason: 'checkout_failed'});
     expectSetupFailureWarning(warn, 'checkout_failed');
   });
 });

@@ -11,6 +11,7 @@ import {
   type CheckoutPhase,
   checkoutRepository,
   createJobDir,
+  writeAmbientGitCredential,
 } from '@shipfox/runner-workspace';
 import type {KyInstance} from 'ky';
 import type {StepResult} from '#core/step-result.js';
@@ -33,6 +34,11 @@ export interface SetupJobContext {
   jobExecutionId: string;
 }
 
+export interface SetupStepExecution {
+  result: StepResult;
+  ambientGitConfigPath?: string | undefined;
+}
+
 // The synthetic "Set up job" step body. It owns per-job workspace preparation and the
 // repository checkout, reporting failures through the normal step protocol so a setup
 // failure fails the job in seconds instead of hanging until the lease expires.
@@ -42,12 +48,13 @@ export interface SetupJobContext {
 // still killed via `signal`, and the per-job workspace is cleaned up in runJob's finally.
 export async function executeSetupStep(params: {
   cwd: string;
+  gitConfigPath: string;
   leaseClient: KyInstance;
   signal: AbortSignal;
   log?: SetupLogSink | undefined;
   jobContext?: SetupJobContext | undefined;
-}): Promise<StepResult> {
-  const {cwd, leaseClient, signal, log, jobContext} = params;
+}): Promise<SetupStepExecution> {
+  const {cwd, log, jobContext} = params;
 
   logger().info(setupLogFields(jobContext), 'Setup step started');
   writeJobContext(log, jobContext);
@@ -58,12 +65,17 @@ export async function executeSetupStep(params: {
   const workspaceFailure = await prepareWorkspace({cwd, log});
   if (workspaceFailure) return logSetupFailure(workspaceFailure, jobContext);
 
-  const checkoutFailure = await runCheckoutSetup({cwd, leaseClient, signal, log});
-  if (checkoutFailure) return logSetupFailure(checkoutFailure, jobContext);
+  const checkout = await runCheckoutSetup({...params, log});
+  if (!checkout.ok) return logSetupFailure(checkout.result, jobContext);
 
   log?.writeOutputLine('Setup completed successfully. The job is ready to run.');
   logger().info(setupLogFields(jobContext), 'Setup step completed');
-  return {success: true, error: null, exit_code: 0};
+  return {
+    result: {success: true, error: null, exit_code: 0},
+    ...(checkout.value.ambientGitConfigPath
+      ? {ambientGitConfigPath: checkout.value.ambientGitConfigPath}
+      : {}),
+  };
 }
 
 async function checkGit(log: SetupLogSink | undefined): Promise<StepResult | null> {
@@ -108,15 +120,16 @@ async function prepareWorkspace(params: {
 
 async function runCheckoutSetup(params: {
   cwd: string;
+  gitConfigPath: string;
   leaseClient: KyInstance;
   signal: AbortSignal;
   log?: SetupLogSink | undefined;
-}): Promise<StepResult | null> {
+}): Promise<SetupPhaseResult<{ambientGitConfigPath?: string | undefined}>> {
   const {log} = params;
   log?.writeGroupStart('Checkout');
   try {
     const checkout = await requestCheckoutCredentials(params);
-    if (!checkout.ok) return checkout.result;
+    if (!checkout.ok) return checkout;
 
     return await checkoutRepositoryForSetup({...params, checkout: checkout.value});
   } finally {
@@ -157,11 +170,12 @@ async function requestCheckoutCredentials(params: {
 
 async function checkoutRepositoryForSetup(params: {
   cwd: string;
+  gitConfigPath: string;
   checkout: CheckoutTokenResponseDto;
   signal: AbortSignal;
   log?: SetupLogSink | undefined;
-}): Promise<StepResult | null> {
-  const {cwd, checkout, signal, log} = params;
+}): Promise<SetupPhaseResult<{ambientGitConfigPath?: string | undefined}>> {
+  const {cwd, gitConfigPath, checkout, signal, log} = params;
   try {
     log?.writeGroup({
       name: 'Repository details',
@@ -181,7 +195,15 @@ async function checkoutRepositoryForSetup(params: {
       onOutput: checkoutOutput(log),
     });
     log?.writeGroup({name: 'Checkout complete', lines: [`Checked out commit: ${commit}`]});
-    return null;
+    const ambientGitConfigPath = await persistAmbientGitCredential({
+      gitConfigPath,
+      checkout,
+      log,
+    });
+    return {
+      ok: true,
+      value: ambientGitConfigPath ? {ambientGitConfigPath} : {},
+    };
   } catch (error) {
     const reason =
       error instanceof CheckoutError ? CHECKOUT_KIND_REASON[error.kind] : 'checkout_failed';
@@ -200,7 +222,31 @@ async function checkoutRepositoryForSetup(params: {
         error,
       );
     }
-    return fail(error, reason);
+    return {ok: false, result: fail(error, reason)};
+  }
+}
+
+async function persistAmbientGitCredential(params: {
+  gitConfigPath: string;
+  checkout: CheckoutTokenResponseDto;
+  log?: SetupLogSink | undefined;
+}): Promise<string | undefined> {
+  const {gitConfigPath, checkout, log} = params;
+  if (!checkout.auth?.persist || checkout.auth.carry !== 'header') return undefined;
+
+  try {
+    await writeAmbientGitCredential({
+      configPath: gitConfigPath,
+      repositoryUrl: checkout.repository_url,
+      auth: checkout.auth,
+    });
+    return gitConfigPath;
+  } catch (error) {
+    writeWarning(log, 'Repository access was not persisted', [
+      `The checkout succeeded, but agent steps will run without ambient git authentication. Details: ${messageOf(error)}`,
+      'Git commands in later steps may need their own credentials.',
+    ]);
+    return undefined;
   }
 }
 
@@ -284,7 +330,10 @@ function setupLogFields(
   };
 }
 
-function logSetupFailure(result: StepResult, jobContext: SetupJobContext | undefined): StepResult {
+function logSetupFailure(
+  result: StepResult,
+  jobContext: SetupJobContext | undefined,
+): SetupStepExecution {
   logger().warn(
     {
       ...setupLogFields(jobContext),
@@ -292,7 +341,7 @@ function logSetupFailure(result: StepResult, jobContext: SetupJobContext | undef
     },
     'Setup step failed',
   );
-  return result;
+  return {result};
 }
 
 function writeRunnerEnvironment(log: SetupLogSink | undefined, gitVersion: string): void {
@@ -404,6 +453,10 @@ function writeFailure(
 ): void {
   log?.writeOutputLine(`${summary} Details: ${messageOf(error)}`, 'stderr');
   log?.writeOutputLine(`Next step: ${nextStep}`, 'stderr');
+}
+
+function writeWarning(log: SetupLogSink | undefined, name: string, lines: readonly string[]): void {
+  log?.writeGroup({name, lines, source: 'stderr'});
 }
 
 function safeRepositoryUrl(repositoryUrl: string): string {

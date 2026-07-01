@@ -3,7 +3,12 @@ import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {promisify} from 'node:util';
-import {assertGitAvailable, CheckoutError, checkoutRepository} from '#checkout.js';
+import {
+  assertGitAvailable,
+  CheckoutError,
+  checkoutRepository,
+  writeAmbientGitCredential,
+} from '#checkout.js';
 
 // Exercises checkoutRepository against a real local git remote (file://), so an argv or
 // flag mistake a mock would accept fails here. git is a runner host prerequisite, so it is
@@ -19,6 +24,11 @@ let cwd: string;
 
 async function git(args: string[], dir: string): Promise<void> {
   await execFileAsync('git', args, {cwd: dir});
+}
+
+async function gitOutput(args: string[], dir: string): Promise<string> {
+  const {stdout} = await execFileAsync('git', args, {cwd: dir});
+  return stdout.trim();
 }
 
 beforeEach(async () => {
@@ -61,7 +71,13 @@ describe('checkoutRepository (real git)', () => {
       repositoryUrl: `file://${sourceRepo}`,
       ref: 'main',
       cwd,
-      auth: {kind: 'bearer', token: 'super-secret-token', expires_at: '2026-01-01T00:00:00Z'},
+      auth: {
+        kind: 'bearer',
+        token: 'super-secret-token',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
+      },
     });
 
     const gitConfig = await readFile(join(cwd, '.git', 'config'), 'utf8');
@@ -79,6 +95,8 @@ describe('checkoutRepository (real git)', () => {
         username: 'x-token',
         token: 'super-secret-token',
         expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
       },
     });
 
@@ -103,5 +121,41 @@ describe('checkoutRepository (real git)', () => {
 describe('assertGitAvailable (real git)', () => {
   it('resolves when git is on PATH', async () => {
     await expect(assertGitAvailable()).resolves.toMatch(GIT_VERSION_RE);
+  });
+});
+
+describe('writeAmbientGitCredential (real git)', () => {
+  it('scopes the extraHeader to the exact repository URL', async () => {
+    const configPath = join(workdir, 'git-cred.config');
+    const repositoryUrl = 'https://github.com/acme/repo.git';
+
+    await writeAmbientGitCredential({
+      configPath,
+      repositoryUrl,
+      auth: {
+        kind: 'bearer',
+        token: 'super-secret-token',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
+      },
+    });
+
+    const exact = await gitOutput(
+      ['config', '--file', configPath, '--get-urlmatch', 'http.extraHeader', repositoryUrl],
+      workdir,
+    );
+    await expect(
+      execFileAsync('git', [
+        'config',
+        '--file',
+        configPath,
+        '--get-urlmatch',
+        'http.extraHeader',
+        'https://github.com/acme/other.git',
+      ]),
+    ).rejects.toThrow();
+
+    expect(exact).toBe('Authorization: Bearer super-secret-token');
   });
 });
