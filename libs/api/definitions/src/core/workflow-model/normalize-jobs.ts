@@ -106,12 +106,12 @@ function normalizeJob(params: {
   const name =
     params.job.name === undefined
       ? undefined
-      : parseInterpolationField({
+      : (parseInterpolationField({
           field: 'job.name',
           source: params.job.name,
           path: ['jobs', params.sourceName, 'name'],
           issues: params.issues,
-        });
+        }) ?? [{kind: 'literal' as const, text: params.job.name}]);
 
   return {
     id,

@@ -18,7 +18,6 @@ export function createRuntimeRunProgress(jobs: readonly RuntimeProgressJob[]): R
 
   for (const job of jobs) {
     jobVersions.set(job.id, job.version);
-    if (job.mode === 'listening') continue;
     if (job.status === 'succeeded') completed.set(job.key, 'succeeded');
   }
 

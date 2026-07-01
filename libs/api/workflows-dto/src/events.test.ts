@@ -93,7 +93,7 @@ const validStepAttemptTerminated = {
 
 const validJobEventDelivered = {
   jobId: 'job-1',
-  runId: 'run-1',
+  workflowRunId: 'run-1',
   source: 'github',
   event: 'pull_request_review',
   deliveryId: 'delivery-1',
@@ -101,18 +101,18 @@ const validJobEventDelivered = {
 
 const validListenerStarted = {
   jobId: 'job-1',
-  runId: 'run-1',
+  workflowRunId: 'run-1',
 };
 
 const validListenerResolved = {
   jobId: 'job-1',
-  runId: 'run-1',
+  workflowRunId: 'run-1',
   reason: 'until',
 };
 
 const validListenerCancelled = {
   jobId: 'job-1',
-  runId: 'run-1',
+  workflowRunId: 'run-1',
 };
 
 describe('workflowsJobTerminatedSchema', () => {
@@ -253,7 +253,7 @@ describe.each([
     'workflowsListenerCancelledSchema',
     workflowsListenerCancelledSchema,
     validListenerCancelled,
-    'runId',
+    'workflowRunId',
   ],
 ] as const)('%s', (_name, schema, validPayload, requiredKey) => {
   it('parses a valid payload unchanged', () => {

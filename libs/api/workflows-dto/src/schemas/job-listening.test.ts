@@ -47,4 +47,18 @@ describe('execution context schemas', () => {
     expect(execution.events).toEqual([event]);
     expect(batch.events).toEqual([event]);
   });
+
+  it('rejects negative execution indexes', () => {
+    const parse = () =>
+      workflowExecutionContextSchema.parse({
+        index: -1,
+        name: 'Review #-1',
+        status: 'succeeded',
+        started_at: '2026-06-25T00:00:00.000Z',
+        finished_at: null,
+        events: [],
+      });
+
+    expect(parse).toThrow();
+  });
 });

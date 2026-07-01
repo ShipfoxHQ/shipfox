@@ -40,6 +40,13 @@ const workflowDocumentListeningSchema = z.strictObject({
       max_size: z.number().int().positive().optional(),
       max_wait: z.string().min(1).optional(),
     })
+    .refine(
+      (value) =>
+        value.debounce !== undefined ||
+        value.max_size !== undefined ||
+        value.max_wait !== undefined,
+      {message: 'Expected debounce, max_size, or max_wait'},
+    )
     .optional(),
   on_resolve: z.enum(['finish', 'cancel']).optional(),
 });

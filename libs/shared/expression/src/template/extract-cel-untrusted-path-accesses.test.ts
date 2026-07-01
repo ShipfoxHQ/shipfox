@@ -16,6 +16,8 @@ describe('extractCelUntrustedPathAccesses', () => {
     ['executions[0].events', ['executions']],
     ['executions[0]["events"]', ['executions']],
     ['execution.events.exists(e, e.data.ok)', ['execution']],
+    ['executions.map(e, e.events[0].data.body)', ['executions']],
+    ['executions.exists(e, e.events.size() > 0)', ['executions']],
   ] as const)('finds untrusted path access in %s', (source, roots) => {
     const result = extract(source);
 

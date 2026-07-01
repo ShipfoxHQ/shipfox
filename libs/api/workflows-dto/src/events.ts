@@ -124,7 +124,7 @@ export type WorkflowsStepAttemptTerminatedEventDto = z.infer<
 
 export const workflowsJobEventDeliveredSchema = z.object({
   jobId: nonEmptyStringSchema,
-  runId: nonEmptyStringSchema,
+  workflowRunId: nonEmptyStringSchema,
   source: nonEmptyStringSchema,
   event: nonEmptyStringSchema,
   deliveryId: nonEmptyStringSchema,
@@ -133,20 +133,20 @@ export type WorkflowsJobEventDeliveredEventDto = z.infer<typeof workflowsJobEven
 
 export const workflowsListenerStartedSchema = z.object({
   jobId: nonEmptyStringSchema,
-  runId: nonEmptyStringSchema,
+  workflowRunId: nonEmptyStringSchema,
 });
 export type WorkflowsListenerStartedEventDto = z.infer<typeof workflowsListenerStartedSchema>;
 
 export const workflowsListenerResolvedSchema = z.object({
   jobId: nonEmptyStringSchema,
-  runId: nonEmptyStringSchema,
+  workflowRunId: nonEmptyStringSchema,
   reason: z.enum(['until', 'timeout', 'max_executions', 'cancelled']),
 });
 export type WorkflowsListenerResolvedEventDto = z.infer<typeof workflowsListenerResolvedSchema>;
 
 export const workflowsListenerCancelledSchema = z.object({
   jobId: nonEmptyStringSchema,
-  runId: nonEmptyStringSchema,
+  workflowRunId: nonEmptyStringSchema,
 });
 export type WorkflowsListenerCancelledEventDto = z.infer<typeof workflowsListenerCancelledSchema>;
 

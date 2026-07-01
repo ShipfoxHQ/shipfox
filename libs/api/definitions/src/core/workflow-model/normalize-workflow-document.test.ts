@@ -1431,6 +1431,7 @@ describe('normalizeWorkflowDocument', () => {
         env: {VALUE: '$${{ event.ref }}'},
         jobs: {
           build: {
+            name: 'Build app',
             steps: [{name: 'literal step', run: 'echo $${{ event.ref }}'}],
           },
         },
@@ -1441,6 +1442,7 @@ describe('normalizeWorkflowDocument', () => {
       expect(model).not.toHaveProperty('templates');
       expect(model.jobs[0]?.steps[0]).not.toHaveProperty('templates');
       expect(model.env).toEqual({VALUE: '$${{ event.ref }}'});
+      expect(model.jobs[0]?.name).toEqual([{kind: 'literal', text: 'Build app'}]);
       expect(model.jobs[0]?.steps[0]).toMatchObject({
         kind: 'run',
         command: {value: 'echo $${{ event.ref }}'},
@@ -1564,11 +1566,11 @@ describe('normalizeWorkflowDocument', () => {
 
       expect(error.issues).toEqual([
         expect.objectContaining({
-          code: 'unknown-interpolation-context',
+          code: 'untrusted-context-in-field',
           path: ['jobs', 'build', 'steps', 0, 'run'],
           details: expect.objectContaining({
-            contextRoots: expect.arrayContaining(['executions', 'e']),
-            unknownRoots: ['e'],
+            field: 'run',
+            rejectedRoots: ['executions'],
           }),
         }),
       ]);

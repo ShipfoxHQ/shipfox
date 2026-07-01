@@ -37,7 +37,7 @@ export const workflowExecutionEventSchema = z.object({
 });
 
 export const workflowExecutionContextSchema = z.object({
-  index: z.number().int(),
+  index: z.number().int().nonnegative(),
   name: z.string(),
   status: z.string(),
   started_at: z.string().nullable(),

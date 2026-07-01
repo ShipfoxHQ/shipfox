@@ -299,7 +299,7 @@ function resolveStepName(
   if (step.templates?.name === undefined) return {value: step.name, diagnostics: []};
 
   const resolved = resolveWorkflowTemplate(step.templates.name, context, {
-    requiredContextRoots: requiredTrustedRoots(step.templates.name),
+    requiredContextRoots: requiredStepNameRoots(step.templates.name),
   });
   return {
     value: resolved.value,
@@ -349,6 +349,19 @@ function requiredTrustedRoots(segments: readonly unknown[]): WorkflowContextName
     for (const root of segment.contextRoots) {
       if (!isWorkflowContextName(root)) continue;
       if (getWorkflowContextDefinition(root).trustTier === 'trusted') roots.add(root);
+    }
+  }
+
+  return [...roots];
+}
+
+function requiredStepNameRoots(segments: readonly unknown[]): WorkflowContextName[] {
+  const roots = new Set<WorkflowContextName>(requiredTrustedRoots(segments));
+
+  for (const segment of segments) {
+    if (!hasContextRoots(segment)) continue;
+    for (const root of segment.contextRoots) {
+      if (root === 'execution' || root === 'executions') roots.add(root);
     }
   }
 

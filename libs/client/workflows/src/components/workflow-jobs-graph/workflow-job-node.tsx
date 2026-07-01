@@ -74,8 +74,9 @@ export function WorkflowJobNode({
   useTimeTick();
   const visual = getWorkflowStatusVisual(node.status);
   const dependencyText = dependencyLabel(node.currentDependencyCount);
+  const displayLabel = node.name ?? node.key;
   const accessibleLabel = [
-    node.name,
+    displayLabel,
     visual.label,
     durationAccessibleLabel(node.duration),
     dependencyText?.accessible,
@@ -109,7 +110,7 @@ export function WorkflowJobNode({
       ) : null}
       <div className="flex min-w-0 flex-1 items-center gap-8">
         <WorkflowStatusIcon status={node.status} size={14} tooltip={false} />
-        <JobLabel label={node.name ?? node.key} />
+        <JobLabel label={displayLabel} />
       </div>
       <JobDurationLabel duration={node.duration} />
       {dependencyText ? (

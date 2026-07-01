@@ -135,4 +135,12 @@ describe('scheduleRuntimeDag', () => {
 
     expect(commands).toEqual([]);
   });
+
+  it('starts jobs that need a resolved listening dependency', () => {
+    const jobs = [job('listen', [], 'listening'), job('deploy', ['listen'])];
+
+    const commands = scheduleRuntimeDag({jobs, completed: completed({listen: 'succeeded'})});
+
+    expect(commands).toEqual([{kind: 'start-job', job: jobs[1]}]);
+  });
 });

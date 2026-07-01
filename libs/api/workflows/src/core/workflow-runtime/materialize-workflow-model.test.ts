@@ -557,6 +557,26 @@ describe('materializeWorkflowModel', () => {
     expect(materialize).toThrow(InterpolationUnresolvableError);
   });
 
+  it('throws a permanent interpolation error for a missing execution path in step names', () => {
+    const model = workflowModel({
+      jobs: {
+        review: {
+          steps: [
+            {
+              name: `Review ${template('execution.events[0].data.body')}`,
+              prompt: 'Summarize the review',
+            },
+          ],
+        },
+      },
+    });
+
+    const materialize = () =>
+      materializeWorkflowModel({model, context: runContext(), definitionId: 'def-1'});
+
+    expect(materialize).toThrow(InterpolationUnresolvableError);
+  });
+
   it('uses the supplied context for each materialization call', () => {
     const model = workflowModel({
       jobs: {

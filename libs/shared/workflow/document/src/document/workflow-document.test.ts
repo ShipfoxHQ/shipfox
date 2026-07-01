@@ -105,6 +105,28 @@ describe('workflowDocumentSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('rejects an empty listening batch block', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'listen for reviews',
+      jobs: {
+        review: {
+          listening: {
+            on: [{source: 'github', event: 'pull_request_review'}],
+            batch: {},
+          },
+          steps: [{prompt: 'Review'}],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) => candidate.path.join('.') === 'jobs.review.listening.batch',
+        );
+    expect(issue?.message).toBe('Expected debounce, max_size, or max_wait');
+  });
+
   it('rejects flat listening fields on a job', () => {
     const result = workflowDocumentSchema.safeParse({
       name: 'listen for reviews',
