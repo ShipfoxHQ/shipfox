@@ -1,10 +1,10 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {index, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
-import type {RunnerToken} from '#core/entities/runner-token.js';
+import type {ManualRegistrationToken} from '#core/entities/manual-registration-token.js';
 import {pgTable} from './common.js';
 
-export const runnerTokens = pgTable(
-  'runner_tokens',
+export const manualRegistrationTokens = pgTable(
+  'manual_registration_tokens',
   {
     id: uuidv7PrimaryKey(),
     workspaceId: uuid('workspace_id').notNull(),
@@ -17,9 +17,9 @@ export const runnerTokens = pgTable(
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('runners_runner_tokens_hashed_token_unique').on(table.hashedToken),
-    index('runners_runner_tokens_workspace_id_idx').on(table.workspaceId),
-    index('runners_runner_tokens_active_lookup_idx').on(
+    uniqueIndex('runners_manual_registration_tokens_hashed_token_unique').on(table.hashedToken),
+    index('runners_manual_registration_tokens_workspace_id_idx').on(table.workspaceId),
+    index('runners_manual_registration_tokens_active_lookup_idx').on(
       table.hashedToken,
       table.revokedAt,
       table.expiresAt,
@@ -27,10 +27,10 @@ export const runnerTokens = pgTable(
   ],
 );
 
-export type RunnerTokenDb = typeof runnerTokens.$inferSelect;
-export type RunnerTokenInsertDb = typeof runnerTokens.$inferInsert;
+export type ManualRegistrationTokenDb = typeof manualRegistrationTokens.$inferSelect;
+export type ManualRegistrationTokenInsertDb = typeof manualRegistrationTokens.$inferInsert;
 
-export function toRunnerToken(row: RunnerTokenDb): RunnerToken {
+export function toManualRegistrationToken(row: ManualRegistrationTokenDb): ManualRegistrationToken {
   return {
     id: row.id,
     workspaceId: row.workspaceId,

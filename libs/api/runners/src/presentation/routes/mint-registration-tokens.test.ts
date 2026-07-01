@@ -21,7 +21,7 @@ import {db} from '#db/db.js';
 import {resolveEphemeralRegistrationTokenByHash} from '#db/ephemeral-registration-tokens.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
 import {reservations} from '#db/schema/reservations.js';
-import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';
+import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
 import {ephemeralRegistrationTokenFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
@@ -58,7 +58,7 @@ describe('POST /provisioners/runner-registration-tokens/batch', () => {
     app = await createApp({
       auth: [
         fakeUserAuth,
-        createRunnerTokenAuthMethod(),
+        createRunnerRegistrationTokenAuthMethod(),
         createRunnerSessionAuthMethod(),
         createLeaseTokenAuthMethod(),
         passthroughAuth(AUTH_RUNNER_SESSION),

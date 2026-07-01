@@ -1,6 +1,6 @@
 import {ApiError} from '@shipfox/client-api';
 
-export function runnerTokenErrorMessage(error: unknown): string {
+export function manualRegistrationTokenErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     // `network-error` carries the raw request URL in its message; never surface it.
     if (error.code === 'network-error') {

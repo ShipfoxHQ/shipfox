@@ -1,6 +1,6 @@
 export {createProvisionerTokenAuthMethod} from './provisioner-token-auth.js';
 export {
-  createRunnerTokenAuthMethod,
+  createRunnerRegistrationTokenAuthMethod,
   getRunnerContext,
-  type RunnerAuthContext,
-} from './runner-token-auth.js';
+  type RunnerRegistrationContext,
+} from './runner-registration-token-auth.js';

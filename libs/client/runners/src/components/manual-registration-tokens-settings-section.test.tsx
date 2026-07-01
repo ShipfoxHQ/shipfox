@@ -4,7 +4,7 @@ import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {ReactElement} from 'react';
-import {WorkspaceRunnerTokensSettingsSection} from './runner-tokens-settings-section.js';
+import {WorkspaceManualRegistrationTokensSettingsSection} from './manual-registration-tokens-settings-section.js';
 
 const RUNNERS_TEST_WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
@@ -15,11 +15,11 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
   });
 }
 
-function runnerToken(overrides: Partial<Record<string, string | null>> = {}) {
+function manualRegistrationToken(overrides: Partial<Record<string, string | null>> = {}) {
   return {
     id: '33333333-3333-4333-8333-333333333333',
     workspace_id: RUNNERS_TEST_WORKSPACE_ID,
-    prefix: 'sf_r_abcdefg',
+    prefix: 'sf_mrt_abcde',
     name: 'Deploy runner',
     expires_at: '2026-05-09T00:00:00.000Z',
     revoked_at: null,
@@ -29,7 +29,7 @@ function runnerToken(overrides: Partial<Record<string, string | null>> = {}) {
   };
 }
 
-function renderRunnerTokens(element: ReactElement) {
+function renderManualRegistrationTokens(element: ReactElement) {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
 
   return render(
@@ -53,16 +53,16 @@ function lastButton(name: string): HTMLElement {
   return button;
 }
 
-describe('WorkspaceRunnerTokensSettingsSection', () => {
+describe('WorkspaceManualRegistrationTokensSettingsSection', () => {
   test('renders an empty usable-token state', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({tokens: []}));
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({manual_registration_tokens: []}));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
-    renderRunnerTokens(
-      <WorkspaceRunnerTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
+    renderManualRegistrationTokens(
+      <WorkspaceManualRegistrationTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
     );
 
-    expect(await screen.findByText('No usable runner tokens')).toBeVisible();
+    expect(await screen.findByText('No usable manual registration tokens')).toBeVisible();
     expect(screen.getByRole('button', {name: 'Create token'})).toBeVisible();
   });
 
@@ -70,13 +70,13 @@ describe('WorkspaceRunnerTokensSettingsSection', () => {
     const user = userEvent.setup();
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({tokens: []}))
+      .mockResolvedValueOnce(jsonResponse({manual_registration_tokens: []}))
       .mockResolvedValueOnce(
         jsonResponse(
           {
             id: '44444444-4444-4444-8444-444444444444',
-            raw_token: 'sf_rt_raw-created-token',
-            prefix: 'sf_rt_raw-c',
+            raw_token: 'sf_mrt_raw-created-token',
+            prefix: 'sf_mrt_raw-c',
             name: 'Local runner',
             workspace_id: RUNNERS_TEST_WORKSPACE_ID,
             expires_at: '2026-05-09T00:00:00.000Z',
@@ -85,13 +85,17 @@ describe('WorkspaceRunnerTokensSettingsSection', () => {
           {status: 201},
         ),
       )
-      .mockResolvedValueOnce(jsonResponse({tokens: [runnerToken({name: 'Local runner'})]}));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          manual_registration_tokens: [manualRegistrationToken({name: 'Local runner'})],
+        }),
+      );
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
-    renderRunnerTokens(
-      <WorkspaceRunnerTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
+    renderManualRegistrationTokens(
+      <WorkspaceManualRegistrationTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
     );
-    await screen.findByText('No usable runner tokens');
+    await screen.findByText('No usable manual registration tokens');
     await user.click(screen.getByRole('button', {name: 'Create token'}));
     fireEvent.change(await screen.findByLabelText('Token name'), {
       target: {value: 'Local runner'},
@@ -99,23 +103,23 @@ describe('WorkspaceRunnerTokensSettingsSection', () => {
     await user.click(lastButton('Create token'));
 
     expect(await screen.findByText('Token created')).toBeVisible();
-    expect(screen.getByText('sf_rt_raw-created-token')).toBeVisible();
+    expect(screen.getByText('sf_mrt_raw-created-token')).toBeVisible();
   });
 
   test('surfaces create errors without clearing the form', async () => {
     const user = userEvent.setup();
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({tokens: []}))
+      .mockResolvedValueOnce(jsonResponse({manual_registration_tokens: []}))
       .mockResolvedValueOnce(
         jsonResponse({message: 'Token quota reached', code: 'quota-reached'}, {status: 422}),
       );
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
-    renderRunnerTokens(
-      <WorkspaceRunnerTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
+    renderManualRegistrationTokens(
+      <WorkspaceManualRegistrationTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
     );
-    await screen.findByText('No usable runner tokens');
+    await screen.findByText('No usable manual registration tokens');
     await user.click(screen.getByRole('button', {name: 'Create token'}));
     fireEvent.change(await screen.findByLabelText('Token name'), {
       target: {value: 'Local runner'},
@@ -131,40 +135,49 @@ describe('WorkspaceRunnerTokensSettingsSection', () => {
     const user = userEvent.setup();
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({tokens: [runnerToken()]}))
-      .mockResolvedValueOnce(jsonResponse(runnerToken({revoked_at: '2026-05-08T01:00:00.000Z'})))
-      .mockResolvedValueOnce(jsonResponse({tokens: []}));
+      .mockResolvedValueOnce(
+        jsonResponse({manual_registration_tokens: [manualRegistrationToken()]}),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(manualRegistrationToken({revoked_at: '2026-05-08T01:00:00.000Z'})),
+      )
+      .mockResolvedValueOnce(jsonResponse({manual_registration_tokens: []}));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
-    renderRunnerTokens(
-      <WorkspaceRunnerTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
+    renderManualRegistrationTokens(
+      <WorkspaceManualRegistrationTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
     );
     expect((await screen.findAllByText('Deploy runner')).length).toBeGreaterThan(0);
     await user.click(firstButton('Revoke Deploy runner'));
     await user.click(lastButton('Revoke'));
 
     await waitFor(() => expect(screen.queryByText('Deploy runner')).not.toBeInTheDocument());
-    expect(screen.getByText('No usable runner tokens')).toBeVisible();
+    expect(screen.getByText('No usable manual registration tokens')).toBeVisible();
   });
 
   test('shows a recoverable revoke error', async () => {
     const user = userEvent.setup();
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({tokens: [runnerToken()]}))
       .mockResolvedValueOnce(
-        jsonResponse({message: 'Runner token not found', code: 'not-found'}, {status: 404}),
+        jsonResponse({manual_registration_tokens: [manualRegistrationToken()]}),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {message: 'Manual registration token not found', code: 'not-found'},
+          {status: 404},
+        ),
       );
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
-    renderRunnerTokens(
-      <WorkspaceRunnerTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
+    renderManualRegistrationTokens(
+      <WorkspaceManualRegistrationTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
     );
     expect((await screen.findAllByText('Deploy runner')).length).toBeGreaterThan(0);
     await user.click(firstButton('Revoke Deploy runner'));
     await user.click(lastButton('Revoke'));
 
-    expect(await screen.findByText('Runner token not found')).toBeVisible();
+    expect(await screen.findByText('Manual registration token not found')).toBeVisible();
     expect(screen.getAllByText('Deploy runner').length).toBeGreaterThan(0);
   });
 });

@@ -2,7 +2,7 @@ CREATE TYPE "public"."runners_runner_session_scope" AS ENUM('workspace');
 --> statement-breakpoint
 CREATE TYPE "public"."runners_runner_session_registration_token_kind" AS ENUM('manual', 'ephemeral');
 --> statement-breakpoint
-CREATE TABLE "runners_runner_tokens" (
+CREATE TABLE "runners_manual_registration_tokens" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"hashed_token" text NOT NULL,
@@ -53,6 +53,6 @@ CREATE UNIQUE INDEX "runners_ephemeral_registration_tokens_hashed_token_unique" 
 CREATE INDEX "runners_ephemeral_registration_tokens_workspace_id_idx" ON "runners_ephemeral_registration_tokens" USING btree ("workspace_id");--> statement-breakpoint
 CREATE INDEX "runners_ephemeral_registration_tokens_provisioner_id_idx" ON "runners_ephemeral_registration_tokens" USING btree ("provisioner_id");--> statement-breakpoint
 CREATE INDEX "runners_ephemeral_registration_tokens_active_provisioned_runner_idx" ON "runners_ephemeral_registration_tokens" USING btree ("workspace_id","provisioner_id","provisioned_runner_id","consumed_at","expires_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "runners_runner_tokens_hashed_token_unique" ON "runners_runner_tokens" USING btree ("hashed_token");--> statement-breakpoint
-CREATE INDEX "runners_runner_tokens_workspace_id_idx" ON "runners_runner_tokens" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "runners_runner_tokens_active_lookup_idx" ON "runners_runner_tokens" USING btree ("hashed_token","revoked_at","expires_at");
+CREATE UNIQUE INDEX "runners_manual_registration_tokens_hashed_token_unique" ON "runners_manual_registration_tokens" USING btree ("hashed_token");--> statement-breakpoint
+CREATE INDEX "runners_manual_registration_tokens_workspace_id_idx" ON "runners_manual_registration_tokens" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX "runners_manual_registration_tokens_active_lookup_idx" ON "runners_manual_registration_tokens" USING btree ("hashed_token","revoked_at","expires_at");

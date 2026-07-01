@@ -3,7 +3,7 @@ import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {listActiveRunners} from '#core/index.js';
 import {toActiveRunnersResponseDto} from '#presentation/dto/index.js';
-import {requireRunnerTokenWorkspaceMembership} from './workspace-membership.js';
+import {requireManualRegistrationTokenWorkspaceMembership} from './workspace-membership.js';
 
 export const listActiveRunnersRoute = defineRoute({
   method: 'GET',
@@ -17,7 +17,7 @@ export const listActiveRunnersRoute = defineRoute({
   },
   handler: async (request) => {
     const {workspaceId} = request.params;
-    await requireRunnerTokenWorkspaceMembership({request, workspaceId});
+    await requireManualRegistrationTokenWorkspaceMembership({request, workspaceId});
 
     const runners = await listActiveRunners({workspaceId});
     return toActiveRunnersResponseDto(runners);

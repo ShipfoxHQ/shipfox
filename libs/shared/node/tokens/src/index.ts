@@ -10,7 +10,7 @@ export const tokenTypeParts = {
   emailVerification: 'v',
   passwordReset: 'pr',
   refreshToken: 'r',
-  runnerToken: 'rt',
+  manualRegistrationToken: 'mrt',
   ephemeralRegistrationToken: 'ert',
   provisionerToken: 'pt',
 } as const;

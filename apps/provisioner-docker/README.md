@@ -58,12 +58,12 @@ Each template `image` must run the Shipfox runner process and consume the inject
 environment:
 
 - `SHIPFOX_API_URL`
-- `SHIPFOX_RUNNER_TOKEN`
+- `SHIPFOX_RUNNER_REGISTRATION_TOKEN`
 - `SHIPFOX_RUNNER_LABELS`
 - `SHIPFOX_POLL_MAX_DURATION_MS`
 
-Do not bake a static runner token into the image or container environment. The
-provisioner mints one single-use registration token per reserved runner.
+Do not bake a static manual registration token into the image or container environment. The
+provisioner injects one single-use ephemeral registration token (`sf_ert_...`) per reserved runner.
 
 ## Run locally
 
