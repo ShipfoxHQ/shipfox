@@ -71,8 +71,8 @@ import {
   assembleWorkflowRunContext,
   materializeWorkflowModel,
 } from '#core/workflow-runtime/index.js';
-import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
 import type {MaterializedWorkflowJob} from '#core/workflow-runtime/materialize-workflow-model.js';
+import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
 import {
   recordWorkflowJobExecutionLeaseExpiryResolved,
   recordWorkflowJobExecutionQueued,
