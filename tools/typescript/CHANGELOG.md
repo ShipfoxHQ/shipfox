@@ -1,5 +1,11 @@
 # @shipfox/typescript
 
+## 1.1.6
+
+### Patch Changes
+
+- c1e9918: Makes the TypeScript wrapper fully check test files while keeping declaration emit source-only and lightweight.
+
 ## 1.1.5
 
 ### Patch Changes

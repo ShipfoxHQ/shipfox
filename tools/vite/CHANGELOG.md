@@ -1,5 +1,11 @@
 # @shipfox/vite
 
+## 1.2.4
+
+### Patch Changes
+
+- a9b0698: Replaces the `vite-tsconfig-paths` plugin with Vite's native `resolve.tsconfigPaths` option, dropping the dependency.
+
 ## 1.2.3
 
 ### Patch Changes
