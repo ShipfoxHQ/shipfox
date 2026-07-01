@@ -82,6 +82,47 @@ describe('workflowDocumentSchema', () => {
     expect(result.triggers?.main_push?.filter).toBe('event.ref == "refs/heads/main"');
   });
 
+  it('accepts listening job configuration under a listening block', () => {
+    const workflowDocument = {
+      name: 'listen for reviews',
+      jobs: {
+        review: {
+          listening: {
+            on: [{source: 'github', event: 'pull_request_review'}],
+            until: [{source: 'github', event: 'pull_request'}],
+            timeout: '30d',
+            max_executions: 3,
+            batch: {debounce: '5s', max_size: 10, max_wait: '1h'},
+            on_resolve: 'cancel',
+          },
+          steps: [{prompt: 'Review'}],
+        },
+      },
+    };
+
+    const result = workflowDocumentSchema.safeParse(workflowDocument);
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects flat listening fields on a job', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'listen for reviews',
+      jobs: {
+        review: {
+          on: [{source: 'github', event: 'pull_request_review'}],
+          steps: [{prompt: 'Review'}],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find((candidate) => candidate.path.join('.') === 'jobs.review');
+    expect(issue?.message).toContain('Unrecognized key');
+    expect(issue?.message).toContain('on');
+  });
+
   it('accepts env maps at workflow, job, and run-step scope', () => {
     const workflowDocument = {
       name: 'env build',

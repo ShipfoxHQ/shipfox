@@ -13,70 +13,60 @@ export function normalizeJobListening(params: {
   issues: WorkflowModelValidationIssue[];
 }): WorkflowModelJobListening | undefined {
   const path = ['jobs', params.sourceName] as const;
+  const listening = params.job.listening;
 
-  if (params.job.on === undefined) {
-    for (const field of ['until', 'batch', 'timeout', 'max_executions', 'on_resolve'] as const) {
-      if (params.job[field] === undefined) continue;
-      params.issues.push(
-        issue({
-          code: 'listening-job-field-without-on',
-          message: `Job "${params.sourceName}" cannot declare "${field}" without "on".`,
-          path: [...path, field],
-          details: {field},
-        }),
-      );
-    }
+  if (listening === undefined) {
     return undefined;
   }
 
   const timeoutMs = parseDurationMs({
-    source: params.job.timeout,
-    path: [...path, 'timeout'],
+    source: listening.timeout,
+    path: [...path, 'listening', 'timeout'],
     issues: params.issues,
     maxMs: DEFAULT_RUN_TIMEOUT_MS,
     outOfRangeCode: 'listening-timeout-exceeds-run-timeout',
     outOfRangeMessage: 'Listening job timeout must be between 1s and the workflow run timeout.',
   });
   const debounceMs = parseDurationMs({
-    source: params.job.batch?.debounce,
-    path: [...path, 'batch', 'debounce'],
+    source: listening.batch?.debounce,
+    path: [...path, 'listening', 'batch', 'debounce'],
     issues: params.issues,
   });
   const maxWaitMs = parseDurationMs({
-    source: params.job.batch?.max_wait,
-    path: [...path, 'batch', 'max_wait'],
+    source: listening.batch?.max_wait,
+    path: [...path, 'listening', 'batch', 'max_wait'],
     issues: params.issues,
   });
 
   if (
-    params.job.until === undefined &&
-    params.job.timeout === undefined &&
-    params.job.max_executions === undefined
+    listening.until === undefined &&
+    listening.timeout === undefined &&
+    listening.max_executions === undefined
   ) {
     params.issues.push(
       issue({
         code: 'listening-job-missing-resolution-source',
         message: `Listening job "${params.sourceName}" must declare until, timeout, or max_executions.`,
-        path,
+        path: [...path, 'listening'],
       }),
     );
   }
 
   const batch =
-    debounceMs === undefined && params.job.batch?.max_size === undefined && maxWaitMs === undefined
+    debounceMs === undefined && listening.batch?.max_size === undefined && maxWaitMs === undefined
       ? undefined
       : {
           ...(debounceMs === undefined ? {} : {debounceMs}),
-          ...(params.job.batch?.max_size === undefined ? {} : {maxSize: params.job.batch.max_size}),
+          ...(listening.batch?.max_size === undefined ? {} : {maxSize: listening.batch.max_size}),
           ...(maxWaitMs === undefined ? {} : {maxWaitMs}),
         };
 
   return {
-    on: params.job.on.map(normalizeTriggerEntry),
-    ...(params.job.until === undefined ? {} : {until: params.job.until.map(normalizeTriggerEntry)}),
+    on: listening.on.map(normalizeTriggerEntry),
+    ...(listening.until === undefined ? {} : {until: listening.until.map(normalizeTriggerEntry)}),
     ...(timeoutMs === undefined ? {} : {timeoutMs}),
-    ...(params.job.max_executions === undefined ? {} : {maxExecutions: params.job.max_executions}),
+    ...(listening.max_executions === undefined ? {} : {maxExecutions: listening.max_executions}),
     ...(batch === undefined ? {} : {batch}),
-    onResolve: params.job.on_resolve ?? 'finish',
+    onResolve: listening.on_resolve ?? 'finish',
   };
 }

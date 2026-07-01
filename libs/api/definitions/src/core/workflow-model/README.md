@@ -72,6 +72,10 @@ file paths. Those fields belong to `WorkflowDefinition`.
 Trigger filters stay as source strings in this module until event schemas define
 the expression context needed to type-check them.
 
+Event selectors use one document shape, `{source, event, with, filter}`, in
+three roles. Workflow `triggers` start a run. Job `listening.on` fires job
+executions. Job `listening.until` resolves the listening job.
+
 The persisted `workflow_document` keeps author-provided runner labels exactly as
 written. Canonical and defaulted labels live on `workflow_model.jobs[].runner`;
 downstream consumers should read the model, not `document.runner`.

@@ -29,6 +29,21 @@ export const workflowDocumentTriggerSchema = z.strictObject({
   event: z.string().min(1),
 });
 
+const workflowDocumentListeningSchema = z.strictObject({
+  on: z.array(workflowDocumentTriggerSchema).min(1),
+  until: z.array(workflowDocumentTriggerSchema).min(1).optional(),
+  timeout: z.string().min(1).optional(),
+  max_executions: z.number().int().positive().optional(),
+  batch: z
+    .strictObject({
+      debounce: z.string().min(1).optional(),
+      max_size: z.number().int().positive().optional(),
+      max_wait: z.string().min(1).optional(),
+    })
+    .optional(),
+  on_resolve: z.enum(['finish', 'cancel']).optional(),
+});
+
 const workflowDocumentStepGateSchema = z
   .strictObject({
     success_if: z.string().min(1).optional(),
@@ -119,18 +134,7 @@ export const workflowDocumentJobSchema = z.strictObject({
   runner: stringOrStringArraySchema.optional(),
   success: z.string().min(1).optional(),
   execution_timeout: z.string().min(1).optional(),
-  on: z.array(workflowDocumentTriggerSchema).min(1).optional(),
-  until: z.array(workflowDocumentTriggerSchema).min(1).optional(),
-  timeout: z.string().min(1).optional(),
-  max_executions: z.number().int().positive().optional(),
-  batch: z
-    .strictObject({
-      debounce: z.string().min(1).optional(),
-      max_size: z.number().int().positive().optional(),
-      max_wait: z.string().min(1).optional(),
-    })
-    .optional(),
-  on_resolve: z.enum(['finish', 'cancel']).optional(),
+  listening: workflowDocumentListeningSchema.optional(),
   name: z.string().min(1).optional(),
   env: workflowDocumentEnvSchema.optional(),
   steps: z.array(workflowDocumentStepSchema).min(1),
@@ -147,6 +151,7 @@ export const workflowDocumentSchema = z.strictObject({
 export type WorkflowDocument = z.infer<typeof workflowDocumentSchema>;
 export type WorkflowDocumentEnv = z.infer<typeof workflowDocumentEnvSchema>;
 export type WorkflowDocumentJob = z.infer<typeof workflowDocumentJobSchema>;
+export type WorkflowDocumentJobListening = z.infer<typeof workflowDocumentListeningSchema>;
 export type WorkflowDocumentRunStepGate = z.infer<typeof workflowDocumentStepGateSchema>;
 export type WorkflowDocumentStep = z.infer<typeof workflowDocumentStepSchema>;
 export type WorkflowDocumentTrigger = z.infer<typeof workflowDocumentTriggerSchema>;

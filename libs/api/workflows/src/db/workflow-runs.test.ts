@@ -248,12 +248,14 @@ describe('workflow run queries', () => {
         jobs: {
           listen: {
             name: nameTemplateSource,
-            on: [{source: 'github', event: 'pull_request_review'}],
-            until: [{source: 'github', event: 'pull_request'}],
-            timeout: '30d',
-            max_executions: 3,
-            batch: {debounce: '5s', max_size: 10, max_wait: '1h'},
-            on_resolve: 'cancel',
+            listening: {
+              on: [{source: 'github', event: 'pull_request_review'}],
+              until: [{source: 'github', event: 'pull_request'}],
+              timeout: '30d',
+              max_executions: 3,
+              batch: {debounce: '5s', max_size: 10, max_wait: '1h'},
+              on_resolve: 'cancel',
+            },
             steps: [{prompt: promptSource}],
           },
           build: {

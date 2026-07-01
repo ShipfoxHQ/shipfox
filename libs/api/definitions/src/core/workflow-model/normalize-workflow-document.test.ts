@@ -175,14 +175,20 @@ describe('normalizeWorkflowDocument', () => {
       jobs: {
         review: {
           name: nameTemplate,
-          on: [
-            {source: 'github', event: 'pull_request_review', filter: 'event.action == "submitted"'},
-          ],
-          until: [{source: 'github', event: 'pull_request', filter: 'event.action == "closed"'}],
-          timeout: '30d',
-          max_executions: 10,
-          batch: {debounce: '5s', max_size: 20, max_wait: '1h'},
-          on_resolve: 'cancel',
+          listening: {
+            on: [
+              {
+                source: 'github',
+                event: 'pull_request_review',
+                filter: 'event.action == "submitted"',
+              },
+            ],
+            until: [{source: 'github', event: 'pull_request', filter: 'event.action == "closed"'}],
+            timeout: '30d',
+            max_executions: 10,
+            batch: {debounce: '5s', max_size: 20, max_wait: '1h'},
+            on_resolve: 'cancel',
+          },
           steps: [{prompt: promptTemplate}],
         },
       },
@@ -214,7 +220,9 @@ describe('normalizeWorkflowDocument', () => {
       name: 'listen forever',
       jobs: {
         review: {
-          on: [{source: 'github', event: 'pull_request_review'}],
+          listening: {
+            on: [{source: 'github', event: 'pull_request_review'}],
+          },
           steps: [{run: 'echo ok'}],
         },
       },
@@ -225,28 +233,7 @@ describe('normalizeWorkflowDocument', () => {
     expect(error.issues).toEqual([
       expect.objectContaining({
         code: 'listening-job-missing-resolution-source',
-        path: ['jobs', 'review'],
-      }),
-    ]);
-  });
-
-  it('reports listening-only fields without on', () => {
-    const document: WorkflowDocument = {
-      name: 'bad listener',
-      jobs: {
-        review: {
-          until: [{source: 'github', event: 'pull_request'}],
-          steps: [{run: 'echo ok'}],
-        },
-      },
-    };
-
-    const error = expectInvalid(document);
-
-    expect(error.issues).toEqual([
-      expect.objectContaining({
-        code: 'listening-job-field-without-on',
-        path: ['jobs', 'review', 'until'],
+        path: ['jobs', 'review', 'listening'],
       }),
     ]);
   });
@@ -256,8 +243,10 @@ describe('normalizeWorkflowDocument', () => {
       name: 'too long',
       jobs: {
         review: {
-          on: [{source: 'github', event: 'pull_request_review'}],
-          timeout: '31d',
+          listening: {
+            on: [{source: 'github', event: 'pull_request_review'}],
+            timeout: '31d',
+          },
           steps: [{run: 'echo ok'}],
         },
       },
@@ -268,7 +257,7 @@ describe('normalizeWorkflowDocument', () => {
     expect(error.issues).toEqual([
       expect.objectContaining({
         code: 'listening-timeout-exceeds-run-timeout',
-        path: ['jobs', 'review', 'timeout'],
+        path: ['jobs', 'review', 'listening', 'timeout'],
       }),
     ]);
   });
