@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import {describe, expect, it} from '@shipfox/vitest/vi';
 import {eq, sql} from 'drizzle-orm';
-import {db, secretDataKeys, secretValues} from '#db/index.js';
+import {db, secretDataKeys, secretValues, upsertSecretValueRows} from '#db/index.js';
 import {
   NamespaceValidationError,
   SecretDecryptionError,
@@ -92,6 +92,35 @@ describe('secret store', () => {
       .select()
       .from(secretDataKeys)
       .where(eq(secretDataKeys.workspaceId, workspaceId));
+
+    expect(rows).toHaveLength(0);
+  });
+
+  it('rolls back value rows when the write transaction fails', async () => {
+    const workspaceId = crypto.randomUUID();
+
+    await expect(
+      db().transaction(async (tx) => {
+        await upsertSecretValueRows(
+          [
+            {
+              workspaceId,
+              projectId: null,
+              namespace: '',
+              key: 'TOKEN',
+              ciphertext: 'v1:test',
+              fingerprint: null,
+            },
+          ],
+          tx,
+        );
+        throw new Error('rollback');
+      }),
+    ).rejects.toThrow('rollback');
+    const rows = await db()
+      .select()
+      .from(secretValues)
+      .where(eq(secretValues.workspaceId, workspaceId));
 
     expect(rows).toHaveLength(0);
   });

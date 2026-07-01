@@ -19,6 +19,7 @@ export {
   SecretDecryptionError,
   SecretKeyValidationError,
   type SecretStoreProvider,
+  SecretValueTooLargeError,
   setSecrets,
   setVariables,
   UnknownSecretStoreError,
