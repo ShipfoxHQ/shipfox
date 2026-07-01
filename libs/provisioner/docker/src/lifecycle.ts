@@ -362,9 +362,9 @@ async function applyTerminalActions(
   actions: readonly TerminalAction[],
 ): Promise<void> {
   for (const action of actions) {
-    if (action.event) await reportEvents(context, [action.event]);
     if (action.killAndRemove) await context.engine.killAndRemove(action.killAndRemove);
     if (action.remove) await context.engine.remove(action.remove);
+    if (action.event) await reportEvents(context, [action.event]);
     context.knownLiveIds.delete(action.provisionedRunnerId);
     context.knownTemplateKeys.delete(action.provisionedRunnerId);
     context.tracker.remove(action.provisionedRunnerId);
@@ -398,8 +398,7 @@ async function reportEvents(
       }
       const unsent = [...batch, ...batches.slice(index + 1).flat()];
       bufferReports(context, unsent);
-      if (isTransientReportError(error)) return;
-      throw error;
+      return;
     }
   }
 }
@@ -501,11 +500,6 @@ function isTerminalReportEvent(event: ProvisionedRunnerReportEventDto): boolean 
 
 function isPermanentReportError(error: unknown): boolean {
   return responseStatus(error) === 400;
-}
-
-function isTransientReportError(error: unknown): boolean {
-  const status = responseStatus(error);
-  return status === undefined || status >= 500;
 }
 
 function responseStatus(error: unknown): number | undefined {

@@ -116,6 +116,40 @@ describe('createDockerLifecycle', () => {
     });
   });
 
+  it('buffers non-400 report errors and still removes terminal containers', async () => {
+    const engine = fakeEngine({
+      containers: [container({state: 'exited', exitCode: 1})],
+    });
+    const client = fakeClient({reportErrors: [httpError(409)]});
+    const lifecycle = makeLifecycle({engine, client});
+
+    await lifecycle.observe();
+
+    expect(engine.removed).toEqual(['runner-1']);
+
+    await lifecycle.flush();
+
+    expect(client.reportBodies[1]?.events[0]).toMatchObject({
+      provisioned_runner_id: 'runner-1',
+      state: 'failed',
+    });
+  });
+
+  it('does not report terminal state when Docker remove fails', async () => {
+    const error = new DockerEngineError('unknown', 'remove failed');
+    const engine = fakeEngine({
+      containers: [container({state: 'exited', exitCode: 0})],
+      removeError: error,
+    });
+    const client = fakeClient();
+    const lifecycle = makeLifecycle({engine, client});
+
+    await expect(lifecycle.observe()).rejects.toThrow(error);
+
+    expect(engine.removed).toEqual(['runner-1']);
+    expect(client.reportBodies).toEqual([]);
+  });
+
   it('buffers stale-created terminal reports and still kills containers when reporting transiently fails', async () => {
     const engine = fakeEngine({
       containers: [
@@ -218,6 +252,26 @@ describe('createDockerLifecycle', () => {
       reason: 'backend-terminate',
     });
     expect(engine.killedAndRemoved).toEqual(['runner-1']);
+  });
+
+  it('does not report backend terminate state when Docker kill fails', async () => {
+    const error = new DockerEngineError('unknown', 'kill failed');
+    const engine = fakeEngine({
+      containers: [container({state: 'running'})],
+      killAndRemoveError: error,
+    });
+    const client = fakeClient({
+      reconcileResponse: {
+        runners: [reconciledRunner('runner-1', 'terminate')],
+        terminated_absent_provisioned_runner_ids: [],
+      },
+    });
+    const lifecycle = makeLifecycle({engine, client});
+
+    await expect(lifecycle.reconcile()).rejects.toThrow(error);
+
+    expect(engine.killedAndRemoved).toEqual(['runner-1']);
+    expect(client.reportBodies).toEqual([]);
   });
 
   it('reconcile adopts backend keep-intent live containers', async () => {
@@ -366,7 +420,7 @@ describe('createDockerLifecycle', () => {
     expect(client.reportBodies).toHaveLength(1);
   });
 
-  it('propagates auth failures from report delivery', async () => {
+  it('propagates auth failures from report delivery after local cleanup', async () => {
     const engine = fakeEngine({
       containers: [container({state: 'exited', exitCode: 1})],
     });
@@ -376,7 +430,7 @@ describe('createDockerLifecycle', () => {
     });
 
     await expect(lifecycle.observe()).rejects.toThrow(ProvisionerAuthenticationError);
-    expect(engine.removed).toEqual([]);
+    expect(engine.removed).toEqual(['runner-1']);
   });
 
   it('preserves terminal reports over live reports when the retry queue overflows', async () => {
@@ -423,6 +477,23 @@ describe('createDockerLifecycle', () => {
   it('does not block container creation when the launch starting report is buffered', async () => {
     const engine = fakeEngine();
     const client = fakeClient({reportErrors: [new Error('api down')]});
+    const lifecycle = makeLifecycle({engine, client});
+
+    await lifecycle.launch(launch());
+
+    expect(engine.created).toHaveLength(1);
+
+    await lifecycle.flush();
+
+    expect(client.reportBodies[1]?.events[0]).toMatchObject({
+      provisioned_runner_id: 'runner-1',
+      state: 'starting',
+    });
+  });
+
+  it('does not block container creation when the launch starting report gets a non-400 error', async () => {
+    const engine = fakeEngine();
+    const client = fakeClient({reportErrors: [httpError(429)]});
     const lifecycle = makeLifecycle({engine, client});
 
     await lifecycle.launch(launch());
@@ -514,7 +585,13 @@ function fakeClient(
 }
 
 function fakeEngine(
-  options: {containers?: DockerContainerView[]; createError?: Error; listError?: Error} = {},
+  options: {
+    containers?: DockerContainerView[];
+    createError?: Error;
+    listError?: Error;
+    removeError?: Error;
+    killAndRemoveError?: Error;
+  } = {},
 ): DockerEngine & {
   created: Parameters<DockerEngine['createAndStart']>[0][];
   removed: string[];
@@ -546,10 +623,12 @@ function fakeEngine(
     },
     remove: (name) => {
       removed.push(name);
+      if (options.removeError) return Promise.reject(options.removeError);
       return Promise.resolve();
     },
     killAndRemove: (name) => {
       killedAndRemoved.push(name);
+      if (options.killAndRemoveError) return Promise.reject(options.killAndRemoveError);
       return Promise.resolve();
     },
   };
