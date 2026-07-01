@@ -358,6 +358,36 @@ describe('IntegrationGallery — available section', () => {
     expect(screen.getByRole('textbox', {name: 'Slug'})).toBeVisible();
   });
 
+  test('rejects reserved webhook slugs inline', async () => {
+    renderGallery({}, {connections: []});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Webhook'}));
+    fireEvent.change(await screen.findByRole('textbox', {name: 'Name'}), {
+      target: {value: 'Stripe production'},
+    });
+    fireEvent.change(screen.getByRole('textbox', {name: 'Slug'}), {
+      target: {value: 'github'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Create'}));
+
+    expect(await screen.findByText('That slug is reserved.')).toBeVisible();
+  });
+
+  test('validates webhook names after trimming whitespace', async () => {
+    renderGallery({}, {connections: []});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Webhook'}));
+    fireEvent.change(await screen.findByRole('textbox', {name: 'Name'}), {
+      target: {value: '   '},
+    });
+    fireEvent.change(screen.getByRole('textbox', {name: 'Slug'}), {
+      target: {value: 'stripe-prod'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Create'}));
+
+    expect(await screen.findByText('Webhook name is required.')).toBeVisible();
+  });
+
   test('surfaces a providers error only in the available section', async () => {
     renderGallery({}, {providersFail: true, connections: [githubConnection]});
 

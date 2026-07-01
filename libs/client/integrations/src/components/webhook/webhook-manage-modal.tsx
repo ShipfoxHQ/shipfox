@@ -84,12 +84,17 @@ export function WebhookManageModal({
   }
 
   const title = connection ? connection.name : 'Manage webhook';
+  const isMutating = updateWebhook.isPending || deleteWebhook.isPending;
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (isMutating && !nextOpen) return;
+    onOpenChange(nextOpen);
+  };
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
+    <Modal open={open} onOpenChange={handleOpenChange}>
       <ModalContent aria-describedby={undefined}>
         <ModalTitle className="sr-only">{title}</ModalTitle>
-        <ModalHeader showClose={!deleteWebhook.isPending}>
+        <ModalHeader showClose={!isMutating}>
           <div className="flex min-w-0 items-center gap-8">
             <Text size="lg" className="min-w-0 truncate">
               {title}

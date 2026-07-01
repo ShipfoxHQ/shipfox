@@ -91,12 +91,16 @@ export function WebhookCreateModal({workspaceId, open, onOpenChange}: WebhookCre
   }, [form, form.state.values.name, form.state.values.slug, slugTouched]);
 
   const title = createdConnection ? 'Webhook created' : 'Add webhook';
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (createWebhook.isPending && !nextOpen) return;
+    onOpenChange(nextOpen);
+  };
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
+    <Modal open={open} onOpenChange={handleOpenChange}>
       <ModalContent aria-describedby={undefined}>
         <ModalTitle className="sr-only">{title}</ModalTitle>
-        <ModalHeader title={title} />
+        <ModalHeader title={title} showClose={!createWebhook.isPending} />
         {createdConnection ? (
           <WebhookCreateSuccessContent
             connection={createdConnection}
@@ -119,18 +123,8 @@ export function WebhookCreateModal({workspaceId, open, onOpenChange}: WebhookCre
               <form.Field
                 name="name"
                 validators={{
-                  onBlur: ({value}) =>
-                    displayNameFieldError(
-                      value,
-                      'Webhook name',
-                      createWebhookConnectionBodySchema.shape.name,
-                    ),
-                  onSubmit: ({value}) =>
-                    displayNameFieldError(
-                      value,
-                      'Webhook name',
-                      createWebhookConnectionBodySchema.shape.name,
-                    ),
+                  onBlur: ({value}) => webhookNameFieldError(value),
+                  onSubmit: ({value}) => webhookNameFieldError(value),
                 }}
               >
                 {(field) => (
@@ -177,7 +171,12 @@ export function WebhookCreateModal({workspaceId, open, onOpenChange}: WebhookCre
               </form.Field>
             </ModalBody>
             <ModalFooter>
-              <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={createWebhook.isPending}
+                onClick={() => onOpenChange(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit" isLoading={createWebhook.isPending}>
@@ -236,6 +235,14 @@ function Artifact({label, children}: {label: string; children: ReactNode}) {
       </Text>
       {children}
     </div>
+  );
+}
+
+function webhookNameFieldError(value: string): string | undefined {
+  return displayNameFieldError(
+    value.trim(),
+    'Webhook name',
+    createWebhookConnectionBodySchema.shape.name,
   );
 }
 

@@ -42,7 +42,7 @@ export function CopyableValue({label, value, note, className}: CopyableValueProp
         <Code
           as="span"
           variant="paragraph"
-          className="min-w-0 flex-1 truncate rounded-4 border border-border-neutral-base bg-background-components-base px-8 py-6 text-foreground-neutral-base"
+          className="min-w-0 flex-1 break-all rounded-4 border border-border-neutral-base bg-background-components-base px-8 py-6 text-foreground-neutral-base"
         >
           {value}
         </Code>
