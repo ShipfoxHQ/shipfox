@@ -26,6 +26,15 @@ describe('job DTO schema', () => {
     expect(result.duration).toEqual({kind: 'queued', from_iso: '2026-06-21T12:00:00.000Z'});
   });
 
+  it('accepts a running duration descriptor', () => {
+    const result = jobDtoSchema.parse({
+      ...baseJob,
+      duration: {kind: 'running', from_iso: '2026-06-21T12:00:30.000Z'},
+    });
+
+    expect(result.duration).toEqual({kind: 'running', from_iso: '2026-06-21T12:00:30.000Z'});
+  });
+
   it('accepts a finished duration descriptor', () => {
     const result = jobDtoSchema.parse({
       ...baseJob,
@@ -41,6 +50,15 @@ describe('job DTO schema', () => {
       from_iso: '2026-06-21T12:00:30.000Z',
       to_iso: '2026-06-21T12:02:44.000Z',
     });
+  });
+
+  it('accepts a no-duration descriptor', () => {
+    const result = jobDtoSchema.parse({
+      ...baseJob,
+      duration: {kind: 'none'},
+    });
+
+    expect(result.duration).toEqual({kind: 'none'});
   });
 
   it('rejects a descriptor that does not match its kind', () => {
