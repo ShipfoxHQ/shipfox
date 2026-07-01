@@ -3,6 +3,7 @@ import {decodeBase64Key} from './crypto.js';
 import {DekManager} from './dek-manager.js';
 import {createLocalKeyProvider, type KeyProvider} from './key-provider.js';
 import {createLocalSecretStore} from './local-secret-store.js';
+import {createSecretsManagementApi} from './management.js';
 import {rotateWorkspaceDataKeysWithProvider} from './rotate-kek.js';
 import {createSecretStoreApi} from './secret-store.js';
 import {
@@ -12,6 +13,12 @@ import {
 } from './store-resolver.js';
 
 export * from './errors.js';
+export type {
+  ManagementEntry,
+  ManagementKeyParams,
+  ManagementListParams,
+  ManagementWriteParams,
+} from './management.js';
 export type {DeleteSecretsParams, SetSecretsParams} from './secret-store.js';
 export type {DeleteVariablesParams, SetVariablesParams} from './variable-store.js';
 export {
@@ -26,6 +33,7 @@ let memoizedKeyProvider: KeyProvider | undefined;
 let memoizedDekManager: DekManager | undefined;
 let memoizedLocalStore: SecretStoreProvider | undefined;
 let memoizedSecretApi: ReturnType<typeof createSecretStoreApi> | undefined;
+let memoizedManagementApi: ReturnType<typeof createSecretsManagementApi> | undefined;
 
 export function keyProvider(): KeyProvider {
   if (memoizedKeyProvider) return memoizedKeyProvider;
@@ -66,6 +74,12 @@ function secretApi(): ReturnType<typeof createSecretStoreApi> {
   return memoizedSecretApi;
 }
 
+function managementApi(): ReturnType<typeof createSecretsManagementApi> {
+  if (memoizedManagementApi) return memoizedManagementApi;
+  memoizedManagementApi = createSecretsManagementApi({dekManager: dekManager()});
+  return memoizedManagementApi;
+}
+
 export function getSecret(
   ...args: Parameters<ReturnType<typeof createSecretStoreApi>['getSecret']>
 ) {
@@ -88,6 +102,48 @@ export function deleteSecrets(
   ...args: Parameters<ReturnType<typeof createSecretStoreApi>['deleteSecrets']>
 ) {
   return secretApi().deleteSecrets(...args);
+}
+
+export function listManagedSecrets(
+  ...args: Parameters<ReturnType<typeof createSecretsManagementApi>['listSecrets']>
+) {
+  return managementApi().listSecrets(...args);
+}
+
+export function listManagedVariables(
+  ...args: Parameters<ReturnType<typeof createSecretsManagementApi>['listVariables']>
+) {
+  return managementApi().listVariables(...args);
+}
+
+export function getManagedVariable(
+  ...args: Parameters<ReturnType<typeof createSecretsManagementApi>['getVariable']>
+) {
+  return managementApi().getVariable(...args);
+}
+
+export function setManagedSecrets(
+  ...args: Parameters<ReturnType<typeof createSecretsManagementApi>['setSecrets']>
+) {
+  return managementApi().setSecrets(...args);
+}
+
+export function setManagedVariables(
+  ...args: Parameters<ReturnType<typeof createSecretsManagementApi>['setVariables']>
+) {
+  return managementApi().setVariables(...args);
+}
+
+export function deleteManagedSecret(
+  ...args: Parameters<ReturnType<typeof createSecretsManagementApi>['deleteSecret']>
+) {
+  return managementApi().deleteSecret(...args);
+}
+
+export function deleteManagedVariable(
+  ...args: Parameters<ReturnType<typeof createSecretsManagementApi>['deleteVariable']>
+) {
+  return managementApi().deleteVariable(...args);
 }
 
 export function rotateWorkspaceDataKeys() {

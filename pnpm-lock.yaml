@@ -1926,18 +1926,33 @@ importers:
 
   libs/api/secrets:
     dependencies:
+      '@shipfox/api-auth-context':
+        specifier: workspace:*
+        version: link:../auth-context
+      '@shipfox/api-projects':
+        specifier: workspace:*
+        version: link:../projects
       '@shipfox/api-secrets-dto':
         specifier: workspace:*
         version: link:../secrets-dto
+      '@shipfox/api-workspaces':
+        specifier: workspace:*
+        version: link:../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../shared/common/config
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
+      '@shipfox/node-fastify':
+        specifier: workspace:*
+        version: link:../../shared/node/fastify
       '@shipfox/node-module':
         specifier: workspace:*
         version: link:../../shared/node/module
+      '@shipfox/node-outbox':
+        specifier: workspace:*
+        version: link:../../shared/node/outbox
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../shared/node/postgres
@@ -1969,6 +1984,9 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
 
   libs/api/secrets-dto:
     dependencies:

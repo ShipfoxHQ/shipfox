@@ -10,7 +10,18 @@ export {
   updateDataKeyWrapCas,
 } from './data-keys.js';
 export {closeDb, db, schema, type Tx} from './db.js';
+export {
+  deleteSecretManagementRows,
+  deleteVariableManagementRows,
+  getSecretManagementRow,
+  getVariableManagementRow,
+  listExistingSecretManagementKeys,
+  listExistingVariableManagementKeys,
+  listSecretManagementRows,
+  listVariableManagementRows,
+} from './management.js';
 export {secretDataKeys} from './schema/data-keys.js';
+export {secretsOutbox} from './schema/outbox.js';
 export {secretValues} from './schema/values.js';
 export {secretVariables} from './schema/variables.js';
 export type {StoreScope} from './scope.js';
