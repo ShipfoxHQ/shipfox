@@ -14,6 +14,7 @@ export interface RouteEventToJobListenersParams {
 
 export interface RouteEventToJobListenersResult {
   matchedJobCount: number;
+  acceptedJobCount: number;
   deliveredCount: number;
   transientErrored: boolean;
   transientError: unknown;
@@ -35,6 +36,7 @@ export async function routeEventToJobListeners(
     dispositionByJobId.set(subscription.jobId, subscription.kind === 'until' ? 'resolve' : 'fire');
   }
 
+  let acceptedJobCount = 0;
   let deliveredCount = 0;
   let sawTransientError = false;
   let firstTransientError: unknown;
@@ -52,6 +54,7 @@ export async function routeEventToJobListeners(
         payload: params.payload,
         receivedAt: params.receivedAt,
       });
+      if (!result.skipped) acceptedJobCount += 1;
       if (result.buffered) deliveredCount += 1;
     } catch (error) {
       if (!sawTransientError) {
@@ -63,6 +66,7 @@ export async function routeEventToJobListeners(
 
   return {
     matchedJobCount: dispositionByJobId.size,
+    acceptedJobCount,
     deliveredCount,
     transientErrored: sawTransientError,
     transientError: sawTransientError ? firstTransientError : undefined,

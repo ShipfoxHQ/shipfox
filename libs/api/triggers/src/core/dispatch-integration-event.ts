@@ -115,7 +115,7 @@ export async function dispatchIntegrationEvent(
     throw firstTransientError;
   }
 
-  if (triggeredCount > 0 || listenerResult.matchedJobCount > 0) {
+  if (triggeredCount > 0 || listenerResult.acceptedJobCount > 0) {
     eventOutcomeCount.add(1, {provider: params.provider, outcome: 'routed'});
     await history.routed(subscriptions.length);
     return;

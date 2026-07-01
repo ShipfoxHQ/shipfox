@@ -178,6 +178,37 @@ describe('workflowsWorkflowRunTerminatedSchema', () => {
   });
 });
 
+describe('workflowsJobActivatedSchema', () => {
+  it('requires at least one on matcher for listening jobs', () => {
+    const withoutMatchers = {...validJobActivated, on: []};
+
+    const parse = () => workflowsJobActivatedSchema.parse(withoutMatchers);
+
+    expect(parse).toThrow();
+  });
+
+  it('rejects null on matchers for listening jobs', () => {
+    const withoutMatchers = {...validJobActivated, on: null};
+
+    const parse = () => workflowsJobActivatedSchema.parse(withoutMatchers);
+
+    expect(parse).toThrow();
+  });
+
+  it('allows one-shot jobs without listener matchers', () => {
+    const payload = {
+      jobId: 'job-1',
+      workflowRunId: 'run-1',
+      workspaceId: 'ws-1',
+      mode: 'one_shot',
+    };
+
+    const result = workflowsJobActivatedSchema.parse(payload);
+
+    expect(result).toEqual(payload);
+  });
+});
+
 describe.each([
   [
     'workflowsWorkflowRunAttemptCreatedSchema',
@@ -256,8 +287,8 @@ describe('workflowsEventSchemas', () => {
   it('does not register retired listener pseudo-entity events', () => {
     const registeredTypes = Object.keys(workflowsEventSchemas);
 
-    expect(registeredTypes).not.toEqual(
-      expect.arrayContaining([
+    expect(registeredTypes).toEqual(
+      expect.not.arrayContaining([
         'workflows.job_event.delivered',
         'workflows.listener.started',
         'workflows.listener.resolved',

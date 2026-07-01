@@ -10,7 +10,7 @@ import {findMatchingJobListenerSubscriptions} from './job-listener-subscriptions
 function buildActivatedPayload(
   overrides: Partial<WorkflowsJobActivatedEventDto> = {},
 ): WorkflowsJobActivatedEventDto {
-  return {
+  const payload = {
     jobId: crypto.randomUUID(),
     workflowRunId: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
@@ -19,6 +19,7 @@ function buildActivatedPayload(
     until: [{source: 'github', event: 'pull_request', filter: 'payload.action == "closed"'}],
     ...overrides,
   };
+  return payload as WorkflowsJobActivatedEventDto;
 }
 
 function listJobSubscriptions(jobId: string) {

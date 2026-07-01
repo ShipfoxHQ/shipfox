@@ -62,6 +62,7 @@ describe('routeEventToJobListeners', () => {
     );
     expect(result).toMatchObject({
       matchedJobCount: 1,
+      acceptedJobCount: 1,
       deliveredCount: 1,
       transientErrored: false,
     });
@@ -80,6 +81,26 @@ describe('routeEventToJobListeners', () => {
     expect(deliverEventToListener).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       matchedJobCount: 0,
+      acceptedJobCount: 0,
+      deliveredCount: 0,
+      transientErrored: false,
+    });
+  });
+
+  it('does not count skipped stale subscriptions as accepted deliveries', async () => {
+    const workspaceId = crypto.randomUUID();
+    await jobListenerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'pull_request_review',
+    });
+    deliverEventToListener.mockResolvedValueOnce({buffered: false, skipped: true});
+
+    const result = await route({workspaceId});
+
+    expect(result).toMatchObject({
+      matchedJobCount: 1,
+      acceptedJobCount: 0,
       deliveredCount: 0,
       transientErrored: false,
     });
@@ -107,6 +128,7 @@ describe('routeEventToJobListeners', () => {
     expect(deliverEventToListener).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({
       matchedJobCount: 2,
+      acceptedJobCount: 1,
       deliveredCount: 1,
       transientErrored: true,
       transientError: error,

@@ -308,6 +308,26 @@ describe('dispatchIntegrationEvent', () => {
     expect(events[0]?.matchedCount).toBe(0);
   });
 
+  test('does not route listener-only stale subscriptions skipped by workflows', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    await jobListenerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+    });
+    deliverEventToListener.mockResolvedValue({buffered: false, skipped: true});
+
+    await dispatch({workspaceId, eventRef});
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    expect(deliverEventToListener).toHaveBeenCalledTimes(1);
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('discarded');
+    expect(event.matchedCount).toBe(0);
+  });
+
   test('routes both definition and listener fan-outs for the same event', async () => {
     const workspaceId = crypto.randomUUID();
     const definitionSubscription = await triggerSubscriptionFactory.create({

@@ -73,14 +73,24 @@ export type WorkflowsJobExecutionTimedOutEventDto = z.infer<
   typeof workflowsJobExecutionTimedOutSchema
 >;
 
-export const workflowsJobActivatedSchema = z.object({
+const workflowsJobActivatedBaseSchema = z.object({
   jobId: nonEmptyStringSchema,
   workflowRunId: nonEmptyStringSchema,
   workspaceId: nonEmptyStringSchema,
-  mode: z.enum(['one_shot', 'listening']),
-  on: z.array(listeningTriggerSchema).nullable(),
-  until: z.array(listeningTriggerSchema).nullable(),
 });
+
+export const workflowsJobActivatedSchema = z.discriminatedUnion('mode', [
+  workflowsJobActivatedBaseSchema.extend({
+    mode: z.literal('one_shot'),
+    on: z.array(listeningTriggerSchema).nullable().optional(),
+    until: z.array(listeningTriggerSchema).nullable().optional(),
+  }),
+  workflowsJobActivatedBaseSchema.extend({
+    mode: z.literal('listening'),
+    on: z.array(listeningTriggerSchema).nonempty(),
+    until: z.array(listeningTriggerSchema).nullable(),
+  }),
+]);
 export type WorkflowsJobActivatedEventDto = z.infer<typeof workflowsJobActivatedSchema>;
 
 export const workflowsJobTerminatedSchema = z.object({
