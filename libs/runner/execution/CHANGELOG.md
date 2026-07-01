@@ -1,0 +1,56 @@
+# @shipfox/runner-execution
+
+## 0.1.0
+
+### Minor Changes
+
+- 6c80f00: Add the runner-side log capture pipeline: per step attempt, the runner captures merged stdout/stderr, frames it as versioned NDJSON (runner-assigned timestamps, 16KB payload cap with UTF-8-safe splitting, ANSI preserved), write-through spools it to an append-only file under the job workspace, and uploads it with an offset-CAS protocol that resumes via a zero-length probe and dedupes. Output capture moves off the legacy in-memory 1MB buffer onto an `onOutput` sink.
+
+  This consumes the `@shipfox/api-logs-dto` contract and the server `/logs` ingest route shipped by the log ingest foundation (ENG-439). Masking lands in a follow-up issue, so this pipeline must be enabled only once that exists.
+
+### Patch Changes
+
+- eb40964: Add an inline `agent` workflow step that the runner runs with the pi harness. A step is an agent step when it carries `model` + `prompt` and no `run`; it takes a free-text `model`, a single `prompt`, and an optional `thinking` level (default `high`). The step runs to process-success (the agent ran to completion) and reports through the existing step protocol with no runner/backend protocol change, so change quality is judged by a downstream `run` + `gate` step. v1 does not persist the agent's work (no diff, commit, or PR).
+- c7d8b39: Implement the repository checkout inside the runner's "Set up job" step. The setup
+  step now ensures `git` is available, exchanges the job lease for short-lived
+  read-only checkout credentials via the checkout-token endpoint, and shallow-clones
+  the project repository's default branch into the per-job directory. Every failure
+  mode (missing `git`, denied credential, unreachable provider, generic clone failure)
+  fails the job before any user step runs with a machine-readable `reason`. Credentials
+  are injected with a one-shot `http.extraHeader`, never persisted to `.git/config`,
+  and redacted from error messages.
+- 78d0f7f: Adds runner-produced command metadata groups and terminal failure context to command step log streams.
+- 5af4907: Reports aborted run steps as signal kills even when the shell exits with the encoded signal status.
+- d0cd759: Stabilizes runner abort tests by waiting for shell readiness before aborting process groups.
+- Updated dependencies [eb40964]
+- Updated dependencies [5c18360]
+- Updated dependencies [7a9943d]
+- Updated dependencies [e47f8da]
+- Updated dependencies [736249b]
+- Updated dependencies [2bc5595]
+- Updated dependencies [7b175f5]
+- Updated dependencies [68e4022]
+- Updated dependencies [940696a]
+- Updated dependencies [c7d8b39]
+- Updated dependencies [f98c2be]
+- Updated dependencies [e9396c9]
+- Updated dependencies [6c80f00]
+- Updated dependencies [360d06d]
+- Updated dependencies [b525dcd]
+- Updated dependencies [2883ab4]
+- Updated dependencies [3afb7e3]
+- Updated dependencies [c652a68]
+- Updated dependencies [62720ea]
+- Updated dependencies [c0a883c]
+- Updated dependencies [d69b164]
+- Updated dependencies [2fb3e87]
+- Updated dependencies [ef1e917]
+- Updated dependencies [2933c33]
+- Updated dependencies [a5c7562]
+- Updated dependencies [6181819]
+- Updated dependencies [e699508]
+- Updated dependencies [8ecc121]
+  - @shipfox/api-workflows-dto@1.0.0
+  - @shipfox/node-opentelemetry@0.4.2
+  - @shipfox/runner-protocol@0.1.0
+  - @shipfox/runner-workspace@0.0.1

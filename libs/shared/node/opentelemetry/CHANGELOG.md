@@ -1,5 +1,18 @@
 # @shipfox/node-opentelemetry
 
+## 0.4.2
+
+### Patch Changes
+
+- e47f8da: Documents every environment-variable config param with a `desc` field so self-hosters can see what each variable does and how to set it.
+- 7b175f5: Adds shared identifier regex helpers and migrates public OpenTelemetry UUID route normalization to the canonical matcher.
+- Updated dependencies [e47f8da]
+- Updated dependencies [7b175f5]
+- Updated dependencies [27770eb]
+  - @shipfox/node-log@0.3.2
+  - @shipfox/regex@0.2.0
+  - @shipfox/config@1.2.0
+
 ## 0.4.1
 
 ### Patch Changes

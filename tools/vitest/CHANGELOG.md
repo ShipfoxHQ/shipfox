@@ -1,5 +1,11 @@
 # @shipfox/vitest
 
+## 1.2.2
+
+### Patch Changes
+
+- c73370c: Disables Rolldown plugin timing warnings in shared Vitest dependency optimization config.
+
 ## 1.2.1
 
 ### Patch Changes

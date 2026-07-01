@@ -1,0 +1,150 @@
+# @shipfox/api-integration-sentry
+
+## 0.1.0
+
+### Minor Changes
+
+- d245be8: [api/integrations] Make the signed Sentry installation webhook authoritative.
+  - `@shipfox/api-integration-sentry-dto`: reshape `sentryInstallationWebhookSchema`
+    to read `data.installation.{uuid, organization.slug, status, code}` plus an
+    optional top-level `actor`. Only consumed fields are validated and the raw
+    `code` is never logged.
+  - `@shipfox/api-integration-sentry`: the signed `installation.created` webhook now
+    exchanges the single-use code and persists a verified-but-unclaimed installation
+    (`connection_id IS NULL`, `code_hash = sha256(code)`). The browser flow narrows
+    to a claim that binds a verified install to a workspace under unified claim auth
+    (exchange-success, same-code hash match, or a retryable
+    `verification-in-progress` while a concurrent webhook is mid-exchange), with a
+    proof-mismatch 403 closing the bare-uuid IDOR. The exchange/verify run outside
+    the DB transaction; a short transaction wraps persist + delivery record. Adds
+    `connection_id` nullable + `code_hash` to the installations table and a daily TTL
+    cron that tombstones never-claimed installs.
+  - `@shipfox/api-integration-core`: inject the Sentry client into the webhook
+    context, resolve a null `connection_id` to "no connection" for pre-claim issue
+    deliveries, and register the unclaimed-installation cleanup cron when Sentry is
+    enabled.
+  - `@shipfox/client-integrations`: treat the retryable `verification-in-progress`
+    response as a backoff-eligible failure on the connect callback.
+
+- b8e49ff: Add the client-side Sentry install/connect flow and a workspace settings
+  integrations hub.
+  - `@shipfox/client-integrations`: shared `IntegrationGallerySection` (capability
+    filter, lifecycle pills, "Added" date, external link, connected-first
+    ordering, degraded status mode), shared `RedirectInstallPage` powering the
+    GitHub and new Sentry install pages, `SentryCallbackPage` with an explicit
+    workspace confirm (sessionStorage only pre-selects), two-tier retry, and the
+    Sentry hooks (`useCreateSentryInstallMutation`, `connectSentry`,
+    `useIntegrationConnectionsQuery`).
+  - `@shipfox/client-workspace-settings`: new `/workspaces/$wid/settings/integrations`
+    page and an Integrations entry in the settings nav.
+  - `@shipfox/client-router`: routes for the Sentry install page, the root-level
+    Sentry callback, and the settings integrations page.
+  - `@shipfox/react-ui`: `sentry` icon (monochrome, theme-aware).
+  - `@shipfox/api-integration-core-dto`: optional `external_url` on the connection
+    DTO and an optional `connectionExternalUrl` method on `IntegrationProvider`.
+  - `@shipfox/api-integration-core`: `GET /integration-connections` now returns
+    connections of every lifecycle status (the active-only filter prevented
+    clients from surfacing disabled/error state) and resolves `external_url`
+    per connection best-effort.
+  - `@shipfox/api-integration-sentry` / `@shipfox/api-integration-github`:
+    implement `connectionExternalUrl` (Sentry org URL via a new
+    by-connection-id installation lookup; GitHub installation settings URL).
+
+- 5b8ed32: Add the Sentry install/connect flow so a workspace member can link a Sentry
+  installation to a Shipfox workspace, writing the connection + installation rows
+  that the webhook receiver looks up.
+  - `@shipfox/api-integration-sentry`: add a stateless `SentryApiClient`
+    (authorization-code exchange, org-slug derivation, optional verify-install),
+    `handleSentryConnect`, and two authenticated routes —
+    `POST /integrations/sentry/install` (returns the external-install URL) and
+    `POST /integrations/sentry/connect` (links the installation). Sentry has no
+    `state` param, so the workspace is taken from the request body and authorized
+    against the live session; the org slug is derived from Sentry, never trusted
+    from the body. The verify-install side effect runs after the row is persisted,
+    and no Sentry token is stored. Provider HTTP errors map to a typed
+    `SentryIntegrationProviderError` and never carry the token, code, or client
+    secret.
+  - `@shipfox/api-integration-sentry-dto`: add the install/connect request and
+    response schemas.
+  - `@shipfox/api-integration-core`: wire the `getExistingSentryConnection` and
+    `connectSentryInstallation` closures into the Sentry provider (internal
+    wiring, no public API change).
+
+  A concurrent same-install connect race (shared with GitHub) is tracked
+  separately in ENG-409.
+
+- d6d4862: Add a Sentry integration provider that ingests issue webhooks.
+  - New `@shipfox/api-integration-sentry` + `-sentry-dto` packages: a webhook
+    receiver that verifies the HMAC-SHA256 signature (keyed with the app client
+    secret), dedups on `Request-ID`, normalizes the issue payload, and publishes
+    `integrations.event.received` with `source: 'sentry'` and `event:
+issue.<action>`. A raw `ignored` action is normalized to `archived`. Malformed,
+    bad-JSON, unknown-action, and unknown-resource deliveries are recorded-and-dropped
+    with a 204 (deliberate deviation from GitHub's 400 to avoid Sentry disabling the
+    webhook).
+  - `@shipfox/api-integration-core-dto`: add the `SentryIssuePayload` contract.
+  - `@shipfox/api-integration-core`: register the Sentry provider behind
+    `INTEGRATIONS_ENABLE_SENTRY_PROVIDER`, add the
+    `updateIntegrationConnectionLifecycleStatus` helper, and pin stable
+    migration-tracking table names per provider database.
+  - `@shipfox/node-fastify`: add the shared `rawBodyPlugin` and `WEBHOOK_BODY_LIMIT`
+    exports for webhook receivers.
+  - `@shipfox/node-module`: add an optional `migrationsTableName` to `ModuleDatabase`
+    so conditionally-composed databases get a position-independent migration table.
+  - `@shipfox/api-integration-github`: consume the shared `rawBodyPlugin` instead of
+    a local copy (internal refactor, no behavior change).
+
+  Deploy note: environments with GitHub enabled must rename the existing
+  `__drizzle_migrations_integrations_1` table to
+  `__drizzle_migrations_integrations_github` as part of this release, or GitHub
+  migrations re-run against existing tables.
+
+### Patch Changes
+
+- 9f1c0ef: Harden integration connect against a concurrent same-install race. The installation upsert now only (re)points an installation at the connection that already owns it: the `onConflictDoUpdate` carries a `setWhere(connection_id = this connection)` predicate and throws `*InstallationAlreadyLinkedError` when the conflicting row belongs to a different connection. Two concurrent connects of the same provider install to different workspaces no longer leave one workspace with an active orphan connection while the install's webhooks silently route to the other; the losing transaction rolls back and surfaces a 409.
+- 857fd73: Receive Gitea push webhooks and trigger runs through the existing source-push pipeline.
+  - `@shipfox/api-integration-gitea-dto`: `giteaPushPayloadSchema` (`{ref, after, repository: {name, full_name, default_branch, owner: {username}}}`).
+  - `@shipfox/api-integration-gitea`: `POST /webhooks/integrations/gitea` (`auth: []`, `rawBodyPlugin`, standard webhook body limit). It verifies the `X-Gitea-Signature` header as hex HMAC-SHA256 of the raw body keyed by `GITEA_WEBHOOK_SECRET` (401 on mismatch), records non-`push` events for delivery dedup and returns 204, and on a `push` resolves the org (`repository.owner.username`, lower-cased to match the stored org) to its connection, drops branch deletions and unknown orgs, and publishes a normalized `SourcePushPayload` (`externalRepositoryId: gitea:<owner>/<repo>` built from `owner.username`/`repository.name` to match the source-control adapter, `refs/heads/` stripped, `headCommitSha: after`, `isDefaultBranch`). `getGiteaConnectionByOrg` gains an optional transaction executor so the lookup runs inside the publishing transaction. The webhook is registered out of band by the Gitea instance admin, so the connect flow registers nothing.
+  - `@shipfox/api-integration-core`: wire `publishSourcePush`, `recordDeliveryOnly`, `getIntegrationConnectionById`, and the core database into the Gitea provider, mirroring GitHub.
+  - `@shipfox/node-fastify`: add a shared `verifyHexHmacSignature` helper for hex HMAC-SHA256 webhook signatures.
+  - `@shipfox/api-integration-sentry`: `verifySentrySignature` now delegates to the shared helper.
+
+  A push to a connected org's repo creates a workflow run through the existing pipeline. Duplicate POSTs of the same delivery are deduped via `X-Gitea-Delivery`; note that a manual "Redeliver" in Gitea mints a new delivery id and intentionally produces a fresh run (unlike GitHub, whose redelivery reuses the original id and is suppressed).
+
+- 417f128: Move the Sentry unclaimed-installation cleanup cron out of `@shipfox/api-integration-core` into `@shipfox/api-integration-sentry`, which now owns its own Temporal maintenance worker. `core` aggregates per-integration workers from enabled providers instead of special-casing Sentry, keeping the integration dependency graph a tree (providers depend only on `*-core-dto`, never on `core`). The unclaimed-installation retention window is now configurable via `SENTRY_UNCLAIMED_INSTALLATION_RETENTION_DAYS` (default 7, minimum 1; startup fails on a smaller value so a misconfiguration cannot tombstone freshly created installs).
+- Updated dependencies [34ba284]
+- Updated dependencies [b9c3f32]
+- Updated dependencies [d02c5fd]
+- Updated dependencies [a81b68c]
+- Updated dependencies [115655e]
+- Updated dependencies [c0a883c]
+- Updated dependencies [72ce351]
+- Updated dependencies [e47f8da]
+- Updated dependencies [7b175f5]
+- Updated dependencies [f3614ae]
+- Updated dependencies [ae7a63c]
+- Updated dependencies [d245be8]
+- Updated dependencies [f92122b]
+- Updated dependencies [f8f339a]
+- Updated dependencies [857fd73]
+- Updated dependencies [75520ff]
+- Updated dependencies [b8e49ff]
+- Updated dependencies [5b8ed32]
+- Updated dependencies [d6d4862]
+- Updated dependencies [c0a883c]
+- Updated dependencies [6077301]
+- Updated dependencies [3bea87f]
+- Updated dependencies [27770eb]
+- Updated dependencies [2933c33]
+- Updated dependencies [6181819]
+- Updated dependencies [9c149d1]
+  - @shipfox/node-fastify@0.2.0
+  - @shipfox/api-workspaces@0.1.0
+  - @shipfox/api-auth-context@0.1.0
+  - @shipfox/api-integration-core-dto@0.1.0
+  - @shipfox/node-opentelemetry@0.4.2
+  - @shipfox/node-postgres@0.3.2
+  - @shipfox/node-module@0.1.0
+  - @shipfox/api-integration-sentry-dto@0.1.0
+  - @shipfox/node-drizzle@0.1.0
+  - @shipfox/config@1.2.0

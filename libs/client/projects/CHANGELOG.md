@@ -1,5 +1,121 @@
 # @shipfox/client-projects
 
+## 0.0.3
+
+### Patch Changes
+
+- 974b501: Moves manual workflow-run firing and optimistic run-list cache updates into `@shipfox/client-workflows` so project workflow pages consume the run cache owner directly.
+- 8037501: Drop the workflow run page and its related run-list components, now owned by
+  `@shipfox/client-workflows`. Removes the duplicated `WorkflowRunPage`,
+  `ProjectRunsPage`, runs search params, `WorkflowRunsList`, `RunRow`,
+  `RunStatusFilter`, and `StatusDot`, along with the run-list/run-detail query
+  hooks they relied on. The package keeps the manual-fire mutation that the
+  workflows tab still uses, and prunes the now-unused `zod` and `@shipfox/vite`
+  dependencies.
+- 42443b4: Redesign the projects hub cards around source health and align them with the
+  integration gallery cards. Each card now shows the integration provider logo
+  before the name, drops the raw external repository id, and surfaces a status
+  pill only when the project's source is not active (Disabled or Error), in the
+  same inline location as the gallery. The cards adopt the gallery layout
+  (two-column grid, 16px padding, 24px icon) and carry no call to action.
+
+  Extract the connection lifecycle pill into a shared `ConnectionStatusBadge` in
+  `@shipfox/client-integrations` so the gallery and the projects hub render the
+  same taxonomy from one source of truth.
+
+- 63bcac8: Moves workspace setup gating into route hooks so VCS onboarding and first project creation resolve before protected workspace content renders.
+- a7da648: Fixes invisible keyboard focus rings on the user menu, integration tiles, and project cards by using the existing neutral button focus token.
+- 27770eb: Tightens signup, workspace, and project display-name validation with shared trimming, control and format-character rejection, length limits, and contextual client form errors.
+- 8ecc121: Track queue/run/finish timing for workflow runs and jobs. Adds nullable `started_at`/`finished_at` to workflow runs and `queued_at`/`started_at`/`finished_at` to jobs, exposed on the run and job DTOs. The runners module emits two new authoritative-timestamp events (`runners.job.queued`, `runners.job.started`) in the same transaction as the enqueue/claim; workflows projects them onto the job row with a first-write-wins `coalesce`, so the at-least-once outbox can redeliver out of order safely. Run `started_at`/`finished_at` and job `finished_at` are stamped in-module at the status transitions. All columns are nullable and eventually consistent, so consumers must treat a missing endpoint as "not yet known" and clamp any duration math.
+- Updated dependencies [dc3e434]
+- Updated dependencies [eb40964]
+- Updated dependencies [5c18360]
+- Updated dependencies [067a260]
+- Updated dependencies [14e0bea]
+- Updated dependencies [59ba68b]
+- Updated dependencies [7a9943d]
+- Updated dependencies [9018f0b]
+- Updated dependencies [7fdfd72]
+- Updated dependencies [115655e]
+- Updated dependencies [736249b]
+- Updated dependencies [2bc5595]
+- Updated dependencies [974b501]
+- Updated dependencies [228385c]
+- Updated dependencies [2a3193f]
+- Updated dependencies [1b9d909]
+- Updated dependencies [f104ff2]
+- Updated dependencies [7341569]
+- Updated dependencies [a20b345]
+- Updated dependencies [940696a]
+- Updated dependencies [f3614ae]
+- Updated dependencies [f98c2be]
+- Updated dependencies [e9396c9]
+- Updated dependencies [d245be8]
+- Updated dependencies [0f06c02]
+- Updated dependencies [8037501]
+- Updated dependencies [b525dcd]
+- Updated dependencies [f8f339a]
+- Updated dependencies [e4c6abf]
+- Updated dependencies [e4c6abf]
+- Updated dependencies [6e435dd]
+- Updated dependencies [3afb7e3]
+- Updated dependencies [a35c2dc]
+- Updated dependencies [58f7aef]
+- Updated dependencies [5264a22]
+- Updated dependencies [0b75eba]
+- Updated dependencies [9674879]
+- Updated dependencies [c652a68]
+- Updated dependencies [225c9a5]
+- Updated dependencies [42443b4]
+- Updated dependencies [24f131b]
+- Updated dependencies [7790355]
+- Updated dependencies [bb2a7bc]
+- Updated dependencies [417e220]
+- Updated dependencies [63bcac8]
+- Updated dependencies [5eb06d0]
+- Updated dependencies [4e13e5f]
+- Updated dependencies [e92150d]
+- Updated dependencies [8037501]
+- Updated dependencies [0fb6018]
+- Updated dependencies [c0a883c]
+- Updated dependencies [b8e49ff]
+- Updated dependencies [d6d4862]
+- Updated dependencies [8037501]
+- Updated dependencies [7a0ac44]
+- Updated dependencies [d69b164]
+- Updated dependencies [2fb3e87]
+- Updated dependencies [ef1e917]
+- Updated dependencies [f849131]
+- Updated dependencies [61de795]
+- Updated dependencies [a7da648]
+- Updated dependencies [94bdcc5]
+- Updated dependencies [27770eb]
+- Updated dependencies [2933c33]
+- Updated dependencies [8ac4bf4]
+- Updated dependencies [8fad235]
+- Updated dependencies [3a0be6b]
+- Updated dependencies [e699508]
+- Updated dependencies [d42baf4]
+- Updated dependencies [8037501]
+- Updated dependencies [b8919da]
+- Updated dependencies [f880179]
+- Updated dependencies [54bb8a3]
+- Updated dependencies [f711e18]
+- Updated dependencies [8ecc121]
+- Updated dependencies [7341569]
+- Updated dependencies [8037501]
+  - @shipfox/client-workflows@0.1.0
+  - @shipfox/api-workflows-dto@1.0.0
+  - @shipfox/client-agent@0.1.0
+  - @shipfox/react-ui@0.3.0
+  - @shipfox/api-definitions-dto@0.0.1
+  - @shipfox/api-integration-core-dto@0.1.0
+  - @shipfox/client-integrations@0.1.0
+  - @shipfox/client-ui@0.1.0
+  - @shipfox/client-auth@0.0.3
+  - @shipfox/api-projects-dto@0.0.1
+  - @shipfox/client-api@0.0.0
+
 ## 0.0.2
 
 ### Patch Changes
