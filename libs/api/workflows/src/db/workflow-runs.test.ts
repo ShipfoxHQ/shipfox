@@ -324,6 +324,52 @@ describe('workflow run queries', () => {
       });
     });
 
+    test('resolves webhook trigger payload body and headers into step config', async () => {
+      const model = normalizeWorkflowDocument({
+        name: 'Webhook workflow',
+        runner: 'ubuntu-latest',
+        env: {
+          PAYMENT_ID: template('event.body.payment_id'),
+          SIGNATURE: template('event.headers["x-stripe-signature"]'),
+        },
+        jobs: {
+          build: {
+            steps: [{run: 'echo webhook'}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          provider: 'webhook',
+          source: 'stripe_prod',
+          event: 'received',
+          deliveryId: 'delivery-1',
+          data: {
+            method: 'POST',
+            headers: {'x-stripe-signature': 'sig_123'},
+            query: {mode: 'live'},
+            body: {payment_id: 'pay_123'},
+          },
+        },
+      });
+
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      const steps = await getStepsByJobId(job?.id as string);
+
+      expect(steps[1]?.config).toEqual({
+        run: 'echo webhook',
+        env: {
+          PAYMENT_ID: 'pay_123',
+          SIGNATURE: 'sig_123',
+        },
+      });
+    });
+
     test('logs enriched diagnostics for missing untrusted interpolation paths', async () => {
       const warn = vi.fn();
       vi.spyOn(opentelemetry, 'logger').mockReturnValue({warn} as never);

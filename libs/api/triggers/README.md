@@ -59,6 +59,27 @@ fires every subscription that matches its `(source, event)` in the
 workspace. Narrowing by branch, repository, or payload contents is left to
 user-defined filters, applied in a later iteration.
 
+Webhook triggers use the webhook connection slug as `source` and the fixed
+event name `received`. A delivery to `POST /webhook/:connectionId` publishes
+an `INTEGRATION_EVENT_RECEIVED` envelope with `provider: webhook`,
+`source: <connection.slug>`, `event: received`, and payload
+`{method, headers, query, body}`. Trigger dispatch matches only on
+`(workspace_id, source, event)`, so a workflow that listens to a webhook uses
+the slug plus `event: received`:
+
+```yaml
+triggers:
+  on_stripe:
+    source: stripe_prod
+    event: received
+```
+
+Workflow interpolation exposes the webhook envelope as `event`, so steps can
+read values such as `${{ event.body.payment_id }}` and
+`${{ event.headers["x-stripe-signature"] }}`. Header/body-derived event
+subtypes and dispatch-time trigger filter evaluation are not part of this
+contract.
+
 GitHub triggers use the raw GitHub webhook resource name, plus the payload
 `action` when one is present. For example, a pull request open event is
 `pull_request.opened`, an issue close event is `issues.closed`, and a

@@ -153,6 +153,66 @@ describe('dispatchIntegrationEvent', () => {
     );
   });
 
+  test('routes webhook events only when workspace, source, and received event match', async () => {
+    const workspaceId = crypto.randomUUID();
+    const matching = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'stripe_prod',
+      event: 'received',
+      config: {},
+    });
+    await triggerSubscriptionFactory.create({
+      workspaceId: crypto.randomUUID(),
+      source: 'stripe_prod',
+      event: 'received',
+      config: {},
+    });
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'stripe_stage',
+      event: 'received',
+      config: {},
+    });
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'stripe_prod',
+      event: 'ping',
+      config: {},
+    });
+
+    await dispatch({
+      provider: 'webhook',
+      workspaceId,
+      source: 'stripe_prod',
+      event: 'received',
+      payload: {
+        method: 'POST',
+        headers: {'x-stripe-signature': 'sig_123'},
+        query: {mode: 'live'},
+        body: {payment_id: 'pay_123'},
+      },
+    });
+
+    expect(runWorkflow).toHaveBeenCalledTimes(1);
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: matching.projectId,
+        definitionId: matching.workflowDefinitionId,
+        triggerPayload: expect.objectContaining({
+          provider: 'webhook',
+          source: 'stripe_prod',
+          event: 'received',
+          data: {
+            method: 'POST',
+            headers: {'x-stripe-signature': 'sig_123'},
+            query: {mode: 'live'},
+            body: {payment_id: 'pay_123'},
+          },
+        }),
+      }),
+    );
+  });
+
   test('passes triggerIdempotencyKey = subscription.id:eventRef to runWorkflow', async () => {
     const workspaceId = crypto.randomUUID();
     const subscription = await triggerSubscriptionFactory.create({
