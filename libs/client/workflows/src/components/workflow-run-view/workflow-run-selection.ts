@@ -1,4 +1,11 @@
-import type {Job, JobExecution, Step, StepAttempt, WorkflowRunDetail} from '#core/workflow-run.js';
+import {
+  type Job,
+  type JobExecution,
+  resolveJobExecution,
+  type Step,
+  type StepAttempt,
+  type WorkflowRunDetail,
+} from '#core/workflow-run.js';
 import type {WorkflowRunSelectionInput} from '#core/workflow-run-url-state.js';
 
 export interface ResolvedWorkflowRunSelection {
@@ -56,26 +63,6 @@ function findStep(
   }
 
   return undefined;
-}
-
-export function resolveJobExecution(
-  job: Job,
-  jobExecutionId: string | undefined,
-): JobExecution | undefined {
-  const selectedExecution = jobExecutionId
-    ? job.jobExecutions.find((jobExecution) => jobExecution.id === jobExecutionId)
-    : undefined;
-  if (selectedExecution) return selectedExecution;
-
-  const runningExecution = job.jobExecutions.find(
-    (jobExecution) => jobExecution.status === 'running',
-  );
-  if (runningExecution) return runningExecution;
-
-  return job.jobExecutions.reduce<JobExecution | undefined>((latest, jobExecution) => {
-    if (!latest) return jobExecution;
-    return jobExecution.sequence > latest.sequence ? jobExecution : latest;
-  }, undefined);
 }
 
 function resolveStepAttempt(step: Step, attemptId: string | undefined): StepAttempt | undefined {

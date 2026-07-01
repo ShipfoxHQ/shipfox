@@ -3,6 +3,7 @@ import {
   type WorkflowStatusVisual,
 } from '#components/workflow-status/status-visuals.js';
 import {
+  defaultJobExecution,
   isWorkflowStatus as isKnownWorkflowStatus,
   type Job,
   JobExecution,
@@ -63,14 +64,7 @@ export function buildStepListModel({
 }
 
 export function defaultStepListJobExecution(job: Job): JobExecution {
-  return (
-    job.jobExecutions.find((candidate) => candidate.status === 'running') ??
-    job.jobExecutions.reduce<JobExecution | undefined>((latest, candidate) => {
-      if (!latest) return candidate;
-      return candidate.sequence > latest.sequence ? candidate : latest;
-    }, undefined) ??
-    emptyJobExecutionForJob(job)
-  );
+  return defaultJobExecution(job) ?? emptyJobExecutionForJob(job);
 }
 
 export function emptyJobExecutionForJob(job: Job): JobExecution {

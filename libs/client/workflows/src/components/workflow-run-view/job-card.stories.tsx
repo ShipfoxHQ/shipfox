@@ -8,7 +8,7 @@ import {Text} from '@shipfox/react-ui';
 import type {Meta, StoryObj} from '@storybook/react';
 import {type ReactNode, useState} from 'react';
 import {screen, userEvent, within} from 'storybook/test';
-import type {Job} from '#core/workflow-run.js';
+import {type Job, resolveJobExecution} from '#core/workflow-run.js';
 import {
   workflowJob,
   workflowJobExecutionDto,
@@ -17,7 +17,6 @@ import {
 } from '#test/fixtures/workflow-run.js';
 import type {StepExpandedContext} from '../step-list/index.js';
 import {JobCard} from './job-card.js';
-import {resolveJobExecution} from './workflow-run-selection.js';
 
 const WORKSPACE_ID = '44444444-4444-4444-8444-444444444444';
 const SWITCH_EXECUTION_PATTERN = /Switch job execution/;

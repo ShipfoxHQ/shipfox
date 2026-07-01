@@ -7,8 +7,10 @@ export type {
   ResolutionReason,
 } from './entities/job.js';
 export {
+  defaultJobExecution,
   isTerminalJobStatus,
   Job,
+  resolveJobExecution,
   TERMINAL_WORKFLOW_JOB_STATUSES,
   toJob,
   WORKFLOW_JOB_STATUSES,

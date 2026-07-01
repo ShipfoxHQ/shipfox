@@ -4,7 +4,7 @@ import {QueryLoadError} from '@shipfox/client-ui';
 import {RelativeTimeProvider, toast} from '@shipfox/react-ui';
 import {useNavigate} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
-import type {JobExecution} from '#core/workflow-run.js';
+import {type JobExecution, resolveJobExecution} from '#core/workflow-run.js';
 import {
   type WorkflowRunSelectionInput,
   withoutWorkflowRunSelectionSearch,
@@ -18,7 +18,7 @@ import {JobGraph} from '../job-graph/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
 import {WorkflowSourcePanel} from '../workflow-source-panel/index.js';
 import {JobCard} from './job-card.js';
-import {resolveJobExecution, resolveWorkflowRunSelection} from './workflow-run-selection.js';
+import {resolveWorkflowRunSelection} from './workflow-run-selection.js';
 import {
   WorkflowRunNotFound,
   WorkflowRunSkeleton,
