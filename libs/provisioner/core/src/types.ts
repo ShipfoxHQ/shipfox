@@ -48,6 +48,9 @@ export interface ProvisionedRunnerLaunch<Spec = unknown> {
 /** Starts one provisioned runner. The provider implementation owns the side effect. */
 export type LaunchRunner<Spec = unknown> = (launch: ProvisionedRunnerLaunch<Spec>) => Promise<void>;
 
+/** Tears down provider resources by provisioned runner id when the backend requests it. */
+export type TerminateRunners = (provisionedRunnerIds: readonly string[]) => Promise<void>;
+
 export interface ProvisionerIdentity {
   readonly id: string;
   readonly workspaceId: string;
@@ -67,6 +70,7 @@ export interface ProvisionerRuntime {
 export interface ProvisionerAdapter<Spec = unknown> {
   loadTemplates(): Promise<readonly ProvisionerTemplate<Spec>[]>;
   readonly launch: LaunchRunner<Spec>;
+  readonly terminate?: TerminateRunners;
   onStart?(runtime: ProvisionerRuntime): Promise<void>;
   onTick?(): Promise<void>;
   onStop?(): Promise<void>;

@@ -28,6 +28,10 @@ export function startDockerProvisioner(): Promise<void> {
         if (!lifecycle) throw new Error('Docker lifecycle has not been initialized.');
         return lifecycle.launch(launch);
       },
+      terminate: (ids) => {
+        if (!lifecycle) throw new Error('Docker lifecycle has not been initialized.');
+        return lifecycle.terminate(ids);
+      },
       async onStart(runtime) {
         lifecycle = createDockerLifecycle({
           engine,
@@ -42,7 +46,7 @@ export function startDockerProvisioner(): Promise<void> {
       },
       onTick() {
         if (!lifecycle) throw new Error('Docker lifecycle has not been initialized.');
-        return lifecycle.observe();
+        return lifecycle.tick();
       },
       onStop() {
         return lifecycle?.flush() ?? Promise.resolve();

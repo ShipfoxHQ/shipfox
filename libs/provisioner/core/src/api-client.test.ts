@@ -103,6 +103,37 @@ describe('createProvisionerClient', () => {
     expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
   });
 
+  it('reconcileProvisionedRunners posts observed ids with the token and parses intent', async () => {
+    stubFetch(() =>
+      jsonResponse({
+        runners: [
+          {
+            provisioned_runner_id: 'runner-1',
+            state: 'running',
+            reservation_id: RESERVATION_ID,
+            runner_session_id: null,
+            bound_job: null,
+            desired_intent: 'keep',
+          },
+        ],
+        terminated_absent_provisioned_runner_ids: ['runner-2'],
+      }),
+    );
+
+    const result = await client().reconcileProvisionedRunners({
+      observed_provisioned_runner_ids: ['runner-1'],
+    });
+
+    expect(result.runners[0]?.desired_intent).toBe('keep');
+    expect(result.terminated_absent_provisioned_runner_ids).toEqual(['runner-2']);
+    expect(calls[0]?.url).toContain('provisioners/provisioned-runners/reconcile');
+    expect(calls[0]?.method).toBe('POST');
+    expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      observed_provisioned_runner_ids: ['runner-1'],
+    });
+  });
+
   it('maps a 401 on getIdentity to ProvisionerAuthenticationError', async () => {
     stubFetch(() => new Response(null, {status: 401}));
 
@@ -135,6 +166,16 @@ describe('createProvisionerClient', () => {
           reported_at: '2026-01-01T00:00:00.000Z',
         },
       ],
+    });
+
+    await expect(request).rejects.toThrow(ProvisionerAuthenticationError);
+  });
+
+  it('maps a 401 on reconcileProvisionedRunners to ProvisionerAuthenticationError', async () => {
+    stubFetch(() => new Response(null, {status: 401}));
+
+    const request = client().reconcileProvisionedRunners({
+      observed_provisioned_runner_ids: ['runner-1'],
     });
 
     await expect(request).rejects.toThrow(ProvisionerAuthenticationError);

@@ -10,4 +10,5 @@ export type {
   ProvisionerIdentity,
   ProvisionerRuntime,
   ProvisionerTemplate,
+  TerminateRunners,
 } from '#types.js';

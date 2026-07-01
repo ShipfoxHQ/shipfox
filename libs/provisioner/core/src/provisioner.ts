@@ -162,6 +162,7 @@ export async function runProvisionerIteration<Spec>(
     templates: deps.templates,
     tracker: deps.tracker,
     launch: deps.adapter.launch,
+    ...(deps.adapter.terminate ? {terminate: deps.adapter.terminate} : {}),
     buildRunnerEnv,
     maxReservations,
     waitSeconds: config.SHIPFOX_PROVISIONER_POLL_WAIT_SECONDS,

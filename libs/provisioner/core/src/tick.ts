@@ -1,4 +1,4 @@
-import {randomUUID} from 'node:crypto';
+import * as nodeCrypto from 'node:crypto';
 import type {
   DemandStatDto,
   MintRegistrationTokensBatchResponseDto,
@@ -8,10 +8,14 @@ import {logger} from '@shipfox/node-opentelemetry';
 import type {ProvisionerClient} from '#api-client.js';
 import {type PlannedLaunchGroup, planLaunches, templateAvailableSlots} from '#capacity.js';
 import type {ProvisionedRunnerTracker} from '#tracker.js';
-import type {LaunchRunner, ProvisionerTemplate} from '#types.js';
+import type {LaunchRunner, ProvisionerTemplate, TerminateRunners} from '#types.js';
 
 /** The API caps reservations per poll at 1000; never advertise a larger appetite. */
 const MAX_RESERVATIONS_PER_POLL = 1000;
+
+const cryptoWithUuidV7 = nodeCrypto as typeof nodeCrypto & {
+  randomUUIDv7(): string;
+};
 
 export type RunnerEnvFactory<Spec> = (args: {
   template: ProvisionerTemplate<Spec>;
@@ -23,6 +27,7 @@ export interface ProvisionerTickDeps<Spec> {
   readonly templates: readonly ProvisionerTemplate<Spec>[];
   readonly tracker: ProvisionedRunnerTracker;
   readonly launch: LaunchRunner<Spec>;
+  readonly terminate?: TerminateRunners;
   readonly buildRunnerEnv: RunnerEnvFactory<Spec>;
   readonly maxReservations: number;
   readonly waitSeconds: number;
@@ -78,6 +83,14 @@ export async function runProvisionerTick<Spec>(
     deps.signal ? {signal: deps.signal} : {},
   );
 
+  if (
+    response.terminate_provisioned_runner_ids.length > 0 &&
+    !deps.signal?.aborted &&
+    deps.terminate
+  ) {
+    await deps.terminate(response.terminate_provisioned_runner_ids);
+  }
+
   const planned = planLaunches({
     reservations: response.reservations.map((reservation) => ({
       reservationId: reservation.reservation_id,
@@ -114,11 +127,11 @@ async function launchReservation<Spec>(
   deps: ProvisionerTickDeps<Spec>,
 ): Promise<{attempted: number; launched: number}> {
   // A fresh, never-reused id per runner: it binds the ephemeral registration token,
-  // names the resource, and keys idempotent reporting and reconciliation. Uniqueness is
-  // all the loop needs, so a random UUID suffices.
+  // names the resource, and keys idempotent reporting and reconciliation. UUIDv7 keeps
+  // generated ids time-ordered without adding a dependency.
   const plannedRunners = groups.flatMap((group) =>
     Array.from({length: group.count}, () => ({
-      provisionedRunnerId: randomUUID(),
+      provisionedRunnerId: cryptoWithUuidV7.randomUUIDv7(),
       template: group.template,
     })),
   );

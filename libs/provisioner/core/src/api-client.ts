@@ -7,8 +7,11 @@ import {
   type ProvisionerIdentityResponseDto,
   pollDemandResponseSchema,
   provisionerIdentityResponseSchema,
+  type ReconcileProvisionedRunnersBodyDto,
+  type ReconcileProvisionedRunnersResponseDto,
   type ReportProvisionedRunnersBodyDto,
   type ReportProvisionedRunnersResponseDto,
+  reconcileProvisionedRunnersResponseSchema,
   reportProvisionedRunnersResponseSchema,
 } from '@shipfox/api-runners-dto';
 import ky, {HTTPError, type KyInstance} from 'ky';
@@ -38,6 +41,10 @@ export interface ProvisionerClient {
     body: ReportProvisionedRunnersBodyDto,
     options?: {signal?: AbortSignal},
   ): Promise<ReportProvisionedRunnersResponseDto>;
+  reconcileProvisionedRunners(
+    body: ReconcileProvisionedRunnersBodyDto,
+    options?: {signal?: AbortSignal},
+  ): Promise<ReconcileProvisionedRunnersResponseDto>;
 }
 
 export function createProvisionerClient(params: {
@@ -86,6 +93,16 @@ export function createProvisionerClient(params: {
           ...(options.signal ? {signal: options.signal} : {}),
         });
         return reportProvisionedRunnersResponseSchema.parse(await response.json());
+      });
+    },
+
+    reconcileProvisionedRunners(body, options = {}) {
+      return withAuthMapping(async () => {
+        const response = await api.post('provisioners/provisioned-runners/reconcile', {
+          json: body,
+          ...(options.signal ? {signal: options.signal} : {}),
+        });
+        return reconcileProvisionedRunnersResponseSchema.parse(await response.json());
       });
     },
   };
