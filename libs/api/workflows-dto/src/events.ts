@@ -24,6 +24,10 @@ export const WORKFLOWS_JOB_STEPS_SETTLED = 'workflows.job.steps_settled' as cons
 // at-least-once outbox event as idempotent audit data.
 export const WORKFLOWS_STEP_RESTART_ENQUEUED = 'workflows.step.restart_enqueued' as const;
 export const WORKFLOWS_STEP_ATTEMPT_TERMINATED = 'workflows.step_attempt.terminated' as const;
+export const WORKFLOWS_JOB_EVENT_DELIVERED = 'workflows.job_event.delivered' as const;
+export const WORKFLOWS_LISTENER_STARTED = 'workflows.listener.started' as const;
+export const WORKFLOWS_LISTENER_RESOLVED = 'workflows.listener.resolved' as const;
+export const WORKFLOWS_LISTENER_CANCELLED = 'workflows.listener.cancelled' as const;
 
 export const workflowsWorkflowRunAttemptCreatedSchema = z.object({
   workflowRunId: nonEmptyStringSchema,
@@ -118,6 +122,34 @@ export type WorkflowsStepAttemptTerminatedEventDto = z.infer<
   typeof workflowsStepAttemptTerminatedSchema
 >;
 
+export const workflowsJobEventDeliveredSchema = z.object({
+  jobId: nonEmptyStringSchema,
+  workflowRunId: nonEmptyStringSchema,
+  source: nonEmptyStringSchema,
+  event: nonEmptyStringSchema,
+  deliveryId: nonEmptyStringSchema,
+});
+export type WorkflowsJobEventDeliveredEventDto = z.infer<typeof workflowsJobEventDeliveredSchema>;
+
+export const workflowsListenerStartedSchema = z.object({
+  jobId: nonEmptyStringSchema,
+  workflowRunId: nonEmptyStringSchema,
+});
+export type WorkflowsListenerStartedEventDto = z.infer<typeof workflowsListenerStartedSchema>;
+
+export const workflowsListenerResolvedSchema = z.object({
+  jobId: nonEmptyStringSchema,
+  workflowRunId: nonEmptyStringSchema,
+  reason: z.enum(['until', 'timeout', 'max_executions', 'cancelled']),
+});
+export type WorkflowsListenerResolvedEventDto = z.infer<typeof workflowsListenerResolvedSchema>;
+
+export const workflowsListenerCancelledSchema = z.object({
+  jobId: nonEmptyStringSchema,
+  workflowRunId: nonEmptyStringSchema,
+});
+export type WorkflowsListenerCancelledEventDto = z.infer<typeof workflowsListenerCancelledSchema>;
+
 export interface WorkflowsEventMapDto {
   [WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED]: WorkflowsWorkflowRunAttemptCreatedEventDto;
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: WorkflowsWorkflowRunTerminatedEventDto;
@@ -127,6 +159,10 @@ export interface WorkflowsEventMapDto {
   [WORKFLOWS_JOB_STEPS_SETTLED]: WorkflowsJobStepsSettledEventDto;
   [WORKFLOWS_STEP_RESTART_ENQUEUED]: WorkflowsStepRestartEnqueuedEventDto;
   [WORKFLOWS_STEP_ATTEMPT_TERMINATED]: WorkflowsStepAttemptTerminatedEventDto;
+  [WORKFLOWS_JOB_EVENT_DELIVERED]: WorkflowsJobEventDeliveredEventDto;
+  [WORKFLOWS_LISTENER_STARTED]: WorkflowsListenerStartedEventDto;
+  [WORKFLOWS_LISTENER_RESOLVED]: WorkflowsListenerResolvedEventDto;
+  [WORKFLOWS_LISTENER_CANCELLED]: WorkflowsListenerCancelledEventDto;
 }
 
 export const workflowsEventSchemas = {
@@ -138,4 +174,8 @@ export const workflowsEventSchemas = {
   [WORKFLOWS_JOB_STEPS_SETTLED]: workflowsJobStepsSettledSchema,
   [WORKFLOWS_STEP_RESTART_ENQUEUED]: workflowsStepRestartEnqueuedSchema,
   [WORKFLOWS_STEP_ATTEMPT_TERMINATED]: workflowsStepAttemptTerminatedSchema,
+  [WORKFLOWS_JOB_EVENT_DELIVERED]: workflowsJobEventDeliveredSchema,
+  [WORKFLOWS_LISTENER_STARTED]: workflowsListenerStartedSchema,
+  [WORKFLOWS_LISTENER_RESOLVED]: workflowsListenerResolvedSchema,
+  [WORKFLOWS_LISTENER_CANCELLED]: workflowsListenerCancelledSchema,
 } satisfies Record<keyof WorkflowsEventMapDto, z.ZodType>;

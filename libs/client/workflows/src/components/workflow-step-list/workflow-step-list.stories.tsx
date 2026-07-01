@@ -140,8 +140,8 @@ export const SetupAndUnnamedSteps: Story = {
           attempts: [makeAttempt({status: 'succeeded'})],
         }),
         makeStep({
-          name: null,
-          display_name: 'pnpm test --filter=@shipfox/client-workflows',
+          key: null,
+          name: 'pnpm test --filter=@shipfox/client-workflows',
           position: 1,
           type: 'run',
           config: {run: 'pnpm test --filter=@shipfox/client-workflows'},
@@ -149,9 +149,8 @@ export const SetupAndUnnamedSteps: Story = {
           attempts: [makeAttempt({status: 'succeeded'})],
         }),
         makeStep({
-          name: null,
-          display_name:
-            'claude-opus-4-8 · Review the failing workflow step tests and propose the smallest fix.',
+          key: null,
+          name: 'claude-opus-4-8 · Review the failing workflow step tests and propose the smallest fix.',
           position: 2,
           type: 'agent',
           config: {
@@ -263,8 +262,8 @@ export const AgentConfigFailureCallout: Story = {
   render: () => {
     const attempt = makeAttempt({status: 'failed', exit_code: 1});
     const step = makeStep({
-      name: 'implement',
-      display_name: 'Fix the failing tests.',
+      key: 'implement',
+      name: 'Fix the failing tests.',
       type: 'agent',
       status: 'failed',
       config: {

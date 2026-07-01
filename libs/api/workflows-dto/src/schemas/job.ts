@@ -1,4 +1,10 @@
 import {z} from 'zod';
+import {
+  jobListeningSchema,
+  jobModeSchema,
+  listenerStatusSchema,
+  resolutionReasonSchema,
+} from './job-listening.js';
 
 export const jobStatusSchema = z.enum([
   'pending',
@@ -30,10 +36,15 @@ export const jobDurationDtoSchema = z.discriminatedUnion('kind', [
 export const jobDtoSchema = z.object({
   id: z.string().uuid(),
   run_attempt_id: z.string().uuid(),
-  name: z.string(),
+  key: z.string(),
+  name: z.string().nullable(),
+  mode: jobModeSchema,
   status: jobStatusSchema,
   status_reason: jobStatusReasonSchema.nullable(),
   carried_over: z.boolean(),
+  listening: jobListeningSchema.nullable(),
+  listener_status: listenerStatusSchema,
+  resolution_reason: resolutionReasonSchema.nullable(),
   dependencies: z.array(z.string()),
   position: z.number(),
   created_at: z.string(),

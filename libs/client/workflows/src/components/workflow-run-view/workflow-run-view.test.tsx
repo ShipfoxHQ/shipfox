@@ -70,8 +70,8 @@ describe('WorkflowRunView', () => {
                 steps: [
                   workflowStepDto({
                     id: stepId,
+                    key: 'test',
                     name: 'test',
-                    display_name: 'test',
                     status: 'running',
                     attempts: [
                       workflowStepAttemptDto({
@@ -124,8 +124,8 @@ describe('WorkflowRunView', () => {
                 steps: [
                   workflowStepDto({
                     id: stepId,
-                    name: 'implement',
-                    display_name: 'Fix the failing tests.',
+                    key: 'implement',
+                    name: 'Fix the failing tests.',
                     type: 'agent',
                     status: 'failed',
                     config: {
@@ -213,8 +213,8 @@ describe('WorkflowRunView', () => {
                   steps: [
                     workflowStepDto({
                       id: stepId,
-                      name: 'implement',
-                      display_name: 'Fix the failing tests.',
+                      key: 'implement',
+                      name: 'Fix the failing tests.',
                       type: 'agent',
                       status: 'failed',
                       config: {
@@ -466,8 +466,8 @@ describe('WorkflowRunView', () => {
                   steps: [
                     workflowStepDto({
                       id: stepId,
+                      key: 'deploy',
                       name: 'deploy',
-                      display_name: 'deploy',
                       source_location: {start_line: 2, end_line: 3},
                       status: 'running',
                     }),
@@ -700,8 +700,8 @@ describe('WorkflowRunView', () => {
                 steps: [
                   workflowStepDto({
                     id: CHECKOUT_STEP_ID,
+                    key: 'checkout',
                     name: 'checkout',
-                    display_name: 'checkout',
                     status: 'succeeded',
                     attempts: [],
                   }),
@@ -792,8 +792,8 @@ function workflowRunViewDetailDto(
         steps: [
           workflowStepDto({
             id: CHECKOUT_STEP_ID,
+            key: 'checkout',
             name: 'checkout',
-            display_name: 'checkout',
             status: 'succeeded',
             attempts: [
               workflowStepAttemptDto({

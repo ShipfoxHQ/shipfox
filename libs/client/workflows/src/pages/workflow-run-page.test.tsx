@@ -327,8 +327,8 @@ function defaultRunDetailDto(
         steps: [
           workflowStepDto({
             id: BUILD_STEP_ID,
+            key: 'checkout',
             name: 'checkout',
-            display_name: 'checkout',
             status: 'succeeded',
             current_attempt: 1,
             attempts: [
@@ -351,8 +351,8 @@ function defaultRunDetailDto(
         steps: [
           workflowStepDto({
             id: DEPLOY_STEP_ID,
+            key: 'deploy',
             name: 'deploy',
-            display_name: 'deploy',
             status: 'running',
             current_attempt: 2,
             attempts: [

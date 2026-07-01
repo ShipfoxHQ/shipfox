@@ -15,14 +15,13 @@ const RUNTIME = {
 };
 
 function buildAgentStep(overrides: Partial<StepDto> = {}): StepDto {
-  const displayName =
-    overrides.display_name ??
-    (typeof overrides.name === 'string' && overrides.name.trim() ? overrides.name : 'implement');
+  const name =
+    typeof overrides.name === 'string' && overrides.name.trim() ? overrides.name : 'implement';
   return {
     id: '00000000-0000-0000-0000-000000000001',
     job_execution_id: '00000000-0000-0000-0000-000000000003',
-    name: 'implement',
-    display_name: displayName,
+    key: 'implement',
+    name,
     source_location: null,
     status: 'running',
     type: 'agent',

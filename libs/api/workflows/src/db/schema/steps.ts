@@ -29,8 +29,8 @@ export const steps = pgTable(
   {
     id: uuidv7PrimaryKey(),
     jobExecutionId: uuid('job_execution_id').notNull(),
-    name: text('name'),
-    displayName: text('display_name').notNull(),
+    key: text('key'),
+    name: text('name').notNull(),
     sourceLocation: jsonb('source_location').$type<Step['sourceLocation']>(),
     status: stepStatusEnum('status').notNull().default('pending'),
     type: text('type').notNull(),
@@ -65,8 +65,8 @@ export function toStep(row: StepDb): Step {
   return {
     id: row.id,
     jobExecutionId: row.jobExecutionId,
+    key: row.key,
     name: row.name,
-    displayName: row.displayName,
     sourceLocation: row.sourceLocation ?? null,
     status: row.status,
     type: row.type,

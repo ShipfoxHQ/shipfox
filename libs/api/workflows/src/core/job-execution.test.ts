@@ -767,7 +767,7 @@ describe('durable gate restart', () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
     const producer = steps[0]?.id as string;
     const reviewer = steps[1]?.id as string;
-    await db().update(stepsTable).set({name: 'producer'}).where(eq(stepsTable.id, producer));
+    await db().update(stepsTable).set({key: 'producer'}).where(eq(stepsTable.id, producer));
     await db()
       .update(stepsTable)
       .set({
@@ -897,7 +897,7 @@ describe('durable gate restart', () => {
       steps[1]?.id as string,
       steps[2]?.id as string,
     ];
-    await db().update(stepsTable).set({name: 'producer'}).where(eq(stepsTable.id, producer));
+    await db().update(stepsTable).set({key: 'producer'}).where(eq(stepsTable.id, producer));
     await db()
       .update(stepsTable)
       .set({
@@ -933,7 +933,7 @@ describe('durable gate restart', () => {
       steps[1]?.id as string,
       steps[2]?.id as string,
     ];
-    await db().update(stepsTable).set({name: 'producer'}).where(eq(stepsTable.id, producer));
+    await db().update(stepsTable).set({key: 'producer'}).where(eq(stepsTable.id, producer));
     const gatedToProducer = {
       run: 'x',
       gate: {

@@ -6,10 +6,36 @@ export function toJobDto(job: Job): JobDto {
   return {
     id: job.id,
     run_attempt_id: job.workflowRunAttemptId,
+    key: job.key,
     name: job.name,
+    mode: job.mode,
     status: job.status,
     status_reason: job.statusReason,
     carried_over: job.carriedOver,
+    listening:
+      job.listeningOn === null
+        ? null
+        : {
+            on: job.listeningOn,
+            until: job.listeningUntil,
+            timeout_ms: job.listeningTimeoutMs,
+            max_executions: job.maxExecutions,
+            batch:
+              job.batchDebounceMs === null &&
+              job.batchMaxSize === null &&
+              job.batchMaxWaitMs === null
+                ? null
+                : {
+                    ...(job.batchDebounceMs === null ? {} : {debounce_ms: job.batchDebounceMs}),
+                    ...(job.batchMaxSize === null ? {} : {max_size: job.batchMaxSize}),
+                    ...(job.batchMaxWaitMs === null ? {} : {max_wait_ms: job.batchMaxWaitMs}),
+                  },
+            on_resolve: job.onResolve ?? 'finish',
+            execution_timeout_ms: job.executionTimeoutMs ?? null,
+            name: job.name,
+          },
+    listener_status: job.listenerStatus,
+    resolution_reason: job.resolutionReason,
     dependencies: job.dependencies,
     position: job.position,
     created_at: job.createdAt.toISOString(),

@@ -16,7 +16,15 @@ import {
 
 describe('workflow context registry', () => {
   it('defines exactly the v1 contexts', () => {
-    expect(workflowContextNames).toEqual(['run', 'trigger', 'event', 'inputs', 'job']);
+    expect(workflowContextNames).toEqual([
+      'run',
+      'trigger',
+      'event',
+      'inputs',
+      'job',
+      'executions',
+      'execution',
+    ]);
   });
 
   it('classifies trusted and untrusted contexts', () => {
@@ -31,7 +39,7 @@ describe('workflow context registry', () => {
       },
     );
 
-    expect(contextsByTrust.trusted).toEqual(['run', 'trigger', 'job']);
+    expect(contextsByTrust.trusted).toEqual(['run', 'trigger', 'job', 'executions', 'execution']);
     expect(contextsByTrust.untrusted).toEqual(['event', 'inputs']);
   });
 
@@ -47,6 +55,16 @@ describe('workflow context registry', () => {
     expect(workflowContextDefinitions.job).toMatchObject({
       shape: 'known',
       checkMode: 'typed',
+    });
+    expect(workflowContextDefinitions.executions).toMatchObject({
+      shape: 'known',
+      checkMode: 'typed',
+      untrustedPaths: ['events'],
+    });
+    expect(workflowContextDefinitions.execution).toMatchObject({
+      shape: 'known',
+      checkMode: 'typed',
+      untrustedPaths: ['events'],
     });
     expect(workflowContextDefinitions.event).toMatchObject({
       shape: 'open',
@@ -85,7 +103,7 @@ describe('workflow context registry', () => {
       job: {
         kind: 'object',
         fields: {
-          name: 'string',
+          key: 'string',
         },
       },
     });
@@ -106,13 +124,24 @@ describe('workflow context registry', () => {
       check: {mode: 'typed', typeEnvironment: workflowContextDefinitions.trigger.typeEnvironment},
     });
     const jobExpression = createWorkflowExpression({
-      source: 'job.name == "review"',
+      source: 'job.key == "review"',
       check: {mode: 'typed', typeEnvironment: workflowContextDefinitions.job.typeEnvironment},
+    });
+    const executionsExpression = createWorkflowExpression({
+      source: 'executions[0].name == execution.name',
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          ...workflowContextDefinitions.executions.typeEnvironment,
+          ...workflowContextDefinitions.execution.typeEnvironment,
+        },
+      },
     });
 
     expect(runExpression.check).toBe('typed');
     expect(triggerExpression.check).toBe('typed');
     expect(jobExpression.check).toBe('typed');
+    expect(executionsExpression.check).toBe('typed');
   });
 
   it('rejects unknown fields from known context type environments', () => {

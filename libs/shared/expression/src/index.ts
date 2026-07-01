@@ -50,6 +50,7 @@ export {
   invalidWorkflowTemplateErrorCode,
 } from './template/errors.js';
 export {extractCelContextRoots} from './template/extract-cel-context-roots.js';
+export {extractCelUntrustedPathAccesses} from './template/extract-cel-untrusted-path-accesses.js';
 export {parseWorkflowTemplate} from './template/parse-workflow-template.js';
 export type {
   WorkflowTemplateExprSegment,
@@ -59,6 +60,7 @@ export type {
 export {
   getWorkflowContextDefinition,
   getWorkflowContextTypeEnvironment,
+  getWorkflowContextUntrustedPaths,
   type OpenWorkflowContextDefinition,
   type TypedWorkflowContextDefinition,
   type WorkflowContextDefinition,

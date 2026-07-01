@@ -21,9 +21,10 @@ import {
 
 export interface DagJob extends RuntimeDagNode {
   id: string;
-  name: string;
+  key: string;
+  mode: 'one_shot' | 'listening';
   status: JobStatus;
-  jobExecutionId: string;
+  jobExecutionId?: string | undefined;
   executionVersion?: number;
   executionTimeoutMs?: number | null | undefined;
   dependencies: string[];
@@ -63,14 +64,16 @@ export async function loadRunAttemptDag(runAttemptId: string): Promise<RunDag> {
     runVersion: attempt.version,
     jobs: jobs.flatMap((job) => {
       const jobExecution = firstJobExecutions.get(job.id);
-      if (!jobExecution) return [];
+      if (!jobExecution && job.mode !== 'listening') return [];
       return [
         {
           id: job.id,
-          name: job.name,
+          key: job.key,
+          mode: job.mode,
           status: job.status,
-          jobExecutionId: jobExecution.id,
-          executionVersion: jobExecution.version,
+          ...(jobExecution === undefined
+            ? {}
+            : {jobExecutionId: jobExecution.id, executionVersion: jobExecution.version}),
           executionTimeoutMs: job.executionTimeoutMs,
           dependencies: job.dependencies,
           runner: job.runner ?? [],

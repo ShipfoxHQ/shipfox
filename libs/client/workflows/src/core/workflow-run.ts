@@ -119,8 +119,8 @@ export interface WorkflowStep {
   id: string;
   jobId: string;
   jobExecutionId: string;
-  name: string | null;
-  displayName: string;
+  key: string | null;
+  name: string;
   sourceLocation: WorkflowStepSourceLocation | null;
   status: string;
   type: string;
@@ -137,7 +137,8 @@ export interface WorkflowStep {
 export interface WorkflowJob {
   id: string;
   runAttemptId: string;
-  name: string;
+  key: string;
+  name: string | null;
   status: WorkflowJobStatus;
   statusReason: WorkflowJobStatusReason | null;
   carriedOver: boolean;
@@ -289,6 +290,7 @@ export function toWorkflowJob(dto: WorkflowRunJobDetailDto): WorkflowJob {
   return {
     id: dto.id,
     runAttemptId: dto.run_attempt_id,
+    key: dto.key,
     name: dto.name,
     status: dto.status,
     statusReason: dto.status_reason,
@@ -313,8 +315,8 @@ export function toWorkflowStep(dto: WorkflowRunStepDetailDto, jobId: string): Wo
     id: dto.id,
     jobId,
     jobExecutionId: dto.job_execution_id,
+    key: dto.key,
     name: dto.name,
-    displayName: dto.display_name,
     sourceLocation: dto.source_location ? toWorkflowStepSourceLocation(dto.source_location) : null,
     status: dto.status,
     type: dto.type,

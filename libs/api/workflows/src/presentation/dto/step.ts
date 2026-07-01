@@ -120,8 +120,8 @@ export function toStepDto(step: Step): StepDto {
   return {
     id: step.id,
     job_execution_id: step.jobExecutionId,
+    key: step.key,
     name: step.name,
-    display_name: step.displayName,
     source_location: toStepSourceLocationDto(step.sourceLocation),
     status: step.status,
     type: step.type,

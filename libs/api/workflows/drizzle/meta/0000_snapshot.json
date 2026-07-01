@@ -27,8 +27,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "name": {
-          "name": "name",
+        "key": {
+          "name": "key",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -152,11 +152,25 @@
           "primaryKey": false,
           "notNull": true
         },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mode": {
+          "name": "mode",
+          "type": "workflows_job_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'one_shot'"
+        },
         "name": {
           "name": "name",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "status": {
           "name": "status",
@@ -189,6 +203,70 @@
         "execution_timeout_ms": {
           "name": "execution_timeout_ms",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "listening_timeout_ms": {
+          "name": "listening_timeout_ms",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_executions": {
+          "name": "max_executions",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "on_resolve": {
+          "name": "on_resolve",
+          "type": "workflows_job_on_resolve",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "batch_debounce_ms": {
+          "name": "batch_debounce_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "batch_max_size": {
+          "name": "batch_max_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "batch_max_wait_ms": {
+          "name": "batch_max_wait_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "listener_status": {
+          "name": "listener_status",
+          "type": "workflows_listener_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'inactive'"
+        },
+        "resolution_reason": {
+          "name": "resolution_reason",
+          "type": "workflows_resolution_reason",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "listening_on": {
+          "name": "listening_on",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "listening_until": {
+          "name": "listening_until",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -599,14 +677,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "name": {
-          "name": "name",
+        "key": {
+          "name": "key",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "display_name": {
-          "name": "display_name",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -1181,6 +1259,26 @@
       "name": "workflows_job_status",
       "schema": "public",
       "values": ["pending", "running", "succeeded", "failed", "cancelled", "skipped"]
+    },
+    "public.workflows_job_mode": {
+      "name": "workflows_job_mode",
+      "schema": "public",
+      "values": ["one_shot", "listening"]
+    },
+    "public.workflows_job_on_resolve": {
+      "name": "workflows_job_on_resolve",
+      "schema": "public",
+      "values": ["finish", "cancel"]
+    },
+    "public.workflows_listener_status": {
+      "name": "workflows_listener_status",
+      "schema": "public",
+      "values": ["inactive", "listening", "resolved"]
+    },
+    "public.workflows_resolution_reason": {
+      "name": "workflows_resolution_reason",
+      "schema": "public",
+      "values": ["until", "timeout", "max_executions", "cancelled"]
     },
     "public.workflows_job_status_reason": {
       "name": "workflows_job_status_reason",

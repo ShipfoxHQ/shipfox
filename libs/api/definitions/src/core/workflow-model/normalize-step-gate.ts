@@ -13,7 +13,7 @@ export function normalizeStepGate(params: {
   sourceName: string;
   stepIndex: number;
   stepId: string;
-  previousStepSourceNames: ReadonlySet<string>;
+  previousStepKeys: ReadonlySet<string>;
   issues: WorkflowModelValidationIssue[];
 }): WorkflowModelStepGate | undefined {
   const gate = params.step.gate;
@@ -33,14 +33,11 @@ export function normalizeStepGate(params: {
           ...(gate.on_failure.output === undefined ? {} : {output: gate.on_failure.output}),
         };
 
-  if (
-    gate.on_failure !== undefined &&
-    !params.previousStepSourceNames.has(gate.on_failure.restart_from)
-  ) {
+  if (gate.on_failure !== undefined && !params.previousStepKeys.has(gate.on_failure.restart_from)) {
     params.issues.push(
       issue({
         code: 'invalid-step-gate-restart-from',
-        message: `Step "${params.stepId}" must restart from an earlier named step; found "${gate.on_failure.restart_from}".`,
+        message: `Step "${params.stepId}" must restart from an earlier keyed step; found "${gate.on_failure.restart_from}".`,
         path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'gate', 'on_failure'],
         details: {stepId: params.stepId, restartFrom: gate.on_failure.restart_from},
       }),

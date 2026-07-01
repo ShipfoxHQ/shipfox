@@ -1,6 +1,21 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {boolean, index, integer, jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
-import {JOB_STATUS_REASONS, type Job, toJobStatusReason} from '#core/entities/job.js';
+import {
+  bigint,
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
+import {
+  JOB_STATUS_REASONS,
+  type Job,
+  type JobListeningTrigger,
+  toJobStatusReason,
+} from '#core/entities/job.js';
 import {pgTable} from './common.js';
 import {workflowRunAttempts} from './workflow-run-attempts.js';
 
@@ -15,6 +30,23 @@ export const jobStatusEnum = pgEnum('workflows_job_status', [
 
 export const jobStatusReasonEnum = pgEnum('workflows_job_status_reason', JOB_STATUS_REASONS);
 
+export const jobModeEnum = pgEnum('workflows_job_mode', ['one_shot', 'listening']);
+
+export const jobOnResolveEnum = pgEnum('workflows_job_on_resolve', ['finish', 'cancel']);
+
+export const listenerStatusEnum = pgEnum('workflows_listener_status', [
+  'inactive',
+  'listening',
+  'resolved',
+]);
+
+export const resolutionReasonEnum = pgEnum('workflows_resolution_reason', [
+  'until',
+  'timeout',
+  'max_executions',
+  'cancelled',
+]);
+
 export const jobs = pgTable(
   'jobs',
   {
@@ -22,12 +54,24 @@ export const jobs = pgTable(
     workflowRunAttemptId: uuid('workflow_run_attempt_id')
       .notNull()
       .references(() => workflowRunAttempts.id, {onDelete: 'cascade'}),
-    name: text('name').notNull(),
+    key: text('key').notNull(),
+    mode: jobModeEnum('mode').notNull().default('one_shot'),
+    name: text('name'),
     status: jobStatusEnum('status').notNull().default('pending'),
     statusReason: jobStatusReasonEnum('status_reason'),
     carriedOver: boolean('carried_over').notNull().default(false),
     success: text('success'),
     executionTimeoutMs: integer('execution_timeout_ms'),
+    listeningTimeoutMs: bigint('listening_timeout_ms', {mode: 'number'}),
+    maxExecutions: integer('max_executions'),
+    onResolve: jobOnResolveEnum('on_resolve'),
+    batchDebounceMs: integer('batch_debounce_ms'),
+    batchMaxSize: integer('batch_max_size'),
+    batchMaxWaitMs: integer('batch_max_wait_ms'),
+    listenerStatus: listenerStatusEnum('listener_status').notNull().default('inactive'),
+    resolutionReason: resolutionReasonEnum('resolution_reason'),
+    listeningOn: jsonb('listening_on').$type<JobListeningTrigger[]>(),
+    listeningUntil: jsonb('listening_until').$type<JobListeningTrigger[]>(),
     dependencies: jsonb('dependencies').notNull().$type<string[]>(),
     runner: jsonb('runner').$type<string[]>(),
     position: integer('position').notNull(),
@@ -52,12 +96,24 @@ export function toJob(row: JobDb): Job {
   return {
     id: row.id,
     workflowRunAttemptId: row.workflowRunAttemptId,
+    key: row.key,
     name: row.name,
+    mode: row.mode,
     status: row.status,
     statusReason: toJobStatusReason(row.statusReason),
     carriedOver: row.carriedOver,
     success: row.success,
     executionTimeoutMs: row.executionTimeoutMs,
+    listeningTimeoutMs: row.listeningTimeoutMs,
+    maxExecutions: row.maxExecutions,
+    onResolve: row.onResolve,
+    batchDebounceMs: row.batchDebounceMs,
+    batchMaxSize: row.batchMaxSize,
+    batchMaxWaitMs: row.batchMaxWaitMs,
+    listenerStatus: row.listenerStatus,
+    resolutionReason: row.resolutionReason,
+    listeningOn: row.listeningOn,
+    listeningUntil: row.listeningUntil,
     dependencies: row.dependencies as string[],
     runner: row.runner as string[] | null,
     position: row.position,

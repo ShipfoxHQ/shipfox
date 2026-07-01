@@ -213,6 +213,28 @@ describe('runOrchestration', () => {
     ]);
   });
 
+  test('holds listening jobs without starting them and still handles cancellation', async () => {
+    const jobs = [dagJob('j1', 'listen', [], {mode: 'listening'})];
+    setCfg({dag: makeDag(jobs, 'r-listen'), jobResults: new Map()});
+    const runAttemptId = `${workflowRunId}-attempt-listen`;
+
+    const handle = await testEnv.client.workflow.start('runOrchestration', {
+      taskQueue: TASK_QUEUE,
+      workflowId: `workflow-run-attempt:${runAttemptId}`,
+      args: [{workflowRunId, runAttemptId, workspaceId}],
+    });
+    await waitForActivity('setRunAttemptStatus');
+
+    await handle.signal('run-cancel');
+    await handle.result();
+
+    expect(setRunAttemptStatusCalls().map((c) => c.params.status)).toEqual(['running']);
+    expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(0);
+    expect(callsNamed('cancelRunnerJobsActivity')).toEqual([
+      {name: 'cancelRunnerJobsActivity', params: {jobIds: []}},
+    ]);
+  });
+
   test('aborts early when the initial running write reports an already-terminal run', async () => {
     const jobs = [dagJob('j1', 'build')];
     setCfg({

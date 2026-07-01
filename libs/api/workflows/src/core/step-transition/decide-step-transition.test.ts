@@ -4,8 +4,8 @@ import {decideStepTransition, deriveCompletion, isTerminal} from './decide-step-
 function step(overrides: Partial<Step> & {id: string; position: number}): Step {
   return {
     jobExecutionId: 'execution-1',
-    name: null,
-    displayName: 'step',
+    key: null,
+    name: 'step',
     sourceLocation: null,
     status: 'pending',
     type: 'run',
@@ -120,7 +120,7 @@ describe('decideStepTransition', () => {
   });
 
   test('a failing gate with restart_from rewinds from the named earlier step', () => {
-    const restartTarget = step({id: 's0', name: 'producer', position: 0, status: 'succeeded'});
+    const restartTarget = step({id: 's0', key: 'producer', position: 0, status: 'succeeded'});
     const target = step({id: 's1', position: 1, status: 'running'});
 
     const decision = decideStepTransition({
@@ -142,7 +142,7 @@ describe('decideStepTransition', () => {
   });
 
   test('restart_from never resolves to the synthetic setup step (no workspace re-delete)', () => {
-    // A user step legitimately named "Set up job" shares its name with the synthetic
+    // A user step legitimately keyed "Set up job" shares its label with the synthetic
     // setup step at position 0. Restart must resolve to the user step, not position 0.
     const setup = step({
       id: 'setup',
@@ -151,7 +151,13 @@ describe('decideStepTransition', () => {
       position: 0,
       status: 'succeeded',
     });
-    const userSetup = step({id: 's1', name: 'Set up job', position: 1, status: 'succeeded'});
+    const userSetup = step({
+      id: 's1',
+      key: 'Set up job',
+      name: 'Set up job',
+      position: 1,
+      status: 'succeeded',
+    });
     const target = step({id: 's2', position: 2, status: 'running'});
 
     const decision = decideStepTransition({
@@ -171,7 +177,7 @@ describe('decideStepTransition', () => {
   });
 
   test('restart is refused (exhausted) once the gating step hits the attempt cap', () => {
-    const restartTarget = step({id: 's0', name: 'producer', position: 0, status: 'succeeded'});
+    const restartTarget = step({id: 's0', key: 'producer', position: 0, status: 'succeeded'});
     const target = step({id: 's1', position: 1, status: 'running'});
 
     const decision = decideStepTransition({
@@ -253,7 +259,7 @@ describe('decideStepTransition', () => {
   });
 
   test('a raw failure with on_failure but no success_if still restarts', () => {
-    const restartTarget = step({id: 's0', name: 'producer', position: 0, status: 'succeeded'});
+    const restartTarget = step({id: 's0', key: 'producer', position: 0, status: 'succeeded'});
     const target = step({id: 's1', position: 1, status: 'running'});
 
     const decision = decideStepTransition({

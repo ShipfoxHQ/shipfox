@@ -35,7 +35,7 @@ describe('normalizeWorkflowDocument', () => {
       },
       jobs: {
         build: {
-          steps: [{run: 'npm install'}, {name: 'build', run: 'npm run build'}],
+          steps: [{run: 'npm install'}, {key: 'build', run: 'npm run build'}],
         },
       },
     };
@@ -48,7 +48,7 @@ describe('normalizeWorkflowDocument', () => {
       triggers: [
         {
           id: 'main-push',
-          sourceName: 'main_push',
+          key: 'main_push',
           source: 'github',
           event: 'push',
           filter: 'event.ref == "refs/heads/main"',
@@ -57,7 +57,8 @@ describe('normalizeWorkflowDocument', () => {
       jobs: [
         {
           id: 'build',
-          sourceName: 'build',
+          mode: 'one_shot',
+          key: 'build',
           runner: ['ubuntu-latest'],
           dependencies: [],
           steps: [
@@ -68,7 +69,7 @@ describe('normalizeWorkflowDocument', () => {
             },
             {
               id: 'build-build',
-              sourceName: 'build',
+              key: 'build',
               kind: 'run',
               command: {kind: 'shell', value: 'npm run build'},
             },
@@ -85,10 +86,10 @@ describe('normalizeWorkflowDocument', () => {
       jobs: {
         fix: {
           steps: [
-            {name: 'plan', prompt: 'Plan the fix.'},
-            {name: 'implement', model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'},
+            {key: 'plan', prompt: 'Plan the fix.'},
+            {key: 'implement', model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'},
             {
-              name: 'review',
+              key: 'review',
               model: 'gpt-5.5-pro',
               provider: 'openai',
               prompt: 'Review the fix.',
@@ -104,13 +105,13 @@ describe('normalizeWorkflowDocument', () => {
 
     expect(model.jobs[0]?.steps[0]).toEqual({
       id: 'fix-plan',
-      sourceName: 'plan',
+      key: 'plan',
       kind: 'agent',
       prompt: 'Plan the fix.',
     });
     expect(model.jobs[0]?.steps[1]).toEqual({
       id: 'fix-implement',
-      sourceName: 'implement',
+      key: 'implement',
       kind: 'agent',
       model: 'claude-opus-4-8',
       prompt: 'Fix the failing tests.',
@@ -164,6 +165,101 @@ describe('normalizeWorkflowDocument', () => {
       success: 'executions.exists(e, e.index == 0 && e.status == "succeeded")',
       executionTimeoutMs: 90 * 60 * 1000,
     });
+  });
+
+  it('normalizes listening job configuration', () => {
+    const displayName = ['PR review $', '{{ execution.index }}'].join('');
+    const promptTemplate = ['Review $', '{{ execution.events[0].data.body }}'].join('');
+    const document: WorkflowDocument = {
+      name: 'listen for reviews',
+      jobs: {
+        review: {
+          name: displayName,
+          listening: {
+            on: [
+              {
+                source: 'github',
+                event: 'pull_request_review',
+                filter: 'event.action == "submitted"',
+              },
+            ],
+            until: [{source: 'github', event: 'pull_request', filter: 'event.action == "closed"'}],
+            timeout: '30d',
+            max_executions: 10,
+            batch: {debounce: '5s', max_size: 20, max_wait: '1h'},
+            on_resolve: 'cancel',
+          },
+          steps: [{prompt: promptTemplate}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]).toMatchObject({
+      mode: 'listening',
+      listening: {
+        on: [
+          {source: 'github', event: 'pull_request_review', filter: 'event.action == "submitted"'},
+        ],
+        until: [{source: 'github', event: 'pull_request', filter: 'event.action == "closed"'}],
+        timeoutMs: 30 * 24 * 60 * 60 * 1000,
+        maxExecutions: 10,
+        batch: {debounceMs: 5000, maxSize: 20, maxWaitMs: 60 * 60 * 1000},
+        onResolve: 'cancel',
+      },
+    });
+    expect(model.jobs[0]?.name?.[1]).toMatchObject({
+      kind: 'expr',
+      expression: {source: 'execution.index', check: 'typed'},
+    });
+  });
+
+  it('reports listening jobs without a resolution source', () => {
+    const document: WorkflowDocument = {
+      name: 'listen forever',
+      jobs: {
+        review: {
+          listening: {
+            on: [{source: 'github', event: 'pull_request_review'}],
+          },
+          steps: [{run: 'echo ok'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'listening-job-missing-resolution-source',
+        path: ['jobs', 'review', 'listening'],
+      }),
+    ]);
+  });
+
+  it('reports listening timeouts above the run timeout', () => {
+    const document: WorkflowDocument = {
+      name: 'too long',
+      jobs: {
+        review: {
+          listening: {
+            on: [{source: 'github', event: 'pull_request_review'}],
+            timeout: '31d',
+          },
+          steps: [{run: 'echo ok'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'listening-timeout-exceeds-run-timeout',
+        path: ['jobs', 'review', 'listening', 'timeout'],
+      }),
+    ]);
   });
 
   it('preserves explicit model ids even when the seed catalog only knows provider defaults', () => {
@@ -524,9 +620,9 @@ describe('normalizeWorkflowDocument', () => {
       jobs: {
         review: {
           steps: [
-            {name: 'producer', run: 'npm run build'},
+            {key: 'producer', run: 'npm run build'},
             {
-              name: 'reviewer',
+              key: 'reviewer',
               run: 'npm run review',
               gate: {
                 success_if: 'exit_code == 0',
@@ -545,7 +641,7 @@ describe('normalizeWorkflowDocument', () => {
 
     expect(model.jobs[0]?.steps[1]).toMatchObject({
       id: 'review-reviewer',
-      sourceName: 'reviewer',
+      key: 'reviewer',
       gate: {
         successIf: {
           language: 'cel',
@@ -667,7 +763,7 @@ describe('normalizeWorkflowDocument', () => {
     expect(error.issues).toEqual([
       {
         code: 'invalid-duration',
-        message: 'Duration must be an integer followed by ms, s, m, or h.',
+        message: 'Duration must be an integer followed by ms, s, m, h, or d.',
         path: ['jobs', 'build', 'execution_timeout'],
         details: {source: 'ten minutes'},
       },
@@ -720,14 +816,37 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('reports day-based job execution timeouts above 24h', () => {
+    const document: WorkflowDocument = {
+      name: 'long timeout',
+      jobs: {
+        build: {
+          execution_timeout: '30d',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-duration',
+        message: 'Duration must be between 1s and 24h.',
+        path: ['jobs', 'build', 'execution_timeout'],
+        details: {source: '30d', min_ms: 1000, max_ms: 24 * 60 * 60 * 1000},
+      },
+    ]);
+  });
+
   it('normalizes on_failure-only gates', () => {
     const document: WorkflowDocument = {
       name: 'retry build',
       jobs: {
         build: {
           steps: [
-            {name: 'install', run: 'npm install'},
-            {name: 'build', run: 'npm run build', gate: {on_failure: {restart_from: 'install'}}},
+            {key: 'install', run: 'npm install'},
+            {key: 'build', run: 'npm run build', gate: {on_failure: {restart_from: 'install'}}},
           ],
         },
       },
@@ -792,7 +911,7 @@ describe('normalizeWorkflowDocument', () => {
         build: {
           steps: [
             {
-              name: 'review',
+              key: 'review',
               run: 'npm run review',
               gate: {on_failure: {restart_from: 'producer'}},
             },
@@ -806,7 +925,7 @@ describe('normalizeWorkflowDocument', () => {
     expect(error.issues).toEqual([
       {
         code: 'invalid-step-gate-restart-from',
-        message: 'Step "build-review" must restart from an earlier named step; found "producer".',
+        message: 'Step "build-review" must restart from an earlier keyed step; found "producer".',
         path: ['jobs', 'build', 'steps', 0, 'gate', 'on_failure'],
         details: {stepId: 'build-review', restartFrom: 'producer'},
       },
@@ -820,7 +939,7 @@ describe('normalizeWorkflowDocument', () => {
         build: {
           steps: [
             {
-              name: 'review',
+              key: 'review',
               run: 'npm run review',
               gate: {on_failure: {restart_from: 'review'}},
             },
@@ -834,7 +953,7 @@ describe('normalizeWorkflowDocument', () => {
     expect(error.issues).toEqual([
       {
         code: 'invalid-step-gate-restart-from',
-        message: 'Step "build-review" must restart from an earlier named step; found "review".',
+        message: 'Step "build-review" must restart from an earlier keyed step; found "review".',
         path: ['jobs', 'build', 'steps', 0, 'gate', 'on_failure'],
         details: {stepId: 'build-review', restartFrom: 'review'},
       },
@@ -848,11 +967,11 @@ describe('normalizeWorkflowDocument', () => {
         build: {
           steps: [
             {
-              name: 'review',
+              key: 'review',
               run: 'npm run review',
               gate: {on_failure: {restart_from: 'producer'}},
             },
-            {name: 'producer', run: 'npm run build'},
+            {key: 'producer', run: 'npm run build'},
           ],
         },
       },
@@ -863,7 +982,7 @@ describe('normalizeWorkflowDocument', () => {
     expect(error.issues).toEqual([
       {
         code: 'invalid-step-gate-restart-from',
-        message: 'Step "build-review" must restart from an earlier named step; found "producer".',
+        message: 'Step "build-review" must restart from an earlier keyed step; found "producer".',
         path: ['jobs', 'build', 'steps', 0, 'gate', 'on_failure'],
         details: {stepId: 'build-review', restartFrom: 'producer'},
       },
@@ -992,9 +1111,9 @@ describe('normalizeWorkflowDocument', () => {
     expect(error.issues).toEqual([
       {
         code: 'duplicate-job-id',
-        message: 'Job names "build app" and "build-app" resolve to the same stable id "build-app".',
+        message: 'Job keys "build app" and "build-app" resolve to the same stable id "build-app".',
         path: ['jobs', 'build-app'],
-        details: {id: 'build-app', sourceNames: ['build app', 'build-app']},
+        details: {id: 'build-app', sourceKeys: ['build app', 'build-app']},
       },
     ]);
   });
@@ -1014,9 +1133,9 @@ describe('normalizeWorkflowDocument', () => {
 
     const model = normalizeWorkflowDocument(document);
 
-    expect(model.jobs.map((job) => ({id: job.id, sourceName: job.sourceName}))).toEqual([
-      {id: 'build-app', sourceName: '  Build App  '},
-      {id: 'unnamed', sourceName: '!!!'},
+    expect(model.jobs.map((job) => ({id: job.id, key: job.key}))).toEqual([
+      {id: 'build-app', key: '  Build App  '},
+      {id: 'unnamed', key: '!!!'},
     ]);
   });
 
@@ -1040,9 +1159,9 @@ describe('normalizeWorkflowDocument', () => {
       {
         code: 'duplicate-trigger-id',
         message:
-          'Trigger names "main_push" and "main push" resolve to the same stable id "main-push".',
+          'Trigger keys "main_push" and "main push" resolve to the same stable id "main-push".',
         path: ['triggers', 'main push'],
-        details: {id: 'main-push', sourceNames: ['main_push', 'main push']},
+        details: {id: 'main-push', sourceKeys: ['main_push', 'main push']},
       },
     ]);
   });
@@ -1052,7 +1171,7 @@ describe('normalizeWorkflowDocument', () => {
       name: 'step collision',
       jobs: {
         build: {
-          steps: [{run: 'npm install'}, {name: 'step 1', run: 'npm test'}],
+          steps: [{run: 'npm install'}, {key: 'step 1', run: 'npm test'}],
         },
       },
     };
@@ -1091,7 +1210,7 @@ describe('normalizeWorkflowDocument', () => {
     expect(model.triggers).toEqual([
       {
         id: 'main',
-        sourceName: 'main',
+        key: 'main',
         source: 'github',
         event: 'push',
         filter: 'event.conclsion == "success"',
@@ -1121,7 +1240,7 @@ describe('normalizeWorkflowDocument', () => {
     expect(model.triggers).toEqual([
       {
         id: 'dispatch',
-        sourceName: 'dispatch',
+        key: 'dispatch',
         source: 'github',
         event: 'workflow_dispatch',
         inputs: {environment: 'production'},
@@ -1168,7 +1287,7 @@ describe('normalizeWorkflowDocument', () => {
         code: 'multiple-manual-triggers',
         message: 'A workflow may declare at most one manual trigger; found 2: one, two.',
         path: ['triggers'],
-        details: {manualTriggerNames: ['one', 'two']},
+        details: {manualTriggerKeys: ['one', 'two']},
       },
     ]);
   });
@@ -1210,7 +1329,7 @@ describe('normalizeWorkflowDocument', () => {
         env: {RUN_ID: interpolation('run.id'), PORT: 3000},
         jobs: {
           build: {
-            env: {JOB_NAME: interpolation('job.name')},
+            env: {JOB_NAME: interpolation('job.key')},
             steps: [
               {
                 name: `deploy ${interpolation('event.action')}`,
@@ -1240,7 +1359,7 @@ describe('normalizeWorkflowDocument', () => {
       expect(model.jobs[0]?.templates?.env?.JOB_NAME).toEqual([
         {
           kind: 'expr',
-          expression: {language: 'cel', source: 'job.name', check: 'typed'},
+          expression: {language: 'cel', source: 'job.key', check: 'typed'},
           contextRoots: ['job'],
         },
       ]);
@@ -1312,6 +1431,7 @@ describe('normalizeWorkflowDocument', () => {
         env: {VALUE: '$${{ event.ref }}'},
         jobs: {
           build: {
+            name: 'Build app',
             steps: [{name: 'literal step', run: 'echo $${{ event.ref }}'}],
           },
         },
@@ -1322,6 +1442,7 @@ describe('normalizeWorkflowDocument', () => {
       expect(model).not.toHaveProperty('templates');
       expect(model.jobs[0]?.steps[0]).not.toHaveProperty('templates');
       expect(model.env).toEqual({VALUE: '$${{ event.ref }}'});
+      expect(model.jobs[0]?.name).toEqual([{kind: 'literal', text: 'Build app'}]);
       expect(model.jobs[0]?.steps[0]).toMatchObject({
         kind: 'run',
         command: {value: 'echo $${{ event.ref }}'},
@@ -1401,6 +1522,117 @@ describe('normalizeWorkflowDocument', () => {
           }),
         }),
       ]);
+    });
+
+    it.each([
+      'execution.events[0].data.body',
+      'execution["events"][0].data.body',
+      'execution[x]',
+    ])('rejects untrusted execution sub-paths in run commands: %s', (source) => {
+      const document: WorkflowDocument = {
+        name: 'unsafe execution run',
+        jobs: {
+          build: {
+            steps: [{run: `echo ${interpolation(source)}`}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'untrusted-context-in-field',
+          path: ['jobs', 'build', 'steps', 0, 'run'],
+          details: expect.objectContaining({
+            field: 'run',
+            rejectedRoots: ['execution'],
+          }),
+        }),
+      ]);
+    });
+
+    it('rejects execution event access through CEL comprehension bindings in run commands', () => {
+      const document: WorkflowDocument = {
+        name: 'unsafe execution map run',
+        jobs: {
+          build: {
+            steps: [{run: `echo ${interpolation('executions.map(e, e.events[0].data.body)')}`}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'untrusted-context-in-field',
+          path: ['jobs', 'build', 'steps', 0, 'run'],
+          details: expect.objectContaining({
+            field: 'run',
+            rejectedRoots: ['executions'],
+          }),
+        }),
+      ]);
+    });
+
+    it('allows trusted execution metadata in run commands', () => {
+      const document: WorkflowDocument = {
+        name: 'execution metadata',
+        jobs: {
+          build: {
+            steps: [{run: `echo ${interpolation('executions[0].name')}`}],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'run',
+        templates: {
+          command: [
+            {kind: 'literal', text: 'echo '},
+            {
+              kind: 'expr',
+              expression: {language: 'cel', source: 'executions[0].name', check: 'typed'},
+              contextRoots: ['executions'],
+            },
+          ],
+        },
+      });
+    });
+
+    it('allows execution events in untrusted-capable fields', () => {
+      const document: WorkflowDocument = {
+        name: 'execution events allowed',
+        jobs: {
+          build: {
+            name: `batch ${interpolation('execution.events[0].data.title')}`,
+            steps: [{provider: 'openai', prompt: interpolation('execution.events[0].data.body')}],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model.jobs[0]?.name?.[1]).toMatchObject({
+        kind: 'expr',
+        expression: {check: 'typed'},
+        contextRoots: ['execution'],
+      });
+      expect(model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'agent',
+        templates: {
+          prompt: [
+            {
+              kind: 'expr',
+              expression: {check: 'typed'},
+              contextRoots: ['execution'],
+            },
+          ],
+        },
+      });
     });
 
     it('allows untrusted context in env, prompt, and step names', () => {

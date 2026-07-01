@@ -1,8 +1,12 @@
 import type {RuntimeCompletionStatus, RuntimeDagNode} from './runtime-dag.js';
 import {scheduleRuntimeDag} from './schedule-runtime-dag.js';
 
-function job(name: string, dependencies: readonly string[] = []): RuntimeDagNode {
-  return {id: `job-${name}`, name, dependencies, version: 1};
+function job(
+  key: string,
+  dependencies: readonly string[] = [],
+  mode: RuntimeDagNode['mode'] = 'one_shot',
+): RuntimeDagNode {
+  return {id: `job-${key}`, key, mode, dependencies, version: 1};
 }
 
 function completed(
@@ -106,5 +110,37 @@ describe('scheduleRuntimeDag', () => {
     });
 
     expect(commands).toEqual([]);
+  });
+
+  it('holds listening jobs instead of starting or completing the run', () => {
+    const jobs = [job('listen', [], 'listening')];
+
+    const commands = scheduleRuntimeDag({jobs, completed: completed({})});
+
+    expect(commands).toEqual([]);
+  });
+
+  it('starts one-shot siblings while holding listening jobs', () => {
+    const jobs = [job('listen', [], 'listening'), job('build')];
+
+    const commands = scheduleRuntimeDag({jobs, completed: completed({})});
+
+    expect(commands).toEqual([{kind: 'start-job', job: jobs[1]}]);
+  });
+
+  it('holds jobs that need an unresolved listening dependency', () => {
+    const jobs = [job('listen', [], 'listening'), job('deploy', ['listen'])];
+
+    const commands = scheduleRuntimeDag({jobs, completed: completed({})});
+
+    expect(commands).toEqual([]);
+  });
+
+  it('starts jobs that need a resolved listening dependency', () => {
+    const jobs = [job('listen', [], 'listening'), job('deploy', ['listen'])];
+
+    const commands = scheduleRuntimeDag({jobs, completed: completed({listen: 'succeeded'})});
+
+    expect(commands).toEqual([{kind: 'start-job', job: jobs[1]}]);
   });
 });

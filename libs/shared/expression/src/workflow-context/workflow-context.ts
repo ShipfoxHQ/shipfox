@@ -1,6 +1,14 @@
 import type {ExpressionTypeEnvironment} from '../expression/workflow-expression.js';
 
-export const workflowContextNames = ['run', 'trigger', 'event', 'inputs', 'job'] as const;
+export const workflowContextNames = [
+  'run',
+  'trigger',
+  'event',
+  'inputs',
+  'job',
+  'executions',
+  'execution',
+] as const;
 export type WorkflowContextName = (typeof workflowContextNames)[number];
 
 export const workflowContextTrustTiers = ['trusted', 'untrusted'] as const;
@@ -13,6 +21,7 @@ export interface TypedWorkflowContextDefinition {
   readonly shape: 'known';
   readonly checkMode: 'typed';
   readonly typeEnvironment: ExpressionTypeEnvironment;
+  readonly untrustedPaths?: readonly string[];
 }
 
 export interface OpenWorkflowContextDefinition {
@@ -53,9 +62,49 @@ const jobTypeEnvironment = {
   job: {
     kind: 'object',
     fields: {
-      name: 'string',
+      key: 'string',
     },
   },
+} as const satisfies ExpressionTypeEnvironment;
+
+const executionEventType = {
+  kind: 'object',
+  fields: {
+    source: 'string',
+    event: 'string',
+    delivery_id: 'string',
+    received_at: 'timestamp',
+    data: {
+      kind: 'object',
+      fields: {},
+    },
+  },
+} as const;
+
+const executionType = {
+  kind: 'object',
+  fields: {
+    index: 'int',
+    name: 'string',
+    status: 'string',
+    started_at: 'timestamp',
+    finished_at: 'timestamp',
+    events: {
+      kind: 'list',
+      element: executionEventType,
+    },
+  },
+} as const;
+
+const executionsTypeEnvironment = {
+  executions: {
+    kind: 'list',
+    element: executionType,
+  },
+} as const satisfies ExpressionTypeEnvironment;
+
+const executionTypeEnvironment = {
+  execution: executionType,
 } as const satisfies ExpressionTypeEnvironment;
 
 export const workflowContextDefinitions = {
@@ -86,6 +135,20 @@ export const workflowContextDefinitions = {
     shape: 'known',
     checkMode: 'typed',
     typeEnvironment: jobTypeEnvironment,
+  },
+  executions: {
+    trustTier: 'trusted',
+    shape: 'known',
+    checkMode: 'typed',
+    typeEnvironment: executionsTypeEnvironment,
+    untrustedPaths: ['events'],
+  },
+  execution: {
+    trustTier: 'trusted',
+    shape: 'known',
+    checkMode: 'typed',
+    typeEnvironment: executionTypeEnvironment,
+    untrustedPaths: ['events'],
   },
 } as const satisfies Record<WorkflowContextName, WorkflowContextDefinition>;
 
@@ -155,6 +218,13 @@ export function getWorkflowContextTypeEnvironment(
 ): ExpressionTypeEnvironment | undefined {
   const context = getWorkflowContextDefinition(name);
   return context.shape === 'known' ? context.typeEnvironment : undefined;
+}
+
+export function getWorkflowContextUntrustedPaths(
+  name: WorkflowContextName,
+): readonly string[] | undefined {
+  const context = getWorkflowContextDefinition(name);
+  return context.shape === 'known' ? context.untrustedPaths : undefined;
 }
 
 export function workflowInterpolationFieldAcceptsTrustTier(

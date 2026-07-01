@@ -98,16 +98,20 @@ export function setExecutionStatusCalls() {
 
 export function dagJob(
   id: string,
-  name: string,
+  key: string,
   deps: string[] = [],
-  options: {status?: RunDag['jobs'][number]['status']} = {},
+  options: {
+    mode?: RunDag['jobs'][number]['mode'] | undefined;
+    status?: RunDag['jobs'][number]['status'] | undefined;
+  } = {},
 ): RunDag['jobs'][number] {
+  const mode = options.mode ?? 'one_shot';
   return {
     id,
-    name,
+    key,
+    mode,
     status: options.status ?? 'pending',
-    jobExecutionId: id,
-    executionVersion: 1,
+    ...(mode === 'listening' ? {} : {jobExecutionId: id, executionVersion: 1}),
     executionTimeoutMs: null,
     dependencies: deps,
     runner: ['ubuntu22'],

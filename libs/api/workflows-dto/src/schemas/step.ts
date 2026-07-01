@@ -72,8 +72,8 @@ export type StepSourceLocationDto = z.infer<typeof stepSourceLocationSchema>;
 export const stepDtoSchema = z.object({
   id: z.string().uuid(),
   job_execution_id: z.string().uuid(),
-  name: z.string().nullable(),
-  display_name: z.string(),
+  key: z.string().nullable(),
+  name: z.string(),
   source_location: stepSourceLocationSchema.nullable(),
   status: z.string(),
   type: z.string(),

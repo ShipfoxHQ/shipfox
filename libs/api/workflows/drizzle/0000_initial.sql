@@ -1,13 +1,19 @@
 CREATE TYPE "public"."workflows_job_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled', 'skipped');--> statement-breakpoint
 CREATE TYPE "public"."workflows_job_execution_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."workflows_job_status_reason" AS ENUM('dependency_not_completed', 'condition_false', 'user_cancelled', 'run_cancelled', 'timed_out', 'runner_lost', 'step_failed', 'unknown');--> statement-breakpoint
+CREATE TYPE "public"."workflows_job_mode" AS ENUM('one_shot', 'listening');--> statement-breakpoint
+CREATE TYPE "public"."workflows_job_on_resolve" AS ENUM('finish', 'cancel');--> statement-breakpoint
+CREATE TYPE "public"."workflows_listener_status" AS ENUM('inactive', 'listening', 'resolved');--> statement-breakpoint
+CREATE TYPE "public"."workflows_resolution_reason" AS ENUM('until', 'timeout', 'max_executions', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."workflows_step_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."workflows_run_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."workflows_rerun_mode" AS ENUM('all', 'failed');--> statement-breakpoint
 CREATE TABLE "workflows_jobs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workflow_run_attempt_id" uuid NOT NULL,
-	"name" text NOT NULL,
+	"key" text NOT NULL,
+	"mode" "workflows_job_mode" DEFAULT 'one_shot' NOT NULL,
+	"name" text,
 	"status" "workflows_job_status" DEFAULT 'pending' NOT NULL,
 	"status_reason" "workflows_job_status_reason",
 	"carried_over" boolean DEFAULT false NOT NULL,
@@ -15,6 +21,16 @@ CREATE TABLE "workflows_jobs" (
 	"runner" jsonb,
 	"success" text,
 	"execution_timeout_ms" integer,
+	"listening_timeout_ms" bigint,
+	"max_executions" integer,
+	"on_resolve" "workflows_job_on_resolve",
+	"batch_debounce_ms" integer,
+	"batch_max_size" integer,
+	"batch_max_wait_ms" integer,
+	"listener_status" "workflows_listener_status" DEFAULT 'inactive' NOT NULL,
+	"resolution_reason" "workflows_resolution_reason",
+	"listening_on" jsonb,
+	"listening_until" jsonb,
 	"position" integer NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -41,8 +57,8 @@ CREATE TABLE "workflows_outbox" (
 CREATE TABLE "workflows_steps" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"job_execution_id" uuid NOT NULL,
-	"name" text,
-	"display_name" text NOT NULL,
+	"key" text,
+	"name" text NOT NULL,
 	"source_location" jsonb,
 	"status" "workflows_step_status" DEFAULT 'pending' NOT NULL,
 	"type" text NOT NULL,

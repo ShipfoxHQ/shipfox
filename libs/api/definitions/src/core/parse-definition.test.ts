@@ -42,6 +42,27 @@ describe('parseDefinition', () => {
     ]);
   });
 
+  test('valid listening job workflow parses successfully', () => {
+    const yaml = readFixture('valid-listening-job.yml');
+
+    const definition = parseDefinition(yaml);
+
+    expect(definition.model.jobs[0]).toMatchObject({
+      id: 'review',
+      key: 'review',
+      mode: 'listening',
+      listening: {
+        on: [{source: 'github', event: 'pull_request_review'}],
+        until: [{source: 'github', event: 'pull_request'}],
+        timeoutMs: 30 * 24 * 60 * 60 * 1000,
+        maxExecutions: 3,
+        batch: {debounceMs: 5000, maxSize: 10, maxWaitMs: 60 * 60 * 1000},
+        onResolve: 'cancel',
+      },
+    });
+    expect(definition.model.jobs[0]?.name).toBeDefined();
+  });
+
   test('attaches source line locations to workflow model steps', () => {
     const yaml = `name: Source locations
 runner: ubuntu-latest

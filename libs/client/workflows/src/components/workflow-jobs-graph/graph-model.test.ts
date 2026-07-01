@@ -25,7 +25,7 @@ describe('buildWorkflowJobGraphModel', () => {
     ]);
   });
 
-  test('resolves dependencies by job name', () => {
+  test('resolves dependencies by job key', () => {
     const build = makeJob({name: 'build', position: 0});
     const deploy = makeJob({name: 'deploy', position: 1, dependencies: ['build']});
     const run = makeRun({jobs: [deploy, build]});
@@ -185,5 +185,5 @@ function makeRun(overrides: Partial<WorkflowRunDetail> = {}): WorkflowRunDetail 
 }
 
 function makeJob(overrides: Partial<WorkflowRunJobDetailDto> & {name: string}): WorkflowJob {
-  return workflowJob(overrides);
+  return workflowJob({key: overrides.key ?? overrides.name, ...overrides});
 }

@@ -139,13 +139,20 @@ export function runAttemptsResponseDto(
 export function workflowJobDto(overrides: WorkflowJobDtoOverrides = {}): WorkflowRunJobDetailDto {
   jobSequence += 1;
   const {job_executions, steps, ...jobOverrides} = overrides;
+  const key =
+    jobOverrides.key ?? (typeof jobOverrides.name === 'string' ? jobOverrides.name : 'build');
   const job: WorkflowJobDtoBase = {
     id: `44444444-4444-4444-8444-${String(jobSequence).padStart(12, '0')}`,
     run_attempt_id: RUN_ID,
-    name: 'build',
+    key,
+    name: null,
+    mode: 'one_shot',
     status: 'pending',
     status_reason: null,
     carried_over: false,
+    listening: null,
+    listener_status: 'inactive',
+    resolution_reason: null,
     dependencies: [],
     position: 0,
     created_at: '2026-06-21T12:00:00.000Z',
@@ -194,15 +201,12 @@ export function workflowStepDto(
   overrides: Partial<WorkflowRunStepDetailDto> = {},
 ): WorkflowRunStepDetailDto {
   stepSequence += 1;
-  const displayName =
-    overrides.display_name ??
-    (typeof overrides.name === 'string' && overrides.name.trim() ? overrides.name : 'build');
 
   return {
     id: `55555555-5555-4555-8555-${String(stepSequence).padStart(12, '0')}`,
     job_execution_id: JOB_EXECUTION_ID,
+    key: 'build',
     name: 'build',
-    display_name: displayName,
     source_location: null,
     status: 'pending',
     type: 'run',

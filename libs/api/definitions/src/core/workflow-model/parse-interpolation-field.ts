@@ -1,8 +1,10 @@
 import {
   createWorkflowExpression,
   type ExpressionTypeEnvironment,
+  extractCelUntrustedPathAccesses,
   getWorkflowContextDefinition,
   getWorkflowContextTypeEnvironment,
+  getWorkflowContextUntrustedPaths,
   InvalidWorkflowExpressionError,
   InvalidWorkflowTemplateError,
   parseWorkflowTemplate,
@@ -12,6 +14,7 @@ import {
   type WorkflowTemplateSegment,
   workflowContextNames,
   workflowInterpolationFieldAcceptsContext,
+  workflowInterpolationFieldAcceptsTrustTier,
 } from '@shipfox/expression';
 import type {WorkflowFieldTemplate} from '../entities/workflow-model.js';
 import type {
@@ -26,6 +29,7 @@ export type StoredInterpolationField =
   | 'agent.prompt'
   | 'agent.model'
   | 'agent.provider'
+  | 'job.name'
   | 'step.name';
 
 export function parseInterpolationField(params: {
@@ -89,6 +93,22 @@ function validateExpressionSegment(params: {
   const knownRoots = contextRoots.filter(isWorkflowContextName);
   const unknownRoots = contextRoots.filter((root) => !isWorkflowContextName(root));
 
+  const rejectedRoots = knownRoots.filter(
+    (root) => !workflowInterpolationFieldAcceptsContext(params.field, root),
+  );
+  if (rejectedRoots.length > 0) {
+    params.issues.push(untrustedContextIssue({...params, contextRoots, rejectedRoots}));
+    return undefined;
+  }
+
+  const rejectedPathRoots = findUntrustedPathRoots(params.segment, params.field, knownRoots);
+  if (rejectedPathRoots.length > 0) {
+    params.issues.push(
+      untrustedContextIssue({...params, contextRoots, rejectedRoots: rejectedPathRoots}),
+    );
+    return undefined;
+  }
+
   if (unknownRoots.length > 0) {
     params.issues.push(
       issue({
@@ -106,14 +126,6 @@ function validateExpressionSegment(params: {
         },
       }),
     );
-    return undefined;
-  }
-
-  const rejectedRoots = knownRoots.filter(
-    (root) => !workflowInterpolationFieldAcceptsContext(params.field, root),
-  );
-  if (rejectedRoots.length > 0) {
-    params.issues.push(untrustedContextIssue({...params, contextRoots, rejectedRoots}));
     return undefined;
   }
 
@@ -152,6 +164,31 @@ function validateExpressionSegment(params: {
     );
     return undefined;
   }
+}
+
+function findUntrustedPathRoots(
+  segment: WorkflowTemplateExprSegment,
+  field: StoredInterpolationField,
+  knownRoots: readonly WorkflowContextName[],
+): readonly WorkflowContextName[] {
+  if (!isTrustedOnlyField(field)) return [];
+
+  const untrustedPathsByRoot = new Map<string, readonly string[]>();
+  for (const root of knownRoots) {
+    const paths = getWorkflowContextUntrustedPaths(root);
+    if (paths === undefined || paths.length === 0) continue;
+    untrustedPathsByRoot.set(root, paths);
+  }
+  if (untrustedPathsByRoot.size === 0) return [];
+
+  return extractCelUntrustedPathAccesses({
+    source: segment.expression.source,
+    untrustedPathsByRoot,
+  }).filter(isWorkflowContextName);
+}
+
+function isTrustedOnlyField(field: StoredInterpolationField): boolean {
+  return !workflowInterpolationFieldAcceptsTrustTier(field, 'untrusted');
 }
 
 function untrustedContextIssue(params: {

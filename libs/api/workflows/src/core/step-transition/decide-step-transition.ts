@@ -150,7 +150,7 @@ export function decideStepTransition(input: DecideStepTransitionInput): StepTran
       (step) =>
         step.type !== 'setup' &&
         step.position < target.position &&
-        step.name === gateOnFailure.restartFrom,
+        step.key === gateOnFailure.restartFrom,
     );
     if (!restartStep) {
       // The model validates restart_from to an earlier named step, but fail closed

@@ -131,8 +131,8 @@ describe('workflow run model mapping', () => {
     });
     const step = workflowStepDto({
       id: '55555555-5555-4555-8555-000000000001',
-      name: null,
-      display_name: 'Run tests',
+      key: null,
+      name: 'Run tests',
       source_location: {start_line: 3, end_line: 5},
       status: 'failed',
       type: 'run',
@@ -167,6 +167,7 @@ describe('workflow run model mapping', () => {
     expect(detail.jobs[0]).toMatchObject({
       id: '44444444-4444-4444-8444-000000000001',
       runAttemptId: '11111111-1111-4111-8111-111111111111',
+      key: 'test',
       name: 'test',
       status: 'failed',
       statusReason: 'step_failed',
@@ -183,7 +184,8 @@ describe('workflow run model mapping', () => {
     expect(detail.jobs[0]?.steps[0]).toMatchObject({
       id: '55555555-5555-4555-8555-000000000001',
       jobId: '44444444-4444-4444-8444-000000000001',
-      displayName: 'Run tests',
+      key: null,
+      name: 'Run tests',
       sourceLocation: {startLine: 3, endLine: 5},
       currentAttempt: 2,
       error: {

@@ -23,7 +23,13 @@ type WorkflowModelRunStep = Extract<WorkflowModelStep, {kind: 'run'}>;
 type WorkflowModelAgentStep = Extract<WorkflowModelStep, {kind: 'agent'}>;
 type WorkflowFieldTemplate = NonNullable<NonNullable<WorkflowModelRunStep['templates']>['command']>;
 
-export type StepConfigField = 'run' | 'env' | 'agent.prompt' | 'agent.model' | 'agent.provider';
+export type StepConfigField =
+  | 'run'
+  | 'env'
+  | 'agent.prompt'
+  | 'agent.model'
+  | 'agent.provider'
+  | 'step.name';
 
 export interface WorkflowStepTemplateDiagnostic extends WorkflowTemplateDiagnostic {
   readonly field: StepConfigField;
@@ -33,6 +39,7 @@ export interface WorkflowStepTemplateDiagnostic extends WorkflowTemplateDiagnost
 export interface ResolvedStepConfig {
   readonly config: Record<string, unknown>;
   readonly authoredConfig: Record<string, unknown> | null;
+  readonly name?: string;
   readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
 }
 
@@ -58,11 +65,13 @@ export function resolveStepConfig(params: ResolveStepConfigParams): ResolvedStep
     const authoredConfig = effective.hasTemplates
       ? buildStepConfig({...params, mode: 'authored'}).config
       : null;
+    const name = resolveStepName(params.step, params.context);
 
     return {
       config: effective.config,
       authoredConfig,
-      diagnostics: effective.diagnostics,
+      ...(name.value === undefined ? {} : {name: name.value}),
+      diagnostics: [...effective.diagnostics, ...name.diagnostics],
     };
   } catch (error) {
     if (
@@ -279,6 +288,25 @@ function resolveOptionalAgentField(params: {
   return resolveAgentField({...params, value: params.value});
 }
 
+function resolveStepName(
+  step: WorkflowModelStep,
+  context: WorkflowExpressionEvaluationContext,
+): {
+  readonly value: string | undefined;
+  readonly diagnostics: readonly WorkflowStepTemplateDiagnostic[];
+} {
+  if (step.name === undefined) return {value: undefined, diagnostics: []};
+  if (step.templates?.name === undefined) return {value: step.name, diagnostics: []};
+
+  const resolved = resolveWorkflowTemplate(step.templates.name, context, {
+    requiredContextRoots: requiredStepNameRoots(step.templates.name),
+  });
+  return {
+    value: resolved.value,
+    diagnostics: resolved.diagnostics.map((diagnostic) => ({...diagnostic, field: 'step.name'})),
+  };
+}
+
 function winningEnv(params: {
   readonly workflowEnv: WorkflowModel['env'];
   readonly workflowEnvTemplates: ResolveStepConfigParams['workflowEnvTemplates'];
@@ -321,6 +349,19 @@ function requiredTrustedRoots(segments: readonly unknown[]): WorkflowContextName
     for (const root of segment.contextRoots) {
       if (!isWorkflowContextName(root)) continue;
       if (getWorkflowContextDefinition(root).trustTier === 'trusted') roots.add(root);
+    }
+  }
+
+  return [...roots];
+}
+
+function requiredStepNameRoots(segments: readonly unknown[]): WorkflowContextName[] {
+  const roots = new Set<WorkflowContextName>(requiredTrustedRoots(segments));
+
+  for (const segment of segments) {
+    if (!hasContextRoots(segment)) continue;
+    for (const root of segment.contextRoots) {
+      if (root === 'execution' || root === 'executions') roots.add(root);
     }
   }
 

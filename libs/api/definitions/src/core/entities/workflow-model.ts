@@ -18,7 +18,7 @@ export interface WorkflowModel {
 
 export interface WorkflowModelTrigger {
   readonly id: string;
-  readonly sourceName: string;
+  readonly key: string;
   readonly source: string;
   readonly event: string;
   readonly inputs?: Readonly<Record<string, unknown>>;
@@ -27,10 +27,13 @@ export interface WorkflowModelTrigger {
 
 export interface WorkflowModelJob {
   readonly id: string;
-  readonly sourceName: string;
+  readonly key: string;
+  readonly mode: WorkflowModelJobMode;
   readonly runner: readonly string[];
   readonly success?: string;
   readonly executionTimeoutMs?: number;
+  readonly listening?: WorkflowModelJobListening;
+  readonly name?: WorkflowFieldTemplate;
   readonly env?: Readonly<Record<string, string>>;
   readonly templates?: {
     readonly env?: WorkflowEnvTemplates;
@@ -39,11 +42,36 @@ export interface WorkflowModelJob {
   readonly steps: readonly WorkflowModelStep[];
 }
 
+export type WorkflowModelJobMode = 'one_shot' | 'listening';
+
+export interface WorkflowModelJobListening {
+  readonly on: readonly WorkflowModelListeningTrigger[];
+  readonly until?: readonly WorkflowModelListeningTrigger[];
+  readonly timeoutMs?: number;
+  readonly maxExecutions?: number;
+  readonly batch?: WorkflowModelListeningBatch;
+  readonly onResolve: 'finish' | 'cancel';
+}
+
+export interface WorkflowModelListeningTrigger {
+  readonly source: string;
+  readonly event: string;
+  readonly inputs?: Readonly<Record<string, unknown>>;
+  readonly filter?: string;
+}
+
+export interface WorkflowModelListeningBatch {
+  readonly debounceMs?: number;
+  readonly maxSize?: number;
+  readonly maxWaitMs?: number;
+}
+
 export type WorkflowModelStep = WorkflowModelRunStep | WorkflowModelAgentStep;
 
 interface WorkflowModelStepBase {
   readonly id: string;
-  readonly sourceName?: string;
+  readonly key?: string;
+  readonly name?: string;
   readonly gate?: WorkflowModelStepGate;
   readonly sourceLocation?: WorkflowSourceLocation;
 }
