@@ -1,3 +1,4 @@
+import {ConnectionSlugConflictError} from '@shipfox/api-integration-core-dto';
 import {upsertGithubInstallation} from '@shipfox/api-integration-github';
 import {IntegrationConnectionAlreadyExistsError} from '#core/errors.js';
 import {
@@ -129,6 +130,26 @@ describe('integration connection queries', () => {
     expect(connections).toHaveLength(1);
     expect(connections[0]?.id).toBe(first.id);
     expect(connections[0]?.displayName).toBe('Stripe');
+  });
+
+  it('reports slug collisions separately from duplicate external accounts', async () => {
+    await createIntegrationConnection({
+      workspaceId,
+      provider: 'webhook',
+      externalAccountId: 'stripe',
+      slug: 'stripe',
+      displayName: 'Stripe',
+    });
+
+    const result = createIntegrationConnection({
+      workspaceId,
+      provider: 'webhook',
+      externalAccountId: 'stripe-prod',
+      slug: 'stripe',
+      displayName: 'Stripe prod',
+    });
+
+    await expect(result).rejects.toBeInstanceOf(ConnectionSlugConflictError);
   });
 
   it('lists workspace connections across all lifecycle statuses', async () => {

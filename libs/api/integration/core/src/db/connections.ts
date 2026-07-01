@@ -1,4 +1,7 @@
-import {CONNECTION_SLUG_MAX_LENGTH} from '@shipfox/api-integration-core-dto';
+import {
+  CONNECTION_SLUG_MAX_LENGTH,
+  ConnectionSlugConflictError,
+} from '@shipfox/api-integration-core-dto';
 import {and, eq} from 'drizzle-orm';
 import type {
   IntegrationConnection,
@@ -64,21 +67,17 @@ export interface CreateIntegrationConnectionParams {
   lifecycleStatus?: IntegrationConnectionLifecycleStatus | undefined;
 }
 
-const CONNECTION_UNIQUE_CONSTRAINTS = new Set([
-  'integrations_connections_workspace_external_unique',
-  'integrations_connections_workspace_slug_unique',
-]);
+const INTEGRATION_CONNECTION_EXTERNAL_UNIQUE_CONSTRAINT =
+  'integrations_connections_workspace_external_unique';
+const INTEGRATION_CONNECTION_SLUG_UNIQUE_CONSTRAINT =
+  'integrations_connections_workspace_slug_unique';
 
 export function isIntegrationConnectionUniqueViolation(error: unknown): boolean {
   let current: unknown = error;
   for (let depth = 0; depth < 5 && current != null; depth += 1) {
     if (typeof current !== 'object') return false;
     const {code, constraint} = current as {code?: unknown; constraint?: unknown};
-    if (
-      code === '23505' &&
-      typeof constraint === 'string' &&
-      CONNECTION_UNIQUE_CONSTRAINTS.has(constraint)
-    ) {
+    if (code === '23505' && constraint === INTEGRATION_CONNECTION_EXTERNAL_UNIQUE_CONSTRAINT) {
       return true;
     }
     current = (current as {cause?: unknown}).cause;
@@ -91,7 +90,7 @@ export function isIntegrationConnectionSlugUniqueViolation(error: unknown): bool
   for (let depth = 0; depth < 5 && current != null; depth += 1) {
     if (typeof current !== 'object') return false;
     const {code, constraint} = current as {code?: unknown; constraint?: unknown};
-    if (code === '23505' && constraint === 'integrations_connections_workspace_slug_unique') {
+    if (code === '23505' && constraint === INTEGRATION_CONNECTION_SLUG_UNIQUE_CONSTRAINT) {
       return true;
     }
     current = (current as {cause?: unknown}).cause;
@@ -124,6 +123,9 @@ export async function createIntegrationConnection(
         params.provider,
         params.externalAccountId,
       );
+    }
+    if (isIntegrationConnectionSlugUniqueViolation(error)) {
+      throw new ConnectionSlugConflictError(error);
     }
     throw error;
   }

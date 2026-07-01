@@ -64,9 +64,9 @@ const SAMPLE_EVENTS: TriggerEventListItemDto[] = [
 
 const SAMPLE_FACETS: TriggerEventFacetsResponseDto = {
   sources: [
-    {value: 'github', count: 3},
-    {value: 'gitea', count: 1},
-    {value: 'gitlab', count: 1},
+    {value: 'github_acme', count: 3},
+    {value: 'gitea_acme', count: 1},
+    {value: 'gitlab_acme', count: 1},
   ],
   events: [
     {value: 'push', count: 3},

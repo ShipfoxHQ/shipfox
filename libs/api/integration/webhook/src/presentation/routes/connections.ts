@@ -1,10 +1,11 @@
 import {AUTH_USER} from '@shipfox/api-auth-context';
-import type {
-  CreateIntegrationConnectionFn,
-  DeleteIntegrationConnectionFn,
-  GetIntegrationConnectionByIdFn,
-  IntegrationConnection,
-  UpdateIntegrationConnectionLifecycleStatusFn,
+import {
+  ConnectionSlugConflictError,
+  type CreateIntegrationConnectionFn,
+  type DeleteIntegrationConnectionFn,
+  type GetIntegrationConnectionByIdFn,
+  type IntegrationConnection,
+  type UpdateIntegrationConnectionLifecycleStatusFn,
 } from '@shipfox/api-integration-core-dto';
 import {
   createWebhookConnectionBodySchema,
@@ -37,7 +38,8 @@ function isConnectionAlreadyExistsError(error: unknown): boolean {
   return (
     typeof error === 'object' &&
     error !== null &&
-    (error as {name?: unknown}).name === 'IntegrationConnectionAlreadyExistsError'
+    ((error as {name?: unknown}).name === 'IntegrationConnectionAlreadyExistsError' ||
+      error instanceof ConnectionSlugConflictError)
   );
 }
 

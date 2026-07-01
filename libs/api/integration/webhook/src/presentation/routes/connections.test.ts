@@ -1,5 +1,8 @@
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {
+  ConnectionSlugConflictError,
+  type IntegrationConnection,
+} from '@shipfox/api-integration-core-dto';
 import {WEBHOOK_RESERVED_SLUGS} from '@shipfox/api-integration-webhook-dto';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
@@ -52,6 +55,10 @@ function duplicateSlugError(): Error {
   const error = new Error('duplicate connection');
   error.name = 'IntegrationConnectionAlreadyExistsError';
   return error;
+}
+
+function connectionSlugConflictError(): Error {
+  return new ConnectionSlugConflictError(new Error('duplicate slug'));
 }
 
 function fakeConnection(overrides: Partial<IntegrationConnection> = {}): IntegrationConnection {
@@ -186,6 +193,23 @@ describe('webhook connection routes', () => {
     expect(first.statusCode).toBe(201);
     expect(second.statusCode).toBe(409);
     expect(second.json().code).toBe('slug-already-exists');
+  });
+
+  it('returns 409 when the core connection create reports a slug conflict', async () => {
+    const workspaceId = crypto.randomUUID();
+    const store = createStore();
+    store.createIntegrationConnection.mockRejectedValueOnce(connectionSlugConflictError());
+    const {app} = await createTestApp(store);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/webhook/connections',
+      headers: {authorization: 'Bearer user'},
+      payload: {workspace_id: workspaceId, name: 'Stripe', slug: 'stripe-prod'},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('slug-already-exists');
   });
 
   it('lists only webhook connections for the workspace', async () => {
