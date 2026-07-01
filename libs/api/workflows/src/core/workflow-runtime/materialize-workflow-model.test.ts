@@ -83,6 +83,7 @@ describe('materializeWorkflowModel', () => {
     expect(rows).toEqual([
       {
         sourceName: 'build',
+        mode: 'one_shot',
         dependencies: [],
         runner: ['ubuntu-latest'],
         position: 0,
@@ -118,6 +119,7 @@ describe('materializeWorkflowModel', () => {
       },
       {
         sourceName: 'test',
+        mode: 'one_shot',
         dependencies: ['build'],
         runner: ['ubuntu-latest', 'node-22'],
         position: 1,
@@ -589,6 +591,7 @@ describe('materializeWorkflowModel', () => {
         {
           id: 'test',
           sourceName: 'test',
+          mode: 'one_shot',
           runner: [],
           dependencies: ['missing'],
           steps: [],

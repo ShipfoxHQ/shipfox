@@ -13,8 +13,11 @@ type WorkflowSourceLocation = NonNullable<WorkflowModelStep['sourceLocation']>;
 const FIRST_LINE_PATTERN = /\r?\n/;
 export interface MaterializedWorkflowJob {
   readonly sourceName: string;
+  readonly mode: WorkflowModelJob['mode'];
   readonly success?: string;
   readonly executionTimeoutMs?: number;
+  readonly listening?: WorkflowModelJob['listening'];
+  readonly nameTemplate?: WorkflowModelJob['nameTemplate'];
   readonly dependencies: readonly string[];
   readonly runner: readonly string[];
   readonly position: number;
@@ -68,8 +71,11 @@ export function materializeWorkflowModel(
 
   return model.jobs.map((job, position) => ({
     sourceName: job.sourceName,
+    mode: job.mode,
     ...(job.success === undefined ? {} : {success: job.success}),
     ...(job.executionTimeoutMs === undefined ? {} : {executionTimeoutMs: job.executionTimeoutMs}),
+    ...(job.listening === undefined ? {} : {listening: job.listening}),
+    ...(job.nameTemplate === undefined ? {} : {nameTemplate: job.nameTemplate}),
     dependencies: dependencySourceNames(job, jobsById),
     runner: job.runner,
     position,
@@ -78,7 +84,8 @@ export function materializeWorkflowModel(
     steps: [
       SETUP_STEP,
       ...job.steps.map((step, stepPosition) => {
-        const stepContext = {...context, job: {name: job.sourceName}};
+        // The trusted context exposes the stable job key; the authored display field remains `job.name`.
+        const stepContext = {...context, job: {key: job.sourceName}};
         const resolved = resolveStepConfig({
           step,
           workflowEnv: model.env,

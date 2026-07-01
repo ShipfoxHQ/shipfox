@@ -72,6 +72,7 @@ import {
   materializeWorkflowModel,
 } from '#core/workflow-runtime/index.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
+import type {MaterializedWorkflowJob} from '#core/workflow-runtime/materialize-workflow-model.js';
 import {
   recordWorkflowJobExecutionLeaseExpiryResolved,
   recordWorkflowJobExecutionQueued,
@@ -184,9 +185,19 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
           materializedJobs.map((job) => ({
             workflowRunAttemptId: attemptRow.id,
             name: job.sourceName,
+            mode: job.mode,
+            nameTemplate: workflowTemplateSource(job.nameTemplate),
             status: 'pending' as const,
             success: job.success ?? null,
             executionTimeoutMs: job.executionTimeoutMs ?? null,
+            listeningTimeoutMs: job.listening?.timeoutMs ?? null,
+            maxExecutions: job.listening?.maxExecutions ?? null,
+            onResolve: job.listening?.onResolve ?? null,
+            batchDebounceMs: job.listening?.batch?.debounceMs ?? null,
+            batchMaxSize: job.listening?.batch?.maxSize ?? null,
+            batchMaxWaitMs: job.listening?.batch?.maxWaitMs ?? null,
+            listeningOn: job.listening?.on ? [...job.listening.on] : null,
+            listeningUntil: job.listening?.until ? [...job.listening.until] : null,
             dependencies: [...job.dependencies],
             runner: job.runner.length === 0 ? null : [...job.runner],
             position: job.position,
@@ -195,20 +206,22 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         .returning();
     }
 
-    const jobExecutionRows =
-      jobRows.length === 0
+    const jobExecutionValues = jobRows.flatMap((jobRow) =>
+      jobRow.mode === 'listening'
         ? []
-        : await tx
-            .insert(jobExecutions)
-            .values(
-              jobRows.map((jobRow) => ({
-                jobId: jobRow.id,
-                sequence: 1,
-                name: jobRow.name,
-                status: 'pending' as const,
-              })),
-            )
-            .returning();
+        : [
+            {
+              jobId: jobRow.id,
+              sequence: 1,
+              name: jobRow.name,
+              status: 'pending' as const,
+            },
+          ],
+    );
+    const jobExecutionRows =
+      jobExecutionValues.length === 0
+        ? []
+        : await tx.insert(jobExecutions).values(jobExecutionValues).returning();
 
     const jobExecutionByJobId = new Map(
       jobExecutionRows.map((jobExecution) => [jobExecution.jobId, jobExecution]),
@@ -419,11 +432,23 @@ export async function createRerunWorkflowRun(
                 return {
                   workflowRunAttemptId: newAttemptRow.id,
                   name: job.name,
+                  mode: job.mode,
+                  nameTemplate: job.nameTemplate,
                   status: carriedOver ? ('succeeded' as const) : ('pending' as const),
                   statusReason: null,
                   carriedOver,
                   success: job.success,
                   executionTimeoutMs: job.executionTimeoutMs,
+                  listeningTimeoutMs: job.listeningTimeoutMs,
+                  maxExecutions: job.maxExecutions,
+                  onResolve: job.onResolve,
+                  batchDebounceMs: job.batchDebounceMs,
+                  batchMaxSize: job.batchMaxSize,
+                  batchMaxWaitMs: job.batchMaxWaitMs,
+                  listenerStatus: 'inactive' as const,
+                  resolutionReason: null,
+                  listeningOn: job.listeningOn ? [...job.listeningOn] : null,
+                  listeningUntil: job.listeningUntil ? [...job.listeningUntil] : null,
                   dependencies: [...job.dependencies],
                   runner: job.runner ? [...job.runner] : null,
                   position: job.position,
@@ -432,28 +457,25 @@ export async function createRerunWorkflowRun(
             )
             .returning();
 
-    const clonedJobExecutionRows =
-      clonedJobRows.length === 0
+    const clonedJobExecutionValues = clonedJobRows.flatMap((job) => {
+      const carriedOver = params.mode === 'failed' && job.status === 'succeeded';
+      return job.mode === 'listening'
         ? []
-        : await tx
-            .insert(jobExecutions)
-            .values(
-              clonedJobRows.map((job) => {
-                const sourceJob = sourceJobs.find(
-                  (candidate) => candidate.position === job.position,
-                );
-                const carriedOver = params.mode === 'failed' && sourceJob?.status === 'succeeded';
-                return {
-                  jobId: job.id,
-                  sequence: 1,
-                  name: job.name,
-                  status: carriedOver ? ('succeeded' as const) : ('pending' as const),
-                  statusReason: null,
-                  ...(carriedOver ? {finishedAt: sql`now()`} : {}),
-                };
-              }),
-            )
-            .returning();
+        : [
+            {
+              jobId: job.id,
+              sequence: 1,
+              name: job.name,
+              status: carriedOver ? ('succeeded' as const) : ('pending' as const),
+              statusReason: null,
+              ...(carriedOver ? {finishedAt: sql`now()`} : {}),
+            },
+          ];
+    });
+    const clonedJobExecutionRows =
+      clonedJobExecutionValues.length === 0
+        ? []
+        : await tx.insert(jobExecutions).values(clonedJobExecutionValues).returning();
 
     const sourceJobById = new Map(sourceJobs.map((job) => [job.id, job]));
     const sourceJobByJobExecutionId = new Map(
@@ -528,6 +550,16 @@ export async function createRerunWorkflowRun(
   recordWorkflowRunCreated(result.triggerPayload.provider ?? result.triggerSource);
 
   return result;
+}
+
+function workflowTemplateSource(template: MaterializedWorkflowJob['nameTemplate']): string | null {
+  if (template === undefined) return null;
+
+  return template
+    .map((segment) =>
+      segment.kind === 'literal' ? segment.text : `$${'{{'} ${segment.expression.source} ${'}}'}`,
+    )
+    .join('');
 }
 
 function logTemplateDiagnostics(params: {

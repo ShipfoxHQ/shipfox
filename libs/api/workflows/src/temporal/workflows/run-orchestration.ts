@@ -72,6 +72,10 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
     const jobsToStart = commands.flatMap((command) =>
       command.kind === 'start-job' ? [command.job] : [],
     );
+    if (jobsToStart.length === 0 && !completeRun) {
+      await condition(() => cancelRequested);
+      continue;
+    }
     const outcome = await launchJobsUntilCancel(jobsToStart, dag, progress, () => cancelRequested);
     if (outcome.kind === 'cancelled') {
       await cancelNonCompletedRunnerJobs(dag, progress);
@@ -117,6 +121,9 @@ function launchJobs(
 ): Promise<LaunchResult[]> {
   return Promise.all(
     jobs.map(async (job) => {
+      if (job.jobExecutionId === undefined) {
+        throw new Error(`Cannot start job without an execution: ${job.id}`);
+      }
       const result = await executeChild(jobExecutionOrchestration, {
         workflowId: `job:${job.id}`,
         args: [

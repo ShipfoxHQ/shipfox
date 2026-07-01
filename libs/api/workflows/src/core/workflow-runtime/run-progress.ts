@@ -18,6 +18,7 @@ export function createRuntimeRunProgress(jobs: readonly RuntimeProgressJob[]): R
 
   for (const job of jobs) {
     jobVersions.set(job.id, job.version);
+    if (job.mode === 'listening') continue;
     if (job.status === 'succeeded') completed.set(job.name, 'succeeded');
   }
 
@@ -50,7 +51,9 @@ export function nonCompletedRuntimeJobIds(
   jobs: readonly RuntimeProgressJob[],
   progress: RuntimeRunProgress,
 ): string[] {
-  return jobs.filter((job) => !progress.completed.has(job.name)).map((job) => job.id);
+  return jobs
+    .filter((job) => job.mode !== 'listening' && !progress.completed.has(job.name))
+    .map((job) => job.id);
 }
 
 export function shouldContinueStartedRun(status: string | undefined): boolean {

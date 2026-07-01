@@ -53,6 +53,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
     return {
       id: jobId,
       sourceName,
+      mode: 'one_shot' as const,
       runner: normalizeStringArray(job.runner ?? input.runner ?? DEFAULT_RUNNER_LABELS),
       ...(job.success === undefined ? {} : {success: job.success}),
       ...optionalScopedEnv(job.env),

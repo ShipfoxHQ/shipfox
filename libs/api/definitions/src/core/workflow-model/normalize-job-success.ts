@@ -16,6 +16,7 @@ export function normalizeJobSuccess(params: {
       source: params.source,
       check: {
         mode: 'typed',
+        // Runtime success evaluation intentionally exposes only execution index/status today.
         typeEnvironment: {
           executions: {
             kind: 'list',

@@ -28,15 +28,42 @@ export interface WorkflowModelTrigger {
 export interface WorkflowModelJob {
   readonly id: string;
   readonly sourceName: string;
+  readonly mode: WorkflowModelJobMode;
   readonly runner: readonly string[];
   readonly success?: string;
   readonly executionTimeoutMs?: number;
+  readonly listening?: WorkflowModelJobListening;
+  readonly nameTemplate?: WorkflowFieldTemplate;
   readonly env?: Readonly<Record<string, string>>;
   readonly templates?: {
     readonly env?: WorkflowEnvTemplates;
   };
   readonly dependencies: readonly string[];
   readonly steps: readonly WorkflowModelStep[];
+}
+
+export type WorkflowModelJobMode = 'one_shot' | 'listening';
+
+export interface WorkflowModelJobListening {
+  readonly on: readonly WorkflowModelListeningTrigger[];
+  readonly until?: readonly WorkflowModelListeningTrigger[];
+  readonly timeoutMs?: number;
+  readonly maxExecutions?: number;
+  readonly batch?: WorkflowModelListeningBatch;
+  readonly onResolve: 'finish' | 'cancel';
+}
+
+export interface WorkflowModelListeningTrigger {
+  readonly source: string;
+  readonly event: string;
+  readonly inputs?: Readonly<Record<string, unknown>>;
+  readonly filter?: string;
+}
+
+export interface WorkflowModelListeningBatch {
+  readonly debounceMs?: number;
+  readonly maxSize?: number;
+  readonly maxWaitMs?: number;
 }
 
 export type WorkflowModelStep = WorkflowModelRunStep | WorkflowModelAgentStep;

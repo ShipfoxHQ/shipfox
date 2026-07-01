@@ -22,6 +22,7 @@ import type {
 } from '../entities/workflow-model.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {normalizeEnv} from './normalize-env.js';
+import {normalizeJobListening} from './normalize-job-listening.js';
 import {normalizeJobSuccess} from './normalize-job-success.js';
 import {normalizeNeeds} from './normalize-needs.js';
 import {normalizeStepGate} from './normalize-step-gate.js';
@@ -97,13 +98,30 @@ function normalizeJob(params: {
     path: ['jobs', params.sourceName, 'execution_timeout'],
     issues: params.issues,
   });
+  const listening = normalizeJobListening({
+    job: params.job,
+    sourceName: params.sourceName,
+    issues: params.issues,
+  });
+  const nameTemplate =
+    params.job.name === undefined
+      ? undefined
+      : parseInterpolationField({
+          field: 'job.name',
+          source: params.job.name,
+          path: ['jobs', params.sourceName, 'name'],
+          issues: params.issues,
+        });
 
   return {
     id,
     sourceName: params.sourceName,
+    mode: listening === undefined ? 'one_shot' : 'listening',
     runner,
     ...(success === undefined ? {} : {success}),
     ...(executionTimeoutMs === undefined ? {} : {executionTimeoutMs}),
+    ...(listening === undefined ? {} : {listening}),
+    ...(nameTemplate === undefined ? {} : {nameTemplate}),
     ...jobEnv,
     dependencies,
     steps,

@@ -1,4 +1,10 @@
 import {z} from 'zod';
+import {
+  jobListeningSchema,
+  jobModeSchema,
+  listenerStatusSchema,
+  resolutionReasonSchema,
+} from './job-listening.js';
 
 export const jobStatusSchema = z.enum([
   'pending',
@@ -31,9 +37,14 @@ export const jobDtoSchema = z.object({
   id: z.string().uuid(),
   run_attempt_id: z.string().uuid(),
   name: z.string(),
+  mode: jobModeSchema,
+  name_template: z.string().nullable(),
   status: jobStatusSchema,
   status_reason: jobStatusReasonSchema.nullable(),
   carried_over: z.boolean(),
+  listening: jobListeningSchema.nullable(),
+  listener_status: listenerStatusSchema,
+  resolution_reason: resolutionReasonSchema.nullable(),
   dependencies: z.array(z.string()),
   position: z.number(),
   created_at: z.string(),

@@ -1,5 +1,8 @@
 import type {WorkflowDocument} from '@shipfox/workflow-document';
-import type {WorkflowModelTrigger} from '../entities/workflow-model.js';
+import type {
+  WorkflowModelListeningTrigger,
+  WorkflowModelTrigger,
+} from '../entities/workflow-model.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {stableId} from './stable-id.js';
 import {issue} from './validation-issue.js';
@@ -47,11 +50,22 @@ export function normalizeTriggers(
       {
         id,
         sourceName,
-        source: trigger.source,
-        event: trigger.event,
-        ...(trigger.with === undefined ? {} : {inputs: trigger.with}),
-        ...(trigger.filter === undefined ? {} : {filter: trigger.filter}),
+        ...normalizeTriggerEntry(trigger),
       },
     ];
   });
+}
+
+export function normalizeTriggerEntry(trigger: {
+  readonly source: string;
+  readonly event: string;
+  readonly with?: Readonly<Record<string, unknown>> | undefined;
+  readonly filter?: string | undefined;
+}): WorkflowModelListeningTrigger {
+  return {
+    source: trigger.source,
+    event: trigger.event,
+    ...(trigger.with === undefined ? {} : {inputs: trigger.with}),
+    ...(trigger.filter === undefined ? {} : {filter: trigger.filter}),
+  };
 }

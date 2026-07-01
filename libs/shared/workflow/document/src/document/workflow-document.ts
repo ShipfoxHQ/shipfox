@@ -119,6 +119,19 @@ export const workflowDocumentJobSchema = z.strictObject({
   runner: stringOrStringArraySchema.optional(),
   success: z.string().min(1).optional(),
   execution_timeout: z.string().min(1).optional(),
+  on: z.array(workflowDocumentTriggerSchema).min(1).optional(),
+  until: z.array(workflowDocumentTriggerSchema).min(1).optional(),
+  timeout: z.string().min(1).optional(),
+  max_executions: z.number().int().positive().optional(),
+  batch: z
+    .strictObject({
+      debounce: z.string().min(1).optional(),
+      max_size: z.number().int().positive().optional(),
+      max_wait: z.string().min(1).optional(),
+    })
+    .optional(),
+  on_resolve: z.enum(['finish', 'cancel']).optional(),
+  name: z.string().min(1).optional(),
   env: workflowDocumentEnvSchema.optional(),
   steps: z.array(workflowDocumentStepSchema).min(1),
 });

@@ -1,16 +1,24 @@
 import {
+  WORKFLOWS_JOB_EVENT_DELIVERED,
   WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_JOB_TERMINATED,
+  WORKFLOWS_LISTENER_CANCELLED,
+  WORKFLOWS_LISTENER_RESOLVED,
+  WORKFLOWS_LISTENER_STARTED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
   WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   workflowsEventSchemas,
+  workflowsJobEventDeliveredSchema,
   workflowsJobExecutionTimedOutSchema,
   workflowsJobStepsSettledSchema,
   workflowsJobTerminatedSchema,
+  workflowsListenerCancelledSchema,
+  workflowsListenerResolvedSchema,
+  workflowsListenerStartedSchema,
   workflowsStepAttemptTerminatedSchema,
   workflowsStepRestartEnqueuedSchema,
   workflowsWorkflowRunAttemptCreatedSchema,
@@ -81,6 +89,30 @@ const validStepAttemptTerminated = {
   stepId: 'step-1',
   attempt: 1,
   logOutcome: 'drained',
+};
+
+const validJobEventDelivered = {
+  jobId: 'job-1',
+  runId: 'run-1',
+  source: 'github',
+  event: 'pull_request_review',
+  deliveryId: 'delivery-1',
+};
+
+const validListenerStarted = {
+  jobId: 'job-1',
+  runId: 'run-1',
+};
+
+const validListenerResolved = {
+  jobId: 'job-1',
+  runId: 'run-1',
+  reason: 'until',
+};
+
+const validListenerCancelled = {
+  jobId: 'job-1',
+  runId: 'run-1',
 };
 
 describe('workflowsJobTerminatedSchema', () => {
@@ -204,6 +236,25 @@ describe.each([
     validStepAttemptTerminated,
     'logOutcome',
   ],
+  [
+    'workflowsJobEventDeliveredSchema',
+    workflowsJobEventDeliveredSchema,
+    validJobEventDelivered,
+    'deliveryId',
+  ],
+  ['workflowsListenerStartedSchema', workflowsListenerStartedSchema, validListenerStarted, 'jobId'],
+  [
+    'workflowsListenerResolvedSchema',
+    workflowsListenerResolvedSchema,
+    validListenerResolved,
+    'reason',
+  ],
+  [
+    'workflowsListenerCancelledSchema',
+    workflowsListenerCancelledSchema,
+    validListenerCancelled,
+    'runId',
+  ],
 ] as const)('%s', (_name, schema, validPayload, requiredKey) => {
   it('parses a valid payload unchanged', () => {
     const result = schema.parse(validPayload);
@@ -236,6 +287,10 @@ describe('workflowsEventSchemas', () => {
         WORKFLOWS_JOB_STEPS_SETTLED,
         WORKFLOWS_STEP_RESTART_ENQUEUED,
         WORKFLOWS_STEP_ATTEMPT_TERMINATED,
+        WORKFLOWS_JOB_EVENT_DELIVERED,
+        WORKFLOWS_LISTENER_STARTED,
+        WORKFLOWS_LISTENER_RESOLVED,
+        WORKFLOWS_LISTENER_CANCELLED,
       ].sort(),
     );
   });

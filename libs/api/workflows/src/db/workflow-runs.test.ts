@@ -239,6 +239,72 @@ describe('workflow run queries', () => {
       expect(jobSteps[1]).toMatchObject({position: 1, config: {run: 'echo hello'}});
     });
 
+    test('persists listening job config without initial execution or steps', async () => {
+      const nameTemplateSource = ['Review batch $', '{{ execution.index }}'].join('');
+      const promptSource = ['Review $', '{{ execution.events[0].data.body }}'].join('');
+      const model = normalizeWorkflowDocument({
+        name: 'Listening workflow',
+        runner: 'ubuntu-latest',
+        jobs: {
+          listen: {
+            name: nameTemplateSource,
+            on: [{source: 'github', event: 'pull_request_review'}],
+            until: [{source: 'github', event: 'pull_request'}],
+            timeout: '30d',
+            max_executions: 3,
+            batch: {debounce: '5s', max_size: 10, max_wait: '1h'},
+            on_resolve: 'cancel',
+            steps: [{prompt: promptSource}],
+          },
+          build: {
+            steps: [{run: 'echo build'}],
+          },
+        },
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      const runJobs = await getJobsByRunId(run.id);
+      const listen = runJobs.find((job) => job.name === 'listen');
+      const build = runJobs.find((job) => job.name === 'build');
+      expect(listen).toMatchObject({
+        mode: 'listening',
+        nameTemplate: nameTemplateSource,
+        listeningTimeoutMs: 30 * 24 * 60 * 60 * 1000,
+        maxExecutions: 3,
+        onResolve: 'cancel',
+        batchDebounceMs: 5000,
+        batchMaxSize: 10,
+        batchMaxWaitMs: 60 * 60 * 1000,
+        listenerStatus: 'inactive',
+        resolutionReason: null,
+        listeningOn: [{source: 'github', event: 'pull_request_review'}],
+        listeningUntil: [{source: 'github', event: 'pull_request'}],
+      });
+      expect(build).toMatchObject({mode: 'one_shot', listenerStatus: 'inactive'});
+
+      const listenExecutions = await getJobExecutionsByJobId(listen?.id as string);
+      const listenSteps = await getStepsByJobId(listen?.id as string);
+      expect(listenExecutions).toEqual([]);
+      expect(listenSteps).toEqual([]);
+
+      const buildExecutions = await getJobExecutionsByJobId(build?.id as string);
+      const buildSteps = await getStepsByJobId(build?.id as string);
+      expect(buildExecutions).toHaveLength(1);
+      expect(buildSteps.filter((step) => step.type !== 'setup')).toHaveLength(1);
+    });
+
     test('writes workflows.workflow_run_attempt.created outbox event in same transaction', async () => {
       const run = await createWorkflowRun({
         workspaceId,

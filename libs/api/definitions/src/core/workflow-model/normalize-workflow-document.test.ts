@@ -57,6 +57,7 @@ describe('normalizeWorkflowDocument', () => {
       jobs: [
         {
           id: 'build',
+          mode: 'one_shot',
           sourceName: 'build',
           runner: ['ubuntu-latest'],
           dependencies: [],
@@ -164,6 +165,112 @@ describe('normalizeWorkflowDocument', () => {
       success: 'executions.exists(e, e.index == 0 && e.status == "succeeded")',
       executionTimeoutMs: 90 * 60 * 1000,
     });
+  });
+
+  it('normalizes listening job configuration', () => {
+    const nameTemplate = ['PR review $', '{{ execution.index }}'].join('');
+    const promptTemplate = ['Review $', '{{ execution.events[0].data.body }}'].join('');
+    const document: WorkflowDocument = {
+      name: 'listen for reviews',
+      jobs: {
+        review: {
+          name: nameTemplate,
+          on: [
+            {source: 'github', event: 'pull_request_review', filter: 'event.action == "submitted"'},
+          ],
+          until: [{source: 'github', event: 'pull_request', filter: 'event.action == "closed"'}],
+          timeout: '30d',
+          max_executions: 10,
+          batch: {debounce: '5s', max_size: 20, max_wait: '1h'},
+          on_resolve: 'cancel',
+          steps: [{prompt: promptTemplate}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]).toMatchObject({
+      mode: 'listening',
+      listening: {
+        on: [
+          {source: 'github', event: 'pull_request_review', filter: 'event.action == "submitted"'},
+        ],
+        until: [{source: 'github', event: 'pull_request', filter: 'event.action == "closed"'}],
+        timeoutMs: 30 * 24 * 60 * 60 * 1000,
+        maxExecutions: 10,
+        batch: {debounceMs: 5000, maxSize: 20, maxWaitMs: 60 * 60 * 1000},
+        onResolve: 'cancel',
+      },
+    });
+    expect(model.jobs[0]?.nameTemplate?.[1]).toMatchObject({
+      kind: 'expr',
+      expression: {source: 'execution.index', check: 'typed'},
+    });
+  });
+
+  it('reports listening jobs without a resolution source', () => {
+    const document: WorkflowDocument = {
+      name: 'listen forever',
+      jobs: {
+        review: {
+          on: [{source: 'github', event: 'pull_request_review'}],
+          steps: [{run: 'echo ok'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'listening-job-missing-resolution-source',
+        path: ['jobs', 'review'],
+      }),
+    ]);
+  });
+
+  it('reports listening-only fields without on', () => {
+    const document: WorkflowDocument = {
+      name: 'bad listener',
+      jobs: {
+        review: {
+          until: [{source: 'github', event: 'pull_request'}],
+          steps: [{run: 'echo ok'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'listening-job-field-without-on',
+        path: ['jobs', 'review', 'until'],
+      }),
+    ]);
+  });
+
+  it('reports listening timeouts above the run timeout', () => {
+    const document: WorkflowDocument = {
+      name: 'too long',
+      jobs: {
+        review: {
+          on: [{source: 'github', event: 'pull_request_review'}],
+          timeout: '31d',
+          steps: [{run: 'echo ok'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'listening-timeout-exceeds-run-timeout',
+        path: ['jobs', 'review', 'timeout'],
+      }),
+    ]);
   });
 
   it('preserves explicit model ids even when the seed catalog only knows provider defaults', () => {
@@ -667,7 +774,7 @@ describe('normalizeWorkflowDocument', () => {
     expect(error.issues).toEqual([
       {
         code: 'invalid-duration',
-        message: 'Duration must be an integer followed by ms, s, m, or h.',
+        message: 'Duration must be an integer followed by ms, s, m, h, or d.',
         path: ['jobs', 'build', 'execution_timeout'],
         details: {source: 'ten minutes'},
       },
@@ -716,6 +823,29 @@ describe('normalizeWorkflowDocument', () => {
         message: 'Duration must be between 1s and 24h.',
         path: ['jobs', 'build', 'execution_timeout'],
         details: {source: '25h', min_ms: 1000, max_ms: 24 * 60 * 60 * 1000},
+      },
+    ]);
+  });
+
+  it('reports day-based job execution timeouts above 24h', () => {
+    const document: WorkflowDocument = {
+      name: 'long timeout',
+      jobs: {
+        build: {
+          execution_timeout: '30d',
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      {
+        code: 'invalid-duration',
+        message: 'Duration must be between 1s and 24h.',
+        path: ['jobs', 'build', 'execution_timeout'],
+        details: {source: '30d', min_ms: 1000, max_ms: 24 * 60 * 60 * 1000},
       },
     ]);
   });
@@ -1210,7 +1340,7 @@ describe('normalizeWorkflowDocument', () => {
         env: {RUN_ID: interpolation('run.id'), PORT: 3000},
         jobs: {
           build: {
-            env: {JOB_NAME: interpolation('job.name')},
+            env: {JOB_NAME: interpolation('job.key')},
             steps: [
               {
                 name: `deploy ${interpolation('event.action')}`,
@@ -1240,7 +1370,7 @@ describe('normalizeWorkflowDocument', () => {
       expect(model.jobs[0]?.templates?.env?.JOB_NAME).toEqual([
         {
           kind: 'expr',
-          expression: {language: 'cel', source: 'job.name', check: 'typed'},
+          expression: {language: 'cel', source: 'job.key', check: 'typed'},
           contextRoots: ['job'],
         },
       ]);
@@ -1401,6 +1531,93 @@ describe('normalizeWorkflowDocument', () => {
           }),
         }),
       ]);
+    });
+
+    it.each([
+      'execution.events[0].data.body',
+      'execution["events"][0].data.body',
+      'execution[x]',
+    ])('rejects untrusted execution sub-paths in run commands: %s', (source) => {
+      const document: WorkflowDocument = {
+        name: 'unsafe execution run',
+        jobs: {
+          build: {
+            steps: [{run: `echo ${interpolation(source)}`}],
+          },
+        },
+      };
+
+      const error = expectInvalid(document);
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'untrusted-context-in-field',
+          path: ['jobs', 'build', 'steps', 0, 'run'],
+          details: expect.objectContaining({
+            field: 'run',
+            rejectedRoots: ['execution'],
+          }),
+        }),
+      ]);
+    });
+
+    it('allows trusted execution metadata in run commands', () => {
+      const document: WorkflowDocument = {
+        name: 'execution metadata',
+        jobs: {
+          build: {
+            steps: [{run: `echo ${interpolation('executions[0].name')}`}],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'run',
+        templates: {
+          command: [
+            {kind: 'literal', text: 'echo '},
+            {
+              kind: 'expr',
+              expression: {language: 'cel', source: 'executions[0].name', check: 'typed'},
+              contextRoots: ['executions'],
+            },
+          ],
+        },
+      });
+    });
+
+    it('allows execution events in untrusted-capable fields', () => {
+      const document: WorkflowDocument = {
+        name: 'execution events allowed',
+        jobs: {
+          build: {
+            name: `batch ${interpolation('execution.events[0].data.title')}`,
+            steps: [{provider: 'openai', prompt: interpolation('execution.events[0].data.body')}],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(model.jobs[0]?.nameTemplate?.[1]).toMatchObject({
+        kind: 'expr',
+        expression: {check: 'typed'},
+        contextRoots: ['execution'],
+      });
+      expect(model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'agent',
+        templates: {
+          prompt: [
+            {
+              kind: 'expr',
+              expression: {check: 'typed'},
+              contextRoots: ['execution'],
+            },
+          ],
+        },
+      });
     });
 
     it('allows untrusted context in env, prompt, and step names', () => {
