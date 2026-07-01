@@ -2,7 +2,7 @@ import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import type {WebhookConnectionDto} from '@shipfox/api-integration-webhook-dto';
 import {WEBHOOK_RECEIVED_EVENT} from '@shipfox/api-integration-webhook-dto';
 import {configureApiClient} from '@shipfox/client-api';
-import {Modal, ModalContent, ModalHeader, ModalTitle, Toaster} from '@shipfox/react-ui';
+import {Toaster} from '@shipfox/react-ui';
 import type {Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {
@@ -13,12 +13,11 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router';
-import type {ReactNode} from 'react';
 import {useMemo} from 'react';
 import {IntegrationDeleteConfirmModal} from '../integration-delete-confirm-modal.js';
 import {IntegrationUsageModal} from '../integration-usage-modal.js';
 import {CopyableValue} from './copyable-value.js';
-import {WebhookCreateModal, WebhookCreateSuccessContent} from './webhook-create-modal.js';
+import {WebhookCreateModal} from './webhook-create-modal.js';
 import {WebhookPublicEndpointAlert} from './webhook-public-endpoint-alert.js';
 import {WebhookUsageDetails} from './webhook-usage-details.js';
 
@@ -125,30 +124,20 @@ export const CopyableValueState: Story = {
   args: {scenario: 'copyable-value'},
 };
 
-function StoryModal({title, children}: {title: string; children: ReactNode}) {
-  return (
-    <Modal open onOpenChange={() => undefined}>
-      <ModalContent aria-describedby={undefined}>
-        <ModalTitle className="sr-only">{title}</ModalTitle>
-        <ModalHeader title={title} />
-        {children}
-      </ModalContent>
-    </Modal>
-  );
-}
-
 function StorySurface({scenario}: {scenario: Scenario}) {
   return (
     <div className="min-h-screen bg-background-neutral-background p-24">
       {scenario === 'create-form' ? (
-        <WebhookCreateModal workspaceId={WORKSPACE_ID} open onOpenChange={() => undefined} />
+        <WebhookCreateModal
+          workspaceId={WORKSPACE_ID}
+          open
+          onOpenChange={() => undefined}
+          onCreated={() => undefined}
+        />
       ) : null}
-      {scenario === 'create-success' ? (
-        <StoryModal title="Webhook created">
-          <WebhookCreateSuccessContent connection={activeConnection} onDone={() => undefined} />
-        </StoryModal>
-      ) : null}
-      {scenario === 'usage-active' || scenario === 'usage-disabled' ? (
+      {scenario === 'create-success' ||
+      scenario === 'usage-active' ||
+      scenario === 'usage-disabled' ? (
         <IntegrationUsageModal
           connection={
             scenario === 'usage-disabled'

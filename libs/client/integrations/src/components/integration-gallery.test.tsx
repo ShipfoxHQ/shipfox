@@ -106,6 +106,19 @@ function fetchForGallery(options: FetchOptions = {}) {
     if (url.includes('/integrations/webhook/connections')) {
       if (webhookConnectionsFail)
         return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
+      if (method === 'POST') {
+        const rawBody =
+          init?.body !== undefined ? String(init.body) : (await request?.clone().text()) || '{}';
+        const body = JSON.parse(rawBody) as {name?: string; slug?: string; workspace_id?: string};
+        return Promise.resolve(
+          jsonResponse({
+            ...webhookConnectionDto,
+            workspace_id: body.workspace_id ?? webhookConnectionDto.workspace_id,
+            name: body.name ?? webhookConnectionDto.name,
+            slug: body.slug ?? webhookConnectionDto.slug,
+          }),
+        );
+      }
       return Promise.resolve(jsonResponse({connections: webhookConnections}));
     }
     if (url.includes('/integration-providers')) {
@@ -455,6 +468,22 @@ describe('IntegrationGallery — available section', () => {
 
     expect(await screen.findByRole('textbox', {name: 'Name'})).toBeVisible();
     expect(screen.getByRole('textbox', {name: 'Slug'})).toBeVisible();
+  });
+
+  test('opens the usage modal after creating a webhook', async () => {
+    renderGallery({}, {connections: []});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Webhook'}));
+    fireEvent.change(await screen.findByRole('textbox', {name: 'Name'}), {
+      target: {value: 'Stripe production'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Create'}));
+
+    expect(await screen.findByText('Usage')).toBeVisible();
+    expect(screen.getAllByText('webhook-stripe-production')[0]).toBeVisible();
+    expect(await screen.findByText('Inbound URL')).toBeVisible();
+    expect(screen.getByText(webhookConnectionDto.inbound_url)).toBeVisible();
+    expect(screen.queryByRole('textbox', {name: 'Name'})).not.toBeInTheDocument();
   });
 
   test('fills an empty webhook slug from the name', async () => {

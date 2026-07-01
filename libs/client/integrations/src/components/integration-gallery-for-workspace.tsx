@@ -32,6 +32,9 @@ export function IntegrationGalleryForWorkspace({
 }: IntegrationGalleryForWorkspaceProps) {
   const [createProvider, setCreateProvider] = useState<string | undefined>();
   const [usageConnectionId, setUsageConnectionId] = useState<string | undefined>();
+  const [createdUsageConnection, setCreatedUsageConnection] = useState<
+    IntegrationConnectionDto | undefined
+  >();
   const [deleteConnectionId, setDeleteConnectionId] = useState<string | undefined>();
   const providersQuery = useIntegrationProvidersQuery(capability ? {capability} : undefined);
   const connectionsQuery = useIntegrationConnectionsQuery(workspaceId);
@@ -59,7 +62,9 @@ export function IntegrationGalleryForWorkspace({
     return a.created_at.localeCompare(b.created_at);
   });
   const usageConnection =
-    sortedConnections.find((connection) => connection.id === usageConnectionId) ?? null;
+    sortedConnections.find((connection) => connection.id === usageConnectionId) ??
+    (createdUsageConnection?.id === usageConnectionId ? createdUsageConnection : null) ??
+    null;
   const deleteConnectionTarget = sortedConnections.find(
     (connection) => connection.id === deleteConnectionId,
   );
@@ -122,13 +127,20 @@ export function IntegrationGalleryForWorkspace({
         workspaceId={workspaceId}
         open={createProvider === 'webhook'}
         onOpenChange={(open) => setCreateProvider(open ? 'webhook' : undefined)}
+        onCreated={(connection) => {
+          setCreatedUsageConnection(connection);
+          setUsageConnectionId(connection.id);
+        }}
       />
       <IntegrationUsageModal
         connection={usageConnection}
         events={usageConnection ? usageEventsForConnection(usageConnection) : []}
         open={usageConnection !== null}
         onOpenChange={(open) => {
-          if (!open) setUsageConnectionId(undefined);
+          if (!open) {
+            setUsageConnectionId(undefined);
+            setCreatedUsageConnection(undefined);
+          }
         }}
       >
         {usageConnection?.provider === 'webhook' ? (
