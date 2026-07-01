@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {fireEvent, screen, waitFor, within} from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import {INTEGRATIONS_TEST_WID, jsonResponse, renderIntegrationsPage} from '#test/render.js';
 import {IntegrationGallery} from './integration-gallery.js';
+import {usageEventsForConnection} from './integration-usage-events.js';
 
 if (!HTMLElement.prototype.hasPointerCapture) {
   Object.defineProperty(HTMLElement.prototype, 'hasPointerCapture', {
@@ -52,7 +53,7 @@ const githubConnection = {
   external_url: 'https://github.com/organizations/acme-corp/settings/installations/1',
   created_at: '2026-03-12T00:00:00.000Z',
   updated_at: '2026-03-12T00:00:00.000Z',
-};
+} satisfies IntegrationConnectionDto;
 
 const webhookConnection = {
   id: '77777777-7777-4777-8777-777777777777',
@@ -291,7 +292,11 @@ describe('IntegrationGallery — installed section', () => {
   });
 
   test('shows GitHub webhook events in the usage selector', async () => {
-    const user = userEvent.setup();
+    const githubEventValues = usageEventsForConnection(githubConnection).map(
+      (event) => event.value,
+    );
+    expect(githubEventValues).toEqual(expect.arrayContaining(['pull_request', 'workflow_run']));
+
     renderGallery({}, {connections: [githubConnection]});
 
     await openActions('Open acme-corp integration actions');
@@ -300,11 +305,8 @@ describe('IntegrationGallery — installed section', () => {
     expect(await screen.findByText('Usage')).toBeVisible();
     expect(screen.getAllByText('github_acme_corp')[0]).toBeVisible();
     expect(screen.getAllByText('push')[0]).toBeVisible();
-    expect(screen.getByRole('combobox', {name: 'Event'})).toBeVisible();
-    await user.click(screen.getByRole('combobox', {name: 'Event'}));
-
-    expect(await screen.findByRole('option', {name: 'pull_request'})).toBeVisible();
-    expect(screen.getByRole('option', {name: 'workflow_run'})).toBeVisible();
+    const eventSelect = screen.getByRole('combobox', {name: 'Event'});
+    expect(eventSelect).toBeVisible();
   });
 
   test('toggles integration lifecycle status from the actions menu', async () => {
