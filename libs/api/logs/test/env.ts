@@ -8,6 +8,7 @@ process.env.AUTH_JWT_SECRET = 'test-secret';
 process.env.AUTH_JOB_LEASE_TOKEN_SECRET = 'test-lease-secret';
 process.env.AUTH_RUNNER_SESSION_TOKEN_SECRET = 'test-runner-session-secret';
 process.env.AGENT_CREDENTIALS_ENCRYPTION_KEY = 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
+process.env.SECRETS_ENCRYPTION_KEK = 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
 
 // Small accrual budget so cap/budget tests use tiny payloads: base 100 bytes,
 // rate 60 bytes/min (1 byte/second).
