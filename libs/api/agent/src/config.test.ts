@@ -52,4 +52,28 @@ describe('agent config', () => {
     expect(module.config.AGENT_DEFAULT_PROVIDER).toBe('azure-openai-responses');
     expect(module.config.AGENT_DEFAULT_PROVIDER_API_KEY).toBeUndefined();
   });
+
+  it('defaults custom provider egress to local-development friendly settings', async () => {
+    vi.resetModules();
+    vi.stubEnv('AGENT_CREDENTIALS_ENCRYPTION_KEY', ENCRYPTION_KEY);
+
+    const module = await import('./config.js');
+
+    expect(module.config.AGENT_CUSTOM_PROVIDER_ALLOW_PRIVATE_NETWORKS).toBe(true);
+    expect(module.config.AGENT_CUSTOM_PROVIDER_HOST_DENYLIST).toBe('');
+  });
+
+  it('imports custom provider egress cloud overrides', async () => {
+    vi.resetModules();
+    vi.stubEnv('AGENT_CREDENTIALS_ENCRYPTION_KEY', ENCRYPTION_KEY);
+    vi.stubEnv('AGENT_CUSTOM_PROVIDER_ALLOW_PRIVATE_NETWORKS', 'false');
+    vi.stubEnv('AGENT_CUSTOM_PROVIDER_HOST_DENYLIST', 'metadata.google.internal,10.0.0.0/8');
+
+    const module = await import('./config.js');
+
+    expect(module.config.AGENT_CUSTOM_PROVIDER_ALLOW_PRIVATE_NETWORKS).toBe(false);
+    expect(module.config.AGENT_CUSTOM_PROVIDER_HOST_DENYLIST).toBe(
+      'metadata.google.internal,10.0.0.0/8',
+    );
+  });
 });

@@ -4,7 +4,7 @@ import {
   SUPPORTED_AGENT_PROVIDER_IDS,
   type SupportedAgentProviderId,
 } from '@shipfox/api-agent-dto';
-import {createConfig, num, str} from '@shipfox/config';
+import {bool, createConfig, num, str} from '@shipfox/config';
 
 const AGENT_THINKING_CHOICES = agentThinkingSchema.options;
 
@@ -33,6 +33,14 @@ export const config = createConfig({
   AGENT_PROVIDER_VALIDATION_TIMEOUT_MS: num({
     desc: 'Maximum time in milliseconds to wait for the live provider test request when saving credentials.',
     default: 10000,
+  }),
+  AGENT_CUSTOM_PROVIDER_ALLOW_PRIVATE_NETWORKS: bool({
+    desc: 'Allows custom agent providers to use private, loopback, link-local, metadata, and .internal network targets. Keep this true for local development and self-hosted private networks. Set it to false on cloud instances.',
+    default: true,
+  }),
+  AGENT_CUSTOM_PROVIDER_HOST_DENYLIST: str({
+    desc: 'Comma-separated hosts and IP ranges that custom agent providers may not call. Accepts exact hosts, suffix patterns such as .internal.example or *.internal.example, IP literals, and CIDR blocks such as 10.0.0.0/8.',
+    default: '',
   }),
 });
 
