@@ -447,7 +447,14 @@ async function mapGithubError<T>(
           retryAfterSeconds(error),
         );
       }
-      if (error.status === 401 || error.status === 403 || error.status === 422) {
+      if (error.status === 401) {
+        throw new GithubIntegrationProviderError(
+          'access-denied',
+          error.message,
+          retryAfterSeconds(error),
+        );
+      }
+      if (error.status === 403 || error.status === 422) {
         throw new GithubIntegrationProviderError(
           'access-denied',
           accessDeniedMessage ?? error.message,
