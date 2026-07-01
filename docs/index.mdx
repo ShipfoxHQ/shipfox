@@ -10,15 +10,6 @@ Shipfox is a continuous shipping platform where **any step in a workflow can be 
   <Card title="Get Started" icon="rocket" href="/getting-started">
     Connect your first project and run a workflow in minutes.
   </Card>
-  <Card title="Core Concepts" icon="book" href="/concepts/workflows">
-    Understand workflows, jobs, steps, triggers, and runners.
-  </Card>
-  <Card title="Guides" icon="map" href="/guides/checks-on-push">
-    Step-by-step recipes for common agentic workflow patterns.
-  </Card>
-  <Card title="AI Assistance" icon="robot" href="/ai/overview">
-    Let your coding agent author Shipfox workflows for you.
-  </Card>
 </CardGroup>
 
 ## What is Shipfox?
@@ -30,7 +21,7 @@ Workflows live in `.shipfox/workflows/` as YAML files, versioned and reviewed al
 Three things set Shipfox apart, and they compound:
 
 - **Agents are first-class steps.** Any step can be an AI agent — pick a `model`, write a `prompt`, choose a `thinking` depth. No plugin, no action, no glue.
-- **Agents iterate until the work is correct.** Pair an agent with a [gate](/concepts/gates): the agent makes a change, a `run` step verifies it, and `restart_from` loops back to the agent until the check passes — bounded automatically.
+- **Agents iterate until the work is correct.** Pair an agent with a gate: the agent makes a change, a `run` step verifies it, and `restart_from` loops back to the agent until the check passes — bounded automatically.
 - **You see the agent think.** Agent steps stream structured events — messages, thinking, tool calls, token usage, and cost — not just raw text.
 
 ```yaml
@@ -50,28 +41,28 @@ jobs:
 ## Key features
 
 <CardGroup cols={2}>
-  <Card title="YAML Workflows in Your Repo" icon="code-branch" href="/concepts/workflows">
+  <Card title="YAML Workflows in Your Repo" icon="code-branch">
     Workflows live under `.shipfox/workflows/`, versioned and reviewed like any code.
   </Card>
-  <Card title="AI Agent Steps" icon="robot" href="/concepts/jobs-steps">
+  <Card title="AI Agent Steps" icon="robot">
     Any step can run an AI agent: pick a model, write a prompt, and Shipfox does the rest.
   </Card>
-  <Card title="Gates & Retry Loops" icon="rotate" href="/concepts/gates">
+  <Card title="Gates & Retry Loops" icon="rotate">
     Gate a step on its exit code and `restart_from` an earlier step — bounded loops, no scripting.
   </Card>
-  <Card title="Live & Agent Logs" icon="terminal" href="/concepts/logging">
+  <Card title="Live & Agent Logs" icon="terminal">
     Tail every step live; agent steps show messages, thinking, and tool calls as structured events.
   </Card>
-  <Card title="Your Own Runners" icon="server" href="/concepts/runners">
+  <Card title="Your Own Runners" icon="server">
     Jobs execute on runners you register and control — no vendor lock-in on compute.
   </Card>
-  <Card title="Autoscaling Provisioners" icon="layer-group" href="/concepts/runner-provisioners">
+  <Card title="Autoscaling Provisioners" icon="layer-group">
     A provisioner starts ephemeral, single-job runners on demand and lets them exit when idle.
   </Card>
-  <Card title="Smart Triggers" icon="bolt" href="/integrations/overview">
+  <Card title="Smart Triggers" icon="bolt">
     GitHub pushes, Sentry issues, custom webhooks, or on-demand fire start your pipelines.
   </Card>
-  <Card title="30+ Model Providers" icon="sparkles" href="/reference/model-providers">
+  <Card title="30+ Model Providers" icon="sparkles">
     Anthropic, OpenAI, DeepSeek, xAI, Google, Mistral, and more.
   </Card>
 </CardGroup>
@@ -107,5 +98,5 @@ jobs:
 </Steps>
 
 <Note>
-  These docs are AI-ingestible — every page is available as Markdown. See [AI Assistance](/ai/overview) to let your coding agent author workflows for you.
+  These docs are AI-ingestible — every page is available as Markdown, so your coding agent can author workflows for you.
 </Note>

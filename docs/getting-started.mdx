@@ -4,10 +4,10 @@ sidebarTitle: "Quick Start"
 description: "Connect a project, add your first workflow YAML, register a runner, and fire your first run — all in under 10 minutes with Shipfox."
 ---
 
-This guide walks you through connecting a repository to Shipfox, writing your first workflow, registering a runner, and firing a run — from zero to a live streaming log in under ten minutes. You'll need access to a Shipfox workspace, a Git repository you can connect, and at least one runner online. If you hit a snag at any point, see [Troubleshooting](/troubleshooting).
+This guide walks you through connecting a repository to Shipfox, writing your first workflow, registering a runner, and firing a run — from zero to a live streaming log in under ten minutes. You'll need access to a Shipfox workspace, a Git repository you can connect, and at least one runner online.
 
 <Info>
-  This guide assumes Shipfox is already running for your team — most product engineers join an instance a platform or DevEx team set up. If you need to stand Shipfox up yourself, see [Installation](/installation).
+  This guide assumes Shipfox is already running for your team — most product engineers join an instance a platform or DevEx team set up.
 </Info>
 
 ## Connect your project
@@ -74,7 +74,7 @@ hello world
 ```
 
 <Note>
-  A run stuck in `pending` usually means no registered runner matches the `runner:` label in your workflow. Check that a runner with the label `ubuntu-latest` is online and connected. See [Troubleshooting](/troubleshooting) for steps to diagnose runner connectivity.
+  A run stuck in `pending` usually means no registered runner matches the `runner:` label in your workflow. Check that a runner with the label `ubuntu-latest` is online and connected.
 </Note>
 
 ## Add an agent step
@@ -100,25 +100,15 @@ Hello back! 👋
 
 Agent output varies between runs — the model's response is non-deterministic, so expect different wording each time. The step is still marked as succeeded or failed based on whether the model call completes without error.
 
-To make the agent *act on your code* — fix failing tests, review a diff — give it a repo-aware prompt and pair it with a [gate](/concepts/gates) so it retries until a check passes. Agent steps use your workspace's configured [model provider](/reference/model-providers), so configure one before running them.
+To make the agent *act on your code* — fix failing tests, review a diff — give it a repo-aware prompt and pair it with a gate so it retries until a check passes. Agent steps use your workspace's configured model provider, so configure one before running them.
 
 ## Let your agent write workflows
 
-You can use a coding agent to generate and iterate on Shipfox workflows directly in your repository. Because every Shipfox documentation page is available as plain Markdown, your agent can fetch the schema reference and author workflow YAML without any special plugin. Point your agent at the [AI overview](/ai/overview) page or simply describe what you want in natural language — for example, "add a Shipfox workflow that runs tests on every push and posts a summary". The agent understands the workflow schema and Shipfox conventions from the docs. See the [AI overview](/ai/overview) for full details on available prompting patterns and context files.
+You can use a coding agent to generate and iterate on Shipfox workflows directly in your repository. Because every Shipfox documentation page is available as plain Markdown, your agent can fetch the schema reference and author workflow YAML without any special plugin. Simply describe what you want in natural language — for example, "add a Shipfox workflow that runs tests on every push and posts a summary" — and the agent authors the YAML using the workflow schema and Shipfox conventions it reads from the docs.
 
 ## Next steps
 
-<CardGroup cols={2}>
-  <Card title="Multi-job pipelines" icon="diagram-project" href="/guides/multi-job-pipeline">
-    Use `needs` to chain jobs together and build fan-out / fan-in DAGs for parallel test execution and staged deploys.
-  </Card>
-  <Card title="Gate & retry" icon="rotate" href="/guides/gate-and-retry">
-    Configure `gate.success_if` and `gate.on_failure.restart_from` to retry a step until a condition is met.
-  </Card>
-  <Card title="Core concepts" icon="book-open" href="/concepts/workflows">
-    Deep-dive into the full workflow schema — triggers, jobs, steps, env, and gate conditions.
-  </Card>
-  <Card title="Troubleshooting" icon="wrench" href="/troubleshooting">
-    Common issues: pending runs, runner registration errors, and agent step failures.
-  </Card>
-</CardGroup>
+You now have a workflow running shell and agent steps end to end. From here, add
+more jobs and steps, chain them with `needs`, and gate steps with
+`gate.success_if` and `gate.on_failure.restart_from` to retry until a condition is
+met.
