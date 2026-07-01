@@ -29,7 +29,6 @@ export const workflowRunFactory = Factory.define<WorkflowRun>(({onCreate}) => {
     name: 'Test Workflow',
     status: 'pending',
     currentAttempt: 1,
-    rerunByUserId: null,
     triggerSource: 'manual',
     triggerEvent: 'fire',
     triggerPayload: {

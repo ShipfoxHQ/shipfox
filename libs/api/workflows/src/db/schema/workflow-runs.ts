@@ -87,7 +87,6 @@ export function toWorkflowRun(row: WorkflowRunDb): WorkflowRun {
     name: row.name,
     status: row.status,
     currentAttempt: row.currentAttempt,
-    rerunByUserId: null,
     triggerSource: row.triggerSource,
     triggerEvent: row.triggerEvent,
     triggerPayload: row.triggerPayload as TriggerPayload,

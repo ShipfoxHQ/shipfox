@@ -10,7 +10,7 @@ export type FireManualTriggerBodyDto = z.infer<typeof fireManualTriggerBodySchem
 
 export const fireManualTriggerResponseSchema = z
   .object({
-    run_id: z.string().uuid(),
+    workflow_run_id: z.string().uuid(),
   })
   .strict();
 
