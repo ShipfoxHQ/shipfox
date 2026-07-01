@@ -146,7 +146,6 @@ ALTER TABLE "workflows_step_attempts" ADD CONSTRAINT "workflows_step_attempts_st
 CREATE INDEX "workflows_jobs_workflow_run_attempt_id_idx" ON "workflows_jobs" USING btree ("workflow_run_attempt_id");--> statement-breakpoint
 CREATE INDEX "workflows_job_executions_job_id_idx" ON "workflows_job_executions" USING btree ("job_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflows_wra_workflow_run_attempt_unique" ON "workflows_workflow_run_attempts" USING btree ("workflow_run_id","attempt");--> statement-breakpoint
-CREATE INDEX "workflows_wra_workflow_run_id_idx" ON "workflows_workflow_run_attempts" USING btree ("workflow_run_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflows_wra_one_active_attempt_unique" ON "workflows_workflow_run_attempts" USING btree ("workflow_run_id") WHERE "workflows_workflow_run_attempts"."status" in ('pending', 'running');--> statement-breakpoint
 CREATE INDEX "workflows_step_attempts_job_execution_id_idx" ON "workflows_step_attempts" USING btree ("job_execution_id");--> statement-breakpoint
 CREATE INDEX "workflows_outbox_pending_idx" ON "workflows_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;

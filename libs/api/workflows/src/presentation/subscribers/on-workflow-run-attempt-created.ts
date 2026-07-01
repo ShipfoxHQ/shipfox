@@ -14,6 +14,8 @@ export async function onWorkflowRunAttemptCreated(
     await temporalClient().workflow.start('runOrchestration', {
       taskQueue: WORKFLOWS_TASK_QUEUE,
       workflowId: `workflow-run-attempt:${payload.workflowRunAttemptId}`,
+      workflowIdConflictPolicy: 'USE_EXISTING',
+      workflowIdReusePolicy: 'REJECT_DUPLICATE',
       args: [
         {
           workflowRunId: payload.workflowRunId,

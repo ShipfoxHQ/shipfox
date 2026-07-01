@@ -78,6 +78,8 @@ describe('job-lease-token', () => {
     const token = await issueJobLeaseToken(input);
     const verified = await verifyJobLeaseToken(token);
 
+    expect(verified?.workflowRunId).toBe(input.workflowRunId);
+    expect(verified?.workflowRunAttemptId).toBe(input.workflowRunAttemptId);
     expect(verified?.jobId).toBe(input.jobId);
   });
 

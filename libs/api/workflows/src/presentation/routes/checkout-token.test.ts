@@ -206,7 +206,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     );
   });
 
-  test('ignores a hostile workflowRunId claim and resolves via the job row', async () => {
+  test('ignores a hostile workflowRunAttemptId claim and resolves via the job row', async () => {
     const projectA = projectFactory.build();
     const projectB = projectFactory.build();
     const projectsById = new Map([

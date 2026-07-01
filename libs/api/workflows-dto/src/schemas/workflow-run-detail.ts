@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {jobDtoSchema} from './job.js';
 import {stepAttemptDtoSchema, stepDtoSchema} from './step.js';
-import {workflowRunResponseSchema} from './workflow-run.js';
+import {workflowRunResponseSchema, workflowRunStatusSchema} from './workflow-run.js';
 
 export const jobExecutionStatusSchema = z.enum([
   'pending',
@@ -57,7 +57,7 @@ export const workflowRunDetailResponseSchema = workflowRunResponseSchema.extend(
     id: z.string().uuid(),
     workflow_run_id: z.string().uuid(),
     attempt: z.number().int().positive(),
-    status: z.enum(['pending', 'running', 'succeeded', 'failed', 'cancelled']),
+    status: workflowRunStatusSchema,
     created_at: z.string(),
     started_at: z.string().nullable(),
     finished_at: z.string().nullable(),

@@ -35,6 +35,8 @@ describe('onWorkflowRunAttemptCreated', () => {
     expect(startMock).toHaveBeenCalledWith('runOrchestration', {
       taskQueue: 'workflows-orchestrator',
       workflowId: `workflow-run-attempt:${payload.workflowRunAttemptId}`,
+      workflowIdConflictPolicy: 'USE_EXISTING',
+      workflowIdReusePolicy: 'REJECT_DUPLICATE',
       args: [
         {
           workflowRunId: payload.workflowRunId,

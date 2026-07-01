@@ -850,21 +850,6 @@
           "method": "btree",
           "with": {}
         },
-        "workflows_wra_workflow_run_id_idx": {
-          "name": "workflows_wra_workflow_run_id_idx",
-          "columns": [
-            {
-              "expression": "workflow_run_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "workflows_wra_one_active_attempt_unique": {
           "name": "workflows_wra_one_active_attempt_unique",
           "columns": [

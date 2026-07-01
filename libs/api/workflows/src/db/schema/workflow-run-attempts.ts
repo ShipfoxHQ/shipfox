@@ -1,6 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
-import {check, index, integer, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {check, integer, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {WorkflowRunAttempt} from '#core/entities/workflow-run-attempt.js';
 import {pgTable} from './common.js';
 import {workflowRunRerunModeEnum, workflowRunStatusEnum, workflowRuns} from './workflow-runs.js';
@@ -24,7 +24,6 @@ export const workflowRunAttempts = pgTable(
   },
   (table) => [
     uniqueIndex('workflows_wra_workflow_run_attempt_unique').on(table.workflowRunId, table.attempt),
-    index('workflows_wra_workflow_run_id_idx').on(table.workflowRunId),
     check('workflows_wra_attempt_positive_ck', sql`${table.attempt} > 0`),
     uniqueIndex('workflows_wra_one_active_attempt_unique')
       .on(table.workflowRunId)
