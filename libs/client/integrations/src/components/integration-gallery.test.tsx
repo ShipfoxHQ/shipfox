@@ -272,6 +272,7 @@ describe('IntegrationGallery — installed section', () => {
     await openActions('Open Stripe production integration actions');
 
     expect(screen.getByRole('menuitem', {name: 'Use this integration'})).toBeVisible();
+    expect(screen.getByRole('menuitem', {name: 'View recent events'})).toBeVisible();
     expect(screen.getByRole('menuitem', {name: 'Disable integration'})).toBeVisible();
     expect(screen.getByRole('menuitem', {name: 'Delete integration'})).toBeVisible();
   });
@@ -287,7 +288,6 @@ describe('IntegrationGallery — installed section', () => {
     expect(screen.getByText('received')).toBeVisible();
     expect(await screen.findByText('Inbound URL')).toBeVisible();
     expect(screen.getByText(webhookConnectionDto.inbound_url)).toBeVisible();
-    expect(screen.getByRole('link', {name: 'View deliveries'})).toBeVisible();
   });
 
   test('shows GitHub webhook events in the usage selector', async () => {

@@ -1,7 +1,5 @@
-import {WEBHOOK_RECEIVED_EVENT} from '@shipfox/api-integration-webhook-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {Button, ShipfoxLoader, Text} from '@shipfox/react-ui';
-import {Link} from '@tanstack/react-router';
+import {ShipfoxLoader, Text} from '@shipfox/react-ui';
 import {useWebhookConnectionsQuery} from '#hooks/api/webhook-connections.js';
 import {CopyableValue} from './copyable-value.js';
 
@@ -42,15 +40,6 @@ export function WebhookUsageDetails({workspaceId, connectionId}: WebhookUsageDet
           note="Anyone with this URL can trigger your workflow."
         />
       </div>
-      <Button asChild variant="transparentMuted" size="sm" iconRight="externalLinkLine">
-        <Link
-          to="/workspaces/$wid/settings/events"
-          params={{wid: workspaceId}}
-          search={{source: [connection.slug], event: [WEBHOOK_RECEIVED_EVENT]}}
-        >
-          View deliveries
-        </Link>
-      </Button>
     </div>
   );
 }

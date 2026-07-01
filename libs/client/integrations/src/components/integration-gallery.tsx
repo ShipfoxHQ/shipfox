@@ -22,6 +22,7 @@ import {
   Text,
   toast,
 } from '@shipfox/react-ui';
+import {Link} from '@tanstack/react-router';
 import {useState} from 'react';
 import {ConnectionStatusBadge} from '#connection-status-badge.js';
 import {
@@ -343,6 +344,7 @@ function InstalledRow({
 }) {
   const muted = connection.lifecycle_status === 'disabled';
   const active = connection.lifecycle_status === 'active';
+  const recentEventsEvent = usageEventsForConnection(connection)[0]?.value ?? 'received';
 
   return (
     <li className="flex items-center gap-12 px-16 py-12 transition-colors hover:bg-background-components-hover">
@@ -383,6 +385,15 @@ function InstalledRow({
         <DropdownMenuContent align="end">
           <DropdownMenuItem icon="bookOpenLine" onSelect={() => onUse(connection.id)}>
             Use this integration
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link
+              to="/workspaces/$wid/settings/events"
+              params={{wid: connection.workspace_id}}
+              search={{source: [connection.slug], event: [recentEventsEvent]}}
+            >
+              View recent events
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuItem
             icon={active ? 'pauseCircleLine' : 'playCircleLine'}
