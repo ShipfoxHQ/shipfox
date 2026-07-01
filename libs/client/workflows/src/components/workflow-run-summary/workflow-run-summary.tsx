@@ -32,7 +32,7 @@ const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
   ...WORKFLOW_RUN_STATUSES.map((status) => getWorkflowStatusVisual(status).label.length),
 );
 
-type WorkflowRunAction = 'cancel' | 'rerun-all' | 'rerun-menu';
+type WorkflowRunAction = 'cancel' | 'rerun-all' | 'rerun-menu' | 'none';
 
 export interface WorkflowRunSummaryProps {
   workspaceId?: string | undefined;
@@ -195,6 +195,8 @@ function WorkflowRunActionSlot({
   rerunPending: boolean;
   onRerun?: ((mode: RerunMode) => void) | undefined;
 }) {
+  if (action === 'none') return null;
+
   if (action === 'cancel') {
     if (!onCancel) return null;
 
@@ -258,6 +260,7 @@ function WorkflowRunActionSlot({
 }
 
 function workflowRunActionForRun(run: WorkflowRunDetail): WorkflowRunAction {
+  if (run.runAttempt.attempt !== run.currentAttempt) return 'none';
   if (!isWorkflowRunTerminal(run.status)) return 'cancel';
   if (run.status === 'succeeded' || !hasFailedOrCancelledJobs(run)) return 'rerun-all';
   return 'rerun-menu';

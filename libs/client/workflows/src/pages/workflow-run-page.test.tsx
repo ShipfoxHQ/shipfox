@@ -56,7 +56,7 @@ describe('WorkflowRunPage', () => {
     configureApiClient({fetchImpl: createRunsListFetch()});
 
     const {router} = renderRunsPath(
-      `?job=${DEPLOY_JOB_ID}&step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}`,
+      `?job=${DEPLOY_JOB_ID}&step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}&runAttempt=1`,
     );
 
     // Landing on /runs with runs present redirects to the newest run, so its row becomes the
@@ -66,6 +66,7 @@ describe('WorkflowRunPage', () => {
     expect(currentSearch(router).job).toBeUndefined();
     expect(currentSearch(router).step).toBeUndefined();
     expect(currentSearch(router).stepAttempt).toBeUndefined();
+    expect(currentSearch(router).runAttempt).toBeUndefined();
   });
 
   test('shows the first-time-use surface when the project has no runs', async () => {
@@ -99,7 +100,9 @@ describe('WorkflowRunPage', () => {
   test('selecting a job writes job search state and clears stale step state', async () => {
     const user = userEvent.setup();
     configureApiClient({fetchImpl: createRunDetailFetch()});
-    const {router} = renderRunPath(`?step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}`);
+    const {router} = renderRunPath(
+      `?step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}&runAttempt=1`,
+    );
 
     await user.click(await screen.findByRole('button', {name: 'build, Succeeded'}));
 
@@ -204,6 +207,7 @@ describe('WorkflowRunPage', () => {
     expect(currentSearch(router).job).toBeUndefined();
     expect(currentSearch(router).step).toBeUndefined();
     expect(currentSearch(router).stepAttempt).toBeUndefined();
+    expect(currentSearch(router).runAttempt).toBeUndefined();
   });
 });
 

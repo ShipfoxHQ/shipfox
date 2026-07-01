@@ -532,7 +532,7 @@ describe('WorkflowRunView', () => {
     });
     configureApiClient({fetchImpl: fetchImpl as typeof fetch});
 
-    const {router} = renderView();
+    const {router} = renderView({}, '?runAttempt=1');
     await user.click(await screen.findByRole('button', {name: 'Re-run workflow'}));
 
     const postRequest = await findRequest(fetchImpl, 'POST', `/workflows/runs/${RUN_ID}/rerun`);
@@ -544,6 +544,7 @@ describe('WorkflowRunView', () => {
         `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${rerunId}`,
       ),
     );
+    expect((router.state.location.search as Record<string, unknown>).runAttempt).toBeUndefined();
   });
 
   test('re-runs failed jobs from the dropdown', async () => {
@@ -727,15 +728,18 @@ describe('WorkflowRunView', () => {
   });
 });
 
-function renderView(props: Partial<Parameters<typeof WorkflowRunView>[0]> = {}) {
-  return renderProjectPage(`/workspaces/${PROJECT_TEST_WID}/projects/x/runs/${RUN_ID}`, () => (
-    <WorkflowRunView
-      workspaceId={PROJECT_TEST_WID}
-      projectId={PROJECT_ID}
-      workflowRunId={RUN_ID}
-      {...props}
-    />
-  ));
+function renderView(props: Partial<Parameters<typeof WorkflowRunView>[0]> = {}, search = '') {
+  return renderProjectPage(
+    `/workspaces/${PROJECT_TEST_WID}/projects/x/runs/${RUN_ID}${search}`,
+    () => (
+      <WorkflowRunView
+        workspaceId={PROJECT_TEST_WID}
+        projectId={PROJECT_ID}
+        workflowRunId={RUN_ID}
+        {...props}
+      />
+    ),
+  );
 }
 
 function requestUrl(input: RequestInfo | URL): URL {

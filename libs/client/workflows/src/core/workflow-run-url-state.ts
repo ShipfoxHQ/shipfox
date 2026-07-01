@@ -5,7 +5,7 @@ export interface WorkflowRunSelectionInput {
   runAttempt?: number | undefined;
 }
 
-const WORKFLOW_RUN_URL_SELECTION_KEYS = ['job', 'step', 'stepAttempt'] as const;
+const WORKFLOW_RUN_URL_SELECTION_KEYS = ['job', 'step', 'stepAttempt', 'runAttempt'] as const;
 
 type WorkflowRunSearch = Record<string, unknown>;
 
