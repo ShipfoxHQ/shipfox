@@ -1,0 +1,193 @@
+import type {
+  IntegrationConnectionDto,
+  ListIntegrationConnectionsResponseDto,
+} from '@shipfox/api-integration-core-dto';
+import {QueryLoadError} from '@shipfox/client-ui';
+import {
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  EmptyState,
+  formatDate,
+  Header,
+  IconButton,
+  Skeleton,
+  Text,
+} from '@shipfox/react-ui';
+import type {UseQueryResult} from '@tanstack/react-query';
+import {Link} from '@tanstack/react-router';
+import {ConnectionStatusBadge} from '#connection-status-badge.js';
+import {IntegrationIcon} from '#integration-icon.js';
+import {usageEventsForConnection} from './integration-usage-events.js';
+
+interface InstalledIntegrationsSectionProps {
+  connectionsQuery: UseQueryResult<ListIntegrationConnectionsResponseDto, Error>;
+  connections: IntegrationConnectionDto[];
+  isMutating: boolean;
+  onUse: (connectionId: string) => void;
+  onSetActive: (connection: IntegrationConnectionDto, active: boolean) => void;
+  onDelete: (connectionId: string) => void;
+}
+
+const INSTALLED_SURFACE_CLASS =
+  'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';
+
+export function InstalledIntegrationsSection({
+  connectionsQuery,
+  connections,
+  isMutating,
+  onUse,
+  onSetActive,
+  onDelete,
+}: InstalledIntegrationsSectionProps) {
+  return (
+    <section className="flex flex-col gap-16" aria-label="Installed integrations">
+      <div className="flex flex-col gap-4">
+        <Header variant="h3">Installed integrations</Header>
+        <Text size="sm" className="text-foreground-neutral-muted">
+          Provider accounts installed in this workspace.
+        </Text>
+      </div>
+
+      {connectionsQuery.isPending ? <InstalledSkeleton label="Loading integrations" /> : null}
+
+      {connectionsQuery.isError && connectionsQuery.data === undefined ? (
+        <div className={cn(INSTALLED_SURFACE_CLASS, 'px-16')}>
+          <QueryLoadError query={connectionsQuery} subject="integrations" />
+        </div>
+      ) : null}
+
+      {connectionsQuery.data !== undefined && connections.length === 0 ? (
+        <div className={cn(INSTALLED_SURFACE_CLASS, 'px-16')}>
+          <EmptyState
+            icon="componentLine"
+            title="No integrations installed yet"
+            description="Install a provider below to get started."
+          />
+        </div>
+      ) : null}
+
+      {connections.length > 0 ? (
+        <ul className={cn('divide-y divide-border-neutral-base', INSTALLED_SURFACE_CLASS)}>
+          {connections.map((connection) => (
+            <InstalledRow
+              key={connection.id}
+              connection={connection}
+              isMutating={isMutating}
+              onUse={onUse}
+              onSetActive={(nextActive) => onSetActive(connection, nextActive)}
+              onDelete={onDelete}
+            />
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+function InstalledRow({
+  connection,
+  isMutating,
+  onUse,
+  onSetActive,
+  onDelete,
+}: {
+  connection: IntegrationConnectionDto;
+  isMutating: boolean;
+  onUse: (connectionId: string) => void;
+  onSetActive: (active: boolean) => void;
+  onDelete: (connectionId: string) => void;
+}) {
+  const muted = connection.lifecycle_status === 'disabled';
+  const active = connection.lifecycle_status === 'active';
+  const recentEventsEvent = usageEventsForConnection(connection)[0]?.value ?? 'received';
+
+  return (
+    <li className="flex items-center gap-12 px-16 py-12 transition-colors hover:bg-background-components-hover">
+      <IntegrationIcon
+        source={connection.provider}
+        aria-hidden
+        className={cn(
+          'size-24 shrink-0',
+          muted ? 'text-foreground-neutral-disabled' : 'text-foreground-neutral-base',
+        )}
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex min-w-0 items-center gap-8">
+          <Text
+            size="md"
+            bold
+            className={cn('truncate', muted ? 'text-foreground-neutral-disabled' : undefined)}
+          >
+            {connection.display_name}
+          </Text>
+          <ConnectionStatusBadge status={connection.lifecycle_status} className="shrink-0" />
+        </div>
+        <Text size="sm" className="truncate text-foreground-neutral-muted">
+          Added {formatDate(connection.created_at)}
+        </Text>
+      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <IconButton
+            size="sm"
+            variant="transparent"
+            icon="more2Line"
+            aria-label={`Open ${connection.display_name} integration actions`}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem icon="bookOpenLine" onSelect={() => onUse(connection.id)}>
+            Use this integration
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link
+              to="/workspaces/$wid/settings/events"
+              params={{wid: connection.workspace_id}}
+              search={{source: [connection.slug], event: [recentEventsEvent]}}
+            >
+              View recent events
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            icon={active ? 'pauseCircleLine' : 'playCircleLine'}
+            disabled={isMutating}
+            onSelect={() => onSetActive(!active)}
+          >
+            {active ? 'Disable integration' : 'Enable integration'}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            icon="deleteBinLine"
+            disabled={isMutating}
+            onSelect={() => onDelete(connection.id)}
+          >
+            Delete integration
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </li>
+  );
+}
+
+function InstalledSkeleton({label}: {label: string}) {
+  return (
+    <ul
+      role="status"
+      aria-label={label}
+      className={cn('divide-y divide-border-neutral-base', INSTALLED_SURFACE_CLASS)}
+    >
+      {[0, 1, 2].map((row) => (
+        <li key={row} className="flex items-center gap-12 px-16 py-12">
+          <Skeleton className="size-24 shrink-0" />
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <Skeleton className="h-16 w-120" />
+            <Skeleton className="h-12 w-80" />
+          </div>
+          <Skeleton className="h-20 w-72 shrink-0" />
+        </li>
+      ))}
+    </ul>
+  );
+}
