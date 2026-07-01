@@ -11,25 +11,32 @@ triggers:
 jobs:
   prepare:
     steps:
-      - name: checkout-summary
+      - key: checkout-summary
+        name: Checkout Summary
         run: echo "Preparing demo workspace"
-      - name: validate-package
+      - key: validate-package
+        name: Validate Package
         run: node --check src/index.js
   test:
     needs: prepare
     steps:
-      - name: unit-tests
+      - key: unit-tests
+        name: Unit Tests
         run: node --test
-      - name: forced-failure
+      - key: forced-failure
+        name: Forced Failure
         run: |
           echo "Intentional demo failure"
           exit 1
-      - name: skipped-after-failure
+      - key: skipped-after-failure
+        name: Skipped After Failure
         run: echo "This step is cancelled after the forced failure"
   deploy:
     needs: test
     steps:
-      - name: package
+      - key: package
+        name: Package
         run: echo "Packaging demo"
-      - name: publish
+      - key: publish
+        name: Publish
         run: echo "Deploying demo"
