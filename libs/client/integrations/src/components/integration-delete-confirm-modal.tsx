@@ -38,7 +38,8 @@ export function IntegrationDeleteConfirmModal({
         <ModalHeader title="Delete integration" showClose={!isPending} />
         <ModalBody className="gap-16">
           <Alert variant="error" animated={false}>
-            Delete {name}? Events from this connection stop immediately. This cannot be undone.
+            Are you sure you want to delete <strong>{name}</strong>? Once deleted, Shipfox will
+            immediately stop processing events from this integration. This cannot be undone.
           </Alert>
         </ModalBody>
         <ModalFooter>

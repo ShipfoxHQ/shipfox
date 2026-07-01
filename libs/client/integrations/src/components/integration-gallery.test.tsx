@@ -361,12 +361,14 @@ describe('IntegrationGallery — installed section', () => {
     await openActions('Open acme-corp integration actions');
     fireEvent.click(screen.getByRole('menuitem', {name: 'Delete integration'}));
 
-    expect(
-      await screen.findByText(
-        'Delete acme-corp? Events from this connection stop immediately. This cannot be undone.',
-      ),
-    ).toBeVisible();
-    expect(screen.getByRole('button', {name: 'Delete integration'})).toBeVisible();
+    const dialog = await screen.findByRole('dialog', {name: 'Delete integration'});
+    const alert = within(dialog).getByRole('alert');
+
+    expect(alert).toHaveTextContent(
+      'Are you sure you want to delete acme-corp? Once deleted, Shipfox will immediately stop processing events from this integration. This cannot be undone.',
+    );
+    expect(within(alert).getByText('acme-corp')).toBeVisible();
+    expect(within(dialog).getByRole('button', {name: 'Delete integration'})).toBeVisible();
   });
 
   test('filters connections by capability in memory', async () => {
