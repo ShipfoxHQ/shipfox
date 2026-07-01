@@ -55,6 +55,15 @@ async function waitForProcessExit(pid: number): Promise<void> {
   );
 }
 
+async function waitForProcessAlive(pid: number): Promise<void> {
+  await vi.waitFor(
+    () => {
+      expect(() => process.kill(pid, 0)).not.toThrow();
+    },
+    {timeout: PROCESS_TEST_WAIT_TIMEOUT_MS},
+  );
+}
+
 describe('executeRunStep', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -378,12 +387,13 @@ describe('executeRunStep', () => {
     const promise = executeRunStep(step, {signal: ac.signal, onOutput: output.sink});
 
     const match = await waitForOutputMatch(output, GRANDCHILD_PID_REGEX);
+    const grandchildPid = Number(match[1]);
+    await waitForProcessAlive(grandchildPid);
+
     ac.abort();
 
     const result = await promise;
     expect(result.success).toBe(false);
-
-    const grandchildPid = Number(match[1]);
 
     await waitForProcessExit(grandchildPid);
   });

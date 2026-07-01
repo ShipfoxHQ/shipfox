@@ -106,27 +106,32 @@ function spawnAndCapture(
       options.onOutput?.(chunk, 'stderr');
     });
 
-    let abortRequested = options.signal?.aborted === true;
+    let childExited = false;
+    let abortKillSignal: NodeJS.Signals | undefined;
 
-    const killGroup = () => {
+    const killGroup = (): NodeJS.Signals | undefined => {
       if (child.pid !== undefined) {
         try {
           // Negative pid signals the entire process group.
-          process.kill(-child.pid, 'SIGKILL');
+          const signal: NodeJS.Signals = 'SIGKILL';
+          process.kill(-child.pid, signal);
+          return signal;
         } catch {
           // Process already exited.
         }
       }
+      return undefined;
     };
 
     let onAbort: (() => void) | undefined;
     if (options.signal) {
       if (options.signal.aborted) {
-        killGroup();
+        abortKillSignal = killGroup();
       } else {
         onAbort = () => {
-          abortRequested = true;
-          killGroup();
+          if (!childExited) {
+            abortKillSignal = killGroup();
+          }
         };
         options.signal.addEventListener('abort', onAbort, {once: true});
       }
@@ -139,19 +144,20 @@ function spawnAndCapture(
       }
     };
 
+    child.on('exit', () => {
+      childExited = true;
+    });
+
     child.on('close', (code, signal) => {
       cleanupAbortListener();
-      // Only report an abort kill when the child was actually terminated by a signal
-      // (code === null). If abort fired in the exit→close race but the process had
-      // already exited on its own, `code` is set — fall through to report its real
-      // outcome rather than masking a genuine success/failure as a kill.
-      if (abortRequested && code === null) {
+      if (abortKillSignal) {
+        const resultSignal = signal ?? abortKillSignal;
         resolve({
           success: false,
           error: {
-            message: `Killed by signal ${signal ?? 'SIGKILL'}`,
+            message: `Killed by signal ${resultSignal}`,
             exit_code: null,
-            signal: signal ?? 'SIGKILL',
+            signal: resultSignal,
           },
           exit_code: null,
         });
