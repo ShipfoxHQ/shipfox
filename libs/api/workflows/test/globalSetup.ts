@@ -26,10 +26,6 @@ export async function setup() {
     '__drizzle_migrations_runners',
   );
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_workflows');
-  await db().execute(sql`TRUNCATE agent_provider_configs CASCADE`);
-  await db().execute(sql`TRUNCATE agent_workspace_settings CASCADE`);
-  await db().execute(sql`TRUNCATE runners_pending_jobs CASCADE`);
-  await db().execute(sql`TRUNCATE runners_running_jobs CASCADE`);
   await db().execute(sql`TRUNCATE workflows_workflow_runs CASCADE`);
   await db().execute(sql`TRUNCATE workflows_outbox CASCADE`);
 
