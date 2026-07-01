@@ -1,12 +1,17 @@
 import {db} from '#db/db.js';
 import {runningJobExecutions} from '#db/runner-lease-table.js';
-import {getFirstJobExecutionByJobId, getJobById, getWorkflowRunById} from '#db/workflow-runs.js';
+import {
+  getFirstJobExecutionByJobId,
+  getJobById,
+  getWorkflowRunByAttemptId,
+} from '#db/workflow-runs.js';
 import {mintLeaseToken} from './lease-token.js';
 
 export interface MintActiveLeaseTokenParams {
   jobId: string;
   token?: {
-    runId?: string;
+    workflowRunId?: string;
+    workflowRunAttemptId?: string;
     projectId?: string;
     workspaceId?: string;
   };
@@ -17,15 +22,16 @@ export async function mintActiveLeaseToken(params: MintActiveLeaseTokenParams): 
   if (!jobExecution) throw new Error('Expected job execution to exist');
   const job = await getJobById(params.jobId);
   if (!job) throw new Error('Expected job to exist');
-  const run = await getWorkflowRunById(job.runId);
+  const run = await getWorkflowRunByAttemptId(job.workflowRunAttemptId);
   if (!run) throw new Error('Expected workflow run to exist');
   const runnerSessionId = crypto.randomUUID();
 
   await insertRunningJobLease({
     workspaceId: run.workspaceId,
+    workflowRunId: run.id,
+    workflowRunAttemptId: job.workflowRunAttemptId,
     jobId: params.jobId,
     jobExecutionId: jobExecution.id,
-    runId: run.id,
     projectId: run.projectId,
     runnerSessionId,
   });
@@ -33,7 +39,8 @@ export async function mintActiveLeaseToken(params: MintActiveLeaseTokenParams): 
   return await mintLeaseToken({
     jobId: params.jobId,
     jobExecutionId: jobExecution.id,
-    runId: params.token?.runId ?? run.id,
+    workflowRunId: params.token?.workflowRunId ?? run.id,
+    workflowRunAttemptId: params.token?.workflowRunAttemptId ?? job.workflowRunAttemptId,
     projectId: params.token?.projectId ?? run.projectId,
     workspaceId: params.token?.workspaceId ?? run.workspaceId,
     runnerSessionId,
@@ -42,9 +49,10 @@ export async function mintActiveLeaseToken(params: MintActiveLeaseTokenParams): 
 
 export interface InsertRunningJobLeaseParams {
   workspaceId: string;
+  workflowRunId: string;
+  workflowRunAttemptId: string;
   jobId: string;
   jobExecutionId: string;
-  runId: string;
   projectId: string;
   runnerSessionId: string;
 }
@@ -54,9 +62,10 @@ export async function insertRunningJobLease(params: InsertRunningJobLeaseParams)
     .insert(runningJobExecutions)
     .values({
       workspaceId: params.workspaceId,
+      workflowRunId: params.workflowRunId,
+      workflowRunAttemptId: params.workflowRunAttemptId,
       jobId: params.jobId,
       jobExecutionId: params.jobExecutionId,
-      runId: params.runId,
       projectId: params.projectId,
       runnerSessionId: params.runnerSessionId,
       requiredLabels: ['linux'],

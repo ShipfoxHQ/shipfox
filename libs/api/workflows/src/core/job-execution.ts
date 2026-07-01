@@ -13,7 +13,6 @@ import {
   recordWorkflowJobExecutionStepsSettled,
   recordWorkflowStepRestartEnqueued,
 } from '#metrics/instance.js';
-import type {RuntimeCompletionStatus} from './entities/runtime-dag.js';
 import type {Step} from './entities/step.js';
 import {
   JobLeaseNotActiveError,
@@ -33,6 +32,7 @@ import {
   isTerminal,
 } from './step-transition/decide-step-transition.js';
 import {evaluateGate, gateResultPayload, readStepGate} from './step-transition/evaluate-gate.js';
+import type {RuntimeCompletionStatus} from './workflow-runtime/runtime-dag.js';
 
 type CompletionStatus = RuntimeCompletionStatus;
 

@@ -5,9 +5,18 @@ import {jobs} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
 import {stepAttempts} from './schema/step-attempts.js';
 import {steps} from './schema/steps.js';
+import {workflowRunAttempts} from './schema/workflow-run-attempts.js';
 import {workflowRuns} from './schema/workflow-runs.js';
 
-export const schema = {workflowRuns, jobs, jobExecutions, steps, stepAttempts, workflowsOutbox};
+export const schema = {
+  workflowRuns,
+  workflowRunAttempts,
+  jobs,
+  jobExecutions,
+  steps,
+  stepAttempts,
+  workflowsOutbox,
+};
 
 let _db: NodePgDatabase<typeof schema> | undefined;
 

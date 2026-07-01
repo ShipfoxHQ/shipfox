@@ -1,9 +1,4 @@
 export type {Job, JobStatus} from './entities/job.js';
-export type {
-  RuntimeCompletionStatus,
-  RuntimeDagJob,
-} from './entities/runtime-dag.js';
-export type {RuntimeSchedulingCommand} from './entities/runtime-scheduling-command.js';
 export type {Step, StepStatus} from './entities/step.js';
 export type {
   TriggerPayload,

@@ -1,6 +1,6 @@
-import type {RuntimeCompletionStatus, RuntimeDagJob} from '../entities/runtime-dag.js';
+import type {RuntimeCompletionStatus, RuntimeDagNode} from './runtime-dag.js';
 
-type RuntimeProgressJob = RuntimeDagJob & {status?: string | undefined};
+type RuntimeProgressJob = RuntimeDagNode & {status?: string | undefined};
 
 export interface RuntimeRunProgress {
   completed: Map<string, RuntimeCompletionStatus>;

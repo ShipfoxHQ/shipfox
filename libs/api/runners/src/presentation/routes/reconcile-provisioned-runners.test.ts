@@ -76,11 +76,13 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
 
   it('returns keep for an observed running runner and includes its bound job', async () => {
     const jobId = crypto.randomUUID();
-    const runId = crypto.randomUUID();
+    const workflowRunId = crypto.randomUUID();
+    const workflowRunAttemptId = crypto.randomUUID();
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
     await insertRunningJob({
       jobId,
-      runId,
+      workflowRunId,
+      workflowRunAttemptId,
       provisionedRunnerId: 'provisioned-runner-1',
       lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
     });
@@ -102,7 +104,7 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
           runner_session_id: null,
           bound_job: {
             job_id: jobId,
-            run_id: runId,
+            workflow_run_attempt_id: workflowRunAttemptId,
             last_heartbeat_at: '2025-01-01T00:00:00.000Z',
             cancellation_requested_at: null,
           },
@@ -154,7 +156,8 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
     await createProvisionedRunner({provisionedRunnerId: 'provisioned-runner-1'});
     await insertRunningJob({
       jobId: crypto.randomUUID(),
-      runId: crypto.randomUUID(),
+      workflowRunId: crypto.randomUUID(),
+      workflowRunAttemptId: crypto.randomUUID(),
       provisionedRunnerId: 'provisioned-runner-1',
       lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
       cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
@@ -255,7 +258,8 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
 
   async function insertRunningJob(params: {
     jobId: string;
-    runId: string;
+    workflowRunId: string;
+    workflowRunAttemptId: string;
     provisionedRunnerId: string;
     lastHeartbeatAt: Date;
     cancellationRequestedAt?: Date | null;
@@ -264,9 +268,10 @@ describe('POST /provisioners/provisioned-runners/reconcile', () => {
       .insert(runningJobExecutions)
       .values({
         workspaceId,
+        workflowRunId: params.workflowRunId,
         jobId: params.jobId,
         jobExecutionId: crypto.randomUUID(),
-        runId: params.runId,
+        workflowRunAttemptId: params.workflowRunAttemptId,
         projectId: crypto.randomUUID(),
         runnerSessionId: crypto.randomUUID(),
         provisionerId: provisionerTokenId,

@@ -9,7 +9,7 @@ import {
   getFirstJobExecutionByJobId,
   getJobById,
   getStepsByJobId,
-  getWorkflowRunById,
+  getWorkflowRunByAttemptId,
 } from '#db/workflow-runs.js';
 import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
@@ -191,20 +191,22 @@ describe('POST /runs/jobs/current/steps/next', () => {
     if (!jobExecution) throw new Error('Expected job execution to exist');
     const job = await getJobById(jobId);
     if (!job) throw new Error('Expected job to exist');
-    const run = await getWorkflowRunById(job.runId);
+    const run = await getWorkflowRunByAttemptId(job.workflowRunAttemptId);
     if (!run) throw new Error('Expected workflow run to exist');
     await insertRunningJobLease({
       workspaceId: run.workspaceId,
+      workflowRunId: run.id,
+      workflowRunAttemptId: job.workflowRunAttemptId,
       jobId,
       jobExecutionId: jobExecution.id,
-      runId: run.id,
       projectId: run.projectId,
       runnerSessionId: crypto.randomUUID(),
     });
     const token = await mintLeaseToken({
       jobId,
       jobExecutionId: jobExecution.id,
-      runId: run.id,
+      workflowRunId: run.id,
+      workflowRunAttemptId: job.workflowRunAttemptId,
       projectId: run.projectId,
       workspaceId: run.workspaceId,
       runnerSessionId: crypto.randomUUID(),

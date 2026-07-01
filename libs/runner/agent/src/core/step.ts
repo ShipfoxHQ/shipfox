@@ -1,8 +1,8 @@
 import type {
-  AgentConfigIssue,
+  AgentConfigIssueDto,
   StepDto,
-  StepErrorDtoShape,
-  StepErrorReason,
+  StepErrorDto,
+  StepErrorReasonDto,
 } from '@shipfox/api-workflows-dto';
 import type {StepResult} from '@shipfox/runner-execution';
 import {AgentConfigError} from '#core/errors.js';
@@ -78,7 +78,7 @@ async function runAgentStep(params: {
     );
     return {success: true, output: summary ?? '', error: null, exit_code: 0};
   } catch (error) {
-    const reason: StepErrorReason =
+    const reason: StepErrorReasonDto =
       error instanceof AgentConfigError ? 'agent_config_invalid' : 'agent_invocation_failed';
     return agentFailure(
       error instanceof Error ? error.message : String(error),
@@ -127,10 +127,10 @@ function abortError(): Error {
 // reaches the API: the step loop returns before reporting once the signal fires.
 function agentFailure(
   message: string,
-  reason: StepErrorReason = 'agent_invocation_failed',
-  agentConfigIssue?: AgentConfigIssue,
+  reason: StepErrorReasonDto = 'agent_invocation_failed',
+  agentConfigIssue?: AgentConfigIssueDto,
 ): StepResult {
-  const error: StepErrorDtoShape = {
+  const error: StepErrorDto = {
     message,
     reason,
     ...(agentConfigIssue === undefined ? {} : {agent_config_issue: agentConfigIssue}),

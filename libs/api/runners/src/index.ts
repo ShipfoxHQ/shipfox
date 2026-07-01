@@ -3,7 +3,7 @@ import {fileURLToPath} from 'node:url';
 import {runnersEventSchemas} from '@shipfox/api-runners-dto';
 import {
   WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
-  type WorkflowsEventMap,
+  type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, runnersOutbox} from '#db/index.js';
@@ -37,7 +37,7 @@ export {
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
-const subscriber = subscriberFactory<WorkflowsEventMap>();
+const subscriber = subscriberFactory<WorkflowsEventMapDto>();
 
 export const runnersModule: ShipfoxModule = {
   name: 'runners',

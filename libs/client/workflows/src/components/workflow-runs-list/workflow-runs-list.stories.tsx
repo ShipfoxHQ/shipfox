@@ -61,7 +61,7 @@ type Story = StoryObj<typeof meta>;
 export const WithRuns: Story = {};
 
 export const Selected: Story = {
-  args: {selectedRunId: SAMPLE_RUNS[1].id},
+  args: {selectedWorkflowRunId: SAMPLE_RUNS[1].id},
 };
 
 export const Loading: Story = {

@@ -26,7 +26,7 @@ export const reconcileDesiredIntentSchema = z.enum(['keep', 'terminate']);
 export const reconciledBoundJobSchema = z
   .object({
     job_id: z.string().uuid(),
-    run_id: z.string().uuid(),
+    workflow_run_attempt_id: z.string().uuid(),
     last_heartbeat_at: z.string().datetime(),
     cancellation_requested_at: z.string().datetime().nullable(),
   })

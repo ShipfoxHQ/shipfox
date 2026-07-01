@@ -1,4 +1,4 @@
-import type {WorkflowsJobTerminatedEvent} from '@shipfox/api-workflows-dto';
+import type {WorkflowsJobTerminatedEventDto} from '@shipfox/api-workflows-dto';
 import {config} from '#config.js';
 import {LOGS_LIFECYCLE_TASK_QUEUE} from '#temporal/constants.js';
 import {onJobTerminated} from './on-job-terminated.js';
@@ -13,10 +13,11 @@ vi.mock('@shipfox/node-temporal', () => ({
   }),
 }));
 
-function buildPayload(jobId: string): WorkflowsJobTerminatedEvent {
+function buildPayload(jobId: string): WorkflowsJobTerminatedEventDto {
   return {
     jobId,
-    runId: crypto.randomUUID(),
+    workflowRunId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
     status: 'failed',
     statusReason: null,
   };

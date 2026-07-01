@@ -37,9 +37,10 @@ export const requestJobRoute = defineRoute({
     }
 
     return {
+      workflow_run_id: jobExecution.workflowRunId,
+      workflow_run_attempt_id: jobExecution.workflowRunAttemptId,
       job_id: jobExecution.jobId,
       job_execution_id: jobExecution.jobExecutionId,
-      run_id: jobExecution.runId,
       lease_token: jobExecution.leaseToken,
     };
   },

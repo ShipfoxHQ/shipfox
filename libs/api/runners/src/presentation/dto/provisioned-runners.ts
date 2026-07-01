@@ -24,7 +24,7 @@ export function toReconcileProvisionedRunnersResponseDto(
     runner_session_id: string | null;
     bound_job: {
       job_id: string;
-      run_id: string;
+      workflow_run_attempt_id: string;
       last_heartbeat_at: string;
       cancellation_requested_at: string | null;
     } | null;
@@ -41,7 +41,7 @@ export function toReconcileProvisionedRunnersResponseDto(
       bound_job: runner.boundJobExecution
         ? {
             job_id: runner.boundJobExecution.jobId,
-            run_id: runner.boundJobExecution.runId,
+            workflow_run_attempt_id: runner.boundJobExecution.workflowRunAttemptId,
             last_heartbeat_at: runner.boundJobExecution.lastHeartbeatAt.toISOString(),
             cancellation_requested_at:
               runner.boundJobExecution.cancellationRequestedAt?.toISOString() ?? null,
@@ -63,7 +63,7 @@ export function toActiveRunnersResponseDto(runners: ActiveRunner[]): {
     template_key: string | null;
     provider_kind: string | null;
     job_id: string | null;
-    run_id: string | null;
+    workflow_run_attempt_id: string | null;
     project_id: string | null;
     reported_at: string | null;
     last_heartbeat_at: string | null;
@@ -79,7 +79,7 @@ export function toActiveRunnersResponseDto(runners: ActiveRunner[]): {
       template_key: runner.templateKey,
       provider_kind: runner.providerKind,
       job_id: runner.jobId,
-      run_id: runner.runId,
+      workflow_run_attempt_id: runner.workflowRunAttemptId,
       project_id: runner.projectId,
       reported_at: runner.reportedAt?.toISOString() ?? null,
       last_heartbeat_at: runner.lastHeartbeatAt?.toISOString() ?? null,

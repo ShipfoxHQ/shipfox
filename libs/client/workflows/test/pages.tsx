@@ -14,8 +14,8 @@ import type {ReactElement} from 'react';
 
 // The workflow run page navigates with the router (run rows are links and the page redirects
 // to the first run), so the harness mounts the page under a memory router whose route tree
-// carries the `/workspaces/$wid/projects/$pid/runs/$runId` params the components read. The
-// page is supplied as a factory the detail route calls with the current `runId`, mirroring
+// carries the `/workspaces/$wid/projects/$pid/runs/$workflowRunId` params the components read. The
+// page is supplied as a factory the detail route calls with the current `workflowRunId`, mirroring
 // the real route wiring so a redirect re-renders the page with the run it landed on.
 export const PROJECT_TEST_WID = '11111111-1111-4111-8111-111111111111';
 
@@ -29,7 +29,7 @@ export function jsonResponse(body: unknown, init: ResponseInit = {}) {
 
 function createTestRouter(
   path: string,
-  renderPage: (params: {runId?: string | undefined}) => ReactElement,
+  renderPage: (params: {workflowRunId?: string | undefined}) => ReactElement,
 ) {
   const rootRoute = createRootRoute({component: Outlet});
   const runsRoute = createRoute({
@@ -39,10 +39,10 @@ function createTestRouter(
   });
   const runDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/workspaces/$wid/projects/$pid/runs/$runId',
+    path: '/workspaces/$wid/projects/$pid/runs/$workflowRunId',
     component: function RunDetailRoute() {
-      const {runId} = useParams({strict: false}) as {runId?: string};
-      return renderPage({runId});
+      const {workflowRunId} = useParams({strict: false}) as {workflowRunId?: string};
+      return renderPage({workflowRunId});
     },
   });
   const agentProviderSettingsRoute = createRoute({
@@ -59,7 +59,7 @@ function createTestRouter(
 
 export function renderProjectPage(
   path: string,
-  renderPage: (params: {runId?: string | undefined}) => ReactElement,
+  renderPage: (params: {workflowRunId?: string | undefined}) => ReactElement,
 ): RenderResult & {
   queryClient: QueryClient;
   router: ReturnType<typeof createTestRouter>;

@@ -1,13 +1,13 @@
-import type {RuntimeCompletionStatus, RuntimeDagJob} from '../entities/runtime-dag.js';
-import type {RuntimeSchedulingCommand} from '../entities/runtime-scheduling-command.js';
+import type {RuntimeCompletionStatus, RuntimeDagNode} from './runtime-dag.js';
+import type {RuntimeSchedulingCommand} from './runtime-scheduling-command.js';
 
-export interface ScheduleRuntimeDagInput<Job extends RuntimeDagJob = RuntimeDagJob> {
+export interface ScheduleRuntimeDagInput<Job extends RuntimeDagNode = RuntimeDagNode> {
   readonly jobs: readonly Job[];
   readonly completed: ReadonlyMap<string, RuntimeCompletionStatus>;
   readonly running?: ReadonlySet<string> | undefined;
 }
 
-export function scheduleRuntimeDag<Job extends RuntimeDagJob>(
+export function scheduleRuntimeDag<Job extends RuntimeDagNode>(
   input: ScheduleRuntimeDagInput<Job>,
 ): readonly RuntimeSchedulingCommand<Job>[] {
   const completed = new Map(input.completed);
@@ -45,7 +45,7 @@ export function scheduleRuntimeDag<Job extends RuntimeDagJob>(
   return commands;
 }
 
-function findReadyJobs<Job extends RuntimeDagJob>(
+function findReadyJobs<Job extends RuntimeDagNode>(
   jobs: readonly Job[],
   completed: ReadonlyMap<string, RuntimeCompletionStatus>,
   running: ReadonlySet<string>,
@@ -58,7 +58,7 @@ function findReadyJobs<Job extends RuntimeDagJob>(
   );
 }
 
-function findBlockedJobs<Job extends RuntimeDagJob>(
+function findBlockedJobs<Job extends RuntimeDagNode>(
   jobs: readonly Job[],
   completed: ReadonlyMap<string, RuntimeCompletionStatus>,
 ): readonly Job[] {

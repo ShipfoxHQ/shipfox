@@ -73,7 +73,15 @@ export async function startRunner(): Promise<void> {
         continue;
       }
 
-      logger().info({jobId: job.job_id, runId: job.run_id}, 'Job claimed');
+      logger().info(
+        {
+          workflowRunId: job.workflow_run_id,
+          workflowRunAttemptId: job.workflow_run_attempt_id,
+          jobId: job.job_id,
+          jobExecutionId: job.job_execution_id,
+        },
+        'Job claimed',
+      );
 
       await runJob(job, workspaceRoot);
       currentInterval = config.SHIPFOX_POLL_INTERVAL_MS;
@@ -179,7 +187,11 @@ export async function runJob(
       signal: ac.signal,
       cwd,
       logsDir,
-      jobContext: {jobId: job.job_id, runId: job.run_id},
+      jobContext: {
+        workflowRunId: job.workflow_run_id,
+        workflowRunAttemptId: job.workflow_run_attempt_id,
+        jobId: job.job_id,
+      },
     });
     logger().info({jobId: job.job_id}, 'Job step loop finished');
   } catch (stepLoopError) {

@@ -70,7 +70,7 @@ describe('reconcileProvisionedRunnersResponseSchema', () => {
           runner_session_id: crypto.randomUUID(),
           bound_job: {
             job_id: crypto.randomUUID(),
-            run_id: crypto.randomUUID(),
+            workflow_run_attempt_id: crypto.randomUUID(),
             last_heartbeat_at: new Date().toISOString(),
             cancellation_requested_at: null,
           },

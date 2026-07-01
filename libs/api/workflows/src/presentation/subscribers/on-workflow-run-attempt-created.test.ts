@@ -1,5 +1,5 @@
-import type {WorkflowsWorkflowRunCreatedEvent} from '@shipfox/api-workflows-dto';
-import {onWorkflowRunCreated} from './on-workflow-run-created.js';
+import type {WorkflowsWorkflowRunAttemptCreatedEventDto} from '@shipfox/api-workflows-dto';
+import {onWorkflowRunAttemptCreated} from './on-workflow-run-attempt-created.js';
 
 const startMock = vi.fn();
 
@@ -8,10 +8,12 @@ vi.mock('@shipfox/node-temporal', () => ({
 }));
 
 function buildPayload(
-  overrides: Partial<WorkflowsWorkflowRunCreatedEvent> = {},
-): WorkflowsWorkflowRunCreatedEvent {
+  overrides: Partial<WorkflowsWorkflowRunAttemptCreatedEventDto> = {},
+): WorkflowsWorkflowRunAttemptCreatedEventDto {
   return {
-    runId: crypto.randomUUID(),
+    workflowRunId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
+    attempt: 1,
     workspaceId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     definitionId: crypto.randomUUID(),
@@ -19,21 +21,29 @@ function buildPayload(
   };
 }
 
-describe('onWorkflowRunCreated', () => {
+describe('onWorkflowRunAttemptCreated', () => {
   beforeEach(() => {
     startMock.mockReset();
     startMock.mockResolvedValue({});
   });
 
-  it('starts the run orchestration keyed on the run id', async () => {
+  it('starts the run orchestration keyed on the attempt id', async () => {
     const payload = buildPayload();
 
-    await onWorkflowRunCreated(payload);
+    await onWorkflowRunAttemptCreated(payload);
 
     expect(startMock).toHaveBeenCalledWith('runOrchestration', {
       taskQueue: 'workflows-orchestrator',
-      workflowId: `run:${payload.runId}`,
-      args: [{runId: payload.runId, workspaceId: payload.workspaceId}],
+      workflowId: `workflow-run-attempt:${payload.workflowRunAttemptId}`,
+      workflowIdConflictPolicy: 'USE_EXISTING',
+      workflowIdReusePolicy: 'REJECT_DUPLICATE',
+      args: [
+        {
+          workflowRunId: payload.workflowRunId,
+          runAttemptId: payload.workflowRunAttemptId,
+          workspaceId: payload.workspaceId,
+        },
+      ],
     });
   });
 
@@ -42,7 +52,7 @@ describe('onWorkflowRunCreated', () => {
     alreadyStarted.name = 'WorkflowExecutionAlreadyStartedError';
     startMock.mockRejectedValueOnce(alreadyStarted);
 
-    const result = onWorkflowRunCreated(buildPayload());
+    const result = onWorkflowRunAttemptCreated(buildPayload());
 
     await expect(result).resolves.toBeUndefined();
     expect(startMock).toHaveBeenCalledTimes(1);
@@ -52,7 +62,7 @@ describe('onWorkflowRunCreated', () => {
     const failure = new Error('temporal unavailable');
     startMock.mockRejectedValueOnce(failure);
 
-    const result = onWorkflowRunCreated(buildPayload());
+    const result = onWorkflowRunAttemptCreated(buildPayload());
 
     await expect(result).rejects.toBe(failure);
   });

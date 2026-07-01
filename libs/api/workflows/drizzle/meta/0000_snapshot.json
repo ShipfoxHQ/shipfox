@@ -1,6 +1,6 @@
 {
-  "id": "6201a4b9-fc5a-44de-bedb-067cee8df115",
-  "prevId": "301aaed3-fce2-4b05-886e-3ed924bc1b75",
+  "id": "e3b11931-feb7-415b-85b1-60f37f0ebaee",
+  "prevId": "6201a4b9-fc5a-44de-bedb-067cee8df115",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -146,8 +146,8 @@
           "notNull": true,
           "default": "uuidv7()"
         },
-        "run_id": {
-          "name": "run_id",
+        "workflow_run_attempt_id": {
+          "name": "workflow_run_attempt_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -257,11 +257,11 @@
         }
       },
       "indexes": {
-        "workflows_jobs_run_id_idx": {
-          "name": "workflows_jobs_run_id_idx",
+        "workflows_jobs_workflow_run_attempt_id_idx": {
+          "name": "workflows_jobs_workflow_run_attempt_id_idx",
           "columns": [
             {
-              "expression": "run_id",
+              "expression": "workflow_run_attempt_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -274,11 +274,11 @@
         }
       },
       "foreignKeys": {
-        "workflows_jobs_run_id_workflows_workflow_runs_id_fk": {
-          "name": "workflows_jobs_run_id_workflows_workflow_runs_id_fk",
+        "workflows_jobs_workflow_run_attempt_id_workflows_workflow_run_attempts_id_fk": {
+          "name": "workflows_jobs_workflow_run_attempt_id_workflows_workflow_run_attempts_id_fk",
           "tableFrom": "workflows_jobs",
-          "tableTo": "workflows_workflow_runs",
-          "columnsFrom": ["run_id"],
+          "tableTo": "workflows_workflow_run_attempts",
+          "columnsFrom": ["workflow_run_attempt_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -750,6 +750,145 @@
       },
       "isRLSEnabled": false
     },
+    "public.workflows_workflow_run_attempts": {
+      "name": "workflows_workflow_run_attempts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuidv7()"
+        },
+        "workflow_run_id": {
+          "name": "workflow_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempt": {
+          "name": "attempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "workflows_run_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "rerun_mode": {
+          "name": "rerun_mode",
+          "type": "workflows_rerun_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rerun_by_user_id": {
+          "name": "rerun_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "workflows_wra_workflow_run_attempt_unique": {
+          "name": "workflows_wra_workflow_run_attempt_unique",
+          "columns": [
+            {
+              "expression": "workflow_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "attempt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workflows_wra_one_active_attempt_unique": {
+          "name": "workflows_wra_one_active_attempt_unique",
+          "columns": [
+            {
+              "expression": "workflow_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"workflows_workflow_run_attempts\".\"status\" in ('pending', 'running')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workflows_workflow_run_attempts_workflow_run_id_workflows_workflow_runs_id_fk": {
+          "name": "workflows_workflow_run_attempts_workflow_run_id_workflows_workflow_runs_id_fk",
+          "tableFrom": "workflows_workflow_run_attempts",
+          "tableTo": "workflows_workflow_runs",
+          "columnsFrom": ["workflow_run_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workflows_wra_attempt_positive_ck": {
+          "name": "workflows_wra_attempt_positive_ck",
+          "value": "\"workflows_workflow_run_attempts\".\"attempt\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.workflows_workflow_runs": {
       "name": "workflows_workflow_runs",
       "schema": "",
@@ -793,37 +932,12 @@
           "notNull": true,
           "default": "'pending'"
         },
-        "source_run_id": {
-          "name": "source_run_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "root_run_id": {
-          "name": "root_run_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attempt": {
-          "name": "attempt",
+        "current_attempt": {
+          "name": "current_attempt",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "default": 1
-        },
-        "rerun_mode": {
-          "name": "rerun_mode",
-          "type": "workflows_rerun_mode",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rerun_by_user_id": {
-          "name": "rerun_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         },
         "trigger_source": {
           "name": "trigger_source",
@@ -1036,54 +1150,18 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "workflows_wr_root_run_attempt_unique": {
-          "name": "workflows_wr_root_run_attempt_unique",
-          "columns": [
-            {
-              "expression": "root_run_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "attempt",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"workflows_workflow_runs\".\"root_run_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
-      "foreignKeys": {
-        "workflows_workflow_runs_source_run_id_workflows_workflow_runs_id_fk": {
-          "name": "workflows_workflow_runs_source_run_id_workflows_workflow_runs_id_fk",
-          "tableFrom": "workflows_workflow_runs",
-          "tableTo": "workflows_workflow_runs",
-          "columnsFrom": ["source_run_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "workflows_workflow_runs_root_run_id_workflows_workflow_runs_id_fk": {
-          "name": "workflows_workflow_runs_root_run_id_workflows_workflow_runs_id_fk",
-          "tableFrom": "workflows_workflow_runs",
-          "tableTo": "workflows_workflow_runs",
-          "columnsFrom": ["root_run_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "workflows_wr_current_attempt_positive_ck": {
+          "name": "workflows_wr_current_attempt_positive_ck",
+          "value": "\"workflows_workflow_runs\".\"current_attempt\" > 0"
+        }
+      },
       "isRLSEnabled": false
     }
   },

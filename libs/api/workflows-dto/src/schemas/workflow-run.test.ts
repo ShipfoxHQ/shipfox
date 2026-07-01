@@ -1,4 +1,4 @@
-import {runDtoSchema, workflowSourceSnapshotSchema} from './run.js';
+import {workflowRunDtoSchema, workflowSourceSnapshotSchema} from './workflow-run.js';
 
 const baseRun = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -9,6 +9,8 @@ const baseRun = {
   source_run_id: null,
   root_run_id: null,
   attempt: 1,
+  current_attempt: 1,
+  latest_attempt: 1,
   rerun_mode: null,
   trigger_source: 'manual',
   trigger_event: 'fire',
@@ -40,13 +42,13 @@ describe('workflow source snapshot schemas', () => {
   });
 
   test('accepts run DTOs with null source snapshots', () => {
-    const result = runDtoSchema.parse({...baseRun, source_snapshot: null});
+    const result = workflowRunDtoSchema.parse({...baseRun, source_snapshot: null});
 
     expect(result.source_snapshot).toBeNull();
   });
 
   test('accepts run DTOs with source snapshots', () => {
-    const result = runDtoSchema.parse({
+    const result = workflowRunDtoSchema.parse({
       ...baseRun,
       source_snapshot: {content: 'name: Build\njobs: {}\n', format: 'yaml'},
     });

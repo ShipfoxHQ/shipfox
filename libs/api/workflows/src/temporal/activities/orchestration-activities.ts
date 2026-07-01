@@ -1,16 +1,17 @@
 import {cancelRunnerJobs, enqueueJobExecution, releaseJobExecution} from '@shipfox/api-runners';
 import {ApplicationFailure} from '@temporalio/common';
 import type {JobStatus, JobStatusReason} from '#core/entities/job.js';
-import type {RuntimeCompletionStatus, RuntimeDagJob} from '#core/entities/runtime-dag.js';
 import type {StepStatus} from '#core/entities/step.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {JobNotFoundError} from '#core/errors.js';
+import type {RuntimeCompletionStatus, RuntimeDagNode} from '#core/workflow-runtime/runtime-dag.js';
 import {
   bulkUpdateStepStatuses,
   failJobExecutionAsTimedOut,
-  getJobExecutionsByRunId,
-  getJobsByRunId,
-  getWorkflowRunById,
+  getJobExecutionsByWorkflowRunAttemptId,
+  getJobsByWorkflowRunAttemptId,
+  getWorkflowRunAttemptById,
+  getWorkflowRunByAttemptId,
   resolveJobExecutionAfterLeaseExpiry,
   resolveJobStatusFromJobExecutions,
   updateJobExecutionStatus,
@@ -18,7 +19,7 @@ import {
   updateWorkflowRunStatus,
 } from '#db/index.js';
 
-export interface DagJob extends RuntimeDagJob {
+export interface DagJob extends RuntimeDagNode {
   id: string;
   name: string;
   status: JobStatus;
@@ -31,19 +32,22 @@ export interface DagJob extends RuntimeDagJob {
 }
 
 export interface RunDag {
-  runId: string;
+  workflowRunId: string;
+  runAttemptId: string;
   workspaceId: string;
   projectId: string;
   runVersion: number;
   jobs: DagJob[];
 }
 
-export async function loadRunDag(runId: string): Promise<RunDag> {
-  const run = await getWorkflowRunById(runId);
-  if (!run) throw new Error(`Run not found: ${runId}`);
+export async function loadRunAttemptDag(runAttemptId: string): Promise<RunDag> {
+  const run = await getWorkflowRunByAttemptId(runAttemptId);
+  if (!run) throw new Error(`Run not found for attempt: ${runAttemptId}`);
+  const attempt = await getWorkflowRunAttemptById(runAttemptId);
+  if (!attempt) throw new Error(`Run attempt not found: ${runAttemptId}`);
 
-  const jobs = await getJobsByRunId(runId);
-  const jobExecutions = await getJobExecutionsByRunId(runId);
+  const jobs = await getJobsByWorkflowRunAttemptId(runAttemptId);
+  const jobExecutions = await getJobExecutionsByWorkflowRunAttemptId(runAttemptId);
   const firstJobExecutions = new Map<string, (typeof jobExecutions)[number]>();
   for (const jobExecution of jobExecutions) {
     if (!firstJobExecutions.has(jobExecution.jobId)) {
@@ -52,10 +56,11 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
   }
 
   return {
-    runId: run.id,
+    workflowRunId: run.id,
+    runAttemptId,
     workspaceId: run.workspaceId,
     projectId: run.projectId,
-    runVersion: run.version,
+    runVersion: attempt.version,
     jobs: jobs.flatMap((job) => {
       const jobExecution = firstJobExecutions.get(job.id);
       if (!jobExecution) return [];
@@ -76,13 +81,13 @@ export async function loadRunDag(runId: string): Promise<RunDag> {
   };
 }
 
-export async function setRunStatus(params: {
-  runId: string;
+export async function setRunAttemptStatus(params: {
+  runAttemptId: string;
   status: WorkflowRunStatus;
   version: number;
 }): Promise<{newVersion: number; status: WorkflowRunStatus}> {
   const updated = await updateWorkflowRunStatus({
-    runId: params.runId,
+    workflowRunAttemptId: params.runAttemptId,
     status: params.status,
     expectedVersion: params.version,
   });
@@ -149,18 +154,20 @@ export async function releaseLeaseActivity(params: {jobExecutionId: string}): Pr
 
 export async function enqueueJobExecutionForRunner(params: {
   workspaceId: string;
+  workflowRunId: string;
   jobId: string;
   jobExecutionId: string;
-  runId: string;
+  runAttemptId: string;
   projectId: string;
   requiredLabels: string[];
 }): Promise<void> {
   try {
     await enqueueJobExecution({
       workspaceId: params.workspaceId,
+      workflowRunId: params.workflowRunId,
+      workflowRunAttemptId: params.runAttemptId,
       jobId: params.jobId,
       jobExecutionId: params.jobExecutionId,
-      runId: params.runId,
       projectId: params.projectId,
       requiredLabels: params.requiredLabels,
     });
@@ -178,10 +185,14 @@ export async function cancelRunnerJobsActivity(params: {jobIds: string[]}): Prom
 
 export async function failJobExecutionAsTimedOutActivity(params: {
   jobExecutionId: string;
-  runId: string;
+  runAttemptId: string;
   expectedVersion: number;
 }): Promise<{newVersion: number}> {
-  const jobExecution = await failJobExecutionAsTimedOut(params);
+  const jobExecution = await failJobExecutionAsTimedOut({
+    jobExecutionId: params.jobExecutionId,
+    workflowRunAttemptId: params.runAttemptId,
+    expectedVersion: params.expectedVersion,
+  });
   return {newVersion: jobExecution.version};
 }
 

@@ -50,6 +50,6 @@ export const fireManualTriggerRoute = defineRoute({
     });
 
     reply.status(201);
-    return {run_id: run.id};
+    return {workflow_run_id: run.id};
   },
 });

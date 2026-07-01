@@ -1,5 +1,5 @@
 import {requireUserContext} from '@shipfox/api-auth-context';
-import {rerunRunBodySchema, runResponseSchema} from '@shipfox/api-workflows-dto';
+import {rerunWorkflowRunBodySchema, workflowRunResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#core/errors.js';
@@ -15,9 +15,9 @@ export const rerunRunRoute = defineRoute({
     params: z.object({
       id: z.string().uuid(),
     }),
-    body: rerunRunBodySchema,
+    body: rerunWorkflowRunBodySchema,
     response: {
-      200: runResponseSchema,
+      200: workflowRunResponseSchema,
     },
   },
   errorHandler: (error) => {
@@ -38,11 +38,11 @@ export const rerunRunRoute = defineRoute({
 
     const actor = requireUserContext(request);
     const run = await createRerunWorkflowRun({
-      sourceRunId: sourceRun.id,
+      workflowRunId: sourceRun.id,
       mode: request.body.mode,
       actorUserId: actor.userId,
     });
 
-    return toRunDto(run);
+    return toRunDto(run, run.currentAttempt);
   },
 });

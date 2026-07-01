@@ -6,7 +6,7 @@ import {
   resetCalls,
   setCfg,
   setJobStatusCalls,
-  setRunStatusCalls,
+  setRunAttemptStatusCalls,
   setupEnv,
   TASK_QUEUE,
   teardownEnv,
@@ -21,20 +21,20 @@ afterAll(async () => {
   await teardownEnv();
 }, 15_000);
 
-let runId: string;
+let workflowRunId: string;
 let workspaceId: string;
 
 beforeEach(() => {
   resetCalls();
-  runId = `run-${randomUUID()}`;
+  workflowRunId = `run-${randomUUID()}`;
   workspaceId = `workspace-${randomUUID()}`;
 });
 
 async function executeRun(): Promise<void> {
   await testEnv.client.workflow.execute('runOrchestration', {
     taskQueue: TASK_QUEUE,
-    workflowId: `run:${runId}`,
-    args: [{runId, workspaceId}],
+    workflowId: `workflow-run-attempt:${workflowRunId}-attempt-1`,
+    args: [{workflowRunId, runAttemptId: `${workflowRunId}-attempt-1`, workspaceId}],
   });
 }
 
@@ -57,8 +57,8 @@ describe('runOrchestration', () => {
 
     await executeRun();
 
-    const runStatuses = setRunStatusCalls().map((c) => c.params.status);
-    expect(runStatuses).toEqual(['running', 'succeeded']);
+    const runAttemptStatuses = setRunAttemptStatusCalls().map((c) => c.params.status);
+    expect(runAttemptStatuses).toEqual(['running', 'succeeded']);
     const enqueueCalls = callsNamed('enqueueJobExecutionForRunner');
     expect(enqueueCalls).toHaveLength(3);
     // The lease tuple is sourced from the loaded dag (workspace/project/run together).
@@ -66,7 +66,7 @@ describe('runOrchestration', () => {
       expect(call.params).toMatchObject({
         workspaceId: 'workspace-1',
         projectId: 'project-1',
-        runId: 'r1',
+        runAttemptId: 'r1-attempt-1',
         requiredLabels: ['ubuntu22'],
       });
     }
@@ -81,8 +81,8 @@ describe('runOrchestration', () => {
 
     await executeRun();
 
-    const runStatuses = setRunStatusCalls().map((c) => c.params.status);
-    expect(runStatuses).toEqual(['running', 'succeeded']);
+    const runAttemptStatuses = setRunAttemptStatusCalls().map((c) => c.params.status);
+    expect(runAttemptStatuses).toEqual(['running', 'succeeded']);
     const enqueueCalls = callsNamed('enqueueJobExecutionForRunner');
     expect(enqueueCalls).toHaveLength(1);
     expect(enqueueCalls[0]?.params).toMatchObject({jobId: 'j2'});
@@ -97,8 +97,8 @@ describe('runOrchestration', () => {
 
     await executeRun();
 
-    const runStatuses = setRunStatusCalls().map((c) => c.params.status);
-    expect(runStatuses).toEqual(['running', 'failed']);
+    const runAttemptStatuses = setRunAttemptStatusCalls().map((c) => c.params.status);
+    expect(runAttemptStatuses).toEqual(['running', 'failed']);
     const enqueueCalls = callsNamed('enqueueJobExecutionForRunner');
     expect(enqueueCalls).toHaveLength(1);
     expect(enqueueCalls[0]?.params).toMatchObject({jobId: 'j2'});
@@ -114,8 +114,8 @@ describe('runOrchestration', () => {
 
     await executeRun();
 
-    const runStatuses = setRunStatusCalls().map((c) => c.params.status);
-    expect(runStatuses).toEqual(['running', 'succeeded']);
+    const runAttemptStatuses = setRunAttemptStatusCalls().map((c) => c.params.status);
+    expect(runAttemptStatuses).toEqual(['running', 'succeeded']);
     expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(3);
   });
 
@@ -129,8 +129,8 @@ describe('runOrchestration', () => {
 
     await executeRun();
 
-    const runStatuses = setRunStatusCalls().map((c) => c.params.status);
-    expect(runStatuses).toEqual(['running', 'failed']);
+    const runAttemptStatuses = setRunAttemptStatusCalls().map((c) => c.params.status);
+    expect(runAttemptStatuses).toEqual(['running', 'failed']);
 
     expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(1);
     const jobStatuses = setJobStatusCalls().map((c) => ({
@@ -160,8 +160,8 @@ describe('runOrchestration', () => {
 
     await executeRun();
 
-    const runStatuses = setRunStatusCalls().map((c) => c.params.status);
-    expect(runStatuses).toEqual(['running', 'failed']);
+    const runAttemptStatuses = setRunAttemptStatusCalls().map((c) => c.params.status);
+    expect(runAttemptStatuses).toEqual(['running', 'failed']);
     expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(1);
 
     const jobStatuses = setJobStatusCalls().map((c) => ({
@@ -187,9 +187,9 @@ describe('runOrchestration', () => {
 
     await executeRun();
 
-    // The final setRunStatus should use the version returned by the first setRunStatus
-    const finalRunStatus = setRunStatusCalls().at(-1);
-    expect(finalRunStatus?.params.version).toBeGreaterThan(0);
+    // The final attempt status update should use the version returned by the first update.
+    const finalRunAttemptStatus = setRunAttemptStatusCalls().at(-1);
+    expect(finalRunAttemptStatus?.params.version).toBeGreaterThan(0);
   });
 
   test('cancel signal stops scheduling and fans out runner cancellation', async () => {
@@ -198,15 +198,15 @@ describe('runOrchestration', () => {
 
     const handle = await testEnv.client.workflow.start('runOrchestration', {
       taskQueue: TASK_QUEUE,
-      workflowId: `run:${runId}`,
-      args: [{runId, workspaceId}],
+      workflowId: `run:${workflowRunId}`,
+      args: [{workflowRunId, workspaceId}],
     });
     await waitForActivity('enqueueJobExecutionForRunner');
 
     await handle.signal('run-cancel');
     await handle.result();
 
-    expect(setRunStatusCalls().map((c) => c.params.status)).toEqual(['running']);
+    expect(setRunAttemptStatusCalls().map((c) => c.params.status)).toEqual(['running']);
     expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(1);
     expect(callsNamed('cancelRunnerJobsActivity')).toEqual([
       {name: 'cancelRunnerJobsActivity', params: {jobIds: ['j1', 'j2']}},
@@ -223,7 +223,7 @@ describe('runOrchestration', () => {
 
     await executeRun();
 
-    expect(setRunStatusCalls().map((c) => c.params.status)).toEqual(['running']);
+    expect(setRunAttemptStatusCalls().map((c) => c.params.status)).toEqual(['running']);
     expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(0);
     expect(callsNamed('cancelRunnerJobsActivity')).toHaveLength(0);
   });
@@ -239,8 +239,8 @@ describe('runOrchestration', () => {
 
     await executeRun();
 
-    const runStatuses = setRunStatusCalls().map((c) => c.params.status);
-    expect(runStatuses).toEqual(['running', 'failed']);
+    const runAttemptStatuses = setRunAttemptStatusCalls().map((c) => c.params.status);
+    expect(runAttemptStatuses).toEqual(['running', 'failed']);
 
     // A, B, C enqueued — D skipped because B failed
     expect(callsNamed('enqueueJobExecutionForRunner')).toHaveLength(3);

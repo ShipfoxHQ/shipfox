@@ -57,7 +57,7 @@ export const appendLogsRoute = defineRoute({
       jobId: leasedJob.jobId,
       workspaceId: leasedJob.workspaceId,
       projectId: leasedJob.projectId,
-      runId: leasedJob.runId,
+      workflowRunAttemptId: leasedJob.workflowRunAttemptId,
       stepId,
       attempt,
       offset,

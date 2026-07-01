@@ -1,7 +1,7 @@
 import {
-  type RunStepDetailDto,
-  runStatusSchema,
   type StepAttemptDto,
+  type WorkflowRunStepDetailDto,
+  workflowRunStatusSchema,
 } from '@shipfox/api-workflows-dto';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import type {WorkflowJob} from '#core/workflow-run.js';
@@ -154,7 +154,7 @@ describe('buildWorkflowStepListModel', () => {
   });
 
   test.each(
-    runStatusSchema.options,
+    workflowRunStatusSchema.options,
   )('maps the %s step status through the shared visual', (status) => {
     const visual = getStepStatusVisual(status);
 
@@ -295,7 +295,7 @@ function makeJob(overrides: WorkflowJobDtoOverrides = {}): WorkflowJob {
   return workflowJob(overrides);
 }
 
-function makeStep(overrides: Partial<RunStepDetailDto> = {}): RunStepDetailDto {
+function makeStep(overrides: Partial<WorkflowRunStepDetailDto> = {}): WorkflowRunStepDetailDto {
   return workflowStepDto(overrides);
 }
 

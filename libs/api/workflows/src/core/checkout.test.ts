@@ -51,7 +51,7 @@ describe('resolveCheckoutIntent', () => {
     const project = projectFactory.build();
     mockGetProjectById.mockResolvedValue(project);
     const job = await jobFactory.create({}, {transient: {projectId: project.id}});
-    vi.spyOn(workflowRuns, 'getWorkflowRunById').mockResolvedValue(undefined);
+    vi.spyOn(workflowRuns, 'getWorkflowRunByAttemptId').mockResolvedValue(undefined);
 
     const act = resolveCheckoutIntent(job.id);
 

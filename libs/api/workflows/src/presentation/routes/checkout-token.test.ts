@@ -206,7 +206,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     );
   });
 
-  test('ignores a hostile runId claim and resolves via the job row', async () => {
+  test('ignores a hostile workflowRunAttemptId claim and resolves via the job row', async () => {
     const projectA = projectFactory.build();
     const projectB = projectFactory.build();
     const projectsById = new Map([
@@ -219,7 +219,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     createCheckoutSpec.mockResolvedValue(githubSpec('token'));
     const token = await mintActiveLeaseToken({
       jobId: jobA.id,
-      token: {runId: jobB.runId},
+      token: {workflowRunAttemptId: jobB.workflowRunAttemptId},
     });
 
     const res = await app.inject({

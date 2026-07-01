@@ -1,4 +1,4 @@
-import type {WorkflowsJobExecutionTimedOutEvent} from '@shipfox/api-workflows-dto';
+import type {WorkflowsJobExecutionTimedOutEventDto} from '@shipfox/api-workflows-dto';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {claimPendingJobExecution} from '#db/job-executions.js';
@@ -9,9 +9,9 @@ import {onWorkflowsJobExecutionTimedOut} from './on-workflows-job-execution-time
 function buildPayload(
   jobId: string,
   jobExecutionId: string,
-  runId: string,
-): WorkflowsJobExecutionTimedOutEvent {
-  return {jobId, jobExecutionId, runId};
+  workflowRunAttemptId: string,
+): WorkflowsJobExecutionTimedOutEventDto {
+  return {jobId, jobExecutionId, workflowRunAttemptId};
 }
 
 describe('onWorkflowsJobExecutionTimedOut', () => {
@@ -38,7 +38,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       buildPayload(
         claimed?.jobId as string,
         claimed?.jobExecutionId as string,
-        claimed?.runId as string,
+        claimed?.workflowRunAttemptId as string,
       ),
     );
 
@@ -64,9 +64,10 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       .insert(runningJobExecutions)
       .values({
         workspaceId,
+        workflowRunId: claimed?.workflowRunId as string,
         jobId: claimed?.jobId as string,
         jobExecutionId: siblingJobExecutionId,
-        runId: claimed?.runId as string,
+        workflowRunAttemptId: claimed?.workflowRunAttemptId as string,
         projectId: claimed?.projectId as string,
         runnerSessionId: siblingRunnerSession.id,
         requiredLabels: ['linux'],
@@ -77,7 +78,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       buildPayload(
         claimed?.jobId as string,
         claimed?.jobExecutionId as string,
-        claimed?.runId as string,
+        claimed?.workflowRunAttemptId as string,
       ),
     );
 
@@ -108,7 +109,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       buildPayload(
         claimed?.jobId as string,
         claimed?.jobExecutionId as string,
-        claimed?.runId as string,
+        claimed?.workflowRunAttemptId as string,
       ),
     );
     const after1 = await db()
@@ -122,7 +123,7 @@ describe('onWorkflowsJobExecutionTimedOut', () => {
       buildPayload(
         claimed?.jobId as string,
         claimed?.jobExecutionId as string,
-        claimed?.runId as string,
+        claimed?.workflowRunAttemptId as string,
       ),
     );
 

@@ -70,7 +70,7 @@ describe('resolveWorkflowRunSelection', () => {
 
     const resolved = resolveWorkflowRunSelection({
       run,
-      selection: {jobId: 'job-deploy', stepId: 'step-deploy', attemptId: 'attempt-2'},
+      selection: {jobId: 'job-deploy', stepId: 'step-deploy', stepAttemptId: 'attempt-2'},
     });
 
     expect(resolved.attempt?.id).toBe('attempt-2');
@@ -120,7 +120,7 @@ describe('resolveWorkflowRunSelection', () => {
 
     const resolved = resolveWorkflowRunSelection({
       run,
-      selection: {stepId: 'step-deploy', attemptId: 'missing-attempt'},
+      selection: {stepId: 'step-deploy', stepAttemptId: 'missing-attempt'},
     });
 
     expect(resolved.attempt?.id).toBe('attempt-2');

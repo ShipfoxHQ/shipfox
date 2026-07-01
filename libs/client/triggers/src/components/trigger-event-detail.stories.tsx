@@ -42,7 +42,7 @@ const withRouter: Decorator = (Story) => {
   });
   const runRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/workspaces/$wid/projects/$pid/runs/$runId',
+    path: '/workspaces/$wid/projects/$pid/runs/$workflowRunId',
     component: StoryRoute,
   });
   const router = createRouter({

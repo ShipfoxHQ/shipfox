@@ -260,8 +260,8 @@ function DecisionRow({workspaceId, decision}: {workspaceId: string; decision: Tr
   return (
     <li>
       <Link
-        to="/workspaces/$wid/projects/$pid/runs/$runId"
-        params={{wid: workspaceId, pid: decision.project_id, runId: decision.run_id}}
+        to="/workspaces/$wid/projects/$pid/runs/$workflowRunId"
+        params={{wid: workspaceId, pid: decision.project_id, workflowRunId: decision.run_id}}
         className="flex min-w-0 items-start gap-8 rounded-6 px-8 py-6 transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
       >
         <Icon

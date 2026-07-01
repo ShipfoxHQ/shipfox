@@ -1,10 +1,11 @@
-import {runDetailResponseSchema} from '@shipfox/api-workflows-dto';
+import {workflowRunDetailResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {getLatestAttempt, getWorkflowRunDetail} from '#db/index.js';
+import {getWorkflowRunDetail} from '#db/index.js';
 import {
   toJobDto,
   toJobExecutionDto,
+  toRunAttemptDto,
   toRunDto,
   toStepAttemptDto,
   toStepDto,
@@ -19,15 +20,18 @@ export const getRunRoute = defineRoute({
     params: z.object({
       id: z.string().uuid(),
     }),
+    querystring: z.object({
+      attempt: z.coerce.number().int().positive().optional(),
+    }),
     response: {
-      200: runDetailResponseSchema,
+      200: workflowRunDetailResponseSchema,
     },
   },
   handler: async (request) => {
     const {id} = request.params;
     await requireAccessibleRun({request, id});
 
-    const run = await getWorkflowRunDetail(id);
+    const run = await getWorkflowRunDetail(id, request.query.attempt);
     if (!run) {
       throw new ClientError('Run not found', 'not-found', {status: 404});
     }
@@ -44,11 +48,8 @@ export const getRunRoute = defineRoute({
     }));
 
     return {
-      ...toRunDto(run),
-      latest_attempt:
-        run.rootRunId !== null || run.attempt > 1
-          ? await getLatestAttempt({rootRunId: run.rootRunId ?? run.id, projectId: run.projectId})
-          : run.attempt,
+      ...toRunDto(run, run.latestAttempt),
+      run_attempt: toRunAttemptDto(run.runAttempt),
       jobs: jobDtos,
     };
   },
