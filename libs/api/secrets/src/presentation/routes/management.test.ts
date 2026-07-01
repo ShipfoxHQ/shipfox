@@ -266,6 +266,28 @@ describe('secrets management routes', () => {
     expect(second.json().secrets.map((secret: {key: string}) => secret.key)).toEqual(['BRAVO']);
   });
 
+  it('rejects duplicate batch keys without returning stale warnings', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/workspaces/${workspaceId}/secrets:batch`,
+      headers: {authorization: 'Bearer user'},
+      payload: {
+        entries: [
+          {key: 'API_TOKEN', value: 'short'},
+          {key: 'API_TOKEN', value: 'long-enough-secret'},
+        ],
+      },
+    });
+    const rows = await db()
+      .select()
+      .from(secretValues)
+      .where(eq(secretValues.workspaceId, workspaceId));
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).not.toContain('short-secret-value');
+    expect(rows).toHaveLength(0);
+  });
+
   it('emits per-key create and update events for batch writes', async () => {
     await app.inject({
       method: 'PUT',

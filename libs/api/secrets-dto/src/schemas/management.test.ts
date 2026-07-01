@@ -1,5 +1,6 @@
 import {
   batchSecretsBodySchema,
+  batchVariablesBodySchema,
   listSecretsResponseSchema,
   putSecretResponseSchema,
   variableDtoSchema,
@@ -48,6 +49,24 @@ describe('management schemas', () => {
     const result = batchSecretsBodySchema.safeParse({entries: []});
 
     expect(result.success).toBe(false);
+  });
+
+  it('rejects duplicate batch keys', () => {
+    const secretsResult = batchSecretsBodySchema.safeParse({
+      entries: [
+        {key: 'API_TOKEN', value: 'short'},
+        {key: 'API_TOKEN', value: 'long-enough-secret'},
+      ],
+    });
+    const variablesResult = batchVariablesBodySchema.safeParse({
+      entries: [
+        {key: 'REGION', value: 'us-east-1'},
+        {key: 'REGION', value: 'eu-west-1'},
+      ],
+    });
+
+    expect(secretsResult.success).toBe(false);
+    expect(variablesResult.success).toBe(false);
   });
 
   it('accepts advisory warning payloads on write responses', () => {

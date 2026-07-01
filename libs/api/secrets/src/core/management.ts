@@ -29,7 +29,11 @@ import type {SecretValue} from '#db/schema/values.js';
 import type {SecretVariable} from '#db/schema/variables.js';
 import {normalizedProjectId} from '#db/scope.js';
 import type {DekManager} from './dek-manager.js';
-import {SecretNotFoundError, VariableNotFoundError} from './errors.js';
+import {
+  SecretBatchDuplicateKeyError,
+  SecretNotFoundError,
+  VariableNotFoundError,
+} from './errors.js';
 import {fingerprintSecretValue} from './fingerprint.js';
 import {assertWorkspaceCap, validateSecretKeys, validateValueBytes} from './store-validation.js';
 import {encryptSecretValue} from './value-cipher.js';
@@ -248,7 +252,10 @@ function deleteManagementEntries<Row extends {key: string}>(params: {
 
 function normalizeEntries(entries: ManagementEntry[]): ManagementEntry[] {
   const valuesByKey = new Map<string, string>();
-  for (const entry of entries) valuesByKey.set(entry.key, entry.value);
+  for (const entry of entries) {
+    if (valuesByKey.has(entry.key)) throw new SecretBatchDuplicateKeyError(entry.key);
+    valuesByKey.set(entry.key, entry.value);
+  }
   return [...valuesByKey].map(([key, value]) => ({key, value}));
 }
 

@@ -64,6 +64,13 @@ export class SecretBatchScopeMismatchError extends Error {
   }
 }
 
+export class SecretBatchDuplicateKeyError extends Error {
+  constructor(public readonly key: string) {
+    super(`Duplicate secret or variable key in batch: ${key}`);
+    this.name = 'SecretBatchDuplicateKeyError';
+  }
+}
+
 export class SecretNotFoundError extends Error {
   constructor(public readonly key: string) {
     super(`Secret not found: ${key}`);

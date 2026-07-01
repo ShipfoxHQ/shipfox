@@ -68,9 +68,28 @@ export const batchSecretEntryBodySchema = z.object({
 });
 export type BatchSecretEntryBodyDto = z.infer<typeof batchSecretEntryBodySchema>;
 
+const batchEntriesSchema = z
+  .array(batchSecretEntryBodySchema)
+  .min(1)
+  .superRefine((entries, ctx) => {
+    const seen = new Set<string>();
+    entries.forEach((entry, index) => {
+      if (!seen.has(entry.key)) {
+        seen.add(entry.key);
+        return;
+      }
+
+      ctx.addIssue({
+        code: 'custom',
+        path: [index, 'key'],
+        message: 'Duplicate batch keys are not allowed.',
+      });
+    });
+  });
+
 export const batchSecretsBodySchema = z.object({
   project_id: optionalProjectIdSchema,
-  entries: z.array(batchSecretEntryBodySchema).min(1),
+  entries: batchEntriesSchema,
 });
 export type BatchSecretsBodyDto = z.infer<typeof batchSecretsBodySchema>;
 

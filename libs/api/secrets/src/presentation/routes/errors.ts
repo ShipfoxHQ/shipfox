@@ -2,6 +2,7 @@ import {ProjectNotFoundError} from '@shipfox/api-projects';
 import {ClientError} from '@shipfox/node-fastify';
 import {
   NamespaceValidationError,
+  SecretBatchDuplicateKeyError,
   SecretBatchScopeMismatchError,
   SecretKeyValidationError,
   SecretNotFoundError,
@@ -35,6 +36,12 @@ export function translateManagementError(error: unknown): never {
   }
   if (error instanceof SecretBatchScopeMismatchError) {
     throw new ClientError(error.message, 'batch-scope-mismatch', {status: 400});
+  }
+  if (error instanceof SecretBatchDuplicateKeyError) {
+    throw new ClientError('Duplicate batch key', 'duplicate-key', {
+      status: 400,
+      details: {key: error.key},
+    });
   }
   if (error instanceof SecretNotFoundError || error instanceof VariableNotFoundError) {
     throw new ClientError('Secret or variable not found', 'not-found', {status: 404});
