@@ -4,6 +4,10 @@ import type {IntegrationSourceControlService} from '#core/source-control-service
 import {createListIntegrationConnectionsRoute} from './list-connections.js';
 import {createListIntegrationProvidersRoute} from './list-providers.js';
 import {createListRepositoriesRoute} from './list-repositories.js';
+import {
+  createDeleteIntegrationConnectionRoute,
+  createUpdateIntegrationConnectionRoute,
+} from './manage-connections.js';
 
 export function createIntegrationRoutes(
   registry: IntegrationProviderRegistry,
@@ -14,6 +18,8 @@ export function createIntegrationRoutes(
   return [
     createListIntegrationProvidersRoute(registry),
     createListIntegrationConnectionsRoute(registry),
+    createUpdateIntegrationConnectionRoute(registry),
+    createDeleteIntegrationConnectionRoute(),
     createListRepositoriesRoute(sourceControl),
     ...providerRoutes,
   ];

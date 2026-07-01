@@ -26,6 +26,7 @@ const SETUP_PATHS = [
   '/workspaces/$wid/integrations/sentry',
   '/workspaces/$wid/integrations/gitea',
   '/workspaces/$wid/integrations/debug',
+  '/workspaces/$wid/settings/events',
 ] as const;
 
 type Scenario =
@@ -46,6 +47,7 @@ const PROVIDERS: IntegrationProviderDto[] = [
   {provider: 'sentry', display_name: 'Sentry', capabilities: []},
   {provider: 'gitea', display_name: 'Gitea', capabilities: ['source_control']},
   {provider: 'debug', display_name: 'Debug provider', capabilities: []},
+  {provider: 'webhook', display_name: 'Webhook', capabilities: []},
 ];
 
 function IntegrationGalleryStory({scenario}: IntegrationGalleryStoryProps) {
@@ -145,8 +147,9 @@ export const LongNames: Story = {
 };
 
 function fetchForScenario(scenario: Scenario): typeof fetch {
-  return (input) => {
+  return (input, init) => {
     const url = requestUrl(input);
+    const method = init?.method ?? 'GET';
     if (scenario === 'loading') return new Promise<Response>(() => undefined);
     if (url.pathname === '/integration-providers') {
       if (scenario === 'providers-error') return Promise.resolve(errorResponse());
@@ -154,9 +157,39 @@ function fetchForScenario(scenario: Scenario): typeof fetch {
         jsonResponse({providers: scenario === 'no-providers' ? [] : PROVIDERS}),
       );
     }
+    if (url.pathname.startsWith('/integration-connections/') && method === 'PATCH') {
+      return Promise.resolve(
+        jsonResponse({
+          ...connection(),
+          id: url.pathname.split('/').at(-1),
+          lifecycle_status: 'disabled',
+        }),
+      );
+    }
+    if (url.pathname.startsWith('/integration-connections/') && method === 'DELETE') {
+      return Promise.resolve(jsonResponse(undefined, {status: 204}));
+    }
     if (url.pathname === '/integration-connections') {
       if (scenario === 'connections-error') return Promise.resolve(errorResponse());
       return Promise.resolve(jsonResponse({connections: connectionsForScenario(scenario)}));
+    }
+    if (url.pathname === '/integrations/webhook/connections') {
+      return Promise.resolve(
+        jsonResponse({
+          connections: [
+            {
+              id: '77777777-7777-4777-8777-777777777777',
+              workspace_id: WORKSPACE_ID,
+              name: 'Stripe production',
+              slug: 'stripe-prod',
+              lifecycle_status: 'active',
+              inbound_url: 'https://api.example.test/webhook/77777777-7777-4777-8777-777777777777',
+              created_at: '2026-04-12T00:00:00.000Z',
+              updated_at: '2026-04-12T00:00:00.000Z',
+            },
+          ],
+        }),
+      );
     }
     return Promise.resolve(jsonResponse({}, {status: 404}));
   };
@@ -191,6 +224,18 @@ function connectionsForScenario(scenario: Scenario): IntegrationConnectionDto[] 
       provider: 'sentry',
       display_name: 'sentry-prod',
       lifecycle_status: 'error',
+    }),
+    connection({
+      id: '77777777-7777-4777-8777-777777777777',
+      provider: 'webhook',
+      external_account_id: 'stripe-prod',
+      slug: 'stripe-prod',
+      display_name: 'Stripe production',
+      capabilities: [],
+      lifecycle_status: 'active',
+      external_url: undefined,
+      created_at: '2026-04-12T00:00:00.000Z',
+      updated_at: '2026-04-12T00:00:00.000Z',
     }),
   ];
 }

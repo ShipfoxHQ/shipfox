@@ -66,6 +66,13 @@ export type ListIntegrationConnectionsResponseDto = z.infer<
   typeof listIntegrationConnectionsResponseSchema
 >;
 
+export const updateIntegrationConnectionBodySchema = z.object({
+  lifecycle_status: integrationConnectionLifecycleStatusSchema,
+});
+export type UpdateIntegrationConnectionBodyDto = z.infer<
+  typeof updateIntegrationConnectionBodySchema
+>;
+
 export const listRepositoriesParamsSchema = z.object({
   connectionId: z.string().uuid(),
 });

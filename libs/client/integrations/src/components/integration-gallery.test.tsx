@@ -2,8 +2,30 @@
 import '@testing-library/jest-dom/vitest';
 import {configureApiClient} from '@shipfox/client-api';
 import {fireEvent, screen, within} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {INTEGRATIONS_TEST_WID, jsonResponse, renderIntegrationsPage} from '#test/render.js';
 import {IntegrationGallery} from './integration-gallery.js';
+
+if (!HTMLElement.prototype.hasPointerCapture) {
+  Object.defineProperty(HTMLElement.prototype, 'hasPointerCapture', {
+    configurable: true,
+    value: () => false,
+  });
+}
+
+if (!HTMLElement.prototype.setPointerCapture) {
+  Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
+    configurable: true,
+    value: () => undefined,
+  });
+}
+
+if (!HTMLElement.prototype.releasePointerCapture) {
+  Object.defineProperty(HTMLElement.prototype, 'releasePointerCapture', {
+    configurable: true,
+    value: () => undefined,
+  });
+}
 
 const SETUP_ROUTES = [
   '/workspaces/$wid/integrations/github',
@@ -63,6 +85,7 @@ interface FetchOptions {
   providersFail?: boolean;
   connectionsFail?: boolean;
   webhookConnectionsFail?: boolean;
+  onUpdateConnection?: (connectionId: string, body: {lifecycle_status?: string}) => void;
 }
 
 function fetchForGallery(options: FetchOptions = {}) {
@@ -73,9 +96,12 @@ function fetchForGallery(options: FetchOptions = {}) {
     providersFail = false,
     connectionsFail = false,
     webhookConnectionsFail = false,
+    onUpdateConnection,
   } = options;
-  return vi.fn((input: RequestInfo | URL) => {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = input instanceof Request ? input : undefined;
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const method = init?.method ?? request?.method ?? 'GET';
     if (url.includes('/integrations/webhook/connections')) {
       if (webhookConnectionsFail)
         return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
@@ -85,6 +111,29 @@ function fetchForGallery(options: FetchOptions = {}) {
       if (providersFail)
         return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
       return Promise.resolve(jsonResponse({providers}));
+    }
+    if (url.includes('/integration-connections/')) {
+      const connectionId = url.split('/integration-connections/')[1]?.split('?')[0];
+      if (!connectionId) return Promise.resolve(jsonResponse({}, {status: 404}));
+      if (method === 'PATCH') {
+        const rawBody =
+          init?.body !== undefined ? String(init.body) : (await request?.clone().text()) || '{}';
+        const body = JSON.parse(rawBody) as {lifecycle_status?: string};
+        onUpdateConnection?.(connectionId, body);
+        const connection = connections.find(
+          (candidate) =>
+            typeof candidate === 'object' &&
+            candidate !== null &&
+            'id' in candidate &&
+            candidate.id === connectionId,
+        ) as Record<string, unknown> | undefined;
+        return Promise.resolve(
+          jsonResponse({...connection, lifecycle_status: body.lifecycle_status}),
+        );
+      }
+      if (method === 'DELETE') {
+        return Promise.resolve(jsonResponse(undefined, {status: 204}));
+      }
     }
     if (url.includes('/integration-connections')) {
       if (connectionsFail)
@@ -113,9 +162,11 @@ function renderGallery(
 
 const installedRegion = () => screen.getByRole('region', {name: 'Installed integrations'});
 const availableRegion = () => screen.getByRole('region', {name: 'Available integrations'});
+const openActions = async (name: string) => {
+  fireEvent.pointerDown(await screen.findByRole('button', {name}));
+};
 
 const SORTED_NAMES_RE = /acme-(early|late)/;
-const OPEN_STRIPE_PRODUCTION_RE = /Open Stripe production/;
 // The meta line carries the date only — the provider is named once, by the
 // icon and the account name, never repeated as body text in the row.
 const ADDED_META_RE = /^Added /;
@@ -214,51 +265,95 @@ describe('IntegrationGallery — installed section', () => {
     expect(title).toHaveClass('text-foreground-neutral-disabled');
   });
 
-  test('shows the external link only when external_url is set, with the account name in its label', async () => {
-    renderGallery(
-      {},
-      {
-        connections: [
-          {
-            ...githubConnection,
-            id: '11111111-1111-4111-8111-aaaaaaaaaaaa',
-            display_name: 'acme-linked',
-          },
-          {
-            ...githubConnection,
-            id: '22222222-2222-4222-8222-bbbbbbbbbbbb',
-            display_name: 'acme-unlinked',
-            external_url: undefined,
-          },
-        ],
-      },
-    );
-
-    expect(await screen.findByRole('link', {name: 'Open acme-linked in GitHub'})).toHaveAttribute(
-      'href',
-      githubConnection.external_url,
-    );
-    expect(
-      screen.queryByRole('link', {name: 'Open acme-unlinked in GitHub'}),
-    ).not.toBeInTheDocument();
-  });
-
-  test('shows Manage for webhook rows instead of an Open link', async () => {
+  test('shows the standard actions menu for installed rows', async () => {
     renderGallery({}, {connections: [webhookConnection]});
 
     expect(await screen.findByText('Stripe production')).toBeVisible();
-    expect(screen.getByRole('button', {name: 'Manage'})).toBeVisible();
-    expect(screen.queryByRole('link', {name: OPEN_STRIPE_PRODUCTION_RE})).not.toBeInTheDocument();
+    await openActions('Open Stripe production integration actions');
+
+    expect(screen.getByRole('menuitem', {name: 'Use this integration'})).toBeVisible();
+    expect(screen.getByRole('menuitem', {name: 'Disable integration'})).toBeVisible();
+    expect(screen.getByRole('menuitem', {name: 'Delete integration'})).toBeVisible();
   });
 
-  test('opens the webhook manage modal from an installed row', async () => {
+  test('opens the standard usage modal with webhook details', async () => {
     renderGallery({}, {connections: [webhookConnection]});
 
-    fireEvent.click(await screen.findByRole('button', {name: 'Manage'}));
+    await openActions('Open Stripe production integration actions');
+    fireEvent.click(screen.getByRole('menuitem', {name: 'Use this integration'}));
 
+    expect(await screen.findByText('Usage')).toBeVisible();
+    expect(screen.getByText('stripe-prod')).toBeVisible();
+    expect(screen.getByText('received')).toBeVisible();
     expect(await screen.findByText('Inbound URL')).toBeVisible();
     expect(screen.getByText(webhookConnectionDto.inbound_url)).toBeVisible();
     expect(screen.getByRole('link', {name: 'View deliveries'})).toBeVisible();
+  });
+
+  test('shows GitHub webhook events in the usage selector', async () => {
+    const user = userEvent.setup();
+    renderGallery({}, {connections: [githubConnection]});
+
+    await openActions('Open acme-corp integration actions');
+    fireEvent.click(screen.getByRole('menuitem', {name: 'Use this integration'}));
+
+    expect(await screen.findByText('Usage')).toBeVisible();
+    expect(screen.getAllByText('github_acme_corp')[0]).toBeVisible();
+    expect(screen.getAllByText('push')[0]).toBeVisible();
+    expect(screen.getByRole('combobox', {name: 'Event'})).toBeVisible();
+    await user.click(screen.getByRole('combobox', {name: 'Event'}));
+
+    expect(await screen.findByRole('option', {name: 'pull_request'})).toBeVisible();
+    expect(screen.getByRole('option', {name: 'workflow_run'})).toBeVisible();
+  });
+
+  test('toggles integration lifecycle status from the actions menu', async () => {
+    const updates: Array<{connectionId: string; body: {lifecycle_status?: string}}> = [];
+    const fetchImpl = fetchForGallery({
+      connections: [githubConnection],
+      onUpdateConnection: (connectionId, body) => updates.push({connectionId, body}),
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    renderIntegrationsPage({
+      path: `/workspaces/${INTEGRATIONS_TEST_WID}/integrations`,
+      routePath: '/workspaces/$wid/integrations',
+      element: <IntegrationGallery />,
+      extraRoutes: SETUP_ROUTES,
+    });
+
+    await openActions('Open acme-corp integration actions');
+    fireEvent.click(screen.getByRole('menuitem', {name: 'Disable integration'}));
+
+    await screen.findByText('Integration disabled.');
+    const updateRequest = fetchImpl.mock.calls
+      .map(([input]) => input)
+      .find(
+        (input) =>
+          input instanceof Request &&
+          input.url.includes(`/integration-connections/${githubConnection.id}`),
+      );
+    expect(updateRequest).toBeInstanceOf(Request);
+    expect((updateRequest as Request).method).toBe('PATCH');
+    expect(updates).toEqual([
+      {
+        connectionId: githubConnection.id,
+        body: {lifecycle_status: 'disabled'},
+      },
+    ]);
+  });
+
+  test('opens the delete confirmation from the actions menu', async () => {
+    renderGallery({}, {connections: [githubConnection]});
+
+    await openActions('Open acme-corp integration actions');
+    fireEvent.click(screen.getByRole('menuitem', {name: 'Delete integration'}));
+
+    expect(
+      await screen.findByText(
+        'Delete acme-corp? Events from this connection stop immediately. This cannot be undone.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole('button', {name: 'Delete integration'})).toBeVisible();
   });
 
   test('filters connections by capability in memory', async () => {
@@ -307,7 +402,9 @@ describe('IntegrationGallery — installed section', () => {
 
     expect(await screen.findByText('acme-corp')).toBeVisible();
     expect(within(installedRegion()).getByText(ADDED_META_RE)).toBeVisible();
-    expect(screen.getByRole('link', {name: 'Open acme-corp in github'})).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {name: 'Open acme-corp integration actions'}),
+    ).toBeInTheDocument();
     expect(
       within(availableRegion()).getByText("Couldn't load available integrations"),
     ).toBeInTheDocument();

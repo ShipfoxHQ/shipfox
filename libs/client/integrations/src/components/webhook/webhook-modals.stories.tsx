@@ -1,4 +1,6 @@
+import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import type {WebhookConnectionDto} from '@shipfox/api-integration-webhook-dto';
+import {WEBHOOK_RECEIVED_EVENT} from '@shipfox/api-integration-webhook-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {Modal, ModalContent, ModalHeader, ModalTitle, Toaster} from '@shipfox/react-ui';
 import type {Meta, StoryObj} from '@storybook/react';
@@ -13,9 +15,11 @@ import {
 } from '@tanstack/react-router';
 import type {ReactNode} from 'react';
 import {useMemo} from 'react';
+import {IntegrationDeleteConfirmModal} from '../integration-delete-confirm-modal.js';
+import {IntegrationUsageModal} from '../integration-usage-modal.js';
 import {CopyableValue} from './copyable-value.js';
 import {WebhookCreateModal, WebhookCreateSuccessContent} from './webhook-create-modal.js';
-import {WebhookDeleteConfirmContent, WebhookManageModal} from './webhook-manage-modal.js';
+import {WebhookUsageDetails} from './webhook-usage-details.js';
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const CONNECTION_ID = '77777777-7777-4777-8777-777777777777';
@@ -23,8 +27,8 @@ const CONNECTION_ID = '77777777-7777-4777-8777-777777777777';
 type Scenario =
   | 'create-form'
   | 'create-success'
-  | 'manage-active'
-  | 'manage-disabled'
+  | 'usage-active'
+  | 'usage-disabled'
   | 'delete-confirm'
   | 'copyable-value';
 
@@ -48,8 +52,26 @@ const disabledConnection: WebhookConnectionDto = {
   lifecycle_status: 'disabled',
 };
 
+const activeIntegrationConnection: IntegrationConnectionDto = {
+  id: CONNECTION_ID,
+  workspace_id: WORKSPACE_ID,
+  provider: 'webhook',
+  external_account_id: activeConnection.slug,
+  slug: activeConnection.slug,
+  display_name: activeConnection.name,
+  lifecycle_status: activeConnection.lifecycle_status,
+  capabilities: [],
+  created_at: activeConnection.created_at,
+  updated_at: activeConnection.updated_at,
+};
+
+const disabledIntegrationConnection: IntegrationConnectionDto = {
+  ...activeIntegrationConnection,
+  lifecycle_status: 'disabled',
+};
+
 function WebhookModalStory({scenario}: WebhookModalStoryProps) {
-  const connection = scenario === 'manage-disabled' ? disabledConnection : activeConnection;
+  const connection = scenario === 'usage-disabled' ? disabledConnection : activeConnection;
 
   configureApiClient({
     baseUrl: 'https://api.example.test',
@@ -86,12 +108,12 @@ export const CreateSuccess: Story = {
   args: {scenario: 'create-success'},
 };
 
-export const ManageActive: Story = {
-  args: {scenario: 'manage-active'},
+export const UsageActive: Story = {
+  args: {scenario: 'usage-active'},
 };
 
-export const ManageDisabled: Story = {
-  args: {scenario: 'manage-disabled'},
+export const UsageDisabled: Story = {
+  args: {scenario: 'usage-disabled'},
 };
 
 export const DeleteConfirm: Story = {
@@ -125,23 +147,28 @@ function StorySurface({scenario}: {scenario: Scenario}) {
           <WebhookCreateSuccessContent connection={activeConnection} onDone={() => undefined} />
         </StoryModal>
       ) : null}
-      {scenario === 'manage-active' || scenario === 'manage-disabled' ? (
-        <WebhookManageModal
-          workspaceId={WORKSPACE_ID}
-          connectionId={CONNECTION_ID}
+      {scenario === 'usage-active' || scenario === 'usage-disabled' ? (
+        <IntegrationUsageModal
+          connection={
+            scenario === 'usage-disabled'
+              ? disabledIntegrationConnection
+              : activeIntegrationConnection
+          }
+          events={[{value: WEBHOOK_RECEIVED_EVENT, label: WEBHOOK_RECEIVED_EVENT}]}
           open
           onOpenChange={() => undefined}
-        />
+        >
+          <WebhookUsageDetails workspaceId={WORKSPACE_ID} connectionId={CONNECTION_ID} />
+        </IntegrationUsageModal>
       ) : null}
       {scenario === 'delete-confirm' ? (
-        <StoryModal title="Delete webhook">
-          <WebhookDeleteConfirmContent
-            name={activeConnection.name}
-            isPending={false}
-            onCancel={() => undefined}
-            onConfirm={() => undefined}
-          />
-        </StoryModal>
+        <IntegrationDeleteConfirmModal
+          connectionName={activeConnection.name}
+          open
+          isPending={false}
+          onOpenChange={() => undefined}
+          onConfirm={() => undefined}
+        />
       ) : null}
       {scenario === 'copyable-value' ? (
         <div className="mx-auto max-w-[560px] rounded-8 border border-border-neutral-base bg-background-neutral-base p-24">

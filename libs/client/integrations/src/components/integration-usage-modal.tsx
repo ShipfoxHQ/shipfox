@@ -1,0 +1,180 @@
+import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
+import {
+  Button,
+  Code,
+  CodeBlock,
+  CodeBlockBody,
+  CodeBlockContent,
+  CodeBlockCopyButton,
+  CodeBlockFilename,
+  CodeBlockFiles,
+  CodeBlockHeader,
+  CodeBlockItem,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Text,
+} from '@shipfox/react-ui';
+import type {ReactNode} from 'react';
+import {useEffect, useMemo, useState} from 'react';
+import {ConnectionStatusBadge} from '#connection-status-badge.js';
+
+export interface IntegrationUsageEvent {
+  value: string;
+  label: string;
+}
+
+interface IntegrationUsageModalProps {
+  connection: IntegrationConnectionDto | null;
+  events: IntegrationUsageEvent[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children?: ReactNode;
+}
+
+const WORKFLOW_FILENAME = '.shipfox/workflows/integration.yml';
+
+export function IntegrationUsageModal({
+  connection,
+  events,
+  open,
+  onOpenChange,
+  children,
+}: IntegrationUsageModalProps) {
+  const [selectedEvent, setSelectedEvent] = useState('');
+
+  useEffect(() => {
+    setSelectedEvent(events[0]?.value ?? '');
+  }, [events]);
+
+  const selectedEventLabel =
+    events.find((event) => event.value === selectedEvent)?.label ?? selectedEvent;
+  const workflowExample = connection
+    ? buildWorkflowExample({source: connection.slug, event: selectedEvent})
+    : '';
+  const data = useMemo(
+    () => [{language: 'yaml', filename: WORKFLOW_FILENAME, code: workflowExample}],
+    [workflowExample],
+  );
+  const title = connection ? `Use ${connection.display_name}` : 'Use integration';
+
+  return (
+    <Modal open={open && connection !== null} onOpenChange={onOpenChange}>
+      <ModalContent
+        aria-describedby={undefined}
+        className="max-h-[calc(100vh-32px)] max-w-[640px] [&>div]:flex [&>div]:min-h-0 [&>div]:flex-col"
+      >
+        <ModalTitle className="sr-only">{title}</ModalTitle>
+        <ModalHeader>
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex min-w-0 items-center gap-8">
+              <Text size="lg" aria-hidden="true" className="truncate">
+                {title}
+              </Text>
+              {connection ? (
+                <ConnectionStatusBadge status={connection.lifecycle_status} className="shrink-0" />
+              ) : null}
+            </div>
+            <Text size="sm" className="text-foreground-neutral-muted">
+              Reference this connection from a workflow trigger.
+            </Text>
+          </div>
+        </ModalHeader>
+        {connection ? (
+          <>
+            <ModalBody className="min-h-0 flex-1 gap-24 overflow-y-auto overflow-x-clip scrollbar">
+              <section className="flex w-full flex-col gap-12">
+                <Text size="md" bold>
+                  Usage
+                </Text>
+                {events.length > 1 ? (
+                  <div className="flex flex-col gap-6">
+                    <label
+                      htmlFor="integration-usage-event"
+                      className="font-display text-sm font-medium text-foreground-neutral-base"
+                    >
+                      Event
+                    </label>
+                    <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+                      <SelectTrigger id="integration-usage-event">
+                        <SelectValue placeholder="Select event" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {events.map((event) => (
+                          <SelectItem key={event.value} value={event.value}>
+                            {event.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+                <CodeBlock data={data} className="h-auto min-h-0 rounded-8">
+                  <CodeBlockHeader>
+                    <CodeBlockFiles>
+                      {(item) => (
+                        <CodeBlockFilename value={item.filename}>{item.filename}</CodeBlockFilename>
+                      )}
+                    </CodeBlockFiles>
+                    <CodeBlockCopyButton />
+                  </CodeBlockHeader>
+                  <CodeBlockBody>
+                    {(item) => (
+                      <CodeBlockItem value={item.filename}>
+                        <CodeBlockContent
+                          language="yaml"
+                          syntaxHighlighting
+                          highlightedLineRange={{startLine: 3, endLine: 4}}
+                        >
+                          {item.code}
+                        </CodeBlockContent>
+                      </CodeBlockItem>
+                    )}
+                  </CodeBlockBody>
+                </CodeBlock>
+                <Text size="sm" className="text-foreground-neutral-muted">
+                  Trigger source <Code as="span">{connection.slug}</Code>, event{' '}
+                  <Code as="span">{selectedEventLabel}</Code>.
+                </Text>
+              </section>
+              {children ? (
+                <section className="flex w-full flex-col gap-12">
+                  <Text size="md" bold>
+                    Details
+                  </Text>
+                  {children}
+                </section>
+              ) : null}
+            </ModalBody>
+            <ModalFooter>
+              <Button type="button" onClick={() => onOpenChange(false)}>
+                Done
+              </Button>
+            </ModalFooter>
+          </>
+        ) : null}
+      </ModalContent>
+    </Modal>
+  );
+}
+
+function buildWorkflowExample({source, event}: {source: string; event: string}) {
+  return [
+    'triggers:',
+    '  integration:',
+    `    source: ${source}`,
+    `    event: ${event}`,
+    'jobs:',
+    '  handle-event:',
+    '    steps:',
+    '      - run: echo "Received event"',
+  ].join('\n');
+}

@@ -2,21 +2,40 @@ import type {
   IntegrationCapabilityDto,
   IntegrationConnectionDto,
   IntegrationProviderDto,
+  SentryIssueAction,
 } from '@shipfox/api-integration-core-dto';
+import {SENTRY_ISSUE_ACTIONS} from '@shipfox/api-integration-core-dto';
+import {WEBHOOK_RECEIVED_EVENT} from '@shipfox/api-integration-webhook-dto';
 import {useActiveWorkspace} from '@shipfox/client-auth';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {Button, cn, EmptyState, formatDate, Header, Skeleton, Text} from '@shipfox/react-ui';
+import {
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  EmptyState,
+  formatDate,
+  Header,
+  IconButton,
+  Skeleton,
+  Text,
+  toast,
+} from '@shipfox/react-ui';
 import {useState} from 'react';
 import {ConnectionStatusBadge} from '#connection-status-badge.js';
 import {
+  useDeleteIntegrationConnectionMutation,
   useIntegrationConnectionsQuery,
   useIntegrationProvidersQuery,
+  useUpdateIntegrationConnectionMutation,
 } from '#hooks/api/integrations.js';
 import {IntegrationIcon} from '#integration-icon.js';
-import {PROVIDER_CATALOG} from '#provider-catalog.js';
+import {IntegrationDeleteConfirmModal} from './integration-delete-confirm-modal.js';
+import {type IntegrationUsageEvent, IntegrationUsageModal} from './integration-usage-modal.js';
 import {ProviderGrid} from './provider-grid.js';
 import {WebhookCreateModal} from './webhook/webhook-create-modal.js';
-import {WebhookManageModal} from './webhook/webhook-manage-modal.js';
+import {WebhookUsageDetails} from './webhook/webhook-usage-details.js';
 
 export interface IntegrationGalleryProps {
   capability?: IntegrationCapabilityDto;
@@ -28,6 +47,84 @@ export interface IntegrationGalleryProps {
 // the subtle page canvas, rather than the list blending into the background.
 const SURFACE_CLASS =
   'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';
+
+const GITHUB_EVENTS = [
+  'push',
+  'branch_protection_configuration',
+  'branch_protection_rule',
+  'check_run',
+  'check_suite',
+  'code_scanning_alert',
+  'commit_comment',
+  'create',
+  'custom_property',
+  'custom_property_values',
+  'delete',
+  'dependabot_alert',
+  'deploy_key',
+  'deployment',
+  'deployment_protection_rule',
+  'deployment_review',
+  'deployment_status',
+  'discussion',
+  'discussion_comment',
+  'fork',
+  'github_app_authorization',
+  'gollum',
+  'installation',
+  'installation_repositories',
+  'installation_target',
+  'issue_comment',
+  'issue_dependencies',
+  'issues',
+  'label',
+  'marketplace_purchase',
+  'member',
+  'membership',
+  'merge_group',
+  'meta',
+  'milestone',
+  'org_block',
+  'organization',
+  'package',
+  'page_build',
+  'personal_access_token_request',
+  'ping',
+  'project',
+  'project_card',
+  'project_column',
+  'projects_v2',
+  'projects_v2_item',
+  'projects_v2_status_update',
+  'public',
+  'pull_request',
+  'pull_request_review',
+  'pull_request_review_comment',
+  'pull_request_review_thread',
+  'registry_package',
+  'release',
+  'repository',
+  'repository_advisory',
+  'repository_dispatch',
+  'repository_import',
+  'repository_ruleset',
+  'repository_vulnerability_alert',
+  'secret_scanning_alert',
+  'secret_scanning_alert_location',
+  'secret_scanning_scan',
+  'security_advisory',
+  'security_and_analysis',
+  'sponsorship',
+  'star',
+  'status',
+  'sub_issues',
+  'team',
+  'team_add',
+  'watch',
+  'workflow_dispatch',
+  'workflow_job',
+  'workflow_run',
+] as const;
 
 export function IntegrationGallery({
   capability,
@@ -79,9 +176,12 @@ function IntegrationGalleryForWorkspace({
   workspaceId: string;
 }) {
   const [createProvider, setCreateProvider] = useState<string | undefined>();
-  const [manageConnectionId, setManageConnectionId] = useState<string | undefined>();
+  const [usageConnectionId, setUsageConnectionId] = useState<string | undefined>();
+  const [deleteConnectionId, setDeleteConnectionId] = useState<string | undefined>();
   const providersQuery = useIntegrationProvidersQuery(capability ? {capability} : undefined);
   const connectionsQuery = useIntegrationConnectionsQuery(workspaceId);
+  const updateConnection = useUpdateIntegrationConnectionMutation();
+  const deleteConnection = useDeleteIntegrationConnectionMutation();
 
   const providers = providersQuery.data?.providers ?? [];
   const providersMap = new Map<string, IntegrationProviderDto>(
@@ -103,6 +203,37 @@ function IntegrationGalleryForWorkspace({
     if (byProvider !== 0) return byProvider;
     return a.created_at.localeCompare(b.created_at);
   });
+  const usageConnection =
+    sortedConnections.find((connection) => connection.id === usageConnectionId) ?? null;
+  const deleteConnectionTarget = sortedConnections.find(
+    (connection) => connection.id === deleteConnectionId,
+  );
+
+  async function setConnectionActive(connection: IntegrationConnectionDto, active: boolean) {
+    try {
+      await updateConnection.mutateAsync({
+        connectionId: connection.id,
+        body: {lifecycle_status: active ? 'active' : 'disabled'},
+      });
+      toast.success(active ? 'Integration enabled.' : 'Integration disabled.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update integration.');
+    }
+  }
+
+  async function confirmDeleteConnection() {
+    if (!deleteConnectionTarget) return;
+    try {
+      await deleteConnection.mutateAsync({
+        workspaceId,
+        connectionId: deleteConnectionTarget.id,
+      });
+      toast.success('Integration deleted.');
+      setDeleteConnectionId(undefined);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete integration.');
+    }
+  }
 
   return (
     <div className="flex flex-col gap-24">
@@ -138,8 +269,12 @@ function IntegrationGalleryForWorkspace({
               <InstalledRow
                 key={connection.id}
                 connection={connection}
-                providerLabel={providerLabel(connection.provider)}
-                onManage={setManageConnectionId}
+                isMutating={updateConnection.isPending || deleteConnection.isPending}
+                onUse={setUsageConnectionId}
+                onSetActive={(nextActive) => {
+                  void setConnectionActive(connection, nextActive);
+                }}
+                onDelete={setDeleteConnectionId}
               />
             ))}
           </ul>
@@ -166,12 +301,27 @@ function IntegrationGalleryForWorkspace({
         open={createProvider === 'webhook'}
         onOpenChange={(open) => setCreateProvider(open ? 'webhook' : undefined)}
       />
-      <WebhookManageModal
-        workspaceId={workspaceId}
-        connectionId={manageConnectionId}
-        open={manageConnectionId !== undefined}
+      <IntegrationUsageModal
+        connection={usageConnection}
+        events={usageConnection ? usageEventsForConnection(usageConnection) : []}
+        open={usageConnection !== null}
         onOpenChange={(open) => {
-          if (!open) setManageConnectionId(undefined);
+          if (!open) setUsageConnectionId(undefined);
+        }}
+      >
+        {usageConnection?.provider === 'webhook' ? (
+          <WebhookUsageDetails workspaceId={workspaceId} connectionId={usageConnection.id} />
+        ) : null}
+      </IntegrationUsageModal>
+      <IntegrationDeleteConfirmModal
+        connectionName={deleteConnectionTarget?.display_name}
+        open={deleteConnectionId !== undefined}
+        isPending={deleteConnection.isPending}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConnectionId(undefined);
+        }}
+        onConfirm={() => {
+          void confirmDeleteConnection();
         }}
       />
     </div>
@@ -180,15 +330,19 @@ function IntegrationGalleryForWorkspace({
 
 function InstalledRow({
   connection,
-  providerLabel,
-  onManage,
+  isMutating,
+  onUse,
+  onSetActive,
+  onDelete,
 }: {
   connection: IntegrationConnectionDto;
-  providerLabel: string;
-  onManage: (connectionId: string) => void;
+  isMutating: boolean;
+  onUse: (connectionId: string) => void;
+  onSetActive: (active: boolean) => void;
+  onDelete: (connectionId: string) => void;
 }) {
   const muted = connection.lifecycle_status === 'disabled';
-  const catalog = PROVIDER_CATALOG[connection.provider];
+  const active = connection.lifecycle_status === 'active';
 
   return (
     <li className="flex items-center gap-12 px-16 py-12 transition-colors hover:bg-background-components-hover">
@@ -217,36 +371,64 @@ function InstalledRow({
           Added {formatDate(connection.created_at)}
         </Text>
       </div>
-      {catalog?.kind === 'modal-connect' ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="transparentMuted"
-          className="shrink-0"
-          onClick={() => onManage(connection.id)}
-        >
-          Manage
-        </Button>
-      ) : connection.external_url ? (
-        <Button
-          asChild
-          size="sm"
-          variant="transparentMuted"
-          iconRight="externalLinkLine"
-          className="shrink-0"
-        >
-          <a
-            href={connection.external_url}
-            target="_blank"
-            rel="noreferrer noopener"
-            aria-label={`Open ${connection.display_name} in ${providerLabel}`}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <IconButton
+            size="sm"
+            variant="transparent"
+            icon="more2Line"
+            aria-label={`Open ${connection.display_name} integration actions`}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem icon="bookOpenLine" onSelect={() => onUse(connection.id)}>
+            Use this integration
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            icon={active ? 'pauseCircleLine' : 'playCircleLine'}
+            disabled={isMutating}
+            onSelect={() => onSetActive(!active)}
           >
-            Open
-          </a>
-        </Button>
-      ) : null}
+            {active ? 'Disable integration' : 'Enable integration'}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            icon="deleteBinLine"
+            disabled={isMutating}
+            onSelect={() => onDelete(connection.id)}
+          >
+            Delete integration
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </li>
   );
+}
+
+function usageEventsForConnection(connection: IntegrationConnectionDto): IntegrationUsageEvent[] {
+  if (connection.provider === 'webhook') {
+    return [{value: WEBHOOK_RECEIVED_EVENT, label: WEBHOOK_RECEIVED_EVENT}];
+  }
+
+  if (connection.provider === 'github') {
+    return GITHUB_EVENTS.map((event) => ({value: event, label: event}));
+  }
+
+  if (connection.provider === 'sentry') {
+    return SENTRY_ISSUE_ACTIONS.map((action) => ({
+      value: `issue.${action}`,
+      label: sentryIssueEventLabel(action),
+    }));
+  }
+
+  if (connection.capabilities.includes('source_control')) {
+    return [{value: 'push', label: 'push'}];
+  }
+
+  return [{value: 'received', label: 'received'}];
+}
+
+function sentryIssueEventLabel(action: SentryIssueAction): string {
+  return `issue.${action}`;
 }
 
 function InstalledSkeleton({label}: {label: string}) {
