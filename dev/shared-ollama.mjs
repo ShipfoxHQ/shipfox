@@ -48,6 +48,7 @@ function serviceContext(env = process.env, cwd = process.cwd()) {
     rootPath,
     stateDir,
     pidFile: resolve(stateDir, 'ollama.pid'),
+    stateFile: resolve(stateDir, 'ollama-process.json'),
     logFile: resolve(stateDir, 'ollama.log'),
     baseUrl,
     listenHost: ollamaListenHost(baseUrl),
@@ -60,7 +61,22 @@ async function up(context) {
   mkdirSync(context.stateDir, {recursive: true});
 
   if (!(await isHealthy(context.baseUrl))) {
-    removeStalePid(context.pidFile);
+    const managedProcess = readManagedProcess(context);
+    if (managedProcess !== undefined) {
+      await stopManagedProcess(context, managedProcess.pid);
+    } else {
+      const unverifiedPid = readLiveUnverifiedPid(context);
+      if (unverifiedPid !== undefined) {
+        fail(
+          [
+            `Recorded Ollama pid ${unverifiedPid} is alive but missing valid process metadata.`,
+            'Stop it manually before running ollama:up again.',
+          ].join(' '),
+        );
+      }
+      removeProcessState(context);
+    }
+
     startServer(context);
     await waitForHealthy(context.baseUrl);
   }
@@ -75,28 +91,27 @@ async function up(context) {
 }
 
 async function stop(context) {
-  const pid = readPid(context.pidFile);
-  if (pid === undefined || !isProcessAlive(pid)) {
-    rmSync(context.pidFile, {force: true});
+  const managedProcess = readManagedProcess(context);
+  if (managedProcess === undefined) {
+    const unverifiedPid = readLiveUnverifiedPid(context);
+    if (unverifiedPid === undefined) removeProcessState(context);
     printLine('Shared Ollama is not managed by this repo, or it is already stopped.');
     return;
   }
 
-  killProcessGroup(pid, 'SIGTERM');
-  await waitForProcessExit(pid, 5_000);
-  if (isProcessAlive(pid)) killProcessGroup(pid, 'SIGKILL');
-  rmSync(context.pidFile, {force: true});
+  await stopManagedProcess(context, managedProcess.pid);
   printLine('Shared Ollama stopped.');
 }
 
 async function status(context) {
   const healthy = await isHealthy(context.baseUrl);
-  const pid = readPid(context.pidFile);
-  const managed = pid !== undefined && isProcessAlive(pid);
+  const managedProcess = readManagedProcess(context);
 
   printLine(`Root: ${context.rootPath}`);
   printLine(`Endpoint: ${context.baseUrl}`);
-  printLine(`Managed process: ${managed ? `running (${pid})` : 'not running'}`);
+  const managedLabel =
+    managedProcess !== undefined ? `running (${managedProcess.pid})` : 'not running';
+  printLine(`Managed process: ${managedLabel}`);
   printLine(`HTTP health: ${healthy ? 'healthy' : 'unavailable'}`);
 }
 
@@ -117,6 +132,12 @@ function startServer(context) {
   );
   child.unref();
   writeFileSync(context.pidFile, `${child.pid}\n`);
+  writeProcessState(context, {
+    pid: child.pid,
+    processStartTime: processStartTime(child.pid),
+    listenHost: context.listenHost,
+    startedAt: new Date().toISOString(),
+  });
 }
 
 function startWarmup(context) {
@@ -188,10 +209,67 @@ function ollamaListenHost(baseUrl) {
   return `${url.hostname}:${url.port || (url.protocol === 'https:' ? '443' : '80')}`;
 }
 
-function removeStalePid(pidFile) {
-  const pid = readPid(pidFile);
-  if (pid !== undefined && isProcessAlive(pid)) return;
-  rmSync(pidFile, {force: true});
+async function stopManagedProcess(context, pid) {
+  killProcessGroup(pid, 'SIGTERM');
+  await waitForProcessExit(pid, 5_000);
+  if (isProcessAlive(pid)) killProcessGroup(pid, 'SIGKILL');
+  removeProcessState(context);
+}
+
+function writeProcessState(context, state) {
+  writeFileSync(context.stateFile, `${JSON.stringify(state, null, 2)}\n`);
+}
+
+function readManagedProcess(context) {
+  const state = readProcessState(context.stateFile);
+  if (state === undefined || !isProcessAlive(state.pid)) return undefined;
+  if (!processIdentityMatches(state)) return undefined;
+  return state;
+}
+
+function readLiveUnverifiedPid(context) {
+  const pid = readPid(context.pidFile);
+  if (pid === undefined || !isProcessAlive(pid)) return undefined;
+  const state = readProcessState(context.stateFile);
+  if (state !== undefined && state.pid === pid && processIdentityMatches(state)) {
+    return undefined;
+  }
+  return pid;
+}
+
+function readProcessState(stateFile) {
+  if (!existsSync(stateFile)) return undefined;
+  try {
+    const state = JSON.parse(readFileSync(stateFile, 'utf8'));
+    if (!Number.isInteger(state.pid) || state.pid <= 0) return undefined;
+    return {
+      pid: state.pid,
+      processStartTime:
+        typeof state.processStartTime === 'string' ? state.processStartTime : undefined,
+      listenHost: typeof state.listenHost === 'string' ? state.listenHost : undefined,
+      startedAt: typeof state.startedAt === 'string' ? state.startedAt : undefined,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function processIdentityMatches(state) {
+  if (state.processStartTime === undefined) return false;
+  return processStartTime(state.pid) === state.processStartTime;
+}
+
+function processStartTime(pid) {
+  const result = spawnSync('ps', ['-p', String(pid), '-o', 'lstart='], {
+    encoding: 'utf8',
+  });
+  if (result.error || result.status !== 0) return undefined;
+  return result.stdout.trim() || undefined;
+}
+
+function removeProcessState(context) {
+  rmSync(context.pidFile, {force: true});
+  rmSync(context.stateFile, {force: true});
 }
 
 function readPid(pidFile) {
@@ -256,4 +334,4 @@ function printError(message) {
   process.stderr.write(`${message}\n`);
 }
 
-export {ollamaListenHost, serviceContext};
+export {ollamaListenHost, processIdentityMatches, processStartTime, serviceContext};
