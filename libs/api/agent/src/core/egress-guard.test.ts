@@ -10,7 +10,7 @@ const lookupMock = vi.mocked(lookup);
 describe('assertEgressAllowed', () => {
   beforeEach(() => {
     lookupMock.mockReset();
-    mockLookupAddresses([{address: '203.0.113.10', family: 4}]);
+    mockLookupAddresses([{address: '8.8.8.8', family: 4}]);
   });
 
   it('allows http and https URLs', async () => {
@@ -31,15 +31,15 @@ describe('assertEgressAllowed', () => {
   });
 
   it('checks IP literals without DNS resolution', async () => {
-    await assertEgressAllowed('https://203.0.113.10/v1', lockedPolicy());
+    await assertEgressAllowed('https://8.8.8.8/v1', lockedPolicy());
 
     expect(lookupMock).not.toHaveBeenCalled();
   });
 
   it('resolves hostnames to all addresses', async () => {
     mockLookupAddresses([
-      {address: '203.0.113.10', family: 4},
-      {address: '2001:db8::1', family: 6},
+      {address: '8.8.8.8', family: 4},
+      {address: '2001:4860:4860::8888', family: 6},
     ]);
 
     await assertEgressAllowed('https://models.example.test/v1', lockedPolicy());
@@ -51,8 +51,13 @@ describe('assertEgressAllowed', () => {
     ['loopback', 'http://127.0.0.1/v1'],
     ['rfc1918', 'http://10.0.0.12/v1'],
     ['metadata', 'http://169.254.169.254/latest/meta-data'],
+    ['unspecified ipv4', 'http://0.0.0.0/v1'],
+    ['broadcast ipv4', 'http://255.255.255.255/v1'],
     ['ipv6 link-local', 'http://[fe80::1]/v1'],
     ['ipv6 unique local', 'http://[fd00::1]/v1'],
+    ['unspecified ipv6', 'http://[::]/v1'],
+    ['6to4 ipv6', 'http://[2002:0a00:0001::]/v1'],
+    ['rfc6052 ipv6', 'http://[64:ff9b::0a00:0001]/v1'],
   ])('rejects %s addresses when private networks are locked', async (_label, url) => {
     const probe = assertEgressAllowed(url, lockedPolicy());
 
@@ -111,9 +116,9 @@ describe('assertEgressAllowed', () => {
   });
 
   it('enforces IP literal denylist entries', async () => {
-    const probe = assertEgressAllowed('https://203.0.113.10/v1', {
+    const probe = assertEgressAllowed('https://8.8.8.8/v1', {
       ...openPolicy(),
-      hostDenylist: ['203.0.113.10'],
+      hostDenylist: ['8.8.8.8'],
     });
 
     await expect(probe).rejects.toMatchObject({
@@ -123,11 +128,11 @@ describe('assertEgressAllowed', () => {
   });
 
   it('enforces CIDR denylist entries against resolved addresses', async () => {
-    mockLookupAddresses([{address: '203.0.113.10', family: 4}]);
+    mockLookupAddresses([{address: '8.8.8.8', family: 4}]);
 
     const probe = assertEgressAllowed('https://models.example.test/v1', {
       ...openPolicy(),
-      hostDenylist: ['203.0.113.0/24'],
+      hostDenylist: ['8.8.8.0/24'],
     });
 
     await expect(probe).rejects.toMatchObject({

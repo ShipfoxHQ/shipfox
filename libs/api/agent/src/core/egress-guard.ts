@@ -171,14 +171,11 @@ function assertPublicAddress(address: ParsedAddress): void {
     throw new EgressDeniedError('metadata-address', address.toString());
   }
 
-  if (isPrivateAddress(address)) {
+  if (!isPublicUnicastAddress(address)) {
     throw new EgressDeniedError('private-network', address.toString());
   }
 }
 
-function isPrivateAddress(address: ParsedAddress): boolean {
-  const range = address.range();
-  return (
-    range === 'loopback' || range === 'private' || range === 'linkLocal' || range === 'uniqueLocal'
-  );
+function isPublicUnicastAddress(address: ParsedAddress): boolean {
+  return address.range() === 'unicast';
 }
