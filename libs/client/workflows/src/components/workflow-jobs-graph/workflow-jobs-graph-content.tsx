@@ -20,7 +20,10 @@ export function WorkflowJobsGraphContent({
   onSelectJob,
 }: {
   model: WorkflowJobGraphModel;
-  trigger: Pick<WorkflowRunDetail, 'triggerDisplayLabel' | 'triggerLabel' | 'triggerSource'>;
+  trigger: Pick<
+    WorkflowRunDetail,
+    'triggerDisplayLabel' | 'triggerLabel' | 'triggerProvider' | 'triggerSource'
+  >;
   selectedJobId?: string | undefined;
   onSelectJob: (jobId: string | undefined) => void;
 }) {

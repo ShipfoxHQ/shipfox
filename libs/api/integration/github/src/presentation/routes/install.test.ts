@@ -1,5 +1,8 @@
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {
+  ConnectionSlugConflictError,
+  type IntegrationConnection,
+} from '@shipfox/api-integration-core-dto';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {GithubApiClient} from '#api/client.js';
@@ -82,26 +85,32 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
 interface CreateTestAppOptions {
   github?: GithubApiClient;
   existingConnection?: IntegrationConnection<'github'> | undefined;
+  connectGithubInstallation?:
+    | ((input: ConnectGithubInstallationInput) => Promise<IntegrationConnection<'github'>>)
+    | undefined;
 }
 
 async function createTestApp(options: CreateTestAppOptions = {}): Promise<FastifyInstance> {
   const provider = createGithubIntegrationProvider({
     github: options.github ?? githubClient(),
     getExistingGithubConnection: vi.fn(() => Promise.resolve(options.existingConnection)),
-    connectGithubInstallation: vi.fn((input: ConnectGithubInstallationInput) => {
-      const connection: IntegrationConnection<'github'> = {
-        id: crypto.randomUUID(),
-        workspaceId: input.workspaceId,
-        provider: 'github',
-        externalAccountId: input.installationId,
-        displayName: input.displayName,
-        lifecycleStatus: 'active',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+    connectGithubInstallation:
+      options.connectGithubInstallation ??
+      vi.fn((input: ConnectGithubInstallationInput) => {
+        const connection: IntegrationConnection<'github'> = {
+          id: crypto.randomUUID(),
+          workspaceId: input.workspaceId,
+          provider: 'github',
+          externalAccountId: input.installationId,
+          slug: 'github_shipfox',
+          displayName: input.displayName,
+          lifecycleStatus: 'active',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
 
-      return Promise.resolve(connection);
-    }),
+        return Promise.resolve(connection);
+      }),
     // Webhook receiver dependencies — install/OAuth tests don't exercise them.
     coreDb: vi.fn() as never,
     publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: false})),
@@ -222,6 +231,7 @@ describe('GitHub integration routes', () => {
         workspaceId: crypto.randomUUID(),
         provider: 'github',
         externalAccountId: '123',
+        slug: 'github_shipfox',
         displayName: 'GitHub shipfox',
         lifecycleStatus: 'active',
         createdAt: new Date(),
@@ -238,6 +248,24 @@ describe('GitHub integration routes', () => {
 
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('github-installation-already-linked');
+  });
+
+  it('returns 409 when connection slug allocation conflicts repeatedly', async () => {
+    const app = await createTestApp({
+      connectGithubInstallation: vi.fn(() =>
+        Promise.reject(new ConnectionSlugConflictError(new Error('duplicate slug'))),
+      ),
+    });
+    const state = await createInstallState(app, crypto.randomUUID());
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integrations/github/callback/api?code=code&installation_id=123&state=${state}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('slug-conflict');
   });
 });
 

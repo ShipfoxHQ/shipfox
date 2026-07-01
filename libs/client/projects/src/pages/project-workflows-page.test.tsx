@@ -202,6 +202,7 @@ function connectionsDto() {
         workspace_id: PROJECT_TEST_WID,
         provider: 'github',
         external_account_id: 'acme',
+        slug: 'github_acme',
         display_name: 'Acme GitHub',
         lifecycle_status: 'active',
         capabilities: ['source_control'],

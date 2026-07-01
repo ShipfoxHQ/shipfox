@@ -34,6 +34,7 @@ describe('createIntegrationsContext runStartupTasks', () => {
       workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug',
       displayName: 'Debug',
     });
     const context = await createIntegrationsContext({parts: [await debugProviderModule.load()]});
@@ -54,6 +55,7 @@ describe('createIntegrationsContext runStartupTasks', () => {
       workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug',
       displayName: 'Debug',
     });
     const context = await createIntegrationsContext({parts: []});
@@ -68,6 +70,7 @@ describe('createIntegrationsContext runStartupTasks', () => {
       workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug',
       displayName: 'Debug',
       lifecycleStatus: 'disabled',
     });

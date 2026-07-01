@@ -16,6 +16,7 @@ describe('GET /integration-connections/:connectionId/repositories', () => {
       workspaceId: context.workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug',
       displayName: 'Debug',
     });
 
@@ -51,6 +52,7 @@ describe('GET /integration-connections/:connectionId/repositories', () => {
       workspaceId: context.workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug',
       displayName: 'Debug',
       lifecycleStatus: 'disabled',
     });
@@ -77,6 +79,7 @@ describe('GET /integration-connections/:connectionId/repositories', () => {
       workspaceId: context.workspaceId,
       provider: 'github',
       externalAccountId: 'team-1',
+      slug: 'github_team_1',
       displayName: 'GitHub',
     });
 
@@ -96,6 +99,7 @@ describe('GET /integration-connections/:connectionId/repositories', () => {
       workspaceId: context.workspaceId,
       provider: 'github',
       externalAccountId: 'installation-1',
+      slug: 'github_installation_1',
       displayName: 'GitHub',
     });
 
@@ -138,6 +142,7 @@ describe('GET /integration-connections/:connectionId/repositories', () => {
       workspaceId: context.workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug',
       displayName: 'Debug',
     });
 

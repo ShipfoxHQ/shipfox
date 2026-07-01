@@ -24,6 +24,7 @@ export const triggerEventListItemDtoSchema = z.object({
   event_ref: z.string(),
   origin: triggerEventOriginSchema,
   workspace_id: z.string().uuid(),
+  provider: z.string().nullable(),
   source: z.string(),
   event: z.string(),
   delivery_id: z.string().nullable(),

@@ -298,6 +298,7 @@ function connectionsDto({
         workspace_id: PROJECT_TEST_WID,
         provider: 'github',
         external_account_id: 'octo',
+        slug: 'github_octo',
         display_name: 'Acme GitHub',
         lifecycle_status: lifecycleStatus,
         capabilities: ['source_control'],

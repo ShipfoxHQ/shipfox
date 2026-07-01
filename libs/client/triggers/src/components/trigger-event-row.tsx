@@ -47,6 +47,7 @@ export function TriggerEventRow({event, selected, onSelect}: TriggerEventRowProp
               aria-label={`Open details for ${fullEventLabel}`}
             >
               <TriggerSourceIcon
+                provider={event.provider}
                 source={event.source}
                 aria-hidden="true"
                 className="size-16 shrink-0 text-foreground-neutral-muted"

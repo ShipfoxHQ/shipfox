@@ -74,7 +74,7 @@ triggers:
     source: manual
     event: fire
   on_push:
-    source: github
+    source: github_acme
     event: push
     filter: 'event.ref == "refs/heads/main"'
 jobs:
@@ -90,7 +90,7 @@ jobs:
 name: Build and deploy
 triggers:
   on_push:
-    source: github
+    source: github_acme
     event: push
     filter: 'event.ref == "refs/heads/main"'
 jobs:

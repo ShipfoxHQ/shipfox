@@ -69,7 +69,7 @@ export async function handleSentryIssueEvent(params: HandleSentryIssueEventParam
     tx: params.tx,
     event: {
       provider: SENTRY_SOURCE,
-      source: SENTRY_SOURCE,
+      source: connection.slug,
       event: `issue.${params.payload.action}`,
       workspaceId: connection.workspaceId,
       connectionId: connection.id,

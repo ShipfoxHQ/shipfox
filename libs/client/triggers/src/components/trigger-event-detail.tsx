@@ -92,6 +92,7 @@ export function TriggerEventDetailView({
                   className="flex min-w-0 items-center gap-6 rounded-6 border-0 bg-transparent p-0 text-left outline-none focus-visible:shadow-button-neutral-focus"
                 >
                   <TriggerSourceIcon
+                    provider={event.provider}
                     source={event.source}
                     aria-hidden="true"
                     className="size-16 shrink-0 text-foreground-neutral-muted"

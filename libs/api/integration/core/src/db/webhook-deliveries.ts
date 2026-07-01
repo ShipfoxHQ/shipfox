@@ -69,6 +69,7 @@ export async function publishIntegrationEventReceived(
 export interface PublishSourcePushParams {
   tx: IntegrationTx;
   provider: string;
+  source: string;
   workspaceId: string;
   connectionId: string;
   connectionName: string;
@@ -109,7 +110,7 @@ export async function publishSourcePush(
       type: INTEGRATION_EVENT_RECEIVED,
       payload: {
         provider: params.provider,
-        source: params.provider,
+        source: params.source,
         event: 'push',
         workspaceId: params.workspaceId,
         connectionId: params.connectionId,

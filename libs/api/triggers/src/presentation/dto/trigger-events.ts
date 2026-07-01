@@ -17,6 +17,7 @@ export function toTriggerEventListItemDto(
     event_ref: event.eventRef,
     origin: event.origin,
     workspace_id: event.workspaceId,
+    provider: event.provider,
     source: event.source,
     event: event.event,
     delivery_id: event.deliveryId,

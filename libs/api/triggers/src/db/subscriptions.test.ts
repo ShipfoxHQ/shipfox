@@ -196,6 +196,38 @@ describe('findMatchingSubscriptions', () => {
     expect(matches[0]?.name).toBe('on_push');
   });
 
+  test('matches connection-specific sources, not the provider id', async () => {
+    await projectDefinitionTriggers({
+      workspaceId,
+      projectId,
+      workflowDefinitionId: crypto.randomUUID(),
+      triggers: {
+        prod_error: {source: 'sentry_prod', event: 'issue.created'},
+        staging_error: {source: 'sentry_staging', event: 'issue.created'},
+      },
+    });
+
+    const prodMatches = await findMatchingSubscriptions({
+      workspaceId,
+      source: 'sentry_prod',
+      event: 'issue.created',
+    });
+    const stagingMatches = await findMatchingSubscriptions({
+      workspaceId,
+      source: 'sentry_staging',
+      event: 'issue.created',
+    });
+    const providerMatches = await findMatchingSubscriptions({
+      workspaceId,
+      source: 'sentry',
+      event: 'issue.created',
+    });
+
+    expect(prodMatches.map((match) => match.name)).toEqual(['prod_error']);
+    expect(stagingMatches.map((match) => match.name)).toEqual(['staging_error']);
+    expect(providerMatches).toHaveLength(0);
+  });
+
   test('matches across projects within the workspace, without project scoping', async () => {
     await projectDefinitionTriggers({
       workspaceId,

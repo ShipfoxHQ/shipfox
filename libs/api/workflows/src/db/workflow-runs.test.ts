@@ -207,6 +207,7 @@ describe('workflow run queries', () => {
       expect(run.projectId).toBe(projectId);
       expect(run.definitionId).toBe(definitionId);
       expect(run.status).toBe('pending');
+      expect(run.triggerProvider).toBeNull();
       expect(run.triggerPayload).toMatchObject({source: 'manual', event: 'fire'});
       expect(run.inputs).toBeNull();
       expect(run.version).toBe(1);

@@ -20,7 +20,7 @@ function buildEvent(
 ): IntegrationEventReceivedEvent {
   return {
     provider: 'github',
-    source: 'github',
+    source: 'github_acme_production',
     event: 'push',
     workspaceId: crypto.randomUUID(),
     connectionId: crypto.randomUUID(),
@@ -57,6 +57,7 @@ function buildSourcePushParams() {
   };
   return {
     provider: 'github',
+    source: 'github_acme_production',
     workspaceId: crypto.randomUUID(),
     connectionId: crypto.randomUUID(),
     connectionName: 'Acme Production',
@@ -99,7 +100,7 @@ describe('integration webhook delivery persistence', () => {
     expect(outbox[0]?.eventType).toBe(INTEGRATION_EVENT_RECEIVED);
     expect(outbox[0]?.payload).toMatchObject({
       provider: 'github',
-      source: 'github',
+      source: event.source,
       event: 'push',
       deliveryId: event.deliveryId,
       payload: {externalRepositoryId: 'github:42', isDefaultBranch: true},
@@ -188,7 +189,7 @@ describe('publishSourcePush', () => {
     const typed = outbox.find((row) => row.eventType === INTEGRATION_SOURCE_COMMIT_PUSHED);
     expect(envelope?.payload).toMatchObject({
       provider: 'github',
-      source: 'github',
+      source: params.source,
       event: 'push',
       deliveryId: params.deliveryId,
       payload: params.rawPayload,

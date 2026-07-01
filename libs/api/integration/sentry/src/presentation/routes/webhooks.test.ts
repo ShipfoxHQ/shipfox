@@ -44,6 +44,7 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
     workspaceId: randomUUID(),
     provider: 'sentry',
     externalAccountId: 'install-uuid',
+    slug: 'sentry_acme',
     displayName: 'Sentry acme',
     lifecycleStatus: 'active',
     createdAt: new Date(),
@@ -170,7 +171,7 @@ describe('Sentry webhook route', () => {
     const call = publishIntegrationEventReceived.mock.calls[0]?.[0];
     expect(call.tx).toBeDefined();
     expect(call.event).toMatchObject({
-      source: 'sentry',
+      source: connection.slug,
       event: 'issue.created',
       deliveryId,
       workspaceId: connection.workspaceId,

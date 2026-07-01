@@ -44,7 +44,10 @@ export function createListIntegrationConnectionsRoute(registry: IntegrationProvi
               'Could not resolve integration connection external URL',
             );
           }
-          return toIntegrationConnectionDto(connection, provider, {externalUrl});
+          return toIntegrationConnectionDto(connection, {
+            capabilities: provider.capabilities,
+            externalUrl,
+          });
         }),
       );
 

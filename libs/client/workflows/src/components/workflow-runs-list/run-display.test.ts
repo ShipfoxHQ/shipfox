@@ -13,14 +13,15 @@ describe('runMatchesSearch', () => {
       id: 'ABCD1234-X',
       name: 'Deploy Production',
       status: 'running',
-      trigger_source: 'github',
+      trigger_provider: 'github',
+      trigger_source: 'github_acme',
       trigger_event: 'push',
     });
 
     expect(runMatchesSearch(run, 'abcd1234-x')).toBe(true);
     expect(runMatchesSearch(run, 'deploy production')).toBe(true);
     expect(runMatchesSearch(run, 'RUNNING')).toBe(true);
-    expect(runMatchesSearch(run, 'github · push')).toBe(true);
+    expect(runMatchesSearch(run, 'github_acme · push')).toBe(true);
   });
 
   test('returns false when nothing in the run contains the query', () => {

@@ -55,6 +55,7 @@ function githubConnection(
     workspaceId: crypto.randomUUID(),
     provider: 'github',
     externalAccountId: '123',
+    slug: 'github_shipfox',
     displayName: 'GitHub shipfox',
     lifecycleStatus: 'active',
     createdAt: new Date(),

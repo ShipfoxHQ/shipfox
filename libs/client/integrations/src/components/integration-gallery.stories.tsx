@@ -201,6 +201,7 @@ function connection(overrides: Partial<IntegrationConnectionDto> = {}): Integrat
     workspace_id: WORKSPACE_ID,
     provider: 'github',
     external_account_id: 'installation-1',
+    slug: 'github_acme_corp',
     display_name: 'acme-corp',
     lifecycle_status: 'active',
     capabilities: ['source_control'],

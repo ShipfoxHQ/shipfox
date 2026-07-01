@@ -29,6 +29,7 @@ export type CreateIntegrationConnectionFn = (
     workspaceId: string;
     provider: string;
     externalAccountId: string;
+    slug: string;
     displayName: string;
     lifecycleStatus?: IntegrationConnectionLifecycleStatus | undefined;
   },
@@ -40,6 +41,7 @@ export type CreateIntegrationConnectionFn = (
 export type PublishSourcePushFn = (params: {
   tx: IntegrationTx;
   provider: string;
+  source: string;
   workspaceId: string;
   connectionId: string;
   connectionName: string;

@@ -1499,6 +1499,9 @@ importers:
 
   libs/api/integration/webhook-dto:
     dependencies:
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../core-dto
       zod:
         specifier: ^4.4.3
         version: 4.4.3

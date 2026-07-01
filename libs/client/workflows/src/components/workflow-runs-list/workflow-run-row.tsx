@@ -117,6 +117,7 @@ function TriggerLabel({run}: {run: WorkflowRun}) {
         <TooltipTrigger asChild>
           <span className="flex w-fit max-w-full min-w-0 items-center gap-8 rounded-6 outline-none">
             <TriggerSourceIcon
+              provider={run.triggerProvider}
               source={run.triggerSource}
               aria-hidden
               className="size-14 shrink-0 text-foreground-neutral-muted"

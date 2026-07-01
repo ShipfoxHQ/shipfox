@@ -373,6 +373,7 @@ export const LongTriggerMetadata: Story = {
   args: {
     run: workflowRunDetail({
       status: 'succeeded',
+      trigger_provider: 'github',
       trigger_source: 'github-enterprise-cloud-production-organization',
       trigger_event: 'workflow_dispatch_with_release_candidate_payload',
     }),

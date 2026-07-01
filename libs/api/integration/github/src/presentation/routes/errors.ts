@@ -1,4 +1,7 @@
-import type {IntegrationProviderErrorReason} from '@shipfox/api-integration-core-dto';
+import {
+  ConnectionSlugConflictError,
+  type IntegrationProviderErrorReason,
+} from '@shipfox/api-integration-core-dto';
 import {ClientError} from '@shipfox/node-fastify';
 import {
   GithubInstallationAlreadyLinkedError,
@@ -26,6 +29,9 @@ export function githubRouteErrorHandler(error: unknown): never {
   }
   if (error instanceof GithubInstallationAlreadyLinkedError) {
     throw new ClientError(error.message, 'github-installation-already-linked', {status: 409});
+  }
+  if (error instanceof ConnectionSlugConflictError) {
+    throw new ClientError(error.message, 'slug-conflict', {status: 409});
   }
   if (error instanceof GithubIntegrationProviderError) {
     throw new ClientError(error.message, error.reason, {

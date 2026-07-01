@@ -60,6 +60,7 @@ export interface WorkflowRun {
   name: string;
   status: WorkflowRunStatus;
   currentAttempt: number;
+  triggerProvider: string | null;
   triggerSource: string;
   triggerEvent: string;
   triggerPayload: TriggerPayload;

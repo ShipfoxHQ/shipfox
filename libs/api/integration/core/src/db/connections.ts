@@ -1,4 +1,8 @@
-import {eq} from 'drizzle-orm';
+import {
+  CONNECTION_SLUG_MAX_LENGTH,
+  ConnectionSlugConflictError,
+} from '@shipfox/api-integration-core-dto';
+import {and, eq} from 'drizzle-orm';
 import type {
   IntegrationConnection,
   IntegrationConnectionLifecycleStatus,
@@ -15,6 +19,7 @@ export interface UpsertIntegrationConnectionParams {
   workspaceId: string;
   provider: IntegrationProviderKind;
   externalAccountId: string;
+  slug: string;
   displayName: string;
   lifecycleStatus?: IntegrationConnectionLifecycleStatus | undefined;
 }
@@ -31,6 +36,7 @@ export async function upsertIntegrationConnection(
       workspaceId: params.workspaceId,
       provider: params.provider,
       externalAccountId: params.externalAccountId,
+      slug: params.slug,
       displayName: params.displayName,
       lifecycleStatus: params.lifecycleStatus ?? 'active',
     })
@@ -56,16 +62,35 @@ export interface CreateIntegrationConnectionParams {
   workspaceId: string;
   provider: IntegrationProviderKind;
   externalAccountId: string;
+  slug: string;
   displayName: string;
   lifecycleStatus?: IntegrationConnectionLifecycleStatus | undefined;
 }
 
-function isIntegrationConnectionUniqueViolation(error: unknown): boolean {
+const INTEGRATION_CONNECTION_EXTERNAL_UNIQUE_CONSTRAINT =
+  'integrations_connections_workspace_external_unique';
+const INTEGRATION_CONNECTION_SLUG_UNIQUE_CONSTRAINT =
+  'integrations_connections_workspace_slug_unique';
+
+export function isIntegrationConnectionUniqueViolation(error: unknown): boolean {
   let current: unknown = error;
   for (let depth = 0; depth < 5 && current != null; depth += 1) {
     if (typeof current !== 'object') return false;
     const {code, constraint} = current as {code?: unknown; constraint?: unknown};
-    if (code === '23505' && constraint === 'integrations_connections_workspace_external_unique') {
+    if (code === '23505' && constraint === INTEGRATION_CONNECTION_EXTERNAL_UNIQUE_CONSTRAINT) {
+      return true;
+    }
+    current = (current as {cause?: unknown}).cause;
+  }
+  return false;
+}
+
+export function isIntegrationConnectionSlugUniqueViolation(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current != null; depth += 1) {
+    if (typeof current !== 'object') return false;
+    const {code, constraint} = current as {code?: unknown; constraint?: unknown};
+    if (code === '23505' && constraint === INTEGRATION_CONNECTION_SLUG_UNIQUE_CONSTRAINT) {
       return true;
     }
     current = (current as {cause?: unknown}).cause;
@@ -86,6 +111,7 @@ export async function createIntegrationConnection(
         workspaceId: params.workspaceId,
         provider: params.provider,
         externalAccountId: params.externalAccountId,
+        slug: params.slug,
         displayName: params.displayName,
         lifecycleStatus: params.lifecycleStatus ?? 'active',
       })
@@ -98,12 +124,54 @@ export async function createIntegrationConnection(
         params.externalAccountId,
       );
     }
+    if (isIntegrationConnectionSlugUniqueViolation(error)) {
+      throw new ConnectionSlugConflictError(error);
+    }
     throw error;
   }
 
   const row = rows[0];
   if (!row) throw new Error('Integration connection insert returned no rows');
   return toIntegrationConnection(row);
+}
+
+export interface ResolveUniqueConnectionSlugParams {
+  workspaceId: string;
+  provider: IntegrationProviderKind;
+  externalAccountId: string;
+  baseSlug: string;
+}
+
+export async function resolveUniqueConnectionSlug(
+  params: ResolveUniqueConnectionSlugParams,
+  options: {tx?: IntegrationDb | IntegrationTx | undefined} = {},
+): Promise<string> {
+  const executor = options.tx ?? db();
+  const [existing] = await executor
+    .select({slug: integrationConnections.slug})
+    .from(integrationConnections)
+    .where(
+      and(
+        eq(integrationConnections.workspaceId, params.workspaceId),
+        eq(integrationConnections.provider, params.provider),
+        eq(integrationConnections.externalAccountId, params.externalAccountId),
+      ),
+    )
+    .limit(1);
+  if (existing) return existing.slug;
+
+  const workspaceSlugs = await executor
+    .select({slug: integrationConnections.slug})
+    .from(integrationConnections)
+    .where(eq(integrationConnections.workspaceId, params.workspaceId));
+  const used = new Set(workspaceSlugs.map((row) => row.slug));
+
+  for (let suffixNumber = 1; ; suffixNumber += 1) {
+    const suffix = suffixNumber === 1 ? '' : `_${suffixNumber}`;
+    const baseBudget = CONNECTION_SLUG_MAX_LENGTH - suffix.length;
+    const candidate = `${params.baseSlug.slice(0, baseBudget).replaceAll(/[_-]+$/g, '')}${suffix}`;
+    if (!used.has(candidate)) return candidate;
+  }
 }
 
 export type CreateIntegrationConnectionFn = typeof createIntegrationConnection;

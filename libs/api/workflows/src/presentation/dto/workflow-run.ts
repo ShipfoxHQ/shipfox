@@ -11,6 +11,7 @@ export function toRunDto(run: WorkflowRun, latestAttempt = run.currentAttempt): 
     status: run.status,
     current_attempt: run.currentAttempt,
     latest_attempt: latestAttempt,
+    trigger_provider: run.triggerProvider,
     trigger_source: run.triggerSource,
     trigger_event: run.triggerEvent,
     trigger_payload: run.triggerPayload,

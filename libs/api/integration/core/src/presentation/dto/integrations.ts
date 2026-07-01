@@ -1,5 +1,9 @@
+import {toIntegrationConnectionDto as toCoreIntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import type {IntegrationConnection} from '#core/entities/connection.js';
-import type {RegisteredIntegrationProvider} from '#core/entities/provider.js';
+import type {
+  IntegrationCapability,
+  RegisteredIntegrationProvider,
+} from '#core/entities/provider.js';
 import type {RepositorySnapshot} from '#core/providers/source-control.js';
 
 export function toIntegrationProviderDto(provider: RegisteredIntegrationProvider) {
@@ -12,21 +16,12 @@ export function toIntegrationProviderDto(provider: RegisteredIntegrationProvider
 
 export function toIntegrationConnectionDto(
   connection: IntegrationConnection,
-  provider: RegisteredIntegrationProvider,
-  options: {externalUrl?: string | undefined} = {},
+  options: {
+    capabilities: IntegrationCapability[];
+    externalUrl?: string | undefined;
+  },
 ) {
-  return {
-    id: connection.id,
-    workspace_id: connection.workspaceId,
-    provider: connection.provider,
-    external_account_id: connection.externalAccountId,
-    display_name: connection.displayName,
-    lifecycle_status: connection.lifecycleStatus,
-    capabilities: provider.capabilities,
-    ...(options.externalUrl ? {external_url: options.externalUrl} : {}),
-    created_at: connection.createdAt.toISOString(),
-    updated_at: connection.updatedAt.toISOString(),
-  };
+  return toCoreIntegrationConnectionDto(connection, options);
 }
 
 export function toRepositoryDto(connectionId: string, repository: RepositorySnapshot) {

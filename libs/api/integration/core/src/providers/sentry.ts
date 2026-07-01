@@ -1,13 +1,18 @@
-import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {
+  type IntegrationConnection as CoreIntegrationConnection,
+  slugifyConnectionSlug,
+} from '@shipfox/api-integration-core-dto';
 import type {ConnectSentryInstallationInput} from '@shipfox/api-integration-sentry';
 import {config} from '#config.js';
 import {
   getIntegrationConnectionById,
+  resolveUniqueConnectionSlug,
   updateIntegrationConnectionLifecycleStatus,
   upsertIntegrationConnection,
 } from '#db/connections.js';
 import {db} from '#db/db.js';
 import {publishIntegrationEventReceived, recordDeliveryOnly} from '#db/webhook-deliveries.js';
+import {retryConnectionSlugCollision} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
 // Stable migration-tracking table name for the Sentry provider database. This
@@ -38,32 +43,45 @@ async function loadSentryModuleParts(): Promise<IntegrationModuleParts> {
   async function connectSentryInstallation(
     input: ConnectSentryInstallationInput,
   ): Promise<CoreIntegrationConnection<'sentry'>> {
-    return await db().transaction(async (tx) => {
-      const connection = await upsertIntegrationConnection(
-        {
-          workspaceId: input.workspaceId,
-          provider: 'sentry',
-          externalAccountId: input.installationUuid,
-          displayName: input.displayName,
-          lifecycleStatus: 'active',
-        },
-        {tx},
-      );
+    return await retryConnectionSlugCollision(() =>
+      db().transaction(async (tx) => {
+        const baseSlug = slugifyConnectionSlug(`sentry_${input.orgSlug}`, {fallback: 'sentry'});
+        const slug = await resolveUniqueConnectionSlug(
+          {
+            workspaceId: input.workspaceId,
+            provider: 'sentry',
+            externalAccountId: input.installationUuid,
+            baseSlug,
+          },
+          {tx},
+        );
+        const connection = await upsertIntegrationConnection(
+          {
+            workspaceId: input.workspaceId,
+            provider: 'sentry',
+            externalAccountId: input.installationUuid,
+            slug,
+            displayName: input.displayName,
+            lifecycleStatus: 'active',
+          },
+          {tx},
+        );
 
-      await upsertSentryInstallation(
-        {
-          connectionId: connection.id,
-          installationUuid: input.installationUuid,
-          orgSlug: input.orgSlug,
-          status: 'installed',
-          codeHash: input.codeHash,
-          installerUserId: input.installerUserId,
-        },
-        {tx},
-      );
+        await upsertSentryInstallation(
+          {
+            connectionId: connection.id,
+            installationUuid: input.installationUuid,
+            orgSlug: input.orgSlug,
+            status: 'installed',
+            codeHash: input.codeHash,
+            installerUserId: input.installerUserId,
+          },
+          {tx},
+        );
 
-      return connection as CoreIntegrationConnection<'sentry'>;
-    });
+        return connection as CoreIntegrationConnection<'sentry'>;
+      }),
+    );
   }
 
   return {

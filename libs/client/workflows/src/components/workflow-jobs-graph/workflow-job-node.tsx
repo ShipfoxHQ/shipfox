@@ -19,7 +19,10 @@ const TRIGGER_SIZE = 36;
 export function TriggerNode({
   trigger,
 }: {
-  trigger: Pick<WorkflowRunDetail, 'triggerDisplayLabel' | 'triggerLabel' | 'triggerSource'>;
+  trigger: Pick<
+    WorkflowRunDetail,
+    'triggerDisplayLabel' | 'triggerLabel' | 'triggerProvider' | 'triggerSource'
+  >;
 }) {
   const label = trigger.triggerDisplayLabel || 'trigger';
   const tooltip = trigger.triggerLabel || label;
@@ -34,6 +37,7 @@ export function TriggerNode({
           style={{width: TRIGGER_SIZE, height: TRIGGER_SIZE}}
         >
           <TriggerSourceIcon
+            provider={trigger.triggerProvider}
             source={trigger.triggerSource}
             aria-hidden
             className="size-14 shrink-0 text-foreground-neutral-muted"

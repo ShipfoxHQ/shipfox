@@ -21,6 +21,7 @@ describe('integration source-control service', () => {
     workspaceId,
     provider: 'debug' as const,
     externalAccountId: 'debug',
+    slug: 'debug',
     displayName: 'Debug',
     lifecycleStatus: 'active' as const,
     createdAt: new Date(),

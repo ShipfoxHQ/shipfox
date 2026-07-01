@@ -11,7 +11,7 @@ export function toWebhookConnectionDto(
     id: connection.id,
     workspace_id: connection.workspaceId,
     name: connection.displayName,
-    slug: connection.externalAccountId,
+    slug: connection.slug,
     lifecycle_status: connection.lifecycleStatus,
     inbound_url: `${baseUrl.replace(TRAILING_SLASHES_RE, '')}/webhook/${connection.id}`,
     created_at: connection.createdAt.toISOString(),

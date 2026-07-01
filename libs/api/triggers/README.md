@@ -42,12 +42,12 @@ triggers:
   on_demand:
     source: manual
   on_push:
-    source: github
+    source: github_acme
     event: push
     on: main
 ```
 
-Each map key is the trigger's `name`. A workflow may declare any number of
+Each source is an integration connection slug. Each map key is the trigger's `name`. A workflow may declare any number of
 integration triggers and at most one `source: manual` trigger; the manual
 invariant is enforced at parse time so the fire route stays unambiguous.
 The `event` field is optional when `source: manual` and defaults to

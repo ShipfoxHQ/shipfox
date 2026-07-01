@@ -60,7 +60,8 @@ describe('workflow run API hooks', () => {
       runs: [
         workflowRunDto({
           id: RUN_ID,
-          trigger_source: 'github',
+          trigger_provider: 'github',
+          trigger_source: 'github_acme',
           trigger_event: 'push',
           updated_at: '2026-05-07T01:02:00.000Z',
         }),
@@ -76,14 +77,15 @@ describe('workflow run API hooks', () => {
     );
 
     await waitFor(() =>
-      expect(result.current.data?.pages[0]?.runs[0]?.triggerSource).toBe('github'),
+      expect(result.current.data?.pages[0]?.runs[0]?.triggerSource).toBe('github_acme'),
     );
     expect(result.current.data?.pages[0]?.runs[0]).toMatchObject({
       id: RUN_ID,
-      triggerSource: 'github',
+      triggerProvider: 'github',
+      triggerSource: 'github_acme',
       triggerEvent: 'push',
       triggerDisplayLabel: 'push',
-      triggerLabel: 'github · push',
+      triggerLabel: 'github_acme · push',
       updatedAt: '2026-05-07T01:02:00.000Z',
       isTemporary: false,
     });
@@ -94,7 +96,8 @@ describe('workflow run API hooks', () => {
       InfiniteData<WorkflowRunListResponseDto, string | undefined>
     >(workflowRunsQueryKeys.list(PROJECT_ID, {}));
     expect(cached?.pages[0]?.runs[0]).toMatchObject({
-      trigger_source: 'github',
+      trigger_provider: 'github',
+      trigger_source: 'github_acme',
       trigger_event: 'push',
       updated_at: '2026-05-07T01:02:00.000Z',
     });
@@ -234,6 +237,7 @@ describe('workflow run API hooks', () => {
         definition_id: DEFINITION_ID,
         status: 'pending',
         trigger_source: 'manual',
+        trigger_provider: null,
       });
       expect(cached?.pages[0]?.runs[0]?.id).toMatch(TEMP_RUN_ID_PATTERN);
       expect(cached?.pages[0]?.filtered_total_count).toBe(1);

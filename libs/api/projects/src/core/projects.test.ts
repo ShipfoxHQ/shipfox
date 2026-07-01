@@ -26,6 +26,7 @@ describe('createProjectFromSource', () => {
             workspaceId,
             provider: 'debug' as const,
             externalAccountId: 'debug',
+            slug: 'debug',
             displayName: 'Debug',
             lifecycleStatus: 'active' as const,
             capabilities: ['source_control' as const],

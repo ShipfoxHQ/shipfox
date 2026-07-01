@@ -40,6 +40,7 @@ function connection(
     workspaceId: WORKSPACE_ID,
     provider: 'sentry',
     externalAccountId: INSTALL_UUID,
+    slug: 'sentry_acme',
     displayName: 'Sentry acme',
     lifecycleStatus: 'active',
     createdAt: new Date(),
@@ -87,6 +88,7 @@ function run(options: RunOptions = {}) {
       connection({
         workspaceId: input.workspaceId,
         externalAccountId: input.installationUuid,
+        slug: 'sentry_acme',
         displayName: input.displayName,
       }),
     ),

@@ -120,6 +120,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         name: params.name ?? params.model.name,
         status: 'pending',
         currentAttempt: 1,
+        triggerProvider: params.triggerPayload.provider ?? null,
         triggerSource: params.triggerPayload.source,
         triggerEvent: params.triggerPayload.event,
         triggerPayload: params.triggerPayload,

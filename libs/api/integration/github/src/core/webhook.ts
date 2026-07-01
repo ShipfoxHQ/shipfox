@@ -166,6 +166,7 @@ async function publishGithubPush(params: {
   connection: {
     id: string;
     workspaceId: string;
+    slug: string;
     displayName: string;
   };
 }): Promise<{outcome: HandleGithubEventOutcome}> {
@@ -174,7 +175,7 @@ async function publishGithubPush(params: {
       tx: params.tx,
       event: {
         provider: GITHUB_SOURCE,
-        source: GITHUB_SOURCE,
+        source: params.connection.slug,
         event: 'push',
         workspaceId: params.connection.workspaceId,
         connectionId: params.connection.id,
@@ -204,6 +205,7 @@ async function publishGithubPush(params: {
   const result = await params.publishSourcePush({
     tx: params.tx,
     provider: GITHUB_SOURCE,
+    source: params.connection.slug,
     workspaceId: params.connection.workspaceId,
     connectionId: params.connection.id,
     connectionName: params.connection.displayName,
@@ -221,14 +223,14 @@ async function publishGithubEnvelopeOnly(params: {
   deliveryId: string;
   payload: unknown;
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
-  connection: {id: string; workspaceId: string; displayName: string};
+  connection: {id: string; workspaceId: string; slug: string; displayName: string};
   event: string;
 }): Promise<{outcome: HandleGithubEventOutcome}> {
   const result = await params.publishIntegrationEventReceived({
     tx: params.tx,
     event: {
       provider: GITHUB_SOURCE,
-      source: GITHUB_SOURCE,
+      source: params.connection.slug,
       event: params.event,
       workspaceId: params.connection.workspaceId,
       connectionId: params.connection.id,

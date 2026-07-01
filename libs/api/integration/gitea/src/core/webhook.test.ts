@@ -20,6 +20,7 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
     workspaceId: randomUUID(),
     provider: 'gitea',
     externalAccountId: 'shipfox',
+    slug: 'gitea_shipfox',
     displayName: 'Gitea shipfox',
     lifecycleStatus: 'active',
     createdAt: new Date(),
@@ -106,6 +107,7 @@ describe('handleGiteaWebhook', () => {
     expect(call.tx).toBeDefined();
     expect(call).toMatchObject({
       provider: 'gitea',
+      source: connection.slug,
       deliveryId,
       workspaceId: connection.workspaceId,
       connectionId: connection.id,
@@ -138,6 +140,7 @@ describe('handleGiteaWebhook', () => {
     expect(handlers.publishSourcePush).toHaveBeenCalledTimes(1);
     expect(firstPublishSourcePushCall(handlers.publishSourcePush)).toMatchObject({
       provider: 'gitea',
+      source: connection.slug,
       deliveryId,
       workspaceId: connection.workspaceId,
       connectionId: connection.id,
