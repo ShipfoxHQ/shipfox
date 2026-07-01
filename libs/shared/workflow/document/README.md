@@ -43,6 +43,10 @@ try {
     },
     jobs: {
       build: {
+        checkout: {
+          permissions: {contents: 'read'},
+          'persist-credentials': true,
+        },
         env: {NODE_ENV: 'test'},
         runner: 'ubuntu-latest',
         steps: [{run: 'npm run build', env: {CI: true}, gate: {success_if: 'exit_code == 0'}}],
@@ -84,10 +88,33 @@ parseWorkflowDocument({
 });
 ```
 
+Jobs may also declare checkout intent. `permissions.contents` accepts `read` or
+`write`; `persist-credentials` accepts a boolean. Both fields are optional in
+the document shape. Later layers resolve omitted values to read-only checkout
+with persisted credentials enabled.
+
+```ts
+parseWorkflowDocument({
+  name: 'release',
+  jobs: {
+    publish: {
+      checkout: {
+        permissions: {contents: 'write'},
+        'persist-credentials': false,
+      },
+      steps: [{run: 'pnpm release'}],
+    },
+  },
+});
+```
+
 ## Behavior Notes
 
 - The public contract is the Zod schema and the TypeScript types built from it.
 - Bad input throws a typed `Error`; UI or API code can read `validationError.issues` for field details.
+- The `checkout` block is checked as input shape here. Default resolution,
+  permission capping, credential minting, and runner checkout behavior belong to
+  later layers.
 - The `gate` block is checked as input shape here. CEL parsing and restart
   target checks belong to definitions-owned model code.
 - A step is discriminated by which keys it carries: `run` marks a run step;

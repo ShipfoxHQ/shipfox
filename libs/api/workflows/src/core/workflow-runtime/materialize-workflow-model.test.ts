@@ -3,7 +3,7 @@ import {
   UnsupportedAgentProviderError,
 } from '@shipfox/api-agent/core/errors';
 import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-config';
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import {DEFAULT_JOB_CHECKOUT, type WorkflowModel} from '@shipfox/api-definitions';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {workflowModel} from '#test/index.js';
 import {materializeWorkflowModel, modelHasAgentStep} from './materialize-workflow-model.js';
@@ -89,6 +89,7 @@ describe('materializeWorkflowModel', () => {
       {
         key: 'build',
         mode: 'one_shot',
+        checkout: DEFAULT_JOB_CHECKOUT,
         dependencies: [],
         runner: ['ubuntu-latest'],
         position: 0,
@@ -125,6 +126,7 @@ describe('materializeWorkflowModel', () => {
       {
         key: 'test',
         mode: 'one_shot',
+        checkout: DEFAULT_JOB_CHECKOUT,
         dependencies: ['build'],
         runner: ['ubuntu-latest', 'node-22'],
         position: 1,
@@ -257,6 +259,35 @@ describe('materializeWorkflowModel', () => {
       thinking: 'high',
       prompt: 'Fix the failing tests.',
     });
+  });
+
+  it('passes checkout through to materialized jobs', () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          checkout: {
+            permissions: {contents: 'write'},
+            persistCredentials: false,
+          },
+          steps: [{run: 'npm test'}],
+        },
+      },
+    });
+
+    const rows = materializeWorkflowModel({model});
+
+    expect(rows[0]?.checkout).toEqual({
+      permissions: {contents: 'write'},
+      persistCredentials: false,
+    });
+  });
+
+  it('passes default checkout through to materialized jobs', () => {
+    const model = workflowModel();
+
+    const rows = materializeWorkflowModel({model});
+
+    expect(rows[0]?.checkout).toEqual(DEFAULT_JOB_CHECKOUT);
   });
 
   it('routes agent steps through the provided resolver', () => {
@@ -608,6 +639,7 @@ describe('materializeWorkflowModel', () => {
         position: 0,
       },
     ]);
+    expect(rows[0]?.checkout).toEqual(DEFAULT_JOB_CHECKOUT);
   });
 
   it('fails fast when the model contains an unresolved dependency id', () => {
@@ -619,6 +651,7 @@ describe('materializeWorkflowModel', () => {
           key: 'test',
           mode: 'one_shot',
           runner: [],
+          checkout: DEFAULT_JOB_CHECKOUT,
           dependencies: ['missing'],
           steps: [],
         },

@@ -22,6 +22,7 @@ import type {
 } from '../entities/workflow-model.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {normalizeEnv} from './normalize-env.js';
+import {normalizeJobCheckout} from './normalize-job-checkout.js';
 import {normalizeJobListening} from './normalize-job-listening.js';
 import {normalizeJobSuccess} from './normalize-job-success.js';
 import {normalizeNeeds} from './normalize-needs.js';
@@ -83,6 +84,7 @@ function normalizeJob(params: {
     issues: params.issues,
     defaultRunnerLabels: params.defaultRunnerLabels,
   });
+  const checkout = normalizeJobCheckout(params.job.checkout);
   const jobEnv = normalizeEnv({
     env: params.job.env,
     path: ['jobs', params.sourceName, 'env'],
@@ -118,6 +120,7 @@ function normalizeJob(params: {
     key: params.sourceName,
     mode: listening === undefined ? 'one_shot' : 'listening',
     runner,
+    checkout,
     ...(success === undefined ? {} : {success}),
     ...(executionTimeoutMs === undefined ? {} : {executionTimeoutMs}),
     ...(listening === undefined ? {} : {listening}),

@@ -14,6 +14,10 @@ const mockWorkspaceAgentDefaultsResolver = vi.hoisted(() =>
 );
 
 vi.mock('@shipfox/api-definitions', () => ({
+  DEFAULT_JOB_CHECKOUT: {
+    permissions: {contents: 'read'},
+    persistCredentials: true,
+  },
   getDefinitionById: vi.fn(),
 }));
 

@@ -65,6 +65,15 @@ const workflowDocumentStepGateSchema = z
     message: 'Expected success_if or on_failure',
   });
 
+export const workflowDocumentCheckoutSchema = z.strictObject({
+  permissions: z
+    .strictObject({
+      contents: z.enum(['read', 'write']).optional(),
+    })
+    .optional(),
+  'persist-credentials': z.boolean().optional(),
+});
+
 // A step is a run step (`run`) or an inline agent step (`prompt`), never
 // both. They share one strict object so an unknown key is still rejected; the
 // `superRefine` discriminates by which payload keys are present and emits one
@@ -142,6 +151,7 @@ export const workflowDocumentJobSchema = z.strictObject({
   runner: stringOrStringArraySchema.optional(),
   success: z.string().min(1).optional(),
   execution_timeout: z.string().min(1).optional(),
+  checkout: workflowDocumentCheckoutSchema.optional(),
   listening: workflowDocumentListeningSchema.optional(),
   name: z.string().min(1).optional(),
   env: workflowDocumentEnvSchema.optional(),
@@ -157,6 +167,7 @@ export const workflowDocumentSchema = z.strictObject({
 });
 
 export type WorkflowDocument = z.infer<typeof workflowDocumentSchema>;
+export type WorkflowDocumentJobCheckout = z.infer<typeof workflowDocumentCheckoutSchema>;
 export type WorkflowDocumentEnv = z.infer<typeof workflowDocumentEnvSchema>;
 export type WorkflowDocumentJob = z.infer<typeof workflowDocumentJobSchema>;
 export type WorkflowDocumentJobListening = z.infer<typeof workflowDocumentListeningSchema>;

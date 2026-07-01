@@ -1,4 +1,4 @@
-import type {WorkflowModel} from '@shipfox/api-definitions';
+import {DEFAULT_JOB_CHECKOUT, type WorkflowModel} from '@shipfox/api-definitions';
 import {parseWorkflowTemplate, type WorkflowTemplateSegment} from '@shipfox/expression';
 
 type ModelStep = WorkflowModel['jobs'][number]['steps'][number];
@@ -32,6 +32,7 @@ interface TestWorkflowJob {
   readonly needs?: string | readonly string[] | undefined;
   readonly name?: string | undefined;
   readonly runner?: string | readonly string[] | undefined;
+  readonly checkout?: WorkflowModel['jobs'][number]['checkout'] | undefined;
   readonly success?: string | undefined;
   readonly env?: WorkflowModel['env'] | undefined;
   readonly steps: readonly TestWorkflowStep[];
@@ -57,6 +58,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
       key,
       mode: 'one_shot' as const,
       runner: normalizeStringArray(job.runner ?? input.runner ?? DEFAULT_RUNNER_LABELS),
+      checkout: job.checkout ?? DEFAULT_JOB_CHECKOUT,
       ...(job.success === undefined ? {} : {success: job.success}),
       ...(job.name === undefined
         ? {}

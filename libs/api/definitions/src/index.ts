@@ -26,10 +26,11 @@ export type {
   WorkflowDefinitionPayload,
   WorkflowEnvTemplates,
   WorkflowModel,
+  WorkflowModelJobCheckout,
   WorkflowSourceSnapshot,
   WorkflowSpec,
 } from '#core/index.js';
-export {DEFAULT_JOB_SUCCESS, normalizeWorkflowDocument} from '#core/index.js';
+export {DEFAULT_JOB_CHECKOUT, DEFAULT_JOB_SUCCESS, normalizeWorkflowDocument} from '#core/index.js';
 export {db, definitionsOutbox, getDefinitionById, migrationsPath} from '#db/index.js';
 export {routes} from '#presentation/index.js';
 

@@ -60,6 +60,34 @@ describe('workflowDocumentSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it.each([
+    [
+      'checkout contents write',
+      {
+        checkout: {
+          permissions: {
+            contents: 'write',
+          },
+        },
+      },
+    ],
+    ['checkout persist credentials false', {checkout: {'persist-credentials': false}}],
+    ['empty checkout', {checkout: {}}],
+    ['omitted checkout', {}],
+  ])('accepts %s', (_label, jobOverride) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'simple build',
+      jobs: {
+        build: {
+          ...jobOverride,
+          steps: [{run: 'npm test'}],
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it('keeps trigger filters as strings', () => {
     const workflowDocument = {
       name: 'simple build',
@@ -271,6 +299,49 @@ describe('workflowDocumentSchema', () => {
       {
         name: 'simple build',
         jobs: {build: {steps: [{run: 'npm test', gate: {on_failure: {}}}]}},
+      },
+    ],
+    [
+      'unknown checkout field',
+      {
+        name: 'simple build',
+        jobs: {build: {checkout: {token: true}, steps: [{run: 'npm test'}]}},
+      },
+    ],
+    [
+      'unknown checkout permissions field',
+      {
+        name: 'simple build',
+        jobs: {
+          build: {
+            checkout: {permissions: {pull_requests: 'write'}},
+            steps: [{run: 'npm test'}],
+          },
+        },
+      },
+    ],
+    [
+      'invalid checkout contents',
+      {
+        name: 'simple build',
+        jobs: {
+          build: {
+            checkout: {permissions: {contents: 'admin'}},
+            steps: [{run: 'npm test'}],
+          },
+        },
+      },
+    ],
+    [
+      'non-boolean checkout persist credentials',
+      {
+        name: 'simple build',
+        jobs: {
+          build: {
+            checkout: {'persist-credentials': 'false'},
+            steps: [{run: 'npm test'}],
+          },
+        },
       },
     ],
   ])('rejects %s', (_label, workflowDocument) => {
