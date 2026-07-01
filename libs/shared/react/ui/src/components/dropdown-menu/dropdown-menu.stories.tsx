@@ -130,7 +130,7 @@ export const Playground: Story = {
 
 export const Open: Story = {
   play: (ctx) => screenshotOpenMenu(ctx, 'DropdownMenu Open'),
-  render: function DefaultStory(args) {
+  render: function OpenStory(args) {
     const [container, setContainer] = useState<HTMLDivElement | null>(null);
 
     return (
