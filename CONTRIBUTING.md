@@ -6,17 +6,25 @@ By participating, you are expected to uphold this code.
 
 ## Prerequisites
 
-- [mise](https://mise.jdx.dev/): manages tool versions (Node.js, pnpm, [Turbo](https://turbo.build/))
+- [mise](https://mise.jdx.dev/): manages tool versions (Node.js, pnpm, [Turbo](https://turbo.build/), Ollama)
 - [Docker](https://docs.docker.com/get-docker/): runs local service dependencies (PostgreSQL, etc.)
 
 ## Getting Started
 
 ### Install tooling
 
-[mise](https://mise.jdx.dev/) reads `mise.toml` and installs the correct versions of Node.js, pnpm, and Turbo.
+[mise](https://mise.jdx.dev/) reads `mise.toml` and installs the correct versions of Node.js, pnpm, Turbo, and Ollama.
 
 ```sh
 mise install
+```
+
+Use mise-managed tools directly after activation, or through `mise exec` in
+non-interactive scripts:
+
+```sh
+mise exec -- pnpm install
+mise exec -- turbo build
 ```
 
 ### Start local services
@@ -37,6 +45,76 @@ Build a specific package and its dependencies:
 ```sh
 turbo build --filter=@shipfox/api...
 ```
+
+## Local Tooling
+
+### Mise Tasks
+
+The repository defines project tasks in `mise.toml`. List them with:
+
+```sh
+mise tasks
+```
+
+Mise tasks are safe to run from the main checkout or from a Conductor worktree.
+When a task needs the main checkout, it detects `CONDUCTOR_ROOT_PATH` and
+delegates to `mise -C "$CONDUCTOR_ROOT_PATH" run <task>`.
+
+### Shared Ollama
+
+Ollama is installed by mise and is used as a shared local service. It is started
+from the main checkout, not from each Conductor worktree, because the server is
+heavy and stateless.
+
+Conductor setup runs this automatically for local workspaces:
+
+```sh
+mise run ollama:up
+```
+
+From a worktree, that task delegates to the root checkout and runs the root
+`ollama:up` task. From the root checkout, it starts `ollama serve`, pulls
+`qwen3.5:0.8b`, and preloads the model with a 24 hour keep-alive.
+
+Useful commands:
+
+```sh
+mise run ollama:up       # start the shared server and preload qwen3.5:0.8b
+mise run ollama:status   # show endpoint, root path, and managed process status
+mise run ollama:stop     # stop the server if this repo started it
+```
+
+The helper stores process state and logs under:
+
+```text
+$CONDUCTOR_ROOT_PATH/.context/shared-ollama/
+```
+
+The default endpoint is `http://127.0.0.1:11434`. Override it only when needed:
+
+```sh
+SHIPFOX_OLLAMA_BASE_URL=http://127.0.0.1:11500 mise run ollama:up
+SHIPFOX_OLLAMA_MODEL=other:model mise run ollama:up
+SHIPFOX_OLLAMA_KEEP_ALIVE=2h mise run ollama:up
+```
+
+### Conductor Worktree Services
+
+Conductor workspaces run `dev/worktree-services.mjs up` during setup. This
+creates per-worktree Docker services, assigns ports from `CONDUCTOR_PORT`, and
+writes the generated app environment to `.context/local-services/env`, which is
+loaded by `mise.toml`.
+
+Common commands:
+
+```sh
+mise exec -- node dev/worktree-services.mjs status
+mise exec -- node dev/worktree-services.mjs stop
+mise exec -- node dev/worktree-services.mjs destroy
+```
+
+`destroy` removes the worktree Docker volumes and generated local-service state.
+The shared Ollama service is intentionally not stopped during workspace archive.
 
 ## Directory Structure
 
