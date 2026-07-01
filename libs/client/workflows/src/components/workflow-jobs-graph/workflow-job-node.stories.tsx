@@ -1,4 +1,4 @@
-import type {RunJobDetailDto} from '@shipfox/api-workflows-dto';
+import type {WorkflowRunJobDetailDto} from '@shipfox/api-workflows-dto';
 import type {Meta, StoryObj} from '@storybook/react';
 import type {KeyboardEventHandler} from 'react';
 import type {WorkflowJobStatus} from '#core/workflow-run.js';
@@ -176,7 +176,7 @@ function makeNode({
   startedAt?: string | null;
   finishedAt?: string | null;
 }): WorkflowJobGraphNode {
-  const overrides: Partial<RunJobDetailDto> = {
+  const overrides: Partial<WorkflowRunJobDetailDto> = {
     id,
     name: label,
     status,

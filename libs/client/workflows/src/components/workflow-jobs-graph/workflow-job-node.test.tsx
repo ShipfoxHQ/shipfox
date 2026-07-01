@@ -1,4 +1,4 @@
-import type {RunJobDetailDto} from '@shipfox/api-workflows-dto';
+import type {WorkflowRunJobDetailDto} from '@shipfox/api-workflows-dto';
 import {TimeTickerProvider} from '@shipfox/react-ui';
 import {act, render, screen} from '@testing-library/react';
 import {workflowJob} from '#test/fixtures/workflow-run.js';
@@ -7,7 +7,9 @@ import {WorkflowJobNode} from './workflow-job-node.js';
 
 const NOW = Date.parse('2026-06-26T12:00:00.000Z');
 
-function makeNode(overrides: Partial<RunJobDetailDto> & {name: string}): WorkflowJobGraphNode {
+function makeNode(
+  overrides: Partial<WorkflowRunJobDetailDto> & {name: string},
+): WorkflowJobGraphNode {
   const job = workflowJob(overrides);
   return {
     ...job,

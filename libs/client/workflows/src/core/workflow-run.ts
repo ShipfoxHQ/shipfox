@@ -33,7 +33,7 @@ export type WorkflowJobDuration =
   | {kind: 'running'; fromIso: string}
   | {kind: 'finished'; fromIso: string; toIso: string};
 
-type WorkflowJobDurationDto = RunJobDetailDto['duration'];
+type WorkflowJobDurationDto = WorkflowRunJobDetailDto['duration'];
 
 export const WORKFLOW_RUN_STATUSES = [
   'pending',
