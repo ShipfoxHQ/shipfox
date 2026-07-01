@@ -7,6 +7,7 @@ import {inlineLogBody, outputLine} from '#test/fixtures/logs.js';
 import {
   runAttemptsResponseDto,
   workflowJobDto,
+  workflowJobExecutionDto,
   workflowRunAttemptDto,
   workflowRunDetailDto,
   workflowRunDto,
@@ -25,6 +26,8 @@ const CHECKOUT_STEP_ID = '99999999-9999-4999-8999-999999999999';
 const CHECKOUT_ATTEMPT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const RERUN_BUTTON_NAME = /^Re-run/;
 const ATTEMPT_2_PATTERN = /Attempt 2/;
+const COPY_RUN_BUTTON_NAME = /Copy run/;
+const EXECUTION_ONE_MENU_ITEM_PATTERN = /#1/;
 
 describe('WorkflowRunView', () => {
   test('renders the run summary, jobs graph, and selected job step attempts when a run loads', async () => {
@@ -39,9 +42,9 @@ describe('WorkflowRunView', () => {
     expect(within(summary).getByRole('heading', {name: 'deploy-web'})).toBeInTheDocument();
     expect(within(summary).getAllByText('Running')).not.toHaveLength(0);
     expect(within(summary).getByText('fire')).toBeInTheDocument();
-    expect(within(summary).getByRole('button', {name: `Copy run id ${RUN_ID}`})).toHaveTextContent(
-      '66666666',
-    );
+    expect(
+      within(summary).queryByRole('button', {name: COPY_RUN_BUTTON_NAME}),
+    ).not.toBeInTheDocument();
     expect(await screen.findByRole('region', {name: 'Workflow jobs'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'build, Succeeded'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'deploy, Running'})).toBeInTheDocument();
@@ -101,7 +104,120 @@ describe('WorkflowRunView', () => {
     expect(logRequest?.searchParams.get('cursor')).toBe('0');
   });
 
-  test('shows resolved agent config and provider setup guidance for agent config failures', async () => {
+  test('switches executions from the listening job header', async () => {
+    const user = userEvent.setup();
+    configureApiClient({
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            workflowRunViewDetailDto({
+              jobs: [
+                workflowJobDto({
+                  id: BUILD_JOB_ID,
+                  run_attempt_id: RUN_ID,
+                  name: 'release-gates',
+                  mode: 'listening',
+                  status: 'running',
+                  listener_status: 'listening',
+                  job_executions: [
+                    workflowJobExecutionDto({
+                      id: 'execution-1',
+                      job_id: BUILD_JOB_ID,
+                      sequence: 1,
+                      status: 'succeeded',
+                      trigger_events: [
+                        {
+                          source: 'github',
+                          event: 'pull_request',
+                          delivery_id: 'delivery-1',
+                          received_at: '2026-05-07T01:00:00.000Z',
+                          data: {number: 12},
+                        },
+                      ],
+                      started_at: '2026-05-07T01:01:00.000Z',
+                      finished_at: '2026-05-07T01:01:20.000Z',
+                      steps: [
+                        workflowStepDto({
+                          key: 'first-event',
+                          name: 'first-event',
+                          status: 'succeeded',
+                          attempts: [
+                            workflowStepAttemptDto({
+                              status: 'succeeded',
+                              finished_at: '2026-05-07T01:01:20.000Z',
+                            }),
+                          ],
+                        }),
+                      ],
+                    }),
+                    workflowJobExecutionDto({
+                      id: 'execution-2',
+                      job_id: BUILD_JOB_ID,
+                      sequence: 2,
+                      status: 'failed',
+                      status_reason: 'step_failed',
+                      trigger_events: [
+                        {
+                          source: 'github',
+                          event: 'deployment_status',
+                          delivery_id: 'delivery-2',
+                          received_at: '2026-05-07T01:01:00.000Z',
+                          data: {state: 'success'},
+                        },
+                        {
+                          source: 'github',
+                          event: 'check_run',
+                          delivery_id: 'delivery-3',
+                          received_at: '2026-05-07T01:01:10.000Z',
+                          data: {status: 'completed'},
+                        },
+                      ],
+                      started_at: '2026-05-07T01:02:00.000Z',
+                      finished_at: '2026-05-07T01:02:20.000Z',
+                      steps: [
+                        workflowStepDto({
+                          key: 'second-event',
+                          name: 'second-event',
+                          status: 'failed',
+                          attempts: [
+                            workflowStepAttemptDto({
+                              status: 'failed',
+                              exit_code: 1,
+                              finished_at: '2026-05-07T01:02:20.000Z',
+                            }),
+                          ],
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ),
+        ),
+      ),
+    });
+
+    renderView();
+    expect(await screen.findByText('second-event')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', {name: 'github · deployment_status (2 events)'}),
+    ).toBeInTheDocument();
+    expect(screen.getByText('deployment_status (2)')).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', {name: 'Switch job execution, currently execution 2'}),
+    );
+    await user.click(screen.getByRole('menuitem', {name: EXECUTION_ONE_MENU_ITEM_PATTERN}));
+
+    expect(await screen.findByText('first-event')).toBeInTheDocument();
+    expect(screen.queryByText('second-event')).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', {name: 'github · pull_request'})).toBeInTheDocument();
+    expect(screen.getByText('pull_request')).toBeInTheDocument();
+    expect(screen.queryByText('deployment_status (2)')).not.toBeInTheDocument();
+  });
+
+  test('shows generic provider setup guidance for agent config failures', async () => {
     const user = userEvent.setup();
     const stepId = '99999999-9999-4999-8999-000000000004';
     const attemptId = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000004';
@@ -170,17 +286,16 @@ describe('WorkflowRunView', () => {
       }),
     );
 
-    const config = screen.getByRole('region', {name: 'Resolved agent configuration'});
-    expect(within(config).getByText('Provider')).toBeInTheDocument();
-    expect(within(config).getByText('anthropic')).toBeInTheDocument();
-    expect(within(config).getByText('Model')).toBeInTheDocument();
-    expect(within(config).getByText('claude-opus-4-8')).toBeInTheDocument();
-    expect(within(config).getByText('Thinking')).toBeInTheDocument();
-    expect(within(config).getByText('high')).toBeInTheDocument();
-    expect(screen.getByText('Configure credentials for anthropic')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', {name: 'Resolved agent configuration'}),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('anthropic')).not.toBeInTheDocument();
+    expect(screen.queryByText('claude-opus-4-8')).not.toBeInTheDocument();
+    expect(screen.queryByText('high')).not.toBeInTheDocument();
+    expect(screen.getByText('Configure credentials for the selected provider')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'This step uses anthropic, but no workspace credentials are configured for that provider. Configure anthropic in Agent Providers, then re-run the workflow.',
+        'This step uses the selected provider, but no workspace credentials are configured for that provider. Configure the selected provider in Agent Providers, then re-run the workflow.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Configure Agent Providers'})).toHaveAttribute(
@@ -256,7 +371,10 @@ describe('WorkflowRunView', () => {
       }),
     );
 
-    expect(screen.getByText('Configure credentials for anthropic')).toBeInTheDocument();
+    expect(screen.queryByText('anthropic')).not.toBeInTheDocument();
+    expect(screen.queryByText('claude-opus-4-8')).not.toBeInTheDocument();
+    expect(screen.queryByText('high')).not.toBeInTheDocument();
+    expect(screen.getByText('Configure credentials for the selected provider')).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Configure Agent Providers'})).toHaveAttribute(
       'href',
       `/workspaces/${PROJECT_TEST_WID}/settings/agent-providers`,
@@ -276,7 +394,7 @@ describe('WorkflowRunView', () => {
                   name: 'deploy',
                   status: 'skipped',
                   status_reason: 'dependency_not_completed',
-                  steps: [],
+                  job_executions: [],
                 }),
               ],
             }),
@@ -290,6 +408,45 @@ describe('WorkflowRunView', () => {
     expect(await screen.findByText('This job was skipped')).toBeInTheDocument();
     expect(
       screen.getByText('A required job did not complete, so this job was skipped.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No steps recorded')).not.toBeInTheDocument();
+  });
+
+  test('uses the selected execution status for zero-step execution states', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            workflowRunViewDetailDto({
+              jobs: [
+                workflowJobDto({
+                  id: DEPLOY_JOB_ID,
+                  run_attempt_id: RUN_ID,
+                  name: 'deploy',
+                  status: 'succeeded',
+                  job_executions: [
+                    workflowJobExecutionDto({
+                      id: 'retry-execution',
+                      job_id: DEPLOY_JOB_ID,
+                      sequence: 2,
+                      name: 'retry',
+                      status: 'running',
+                      steps: [],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ),
+        ),
+      ),
+    });
+
+    renderView();
+
+    expect(await screen.findByText('Waiting for the first step')).toBeInTheDocument();
+    expect(
+      screen.getByText('This job is running, but no steps have started yet.'),
     ).toBeInTheDocument();
     expect(screen.queryByText('No steps recorded')).not.toBeInTheDocument();
   });
@@ -334,7 +491,13 @@ describe('WorkflowRunView', () => {
                   run_attempt_id: RUN_ID,
                   name: 'deploy',
                   status: 'running',
-                  steps: [],
+                  job_executions: [
+                    workflowJobExecutionDto({
+                      job_id: DEPLOY_JOB_ID,
+                      status: 'running',
+                      steps: [],
+                    }),
+                  ],
                 }),
               ],
             }),
@@ -352,6 +515,68 @@ describe('WorkflowRunView', () => {
     expect(screen.queryByText('No steps recorded')).not.toBeInTheDocument();
   });
 
+  test('renders active listening jobs with no executions as waiting for trigger events', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            workflowRunViewDetailDto({
+              jobs: [
+                workflowJobDto({
+                  id: DEPLOY_JOB_ID,
+                  run_attempt_id: RUN_ID,
+                  name: 'release-gates',
+                  mode: 'listening',
+                  status: 'running',
+                  listener_status: 'listening',
+                  job_executions: [],
+                }),
+              ],
+            }),
+          ),
+        ),
+      ),
+    });
+
+    renderView();
+
+    expect(await screen.findByText('Waiting for trigger events')).toBeInTheDocument();
+    expect(
+      screen.getByText('Matching trigger events will create job executions here.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Execution details unavailable')).not.toBeInTheDocument();
+  });
+
+  test('renders finished one-shot jobs with no execution as unavailable execution details', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            workflowRunViewDetailDto({
+              jobs: [
+                workflowJobDto({
+                  id: DEPLOY_JOB_ID,
+                  run_attempt_id: RUN_ID,
+                  name: 'deploy',
+                  status: 'succeeded',
+                  job_executions: [],
+                }),
+              ],
+            }),
+          ),
+        ),
+      ),
+    });
+
+    renderView();
+
+    expect(await screen.findByText('Execution details unavailable')).toBeInTheDocument();
+    expect(
+      screen.getByText('This job finished, but no job execution record is available.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Waiting for trigger events')).not.toBeInTheDocument();
+  });
+
   test('renders cancelled zero-attempt jobs separately from skipped jobs', async () => {
     configureApiClient({
       fetchImpl: vi.fn(() =>
@@ -364,7 +589,13 @@ describe('WorkflowRunView', () => {
                   run_attempt_id: RUN_ID,
                   name: 'deploy',
                   status: 'cancelled',
-                  steps: [],
+                  job_executions: [
+                    workflowJobExecutionDto({
+                      job_id: DEPLOY_JOB_ID,
+                      status: 'cancelled',
+                      steps: [],
+                    }),
+                  ],
                 }),
               ],
             }),

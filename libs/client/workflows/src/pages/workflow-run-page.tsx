@@ -1,7 +1,7 @@
 import {useNavigate, useSearch} from '@tanstack/react-router';
 import {useCallback, useEffect} from 'react';
+import {WorkflowRunList} from '#components/workflow-run-list/workflow-run-list.js';
 import {WorkflowRunView} from '#components/workflow-run-view/index.js';
-import {WorkflowRunsList} from '#components/workflow-runs-list/workflow-runs-list.js';
 import {
   type WorkflowRunSelectionInput,
   withoutWorkflowRunSelectionSearch,
@@ -72,7 +72,7 @@ export function WorkflowRunPage({workspaceId, projectId, workflowRunId}: Workflo
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
-      <WorkflowRunsList
+      <WorkflowRunList
         workspaceId={workspaceId}
         projectId={projectId}
         selectedWorkflowRunId={workflowRunId}

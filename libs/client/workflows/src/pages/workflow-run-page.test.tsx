@@ -8,6 +8,7 @@ import userEvent from '@testing-library/user-event';
 import {inlineLogBody, outputLine} from '#test/fixtures/logs.js';
 import {
   workflowJobDto,
+  workflowJobExecutionDto,
   workflowRunDetailDto,
   workflowRunDto,
   workflowStepAttemptDto,
@@ -25,9 +26,13 @@ const BUILD_STEP_ID = '99999999-9999-4999-8999-000000000000';
 const BUILD_ATTEMPT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000000';
 const DEPLOY_JOB_ID = '88888888-8888-4888-8888-888888888888';
 const DEPLOY_STEP_ID = '99999999-9999-4999-8999-999999999999';
+const DEPLOY_RETRY_STEP_ID = '99999999-9999-4999-8999-000000000003';
 const DEPLOY_ATTEMPT_ONE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001';
 const DEPLOY_ATTEMPT_TWO_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000002';
+const DEPLOY_EXECUTION_ONE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-000000000001';
+const DEPLOY_EXECUTION_TWO_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-000000000002';
 const SMOKE_WEB_RE = /smoke-web/u;
+const EXECUTION_ONE_MENU_ITEM_PATTERN = /#1/;
 const RUN_DETAIL_PATH_RE = /^\/workflows\/runs\/([^/]+)$/u;
 const RUN_OVERRIDES = {
   id: RUN_ID,
@@ -134,6 +139,41 @@ describe('WorkflowRunPage', () => {
         stepAttempt: DEPLOY_ATTEMPT_TWO_ID,
       });
     });
+  });
+
+  test('selecting a listening execution writes job execution search state and scopes step selection', async () => {
+    const user = userEvent.setup();
+    configureApiClient({
+      fetchImpl: createRunDetailFetch({details: {[RUN_ID]: retryRunDetailDto()}}),
+    });
+    const {router} = renderRunPath(`?job=${DEPLOY_JOB_ID}`);
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Switch job execution, currently execution 2',
+      }),
+    );
+    await user.click(screen.getByRole('menuitem', {name: EXECUTION_ONE_MENU_ITEM_PATTERN}));
+
+    await waitFor(() => {
+      expect(currentSearch(router)).toMatchObject({
+        job: DEPLOY_JOB_ID,
+        jobExecution: DEPLOY_EXECUTION_ONE_ID,
+      });
+    });
+    expect(screen.getByRole('button', {name: 'deploy, Failed, attempt 1'})).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', {name: 'deploy, Failed, attempt 1'}));
+
+    await waitFor(() => {
+      expect(currentSearch(router)).toMatchObject({
+        job: DEPLOY_JOB_ID,
+        jobExecution: DEPLOY_EXECUTION_ONE_ID,
+        step: DEPLOY_STEP_ID,
+        stepAttempt: DEPLOY_ATTEMPT_ONE_ID,
+      });
+    });
+    expect(await screen.findByText('attempt one log')).toBeInTheDocument();
   });
 
   test('collapsing an attempt removes step and attempt while preserving job', async () => {
@@ -288,6 +328,9 @@ function createRunDetailFetch({
     if (url.pathname === `/steps/${DEPLOY_STEP_ID}/attempts/2/logs`) {
       return Promise.resolve(jsonResponse(inlineLogBody(outputLine('attempt two log\n'), 1)));
     }
+    if (url.pathname === `/steps/${DEPLOY_RETRY_STEP_ID}/attempts/1/logs`) {
+      return Promise.resolve(jsonResponse(inlineLogBody(outputLine('retry attempt log\n'), 1)));
+    }
     if (url.pathname === `/steps/${BUILD_STEP_ID}/attempts/1/logs`) {
       return Promise.resolve(jsonResponse(inlineLogBody(outputLine('build log\n'), 1)));
     }
@@ -379,6 +422,93 @@ function defaultRunDetailDto(
       }),
     ],
     ...overrides,
+  });
+}
+
+function retryRunDetailDto(): WorkflowRunDetailResponseDto {
+  return defaultRunDetailDto({
+    jobs: [
+      workflowJobDto({
+        id: BUILD_JOB_ID,
+        run_attempt_id: RUN_ID,
+        name: 'build',
+        status: 'succeeded',
+        steps: [
+          workflowStepDto({
+            id: BUILD_STEP_ID,
+            name: 'checkout',
+            status: 'succeeded',
+            attempts: [
+              workflowStepAttemptDto({
+                id: BUILD_ATTEMPT_ID,
+                step_id: BUILD_STEP_ID,
+                status: 'succeeded',
+              }),
+            ],
+          }),
+        ],
+      }),
+      workflowJobDto({
+        id: DEPLOY_JOB_ID,
+        run_attempt_id: RUN_ID,
+        name: 'deploy',
+        mode: 'listening',
+        status: 'running',
+        listener_status: 'listening',
+        position: 1,
+        dependencies: ['build'],
+        job_executions: [
+          workflowJobExecutionDto({
+            id: DEPLOY_EXECUTION_ONE_ID,
+            job_id: DEPLOY_JOB_ID,
+            sequence: 1,
+            name: 'deploy',
+            status: 'failed',
+            started_at: '2026-05-07T01:01:00.000Z',
+            finished_at: '2026-05-07T01:02:00.000Z',
+            steps: [
+              workflowStepDto({
+                id: DEPLOY_STEP_ID,
+                name: 'deploy',
+                status: 'failed',
+                attempts: [
+                  workflowStepAttemptDto({
+                    id: DEPLOY_ATTEMPT_ONE_ID,
+                    step_id: DEPLOY_STEP_ID,
+                    status: 'failed',
+                    exit_code: 1,
+                  }),
+                ],
+              }),
+            ],
+          }),
+          workflowJobExecutionDto({
+            id: DEPLOY_EXECUTION_TWO_ID,
+            job_id: DEPLOY_JOB_ID,
+            sequence: 2,
+            name: 'deploy',
+            status: 'running',
+            started_at: '2026-05-07T01:03:00.000Z',
+            steps: [
+              workflowStepDto({
+                id: DEPLOY_RETRY_STEP_ID,
+                name: 'deploy retry',
+                status: 'running',
+                attempts: [
+                  workflowStepAttemptDto({
+                    id: DEPLOY_ATTEMPT_TWO_ID,
+                    step_id: DEPLOY_RETRY_STEP_ID,
+                    status: 'running',
+                    exit_code: null,
+                    finished_at: null,
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
   });
 }
 

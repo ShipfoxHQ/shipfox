@@ -2232,7 +2232,7 @@ jobs:
     });
   });
 
-  describe('run and job lifecycle timing', () => {
+  describe('run lifecycle timing', () => {
     test('run: stamps started_at on running and preserves it through the terminal transition', async () => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
 
@@ -2268,37 +2268,6 @@ jobs:
       expect(cancelled.finishedAt).not.toBeNull();
     });
 
-    test.each([
-      'succeeded',
-      'failed',
-      'cancelled',
-      'skipped',
-    ] as const)('job: stamps finished_at on a %s terminal transition', async (status) => {
-      const run = await createTestRun({workspaceId, projectId, definitionId});
-      const job = (await getJobsByWorkflowRunId(run.id))[0];
-
-      const finished = await updateJobStatus({
-        jobId: job?.id as string,
-        status,
-        expectedVersion: 1,
-      });
-
-      expect(finished.finishedAt).not.toBeNull();
-    });
-
-    test('job: leaves finished_at null on a non-terminal transition', async () => {
-      const run = await createTestRun({workspaceId, projectId, definitionId});
-      const job = (await getJobsByWorkflowRunId(run.id))[0];
-
-      const running = await updateJobStatus({
-        jobId: job?.id as string,
-        status: 'running',
-        expectedVersion: 1,
-      });
-
-      expect(running.finishedAt).toBeNull();
-    });
-
     test('run: re-entering running keeps the first started_at (coalesce, not a fresh clock)', async () => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
       const firstRunning = await updateWorkflowRunStatus({
@@ -2314,21 +2283,6 @@ jobs:
       });
 
       expect(secondRunning.startedAt?.getTime()).toBe(firstRunning.startedAt?.getTime());
-    });
-
-    test('job: cancelled straight from pending has a finish but no start or queue time', async () => {
-      const run = await createTestRun({workspaceId, projectId, definitionId});
-      const job = (await getJobsByWorkflowRunId(run.id))[0];
-
-      const cancelled = await updateJobStatus({
-        jobId: job?.id as string,
-        status: 'cancelled',
-        expectedVersion: 1,
-      });
-
-      expect(cancelled.finishedAt).not.toBeNull();
-      expect(cancelled.startedAt).toBeNull();
-      expect(cancelled.queuedAt).toBeNull();
     });
   });
 

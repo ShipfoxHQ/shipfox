@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import {jobDtoSchema} from './job.js';
+import {workflowExecutionEventSchema} from './job-listening.js';
 import {stepAttemptDtoSchema, stepDtoSchema} from './step.js';
 import {workflowRunResponseSchema, workflowRunStatusSchema} from './workflow-run.js';
 
@@ -18,6 +19,7 @@ export const jobExecutionDtoSchema = z.object({
   name: z.string(),
   status: jobExecutionStatusSchema,
   status_reason: z.string().nullable(),
+  trigger_events: z.array(workflowExecutionEventSchema).default([]),
   queued_at: z.string().nullable(),
   started_at: z.string().nullable(),
   finished_at: z.string().nullable(),

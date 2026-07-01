@@ -46,7 +46,8 @@
     "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "^0.5.17",
-    "@tanstack/react-query": "^5.101.0"
+    "@tanstack/react-query": "^5.101.0",
+    "date-fns": "^4.1.0"
   },
   "peerDependencies": {
     "@tanstack/react-router": "^1.170.16",

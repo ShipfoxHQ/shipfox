@@ -1,5 +1,6 @@
 import type {Job} from '#core/entities/job.js';
-import {toJobDto} from './job.js';
+import type {JobExecution} from '#core/entities/job-execution.js';
+import {toJobDto, toJobExecutionDto} from './job.js';
 
 describe('toJobDto', () => {
   it('maps job status reason to snake_case', () => {
@@ -10,38 +11,33 @@ describe('toJobDto', () => {
     expect(dto.status).toBe('skipped');
     expect(dto.status_reason).toBe('dependency_not_completed');
   });
+});
 
-  it('maps a running duration descriptor', () => {
-    const startedAt = new Date('2026-06-21T12:00:30.000Z');
-    const job = jobEntity({status: 'running', startedAt});
-
-    const dto = toJobDto(job);
-
-    expect(dto.duration).toEqual({kind: 'running', from_iso: startedAt.toISOString()});
-  });
-
-  it('maps a finished duration descriptor', () => {
-    const startedAt = new Date('2026-06-21T12:00:30.000Z');
-    const finishedAt = new Date('2026-06-21T12:02:44.000Z');
-    const job = jobEntity({status: 'succeeded', startedAt, finishedAt});
-
-    const dto = toJobDto(job);
-
-    expect(dto.duration).toEqual({
-      kind: 'finished',
-      from_iso: startedAt.toISOString(),
-      to_iso: finishedAt.toISOString(),
+describe('toJobExecutionDto', () => {
+  it('maps listener trigger events', () => {
+    const jobExecution = jobExecutionEntity({
+      triggerEvents: [
+        {
+          source: 'github',
+          event: 'deployment_status',
+          delivery_id: 'delivery-1',
+          received_at: '2026-06-25T00:00:00.000Z',
+          data: {state: 'success'},
+        },
+      ],
     });
-  });
 
-  it('maps a queued job cancelled before start to no duration', () => {
-    const queuedAt = new Date('2026-06-21T12:00:00.000Z');
-    const finishedAt = new Date('2026-06-21T12:01:00.000Z');
-    const job = jobEntity({status: 'cancelled', queuedAt, startedAt: null, finishedAt});
+    const dto = toJobExecutionDto(jobExecution);
 
-    const dto = toJobDto(job);
-
-    expect(dto.duration).toEqual({kind: 'none'});
+    expect(dto.trigger_events).toEqual([
+      {
+        source: 'github',
+        event: 'deployment_status',
+        delivery_id: 'delivery-1',
+        received_at: '2026-06-25T00:00:00.000Z',
+        data: {state: 'success'},
+      },
+    ]);
   });
 });
 
@@ -73,10 +69,26 @@ function jobEntity(overrides: Partial<Job> = {}): Job {
     version: 1,
     createdAt: new Date('2026-06-25T00:00:00.000Z'),
     updatedAt: new Date('2026-06-25T00:00:01.000Z'),
-    timedOutAt: null,
+    ...overrides,
+  };
+}
+
+function jobExecutionEntity(overrides: Partial<JobExecution> = {}): JobExecution {
+  return {
+    id: '33333333-3333-4333-8333-333333333333',
+    jobId: '11111111-1111-4111-8111-111111111111',
+    sequence: 1,
+    name: 'deploy',
+    status: 'pending',
+    statusReason: null,
+    triggerEvents: [],
+    version: 1,
+    createdAt: new Date('2026-06-25T00:00:00.000Z'),
+    updatedAt: new Date('2026-06-25T00:00:01.000Z'),
     queuedAt: null,
     startedAt: null,
     finishedAt: null,
+    timedOutAt: null,
     ...overrides,
   };
 }

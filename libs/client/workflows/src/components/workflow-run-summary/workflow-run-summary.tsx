@@ -3,7 +3,6 @@ import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {
   Badge,
   Button,
-  Code,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -20,11 +19,10 @@ import type {Ref} from 'react';
 import {useId} from 'react';
 import {
   isWorkflowRunTerminal,
+  type Job,
   WORKFLOW_RUN_STATUSES,
-  type WorkflowJob,
   type WorkflowRunDetail,
 } from '#core/workflow-run.js';
-import {Identifier} from '../identifier/index.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
 import {WorkflowRunAttemptSwitcher} from './workflow-run-attempt-switcher.js';
 
@@ -66,8 +64,12 @@ export function WorkflowRunSummary({
   latestAttempt,
 }: WorkflowRunSummaryProps) {
   const headingId = useId();
-  const status = getWorkflowStatusVisual(run.status);
+  const status = getWorkflowStatusVisual(run.runAttempt.status);
   const action = workflowRunActionForRun(run);
+  const attemptSwitcher =
+    latestAttempt && latestAttempt > 1 && workspaceId && projectId
+      ? {workspaceId, projectId, latestAttempt}
+      : null;
   const {ref: headingTextRef, isTruncated: isHeadingTruncated} =
     useIsTextTruncated<HTMLSpanElement>(run.name);
 
@@ -125,24 +127,19 @@ export function WorkflowRunSummary({
           ) : null}
         </div>
 
-        <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-8 overflow-hidden text-foreground-neutral-muted">
-          <Identifier display={run.shortId} value={run.id} label="run id" />
-
-          {latestAttempt && latestAttempt > 1 && workspaceId && projectId ? (
-            <>
-              <MetadataSeparator />
-              <WorkflowRunAttemptSwitcher
-                workspaceId={workspaceId}
-                projectId={projectId}
-                run={run}
-                latestAttempt={latestAttempt}
-              />
-            </>
+        <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-12 overflow-hidden text-foreground-neutral-muted">
+          {attemptSwitcher ? (
+            <WorkflowRunAttemptSwitcher
+              workspaceId={attemptSwitcher.workspaceId}
+              projectId={attemptSwitcher.projectId}
+              run={run}
+              latestAttempt={attemptSwitcher.latestAttempt}
+            />
           ) : null}
 
           {run.triggerDisplayLabel ? (
             <>
-              <MetadataSeparator />
+              {attemptSwitcher ? <MetadataSeparator /> : null}
               <span className="min-w-0">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -157,25 +154,25 @@ export function WorkflowRunSummary({
                         aria-hidden="true"
                         className="size-12 shrink-0"
                       />
-                      <Code as="span" variant="label" className="min-w-0 truncate">
+                      <Text as="span" size="xs" className="min-w-0 truncate">
                         {run.triggerDisplayLabel}
-                      </Code>
+                      </Text>
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <Code as="span" variant="label" className="block max-w-[360px] break-words">
+                    <Text as="span" size="xs" className="block max-w-[360px] break-words">
                       {run.triggerLabel}
-                    </Code>
+                    </Text>
                   </TooltipContent>
                 </Tooltip>
               </span>
             </>
           ) : null}
 
-          <MetadataSeparator />
+          {attemptSwitcher || run.triggerDisplayLabel ? <MetadataSeparator /> : null}
           <RelativeTime
-            value={run.createdAt}
-            className="shrink-0 whitespace-nowrap font-code text-xs leading-20 text-foreground-neutral-muted"
+            value={run.runAttempt.createdAt}
+            className="shrink-0 whitespace-nowrap text-xs leading-20 text-foreground-neutral-muted"
           />
         </div>
       </div>
@@ -262,8 +259,8 @@ function WorkflowRunActionSlot({
 
 function workflowRunActionForRun(run: WorkflowRunDetail): WorkflowRunAction {
   if (run.runAttempt.attempt !== run.currentAttempt) return 'none';
-  if (!isWorkflowRunTerminal(run.status)) return 'cancel';
-  if (run.status === 'succeeded' || !hasFailedOrCancelledJobs(run)) return 'rerun-all';
+  if (!isWorkflowRunTerminal(run.runAttempt.status)) return 'cancel';
+  if (run.runAttempt.status === 'succeeded' || !hasFailedOrCancelledJobs(run)) return 'rerun-all';
   return 'rerun-menu';
 }
 
@@ -273,9 +270,7 @@ function hasFailedOrCancelledJobs(run: WorkflowRunDetail): boolean {
   return run.jobs.some((job) => job.status === 'failed' || job.status === 'cancelled');
 }
 
-function workflowRunHasJobs(
-  run: WorkflowRunDetail,
-): run is WorkflowRunDetail & {jobs: WorkflowJob[]} {
+function workflowRunHasJobs(run: WorkflowRunDetail): run is WorkflowRunDetail & {jobs: Job[]} {
   return 'jobs' in run && Array.isArray(run.jobs);
 }
 

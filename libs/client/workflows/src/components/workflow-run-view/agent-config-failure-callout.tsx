@@ -7,7 +7,7 @@ import {
   Button,
 } from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
-import type {WorkflowAgentStepConfig, WorkflowStepError} from '#core/workflow-run.js';
+import type {AgentStepConfig, StepError} from '#core/workflow-run.js';
 
 export function AgentConfigFailureCallout({
   workspaceId,
@@ -15,8 +15,8 @@ export function AgentConfigFailureCallout({
   error,
 }: {
   workspaceId: string;
-  config: WorkflowAgentStepConfig | null;
-  error: WorkflowStepError | null;
+  config: AgentStepConfig | null;
+  error: StepError | null;
 }) {
   const copy = agentConfigFailureCopy(config, error);
 
@@ -40,8 +40,8 @@ export function AgentConfigFailureCallout({
 }
 
 function agentConfigFailureCopy(
-  config: WorkflowAgentStepConfig | null,
-  error: WorkflowStepError | null,
+  config: AgentStepConfig | null,
+  error: StepError | null,
 ): {title: string; description: string; showProviderCta: boolean} {
   const provider = configValue(config?.provider, 'the selected provider');
   const model = configValue(config?.model, 'the selected model');

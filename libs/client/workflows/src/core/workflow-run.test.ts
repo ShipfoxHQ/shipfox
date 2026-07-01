@@ -1,5 +1,6 @@
 import {
   workflowJobDto,
+  workflowJobExecutionDto,
   workflowRunAttemptDto,
   workflowRunDetailDto,
   workflowRunDto,
@@ -13,6 +14,7 @@ import {
   toWorkflowRun,
   toWorkflowRunAttempt,
   toWorkflowRunDetail,
+  toWorkflowRunListItem,
   toWorkflowRunListPage,
   workflowRunShortId,
   workflowRunTriggerDisplayLabel,
@@ -48,7 +50,6 @@ describe('workflow run model mapping', () => {
       projectId: '44444444-4444-4444-8444-444444444444',
       definitionId: '55555555-5555-4555-8555-555555555555',
       name: 'deploy-web',
-      status: 'running',
       currentAttempt: 3,
       triggerProvider: 'github',
       triggerSource: 'github_acme',
@@ -60,11 +61,12 @@ describe('workflow run model mapping', () => {
       sourceSnapshot: {format: 'yaml', content: 'jobs: {}'},
       createdAt: '2026-05-07T01:01:00.000Z',
       updatedAt: '2026-05-07T01:02:00.000Z',
-      startedAt: '2026-05-07T01:01:10.000Z',
-      finishedAt: null,
       shortId: '66666666',
       isTemporary: false,
     });
+    expect(run).not.toHaveProperty('status');
+    expect(run).not.toHaveProperty('startedAt');
+    expect(run).not.toHaveProperty('finishedAt');
   });
 
   test('normalizes missing nullable fields and marks temporary optimistic runs', () => {
@@ -87,10 +89,26 @@ describe('workflow run model mapping', () => {
       triggerLabel: '',
       inputs: null,
       sourceSnapshot: null,
-      startedAt: null,
-      finishedAt: null,
       shortId: 'temp-123',
       isTemporary: true,
+    });
+  });
+
+  test('maps run list projection fields from the current attempt mirror', () => {
+    const dto = workflowRunDto({
+      status: 'running',
+      latest_attempt: 4,
+      started_at: '2026-05-07T01:01:10.000Z',
+      finished_at: null,
+    });
+
+    const run = toWorkflowRunListItem(dto);
+
+    expect(run).toMatchObject({
+      status: 'running',
+      latestAttempt: 4,
+      startedAt: '2026-05-07T01:01:10.000Z',
+      finishedAt: null,
     });
   });
 
@@ -147,17 +165,24 @@ describe('workflow run model mapping', () => {
       current_attempt: 2,
       attempts: [attempt],
     });
+    const jobId = '44444444-4444-4444-8444-000000000001';
     const job = workflowJobDto({
-      id: '44444444-4444-4444-8444-000000000001',
+      id: jobId,
       name: 'test',
       status: 'failed',
       status_reason: 'step_failed',
       dependencies: ['build'],
       position: 2,
-      queued_at: '2026-05-07T01:00:00.000Z',
-      started_at: '2026-05-07T01:00:05.000Z',
-      finished_at: '2026-05-07T01:02:00.000Z',
-      steps: [step],
+      job_executions: [
+        workflowJobExecutionDto({
+          job_id: jobId,
+          status: 'failed',
+          queued_at: '2026-05-07T01:00:00.000Z',
+          started_at: '2026-05-07T01:00:05.000Z',
+          finished_at: '2026-05-07T01:02:00.000Z',
+          steps: [step],
+        }),
+      ],
     });
     const dto = workflowRunDetailDto({latest_attempt: 4, jobs: [job]});
 
@@ -169,21 +194,43 @@ describe('workflow run model mapping', () => {
       runAttemptId: '11111111-1111-4111-8111-111111111111',
       key: 'test',
       name: 'test',
+      mode: 'one_shot',
       status: 'failed',
       statusReason: 'step_failed',
+      listening: null,
+      listenerStatus: 'inactive',
+      resolutionReason: null,
       dependencies: ['build'],
+    });
+    expect(detail.jobs[0]?.displayDuration).toMatchObject({
+      kind: 'run',
+      state: 'fixed',
+      elapsed: {minutes: 1, seconds: 55},
+    });
+    expect(detail.jobs[0]?.jobExecutions[0]).toMatchObject({
+      sequence: 1,
+      status: 'failed',
       queuedAt: '2026-05-07T01:00:00.000Z',
       startedAt: '2026-05-07T01:00:05.000Z',
       finishedAt: '2026-05-07T01:02:00.000Z',
-      duration: {
-        kind: 'finished',
-        fromIso: '2026-05-07T01:00:05.000Z',
-        toIso: '2026-05-07T01:02:00.000Z',
-      },
+      timedOutAt: null,
     });
-    expect(detail.jobs[0]?.steps[0]).toMatchObject({
+    expect(detail.jobs[0]?.jobExecutions[0]?.queueTime).toMatchObject({
+      state: 'fixed',
+      elapsed: {seconds: 5},
+    });
+    expect(detail.jobs[0]?.jobExecutions[0]?.runTime).toMatchObject({
+      state: 'fixed',
+      elapsed: {minutes: 1, seconds: 55},
+    });
+    expect(detail.jobs[0]?.jobExecutions[0]?.displayDuration).toMatchObject({
+      kind: 'run',
+      state: 'fixed',
+      elapsed: {minutes: 1, seconds: 55},
+    });
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]).toMatchObject({
       id: '55555555-5555-4555-8555-000000000001',
-      jobId: '44444444-4444-4444-8444-000000000001',
+      jobExecutionId: detail.jobs[0]?.jobExecutions[0]?.id,
       key: null,
       name: 'Run tests',
       sourceLocation: {startLine: 3, endLine: 5},
@@ -196,8 +243,9 @@ describe('workflow run model mapping', () => {
         category: 'user',
       },
     });
-    expect(detail.jobs[0]?.steps[0]?.attempts[0]).toMatchObject({
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]?.attempts[0]).toMatchObject({
       id: '66666666-6666-4666-8666-000000000001',
+      jobExecutionId: detail.jobs[0]?.jobExecutions[0]?.id,
       executionOrder: 4,
       exitCode: 1,
       output: {tail: 'stderr'},
@@ -210,7 +258,172 @@ describe('workflow run model mapping', () => {
     });
   });
 
-  test('preserves null source, error, timing, and attempt fields', () => {
+  test('maps listening job state', () => {
+    const job = workflowJobDto({
+      mode: 'listening',
+      status: 'running',
+      listening: {
+        on: [{source: 'github', event: 'deployment_status'}],
+        until: [{source: 'slack', event: 'approval'}],
+        timeout_ms: 1_800_000,
+        max_executions: 10,
+        batch: null,
+        on_resolve: 'finish',
+        execution_timeout_ms: null,
+        name: null,
+      },
+      listener_status: 'listening',
+      resolution_reason: null,
+      job_executions: [
+        workflowJobExecutionDto({
+          trigger_events: [
+            {
+              source: 'github',
+              event: 'deployment_status',
+              delivery_id: 'delivery-1',
+              received_at: '2026-05-07T01:00:00.000Z',
+              data: {state: 'success'},
+            },
+          ],
+        }),
+      ],
+    });
+    const dto = workflowRunDetailDto({jobs: [job]});
+
+    const detail = toWorkflowRunDetail(dto);
+
+    expect(detail.jobs[0]).toMatchObject({
+      mode: 'listening',
+      status: 'running',
+      listening: {
+        on: [{source: 'github', event: 'deployment_status'}],
+        until: [{source: 'slack', event: 'approval'}],
+        timeout_ms: 1_800_000,
+        max_executions: 10,
+        batch: null,
+        on_resolve: 'finish',
+        execution_timeout_ms: null,
+        name: null,
+      },
+      listenerStatus: 'listening',
+      resolutionReason: null,
+    });
+    expect(detail.jobs[0]?.jobExecutions[0]).toMatchObject({
+      triggerEvents: [
+        {
+          source: 'github',
+          event: 'deployment_status',
+          delivery_id: 'delivery-1',
+          received_at: '2026-05-07T01:00:00.000Z',
+          data: {state: 'success'},
+        },
+      ],
+    });
+    expect(detail.jobs[0]?.displayDuration).toBeNull();
+  });
+
+  test('maps job display names and execution durations as model getters', () => {
+    const job = workflowJobDto({
+      key: 'deploy-prod',
+      name: null,
+      job_executions: [
+        workflowJobExecutionDto({
+          queued_at: '2026-05-07T01:00:00.000Z',
+          started_at: '2026-05-07T01:00:05.000Z',
+          finished_at: '2026-05-07T01:02:00.000Z',
+        }),
+      ],
+    });
+    const dto = workflowRunDetailDto({jobs: [job]});
+
+    const detail = toWorkflowRunDetail(dto);
+
+    expect(detail.jobs[0]?.displayName).toBe('deploy-prod');
+    expect(detail.jobs[0]?.jobExecutions[0]?.queueTime).toMatchObject({
+      state: 'fixed',
+      elapsed: {seconds: 5},
+    });
+    expect(detail.jobs[0]?.jobExecutions[0]?.runTime).toMatchObject({
+      state: 'fixed',
+      elapsed: {minutes: 1, seconds: 55},
+    });
+    expect(detail.jobs[0]?.jobExecutions[0]?.displayDuration).toMatchObject({
+      kind: 'run',
+      state: 'fixed',
+      elapsed: {minutes: 1, seconds: 55},
+    });
+    expect(detail.jobs[0]?.displayDuration).toMatchObject({
+      kind: 'run',
+      state: 'fixed',
+      elapsed: {minutes: 1, seconds: 55},
+    });
+  });
+
+  test('returns no job display duration when a job has multiple executions', () => {
+    const job = workflowJobDto({
+      job_executions: [
+        workflowJobExecutionDto({
+          sequence: 1,
+          queued_at: '2026-05-07T01:00:00.000Z',
+          started_at: '2026-05-07T01:00:05.000Z',
+          finished_at: '2026-05-07T01:02:00.000Z',
+        }),
+        workflowJobExecutionDto({
+          sequence: 2,
+          queued_at: '2026-05-07T02:00:00.000Z',
+          started_at: '2026-05-07T02:00:05.000Z',
+          finished_at: '2026-05-07T02:02:00.000Z',
+        }),
+      ],
+    });
+    const dto = workflowRunDetailDto({jobs: [job]});
+
+    const detail = toWorkflowRunDetail(dto);
+
+    expect(detail.jobs[0]?.displayDuration).toBeNull();
+  });
+
+  test('maps live queue and run durations as anchored model getters', () => {
+    const queuedExecution = workflowJobExecutionDto({
+      queued_at: '2026-05-07T01:00:00.000Z',
+      started_at: null,
+      finished_at: null,
+    });
+    const runningExecution = workflowJobExecutionDto({
+      queued_at: '2026-05-07T01:00:00.000Z',
+      started_at: '2026-05-07T01:00:05.000Z',
+      finished_at: null,
+    });
+    const dto = workflowRunDetailDto({
+      jobs: [
+        workflowJobDto({job_executions: [queuedExecution]}),
+        workflowJobDto({job_executions: [runningExecution]}),
+      ],
+    });
+
+    const detail = toWorkflowRunDetail(dto);
+
+    expect(detail.jobs[0]?.jobExecutions[0]?.queueTime).toEqual({
+      state: 'live',
+      fromIso: '2026-05-07T01:00:00.000Z',
+    });
+    expect(detail.jobs[0]?.displayDuration).toEqual({
+      kind: 'queue',
+      state: 'live',
+      fromIso: '2026-05-07T01:00:00.000Z',
+    });
+    expect(detail.jobs[1]?.jobExecutions[0]?.runTime).toEqual({
+      state: 'live',
+      fromIso: '2026-05-07T01:00:05.000Z',
+    });
+    expect(detail.jobs[1]?.displayDuration).toEqual({
+      kind: 'run',
+      state: 'live',
+      fromIso: '2026-05-07T01:00:05.000Z',
+    });
+  });
+
+  test('preserves null source, error, execution timing, and attempt fields', () => {
     const attempt = workflowStepAttemptDto({
       exit_code: null,
       output: null,
@@ -225,12 +438,7 @@ describe('workflow run model mapping', () => {
       error: null,
       attempts: [attempt],
     });
-    const job = workflowJobDto({
-      queued_at: null,
-      started_at: null,
-      finished_at: null,
-      steps: [step],
-    });
+    const job = workflowJobDto({steps: [step]});
     const dto = workflowRunDetailDto({
       inputs: null,
       source_snapshot: null,
@@ -244,20 +452,13 @@ describe('workflow run model mapping', () => {
     expect(detail).toMatchObject({
       inputs: null,
       sourceSnapshot: null,
-      startedAt: null,
-      finishedAt: null,
     });
-    expect(detail.jobs[0]).toMatchObject({
-      queuedAt: null,
-      startedAt: null,
-      finishedAt: null,
-      duration: {kind: 'none'},
-    });
-    expect(detail.jobs[0]?.steps[0]).toMatchObject({
+    expect(detail.jobs[0]?.displayDuration).toBeNull();
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]).toMatchObject({
       sourceLocation: null,
       error: null,
     });
-    expect(detail.jobs[0]?.steps[0]?.attempts[0]).toMatchObject({
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]?.attempts[0]).toMatchObject({
       exitCode: null,
       output: null,
       error: null,
@@ -271,9 +472,14 @@ describe('workflow run model mapping', () => {
   test('maps queued jobs cancelled before start to no duration', () => {
     const job = workflowJobDto({
       status: 'cancelled',
-      queued_at: '2026-05-07T01:00:00.000Z',
-      started_at: null,
-      finished_at: '2026-05-07T01:01:00.000Z',
+      job_executions: [
+        workflowJobExecutionDto({
+          status: 'cancelled',
+          queued_at: '2026-05-07T01:00:00.000Z',
+          started_at: null,
+          finished_at: '2026-05-07T01:01:00.000Z',
+        }),
+      ],
     });
     const dto = workflowRunDetailDto({jobs: [job]});
 
@@ -281,11 +487,14 @@ describe('workflow run model mapping', () => {
 
     expect(detail.jobs[0]).toMatchObject({
       status: 'cancelled',
+    });
+    expect(detail.jobs[0]?.jobExecutions[0]).toMatchObject({
+      status: 'cancelled',
       queuedAt: '2026-05-07T01:00:00.000Z',
       startedAt: null,
       finishedAt: '2026-05-07T01:01:00.000Z',
-      duration: {kind: 'none'},
     });
+    expect(detail.jobs[0]?.displayDuration).toBeNull();
   });
 
   test('maps resolved agent step configuration from the opaque step config', () => {
@@ -309,12 +518,12 @@ describe('workflow run model mapping', () => {
       }),
     );
 
-    expect(detail.jobs[0]?.steps[0]?.agentConfig).toEqual({
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]?.agentConfig).toEqual({
       provider: 'anthropic',
       model: 'claude-opus-4-8',
       thinking: 'high',
     });
-    expect(detail.jobs[0]?.steps[1]?.agentConfig).toEqual({
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[1]?.agentConfig).toEqual({
       provider: null,
       model: null,
       thinking: null,
@@ -333,7 +542,7 @@ describe('workflow run model mapping', () => {
       }),
     );
 
-    expect(detail.jobs[0]?.steps[0]?.agentConfig).toBeNull();
+    expect(detail.jobs[0]?.jobExecutions[0]?.steps[0]?.agentConfig).toBeNull();
   });
 
   test('maps run attempt summaries', () => {

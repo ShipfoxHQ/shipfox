@@ -54,9 +54,9 @@ export function WorkflowRunAttemptSwitcher({
           aria-label={`Switch attempt, currently ${run.runAttempt.attempt} of ${maxAttempt}`}
           className="h-20 px-4 text-foreground-neutral-muted hover:text-foreground-neutral-base"
         >
-          <Code as="span" variant="label" className="text-inherit">
+          <Text as="span" size="xs" className="text-inherit">
             Attempt {run.runAttempt.attempt} of {maxAttempt}
-          </Code>
+          </Text>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" size="lg">

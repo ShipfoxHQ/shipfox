@@ -131,9 +131,11 @@ describe('GET /api/workflows/runs/:id', () => {
     expect(steps[0].name).toBe('Set up job');
     expect(steps[1].name).toBe('Install');
     expect(steps[2].name).toBe('npm build');
-    // Timing fields flow through the read model (null on a fresh, unstamped run).
+    // Run timing fields flow through the read model (null on a fresh, unstamped run).
     expect(body).toMatchObject({latest_attempt: 1, started_at: null, finished_at: null});
-    expect(body.jobs[0]).toMatchObject({queued_at: null, started_at: null, finished_at: null});
+    expect(body.jobs[0]).not.toHaveProperty('queued_at');
+    expect(body.jobs[0]).not.toHaveProperty('started_at');
+    expect(body.jobs[0]).not.toHaveProperty('finished_at');
   });
 
   test('does not aggregate latest_attempt for a first attempt without lineage', async () => {

@@ -18,9 +18,9 @@ import {
 } from '@tanstack/react-query';
 import {
   isWorkflowRunTerminal,
-  toWorkflowRun,
   toWorkflowRunAttempt,
   toWorkflowRunDetail,
+  toWorkflowRunListItem,
   toWorkflowRunListPage,
   type WorkflowRun,
   type WorkflowRunAttempt,
@@ -437,7 +437,8 @@ export function useWorkflowRunAttemptQuery({
     staleTime: 2_000,
     refetchOnWindowFocus: true,
     refetchInterval: (query) => {
-      const status: WorkflowRunDetail['status'] | undefined = query.state.data?.status;
+      const status: WorkflowRunDetail['runAttempt']['status'] | undefined =
+        query.state.data?.run_attempt.status;
       if (!status) return false;
       return isWorkflowRunTerminal(status) ? false : ACTIVE_POLL_MS;
     },
@@ -470,7 +471,7 @@ export function useCancelWorkflowRunMutation(run: WorkflowRun | undefined) {
   return useMutation({
     mutationFn: async () => {
       if (!run) throw new Error('Workflow run is not loaded');
-      return toWorkflowRun(await cancelWorkflowRunDto({workflowRunId: run.id}));
+      return toWorkflowRunListItem(await cancelWorkflowRunDto({workflowRunId: run.id}));
     },
     onSuccess: async () => {
       if (!run) return;

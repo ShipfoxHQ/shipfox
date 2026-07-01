@@ -1397,7 +1397,6 @@ export interface UpdateJobStatusAtVersionParams {
   status: JobStatus;
   expectedVersion: number;
   statusReason?: JobStatusReason | null | undefined;
-  markTimedOut?: boolean;
 }
 
 export interface UpdateJobExecutionStatusAtVersionParams {
@@ -1491,9 +1490,6 @@ async function updateJobStatusAtVersion(
       statusReason: params.statusReason ?? null,
       version: sql`${jobs.version} + 1`,
       updatedAt: new Date(),
-      ...(params.markTimedOut ? {timedOutAt: new Date()} : {}),
-      // DB clock so finished_at shares the runner-sourced queued_at/started_at clock.
-      ...(isJobTerminal(params.status) ? {finishedAt: sql`now()`} : {}),
     })
     .where(
       and(

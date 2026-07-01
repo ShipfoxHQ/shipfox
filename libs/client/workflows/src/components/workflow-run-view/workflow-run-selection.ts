@@ -1,15 +1,18 @@
-import type {
-  WorkflowJob,
-  WorkflowRunDetail,
-  WorkflowStep,
-  WorkflowStepAttempt,
+import {
+  type Job,
+  type JobExecution,
+  resolveJobExecution,
+  type Step,
+  type StepAttempt,
+  type WorkflowRunDetail,
 } from '#core/workflow-run.js';
 import type {WorkflowRunSelectionInput} from '#core/workflow-run-url-state.js';
 
 export interface ResolvedWorkflowRunSelection {
-  job: WorkflowJob | undefined;
-  step: WorkflowStep | undefined;
-  attempt: WorkflowStepAttempt | undefined;
+  job: Job | undefined;
+  jobExecution: JobExecution | undefined;
+  step: Step | undefined;
+  attempt: StepAttempt | undefined;
   selectedAttemptId: string | null;
 }
 
@@ -27,14 +30,19 @@ export function resolveWorkflowRunSelection({
     const attempt = resolveStepAttempt(stepMatch.step, selection.stepAttemptId);
     return {
       job: stepMatch.job,
+      jobExecution: stepMatch.jobExecution,
       step: stepMatch.step,
       attempt,
       selectedAttemptId: attempt?.id ?? null,
     };
   }
 
+  const job = (selection.jobId ? jobById.get(selection.jobId) : undefined) ?? run.jobs.at(0);
+  const jobExecution = job ? resolveJobExecution(job, selection.jobExecutionId) : undefined;
+
   return {
-    job: (selection.jobId ? jobById.get(selection.jobId) : undefined) ?? run.jobs.at(0),
+    job,
+    jobExecution,
     step: undefined,
     attempt: undefined,
     selectedAttemptId: null,
@@ -44,21 +52,20 @@ export function resolveWorkflowRunSelection({
 function findStep(
   run: WorkflowRunDetail,
   stepId: string | undefined,
-): {job: WorkflowJob; step: WorkflowStep} | undefined {
+): {job: Job; jobExecution: JobExecution; step: Step} | undefined {
   if (!stepId) return undefined;
 
   for (const job of run.jobs) {
-    const step = job.steps.find((candidate) => candidate.id === stepId);
-    if (step) return {job, step};
+    for (const jobExecution of job.jobExecutions) {
+      const step = jobExecution.steps.find((candidate) => candidate.id === stepId);
+      if (step) return {job, jobExecution, step};
+    }
   }
 
   return undefined;
 }
 
-function resolveStepAttempt(
-  step: WorkflowStep,
-  attemptId: string | undefined,
-): WorkflowStepAttempt | undefined {
+function resolveStepAttempt(step: Step, attemptId: string | undefined): StepAttempt | undefined {
   const attemptById = attemptId
     ? step.attempts.find((attempt) => attempt.id === attemptId)
     : undefined;
@@ -67,13 +74,13 @@ function resolveStepAttempt(
   const currentAttempt = step.attempts.find((attempt) => attempt.attempt === step.currentAttempt);
   if (currentAttempt) return currentAttempt;
 
-  return step.attempts.reduce<WorkflowStepAttempt | undefined>((latest, attempt) => {
+  return step.attempts.reduce<StepAttempt | undefined>((latest, attempt) => {
     if (!latest) return attempt;
     return compareAttempts(attempt, latest) > 0 ? attempt : latest;
   }, undefined);
 }
 
-function compareAttempts(left: WorkflowStepAttempt, right: WorkflowStepAttempt): number {
+function compareAttempts(left: StepAttempt, right: StepAttempt): number {
   return (
     left.attempt - right.attempt ||
     left.executionOrder - right.executionOrder ||

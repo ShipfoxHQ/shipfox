@@ -12,18 +12,18 @@ import type {
   WorkflowRunStepDetailDto,
 } from '@shipfox/api-workflows-dto';
 import {
-  toWorkflowJob,
-  toWorkflowRun,
+  type Job,
+  type Step,
+  type StepAttempt,
+  toJob,
+  toStep,
+  toStepAttempt,
   toWorkflowRunDetail,
+  toWorkflowRunListItem,
   toWorkflowRunListPage,
-  toWorkflowStep,
-  toWorkflowStepAttempt,
-  type WorkflowJob,
-  type WorkflowRun,
   type WorkflowRunDetail,
+  type WorkflowRunListItem,
   type WorkflowRunListPage,
-  type WorkflowStep,
-  type WorkflowStepAttempt,
 } from '#core/workflow-run.js';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
@@ -40,12 +40,12 @@ let jobExecutionSequence = 0;
 let stepSequence = 0;
 let attemptSequence = 0;
 
-export type WorkflowJobDtoOverrides = Partial<Omit<WorkflowRunJobDetailDto, 'job_executions'>> & {
+export type JobDtoOverrides = Partial<Omit<WorkflowRunJobDetailDto, 'job_executions'>> & {
   job_executions?: WorkflowRunJobDetailDto['job_executions'];
   steps?: WorkflowRunStepDetailDto[];
 };
 
-type WorkflowJobDtoBase = Omit<WorkflowRunJobDetailDto, 'duration' | 'job_executions'>;
+type JobDtoBase = Omit<WorkflowRunJobDetailDto, 'job_executions'>;
 
 export function workflowRunDto(
   overrides: Partial<WorkflowRunResponseDto> = {},
@@ -72,8 +72,10 @@ export function workflowRunDto(
   };
 }
 
-export function workflowRun(overrides: Partial<WorkflowRunResponseDto> = {}): WorkflowRun {
-  return toWorkflowRun(workflowRunDto(overrides));
+export function workflowRunListItem(
+  overrides: Partial<WorkflowRunResponseDto> = {},
+): WorkflowRunListItem {
+  return toWorkflowRunListItem(workflowRunDto(overrides));
 }
 
 export function workflowRunListResponseDto(
@@ -96,12 +98,22 @@ export function workflowRunListPage(
 export function workflowRunDetailDto(
   overrides: Partial<WorkflowRunDetailResponseDto> = {},
 ): WorkflowRunDetailResponseDto {
+  const {jobs, run_attempt: runAttemptOverride, ...runOverrides} = overrides;
+  const run = workflowRunDto(runOverrides);
+
   return {
-    ...workflowRunDto(),
-    latest_attempt: 1,
-    run_attempt: workflowRunAttemptDto(),
-    jobs: [],
-    ...overrides,
+    ...run,
+    latest_attempt: run.latest_attempt,
+    run_attempt:
+      runAttemptOverride ??
+      workflowRunAttemptDto({
+        workflow_run_id: run.id,
+        attempt: run.current_attempt,
+        status: run.status,
+        started_at: run.started_at,
+        finished_at: run.finished_at,
+      }),
+    jobs: jobs ?? [],
   };
 }
 
@@ -136,12 +148,12 @@ export function runAttemptsResponseDto(
   };
 }
 
-export function workflowJobDto(overrides: WorkflowJobDtoOverrides = {}): WorkflowRunJobDetailDto {
+export function workflowJobDto(overrides: JobDtoOverrides = {}): WorkflowRunJobDetailDto {
   jobSequence += 1;
   const {job_executions, steps, ...jobOverrides} = overrides;
   const key =
     jobOverrides.key ?? (typeof jobOverrides.name === 'string' ? jobOverrides.name : 'build');
-  const job: WorkflowJobDtoBase = {
+  const job: JobDtoBase = {
     id: `44444444-4444-4444-8444-${String(jobSequence).padStart(12, '0')}`,
     run_attempt_id: RUN_ID,
     key,
@@ -157,43 +169,45 @@ export function workflowJobDto(overrides: WorkflowJobDtoOverrides = {}): Workflo
     position: 0,
     created_at: '2026-06-21T12:00:00.000Z',
     updated_at: '2026-06-21T12:01:00.000Z',
-    queued_at: null,
-    started_at: null,
-    finished_at: null,
     ...jobOverrides,
   };
 
   return {
     ...job,
-    duration: overrides.duration ?? workflowJobDurationDto(job),
     job_executions:
       job_executions ?? (steps ? [workflowJobExecutionDto({job_id: job.id, steps})] : []),
   };
 }
 
-export function workflowJob(overrides: WorkflowJobDtoOverrides = {}): WorkflowJob {
-  return toWorkflowJob(workflowJobDto(overrides));
+export function workflowJob(overrides: JobDtoOverrides = {}): Job {
+  return toJob(workflowJobDto(overrides));
 }
 
 export function workflowJobExecutionDto(
   overrides: Partial<WorkflowRunJobExecutionDetailDto> = {},
 ): WorkflowRunJobExecutionDetailDto {
   jobExecutionSequence += 1;
+  const id =
+    overrides.id ?? `77777777-7777-4777-8777-${String(jobExecutionSequence).padStart(12, '0')}`;
+  const {steps: overrideSteps, ...restOverrides} = overrides;
+  const steps = overrideSteps?.map((step) => ({...step, job_execution_id: id})) ?? [];
+
   return {
-    id: `77777777-7777-4777-8777-${String(jobExecutionSequence).padStart(12, '0')}`,
+    id,
     job_id: JOB_ID,
     sequence: 1,
     name: 'build',
     status: 'pending',
     status_reason: null,
+    trigger_events: [],
     queued_at: null,
     started_at: null,
     finished_at: null,
     timed_out_at: null,
     created_at: '2026-06-21T12:00:00.000Z',
     updated_at: '2026-06-21T12:01:00.000Z',
-    steps: [],
-    ...overrides,
+    steps,
+    ...restOverrides,
   };
 }
 
@@ -221,8 +235,8 @@ export function workflowStepDto(
   };
 }
 
-export function workflowStep(overrides: Partial<WorkflowRunStepDetailDto> = {}): WorkflowStep {
-  return toWorkflowStep(workflowStepDto(overrides), JOB_ID);
+export function workflowStep(overrides: Partial<WorkflowRunStepDetailDto> = {}): Step {
+  return toStep(workflowStepDto(overrides));
 }
 
 export function workflowStepAttemptDto(overrides: Partial<StepAttemptDto> = {}): StepAttemptDto {
@@ -245,24 +259,10 @@ export function workflowStepAttemptDto(overrides: Partial<StepAttemptDto> = {}):
   };
 }
 
-export function workflowStepAttempt(overrides: Partial<StepAttemptDto> = {}): WorkflowStepAttempt {
-  return toWorkflowStepAttempt(workflowStepAttemptDto(overrides), JOB_ID, JOB_EXECUTION_ID);
+export function workflowStepAttempt(overrides: Partial<StepAttemptDto> = {}): StepAttempt {
+  return toStepAttempt(workflowStepAttemptDto(overrides), JOB_EXECUTION_ID);
 }
 
-function workflowJobDurationDto(
-  job: Pick<WorkflowRunJobDetailDto, 'queued_at' | 'started_at' | 'finished_at'>,
-): WorkflowRunJobDetailDto['duration'] {
-  if (job.started_at !== null && job.finished_at !== null) {
-    return {kind: 'finished', from_iso: job.started_at, to_iso: job.finished_at};
-  }
-
-  if (job.started_at !== null) return {kind: 'running', from_iso: job.started_at};
-  if (job.finished_at === null && job.queued_at !== null) {
-    return {kind: 'queued', from_iso: job.queued_at};
-  }
-
-  return {kind: 'none'};
-}
 export function sequencedWorkflowRunDto(
   status: WorkflowRunStatusDto,
   name: string,
@@ -285,18 +285,18 @@ export function sequencedWorkflowRunDto(
   });
 }
 
-export function sequencedWorkflowRun(
+export function sequencedWorkflowRunListItem(
   status: WorkflowRunStatusDto,
   name: string,
   minutesAgo: number,
   overrides: Partial<WorkflowRunResponseDto> = {},
-): WorkflowRun {
-  return toWorkflowRun(sequencedWorkflowRunDto(status, name, minutesAgo, overrides));
+): WorkflowRunListItem {
+  return toWorkflowRunListItem(sequencedWorkflowRunDto(status, name, minutesAgo, overrides));
 }
 
 export function workflowJobWithName(
   name: string,
-  overrides: WorkflowJobDtoOverrides = {},
+  overrides: JobDtoOverrides = {},
 ): WorkflowRunJobDetailDto {
   return workflowJobDto({name, ...overrides});
 }

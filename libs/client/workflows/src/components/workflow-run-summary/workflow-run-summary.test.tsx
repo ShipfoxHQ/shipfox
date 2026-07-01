@@ -1,4 +1,4 @@
-import {fireEvent, screen, waitFor, within} from '@testing-library/react';
+import {screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {workflowRunDetailDto} from '#test/fixtures/workflow-run.js';
 import {workflowJobDto, workflowRunDetail} from '#test/fixtures/workflow-run.js';
@@ -11,6 +11,8 @@ const {useIsTextTruncatedMock} = vi.hoisted(() => ({
 
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
 const RELATIVE_TIME_TEXT_PATTERN = /ago$/;
+const OLD_ROOT_TIME_TEXT_PATTERN = /(?:1d|24h) ago/;
+const COPY_RUN_BUTTON_NAME = /Copy run/;
 
 vi.mock('@shipfox/react-ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@shipfox/react-ui')>();
@@ -29,7 +31,7 @@ beforeEach(() => {
 });
 
 describe('WorkflowRunSummary', () => {
-  test('renders identity, status, trigger metadata, and trigger time', async () => {
+  test('renders status, trigger metadata, and trigger time', async () => {
     renderSummary();
 
     const summary = await screen.findByRole('region', {name: 'deploy-web'});
@@ -41,60 +43,36 @@ describe('WorkflowRunSummary', () => {
     expect(within(summary).getByText(RELATIVE_TIME_TEXT_PATTERN)).toBeInTheDocument();
     expect(within(summary).queryByText('Triggered')).not.toBeInTheDocument();
     expect(within(summary).queryByText('Updated')).not.toBeInTheDocument();
+    expect(
+      within(summary).queryByRole('button', {name: COPY_RUN_BUTTON_NAME}),
+    ).not.toBeInTheDocument();
   });
 
-  test('keeps the full run id reachable from the keyboard', async () => {
-    const user = userEvent.setup();
-    renderSummary();
-
-    await user.tab();
-
-    expect(screen.getByRole('button', {name: `Copy run id ${RUN_ID}`})).toHaveFocus();
-  });
-
-  test('copies the full run id when clicked', async () => {
-    const user = userEvent.setup();
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: {writeText},
-    });
-    renderSummary();
-
-    await user.click(await screen.findByRole('button', {name: `Copy run id ${RUN_ID}`}));
-
-    expect(writeText).toHaveBeenCalledWith(RUN_ID);
-    const copyButton = screen.getByRole('button', {name: `Copied run id ${RUN_ID}`});
-    expect(copyButton).toBeInTheDocument();
-    expect(copyButton).toHaveTextContent('66666666');
-    expect(copyButton).not.toHaveTextContent('Copied');
-    expect(await screen.findByRole('status')).toHaveTextContent('Copied');
-
-    await waitFor(
-      () => {
-        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  test('uses the selected run attempt for summary status and trigger time', async () => {
+    const rootCreatedAt = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const attemptCreatedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    renderSummary({
+      created_at: rootCreatedAt,
+      run_attempt: {
+        id: '22222222-2222-4222-8222-222222222222',
+        workflow_run_id: RUN_ID,
+        attempt: 2,
+        status: 'failed',
+        created_at: attemptCreatedAt,
+        started_at: null,
+        finished_at: null,
+        rerun_mode: 'all',
       },
-      {timeout: 3000},
-    );
-    expect(screen.getByRole('button', {name: `Copy run id ${RUN_ID}`})).toBeInTheDocument();
-  });
-
-  test('dismisses copy feedback on scroll', async () => {
-    const user = userEvent.setup();
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: {writeText: vi.fn().mockResolvedValue(undefined)},
     });
-    renderSummary();
 
-    await user.click(await screen.findByRole('button', {name: `Copy run id ${RUN_ID}`}));
-    expect(await screen.findByRole('status')).toHaveTextContent('Copied');
+    const summary = await screen.findByRole('region', {name: 'deploy-web'});
 
-    fireEvent.scroll(window);
-
-    await waitFor(() => {
-      expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    });
+    expect(
+      within(summary).queryByRole('button', {name: COPY_RUN_BUTTON_NAME}),
+    ).not.toBeInTheDocument();
+    expect(within(summary).getAllByText('Failed')).not.toHaveLength(0);
+    expect(within(summary).getByText('5m ago')).toBeInTheDocument();
+    expect(within(summary).queryByText(OLD_ROOT_TIME_TEXT_PATTERN)).not.toBeInTheDocument();
   });
 
   test('omits empty trigger metadata', async () => {

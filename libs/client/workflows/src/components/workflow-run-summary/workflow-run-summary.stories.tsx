@@ -329,7 +329,7 @@ export const ActionVariantsWithAttempts: Story = {
               id: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
               workflowRunId: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
               attempt: 2,
-              status: run.status,
+              status: run.runAttempt.status,
               createdAt: run.createdAt,
               startedAt: null,
               finishedAt: null,
