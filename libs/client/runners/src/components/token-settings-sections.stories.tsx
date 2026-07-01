@@ -4,7 +4,7 @@ import {Code, RelativeTimeProvider, Toaster} from '@shipfox/react-ui';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import type {ReactNode} from 'react';
-import {screen, within} from 'storybook/test';
+import {within} from 'storybook/test';
 import {CreatedManualRegistrationTokenPanel} from './create-manual-registration-token-form.js';
 import {CreatedProvisionerTokenPanel} from './create-provisioner-token-form.js';
 import {
@@ -26,7 +26,7 @@ const EIGHT_MINUTES_AGO = '2026-06-26T11:52:00.000Z';
 const EXPIRES_AT = '2026-09-24T12:00:00.000Z';
 const CREATED_AT = '2026-06-20T12:00:00.000Z';
 
-type Scenario = 'populated' | 'empty' | 'loading' | 'manual-error' | 'provisioner-error';
+type Scenario = 'populated' | 'empty' | 'loading' | 'errors';
 
 interface TokenSettingsSectionsStoryProps {
   scenario: Scenario;
@@ -98,7 +98,16 @@ export const DataStates: Story = {
   ),
 };
 
-export const ProvisionerStatuses: Story = {
+export const Errors: Story = {
+  args: {scenario: 'errors'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await canvas.findByText("Couldn't load manual registration tokens");
+    await canvas.findByText("Couldn't load provisioner registration tokens");
+  },
+};
+
+export const Statuses: Story = {
   render: () => (
     <StorySurface>
       <ProvisionerTokenList
@@ -124,28 +133,62 @@ export const ProvisionerStatuses: Story = {
       />
     </StorySurface>
   ),
-  play: async () => {
-    await screen.findAllByText('Connected');
-    await screen.findAllByText('Last seen');
-    await screen.findAllByText('Never connected');
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await canvas.findAllByText('Connected');
+    await canvas.findAllByText('Last seen');
+    await canvas.findAllByText('Never connected');
   },
 };
 
-export const ExistingRunnerTokens: Story = {
+export const Content: Story = {
   render: () => (
     <StorySurface>
-      <ManualRegistrationTokenList
-        workspaceId={WORKSPACE_ID}
-        tokens={[
-          manualToken({name: 'Deploy runner', prefix: 'sf_mrt_deploy'}),
-          manualToken({
-            id: '66666666-6666-4666-8666-666666666666',
-            name: 'macOS build host',
-            prefix: 'sf_mrt_macos',
-            expires_at: null,
-          }),
-        ]}
-      />
+      <StateExample label="Existing tokens">
+        <div className="flex flex-col gap-24">
+          <ManualRegistrationTokenList
+            workspaceId={WORKSPACE_ID}
+            tokens={[
+              manualToken({name: 'Deploy runner', prefix: 'sf_mrt_deploy'}),
+              manualToken({
+                id: '66666666-6666-4666-8666-666666666666',
+                name: 'macOS build host',
+                prefix: 'sf_mrt_macos',
+                expires_at: null,
+              }),
+            ]}
+          />
+          <ProvisionerTokenList
+            workspaceId={WORKSPACE_ID}
+            tokens={provisionerTokens()}
+            activeIds={new Set(['33333333-3333-4333-8333-333333333333'])}
+          />
+        </div>
+      </StateExample>
+      <StateExample label="Long names">
+        <div className="flex flex-col gap-24">
+          <ManualRegistrationTokenList
+            workspaceId={WORKSPACE_ID}
+            tokens={[
+              manualToken({
+                name: 'self-hosted-runner-for-production-release-candidate-validation-on-metal',
+                prefix: 'sf_mrt_release_candidate_validation',
+              }),
+            ]}
+          />
+          <ProvisionerTokenList
+            workspaceId={WORKSPACE_ID}
+            tokens={[
+              provisionerToken({
+                name: 'docker-provisioner-for-west-coast-gpu-burst-capacity-and-fallback',
+                prefix: 'sf_pt_west_coast_gpu_burst',
+                last_seen_at: EIGHT_MINUTES_AGO,
+              }),
+            ]}
+            activeIds={new Set()}
+          />
+        </div>
+      </StateExample>
     </StorySurface>
   ),
 };
@@ -178,51 +221,6 @@ export const CreatedTokenPanels: Story = {
   ),
 };
 
-export const LongNames: Story = {
-  render: () => (
-    <StorySurface>
-      <ManualRegistrationTokenList
-        workspaceId={WORKSPACE_ID}
-        tokens={[
-          manualToken({
-            name: 'self-hosted-runner-for-production-release-candidate-validation-on-metal',
-            prefix: 'sf_mrt_release_candidate_validation',
-          }),
-        ]}
-      />
-      <ProvisionerTokenList
-        workspaceId={WORKSPACE_ID}
-        tokens={[
-          provisionerToken({
-            name: 'docker-provisioner-for-west-coast-gpu-burst-capacity-and-fallback',
-            prefix: 'sf_pt_west_coast_gpu_burst',
-            last_seen_at: EIGHT_MINUTES_AGO,
-          }),
-        ]}
-        activeIds={new Set()}
-      />
-    </StorySurface>
-  ),
-};
-
-export const ManualLoadError: Story = {
-  args: {scenario: 'manual-error'},
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement);
-    await canvas.findByText("Couldn't load manual registration tokens");
-    await canvas.findAllByText('Docker autoscaler');
-  },
-};
-
-export const ProvisionerLoadError: Story = {
-  args: {scenario: 'provisioner-error'},
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement);
-    await canvas.findAllByText('Deploy runner');
-    await canvas.findByText("Couldn't load provisioner registration tokens");
-  },
-};
-
 function StorySurface({children}: {children: ReactNode}) {
   return (
     <div className="min-h-screen bg-background-neutral-background p-24">
@@ -249,7 +247,7 @@ function fetchForScenario(scenario: Scenario): typeof fetch {
     const url = requestUrl(input);
     if (scenario === 'loading') return new Promise<Response>(() => undefined);
     if (url.pathname.endsWith('/runners/manual-registration-tokens')) {
-      if (scenario === 'manual-error') return Promise.resolve(errorResponse());
+      if (scenario === 'errors') return Promise.resolve(errorResponse());
       return Promise.resolve(
         jsonResponse({
           manual_registration_tokens: scenario === 'empty' ? [] : [manualToken()],
@@ -257,7 +255,7 @@ function fetchForScenario(scenario: Scenario): typeof fetch {
       );
     }
     if (url.pathname.endsWith('/provisioners/tokens')) {
-      if (scenario === 'provisioner-error') return Promise.resolve(errorResponse());
+      if (scenario === 'errors') return Promise.resolve(errorResponse());
       return Promise.resolve(
         jsonResponse({
           tokens: scenario === 'empty' ? [] : provisionerTokens(),
