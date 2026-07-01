@@ -275,7 +275,7 @@ function agentProviderConfigsDto() {
       {
         provider_id: 'anthropic',
         default_model: null,
-        key_fingerprints: {api_key: 'sk-ant-s...abcd'},
+        key_fingerprints: {'credential:api_key': 'sk-ant-s...abcd'},
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },

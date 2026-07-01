@@ -373,11 +373,9 @@ function ConfiguredProviderRow({
   }
 
   async function handleDelete() {
-    if (!entry) return;
-
     setDeleteError(undefined);
     try {
-      await deleteConfig.mutateAsync({workspaceId, providerId: entry.id});
+      await deleteConfig.mutateAsync({workspaceId, providerId: config.provider_id});
       toast.success(`${label} deleted`);
       setDeleteOpen(false);
     } catch (error) {
@@ -455,7 +453,6 @@ function ConfiguredProviderRow({
             </DropdownMenuItem>
             <DropdownMenuItem
               icon="deleteBinLine"
-              disabled={!entry}
               onSelect={() => {
                 setDeleteOpen(true);
               }}

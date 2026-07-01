@@ -247,7 +247,7 @@ function configsForScenario(scenario: Scenario) {
       configs: CATALOG.filter((entry) => entry.support_status === 'supported').map((entry) =>
         providerConfig({
           provider_id: entry.id as SupportedAgentProviderId,
-          key_fingerprints: {api_key: `${entry.id}...abcd`},
+          key_fingerprints: {'credential:api_key': `${entry.id}...abcd`},
         }),
       ),
       default_provider_id: 'anthropic',
@@ -278,7 +278,7 @@ function providerConfig(overrides: Partial<AgentProviderConfigDto> = {}): AgentP
   return {
     provider_id: 'anthropic',
     default_model: null,
-    key_fingerprints: {api_key: 'sk-ant-s...abcd'},
+    key_fingerprints: {'credential:api_key': 'sk-ant-s...abcd'},
     created_at: '2026-05-08T00:00:00.000Z',
     updated_at: '2026-05-08T00:00:00.000Z',
     ...overrides,

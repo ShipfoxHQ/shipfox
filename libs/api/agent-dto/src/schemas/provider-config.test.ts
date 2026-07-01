@@ -106,7 +106,7 @@ describe('agent provider config schemas', () => {
     const row = {
       provider_id: 'openai',
       default_model: null,
-      key_fingerprints: {api_key: 'sk-...abcd'},
+      key_fingerprints: {'credential:api_key': 'sk-...abcd'},
       created_at: '2026-06-27T10:30:00.000Z',
       updated_at: '2026-06-27T10:45:00.000Z',
     };

@@ -1,6 +1,7 @@
 import type {
   AgentProviderCatalogResponseDto,
   AgentProviderConfigDto,
+  AgentProviderRef,
   ListAgentProviderConfigsResponseDto,
   SetDefaultAgentProviderBodyDto,
   SetDefaultAgentProviderResponseDto,
@@ -55,7 +56,7 @@ export async function deleteAgentProviderConfig({
   providerId,
 }: {
   workspaceId: string;
-  providerId: SupportedAgentProviderId;
+  providerId: AgentProviderRef;
 }) {
   return await apiRequest<void>(`/workspaces/${workspaceId}/agent/providers/${providerId}`, {
     method: 'DELETE',
