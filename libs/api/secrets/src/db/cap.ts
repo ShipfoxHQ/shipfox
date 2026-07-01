@@ -11,3 +11,9 @@ export async function countWorkspaceEntries(workspaceId: string, tx?: Tx): Promi
   const count = result.rows[0]?.count ?? 0;
   return Number(count);
 }
+
+export async function lockWorkspaceEntries(workspaceId: string, tx: Tx): Promise<void> {
+  await tx.execute(sql`
+    SELECT pg_advisory_xact_lock(hashtext('shipfox_secrets_workspace_cap'), hashtext(${workspaceId}))
+  `);
+}

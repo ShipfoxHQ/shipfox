@@ -1,4 +1,4 @@
-import {SECRET_KEY_PATTERN_SOURCE} from '@shipfox/api-secrets-dto';
+import {NAMESPACE_PATTERN_SOURCE, SECRET_KEY_PATTERN_SOURCE} from '@shipfox/api-secrets-dto';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {check, index, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
@@ -45,6 +45,10 @@ export const secretVariables = pgTable(
     check(
       'secrets_variables_key_ck',
       sql`${table.key} ~ ${sql.raw(`'${SECRET_KEY_PATTERN_SOURCE}'`)}`,
+    ),
+    check(
+      'secrets_variables_namespace_ck',
+      sql`${table.namespace} = '' OR ${table.namespace} ~ ${sql.raw(`'${NAMESPACE_PATTERN_SOURCE}'`)}`,
     ),
   ],
 );

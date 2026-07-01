@@ -1,6 +1,8 @@
 import {z} from 'zod';
 import {secretKeySchema} from './identifiers.js';
 
+export const secretStoreSchema = z.literal('local');
+
 export const secretBindingSegmentSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('literal'),
@@ -8,7 +10,7 @@ export const secretBindingSegmentSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     kind: z.literal('secret'),
-    store: z.string().min(1).max(64),
+    store: secretStoreSchema,
     key: secretKeySchema,
   }),
 ]);

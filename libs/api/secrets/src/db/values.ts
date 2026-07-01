@@ -62,7 +62,7 @@ export async function listSecretValueRowsByNamespace(
 
 export async function upsertSecretValueRows(rows: SecretValueWrite[], tx: Tx): Promise<void> {
   if (rows.length === 0) return;
-  const projectId = normalizedProjectId({projectId: rows[0]?.projectId});
+  const projectId = batchProjectId(rows);
   await tx
     .insert(secretValues)
     .values(rows)
@@ -85,10 +85,41 @@ export async function upsertSecretValueRows(rows: SecretValueWrite[], tx: Tx): P
     });
 }
 
+export async function countSecretValueRows(
+  params: StoreScope & {workspaceId: string; namespace: string; keys: string[]},
+  tx: Tx,
+): Promise<number> {
+  if (params.keys.length === 0) return 0;
+
+  const rows = await tx
+    .select({count: sql<string | number>`COUNT(*)`})
+    .from(secretValues)
+    .where(
+      and(
+        eq(secretValues.workspaceId, params.workspaceId),
+        eq(secretValues.namespace, params.namespace),
+        scopeExactWhere(
+          {
+            workspaceId: secretValues.workspaceId,
+            projectId: secretValues.projectId,
+            namespace: secretValues.namespace,
+            key: secretValues.key,
+          },
+          params,
+        ) ?? isNull(secretValues.projectId),
+        inArray(secretValues.key, params.keys),
+      ),
+    );
+
+  return Number(rows[0]?.count ?? 0);
+}
+
 export async function deleteSecretValueRows(
   params: StoreScope & {workspaceId: string; namespace: string; keys?: string[] | undefined},
   tx?: Tx,
 ): Promise<number> {
+  if (params.keys && params.keys.length === 0) return 0;
+
   const executor = tx ?? db();
   const filters = [
     eq(secretValues.workspaceId, params.workspaceId),
@@ -111,6 +142,15 @@ export async function deleteSecretValueRows(
     .where(and(...filters))
     .returning({id: secretValues.id});
   return deleted.length;
+}
+
+function batchProjectId(rows: SecretValueWrite[]): string | null {
+  const projectId = normalizedProjectId({projectId: rows[0]?.projectId});
+  const mixedScope = rows.some(
+    (row) => normalizedProjectId({projectId: row.projectId}) !== projectId,
+  );
+  if (mixedScope) throw new Error('Secret value batch must target a single project scope.');
+  return projectId;
 }
 
 function listByNamespaceSql(params: StoreScope & {workspaceId: string; namespace: string}) {

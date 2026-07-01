@@ -1,4 +1,11 @@
-import {db, deleteSecretValueRows, type StoreScope, upsertSecretValueRows} from '#db/index.js';
+import {
+  countSecretValueRows,
+  db,
+  deleteSecretValueRows,
+  lockWorkspaceEntries,
+  type StoreScope,
+  upsertSecretValueRows,
+} from '#db/index.js';
 import type {DekManager} from './dek-manager.js';
 import {fingerprintSecretValue} from './fingerprint.js';
 import type {SecretStoreProvider} from './store-resolver.js';
@@ -76,9 +83,19 @@ export function createSecretStoreApi(params: {
       }));
 
       await db().transaction(async (tx) => {
+        await lockWorkspaceEntries(input.workspaceId, tx);
+        const existingEntries = await countSecretValueRows(
+          {
+            workspaceId: input.workspaceId,
+            projectId,
+            namespace,
+            keys: entries.map(([key]) => key),
+          },
+          tx,
+        );
         await assertWorkspaceCap({
           workspaceId: input.workspaceId,
-          incomingEntries: entries.length,
+          incomingEntries: entries.length - existingEntries,
           tx,
         });
         await upsertSecretValueRows(rows, tx);

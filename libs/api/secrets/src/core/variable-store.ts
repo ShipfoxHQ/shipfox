@@ -1,8 +1,10 @@
 import {
+  countSecretVariableRows,
   db,
   deleteSecretVariableRows,
   getSecretVariableRowWithPrecedence,
   listSecretVariableRowsByNamespace,
+  lockWorkspaceEntries,
   type StoreScope,
   upsertSecretVariableRows,
 } from '#db/index.js';
@@ -57,9 +59,19 @@ export async function setVariables(input: SetVariablesParams): Promise<void> {
 
   const projectId = input.projectId ?? null;
   await db().transaction(async (tx) => {
+    await lockWorkspaceEntries(input.workspaceId, tx);
+    const existingEntries = await countSecretVariableRows(
+      {
+        workspaceId: input.workspaceId,
+        projectId,
+        namespace,
+        keys: entries.map(([key]) => key),
+      },
+      tx,
+    );
     await assertWorkspaceCap({
       workspaceId: input.workspaceId,
-      incomingEntries: entries.length,
+      incomingEntries: entries.length - existingEntries,
       tx,
     });
     await upsertSecretVariableRows(

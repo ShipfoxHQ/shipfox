@@ -65,11 +65,13 @@ export async function listDataKeysPage(params: {
   limit: number;
   versions?: string[] | undefined;
 }): Promise<DataKey[]> {
+  if (params.versions && params.versions.length === 0) return [];
+
   const filters: SQL[] = [];
   if (params.afterWorkspaceId) {
     filters.push(gt(secretDataKeys.workspaceId, params.afterWorkspaceId));
   }
-  if (params.versions && params.versions.length > 0) {
+  if (params.versions) {
     filters.push(inArray(secretDataKeys.kekVersion, params.versions));
   }
   const rows = await db()

@@ -1,7 +1,13 @@
 import crypto from 'node:crypto';
 import {beforeEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {eq} from 'drizzle-orm';
-import {db, secretDataKeys, secretValues, updateDataKeyWrapCas} from '#db/index.js';
+import {
+  db,
+  listDataKeysPage,
+  secretDataKeys,
+  secretValues,
+  updateDataKeyWrapCas,
+} from '#db/index.js';
 import {DekManager} from './dek-manager.js';
 import {KekVersionStrandedError} from './errors.js';
 import {createLocalKeyProvider} from './key-provider.js';
@@ -134,6 +140,23 @@ describe('rotateWorkspaceDataKeysWithProvider', () => {
     expect(updated).toBe(false);
     expect(rows[0]?.wrappedDek).toBe(freshWrapped.wrappedDek);
     expect(rows[0]?.kekVersion).toBe(freshWrapped.kekVersion);
+  });
+
+  it('treats an empty version filter as matching no data keys', async () => {
+    const workspaceId = crypto.randomUUID();
+    const wrapped = createLocalKeyProvider({currentKek: crypto.randomBytes(32)}).wrapDek(
+      workspaceId,
+      crypto.randomBytes(32),
+    );
+    await db().insert(secretDataKeys).values({
+      workspaceId,
+      wrappedDek: wrapped.wrappedDek,
+      kekVersion: wrapped.kekVersion,
+    });
+
+    const rows = await listDataKeysPage({limit: 10, versions: []});
+
+    expect(rows).toHaveLength(0);
   });
 
   it('fails loud when any data key version is stranded', async () => {

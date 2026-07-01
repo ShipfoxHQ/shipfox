@@ -1,8 +1,13 @@
 import crypto from 'node:crypto';
 import {describe, expect, it} from '@shipfox/vitest/vi';
-import {db, secretVariables} from '#db/index.js';
+import {db, secretVariables, upsertSecretVariableRows} from '#db/index.js';
 import {WorkspaceSecretCapExceededError} from './errors.js';
-import {getVariable, getVariablesByNamespace, setVariables} from './variable-store.js';
+import {
+  deleteVariables,
+  getVariable,
+  getVariablesByNamespace,
+  setVariables,
+} from './variable-store.js';
 
 describe('variable store', () => {
   it('stores plaintext variables and applies scope precedence', async () => {
@@ -20,6 +25,17 @@ describe('variable store', () => {
     expect(rows.map((row) => row.value).sort()).toEqual(['eu-west-1', 'us-east-1']);
   });
 
+  it('treats an empty delete key list as a no-op', async () => {
+    const workspaceId = crypto.randomUUID();
+    await setVariables({workspaceId, values: {REGION: 'us-east-1'}});
+
+    const deleted = await deleteVariables({workspaceId, keys: []});
+    const value = await getVariable({workspaceId, key: 'REGION'});
+
+    expect(deleted).toBe(0);
+    expect(value).toBe('us-east-1');
+  });
+
   it('enforces the workspace cap', async () => {
     const workspaceId = crypto.randomUUID();
     const values = Object.fromEntries(
@@ -29,5 +45,47 @@ describe('variable store', () => {
     await expect(setVariables({workspaceId, values})).rejects.toThrow(
       WorkspaceSecretCapExceededError,
     );
+  });
+
+  it('rejects mixed project scopes in one variable upsert batch', async () => {
+    const workspaceId = crypto.randomUUID();
+
+    await expect(
+      db().transaction((tx) =>
+        upsertSecretVariableRows(
+          [
+            {
+              workspaceId,
+              projectId: null,
+              namespace: '',
+              key: 'REGION',
+              value: 'us-east-1',
+            },
+            {
+              workspaceId,
+              projectId: crypto.randomUUID(),
+              namespace: '',
+              key: 'OTHER_REGION',
+              value: 'eu-west-1',
+            },
+          ],
+          tx,
+        ),
+      ),
+    ).rejects.toThrow('single project scope');
+  });
+
+  it('keeps the database namespace check in parity with the DTO pattern', async () => {
+    const workspaceId = crypto.randomUUID();
+
+    await expect(
+      db().insert(secretVariables).values({
+        workspaceId,
+        projectId: null,
+        namespace: 'Bad/Namespace',
+        key: 'REGION',
+        value: 'us-east-1',
+      }),
+    ).rejects.toThrow();
   });
 });

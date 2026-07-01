@@ -17,12 +17,14 @@ export function normalizedProjectId(scope?: StoreScope | undefined): string | nu
 }
 
 export function scopeConflictTargetWhere(scope?: StoreScope | undefined): SQL {
-  return normalizedProjectId(scope) ? sql`"project_id" IS NOT NULL` : sql`"project_id" IS NULL`;
+  return normalizedProjectId(scope) !== null
+    ? sql`"project_id" IS NOT NULL`
+    : sql`"project_id" IS NULL`;
 }
 
 export function scopeExactWhere(columns: ScopeColumns, params: StoreScope): SQL | undefined {
   const projectId = normalizedProjectId(params);
-  return projectId ? eq(columns.projectId, projectId) : isNull(columns.projectId);
+  return projectId !== null ? eq(columns.projectId, projectId) : isNull(columns.projectId);
 }
 
 export function lookupWithPrecedenceWhere(
@@ -35,6 +37,6 @@ export function lookupWithPrecedenceWhere(
     eq(columns.key, params.key),
   );
   const projectId = normalizedProjectId(params);
-  if (!projectId) return and(base, isNull(columns.projectId));
+  if (projectId === null) return and(base, isNull(columns.projectId));
   return and(base, or(eq(columns.projectId, projectId), isNull(columns.projectId)));
 }

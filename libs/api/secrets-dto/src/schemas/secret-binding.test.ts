@@ -20,6 +20,16 @@ describe('secret binding schema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejects unknown secret stores', () => {
+    const result = secretBindingSegmentSchema.safeParse({
+      kind: 'secret',
+      store: 'remote',
+      key: 'API_KEY',
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it('validates materialized bindings', () => {
     const result = materializedSecretBindingSchema.safeParse({
       target: 'OPENAI_API_KEY',

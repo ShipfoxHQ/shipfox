@@ -6,8 +6,8 @@ const ENCODED_PREFIX = 'v1:';
 const IV_BYTES = 12;
 const AUTH_TAG_BYTES = 16;
 const KEY_BYTES = 32;
-const BASE64_PADDING_SUFFIX = /=+$/;
 const BASE64_KEY_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
+const BASE64_PADDING_SUFFIX = /=+$/;
 
 export interface AesGcmSealParams {
   key: Buffer;
@@ -95,14 +95,11 @@ export function aadForDek(workspaceId: string, kekVersion: string): string {
 }
 
 export function aadForValue(params: SecretValueAadParams): string {
-  const scopeTuple = params.scope?.projectId ? ['project', params.scope.projectId] : ['workspace'];
+  const projectId = params.scope?.projectId ?? null;
+  const scopeTuple = projectId !== null ? ['project', projectId] : ['workspace'];
   return JSON.stringify([params.workspaceId, scopeTuple, params.namespace, params.key]);
 }
 
 function isCanonicalBase64Key(encoded: string, key: Buffer): boolean {
-  return (
-    BASE64_KEY_PATTERN.test(encoded) &&
-    key.toString('base64').replace(BASE64_PADDING_SUFFIX, '') ===
-      encoded.replace(BASE64_PADDING_SUFFIX, '')
-  );
+  return BASE64_KEY_PATTERN.test(encoded) && key.toString('base64') === encoded;
 }

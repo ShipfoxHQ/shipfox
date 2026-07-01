@@ -24,7 +24,7 @@ export class DekManager {
     if (cached && cached.expiresAt > Date.now()) {
       this.#cache.delete(workspaceId);
       this.#cache.set(workspaceId, cached);
-      return cached.dek;
+      return Buffer.from(cached.dek);
     }
     if (cached) this.#cache.delete(workspaceId);
 
@@ -36,7 +36,7 @@ export class DekManager {
         existing.kekVersion,
       );
       this.#set(workspaceId, dek);
-      return dek;
+      return Buffer.from(dek);
     }
 
     const generatedDek = crypto.randomBytes(DEK_BYTES);
@@ -57,7 +57,7 @@ export class DekManager {
       persisted.kekVersion,
     );
     this.#set(workspaceId, dek);
-    return dek;
+    return Buffer.from(dek);
   }
 
   invalidate(workspaceId: string): void {
@@ -65,7 +65,10 @@ export class DekManager {
   }
 
   #set(workspaceId: string, dek: Buffer): void {
-    this.#cache.set(workspaceId, {dek, expiresAt: Date.now() + this.#options.ttlMs});
+    this.#cache.set(workspaceId, {
+      dek: Buffer.from(dek),
+      expiresAt: Date.now() + this.#options.ttlMs,
+    });
     while (this.#cache.size > this.#options.maxEntries) {
       const oldest = this.#cache.keys().next().value as string | undefined;
       if (!oldest) break;

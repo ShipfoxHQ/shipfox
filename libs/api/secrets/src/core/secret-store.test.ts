@@ -59,6 +59,17 @@ describe('secret store', () => {
     expect(inheritedValue).toBe('workspace-token');
   });
 
+  it('treats an empty delete key list as a no-op', async () => {
+    const workspaceId = crypto.randomUUID();
+    await setSecrets({workspaceId, values: {TOKEN: 'keep-me'}});
+
+    const deleted = await deleteSecrets({workspaceId, keys: []});
+    const value = await getSecret({workspaceId, key: 'TOKEN'});
+
+    expect(deleted).toBe(0);
+    expect(value).toBe('keep-me');
+  });
+
   it('rejects invalid keys and namespaces before writing', async () => {
     const workspaceId = crypto.randomUUID();
 
@@ -87,6 +98,28 @@ describe('secret store', () => {
     await expect(setSecrets({workspaceId, values})).rejects.toThrow(
       WorkspaceSecretCapExceededError,
     );
+  });
+
+  it('allows updating an existing secret at the workspace cap', async () => {
+    const workspaceId = crypto.randomUUID();
+    await setSecrets({workspaceId, values: {TOKEN: 'old-value'}});
+    await db()
+      .insert(secretValues)
+      .values(
+        Array.from({length: 9_999}, (_, index) => ({
+          workspaceId,
+          projectId: null,
+          namespace: '',
+          key: `KEY_${index}`,
+          ciphertext: 'v1:test',
+          fingerprint: null,
+        })),
+      );
+
+    await setSecrets({workspaceId, values: {TOKEN: 'new-value'}});
+    const value = await getSecret({workspaceId, key: 'TOKEN'});
+
+    expect(value).toBe('new-value');
   });
 
   it('does not mint a data key for an empty batch', async () => {
@@ -128,6 +161,51 @@ describe('secret store', () => {
       .where(eq(secretValues.workspaceId, workspaceId));
 
     expect(rows).toHaveLength(0);
+  });
+
+  it('rejects mixed project scopes in one value upsert batch', async () => {
+    const workspaceId = crypto.randomUUID();
+
+    await expect(
+      db().transaction((tx) =>
+        upsertSecretValueRows(
+          [
+            {
+              workspaceId,
+              projectId: null,
+              namespace: '',
+              key: 'TOKEN',
+              ciphertext: 'v1:test',
+              fingerprint: null,
+            },
+            {
+              workspaceId,
+              projectId: crypto.randomUUID(),
+              namespace: '',
+              key: 'OTHER_TOKEN',
+              ciphertext: 'v1:test',
+              fingerprint: null,
+            },
+          ],
+          tx,
+        ),
+      ),
+    ).rejects.toThrow('single project scope');
+  });
+
+  it('keeps the database namespace check in parity with the DTO pattern', async () => {
+    const workspaceId = crypto.randomUUID();
+
+    await expect(
+      db().insert(secretValues).values({
+        workspaceId,
+        projectId: null,
+        namespace: 'Bad/Namespace',
+        key: 'TOKEN',
+        ciphertext: 'v1:test',
+        fingerprint: null,
+      }),
+    ).rejects.toThrow();
   });
 
   it('fails closed when the workspace data key is removed', async () => {

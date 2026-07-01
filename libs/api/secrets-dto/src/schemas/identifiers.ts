@@ -29,7 +29,7 @@ export function isSystemNamespace(namespace: string): boolean {
 }
 
 export function isUserNamespace(namespace: string): boolean {
-  return namespace === '';
+  return !isSystemNamespace(namespace);
 }
 
 export function isSensitiveSecretName(key: string): boolean {

@@ -52,6 +52,21 @@ describe('DekManager', () => {
     expect(second.equals(first)).toBe(true);
   });
 
+  it('returns defensive copies of cached data keys', async () => {
+    const workspaceId = crypto.randomUUID();
+    const manager = new DekManager(createLocalKeyProvider({currentKek: crypto.randomBytes(32)}), {
+      maxEntries: 10,
+      ttlMs: 60_000,
+    });
+
+    const first = await manager.getPlaintextDek(workspaceId);
+    const expected = Buffer.from(first);
+    first.fill(0);
+    const second = await manager.getPlaintextDek(workspaceId);
+
+    expect(second.equals(expected)).toBe(true);
+  });
+
   it('refreshes expired cache entries from storage', async () => {
     const workspaceId = crypto.randomUUID();
     const manager = new DekManager(createLocalKeyProvider({currentKek: crypto.randomBytes(32)}), {

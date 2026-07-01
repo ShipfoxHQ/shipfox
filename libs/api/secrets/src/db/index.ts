@@ -1,7 +1,7 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-export {countWorkspaceEntries} from './cap.js';
+export {countWorkspaceEntries, lockWorkspaceEntries} from './cap.js';
 export {
   getDataKey,
   insertDataKeyIfAbsent,
@@ -15,12 +15,14 @@ export {secretValues} from './schema/values.js';
 export {secretVariables} from './schema/variables.js';
 export type {StoreScope} from './scope.js';
 export {
+  countSecretValueRows,
   deleteSecretValueRows,
   getSecretValueRowWithPrecedence,
   listSecretValueRowsByNamespace,
   upsertSecretValueRows,
 } from './values.js';
 export {
+  countSecretVariableRows,
   deleteSecretVariableRows,
   getSecretVariableRowWithPrecedence,
   listSecretVariableRowsByNamespace,

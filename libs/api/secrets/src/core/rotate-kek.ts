@@ -34,15 +34,19 @@ export async function rotateWorkspaceDataKeysWithProvider(
       }
 
       const plaintextDek = keyProvider.unwrapDek(row.workspaceId, row.wrappedDek, row.kekVersion);
-      const wrapped = keyProvider.wrapDek(row.workspaceId, plaintextDek);
-      const updated = await updateDataKeyWrapCas({
-        workspaceId: row.workspaceId,
-        oldKekVersion: row.kekVersion,
-        wrappedDek: wrapped.wrappedDek,
-        kekVersion: wrapped.kekVersion,
-      });
-      if (updated) rotated += 1;
-      else skipped += 1;
+      try {
+        const wrapped = keyProvider.wrapDek(row.workspaceId, plaintextDek);
+        const updated = await updateDataKeyWrapCas({
+          workspaceId: row.workspaceId,
+          oldKekVersion: row.kekVersion,
+          wrappedDek: wrapped.wrappedDek,
+          kekVersion: wrapped.kekVersion,
+        });
+        if (updated) rotated += 1;
+        else skipped += 1;
+      } finally {
+        plaintextDek.fill(0);
+      }
     }
   }
 

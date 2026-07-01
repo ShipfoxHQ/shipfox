@@ -5,6 +5,7 @@ import {SecretDecryptionError} from './errors.js';
 
 const V1_PREFIX_PATTERN = /^v1:/;
 const STRIP_WHITESPACE_PATTERN = /Strip whitespace/;
+const BASE64_PADDING_SUFFIX = /=+$/;
 
 describe('AES-GCM secret crypto', () => {
   it('round-trips with non-deterministic ciphertext', () => {
@@ -90,6 +91,10 @@ describe('AES-GCM secret crypto', () => {
     const key = decodeBase64Key(encoded, 'TEST_KEY');
 
     expect(key).toHaveLength(32);
+    expect(() => decodeBase64Key(encoded.replace(BASE64_PADDING_SUFFIX, ''), 'TEST_KEY')).toThrow(
+      STRIP_WHITESPACE_PATTERN,
+    );
+    expect(() => decodeBase64Key(`${encoded}=`, 'TEST_KEY')).toThrow(STRIP_WHITESPACE_PATTERN);
     expect(() => decodeBase64Key(`${encoded}\n`, 'TEST_KEY')).toThrow(STRIP_WHITESPACE_PATTERN);
   });
 });

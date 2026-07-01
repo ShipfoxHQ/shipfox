@@ -38,11 +38,12 @@ describe('secret identifiers', () => {
     expect(result.success).toBe(false);
   });
 
-  it('classifies system namespaces and the only user namespace', () => {
+  it('classifies system and user namespaces', () => {
     expect(isSystemNamespace('system/agent/x')).toBe(true);
     expect(isSystemNamespace('')).toBe(false);
     expect(isSystemNamespace('REGION')).toBe(false);
     expect(isUserNamespace('')).toBe(true);
+    expect(isUserNamespace('prod')).toBe(true);
     expect(isUserNamespace('system/agent/x')).toBe(false);
   });
 
