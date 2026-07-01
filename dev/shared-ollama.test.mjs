@@ -5,6 +5,7 @@ import {
   ollamaListenHost,
   processIdentityMatches,
   processStartTime,
+  processStateMatchesContext,
   serviceContext,
 } from './shared-ollama.mjs';
 
@@ -56,19 +57,34 @@ describe('ollamaListenHost', () => {
 describe('processIdentityMatches', () => {
   test('matches a process by pid and recorded start time', () => {
     const currentStartTime = processStartTime(process.pid);
+    const matchingState = {pid: process.pid, processStartTime: currentStartTime};
+    const mismatchedState = {
+      pid: process.pid,
+      processStartTime: 'Mon Jan  1 00:00:00 2001',
+    };
+    const missingStartTimeState = {pid: process.pid};
+
+    const matchingResult = processIdentityMatches(matchingState);
+    const mismatchedResult = processIdentityMatches(mismatchedState);
+    const missingStartTimeResult = processIdentityMatches(missingStartTimeState);
 
     assert.equal(typeof currentStartTime, 'string');
-    assert.equal(
-      processIdentityMatches({pid: process.pid, processStartTime: currentStartTime}),
-      true,
-    );
-    assert.equal(
-      processIdentityMatches({
-        pid: process.pid,
-        processStartTime: 'Mon Jan  1 00:00:00 2001',
-      }),
-      false,
-    );
-    assert.equal(processIdentityMatches({pid: process.pid}), false);
+    assert.equal(matchingResult, true);
+    assert.equal(mismatchedResult, false);
+    assert.equal(missingStartTimeResult, false);
+  });
+});
+
+describe('processStateMatchesContext', () => {
+  test('matches a managed process by listen host', () => {
+    const context = serviceContext({SHIPFOX_OLLAMA_BASE_URL: 'http://127.0.0.1:11500'});
+    const matchingState = {pid: process.pid, listenHost: '127.0.0.1:11500'};
+    const mismatchedState = {pid: process.pid, listenHost: '127.0.0.1:11434'};
+
+    const matchingResult = processStateMatchesContext(matchingState, context);
+    const mismatchedResult = processStateMatchesContext(mismatchedState, context);
+
+    assert.equal(matchingResult, true);
+    assert.equal(mismatchedResult, false);
   });
 });

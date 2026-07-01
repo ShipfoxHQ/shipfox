@@ -223,6 +223,7 @@ function writeProcessState(context, state) {
 function readManagedProcess(context) {
   const state = readProcessState(context.stateFile);
   if (state === undefined || !isProcessAlive(state.pid)) return undefined;
+  if (!processStateMatchesContext(state, context)) return undefined;
   if (!processIdentityMatches(state)) return undefined;
   return state;
 }
@@ -231,7 +232,12 @@ function readLiveUnverifiedPid(context) {
   const pid = readPid(context.pidFile);
   if (pid === undefined || !isProcessAlive(pid)) return undefined;
   const state = readProcessState(context.stateFile);
-  if (state !== undefined && state.pid === pid && processIdentityMatches(state)) {
+  if (
+    state !== undefined &&
+    state.pid === pid &&
+    processStateMatchesContext(state, context) &&
+    processIdentityMatches(state)
+  ) {
     return undefined;
   }
   return pid;
@@ -257,6 +263,10 @@ function readProcessState(stateFile) {
 function processIdentityMatches(state) {
   if (state.processStartTime === undefined) return false;
   return processStartTime(state.pid) === state.processStartTime;
+}
+
+function processStateMatchesContext(state, context) {
+  return state.listenHost === context.listenHost;
 }
 
 function processStartTime(pid) {
@@ -334,4 +344,10 @@ function printError(message) {
   process.stderr.write(`${message}\n`);
 }
 
-export {ollamaListenHost, processIdentityMatches, processStartTime, serviceContext};
+export {
+  ollamaListenHost,
+  processIdentityMatches,
+  processStartTime,
+  processStateMatchesContext,
+  serviceContext,
+};
