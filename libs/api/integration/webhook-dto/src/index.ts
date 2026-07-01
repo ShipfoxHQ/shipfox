@@ -30,7 +30,7 @@ export const webhookConnectionDtoSchema = z.object({
   id: z.string().uuid(),
   workspace_id: z.string().uuid(),
   name: z.string(),
-  slug: webhookSlugSchema,
+  slug: connectionSlugSchema,
   lifecycle_status: z.enum(['active', 'disabled', 'error']),
   inbound_url: z.string().url(),
   created_at: z.string(),
