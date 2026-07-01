@@ -768,7 +768,6 @@ describe('WorkflowRunView', () => {
     expect(highlighted).toHaveLength(2);
     expect(highlighted[0]).toHaveTextContent('build:');
     expect(highlighted[1]).toHaveTextContent('steps:');
-    // Exactly one control reports the shared panel expanded.
     expect(jobSourceButton).toHaveAttribute('aria-expanded', 'true');
     expect(summaryButton).toHaveAttribute('aria-expanded', 'false');
   });
