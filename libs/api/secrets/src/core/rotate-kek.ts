@@ -22,7 +22,7 @@ export async function rotateWorkspaceDataKeysWithProvider(
   let skipped = 0;
   let afterWorkspaceId: string | undefined;
 
-  for (;;) {
+  while (true) {
     const page = await listDataKeysPage({afterWorkspaceId, limit: PAGE_SIZE});
     if (page.length === 0) break;
 
