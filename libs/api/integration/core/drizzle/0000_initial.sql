@@ -3,6 +3,7 @@ CREATE TABLE "integrations_connections" (
 	"workspace_id" uuid NOT NULL,
 	"provider" text NOT NULL,
 	"external_account_id" text NOT NULL,
+	"slug" text NOT NULL,
 	"display_name" text NOT NULL,
 	"lifecycle_status" text DEFAULT 'active' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -31,6 +32,7 @@ CREATE TABLE "integrations_webhook_deliveries" (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX "integrations_connections_workspace_external_unique" ON "integrations_connections" USING btree ("workspace_id","provider","external_account_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "integrations_connections_workspace_slug_unique" ON "integrations_connections" USING btree ("workspace_id","slug");--> statement-breakpoint
 CREATE INDEX "integrations_connections_workspace_id_idx" ON "integrations_connections" USING btree ("workspace_id");--> statement-breakpoint
 CREATE INDEX "integrations_outbox_pending_idx" ON "integrations_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;
 --> statement-breakpoint

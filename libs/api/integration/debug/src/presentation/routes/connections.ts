@@ -13,6 +13,7 @@ interface DebugConnectionRecord {
   workspaceId: string;
   provider: IntegrationProviderKindDto;
   externalAccountId: string;
+  slug: string;
   displayName: string;
   lifecycleStatus: IntegrationConnectionLifecycleStatusDto;
   createdAt: Date;
@@ -23,6 +24,7 @@ interface UpsertDebugConnectionInput {
   workspaceId: string;
   provider: 'debug';
   externalAccountId: 'debug';
+  slug: 'debug';
   displayName: 'Debug';
   lifecycleStatus: 'active';
 }
@@ -39,6 +41,7 @@ function toIntegrationConnectionDto(connection: DebugConnectionRecord) {
     workspace_id: connection.workspaceId,
     provider: connection.provider,
     external_account_id: connection.externalAccountId,
+    slug: connection.slug,
     display_name: connection.displayName,
     lifecycle_status: connection.lifecycleStatus,
     capabilities: ['source_control' as const],
@@ -69,6 +72,7 @@ export function createDebugIntegrationRoutes({
         workspaceId,
         provider: 'debug',
         externalAccountId: 'debug',
+        slug: 'debug',
         displayName: 'Debug',
         lifecycleStatus: 'active',
       });

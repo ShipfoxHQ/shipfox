@@ -11,6 +11,7 @@ const connection = {
   workspaceId: crypto.randomUUID(),
   provider: 'debug',
   externalAccountId: 'debug',
+  slug: 'debug',
   displayName: 'Debug',
   lifecycleStatus: 'active' as const,
   createdAt: new Date(),

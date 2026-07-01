@@ -61,6 +61,7 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
     workspaceId: crypto.randomUUID(),
     provider: 'webhook',
     externalAccountId: 'stripe',
+    slug: 'stripe',
     displayName: 'Stripe',
     lifecycleStatus: 'active',
     createdAt: now,
@@ -71,25 +72,23 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
 
 function createStore() {
   const byId = new Map<string, IntegrationConnection>();
-  const byUnique = new Map<string, string>();
+  const bySlug = new Map<string, string>();
   const seed = (connection: IntegrationConnection) => {
     byId.set(connection.id, connection);
-    byUnique.set(
-      `${connection.workspaceId}:${connection.provider}:${connection.externalAccountId}`,
-      connection.id,
-    );
+    bySlug.set(`${connection.workspaceId}:${connection.slug}`, connection.id);
     return connection;
   };
 
   return {
     seed,
     createIntegrationConnection: vi.fn<CreateConnectionFn>((input) => {
-      const key = `${input.workspaceId}:${input.provider}:${input.externalAccountId}`;
-      if (byUnique.has(key)) throw duplicateSlugError();
+      const key = `${input.workspaceId}:${input.slug}`;
+      if (bySlug.has(key)) throw duplicateSlugError();
       const connection = fakeConnection({
         workspaceId: input.workspaceId,
         provider: input.provider,
         externalAccountId: input.externalAccountId,
+        slug: input.slug,
         displayName: input.displayName,
         lifecycleStatus: input.lifecycleStatus ?? 'active',
       });

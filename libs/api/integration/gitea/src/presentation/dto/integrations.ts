@@ -1,19 +1,14 @@
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {
+  type IntegrationConnection,
+  toIntegrationConnectionDto as toCoreIntegrationConnectionDto,
+} from '@shipfox/api-integration-core-dto';
 
 export function toIntegrationConnectionDto(
   connection: IntegrationConnection<'gitea'>,
   options: {externalUrl?: string | undefined} = {},
 ) {
-  return {
-    id: connection.id,
-    workspace_id: connection.workspaceId,
-    provider: connection.provider,
-    external_account_id: connection.externalAccountId,
-    display_name: connection.displayName,
-    lifecycle_status: connection.lifecycleStatus,
+  return toCoreIntegrationConnectionDto(connection, {
     capabilities: ['source_control'],
-    ...(options.externalUrl ? {external_url: options.externalUrl} : {}),
-    created_at: connection.createdAt.toISOString(),
-    updated_at: connection.updatedAt.toISOString(),
-  };
+    externalUrl: options.externalUrl,
+  });
 }

@@ -8,6 +8,7 @@ function connection(overrides: Partial<IntegrationConnectionDto> = {}): Integrat
     workspace_id: 'ws-1',
     provider: 'github',
     external_account_id: 'acct',
+    slug: 'github_acct',
     display_name: 'GitHub',
     lifecycle_status: 'active',
     capabilities: ['source_control'],

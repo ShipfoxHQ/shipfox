@@ -82,7 +82,9 @@ export function createWebhookConnectionRoutes(
       const connection = await options.createIntegrationConnection({
         workspaceId,
         provider: WEBHOOK_PROVIDER,
+        // The generic webhook provider uses the human slug as its provider-side account id.
         externalAccountId: slug,
+        slug,
         displayName: name,
       });
 

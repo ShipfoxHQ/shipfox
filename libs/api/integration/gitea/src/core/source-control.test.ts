@@ -44,6 +44,7 @@ function connection(): IntegrationConnection<'gitea'> {
     workspaceId: crypto.randomUUID(),
     provider: 'gitea',
     externalAccountId: 'shipfox',
+    slug: 'gitea_shipfox',
     displayName: 'Gitea shipfox',
     lifecycleStatus: 'active',
     createdAt: new Date(),

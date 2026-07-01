@@ -44,7 +44,7 @@ non-2xx responses.
 
 ## Events
 
-Issue webhooks publish `INTEGRATION_EVENT_RECEIVED` with `source: 'sentry'`.
+Issue webhooks publish `INTEGRATION_EVENT_RECEIVED` with the connection slug as `source`.
 Downstream trigger payloads receive the normalized `SentryIssuePayload` in
 `triggerPayload.data`.
 

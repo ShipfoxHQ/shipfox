@@ -1,13 +1,21 @@
-import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {
+  type IntegrationConnection as CoreIntegrationConnection,
+  slugifyConnectionSlug,
+} from '@shipfox/api-integration-core-dto';
 import type {ConnectGithubInstallationInput} from '@shipfox/api-integration-github';
 import {config} from '#config.js';
-import {getIntegrationConnectionById, upsertIntegrationConnection} from '#db/connections.js';
+import {
+  getIntegrationConnectionById,
+  resolveUniqueConnectionSlug,
+  upsertIntegrationConnection,
+} from '#db/connections.js';
 import {db} from '#db/db.js';
 import {
   publishIntegrationEventReceived,
   publishSourcePush,
   recordDeliveryOnly,
 } from '#db/webhook-deliveries.js';
+import {retryConnectionSlugCollision} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
 // Stable migration-tracking table name for the GitHub provider database. This
@@ -38,28 +46,43 @@ async function loadGithubModuleParts(): Promise<IntegrationModuleParts> {
   async function connectGithubInstallation(
     input: ConnectGithubInstallationInput,
   ): Promise<CoreIntegrationConnection<'github'>> {
-    return await db().transaction(async (tx) => {
-      const connection = await upsertIntegrationConnection(
-        {
-          workspaceId: input.workspaceId,
-          provider: 'github',
-          externalAccountId: input.installationId,
-          displayName: input.displayName,
-          lifecycleStatus: 'active',
-        },
-        {tx},
-      );
+    return await retryConnectionSlugCollision(() =>
+      db().transaction(async (tx) => {
+        const baseSlug = slugifyConnectionSlug(`github_${input.installation.accountLogin}`, {
+          fallback: 'github',
+        });
+        const slug = await resolveUniqueConnectionSlug(
+          {
+            workspaceId: input.workspaceId,
+            provider: 'github',
+            externalAccountId: input.installationId,
+            baseSlug,
+          },
+          {tx},
+        );
+        const connection = await upsertIntegrationConnection(
+          {
+            workspaceId: input.workspaceId,
+            provider: 'github',
+            externalAccountId: input.installationId,
+            slug,
+            displayName: input.displayName,
+            lifecycleStatus: 'active',
+          },
+          {tx},
+        );
 
-      await upsertGithubInstallation(
-        {
-          connectionId: connection.id,
-          ...input.installation,
-        },
-        {tx},
-      );
+        await upsertGithubInstallation(
+          {
+            connectionId: connection.id,
+            ...input.installation,
+          },
+          {tx},
+        );
 
-      return connection as CoreIntegrationConnection<'github'>;
-    });
+        return connection as CoreIntegrationConnection<'github'>;
+      }),
+    );
   }
 
   return {

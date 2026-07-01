@@ -36,7 +36,7 @@ try {
     name: 'simple build',
     triggers: {
       main_push: {
-        source: 'github',
+        source: 'github_acme',
         event: 'push',
         filter: 'event.ref == "refs/heads/main"',
       },

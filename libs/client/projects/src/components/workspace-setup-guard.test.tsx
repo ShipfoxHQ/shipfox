@@ -39,6 +39,7 @@ function sourceConnection(overrides: {lifecycle_status?: string} = {}) {
     workspace_id: WORKSPACE_ID,
     provider: 'github',
     external_account_id: 'acct',
+    slug: 'github_acct',
     display_name: 'GitHub',
     lifecycle_status: 'active',
     capabilities: ['source_control'],

@@ -22,6 +22,7 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
     workspaceId: randomUUID(),
     provider: 'github',
     externalAccountId: '123',
+    slug: 'github_shipfox',
     displayName: 'GitHub shipfox',
     lifecycleStatus: 'active',
     createdAt: new Date(),
@@ -207,7 +208,7 @@ describe('GitHub webhook route', () => {
     expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
     expect(publishIntegrationEventReceived.mock.calls[0]?.[0]).toMatchObject({
       event: {
-        source: 'github',
+        source: connection.slug,
         event: 'push',
         workspaceId: connection.workspaceId,
         connectionId: connection.id,
@@ -266,7 +267,7 @@ describe('GitHub webhook route', () => {
     expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
     expect(publishIntegrationEventReceived.mock.calls[0]?.[0]).toMatchObject({
       event: {
-        source: 'github',
+        source: connection.slug,
         event: 'pull_request.opened',
         workspaceId: connection.workspaceId,
         connectionId: connection.id,
@@ -303,7 +304,7 @@ describe('GitHub webhook route', () => {
     expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
     expect(publishIntegrationEventReceived.mock.calls[0]?.[0]).toMatchObject({
       event: {
-        source: 'github',
+        source: connection.slug,
         event: 'fork',
         workspaceId: connection.workspaceId,
         connectionId: connection.id,
@@ -547,7 +548,7 @@ describe('GitHub webhook route', () => {
     expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
     expect(publishIntegrationEventReceived.mock.calls[0]?.[0]).toMatchObject({
       event: {
-        source: 'github',
+        source: connection.slug,
         event: 'push',
         workspaceId: connection.workspaceId,
         connectionId: connection.id,

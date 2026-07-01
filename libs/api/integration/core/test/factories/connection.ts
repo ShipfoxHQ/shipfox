@@ -11,6 +11,7 @@ export const integrationConnectionFactory = Factory.define<IntegrationConnection
       workspaceId: crypto.randomUUID(),
       provider: 'debug',
       externalAccountId: `debug-${sequence}`,
+      slug: `debug_${sequence}`,
       displayName: `Debug Connection ${sequence}`,
       lifecycleStatus: 'active',
       createdAt: new Date(),

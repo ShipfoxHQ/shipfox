@@ -16,12 +16,14 @@ describe('GET /integration-connections', () => {
       workspaceId: context.workspaceId,
       provider: 'debug',
       externalAccountId: 'debug-active',
+      slug: 'debug_active',
       displayName: 'Debug',
     });
     await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
       provider: 'debug',
       externalAccountId: 'debug-error',
+      slug: 'debug_error',
       displayName: 'Debug',
       lifecycleStatus: 'error',
     });
@@ -46,12 +48,14 @@ describe('GET /integration-connections', () => {
       workspaceId: context.workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug',
       displayName: 'Debug',
     });
     await upsertIntegrationConnection({
       workspaceId: context.workspaceId,
       provider: 'github',
       externalAccountId: 'team-1',
+      slug: 'github_team_1',
       displayName: 'GitHub',
     });
 
@@ -77,6 +81,7 @@ describe('GET /integration-connections', () => {
       workspaceId: context.workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug',
       displayName: 'Debug',
     });
 
@@ -100,6 +105,7 @@ describe('GET /integration-connections', () => {
       workspaceId: context.workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug',
       displayName: 'Debug',
     });
 

@@ -1,4 +1,5 @@
 export {
+  connectionSlugSchema,
   type IntegrationCapabilityDto,
   type IntegrationConnectionDto,
   type IntegrationConnectionLifecycleStatusDto,

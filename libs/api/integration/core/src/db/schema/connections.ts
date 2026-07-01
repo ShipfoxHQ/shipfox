@@ -14,6 +14,7 @@ export const integrationConnections = pgTable(
     workspaceId: uuid('workspace_id').notNull(),
     provider: text('provider').notNull(),
     externalAccountId: text('external_account_id').notNull(),
+    slug: text('slug').notNull(),
     displayName: text('display_name').notNull(),
     lifecycleStatus: text('lifecycle_status').notNull().default('active'),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
@@ -25,6 +26,7 @@ export const integrationConnections = pgTable(
       table.provider,
       table.externalAccountId,
     ),
+    uniqueIndex('integrations_connections_workspace_slug_unique').on(table.workspaceId, table.slug),
     index('integrations_connections_workspace_id_idx').on(table.workspaceId),
   ],
 );
@@ -38,6 +40,7 @@ export function toIntegrationConnection(row: IntegrationConnectionDb): Integrati
     workspaceId: row.workspaceId,
     provider: row.provider as IntegrationProviderKind,
     externalAccountId: row.externalAccountId,
+    slug: row.slug,
     displayName: row.displayName,
     lifecycleStatus: row.lifecycleStatus as IntegrationConnectionLifecycleStatus,
     createdAt: row.createdAt,
