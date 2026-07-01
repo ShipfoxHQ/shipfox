@@ -1,4 +1,4 @@
-import {assembleWorkflowRunContext} from './assemble-run-context.js';
+import {assembleCreationContext, assembleWorkflowRunContext} from './assemble-run-context.js';
 
 describe('assembleWorkflowRunContext', () => {
   const run = {
@@ -54,5 +54,43 @@ describe('assembleWorkflowRunContext', () => {
 
     expect(context.event).toBeNull();
     expect(context.inputs).toBeNull();
+  });
+});
+
+describe('assembleCreationContext', () => {
+  const run = {
+    id: 'run-1',
+    name: 'Build',
+    definitionId: 'def-1',
+    projectId: 'proj-1',
+    workspaceId: 'workspace-1',
+    createdAt: new Date('2026-06-30T12:00:00.000Z'),
+  };
+
+  it('wraps the run context with the creation phase', () => {
+    const context = assembleCreationContext({
+      run,
+      triggerPayload: {
+        source: 'github',
+        event: 'push',
+        deliveryId: 'delivery-1',
+        data: {ref: 'refs/heads/main'},
+      },
+      inputs: {deploy: true},
+    });
+
+    expect(context).toEqual({
+      phase: 'workflow-run-creation',
+      values: assembleWorkflowRunContext({
+        run,
+        triggerPayload: {
+          source: 'github',
+          event: 'push',
+          deliveryId: 'delivery-1',
+          data: {ref: 'refs/heads/main'},
+        },
+        inputs: {deploy: true},
+      }),
+    });
   });
 });

@@ -67,10 +67,7 @@ import {
 } from '#core/errors.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import type {WorkflowStepTemplateDiagnostic} from '#core/workflow-runtime/index.js';
-import {
-  assembleWorkflowRunContext,
-  materializeWorkflowModel,
-} from '#core/workflow-runtime/index.js';
+import {assembleCreationContext, materializeWorkflowModel} from '#core/workflow-runtime/index.js';
 import type {MaterializedWorkflowJob} from '#core/workflow-runtime/materialize-workflow-model.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
 import {
@@ -165,13 +162,15 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
 
     // Resolving templates here gives interpolation access to the inserted run id.
     // If resolution fails, the transaction rolls back the run, jobs, steps, and outbox event together.
+    const context = assembleCreationContext({
+      run,
+      triggerPayload: params.triggerPayload,
+      inputs: params.inputs ?? null,
+    });
     const materializedJobs = materializeWorkflowModel({
       model: params.model,
-      context: assembleWorkflowRunContext({
-        run,
-        triggerPayload: params.triggerPayload,
-        inputs: params.inputs ?? null,
-      }),
+      context: context.values,
+      phase: context.phase,
       resolveAgentDefaults: params.resolveAgentDefaults ?? catalogDefaultAgentResolver,
       definitionId: params.definitionId,
     });
