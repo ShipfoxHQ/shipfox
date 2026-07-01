@@ -9,10 +9,12 @@ import {
   DropdownMenuTrigger,
   EmptyState,
   IconButton,
-  Popover,
-  PopoverAnchor,
-  PopoverArrow,
-  PopoverContent,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
   Skeleton,
   Table,
   TableBody,
@@ -151,7 +153,7 @@ function RevokeManualRegistrationTokenButton({
       });
       setOpen(false);
     } catch {
-      // React Query stores the error for the inline popover alert.
+      // React Query stores the error for the inline modal alert.
     }
   }
 
@@ -168,40 +170,37 @@ function RevokeManualRegistrationTokenButton({
   }
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <>
       <DropdownMenu>
-        <PopoverAnchor asChild>
-          <DropdownMenuTrigger asChild>
-            <IconButton
-              type="button"
-              size="sm"
-              variant="transparent"
-              icon="more2Line"
-              aria-label={`Open ${tokenName} token actions`}
-            />
-          </DropdownMenuTrigger>
-        </PopoverAnchor>
+        <DropdownMenuTrigger asChild>
+          <IconButton
+            type="button"
+            size="sm"
+            variant="transparent"
+            icon="more2Line"
+            aria-label={`Open ${tokenName} token actions`}
+          />
+        </DropdownMenuTrigger>
         <DropdownMenuContent align="end" size="sm">
-          <DropdownMenuItem onSelect={openRevokeConfirmation}>Revoke</DropdownMenuItem>
+          <DropdownMenuItem onSelect={openRevokeConfirmation}>Revoke token</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <PopoverContent align="end" className="w-280 p-14">
-        <div className="flex flex-col gap-12">
-          <div className="flex flex-col gap-4">
-            <Text size="sm" bold>
-              Revoke token?
-            </Text>
+      <Modal open={open} onOpenChange={handleOpenChange}>
+        <ModalContent aria-describedby={undefined} className="max-w-[420px]">
+          <ModalTitle className="sr-only">Revoke token</ModalTitle>
+          <ModalHeader title="Revoke token?" />
+          <ModalBody className="gap-16">
             <Text size="sm" className="text-foreground-neutral-muted">
               {tokenName} will stop creating new runner sessions. Existing sessions and job leases
               expire on their own.
             </Text>
-          </div>
-          {revokeToken.isError ? (
-            <Alert variant="error" animated={false}>
-              <Text size="sm">{manualRegistrationTokenErrorMessage(revokeToken.error)}</Text>
-            </Alert>
-          ) : null}
-          <div className="flex justify-end gap-8">
+            {revokeToken.isError ? (
+              <Alert variant="error" animated={false}>
+                <Text size="sm">{manualRegistrationTokenErrorMessage(revokeToken.error)}</Text>
+              </Alert>
+            ) : null}
+          </ModalBody>
+          <ModalFooter>
             <Button size="sm" variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
@@ -213,11 +212,10 @@ function RevokeManualRegistrationTokenButton({
             >
               Revoke
             </Button>
-          </div>
-        </div>
-        <PopoverArrow />
-      </PopoverContent>
-    </Popover>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </>
   );
 }
 

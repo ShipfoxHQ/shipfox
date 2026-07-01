@@ -71,10 +71,12 @@ function lastButton(name: string): HTMLElement {
 
 async function chooseTokenAction(user: ReturnType<typeof userEvent.setup>, tokenName: string) {
   await user.click(firstButton(`Open ${tokenName} token actions`));
-  const menuItem = await screen.findByRole('menuitem', {name: 'Revoke'});
+  const menuItem = await screen.findByRole('menuitem', {name: 'Revoke token'});
   expect(menuItem.querySelector('svg')).not.toBeInTheDocument();
 
   await user.click(menuItem);
+  expect(await screen.findByRole('dialog')).toBeVisible();
+  expect(screen.getByText('Revoke token?')).toBeVisible();
 }
 
 describe('WorkspaceProvisionerTokensSettingsSection', () => {
