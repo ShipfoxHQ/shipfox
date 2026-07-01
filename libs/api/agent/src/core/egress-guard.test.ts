@@ -140,6 +140,19 @@ describe('assertEgressAllowed', () => {
     });
   });
 
+  it('fails closed for malformed CIDR denylist entries', async () => {
+    const probe = assertEgressAllowed('https://8.8.8.8/v1', {
+      ...openPolicy(),
+      hostDenylist: ['8.8.8.0/not-a-prefix'],
+    });
+
+    await expect(probe).rejects.toMatchObject({
+      reason: 'host-denylist',
+      target: '8.8.8.0/not-a-prefix',
+    });
+    expect(lookupMock).not.toHaveBeenCalled();
+  });
+
   it('parses comma-separated host denylist config', () => {
     const entries = parseEgressHostDenylist(
       ' blocked.example.test, *.corp.example.test, 10.0.0.0/8 ',

@@ -127,6 +127,7 @@ function parseDenylistEntry(entry: string): DenylistEntry | undefined {
 
   const range = parseCidrRange(normalized);
   if (range) return {kind: 'cidr', range};
+  if (normalized.includes('/')) throw new EgressDeniedError('host-denylist', normalized);
 
   const address = parseIpAddress(normalized);
   if (address) return {kind: 'ip', address};
