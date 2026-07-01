@@ -57,20 +57,20 @@ export async function pollDemand(params: PollDemandParams): Promise<PollDemandRe
         ttlSeconds: params.ttlSeconds,
         templates: params.templates,
       });
-      const result: PollDemandResult = {...demand, terminateProvisionedRunnerIds: []};
-
-      if (!shouldReturn(result, params.maxReservations, totalCapacity, deadlinePassed)) {
-        return result;
-      }
-
-      return {
-        ...result,
+      const result: PollDemandResult = {
+        ...demand,
         terminateProvisionedRunnerIds: await listProvisionerTerminateIntentsTx(tx, {
           workspaceId: params.workspaceId,
           provisionerId: params.provisionerId,
           limit: params.terminateIntentLimit,
         }),
       };
+
+      if (!shouldReturn(result, params.maxReservations, totalCapacity, deadlinePassed)) {
+        return result;
+      }
+
+      return result;
     });
     if (params.signal.aborted) {
       await releaseReservationGrants(result.reservations);
@@ -107,7 +107,11 @@ export function shouldReturn(
   deadlinePassed: boolean,
 ): boolean {
   return (
-    maxReservations === 0 || totalCapacity === 0 || result.reservations.length > 0 || deadlinePassed
+    maxReservations === 0 ||
+    totalCapacity === 0 ||
+    result.reservations.length > 0 ||
+    result.terminateProvisionedRunnerIds.length > 0 ||
+    deadlinePassed
   );
 }
 
