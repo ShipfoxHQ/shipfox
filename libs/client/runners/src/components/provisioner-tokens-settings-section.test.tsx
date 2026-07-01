@@ -69,6 +69,14 @@ function lastButton(name: string): HTMLElement {
   return button;
 }
 
+async function chooseTokenAction(user: ReturnType<typeof userEvent.setup>, tokenName: string) {
+  await user.click(firstButton(`Open ${tokenName} token actions`));
+  const menuItem = await screen.findByRole('menuitem', {name: 'Revoke'});
+  expect(menuItem.querySelector('svg')).not.toBeInTheDocument();
+
+  await user.click(menuItem);
+}
+
 describe('WorkspaceProvisionerTokensSettingsSection', () => {
   test('renders an empty usable-token state', async () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
@@ -315,7 +323,7 @@ describe('WorkspaceProvisionerTokensSettingsSection', () => {
       <WorkspaceProvisionerTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
     );
     expect((await screen.findAllByText('Docker provisioner')).length).toBeGreaterThan(0);
-    await user.click(firstButton('Revoke Docker provisioner'));
+    await chooseTokenAction(user, 'Docker provisioner');
     await user.click(lastButton('Revoke'));
 
     await waitFor(() => expect(screen.queryByText('Docker provisioner')).not.toBeInTheDocument());
@@ -342,7 +350,7 @@ describe('WorkspaceProvisionerTokensSettingsSection', () => {
       <WorkspaceProvisionerTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
     );
     expect((await screen.findAllByText('Docker provisioner')).length).toBeGreaterThan(0);
-    await user.click(firstButton('Revoke Docker provisioner'));
+    await chooseTokenAction(user, 'Docker provisioner');
     await user.click(lastButton('Revoke'));
 
     expect(await screen.findByText('Provisioner token not found')).toBeVisible();

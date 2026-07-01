@@ -4,11 +4,16 @@ import {
   Button,
   Code,
   Dot,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   EmptyState,
+  IconButton,
   Popover,
+  PopoverAnchor,
   PopoverArrow,
   PopoverContent,
-  PopoverTrigger,
   RelativeTime,
   Skeleton,
   Table,
@@ -195,19 +200,29 @@ function RevokeProvisionerTokenButton({
     }
   }
 
+  function openRevokeConfirmation() {
+    revokeToken.reset();
+    setOpen(true);
+  }
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          size="sm"
-          variant="transparentMuted"
-          iconLeft="deleteBinLine"
-          aria-label={`Revoke ${tokenName}`}
-        >
-          Revoke
-        </Button>
-      </PopoverTrigger>
+      <DropdownMenu>
+        <PopoverAnchor asChild>
+          <DropdownMenuTrigger asChild>
+            <IconButton
+              type="button"
+              size="sm"
+              variant="transparent"
+              icon="more2Line"
+              aria-label={`Open ${tokenName} token actions`}
+            />
+          </DropdownMenuTrigger>
+        </PopoverAnchor>
+        <DropdownMenuContent align="end" size="sm">
+          <DropdownMenuItem onSelect={openRevokeConfirmation}>Revoke</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <PopoverContent align="end" className="w-280 p-14">
         <div className="flex flex-col gap-12">
           <div className="flex flex-col gap-4">

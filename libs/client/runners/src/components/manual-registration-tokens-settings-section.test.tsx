@@ -53,6 +53,14 @@ function lastButton(name: string): HTMLElement {
   return button;
 }
 
+async function chooseTokenAction(user: ReturnType<typeof userEvent.setup>, tokenName: string) {
+  await user.click(firstButton(`Open ${tokenName} token actions`));
+  const menuItem = await screen.findByRole('menuitem', {name: 'Revoke'});
+  expect(menuItem.querySelector('svg')).not.toBeInTheDocument();
+
+  await user.click(menuItem);
+}
+
 describe('WorkspaceManualRegistrationTokensSettingsSection', () => {
   test('renders an empty usable-token state', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({manual_registration_tokens: []}));
@@ -205,7 +213,7 @@ describe('WorkspaceManualRegistrationTokensSettingsSection', () => {
       <WorkspaceManualRegistrationTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
     );
     expect((await screen.findAllByText('Deploy runner')).length).toBeGreaterThan(0);
-    await user.click(firstButton('Revoke Deploy runner'));
+    await chooseTokenAction(user, 'Deploy runner');
     await user.click(lastButton('Revoke'));
 
     await waitFor(() => expect(screen.queryByText('Deploy runner')).not.toBeInTheDocument());
@@ -231,7 +239,7 @@ describe('WorkspaceManualRegistrationTokensSettingsSection', () => {
       <WorkspaceManualRegistrationTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
     );
     expect((await screen.findAllByText('Deploy runner')).length).toBeGreaterThan(0);
-    await user.click(firstButton('Revoke Deploy runner'));
+    await chooseTokenAction(user, 'Deploy runner');
     await user.click(lastButton('Revoke'));
 
     expect(await screen.findByText('Manual registration token not found')).toBeVisible();
