@@ -163,6 +163,32 @@ describe('WorkspaceProvisionerTokensSettingsSection', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent(formatTimestamp(createdAt));
   });
 
+  test('truncates long token names and shows the full name in a tooltip', async () => {
+    const user = userEvent.setup();
+    const tokenName = 'docker-provisioner-for-west-coast-gpu-burst-capacity-and-fallback';
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (request.url.endsWith('/provisioners/active')) {
+        return Promise.resolve(jsonResponse({provisioners: []}));
+      }
+      return Promise.resolve(jsonResponse({tokens: [provisionerToken({name: tokenName})]}));
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderProvisionerTokens(
+      <WorkspaceProvisionerTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
+    );
+    const nameTrigger = await screen.findAllByRole('button', {name: tokenName});
+    const visibleNameTrigger = nameTrigger[0];
+    if (!visibleNameTrigger) throw new Error('Token name not rendered');
+
+    expect(screen.getByRole('table')).toHaveClass('table-fixed');
+    expect(visibleNameTrigger).toHaveClass('truncate');
+    await user.hover(visibleNameTrigger);
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(tokenName);
+  });
+
   test('surfaces create errors without clearing the form', async () => {
     const user = userEvent.setup();
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {

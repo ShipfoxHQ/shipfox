@@ -30,6 +30,7 @@ import {
   manualRegistrationTokenDisplayName,
 } from './manual-registration-token-format.js';
 import {TokenDate} from './token-date.js';
+import {TokenName} from './token-name.js';
 
 export function ManualRegistrationTokenList({
   workspaceId,
@@ -41,24 +42,26 @@ export function ManualRegistrationTokenList({
   return (
     <>
       <div className="max-[760px]:hidden">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
+              <TableHead className="w-[34%]">Name</TableHead>
               <TableHead>Prefix</TableHead>
-              <TableHead>Expires</TableHead>
-              <TableHead>Created</TableHead>
+              <TableHead className="w-128">Expires</TableHead>
+              <TableHead className="w-128">Created</TableHead>
               <TableHead className="w-80 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {tokens.map((token) => (
               <TableRow key={token.id}>
-                <TableCell className="font-medium">
-                  {manualRegistrationTokenDisplayName(token)}
+                <TableCell>
+                  <TokenName name={manualRegistrationTokenDisplayName(token)} />
                 </TableCell>
                 <TableCell>
-                  <Code variant="paragraph">{token.prefix}</Code>
+                  <Code variant="paragraph" className="block truncate">
+                    {token.prefix}
+                  </Code>
                 </TableCell>
                 <TableCell>
                   <ManualRegistrationTokenDate value={token.expires_at} />
@@ -85,10 +88,8 @@ export function ManualRegistrationTokenList({
           >
             <div className="flex items-start justify-between gap-12">
               <div className="min-w-0 flex-1">
-                <Text size="sm" bold className="truncate">
-                  {manualRegistrationTokenDisplayName(token)}
-                </Text>
-                <Code variant="paragraph" className="text-foreground-neutral-muted">
+                <TokenName name={manualRegistrationTokenDisplayName(token)} />
+                <Code variant="paragraph" className="block truncate text-foreground-neutral-muted">
                   {token.prefix}
                 </Code>
               </div>

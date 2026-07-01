@@ -33,6 +33,7 @@ import {
   provisionerTokenDisplayName,
 } from './provisioner-token-format.js';
 import {TokenDate} from './token-date.js';
+import {TokenName} from './token-name.js';
 
 export function ProvisionerTokenList({
   workspaceId,
@@ -46,23 +47,27 @@ export function ProvisionerTokenList({
   return (
     <>
       <div className="max-[760px]:hidden">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
+              <TableHead className="w-[28%]">Name</TableHead>
               <TableHead>Prefix</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Expires</TableHead>
-              <TableHead>Created</TableHead>
+              <TableHead className="w-[18%]">Status</TableHead>
+              <TableHead className="w-112">Expires</TableHead>
+              <TableHead className="w-112">Created</TableHead>
               <TableHead className="w-80 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {tokens.map((token) => (
               <TableRow key={token.id}>
-                <TableCell className="font-medium">{provisionerTokenDisplayName(token)}</TableCell>
                 <TableCell>
-                  <Code variant="paragraph">{token.prefix}</Code>
+                  <TokenName name={provisionerTokenDisplayName(token)} />
+                </TableCell>
+                <TableCell>
+                  <Code variant="paragraph" className="block truncate">
+                    {token.prefix}
+                  </Code>
                 </TableCell>
                 <TableCell>
                   <ProvisionerStatusCell token={token} activeIds={activeIds} />
@@ -89,10 +94,8 @@ export function ProvisionerTokenList({
           >
             <div className="flex items-start justify-between gap-12">
               <div className="min-w-0 flex-1">
-                <Text size="sm" bold className="truncate">
-                  {provisionerTokenDisplayName(token)}
-                </Text>
-                <Code variant="paragraph" className="text-foreground-neutral-muted">
+                <TokenName name={provisionerTokenDisplayName(token)} />
+                <Code variant="paragraph" className="block truncate text-foreground-neutral-muted">
                   {token.prefix}
                 </Code>
               </div>
