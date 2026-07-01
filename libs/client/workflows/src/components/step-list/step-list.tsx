@@ -17,9 +17,10 @@ import {
 import type {ReactNode} from 'react';
 import {useEffect, useId, useMemo, useRef, useState} from 'react';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
-import {isWorkflowStatus, type Job, JobExecution, type Step} from '#core/workflow-run.js';
+import {isWorkflowStatus, type Job, type JobExecution, type Step} from '#core/workflow-run.js';
 import {
   buildStepListModel,
+  defaultStepListJobExecution,
   humanizeStatus,
   type StepAttemptModel,
   type StepListEntryModel,
@@ -67,7 +68,7 @@ export function StepList({
   showHeader = true,
   className,
 }: StepListProps) {
-  const selectedJobExecution = jobExecution ?? job.jobExecutions[0] ?? emptyJobExecutionForJob(job);
+  const selectedJobExecution = jobExecution ?? defaultStepListJobExecution(job);
   const model = useMemo(
     () => buildStepListModel({job, jobExecution: selectedJobExecution}),
     [job, selectedJobExecution],
@@ -87,25 +88,6 @@ export function StepList({
       className={className}
     />
   );
-}
-
-function emptyJobExecutionForJob(job: Job): JobExecution {
-  return new JobExecution({
-    id: `missing:${job.id}`,
-    jobId: job.id,
-    sequence: 1,
-    name: job.name ?? job.key,
-    status: job.status === 'skipped' ? 'cancelled' : job.status,
-    statusReason: job.statusReason,
-    triggerEvents: [],
-    queuedAt: null,
-    startedAt: null,
-    finishedAt: null,
-    timedOutAt: null,
-    createdAt: job.createdAt,
-    updatedAt: job.updatedAt,
-    steps: [],
-  });
 }
 
 function StepListContent({

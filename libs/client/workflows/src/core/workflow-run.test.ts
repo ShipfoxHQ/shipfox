@@ -359,6 +359,30 @@ describe('workflow run model mapping', () => {
     });
   });
 
+  test('returns no job display duration when a job has multiple executions', () => {
+    const job = workflowJobDto({
+      job_executions: [
+        workflowJobExecutionDto({
+          sequence: 1,
+          queued_at: '2026-05-07T01:00:00.000Z',
+          started_at: '2026-05-07T01:00:05.000Z',
+          finished_at: '2026-05-07T01:02:00.000Z',
+        }),
+        workflowJobExecutionDto({
+          sequence: 2,
+          queued_at: '2026-05-07T02:00:00.000Z',
+          started_at: '2026-05-07T02:00:05.000Z',
+          finished_at: '2026-05-07T02:02:00.000Z',
+        }),
+      ],
+    });
+    const dto = workflowRunDetailDto({jobs: [job]});
+
+    const detail = toWorkflowRunDetail(dto);
+
+    expect(detail.jobs[0]?.displayDuration).toBeNull();
+  });
+
   test('maps live queue and run durations as anchored model getters', () => {
     const queuedExecution = workflowJobExecutionDto({
       queued_at: '2026-05-07T01:00:00.000Z',

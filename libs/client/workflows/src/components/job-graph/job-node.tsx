@@ -3,7 +3,6 @@ import {
   Badge,
   Code,
   cn,
-  humanDuration,
   Icon,
   Tooltip,
   TooltipContent,
@@ -14,13 +13,9 @@ import {
 import type {KeyboardEventHandler, Ref} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
-import type {
-  JobDisplayDuration,
-  JobExecution,
-  JobExecutionTime,
-  WorkflowRunDetail,
-} from '#core/workflow-run.js';
+import type {JobExecution, JobExecutionStatus, WorkflowRunDetail} from '#core/workflow-run.js';
 import type {JobGraphNode} from './graph-model.js';
+import {formatJobDurationAccessibleLabel} from './job-duration-format.js';
 import {JobDurationLabel} from './job-duration-label.js';
 
 const TRIGGER_SIZE = 36;
@@ -82,7 +77,7 @@ export function JobNode({
   const accessibleLabel = [
     node.displayName,
     visual.label,
-    durationAccessibleLabel(node.displayDuration),
+    formatJobDurationAccessibleLabel(node.displayDuration),
     node.executionCountVisible
       ? executionCountAccessibleLabel(node.jobExecutions.length)
       : undefined,
@@ -180,78 +175,32 @@ function JobLabel({label}: {label: string}) {
   );
 }
 
-function durationAccessibleLabel(duration: JobDisplayDuration | null): string | undefined {
-  if (duration === null) return undefined;
-
-  const label = timeAccessibleLabel(duration);
-  switch (duration.kind) {
-    case 'queue':
-      return duration.state === 'live' ? `queueing ${label}` : `queued ${label}`;
-    case 'run':
-      return duration.state === 'live' ? `running ${label}` : `ran ${label}`;
-    default: {
-      const exhaustive: never = duration;
-      return exhaustive;
-    }
-  }
-}
-
-function timeAccessibleLabel(time: JobExecutionTime): string {
-  switch (time.state) {
-    case 'live':
-      return humanDuration(time.fromIso);
-    case 'fixed':
-      return fixedDurationAccessibleLabel(time.elapsed);
-    default: {
-      const exhaustive: never = time;
-      return exhaustive;
-    }
-  }
-}
-
-function fixedDurationAccessibleLabel({
-  years = 0,
-  months = 0,
-  weeks = 0,
-  days = 0,
-  hours = 0,
-  minutes = 0,
-  seconds = 0,
-}: Extract<JobExecutionTime, {state: 'fixed'}>['elapsed']): string {
-  const totalDays = years * 365 + months * 30 + weeks * 7 + days;
-  const totalHours = totalDays * 24 + hours;
-
-  if (totalHours > 0) return `${totalHours}h ${minutes.toString().padStart(2, '0')}m`;
-  if (minutes > 0) return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
-  return `${seconds}s`;
-}
-
 function executionCountAccessibleLabel(count: number): string {
   return `${count} ${count === 1 ? 'execution' : 'executions'}`;
 }
 
 function executionCountTooltip(executions: JobExecution[]): string {
   const counts = executionStatusCounts(executions);
-  const parts = [
-    counts.running > 0 ? `${counts.running} running` : undefined,
-    counts.succeeded > 0 ? `${counts.succeeded} succeeded` : undefined,
-    counts.failed > 0 ? `${counts.failed} failed` : undefined,
-  ].filter((part): part is string => part !== undefined);
-  return parts.length > 0 ? parts.join(', ') : 'No running, succeeded, or failed executions';
+  const parts = EXECUTION_STATUSES.map((status) =>
+    counts[status] > 0 ? `${counts[status]} ${status}` : undefined,
+  ).filter((part): part is string => part !== undefined);
+  return parts.length > 0 ? parts.join(', ') : 'No executions';
 }
+
+const EXECUTION_STATUSES = [
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+] as const satisfies readonly JobExecutionStatus[];
 
 function executionStatusCounts(executions: JobExecution[]) {
   return executions.reduce(
     (counts, execution) => {
-      if (
-        execution.status === 'running' ||
-        execution.status === 'succeeded' ||
-        execution.status === 'failed'
-      ) {
-        counts[execution.status] += 1;
-      }
+      counts[execution.status] += 1;
       return counts;
     },
-    {running: 0, succeeded: 0, failed: 0},
+    {pending: 0, running: 0, succeeded: 0, failed: 0, cancelled: 0},
   );
 }

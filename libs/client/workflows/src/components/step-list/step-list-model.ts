@@ -46,7 +46,7 @@ export function buildStepListModel({
   job: Job;
   jobExecution?: JobExecution | undefined;
 }): StepListModel {
-  const selectedJobExecution = jobExecution ?? job.jobExecutions[0] ?? emptyJobExecutionForJob(job);
+  const selectedJobExecution = jobExecution ?? defaultStepListJobExecution(job);
   const steps = [...selectedJobExecution.steps].sort(compareSteps).map(toStepModel);
   const entries = steps
     .flatMap((step) => toStepEntries(step, job.carriedOver))
@@ -62,7 +62,18 @@ export function buildStepListModel({
   };
 }
 
-function emptyJobExecutionForJob(job: Job): JobExecution {
+export function defaultStepListJobExecution(job: Job): JobExecution {
+  return (
+    job.jobExecutions.find((candidate) => candidate.status === 'running') ??
+    job.jobExecutions.reduce<JobExecution | undefined>((latest, candidate) => {
+      if (!latest) return candidate;
+      return candidate.sequence > latest.sequence ? candidate : latest;
+    }, undefined) ??
+    emptyJobExecutionForJob(job)
+  );
+}
+
+export function emptyJobExecutionForJob(job: Job): JobExecution {
   return new JobExecution({
     id: `missing:${job.id}`,
     jobId: job.id,

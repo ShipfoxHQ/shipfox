@@ -306,26 +306,28 @@ describe('JobNode execution count indicator', () => {
       mode: 'listening',
       status: 'running',
       job_executions: [
+        workflowJobExecutionDto({status: 'pending'}),
         workflowJobExecutionDto({status: 'running'}),
         workflowJobExecutionDto({status: 'running'}),
         workflowJobExecutionDto({status: 'succeeded'}),
         workflowJobExecutionDto({status: 'succeeded'}),
         workflowJobExecutionDto({status: 'succeeded'}),
         workflowJobExecutionDto({status: 'failed'}),
+        workflowJobExecutionDto({status: 'cancelled'}),
       ],
     });
 
     renderNode(node);
 
-    const button = screen.getByRole('button', {name: 'release-gates, Running, 6 executions'});
-    expect(within(button).getByText('6')).toBeInTheDocument();
-    expect(within(button).queryByText('6 exec')).not.toBeInTheDocument();
+    const button = screen.getByRole('button', {name: 'release-gates, Running, 8 executions'});
+    expect(within(button).getByText('8')).toBeInTheDocument();
+    expect(within(button).queryByText('8 exec')).not.toBeInTheDocument();
     expect(button.querySelector('[data-execution-status-segment]')).not.toBeInTheDocument();
 
-    await user.hover(within(button).getByText('6'));
+    await user.hover(within(button).getByText('8'));
 
     expect(await screen.findByRole('tooltip')).toHaveTextContent(
-      '2 running, 3 succeeded, 1 failed',
+      '1 pending, 2 running, 3 succeeded, 1 failed, 1 cancelled',
     );
   });
 

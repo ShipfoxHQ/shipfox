@@ -394,7 +394,7 @@ describe('WorkflowRunView', () => {
                   name: 'deploy',
                   status: 'skipped',
                   status_reason: 'dependency_not_completed',
-                  steps: [],
+                  job_executions: [],
                 }),
               ],
             }),
@@ -408,6 +408,45 @@ describe('WorkflowRunView', () => {
     expect(await screen.findByText('This job was skipped')).toBeInTheDocument();
     expect(
       screen.getByText('A required job did not complete, so this job was skipped.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No steps recorded')).not.toBeInTheDocument();
+  });
+
+  test('uses the selected execution status for zero-step execution states', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            workflowRunViewDetailDto({
+              jobs: [
+                workflowJobDto({
+                  id: DEPLOY_JOB_ID,
+                  run_attempt_id: RUN_ID,
+                  name: 'deploy',
+                  status: 'succeeded',
+                  job_executions: [
+                    workflowJobExecutionDto({
+                      id: 'retry-execution',
+                      job_id: DEPLOY_JOB_ID,
+                      sequence: 2,
+                      name: 'retry',
+                      status: 'running',
+                      steps: [],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ),
+        ),
+      ),
+    });
+
+    renderView();
+
+    expect(await screen.findByText('Waiting for the first step')).toBeInTheDocument();
+    expect(
+      screen.getByText('This job is running, but no steps have started yet.'),
     ).toBeInTheDocument();
     expect(screen.queryByText('No steps recorded')).not.toBeInTheDocument();
   });
@@ -452,7 +491,13 @@ describe('WorkflowRunView', () => {
                   run_attempt_id: RUN_ID,
                   name: 'deploy',
                   status: 'running',
-                  steps: [],
+                  job_executions: [
+                    workflowJobExecutionDto({
+                      job_id: DEPLOY_JOB_ID,
+                      status: 'running',
+                      steps: [],
+                    }),
+                  ],
                 }),
               ],
             }),
@@ -544,7 +589,13 @@ describe('WorkflowRunView', () => {
                   run_attempt_id: RUN_ID,
                   name: 'deploy',
                   status: 'cancelled',
-                  steps: [],
+                  job_executions: [
+                    workflowJobExecutionDto({
+                      job_id: DEPLOY_JOB_ID,
+                      status: 'cancelled',
+                      steps: [],
+                    }),
+                  ],
                 }),
               ],
             }),

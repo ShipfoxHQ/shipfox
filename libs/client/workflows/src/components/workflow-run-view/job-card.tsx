@@ -363,43 +363,35 @@ function emptyStateForJob(job: Job, jobExecution: JobExecution): StepListEmptySt
     };
   }
 
-  if (job.status === 'pending') {
+  if (jobExecution.status === 'pending') {
     return {
       title: 'Waiting for this job to start',
       description: 'Steps will appear here once the job starts.',
-      status: 'pending',
+      status: jobExecution.status,
     };
   }
 
-  if (job.status === 'running') {
+  if (jobExecution.status === 'running') {
     return {
       title: 'Waiting for the first step',
       description: 'This job is running, but no steps have started yet.',
-      status: 'running',
+      status: jobExecution.status,
     };
   }
 
-  if (job.status === 'skipped') {
-    return {
-      title: 'This job was skipped',
-      description: skippedJobDescription(job.statusReason),
-      status: 'skipped',
-    };
-  }
-
-  if (job.status === 'cancelled') {
+  if (jobExecution.status === 'cancelled') {
     return {
       title: 'Cancelled before start',
       description: 'This job was cancelled before any step started.',
-      status: 'cancelled',
+      status: jobExecution.status,
     };
   }
 
-  if (job.status === 'succeeded' || job.status === 'failed') {
+  if (jobExecution.status === 'succeeded' || jobExecution.status === 'failed') {
     return {
       title: 'No steps recorded',
       description: `Execution #${jobExecution.sequence} finished without recorded steps.`,
-      status: job.status,
+      status: jobExecution.status,
     };
   }
 

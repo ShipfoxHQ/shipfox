@@ -399,6 +399,44 @@ describe('StepList', () => {
     expect(screen.queryByText('1 attempt')).not.toBeInTheDocument();
   });
 
+  test('defaults to the active execution when no execution is provided', () => {
+    render(
+      <StepList
+        job={makeJob({
+          job_executions: [
+            workflowJobExecutionDto({
+              id: 'execution-1',
+              sequence: 1,
+              status: 'failed',
+              steps: [
+                makeStep({
+                  name: 'old attempt',
+                  attempts: [makeAttempt({status: 'failed'})],
+                }),
+              ],
+            }),
+            workflowJobExecutionDto({
+              id: 'execution-2',
+              sequence: 2,
+              status: 'running',
+              steps: [
+                makeStep({
+                  name: 'active attempt',
+                  attempts: [makeAttempt({status: 'running'})],
+                }),
+              ],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', {name: 'active attempt, Running, attempt 1'}),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'old attempt, Failed, attempt 1'})).toBeNull();
+  });
+
   test('renders an empty state', () => {
     render(<StepList job={makeJob({steps: []})} />);
 

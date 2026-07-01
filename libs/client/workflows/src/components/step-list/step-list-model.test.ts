@@ -8,6 +8,7 @@ import type {Job} from '#core/workflow-run.js';
 import {
   type JobDtoOverrides,
   workflowJob,
+  workflowJobExecutionDto,
   workflowStepAttemptDto,
   workflowStepDto,
 } from '#test/fixtures/workflow-run.js';
@@ -137,6 +138,73 @@ describe('buildStepListModel', () => {
 
     expect(result.entries.map((entry) => entry.id)).toEqual([earlier.id, later.id, finished.id]);
     expect(result.activeEntryId).toBe(later.id);
+  });
+
+  test('defaults to the running execution when no execution is provided', () => {
+    const failedStep = makeStep({
+      name: 'old attempt',
+      attempts: [makeAttempt({status: 'failed'})],
+    });
+    const runningStep = makeStep({
+      name: 'active attempt',
+      attempts: [makeAttempt({status: 'running'})],
+    });
+
+    const result = buildStepListModel({
+      job: makeJob({
+        job_executions: [
+          workflowJobExecutionDto({
+            id: 'execution-1',
+            sequence: 1,
+            status: 'failed',
+            steps: [failedStep],
+          }),
+          workflowJobExecutionDto({
+            id: 'execution-2',
+            sequence: 2,
+            status: 'running',
+            steps: [runningStep],
+          }),
+        ],
+      }),
+    });
+
+    expect(result.jobExecutionId).toBe('execution-2');
+    expect(result.entries[0]?.step.label).toBe('active attempt');
+  });
+
+  test('defaults to the highest sequence execution when none are running', () => {
+    const firstStep = makeStep({
+      name: 'first attempt',
+      attempts: [makeAttempt({status: 'failed'})],
+    });
+    const latestStep = makeStep({
+      name: 'latest attempt',
+      attempts: [makeAttempt({status: 'succeeded'})],
+    });
+
+    const result = buildStepListModel({
+      job: makeJob({
+        job_executions: [
+          workflowJobExecutionDto({
+            id: 'execution-1',
+            sequence: 1,
+            status: 'failed',
+            steps: [firstStep],
+          }),
+          workflowJobExecutionDto({
+            id: 'execution-3',
+            sequence: 3,
+            status: 'succeeded',
+            steps: [latestStep],
+          }),
+          workflowJobExecutionDto({id: 'execution-2', sequence: 2, status: 'cancelled'}),
+        ],
+      }),
+    });
+
+    expect(result.jobExecutionId).toBe('execution-3');
+    expect(result.entries[0]?.step.label).toBe('latest attempt');
   });
 
   test('breaks active running-attempt execution-order ties by sorted entry order', () => {

@@ -86,6 +86,7 @@ export class Job {
 
   get displayDuration(): JobDisplayDuration | null {
     if (this.mode === 'listening') return null;
+    if (this.jobExecutions.length !== 1) return null;
     return this.jobExecutions[0]?.displayDuration ?? null;
   }
 
