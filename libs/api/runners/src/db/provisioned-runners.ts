@@ -2,16 +2,22 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {
   and,
+  asc,
+  count,
   desc,
   eq,
+  gt,
   inArray,
   isNotNull,
   isNull,
   lt,
+  notExists,
   notInArray,
+  or,
   type SQL,
   sql,
 } from 'drizzle-orm';
+import {alias} from 'drizzle-orm/pg-core';
 import type {ProvisionedRunner, ProvisionedRunnerState} from '#core/entities/provisioned-runner.js';
 import type {Tx} from './db.js';
 import {db} from './db.js';
@@ -183,58 +189,79 @@ export async function listProvisionerTerminateIntents(params: {
   provisionerId: string;
   limit: number;
 }): Promise<string[]> {
-  const result = await db().execute<{provisionedRunnerId: string; totalCount: number | string}>(sql`
-    WITH latest_cancelled AS (
-      SELECT DISTINCT ${runningJobExecutions.provisionedRunnerId} AS "provisionedRunnerId"
-      FROM ${runningJobExecutions}
-      JOIN ${provisionedRunners}
-        ON ${provisionedRunners.workspaceId} = ${runningJobExecutions.workspaceId}
-       AND ${provisionedRunners.provisionerId} = ${runningJobExecutions.provisionerId}
-       AND ${provisionedRunners.provisionedRunnerId} = ${runningJobExecutions.provisionedRunnerId}
-      WHERE ${runningJobExecutions.workspaceId} = ${params.workspaceId}
-        AND ${runningJobExecutions.provisionerId} = ${params.provisionerId}
-        AND ${runningJobExecutions.cancellationRequestedAt} IS NOT NULL
-        AND ${provisionedRunners.state} IN (${sql.join(
-          activeStates.map((state) => sql`${state}`),
-          sql`, `,
-        )})
-        AND NOT EXISTS (
-          SELECT 1
-          FROM ${runningJobExecutions} AS newer_running_jobs
-          WHERE newer_running_jobs.workspace_id = ${runningJobExecutions.workspaceId}
-            AND newer_running_jobs.provisioner_id = ${runningJobExecutions.provisionerId}
-            AND newer_running_jobs.provisioned_runner_id = ${runningJobExecutions.provisionedRunnerId}
-            AND (
-              newer_running_jobs.started_at > ${runningJobExecutions.startedAt}
-              OR (
-                newer_running_jobs.started_at = ${runningJobExecutions.startedAt}
-                AND newer_running_jobs.job_execution_id > ${runningJobExecutions.jobExecutionId}
-              )
-            )
-        )
-    )
-    SELECT
-      "provisionedRunnerId",
-      count(*) OVER() AS "totalCount"
-    FROM latest_cancelled
-    ORDER BY "provisionedRunnerId"
-    LIMIT ${params.limit}
-  `);
+  const terminateIntents = provisionerTerminateIntentsQuery(params);
+  const rows = await provisionerTerminateIntentsQuery(params)
+    .orderBy(asc(provisionedRunners.provisionedRunnerId))
+    .limit(params.limit);
 
-  const totalCount = Number(result.rows[0]?.totalCount ?? 0);
-  if (totalCount > result.rows.length) {
+  const [countRow] = await db()
+    .select({value: count()})
+    .from(terminateIntents.as('terminate_intents'));
+
+  const totalCount = countRow?.value ?? 0;
+  if (totalCount > rows.length) {
     logger().warn(
       {
         workspaceId: params.workspaceId,
         provisionerId: params.provisionerId,
-        returnedCount: result.rows.length,
-        truncatedCount: totalCount - result.rows.length,
+        returnedCount: rows.length,
+        truncatedCount: totalCount - rows.length,
       },
       'provisioner terminate intents truncated by poll-demand limit',
     );
   }
 
-  return result.rows.map((row) => row.provisionedRunnerId);
+  return rows.map((row) => row.provisionedRunnerId);
+}
+
+function provisionerTerminateIntentsQuery(params: {workspaceId: string; provisionerId: string}) {
+  const newerRunningJobExecutions = alias(runningJobExecutions, 'newer_running_jobs');
+
+  return db()
+    .select({provisionedRunnerId: provisionedRunners.provisionedRunnerId})
+    .from(runningJobExecutions)
+    .innerJoin(
+      provisionedRunners,
+      and(
+        eq(provisionedRunners.workspaceId, runningJobExecutions.workspaceId),
+        eq(provisionedRunners.provisionerId, runningJobExecutions.provisionerId),
+        eq(provisionedRunners.provisionedRunnerId, runningJobExecutions.provisionedRunnerId),
+      ),
+    )
+    .where(
+      and(
+        eq(runningJobExecutions.workspaceId, params.workspaceId),
+        eq(runningJobExecutions.provisionerId, params.provisionerId),
+        isNotNull(runningJobExecutions.cancellationRequestedAt),
+        inArray(provisionedRunners.state, activeStates),
+        notExists(
+          db()
+            .select({id: newerRunningJobExecutions.id})
+            .from(newerRunningJobExecutions)
+            .where(
+              and(
+                eq(newerRunningJobExecutions.workspaceId, runningJobExecutions.workspaceId),
+                eq(newerRunningJobExecutions.provisionerId, runningJobExecutions.provisionerId),
+                eq(
+                  newerRunningJobExecutions.provisionedRunnerId,
+                  runningJobExecutions.provisionedRunnerId,
+                ),
+                or(
+                  gt(newerRunningJobExecutions.startedAt, runningJobExecutions.startedAt),
+                  and(
+                    eq(newerRunningJobExecutions.startedAt, runningJobExecutions.startedAt),
+                    gt(
+                      newerRunningJobExecutions.jobExecutionId,
+                      runningJobExecutions.jobExecutionId,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ),
+      ),
+    )
+    .groupBy(provisionedRunners.provisionedRunnerId);
 }
 
 export async function reconcileProvisionedRunners(
