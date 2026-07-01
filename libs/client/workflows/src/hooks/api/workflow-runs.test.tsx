@@ -132,7 +132,7 @@ describe('workflow run API hooks', () => {
     expect(cached).not.toHaveProperty('triggerSource');
   });
 
-  test('maps run attempts and caches them by root run id', async () => {
+  test('maps run attempts and caches them by workflow run id', async () => {
     const body = runAttemptsResponseDto({
       attempts: [
         workflowRunAttemptDto({
@@ -154,7 +154,7 @@ describe('workflow run API hooks', () => {
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
     const {result, queryClient} = renderWithQueryClient(() =>
-      useWorkflowRunAttemptsQuery({runId: RUN_ID, enabled: true}),
+      useWorkflowRunAttemptsQuery({workflowRunId: RUN_ID, enabled: true}),
     );
 
     await waitFor(() => expect(result.current.data?.[1]?.attempt).toBe(2));
@@ -174,7 +174,7 @@ describe('workflow run API hooks', () => {
     const postBodies: unknown[] = [];
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       postBodies.push(await (input as Request).clone().json());
-      return jsonResponse({run_id: RUN_ID}, {status: 201});
+      return jsonResponse({workflow_run_id: RUN_ID}, {status: 201});
     });
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
@@ -184,8 +184,8 @@ describe('workflow run API hooks', () => {
       inputs: {env: 'production'},
     });
 
-    expect(withoutInputs.run_id).toBe(RUN_ID);
-    expect(withInputs.run_id).toBe(RUN_ID);
+    expect(withoutInputs.workflow_run_id).toBe(RUN_ID);
+    expect(withInputs.workflow_run_id).toBe(RUN_ID);
     expect(postBodies).toEqual([{}, {inputs: {env: 'production'}}]);
     expect(firstRequest(fetchImpl).url).toBe(
       `https://api.example.test/workflow-definitions/${DEFINITION_ID}/fire-manual`,
@@ -234,7 +234,7 @@ describe('workflow run API hooks', () => {
     if (!resolveFire) throw new Error('Expected manual fire request');
     const completeFire = resolveFire;
     act(() => {
-      completeFire(jsonResponse({run_id: RUN_ID}, {status: 201}));
+      completeFire(jsonResponse({workflow_run_id: RUN_ID}, {status: 201}));
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
   });
@@ -276,14 +276,14 @@ describe('workflow run API hooks', () => {
     const secondFire = fireRequests[1];
     if (!secondFire) throw new Error('Expected second manual fire request');
 
-    let secondTempRunId: string | undefined;
+    let secondTempWorkflowRunId: string | undefined;
     await waitFor(() => {
       const cached =
         queryClient.getQueryData<InfiniteData<RunListResponseDto, string | undefined>>(listKey);
       expect(cached?.pages[0]?.runs).toHaveLength(2);
       expect(cached?.pages[0]?.filtered_total_count).toBe(2);
-      secondTempRunId = cached?.pages[0]?.runs[0]?.id;
-      expect(secondTempRunId).toMatch(TEMP_RUN_ID_PATTERN);
+      secondTempWorkflowRunId = cached?.pages[0]?.runs[0]?.id;
+      expect(secondTempWorkflowRunId).toMatch(TEMP_RUN_ID_PATTERN);
     });
 
     act(() => {
@@ -293,12 +293,12 @@ describe('workflow run API hooks', () => {
     await waitFor(() => {
       const cached =
         queryClient.getQueryData<InfiniteData<RunListResponseDto, string | undefined>>(listKey);
-      expect(cached?.pages[0]?.runs.map((run) => run.id)).toEqual([secondTempRunId]);
+      expect(cached?.pages[0]?.runs.map((run) => run.id)).toEqual([secondTempWorkflowRunId]);
       expect(cached?.pages[0]?.filtered_total_count).toBe(1);
     });
 
     act(() => {
-      secondFire.resolve(jsonResponse({run_id: RUN_ID}, {status: 201}));
+      secondFire.resolve(jsonResponse({workflow_run_id: RUN_ID}, {status: 201}));
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
   });
@@ -307,7 +307,9 @@ describe('workflow run API hooks', () => {
     const fetchImpl = vi.fn(async () => jsonResponse(runAttemptsResponseDto()));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
-    renderWithQueryClient(() => useWorkflowRunAttemptsQuery({runId: RUN_ID, enabled: false}));
+    renderWithQueryClient(() =>
+      useWorkflowRunAttemptsQuery({workflowRunId: RUN_ID, enabled: false}),
+    );
 
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -361,7 +363,7 @@ describe('workflow run API hooks', () => {
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
 
     await act(async () => {
-      await result.current.mutateAsync({runId: RUN_ID, mode: 'failed'});
+      await result.current.mutateAsync({workflowRunId: RUN_ID, mode: 'failed'});
     });
 
     const request = firstRequest(fetchImpl);

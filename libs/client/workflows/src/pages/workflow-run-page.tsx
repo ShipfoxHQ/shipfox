@@ -14,12 +14,12 @@ import {WorkflowRunFirstTimeUse} from './workflow-run-first-time-use.js';
 interface WorkflowRunPageProps {
   workspaceId: string;
   projectId: string;
-  runId?: string | undefined;
+  workflowRunId?: string | undefined;
 }
 
 /**
  * Resolve which surface the runs path should show from a single read of the runs list:
- * - when opened without a run id, point the URL at the most recent run so the detail pane is
+ * - when opened without a workflow run id, point the URL at the most recent run so the detail pane is
  *   never empty (navigation happens in an effect since it mutates history);
  * - report `hasNoRuns` once the list has loaded with zero runs, so a brand-new project lands
  *   on the first-time-use surface instead of an empty rail and a perpetual detail skeleton.
@@ -27,32 +27,32 @@ interface WorkflowRunPageProps {
 function useWorkflowRunPageTarget(
   workspaceId: string,
   projectId: string,
-  runId: string | undefined,
+  workflowRunId: string | undefined,
 ) {
   const navigate = useNavigate();
   const {data, isPending} = useWorkflowRunsInfiniteQuery(projectId, {});
-  const firstRunId = data?.pages[0]?.runs[0]?.id;
+  const firstWorkflowRunId = data?.pages[0]?.runs[0]?.id;
   // Gate on data presence, not `!isError`: a transient refetch error after a prior success
   // keeps `data`, so the redirect (and the no-runs surface) still resolve from it instead of
   // stalling on the rail while active-run polling hits a blip.
   const isLoaded = !isPending && data !== undefined;
 
   useEffect(() => {
-    if (runId || !isLoaded || !firstRunId) return;
+    if (workflowRunId || !isLoaded || !firstWorkflowRunId) return;
     navigate({
-      to: '/workspaces/$wid/projects/$pid/runs/$runId',
-      params: {wid: workspaceId, pid: projectId, runId: firstRunId},
+      to: '/workspaces/$wid/projects/$pid/runs/$workflowRunId',
+      params: {wid: workspaceId, pid: projectId, workflowRunId: firstWorkflowRunId},
       search: ((previous: Record<string, unknown>) =>
         withoutWorkflowRunSelectionSearch(previous)) as never,
       replace: true,
     });
-  }, [navigate, workspaceId, projectId, runId, isLoaded, firstRunId]);
+  }, [navigate, workspaceId, projectId, workflowRunId, isLoaded, firstWorkflowRunId]);
 
-  return {hasNoRuns: isLoaded && firstRunId === undefined};
+  return {hasNoRuns: isLoaded && firstWorkflowRunId === undefined};
 }
 
-export function WorkflowRunPage({workspaceId, projectId, runId}: WorkflowRunPageProps) {
-  const {hasNoRuns} = useWorkflowRunPageTarget(workspaceId, projectId, runId);
+export function WorkflowRunPage({workspaceId, projectId, workflowRunId}: WorkflowRunPageProps) {
+  const {hasNoRuns} = useWorkflowRunPageTarget(workspaceId, projectId, workflowRunId);
   const navigate = useNavigate();
   const search = useSearch({strict: false}) as Record<string, unknown>;
   const selection = workflowRunSelectionFromSearch(search);
@@ -66,17 +66,21 @@ export function WorkflowRunPage({workspaceId, projectId, runId}: WorkflowRunPage
     [navigate],
   );
 
-  if (!runId && hasNoRuns) {
+  if (!workflowRunId && hasNoRuns) {
     return <WorkflowRunFirstTimeUse />;
   }
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
-      <WorkflowRunsList workspaceId={workspaceId} projectId={projectId} selectedRunId={runId} />
+      <WorkflowRunsList
+        workspaceId={workspaceId}
+        projectId={projectId}
+        selectedWorkflowRunId={workflowRunId}
+      />
       <WorkflowRunView
         workspaceId={workspaceId}
         projectId={projectId}
-        runId={runId}
+        workflowRunId={workflowRunId}
         selection={selection}
         onSelectionChange={onSelectionChange}
       />

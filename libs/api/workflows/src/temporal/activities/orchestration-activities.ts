@@ -12,8 +12,6 @@ import {
   getJobsByWorkflowRunAttemptId,
   getWorkflowRunAttemptById,
   getWorkflowRunByAttemptId,
-  getWorkflowRunById,
-  listRunAttempts,
   resolveJobExecutionAfterLeaseExpiry,
   resolveJobStatusFromJobExecutions,
   updateJobExecutionStatus,
@@ -34,7 +32,7 @@ export interface DagJob extends RuntimeDagJob {
 }
 
 export interface RunDag {
-  runId: string;
+  workflowRunId: string;
   runAttemptId: string;
   workspaceId: string;
   projectId: string;
@@ -58,7 +56,7 @@ export async function loadRunAttemptDag(runAttemptId: string): Promise<RunDag> {
   }
 
   return {
-    runId: run.id,
+    workflowRunId: run.id,
     runAttemptId,
     workspaceId: run.workspaceId,
     projectId: run.projectId,
@@ -81,15 +79,6 @@ export async function loadRunAttemptDag(runAttemptId: string): Promise<RunDag> {
       ];
     }),
   };
-}
-
-export async function loadRunDag(runId: string): Promise<RunDag> {
-  const run = await getWorkflowRunById(runId);
-  if (!run) throw new Error(`Run not found: ${runId}`);
-  const attempts = await listRunAttempts({workflowRunId: run.id, projectId: run.projectId});
-  const attempt = attempts.find((candidate) => candidate.attempt === run.currentAttempt);
-  if (!attempt) throw new Error(`Run attempt not found for run: ${runId}`);
-  return loadRunAttemptDag(attempt.id);
 }
 
 export async function setRunAttemptStatus(params: {

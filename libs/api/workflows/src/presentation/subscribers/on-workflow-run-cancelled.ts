@@ -8,7 +8,7 @@ export async function onWorkflowRunCancelled(
   payload: WorkflowsWorkflowRunCancelledEvent,
 ): Promise<void> {
   logger().info(
-    {runId: payload.runId, workflowRunAttemptId: payload.workflowRunAttemptId},
+    {workflowRunId: payload.workflowRunId, workflowRunAttemptId: payload.workflowRunAttemptId},
     'Signaling run attempt orchestration cancellation',
   );
   const handle = temporalClient().workflow.getHandle(`run-attempt:${payload.workflowRunAttemptId}`);
@@ -17,7 +17,7 @@ export async function onWorkflowRunCancelled(
   } catch (err) {
     if (isWorkflowNotFound(err)) {
       logger().debug(
-        {runId: payload.runId, workflowRunAttemptId: payload.workflowRunAttemptId},
+        {workflowRunId: payload.workflowRunId, workflowRunAttemptId: payload.workflowRunAttemptId},
         'Run attempt workflow already terminated; cancel event discarded',
       );
       return;

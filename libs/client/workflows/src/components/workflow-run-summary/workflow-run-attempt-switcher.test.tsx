@@ -216,7 +216,7 @@ function renderSwitcher({
     latest_attempt: latestAttempt,
     run_attempt: workflowRunAttemptDto({
       id: CURRENT_RUN_ID,
-      run_id: CURRENT_RUN_ID,
+      workflow_run_id: CURRENT_RUN_ID,
       attempt: 2,
     }),
   });

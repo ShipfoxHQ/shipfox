@@ -12,7 +12,7 @@ function buildPayload(
   overrides: Partial<WorkflowsWorkflowRunCancelledEvent> = {},
 ): WorkflowsWorkflowRunCancelledEvent {
   return {
-    runId: crypto.randomUUID(),
+    workflowRunId: crypto.randomUUID(),
     workflowRunAttemptId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
     ...overrides,

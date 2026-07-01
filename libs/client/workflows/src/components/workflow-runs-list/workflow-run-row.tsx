@@ -9,12 +9,12 @@ export function WorkflowRunRowList({
   runs,
   workspaceId,
   projectId,
-  selectedRunId,
+  selectedWorkflowRunId,
 }: {
   runs: WorkflowRun[];
   workspaceId: string;
   projectId: string;
-  selectedRunId?: string | undefined;
+  selectedWorkflowRunId?: string | undefined;
 }) {
   return (
     <nav aria-label="Run history">
@@ -25,7 +25,7 @@ export function WorkflowRunRowList({
               run={run}
               workspaceId={workspaceId}
               projectId={projectId}
-              selected={run.id === selectedRunId}
+              selected={run.id === selectedWorkflowRunId}
             />
           </li>
         ))}
@@ -79,7 +79,7 @@ export function WorkflowRunRow({
 
   // Optimistic manual runs (temp-<uuid>) have no detail page until the canonical row
   // replaces them on the next poll, so they render non-interactively instead of as a link
-  // that would navigate to a run id the detail route rejects.
+  // that would navigate to a workflow run id the detail route rejects.
   if (run.isTemporary) {
     return (
       <div className="relative flex w-full flex-col gap-4 rounded-8 border border-transparent px-10 py-8 text-left">
@@ -90,8 +90,8 @@ export function WorkflowRunRow({
 
   const runLink = (
     <Link
-      to="/workspaces/$wid/projects/$pid/runs/$runId"
-      params={{wid: workspaceId, pid: projectId, runId: run.id}}
+      to="/workspaces/$wid/projects/$pid/runs/$workflowRunId"
+      params={{wid: workspaceId, pid: projectId, workflowRunId: run.id}}
       search={
         ((previous: Record<string, unknown>) =>
           withoutWorkflowRunSelectionSearch(previous)) as never

@@ -26,7 +26,7 @@ export function toRunDto(run: WorkflowRun, latestAttempt = run.currentAttempt): 
 export function toRunAttemptDto(attempt: WorkflowRunAttempt): RunAttemptDto {
   return {
     id: attempt.id,
-    run_id: attempt.workflowRunId,
+    workflow_run_id: attempt.workflowRunId,
     attempt: attempt.attempt,
     status: attempt.status,
     created_at: attempt.createdAt.toISOString(),

@@ -642,7 +642,7 @@ describe('WorkflowRunView', () => {
           workflowRunViewDetailDto({
             current_attempt: 1,
             latest_attempt: 2,
-            run_attempt: workflowRunAttemptDto({id: RUN_ID, run_id: RUN_ID, attempt: 1}),
+            run_attempt: workflowRunAttemptDto({id: RUN_ID, workflow_run_id: RUN_ID, attempt: 1}),
           }),
         ),
       );
@@ -652,7 +652,11 @@ describe('WorkflowRunView', () => {
     const {router} = renderProjectPage(
       `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${RUN_ID}?job=${BUILD_JOB_ID}&step=${CHECKOUT_STEP_ID}&stepAttempt=${CHECKOUT_ATTEMPT_ID}`,
       () => (
-        <WorkflowRunView workspaceId={PROJECT_TEST_WID} projectId={PROJECT_ID} runId={RUN_ID} />
+        <WorkflowRunView
+          workspaceId={PROJECT_TEST_WID}
+          projectId={PROJECT_ID}
+          workflowRunId={RUN_ID}
+        />
       ),
     );
 
@@ -728,7 +732,7 @@ function renderView(props: Partial<Parameters<typeof WorkflowRunView>[0]> = {}) 
     <WorkflowRunView
       workspaceId={PROJECT_TEST_WID}
       projectId={PROJECT_ID}
-      runId={RUN_ID}
+      workflowRunId={RUN_ID}
       {...props}
     />
   ));

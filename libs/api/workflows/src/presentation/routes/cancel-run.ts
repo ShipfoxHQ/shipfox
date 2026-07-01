@@ -31,7 +31,7 @@ export const cancelRunRoute = defineRoute({
     const {id} = request.params;
     const run = await requireAccessibleRun({request, id});
 
-    const cancelled = await cancelWorkflowRun({runId: run.id});
+    const cancelled = await cancelWorkflowRun({workflowRunId: run.id});
     return toRunDto(cancelled);
   },
 });

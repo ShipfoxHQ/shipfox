@@ -197,14 +197,14 @@ describe('POST /runs/jobs/current/steps/next', () => {
       workspaceId: run.workspaceId,
       jobId,
       jobExecutionId: jobExecution.id,
-      runId: run.id,
+      workflowRunAttemptId: job.workflowRunAttemptId,
       projectId: run.projectId,
       runnerSessionId: crypto.randomUUID(),
     });
     const token = await mintLeaseToken({
       jobId,
       jobExecutionId: jobExecution.id,
-      runId: run.id,
+      workflowRunAttemptId: job.workflowRunAttemptId,
       projectId: run.projectId,
       workspaceId: run.workspaceId,
       runnerSessionId: crypto.randomUUID(),

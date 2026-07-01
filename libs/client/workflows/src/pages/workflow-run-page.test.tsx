@@ -52,7 +52,7 @@ describe('WorkflowRunPage', () => {
     expect(screen.getByLabelText('Workflow runs')).toBeInTheDocument();
   });
 
-  test('redirects to the most recent run when opened without a run id', async () => {
+  test('redirects to the most recent run when opened without a workflow run id', async () => {
     configureApiClient({fetchImpl: createRunsListFetch()});
 
     const {router} = renderRunsPath(
@@ -60,7 +60,7 @@ describe('WorkflowRunPage', () => {
     );
 
     // Landing on /runs with runs present redirects to the newest run, so its row becomes the
-    // selected (current) row in the rail even though the opened URL carried no run id.
+    // selected (current) row in the rail even though the opened URL carried no workflow run id.
     const selectedRow = await screen.findByRole('link', {current: 'page'});
     expect(selectedRow).toHaveTextContent('deploy-web');
     expect(currentSearch(router).job).toBeUndefined();
@@ -210,8 +210,12 @@ describe('WorkflowRunPage', () => {
 function renderRunsPath(search = '') {
   return renderProjectPage(
     `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs${search}`,
-    ({runId}) => (
-      <WorkflowRunPage workspaceId={PROJECT_TEST_WID} projectId={PROJECT_ID} runId={runId} />
+    ({workflowRunId}) => (
+      <WorkflowRunPage
+        workspaceId={PROJECT_TEST_WID}
+        projectId={PROJECT_ID}
+        workflowRunId={workflowRunId}
+      />
     ),
   );
 }
@@ -219,8 +223,12 @@ function renderRunsPath(search = '') {
 function renderRunPath(search = '') {
   return renderProjectPage(
     `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${RUN_ID}${search}`,
-    ({runId}) => (
-      <WorkflowRunPage workspaceId={PROJECT_TEST_WID} projectId={PROJECT_ID} runId={runId} />
+    ({workflowRunId}) => (
+      <WorkflowRunPage
+        workspaceId={PROJECT_TEST_WID}
+        projectId={PROJECT_ID}
+        workflowRunId={workflowRunId}
+      />
     ),
   );
 }

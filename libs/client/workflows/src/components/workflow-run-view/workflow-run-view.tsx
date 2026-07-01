@@ -35,24 +35,24 @@ import {
 export interface WorkflowRunViewProps {
   workspaceId: string;
   projectId: string;
-  runId?: string | undefined;
+  workflowRunId?: string | undefined;
   selection?: WorkflowRunSelectionInput | undefined;
   onSelectionChange?: ((selection: WorkflowRunSelectionInput) => void) | undefined;
 }
 
 /**
- * Renders the run for `runId`, or a skeleton while `runId` is still unknown (the page is
+ * Renders the run for `workflowRunId`, or a skeleton while `workflowRunId` is still unknown (the page is
  * resolving which run to show) or the run is loading, so the page never branches on the
  * loading state itself.
  */
 export function WorkflowRunView({
   workspaceId,
   projectId,
-  runId,
+  workflowRunId,
   selection,
   onSelectionChange,
 }: WorkflowRunViewProps) {
-  const runQuery = useWorkflowRunAttemptQuery({runId, runAttempt: selection?.runAttempt});
+  const runQuery = useWorkflowRunAttemptQuery({workflowRunId, runAttempt: selection?.runAttempt});
   const rerunMutation = useRerunWorkflowRunMutation(projectId);
 
   return (
@@ -128,11 +128,11 @@ function RunViewContent({
   const sourceSnapshot = runData.sourceSnapshot;
   async function rerun(mode: RerunMode) {
     try {
-      const run = await rerunMutation.mutateAsync({runId: runData.id, mode});
+      const run = await rerunMutation.mutateAsync({workflowRunId: runData.id, mode});
       toast.success('Re-run started');
       await navigate({
-        to: '/workspaces/$wid/projects/$pid/runs/$runId',
-        params: {wid: workspaceId, pid: projectId, runId: run.id},
+        to: '/workspaces/$wid/projects/$pid/runs/$workflowRunId',
+        params: {wid: workspaceId, pid: projectId, workflowRunId: run.id},
         search: ((previous: Record<string, unknown>) =>
           withoutWorkflowRunSelectionSearch(previous)) as never,
       });

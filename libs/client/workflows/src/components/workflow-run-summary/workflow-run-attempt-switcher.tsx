@@ -31,7 +31,7 @@ export function WorkflowRunAttemptSwitcher({
 }: WorkflowRunAttemptSwitcherProps) {
   const [open, setOpen] = useState(false);
   const attemptsQuery = useWorkflowRunAttemptsQuery({
-    runId: run.id,
+    workflowRunId: run.id,
     enabled: open,
   });
 
@@ -73,7 +73,7 @@ export function WorkflowRunAttemptSwitcher({
                   key={attempt.id}
                   attempt={attempt}
                   current={attempt.id === run.runAttempt.id}
-                  runId={run.id}
+                  workflowRunId={run.id}
                   workspaceId={workspaceId}
                   projectId={projectId}
                 />
@@ -107,21 +107,21 @@ function ErrorRow({onRetry}: {onRetry: () => void}) {
 function AttemptItem({
   attempt,
   current,
-  runId,
+  workflowRunId,
   workspaceId,
   projectId,
 }: {
   attempt: WorkflowRunAttempt;
   current: boolean;
-  runId: string;
+  workflowRunId: string;
   workspaceId: string;
   projectId: string;
 }) {
   return (
     <DropdownMenuItem asChild className={cn(current && 'text-foreground-neutral-base')}>
       <Link
-        to="/workspaces/$wid/projects/$pid/runs/$runId"
-        params={{wid: workspaceId, pid: projectId, runId}}
+        to="/workspaces/$wid/projects/$pid/runs/$workflowRunId"
+        params={{wid: workspaceId, pid: projectId, workflowRunId}}
         search={
           ((previous: Record<string, unknown>) => {
             if (current) return previous;

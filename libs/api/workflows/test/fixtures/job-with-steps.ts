@@ -1,5 +1,5 @@
 import type {Step} from '#core/entities/step.js';
-import {createWorkflowRun, getJobsByRunId, getStepsByJobId} from '#db/workflow-runs.js';
+import {createWorkflowRun, getJobsByWorkflowRunId, getStepsByJobId} from '#db/workflow-runs.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
 
@@ -32,7 +32,7 @@ export async function arrangeJobWithSteps(
     },
   });
 
-  const jobs = await getJobsByRunId(run.id);
+  const jobs = await getJobsByWorkflowRunId(run.id);
   const jobId = jobs[0]?.id as string;
 
   await stripSetupStep(jobId);

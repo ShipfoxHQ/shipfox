@@ -4,7 +4,6 @@ import {
   enqueueJobExecutionForRunner,
   failJobExecutionAsTimedOutActivity,
   loadRunAttemptDag,
-  loadRunDag,
   releaseLeaseActivity,
   resolveJobStatusFromJobExecutionsActivity,
   resolveLeaseExpiredJobExecutionActivity,
@@ -16,7 +15,6 @@ import {
 export function createOrchestrationActivities() {
   return {
     loadRunAttemptDag,
-    loadRunDag,
     setRunAttemptStatus,
     setJobStatus,
     setJobExecutionStatus,

@@ -69,7 +69,7 @@ const withAttemptApi: Decorator = (Story) => {
   const rootRoute = createRootRoute({component: Outlet});
   const runRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/workspaces/$wid/projects/$pid/runs/$runId',
+    path: '/workspaces/$wid/projects/$pid/runs/$workflowRunId',
     component: () => <Story />,
   });
   const router = createRouter({
@@ -146,7 +146,11 @@ const ATTEMPT_SUMMARY_ARGS = {
   run: workflowRunDetail({
     id: CURRENT_RUN_ID,
     current_attempt: 2,
-    run_attempt: workflowRunAttemptDto({id: CURRENT_RUN_ID, run_id: CURRENT_RUN_ID, attempt: 2}),
+    run_attempt: workflowRunAttemptDto({
+      id: CURRENT_RUN_ID,
+      workflow_run_id: CURRENT_RUN_ID,
+      attempt: 2,
+    }),
     status: 'failed',
   }),
   workspaceId: WORKSPACE_ID,
@@ -323,7 +327,7 @@ export const ActionVariantsWithAttempts: Story = {
             currentAttempt: 2,
             runAttempt: {
               id: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
-              runId: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
+              workflowRunId: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
               attempt: 2,
               status: run.status,
               createdAt: run.createdAt,

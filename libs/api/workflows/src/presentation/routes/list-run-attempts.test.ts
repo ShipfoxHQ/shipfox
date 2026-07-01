@@ -80,18 +80,17 @@ describe('GET /api/workflows/runs/:id/attempts', () => {
     });
 
     expect(rootRes.statusCode).toBe(200);
-    expect(rootRes.json().attempts.map((attempt: {run_id: string}) => attempt.run_id)).toEqual([
-      source.id,
-      source.id,
-    ]);
+    expect(
+      rootRes.json().attempts.map((attempt: {workflow_run_id: string}) => attempt.workflow_run_id),
+    ).toEqual([source.id, source.id]);
     expect(rootRes.json().attempts[0]).toMatchObject({
-      run_id: source.id,
+      workflow_run_id: source.id,
       attempt: 1,
       status: 'failed',
       rerun_mode: null,
     });
     expect(rootRes.json().attempts[1]).toMatchObject({
-      run_id: source.id,
+      workflow_run_id: source.id,
       attempt: 2,
       status: 'pending',
       rerun_mode: 'all',
@@ -110,7 +109,7 @@ describe('GET /api/workflows/runs/:id/attempts', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().attempts).toHaveLength(1);
     expect(res.json().attempts[0]).toMatchObject({
-      run_id: run.id,
+      workflow_run_id: run.id,
       attempt: 1,
       rerun_mode: null,
     });
@@ -137,9 +136,9 @@ describe('GET /api/workflows/runs/:id/attempts', () => {
 
   async function createLineage() {
     const source = await createRun();
-    await updateWorkflowRunStatus({runId: source.id, status: 'failed', expectedVersion: 1});
+    await updateWorkflowRunStatus({workflowRunId: source.id, status: 'failed', expectedVersion: 1});
     const rerun = await createRerunWorkflowRun({
-      sourceRunId: source.id,
+      workflowRunId: source.id,
       mode: 'all',
       actorUserId: crypto.randomUUID(),
     });

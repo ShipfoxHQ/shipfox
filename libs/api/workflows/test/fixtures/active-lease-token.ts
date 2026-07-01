@@ -10,7 +10,7 @@ import {mintLeaseToken} from './lease-token.js';
 export interface MintActiveLeaseTokenParams {
   jobId: string;
   token?: {
-    runId?: string;
+    workflowRunAttemptId?: string;
     projectId?: string;
     workspaceId?: string;
   };
@@ -37,7 +37,7 @@ export async function mintActiveLeaseToken(params: MintActiveLeaseTokenParams): 
   return await mintLeaseToken({
     jobId: params.jobId,
     jobExecutionId: jobExecution.id,
-    workflowRunAttemptId: params.token?.runId ?? job.workflowRunAttemptId,
+    workflowRunAttemptId: params.token?.workflowRunAttemptId ?? job.workflowRunAttemptId,
     projectId: params.token?.projectId ?? run.projectId,
     workspaceId: params.token?.workspaceId ?? run.workspaceId,
     runnerSessionId,
@@ -48,22 +48,19 @@ export interface InsertRunningJobLeaseParams {
   workspaceId: string;
   jobId: string;
   jobExecutionId: string;
-  runId?: string;
-  workflowRunAttemptId?: string;
+  workflowRunAttemptId: string;
   projectId: string;
   runnerSessionId: string;
 }
 
 export async function insertRunningJobLease(params: InsertRunningJobLeaseParams): Promise<void> {
-  const workflowRunAttemptId = params.workflowRunAttemptId ?? params.runId;
-  if (!workflowRunAttemptId) throw new Error('Expected workflow run attempt id');
   await db()
     .insert(runningJobExecutions)
     .values({
       workspaceId: params.workspaceId,
       jobId: params.jobId,
       jobExecutionId: params.jobExecutionId,
-      workflowRunAttemptId,
+      workflowRunAttemptId: params.workflowRunAttemptId,
       projectId: params.projectId,
       runnerSessionId: params.runnerSessionId,
       requiredLabels: ['linux'],

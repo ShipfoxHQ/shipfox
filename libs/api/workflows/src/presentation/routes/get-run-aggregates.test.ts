@@ -65,7 +65,7 @@ describe('GET /api/workflows/runs/aggregates', () => {
       },
     });
     await updateWorkflowRunStatus({
-      runId: succeeded.id,
+      workflowRunId: succeeded.id,
       status: 'succeeded',
       expectedVersion: succeeded.version,
     });

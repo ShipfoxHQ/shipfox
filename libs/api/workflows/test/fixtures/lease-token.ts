@@ -9,7 +9,6 @@ export interface MintLeaseTokenParams {
   jobId: string;
   jobExecutionId?: string;
   // Override informational claims to pair a job with chosen surrounding context.
-  runId?: string;
   workflowRunAttemptId?: string;
   projectId?: string;
   workspaceId?: string;
@@ -31,7 +30,7 @@ export async function mintLeaseToken(params: MintLeaseTokenParams): Promise<stri
     payload: {
       jobId: params.jobId,
       jobExecutionId,
-      workflowRunAttemptId: params.workflowRunAttemptId ?? params.runId ?? crypto.randomUUID(),
+      workflowRunAttemptId: params.workflowRunAttemptId ?? crypto.randomUUID(),
       projectId: params.projectId ?? crypto.randomUUID(),
       workspaceId: params.workspaceId ?? crypto.randomUUID(),
       runnerSessionId: params.runnerSessionId ?? crypto.randomUUID(),

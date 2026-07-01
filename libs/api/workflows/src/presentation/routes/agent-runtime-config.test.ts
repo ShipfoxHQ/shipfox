@@ -8,7 +8,7 @@ import type {StepStatus} from '#core/entities/step.js';
 import {db} from '#db/db.js';
 import {jobs} from '#db/schema/jobs.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
-import {createWorkflowRun, getJobsByRunId, getStepsByJobId} from '#db/workflow-runs.js';
+import {createWorkflowRun, getJobsByWorkflowRunId, getStepsByJobId} from '#db/workflow-runs.js';
 import {workflowModel} from '#test/factories/workflow-model.js';
 import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {mintLeaseToken} from '#test/fixtures/lease-token.js';
@@ -156,14 +156,14 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
       workspaceId: run.workspaceId,
       jobId: job.id,
       jobExecutionId: step.jobExecutionId,
-      runId: run.id,
+      workflowRunAttemptId: job.workflowRunAttemptId,
       projectId: run.projectId,
       runnerSessionId: crypto.randomUUID(),
     });
     const token = await mintLeaseToken({
       jobId: job.id,
       jobExecutionId: step.jobExecutionId,
-      runId: run.id,
+      workflowRunAttemptId: job.workflowRunAttemptId,
       projectId: run.projectId,
       workspaceId: run.workspaceId,
       runnerSessionId: crypto.randomUUID(),
@@ -386,7 +386,7 @@ async function createStep(params: {
       userId: crypto.randomUUID(),
     },
   });
-  const [job] = await getJobsByRunId(run.id);
+  const [job] = await getJobsByWorkflowRunId(run.id);
   if (!job) throw new Error('createStep: run created no job');
   await db().update(jobs).set({status: 'running'}).where(eq(jobs.id, job.id));
 

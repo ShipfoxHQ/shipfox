@@ -37,7 +37,7 @@ export interface TestConfig {
   releaseLeaseError?: string;
   /** If set, failJobExecutionAsTimedOutActivity throws (for timeout error-path testing) */
   failJobExecutionAsTimedOutError?: string;
-  /** Effective status returned by the initial running setRunStatus call */
+  /** Effective status returned by the initial running setRunAttemptStatus call */
   initialRunStatus?: string;
   /** Effective status returned by a running setJobStatus call */
   runningJobStatus?: string;
@@ -71,7 +71,7 @@ export function callsNamed(name: string): ActivityCall[] {
   return calls.filter((c) => c.name === name);
 }
 
-export function setRunStatusCalls() {
+export function setRunAttemptStatusCalls() {
   return callsNamed('setRunAttemptStatus') as Array<{
     name: string;
     params: {runAttemptId: string; status: string; version: number};
@@ -115,10 +115,10 @@ export function dagJob(
   };
 }
 
-export function makeDag(jobs: RunDag['jobs'], runId = 'run-1'): RunDag {
+export function makeDag(jobs: RunDag['jobs'], workflowRunId = 'run-1'): RunDag {
   return {
-    runId,
-    runAttemptId: `${runId}-attempt-1`,
+    workflowRunId,
+    runAttemptId: `${workflowRunId}-attempt-1`,
     workspaceId: 'workspace-1',
     projectId: 'project-1',
     runVersion: 1,
@@ -165,20 +165,8 @@ function createMockActivities() {
       return cfg.dag;
     },
 
-    loadRunDag: (runId: string): RunDag => {
-      calls.push({name: 'loadRunDag', params: runId});
-      return cfg.dag;
-    },
-
     setRunAttemptStatus: (params: {runAttemptId: string; status: string; version: number}) => {
       calls.push({name: 'setRunAttemptStatus', params});
-      const status =
-        params.status === 'running' && cfg.initialRunStatus ? cfg.initialRunStatus : params.status;
-      return {newVersion: nextVersion(), status};
-    },
-
-    setRunStatus: (params: {runId: string; status: string; version: number}) => {
-      calls.push({name: 'setRunStatus', params});
       const status =
         params.status === 'running' && cfg.initialRunStatus ? cfg.initialRunStatus : params.status;
       return {newVersion: nextVersion(), status};
@@ -223,7 +211,7 @@ function createMockActivities() {
       workspaceId: string;
       jobId: string;
       jobExecutionId: string;
-      runId: string;
+      workflowRunId: string;
       projectId: string;
       requiredLabels: string[];
     }) => {

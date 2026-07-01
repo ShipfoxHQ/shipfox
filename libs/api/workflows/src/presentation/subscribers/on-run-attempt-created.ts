@@ -14,7 +14,7 @@ export async function onRunAttemptCreated(payload: WorkflowsRunAttemptCreatedEve
       workflowId: `run-attempt:${payload.workflowRunAttemptId}`,
       args: [
         {
-          runId: payload.workflowRunId,
+          workflowRunId: payload.workflowRunId,
           runAttemptId: payload.workflowRunAttemptId,
           workspaceId: payload.workspaceId,
         },
@@ -34,5 +34,3 @@ export async function onRunAttemptCreated(payload: WorkflowsRunAttemptCreatedEve
     throw error;
   }
 }
-
-export const onWorkflowRunCreated = onRunAttemptCreated;

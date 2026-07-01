@@ -52,7 +52,6 @@ export function toJob(row: JobDb): Job {
   return {
     id: row.id,
     workflowRunAttemptId: row.workflowRunAttemptId,
-    runId: row.workflowRunAttemptId,
     name: row.name,
     status: row.status,
     statusReason: toJobStatusReason(row.statusReason),

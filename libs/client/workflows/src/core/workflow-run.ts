@@ -165,7 +165,7 @@ export interface WorkflowRunDetail extends WorkflowRun {
 
 export interface WorkflowRunAttempt {
   id: string;
-  runId: string;
+  workflowRunId: string;
   attempt: number;
   status: WorkflowRunStatus;
   createdAt: string;
@@ -334,7 +334,7 @@ export function toWorkflowStepAttempt(
 export function toWorkflowRunAttempt(dto: RunAttemptDto): WorkflowRunAttempt {
   return {
     id: dto.id,
-    runId: dto.run_id,
+    workflowRunId: dto.workflow_run_id,
     attempt: dto.attempt,
     status: dto.status,
     createdAt: dto.created_at,

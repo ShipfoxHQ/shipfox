@@ -92,7 +92,7 @@ export type RunDto = z.infer<typeof runDtoSchema>;
 
 export const runAttemptDtoSchema = z.object({
   id: z.string().uuid(),
-  run_id: z.string().uuid(),
+  workflow_run_id: z.string().uuid(),
   attempt: z.number().int().positive(),
   status: runStatusSchema,
   created_at: z.string(),

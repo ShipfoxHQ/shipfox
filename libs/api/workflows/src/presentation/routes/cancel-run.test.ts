@@ -5,7 +5,7 @@ import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {WorkflowRunNotFoundError} from '#core/errors.js';
-import {getJobsByRunId, getWorkflowRunById, updateWorkflowRunStatus} from '#db/index.js';
+import {getJobsByWorkflowRunId, getWorkflowRunById, updateWorkflowRunStatus} from '#db/index.js';
 import {createWorkflowRun} from '#db/workflow-runs.js';
 import {workflowModel} from '#test/index.js';
 import {cancelRunRoute} from './cancel-run.js';
@@ -71,7 +71,7 @@ describe('POST /api/workflows/runs/:id/cancel', () => {
 
   test('returns 200 and cancels a running run', async () => {
     const run = await createRun();
-    await updateWorkflowRunStatus({runId: run.id, status: 'running', expectedVersion: 1});
+    await updateWorkflowRunStatus({workflowRunId: run.id, status: 'running', expectedVersion: 1});
 
     const res = await app.inject({
       method: 'POST',
@@ -81,7 +81,7 @@ describe('POST /api/workflows/runs/:id/cancel', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({id: run.id, status: 'cancelled'});
     expect(await getWorkflowRunById(run.id)).toMatchObject({status: 'cancelled'});
-    const [job] = await getJobsByRunId(run.id);
+    const [job] = await getJobsByWorkflowRunId(run.id);
     expect(job).toMatchObject({status: 'cancelled', statusReason: 'run_cancelled'});
   });
 
@@ -127,7 +127,7 @@ describe('POST /api/workflows/runs/:id/cancel', () => {
 
   test('returns 409 for a terminal run', async () => {
     const run = await createRun();
-    await updateWorkflowRunStatus({runId: run.id, status: 'succeeded', expectedVersion: 1});
+    await updateWorkflowRunStatus({workflowRunId: run.id, status: 'succeeded', expectedVersion: 1});
 
     const res = await app.inject({
       method: 'POST',

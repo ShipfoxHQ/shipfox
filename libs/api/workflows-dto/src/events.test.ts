@@ -29,21 +29,21 @@ const validRunCreated = {
 
 const validJobTerminated = {
   jobId: 'job-1',
-  runId: 'run-1',
+  workflowRunId: 'run-1',
   workflowRunAttemptId: 'attempt-1',
   status: 'succeeded',
   statusReason: null,
 };
 
 const validRunTerminated = {
-  runId: 'run-1',
+  workflowRunId: 'run-1',
   workflowRunAttemptId: 'attempt-1',
   projectId: 'proj-1',
   status: 'failed',
 };
 
 const validRunCancelled = {
-  runId: 'run-1',
+  workflowRunId: 'run-1',
   workflowRunAttemptId: 'attempt-1',
   projectId: 'proj-1',
 };
@@ -57,14 +57,14 @@ const validJobExecutionTimedOut = {
 const validJobStepsSettled = {
   jobId: 'job-1',
   jobExecutionId: 'execution-1',
-  runId: 'run-1',
+  workflowRunId: 'run-1',
   workflowRunAttemptId: 'attempt-1',
   status: 'failed',
 };
 
 const validStepRestartEnqueued = {
   jobId: 'job-1',
-  runId: 'run-1',
+  workflowRunId: 'run-1',
   workflowRunAttemptId: 'attempt-1',
   failedStepId: 'step-1',
   failedStepAttempt: 2,
@@ -74,7 +74,7 @@ const validStepRestartEnqueued = {
 
 const validStepAttemptTerminated = {
   jobId: 'job-1',
-  runId: 'run-1',
+  workflowRunId: 'run-1',
   workflowRunAttemptId: 'attempt-1',
   workspaceId: 'ws-1',
   projectId: 'proj-1',
@@ -91,9 +91,9 @@ describe('workflowsJobTerminatedSchema', () => {
   });
 
   it('rejects a payload missing a required field', () => {
-    const {runId: _runId, ...withoutRunId} = validJobTerminated;
+    const {workflowRunId: _runId, ...withoutWorkflowRunId} = validJobTerminated;
 
-    const parse = () => workflowsJobTerminatedSchema.parse(withoutRunId);
+    const parse = () => workflowsJobTerminatedSchema.parse(withoutWorkflowRunId);
 
     expect(parse).toThrow();
   });

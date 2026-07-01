@@ -309,7 +309,7 @@ describe('workflow run model mapping', () => {
   test('maps run attempt summaries', () => {
     const dto = workflowRunAttemptDto({
       id: '77777777-7777-4777-8777-777777777777',
-      run_id: '11111111-1111-4111-8111-111111111111',
+      workflow_run_id: '11111111-1111-4111-8111-111111111111',
       attempt: 2,
       status: 'failed',
       created_at: '2026-05-07T01:02:00.000Z',
@@ -322,7 +322,7 @@ describe('workflow run model mapping', () => {
 
     expect(attempt).toEqual({
       id: '77777777-7777-4777-8777-777777777777',
-      runId: '11111111-1111-4111-8111-111111111111',
+      workflowRunId: '11111111-1111-4111-8111-111111111111',
       attempt: 2,
       status: 'failed',
       createdAt: '2026-05-07T01:02:00.000Z',

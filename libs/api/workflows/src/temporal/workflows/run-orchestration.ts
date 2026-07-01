@@ -32,7 +32,7 @@ const {loadRunAttemptDag, setRunAttemptStatus, setJobStatus, cancelRunnerJobsAct
 export const runCancelSignal = defineSignal<[]>(RUN_CANCEL_SIGNAL);
 
 export interface RunOrchestrationInput {
-  runId: string;
+  workflowRunId: string;
   runAttemptId: string;
   workspaceId: string;
 }

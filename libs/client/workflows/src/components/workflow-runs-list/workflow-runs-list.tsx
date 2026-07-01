@@ -7,7 +7,7 @@ import {WorkflowRunsListView} from './workflow-runs-list-view.js';
 export function WorkflowRunsList({
   workspaceId,
   projectId,
-  selectedRunId,
+  selectedWorkflowRunId,
   className,
 }: WorkflowRunsListProps) {
   const query = useWorkflowRunsInfiniteQuery(projectId, {});
@@ -22,7 +22,7 @@ export function WorkflowRunsList({
       query={query}
       workspaceId={workspaceId}
       projectId={projectId}
-      selectedRunId={selectedRunId}
+      selectedWorkflowRunId={selectedWorkflowRunId}
       className={className}
     />
   );

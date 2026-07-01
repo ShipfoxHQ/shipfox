@@ -53,7 +53,7 @@ export type RunJobDetailDto = z.infer<typeof runJobDetailDtoSchema>;
 export const runDetailResponseSchema = runResponseSchema.extend({
   run_attempt: z.object({
     id: z.string().uuid(),
-    run_id: z.string().uuid(),
+    workflow_run_id: z.string().uuid(),
     attempt: z.number().int().positive(),
     status: z.enum(['pending', 'running', 'succeeded', 'failed', 'cancelled']),
     created_at: z.string(),

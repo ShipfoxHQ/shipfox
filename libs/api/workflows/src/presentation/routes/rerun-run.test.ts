@@ -6,7 +6,7 @@ import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {
   createWorkflowRun,
-  getJobsByRunId,
+  getJobsByWorkflowRunId,
   updateJobStatus,
   updateWorkflowRunStatus,
 } from '#db/workflow-runs.js';
@@ -83,12 +83,12 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
         userId: crypto.randomUUID(),
       },
     });
-    return updateWorkflowRunStatus({runId: run.id, status, expectedVersion: run.version});
+    return updateWorkflowRunStatus({workflowRunId: run.id, status, expectedVersion: run.version});
   }
 
   async function createFailedRunWithFailedJob() {
     const run = await createTerminalRun('failed');
-    const [job] = await getJobsByRunId(run.id);
+    const [job] = await getJobsByWorkflowRunId(run.id);
     if (!job) throw new Error('Expected workflow job');
     await updateJobStatus({jobId: job.id, status: 'failed', expectedVersion: job.version});
     return run;

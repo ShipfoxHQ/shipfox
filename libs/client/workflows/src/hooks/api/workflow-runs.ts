@@ -42,9 +42,10 @@ export const workflowRunsQueryKeys = {
   lists: (projectId: string) => [...workflowRunsQueryKeys.all, 'list', projectId] as const,
   list: (projectId: string, filters: WorkflowRunFilters) =>
     [...workflowRunsQueryKeys.lists(projectId), normalizeFilters(filters)] as const,
-  detail: (runId: string, runAttempt?: number | undefined) =>
-    [...workflowRunsQueryKeys.all, 'detail', runId, runAttempt ?? null] as const,
-  attempts: (runId: string) => [...workflowRunsQueryKeys.all, 'attempts', runId] as const,
+  detail: (workflowRunId: string, runAttempt?: number | undefined) =>
+    [...workflowRunsQueryKeys.all, 'detail', workflowRunId, runAttempt ?? null] as const,
+  attempts: (workflowRunId: string) =>
+    [...workflowRunsQueryKeys.all, 'attempts', workflowRunId] as const,
 };
 
 function normalizeFilters(filters: WorkflowRunFilters) {
@@ -98,10 +99,13 @@ export async function fireManualWorkflow({
   definitionId: string;
   inputs?: Record<string, unknown>;
 }) {
-  return await apiRequest<{run_id: string}>(`/workflow-definitions/${definitionId}/fire-manual`, {
-    method: 'POST',
-    body: inputs ? {inputs} : {},
-  });
+  return await apiRequest<{workflow_run_id: string}>(
+    `/workflow-definitions/${definitionId}/fire-manual`,
+    {
+      method: 'POST',
+      body: inputs ? {inputs} : {},
+    },
+  );
 }
 
 const ACTIVE_POLL_MS = 4_000;
@@ -160,30 +164,46 @@ export function useWorkflowRunsInfiniteQuery(
 }
 
 async function getWorkflowRunDto({
-  runId,
+  workflowRunId,
   runAttempt,
   signal,
 }: {
-  runId: string;
+  workflowRunId: string;
   runAttempt?: number | undefined;
   signal?: AbortSignal;
 }) {
   const params = new URLSearchParams();
   if (runAttempt) params.set('attempt', String(runAttempt));
   const query = params.size > 0 ? `?${params.toString()}` : '';
-  return await apiRequest<RunDetailResponseDto>(`/workflows/runs/${runId}${query}`, {signal});
+  return await apiRequest<RunDetailResponseDto>(`/workflows/runs/${workflowRunId}${query}`, {
+    signal,
+  });
 }
 
-async function getWorkflowRunAttemptsDto({runId, signal}: {runId: string; signal?: AbortSignal}) {
-  return await apiRequest<RunAttemptsResponseDto>(`/workflows/runs/${runId}/attempts`, {signal});
+async function getWorkflowRunAttemptsDto({
+  workflowRunId,
+  signal,
+}: {
+  workflowRunId: string;
+  signal?: AbortSignal;
+}) {
+  return await apiRequest<RunAttemptsResponseDto>(`/workflows/runs/${workflowRunId}/attempts`, {
+    signal,
+  });
 }
 
-async function cancelWorkflowRunDto({runId}: {runId: string}) {
-  return await apiRequest<RunDto>(`/workflows/runs/${runId}/cancel`, {method: 'POST'});
+async function cancelWorkflowRunDto({workflowRunId}: {workflowRunId: string}) {
+  return await apiRequest<RunDto>(`/workflows/runs/${workflowRunId}/cancel`, {method: 'POST'});
 }
 
-export async function rerunWorkflowRun({runId, mode}: {runId: string; mode: RerunMode}) {
-  return await apiRequest<RunResponseDto>(`/workflows/runs/${runId}/rerun`, {
+export async function rerunWorkflowRun({
+  workflowRunId,
+  mode,
+}: {
+  workflowRunId: string;
+  mode: RerunMode;
+}) {
+  return await apiRequest<RunResponseDto>(`/workflows/runs/${workflowRunId}/rerun`, {
     method: 'POST',
     body: {mode} satisfies RerunRunBodyDto,
   });
@@ -197,8 +217,12 @@ export function useRerunWorkflowRunMutation(projectId: string) {
     onSuccess: async (_run, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.lists(projectId)}),
-        queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.detail(variables.runId)}),
-        queryClient.invalidateQueries({queryKey: workflowRunsQueryKeys.attempts(variables.runId)}),
+        queryClient.invalidateQueries({
+          queryKey: workflowRunsQueryKeys.detail(variables.workflowRunId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: workflowRunsQueryKeys.attempts(variables.workflowRunId),
+        }),
       ]);
     },
   });
@@ -309,7 +333,7 @@ export function useFireManualWorkflowMutation() {
         });
       }
 
-      return {tempRunId: tempRun.id, touchedQueryKeys};
+      return {tempWorkflowRunId: tempRun.id, touchedQueryKeys};
     },
     onError: (_error, _variables, context) => {
       if (!context) return;
@@ -319,7 +343,7 @@ export function useFireManualWorkflowMutation() {
           let removedCount = 0;
           const pages = current.pages.map((page) => {
             const runs = page.runs.filter((run) => {
-              if (run.id !== context.tempRunId) return true;
+              if (run.id !== context.tempWorkflowRunId) return true;
               removedCount += 1;
               return false;
             });
@@ -378,25 +402,26 @@ function lookupDefinitionName(
   return undefined;
 }
 
-export function useWorkflowRunQuery(runId: string | undefined) {
-  return useWorkflowRunAttemptQuery({runId, runAttempt: undefined});
+export function useWorkflowRunQuery(workflowRunId: string | undefined) {
+  return useWorkflowRunAttemptQuery({workflowRunId, runAttempt: undefined});
 }
 
 export function useWorkflowRunAttemptQuery({
-  runId,
+  workflowRunId,
   runAttempt,
 }: {
-  runId: string | undefined;
+  workflowRunId: string | undefined;
   runAttempt?: number | undefined;
 }) {
   // Poll a non-terminal run so the open run detail stays live (same cadence as the run
   // list); stop once the run is terminal.
   return useQuery({
-    queryKey: runId
-      ? workflowRunsQueryKeys.detail(runId, runAttempt)
+    queryKey: workflowRunId
+      ? workflowRunsQueryKeys.detail(workflowRunId, runAttempt)
       : [...workflowRunsQueryKeys.all, 'detail'],
-    enabled: Boolean(runId),
-    queryFn: ({signal}) => getWorkflowRunDto({runId: runId ?? '', runAttempt, signal}),
+    enabled: Boolean(workflowRunId),
+    queryFn: ({signal}) =>
+      getWorkflowRunDto({workflowRunId: workflowRunId ?? '', runAttempt, signal}),
     select: toWorkflowRunDetail,
     staleTime: 2_000,
     refetchOnWindowFocus: true,
@@ -410,18 +435,18 @@ export function useWorkflowRunAttemptQuery({
 }
 
 export function useWorkflowRunAttemptsQuery({
-  runId,
+  workflowRunId,
   enabled,
 }: {
-  runId: string | undefined;
+  workflowRunId: string | undefined;
   enabled: boolean;
 }) {
   return useQuery({
-    queryKey: runId
-      ? workflowRunsQueryKeys.attempts(runId)
+    queryKey: workflowRunId
+      ? workflowRunsQueryKeys.attempts(workflowRunId)
       : [...workflowRunsQueryKeys.all, 'attempts'],
-    enabled: Boolean(runId) && enabled,
-    queryFn: ({signal}) => getWorkflowRunAttemptsDto({runId: runId ?? '', signal}),
+    enabled: Boolean(workflowRunId) && enabled,
+    queryFn: ({signal}) => getWorkflowRunAttemptsDto({workflowRunId: workflowRunId ?? '', signal}),
     select: (dto): WorkflowRunAttempt[] => dto.attempts.map(toWorkflowRunAttempt),
     staleTime: 0,
     refetchOnMount: true,
@@ -434,7 +459,7 @@ export function useCancelWorkflowRunMutation(run: WorkflowRun | undefined) {
   return useMutation({
     mutationFn: async () => {
       if (!run) throw new Error('Workflow run is not loaded');
-      return toWorkflowRun(await cancelWorkflowRunDto({runId: run.id}));
+      return toWorkflowRun(await cancelWorkflowRunDto({workflowRunId: run.id}));
     },
     onSuccess: async () => {
       if (!run) return;

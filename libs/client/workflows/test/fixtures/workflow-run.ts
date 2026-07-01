@@ -110,7 +110,7 @@ export function workflowRunDetail(
 export function workflowRunAttemptDto(overrides: Partial<RunAttemptDto> = {}): RunAttemptDto {
   return {
     id: RUN_ID,
-    run_id: RUN_ID,
+    workflow_run_id: RUN_ID,
     attempt: 1,
     status: 'running',
     created_at: '2026-06-21T12:00:00.000Z',
