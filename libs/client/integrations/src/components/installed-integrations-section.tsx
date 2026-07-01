@@ -8,6 +8,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   EmptyState,
   formatDate,
@@ -139,7 +140,7 @@ function InstalledRow({
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem icon="bookOpenLine" onSelect={() => onUse(connection.id)}>
+          <DropdownMenuItem onSelect={() => onUse(connection.id)}>
             Use this integration
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
@@ -151,18 +152,11 @@ function InstalledRow({
               View recent events
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            icon={active ? 'pauseCircleLine' : 'playCircleLine'}
-            disabled={isMutating}
-            onSelect={() => onSetActive(!active)}
-          >
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled={isMutating} onSelect={() => onSetActive(!active)}>
             {active ? 'Disable integration' : 'Enable integration'}
           </DropdownMenuItem>
-          <DropdownMenuItem
-            icon="deleteBinLine"
-            disabled={isMutating}
-            onSelect={() => onDelete(connection.id)}
-          >
+          <DropdownMenuItem disabled={isMutating} onSelect={() => onDelete(connection.id)}>
             Delete integration
           </DropdownMenuItem>
         </DropdownMenuContent>
