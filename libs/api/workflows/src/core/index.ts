@@ -1,4 +1,8 @@
 export type {Job, JobStatus} from './entities/job.js';
+export type {
+  JobListenerEvent,
+  JobListenerEventDisposition,
+} from './entities/job-listener-event.js';
 export type {Step, StepStatus} from './entities/step.js';
 export type {
   TriggerPayload,

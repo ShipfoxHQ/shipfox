@@ -1,24 +1,18 @@
 import {
-  WORKFLOWS_JOB_EVENT_DELIVERED,
+  WORKFLOWS_JOB_ACTIVATED,
   WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_JOB_TERMINATED,
-  WORKFLOWS_LISTENER_CANCELLED,
-  WORKFLOWS_LISTENER_RESOLVED,
-  WORKFLOWS_LISTENER_STARTED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
   WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   workflowsEventSchemas,
-  workflowsJobEventDeliveredSchema,
+  workflowsJobActivatedSchema,
   workflowsJobExecutionTimedOutSchema,
   workflowsJobStepsSettledSchema,
   workflowsJobTerminatedSchema,
-  workflowsListenerCancelledSchema,
-  workflowsListenerResolvedSchema,
-  workflowsListenerStartedSchema,
   workflowsStepAttemptTerminatedSchema,
   workflowsStepRestartEnqueuedSchema,
   workflowsWorkflowRunAttemptCreatedSchema,
@@ -62,6 +56,15 @@ const validJobExecutionTimedOut = {
   workflowRunAttemptId: 'attempt-1',
 };
 
+const validJobActivated = {
+  jobId: 'job-1',
+  workflowRunId: 'run-1',
+  workspaceId: 'ws-1',
+  mode: 'listening',
+  on: [{source: 'github', event: 'pull_request_review', inputs: {state: 'approved'}}],
+  until: [{source: 'github', event: 'pull_request_closed'}],
+};
+
 const validJobStepsSettled = {
   jobId: 'job-1',
   jobExecutionId: 'execution-1',
@@ -89,30 +92,6 @@ const validStepAttemptTerminated = {
   stepId: 'step-1',
   attempt: 1,
   logOutcome: 'drained',
-};
-
-const validJobEventDelivered = {
-  jobId: 'job-1',
-  workflowRunId: 'run-1',
-  source: 'github',
-  event: 'pull_request_review',
-  deliveryId: 'delivery-1',
-};
-
-const validListenerStarted = {
-  jobId: 'job-1',
-  workflowRunId: 'run-1',
-};
-
-const validListenerResolved = {
-  jobId: 'job-1',
-  workflowRunId: 'run-1',
-  reason: 'until',
-};
-
-const validListenerCancelled = {
-  jobId: 'job-1',
-  workflowRunId: 'run-1',
 };
 
 describe('workflowsJobTerminatedSchema', () => {
@@ -199,6 +178,37 @@ describe('workflowsWorkflowRunTerminatedSchema', () => {
   });
 });
 
+describe('workflowsJobActivatedSchema', () => {
+  it('requires at least one on matcher for listening jobs', () => {
+    const withoutMatchers = {...validJobActivated, on: []};
+
+    const parse = () => workflowsJobActivatedSchema.parse(withoutMatchers);
+
+    expect(parse).toThrow();
+  });
+
+  it('rejects null on matchers for listening jobs', () => {
+    const withoutMatchers = {...validJobActivated, on: null};
+
+    const parse = () => workflowsJobActivatedSchema.parse(withoutMatchers);
+
+    expect(parse).toThrow();
+  });
+
+  it('allows one-shot jobs without listener matchers', () => {
+    const payload = {
+      jobId: 'job-1',
+      workflowRunId: 'run-1',
+      workspaceId: 'ws-1',
+      mode: 'one_shot',
+    };
+
+    const result = workflowsJobActivatedSchema.parse(payload);
+
+    expect(result).toEqual(payload);
+  });
+});
+
 describe.each([
   [
     'workflowsWorkflowRunAttemptCreatedSchema',
@@ -218,6 +228,7 @@ describe.each([
     validJobExecutionTimedOut,
     'jobId',
   ],
+  ['workflowsJobActivatedSchema', workflowsJobActivatedSchema, validJobActivated, 'mode'],
   [
     'workflowsJobStepsSettledSchema',
     workflowsJobStepsSettledSchema,
@@ -235,25 +246,6 @@ describe.each([
     workflowsStepAttemptTerminatedSchema,
     validStepAttemptTerminated,
     'logOutcome',
-  ],
-  [
-    'workflowsJobEventDeliveredSchema',
-    workflowsJobEventDeliveredSchema,
-    validJobEventDelivered,
-    'deliveryId',
-  ],
-  ['workflowsListenerStartedSchema', workflowsListenerStartedSchema, validListenerStarted, 'jobId'],
-  [
-    'workflowsListenerResolvedSchema',
-    workflowsListenerResolvedSchema,
-    validListenerResolved,
-    'reason',
-  ],
-  [
-    'workflowsListenerCancelledSchema',
-    workflowsListenerCancelledSchema,
-    validListenerCancelled,
-    'workflowRunId',
   ],
 ] as const)('%s', (_name, schema, validPayload, requiredKey) => {
   it('parses a valid payload unchanged', () => {
@@ -283,15 +275,25 @@ describe('workflowsEventSchemas', () => {
         WORKFLOWS_WORKFLOW_RUN_TERMINATED,
         WORKFLOWS_WORKFLOW_RUN_CANCELLED,
         WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
+        WORKFLOWS_JOB_ACTIVATED,
         WORKFLOWS_JOB_TERMINATED,
         WORKFLOWS_JOB_STEPS_SETTLED,
         WORKFLOWS_STEP_RESTART_ENQUEUED,
         WORKFLOWS_STEP_ATTEMPT_TERMINATED,
-        WORKFLOWS_JOB_EVENT_DELIVERED,
-        WORKFLOWS_LISTENER_STARTED,
-        WORKFLOWS_LISTENER_RESOLVED,
-        WORKFLOWS_LISTENER_CANCELLED,
       ].sort(),
+    );
+  });
+
+  it('does not register retired listener pseudo-entity events', () => {
+    const registeredTypes = Object.keys(workflowsEventSchemas);
+
+    expect(registeredTypes).toEqual(
+      expect.not.arrayContaining([
+        'workflows.job_event.delivered',
+        'workflows.listener.started',
+        'workflows.listener.resolved',
+        'workflows.listener.cancelled',
+      ]),
     );
   });
 });

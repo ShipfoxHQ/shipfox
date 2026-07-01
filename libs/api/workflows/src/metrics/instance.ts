@@ -62,6 +62,11 @@ const stepRestartEnqueuedCount = meter.createCounter<Record<string, never>>(
   {description: 'Durable step restart events enqueued after a restartable gate failure'},
 );
 
+const listenerEventsReceivedCount = meter.createCounter<{provider: string}>(
+  'workflows_listener_events_received',
+  {description: 'Listener integration events buffered by bounded trigger provider'},
+);
+
 export function recordWorkflowRunCreated(provider: string): void {
   runCreatedCount.add(1, {provider});
 }
@@ -104,4 +109,8 @@ export function recordWorkflowJobExecutionLeaseExpiryResolved(
 
 export function recordWorkflowStepRestartEnqueued(): void {
   stepRestartEnqueuedCount.add(1);
+}
+
+export function recordListenerEventReceived(provider: string): void {
+  listenerEventsReceivedCount.add(1, {provider});
 }

@@ -1,6 +1,7 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
 import {jobExecutions} from './schema/job-executions.js';
+import {jobListenerEvents} from './schema/job-listener-events.js';
 import {jobs} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
 import {stepAttempts} from './schema/step-attempts.js';
@@ -13,6 +14,7 @@ export const schema = {
   workflowRunAttempts,
   jobs,
   jobExecutions,
+  jobListenerEvents,
   steps,
   stepAttempts,
   workflowsOutbox,

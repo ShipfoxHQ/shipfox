@@ -11,3 +11,8 @@ export {
   TriggerWorkspaceMismatchError,
 } from './errors.js';
 export {type FireManualSubscriptionParams, fireManualSubscription} from './fire-manual.js';
+export {
+  type RouteEventToJobListenersParams,
+  type RouteEventToJobListenersResult,
+  routeEventToJobListeners,
+} from './route-event-to-job-listeners.js';

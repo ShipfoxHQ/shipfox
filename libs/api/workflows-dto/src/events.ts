@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import {jobStatusReasonSchema} from './schemas/job.js';
+import {listeningTriggerSchema} from './schemas/job-listening.js';
 import {logOutcomeSchema} from './schemas/log-outcome.js';
 
 const nonEmptyStringSchema = z.string().nonempty();
@@ -11,6 +12,7 @@ export const WORKFLOWS_WORKFLOW_RUN_TERMINATED = 'workflows.workflow_run.termina
 // Intent fact for cooperative run cancellation. Consumers use this to stop orchestration.
 export const WORKFLOWS_WORKFLOW_RUN_CANCELLED = 'workflows.workflow_run.cancelled' as const;
 export const WORKFLOWS_JOB_EXECUTION_TIMED_OUT = 'workflows.job_execution.timed_out' as const;
+export const WORKFLOWS_JOB_ACTIVATED = 'workflows.job.activated' as const;
 // Terminal fact for a job: the single reliable "this job is over" signal, written in
 // the same transaction as the status flip, on every terminal path.
 export const WORKFLOWS_JOB_TERMINATED = 'workflows.job.terminated' as const;
@@ -24,10 +26,6 @@ export const WORKFLOWS_JOB_STEPS_SETTLED = 'workflows.job.steps_settled' as cons
 // at-least-once outbox event as idempotent audit data.
 export const WORKFLOWS_STEP_RESTART_ENQUEUED = 'workflows.step.restart_enqueued' as const;
 export const WORKFLOWS_STEP_ATTEMPT_TERMINATED = 'workflows.step_attempt.terminated' as const;
-export const WORKFLOWS_JOB_EVENT_DELIVERED = 'workflows.job_event.delivered' as const;
-export const WORKFLOWS_LISTENER_STARTED = 'workflows.listener.started' as const;
-export const WORKFLOWS_LISTENER_RESOLVED = 'workflows.listener.resolved' as const;
-export const WORKFLOWS_LISTENER_CANCELLED = 'workflows.listener.cancelled' as const;
 
 export const workflowsWorkflowRunAttemptCreatedSchema = z.object({
   workflowRunId: nonEmptyStringSchema,
@@ -74,6 +72,26 @@ export const workflowsJobExecutionTimedOutSchema = z.object({
 export type WorkflowsJobExecutionTimedOutEventDto = z.infer<
   typeof workflowsJobExecutionTimedOutSchema
 >;
+
+const workflowsJobActivatedBaseSchema = z.object({
+  jobId: nonEmptyStringSchema,
+  workflowRunId: nonEmptyStringSchema,
+  workspaceId: nonEmptyStringSchema,
+});
+
+export const workflowsJobActivatedSchema = z.discriminatedUnion('mode', [
+  workflowsJobActivatedBaseSchema.extend({
+    mode: z.literal('one_shot'),
+    on: z.array(listeningTriggerSchema).nullable().optional(),
+    until: z.array(listeningTriggerSchema).nullable().optional(),
+  }),
+  workflowsJobActivatedBaseSchema.extend({
+    mode: z.literal('listening'),
+    on: z.array(listeningTriggerSchema).nonempty(),
+    until: z.array(listeningTriggerSchema).nullable(),
+  }),
+]);
+export type WorkflowsJobActivatedEventDto = z.infer<typeof workflowsJobActivatedSchema>;
 
 export const workflowsJobTerminatedSchema = z.object({
   jobId: nonEmptyStringSchema,
@@ -122,47 +140,16 @@ export type WorkflowsStepAttemptTerminatedEventDto = z.infer<
   typeof workflowsStepAttemptTerminatedSchema
 >;
 
-export const workflowsJobEventDeliveredSchema = z.object({
-  jobId: nonEmptyStringSchema,
-  workflowRunId: nonEmptyStringSchema,
-  source: nonEmptyStringSchema,
-  event: nonEmptyStringSchema,
-  deliveryId: nonEmptyStringSchema,
-});
-export type WorkflowsJobEventDeliveredEventDto = z.infer<typeof workflowsJobEventDeliveredSchema>;
-
-export const workflowsListenerStartedSchema = z.object({
-  jobId: nonEmptyStringSchema,
-  workflowRunId: nonEmptyStringSchema,
-});
-export type WorkflowsListenerStartedEventDto = z.infer<typeof workflowsListenerStartedSchema>;
-
-export const workflowsListenerResolvedSchema = z.object({
-  jobId: nonEmptyStringSchema,
-  workflowRunId: nonEmptyStringSchema,
-  reason: z.enum(['until', 'timeout', 'max_executions', 'cancelled']),
-});
-export type WorkflowsListenerResolvedEventDto = z.infer<typeof workflowsListenerResolvedSchema>;
-
-export const workflowsListenerCancelledSchema = z.object({
-  jobId: nonEmptyStringSchema,
-  workflowRunId: nonEmptyStringSchema,
-});
-export type WorkflowsListenerCancelledEventDto = z.infer<typeof workflowsListenerCancelledSchema>;
-
 export interface WorkflowsEventMapDto {
   [WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED]: WorkflowsWorkflowRunAttemptCreatedEventDto;
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: WorkflowsWorkflowRunTerminatedEventDto;
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: WorkflowsWorkflowRunCancelledEventDto;
   [WORKFLOWS_JOB_EXECUTION_TIMED_OUT]: WorkflowsJobExecutionTimedOutEventDto;
+  [WORKFLOWS_JOB_ACTIVATED]: WorkflowsJobActivatedEventDto;
   [WORKFLOWS_JOB_TERMINATED]: WorkflowsJobTerminatedEventDto;
   [WORKFLOWS_JOB_STEPS_SETTLED]: WorkflowsJobStepsSettledEventDto;
   [WORKFLOWS_STEP_RESTART_ENQUEUED]: WorkflowsStepRestartEnqueuedEventDto;
   [WORKFLOWS_STEP_ATTEMPT_TERMINATED]: WorkflowsStepAttemptTerminatedEventDto;
-  [WORKFLOWS_JOB_EVENT_DELIVERED]: WorkflowsJobEventDeliveredEventDto;
-  [WORKFLOWS_LISTENER_STARTED]: WorkflowsListenerStartedEventDto;
-  [WORKFLOWS_LISTENER_RESOLVED]: WorkflowsListenerResolvedEventDto;
-  [WORKFLOWS_LISTENER_CANCELLED]: WorkflowsListenerCancelledEventDto;
 }
 
 export const workflowsEventSchemas = {
@@ -170,12 +157,9 @@ export const workflowsEventSchemas = {
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: workflowsWorkflowRunTerminatedSchema,
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: workflowsWorkflowRunCancelledSchema,
   [WORKFLOWS_JOB_EXECUTION_TIMED_OUT]: workflowsJobExecutionTimedOutSchema,
+  [WORKFLOWS_JOB_ACTIVATED]: workflowsJobActivatedSchema,
   [WORKFLOWS_JOB_TERMINATED]: workflowsJobTerminatedSchema,
   [WORKFLOWS_JOB_STEPS_SETTLED]: workflowsJobStepsSettledSchema,
   [WORKFLOWS_STEP_RESTART_ENQUEUED]: workflowsStepRestartEnqueuedSchema,
   [WORKFLOWS_STEP_ATTEMPT_TERMINATED]: workflowsStepAttemptTerminatedSchema,
-  [WORKFLOWS_JOB_EVENT_DELIVERED]: workflowsJobEventDeliveredSchema,
-  [WORKFLOWS_LISTENER_STARTED]: workflowsListenerStartedSchema,
-  [WORKFLOWS_LISTENER_RESOLVED]: workflowsListenerResolvedSchema,
-  [WORKFLOWS_LISTENER_CANCELLED]: workflowsListenerCancelledSchema,
 } satisfies Record<keyof WorkflowsEventMapDto, z.ZodType>;

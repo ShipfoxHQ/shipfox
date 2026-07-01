@@ -43,6 +43,7 @@
     "@shipfox/api-projects": "workspace:*",
     "@shipfox/api-triggers-dto": "workspace:*",
     "@shipfox/api-workflows": "workspace:*",
+    "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",

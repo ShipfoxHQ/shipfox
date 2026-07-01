@@ -2,9 +2,10 @@ import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {triggersDecisions} from '#db/schema/decisions.js';
 import {triggersReceivedEvents} from '#db/schema/received-events.js';
-import {triggerSubscriptionFactory} from '#test/index.js';
+import {jobListenerSubscriptionFactory, triggerSubscriptionFactory} from '#test/index.js';
 
 const runWorkflow = vi.fn();
+const deliverEventToListener = vi.fn();
 
 // Mock the package root but keep real-enough permanent-error classes + the classifier, so the
 // dispatcher's permanent/transient branching is exercised without loading the workflows module graph.
@@ -25,6 +26,7 @@ vi.mock('@shipfox/api-workflows', () => {
   }
   return {
     runWorkflow: (...args: unknown[]) => runWorkflow(...args),
+    deliverEventToListener: (...args: unknown[]) => deliverEventToListener(...args),
     DefinitionNotFoundError,
     ProjectMismatchError,
     isPermanentRunWorkflowError: (error: unknown) =>
@@ -82,6 +84,9 @@ function decisionsForEvent(receivedEventId: string) {
 describe('dispatchIntegrationEvent', () => {
   beforeEach(() => {
     runWorkflow.mockReset();
+    deliverEventToListener.mockReset();
+    runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Build and test'});
+    deliverEventToListener.mockResolvedValue({buffered: true, skipped: false});
   });
 
   test('fires the workflow for each matching workspace subscription, regardless of project', async () => {
@@ -257,11 +262,103 @@ describe('dispatchIntegrationEvent', () => {
 
     expect(runWorkflow).not.toHaveBeenCalled();
   });
+
+  test('routes listener-only matches without creating a workflow run', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    const jobId = crypto.randomUUID();
+    await jobListenerSubscriptionFactory.create({
+      workspaceId,
+      jobId,
+      source: 'github',
+      event: 'push',
+    });
+
+    await dispatch({workspaceId, eventRef});
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    expect(deliverEventToListener).toHaveBeenCalledWith(expect.objectContaining({jobId}));
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('routed');
+    expect(event.matchedCount).toBe(0);
+  });
+
+  test('treats listener replay conflicts as routed idempotent success', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    await jobListenerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+    });
+    deliverEventToListener.mockResolvedValue({buffered: false, skipped: false});
+
+    await dispatch({workspaceId, eventRef});
+    await dispatch({workspaceId, eventRef});
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    expect(deliverEventToListener).toHaveBeenCalledTimes(2);
+    const events = await db()
+      .select()
+      .from(triggersReceivedEvents)
+      .where(eq(triggersReceivedEvents.eventRef, eventRef));
+    expect(events).toHaveLength(1);
+    expect(events[0]?.outcome).toBe('routed');
+    expect(events[0]?.matchedCount).toBe(0);
+  });
+
+  test('does not route listener-only stale subscriptions skipped by workflows', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    await jobListenerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+    });
+    deliverEventToListener.mockResolvedValue({buffered: false, skipped: true});
+
+    await dispatch({workspaceId, eventRef});
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    expect(deliverEventToListener).toHaveBeenCalledTimes(1);
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('discarded');
+    expect(event.matchedCount).toBe(0);
+  });
+
+  test('routes both definition and listener fan-outs for the same event', async () => {
+    const workspaceId = crypto.randomUUID();
+    const definitionSubscription = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {},
+    });
+    const jobListenerSubscription = await jobListenerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+    });
+
+    await dispatch({workspaceId});
+
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({definitionId: definitionSubscription.workflowDefinitionId}),
+    );
+    expect(deliverEventToListener).toHaveBeenCalledWith(
+      expect.objectContaining({jobId: jobListenerSubscription.jobId}),
+    );
+  });
 });
 
 describe('dispatchIntegrationEvent trigger history', () => {
   beforeEach(() => {
     runWorkflow.mockReset();
+    deliverEventToListener.mockReset();
+    runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Build and test'});
+    deliverEventToListener.mockResolvedValue({buffered: true, skipped: false});
   });
 
   test('records a discarded event when no subscription matches', async () => {

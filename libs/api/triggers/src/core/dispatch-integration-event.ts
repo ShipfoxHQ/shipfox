@@ -7,6 +7,7 @@ import {
 } from '#metrics/instance.js';
 import {readConfigInputs} from './config.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
+import {routeEventToJobListeners} from './route-event-to-job-listeners.js';
 
 export interface DispatchIntegrationEventParams {
   eventRef: string;
@@ -22,16 +23,17 @@ export interface DispatchIntegrationEventParams {
 }
 
 // Source-agnostic dispatcher: any inbound integration event fans out to every
-// workspace subscription registered for its (source, event), passing the raw
-// payload through untouched. The module knows nothing about github, gitlab, etc.
+// workspace subscription registered for its (source, event) and to every listening
+// job subscribed to it, passing the raw payload through untouched. The module knows
+// nothing about github, gitlab, etc.
 //
-// Continue-on-error: every matched subscription is attempted so one broken subscription
-// cannot starve its siblings. A permanent failure (deleted definition, project mismatch)
-// is recorded and skipped; a transient one is recorded and re-thrown so the outbox replays
-// the whole event and converges (succeeded siblings dedup on the idempotency key). The event
-// reaches a terminal outcome only when no transient error remains: `routed` if any run was
-// created, otherwise `errored`. History is best-effort; the thrown transient error, not the
-// recorded outcome, is what drives the retry.
+// Continue-on-error: every matched subscription and listener is attempted so one broken
+// subscription cannot starve its siblings. A permanent failure (deleted definition, project
+// mismatch) is recorded and skipped; a transient one is recorded and re-thrown so the outbox
+// replays the whole event and converges (succeeded siblings dedup on the idempotency key). The
+// event reaches a terminal outcome only when no transient error remains: `routed` if any run
+// was created or any listening job matched, `discarded` if nothing matched, otherwise `errored`.
+// History is best-effort; the thrown transient error, not the recorded outcome, drives the retry.
 export async function dispatchIntegrationEvent(
   params: DispatchIntegrationEventParams,
 ): Promise<void> {
@@ -56,12 +58,6 @@ export async function dispatchIntegrationEvent(
     source: params.source,
     event: params.event,
   });
-
-  if (subscriptions.length === 0) {
-    eventOutcomeCount.add(1, {provider: params.provider, outcome: 'discarded'});
-    await history.discarded();
-    return;
-  }
 
   let triggeredCount = 0;
   let sawTransientError = false;
@@ -97,15 +93,37 @@ export async function dispatchIntegrationEvent(
     }
   }
 
+  const listenerResult = await routeEventToJobListeners({
+    eventRef: params.eventRef,
+    workspaceId: params.workspaceId,
+    provider: params.provider,
+    source: params.source,
+    event: params.event,
+    deliveryId: params.deliveryId,
+    payload: params.payload,
+    receivedAt: params.receivedAt,
+  });
+
+  if (listenerResult.transientErrored && !sawTransientError) {
+    sawTransientError = true;
+    firstTransientError = listenerResult.transientError;
+  }
+
   if (sawTransientError) {
     eventOutcomeCount.add(1, {provider: params.provider, outcome: 'failed'});
     await history.failed(subscriptions.length);
     throw firstTransientError;
   }
 
-  if (triggeredCount > 0) {
+  if (triggeredCount > 0 || listenerResult.acceptedJobCount > 0) {
     eventOutcomeCount.add(1, {provider: params.provider, outcome: 'routed'});
     await history.routed(subscriptions.length);
+    return;
+  }
+
+  if (subscriptions.length === 0) {
+    eventOutcomeCount.add(1, {provider: params.provider, outcome: 'discarded'});
+    await history.discarded();
     return;
   }
 
