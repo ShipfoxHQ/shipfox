@@ -6,7 +6,7 @@ import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {
   createWorkflowRun,
-  getJobsByRunId,
+  getJobsByWorkflowRunId,
   updateJobStatus,
   updateWorkflowRunStatus,
 } from '#db/workflow-runs.js';
@@ -83,18 +83,18 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
         userId: crypto.randomUUID(),
       },
     });
-    return updateWorkflowRunStatus({runId: run.id, status, expectedVersion: run.version});
+    return updateWorkflowRunStatus({workflowRunId: run.id, status, expectedVersion: run.version});
   }
 
   async function createFailedRunWithFailedJob() {
     const run = await createTerminalRun('failed');
-    const [job] = await getJobsByRunId(run.id);
+    const [job] = await getJobsByWorkflowRunId(run.id);
     if (!job) throw new Error('Expected workflow job');
     await updateJobStatus({jobId: job.id, status: 'failed', expectedVersion: job.version});
     return run;
   }
 
-  test('creates a new run for all mode', async () => {
+  test('creates a new attempt for all mode', async () => {
     const source = await createTerminalRun('failed');
 
     const res = await app.inject({
@@ -105,15 +105,14 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({
-      source_run_id: source.id,
-      root_run_id: source.id,
-      attempt: 2,
-      rerun_mode: 'all',
+      id: source.id,
+      current_attempt: 2,
+      latest_attempt: 2,
       status: 'pending',
     });
   });
 
-  test('creates a new run for failed mode', async () => {
+  test('creates a new attempt for failed mode', async () => {
     const source = await createFailedRunWithFailedJob();
 
     const res = await app.inject({
@@ -124,10 +123,9 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({
-      source_run_id: source.id,
-      root_run_id: source.id,
-      attempt: 2,
-      rerun_mode: 'failed',
+      id: source.id,
+      current_attempt: 2,
+      latest_attempt: 2,
       status: 'pending',
     });
   });

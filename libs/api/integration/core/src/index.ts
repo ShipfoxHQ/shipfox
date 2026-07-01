@@ -43,6 +43,7 @@ export type {
 } from '#core/entities/provider.js';
 export type {IntegrationProviderErrorReason} from '#core/errors.js';
 export {
+  ConnectionSlugConflictError,
   IntegrationCapabilityUnavailableError,
   IntegrationCheckoutUnsupportedError,
   IntegrationConnectionInactiveError,

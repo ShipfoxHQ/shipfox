@@ -104,6 +104,7 @@ describe('runWorkflow', () => {
     expect(run.definitionId).toBe(definition.id);
     expect(run.name).toBe(definition.name);
     expect(run.status).toBe('pending');
+    expect(run.triggerProvider).toBeNull();
     expect(run.triggerSource).toBe('manual');
     expect(run.triggerEvent).toBe('fire');
     expect(run.triggerPayload).toEqual(triggerPayload);
@@ -139,7 +140,8 @@ describe('runWorkflow', () => {
     const definition = buildDefinition({projectId});
     mockGetDefinitionById.mockResolvedValue(definition);
     const triggerPayload: TriggerPayload = {
-      source: 'github',
+      provider: 'github',
+      source: 'github_acme',
       event: 'push',
       deliveryId: crypto.randomUUID(),
       data: {ref: 'main', headCommitSha: 'abc', externalRepositoryId: 'github:1'},
@@ -152,7 +154,8 @@ describe('runWorkflow', () => {
       triggerPayload,
     });
 
-    expect(run.triggerSource).toBe('github');
+    expect(run.triggerProvider).toBe('github');
+    expect(run.triggerSource).toBe('github_acme');
     expect(run.triggerEvent).toBe('push');
     expect(run.triggerPayload).toEqual(triggerPayload);
   });

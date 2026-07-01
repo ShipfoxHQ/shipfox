@@ -6,6 +6,7 @@ import {createIntegrationsContext} from '@shipfox/api-integration-core';
 import {logsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {runnersModule} from '@shipfox/api-runners';
+import {secretsModule} from '@shipfox/api-secrets';
 import {triggersModule} from '@shipfox/api-triggers';
 import {setSourceControl, workflowsModule} from '@shipfox/api-workflows';
 import {workspacesModule} from '@shipfox/api-workspaces';
@@ -36,6 +37,7 @@ export async function run(): Promise<void> {
   const modules = [
     authModule,
     workspacesModule,
+    secretsModule,
     agentModule,
     integrations.module,
     projectsModule,

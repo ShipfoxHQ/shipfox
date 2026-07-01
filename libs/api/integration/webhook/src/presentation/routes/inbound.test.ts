@@ -12,6 +12,7 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
     workspaceId: crypto.randomUUID(),
     provider: 'webhook',
     externalAccountId: 'stripe-prod',
+    slug: 'stripe_prod',
     displayName: 'Stripe Production',
     lifecycleStatus: 'active',
     createdAt: now,
@@ -71,7 +72,7 @@ describe('webhook inbound route', () => {
     expect(publishIntegrationEventReceived).toHaveBeenCalledTimes(1);
     expect(publishIntegrationEventReceived.mock.calls[0]?.[0].event).toMatchObject({
       provider: 'webhook',
-      source: 'stripe-prod',
+      source: 'stripe_prod',
       event: 'received',
       workspaceId: connection.workspaceId,
       connectionId: connection.id,

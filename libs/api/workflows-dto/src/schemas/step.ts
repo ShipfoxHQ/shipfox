@@ -19,7 +19,7 @@ export const stepErrorReasonSchema = z.enum([
   'agent_invocation_failed',
 ]);
 
-export type StepErrorReason = z.infer<typeof stepErrorReasonSchema>;
+export type StepErrorReasonDto = z.infer<typeof stepErrorReasonSchema>;
 
 export const agentConfigIssueSchema = z.enum([
   'step_config_invalid',
@@ -29,13 +29,13 @@ export const agentConfigIssueSchema = z.enum([
   'credentials_invalid',
 ]);
 
-export type AgentConfigIssue = z.infer<typeof agentConfigIssueSchema>;
+export type AgentConfigIssueDto = z.infer<typeof agentConfigIssueSchema>;
 
 // Whether a failure is infrastructure (`setup`) or user-code (`user`). Server-derived
 // from the step's type on the read path; the runner never sends it.
 export const stepErrorCategorySchema = z.enum(['setup', 'user']);
 
-export type StepErrorCategory = z.infer<typeof stepErrorCategorySchema>;
+export type StepErrorCategoryDto = z.infer<typeof stepErrorCategorySchema>;
 
 export const stepErrorDtoSchema = z
   .object({
@@ -55,7 +55,7 @@ export const stepErrorDtoSchema = z
   )
   .nullable();
 
-export type StepErrorDtoShape = z.infer<typeof stepErrorDtoSchema>;
+export type StepErrorDto = z.infer<typeof stepErrorDtoSchema>;
 
 export const stepSourceLocationSchema = z
   .object({

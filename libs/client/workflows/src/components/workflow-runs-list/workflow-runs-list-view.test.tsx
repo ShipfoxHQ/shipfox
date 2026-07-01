@@ -77,7 +77,7 @@ describe('WorkflowRunsListView', () => {
 
     await user.hover(screen.getByText('push'));
 
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('github · push');
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('github_acme · push');
   });
 
   test('restores every row after the filters are cleared', async () => {
@@ -118,7 +118,8 @@ function run(status: WorkflowRunStatus, name: string, id = `run-${name}`): Workf
     definition_id: '55555555-5555-4555-8555-555555555555',
     name,
     status,
-    trigger_source: 'github',
+    trigger_provider: 'github',
+    trigger_source: 'github_acme',
     trigger_event: 'push',
     created_at: '2026-05-07T01:01:00.000Z',
     updated_at: '2026-05-07T01:02:00.000Z',

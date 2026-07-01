@@ -11,7 +11,8 @@ function makeEvent(overrides: Partial<TriggerEventListItemDto> = {}): TriggerEve
     event_ref: 'ref-1',
     origin: 'integration',
     workspace_id: 'ws-1',
-    source: 'github',
+    provider: 'github',
+    source: 'github_acme',
     event: 'push',
     delivery_id: 'delivery-1',
     connection_id: 'conn-1',
@@ -35,7 +36,7 @@ function makeProps(overrides: Partial<EventsListProps> = {}): EventsListProps {
       error: null,
       refetch: () => undefined,
     },
-    facets: {sources: [{value: 'github', count: 1}], events: [{value: 'push', count: 1}]},
+    facets: {sources: [{value: 'github_acme', count: 1}], events: [{value: 'push', count: 1}]},
     filters: {},
     onFiltersChange: vi.fn(),
     workspaceId: 'ws-1',
@@ -144,7 +145,9 @@ describe('EventsList', () => {
     const onSelectEvent = vi.fn();
     renderList(makeProps({onSelectEvent}));
 
-    await userEvent.click(screen.getByRole('button', {name: 'Open details for github · push'}));
+    await userEvent.click(
+      screen.getByRole('button', {name: 'Open details for github_acme · push'}),
+    );
 
     expect(onSelectEvent).toHaveBeenCalledWith('evt-1');
   });
@@ -164,7 +167,7 @@ describe('EventsList', () => {
     renderList(makeProps({selectedEventId: 'evt-1'}));
 
     expect(
-      screen.getByRole('button', {name: 'Open details for github · push'}).closest('tr'),
+      screen.getByRole('button', {name: 'Open details for github_acme · push'}).closest('tr'),
     ).toHaveAttribute('data-selected', 'true');
   });
 });

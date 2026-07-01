@@ -1,7 +1,7 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {
-  type AnyPgColumn,
+  check,
   index,
   integer,
   jsonb,
@@ -37,26 +37,17 @@ export const workflowRuns = pgTable(
     definitionId: uuid('definition_id').notNull(),
     name: text('name').notNull(),
     status: workflowRunStatusEnum('status').notNull().default('pending'),
-    sourceRunId: uuid('source_run_id').references((): AnyPgColumn => workflowRuns.id, {
-      onDelete: 'set null',
-    }),
-    rootRunId: uuid('root_run_id').references((): AnyPgColumn => workflowRuns.id, {
-      onDelete: 'set null',
-    }),
-    attempt: integer('attempt').notNull().default(1),
-    rerunMode: workflowRunRerunModeEnum('rerun_mode'),
-    rerunByUserId: uuid('rerun_by_user_id'),
+    currentAttempt: integer('current_attempt').notNull().default(1),
+    triggerProvider: text('trigger_provider'),
     triggerSource: text('trigger_source').notNull(),
     triggerEvent: text('trigger_event').notNull(),
     triggerPayload: jsonb('trigger_payload').notNull().$type<TriggerPayload>(),
     inputs: jsonb('inputs').$type<Record<string, unknown>>(),
     sourceSnapshot: jsonb('source_snapshot').$type<WorkflowSourceSnapshot>(),
-    // Idempotency token for at-least-once outbox replays. Unique when set; NULL is unconstrained (Postgres default).
     triggerIdempotencyKey: text('trigger_idempotency_key'),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
-    // Execution window, stamped in-module at the run's status transitions.
     startedAt: timestamp('started_at', {withTimezone: true}),
     finishedAt: timestamp('finished_at', {withTimezone: true}),
   },
@@ -81,9 +72,7 @@ export const workflowRuns = pgTable(
       table.createdAt,
       table.id,
     ),
-    uniqueIndex('workflows_wr_root_run_attempt_unique')
-      .on(table.rootRunId, table.attempt)
-      .where(sql`${table.rootRunId} is not null`),
+    check('workflows_wr_current_attempt_positive_ck', sql`${table.currentAttempt} > 0`),
   ],
 );
 
@@ -98,11 +87,8 @@ export function toWorkflowRun(row: WorkflowRunDb): WorkflowRun {
     definitionId: row.definitionId,
     name: row.name,
     status: row.status,
-    sourceRunId: row.sourceRunId,
-    rootRunId: row.rootRunId,
-    attempt: row.attempt,
-    rerunMode: row.rerunMode ?? null,
-    rerunByUserId: row.rerunByUserId,
+    currentAttempt: row.currentAttempt,
+    triggerProvider: row.triggerProvider,
     triggerSource: row.triggerSource,
     triggerEvent: row.triggerEvent,
     triggerPayload: row.triggerPayload as TriggerPayload,

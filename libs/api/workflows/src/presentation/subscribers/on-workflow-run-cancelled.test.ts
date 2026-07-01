@@ -1,4 +1,4 @@
-import type {WorkflowsWorkflowRunCancelledEvent} from '@shipfox/api-workflows-dto';
+import type {WorkflowsWorkflowRunCancelledEventDto} from '@shipfox/api-workflows-dto';
 import {onWorkflowRunCancelled} from './on-workflow-run-cancelled.js';
 
 const signalMock = vi.fn();
@@ -9,9 +9,14 @@ vi.mock('@shipfox/node-temporal', () => ({
 }));
 
 function buildPayload(
-  overrides: Partial<WorkflowsWorkflowRunCancelledEvent> = {},
-): WorkflowsWorkflowRunCancelledEvent {
-  return {runId: crypto.randomUUID(), projectId: crypto.randomUUID(), ...overrides};
+  overrides: Partial<WorkflowsWorkflowRunCancelledEventDto> = {},
+): WorkflowsWorkflowRunCancelledEventDto {
+  return {
+    workflowRunId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
+    projectId: crypto.randomUUID(),
+    ...overrides,
+  };
 }
 
 describe('onWorkflowRunCancelled', () => {
@@ -26,7 +31,9 @@ describe('onWorkflowRunCancelled', () => {
 
     await onWorkflowRunCancelled(payload);
 
-    expect(getHandleMock).toHaveBeenCalledWith(`run:${payload.runId}`);
+    expect(getHandleMock).toHaveBeenCalledWith(
+      `workflow-run-attempt:${payload.workflowRunAttemptId}`,
+    );
     expect(signalMock).toHaveBeenCalledWith('run-cancel');
   });
 

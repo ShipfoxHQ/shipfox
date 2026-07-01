@@ -1,25 +1,31 @@
 import {z} from 'zod';
 
-export const runStatusSchema = z.enum(['pending', 'running', 'succeeded', 'failed', 'cancelled']);
+export const workflowRunStatusSchema = z.enum([
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+]);
 
-export type RunStatusDto = z.infer<typeof runStatusSchema>;
+export type WorkflowRunStatusDto = z.infer<typeof workflowRunStatusSchema>;
 
-export const rerunModeSchema = z.enum(['all', 'failed']);
+export const workflowRunRerunModeSchema = z.enum(['all', 'failed']);
 
-export type RerunMode = z.infer<typeof rerunModeSchema>;
+export type WorkflowRunRerunModeDto = z.infer<typeof workflowRunRerunModeSchema>;
 
-export const rerunRunBodySchema = z.object({
-  mode: rerunModeSchema,
+export const rerunWorkflowRunBodySchema = z.object({
+  mode: workflowRunRerunModeSchema,
 });
 
-export type RerunRunBodyDto = z.infer<typeof rerunRunBodySchema>;
+export type RerunWorkflowRunBodyDto = z.infer<typeof rerunWorkflowRunBodySchema>;
 
 const isoDateTimeSchema = z.string().datetime();
 const runListQueryBaseSchema = z.object({
   project_id: z.string().uuid(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().optional(),
-  status: runStatusSchema.optional(),
+  status: workflowRunStatusSchema.optional(),
   definition_id: z.string().uuid().optional(),
   trigger_source: z.string().optional(),
   created_from: isoDateTimeSchema.optional(),
@@ -52,15 +58,15 @@ function validateDateWindow(
   }
 }
 
-export const runListQuerySchema = runListQueryBaseSchema.superRefine(validateDateWindow);
+export const workflowRunListQuerySchema = runListQueryBaseSchema.superRefine(validateDateWindow);
 
-export type RunListQueryDto = z.infer<typeof runListQuerySchema>;
+export type WorkflowRunListQueryDto = z.infer<typeof workflowRunListQuerySchema>;
 
-export const runAggregatesQuerySchema = runListQueryBaseSchema
+export const workflowRunAggregatesQuerySchema = runListQueryBaseSchema
   .omit({limit: true, cursor: true})
   .superRefine(validateDateWindow);
 
-export type RunAggregatesQueryDto = z.infer<typeof runAggregatesQuerySchema>;
+export type WorkflowRunAggregatesQueryDto = z.infer<typeof workflowRunAggregatesQuerySchema>;
 
 export const workflowSourceSnapshotSchema = z.object({
   content: z.string(),
@@ -69,16 +75,15 @@ export const workflowSourceSnapshotSchema = z.object({
 
 export type WorkflowSourceSnapshotDto = z.infer<typeof workflowSourceSnapshotSchema>;
 
-export const runDtoSchema = z.object({
+export const workflowRunDtoSchema = z.object({
   id: z.string().uuid(),
   project_id: z.string().uuid(),
   definition_id: z.string().uuid(),
   name: z.string(),
-  status: runStatusSchema,
-  source_run_id: z.string().uuid().nullable(),
-  root_run_id: z.string().uuid().nullable(),
-  attempt: z.number().int().positive(),
-  rerun_mode: rerunModeSchema.nullable(),
+  status: workflowRunStatusSchema,
+  current_attempt: z.number().int().positive(),
+  latest_attempt: z.number().int().positive(),
+  trigger_provider: z.string().nullable(),
   trigger_source: z.string(),
   trigger_event: z.string(),
   trigger_payload: z.record(z.string(), z.unknown()),
@@ -90,45 +95,50 @@ export const runDtoSchema = z.object({
   finished_at: z.string().nullable(),
 });
 
-export type RunDto = z.infer<typeof runDtoSchema>;
+export type WorkflowRunDto = z.infer<typeof workflowRunDtoSchema>;
 
-export const runAttemptSchema = z.object({
+export const workflowRunAttemptDtoSchema = z.object({
   id: z.string().uuid(),
+  workflow_run_id: z.string().uuid(),
   attempt: z.number().int().positive(),
-  status: runStatusSchema,
+  status: workflowRunStatusSchema,
   created_at: z.string(),
-  rerun_mode: rerunModeSchema.nullable(),
+  started_at: z.string().nullable(),
+  finished_at: z.string().nullable(),
+  rerun_mode: workflowRunRerunModeSchema.nullable(),
 });
 
-export type RunAttemptDto = z.infer<typeof runAttemptSchema>;
+export type WorkflowRunAttemptDto = z.infer<typeof workflowRunAttemptDtoSchema>;
 
-export const runResponseSchema = runDtoSchema;
+export const workflowRunResponseSchema = workflowRunDtoSchema;
 
-export type RunResponseDto = z.infer<typeof runResponseSchema>;
+export type WorkflowRunResponseDto = z.infer<typeof workflowRunResponseSchema>;
 
-export const runAttemptsResponseSchema = z.object({
-  attempts: z.array(runAttemptSchema),
+export const workflowRunAttemptsResponseSchema = z.object({
+  attempts: z.array(workflowRunAttemptDtoSchema),
 });
 
-export type RunAttemptsResponseDto = z.infer<typeof runAttemptsResponseSchema>;
+export type WorkflowRunAttemptsResponseDto = z.infer<typeof workflowRunAttemptsResponseSchema>;
 
-export const runListResponseSchema = z.object({
-  runs: z.array(runResponseSchema),
+export const workflowRunListResponseSchema = z.object({
+  runs: z.array(workflowRunResponseSchema),
   next_cursor: z.string().nullable(),
   filtered_total_count: z.number().int().nonnegative().nullable(),
 });
 
-export type RunListResponseDto = z.infer<typeof runListResponseSchema>;
+export type WorkflowRunListResponseDto = z.infer<typeof workflowRunListResponseSchema>;
 
 const aggregateBucketSchema = z.object({
   value: z.string(),
   count: z.number().int().nonnegative(),
 });
 
-export const runAggregatesResponseSchema = z.object({
-  status: z.array(z.object({value: runStatusSchema, count: z.number().int().nonnegative()})),
+export const workflowRunAggregatesResponseSchema = z.object({
+  status: z.array(
+    z.object({value: workflowRunStatusSchema, count: z.number().int().nonnegative()}),
+  ),
   trigger_source: z.array(aggregateBucketSchema),
   workflow: z.array(aggregateBucketSchema),
 });
 
-export type RunAggregatesResponseDto = z.infer<typeof runAggregatesResponseSchema>;
+export type WorkflowRunAggregatesResponseDto = z.infer<typeof workflowRunAggregatesResponseSchema>;

@@ -28,7 +28,7 @@ function newIdentity(
     attempt: 1,
     workspaceId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
-    runId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
     logOutcome: 'drained',
     ...overrides,
   };

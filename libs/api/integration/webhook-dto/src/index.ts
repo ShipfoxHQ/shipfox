@@ -1,16 +1,15 @@
+import {connectionSlugSchema} from '@shipfox/api-integration-core-dto';
 import {z} from 'zod';
 
 export const WEBHOOK_PROVIDER = 'webhook' as const;
 export const WEBHOOK_RECEIVED_EVENT = 'received' as const;
-export const WEBHOOK_RESERVED_SLUGS = ['github', 'gitea', 'sentry', 'manual', 'cron'] as const;
+export const WEBHOOK_RESERVED_SLUGS = ['manual', 'cron'] as const;
 
 const webhookReservedSlugSet = new Set<string>(WEBHOOK_RESERVED_SLUGS);
 
 export const webhookSlugSchema = z
   .string()
-  .min(1)
-  .max(50)
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+  .pipe(connectionSlugSchema)
   .refine((slug) => !webhookReservedSlugSet.has(slug), {
     message: 'Slug is reserved',
   });

@@ -27,11 +27,10 @@ describe('workflow run model mapping', () => {
       definition_id: '55555555-5555-4555-8555-555555555555',
       name: 'deploy-web',
       status: 'running',
-      source_run_id: '77777777-7777-4777-8777-777777777777',
-      root_run_id: '88888888-8888-4888-8888-888888888888',
-      attempt: 3,
-      rerun_mode: 'failed',
-      trigger_source: 'github',
+      current_attempt: 3,
+      latest_attempt: 4,
+      trigger_provider: 'github',
+      trigger_source: 'github_acme',
       trigger_event: 'push',
       trigger_payload: {ref: 'refs/heads/main'},
       inputs: {environment: 'production'},
@@ -50,14 +49,12 @@ describe('workflow run model mapping', () => {
       definitionId: '55555555-5555-4555-8555-555555555555',
       name: 'deploy-web',
       status: 'running',
-      sourceRunId: '77777777-7777-4777-8777-777777777777',
-      rootRunId: '88888888-8888-4888-8888-888888888888',
-      attempt: 3,
-      rerunMode: 'failed',
-      triggerSource: 'github',
+      currentAttempt: 3,
+      triggerProvider: 'github',
+      triggerSource: 'github_acme',
       triggerEvent: 'push',
       triggerDisplayLabel: 'push',
-      triggerLabel: 'github · push',
+      triggerLabel: 'github_acme · push',
       triggerPayload: {ref: 'refs/heads/main'},
       inputs: {environment: 'production'},
       sourceSnapshot: {format: 'yaml', content: 'jobs: {}'},
@@ -169,7 +166,7 @@ describe('workflow run model mapping', () => {
     expect(detail.latestAttempt).toBe(4);
     expect(detail.jobs[0]).toMatchObject({
       id: '44444444-4444-4444-8444-000000000001',
-      runId: '11111111-1111-4111-8111-111111111111',
+      runAttemptId: '11111111-1111-4111-8111-111111111111',
       name: 'test',
       status: 'failed',
       statusReason: 'step_failed',
@@ -177,6 +174,11 @@ describe('workflow run model mapping', () => {
       queuedAt: '2026-05-07T01:00:00.000Z',
       startedAt: '2026-05-07T01:00:05.000Z',
       finishedAt: '2026-05-07T01:02:00.000Z',
+      duration: {
+        kind: 'finished',
+        fromIso: '2026-05-07T01:00:05.000Z',
+        toIso: '2026-05-07T01:02:00.000Z',
+      },
     });
     expect(detail.jobs[0]?.steps[0]).toMatchObject({
       id: '55555555-5555-4555-8555-000000000001',
@@ -247,6 +249,7 @@ describe('workflow run model mapping', () => {
       queuedAt: null,
       startedAt: null,
       finishedAt: null,
+      duration: {kind: 'none'},
     });
     expect(detail.jobs[0]?.steps[0]).toMatchObject({
       sourceLocation: null,
@@ -260,6 +263,26 @@ describe('workflow run model mapping', () => {
       restartReason: null,
       restartResult: null,
       finishedAt: null,
+    });
+  });
+
+  test('maps queued jobs cancelled before start to no duration', () => {
+    const job = workflowJobDto({
+      status: 'cancelled',
+      queued_at: '2026-05-07T01:00:00.000Z',
+      started_at: null,
+      finished_at: '2026-05-07T01:01:00.000Z',
+    });
+    const dto = workflowRunDetailDto({jobs: [job]});
+
+    const detail = toWorkflowRunDetail(dto);
+
+    expect(detail.jobs[0]).toMatchObject({
+      status: 'cancelled',
+      queuedAt: '2026-05-07T01:00:00.000Z',
+      startedAt: null,
+      finishedAt: '2026-05-07T01:01:00.000Z',
+      duration: {kind: 'none'},
     });
   });
 
@@ -314,9 +337,12 @@ describe('workflow run model mapping', () => {
   test('maps run attempt summaries', () => {
     const dto = workflowRunAttemptDto({
       id: '77777777-7777-4777-8777-777777777777',
+      workflow_run_id: '11111111-1111-4111-8111-111111111111',
       attempt: 2,
       status: 'failed',
       created_at: '2026-05-07T01:02:00.000Z',
+      started_at: '2026-05-07T01:02:10.000Z',
+      finished_at: '2026-05-07T01:03:00.000Z',
       rerun_mode: 'all',
     });
 
@@ -324,9 +350,12 @@ describe('workflow run model mapping', () => {
 
     expect(attempt).toEqual({
       id: '77777777-7777-4777-8777-777777777777',
+      workflowRunId: '11111111-1111-4111-8111-111111111111',
       attempt: 2,
       status: 'failed',
       createdAt: '2026-05-07T01:02:00.000Z',
+      startedAt: '2026-05-07T01:02:10.000Z',
+      finishedAt: '2026-05-07T01:03:00.000Z',
       rerunMode: 'all',
     });
   });

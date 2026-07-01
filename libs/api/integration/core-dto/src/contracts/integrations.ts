@@ -9,6 +9,7 @@ export interface IntegrationConnection<
   workspaceId: string;
   provider: ProviderKind;
   externalAccountId: string;
+  slug: string;
   displayName: string;
   lifecycleStatus: IntegrationConnectionLifecycleStatus;
   createdAt: Date;
@@ -169,6 +170,28 @@ export class IntegrationProviderError extends Error {
 }
 
 export const MAX_REPOSITORY_FILE_BYTES = 1_000_000;
+
+export function toIntegrationConnectionDto(
+  connection: IntegrationConnection,
+  options: {
+    capabilities: IntegrationCapability[];
+    externalUrl?: string | undefined;
+  },
+) {
+  return {
+    id: connection.id,
+    workspace_id: connection.workspaceId,
+    provider: connection.provider,
+    external_account_id: connection.externalAccountId,
+    slug: connection.slug,
+    display_name: connection.displayName,
+    lifecycle_status: connection.lifecycleStatus,
+    capabilities: options.capabilities,
+    ...(options.externalUrl ? {external_url: options.externalUrl} : {}),
+    created_at: connection.createdAt.toISOString(),
+    updated_at: connection.updatedAt.toISOString(),
+  };
+}
 
 export function buildProviderRepositoryId(
   provider: IntegrationProviderKind,

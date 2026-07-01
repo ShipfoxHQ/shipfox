@@ -79,39 +79,39 @@ export class JobNotActiveError extends Error {
 }
 
 export class WorkflowRunNotFoundError extends Error {
-  constructor(runId: string) {
-    super(`Workflow run not found: ${runId}`);
+  constructor(workflowRunId: string) {
+    super(`Workflow run not found: ${workflowRunId}`);
     this.name = 'WorkflowRunNotFoundError';
   }
 }
 
 export class WorkflowRunNotCancellableError extends Error {
   constructor(
-    readonly runId: string,
+    readonly workflowRunId: string,
     readonly status: WorkflowRunStatus,
   ) {
-    super(`Workflow run ${runId} is ${status} and cannot be cancelled`);
+    super(`Workflow run ${workflowRunId} is ${status} and cannot be cancelled`);
     this.name = 'WorkflowRunNotCancellableError';
   }
 }
 
 export class SourceRunNotFoundError extends Error {
-  constructor(runId: string) {
-    super(`Source workflow run not found: ${runId}`);
+  constructor(workflowRunId: string) {
+    super(`Source workflow run not found: ${workflowRunId}`);
     this.name = 'SourceRunNotFoundError';
   }
 }
 
 export class RunNotTerminalError extends Error {
-  constructor(runId: string) {
-    super(`Workflow run is not terminal: ${runId}`);
+  constructor(workflowRunId: string) {
+    super(`Workflow run is not terminal: ${workflowRunId}`);
     this.name = 'RunNotTerminalError';
   }
 }
 
 export class NoFailedJobsError extends Error {
-  constructor(runId: string) {
-    super(`Workflow run has no failed or cancelled jobs to re-run: ${runId}`);
+  constructor(workflowRunId: string) {
+    super(`Workflow run has no failed or cancelled jobs to re-run: ${workflowRunId}`);
     this.name = 'NoFailedJobsError';
   }
 }

@@ -1,6 +1,7 @@
 import type {Job} from './job.js';
 import type {JobExecution} from './job-execution.js';
 import type {Step, StepAttempt} from './step.js';
+import type {WorkflowRunAttempt} from './workflow-run-attempt.js';
 
 export type WorkflowRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
@@ -58,11 +59,8 @@ export interface WorkflowRun {
   definitionId: string;
   name: string;
   status: WorkflowRunStatus;
-  sourceRunId: string | null;
-  rootRunId: string | null;
-  attempt: number;
-  rerunMode: 'all' | 'failed' | null;
-  rerunByUserId: string | null;
+  currentAttempt: number;
+  triggerProvider: string | null;
   triggerSource: string;
   triggerEvent: string;
   triggerPayload: TriggerPayload;
@@ -74,14 +72,6 @@ export interface WorkflowRun {
   updatedAt: Date;
   startedAt: Date | null;
   finishedAt: Date | null;
-}
-
-export interface RunAttemptSummary {
-  id: string;
-  attempt: number;
-  status: WorkflowRunStatus;
-  createdAt: Date;
-  rerunMode: 'all' | 'failed' | null;
 }
 
 export interface StepDetail extends Step {
@@ -97,5 +87,7 @@ export interface WorkflowJobDetail extends Job {
 }
 
 export interface WorkflowRunDetail extends WorkflowRun {
+  runAttempt: WorkflowRunAttempt;
+  latestAttempt: number;
   jobs: WorkflowJobDetail[];
 }

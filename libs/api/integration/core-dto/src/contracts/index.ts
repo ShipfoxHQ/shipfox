@@ -27,4 +27,5 @@ export {
   IntegrationProviderError,
   MAX_REPOSITORY_FILE_BYTES,
   parseProviderRepositoryId,
+  toIntegrationConnectionDto,
 } from './integrations.js';

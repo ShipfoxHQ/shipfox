@@ -21,6 +21,7 @@ const githubConnection = {
   workspace_id: INTEGRATIONS_TEST_WID,
   provider: 'github',
   external_account_id: 'installation-1',
+  slug: 'github_acme_corp',
   display_name: 'acme-corp',
   lifecycle_status: 'active',
   capabilities: ['source_control'],

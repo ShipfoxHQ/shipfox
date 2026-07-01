@@ -1,4 +1,7 @@
-import type {IntegrationProviderErrorReason} from '@shipfox/api-integration-core-dto';
+import {
+  ConnectionSlugConflictError,
+  type IntegrationProviderErrorReason,
+} from '@shipfox/api-integration-core-dto';
 import {ClientError} from '@shipfox/node-fastify';
 import {
   SentryClaimProofMismatchError,
@@ -23,6 +26,9 @@ export function sentryRouteErrorHandler(error: unknown): never {
   }
   if (error instanceof SentryClaimProofMismatchError) {
     throw new ClientError(error.message, 'sentry-claim-proof-mismatch', {status: 403});
+  }
+  if (error instanceof ConnectionSlugConflictError) {
+    throw new ClientError(error.message, 'slug-conflict', {status: 409});
   }
   if (error instanceof SentryVerificationInProgressError) {
     // Retryable: a concurrent webhook is mid-exchange. 503 + retry_after lands in

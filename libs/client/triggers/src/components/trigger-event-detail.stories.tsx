@@ -42,7 +42,7 @@ const withRouter: Decorator = (Story) => {
   });
   const runRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/workspaces/$wid/projects/$pid/runs/$runId',
+    path: '/workspaces/$wid/projects/$pid/runs/$workflowRunId',
     component: StoryRoute,
   });
   const router = createRouter({
@@ -58,7 +58,8 @@ const routedEvent: TriggerEventDetailResponseDto = {
   event_ref: 'github:delivery-179:push',
   origin: 'integration',
   workspace_id: WORKSPACE_ID,
-  source: 'github',
+  provider: 'github',
+  source: 'github_acme',
   event: 'push',
   delivery_id: 'delivery-179',
   connection_id: '55555555-5555-4555-8555-555555555555',

@@ -17,7 +17,7 @@ const JOB_STATUS_REASON_SET = new Set<JobStatusReason>(JOB_STATUS_REASONS);
 
 export interface Job {
   id: string;
-  runId: string;
+  workflowRunAttemptId: string;
   name: string;
   status: JobStatus;
   statusReason: JobStatusReason | null;
@@ -36,6 +36,12 @@ export interface Job {
   finishedAt: Date | null;
 }
 
+export type JobDuration =
+  | {kind: 'none'}
+  | {kind: 'queued'; from: Date}
+  | {kind: 'running'; from: Date}
+  | {kind: 'finished'; from: Date; to: Date};
+
 export type TerminalJobStatus = Extract<
   JobStatus,
   'succeeded' | 'failed' | 'cancelled' | 'skipped'
@@ -45,6 +51,20 @@ const TERMINAL_JOB_STATUSES = new Set<JobStatus>(['succeeded', 'failed', 'cancel
 
 export function isJobTerminal(status: JobStatus): status is TerminalJobStatus {
   return TERMINAL_JOB_STATUSES.has(status);
+}
+
+export function jobDurationFor(
+  job: Pick<Job, 'queuedAt' | 'startedAt' | 'finishedAt'>,
+): JobDuration {
+  const {queuedAt, startedAt, finishedAt} = job;
+
+  if (startedAt !== null && finishedAt !== null) {
+    return {kind: 'finished', from: startedAt, to: finishedAt};
+  }
+
+  if (startedAt !== null) return {kind: 'running', from: startedAt};
+  if (finishedAt === null && queuedAt !== null) return {kind: 'queued', from: queuedAt};
+  return {kind: 'none'};
 }
 
 export function toJobStatusReason(value: string | null): JobStatusReason | null {

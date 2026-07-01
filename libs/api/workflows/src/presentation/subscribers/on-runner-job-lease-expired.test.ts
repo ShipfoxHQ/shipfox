@@ -12,9 +12,10 @@ function buildPayload(
   overrides: Partial<RunnerJobLeaseExpiredEvent> = {},
 ): RunnerJobLeaseExpiredEvent {
   return {
+    workflowRunId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
     jobId: crypto.randomUUID(),
     jobExecutionId: crypto.randomUUID(),
-    runId: crypto.randomUUID(),
     ...overrides,
   };
 }
@@ -33,6 +34,19 @@ describe('onRunnerJobLeaseExpired', () => {
 
     expect(getHandleMock).toHaveBeenCalledWith(`job:${payload.jobId}`);
     expect(signalMock).toHaveBeenCalledWith('job-lease-expired');
+  });
+
+  it('routes a stale-attempt event only to the payload job workflow', async () => {
+    const previousAttemptJobId = crypto.randomUUID();
+    const payload = buildPayload({
+      jobId: previousAttemptJobId,
+      workflowRunAttemptId: crypto.randomUUID(),
+    });
+
+    await onRunnerJobLeaseExpired(payload);
+
+    expect(getHandleMock).toHaveBeenCalledTimes(1);
+    expect(getHandleMock).toHaveBeenCalledWith(`job:${previousAttemptJobId}`);
   });
 
   it('discards a late event when the job workflow already terminated', async () => {

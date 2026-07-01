@@ -6,6 +6,11 @@ setup = """
 mise trust
 mise install
 if [ "${CONDUCTOR_IS_LOCAL:-1}" = "1" ]; then
+  if [ -n "${CONDUCTOR_ROOT_PATH:-}" ]; then
+    mise -C "$CONDUCTOR_ROOT_PATH" trust
+    mise -C "$CONDUCTOR_ROOT_PATH" install
+  fi
+  mise run ollama:up
   mise exec -- node dev/worktree-services.mjs up
 fi
 mise exec -- pnpm -r install --frozen-lockfile

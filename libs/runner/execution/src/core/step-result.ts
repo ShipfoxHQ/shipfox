@@ -1,4 +1,4 @@
-import type {StepErrorDtoShape} from '@shipfox/api-workflows-dto';
+import type {StepErrorDto} from '@shipfox/api-workflows-dto';
 
 export interface StepResult {
   success: boolean;
@@ -7,7 +7,7 @@ export interface StepResult {
   // (onOutput sink) rather than being buffered here. Never sent to the API.
   output?: string;
   // Populated when success is false. Null on success.
-  error: StepErrorDtoShape;
+  error: StepErrorDto;
   // 0 on success, the exit code on failure, null when signal-killed or never spawned.
   exit_code: number | null;
 }

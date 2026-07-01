@@ -166,6 +166,7 @@ export async function handleGiteaPush(
   const result = await params.publishSourcePush({
     tx: params.tx,
     provider: giteaProviderKind,
+    source: connection.slug,
     workspaceId: connection.workspaceId,
     connectionId: connection.id,
     connectionName: connection.displayName,

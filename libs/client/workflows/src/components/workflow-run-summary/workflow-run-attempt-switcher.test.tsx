@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event';
 import {workflowRunsQueryKeys} from '#hooks/api/workflow-runs.js';
 import {
   runAttemptsResponseDto,
-  workflowRun,
   workflowRunAttemptDto,
+  workflowRunDetail,
 } from '#test/fixtures/workflow-run.js';
 import {jsonResponse, PROJECT_TEST_WID, renderProjectPage} from '#test/pages.js';
 import {WorkflowRunAttemptSwitcher} from './workflow-run-attempt-switcher.js';
@@ -148,7 +148,7 @@ describe('WorkflowRunAttemptSwitcher', () => {
     });
     const {queryClient} = renderSwitcher({latestAttempt: 3});
     queryClient.setQueryData(
-      workflowRunsQueryKeys.attempts(ROOT_RUN_ID),
+      workflowRunsQueryKeys.attempts(CURRENT_RUN_ID),
       runAttemptsResponseDto({
         attempts: [
           workflowRunAttemptDto({id: ROOT_RUN_ID, attempt: 1}),
@@ -181,7 +181,7 @@ describe('WorkflowRunAttemptSwitcher', () => {
       ),
     });
     const {router} = renderSwitcher({
-      path: `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${CURRENT_RUN_ID}?job=job-1&step=step-1&attempt=attempt-1`,
+      path: `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${CURRENT_RUN_ID}?job=job-1&step=step-1&stepAttempt=attempt-1`,
     });
 
     await user.click(await screen.findByRole('button', {name: 'Switch attempt, currently 2 of 4'}));
@@ -189,17 +189,17 @@ describe('WorkflowRunAttemptSwitcher', () => {
 
     expect(attemptLink).toHaveAttribute(
       'href',
-      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${ROOT_RUN_ID}`,
+      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${CURRENT_RUN_ID}?runAttempt=1`,
     );
 
     await user.click(attemptLink);
 
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
-        `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${ROOT_RUN_ID}`,
+        `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${CURRENT_RUN_ID}`,
       ),
     );
-    expect(router.state.location.search).toEqual({});
+    expect(router.state.location.search).toEqual({runAttempt: 1});
   });
 });
 
@@ -210,10 +210,15 @@ function renderSwitcher({
   latestAttempt?: number | undefined;
   path?: string | undefined;
 } = {}) {
-  const run = workflowRun({
+  const run = workflowRunDetail({
     id: CURRENT_RUN_ID,
-    root_run_id: ROOT_RUN_ID,
-    attempt: 2,
+    current_attempt: 2,
+    latest_attempt: latestAttempt,
+    run_attempt: workflowRunAttemptDto({
+      id: CURRENT_RUN_ID,
+      workflow_run_id: CURRENT_RUN_ID,
+      attempt: 2,
+    }),
   });
 
   return renderProjectPage(path, () => (

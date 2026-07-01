@@ -1,4 +1,4 @@
-import type {AgentConfigIssue} from '@shipfox/api-workflows-dto';
+import type {AgentConfigIssueDto} from '@shipfox/api-workflows-dto';
 
 /**
  * A user-fixable agent-step configuration failure: an unknown provider, a
@@ -10,7 +10,7 @@ import type {AgentConfigIssue} from '@shipfox/api-workflows-dto';
 export class AgentConfigError extends Error {
   constructor(
     message: string,
-    public readonly agentConfigIssue: AgentConfigIssue = 'step_config_invalid',
+    public readonly agentConfigIssue: AgentConfigIssueDto = 'step_config_invalid',
   ) {
     super(message);
     this.name = 'AgentConfigError';

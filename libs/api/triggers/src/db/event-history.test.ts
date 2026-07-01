@@ -21,6 +21,7 @@ function buildEventParams(
     eventRef: crypto.randomUUID(),
     origin: 'integration',
     workspaceId: crypto.randomUUID(),
+    provider: 'github',
     source: 'github',
     event: 'push',
     deliveryId: null,
@@ -66,6 +67,7 @@ describe('insertReceivedEvent', () => {
       .from(triggersReceivedEvents)
       .where(eq(triggersReceivedEvents.id, id));
     expect(row?.eventRef).toBe(params.eventRef);
+    expect(row?.provider).toBe('github');
     expect(row?.outcome).toBe('received');
     expect(row?.matchedCount).toBe(0);
   });

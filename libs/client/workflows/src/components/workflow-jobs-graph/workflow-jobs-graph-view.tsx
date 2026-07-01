@@ -13,7 +13,10 @@ export function WorkflowJobsGraphView({
   className,
 }: {
   model: WorkflowJobGraphModel;
-  trigger: Pick<WorkflowRunDetail, 'triggerDisplayLabel' | 'triggerLabel' | 'triggerSource'>;
+  trigger: Pick<
+    WorkflowRunDetail,
+    'triggerDisplayLabel' | 'triggerLabel' | 'triggerProvider' | 'triggerSource'
+  >;
   selectedJobId?: string | undefined;
   defaultSelectedJobId?: string | undefined;
   onSelectedJobChange?: ((jobId: string | undefined) => void) | undefined;

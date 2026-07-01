@@ -1,4 +1,7 @@
 import {z} from 'zod';
+import {connectionSlugSchema} from '#slug.js';
+
+export {connectionSlugSchema};
 
 export const integrationProviderKindSchema = z.string().min(1);
 export type IntegrationProviderKindDto = z.infer<typeof integrationProviderKindSchema>;
@@ -38,6 +41,7 @@ export const integrationConnectionDtoSchema = z.object({
   workspace_id: z.string().uuid(),
   provider: integrationProviderKindSchema,
   external_account_id: z.string(),
+  slug: connectionSlugSchema,
   display_name: z.string(),
   lifecycle_status: integrationConnectionLifecycleStatusSchema,
   capabilities: z.array(integrationCapabilitySchema),

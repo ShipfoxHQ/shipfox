@@ -2,8 +2,8 @@ import {
   agentConfigIssueSchema,
   type StepAttemptDto,
   type StepDto,
-  type StepErrorCategory,
-  type StepErrorDtoShape,
+  type StepErrorCategoryDto,
+  type StepErrorDto,
   type StepGateResultDto,
   type StepRestartResultDto,
   stepErrorReasonSchema,
@@ -17,8 +17,8 @@ import {GATE_EVALUATION_ERROR_REASON} from '#core/step-transition/evaluate-gate.
 // in (server-authoritative, never trusted from the runner).
 function toStepErrorDto(
   error: Record<string, unknown> | null,
-  category: StepErrorCategory,
-): StepErrorDtoShape {
+  category: StepErrorCategoryDto,
+): StepErrorDto {
   if (error === null) return null;
   const message = typeof error.message === 'string' ? error.message : '';
   const exitCode = error.exitCode;
@@ -39,9 +39,7 @@ function toStepErrorDto(
 // camelCase so the read path renders them back without a special case. `category`
 // is intentionally NOT persisted — the server derives it from the step type on
 // read, so a runner-supplied category is ignored here.
-export function fromStepErrorDto(
-  error: StepErrorDtoShape | undefined,
-): Record<string, unknown> | null {
+export function fromStepErrorDto(error: StepErrorDto | undefined): Record<string, unknown> | null {
   if (!error) return null;
   return {
     message: error.message,

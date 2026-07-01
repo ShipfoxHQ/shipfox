@@ -1,7 +1,7 @@
-import type {RuntimeCompletionStatus, RuntimeDagJob} from '../entities/runtime-dag.js';
+import type {RuntimeCompletionStatus, RuntimeDagNode} from './runtime-dag.js';
 import {scheduleRuntimeDag} from './schedule-runtime-dag.js';
 
-function job(name: string, dependencies: readonly string[] = []): RuntimeDagJob {
+function job(name: string, dependencies: readonly string[] = []): RuntimeDagNode {
   return {id: `job-${name}`, name, dependencies, version: 1};
 }
 
@@ -11,7 +11,7 @@ function completed(
   return new Map(Object.entries(entries));
 }
 
-function commandKinds(jobs: readonly RuntimeDagJob[], entries = completed({})): readonly string[] {
+function commandKinds(jobs: readonly RuntimeDagNode[], entries = completed({})): readonly string[] {
   return scheduleRuntimeDag({jobs, completed: entries}).map((command) => command.kind);
 }
 

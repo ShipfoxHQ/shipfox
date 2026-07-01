@@ -30,7 +30,7 @@ export interface AppendLogsParams {
   jobId: string;
   workspaceId: string;
   projectId: string;
-  runId: string;
+  workflowRunAttemptId: string;
   stepId: string;
   attempt: number;
   offset: number;
@@ -247,7 +247,7 @@ export async function appendLogs(params: AppendLogsParams): Promise<AppendLogsRe
       attempt: params.attempt,
       workspaceId: params.workspaceId,
       projectId: params.projectId,
-      runId: params.runId,
+      workflowRunAttemptId: params.workflowRunAttemptId,
     });
     metrics.streamOpened = created;
 

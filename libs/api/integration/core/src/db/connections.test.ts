@@ -1,3 +1,4 @@
+import {ConnectionSlugConflictError} from '@shipfox/api-integration-core-dto';
 import {upsertGithubInstallation} from '@shipfox/api-integration-github';
 import {IntegrationConnectionAlreadyExistsError} from '#core/errors.js';
 import {
@@ -6,6 +7,7 @@ import {
   getIntegrationConnectionById,
   listIntegrationConnections,
   listIntegrationConnectionsByProvider,
+  resolveUniqueConnectionSlug,
   updateIntegrationConnectionLifecycleStatus,
   upsertIntegrationConnection,
 } from './connections.js';
@@ -23,6 +25,7 @@ describe('integration connection queries', () => {
       workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug',
       displayName: 'Debug',
     });
 
@@ -30,11 +33,13 @@ describe('integration connection queries', () => {
       workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug_renamed',
       displayName: 'Renamed Debug',
     });
 
     expect(second.id).toBe(first.id);
     expect(second.displayName).toBe('Renamed Debug');
+    expect(second.slug).toBe('debug');
   });
 
   it('allows multiple same-provider connections when external account differs', async () => {
@@ -42,12 +47,14 @@ describe('integration connection queries', () => {
       workspaceId,
       provider: 'debug',
       externalAccountId: 'debug-1',
+      slug: 'debug_1',
       displayName: 'Debug One',
     });
     await upsertIntegrationConnection({
       workspaceId,
       provider: 'debug',
       externalAccountId: 'debug-2',
+      slug: 'debug_2',
       displayName: 'Debug Two',
     });
 
@@ -56,11 +63,57 @@ describe('integration connection queries', () => {
     expect(result).toHaveLength(2);
   });
 
+  it('resolves a unique slug in workspace scope', async () => {
+    await upsertIntegrationConnection({
+      workspaceId,
+      provider: 'debug',
+      externalAccountId: 'debug-1',
+      slug: 'debug',
+      displayName: 'Debug One',
+    });
+    await upsertIntegrationConnection({
+      workspaceId,
+      provider: 'github',
+      externalAccountId: 'debug-2',
+      slug: 'debug_2',
+      displayName: 'Debug Two',
+    });
+
+    const result = await resolveUniqueConnectionSlug({
+      workspaceId,
+      provider: 'debug',
+      externalAccountId: 'debug-3',
+      baseSlug: 'debug',
+    });
+
+    expect(result).toBe('debug_3');
+  });
+
+  it('keeps the existing slug when resolving a reconnect', async () => {
+    await upsertIntegrationConnection({
+      workspaceId,
+      provider: 'sentry',
+      externalAccountId: 'install-uuid',
+      slug: 'sentry_prod',
+      displayName: 'Sentry',
+    });
+
+    const result = await resolveUniqueConnectionSlug({
+      workspaceId,
+      provider: 'sentry',
+      externalAccountId: 'install-uuid',
+      baseSlug: 'sentry_renamed',
+    });
+
+    expect(result).toBe('sentry_prod');
+  });
+
   it('creates a connection without upserting duplicates', async () => {
     const first = await createIntegrationConnection({
       workspaceId,
       provider: 'webhook',
       externalAccountId: 'stripe',
+      slug: 'stripe',
       displayName: 'Stripe',
     });
 
@@ -68,6 +121,7 @@ describe('integration connection queries', () => {
       workspaceId,
       provider: 'webhook',
       externalAccountId: 'stripe',
+      slug: 'stripe_renamed',
       displayName: 'Renamed Stripe',
     });
 
@@ -78,23 +132,46 @@ describe('integration connection queries', () => {
     expect(connections[0]?.displayName).toBe('Stripe');
   });
 
+  it('reports slug collisions separately from duplicate external accounts', async () => {
+    await createIntegrationConnection({
+      workspaceId,
+      provider: 'webhook',
+      externalAccountId: 'stripe',
+      slug: 'stripe',
+      displayName: 'Stripe',
+    });
+
+    const result = createIntegrationConnection({
+      workspaceId,
+      provider: 'webhook',
+      externalAccountId: 'stripe-prod',
+      slug: 'stripe',
+      displayName: 'Stripe prod',
+    });
+
+    await expect(result).rejects.toBeInstanceOf(ConnectionSlugConflictError);
+  });
+
   it('lists workspace connections across all lifecycle statuses', async () => {
     await upsertIntegrationConnection({
       workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug',
       displayName: 'Debug',
     });
     await upsertIntegrationConnection({
       workspaceId,
       provider: 'github',
       externalAccountId: 'team-1',
+      slug: 'github_team_1',
       displayName: 'GitHub',
     });
     await upsertIntegrationConnection({
       workspaceId,
       provider: 'github',
       externalAccountId: 'installation-1',
+      slug: 'github_installation_1',
       displayName: 'GitHub',
       lifecycleStatus: 'disabled',
     });
@@ -114,18 +191,21 @@ describe('integration connection queries', () => {
       workspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug',
       displayName: 'Debug',
     });
     const debugB = await upsertIntegrationConnection({
       workspaceId: otherWorkspaceId,
       provider: 'debug',
       externalAccountId: 'debug',
+      slug: 'debug',
       displayName: 'Debug',
     });
     const github = await upsertIntegrationConnection({
       workspaceId,
       provider: 'github',
       externalAccountId: 'gh-1',
+      slug: 'github_gh_1',
       displayName: 'GitHub',
     });
 
@@ -142,6 +222,7 @@ describe('integration connection queries', () => {
       workspaceId,
       provider: 'sentry',
       externalAccountId: 'install-uuid',
+      slug: 'sentry_install_uuid',
       displayName: 'Sentry acme',
     });
 
@@ -169,6 +250,7 @@ describe('integration connection queries', () => {
       workspaceId,
       provider: 'webhook',
       externalAccountId: 'stripe',
+      slug: 'stripe',
       displayName: 'Stripe',
     });
 
@@ -187,6 +269,7 @@ describe('integration connection queries', () => {
           workspaceId,
           provider: 'github',
           externalAccountId: '123',
+          slug: 'github_123',
           displayName: 'GitHub shipfox',
         },
         {tx},

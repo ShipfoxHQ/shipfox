@@ -41,6 +41,7 @@ export async function dispatchIntegrationEvent(
     eventRef: params.eventRef,
     origin: 'integration',
     workspaceId: params.workspaceId,
+    provider: params.provider,
     source: params.source,
     event: params.event,
     deliveryId: params.deliveryId,

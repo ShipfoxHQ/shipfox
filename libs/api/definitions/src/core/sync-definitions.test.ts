@@ -36,6 +36,7 @@ function sourceControl(
           workspaceId: 'workspace-1',
           provider: 'debug',
           externalAccountId: 'debug',
+          slug: 'debug',
           displayName: 'Debug',
           lifecycleStatus: 'active' as const,
           createdAt: new Date(),

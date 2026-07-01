@@ -10,10 +10,10 @@ import {
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
+  WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
-  WORKFLOWS_WORKFLOW_RUN_CREATED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
-  type WorkflowsEventMap,
+  type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
 import {createWorkflowExpression, evaluateWorkflowPredicate} from '@shipfox/expression';
 import {
@@ -34,7 +34,6 @@ import {
   isNull,
   lte,
   notInArray,
-  or,
   type SQL,
   sql,
 } from 'drizzle-orm';
@@ -46,12 +45,10 @@ import {
   toJobStatusReason,
 } from '#core/entities/job.js';
 import type {JobExecution, JobExecutionStatus} from '#core/entities/job-execution.js';
-import type {RuntimeCompletionStatus} from '#core/entities/runtime-dag.js';
 import type {Step, StepAttempt, StepAttemptStatus, StepStatus} from '#core/entities/step.js';
 import {
   isWorkflowRunTerminal,
   type JobExecutionDetail,
-  type RunAttemptSummary,
   type StepDetail,
   type TriggerPayload,
   type WorkflowJobDetail,
@@ -74,6 +71,7 @@ import {
   assembleWorkflowRunContext,
   materializeWorkflowModel,
 } from '#core/workflow-runtime/index.js';
+import type {RuntimeCompletionStatus} from '#core/workflow-runtime/runtime-dag.js';
 import {
   recordWorkflowJobExecutionLeaseExpiryResolved,
   recordWorkflowJobExecutionQueued,
@@ -91,6 +89,7 @@ import {jobs, toJob} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
 import {stepAttempts, toStepAttempt} from './schema/step-attempts.js';
 import {steps, toStep} from './schema/steps.js';
+import {toWorkflowRunAttempt, workflowRunAttempts} from './schema/workflow-run-attempts.js';
 import {toWorkflowRun, workflowRuns} from './schema/workflow-runs.js';
 
 const TERMINAL_WORKFLOW_RUN_STATUSES: WorkflowRunStatus[] = ['succeeded', 'failed', 'cancelled'];
@@ -120,6 +119,8 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         definitionId: params.definitionId,
         name: params.name ?? params.model.name,
         status: 'pending',
+        currentAttempt: 1,
+        triggerProvider: params.triggerPayload.provider ?? null,
         triggerSource: params.triggerPayload.source,
         triggerEvent: params.triggerPayload.event,
         triggerPayload: params.triggerPayload,
@@ -151,6 +152,16 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
     }
 
     const run = toWorkflowRun(runRow);
+    const [attemptRow] = await tx
+      .insert(workflowRunAttempts)
+      .values({
+        workflowRunId: runRow.id,
+        attempt: 1,
+        status: 'pending',
+      })
+      .returning();
+    if (!attemptRow) throw new Error('Insert returned no rows');
+
     // Resolving templates here gives interpolation access to the inserted run id.
     // If resolution fails, the transaction rolls back the run, jobs, steps, and outbox event together.
     const materializedJobs = materializeWorkflowModel({
@@ -171,7 +182,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         .insert(jobs)
         .values(
           materializedJobs.map((job) => ({
-            runId: runRow.id,
+            workflowRunAttemptId: attemptRow.id,
             name: job.sourceName,
             status: 'pending' as const,
             success: job.success ?? null,
@@ -228,10 +239,12 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
       await tx.insert(steps).values(stepValues);
     }
 
-    await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
-      type: WORKFLOWS_WORKFLOW_RUN_CREATED,
+    await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+      type: WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
       payload: {
-        runId: runRow.id,
+        workflowRunId: runRow.id,
+        workflowRunAttemptId: attemptRow.id,
+        attempt: attemptRow.attempt,
         workspaceId: runRow.workspaceId,
         projectId: runRow.projectId,
         definitionId: runRow.definitionId,
@@ -239,7 +252,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
     });
 
     logTemplateDiagnostics({
-      runId: runRow.id,
+      workflowRunId: runRow.id,
       diagnostics: materializedJobs.flatMap((job) =>
         job.steps.flatMap((step) =>
           (step.diagnostics ?? []).map((diagnostic) => ({
@@ -296,7 +309,7 @@ export async function lockActiveJobExecutionLeaseForUpdate(
 }
 
 export interface CreateRerunWorkflowRunParams {
-  sourceRunId: string;
+  workflowRunId: string;
   mode: 'all' | 'failed';
   actorUserId: string;
 }
@@ -305,19 +318,42 @@ export async function createRerunWorkflowRun(
   params: CreateRerunWorkflowRunParams,
 ): Promise<WorkflowRun> {
   const result = await db().transaction(async (tx) => {
+    const workflowRunId = params.workflowRunId;
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${workflowRunId}))`);
+
     const sourceRows = await tx
       .select()
       .from(workflowRuns)
-      .where(eq(workflowRuns.id, params.sourceRunId))
-      .limit(1);
+      .where(eq(workflowRuns.id, workflowRunId))
+      .limit(1)
+      .for('update');
     const sourceRow = sourceRows[0];
-    if (!sourceRow) throw new SourceRunNotFoundError(params.sourceRunId);
-    if (!isWorkflowRunTerminal(sourceRow.status)) throw new RunNotTerminalError(sourceRow.id);
+    if (!sourceRow) throw new SourceRunNotFoundError(workflowRunId);
+
+    const [sourceAttemptRow] = await tx
+      .select()
+      .from(workflowRunAttempts)
+      .where(
+        and(
+          eq(workflowRunAttempts.workflowRunId, sourceRow.id),
+          eq(workflowRunAttempts.attempt, sourceRow.currentAttempt),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    if (!sourceAttemptRow) {
+      throw new Error(
+        `Current attempt ${sourceRow.currentAttempt} missing for run ${sourceRow.id}`,
+      );
+    }
+    if (!isWorkflowRunTerminal(sourceAttemptRow.status)) {
+      throw new RunNotTerminalError(sourceRow.id);
+    }
 
     const sourceJobs = await tx
       .select()
       .from(jobs)
-      .where(eq(jobs.runId, sourceRow.id))
+      .where(eq(jobs.workflowRunAttemptId, sourceAttemptRow.id))
       .orderBy(asc(jobs.position), asc(jobs.id));
 
     if (
@@ -327,45 +363,23 @@ export async function createRerunWorkflowRun(
       throw new NoFailedJobsError(sourceRow.id);
     }
 
-    const rootRunId = sourceRow.rootRunId ?? sourceRow.id;
-    // Serialize attempt allocation per lineage; the unique index is the final guard.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${rootRunId}))`);
-
-    if (sourceRow.rootRunId === null) {
-      await tx
-        .update(workflowRuns)
-        .set({rootRunId: sourceRow.id, updatedAt: new Date()})
-        .where(and(eq(workflowRuns.id, sourceRow.id), isNull(workflowRuns.rootRunId)));
-    }
-
     const [attemptRow] = await tx
-      .select({value: sql<number>`coalesce(max(${workflowRuns.attempt}), 1)`})
-      .from(workflowRuns)
-      .where(eq(workflowRuns.rootRunId, rootRunId));
+      .select({value: sql<number>`coalesce(max(${workflowRunAttempts.attempt}), 1)`})
+      .from(workflowRunAttempts)
+      .where(eq(workflowRunAttempts.workflowRunId, sourceRow.id));
     const attempt = Number(attemptRow?.value ?? 1) + 1;
 
-    const [newRunRow] = await tx
-      .insert(workflowRuns)
+    const [newAttemptRow] = await tx
+      .insert(workflowRunAttempts)
       .values({
-        workspaceId: sourceRow.workspaceId,
-        projectId: sourceRow.projectId,
-        definitionId: sourceRow.definitionId,
-        name: sourceRow.name,
-        status: 'pending',
-        sourceRunId: sourceRow.id,
-        rootRunId,
+        workflowRunId: sourceRow.id,
         attempt,
+        status: 'pending',
         rerunMode: params.mode,
         rerunByUserId: params.actorUserId,
-        triggerSource: sourceRow.triggerSource,
-        triggerEvent: sourceRow.triggerEvent,
-        triggerPayload: sourceRow.triggerPayload,
-        inputs: sourceRow.inputs,
-        sourceSnapshot: sourceRow.sourceSnapshot,
-        triggerIdempotencyKey: null,
       })
       .returning();
-    if (!newRunRow) throw new Error('Insert returned no rows');
+    if (!newAttemptRow) throw new Error('Insert returned no rows');
 
     const sourceJobIds = sourceJobs.map((job) => job.id);
     const sourceJobExecutionRows =
@@ -403,7 +417,7 @@ export async function createRerunWorkflowRun(
               sourceJobs.map((job) => {
                 const carriedOver = params.mode === 'failed' && job.status === 'succeeded';
                 return {
-                  runId: newRunRow.id,
+                  workflowRunAttemptId: newAttemptRow.id,
                   name: job.name,
                   status: carriedOver ? ('succeeded' as const) : ('pending' as const),
                   statusReason: null,
@@ -425,7 +439,10 @@ export async function createRerunWorkflowRun(
             .insert(jobExecutions)
             .values(
               clonedJobRows.map((job) => {
-                const carriedOver = params.mode === 'failed' && job.status === 'succeeded';
+                const sourceJob = sourceJobs.find(
+                  (candidate) => candidate.position === job.position,
+                );
+                const carriedOver = params.mode === 'failed' && sourceJob?.status === 'succeeded';
                 return {
                   jobId: job.id,
                   sequence: 1,
@@ -479,10 +496,26 @@ export async function createRerunWorkflowRun(
       await tx.insert(steps).values(stepValues);
     }
 
-    await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
-      type: WORKFLOWS_WORKFLOW_RUN_CREATED,
+    const [newRunRow] = await tx
+      .update(workflowRuns)
+      .set({
+        currentAttempt: attempt,
+        status: 'pending',
+        version: sql`${workflowRuns.version} + 1`,
+        updatedAt: new Date(),
+        startedAt: null,
+        finishedAt: null,
+      })
+      .where(eq(workflowRuns.id, sourceRow.id))
+      .returning();
+    if (!newRunRow) throw new Error(`Workflow run missing after rerun: ${sourceRow.id}`);
+
+    await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
+      type: WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
       payload: {
-        runId: newRunRow.id,
+        workflowRunId: newRunRow.id,
+        workflowRunAttemptId: newAttemptRow.id,
+        attempt: newAttemptRow.attempt,
         workspaceId: newRunRow.workspaceId,
         projectId: newRunRow.projectId,
         definitionId: newRunRow.definitionId,
@@ -498,7 +531,7 @@ export async function createRerunWorkflowRun(
 }
 
 function logTemplateDiagnostics(params: {
-  readonly runId: string;
+  readonly workflowRunId: string;
   readonly diagnostics: readonly (WorkflowStepTemplateDiagnostic & {
     readonly jobName: string;
     readonly stepDisplayName: string;
@@ -507,7 +540,7 @@ function logTemplateDiagnostics(params: {
   if (params.diagnostics.length === 0) return;
 
   logger().warn(
-    {runId: params.runId, diagnostics: params.diagnostics},
+    {workflowRunId: params.workflowRunId, diagnostics: params.diagnostics},
     'Workflow interpolation resolved with diagnostics',
   );
 }
@@ -519,41 +552,62 @@ export async function getWorkflowRunById(id: string): Promise<WorkflowRun | unde
   return toWorkflowRun(row);
 }
 
-export async function listRunAttempts(params: {
-  rootRunId: string;
-  projectId: string;
-}): Promise<RunAttemptSummary[]> {
-  return await db()
-    .select({
-      id: workflowRuns.id,
-      attempt: workflowRuns.attempt,
-      status: workflowRuns.status,
-      createdAt: workflowRuns.createdAt,
-      rerunMode: workflowRuns.rerunMode,
-    })
-    .from(workflowRuns)
-    .where(
-      and(
-        or(eq(workflowRuns.rootRunId, params.rootRunId), eq(workflowRuns.id, params.rootRunId)),
-        eq(workflowRuns.projectId, params.projectId),
-      ),
-    )
-    .orderBy(asc(workflowRuns.attempt));
+export async function getWorkflowRunByAttemptId(
+  workflowRunAttemptId: string,
+): Promise<WorkflowRun | undefined> {
+  const rows = await db()
+    .select({run: workflowRuns})
+    .from(workflowRunAttempts)
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
+    .where(eq(workflowRunAttempts.id, workflowRunAttemptId))
+    .limit(1);
+  const row = rows[0];
+  return row ? toWorkflowRun(row.run) : undefined;
+}
+
+export async function getWorkflowRunAttemptById(workflowRunAttemptId: string) {
+  const rows = await db()
+    .select()
+    .from(workflowRunAttempts)
+    .where(eq(workflowRunAttempts.id, workflowRunAttemptId))
+    .limit(1);
+  const row = rows[0];
+  return row ? toWorkflowRunAttempt(row) : undefined;
+}
+
+export async function listRunAttempts(params: {workflowRunId: string; projectId: string}) {
+  return (
+    await db()
+      .select({
+        attempt: workflowRunAttempts,
+      })
+      .from(workflowRunAttempts)
+      .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
+      .where(
+        and(
+          eq(workflowRunAttempts.workflowRunId, params.workflowRunId),
+          eq(workflowRuns.projectId, params.projectId),
+        ),
+      )
+      .orderBy(asc(workflowRunAttempts.attempt))
+  ).map((row) => toWorkflowRunAttempt(row.attempt));
 }
 
 export async function getLatestAttempt(params: {
-  rootRunId: string;
+  workflowRunId: string;
   projectId: string;
 }): Promise<number> {
   const [row] = await db()
-    .select({value: sql<number>`coalesce(max(${workflowRuns.attempt}), 1)`})
-    .from(workflowRuns)
+    .select({value: sql<number>`coalesce(max(${workflowRunAttempts.attempt}), 1)`})
+    .from(workflowRunAttempts)
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
     .where(
       and(
-        eq(workflowRuns.rootRunId, params.rootRunId),
+        eq(workflowRunAttempts.workflowRunId, params.workflowRunId),
         eq(workflowRuns.projectId, params.projectId),
       ),
-    );
+    )
+    .limit(1);
 
   return Number(row?.value ?? 1);
 }
@@ -743,13 +797,29 @@ export async function getWorkflowJobExecutionDepth(
   };
 }
 
-export async function getJobsByRunId(runId: string): Promise<Job[]> {
+export async function getJobsByWorkflowRunAttemptId(workflowRunAttemptId: string): Promise<Job[]> {
   const rows = await db()
     .select()
     .from(jobs)
-    .where(eq(jobs.runId, runId))
+    .where(eq(jobs.workflowRunAttemptId, workflowRunAttemptId))
     .orderBy(asc(jobs.position));
   return rows.map(toJob);
+}
+
+export async function getJobsByWorkflowRunId(workflowRunId: string): Promise<Job[]> {
+  const run = await getWorkflowRunById(workflowRunId);
+  if (!run) return [];
+  const [attempt] = await db()
+    .select()
+    .from(workflowRunAttempts)
+    .where(
+      and(
+        eq(workflowRunAttempts.workflowRunId, run.id),
+        eq(workflowRunAttempts.attempt, run.currentAttempt),
+      ),
+    )
+    .limit(1);
+  return attempt ? getJobsByWorkflowRunAttemptId(attempt.id) : [];
 }
 
 export async function getJobById(id: string): Promise<Job | undefined> {
@@ -769,21 +839,45 @@ export async function getJobExecutionById(id: string, tx?: Tx): Promise<JobExecu
   return row ? toJobExecution(row) : undefined;
 }
 
-export async function getWorkflowRunDetail(runId: string): Promise<WorkflowRunDetail | undefined> {
+export async function getWorkflowRunDetail(
+  workflowRunId: string,
+  attempt?: number | undefined,
+): Promise<WorkflowRunDetail | undefined> {
+  const [target] = await db()
+    .select({run: workflowRuns, attempt: workflowRunAttempts})
+    .from(workflowRuns)
+    .innerJoin(
+      workflowRunAttempts,
+      and(
+        eq(workflowRunAttempts.workflowRunId, workflowRuns.id),
+        eq(workflowRunAttempts.attempt, attempt ?? workflowRuns.currentAttempt),
+      ),
+    )
+    .where(eq(workflowRuns.id, workflowRunId))
+    .limit(1);
+  if (!target) return undefined;
+
+  const latestAttempt = await getLatestAttempt({
+    workflowRunId: target.run.id,
+    projectId: target.run.projectId,
+  });
+
   const rows = await db()
     .select({
       run: workflowRuns,
+      attempt: workflowRunAttempts,
       job: jobs,
       jobExecution: jobExecutions,
       step: steps,
       stepAttempt: stepAttempts,
     })
     .from(workflowRuns)
-    .leftJoin(jobs, eq(jobs.runId, workflowRuns.id))
+    .innerJoin(workflowRunAttempts, eq(workflowRunAttempts.id, target.attempt.id))
+    .leftJoin(jobs, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
     .leftJoin(jobExecutions, eq(jobExecutions.jobId, jobs.id))
     .leftJoin(steps, eq(steps.jobExecutionId, jobExecutions.id))
     .leftJoin(stepAttempts, eq(stepAttempts.stepId, steps.id))
-    .where(eq(workflowRuns.id, runId))
+    .where(eq(workflowRuns.id, workflowRunId))
     .orderBy(
       asc(jobs.position),
       asc(jobs.id),
@@ -795,7 +889,7 @@ export async function getWorkflowRunDetail(runId: string): Promise<WorkflowRunDe
       asc(stepAttempts.id),
     );
 
-  return hydrateWorkflowRunDetail(rows);
+  return hydrateWorkflowRunDetail(rows, latestAttempt);
 }
 
 export async function getJobExecutionDetail(
@@ -809,7 +903,8 @@ export async function getJobExecutionDetail(
     })
     .from(jobExecutions)
     .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
-    .innerJoin(workflowRuns, eq(jobs.runId, workflowRuns.id))
+    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
     .leftJoin(steps, eq(steps.jobExecutionId, jobExecutions.id))
     .leftJoin(stepAttempts, eq(stepAttempts.stepId, steps.id))
     .where(eq(jobExecutions.id, jobExecutionId))
@@ -840,16 +935,23 @@ export async function getJobExecutionDetail(
 function hydrateWorkflowRunDetail(
   rows: {
     run: typeof workflowRuns.$inferSelect;
+    attempt: typeof workflowRunAttempts.$inferSelect;
     job: typeof jobs.$inferSelect | null;
     jobExecution: typeof jobExecutions.$inferSelect | null;
     step: typeof steps.$inferSelect | null;
     stepAttempt: typeof stepAttempts.$inferSelect | null;
   }[],
+  latestAttempt: number,
 ): WorkflowRunDetail | undefined {
   const first = rows[0];
   if (!first) return undefined;
 
-  const detail: WorkflowRunDetail = {...toWorkflowRun(first.run), jobs: []};
+  const detail: WorkflowRunDetail = {
+    ...toWorkflowRun(first.run),
+    runAttempt: toWorkflowRunAttempt(first.attempt),
+    latestAttempt,
+    jobs: [],
+  };
   const jobById = new Map<string, WorkflowJobDetail>();
   const jobExecutionById = new Map<string, JobExecutionDetail>();
   const stepById = new Map<string, StepDetail>();
@@ -899,7 +1001,8 @@ export async function getJobWorkspaceId(jobId: string): Promise<string | undefin
   const rows = await db()
     .select({workspaceId: workflowRuns.workspaceId})
     .from(jobs)
-    .innerJoin(workflowRuns, eq(jobs.runId, workflowRuns.id))
+    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
     .where(eq(jobs.id, jobId))
     .limit(1);
   return rows[0]?.workspaceId;
@@ -924,12 +1027,14 @@ export async function getStepsByJobExecutionId(jobExecutionId: string): Promise<
   return rows.map(toStep);
 }
 
-export async function getJobExecutionsByRunId(runId: string): Promise<JobExecution[]> {
+export async function getJobExecutionsByWorkflowRunAttemptId(
+  workflowRunAttemptId: string,
+): Promise<JobExecution[]> {
   const rows = await db()
     .select({jobExecution: jobExecutions})
     .from(jobExecutions)
     .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
-    .where(eq(jobs.runId, runId))
+    .where(eq(jobs.workflowRunAttemptId, workflowRunAttemptId))
     .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
   return rows.map((row) => toJobExecution(row.jobExecution));
 }
@@ -972,16 +1077,47 @@ export async function getLatestJobExecutionByJobId(
 }
 
 export interface CancelWorkflowRunParams {
-  runId: string;
+  workflowRunId: string;
 }
 
 export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promise<WorkflowRun> {
   const result = await db().transaction(async (tx) => {
+    const [lockedRun] = await tx
+      .select()
+      .from(workflowRuns)
+      .where(eq(workflowRuns.id, params.workflowRunId))
+      .limit(1)
+      .for('update');
+
+    if (!lockedRun) {
+      throw new WorkflowRunNotFoundError(params.workflowRunId);
+    }
+    if (isWorkflowRunTerminal(lockedRun.status)) {
+      throw new WorkflowRunNotCancellableError(lockedRun.id, lockedRun.status);
+    }
+
+    const [lockedAttempt] = await tx
+      .select()
+      .from(workflowRunAttempts)
+      .where(
+        and(
+          eq(workflowRunAttempts.workflowRunId, lockedRun.id),
+          eq(workflowRunAttempts.attempt, lockedRun.currentAttempt),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    if (!lockedAttempt) {
+      throw new Error(
+        `Current attempt ${lockedRun.currentAttempt} missing for run ${lockedRun.id}`,
+      );
+    }
+
     const runJobExecutionIds = tx
       .select({id: jobExecutions.id})
       .from(jobExecutions)
       .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
-      .where(eq(jobs.runId, params.runId));
+      .where(eq(jobs.workflowRunAttemptId, lockedAttempt.id));
 
     await tx
       .select({id: steps.id})
@@ -993,23 +1129,9 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
     const jobRows = await tx
       .select()
       .from(jobs)
-      .where(eq(jobs.runId, params.runId))
+      .where(eq(jobs.workflowRunAttemptId, lockedAttempt.id))
       .orderBy(asc(jobs.position), asc(jobs.id))
       .for('update');
-
-    const [lockedRun] = await tx
-      .select()
-      .from(workflowRuns)
-      .where(eq(workflowRuns.id, params.runId))
-      .limit(1)
-      .for('update');
-
-    if (!lockedRun) {
-      throw new WorkflowRunNotFoundError(params.runId);
-    }
-    if (isWorkflowRunTerminal(lockedRun.status)) {
-      throw new WorkflowRunNotCancellableError(lockedRun.id, lockedRun.status);
-    }
 
     const cancelledJobs: Job[] = [];
     for (const jobRow of jobRows) {
@@ -1043,6 +1165,21 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
       }
     }
 
+    await tx
+      .update(workflowRunAttempts)
+      .set({
+        status: 'cancelled',
+        version: sql`${workflowRunAttempts.version} + 1`,
+        updatedAt: new Date(),
+        finishedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(workflowRunAttempts.id, lockedAttempt.id),
+          eq(workflowRunAttempts.version, lockedAttempt.version),
+        ),
+      );
+
     const [cancelledRunRow] = await tx
       .update(workflowRuns)
       .set({
@@ -1059,18 +1196,23 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
     }
 
     const cancelledRun = toWorkflowRun(cancelledRunRow);
-    await writeOutboxEvents<WorkflowsEventMap>(tx, workflowsOutbox, [
+    await writeOutboxEvents<WorkflowsEventMapDto>(tx, workflowsOutbox, [
       {
         type: WORKFLOWS_WORKFLOW_RUN_TERMINATED,
         payload: {
-          runId: cancelledRun.id,
+          workflowRunId: cancelledRun.id,
+          workflowRunAttemptId: lockedAttempt.id,
           projectId: cancelledRun.projectId,
           status: 'cancelled',
         },
       },
       {
         type: WORKFLOWS_WORKFLOW_RUN_CANCELLED,
-        payload: {runId: cancelledRun.id, projectId: cancelledRun.projectId},
+        payload: {
+          workflowRunId: cancelledRun.id,
+          workflowRunAttemptId: lockedAttempt.id,
+          projectId: cancelledRun.projectId,
+        },
       },
     ]);
 
@@ -1084,7 +1226,8 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
 }
 
 export interface UpdateWorkflowRunStatusParams {
-  runId: string;
+  workflowRunId?: string;
+  workflowRunAttemptId?: string;
   status: WorkflowRunStatus;
   expectedVersion: number;
 }
@@ -1093,61 +1236,119 @@ export async function updateWorkflowRunStatus(
   params: UpdateWorkflowRunStatusParams,
 ): Promise<WorkflowRun> {
   const result = await db().transaction(async (tx) => {
+    const [attemptRef] = params.workflowRunAttemptId
+      ? await tx
+          .select({
+            id: workflowRunAttempts.id,
+            workflowRunId: workflowRunAttempts.workflowRunId,
+          })
+          .from(workflowRunAttempts)
+          .where(eq(workflowRunAttempts.id, params.workflowRunAttemptId))
+          .limit(1)
+      : [];
+
+    const workflowRunId = attemptRef?.workflowRunId ?? params.workflowRunId ?? '';
+    const [lockedRun] = await tx
+      .select()
+      .from(workflowRuns)
+      .where(eq(workflowRuns.id, workflowRunId))
+      .limit(1)
+      .for('update');
+
+    if (!lockedRun) {
+      throw new WorkflowRunNotFoundError(params.workflowRunId ?? params.workflowRunAttemptId ?? '');
+    }
+
+    const [lockedAttempt] = await tx
+      .select()
+      .from(workflowRunAttempts)
+      .where(
+        params.workflowRunAttemptId
+          ? eq(workflowRunAttempts.id, params.workflowRunAttemptId)
+          : and(
+              eq(workflowRunAttempts.workflowRunId, lockedRun.id),
+              eq(workflowRunAttempts.attempt, lockedRun.currentAttempt),
+            ),
+      )
+      .limit(1)
+      .for('update');
+
+    if (!lockedAttempt) {
+      throw new WorkflowRunNotFoundError(params.workflowRunId ?? params.workflowRunAttemptId ?? '');
+    }
+
+    const target = {run: lockedRun, attempt: lockedAttempt};
+
     const rows = await tx
-      .update(workflowRuns)
+      .update(workflowRunAttempts)
       .set({
         status: params.status,
-        version: sql`${workflowRuns.version} + 1`,
+        version: sql`${workflowRunAttempts.version} + 1`,
         updatedAt: new Date(),
-        // Preserve the original start time if a retried transition re-enters `running`.
-        // Both endpoints use the DB clock (`now()`): the runner module shares this
-        // Postgres instance, so every timing column sits on one clock and a duration is
-        // never subtracted across hosts.
         ...(params.status === 'running'
-          ? {startedAt: sql`coalesce(${workflowRuns.startedAt}, now())`}
+          ? {startedAt: sql`coalesce(${workflowRunAttempts.startedAt}, now())`}
           : {}),
         ...(isWorkflowRunTerminal(params.status) ? {finishedAt: sql`now()`} : {}),
       })
       .where(
         and(
-          eq(workflowRuns.id, params.runId),
-          eq(workflowRuns.version, params.expectedVersion),
-          notInArray(workflowRuns.status, TERMINAL_WORKFLOW_RUN_STATUSES),
+          eq(workflowRunAttempts.id, target.attempt.id),
+          eq(workflowRunAttempts.version, params.expectedVersion),
+          notInArray(workflowRunAttempts.status, TERMINAL_WORKFLOW_RUN_STATUSES),
         ),
       )
       .returning();
 
-    const row = rows[0];
-    if (!row) {
-      // Idempotent under Temporal retry-after-commit: the committed first attempt
-      // left the row at version+1, so this retry matches 0 rows. run-orchestration is
-      // the sole writer, so an already-matching status means the prior attempt won;
-      // return it without re-emitting, rather than throw and wedge the run.
+    const attemptRow = rows[0];
+    if (!attemptRow) {
       const existing = await tx
         .select()
-        .from(workflowRuns)
-        .where(eq(workflowRuns.id, params.runId))
+        .from(workflowRunAttempts)
+        .where(eq(workflowRunAttempts.id, target.attempt.id))
         .limit(1);
       const existingRow = existing[0];
       if (
         existingRow &&
         (existingRow.status === params.status || isWorkflowRunTerminal(existingRow.status))
       ) {
-        return {run: toWorkflowRun(existingRow), changed: false};
+        return {
+          run: {...toWorkflowRun(target.run), version: existingRow.version},
+          changed: false,
+        };
       }
       throw new Error(
-        `Optimistic lock failure: run ${params.runId} version ${params.expectedVersion}`,
+        `Optimistic lock failure: run attempt ${target.attempt.id} version ${params.expectedVersion}`,
       );
     }
 
-    const run = toWorkflowRun(row);
+    const shouldMirror = target.run.currentAttempt === attemptRow.attempt;
+    const [runRow] = shouldMirror
+      ? await tx
+          .update(workflowRuns)
+          .set({
+            status: params.status,
+            version: sql`${workflowRuns.version} + 1`,
+            updatedAt: new Date(),
+            ...(params.status === 'running'
+              ? {startedAt: sql`coalesce(${workflowRuns.startedAt}, now())`}
+              : {}),
+            ...(isWorkflowRunTerminal(params.status) ? {finishedAt: sql`now()`} : {}),
+          })
+          .where(eq(workflowRuns.id, target.run.id))
+          .returning()
+      : [target.run];
 
-    // Same as updateJobStatusAtVersion: emitting in the same transaction as the
-    // guarded status flip makes the run-terminal fact fire exactly once.
-    if (isWorkflowRunTerminal(run.status)) {
-      await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+    const run = {...toWorkflowRun(runRow ?? target.run), version: attemptRow.version};
+
+    if (shouldMirror && isWorkflowRunTerminal(run.status)) {
+      await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
         type: WORKFLOWS_WORKFLOW_RUN_TERMINATED,
-        payload: {runId: run.id, projectId: run.projectId, status: run.status},
+        payload: {
+          workflowRunId: run.id,
+          workflowRunAttemptId: attemptRow.id,
+          projectId: run.projectId,
+          status: run.status,
+        },
       });
     }
 
@@ -1279,11 +1480,25 @@ async function updateJobStatusAtVersion(
   // version match lets a single caller win. Emitting here, in the same transaction,
   // makes the terminal fact fire exactly once across all paths.
   if (isJobTerminal(job.status)) {
-    await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+    const [identity] = await tx
+      .select({
+        workflowRunId: workflowRuns.id,
+        workflowRunAttemptId: workflowRunAttempts.id,
+      })
+      .from(jobs)
+      .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+      .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
+      .where(eq(jobs.id, job.id))
+      .limit(1);
+    if (!identity) {
+      throw new Error(`Cannot enqueue job-terminal event: job ${job.id} not found`);
+    }
+    await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
       type: WORKFLOWS_JOB_TERMINATED,
       payload: {
         jobId: job.id,
-        runId: job.runId,
+        workflowRunId: identity.workflowRunId,
+        workflowRunAttemptId: identity.workflowRunAttemptId,
         status: job.status,
         statusReason: job.statusReason,
       },
@@ -1363,7 +1578,7 @@ export async function recordJobExecutionStartedAt(params: {
 
 export async function failJobExecutionAsTimedOut(params: {
   jobExecutionId: string;
-  runId: string;
+  workflowRunAttemptId: string;
   expectedVersion: number;
 }): Promise<JobExecution> {
   const result = await db().transaction(async (tx) => {
@@ -1390,12 +1605,12 @@ export async function failJobExecutionAsTimedOut(params: {
       );
     }
 
-    await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+    await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
       type: WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
       payload: {
         jobId: updated.execution.jobId,
         jobExecutionId: params.jobExecutionId,
-        runId: params.runId,
+        workflowRunAttemptId: params.workflowRunAttemptId,
       },
     });
 
@@ -1535,21 +1750,27 @@ export async function writeJobStepsSettledOutbox(
   params: {jobId: string; jobExecutionId: string; status: 'succeeded' | 'failed'},
 ): Promise<void> {
   const rows = await tx
-    .select({runId: jobs.runId})
+    .select({
+      workflowRunId: workflowRuns.id,
+      workflowRunAttemptId: workflowRunAttempts.id,
+    })
     .from(jobs)
+    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
     .where(eq(jobs.id, params.jobId))
     .limit(1);
-  const runId = rows[0]?.runId;
-  if (!runId) {
+  const identity = rows[0];
+  if (!identity) {
     throw new Error(`Cannot enqueue job-steps-settled event: job ${params.jobId} not found`);
   }
 
-  await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+  await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
     type: WORKFLOWS_JOB_STEPS_SETTLED,
     payload: {
       jobId: params.jobId,
       jobExecutionId: params.jobExecutionId,
-      runId,
+      workflowRunId: identity.workflowRunId,
+      workflowRunAttemptId: identity.workflowRunAttemptId,
       status: params.status,
     },
   });
@@ -1611,14 +1832,15 @@ export async function bulkUpdateStepStatuses(
       const firstAttempt = finalizedAttempts[0];
       if (!firstAttempt) return;
       const identity = await getStepAttemptTerminatedOutboxIdentity(tx, firstAttempt.stepId);
-      await writeOutboxEvents<WorkflowsEventMap>(
+      await writeOutboxEvents<WorkflowsEventMapDto>(
         tx,
         workflowsOutbox,
         finalizedAttempts.map((attempt) => ({
           type: WORKFLOWS_STEP_ATTEMPT_TERMINATED,
           payload: {
             jobId: identity.jobId,
-            runId: identity.runId,
+            workflowRunId: identity.workflowRunId,
+            workflowRunAttemptId: identity.workflowRunAttemptId,
             workspaceId: identity.workspaceId,
             projectId: identity.projectId,
             stepId: attempt.stepId,
@@ -1769,11 +1991,12 @@ export async function writeStepAttemptTerminatedOutbox(
 ): Promise<void> {
   const identity = await getStepAttemptTerminatedOutboxIdentity(tx, params.stepId);
 
-  await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+  await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
     type: WORKFLOWS_STEP_ATTEMPT_TERMINATED,
     payload: {
       jobId: identity.jobId,
-      runId: identity.runId,
+      workflowRunId: identity.workflowRunId,
+      workflowRunAttemptId: identity.workflowRunAttemptId,
       workspaceId: identity.workspaceId,
       projectId: identity.projectId,
       stepId: params.stepId,
@@ -1786,18 +2009,26 @@ export async function writeStepAttemptTerminatedOutbox(
 async function getStepAttemptTerminatedOutboxIdentity(
   tx: Tx,
   stepId: string,
-): Promise<{jobId: string; runId: string; workspaceId: string; projectId: string}> {
+): Promise<{
+  jobId: string;
+  workflowRunId: string;
+  workflowRunAttemptId: string;
+  workspaceId: string;
+  projectId: string;
+}> {
   const rows = await tx
     .select({
       jobId: jobExecutions.jobId,
-      runId: jobs.runId,
+      workflowRunId: workflowRuns.id,
+      workflowRunAttemptId: workflowRunAttempts.id,
       workspaceId: workflowRuns.workspaceId,
       projectId: workflowRuns.projectId,
     })
     .from(steps)
     .innerJoin(jobExecutions, eq(steps.jobExecutionId, jobExecutions.id))
     .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
-    .innerJoin(workflowRuns, eq(jobs.runId, workflowRuns.id))
+    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
     .where(eq(steps.id, stepId))
     .limit(1);
   const identity = rows[0];
@@ -1810,7 +2041,8 @@ async function getStepAttemptTerminatedOutboxIdentity(
 
 export interface TerminalStepAttemptLogState {
   jobId: string;
-  runId: string;
+  workflowRunId: string;
+  workflowRunAttemptId: string;
   workspaceId: string;
   projectId: string;
   stepId: string;
@@ -1825,7 +2057,8 @@ export async function getTerminalStepAttemptLogState(params: {
   const rows = await db()
     .select({
       jobId: jobExecutions.jobId,
-      runId: jobs.runId,
+      workflowRunId: workflowRuns.id,
+      workflowRunAttemptId: workflowRunAttempts.id,
       workspaceId: workflowRuns.workspaceId,
       projectId: workflowRuns.projectId,
       stepId: stepAttempts.stepId,
@@ -1836,7 +2069,8 @@ export async function getTerminalStepAttemptLogState(params: {
     .innerJoin(steps, eq(stepAttempts.stepId, steps.id))
     .innerJoin(jobExecutions, eq(steps.jobExecutionId, jobExecutions.id))
     .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
-    .innerJoin(workflowRuns, eq(jobs.runId, workflowRuns.id))
+    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
     .where(
       and(
         eq(stepAttempts.stepId, params.stepId),
@@ -1851,7 +2085,8 @@ export async function getTerminalStepAttemptLogState(params: {
   if (!row?.logOutcome) return undefined;
   return {
     jobId: row.jobId,
-    runId: row.runId,
+    workflowRunId: row.workflowRunId,
+    workflowRunAttemptId: row.workflowRunAttemptId,
     workspaceId: row.workspaceId,
     projectId: row.projectId,
     stepId: row.stepId,
@@ -1894,7 +2129,7 @@ export async function rewindStepsToPending(
 }
 
 // Enqueue the durable audit record of a restart, in the same transaction as the
-// rewind. Looks up the run id like writeJobStepsSettledOutbox.
+// rewind. Looks up the workflow run id like writeJobStepsSettledOutbox.
 export async function writeStepRestartEnqueuedOutbox(
   tx: Tx,
   params: {
@@ -1906,20 +2141,26 @@ export async function writeStepRestartEnqueuedOutbox(
   },
 ): Promise<void> {
   const rows = await tx
-    .select({runId: jobs.runId})
+    .select({
+      workflowRunId: workflowRuns.id,
+      workflowRunAttemptId: workflowRunAttempts.id,
+    })
     .from(jobs)
+    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
     .where(eq(jobs.id, params.jobId))
     .limit(1);
-  const runId = rows[0]?.runId;
-  if (!runId) {
+  const identity = rows[0];
+  if (!identity) {
     throw new Error(`Cannot enqueue step-restart event: job ${params.jobId} not found`);
   }
 
-  await writeOutboxEvent<WorkflowsEventMap>(tx, workflowsOutbox, {
+  await writeOutboxEvent<WorkflowsEventMapDto>(tx, workflowsOutbox, {
     type: WORKFLOWS_STEP_RESTART_ENQUEUED,
     payload: {
       jobId: params.jobId,
-      runId,
+      workflowRunId: identity.workflowRunId,
+      workflowRunAttemptId: identity.workflowRunAttemptId,
       failedStepId: params.failedStepId,
       failedStepAttempt: params.failedStepAttempt,
       restartFromStepId: params.restartFromStepId,

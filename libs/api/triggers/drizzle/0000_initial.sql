@@ -30,6 +30,7 @@ CREATE TABLE "triggers_received_events" (
 	"event_ref" text NOT NULL,
 	"origin" text NOT NULL,
 	"workspace_id" uuid NOT NULL,
+	"provider" text,
 	"source" text NOT NULL,
 	"event" text NOT NULL,
 	"delivery_id" text,

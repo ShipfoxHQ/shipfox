@@ -1,4 +1,7 @@
-import type {RunDetailResponseDto, RunResponseDto} from '@shipfox/api-workflows-dto';
+import type {
+  WorkflowRunDetailResponseDto,
+  WorkflowRunResponseDto,
+} from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {act, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -33,12 +36,12 @@ const RUN_OVERRIDES = {
   trigger_payload: {source: 'manual', event: 'fire'},
   created_at: '2026-05-07T01:01:00.000Z',
   updated_at: '2026-05-07T01:02:00.000Z',
-} satisfies Partial<RunResponseDto>;
+} satisfies Partial<WorkflowRunResponseDto>;
 const SECOND_RUN_OVERRIDES = {
   ...RUN_OVERRIDES,
   id: SECOND_RUN_ID,
   name: 'smoke-web',
-} satisfies Partial<RunResponseDto>;
+} satisfies Partial<WorkflowRunResponseDto>;
 
 describe('WorkflowRunPage', () => {
   test('keeps the runs list mounted and only skeletons the run view until a run is selected', async () => {
@@ -52,20 +55,21 @@ describe('WorkflowRunPage', () => {
     expect(screen.getByLabelText('Workflow runs')).toBeInTheDocument();
   });
 
-  test('redirects to the most recent run when opened without a run id', async () => {
+  test('redirects to the most recent run when opened without a workflow run id', async () => {
     configureApiClient({fetchImpl: createRunsListFetch()});
 
     const {router} = renderRunsPath(
-      `?job=${DEPLOY_JOB_ID}&step=${DEPLOY_STEP_ID}&attempt=${DEPLOY_ATTEMPT_TWO_ID}`,
+      `?job=${DEPLOY_JOB_ID}&step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}&runAttempt=1`,
     );
 
     // Landing on /runs with runs present redirects to the newest run, so its row becomes the
-    // selected (current) row in the rail even though the opened URL carried no run id.
+    // selected (current) row in the rail even though the opened URL carried no workflow run id.
     const selectedRow = await screen.findByRole('link', {current: 'page'});
     expect(selectedRow).toHaveTextContent('deploy-web');
     expect(currentSearch(router).job).toBeUndefined();
     expect(currentSearch(router).step).toBeUndefined();
-    expect(currentSearch(router).attempt).toBeUndefined();
+    expect(currentSearch(router).stepAttempt).toBeUndefined();
+    expect(currentSearch(router).runAttempt).toBeUndefined();
   });
 
   test('shows the first-time-use surface when the project has no runs', async () => {
@@ -82,7 +86,9 @@ describe('WorkflowRunPage', () => {
   test('restores a deep-linked job and exact attempt after data loads', async () => {
     configureApiClient({fetchImpl: createRunDetailFetch()});
 
-    renderRunPath(`?job=${BUILD_JOB_ID}&step=${DEPLOY_STEP_ID}&attempt=${DEPLOY_ATTEMPT_TWO_ID}`);
+    renderRunPath(
+      `?job=${BUILD_JOB_ID}&step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}`,
+    );
 
     const deployJob = await screen.findByRole('button', {name: 'deploy, Running'});
     const deployAttempt = await screen.findByRole('button', {
@@ -97,7 +103,9 @@ describe('WorkflowRunPage', () => {
   test('selecting a job writes job search state and clears stale step state', async () => {
     const user = userEvent.setup();
     configureApiClient({fetchImpl: createRunDetailFetch()});
-    const {router} = renderRunPath(`?step=${DEPLOY_STEP_ID}&attempt=${DEPLOY_ATTEMPT_TWO_ID}`);
+    const {router} = renderRunPath(
+      `?step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}&runAttempt=1`,
+    );
 
     await user.click(await screen.findByRole('button', {name: 'build, Succeeded'}));
 
@@ -105,7 +113,7 @@ describe('WorkflowRunPage', () => {
       expect(currentSearch(router)).toMatchObject({job: BUILD_JOB_ID});
     });
     expect(currentSearch(router).step).toBeUndefined();
-    expect(currentSearch(router).attempt).toBeUndefined();
+    expect(currentSearch(router).stepAttempt).toBeUndefined();
     expect(screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'})).toHaveAttribute(
       'aria-expanded',
       'false',
@@ -123,7 +131,7 @@ describe('WorkflowRunPage', () => {
       expect(currentSearch(router)).toMatchObject({
         job: DEPLOY_JOB_ID,
         step: DEPLOY_STEP_ID,
-        attempt: DEPLOY_ATTEMPT_TWO_ID,
+        stepAttempt: DEPLOY_ATTEMPT_TWO_ID,
       });
     });
   });
@@ -131,7 +139,7 @@ describe('WorkflowRunPage', () => {
   test('collapsing an attempt removes step and attempt while preserving job', async () => {
     const user = userEvent.setup();
     configureApiClient({fetchImpl: createRunDetailFetch()});
-    const {router} = renderRunPath(`?step=${DEPLOY_STEP_ID}&attempt=${DEPLOY_ATTEMPT_TWO_ID}`);
+    const {router} = renderRunPath(`?step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}`);
 
     const deployAttempt = await screen.findByRole('button', {
       name: 'deploy, Running, attempt 2',
@@ -142,7 +150,7 @@ describe('WorkflowRunPage', () => {
       expect(currentSearch(router)).toMatchObject({job: DEPLOY_JOB_ID});
     });
     expect(currentSearch(router).step).toBeUndefined();
-    expect(currentSearch(router).attempt).toBeUndefined();
+    expect(currentSearch(router).stepAttempt).toBeUndefined();
     expect(deployAttempt).toHaveAttribute('aria-expanded', 'false');
   });
 
@@ -153,7 +161,7 @@ describe('WorkflowRunPage', () => {
 
     await user.click(await screen.findByRole('button', {name: 'deploy, Running, attempt 2'}));
     await waitFor(() => {
-      expect(currentSearch(router).attempt).toBe(DEPLOY_ATTEMPT_TWO_ID);
+      expect(currentSearch(router).stepAttempt).toBe(DEPLOY_ATTEMPT_TWO_ID);
     });
 
     await act(() => {
@@ -163,7 +171,7 @@ describe('WorkflowRunPage', () => {
       expect(currentSearch(router)).toMatchObject({job: DEPLOY_JOB_ID});
     });
     expect(currentSearch(router).step).toBeUndefined();
-    expect(currentSearch(router).attempt).toBeUndefined();
+    expect(currentSearch(router).stepAttempt).toBeUndefined();
     expect(screen.getByRole('button', {name: 'deploy, Running, attempt 2'})).toHaveAttribute(
       'aria-expanded',
       'false',
@@ -173,7 +181,7 @@ describe('WorkflowRunPage', () => {
       router.history.forward();
     });
     await waitFor(() => {
-      expect(currentSearch(router).attempt).toBe(DEPLOY_ATTEMPT_TWO_ID);
+      expect(currentSearch(router).stepAttempt).toBe(DEPLOY_ATTEMPT_TWO_ID);
     });
     expect(screen.getByRole('button', {name: 'deploy, Running, attempt 2'})).toHaveAttribute(
       'aria-expanded',
@@ -192,7 +200,7 @@ describe('WorkflowRunPage', () => {
         },
       }),
     });
-    const {router} = renderRunPath(`?step=${DEPLOY_STEP_ID}&attempt=${DEPLOY_ATTEMPT_TWO_ID}`);
+    const {router} = renderRunPath(`?step=${DEPLOY_STEP_ID}&stepAttempt=${DEPLOY_ATTEMPT_TWO_ID}`);
 
     await user.click(await screen.findByRole('link', {name: SMOKE_WEB_RE}));
 
@@ -201,15 +209,20 @@ describe('WorkflowRunPage', () => {
     });
     expect(currentSearch(router).job).toBeUndefined();
     expect(currentSearch(router).step).toBeUndefined();
-    expect(currentSearch(router).attempt).toBeUndefined();
+    expect(currentSearch(router).stepAttempt).toBeUndefined();
+    expect(currentSearch(router).runAttempt).toBeUndefined();
   });
 });
 
 function renderRunsPath(search = '') {
   return renderProjectPage(
     `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs${search}`,
-    ({runId}) => (
-      <WorkflowRunPage workspaceId={PROJECT_TEST_WID} projectId={PROJECT_ID} runId={runId} />
+    ({workflowRunId}) => (
+      <WorkflowRunPage
+        workspaceId={PROJECT_TEST_WID}
+        projectId={PROJECT_ID}
+        workflowRunId={workflowRunId}
+      />
     ),
   );
 }
@@ -217,8 +230,12 @@ function renderRunsPath(search = '') {
 function renderRunPath(search = '') {
   return renderProjectPage(
     `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${RUN_ID}${search}`,
-    ({runId}) => (
-      <WorkflowRunPage workspaceId={PROJECT_TEST_WID} projectId={PROJECT_ID} runId={runId} />
+    ({workflowRunId}) => (
+      <WorkflowRunPage
+        workspaceId={PROJECT_TEST_WID}
+        projectId={PROJECT_ID}
+        workflowRunId={workflowRunId}
+      />
     ),
   );
 }
@@ -248,8 +265,8 @@ function createRunDetailFetch({
   runs = [workflowRunDto(RUN_OVERRIDES)],
   details = {[RUN_ID]: defaultRunDetailDto()},
 }: {
-  runs?: RunResponseDto[];
-  details?: Record<string, RunDetailResponseDto>;
+  runs?: WorkflowRunResponseDto[];
+  details?: Record<string, WorkflowRunDetailResponseDto>;
 } = {}) {
   return vi.fn((input: RequestInfo | URL) => {
     const url = new URL(requestInputUrl(input));
@@ -296,13 +313,15 @@ function requestInputUrl(input: RequestInfo | URL) {
   return String(input);
 }
 
-function defaultRunDetailDto(overrides: Partial<RunDetailResponseDto> = {}): RunDetailResponseDto {
+function defaultRunDetailDto(
+  overrides: Partial<WorkflowRunDetailResponseDto> = {},
+): WorkflowRunDetailResponseDto {
   return workflowRunDetailDto({
     ...RUN_OVERRIDES,
     jobs: [
       workflowJobDto({
         id: BUILD_JOB_ID,
-        run_id: RUN_ID,
+        run_attempt_id: RUN_ID,
         name: 'build',
         status: 'succeeded',
         steps: [
@@ -324,7 +343,7 @@ function defaultRunDetailDto(overrides: Partial<RunDetailResponseDto> = {}): Run
       }),
       workflowJobDto({
         id: DEPLOY_JOB_ID,
-        run_id: RUN_ID,
+        run_attempt_id: RUN_ID,
         name: 'deploy',
         status: 'running',
         position: 1,

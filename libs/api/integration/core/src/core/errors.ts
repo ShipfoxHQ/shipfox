@@ -1,4 +1,5 @@
 import {
+  ConnectionSlugConflictError,
   IntegrationProviderError,
   type IntegrationProviderErrorReason,
 } from '@shipfox/api-integration-core-dto';
@@ -51,4 +52,4 @@ export class IntegrationProviderUnavailableError extends Error {
   }
 }
 
-export {IntegrationProviderError, type IntegrationProviderErrorReason};
+export {ConnectionSlugConflictError, IntegrationProviderError, type IntegrationProviderErrorReason};

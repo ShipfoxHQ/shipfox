@@ -8,7 +8,12 @@ import {recordJobExecutionStartedAt} from '#db/index.js';
 // projection is first-write-wins so outbox replay cannot move the run boundary.
 export async function onRunnerJobClaimed(payload: RunnerJobClaimedEvent): Promise<void> {
   logger().debug(
-    {jobId: payload.jobId, jobExecutionId: payload.jobExecutionId, runId: payload.runId},
+    {
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
+      jobId: payload.jobId,
+      jobExecutionId: payload.jobExecutionId,
+    },
     'Recording job execution started_at from claim',
   );
   await recordJobExecutionStartedAt({

@@ -43,6 +43,7 @@ export async function fireManualSubscription(
   const historyBase = {
     origin: 'manual' as const,
     workspaceId: subscription.workspaceId,
+    provider: null,
     source: subscription.source,
     event: subscription.event,
     deliveryId: null,

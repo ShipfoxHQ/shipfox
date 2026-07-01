@@ -3,8 +3,8 @@ import {normalizeWorkflowDocument} from '@shipfox/api-definitions';
 import {
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
+  WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
-  WORKFLOWS_WORKFLOW_RUN_CREATED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
 } from '@shipfox/api-workflows-dto';
 import * as opentelemetry from '@shipfox/node-opentelemetry';
@@ -23,6 +23,7 @@ import {db} from './db.js';
 import {jobs} from './schema/jobs.js';
 import {workflowsOutbox} from './schema/outbox.js';
 import {steps as stepsTable} from './schema/steps.js';
+import {workflowRunAttempts} from './schema/workflow-run-attempts.js';
 import {workflowRuns} from './schema/workflow-runs.js';
 import {
   bulkUpdateStepStatuses,
@@ -31,7 +32,7 @@ import {
   createWorkflowRun,
   getFirstJobExecutionByJobId,
   getJobExecutionsByJobId,
-  getJobsByRunId,
+  getJobsByWorkflowRunId,
   getLatestAttempt,
   getStepAttempts,
   getStepsByJobId,
@@ -96,53 +97,66 @@ async function jobTerminatedEvents(jobId: string) {
     (row) =>
       row.payload as {
         jobId: string;
-        runId: string;
+        workflowRunId: string;
         status: string;
         statusReason: string | null;
       },
   );
 }
 
-async function runTerminatedEvents(runId: string) {
+async function runTerminatedEvents(workflowRunId: string) {
   const rows = await db()
     .select({payload: workflowsOutbox.payload})
     .from(workflowsOutbox)
     .where(
       and(
         eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_TERMINATED),
-        sql`${workflowsOutbox.payload}->>'runId' = ${runId}`,
+        sql`${workflowsOutbox.payload}->>'workflowRunId' = ${workflowRunId}`,
       ),
     );
-  return rows.map((row) => row.payload as {runId: string; projectId: string; status: string});
+  return rows.map(
+    (row) =>
+      row.payload as {
+        workflowRunId: string;
+        workflowRunAttemptId: string;
+        projectId: string;
+        status: string;
+      },
+  );
 }
 
-async function runCancelledEvents(runId: string) {
+async function runCancelledEvents(workflowRunId: string) {
   const rows = await db()
     .select({payload: workflowsOutbox.payload})
     .from(workflowsOutbox)
     .where(
       and(
         eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_CANCELLED),
-        sql`${workflowsOutbox.payload}->>'runId' = ${runId}`,
+        sql`${workflowsOutbox.payload}->>'workflowRunId' = ${workflowRunId}`,
       ),
     );
-  return rows.map((row) => row.payload as {runId: string; projectId: string});
+  return rows.map(
+    (row) =>
+      row.payload as {workflowRunId: string; workflowRunAttemptId: string; projectId: string},
+  );
 }
 
-async function workflowRunCreatedEvents(runId: string) {
+async function runAttemptCreatedEvents(workflowRunId: string) {
   const rows = await db()
     .select({payload: workflowsOutbox.payload})
     .from(workflowsOutbox)
     .where(
       and(
-        eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_CREATED),
-        sql`${workflowsOutbox.payload}->>'runId' = ${runId}`,
+        eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED),
+        sql`${workflowsOutbox.payload}->>'workflowRunId' = ${workflowRunId}`,
       ),
     );
   return rows.map(
     (row) =>
       row.payload as {
-        runId: string;
+        workflowRunId: string;
+        workflowRunAttemptId: string;
+        attempt: number;
         workspaceId: string;
         projectId: string;
         definitionId: string;
@@ -193,13 +207,14 @@ describe('workflow run queries', () => {
       expect(run.projectId).toBe(projectId);
       expect(run.definitionId).toBe(definitionId);
       expect(run.status).toBe('pending');
+      expect(run.triggerProvider).toBeNull();
       expect(run.triggerPayload).toMatchObject({source: 'manual', event: 'fire'});
       expect(run.inputs).toBeNull();
       expect(run.version).toBe(1);
       expect(run.createdAt).toBeInstanceOf(Date);
       expect(run.updatedAt).toBeInstanceOf(Date);
 
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
       expect(runJobs).toHaveLength(1);
       expect(runJobs[0]?.name).toBe('build');
 
@@ -224,7 +239,7 @@ describe('workflow run queries', () => {
       expect(jobSteps[1]).toMatchObject({position: 1, config: {run: 'echo hello'}});
     });
 
-    test('writes workflows.workflow_run.created outbox event in same transaction', async () => {
+    test('writes workflows.workflow_run_attempt.created outbox event in same transaction', async () => {
       const run = await createWorkflowRun({
         workspaceId,
         projectId,
@@ -241,15 +256,16 @@ describe('workflow run queries', () => {
       const outboxRows = await db()
         .select()
         .from(workflowsOutbox)
-        .where(eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_CREATED));
+        .where(eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED));
 
       const matchingRow = outboxRows.find(
-        (row) => (row.payload as Record<string, unknown>).runId === run.id,
+        (row) => (row.payload as Record<string, unknown>).workflowRunId === run.id,
       );
 
       expect(matchingRow).toBeDefined();
-      expect(matchingRow?.payload).toEqual({
-        runId: run.id,
+      expect(matchingRow?.payload).toMatchObject({
+        workflowRunId: run.id,
+        attempt: 1,
         workspaceId: run.workspaceId,
         projectId: run.projectId,
         definitionId: run.definitionId,
@@ -282,7 +298,7 @@ describe('workflow run queries', () => {
         },
       });
 
-      const [job] = await getJobsByRunId(run.id);
+      const [job] = await getJobsByWorkflowRunId(run.id);
       const rows = (await getStepsByJobId(job?.id as string)).map((step) => ({
         type: step.type,
         config: step.config,
@@ -337,7 +353,7 @@ describe('workflow run queries', () => {
 
       expect(warn).toHaveBeenCalledWith(
         {
-          runId: run.id,
+          workflowRunId: run.id,
           diagnostics: [
             {
               jobName: 'build',
@@ -359,8 +375,8 @@ describe('workflow run queries', () => {
 
       const transaction = db().transaction(async (tx) => {
         await tx.insert(workflowsOutbox).values({
-          eventType: WORKFLOWS_WORKFLOW_RUN_CREATED,
-          payload: {runId: marker, projectId, definitionId},
+          eventType: WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
+          payload: {workflowRunId: marker, projectId, definitionId},
         });
         throw new Error('Simulated failure');
       });
@@ -370,7 +386,7 @@ describe('workflow run queries', () => {
       const leaked = await db()
         .select()
         .from(workflowsOutbox)
-        .where(sql`${workflowsOutbox.payload}->>'runId' = ${marker}`);
+        .where(sql`${workflowsOutbox.payload}->>'workflowRunId' = ${marker}`);
 
       expect(leaked).toHaveLength(0);
     });
@@ -394,7 +410,7 @@ describe('workflow run queries', () => {
         },
       });
 
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
       const testJob = runJobs.find((j) => j.name === 'test');
 
       expect(testJob?.dependencies).toEqual(['build']);
@@ -414,7 +430,7 @@ describe('workflow run queries', () => {
         },
       });
 
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
 
       expect(runJobs[0]?.dependencies).toEqual([]);
     });
@@ -437,7 +453,7 @@ describe('workflow run queries', () => {
         },
       });
 
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
       const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
       const agentStep = jobSteps.find((step) => step.type === 'agent');
 
@@ -477,7 +493,7 @@ describe('workflow run queries', () => {
         resolveAgentDefaults,
       });
 
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
       const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
       const agentStep = jobSteps.find((step) => step.type === 'agent');
       expect(resolveAgentDefaults).toHaveBeenCalledWith({
@@ -513,7 +529,7 @@ describe('workflow run queries', () => {
         },
       });
 
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
 
       expect(runJobs).toHaveLength(3);
       expect(runJobs[0]?.position).toBe(0);
@@ -537,7 +553,7 @@ describe('workflow run queries', () => {
 
       expect(run.id).toBeDefined();
 
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
 
       expect(runJobs).toHaveLength(0);
     });
@@ -560,7 +576,7 @@ describe('workflow run queries', () => {
         },
       });
 
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
       expect(runJobs).toHaveLength(1);
 
       // A job with no user steps still gets the synthetic setup step.
@@ -590,7 +606,7 @@ describe('workflow run queries', () => {
         },
       });
 
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
       const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
 
       // Index 0 is the synthetic setup step; user steps start at index 1.
@@ -622,7 +638,7 @@ describe('workflow run queries', () => {
         },
       });
 
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
       const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
 
       expect(jobSteps.map((step) => step.sourceLocation)).toEqual([
@@ -650,7 +666,7 @@ describe('workflow run queries', () => {
         },
       });
 
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
       const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
 
       // Index 0 is the synthetic setup step; the user run step is at index 1.
@@ -766,12 +782,12 @@ jobs:
         format: 'yaml',
       });
 
-      const allJobs = await getJobsByRunId(first.id);
+      const allJobs = await getJobsByWorkflowRunId(first.id);
       expect(allJobs).toHaveLength(1);
       const outboxRows = await db()
         .select()
         .from(workflowsOutbox)
-        .where(sql`${workflowsOutbox.payload}->>'runId' = ${first.id}`);
+        .where(sql`${workflowsOutbox.payload}->>'workflowRunId' = ${first.id}`);
       expect(outboxRows).toHaveLength(1);
     });
 
@@ -826,7 +842,7 @@ jobs:
       expect(firstResolver).toHaveBeenCalledTimes(1);
       expect(secondResolver).not.toHaveBeenCalled();
 
-      const allJobs = await getJobsByRunId(first.id);
+      const allJobs = await getJobsByWorkflowRunId(first.id);
       expect(allJobs).toHaveLength(1);
     });
 
@@ -889,20 +905,20 @@ jobs:
         inputs: {env: 'staging'},
         sourceSnapshot: {content: 'name: Original\njobs: {}\n', format: 'yaml'},
       });
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
       await Promise.all([
         markJob(runJobs, 'build', 'succeeded'),
         markJob(runJobs, 'test', 'failed'),
         markJob(runJobs, 'deploy', 'skipped'),
         markJob(runJobs, 'notify', 'cancelled'),
       ]);
-      await updateWorkflowRunStatus({runId: run.id, status: 'failed', expectedVersion: 1});
+      await updateWorkflowRunStatus({workflowRunId: run.id, status: 'failed', expectedVersion: 1});
 
       return run;
     }
 
     async function markJob(
-      runJobs: Awaited<ReturnType<typeof getJobsByRunId>>,
+      runJobs: Awaited<ReturnType<typeof getJobsByWorkflowRunId>>,
       name: string,
       status: 'succeeded' | 'failed' | 'cancelled' | 'skipped',
     ) {
@@ -929,23 +945,22 @@ jobs:
       const source = await createTerminalSourceRun();
 
       const rerun = await createRerunWorkflowRun({
-        sourceRunId: source.id,
+        workflowRunId: source.id,
         mode: 'all',
         actorUserId: crypto.randomUUID(),
       });
 
       expect(rerun).toMatchObject({
-        sourceRunId: source.id,
-        rootRunId: source.id,
-        attempt: 2,
-        rerunMode: 'all',
+        id: source.id,
         inputs: {env: 'staging'},
         sourceSnapshot: {content: 'name: Original\njobs: {}\n', format: 'yaml'},
       });
       const sourceAfter = await getWorkflowRunById(source.id);
-      expect(sourceAfter?.rootRunId).toBe(source.id);
+      expect(sourceAfter?.currentAttempt).toBe(2);
+      const attempts = await listRunAttempts({workflowRunId: source.id, projectId});
+      expect(attempts.map((attempt) => attempt.attempt).sort()).toEqual([1, 2]);
 
-      const rerunJobs = await getJobsByRunId(rerun.id);
+      const rerunJobs = await getJobsByWorkflowRunId(rerun.id);
       expect(rerunJobs.every((job) => job.status === 'pending' && !job.carriedOver)).toBe(true);
       for (const job of rerunJobs) {
         const jobSteps = await getStepsByJobId(job.id);
@@ -977,17 +992,21 @@ jobs:
         },
         resolveAgentDefaults,
       });
-      const sourceJobs = await getJobsByRunId(source.id);
+      const sourceJobs = await getJobsByWorkflowRunId(source.id);
       await markJob(sourceJobs, 'fix', 'failed');
-      await updateWorkflowRunStatus({runId: source.id, status: 'failed', expectedVersion: 1});
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
 
       const rerun = await createRerunWorkflowRun({
-        sourceRunId: source.id,
+        workflowRunId: source.id,
         mode: 'all',
         actorUserId: crypto.randomUUID(),
       });
 
-      const rerunJobs = await getJobsByRunId(rerun.id);
+      const rerunJobs = await getJobsByWorkflowRunId(rerun.id);
       const rerunSteps = await getStepsByJobId(rerunJobs[0]?.id as string);
       const agentStep = rerunSteps.find((step) => step.type === 'agent');
       expect(resolveAgentDefaults).toHaveBeenCalledTimes(1);
@@ -1012,49 +1031,54 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      await updateWorkflowRunStatus({runId: source.id, status: 'failed', expectedVersion: 1});
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
 
       const rerun = await createRerunWorkflowRun({
-        sourceRunId: source.id,
+        workflowRunId: source.id,
         mode: 'all',
         actorUserId: crypto.randomUUID(),
       });
-      const rerunJobs = await getJobsByRunId(rerun.id);
+      const rerunJobs = await getJobsByWorkflowRunId(rerun.id);
       const userStep = (await getStepsByJobId(rerunJobs[0]?.id as string))[1];
 
       expect(userStep?.authoredConfig).toEqual({run: `echo "${template('run.id')}"`});
     });
 
-    test('writes one workflow_run.created outbox event for the rerun', async () => {
+    test('writes one run-attempt-created outbox event for the rerun', async () => {
       const source = await createTerminalSourceRun();
 
       const rerun = await createRerunWorkflowRun({
-        sourceRunId: source.id,
+        workflowRunId: source.id,
         mode: 'all',
         actorUserId: crypto.randomUUID(),
       });
 
-      const events = await workflowRunCreatedEvents(rerun.id);
-      expect(events).toEqual([
-        {
-          runId: rerun.id,
+      const events = await runAttemptCreatedEvents(rerun.id);
+      expect(events.find((event) => event.attempt === 2)).toEqual(
+        expect.objectContaining({
+          workflowRunId: rerun.id,
+          attempt: 2,
           workspaceId: rerun.workspaceId,
           projectId: rerun.projectId,
           definitionId: rerun.definitionId,
-        },
-      ]);
+        }),
+      );
     });
 
     test('failed mode carries succeeded jobs and resets every non-succeeded job', async () => {
       const source = await createTerminalSourceRun();
 
       const rerun = await createRerunWorkflowRun({
-        sourceRunId: source.id,
+        workflowRunId: source.id,
         mode: 'failed',
         actorUserId: crypto.randomUUID(),
       });
 
-      const rerunJobs = await getJobsByRunId(rerun.id);
+      const rerunJobs = await getJobsByWorkflowRunId(rerun.id);
       const build = rerunJobs.find((job) => job.name === 'build');
       const test = rerunJobs.find((job) => job.name === 'test');
       const deploy = rerunJobs.find((job) => job.name === 'deploy');
@@ -1088,40 +1112,44 @@ jobs:
       const source = await createTerminalSourceRun();
 
       const second = await createRerunWorkflowRun({
-        sourceRunId: source.id,
+        workflowRunId: source.id,
         mode: 'all',
         actorUserId: crypto.randomUUID(),
       });
-      await updateWorkflowRunStatus({runId: second.id, status: 'failed', expectedVersion: 1});
+      await updateWorkflowRunStatus({
+        workflowRunId: second.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
       const third = await createRerunWorkflowRun({
-        sourceRunId: second.id,
+        workflowRunId: second.id,
         mode: 'all',
         actorUserId: crypto.randomUUID(),
       });
 
-      expect(second.attempt).toBe(2);
-      expect(third).toMatchObject({attempt: 3, rootRunId: source.id, sourceRunId: second.id});
+      expect(second.currentAttempt).toBe(2);
+      expect(second.id).toBe(source.id);
+      expect(third).toMatchObject({id: source.id, currentAttempt: 3});
     });
 
-    test('allocates unique attempts for concurrent reruns on the same lineage', async () => {
+    test('rejects a concurrent rerun while a new attempt is active', async () => {
       const source = await createTerminalSourceRun();
 
-      const [left, right] = await Promise.all([
+      const results = await Promise.allSettled([
         createRerunWorkflowRun({
-          sourceRunId: source.id,
+          workflowRunId: source.id,
           mode: 'all',
           actorUserId: crypto.randomUUID(),
         }),
         createRerunWorkflowRun({
-          sourceRunId: source.id,
+          workflowRunId: source.id,
           mode: 'all',
           actorUserId: crypto.randomUUID(),
         }),
       ]);
 
-      expect([left.attempt, right.attempt].sort()).toEqual([2, 3]);
-      expect(left.rootRunId).toBe(source.id);
-      expect(right.rootRunId).toBe(source.id);
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
     });
 
     test('rejects non-terminal sources and failed-mode runs with no failed jobs', async () => {
@@ -1149,18 +1177,22 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      await updateWorkflowRunStatus({runId: succeeded.id, status: 'succeeded', expectedVersion: 1});
+      await updateWorkflowRunStatus({
+        workflowRunId: succeeded.id,
+        status: 'succeeded',
+        expectedVersion: 1,
+      });
 
       await expect(
         createRerunWorkflowRun({
-          sourceRunId: running.id,
+          workflowRunId: running.id,
           mode: 'all',
           actorUserId: crypto.randomUUID(),
         }),
       ).rejects.toBeInstanceOf(RunNotTerminalError);
       await expect(
         createRerunWorkflowRun({
-          sourceRunId: succeeded.id,
+          workflowRunId: succeeded.id,
           mode: 'failed',
           actorUserId: crypto.randomUUID(),
         }),
@@ -1170,7 +1202,7 @@ jobs:
     test('rejects a missing source run', async () => {
       await expect(
         createRerunWorkflowRun({
-          sourceRunId: crypto.randomUUID(),
+          workflowRunId: crypto.randomUUID(),
           mode: 'all',
           actorUserId: crypto.randomUUID(),
         }),
@@ -1221,23 +1253,36 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      await updateWorkflowRunStatus({runId: source.id, status: 'failed', expectedVersion: 1});
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
       const second = await createRerunWorkflowRun({
-        sourceRunId: source.id,
+        workflowRunId: source.id,
         mode: 'all',
         actorUserId: crypto.randomUUID(),
       });
-      await updateWorkflowRunStatus({runId: second.id, status: 'failed', expectedVersion: 1});
+      await updateWorkflowRunStatus({
+        workflowRunId: second.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
       const third = await createRerunWorkflowRun({
-        sourceRunId: second.id,
+        workflowRunId: second.id,
         mode: 'all',
         actorUserId: crypto.randomUUID(),
       });
 
-      const attempts = await listRunAttempts({rootRunId: source.id, projectId});
-      const latestAttempt = await getLatestAttempt({rootRunId: source.id, projectId});
+      const attempts = await listRunAttempts({workflowRunId: source.id, projectId});
+      const latestAttempt = await getLatestAttempt({workflowRunId: source.id, projectId});
 
-      expect(attempts.map((attempt) => attempt.id)).toEqual([source.id, second.id, third.id]);
+      expect(third.currentAttempt).toBe(3);
+      expect(attempts.map((attempt) => attempt.workflowRunId)).toEqual([
+        source.id,
+        source.id,
+        source.id,
+      ]);
       expect(attempts.map((attempt) => attempt.attempt)).toEqual([1, 2, 3]);
       expect(attempts.map((attempt) => attempt.status)).toEqual(['failed', 'failed', 'pending']);
       expect(attempts.map((attempt) => attempt.rerunMode)).toEqual([null, 'all', 'all']);
@@ -1269,14 +1314,11 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      await db()
-        .update(workflowRuns)
-        .set({rootRunId: run.id, attempt: 99})
-        .where(eq(workflowRuns.id, otherProjectRun.id));
+      expect(otherProjectRun.projectId).not.toBe(projectId);
 
-      const attempts = await listRunAttempts({rootRunId: run.id, projectId});
+      const attempts = await listRunAttempts({workflowRunId: run.id, projectId});
 
-      expect(attempts.map((attempt) => attempt.id)).toEqual([run.id]);
+      expect(attempts.map((attempt) => attempt.workflowRunId)).toEqual([run.id]);
     });
   });
 
@@ -1322,7 +1364,7 @@ jobs:
     });
   });
 
-  describe('getJobsByRunId', () => {
+  describe('getJobsByWorkflowRunId', () => {
     test('returns jobs for a run ordered by position', async () => {
       const run = await createWorkflowRun({
         workspaceId,
@@ -1342,7 +1384,7 @@ jobs:
         },
       });
 
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
 
       expect(runJobs).toHaveLength(2);
       expect(runJobs[0]?.position).toBe(0);
@@ -1371,7 +1413,7 @@ jobs:
         },
       });
 
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
       const jobSteps = await getStepsByJobId(runJobs[0]?.id as string);
 
       // The synthetic setup step occupies position 0; user steps follow at 1..3.
@@ -1393,8 +1435,8 @@ jobs:
         projectId: crypto.randomUUID(),
         definitionId: crypto.randomUUID(),
       });
-      const [runningJobExecution] = await getJobsByRunId(runningRun.id);
-      const [otherWorkspaceJob] = await getJobsByRunId(otherWorkspaceRun.id);
+      const [runningJobExecution] = await getJobsByWorkflowRunId(runningRun.id);
+      const [otherWorkspaceJob] = await getJobsByWorkflowRunId(otherWorkspaceRun.id);
       if (!runningJobExecution || !otherWorkspaceJob) throw new Error('Expected workflow jobs');
       const runningExecution = await getFirstJobExecutionByJobId(runningJobExecution.id);
       const otherWorkspaceExecution = await getFirstJobExecutionByJobId(otherWorkspaceJob.id);
@@ -1402,12 +1444,12 @@ jobs:
         throw new Error('Expected workflow job executions');
       }
       await updateWorkflowRunStatus({
-        runId: runningRun.id,
+        workflowRunId: runningRun.id,
         status: 'running',
         expectedVersion: runningRun.version,
       });
       await updateWorkflowRunStatus({
-        runId: otherWorkspaceRun.id,
+        workflowRunId: otherWorkspaceRun.id,
         status: 'running',
         expectedVersion: otherWorkspaceRun.version,
       });
@@ -1446,10 +1488,12 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
+      const [existingJob] = await getJobsByWorkflowRunId(run.id);
+      if (!existingJob) throw new Error('Expected workflow job');
       const [job] = await db()
         .insert(jobs)
         .values({
-          runId: run.id,
+          workflowRunAttemptId: existingJob.workflowRunAttemptId,
           name: 'no-execution',
           dependencies: [],
           runner: ['ubuntu-latest'],
@@ -1476,7 +1520,7 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      const job = (await getJobsByRunId(run.id))[0];
+      const job = (await getJobsByWorkflowRunId(run.id))[0];
       if (!job) throw new Error('Expected workflow job');
       const jobExecution = await getFirstJobExecutionByJobId(job.id);
       if (!jobExecution) throw new Error('Expected workflow job execution');
@@ -1489,7 +1533,7 @@ jobs:
       const resolved = await resolveJobStatusFromJobExecutions({jobId: job.id});
 
       expect(resolved.status).toBe('succeeded');
-      expect((await getJobsByRunId(run.id))[0]).toMatchObject({status: 'succeeded'});
+      expect((await getJobsByWorkflowRunId(run.id))[0]).toMatchObject({status: 'succeeded'});
     });
 
     test('fails the job when the default success expression is false', async () => {
@@ -1505,7 +1549,7 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      const job = (await getJobsByRunId(run.id))[0];
+      const job = (await getJobsByWorkflowRunId(run.id))[0];
       if (!job) throw new Error('Expected workflow job');
       const jobExecution = await getFirstJobExecutionByJobId(job.id);
       if (!jobExecution) throw new Error('Expected workflow job execution');
@@ -1519,7 +1563,7 @@ jobs:
       const resolved = await resolveJobStatusFromJobExecutions({jobId: job.id});
 
       expect(resolved.status).toBe('failed');
-      expect((await getJobsByRunId(run.id))[0]).toMatchObject({
+      expect((await getJobsByWorkflowRunId(run.id))[0]).toMatchObject({
         status: 'failed',
         statusReason: 'step_failed',
       });
@@ -1545,7 +1589,7 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      const job = (await getJobsByRunId(run.id))[0];
+      const job = (await getJobsByWorkflowRunId(run.id))[0];
       if (!job) throw new Error('Expected workflow job');
       const jobExecution = await getFirstJobExecutionByJobId(job.id);
       if (!jobExecution) throw new Error('Expected workflow job execution');
@@ -1559,7 +1603,7 @@ jobs:
       const resolved = await resolveJobStatusFromJobExecutions({jobId: job.id});
 
       expect(resolved.status).toBe('succeeded');
-      expect((await getJobsByRunId(run.id))[0]).toMatchObject({
+      expect((await getJobsByWorkflowRunId(run.id))[0]).toMatchObject({
         status: 'succeeded',
         statusReason: null,
       });
@@ -1582,7 +1626,7 @@ jobs:
       });
 
       const updated = await updateWorkflowRunStatus({
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'running',
         expectedVersion: 1,
       });
@@ -1604,7 +1648,7 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      const job = (await getJobsByRunId(run.id))[0];
+      const job = (await getJobsByWorkflowRunId(run.id))[0];
 
       const skipped = await updateJobStatus({
         jobId: job?.id as string,
@@ -1638,18 +1682,18 @@ jobs:
       });
 
       await expect(
-        updateWorkflowRunStatus({runId: run.id, status: 'running', expectedVersion: 99}),
+        updateWorkflowRunStatus({workflowRunId: run.id, status: 'running', expectedVersion: 99}),
       ).rejects.toThrow('Optimistic lock failure');
     });
 
     test('throws when run not found', async () => {
       await expect(
         updateWorkflowRunStatus({
-          runId: crypto.randomUUID(),
+          workflowRunId: crypto.randomUUID(),
           status: 'running',
           expectedVersion: 1,
         }),
-      ).rejects.toThrow('Optimistic lock failure');
+      ).rejects.toThrow('Workflow run not found');
     });
 
     test.each([
@@ -1659,18 +1703,47 @@ jobs:
     ] as const)('writes one run-terminated event when the status becomes %s', async (status) => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
 
-      await updateWorkflowRunStatus({runId: run.id, status, expectedVersion: 1});
+      await updateWorkflowRunStatus({workflowRunId: run.id, status, expectedVersion: 1});
 
       const events = await runTerminatedEvents(run.id);
       expect(events).toHaveLength(1);
-      expect(events[0]).toEqual({runId: run.id, projectId: run.projectId, status});
+      expect(events[0]).toMatchObject({workflowRunId: run.id, projectId: run.projectId, status});
     });
 
     test('writes no run-terminated event for a non-terminal transition', async () => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
 
-      await updateWorkflowRunStatus({runId: run.id, status: 'running', expectedVersion: 1});
+      await updateWorkflowRunStatus({workflowRunId: run.id, status: 'running', expectedVersion: 1});
 
+      expect(await runTerminatedEvents(run.id)).toHaveLength(0);
+    });
+
+    test('does not mirror a non-current attempt terminal update to the run', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      const attempts = await listRunAttempts({workflowRunId: run.id, projectId});
+      const firstAttempt = attempts[0];
+      if (!firstAttempt) throw new Error('Expected initial attempt');
+      await db().insert(workflowRunAttempts).values({
+        workflowRunId: run.id,
+        attempt: 2,
+        status: 'succeeded',
+      });
+      await db()
+        .update(workflowRuns)
+        .set({currentAttempt: 2, status: 'succeeded'})
+        .where(eq(workflowRuns.id, run.id));
+
+      const staleUpdate = await updateWorkflowRunStatus({
+        workflowRunAttemptId: firstAttempt.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      expect(staleUpdate.status).toBe('succeeded');
+      expect(await getWorkflowRunById(run.id)).toMatchObject({
+        status: 'succeeded',
+        currentAttempt: 2,
+      });
       expect(await runTerminatedEvents(run.id)).toHaveLength(0);
     });
 
@@ -1678,12 +1751,12 @@ jobs:
       const run = await createTestRun({workspaceId, projectId, definitionId});
 
       const first = await updateWorkflowRunStatus({
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'failed',
         expectedVersion: 1,
       });
       const retry = await updateWorkflowRunStatus({
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'failed',
         expectedVersion: 1,
       });
@@ -1695,13 +1768,13 @@ jobs:
     test('terminal-tolerant mismatch: existing terminal run returns without re-emitting', async () => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
       const cancelled = await updateWorkflowRunStatus({
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'cancelled',
         expectedVersion: 1,
       });
 
       const retry = await updateWorkflowRunStatus({
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'running',
         expectedVersion: 1,
       });
@@ -1714,13 +1787,13 @@ jobs:
     test('terminal-tolerant match: existing terminal run cannot be revived at the current version', async () => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
       const cancelled = await updateWorkflowRunStatus({
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'cancelled',
         expectedVersion: 1,
       });
 
       const retry = await updateWorkflowRunStatus({
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'running',
         expectedVersion: cancelled.version,
       });
@@ -1755,8 +1828,8 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      await updateWorkflowRunStatus({runId: run.id, status: 'running', expectedVersion: 1});
-      const [runningJobExecution, succeededJob, skippedJob] = await getJobsByRunId(run.id);
+      await updateWorkflowRunStatus({workflowRunId: run.id, status: 'running', expectedVersion: 1});
+      const [runningJobExecution, succeededJob, skippedJob] = await getJobsByWorkflowRunId(run.id);
       if (!runningJobExecution || !succeededJob || !skippedJob) throw new Error('Expected jobs');
       await updateJobStatus({jobId: runningJobExecution.id, status: 'running', expectedVersion: 1});
       await nextStepForJob(runningJobExecution.id);
@@ -1768,11 +1841,11 @@ jobs:
         statusReason: 'dependency_not_completed',
       });
 
-      const cancelled = await cancelWorkflowRun({runId: run.id});
+      const cancelled = await cancelWorkflowRun({workflowRunId: run.id});
 
       expect(cancelled.status).toBe('cancelled');
       expect(cancelled.finishedAt).not.toBeNull();
-      const [finalRunning, finalSucceeded, finalSkipped] = await getJobsByRunId(run.id);
+      const [finalRunning, finalSucceeded, finalSkipped] = await getJobsByWorkflowRunId(run.id);
       expect(finalRunning).toMatchObject({status: 'cancelled', statusReason: 'run_cancelled'});
       expect(finalSucceeded).toMatchObject({status: 'succeeded', statusReason: null});
       expect(finalSkipped).toMatchObject({
@@ -1788,31 +1861,78 @@ jobs:
         (await getStepsByJobId(skippedJob.id)).every((step) => step.status === 'pending'),
       ).toBe(true);
       expect(await runTerminatedEvents(run.id)).toEqual([
-        {runId: run.id, projectId, status: 'cancelled'},
+        expect.objectContaining({workflowRunId: run.id, projectId, status: 'cancelled'}),
       ]);
-      expect(await runCancelledEvents(run.id)).toEqual([{runId: run.id, projectId}]);
+      expect(await runCancelledEvents(run.id)).toEqual([
+        expect.objectContaining({workflowRunId: run.id, projectId}),
+      ]);
       expect(await jobTerminatedEvents(runningJobExecution.id)).toEqual([
-        {
+        expect.objectContaining({
           jobId: runningJobExecution.id,
-          runId: run.id,
+          workflowRunId: run.id,
           status: 'cancelled',
           statusReason: 'run_cancelled',
-        },
+        }),
       ]);
       expect(await stepAttemptTerminatedEvents(runningJobExecution.id)).toHaveLength(1);
       expect(await jobTerminatedEvents(succeededJob.id)).toHaveLength(1);
       expect(await jobTerminatedEvents(skippedJob.id)).toHaveLength(1);
     });
 
+    test('cancels the current rerun attempt after current_attempt moves', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      await updateWorkflowRunStatus({workflowRunId: run.id, status: 'failed', expectedVersion: 1});
+      const firstAttempt = (await listRunAttempts({workflowRunId: run.id, projectId}))[0];
+      if (!firstAttempt) throw new Error('Expected initial attempt');
+      await createRerunWorkflowRun({
+        workflowRunId: run.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+      const secondAttempt = (await listRunAttempts({workflowRunId: run.id, projectId})).find(
+        (attempt) => attempt.attempt === 2,
+      );
+      if (!secondAttempt) throw new Error('Expected rerun attempt');
+      await updateWorkflowRunStatus({workflowRunId: run.id, status: 'running', expectedVersion: 1});
+
+      await cancelWorkflowRun({workflowRunId: run.id});
+
+      expect(await runCancelledEvents(run.id)).toEqual([
+        expect.objectContaining({
+          workflowRunId: run.id,
+          workflowRunAttemptId: secondAttempt.id,
+          projectId,
+        }),
+      ]);
+      const terminatedEvents = await runTerminatedEvents(run.id);
+      expect(terminatedEvents).toHaveLength(2);
+      expect(terminatedEvents).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            workflowRunId: run.id,
+            workflowRunAttemptId: firstAttempt.id,
+            projectId,
+            status: 'failed',
+          }),
+          expect.objectContaining({
+            workflowRunId: run.id,
+            workflowRunAttemptId: secondAttempt.id,
+            projectId,
+            status: 'cancelled',
+          }),
+        ]),
+      );
+    });
+
     test('throws without changing an already-terminal run', async () => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
       const finished = await updateWorkflowRunStatus({
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'succeeded',
         expectedVersion: 1,
       });
 
-      await expect(cancelWorkflowRun({runId: run.id})).rejects.toBeInstanceOf(
+      await expect(cancelWorkflowRun({workflowRunId: run.id})).rejects.toBeInstanceOf(
         WorkflowRunNotCancellableError,
       );
 
@@ -1838,7 +1958,7 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
       const job = runJobs[0];
       expect(job).toBeDefined();
 
@@ -1865,7 +1985,7 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      const job = (await getJobsByRunId(run.id))[0];
+      const job = (await getJobsByWorkflowRunId(run.id))[0];
 
       const writeInvalidReason = db().execute(
         sql`UPDATE ${jobs} SET status_reason = 'not_a_reason' WHERE id = ${job?.id}`,
@@ -1889,7 +2009,7 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
 
       await expect(
         updateJobStatus({jobId: runJobs[0]?.id ?? '', status: 'running', expectedVersion: 99}),
@@ -1909,7 +2029,7 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      const job = (await getJobsByRunId(run.id))[0];
+      const job = (await getJobsByWorkflowRunId(run.id))[0];
       const first = await updateJobStatus({
         jobId: job?.id as string,
         status: 'running',
@@ -1942,7 +2062,7 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      const job = (await getJobsByRunId(run.id))[0];
+      const job = (await getJobsByWorkflowRunId(run.id))[0];
       const cancelled = await updateJobStatus({
         jobId: job?.id as string,
         status: 'cancelled',
@@ -1973,7 +2093,7 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      const job = (await getJobsByRunId(run.id))[0];
+      const job = (await getJobsByWorkflowRunId(run.id))[0];
       const cancelled = await updateJobStatus({
         jobId: job?.id as string,
         status: 'cancelled',
@@ -1988,7 +2108,7 @@ jobs:
 
       expect(retry.status).toBe('cancelled');
       expect(retry.version).toBe(cancelled.version);
-      expect((await getJobsByRunId(run.id))[0]).toMatchObject({
+      expect((await getJobsByWorkflowRunId(run.id))[0]).toMatchObject({
         status: 'cancelled',
         version: cancelled.version,
       });
@@ -2001,7 +2121,7 @@ jobs:
       const run = await createTestRun({workspaceId, projectId, definitionId});
 
       const running = await updateWorkflowRunStatus({
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'running',
         expectedVersion: 1,
       });
@@ -2010,7 +2130,7 @@ jobs:
       expect(running.finishedAt).toBeNull();
 
       const finished = await updateWorkflowRunStatus({
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'succeeded',
         expectedVersion: 2,
       });
@@ -2023,7 +2143,7 @@ jobs:
       const run = await createTestRun({workspaceId, projectId, definitionId});
 
       const cancelled = await updateWorkflowRunStatus({
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'cancelled',
         expectedVersion: 1,
       });
@@ -2039,7 +2159,7 @@ jobs:
       'skipped',
     ] as const)('job: stamps finished_at on a %s terminal transition', async (status) => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
-      const job = (await getJobsByRunId(run.id))[0];
+      const job = (await getJobsByWorkflowRunId(run.id))[0];
 
       const finished = await updateJobStatus({
         jobId: job?.id as string,
@@ -2052,7 +2172,7 @@ jobs:
 
     test('job: leaves finished_at null on a non-terminal transition', async () => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
-      const job = (await getJobsByRunId(run.id))[0];
+      const job = (await getJobsByWorkflowRunId(run.id))[0];
 
       const running = await updateJobStatus({
         jobId: job?.id as string,
@@ -2066,13 +2186,13 @@ jobs:
     test('run: re-entering running keeps the first started_at (coalesce, not a fresh clock)', async () => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
       const firstRunning = await updateWorkflowRunStatus({
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'running',
         expectedVersion: 1,
       });
 
       const secondRunning = await updateWorkflowRunStatus({
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'running',
         expectedVersion: 2,
       });
@@ -2082,7 +2202,7 @@ jobs:
 
     test('job: cancelled straight from pending has a finish but no start or queue time', async () => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
-      const job = (await getJobsByRunId(run.id))[0];
+      const job = (await getJobsByWorkflowRunId(run.id))[0];
 
       const cancelled = await updateJobStatus({
         jobId: job?.id as string,
@@ -2099,7 +2219,7 @@ jobs:
   describe('job terminal event (WORKFLOWS_JOB_TERMINATED)', () => {
     async function seedPendingJob() {
       const run = await createTestRun({workspaceId, projectId, definitionId});
-      const jobId = (await getJobsByRunId(run.id))[0]?.id as string;
+      const jobId = (await getJobsByWorkflowRunId(run.id))[0]?.id as string;
       return {run, jobId};
     }
 
@@ -2115,7 +2235,7 @@ jobs:
 
       const events = await jobTerminatedEvents(jobId);
       expect(events).toHaveLength(1);
-      expect(events[0]).toEqual({jobId, runId: run.id, status, statusReason: null});
+      expect(events[0]).toMatchObject({jobId, workflowRunId: run.id, status, statusReason: null});
     });
 
     test('writes status reason on the terminated event', async () => {
@@ -2130,9 +2250,9 @@ jobs:
 
       const events = await jobTerminatedEvents(jobId);
       expect(events).toHaveLength(1);
-      expect(events[0]).toEqual({
+      expect(events[0]).toMatchObject({
         jobId,
-        runId: run.id,
+        workflowRunId: run.id,
         status: 'skipped',
         statusReason: 'dependency_not_completed',
       });
@@ -2175,7 +2295,7 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
 
       const jobId = runJobs[0]?.id ?? '';
       await bulkUpdateJobStepStatuses({jobId, status: 'succeeded'});
@@ -2200,7 +2320,7 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
       const jobId = runJobs[0]?.id ?? '';
       const seeded = await getStepsByJobId(jobId);
 
@@ -2229,7 +2349,7 @@ jobs:
           userId: crypto.randomUUID(),
         },
       });
-      const runJobs = await getJobsByRunId(run.id);
+      const runJobs = await getJobsByWorkflowRunId(run.id);
       const jobId = runJobs[0]?.id ?? '';
       await stripSetupStep(jobId);
       await nextStepForJob(jobId);
@@ -2241,7 +2361,7 @@ jobs:
       expect(await stepAttemptTerminatedEvents(jobId)).toMatchObject([
         {
           jobId,
-          runId: run.id,
+          workflowRunId: run.id,
           workspaceId,
           projectId,
           stepId: attempt?.stepId,

@@ -64,7 +64,7 @@ describe('POST /:definitionId/fire-manual', () => {
     });
 
     expect(res.statusCode).toBe(201);
-    expect(res.json()).toEqual({run_id: runId});
+    expect(res.json()).toEqual({workflow_run_id: runId});
   });
 
   test('maps unresolvable workflow interpolation to 422', async () => {

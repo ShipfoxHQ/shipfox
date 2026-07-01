@@ -42,12 +42,12 @@ triggers:
   on_demand:
     source: manual
   on_push:
-    source: github
+    source: github_acme
     event: push
     on: main
 ```
 
-Each map key is the trigger's `name`. A workflow may declare any number of
+Each source is an integration connection slug. Each map key is the trigger's `name`. A workflow may declare any number of
 integration triggers and at most one `source: manual` trigger; the manual
 invariant is enforced at parse time so the fire route stays unambiguous.
 The `event` field is optional when `source: manual` and defaults to
@@ -98,7 +98,7 @@ The routes are mounted by the host app under the `/workflow-definitions` and
 
 | Method | Path | Auth | Result |
 | --- | --- | --- | --- |
-| `POST` | `/workflow-definitions/:definitionId/fire-manual` | bearer token | Fires the workflow's manual trigger and returns the new `run_id`. Optional `inputs` in the body are forwarded to the run. |
+| `POST` | `/workflow-definitions/:definitionId/fire-manual` | bearer token | Fires the workflow's manual trigger and returns the new `workflow_run_id`. Optional `inputs` in the body are forwarded to the run. |
 | `GET` | `/trigger-events?workspace_id=:workspaceId` | bearer token | Lists received trigger events for a workspace, newest first. Supports source, event, outcome, received-at window, limit, and cursor filters. |
 | `GET` | `/trigger-events/facets?workspace_id=:workspaceId` | bearer token | Returns the workspace's distinct `source` and `event` filter values with counts (top 50 each, by count). Backs the Events page filter dropdowns. |
 | `GET` | `/trigger-events/:id` | bearer token | Returns one received trigger event with its full payload and routing decisions. Cross-workspace ids return `404`. |

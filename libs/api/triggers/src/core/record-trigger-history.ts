@@ -43,6 +43,7 @@ export interface BeginTriggerHistoryParams {
   eventRef: string;
   origin: TriggerEventOrigin;
   workspaceId: string;
+  provider: string | null;
   source: string;
   event: string;
   deliveryId: string | null;

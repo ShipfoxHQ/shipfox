@@ -14,6 +14,7 @@ function sentryConnectionFixture(workspaceId: string): SentryConnectResponseDto 
     workspace_id: workspaceId,
     provider: 'sentry',
     external_account_id: 'acme',
+    slug: 'sentry_acme',
     display_name: 'Sentry acme',
     lifecycle_status: 'active',
     capabilities: [],

@@ -1,4 +1,4 @@
-import type {RunJobDetailDto} from '@shipfox/api-workflows-dto';
+import type {WorkflowRunJobDetailDto} from '@shipfox/api-workflows-dto';
 import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
 import {workflowJob, workflowRunDetail} from '#test/fixtures/workflow-run.js';
 import {buildWorkflowJobGraphModel, nextWorkflowJobGraphNodeId} from './graph-model.js';
@@ -174,7 +174,8 @@ function makeRun(overrides: Partial<WorkflowRunDetail> = {}): WorkflowRunDetail 
   return {
     ...workflowRunDetail({
       name: 'Deploy',
-      trigger_source: 'github',
+      trigger_provider: 'github',
+      trigger_source: 'github_acme',
       trigger_event: 'push',
       started_at: '2026-06-21T12:00:10.000Z',
       jobs: [],
@@ -183,6 +184,6 @@ function makeRun(overrides: Partial<WorkflowRunDetail> = {}): WorkflowRunDetail 
   };
 }
 
-function makeJob(overrides: Partial<RunJobDetailDto> & {name: string}): WorkflowJob {
+function makeJob(overrides: Partial<WorkflowRunJobDetailDto> & {name: string}): WorkflowJob {
   return workflowJob(overrides);
 }

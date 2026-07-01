@@ -2,12 +2,12 @@ import {ApplicationFailure} from '@temporalio/common';
 import {
   createWorkflowRun,
   getJobExecutionsByJobId,
-  getJobsByRunId,
+  getJobsByWorkflowRunId,
   updateJobExecutionStatus,
 } from '#db/index.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {workflowModel} from '#test/index.js';
-import {loadRunDag, resolveLeaseExpiredJobExecutionActivity} from './orchestration-activities.js';
+import {resolveLeaseExpiredJobExecutionActivity} from './orchestration-activities.js';
 
 describe('resolveLeaseExpiredJobExecutionActivity', () => {
   let workspaceId: string;
@@ -35,7 +35,7 @@ describe('resolveLeaseExpiredJobExecutionActivity', () => {
         userId: crypto.randomUUID(),
       },
     });
-    const jobId = (await getJobsByRunId(run.id))[0]?.id as string;
+    const jobId = (await getJobsByWorkflowRunId(run.id))[0]?.id as string;
     const jobExecutionId = (await getJobExecutionsByJobId(jobId))[0]?.id as string;
     const running = await updateJobExecutionStatus({
       jobExecutionId,
@@ -69,31 +69,5 @@ describe('resolveLeaseExpiredJobExecutionActivity', () => {
     });
 
     expect(result.status).toBe('failed');
-  });
-});
-
-describe('loadRunDag', () => {
-  test('surfaces the run workspace, project, and run ids on the dag', async () => {
-    const workspaceId = crypto.randomUUID();
-    const projectId = crypto.randomUUID();
-    const run = await createWorkflowRun({
-      workspaceId,
-      projectId,
-      definitionId: crypto.randomUUID(),
-      model: workflowModel({jobs: {build: {runner: ['ubuntu22'], steps: [{run: 'step1'}]}}}),
-      triggerPayload: {
-        source: 'manual',
-        event: 'fire',
-        subscriptionId: crypto.randomUUID(),
-        userId: crypto.randomUUID(),
-      },
-    });
-
-    const dag = await loadRunDag(run.id);
-
-    expect(dag.runId).toBe(run.id);
-    expect(dag.workspaceId).toBe(workspaceId);
-    expect(dag.projectId).toBe(projectId);
-    expect(dag.jobs[0]?.runner).toEqual(['ubuntu22']);
   });
 });

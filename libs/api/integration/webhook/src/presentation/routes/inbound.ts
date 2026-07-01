@@ -101,7 +101,7 @@ export function createWebhookInboundRoutes(options: CreateWebhookInboundRoutesOp
           tx,
           event: {
             provider: WEBHOOK_PROVIDER,
-            source: connection.externalAccountId,
+            source: connection.slug,
             event: WEBHOOK_RECEIVED_EVENT,
             workspaceId: connection.workspaceId,
             connectionId: connection.id,

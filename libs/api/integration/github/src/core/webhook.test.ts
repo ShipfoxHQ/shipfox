@@ -17,6 +17,7 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
     workspaceId: randomUUID(),
     provider: 'github',
     externalAccountId: '123',
+    slug: 'github_shipfox',
     displayName: 'GitHub shipfox',
     lifecycleStatus: 'active',
     createdAt: new Date(),
@@ -122,6 +123,7 @@ describe('handleGithubEvent', () => {
     );
     expect(firstPublishSourcePushCall(handlers.publishSourcePush)).toMatchObject({
       provider: 'github',
+      source: connection.slug,
       deliveryId,
       workspaceId: connection.workspaceId,
       connectionId: connection.id,
@@ -189,7 +191,7 @@ describe('handleGithubEvent', () => {
       firstPublishIntegrationEventReceivedCall(handlers.publishIntegrationEventReceived),
     ).toMatchObject({
       event: {
-        source: 'github',
+        source: connection.slug,
         event: 'push',
         workspaceId: connection.workspaceId,
         connectionId: connection.id,
@@ -249,7 +251,7 @@ describe('handleGithubEvent', () => {
       firstPublishIntegrationEventReceivedCall(handlers.publishIntegrationEventReceived),
     ).toMatchObject({
       event: {
-        source: 'github',
+        source: connection.slug,
         event: 'push',
         workspaceId: connection.workspaceId,
         connectionId: connection.id,
@@ -287,7 +289,7 @@ describe('handleGithubEvent', () => {
       firstPublishIntegrationEventReceivedCall(handlers.publishIntegrationEventReceived),
     ).toMatchObject({
       event: {
-        source: 'github',
+        source: connection.slug,
         event: 'pull_request.opened',
         workspaceId: connection.workspaceId,
         connectionId: connection.id,
@@ -322,7 +324,7 @@ describe('handleGithubEvent', () => {
       firstPublishIntegrationEventReceivedCall(handlers.publishIntegrationEventReceived),
     ).toMatchObject({
       event: {
-        source: 'github',
+        source: connection.slug,
         event: 'pull_request',
         workspaceId: connection.workspaceId,
         connectionId: connection.id,

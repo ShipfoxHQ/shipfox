@@ -15,7 +15,7 @@ interface WorkflowRunsListContentProps {
   runs: WorkflowRun[];
   workspaceId: string;
   projectId: string;
-  selectedRunId?: string | undefined;
+  selectedWorkflowRunId?: string | undefined;
   onClearFilters: () => void;
 }
 
@@ -25,7 +25,7 @@ export function WorkflowRunsListContent({
   runs,
   workspaceId,
   projectId,
-  selectedRunId,
+  selectedWorkflowRunId,
   onClearFilters,
 }: WorkflowRunsListContentProps) {
   const {isPending, isError} = query;
@@ -50,7 +50,7 @@ export function WorkflowRunsListContent({
           runs={runs}
           workspaceId={workspaceId}
           projectId={projectId}
-          selectedRunId={selectedRunId}
+          selectedWorkflowRunId={selectedWorkflowRunId}
         />
       ) : null}
     </div>

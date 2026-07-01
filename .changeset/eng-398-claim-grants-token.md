@@ -4,4 +4,4 @@
 "@shipfox/api-workflows": patch
 ---
 
-Reshape Scheduling around runner job leases. Jobs are now enqueued via `scheduleJob({jobId, workspaceId, runId})`, and the claim route mints a job lease token and returns `{job_id, run_id, lease_token}`. The stuck-job detector now emits a new `runners.job.lease_expired` event (`RUNNER_JOB_LEASE_EXPIRED`, payload `{jobId, runId}`) when a lease expires.
+Reshape Scheduling around runner job leases. Jobs are now enqueued with `workflowRunId`, `workflowRunAttemptId`, `jobId`, and `jobExecutionId`; the claim route mints a job lease token and returns the same workflow/job identity tuple. The stuck-job detector emits `runners.job.lease_expired` with that tuple when a lease expires.

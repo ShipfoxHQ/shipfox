@@ -10,7 +10,7 @@ const AGENT_THINKING_CHOICES = agentThinkingSchema.options;
 
 export const config = createConfig({
   AGENT_CREDENTIALS_ENCRYPTION_KEY: str({
-    desc: 'Base64-encoded 32-byte key used to encrypt saved agent provider credentials. Required. Generate one with openssl rand -base64 32.',
+    desc: 'Master key used to protect saved agent provider credentials. Required. Generate a unique value per environment with openssl rand -base64 32 and provide it from a secret manager. The committed .env value is only for local development. Losing this key makes saved provider credentials unrecoverable.',
   }),
   AGENT_DEFAULT_PROVIDER: str({
     desc: 'Instance-wide default agent provider ID used when a workflow and workspace do not choose one. Optional. Use one of the supported provider IDs from the agent provider catalog.',

@@ -21,7 +21,7 @@ function newIdentity(overrides: Partial<ClosedStreamIdentity> = {}): ClosedStrea
     attempt: 1,
     workspaceId: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
-    runId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
     ...overrides,
   };
 }
@@ -130,7 +130,7 @@ describe('runRetentionSweep', () => {
       jobId: crypto.randomUUID(),
       workspaceId: crypto.randomUUID(),
       projectId: crypto.randomUUID(),
-      runId: crypto.randomUUID(),
+      workflowRunAttemptId: crypto.randomUUID(),
     };
     const expired = newIdentity({...shared, stepId: crypto.randomUUID()});
     const fresh = newIdentity({...shared, stepId: crypto.randomUUID()});

@@ -1,5 +1,8 @@
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import {
+  ConnectionSlugConflictError,
+  type IntegrationConnection,
+} from '@shipfox/api-integration-core-dto';
 import {WEBHOOK_RESERVED_SLUGS} from '@shipfox/api-integration-webhook-dto';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
@@ -54,6 +57,10 @@ function duplicateSlugError(): Error {
   return error;
 }
 
+function connectionSlugConflictError(): Error {
+  return new ConnectionSlugConflictError(new Error('duplicate slug'));
+}
+
 function fakeConnection(overrides: Partial<IntegrationConnection> = {}): IntegrationConnection {
   const now = new Date();
   return {
@@ -61,6 +68,7 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
     workspaceId: crypto.randomUUID(),
     provider: 'webhook',
     externalAccountId: 'stripe',
+    slug: 'stripe',
     displayName: 'Stripe',
     lifecycleStatus: 'active',
     createdAt: now,
@@ -71,25 +79,23 @@ function fakeConnection(overrides: Partial<IntegrationConnection> = {}): Integra
 
 function createStore() {
   const byId = new Map<string, IntegrationConnection>();
-  const byUnique = new Map<string, string>();
+  const bySlug = new Map<string, string>();
   const seed = (connection: IntegrationConnection) => {
     byId.set(connection.id, connection);
-    byUnique.set(
-      `${connection.workspaceId}:${connection.provider}:${connection.externalAccountId}`,
-      connection.id,
-    );
+    bySlug.set(`${connection.workspaceId}:${connection.slug}`, connection.id);
     return connection;
   };
 
   return {
     seed,
     createIntegrationConnection: vi.fn<CreateConnectionFn>((input) => {
-      const key = `${input.workspaceId}:${input.provider}:${input.externalAccountId}`;
-      if (byUnique.has(key)) throw duplicateSlugError();
+      const key = `${input.workspaceId}:${input.slug}`;
+      if (bySlug.has(key)) throw duplicateSlugError();
       const connection = fakeConnection({
         workspaceId: input.workspaceId,
         provider: input.provider,
         externalAccountId: input.externalAccountId,
+        slug: input.slug,
         displayName: input.displayName,
         lifecycleStatus: input.lifecycleStatus ?? 'active',
       });
@@ -187,6 +193,23 @@ describe('webhook connection routes', () => {
     expect(first.statusCode).toBe(201);
     expect(second.statusCode).toBe(409);
     expect(second.json().code).toBe('slug-already-exists');
+  });
+
+  it('returns 409 when the core connection create reports a slug conflict', async () => {
+    const workspaceId = crypto.randomUUID();
+    const store = createStore();
+    store.createIntegrationConnection.mockRejectedValueOnce(connectionSlugConflictError());
+    const {app} = await createTestApp(store);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/webhook/connections',
+      headers: {authorization: 'Bearer user'},
+      payload: {workspace_id: workspaceId, name: 'Stripe', slug: 'stripe-prod'},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('slug-already-exists');
   });
 
   it('lists only webhook connections for the workspace', async () => {
