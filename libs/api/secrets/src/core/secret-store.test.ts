@@ -12,6 +12,7 @@ import {
 import {dekManager, deleteSecrets, getSecret, getSecretsByNamespace, setSecrets} from './index.js';
 
 const V1_PREFIX_PATTERN = /^v1:/;
+const HMAC_FINGERPRINT_PATTERN = /^hmac-sha256:[A-Za-z0-9_-]{43}$/;
 
 describe('secret store', () => {
   it('sets, encrypts, and reads secrets by namespace', async () => {
@@ -35,7 +36,8 @@ describe('secret store', () => {
     expect(values).toEqual({API_KEY: 'sk-live-value'});
     expect(rows[0]?.ciphertext).toMatch(V1_PREFIX_PATTERN);
     expect(rows[0]?.ciphertext).not.toBe('sk-live-value');
-    expect(rows[0]?.fingerprint).toBe('alue');
+    expect(rows[0]?.fingerprint).toMatch(HMAC_FINGERPRINT_PATTERN);
+    expect(rows[0]?.fingerprint).not.toContain('alue');
   });
 
   it('prefers project scope over workspace scope and deletes only exact project scope', async () => {

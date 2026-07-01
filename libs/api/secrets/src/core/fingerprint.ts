@@ -1,7 +1,14 @@
-import {stripUrlCredentials} from '@shipfox/redact';
+import crypto from 'node:crypto';
 
-export function fingerprintSecretValue(value: string): string | null {
-  const stripped = stripUrlCredentials(value);
-  if (stripped.length <= 4) return null;
-  return stripped.slice(-4);
+const FINGERPRINT_PREFIX = 'hmac-sha256:';
+const FINGERPRINT_DOMAIN = 'shipfox:secrets:value-fingerprint:v1';
+
+export function fingerprintSecretValue(value: string, key: Buffer): string {
+  const digest = crypto
+    .createHmac('sha256', key)
+    .update(FINGERPRINT_DOMAIN)
+    .update('\0')
+    .update(value)
+    .digest('base64url');
+  return `${FINGERPRINT_PREFIX}${digest}`;
 }

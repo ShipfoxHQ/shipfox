@@ -71,7 +71,7 @@ export function createSecretStoreApi(params: {
           key,
           value,
         }),
-        fingerprint: fingerprintSecretValue(value),
+        fingerprint: fingerprintSecretValue(value, dek),
         lastEditedBy: input.editedBy ?? null,
       }));
 
