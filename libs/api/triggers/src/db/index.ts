@@ -14,6 +14,15 @@ export {
   type TriggerEventFacet,
   type TriggerEventListFilters,
 } from './event-queries.js';
+export {
+  type FindMatchingJobListenerSubscriptionsParams,
+  findMatchingJobListenerSubscriptions,
+  type ListenerMatcher,
+  type ProjectJobListenerSubscriptionsParams,
+  projectJobListenerSubscriptions,
+  removeJobListenerSubscriptionsForJob,
+} from './job-listener-subscriptions.js';
+export {jobListenerSubscriptions} from './schema/job-listener-subscriptions.js';
 export {triggersOutbox} from './schema/outbox.js';
 export {triggerSubscriptions} from './schema/subscriptions.js';
 export {

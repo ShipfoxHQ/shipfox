@@ -1,13 +1,45 @@
-CREATE TYPE "public"."workflows_job_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled', 'skipped');--> statement-breakpoint
 CREATE TYPE "public"."workflows_job_execution_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."workflows_job_status_reason" AS ENUM('dependency_not_completed', 'condition_false', 'user_cancelled', 'run_cancelled', 'timed_out', 'runner_lost', 'step_failed', 'unknown');--> statement-breakpoint
+CREATE TYPE "public"."workflows_job_listener_event_disposition" AS ENUM('fire', 'resolve');--> statement-breakpoint
 CREATE TYPE "public"."workflows_job_mode" AS ENUM('one_shot', 'listening');--> statement-breakpoint
 CREATE TYPE "public"."workflows_job_on_resolve" AS ENUM('finish', 'cancel');--> statement-breakpoint
+CREATE TYPE "public"."workflows_job_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled', 'skipped');--> statement-breakpoint
+CREATE TYPE "public"."workflows_job_status_reason" AS ENUM('dependency_not_completed', 'condition_false', 'user_cancelled', 'run_cancelled', 'timed_out', 'runner_lost', 'step_failed', 'unknown');--> statement-breakpoint
 CREATE TYPE "public"."workflows_listener_status" AS ENUM('inactive', 'listening', 'resolved');--> statement-breakpoint
 CREATE TYPE "public"."workflows_resolution_reason" AS ENUM('until', 'timeout', 'max_executions', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."workflows_step_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."workflows_run_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."workflows_rerun_mode" AS ENUM('all', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."workflows_run_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
+CREATE TABLE "workflows_job_executions" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"job_id" uuid NOT NULL,
+	"sequence" integer NOT NULL,
+	"name" text NOT NULL,
+	"status" "workflows_job_execution_status" DEFAULT 'pending' NOT NULL,
+	"status_reason" "workflows_job_status_reason",
+	"trigger_events" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"version" integer DEFAULT 1 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"queued_at" timestamp with time zone,
+	"started_at" timestamp with time zone,
+	"finished_at" timestamp with time zone,
+	"timed_out_at" timestamp with time zone
+);
+--> statement-breakpoint
+CREATE TABLE "workflows_job_listener_events" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"job_id" uuid NOT NULL,
+	"disposition" "workflows_job_listener_event_disposition" NOT NULL,
+	"event_ref" text NOT NULL,
+	"delivery_id" text NOT NULL,
+	"source" text NOT NULL,
+	"event" text NOT NULL,
+	"payload" jsonb NOT NULL,
+	"received_at" timestamp with time zone NOT NULL,
+	"consumed_by_execution_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "workflows_jobs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workflow_run_attempt_id" uuid NOT NULL,
@@ -17,8 +49,6 @@ CREATE TABLE "workflows_jobs" (
 	"status" "workflows_job_status" DEFAULT 'pending' NOT NULL,
 	"status_reason" "workflows_job_status_reason",
 	"carried_over" boolean DEFAULT false NOT NULL,
-	"dependencies" jsonb NOT NULL,
-	"runner" jsonb,
 	"success" text,
 	"execution_timeout_ms" integer,
 	"listening_timeout_ms" bigint,
@@ -31,6 +61,8 @@ CREATE TABLE "workflows_jobs" (
 	"resolution_reason" "workflows_resolution_reason",
 	"listening_on" jsonb,
 	"listening_until" jsonb,
+	"dependencies" jsonb NOT NULL,
+	"runner" jsonb,
 	"position" integer NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -52,81 +84,6 @@ CREATE TABLE "workflows_outbox" (
 	"last_dispatch_error" jsonb,
 	"last_dispatch_failed_at" timestamp with time zone,
 	"dead_lettered_at" timestamp with time zone
-);
---> statement-breakpoint
-CREATE TABLE "workflows_steps" (
-	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
-	"job_execution_id" uuid NOT NULL,
-	"key" text,
-	"name" text NOT NULL,
-	"source_location" jsonb,
-	"status" "workflows_step_status" DEFAULT 'pending' NOT NULL,
-	"type" text NOT NULL,
-	"config" jsonb NOT NULL,
-	"authored_config" jsonb,
-	"output" jsonb,
-	"error" jsonb,
-	"position" integer NOT NULL,
-	"version" integer DEFAULT 1 NOT NULL,
-	"current_attempt" integer DEFAULT 1 NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "workflows_steps_current_attempt_positive_ck" CHECK ("workflows_steps"."current_attempt" > 0)
-);
---> statement-breakpoint
-CREATE TABLE "workflows_workflow_runs" (
-	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
-	"workspace_id" uuid NOT NULL,
-	"project_id" uuid NOT NULL,
-	"definition_id" uuid NOT NULL,
-	"name" text NOT NULL,
-	"status" "workflows_run_status" DEFAULT 'pending' NOT NULL,
-	"current_attempt" integer DEFAULT 1 NOT NULL,
-	"trigger_provider" text,
-	"trigger_source" text NOT NULL,
-	"trigger_event" text NOT NULL,
-	"trigger_payload" jsonb NOT NULL,
-	"inputs" jsonb,
-	"source_snapshot" jsonb,
-	"trigger_idempotency_key" text,
-	"version" integer DEFAULT 1 NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"started_at" timestamp with time zone,
-	"finished_at" timestamp with time zone,
-	CONSTRAINT "workflows_wr_current_attempt_positive_ck" CHECK ("workflows_workflow_runs"."current_attempt" > 0)
-);
---> statement-breakpoint
-CREATE TABLE "workflows_workflow_run_attempts" (
-	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
-	"workflow_run_id" uuid NOT NULL,
-	"attempt" integer NOT NULL,
-	"status" "workflows_run_status" DEFAULT 'pending' NOT NULL,
-	"rerun_mode" "workflows_rerun_mode",
-	"rerun_by_user_id" uuid,
-	"version" integer DEFAULT 1 NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"started_at" timestamp with time zone,
-	"finished_at" timestamp with time zone,
-	CONSTRAINT "workflows_wra_attempt_positive_ck" CHECK ("workflows_workflow_run_attempts"."attempt" > 0)
-);
---> statement-breakpoint
-CREATE TABLE "workflows_job_executions" (
-	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
-	"job_id" uuid NOT NULL,
-	"sequence" integer NOT NULL,
-	"name" text NOT NULL,
-	"status" "workflows_job_execution_status" DEFAULT 'pending' NOT NULL,
-	"status_reason" "workflows_job_status_reason",
-	"trigger_events" jsonb DEFAULT '[]'::jsonb NOT NULL,
-	"version" integer DEFAULT 1 NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"queued_at" timestamp with time zone,
-	"started_at" timestamp with time zone,
-	"finished_at" timestamp with time zone,
-	"timed_out_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "workflows_step_attempts" (
@@ -153,22 +110,83 @@ CREATE TABLE "workflows_step_attempts" (
 	CONSTRAINT "workflows_step_attempts_log_outcome_ck" CHECK ("workflows_step_attempts"."log_outcome" IS NULL OR "workflows_step_attempts"."log_outcome" IN ('drained', 'abandoned'))
 );
 --> statement-breakpoint
-ALTER TABLE "workflows_workflow_run_attempts" ADD CONSTRAINT "workflows_workflow_run_attempts_workflow_run_id_workflows_workflow_runs_id_fk" FOREIGN KEY ("workflow_run_id") REFERENCES "public"."workflows_workflow_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workflows_jobs" ADD CONSTRAINT "workflows_jobs_workflow_run_attempt_id_workflows_workflow_run_attempts_id_fk" FOREIGN KEY ("workflow_run_attempt_id") REFERENCES "public"."workflows_workflow_run_attempts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE TABLE "workflows_steps" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"job_execution_id" uuid NOT NULL,
+	"key" text,
+	"name" text NOT NULL,
+	"source_location" jsonb,
+	"status" "workflows_step_status" DEFAULT 'pending' NOT NULL,
+	"type" text NOT NULL,
+	"config" jsonb NOT NULL,
+	"authored_config" jsonb,
+	"output" jsonb,
+	"error" jsonb,
+	"position" integer NOT NULL,
+	"version" integer DEFAULT 1 NOT NULL,
+	"current_attempt" integer DEFAULT 1 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "workflows_steps_current_attempt_positive_ck" CHECK ("workflows_steps"."current_attempt" > 0)
+);
+--> statement-breakpoint
+CREATE TABLE "workflows_workflow_run_attempts" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"workflow_run_id" uuid NOT NULL,
+	"attempt" integer NOT NULL,
+	"status" "workflows_run_status" DEFAULT 'pending' NOT NULL,
+	"rerun_mode" "workflows_rerun_mode",
+	"rerun_by_user_id" uuid,
+	"version" integer DEFAULT 1 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"started_at" timestamp with time zone,
+	"finished_at" timestamp with time zone,
+	CONSTRAINT "workflows_wra_attempt_positive_ck" CHECK ("workflows_workflow_run_attempts"."attempt" > 0)
+);
+--> statement-breakpoint
+CREATE TABLE "workflows_workflow_runs" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"workspace_id" uuid NOT NULL,
+	"project_id" uuid NOT NULL,
+	"definition_id" uuid NOT NULL,
+	"name" text NOT NULL,
+	"status" "workflows_run_status" DEFAULT 'pending' NOT NULL,
+	"current_attempt" integer DEFAULT 1 NOT NULL,
+	"trigger_provider" text,
+	"trigger_source" text NOT NULL,
+	"trigger_event" text NOT NULL,
+	"trigger_payload" jsonb NOT NULL,
+	"inputs" jsonb,
+	"source_snapshot" jsonb,
+	"trigger_idempotency_key" text,
+	"version" integer DEFAULT 1 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"started_at" timestamp with time zone,
+	"finished_at" timestamp with time zone,
+	CONSTRAINT "workflows_wr_current_attempt_positive_ck" CHECK ("workflows_workflow_runs"."current_attempt" > 0)
+);
+--> statement-breakpoint
 ALTER TABLE "workflows_job_executions" ADD CONSTRAINT "workflows_job_executions_job_id_workflows_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."workflows_jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workflows_steps" ADD CONSTRAINT "workflows_steps_job_execution_id_workflows_job_executions_id_fk" FOREIGN KEY ("job_execution_id") REFERENCES "public"."workflows_job_executions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "workflows_steps_id_job_execution_id_uq" ON "workflows_steps" USING btree ("id","job_execution_id");--> statement-breakpoint
+ALTER TABLE "workflows_job_listener_events" ADD CONSTRAINT "workflows_job_listener_events_job_id_workflows_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."workflows_jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflows_job_listener_events" ADD CONSTRAINT "workflows_job_listener_events_consumed_by_execution_id_workflows_job_executions_id_fk" FOREIGN KEY ("consumed_by_execution_id") REFERENCES "public"."workflows_job_executions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflows_jobs" ADD CONSTRAINT "workflows_jobs_workflow_run_attempt_id_workflows_workflow_run_attempts_id_fk" FOREIGN KEY ("workflow_run_attempt_id") REFERENCES "public"."workflows_workflow_run_attempts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflows_step_attempts" ADD CONSTRAINT "workflows_step_attempts_step_id_workflows_steps_id_fk" FOREIGN KEY ("step_id") REFERENCES "public"."workflows_steps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "workflows_steps_id_job_execution_id_uq" ON "workflows_steps" USING btree ("id","job_execution_id");--> statement-breakpoint
 ALTER TABLE "workflows_step_attempts" ADD CONSTRAINT "workflows_step_attempts_step_id_job_execution_id_workflows_steps_fk" FOREIGN KEY ("step_id","job_execution_id") REFERENCES "public"."workflows_steps"("id","job_execution_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "workflows_jobs_workflow_run_attempt_id_idx" ON "workflows_jobs" USING btree ("workflow_run_attempt_id");--> statement-breakpoint
+ALTER TABLE "workflows_steps" ADD CONSTRAINT "workflows_steps_job_execution_id_workflows_job_executions_id_fk" FOREIGN KEY ("job_execution_id") REFERENCES "public"."workflows_job_executions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflows_workflow_run_attempts" ADD CONSTRAINT "workflows_workflow_run_attempts_workflow_run_id_workflows_workflow_runs_id_fk" FOREIGN KEY ("workflow_run_id") REFERENCES "public"."workflows_workflow_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "workflows_job_executions_job_id_idx" ON "workflows_job_executions" USING btree ("job_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "workflows_job_listener_events_job_event_ref_unique" ON "workflows_job_listener_events" USING btree ("job_id","event_ref");--> statement-breakpoint
+CREATE INDEX "workflows_job_listener_events_job_received_idx" ON "workflows_job_listener_events" USING btree ("job_id","received_at");--> statement-breakpoint
+CREATE INDEX "workflows_jobs_workflow_run_attempt_id_idx" ON "workflows_jobs" USING btree ("workflow_run_attempt_id");--> statement-breakpoint
+CREATE INDEX "workflows_outbox_pending_idx" ON "workflows_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "workflows_outbox_dispatched_retention_idx" ON "workflows_outbox" USING btree ("dispatched_at","id") WHERE "dispatched_at" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "workflows_step_attempts_job_execution_id_idx" ON "workflows_step_attempts" USING btree ("job_execution_id");--> statement-breakpoint
+CREATE INDEX "workflows_steps_job_execution_id_idx" ON "workflows_steps" USING btree ("job_execution_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflows_wra_workflow_run_attempt_unique" ON "workflows_workflow_run_attempts" USING btree ("workflow_run_id","attempt");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflows_wra_one_active_attempt_unique" ON "workflows_workflow_run_attempts" USING btree ("workflow_run_id") WHERE "workflows_workflow_run_attempts"."status" in ('pending', 'running');--> statement-breakpoint
-CREATE INDEX "workflows_step_attempts_job_execution_id_idx" ON "workflows_step_attempts" USING btree ("job_execution_id");--> statement-breakpoint
-CREATE INDEX "workflows_outbox_pending_idx" ON "workflows_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;
---> statement-breakpoint
-CREATE INDEX "workflows_outbox_dispatched_retention_idx" ON "workflows_outbox" USING btree ("dispatched_at","id") WHERE "dispatched_at" IS NOT NULL;--> statement-breakpoint
-CREATE INDEX "workflows_steps_job_execution_id_idx" ON "workflows_steps" USING btree ("job_execution_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflows_wr_trigger_idempotency_key_unique" ON "workflows_workflow_runs" USING btree ("trigger_idempotency_key");--> statement-breakpoint
 CREATE INDEX "workflows_wr_project_created_id_idx" ON "workflows_workflow_runs" USING btree ("project_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "workflows_wr_project_status_created_id_idx" ON "workflows_workflow_runs" USING btree ("project_id","status","created_at","id");--> statement-breakpoint

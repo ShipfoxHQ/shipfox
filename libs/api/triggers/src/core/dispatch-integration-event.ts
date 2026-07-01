@@ -7,6 +7,7 @@ import {
 } from '#metrics/instance.js';
 import {readConfigInputs} from './config.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
+import {routeEventToJobListeners} from './route-event-to-job-listeners.js';
 
 export interface DispatchIntegrationEventParams {
   eventRef: string;
@@ -57,12 +58,6 @@ export async function dispatchIntegrationEvent(
     event: params.event,
   });
 
-  if (subscriptions.length === 0) {
-    eventOutcomeCount.add(1, {provider: params.provider, outcome: 'discarded'});
-    await history.discarded();
-    return;
-  }
-
   let triggeredCount = 0;
   let sawTransientError = false;
   let firstTransientError: unknown;
@@ -97,15 +92,37 @@ export async function dispatchIntegrationEvent(
     }
   }
 
+  const listenerResult = await routeEventToJobListeners({
+    eventRef: params.eventRef,
+    workspaceId: params.workspaceId,
+    provider: params.provider,
+    source: params.source,
+    event: params.event,
+    deliveryId: params.deliveryId,
+    payload: params.payload,
+    receivedAt: params.receivedAt,
+  });
+
+  if (listenerResult.transientErrored && !sawTransientError) {
+    sawTransientError = true;
+    firstTransientError = listenerResult.transientError;
+  }
+
   if (sawTransientError) {
     eventOutcomeCount.add(1, {provider: params.provider, outcome: 'failed'});
     await history.failed(subscriptions.length);
     throw firstTransientError;
   }
 
-  if (triggeredCount > 0) {
+  if (triggeredCount > 0 || listenerResult.matchedJobCount > 0) {
     eventOutcomeCount.add(1, {provider: params.provider, outcome: 'routed'});
     await history.routed(subscriptions.length);
+    return;
+  }
+
+  if (subscriptions.length === 0) {
+    eventOutcomeCount.add(1, {provider: params.provider, outcome: 'discarded'});
+    await history.discarded();
     return;
   }
 

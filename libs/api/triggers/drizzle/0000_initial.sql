@@ -1,3 +1,4 @@
+CREATE TYPE "public"."triggers_job_listener_matcher_kind" AS ENUM('on', 'until');--> statement-breakpoint
 CREATE TABLE "triggers_decisions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"received_event_id" uuid NOT NULL,
@@ -9,6 +10,19 @@ CREATE TABLE "triggers_decisions" (
 	"run_id" uuid,
 	"run_name" text,
 	"reason" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "triggers_job_listener_subscriptions" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"workspace_id" uuid NOT NULL,
+	"workflow_run_id" uuid NOT NULL,
+	"job_id" uuid NOT NULL,
+	"kind" "triggers_job_listener_matcher_kind" NOT NULL,
+	"matcher_ordinal" integer NOT NULL,
+	"source" text NOT NULL,
+	"event" text NOT NULL,
+	"config" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -60,8 +74,10 @@ CREATE TABLE "triggers_subscriptions" (
 ALTER TABLE "triggers_decisions" ADD CONSTRAINT "triggers_decisions_received_event_id_triggers_received_events_id_fk" FOREIGN KEY ("received_event_id") REFERENCES "public"."triggers_received_events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "triggers_decisions_event_subscription_unique" ON "triggers_decisions" USING btree ("received_event_id","subscription_id");--> statement-breakpoint
 CREATE INDEX "triggers_decisions_run_idx" ON "triggers_decisions" USING btree ("run_id");--> statement-breakpoint
-CREATE INDEX "triggers_outbox_pending_idx" ON "triggers_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;
---> statement-breakpoint
+CREATE UNIQUE INDEX "triggers_job_listener_subscriptions_job_kind_ordinal_unique" ON "triggers_job_listener_subscriptions" USING btree ("job_id","kind","matcher_ordinal");--> statement-breakpoint
+CREATE INDEX "triggers_job_listener_subscriptions_match_idx" ON "triggers_job_listener_subscriptions" USING btree ("workspace_id","source","event");--> statement-breakpoint
+CREATE INDEX "triggers_job_listener_subscriptions_job_idx" ON "triggers_job_listener_subscriptions" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX "triggers_outbox_pending_idx" ON "triggers_outbox" USING btree ("next_dispatch_at","created_at") WHERE "dispatched_at" IS NULL AND "dead_lettered_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "triggers_outbox_dispatched_retention_idx" ON "triggers_outbox" USING btree ("dispatched_at","id") WHERE "dispatched_at" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "triggers_received_events_event_ref_unique" ON "triggers_received_events" USING btree ("event_ref");--> statement-breakpoint
 CREATE INDEX "triggers_received_events_workspace_received_idx" ON "triggers_received_events" USING btree ("workspace_id","received_at" DESC NULLS LAST);--> statement-breakpoint

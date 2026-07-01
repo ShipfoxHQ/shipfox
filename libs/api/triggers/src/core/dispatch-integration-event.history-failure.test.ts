@@ -1,10 +1,12 @@
 import {triggerSubscriptionFactory} from '#test/index.js';
 
 const runWorkflow = vi.fn();
+const deliverEventToListener = vi.fn();
 const insertReceivedEvent = vi.fn();
 
 vi.mock('@shipfox/api-workflows', () => ({
   runWorkflow: (...args: unknown[]) => runWorkflow(...args),
+  deliverEventToListener: (...args: unknown[]) => deliverEventToListener(...args),
   isPermanentRunWorkflowError: () => false,
 }));
 
@@ -24,6 +26,8 @@ const {dispatchIntegrationEvent} = await import('./dispatch-integration-event.js
 describe('dispatchIntegrationEvent resilience to history-write failure', () => {
   beforeEach(() => {
     runWorkflow.mockReset();
+    deliverEventToListener.mockReset();
+    deliverEventToListener.mockResolvedValue({buffered: true, skipped: false});
     insertReceivedEvent.mockReset();
     insertReceivedEvent.mockRejectedValue(new Error('history db down'));
   });

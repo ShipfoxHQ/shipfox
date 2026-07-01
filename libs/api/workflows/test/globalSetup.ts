@@ -27,6 +27,7 @@ export async function setup() {
   );
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_workflows');
   await db().execute(sql`TRUNCATE workflows_workflow_runs CASCADE`);
+  await db().execute(sql`TRUNCATE workflows_job_listener_events CASCADE`);
   await db().execute(sql`TRUNCATE workflows_outbox CASCADE`);
 
   closeDb();

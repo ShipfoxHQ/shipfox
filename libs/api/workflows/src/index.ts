@@ -29,6 +29,8 @@ import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/ind
 
 export type {
   Job,
+  JobListenerEvent,
+  JobListenerEventDisposition,
   RunWorkflowParams,
   Step,
   TriggerPayload,
@@ -46,7 +48,10 @@ export {
 export {setSourceControl} from '#core/source-control.js';
 export {
   closeDb,
+  type DeliverEventToListenerParams,
+  type DeliverEventToListenerResult,
   db,
+  deliverEventToListener,
   getStepByIdForJobExecution,
   getTerminalStepAttemptLogState,
   migrationsPath,
