@@ -3,7 +3,6 @@ import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {
   and,
   asc,
-  count,
   desc,
   eq,
   gt,
@@ -200,29 +199,25 @@ export async function listProvisionerTerminateIntentsTx(
     limit: number;
   },
 ): Promise<string[]> {
-  const terminateIntents = provisionerTerminateIntentsQuery(tx, params);
   const rows = await provisionerTerminateIntentsQuery(tx, params)
     .orderBy(asc(provisionedRunners.provisionedRunnerId))
-    .limit(params.limit);
+    .limit(params.limit + 1);
 
-  const [countRow] = await tx
-    .select({value: count()})
-    .from(terminateIntents.as('terminate_intents'));
-
-  const totalCount = countRow?.value ?? 0;
-  if (totalCount > rows.length) {
+  const truncated = rows.length > params.limit;
+  const returnedRows = truncated ? rows.slice(0, params.limit) : rows;
+  if (truncated) {
     logger().warn(
       {
         workspaceId: params.workspaceId,
         provisionerId: params.provisionerId,
-        returnedCount: rows.length,
-        truncatedCount: totalCount - rows.length,
+        limit: params.limit,
+        returnedCount: returnedRows.length,
       },
       'provisioner terminate intents truncated by poll-demand limit',
     );
   }
 
-  return rows.map((row) => row.provisionedRunnerId);
+  return returnedRows.map((row) => row.provisionedRunnerId);
 }
 
 function provisionerTerminateIntentsQuery(
