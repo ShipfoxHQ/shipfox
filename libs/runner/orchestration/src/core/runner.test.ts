@@ -14,7 +14,9 @@ vi.mock('#core/heartbeat-loop.js', () => ({
 
 vi.mock('@shipfox/runner-workspace', async (importActual) => ({
   ...(await importActual<typeof import('@shipfox/runner-workspace')>()),
+  cleanupJobCredentials: vi.fn(),
   cleanupJobLogs: vi.fn(),
+  jobCredentialsPath: vi.fn(),
   jobWorkspacePath: vi.fn(),
   jobLogsPath: vi.fn(),
   cleanupWorkspace: vi.fn(),
@@ -53,9 +55,11 @@ import {
   requireRunnerLabels,
 } from '@shipfox/runner-protocol';
 import {
+  cleanupJobCredentials,
   cleanupJobLogs,
   cleanupWorkspace,
   InvalidJobIdError,
+  jobCredentialsPath,
   jobLogsPath,
   jobWorkspacePath,
   resolveWorkspaceRootFromEnv,
@@ -74,8 +78,10 @@ import {runJobSteps} from '#core/step-loop.js';
 
 const mockJobWorkspacePath = vi.mocked(jobWorkspacePath);
 const mockJobLogsPath = vi.mocked(jobLogsPath);
+const mockJobCredentialsPath = vi.mocked(jobCredentialsPath);
 const mockCleanupWorkspace = vi.mocked(cleanupWorkspace);
 const mockCleanupJobLogs = vi.mocked(cleanupJobLogs);
+const mockCleanupJobCredentials = vi.mocked(cleanupJobCredentials);
 const mockResolveWorkspaceRoot = vi.mocked(resolveWorkspaceRootFromEnv);
 const mockRunJobSteps = vi.mocked(runJobSteps);
 const mockCreateLeaseClient = vi.mocked(createLeaseClient);
@@ -97,6 +103,8 @@ const JOB = {
 const WORKSPACE_ROOT = '/tmp/shipfox-test-root';
 const JOB_CWD = '/tmp/shipfox-test-root/job-1';
 const JOB_LOGS_DIR = '/tmp/shipfox-test-root/.shipfox-runner-logs/job-1';
+const JOB_CREDENTIALS_DIR = '/tmp/shipfox-test-root/.shipfox-runner-cred/job-1';
+const JOB_GIT_CONFIG_PATH = `${JOB_CREDENTIALS_DIR}/git-cred.config`;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -112,6 +120,7 @@ beforeEach(() => {
   });
   mockJobWorkspacePath.mockReturnValue(JOB_CWD);
   mockJobLogsPath.mockReturnValue(JOB_LOGS_DIR);
+  mockJobCredentialsPath.mockReturnValue(JOB_CREDENTIALS_DIR);
   mockRunJobSteps.mockResolvedValue();
 });
 
@@ -123,6 +132,7 @@ describe('runJob', () => {
   it('runs the step loop with the per-job cwd and lease client, then cleans up', async () => {
     mockJobWorkspacePath.mockReturnValue(JOB_CWD);
     mockJobLogsPath.mockReturnValue(JOB_LOGS_DIR);
+    mockJobCredentialsPath.mockReturnValue(JOB_CREDENTIALS_DIR);
     mockRunJobSteps.mockResolvedValue();
 
     await runJob(JOB, WORKSPACE_ROOT);
@@ -142,6 +152,7 @@ describe('runJob', () => {
       expect.objectContaining({
         jobId: JOB.job_id,
         cwd: JOB_CWD,
+        gitConfigPath: JOB_GIT_CONFIG_PATH,
         logsDir: JOB_LOGS_DIR,
         jobContext: {
           workflowRunId: JOB.workflow_run_id,
@@ -152,11 +163,14 @@ describe('runJob', () => {
     );
     expect(mockCleanupWorkspace).toHaveBeenCalledWith(JOB_CWD);
     expect(mockCleanupJobLogs).toHaveBeenCalledWith(JOB_LOGS_DIR);
+    expect(mockCleanupJobCredentials).toHaveBeenNthCalledWith(1, JOB_CREDENTIALS_DIR);
+    expect(mockCleanupJobCredentials).toHaveBeenNthCalledWith(2, JOB_CREDENTIALS_DIR);
   });
 
   it('rotates the lease token used by step requests and redaction', async () => {
     mockJobWorkspacePath.mockReturnValue(JOB_CWD);
     mockJobLogsPath.mockReturnValue(JOB_LOGS_DIR);
+    mockJobCredentialsPath.mockReturnValue(JOB_CREDENTIALS_DIR);
     const observedSecrets: string[][] = [];
     mockRunJobSteps.mockImplementation((params) => {
       params.subscribeSecrets?.((secrets) => observedSecrets.push(secrets));
@@ -193,12 +207,15 @@ describe('runJob', () => {
   it('cleans up the per-job cwd when the step loop throws', async () => {
     mockJobWorkspacePath.mockReturnValue(JOB_CWD);
     mockJobLogsPath.mockReturnValue(JOB_LOGS_DIR);
+    mockJobCredentialsPath.mockReturnValue(JOB_CREDENTIALS_DIR);
     mockRunJobSteps.mockRejectedValue(new Error('aborted'));
 
     await runJob(JOB, WORKSPACE_ROOT);
 
     expect(mockCleanupWorkspace).toHaveBeenCalledWith(JOB_CWD);
     expect(mockCleanupJobLogs).toHaveBeenCalledWith(JOB_LOGS_DIR);
+    expect(mockCleanupJobCredentials).toHaveBeenNthCalledWith(1, JOB_CREDENTIALS_DIR);
+    expect(mockCleanupJobCredentials).toHaveBeenNthCalledWith(2, JOB_CREDENTIALS_DIR);
   });
 
   it('skips the job without running the loop or cleaning up when the job id is invalid', async () => {
@@ -211,6 +228,7 @@ describe('runJob', () => {
     expect(mockRunJobSteps).not.toHaveBeenCalled();
     expect(mockCleanupWorkspace).not.toHaveBeenCalled();
     expect(mockCleanupJobLogs).not.toHaveBeenCalled();
+    expect(mockCleanupJobCredentials).not.toHaveBeenCalled();
   });
 });
 

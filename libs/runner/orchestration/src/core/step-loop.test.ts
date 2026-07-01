@@ -61,6 +61,7 @@ const {executeStep, runJobSteps} = await import('#core/step-loop.js');
 const JOB_ID = '00000000-0000-0000-0000-0000000000aa';
 const RUN_ID = '00000000-0000-0000-0000-0000000000ab';
 const LOGS_DIR = '/runner-logs/job-1';
+const GIT_CONFIG_PATH = '/runner-cred/job-1/git-cred.config';
 const JOB_CONTEXT = {
   workflowRunId: '00000000-0000-0000-0000-000000000004',
   workflowRunAttemptId: RUN_ID,
@@ -152,6 +153,7 @@ function runLoop(params: {
     ...(params.subscribeSecrets ? {subscribeSecrets: params.subscribeSecrets} : {}),
     signal: params.signal,
     cwd: params.cwd ?? '/work',
+    gitConfigPath: GIT_CONFIG_PATH,
     logsDir: LOGS_DIR,
     jobContext: JOB_CONTEXT,
   });
@@ -178,7 +180,9 @@ describe('runJobSteps', () => {
     createdStreams = new Map();
     reportStepMock.mockResolvedValue({ok: true, cancel: false});
     // Setup succeeds by default; tests that exercise setup failure override it.
-    executeSetupStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    executeSetupStepMock.mockResolvedValue({
+      result: {success: true, error: null, exit_code: 0},
+    });
     createStepLogStreamMock.mockImplementation((opts: {stepId: string}) => {
       events.push(`create:${opts.stepId}`);
       return makeFakeStream(opts.stepId);
@@ -203,6 +207,7 @@ describe('runJobSteps', () => {
 
     expect(executeSetupStepMock).toHaveBeenCalledWith({
       cwd: '/work',
+      gitConfigPath: GIT_CONFIG_PATH,
       leaseClient,
       signal: ac.signal,
       log: expect.any(Object),
@@ -462,7 +467,9 @@ describe('runJobSteps', () => {
     const setup = buildSetupStep();
     const error = {message: 'mkdir denied', reason: 'workspace_prep_failed' as const};
     requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 1));
-    executeSetupStepMock.mockResolvedValueOnce({success: false, error, exit_code: null});
+    executeSetupStepMock.mockResolvedValueOnce({
+      result: {success: false, error, exit_code: null},
+    });
     reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
     const ac = new AbortController();
 
@@ -633,7 +640,7 @@ describe('runJobSteps', () => {
     requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 1));
     executeSetupStepMock.mockImplementationOnce(() => {
       ac.abort();
-      return Promise.resolve({success: true, error: null, exit_code: 0});
+      return Promise.resolve({result: {success: true, error: null, exit_code: 0}});
     });
 
     await runLoop({signal: ac.signal});
@@ -689,6 +696,28 @@ describe('runJobSteps', () => {
       logOutcome: 'drained',
       signal: ac.signal,
     });
+  });
+
+  it('passes the setup ambient git config path to agent steps', async () => {
+    const setup = buildSetupStep();
+    const agent = buildAgentStep();
+    executeSetupStepMock.mockResolvedValueOnce({
+      result: {success: true, error: null, exit_code: 0},
+      ambientGitConfigPath: GIT_CONFIG_PATH,
+    });
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeAgentStepMock.mockResolvedValue({success: true, output: '', error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(executeAgentStepMock).toHaveBeenCalledWith(
+      agent,
+      expect.objectContaining({gitConfigGlobal: GIT_CONFIG_PATH}),
+    );
   });
 
   it('uses provider, model, and thinking from runtime config instead of stale step config', async () => {
@@ -846,6 +875,7 @@ describe('runJobSteps', () => {
       secrets: [],
       signal: ac.signal,
       workspacePrepared: true,
+      gitConfigPath: GIT_CONFIG_PATH,
       jobId: JOB_ID,
       stepLabel: 'implement',
     });

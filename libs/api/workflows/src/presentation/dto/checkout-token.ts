@@ -37,7 +37,10 @@ function assertNoScpCredentials(repositoryUrl: string): void {
   }
 }
 
-export function toCheckoutTokenDto(spec: CheckoutSpec): CheckoutTokenResponseDto {
+export function toCheckoutTokenDto(
+  spec: CheckoutSpec,
+  options: {persist: boolean},
+): CheckoutTokenResponseDto {
   assertNoEmbeddedCredentials(spec.repositoryUrl);
 
   // Every provider that returns credentials uses a username (GitHub:
@@ -53,6 +56,8 @@ export function toCheckoutTokenDto(spec: CheckoutSpec): CheckoutTokenResponseDto
             username: spec.credentials.username,
             token: spec.credentials.token,
             expires_at: spec.credentials.expiresAt.toISOString(),
+            carry: 'header' as const,
+            persist: options.persist,
           },
         }
       : {}),

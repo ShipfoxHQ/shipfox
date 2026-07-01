@@ -48,7 +48,7 @@ export const checkoutTokenRoute = defineRoute({
       throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
     }
 
-    const spec = await createJobCheckoutSpec({
+    const checkout = await createJobCheckoutSpec({
       jobId: leasedJob.jobId,
       sourceControl: sourceControl(),
     });
@@ -56,6 +56,6 @@ export const checkoutTokenRoute = defineRoute({
     // The body carries short-lived git credentials; forbid any intermediary or
     // client cache from retaining them.
     reply.header('cache-control', 'no-store');
-    return toCheckoutTokenDto(spec);
+    return toCheckoutTokenDto(checkout.spec, {persist: checkout.persistCredentials});
   },
 });

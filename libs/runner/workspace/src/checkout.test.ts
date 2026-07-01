@@ -1,4 +1,7 @@
 import {EventEmitter} from 'node:events';
+import {mkdtemp, readFile, rm, stat, writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 
 const execFileMock = vi.fn();
 const spawnMock = vi.fn();
@@ -8,7 +11,13 @@ vi.mock('node:child_process', () => ({
   spawn: (...args: unknown[]) => spawnMock(...args),
 }));
 
-const {checkoutRepository, CheckoutError, redactSecrets} = await import('#checkout.js');
+const {
+  assertGitAvailable,
+  checkoutRepository,
+  CheckoutError,
+  redactSecrets,
+  writeAmbientGitCredential,
+} = await import('#checkout.js');
 
 type SpawnResult =
   | {kind: 'success'; stdout?: string; stderr?: string}
@@ -91,17 +100,35 @@ describe('checkoutRepository argv', () => {
 
     await checkoutRepository({
       ...BASE,
-      auth: {kind: 'bearer', token: 'tok-123', expires_at: '2026-01-01T00:00:00Z'},
+      auth: {
+        kind: 'bearer',
+        token: 'tok-123',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
+      },
       onCommandStart,
       onSecrets,
     });
 
     const fetchArgs = spawnMock.mock.calls[2]?.[1] as string[];
-    expect(fetchArgs.slice(0, 3)).toEqual([
-      '-c',
-      'http.extraHeader=Authorization: Bearer tok-123',
+    expect(fetchArgs).toEqual([
       'fetch',
+      '--progress',
+      '--no-tags',
+      '--prune',
+      '--depth=1',
+      'origin',
+      'main',
     ]);
+    const fetchOptions = spawnMock.mock.calls[2]?.[2] as {env: Record<string, string>};
+    expect(fetchOptions.env).toMatchObject({
+      GIT_CONFIG_COUNT: '2',
+      GIT_CONFIG_KEY_0: 'http.https://github.com/acme/repo.git.extraHeader',
+      GIT_CONFIG_VALUE_0: 'Authorization: Bearer tok-123',
+      GIT_CONFIG_KEY_1: 'http.followRedirects',
+      GIT_CONFIG_VALUE_1: 'initial',
+    });
     expect(onSecrets).toHaveBeenCalledWith(['tok-123']);
     expect(onCommandStart.mock.calls.map((call) => call[0].command).join('\n')).not.toContain(
       'tok-123',
@@ -120,12 +147,16 @@ describe('checkoutRepository argv', () => {
         username: 'x-token',
         token: 'tok-123',
         expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
       },
       onSecrets,
     });
 
     const fetchArgs = spawnMock.mock.calls[2]?.[1] as string[];
-    expect(fetchArgs[1]).toBe(`http.extraHeader=Authorization: Basic ${expected}`);
+    const fetchOptions = spawnMock.mock.calls[2]?.[2] as {env: Record<string, string>};
+    expect(fetchArgs[0]).toBe('fetch');
+    expect(fetchOptions.env.GIT_CONFIG_VALUE_0).toBe(`Authorization: Basic ${expected}`);
     expect(onSecrets).toHaveBeenCalledWith(['tok-123', expected]);
   });
 
@@ -212,7 +243,13 @@ describe('checkoutRepository failure classification', () => {
 
     const error = await checkoutRepository({
       ...BASE,
-      auth: {kind: 'bearer', token: 'tok-123', expires_at: '2026-01-01T00:00:00Z'},
+      auth: {
+        kind: 'bearer',
+        token: 'tok-123',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
+      },
     }).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(CheckoutError);
@@ -231,6 +268,8 @@ describe('checkoutRepository failure classification', () => {
         username: 'x-token',
         token: 'tok-123',
         expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
       },
     }).catch((e: unknown) => e);
 
@@ -243,11 +282,82 @@ describe('checkoutRepository failure classification', () => {
 
     const error = await checkoutRepository({
       ...BASE,
-      auth: {kind: 'bearer', token: 'tok-123', expires_at: '2026-01-01T00:00:00Z'},
+      auth: {
+        kind: 'bearer',
+        token: 'tok-123',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
+      },
     }).catch((e: unknown) => e);
 
     const cause = (error as Error).cause as Error;
     expect(cause.message).not.toContain('tok-123');
+  });
+});
+
+describe('writeAmbientGitCredential', () => {
+  let root: string;
+  let priorGitConfigGlobal: string | undefined;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'shipfox-ambient-git-'));
+    priorGitConfigGlobal = process.env.GIT_CONFIG_GLOBAL;
+    delete process.env.GIT_CONFIG_GLOBAL;
+  });
+
+  afterEach(async () => {
+    if (priorGitConfigGlobal === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+    else process.env.GIT_CONFIG_GLOBAL = priorGitConfigGlobal;
+    await rm(root, {recursive: true, force: true});
+  });
+
+  it('writes a 0600 repository-scoped Authorization header config', async () => {
+    const configPath = join(root, 'creds', 'git-cred.config');
+
+    await writeAmbientGitCredential({
+      configPath,
+      repositoryUrl: 'https://github.com/acme/repo.git',
+      auth: {
+        kind: 'bearer',
+        token: 'tok-123',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
+      },
+    });
+
+    const content = await readFile(configPath, 'utf8');
+    const mode = (await stat(configPath)).mode & 0o777;
+    expect(mode).toBe(0o600);
+    expect(content).toContain('[http "https://github.com/acme/repo.git"]');
+    expect(content).toContain('extraHeader = Authorization: Bearer tok-123');
+    expect(content).toContain('[http]\n\tfollowRedirects = initial');
+  });
+
+  it('includes the prior global config when it exists', async () => {
+    const baseConfig = join(root, 'base.gitconfig');
+    const configPath = join(root, 'git-cred.config');
+    await writeFile(baseConfig, '[user]\n\tname = Runner\n');
+    process.env.GIT_CONFIG_GLOBAL = baseConfig;
+
+    await writeAmbientGitCredential({
+      configPath,
+      repositoryUrl: 'https://github.com/acme/repo.git',
+      auth: {
+        kind: 'basic',
+        username: 'x-token',
+        token: 'tok-123',
+        expires_at: '2026-01-01T00:00:00Z',
+        carry: 'header',
+        persist: true,
+      },
+    });
+
+    const content = await readFile(configPath, 'utf8');
+    const expected = Buffer.from('x-token:tok-123').toString('base64');
+    expect(content).toContain(`[include]\n\tpath = ${baseConfig}`);
+    expect(content).toContain(`extraHeader = Authorization: Basic ${expected}`);
   });
 });
 
@@ -264,5 +374,19 @@ describe('redactSecrets', () => {
 
   it('ignores empty secrets', () => {
     expect(redactSecrets('unchanged', [''])).toBe('unchanged');
+  });
+});
+
+describe('assertGitAvailable', () => {
+  it('rejects git versions older than 2.32.0', async () => {
+    execFileMock.mockImplementation((...args: unknown[]) => {
+      const callback = args.at(-1) as (
+        error: null,
+        result: {stdout: string; stderr: string},
+      ) => void;
+      callback(null, {stdout: 'git version 2.31.9\n', stderr: ''});
+    });
+
+    await expect(assertGitAvailable()).rejects.toThrow('Git 2.32.0 or newer is required');
   });
 });

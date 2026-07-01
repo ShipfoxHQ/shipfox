@@ -19,6 +19,7 @@ export function executeAgentStep(
       thinking: string;
       credentials: Record<string, string>;
     };
+    gitConfigGlobal?: string | undefined;
     onSessionEntry?: (line: string) => void;
   },
 ): Promise<StepResult> {
@@ -45,6 +46,7 @@ export function executeAgentStep(
     provider: options.runtime.provider,
     credentials: options.runtime.credentials,
     signal: options.signal,
+    gitConfigGlobal: options.gitConfigGlobal,
     onSessionEntry: options.onSessionEntry,
   });
 }
@@ -57,9 +59,11 @@ async function runAgentStep(params: {
   provider: string;
   credentials: Record<string, string>;
   signal: AbortSignal | undefined;
+  gitConfigGlobal: string | undefined;
   onSessionEntry: ((line: string) => void) | undefined;
 }): Promise<StepResult> {
-  const {cwd, model, prompt, thinking, provider, credentials, onSessionEntry} = params;
+  const {cwd, model, prompt, thinking, provider, credentials, gitConfigGlobal, onSessionEntry} =
+    params;
   const signal = params.signal ?? new AbortController().signal;
 
   try {
@@ -72,6 +76,7 @@ async function runAgentStep(params: {
         prompt,
         credentials,
         signal,
+        ...(gitConfigGlobal ? {gitConfigGlobal} : {}),
         ...(onSessionEntry ? {onSessionEntry} : {}),
       }),
       signal,
