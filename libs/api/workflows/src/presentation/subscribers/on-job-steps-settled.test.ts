@@ -1,4 +1,4 @@
-import type {WorkflowsJobStepsSettledEvent} from '@shipfox/api-workflows-dto';
+import type {WorkflowsJobStepsSettledEventDto} from '@shipfox/api-workflows-dto';
 import {onJobStepsSettled} from './on-job-steps-settled.js';
 
 const signalMock = vi.fn();
@@ -9,8 +9,8 @@ vi.mock('@shipfox/node-temporal', () => ({
 }));
 
 function buildPayload(
-  overrides: Partial<WorkflowsJobStepsSettledEvent> = {},
-): WorkflowsJobStepsSettledEvent {
+  overrides: Partial<WorkflowsJobStepsSettledEventDto> = {},
+): WorkflowsJobStepsSettledEventDto {
   return {
     jobId: crypto.randomUUID(),
     jobExecutionId: crypto.randomUUID(),

@@ -1,5 +1,5 @@
-import type {WorkflowsRunAttemptCreatedEvent} from '@shipfox/api-workflows-dto';
-import {onRunAttemptCreated} from './on-run-attempt-created.js';
+import type {WorkflowsWorkflowRunAttemptCreatedEventDto} from '@shipfox/api-workflows-dto';
+import {onWorkflowRunAttemptCreated} from './on-workflow-run-attempt-created.js';
 
 const startMock = vi.fn();
 
@@ -8,8 +8,8 @@ vi.mock('@shipfox/node-temporal', () => ({
 }));
 
 function buildPayload(
-  overrides: Partial<WorkflowsRunAttemptCreatedEvent> = {},
-): WorkflowsRunAttemptCreatedEvent {
+  overrides: Partial<WorkflowsWorkflowRunAttemptCreatedEventDto> = {},
+): WorkflowsWorkflowRunAttemptCreatedEventDto {
   return {
     workflowRunId: crypto.randomUUID(),
     workflowRunAttemptId: crypto.randomUUID(),
@@ -21,7 +21,7 @@ function buildPayload(
   };
 }
 
-describe('onRunAttemptCreated', () => {
+describe('onWorkflowRunAttemptCreated', () => {
   beforeEach(() => {
     startMock.mockReset();
     startMock.mockResolvedValue({});
@@ -30,11 +30,11 @@ describe('onRunAttemptCreated', () => {
   it('starts the run orchestration keyed on the attempt id', async () => {
     const payload = buildPayload();
 
-    await onRunAttemptCreated(payload);
+    await onWorkflowRunAttemptCreated(payload);
 
     expect(startMock).toHaveBeenCalledWith('runOrchestration', {
       taskQueue: 'workflows-orchestrator',
-      workflowId: `run-attempt:${payload.workflowRunAttemptId}`,
+      workflowId: `workflow-run-attempt:${payload.workflowRunAttemptId}`,
       args: [
         {
           workflowRunId: payload.workflowRunId,
@@ -50,7 +50,7 @@ describe('onRunAttemptCreated', () => {
     alreadyStarted.name = 'WorkflowExecutionAlreadyStartedError';
     startMock.mockRejectedValueOnce(alreadyStarted);
 
-    const result = onRunAttemptCreated(buildPayload());
+    const result = onWorkflowRunAttemptCreated(buildPayload());
 
     await expect(result).resolves.toBeUndefined();
     expect(startMock).toHaveBeenCalledTimes(1);
@@ -60,7 +60,7 @@ describe('onRunAttemptCreated', () => {
     const failure = new Error('temporal unavailable');
     startMock.mockRejectedValueOnce(failure);
 
-    const result = onRunAttemptCreated(buildPayload());
+    const result = onWorkflowRunAttemptCreated(buildPayload());
 
     await expect(result).rejects.toBe(failure);
   });

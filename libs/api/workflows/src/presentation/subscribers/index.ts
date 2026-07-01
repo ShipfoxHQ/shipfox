@@ -1,6 +1,6 @@
 export {onJobStepsSettled} from './on-job-steps-settled.js';
-export {onRunAttemptCreated} from './on-run-attempt-created.js';
 export {onRunnerJobClaimed} from './on-runner-job-claimed.js';
 export {onRunnerJobLeaseExpired} from './on-runner-job-lease-expired.js';
 export {onRunnerJobQueued} from './on-runner-job-queued.js';
+export {onWorkflowRunAttemptCreated} from './on-workflow-run-attempt-created.js';
 export {onWorkflowRunCancelled} from './on-workflow-run-cancelled.js';

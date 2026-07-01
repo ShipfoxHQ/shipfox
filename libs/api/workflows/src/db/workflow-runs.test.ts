@@ -2,8 +2,8 @@ import type {AgentDefaultsResolver} from '@shipfox/api-agent/core/resolve-agent-
 import {normalizeWorkflowDocument} from '@shipfox/api-definitions';
 import {
   WORKFLOWS_JOB_TERMINATED,
-  WORKFLOWS_RUN_ATTEMPT_CREATED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
+  WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
 } from '@shipfox/api-workflows-dto';
@@ -147,7 +147,7 @@ async function runAttemptCreatedEvents(workflowRunId: string) {
     .from(workflowsOutbox)
     .where(
       and(
-        eq(workflowsOutbox.eventType, WORKFLOWS_RUN_ATTEMPT_CREATED),
+        eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED),
         sql`${workflowsOutbox.payload}->>'workflowRunId' = ${workflowRunId}`,
       ),
     );
@@ -238,7 +238,7 @@ describe('workflow run queries', () => {
       expect(jobSteps[1]).toMatchObject({position: 1, config: {run: 'echo hello'}});
     });
 
-    test('writes workflows.run_attempt.created outbox event in same transaction', async () => {
+    test('writes workflows.workflow_run_attempt.created outbox event in same transaction', async () => {
       const run = await createWorkflowRun({
         workspaceId,
         projectId,
@@ -255,7 +255,7 @@ describe('workflow run queries', () => {
       const outboxRows = await db()
         .select()
         .from(workflowsOutbox)
-        .where(eq(workflowsOutbox.eventType, WORKFLOWS_RUN_ATTEMPT_CREATED));
+        .where(eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED));
 
       const matchingRow = outboxRows.find(
         (row) => (row.payload as Record<string, unknown>).workflowRunId === run.id,
@@ -374,7 +374,7 @@ describe('workflow run queries', () => {
 
       const transaction = db().transaction(async (tx) => {
         await tx.insert(workflowsOutbox).values({
-          eventType: WORKFLOWS_RUN_ATTEMPT_CREATED,
+          eventType: WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
           payload: {workflowRunId: marker, projectId, definitionId},
         });
         throw new Error('Simulated failure');

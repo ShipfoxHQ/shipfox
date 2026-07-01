@@ -1,4 +1,4 @@
-import type {RerunMode} from '@shipfox/api-workflows-dto';
+import type {WorkflowRunRerunModeDto} from '@shipfox/api-workflows-dto';
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {
   Badge,
@@ -46,7 +46,7 @@ export interface WorkflowRunSummaryProps {
   cancelling?: boolean | undefined;
   onCancel?: (() => void) | undefined;
   rerunPending?: boolean | undefined;
-  onRerun?: ((mode: RerunMode) => void) | undefined;
+  onRerun?: ((mode: WorkflowRunRerunModeDto) => void) | undefined;
   latestAttempt?: number | undefined;
 }
 
@@ -193,7 +193,7 @@ function WorkflowRunActionSlot({
   cancelling: boolean;
   onCancel?: (() => void) | undefined;
   rerunPending: boolean;
-  onRerun?: ((mode: RerunMode) => void) | undefined;
+  onRerun?: ((mode: WorkflowRunRerunModeDto) => void) | undefined;
 }) {
   if (action === 'none') return null;
 

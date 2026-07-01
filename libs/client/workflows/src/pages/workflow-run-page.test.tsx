@@ -1,4 +1,7 @@
-import type {RunDetailResponseDto, RunResponseDto} from '@shipfox/api-workflows-dto';
+import type {
+  WorkflowRunDetailResponseDto,
+  WorkflowRunResponseDto,
+} from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {act, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -33,12 +36,12 @@ const RUN_OVERRIDES = {
   trigger_payload: {source: 'manual', event: 'fire'},
   created_at: '2026-05-07T01:01:00.000Z',
   updated_at: '2026-05-07T01:02:00.000Z',
-} satisfies Partial<RunResponseDto>;
+} satisfies Partial<WorkflowRunResponseDto>;
 const SECOND_RUN_OVERRIDES = {
   ...RUN_OVERRIDES,
   id: SECOND_RUN_ID,
   name: 'smoke-web',
-} satisfies Partial<RunResponseDto>;
+} satisfies Partial<WorkflowRunResponseDto>;
 
 describe('WorkflowRunPage', () => {
   test('keeps the runs list mounted and only skeletons the run view until a run is selected', async () => {
@@ -262,8 +265,8 @@ function createRunDetailFetch({
   runs = [workflowRunDto(RUN_OVERRIDES)],
   details = {[RUN_ID]: defaultRunDetailDto()},
 }: {
-  runs?: RunResponseDto[];
-  details?: Record<string, RunDetailResponseDto>;
+  runs?: WorkflowRunResponseDto[];
+  details?: Record<string, WorkflowRunDetailResponseDto>;
 } = {}) {
   return vi.fn((input: RequestInfo | URL) => {
     const url = new URL(requestInputUrl(input));
@@ -310,7 +313,9 @@ function requestInputUrl(input: RequestInfo | URL) {
   return String(input);
 }
 
-function defaultRunDetailDto(overrides: Partial<RunDetailResponseDto> = {}): RunDetailResponseDto {
+function defaultRunDetailDto(
+  overrides: Partial<WorkflowRunDetailResponseDto> = {},
+): WorkflowRunDetailResponseDto {
   return workflowRunDetailDto({
     ...RUN_OVERRIDES,
     jobs: [

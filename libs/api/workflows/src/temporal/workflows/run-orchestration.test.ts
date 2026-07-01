@@ -33,7 +33,7 @@ beforeEach(() => {
 async function executeRun(): Promise<void> {
   await testEnv.client.workflow.execute('runOrchestration', {
     taskQueue: TASK_QUEUE,
-    workflowId: `run-attempt:${workflowRunId}-attempt-1`,
+    workflowId: `workflow-run-attempt:${workflowRunId}-attempt-1`,
     args: [{workflowRunId, runAttemptId: `${workflowRunId}-attempt-1`, workspaceId}],
   });
 }

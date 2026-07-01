@@ -1,11 +1,11 @@
 import type {
-  RerunMode,
-  RerunRunBodyDto,
-  RunAttemptsResponseDto,
-  RunDetailResponseDto,
-  RunDto,
-  RunListResponseDto,
-  RunResponseDto,
+  RerunWorkflowRunBodyDto,
+  WorkflowRunAttemptsResponseDto,
+  WorkflowRunDetailResponseDto,
+  WorkflowRunDto,
+  WorkflowRunListResponseDto,
+  WorkflowRunRerunModeDto,
+  WorkflowRunResponseDto,
 } from '@shipfox/api-workflows-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {
@@ -82,7 +82,9 @@ async function listWorkflowRunsDto({
   const params = new URLSearchParams({project_id: projectId, limit: String(limit)});
   if (cursor) params.set('cursor', cursor);
   appendFilters(params, filters);
-  return await apiRequest<RunListResponseDto>(`/workflows/runs?${params.toString()}`, {signal});
+  return await apiRequest<WorkflowRunListResponseDto>(`/workflows/runs?${params.toString()}`, {
+    signal,
+  });
 }
 
 /**
@@ -111,10 +113,10 @@ export async function fireManualWorkflow({
 const ACTIVE_POLL_MS = 4_000;
 const IDLE_POLL_MS = 30_000;
 
-type RunListInfinite = InfiniteData<RunListResponseDto, string | undefined>;
+type RunListInfinite = InfiniteData<WorkflowRunListResponseDto, string | undefined>;
 
 function toWorkflowRunInfiniteData(
-  data: InfiniteData<RunListResponseDto, string | undefined>,
+  data: InfiniteData<WorkflowRunListResponseDto, string | undefined>,
 ): InfiniteData<WorkflowRunListPage, string | undefined> {
   return {
     ...data,
@@ -175,9 +177,12 @@ async function getWorkflowRunDto({
   const params = new URLSearchParams();
   if (runAttempt) params.set('attempt', String(runAttempt));
   const query = params.size > 0 ? `?${params.toString()}` : '';
-  return await apiRequest<RunDetailResponseDto>(`/workflows/runs/${workflowRunId}${query}`, {
-    signal,
-  });
+  return await apiRequest<WorkflowRunDetailResponseDto>(
+    `/workflows/runs/${workflowRunId}${query}`,
+    {
+      signal,
+    },
+  );
 }
 
 async function getWorkflowRunAttemptsDto({
@@ -187,13 +192,18 @@ async function getWorkflowRunAttemptsDto({
   workflowRunId: string;
   signal?: AbortSignal;
 }) {
-  return await apiRequest<RunAttemptsResponseDto>(`/workflows/runs/${workflowRunId}/attempts`, {
-    signal,
-  });
+  return await apiRequest<WorkflowRunAttemptsResponseDto>(
+    `/workflows/runs/${workflowRunId}/attempts`,
+    {
+      signal,
+    },
+  );
 }
 
 async function cancelWorkflowRunDto({workflowRunId}: {workflowRunId: string}) {
-  return await apiRequest<RunDto>(`/workflows/runs/${workflowRunId}/cancel`, {method: 'POST'});
+  return await apiRequest<WorkflowRunDto>(`/workflows/runs/${workflowRunId}/cancel`, {
+    method: 'POST',
+  });
 }
 
 export async function rerunWorkflowRun({
@@ -201,11 +211,11 @@ export async function rerunWorkflowRun({
   mode,
 }: {
   workflowRunId: string;
-  mode: RerunMode;
+  mode: WorkflowRunRerunModeDto;
 }) {
-  return await apiRequest<RunResponseDto>(`/workflows/runs/${workflowRunId}/rerun`, {
+  return await apiRequest<WorkflowRunResponseDto>(`/workflows/runs/${workflowRunId}/rerun`, {
     method: 'POST',
-    body: {mode} satisfies RerunRunBodyDto,
+    body: {mode} satisfies RerunWorkflowRunBodyDto,
   });
 }
 
@@ -251,7 +261,7 @@ function buildTempRun({
   definitionId: string;
   name: string;
   createdAt: string;
-}): RunDto {
+}): WorkflowRunDto {
   return {
     id: `temp-${cryptoRandomId()}`,
     project_id: projectId,
@@ -323,7 +333,7 @@ export function useFireManualWorkflowMutation() {
           if (!current || current.pages.length === 0) return current;
           const firstPage = current.pages[0];
           if (!firstPage) return current;
-          const nextFirstPage: RunListResponseDto = {
+          const nextFirstPage: WorkflowRunListResponseDto = {
             ...firstPage,
             runs: [tempRun, ...firstPage.runs],
             filtered_total_count:

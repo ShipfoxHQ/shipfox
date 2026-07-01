@@ -1,4 +1,4 @@
-import type {WorkflowsJobExecutionTimedOutEvent} from '@shipfox/api-workflows-dto';
+import type {WorkflowsJobExecutionTimedOutEventDto} from '@shipfox/api-workflows-dto';
 import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {claimPendingJobExecution} from '#db/job-executions.js';
@@ -10,7 +10,7 @@ function buildPayload(
   jobId: string,
   jobExecutionId: string,
   workflowRunAttemptId: string,
-): WorkflowsJobExecutionTimedOutEvent {
+): WorkflowsJobExecutionTimedOutEventDto {
   return {jobId, jobExecutionId, workflowRunAttemptId};
 }
 

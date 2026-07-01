@@ -1,7 +1,7 @@
 import {
   agentConfigIssueSchema,
-  type RerunMode,
   stepErrorReasonSchema,
+  type WorkflowRunRerunModeDto,
 } from '@shipfox/api-workflows-dto';
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
@@ -126,7 +126,7 @@ function RunViewContent({
     : undefined;
   const highlightedLineRange = resolvedSelection?.step?.sourceLocation ?? null;
   const sourceSnapshot = runData.sourceSnapshot;
-  async function rerun(mode: RerunMode) {
+  async function rerun(mode: WorkflowRunRerunModeDto) {
     try {
       const run = await rerunMutation.mutateAsync({workflowRunId: runData.id, mode});
       toast.success('Re-run started');

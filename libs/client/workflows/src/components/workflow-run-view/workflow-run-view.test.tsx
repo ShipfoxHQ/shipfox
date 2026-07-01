@@ -1,4 +1,4 @@
-import type {RunDetailResponseDto} from '@shipfox/api-workflows-dto';
+import type {WorkflowRunDetailResponseDto} from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {toast} from '@shipfox/react-ui';
 import {screen, waitFor, within} from '@testing-library/react';
@@ -772,8 +772,8 @@ function mockRequests(fetchImpl: ReturnType<typeof vi.fn>): Request[] {
 }
 
 function workflowRunViewDetailDto(
-  overrides: Partial<RunDetailResponseDto> = {},
-): RunDetailResponseDto {
+  overrides: Partial<WorkflowRunDetailResponseDto> = {},
+): WorkflowRunDetailResponseDto {
   return workflowRunDetailDto({
     id: RUN_ID,
     project_id: PROJECT_ID,

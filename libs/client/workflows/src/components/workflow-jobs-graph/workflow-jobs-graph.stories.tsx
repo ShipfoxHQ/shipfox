@@ -1,4 +1,4 @@
-import type {RunJobDetailDto} from '@shipfox/api-workflows-dto';
+import type {WorkflowRunJobDetailDto} from '@shipfox/api-workflows-dto';
 import type {Meta, StoryObj} from '@storybook/react';
 import {within} from 'storybook/test';
 import type {WorkflowJob, WorkflowRunDetail} from '#core/workflow-run.js';
@@ -177,6 +177,6 @@ function makeRun(overrides: Partial<WorkflowRunDetail> = {}): WorkflowRunDetail 
   };
 }
 
-function makeJob(overrides: Partial<RunJobDetailDto> & {name: string}): WorkflowJob {
+function makeJob(overrides: Partial<WorkflowRunJobDetailDto> & {name: string}): WorkflowJob {
   return workflowJob(overrides);
 }

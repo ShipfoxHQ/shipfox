@@ -4,7 +4,7 @@ import {accessSync, constants, statSync} from 'node:fs';
 import {unlink, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, delimiter, isAbsolute, join, resolve} from 'node:path';
-import type {StepDto, StepErrorDtoShape} from '@shipfox/api-workflows-dto';
+import type {StepDto, StepErrorDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {StepResult} from '#core/step-result.js';
 
@@ -163,7 +163,7 @@ function spawnAndCapture(
       }
       // code === null when the child was terminated by a signal (e.g. SIGKILL
       // from killGroup() on abort). Otherwise code is the non-zero exit code.
-      const error: StepErrorDtoShape =
+      const error: StepErrorDto =
         code === null
           ? {
               message: `Killed by signal ${signal ?? 'unknown'}`,

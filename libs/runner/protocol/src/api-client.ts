@@ -14,7 +14,7 @@ import {
   registerRunnerResponseSchema,
 } from '@shipfox/api-runners-dto';
 import {
-  type AgentConfigIssue,
+  type AgentConfigIssueDto,
   type CheckoutTokenResponseDto,
   checkoutTokenResponseSchema,
   type LogOutcomeDto,
@@ -23,7 +23,7 @@ import {
   type ReportStepResponseDto,
   reportStepBodySchema,
   reportStepResponseSchema,
-  type StepErrorDtoShape,
+  type StepErrorDto,
 } from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {isUuid} from '@shipfox/regex';
@@ -98,7 +98,9 @@ export class AgentRuntimeConfigRequestError extends Error {
   constructor(
     public readonly status: number,
     public readonly code: string | undefined,
-    public readonly agentConfigIssue: AgentConfigIssue | undefined = agentConfigIssueForCode(code),
+    public readonly agentConfigIssue: AgentConfigIssueDto | undefined = agentConfigIssueForCode(
+      code,
+    ),
   ) {
     super(
       code === undefined
@@ -215,7 +217,7 @@ export async function reportStep(
     stepId: string;
     attempt: number;
     status: 'succeeded' | 'failed';
-    error?: StepErrorDtoShape;
+    error?: StepErrorDto;
     exitCode: number | null;
     logOutcome: LogOutcomeDto;
     signal?: AbortSignal;
@@ -376,7 +378,7 @@ function codeFromBody(body: unknown): string | undefined {
   return typeof body.code === 'string' ? body.code : undefined;
 }
 
-function agentConfigIssueForCode(code: string | undefined): AgentConfigIssue | undefined {
+function agentConfigIssueForCode(code: string | undefined): AgentConfigIssueDto | undefined {
   switch (code) {
     case 'agent-config-invalid':
     case 'agent-step-config-invalid':

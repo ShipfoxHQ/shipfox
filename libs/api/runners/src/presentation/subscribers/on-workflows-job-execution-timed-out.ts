@@ -1,9 +1,9 @@
-import type {WorkflowsJobExecutionTimedOutEvent} from '@shipfox/api-workflows-dto';
+import type {WorkflowsJobExecutionTimedOutEventDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {requestJobExecutionCancellation} from '#db/job-executions.js';
 
 export async function onWorkflowsJobExecutionTimedOut(
-  payload: WorkflowsJobExecutionTimedOutEvent,
+  payload: WorkflowsJobExecutionTimedOutEventDto,
 ): Promise<void> {
   logger().info(
     {jobId: payload.jobId, jobExecutionId: payload.jobExecutionId},

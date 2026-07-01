@@ -1,4 +1,4 @@
-import {runDetailResponseSchema} from '@shipfox/api-workflows-dto';
+import {workflowRunDetailResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {getWorkflowRunDetail} from '#db/index.js';
@@ -24,7 +24,7 @@ export const getRunRoute = defineRoute({
       attempt: z.coerce.number().int().positive().optional(),
     }),
     response: {
-      200: runDetailResponseSchema,
+      200: workflowRunDetailResponseSchema,
     },
   },
   handler: async (request) => {

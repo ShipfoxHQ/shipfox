@@ -8,9 +8,9 @@ import {
 } from '@shipfox/api-runners-dto';
 import {
   WORKFLOWS_JOB_STEPS_SETTLED,
-  WORKFLOWS_RUN_ATTEMPT_CREATED,
+  WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
-  type WorkflowsEventMap,
+  type WorkflowsEventMapDto,
   workflowsEventSchemas,
 } from '@shipfox/api-workflows-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
@@ -18,10 +18,10 @@ import {db, migrationsPath, workflowsOutbox} from '#db/index.js';
 import {registerWorkflowsServiceMetrics} from '#metrics/index.js';
 import {
   onJobStepsSettled,
-  onRunAttemptCreated,
   onRunnerJobClaimed,
   onRunnerJobLeaseExpired,
   onRunnerJobQueued,
+  onWorkflowRunAttemptCreated,
   onWorkflowRunCancelled,
   routes,
 } from '#presentation/index.js';
@@ -58,7 +58,7 @@ export {routes} from '#presentation/index.js';
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
 
-const subscriber = subscriberFactory<WorkflowsEventMap & RunnersEventMap>();
+const subscriber = subscriberFactory<WorkflowsEventMapDto & RunnersEventMap>();
 
 export const workflowsModule: ShipfoxModule = {
   name: 'workflows',
@@ -69,7 +69,7 @@ export const workflowsModule: ShipfoxModule = {
     {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
   ],
   subscribers: [
-    subscriber(WORKFLOWS_RUN_ATTEMPT_CREATED, onRunAttemptCreated),
+    subscriber(WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED, onWorkflowRunAttemptCreated),
     subscriber(WORKFLOWS_WORKFLOW_RUN_CANCELLED, onWorkflowRunCancelled),
     subscriber(WORKFLOWS_JOB_STEPS_SETTLED, onJobStepsSettled),
     subscriber(RUNNER_JOB_LEASE_EXPIRED, onRunnerJobLeaseExpired),

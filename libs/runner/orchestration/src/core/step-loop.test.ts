@@ -1,4 +1,4 @@
-import type {AgentConfigIssue, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
+import type {AgentConfigIssueDto, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {HTTPError} from 'ky';
 
 const {AgentRuntimeConfigRequestError} = vi.hoisted(() => ({
@@ -6,7 +6,7 @@ const {AgentRuntimeConfigRequestError} = vi.hoisted(() => ({
     constructor(
       public readonly status: number,
       public readonly code: string | undefined,
-      public readonly agentConfigIssue: AgentConfigIssue | undefined = undefined,
+      public readonly agentConfigIssue: AgentConfigIssueDto | undefined = undefined,
     ) {
       super(
         code === undefined

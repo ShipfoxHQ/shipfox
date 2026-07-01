@@ -2,18 +2,18 @@ import {
   WORKFLOWS_JOB_EXECUTION_TIMED_OUT,
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_JOB_TERMINATED,
-  WORKFLOWS_RUN_ATTEMPT_CREATED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_STEP_RESTART_ENQUEUED,
+  WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   workflowsEventSchemas,
   workflowsJobExecutionTimedOutSchema,
   workflowsJobStepsSettledSchema,
   workflowsJobTerminatedSchema,
-  workflowsRunAttemptCreatedSchema,
   workflowsStepAttemptTerminatedSchema,
   workflowsStepRestartEnqueuedSchema,
+  workflowsWorkflowRunAttemptCreatedSchema,
   workflowsWorkflowRunCancelledSchema,
   workflowsWorkflowRunTerminatedSchema,
 } from './events.js';
@@ -169,8 +169,8 @@ describe('workflowsWorkflowRunTerminatedSchema', () => {
 
 describe.each([
   [
-    'workflowsRunAttemptCreatedSchema',
-    workflowsRunAttemptCreatedSchema,
+    'workflowsWorkflowRunAttemptCreatedSchema',
+    workflowsWorkflowRunAttemptCreatedSchema,
     validRunCreated,
     'workflowRunAttemptId',
   ],
@@ -228,7 +228,7 @@ describe('workflowsEventSchemas', () => {
 
     expect(registeredTypes).toEqual(
       [
-        WORKFLOWS_RUN_ATTEMPT_CREATED,
+        WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
         WORKFLOWS_WORKFLOW_RUN_TERMINATED,
         WORKFLOWS_WORKFLOW_RUN_CANCELLED,
         WORKFLOWS_JOB_EXECUTION_TIMED_OUT,

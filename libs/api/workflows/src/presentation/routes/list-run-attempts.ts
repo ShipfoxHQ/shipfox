@@ -1,4 +1,4 @@
-import {runAttemptsResponseSchema} from '@shipfox/api-workflows-dto';
+import {workflowRunAttemptsResponseSchema} from '@shipfox/api-workflows-dto';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {listRunAttempts} from '#db/index.js';
@@ -14,7 +14,7 @@ export const listRunAttemptsRoute = defineRoute({
       id: z.string().uuid(),
     }),
     response: {
-      200: runAttemptsResponseSchema,
+      200: workflowRunAttemptsResponseSchema,
     },
   },
   handler: async (request) => {
