@@ -7,6 +7,7 @@ import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {cn, EmptyState, formatDuration, RelativeTimeProvider, Text, toast} from '@shipfox/react-ui';
 import {useNavigate} from '@tanstack/react-router';
+import type {ReactNode} from 'react';
 import {useEffect, useId, useRef, useState} from 'react';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {
@@ -27,7 +28,11 @@ import {
 import {WorkflowJobsGraph} from '../workflow-jobs-graph/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
 import {WorkflowSourcePanel} from '../workflow-source-panel/index.js';
-import {WorkflowStepList, type WorkflowStepListEmptyState} from '../workflow-step-list/index.js';
+import {
+  type WorkflowStepExpandedContext,
+  WorkflowStepList,
+  type WorkflowStepListEmptyState,
+} from '../workflow-step-list/index.js';
 import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
 import {AgentStepConfigPanel} from './agent-step-config-panel.js';
 import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
@@ -245,7 +250,7 @@ function RunViewContent({
               onSelectedJobChange={selectJob}
             />
             {selectedJob ? (
-              <SelectedJobPanel
+              <WorkflowRunJobCard
                 workspaceId={workspaceId}
                 job={selectedJob}
                 selectedJobExecution={selectedJobExecution}
@@ -268,13 +273,14 @@ function RunViewContent({
   );
 }
 
-function SelectedJobPanel({
+export function WorkflowRunJobCard({
   workspaceId,
   job,
   selectedJobExecution,
   selectedAttemptId,
   onSelectedJobExecutionChange,
   onSelectedAttemptChange,
+  renderExpandedStep,
 }: {
   workspaceId: string;
   job: WorkflowJob;
@@ -282,8 +288,29 @@ function SelectedJobPanel({
   selectedAttemptId: string | null | undefined;
   onSelectedJobExecutionChange: ((jobExecutionId: string | undefined) => void) | undefined;
   onSelectedAttemptChange: ((attemptId: string | undefined) => void) | undefined;
+  renderExpandedStep?: ((context: WorkflowStepExpandedContext) => ReactNode) | undefined;
 }) {
   const titleId = useId();
+  const defaultRenderExpandedStep = ({
+    step,
+    stepId,
+    attempt,
+    attemptError,
+    attemptStatus,
+    carriedOver,
+  }: WorkflowStepExpandedContext) =>
+    carriedOver ? (
+      <CarriedOverStepPanel />
+    ) : (
+      <StepAttemptDetailPanel
+        workspaceId={workspaceId}
+        step={step}
+        stepId={stepId}
+        attempt={attempt}
+        attemptError={attemptError}
+        attemptStatus={attemptStatus}
+      />
+    );
 
   return (
     <section
@@ -324,27 +351,7 @@ function SelectedJobPanel({
           emptyState={emptyStateForJob(job, selectedJobExecution)}
           showHeader={false}
           className="rounded-none border-0 bg-transparent"
-          renderExpandedStep={({
-            step,
-            stepId,
-            attempt,
-            attemptError,
-            attemptStatus,
-            carriedOver,
-          }) =>
-            carriedOver ? (
-              <CarriedOverStepPanel />
-            ) : (
-              <StepAttemptDetailPanel
-                workspaceId={workspaceId}
-                step={step}
-                stepId={stepId}
-                attempt={attempt}
-                attemptError={attemptError}
-                attemptStatus={attemptStatus}
-              />
-            )
-          }
+          renderExpandedStep={renderExpandedStep ?? defaultRenderExpandedStep}
         />
       ) : (
         <JobExecutionEmptyState job={job} />
