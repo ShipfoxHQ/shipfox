@@ -19,6 +19,7 @@ import {IntegrationDeleteConfirmModal} from '../integration-delete-confirm-modal
 import {IntegrationUsageModal} from '../integration-usage-modal.js';
 import {CopyableValue} from './copyable-value.js';
 import {WebhookCreateModal, WebhookCreateSuccessContent} from './webhook-create-modal.js';
+import {WebhookPublicEndpointAlert} from './webhook-public-endpoint-alert.js';
 import {WebhookUsageDetails} from './webhook-usage-details.js';
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
@@ -172,11 +173,10 @@ function StorySurface({scenario}: {scenario: Scenario}) {
       ) : null}
       {scenario === 'copyable-value' ? (
         <div className="mx-auto max-w-[560px] rounded-8 border border-border-neutral-base bg-background-neutral-base p-24">
-          <CopyableValue
-            label="inbound URL"
-            value={activeConnection.inbound_url}
-            note="Anyone with this URL can trigger your workflow."
-          />
+          <div className="flex flex-col gap-12">
+            <CopyableValue label="inbound URL" value={activeConnection.inbound_url} />
+            <WebhookPublicEndpointAlert />
+          </div>
         </div>
       ) : null}
     </div>

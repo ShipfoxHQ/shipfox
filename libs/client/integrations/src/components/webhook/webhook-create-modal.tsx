@@ -27,6 +27,7 @@ import {useEffect, useRef, useState} from 'react';
 import {useCreateWebhookConnectionMutation} from '#hooks/api/webhook-connections.js';
 import {CopyableValue} from './copyable-value.js';
 import {webhookCreateErrorToFormError} from './webhook-form-errors.js';
+import {WebhookPublicEndpointAlert} from './webhook-public-endpoint-alert.js';
 
 interface WebhookCreateModalProps {
   workspaceId: string;
@@ -218,11 +219,8 @@ export function WebhookCreateSuccessContent({
           Copy these values now, or reopen them later from Installed integrations, then Manage.
         </Text>
         <Artifact label="Inbound URL">
-          <CopyableValue
-            label="inbound URL"
-            value={connection.inbound_url}
-            note="Anyone with this URL can trigger your workflow."
-          />
+          <CopyableValue label="inbound URL" value={connection.inbound_url} />
+          <WebhookPublicEndpointAlert />
         </Artifact>
         <Artifact label="Workflow source">
           <CopyableValue

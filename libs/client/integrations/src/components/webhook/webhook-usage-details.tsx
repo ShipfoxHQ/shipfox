@@ -2,6 +2,7 @@ import {QueryLoadError} from '@shipfox/client-ui';
 import {ShipfoxLoader, Text} from '@shipfox/react-ui';
 import {useWebhookConnectionsQuery} from '#hooks/api/webhook-connections.js';
 import {CopyableValue} from './copyable-value.js';
+import {WebhookPublicEndpointAlert} from './webhook-public-endpoint-alert.js';
 
 interface WebhookUsageDetailsProps {
   workspaceId: string;
@@ -34,11 +35,8 @@ export function WebhookUsageDetails({workspaceId, connectionId}: WebhookUsageDet
         <Text size="sm" bold>
           Inbound URL
         </Text>
-        <CopyableValue
-          label="inbound URL"
-          value={connection.inbound_url}
-          note="Anyone with this URL can trigger your workflow."
-        />
+        <CopyableValue label="inbound URL" value={connection.inbound_url} />
+        <WebhookPublicEndpointAlert />
       </div>
     </div>
   );
