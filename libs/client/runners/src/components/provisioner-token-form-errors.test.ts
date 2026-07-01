@@ -10,6 +10,17 @@ describe('provisionerTokenCreateErrorToFormError', () => {
     expect(result).toEqual({kind: 'form', message: 'Try later'});
   });
 
+  test('routes network ApiError to a form-level alert with connection copy', () => {
+    const error = new ApiError({code: 'network-error', message: 'Network failed', status: 0});
+
+    const result = provisionerTokenCreateErrorToFormError(error);
+
+    expect(result).toEqual({
+      kind: 'form',
+      message: "We couldn't reach the server. Check your connection and try again.",
+    });
+  });
+
   test('routes Error to a form-level alert with the error message', () => {
     const result = provisionerTokenCreateErrorToFormError(new Error('boom'));
 
