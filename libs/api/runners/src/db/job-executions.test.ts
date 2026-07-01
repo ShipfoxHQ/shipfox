@@ -173,7 +173,7 @@ describe('claimPendingJobExecution', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_manual_registration_tokens, runners_outbox CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
@@ -581,7 +581,7 @@ describe('claimJobExecution', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_manual_registration_tokens CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
@@ -631,7 +631,7 @@ describe('releaseJobExecution', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_manual_registration_tokens, runners_outbox CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
@@ -832,7 +832,7 @@ describe('cancelRunnerJobs', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_manual_registration_tokens, runners_outbox CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
@@ -1111,7 +1111,7 @@ describe('getJobExecutionQueueDepth', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_manual_registration_tokens, runners_outbox CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});

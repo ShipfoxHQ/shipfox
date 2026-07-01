@@ -1,4 +1,4 @@
-export interface RunnerToken {
+export interface ManualRegistrationToken {
   id: string;
   workspaceId: string;
   hashedToken: string;

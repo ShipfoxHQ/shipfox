@@ -12,7 +12,7 @@ import type {FastifyInstance} from 'fastify';
 import {claimJobExecution} from '#core/job-executions.js';
 import {db} from '#db/db.js';
 import {requestJobExecutionCancellation} from '#db/job-executions.js';
-import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';
+import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
 import {pendingJobFactory, runnerSessionFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
@@ -35,7 +35,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     app = await createApp({
       auth: [
         fakeUserAuth,
-        createRunnerTokenAuthMethod(),
+        createRunnerRegistrationTokenAuthMethod(),
         createRunnerSessionAuthMethod(),
         createLeaseTokenAuthMethod(),
         fakeProvisionerAuth,
@@ -52,7 +52,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
 
   beforeEach(async () => {
     await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_runner_tokens, runners_outbox CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_pending_jobs, runners_running_jobs, runners_runner_sessions, runners_manual_registration_tokens, runners_outbox CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     const session = await runnerSessionFactory.create({workspaceId});

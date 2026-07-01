@@ -2,7 +2,7 @@ import type {JobLeaseTokenClaims, RunnerSessionTokenClaims} from '@shipfox/api-a
 import type {WorkspaceRole} from '@shipfox/api-workspaces-dto';
 
 export const AUTH_USER = 'user';
-export const AUTH_RUNNER_TOKEN = 'runner-token';
+export const AUTH_RUNNER_REGISTRATION_TOKEN = 'runner-registration-token';
 export const AUTH_RUNNER_SESSION = 'runner-session';
 export const AUTH_LEASED_JOB = 'leased-job';
 export const AUTH_PROVISIONER_TOKEN = 'provisioner-token';

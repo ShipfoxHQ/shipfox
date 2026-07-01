@@ -7,7 +7,7 @@ import {
   registerRunnerSession,
   requestJob,
   requireRunnerLabels,
-  runnerToken,
+  runnerRegistrationToken,
 } from '@shipfox/runner-protocol';
 import {
   cleanupJobLogs,
@@ -140,7 +140,7 @@ export async function runJob(
   const ac = new AbortController();
   currentJobAbortController = ac;
 
-  const runnerSecret = runnerToken();
+  const runnerSecret = runnerRegistrationToken();
   const initialLeaseToken = job.lease_token;
   let currentLeaseToken = initialLeaseToken;
   let previousRenewedLeaseToken: string | undefined;

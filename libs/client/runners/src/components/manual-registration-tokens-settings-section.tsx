@@ -1,4 +1,4 @@
-import type {CreateRunnerTokenResponseDto} from '@shipfox/api-runners-dto';
+import type {CreateManualRegistrationTokenResponseDto} from '@shipfox/api-runners-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {
   Button,
@@ -13,15 +13,28 @@ import {
   Text,
 } from '@shipfox/react-ui';
 import {useState} from 'react';
-import {useRunnerTokensQuery} from '#hooks/api/runner-tokens.js';
-import {CreatedRunnerTokenPanel, CreateRunnerTokenForm} from './create-runner-token-form.js';
-import {EmptyRunnerTokens, RunnerTokenList, RunnerTokenTableSkeleton} from './runner-token-list.js';
+import {useManualRegistrationTokensQuery} from '#hooks/api/manual-registration-tokens.js';
+import {
+  CreatedManualRegistrationTokenPanel,
+  CreateManualRegistrationTokenForm,
+} from './create-manual-registration-token-form.js';
+import {
+  EmptyManualRegistrationTokens,
+  ManualRegistrationTokenList,
+  ManualRegistrationTokenTableSkeleton,
+} from './manual-registration-token-list.js';
 
-export function WorkspaceRunnerTokensSettingsSection({workspaceId}: {workspaceId: string}) {
-  const tokensQuery = useRunnerTokensQuery(workspaceId);
+export function WorkspaceManualRegistrationTokensSettingsSection({
+  workspaceId,
+}: {
+  workspaceId: string;
+}) {
+  const tokensQuery = useManualRegistrationTokensQuery(workspaceId);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [createdToken, setCreatedToken] = useState<CreateRunnerTokenResponseDto | null>(null);
-  const tokens = tokensQuery.data?.tokens ?? [];
+  const [createdToken, setCreatedToken] = useState<CreateManualRegistrationTokenResponseDto | null>(
+    null,
+  );
+  const tokens = tokensQuery.data?.manual_registration_tokens ?? [];
 
   function handleOpenChange(nextOpen: boolean) {
     setIsModalOpen(nextOpen);
@@ -53,37 +66,44 @@ export function WorkspaceRunnerTokensSettingsSection({workspaceId}: {workspaceId
                 <Button>Create token</Button>
               </ModalTrigger>
               <ModalContent aria-describedby={undefined}>
-                <ModalTitle className="sr-only">Create runner token</ModalTitle>
+                <ModalTitle className="sr-only">Create manual registration token</ModalTitle>
                 <ModalHeader>
                   <Text
                     size="lg"
                     aria-hidden="true"
                     className="overflow-ellipsis overflow-hidden whitespace-nowrap"
                   >
-                    Create runner token
+                    Create manual registration token
                   </Text>
                 </ModalHeader>
                 {createdToken ? (
                   <ModalBody className="gap-16">
-                    <CreatedRunnerTokenPanel token={createdToken} />
+                    <CreatedManualRegistrationTokenPanel token={createdToken} />
                   </ModalBody>
                 ) : (
-                  <CreateRunnerTokenForm workspaceId={workspaceId} onCreated={setCreatedToken} />
+                  <CreateManualRegistrationTokenForm
+                    workspaceId={workspaceId}
+                    onCreated={setCreatedToken}
+                  />
                 )}
               </ModalContent>
             </Modal>
           </div>
         </div>
 
-        {tokensQuery.isPending ? <RunnerTokenTableSkeleton /> : null}
+        {tokensQuery.isPending ? <ManualRegistrationTokenTableSkeleton /> : null}
 
         {tokensQuery.isError && tokensQuery.data === undefined ? (
-          <QueryLoadError query={tokensQuery} subject="runner tokens" />
+          <QueryLoadError query={tokensQuery} subject="manual registration tokens" />
         ) : null}
 
-        {tokensQuery.data !== undefined && tokens.length === 0 ? <EmptyRunnerTokens /> : null}
+        {tokensQuery.data !== undefined && tokens.length === 0 ? (
+          <EmptyManualRegistrationTokens />
+        ) : null}
 
-        {tokens.length > 0 ? <RunnerTokenList workspaceId={workspaceId} tokens={tokens} /> : null}
+        {tokens.length > 0 ? (
+          <ManualRegistrationTokenList workspaceId={workspaceId} tokens={tokens} />
+        ) : null}
       </section>
     </div>
   );

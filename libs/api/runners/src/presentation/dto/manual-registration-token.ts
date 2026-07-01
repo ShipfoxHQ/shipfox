@@ -1,6 +1,6 @@
-import type {RunnerToken} from '#core/entities/runner-token.js';
+import type {ManualRegistrationToken} from '#core/entities/manual-registration-token.js';
 
-export function toRunnerTokenDto(token: RunnerToken): {
+export function toManualRegistrationTokenDto(token: ManualRegistrationToken): {
   id: string;
   workspace_id: string;
   prefix: string;

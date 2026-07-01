@@ -60,7 +60,7 @@ describe('createProvisionerClient', () => {
         tokens: [
           {
             provisioned_runner_id: 'r1',
-            registration_token: 'sfrt_x',
+            registration_token: 'sf_ert_x',
             expires_at: '2026-01-01T00:00:00.000Z',
           },
         ],
@@ -72,7 +72,7 @@ describe('createProvisionerClient', () => {
       provisioned_runners: [{provisioned_runner_id: 'r1'}],
     });
 
-    expect(result.tokens[0]?.registration_token).toBe('sfrt_x');
+    expect(result.tokens[0]?.registration_token).toBe('sf_ert_x');
     expect(calls[0]?.url).toContain('provisioners/runner-registration-tokens/batch');
     expect(calls[0]?.method).toBe('POST');
     expect(calls[0]?.authorization).toBe(`Bearer ${TOKEN}`);

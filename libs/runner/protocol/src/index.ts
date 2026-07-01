@@ -16,5 +16,5 @@ export {
   requestJob,
   requestNextStep,
   requireRunnerLabels,
-  runnerToken,
+  runnerRegistrationToken,
 } from '#api-client.js';

@@ -42,7 +42,7 @@ describe('createDockerLifecycle', () => {
     expect(engine.created[0]).toMatchObject({
       name: 'runner-1',
       image: 'runner:latest',
-      env: {SHIPFOX_RUNNER_TOKEN: 'sfrt_secret'},
+      env: {SHIPFOX_RUNNER_REGISTRATION_TOKEN: 'sf_ert_secret'},
       nanoCpus: 1_500_000_000,
       memoryBytes: 2 * 1024 ** 3,
     });
@@ -220,9 +220,9 @@ function launch(): ProvisionedRunnerLaunch<DockerTemplateSpec> {
   return {
     provisionedRunnerId: 'runner-1',
     reservationId: RESERVATION_ID,
-    registrationToken: 'sfrt_secret',
+    registrationToken: 'sf_ert_secret',
     registrationTokenExpiresAt: '2026-01-01T00:00:00.000Z',
-    runnerEnv: {SHIPFOX_RUNNER_TOKEN: 'sfrt_secret'},
+    runnerEnv: {SHIPFOX_RUNNER_REGISTRATION_TOKEN: 'sf_ert_secret'},
     template,
   };
 }

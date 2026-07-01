@@ -10,7 +10,7 @@ import {db, migrationsPath, runnersOutbox} from '#db/index.js';
 import {registerRunnersServiceMetrics} from '#metrics/index.js';
 import {
   createProvisionerTokenAuthMethod,
-  createRunnerTokenAuthMethod,
+  createRunnerRegistrationTokenAuthMethod,
   onWorkflowsJobExecutionTimedOut,
   routes,
 } from '#presentation/index.js';
@@ -42,7 +42,7 @@ const subscriber = subscriberFactory<WorkflowsEventMap>();
 export const runnersModule: ShipfoxModule = {
   name: 'runners',
   database: {db, migrationsPath},
-  auth: [createRunnerTokenAuthMethod(), createProvisionerTokenAuthMethod()],
+  auth: [createRunnerRegistrationTokenAuthMethod(), createProvisionerTokenAuthMethod()],
   routes,
   metrics: registerRunnersServiceMetrics,
   publishers: [{name: 'runners', table: runnersOutbox, db, eventSchemas: runnersEventSchemas}],

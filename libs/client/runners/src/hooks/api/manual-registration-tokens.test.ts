@@ -1,5 +1,8 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {createRunnerToken, revokeRunnerToken} from './runner-tokens.js';
+import {
+  createManualRegistrationToken,
+  revokeManualRegistrationToken,
+} from './manual-registration-tokens.js';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -9,7 +12,7 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-describe('createRunnerToken', () => {
+describe('createManualRegistrationToken', () => {
   beforeEach(() => {
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: undefined});
   });
@@ -21,8 +24,8 @@ describe('createRunnerToken', () => {
       return jsonResponse(
         {
           id: '44444444-4444-4444-8444-444444444444',
-          raw_token: 'sf_rt_raw-created-token',
-          prefix: 'sf_rt_raw-c',
+          raw_token: 'sf_mrt_raw-created-token',
+          prefix: 'sf_mrt_raw-c',
           name: 'Local runner',
           workspace_id: '11111111-1111-4111-8111-111111111111',
           expires_at: '2026-05-09T00:00:00.000Z',
@@ -34,22 +37,22 @@ describe('createRunnerToken', () => {
     configureApiClient({fetchImpl});
     const body = {name: 'Local runner', ttl_seconds: 86_400};
 
-    const result = await createRunnerToken({
+    const result = await createManualRegistrationToken({
       workspaceId: '11111111-1111-4111-8111-111111111111',
       body,
     });
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.raw_token).toBe('sf_rt_raw-created-token');
+    expect(result.raw_token).toBe('sf_mrt_raw-created-token');
     expect(request.url).toBe(
-      'https://api.example.test/workspaces/11111111-1111-4111-8111-111111111111/runners/tokens',
+      'https://api.example.test/workspaces/11111111-1111-4111-8111-111111111111/runners/manual-registration-tokens',
     );
     expect(request.method).toBe('POST');
     expect(requestBody).toEqual(body);
   });
 });
 
-describe('revokeRunnerToken', () => {
+describe('revokeManualRegistrationToken', () => {
   beforeEach(() => {
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: undefined});
   });
@@ -59,7 +62,7 @@ describe('revokeRunnerToken', () => {
       jsonResponse({
         id: '33333333-3333-4333-8333-333333333333',
         workspace_id: '11111111-1111-4111-8111-111111111111',
-        prefix: 'sf_r_abcdefg',
+        prefix: 'sf_mrt_abcde',
         name: 'Deploy runner',
         expires_at: '2026-05-09T00:00:00.000Z',
         revoked_at: '2026-05-08T01:00:00.000Z',
@@ -69,7 +72,7 @@ describe('revokeRunnerToken', () => {
     );
     configureApiClient({fetchImpl});
 
-    const result = await revokeRunnerToken({
+    const result = await revokeManualRegistrationToken({
       workspaceId: '11111111-1111-4111-8111-111111111111',
       tokenId: '33333333-3333-4333-8333-333333333333',
     });
@@ -77,7 +80,7 @@ describe('revokeRunnerToken', () => {
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
     expect(result.revoked_at).toBe('2026-05-08T01:00:00.000Z');
     expect(request.url).toBe(
-      'https://api.example.test/workspaces/11111111-1111-4111-8111-111111111111/runners/tokens/33333333-3333-4333-8333-333333333333/revoke',
+      'https://api.example.test/workspaces/11111111-1111-4111-8111-111111111111/runners/manual-registration-tokens/33333333-3333-4333-8333-333333333333/revoke',
     );
     expect(request.method).toBe('POST');
   });

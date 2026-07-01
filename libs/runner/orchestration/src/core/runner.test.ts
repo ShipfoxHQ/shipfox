@@ -30,7 +30,7 @@ vi.mock('@shipfox/runner-protocol', () => ({
   requireRunnerLabels: vi.fn(),
   requestJob: vi.fn(),
   createLeaseClient: vi.fn(() => ({}) as never),
-  runnerToken: vi.fn(() => 'runner-token'),
+  runnerRegistrationToken: vi.fn(() => 'sf_mrt_runner-registration-token'),
   RunnerLabelsRequiredError: class RunnerLabelsRequiredError extends Error {},
   RunnerSessionExhaustedError: class RunnerSessionExhaustedError extends Error {},
   HTTPError: class HTTPError extends Error {
@@ -164,7 +164,7 @@ describe('runJob', () => {
     const stepParams = mockRunJobSteps.mock.calls[0]?.[0];
     expect(typeof leaseTokenSource).toBe('function');
     expect((leaseTokenSource as () => string)()).toBe(JOB.lease_token);
-    expect(stepParams?.secrets).toEqual(['runner-token', JOB.lease_token]);
+    expect(stepParams?.secrets).toEqual(['sf_mrt_runner-registration-token', JOB.lease_token]);
     const heartbeatOptions = mockStartHeartbeatLoop.mock.calls[0]?.[3];
     heartbeatOptions?.onLeaseTokenRenewed?.('lease-next');
     expect((leaseTokenSource as () => string)()).toBe('lease-next');
@@ -178,7 +178,7 @@ describe('runJob', () => {
       ['lease-third', 'lease-fourth'],
     ]);
     expect(stepParams?.secrets).toEqual([
-      'runner-token',
+      'sf_mrt_runner-registration-token',
       JOB.lease_token,
       'lease-third',
       'lease-fourth',

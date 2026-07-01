@@ -1,29 +1,29 @@
 import {
-  createRunnerTokenBodySchema,
-  createRunnerTokenResponseSchema,
+  createManualRegistrationTokenBodySchema,
+  createManualRegistrationTokenResponseSchema,
 } from '@shipfox/api-runners-dto';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {createWorkspaceRunnerToken} from '#core/index.js';
-import {requireRunnerTokenWorkspaceMembership} from './workspace-membership.js';
+import {createWorkspaceManualRegistrationToken} from '#core/index.js';
+import {requireManualRegistrationTokenWorkspaceMembership} from './workspace-membership.js';
 
-export const createRunnerTokenRoute = defineRoute({
+export const createManualRegistrationTokenRoute = defineRoute({
   method: 'POST',
   path: '/',
   description: 'Create a token that lets a runner connect to your account',
   schema: {
     params: z.object({workspaceId: z.string().uuid()}),
-    body: createRunnerTokenBodySchema,
+    body: createManualRegistrationTokenBodySchema,
     response: {
-      201: createRunnerTokenResponseSchema,
+      201: createManualRegistrationTokenResponseSchema,
     },
   },
   handler: async (request, reply) => {
     const {workspaceId} = request.params;
-    await requireRunnerTokenWorkspaceMembership({request, workspaceId});
+    await requireManualRegistrationTokenWorkspaceMembership({request, workspaceId});
     const {name, ttl_seconds} = request.body;
 
-    const {token, rawToken} = await createWorkspaceRunnerToken({
+    const {token, rawToken} = await createWorkspaceManualRegistrationToken({
       workspaceId,
       name,
       ttlSeconds: ttl_seconds,

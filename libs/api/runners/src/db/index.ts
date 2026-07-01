@@ -24,6 +24,13 @@ export {
   recordHeartbeat,
   releaseJobExecution,
 } from './job-executions.js';
+export type {CreateManualRegistrationTokenParams} from './manual-registration-tokens.js';
+export {
+  createManualRegistrationToken,
+  listUsableManualRegistrationTokensByWorkspaceId,
+  resolveManualRegistrationTokenByHash,
+  revokeManualRegistrationToken,
+} from './manual-registration-tokens.js';
 export type {
   ProvisionedRunnerReportEvent,
   ReconcileProvisionedRunnersDbResult,
@@ -58,13 +65,6 @@ export {
 } from './reservations.js';
 export type {CreateRunnerSessionParams} from './runner-sessions.js';
 export {createRunnerSession} from './runner-sessions.js';
-export type {CreateRunnerTokenParams} from './runner-tokens.js';
-export {
-  createRunnerToken,
-  listUsableRunnerTokensByWorkspaceId,
-  resolveRunnerTokenByHash,
-  revokeRunnerToken,
-} from './runner-tokens.js';
 export {runnersOutbox} from './schema/outbox.js';
 
 export const migrationsPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../drizzle');

@@ -8,8 +8,8 @@ import {
 import {RunnersSettingsPage} from './runners-settings-page.js';
 
 describe('RunnersSettingsPage', () => {
-  test('renders the settings shell and runner token section', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({tokens: []}));
+  test('renders the settings shell and manual registration token section', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({manual_registration_tokens: []}));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
     renderWorkspaceSettingsPage(
@@ -18,7 +18,7 @@ describe('RunnersSettingsPage', () => {
     );
 
     expect(await screen.findByRole('heading', {name: 'Workspace settings'})).toBeVisible();
-    expect(await screen.findByText('No usable runner tokens')).toBeVisible();
+    expect(await screen.findByText('No usable manual registration tokens')).toBeVisible();
     expect(screen.getByRole('button', {name: 'Create token'})).toBeVisible();
   });
 });

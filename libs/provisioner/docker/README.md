@@ -75,9 +75,9 @@ Template `image` values must point to an image that runs the Shipfox runner proc
 honors the injected environment:
 
 - `SHIPFOX_API_URL`
-- `SHIPFOX_RUNNER_TOKEN`
+- `SHIPFOX_RUNNER_REGISTRATION_TOKEN`
 - `SHIPFOX_RUNNER_LABELS`
 - `SHIPFOX_POLL_MAX_DURATION_MS`
 
-The image must not bake in a static runner token. Registration uses the single-use token
-minted for the reserved `provisioned_runner_id`.
+The image must not bake in a static manual registration token. Registration uses the single-use
+ephemeral registration token (`sf_ert_...`) minted for the reserved `provisioned_runner_id`.

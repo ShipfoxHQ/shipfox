@@ -2,8 +2,8 @@ import {createLeaseTokenAuthMethod, createRunnerSessionAuthMethod} from '@shipfo
 import {
   AUTH_LEASED_JOB,
   AUTH_PROVISIONER_TOKEN,
+  AUTH_RUNNER_REGISTRATION_TOKEN,
   AUTH_RUNNER_SESSION,
-  AUTH_RUNNER_TOKEN,
   AUTH_USER,
   buildUserContext,
   setUserContext,
@@ -15,10 +15,10 @@ import {hashOpaqueToken, tokenTypeParts} from '@shipfox/node-tokens';
 import {eq, sql} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
-import {revokeRunnerToken} from '#db/runner-tokens.js';
-import {runnerTokens} from '#db/schema/runner-tokens.js';
-import {createRunnerTokenAuthMethod} from '#presentation/auth/index.js';
-import {runnerTokenFactory} from '#test/index.js';
+import {revokeManualRegistrationToken} from '#db/manual-registration-tokens.js';
+import {manualRegistrationTokens} from '#db/schema/manual-registration-tokens.js';
+import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
+import {manualRegistrationTokenFactory} from '#test/index.js';
 import {runnerRoutes} from './index.js';
 
 vi.mock('@shipfox/api-workspaces', () => ({
@@ -49,14 +49,14 @@ const fakeProvisionerAuth: AuthMethod = {
   authenticate: () => Promise.resolve(),
 };
 
-describe('runner token routes', () => {
+describe('manual registration token routes', () => {
   let app: FastifyInstance;
   let workspaceId: string;
 
   beforeEach(async () => {
     await closeApp();
     await db().execute(
-      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_runner_tokens CASCADE`,
+      sql`TRUNCATE runners_ephemeral_registration_tokens, runners_manual_registration_tokens CASCADE`,
     );
     workspaceId = crypto.randomUUID();
     vi.mocked(requireMembership).mockResolvedValue({
@@ -75,7 +75,7 @@ describe('runner token routes', () => {
     app = await createApp({
       auth: [
         fakeUserAuth,
-        createRunnerTokenAuthMethod(),
+        createRunnerRegistrationTokenAuthMethod(),
         createRunnerSessionAuthMethod(),
         createLeaseTokenAuthMethod(),
         fakeProvisionerAuth,
@@ -93,17 +93,17 @@ describe('runner token routes', () => {
   test('uses the expected auth method for each runner route group', () => {
     expect(runnerRoutes[0]?.auth).toBe(AUTH_USER);
     expect(runnerRoutes[1]?.auth).toBe(AUTH_USER);
-    expect(runnerRoutes[2]?.auth).toBe(AUTH_RUNNER_TOKEN);
+    expect(runnerRoutes[2]?.auth).toBe(AUTH_RUNNER_REGISTRATION_TOKEN);
     expect(runnerRoutes[3]?.auth).toBe(AUTH_RUNNER_SESSION);
     expect(runnerRoutes[4]?.auth).toBe(AUTH_LEASED_JOB);
     expect(runnerRoutes[5]?.auth).toBe(AUTH_PROVISIONER_TOKEN);
   });
 
-  describe('GET /workspaces/:workspaceId/runners/tokens', () => {
+  describe('GET /workspaces/:workspaceId/runners/manual-registration-tokens', () => {
     it('returns 401 without client auth', async () => {
       const res = await app.inject({
         method: 'GET',
-        url: `/workspaces/${workspaceId}/runners/tokens`,
+        url: `/workspaces/${workspaceId}/runners/manual-registration-tokens`,
       });
 
       expect(res.statusCode).toBe(401);
@@ -112,7 +112,7 @@ describe('runner token routes', () => {
     it('rejects API-key-only requests', async () => {
       const res = await app.inject({
         method: 'GET',
-        url: `/workspaces/${workspaceId}/runners/tokens`,
+        url: `/workspaces/${workspaceId}/runners/manual-registration-tokens`,
         headers: {authorization: `Bearer api:${workspaceId}`},
       });
 
@@ -127,7 +127,7 @@ describe('runner token routes', () => {
 
       const res = await app.inject({
         method: 'GET',
-        url: `/workspaces/${workspaceId}/runners/tokens`,
+        url: `/workspaces/${workspaceId}/runners/manual-registration-tokens`,
         headers: {authorization: 'Bearer user'},
       });
 
@@ -136,68 +136,78 @@ describe('runner token routes', () => {
     });
 
     it('returns only usable tokens for the workspace', async () => {
-      const usable = await runnerTokenFactory.create({workspaceId, name: 'usable'});
-      const expired = await runnerTokenFactory.create({
+      const usable = await manualRegistrationTokenFactory.create({workspaceId, name: 'usable'});
+      const expired = await manualRegistrationTokenFactory.create({
         workspaceId,
         name: 'expired',
         expiresAt: new Date(Date.now() - 60_000),
       });
-      const revoked = await runnerTokenFactory.create({workspaceId, name: 'revoked'});
-      await runnerTokenFactory.create({workspaceId: crypto.randomUUID(), name: 'other workspace'});
-      await revokeRunnerToken({tokenId: revoked.id, workspaceId});
+      const revoked = await manualRegistrationTokenFactory.create({workspaceId, name: 'revoked'});
+      await manualRegistrationTokenFactory.create({
+        workspaceId: crypto.randomUUID(),
+        name: 'other workspace',
+      });
+      await revokeManualRegistrationToken({tokenId: revoked.id, workspaceId});
 
       const res = await app.inject({
         method: 'GET',
-        url: `/workspaces/${workspaceId}/runners/tokens`,
+        url: `/workspaces/${workspaceId}/runners/manual-registration-tokens`,
         headers: {authorization: 'Bearer user'},
       });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json().tokens.map((token: {id: string}) => token.id)).toEqual([usable.id]);
-      expect(res.json().tokens.map((token: {id: string}) => token.id)).not.toContain(expired.id);
+      expect(res.json().manual_registration_tokens.map((token: {id: string}) => token.id)).toEqual([
+        usable.id,
+      ]);
+      expect(
+        res.json().manual_registration_tokens.map((token: {id: string}) => token.id),
+      ).not.toContain(expired.id);
     });
   });
 
-  describe('POST /workspaces/:workspaceId/runners/tokens', () => {
+  describe('POST /workspaces/:workspaceId/runners/manual-registration-tokens', () => {
     it('returns 401 without client auth', async () => {
       const res = await app.inject({
         method: 'POST',
-        url: `/workspaces/${workspaceId}/runners/tokens`,
+        url: `/workspaces/${workspaceId}/runners/manual-registration-tokens`,
         payload: {name: 'builder'},
       });
 
       expect(res.statusCode).toBe(401);
     });
 
-    it('creates a workspace-scoped runner token and returns the raw token once', async () => {
+    it('creates a workspace-scoped manual registration token and returns the raw token once', async () => {
       const res = await app.inject({
         method: 'POST',
-        url: `/workspaces/${workspaceId}/runners/tokens`,
+        url: `/workspaces/${workspaceId}/runners/manual-registration-tokens`,
         headers: {authorization: 'Bearer user'},
         payload: {name: 'builder', ttl_seconds: 3600},
       });
 
       expect(res.statusCode).toBe(201);
       const body = res.json();
-      expect(body.raw_token.startsWith(`sf_${tokenTypeParts.runnerToken}_`)).toBe(true);
+      expect(body.raw_token.startsWith(`sf_${tokenTypeParts.manualRegistrationToken}_`)).toBe(true);
       expect(body.prefix).toBe(body.raw_token.slice(0, 12));
       expect(body.name).toBe('builder');
       expect(body.workspace_id).toBe(workspaceId);
       expect(body.expires_at).not.toBeNull();
 
-      const rows = await db().select().from(runnerTokens).where(eq(runnerTokens.id, body.id));
+      const rows = await db()
+        .select()
+        .from(manualRegistrationTokens)
+        .where(eq(manualRegistrationTokens.id, body.id));
       expect(rows[0]?.hashedToken).toBe(hashOpaqueToken(body.raw_token));
       expect(rows[0]?.hashedToken).not.toBe(body.raw_token);
     });
   });
 
-  describe('POST /workspaces/:workspaceId/runners/tokens/:tokenId/revoke', () => {
+  describe('POST /workspaces/:workspaceId/runners/manual-registration-tokens/:tokenId/revoke', () => {
     it('revokes a token owned by the authenticated workspace', async () => {
-      const token = await runnerTokenFactory.create({workspaceId});
+      const token = await manualRegistrationTokenFactory.create({workspaceId});
 
       const res = await app.inject({
         method: 'POST',
-        url: `/workspaces/${workspaceId}/runners/tokens/${token.id}/revoke`,
+        url: `/workspaces/${workspaceId}/runners/manual-registration-tokens/${token.id}/revoke`,
         headers: {authorization: 'Bearer user'},
       });
 
@@ -207,11 +217,11 @@ describe('runner token routes', () => {
     });
 
     it('returns 404 for a token owned by another workspace', async () => {
-      const token = await runnerTokenFactory.create({workspaceId: crypto.randomUUID()});
+      const token = await manualRegistrationTokenFactory.create({workspaceId: crypto.randomUUID()});
 
       const res = await app.inject({
         method: 'POST',
-        url: `/workspaces/${workspaceId}/runners/tokens/${token.id}/revoke`,
+        url: `/workspaces/${workspaceId}/runners/manual-registration-tokens/${token.id}/revoke`,
         headers: {authorization: 'Bearer user'},
       });
 

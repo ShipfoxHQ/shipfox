@@ -390,7 +390,7 @@ describe('createStepLogStream', () => {
   });
 
   it('counts masked bytes (not the raw secret) in the end record total', async () => {
-    const secret = 'sf_rt_SECRET123456';
+    const secret = 'sf_mrt_SECRET123456';
     const stream = createStepLogStream({
       logsDir: join(dir, 'logs'),
       stepId: STEP_ID,

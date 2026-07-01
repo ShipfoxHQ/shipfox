@@ -1,13 +1,13 @@
-import {AUTH_RUNNER_TOKEN} from '@shipfox/api-auth-context';
+import {AUTH_RUNNER_REGISTRATION_TOKEN} from '@shipfox/api-auth-context';
 import {type AuthMethod, ClientError, extractBearerToken} from '@shipfox/node-fastify';
 import {getTokenType, hashOpaqueToken} from '@shipfox/node-tokens';
 import type {FastifyRequest} from 'fastify';
 import {resolveEphemeralRegistrationTokenByHash} from '#db/ephemeral-registration-tokens.js';
-import {resolveRunnerTokenByHash} from '#db/runner-tokens.js';
+import {resolveManualRegistrationTokenByHash} from '#db/manual-registration-tokens.js';
 
 const RUNNER_CONTEXT_KEY = 'runner';
 
-export type RunnerAuthContext =
+export type RunnerRegistrationContext =
   | {
       kind: 'manual';
       registrationTokenId: string;
@@ -22,9 +22,9 @@ export type RunnerAuthContext =
       provisionedRunnerId: string;
     };
 
-export function getRunnerContext(request: FastifyRequest): RunnerAuthContext {
+export function getRunnerContext(request: FastifyRequest): RunnerRegistrationContext {
   const context = (request as unknown as Record<string, unknown>)[RUNNER_CONTEXT_KEY] as
-    | RunnerAuthContext
+    | RunnerRegistrationContext
     | undefined;
   if (!context) {
     throw new Error('Runner context is not available on this request');
@@ -32,9 +32,9 @@ export function getRunnerContext(request: FastifyRequest): RunnerAuthContext {
   return context;
 }
 
-export function createRunnerTokenAuthMethod(): AuthMethod {
+export function createRunnerRegistrationTokenAuthMethod(): AuthMethod {
   return {
-    name: AUTH_RUNNER_TOKEN,
+    name: AUTH_RUNNER_REGISTRATION_TOKEN,
     authenticate: async (request) => {
       const rawToken = extractBearerToken(request.headers.authorization);
       if (!rawToken) {
@@ -43,12 +43,16 @@ export function createRunnerTokenAuthMethod(): AuthMethod {
         });
       }
 
-      if (getTokenType(rawToken) === 'ephemeralRegistrationToken') {
+      const tokenType = getTokenType(rawToken);
+
+      if (tokenType === 'ephemeralRegistrationToken') {
         const ephemeralToken = await resolveEphemeralRegistrationTokenByHash(
           hashOpaqueToken(rawToken),
         );
         if (!ephemeralToken) {
-          throw new ClientError('Invalid runner token', 'unauthorized', {status: 401});
+          throw new ClientError('Invalid runner registration token', 'unauthorized', {
+            status: 401,
+          });
         }
         if (ephemeralToken.expiresAt < new Date()) {
           throw new ClientError(
@@ -65,29 +69,37 @@ export function createRunnerTokenAuthMethod(): AuthMethod {
           provisionerId: ephemeralToken.provisionerId,
           reservationId: ephemeralToken.reservationId,
           provisionedRunnerId: ephemeralToken.provisionedRunnerId,
-        } satisfies RunnerAuthContext;
+        } satisfies RunnerRegistrationContext;
         return;
       }
 
-      const token = await resolveRunnerTokenByHash(hashOpaqueToken(rawToken));
+      if (tokenType !== 'manualRegistrationToken') {
+        throw new ClientError('Invalid runner registration token', 'unauthorized', {status: 401});
+      }
+
+      const token = await resolveManualRegistrationTokenByHash(hashOpaqueToken(rawToken));
       if (!token) {
-        throw new ClientError('Invalid runner token', 'unauthorized', {status: 401});
+        throw new ClientError('Invalid runner registration token', 'unauthorized', {status: 401});
       }
 
       if (token.expiresAt && token.expiresAt < new Date()) {
-        throw new ClientError('Runner token has expired', 'runner-token-expired', {status: 401});
-      }
-      if (token.revokedAt) {
-        throw new ClientError('Runner token has been revoked', 'runner-token-revoked', {
+        throw new ClientError('Registration token has expired', 'registration-token-expired', {
           status: 401,
         });
+      }
+      if (token.revokedAt) {
+        throw new ClientError(
+          'Manual registration token has been revoked',
+          'manual-registration-token-revoked',
+          {status: 401},
+        );
       }
 
       (request as unknown as Record<string, unknown>)[RUNNER_CONTEXT_KEY] = {
         kind: 'manual',
         registrationTokenId: token.id,
         workspaceId: token.workspaceId,
-      } satisfies RunnerAuthContext;
+      } satisfies RunnerRegistrationContext;
     },
   };
 }

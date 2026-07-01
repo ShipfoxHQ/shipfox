@@ -1,13 +1,13 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
 import {ephemeralRegistrationTokens} from './schema/ephemeral-registration-tokens.js';
+import {manualRegistrationTokens} from './schema/manual-registration-tokens.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {provisionedRunners} from './schema/provisioned-runners.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
 import {reservations} from './schema/reservations.js';
 import {runnerSessions} from './schema/runner-sessions.js';
-import {runnerTokens} from './schema/runner-tokens.js';
 import {runningJobExecutions} from './schema/running-job-executions.js';
 
 export const schema = {
@@ -17,7 +17,7 @@ export const schema = {
   provisionerTokens,
   reservations,
   runnerSessions,
-  runnerTokens,
+  manualRegistrationTokens,
   runningJobExecutions,
   runnersOutbox,
 };

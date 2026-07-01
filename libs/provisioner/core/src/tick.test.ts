@@ -48,7 +48,7 @@ function harness(options: {response: PollDemandResponseDto; mintError?: Error}):
       return Promise.resolve({
         tokens: body.provisioned_runners.map((runner) => ({
           provisioned_runner_id: runner.provisioned_runner_id,
-          registration_token: `sfrt_${runner.provisioned_runner_id}`,
+          registration_token: `sf_ert_${runner.provisioned_runner_id}`,
           expires_at: EXPIRES_AT,
         })),
       });
@@ -79,7 +79,9 @@ function runTick(
       fixture.launches.push(launch);
       return Promise.resolve();
     },
-    buildRunnerEnv: ({registrationToken}) => ({SHIPFOX_RUNNER_TOKEN: registrationToken}),
+    buildRunnerEnv: ({registrationToken}) => ({
+      SHIPFOX_RUNNER_REGISTRATION_TOKEN: registrationToken,
+    }),
     maxReservations: params.maxReservations ?? 250,
     waitSeconds: 30,
     registrationTokenBatchSize: params.batchSize ?? 250,
@@ -116,7 +118,9 @@ describe('runProvisionerTick', () => {
 
     for (const launch of fixture.launches) {
       expect(launch.template.key).toBe('small');
-      expect(launch.runnerEnv.SHIPFOX_RUNNER_TOKEN).toBe(`sfrt_${launch.provisionedRunnerId}`);
+      expect(launch.runnerEnv.SHIPFOX_RUNNER_REGISTRATION_TOKEN).toBe(
+        `sf_ert_${launch.provisionedRunnerId}`,
+      );
     }
     expect(fixture.tracker.countsByTemplate()).toEqual(
       new Map([['small', {starting: 2, running: 0}]]),
@@ -200,7 +204,9 @@ describe('runProvisionerTick', () => {
         fixture.launches.push(launch);
         return Promise.resolve();
       },
-      buildRunnerEnv: ({registrationToken}) => ({SHIPFOX_RUNNER_TOKEN: registrationToken}),
+      buildRunnerEnv: ({registrationToken}) => ({
+        SHIPFOX_RUNNER_REGISTRATION_TOKEN: registrationToken,
+      }),
       maxReservations: 250,
       waitSeconds: 30,
       registrationTokenBatchSize: 250,
@@ -223,7 +229,7 @@ describe('runProvisionerTick', () => {
         Promise.resolve({
           tokens: body.provisioned_runners.slice(0, 1).map((runner) => ({
             provisioned_runner_id: runner.provisioned_runner_id,
-            registration_token: `sfrt_${runner.provisioned_runner_id}`,
+            registration_token: `sf_ert_${runner.provisioned_runner_id}`,
             expires_at: EXPIRES_AT,
           })),
         }),
@@ -238,7 +244,9 @@ describe('runProvisionerTick', () => {
         launches.push(launch);
         return Promise.resolve();
       },
-      buildRunnerEnv: ({registrationToken}) => ({SHIPFOX_RUNNER_TOKEN: registrationToken}),
+      buildRunnerEnv: ({registrationToken}) => ({
+        SHIPFOX_RUNNER_REGISTRATION_TOKEN: registrationToken,
+      }),
       maxReservations: 250,
       waitSeconds: 30,
       registrationTokenBatchSize: 250,
@@ -258,7 +266,9 @@ describe('runProvisionerTick', () => {
       templates: [template],
       tracker: fixture.tracker,
       launch: () => Promise.reject(new Error('docker daemon down')),
-      buildRunnerEnv: ({registrationToken}) => ({SHIPFOX_RUNNER_TOKEN: registrationToken}),
+      buildRunnerEnv: ({registrationToken}) => ({
+        SHIPFOX_RUNNER_REGISTRATION_TOKEN: registrationToken,
+      }),
       maxReservations: 250,
       waitSeconds: 30,
       registrationTokenBatchSize: 250,

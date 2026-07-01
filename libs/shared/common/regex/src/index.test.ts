@@ -119,12 +119,12 @@ describe('display name character matcher', () => {
 
 describe('createShipfoxTokenPrefixRegexes', () => {
   it('matches unqualified and environment-qualified token prefixes', () => {
-    const regexes = createShipfoxTokenPrefixRegexes(['k', 'rt', 'pr']);
+    const regexes = createShipfoxTokenPrefixRegexes(['k', 'mrt', 'pr']);
 
-    const unqualified = 'sf_rt_secret'.match(regexes.unqualified);
+    const unqualified = 'sf_mrt_secret'.match(regexes.unqualified);
     const qualified = 'sf_staging_k_secret'.match(regexes.qualified);
 
-    expect(unqualified?.[1]).toBe('rt');
+    expect(unqualified?.[1]).toBe('mrt');
     expect(qualified?.[1]).toBe('staging');
     expect(qualified?.[2]).toBe('k');
   });

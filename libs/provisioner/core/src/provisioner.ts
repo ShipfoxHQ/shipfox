@@ -201,7 +201,7 @@ export async function runProvisionerIteration<Spec>(
 
 export const buildRunnerEnv: RunnerEnvFactory<unknown> = ({template, registrationToken}) => ({
   SHIPFOX_API_URL: config.SHIPFOX_RUNNER_API_URL ?? config.SHIPFOX_API_URL,
-  SHIPFOX_RUNNER_TOKEN: registrationToken,
+  SHIPFOX_RUNNER_REGISTRATION_TOKEN: registrationToken,
   SHIPFOX_RUNNER_LABELS: template.labels.join(','),
   SHIPFOX_POLL_MAX_DURATION_MS: String(config.SHIPFOX_RUNNER_POLL_MAX_DURATION_MS),
 });
