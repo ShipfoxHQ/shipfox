@@ -14,7 +14,21 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const All: Story = {
+export const Playground: Story = {
+  render: () => (
+    <div className="max-w-3xl">
+      <LogRows>
+        <EndMarker
+          record={{v: 1, ts, type: 'end', total_bytes: 15_360}}
+          lineCount={412}
+          durationMs={2100}
+        />
+      </LogRows>
+    </div>
+  ),
+};
+
+export const Variants: Story = {
   render: () => (
     <div className="max-w-3xl">
       <LogRows>

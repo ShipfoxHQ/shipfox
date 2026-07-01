@@ -32,7 +32,40 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
+export const Playground: Story = {
+  render: () => {
+    const [open, setOpen] = useState(false);
+
+    return (
+      <div className="flex h-[calc(100vh/2)] w-[calc(100vw/2)] items-center justify-center rounded-16 bg-background-subtle-base shadow-tooltip">
+        <Modal open={open} onOpenChange={setOpen}>
+          <ModalTrigger asChild>
+            <Button>Open Modal</Button>
+          </ModalTrigger>
+          <ModalContent aria-describedby={undefined}>
+            <ModalTitle className="sr-only">Modal Title</ModalTitle>
+            <ModalHeader title="Modal Title" />
+            <ModalBody>
+              <Text size="sm" className="text-foreground-neutral-subtle w-full">
+                This modal automatically adapts between dialog and drawer layouts.
+              </Text>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="transparent" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={() => setOpen(false)}>
+                Confirm
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      </div>
+    );
+  },
+};
+
+export const Open: Story = {
   play: async (ctx) => {
     const {canvasElement, step} = ctx;
     const canvas = within(canvasElement);
@@ -48,7 +81,7 @@ export const Default: Story = {
       await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
-    await argosScreenshot(ctx, 'Default Modal Open');
+    await argosScreenshot(ctx, 'Modal Open');
   },
   render: () => {
     const [open, setOpen] = useState(false);

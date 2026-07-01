@@ -3,7 +3,9 @@ import type {
   TriggerEventListItemDto,
   TriggerEventOutcomeDto,
 } from '@shipfox/api-triggers-dto';
+import {Code} from '@shipfox/react-ui';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
+import type {ReactNode} from 'react';
 import {EventsList} from './events-list.js';
 import type {TriggerEventsListQuery} from './types.js';
 
@@ -98,22 +100,36 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const WithEvents: Story = {};
+export const Playground: Story = {};
 
-export const Loading: Story = {
-  args: {events: [], query: makeQuery({isPending: true, data: undefined})},
+export const DataStates: Story = {
+  render: (args) => (
+    <div className="flex flex-col gap-32">
+      <StateExample label="Loading">
+        <EventsList {...args} events={[]} query={makeQuery({isPending: true, data: undefined})} />
+      </StateExample>
+      <StateExample label="Empty">
+        <EventsList {...args} events={[]} facets={{sources: [], events: []}} />
+      </StateExample>
+      <StateExample label="No matches">
+        <EventsList {...args} events={[]} filters={{outcome: ['failed']}} />
+      </StateExample>
+      <StateExample label="Load error">
+        <EventsList {...args} events={[]} query={makeQuery({isError: true, data: undefined})} />
+      </StateExample>
+    </div>
+  ),
 };
 
-// No events and no active filters: the first-run empty state with the Integrations CTA.
-export const Empty: Story = {
-  args: {events: [], facets: {sources: [], events: []}},
-};
-
-// Filters are active but match nothing: the distinct "no matching events" + Clear state.
-export const NoMatches: Story = {
-  args: {events: [], filters: {outcome: ['failed']}},
-};
-
-export const LoadError: Story = {
-  args: {events: [], query: makeQuery({isError: true, data: undefined})},
-};
+function StateExample({label, children}: {label: string; children: ReactNode}) {
+  return (
+    <div className="flex flex-col gap-8">
+      <Code variant="label" className="text-foreground-neutral-subtle">
+        {label}
+      </Code>
+      <div className="min-h-280 rounded-8 border border-border-neutral-base bg-background-neutral-base p-12">
+        {children}
+      </div>
+    </div>
+  );
+}

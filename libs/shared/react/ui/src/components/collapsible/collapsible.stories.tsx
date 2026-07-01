@@ -40,7 +40,7 @@ function TriggerRow({children}: {children: React.ReactNode}) {
   );
 }
 
-export const Default: Story = {
+export const Playground: Story = {
   render: () => (
     <Collapsible className="flex w-[420px] flex-col gap-4">
       <TriggerRow>Repository access</TriggerRow>

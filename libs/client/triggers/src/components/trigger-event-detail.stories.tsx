@@ -145,7 +145,7 @@ async function captureDetail(ctx: Parameters<NonNullable<Story['play']>>[0], nam
   await argosScreenshot(ctx, name);
 }
 
-export const Routed: Story = {
+export const Playground: Story = {
   play: async (ctx) => {
     await captureDetail(ctx, 'Trigger Event Detail Routed');
   },

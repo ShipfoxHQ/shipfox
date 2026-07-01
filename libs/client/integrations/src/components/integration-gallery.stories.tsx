@@ -118,7 +118,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const MixedLifecycleStates: Story = {};
+export const Playground: Story = {};
 
 export const EmptyConnections: Story = {
   args: {scenario: 'empty-connections'},

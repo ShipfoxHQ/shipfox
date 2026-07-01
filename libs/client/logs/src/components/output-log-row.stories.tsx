@@ -28,7 +28,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Streams: Story = {
+export const Playground: Story = {
   render: () => (
     <div className="max-w-3xl">
       <LogRows>

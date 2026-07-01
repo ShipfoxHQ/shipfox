@@ -629,6 +629,32 @@ describe.each(runnerEventTypeEnum.enumValues)('createRunnerEvent "%s"', (eventTy
 });
 ```
 
+## Storybook story structure
+
+Story files should be ordered for exploration first, broad visual coverage
+second, composition coverage third, and interaction tests last.
+
+Start every component story file with `Playground` when the component can be
+rendered as a single basic example. `Playground` shows the neutral/default
+component and exposes Storybook controls for meaningful visual and content props.
+Rename old `Default` stories to `Playground` unless the story is not an
+interactive playground.
+
+After `Playground`, group variant axes into as few stories as practical. Prefer
+matrix stories such as `Variants`, `Sizes`, `States`, `Content`, `Errors`, or
+`DataStates` that render rows/columns of related states in one canvas. Do not add
+one screenshot-producing story per enum value when a grouped matrix can show the
+same coverage.
+
+Put composition stories after variant matrices. Name them `Compositions` or with
+a specific scenario name, and group related complex scenarios in one canvas when
+that keeps Argos coverage clear and cheaper.
+
+Put pure test stories last. Use `play` for assertions or interactions that prove
+behavior, not for visual states that can be rendered directly with args or
+fixtures. Prefix test-only exports with `Test` or give them a `Tests / ...`
+display name so they are easy to distinguish from visual coverage.
+
 ## Visual Regression Testing
 
 Argos catches UI drift on every PR via one named build per source package. The

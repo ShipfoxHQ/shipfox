@@ -11,7 +11,7 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
+export const Playground: Story = {
   render: () => (
     <div className="flex flex-wrap gap-8">
       <Kbd>Ctrl</Kbd>

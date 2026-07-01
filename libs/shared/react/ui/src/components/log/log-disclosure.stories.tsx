@@ -35,7 +35,7 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const Disclosure: Story = {
+export const Playground: Story = {
   render: () => (
     <div className="max-w-2xl">
       <LogRows>

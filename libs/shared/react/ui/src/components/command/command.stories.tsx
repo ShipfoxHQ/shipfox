@@ -24,7 +24,7 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
+export const Playground: Story = {
   render: () => (
     <Command className="rounded-10 shadow-tooltip max-w-400">
       <CommandInput placeholder="Type a command or search..." />

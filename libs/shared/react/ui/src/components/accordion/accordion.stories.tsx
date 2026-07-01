@@ -20,7 +20,7 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const Single: Story = {
+export const Playground: Story = {
   render: () => (
     <Accordion type="single" collapsible defaultValue="repository" className="w-[420px]">
       <AccordionItem value="repository">

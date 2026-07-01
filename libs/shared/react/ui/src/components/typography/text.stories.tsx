@@ -16,7 +16,7 @@ const sizes = ['xs', 'sm', 'md', 'lg', 'xl'] as const;
 const textParagraph =
   'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.';
 
-export const Default: Story = {
+export const Playground: Story = {
   render: () => (
     <div className="flex flex-col gap-16">
       {sizes.map((size) => (

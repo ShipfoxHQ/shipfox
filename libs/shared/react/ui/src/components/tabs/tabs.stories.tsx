@@ -15,7 +15,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
+export const Playground: Story = {
   args: {defaultValue: 'analytics'} as never,
   play: async (ctx) => {
     // Wait for requestAnimationFrame inside TabsList to fire and position the

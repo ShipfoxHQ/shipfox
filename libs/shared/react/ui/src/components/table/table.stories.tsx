@@ -38,7 +38,7 @@ const workflows = [
   },
 ];
 
-export const WorkflowRows: Story = {
+export const Playground: Story = {
   render: () => (
     <div className="w-760 rounded-8 border border-border-neutral-base bg-background-neutral-base">
       <Table>

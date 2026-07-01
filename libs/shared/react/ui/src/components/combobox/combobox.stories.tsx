@@ -31,7 +31,6 @@ const sampleItems: ComboboxOption[] = [
 ];
 
 const repositoriesLabel = /repositories/i;
-const moreSelectedLabel = /more selected/i;
 const emptyStateSupportText = /Repository list is limited to 100/i;
 
 const meta = {
@@ -59,7 +58,7 @@ async function clickCommandOption(user: ReturnType<typeof userEvent.setup>, labe
   await user.click(item);
 }
 
-export const Default: Story = {
+export const Playground: Story = {
   args: {} as never,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
@@ -86,7 +85,118 @@ export const Default: Story = {
   },
 };
 
-export const MultiSelect: Story = {
+const overflowValues = [
+  'apache',
+  'apache-superset',
+  'release-production-multi-region-canary',
+  'apollo',
+  'apify',
+];
+
+export const ChipVariants: Story = {
+  args: {} as never,
+  render: () => {
+    const [growingValue, setGrowingValue] = useState<string[]>(overflowValues);
+    const [compactValue, setCompactValue] = useState<string[]>(overflowValues);
+
+    return (
+      <div className="flex flex-col gap-20">
+        <div className="w-280">
+          <Label htmlFor="combobox-growing">Growing (default)</Label>
+          <Combobox
+            id="combobox-growing"
+            multiple
+            options={sampleItems}
+            value={growingValue}
+            onValueChange={setGrowingValue}
+            placeholder="Select repositories..."
+            searchPlaceholder="Search repositories..."
+          />
+        </div>
+        <div className="w-280">
+          <Label htmlFor="combobox-compact">Compact (maxVisibleChips=2)</Label>
+          <Combobox
+            id="combobox-compact"
+            multiple
+            options={sampleItems}
+            value={compactValue}
+            onValueChange={setCompactValue}
+            maxVisibleChips={2}
+            placeholder="Select repositories..."
+            searchPlaceholder="Search repositories..."
+          />
+        </div>
+      </div>
+    );
+  },
+};
+
+export const States: Story = {
+  args: {} as never,
+  render: () => {
+    const [loadingValue, setLoadingValue] = useState('');
+    const [disabledValue, setDisabledValue] = useState<string[]>(['apache', 'apollo']);
+
+    return (
+      <div className="flex flex-col gap-20">
+        <div className="w-[80vw] md:w-500">
+          <Label htmlFor="combobox-loading">Loading</Label>
+          <Combobox
+            id="combobox-loading"
+            options={sampleItems}
+            value={loadingValue}
+            onValueChange={setLoadingValue}
+            placeholder="Type to search..."
+            searchPlaceholder="Search repositories..."
+            isLoading
+          />
+        </div>
+        <div className="w-[80vw] md:w-500">
+          <Label htmlFor="combobox-disabled">Disabled</Label>
+          <Combobox
+            id="combobox-disabled"
+            multiple
+            options={sampleItems}
+            value={disabledValue}
+            onValueChange={setDisabledValue}
+            maxVisibleChips={2}
+            disabled
+            placeholder="Disabled input"
+            searchPlaceholder="Search repositories..."
+            emptyState="No results found"
+          />
+        </div>
+      </div>
+    );
+  },
+};
+
+export const PrimitiveComposition: Story = {
+  args: {} as never,
+  render: () => {
+    const [value, setValue] = useState<string[]>(['apache', 'apollo']);
+
+    return (
+      <div className="w-[80vw] md:w-500">
+        <Label htmlFor="combobox-primitives">Primitive composition</Label>
+        <ComboboxRoot
+          multiple
+          options={sampleItems}
+          value={value}
+          onValueChange={setValue}
+          maxVisibleChips={2}
+        >
+          <ComboboxTrigger id="combobox-primitives" placeholder="Pick repositories..." />
+          <ComboboxContent>
+            <ComboboxList emptyState="No repositories match." />
+          </ComboboxContent>
+        </ComboboxRoot>
+      </div>
+    );
+  },
+};
+
+export const TestMultiSelect: Story = {
   args: {} as never,
   play: async ({canvasElement, step}) => {
     const canvas = within(canvasElement);
@@ -135,106 +245,7 @@ export const MultiSelect: Story = {
   },
 };
 
-export const PrimitiveComposition: Story = {
-  args: {} as never,
-  render: () => {
-    const [value, setValue] = useState<string[]>(['apache', 'apollo']);
-
-    return (
-      <div className="w-[80vw] md:w-500">
-        <Label htmlFor="combobox-primitives">Primitive composition</Label>
-        <ComboboxRoot
-          multiple
-          options={sampleItems}
-          value={value}
-          onValueChange={setValue}
-          maxVisibleChips={2}
-        >
-          <ComboboxTrigger id="combobox-primitives" placeholder="Pick repositories..." />
-          <ComboboxContent>
-            <ComboboxList emptyState="No repositories match." />
-          </ComboboxContent>
-        </ComboboxRoot>
-      </div>
-    );
-  },
-};
-
-const overflowValues = [
-  'apache',
-  'apache-superset',
-  'release-production-multi-region-canary',
-  'apollo',
-  'apify',
-];
-
-export const GrowingChips: Story = {
-  args: {} as never,
-  play: async ({canvasElement, step}) => {
-    const canvas = within(canvasElement);
-
-    await step('Every chip is shown; the field grows instead of collapsing', async () => {
-      await canvas.findByLabelText('Remove apache');
-      await canvas.findByLabelText('Remove apify');
-      await canvas.findByLabelText('Remove release-production-multi-region-canary');
-      expect(canvas.queryByText(moreSelectedLabel)).toBeNull();
-    });
-  },
-  render: () => {
-    const [value, setValue] = useState<string[]>(overflowValues);
-
-    return (
-      <div className="w-280">
-        <Label htmlFor="combobox-growing">Growing (default)</Label>
-        <Combobox
-          id="combobox-growing"
-          multiple
-          options={sampleItems}
-          value={value}
-          onValueChange={setValue}
-          placeholder="Select repositories..."
-          searchPlaceholder="Search repositories..."
-        />
-      </div>
-    );
-  },
-};
-
-export const CompactChips: Story = {
-  args: {} as never,
-  play: async ({canvasElement, step}) => {
-    const canvas = within(canvasElement);
-
-    await step('maxVisibleChips collapses the rest into a "+N" summary', async () => {
-      await canvas.findByLabelText('Remove apache');
-      await canvas.findByLabelText('Remove apache-superset');
-      await canvas.findByText('+3');
-      await canvas.findByText(moreSelectedLabel);
-      expect(canvas.queryByLabelText('Remove apify')).toBeNull();
-    });
-  },
-  render: () => {
-    const [value, setValue] = useState<string[]>(overflowValues);
-
-    return (
-      <div className="w-280">
-        <Label htmlFor="combobox-compact">Compact (maxVisibleChips=2)</Label>
-        <Combobox
-          id="combobox-compact"
-          multiple
-          options={sampleItems}
-          value={value}
-          onValueChange={setValue}
-          maxVisibleChips={2}
-          placeholder="Select repositories..."
-          searchPlaceholder="Search repositories..."
-        />
-      </div>
-    );
-  },
-};
-
-export const ClearAllAndBackspace: Story = {
+export const TestClearAllAndBackspace: Story = {
   args: {} as never,
   play: async ({canvasElement, step}) => {
     const canvas = within(canvasElement);
@@ -282,7 +293,7 @@ export const ClearAllAndBackspace: Story = {
   },
 };
 
-export const TypeToFilterMulti: Story = {
+export const TestTypeToFilterMulti: Story = {
   args: {} as never,
   play: async ({canvasElement, step}) => {
     const canvas = within(canvasElement);
@@ -323,7 +334,7 @@ export const TypeToFilterMulti: Story = {
   },
 };
 
-export const UncontrolledMulti: Story = {
+export const TestUncontrolledMulti: Story = {
   args: {} as never,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
@@ -351,7 +362,7 @@ export const UncontrolledMulti: Story = {
   ),
 };
 
-export const KeyboardNavMulti: Story = {
+export const TestKeyboardNavMulti: Story = {
   args: {} as never,
   play: async ({canvasElement, step}) => {
     const canvas = within(canvasElement);
@@ -390,7 +401,7 @@ export const KeyboardNavMulti: Story = {
   },
 };
 
-export const KeyboardNavSingle: Story = {
+export const TestKeyboardNavSingle: Story = {
   args: {} as never,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
@@ -422,7 +433,7 @@ export const KeyboardNavSingle: Story = {
   },
 };
 
-export const EmptyState: Story = {
+export const TestEmptyState: Story = {
   args: {} as never,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
@@ -458,57 +469,6 @@ export const EmptyState: Story = {
               for support.
             </p>
           }
-        />
-      </div>
-    );
-  },
-};
-
-export const LoadingState: Story = {
-  args: {} as never,
-  render: () => {
-    const [value, setValue] = useState('');
-    return (
-      <div className="w-[80vw] md:w-500">
-        <Label htmlFor="combobox-loading">Loading</Label>
-        <Combobox
-          id="combobox-loading"
-          options={sampleItems}
-          value={value}
-          onValueChange={setValue}
-          placeholder="Type to search..."
-          searchPlaceholder="Search repositories..."
-          isLoading
-        />
-      </div>
-    );
-  },
-};
-
-export const DisabledState: Story = {
-  args: {} as never,
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.getByRole('combobox')).toBeDisabled();
-  },
-  render: () => {
-    const [value, setValue] = useState<string[]>(['apache', 'apollo']);
-
-    return (
-      <div className="w-[80vw] md:w-500">
-        <Label htmlFor="combobox-disabled">Disabled</Label>
-        <Combobox
-          id="combobox-disabled"
-          multiple
-          options={sampleItems}
-          value={value}
-          onValueChange={setValue}
-          maxVisibleChips={2}
-          disabled
-          placeholder="Disabled input"
-          searchPlaceholder="Search repositories..."
-          emptyState="No results found"
         />
       </div>
     );

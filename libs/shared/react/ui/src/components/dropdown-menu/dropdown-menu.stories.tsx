@@ -100,8 +100,36 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-  play: (ctx) => screenshotOpenMenu(ctx, 'DropdownMenu Default Open'),
+export const Playground: Story = {
+  render: function PlaygroundStory(args) {
+    const [container, setContainer] = useState<HTMLDivElement | null>(null);
+    const [open, setOpen] = useState(false);
+
+    return (
+      <div
+        ref={setContainer}
+        className="relative flex h-500 w-500 items-center justify-center rounded-16 bg-background-subtle-base shadow-tooltip overflow-visible"
+      >
+        {container && (
+          <DropdownMenu open={open} onOpenChange={setOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="secondary">Open Menu</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent {...args} container={container}>
+              <DropdownMenuItem icon="editLine">Edit</DropdownMenuItem>
+              <DropdownMenuItem icon="addLine">Add</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem icon="deleteBinLine">Delete</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+    );
+  },
+};
+
+export const Open: Story = {
+  play: (ctx) => screenshotOpenMenu(ctx, 'DropdownMenu Open'),
   render: function DefaultStory(args) {
     const [container, setContainer] = useState<HTMLDivElement | null>(null);
 

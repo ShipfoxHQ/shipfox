@@ -1,4 +1,6 @@
+import {Code} from '@shipfox/react-ui';
 import type {Meta, StoryObj} from '@storybook/react';
+import type {ReactNode} from 'react';
 import {expect, userEvent, within} from 'storybook/test';
 import type {WorkflowRun, WorkflowRunStatus} from '#core/workflow-run.js';
 import {sequencedWorkflowRun} from '#test/fixtures/workflow-run.js';
@@ -58,24 +60,36 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const WithRuns: Story = {};
+export const Playground: Story = {};
 
 export const Selected: Story = {
   args: {selectedWorkflowRunId: SAMPLE_RUNS[1].id},
 };
 
-export const Loading: Story = {
-  args: {query: makeQuery({isPending: true, data: undefined})},
+export const DataStates: Story = {
+  render: (args) => (
+    <div className="flex gap-24">
+      <StateExample label="Loading">
+        <WorkflowRunsListView {...args} query={makeQuery({isPending: true, data: undefined})} />
+      </StateExample>
+      <StateExample label="Empty">
+        <WorkflowRunsListView {...args} runs={[]} />
+      </StateExample>
+      <StateExample label="Load error">
+        <WorkflowRunsListView
+          {...args}
+          runs={[]}
+          query={makeQuery({isError: true, data: undefined})}
+        />
+      </StateExample>
+      <StateExample label="Stale error">
+        <WorkflowRunsListView {...args} query={makeQuery({isError: true})} />
+      </StateExample>
+    </div>
+  ),
 };
 
-export const Empty: Story = {
-  args: {runs: []},
-};
-
-// Runs exist but the search matches none of them: a distinct empty state ("No matching
-// runs" + Clear filters) from the never-ran Empty story. Typed in via the real search box
-// since the view owns the query, so the story shows the whole rail in that state.
-export const NoMatches: Story = {
+export const TestNoMatches: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await userEvent.type(canvas.getByLabelText('Search runs'), 'no-such-run');
@@ -83,10 +97,15 @@ export const NoMatches: Story = {
   },
 };
 
-export const LoadError: Story = {
-  args: {runs: [], query: makeQuery({isError: true, data: undefined})},
-};
-
-export const StaleError: Story = {
-  args: {query: makeQuery({isError: true})},
-};
+function StateExample({label, children}: {label: string; children: ReactNode}) {
+  return (
+    <div className="flex w-260 flex-col gap-8">
+      <Code variant="label" className="text-foreground-neutral-subtle">
+        {label}
+      </Code>
+      <div className="flex h-560 rounded-8 border border-border-neutral-base bg-background-neutral-base">
+        {children}
+      </div>
+    </div>
+  );
+}

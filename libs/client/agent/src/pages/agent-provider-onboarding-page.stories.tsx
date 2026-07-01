@@ -127,7 +127,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const AvailableProviders: Story = {};
+export const Playground: Story = {};
 
 export const Loading: Story = {
   args: {scenario: 'loading'},

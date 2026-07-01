@@ -45,8 +45,45 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-  play: (ctx) => screenshotOpenSheet(ctx, 'Default Sheet Open'),
+export const Playground: Story = {
+  render: () => {
+    const [open, setOpen] = useState(false);
+
+    return (
+      <div className="flex h-[calc(100vh/2)] w-[calc(100vw/2)] items-center justify-center rounded-16 bg-background-subtle-base shadow-tooltip">
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger asChild>
+            <Button>Open Sheet</Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>Sheet Title</SheetTitle>
+            </SheetHeader>
+            <SheetBody>
+              <SheetDescription>
+                This sheet displays supplementary information or actions.
+              </SheetDescription>
+              <Text size="sm" className="text-foreground-neutral-subtle w-full">
+                Add forms, lists, or related details in the sheet body.
+              </Text>
+            </SheetBody>
+            <SheetFooter>
+              <Button variant="transparent" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={() => setOpen(false)}>
+                Save
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      </div>
+    );
+  },
+};
+
+export const Open: Story = {
+  play: (ctx) => screenshotOpenSheet(ctx, 'Sheet Open'),
   render: () => {
     const [open, setOpen] = useState(isTestEnvironment());
 

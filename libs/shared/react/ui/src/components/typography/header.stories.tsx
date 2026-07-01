@@ -14,7 +14,7 @@ type Story = StoryObj<typeof meta>;
 
 const variants = ['h1', 'h2', 'h3', 'h4'] as const;
 
-export const Default: Story = {
+export const Playground: Story = {
   render: () => (
     <div className="flex flex-col gap-16">
       {variants.map((variant) => (

@@ -19,7 +19,7 @@ function WiredInput(props: {placeholder?: string; defaultValue?: string; type?: 
   return <Input {...useFormField()} {...props} />;
 }
 
-export const Idle: Story = {
+export const Playground: Story = {
   render: (args) => (
     <div className="w-360">
       <FormField {...args}>

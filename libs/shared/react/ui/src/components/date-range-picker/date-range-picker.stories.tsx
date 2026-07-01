@@ -62,7 +62,7 @@ function ControlledPicker({
   );
 }
 
-export const Default: Story = {
+export const Playground: Story = {
   render: (args) => <ControlledPicker {...args} />,
 };
 

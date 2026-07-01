@@ -158,7 +158,7 @@ const ATTEMPT_SUMMARY_ARGS = {
   latestAttempt: 3,
 };
 
-export const Default: Story = {};
+export const Playground: Story = {};
 
 export const WithSourceButton: Story = {
   args: {

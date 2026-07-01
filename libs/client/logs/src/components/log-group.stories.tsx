@@ -64,7 +64,7 @@ type Story = StoryObj<typeof meta>;
 
 const BUILD_TRIGGER = /Build/;
 
-export const Collapsed: Story = {
+export const Playground: Story = {
   render: () => (
     <div className="max-w-3xl">
       <LogRows>
@@ -191,7 +191,7 @@ export const ErrorBar: Story = {
 };
 
 export const Toggle: Story = {
-  ...Collapsed,
+  ...Playground,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     const user = userEvent.setup();
