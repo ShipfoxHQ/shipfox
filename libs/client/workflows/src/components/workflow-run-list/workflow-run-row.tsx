@@ -9,6 +9,11 @@ import {
   TooltipTrigger,
 } from '@shipfox/react-ui';
 import {Link} from '@tanstack/react-router';
+import {
+  useWorkflowRunDurationAccessibleLabel,
+  WorkflowRunDurationLabel,
+} from '#components/workflow-run-duration-label.js';
+import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {WorkflowRunListItem} from '#core/workflow-run.js';
 import {withoutWorkflowRunSelectionSearch} from '#core/workflow-run-url-state.js';
@@ -53,6 +58,8 @@ export function WorkflowRunRow({
   projectId: string;
   selected: boolean;
 }) {
+  const durationLabel = useWorkflowRunDurationAccessibleLabel(run.runAttempt.displayDuration);
+  const statusLabel = getWorkflowStatusVisual(run.status).label;
   const body = (
     <>
       {selected ? (
@@ -78,10 +85,16 @@ export function WorkflowRunRow({
             <span className="sr-only">Run updated </span>
           </span>
         )}
-        <RelativeTime
-          value={run.updatedAt}
-          className="shrink-0 whitespace-nowrap text-xs leading-20 text-foreground-neutral-disabled"
-        />
+        <span className="ml-auto flex shrink-0 items-center gap-6">
+          <WorkflowRunDurationLabel
+            duration={run.runAttempt.displayDuration}
+            className="text-foreground-neutral-disabled"
+          />
+          {durationLabel ? <RunMetadataSeparator /> : null}
+          <Code variant="label" className="shrink-0 text-foreground-neutral-disabled">
+            <RelativeTime value={run.updatedAt} />
+          </Code>
+        </span>
       </div>
     </>
   );
@@ -106,7 +119,9 @@ export function WorkflowRunRow({
           withoutWorkflowRunSelectionSearch(previous)) as never
       }
       aria-current={selected ? 'page' : undefined}
-      aria-label={run.triggerLabel ? `${run.name}, ${run.status}, ${run.triggerLabel}` : undefined}
+      aria-label={[run.name, statusLabel, durationLabel, run.triggerLabel]
+        .filter((part): part is string => Boolean(part))
+        .join(', ')}
       className={cn(
         'group relative flex w-full flex-col gap-4 rounded-8 border border-transparent px-10 py-8 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none',
         selected && 'bg-background-components-hover',
@@ -149,5 +164,18 @@ function TriggerTooltip({label}: {label: string}) {
         {label}
       </Text>
     </TooltipContent>
+  );
+}
+
+function RunMetadataSeparator() {
+  return (
+    <Code
+      as="span"
+      variant="label"
+      aria-hidden="true"
+      className="shrink-0 text-foreground-neutral-disabled"
+    >
+      ·
+    </Code>
   );
 }

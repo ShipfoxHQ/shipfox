@@ -5,7 +5,11 @@ import type {
   WorkflowRunStatusDto,
 } from '@shipfox/api-workflows-dto';
 import {type Job, toJob, WORKFLOW_JOB_STATUSES} from './job.js';
-import {toWorkflowRunAttempt, type WorkflowRunAttempt} from './workflow-run-attempt.js';
+import {
+  toWorkflowRunAttempt,
+  type WorkflowRunAttempt,
+  WorkflowRunAttemptSummary,
+} from './workflow-run-attempt.js';
 
 export type WorkflowRunStatus = WorkflowRunStatusDto;
 export type WorkflowStatus = WorkflowRunStatus | (typeof WORKFLOW_JOB_STATUSES)[number];
@@ -58,8 +62,7 @@ export interface WorkflowRun {
 export interface WorkflowRunListItem extends WorkflowRun {
   status: WorkflowRunStatus;
   latestAttempt: number;
-  startedAt: string | null;
-  finishedAt: string | null;
+  runAttempt: WorkflowRunAttemptSummary;
 }
 
 export interface WorkflowRunDetail extends WorkflowRun {
@@ -142,8 +145,14 @@ export function toWorkflowRunListItem(dto: WorkflowRunResponseDto): WorkflowRunL
     ...toWorkflowRun(dto),
     status: dto.status,
     latestAttempt: dto.latest_attempt,
-    startedAt: dto.started_at ?? null,
-    finishedAt: dto.finished_at ?? null,
+    runAttempt: new WorkflowRunAttemptSummary({
+      workflowRunId: dto.id,
+      attempt: dto.current_attempt,
+      status: dto.status,
+      createdAt: dto.created_at,
+      startedAt: dto.started_at ?? null,
+      finishedAt: dto.finished_at ?? null,
+    }),
   };
 }
 

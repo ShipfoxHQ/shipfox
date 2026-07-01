@@ -59,5 +59,9 @@ export {
   workflowRunTriggerDisplayLabel,
   workflowRunTriggerLabel,
 } from './entities/workflow-run.js';
-export type {WorkflowRunAttempt} from './entities/workflow-run-attempt.js';
-export {toWorkflowRunAttempt} from './entities/workflow-run-attempt.js';
+export type {WorkflowRunAttemptDisplayDuration} from './entities/workflow-run-attempt.js';
+export {
+  toWorkflowRunAttempt,
+  WorkflowRunAttempt,
+  WorkflowRunAttemptSummary,
+} from './entities/workflow-run-attempt.js';

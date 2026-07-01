@@ -107,8 +107,21 @@ describe('workflow run model mapping', () => {
     expect(run).toMatchObject({
       status: 'running',
       latestAttempt: 4,
-      startedAt: '2026-05-07T01:01:10.000Z',
-      finishedAt: null,
+      runAttempt: {
+        workflowRunId: dto.id,
+        attempt: 1,
+        status: 'running',
+        createdAt: dto.created_at,
+        startedAt: '2026-05-07T01:01:10.000Z',
+        finishedAt: null,
+      },
+    });
+    expect(run).not.toHaveProperty('startedAt');
+    expect(run).not.toHaveProperty('finishedAt');
+    expect(run).not.toHaveProperty('displayDuration');
+    expect(run.runAttempt.displayDuration).toEqual({
+      state: 'live',
+      fromIso: '2026-05-07T01:01:10.000Z',
     });
   });
 
@@ -579,7 +592,7 @@ describe('workflow run model mapping', () => {
 
     const attempt = toWorkflowRunAttempt(dto);
 
-    expect(attempt).toEqual({
+    expect(attempt).toMatchObject({
       id: '77777777-7777-4777-8777-777777777777',
       workflowRunId: '11111111-1111-4111-8111-111111111111',
       attempt: 2,
@@ -589,6 +602,7 @@ describe('workflow run model mapping', () => {
       finishedAt: '2026-05-07T01:03:00.000Z',
       rerunMode: 'all',
     });
+    expect(attempt.displayDuration).toMatchObject({state: 'fixed', elapsed: {seconds: 50}});
   });
 });
 

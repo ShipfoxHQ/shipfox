@@ -1,4 +1,4 @@
-import {cn, RelativeTimeProvider} from '@shipfox/react-ui';
+import {cn, TimeTickerProvider} from '@shipfox/react-ui';
 import {useState} from 'react';
 import {runMatchesSearch, runMatchesStatusFilter} from './run-display.js';
 import type {WorkflowRunListStatusFilter, WorkflowRunListViewProps} from './types.js';
@@ -27,7 +27,7 @@ export function WorkflowRunListView({
   }
 
   return (
-    <RelativeTimeProvider>
+    <TimeTickerProvider intervalMs={1000} reducedMotionIntervalMs={10_000}>
       <aside
         className={cn(
           'flex w-304 shrink-0 flex-col border-r border-border-neutral-base bg-background-subtle-base',
@@ -51,6 +51,6 @@ export function WorkflowRunListView({
           onClearFilters={handleClearFilters}
         />
       </aside>
-    </RelativeTimeProvider>
+    </TimeTickerProvider>
   );
 }

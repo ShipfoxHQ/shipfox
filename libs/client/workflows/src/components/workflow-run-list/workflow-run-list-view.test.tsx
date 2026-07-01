@@ -20,6 +20,11 @@ function loadedQuery(): WorkflowRunListQuery {
 }
 
 describe('WorkflowRunListView', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
   test('narrows the list to the selected status filter', async () => {
     const user = userEvent.setup();
     renderListView([
@@ -60,6 +65,44 @@ describe('WorkflowRunListView', () => {
     expect(links.some((link) => link.textContent?.includes('deploy-web'))).toBe(true);
     expect(links.some((link) => link.textContent?.includes('queued-build'))).toBe(false);
     expect(screen.getByText('queued-build')).toBeInTheDocument();
+  });
+
+  test('shows a finished run duration in the row metadata', async () => {
+    renderListView([
+      run('succeeded', 'build-image', 'run-build-image', {
+        started_at: '2026-05-07T01:00:00.000Z',
+        finished_at: '2026-05-07T01:02:14.000Z',
+      }),
+    ]);
+
+    const duration = await screen.findByText('2m 14s');
+    expect(duration).toBeInTheDocument();
+    expect(duration).toHaveAttribute('aria-label', 'ran 2m 14s');
+    expect(
+      screen.getByRole('link', {
+        name: (name) => name.includes('build-image') && name.includes('ran 2m 14s'),
+      }),
+    ).toBeInTheDocument();
+  });
+
+  test('shows a live running run duration in the row metadata', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-05-07T01:02:14.000Z'));
+
+    renderListView([
+      run('running', 'deploy-web', 'run-deploy-web', {
+        started_at: '2026-05-07T01:00:00.000Z',
+        finished_at: null,
+      }),
+    ]);
+
+    const duration = await screen.findByText('2m 14s');
+    expect(duration).toBeInTheDocument();
+    expect(duration).toHaveAttribute('aria-label', 'running 2m 14s');
+    expect(
+      screen.getByRole('link', {
+        name: (name) => name.includes('deploy-web') && name.includes('running 2m 14s'),
+      }),
+    ).toBeInTheDocument();
   });
 
   test('scopes the trigger tooltip to the trigger label', async () => {
@@ -111,7 +154,12 @@ function renderListView(runs: WorkflowRunListItem[]) {
   ));
 }
 
-function run(status: WorkflowRunStatus, name: string, id = `run-${name}`): WorkflowRunListItem {
+function run(
+  status: WorkflowRunStatus,
+  name: string,
+  id = `run-${name}`,
+  overrides: NonNullable<Parameters<typeof workflowRunListItem>[0]> = {},
+): WorkflowRunListItem {
   return workflowRunListItem({
     id,
     project_id: PROJECT_ID,
@@ -123,5 +171,6 @@ function run(status: WorkflowRunStatus, name: string, id = `run-${name}`): Workf
     trigger_event: 'push',
     created_at: '2026-05-07T01:01:00.000Z',
     updated_at: '2026-05-07T01:02:00.000Z',
+    ...overrides,
   });
 }
