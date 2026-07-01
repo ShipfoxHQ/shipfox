@@ -3,7 +3,6 @@ import {pollDemandBodySchema, pollDemandResponseSchema} from '@shipfox/api-runne
 import {defineRoute} from '@shipfox/node-fastify';
 import {config} from '#config.js';
 import {pollDemand, releaseReservationGrants} from '#core/demand.js';
-import {listProvisionerTerminateIntents} from '#db/index.js';
 import type {ReservationGrant} from '#db/reservations.js';
 import {toPollDemandResponseDto} from '#presentation/dto/index.js';
 
@@ -40,6 +39,7 @@ export const pollDemandRoute = defineRoute({
       maxReservations: request.body.max_reservations,
       waitSeconds: request.body.wait_seconds,
       ttlSeconds: config.RESERVATION_TTL_SECONDS,
+      terminateIntentLimit: TERMINATE_INTENT_LIMIT,
       templates: request.body.templates.map((template) => ({
         templateKey: template.template_key,
         labels: template.labels,
@@ -50,18 +50,6 @@ export const pollDemandRoute = defineRoute({
       signal: abortController.signal,
     });
     responseReservations = result.reservations;
-    try {
-      result.terminateProvisionedRunnerIds = await listProvisionerTerminateIntents({
-        workspaceId,
-        provisionerId: provisionerTokenId,
-        limit: TERMINATE_INTENT_LIMIT,
-      });
-    } catch (error) {
-      const reservationsToRelease = responseReservations;
-      responseReservations = [];
-      await releaseReservationGrants(reservationsToRelease);
-      throw error;
-    }
 
     return toPollDemandResponseDto(result);
   },

@@ -189,12 +189,23 @@ export async function listProvisionerTerminateIntents(params: {
   provisionerId: string;
   limit: number;
 }): Promise<string[]> {
-  const terminateIntents = provisionerTerminateIntentsQuery(params);
-  const rows = await provisionerTerminateIntentsQuery(params)
+  return await db().transaction(async (tx) => listProvisionerTerminateIntentsTx(tx, params));
+}
+
+export async function listProvisionerTerminateIntentsTx(
+  tx: Tx,
+  params: {
+    workspaceId: string;
+    provisionerId: string;
+    limit: number;
+  },
+): Promise<string[]> {
+  const terminateIntents = provisionerTerminateIntentsQuery(tx, params);
+  const rows = await provisionerTerminateIntentsQuery(tx, params)
     .orderBy(asc(provisionedRunners.provisionedRunnerId))
     .limit(params.limit);
 
-  const [countRow] = await db()
+  const [countRow] = await tx
     .select({value: count()})
     .from(terminateIntents.as('terminate_intents'));
 
@@ -214,10 +225,13 @@ export async function listProvisionerTerminateIntents(params: {
   return rows.map((row) => row.provisionedRunnerId);
 }
 
-function provisionerTerminateIntentsQuery(params: {workspaceId: string; provisionerId: string}) {
+function provisionerTerminateIntentsQuery(
+  tx: Tx,
+  params: {workspaceId: string; provisionerId: string},
+) {
   const newerRunningJobExecutions = alias(runningJobExecutions, 'newer_running_jobs');
 
-  return db()
+  return tx
     .select({provisionedRunnerId: provisionedRunners.provisionedRunnerId})
     .from(runningJobExecutions)
     .innerJoin(
@@ -235,7 +249,7 @@ function provisionerTerminateIntentsQuery(params: {workspaceId: string; provisio
         isNotNull(runningJobExecutions.cancellationRequestedAt),
         inArray(provisionedRunners.state, activeStates),
         notExists(
-          db()
+          tx
             .select({id: newerRunningJobExecutions.id})
             .from(newerRunningJobExecutions)
             .where(

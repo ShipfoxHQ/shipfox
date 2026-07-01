@@ -1,9 +1,11 @@
 import {setTimeout as sleep} from 'node:timers/promises';
 import {config} from '#config.js';
+import {db} from '#db/db.js';
+import {listProvisionerTerminateIntentsTx} from '#db/provisioned-runners.js';
 import {
   type DemandStat,
   deleteReservationsByIds,
-  pollDemandAndReserve,
+  pollDemandAndReserveTx,
   type ReservationGrant,
   type ReservationTemplate,
 } from '#db/reservations.js';
@@ -14,6 +16,7 @@ export interface PollDemandParams {
   maxReservations: number;
   waitSeconds?: number | undefined;
   ttlSeconds: number;
+  terminateIntentLimit: number;
   templates: ReservationTemplate[];
   signal: AbortSignal;
 }
@@ -45,21 +48,38 @@ export async function pollDemand(params: PollDemandParams): Promise<PollDemandRe
     if (params.signal.aborted) return lastResult;
 
     const previousResult = lastResult;
-    const result = await pollDemandAndReserve({
-      workspaceId: params.workspaceId,
-      provisionerId: params.provisionerId,
-      maxReservations: params.maxReservations,
-      ttlSeconds: params.ttlSeconds,
-      templates: params.templates,
+    const deadlinePassed = Date.now() >= deadlineMs;
+    const result = await db().transaction(async (tx) => {
+      const demand = await pollDemandAndReserveTx(tx, {
+        workspaceId: params.workspaceId,
+        provisionerId: params.provisionerId,
+        maxReservations: params.maxReservations,
+        ttlSeconds: params.ttlSeconds,
+        templates: params.templates,
+      });
+      const result: PollDemandResult = {...demand, terminateProvisionedRunnerIds: []};
+
+      if (!shouldReturn(result, params.maxReservations, totalCapacity, deadlinePassed)) {
+        return result;
+      }
+
+      return {
+        ...result,
+        terminateProvisionedRunnerIds: await listProvisionerTerminateIntentsTx(tx, {
+          workspaceId: params.workspaceId,
+          provisionerId: params.provisionerId,
+          limit: params.terminateIntentLimit,
+        }),
+      };
     });
     if (params.signal.aborted) {
       await releaseReservationGrants(result.reservations);
       return previousResult;
     }
 
-    lastResult = {...result, terminateProvisionedRunnerIds: []};
+    lastResult = result;
 
-    if (shouldReturn(lastResult, params.maxReservations, totalCapacity, Date.now() >= deadlineMs)) {
+    if (shouldReturn(lastResult, params.maxReservations, totalCapacity, deadlinePassed)) {
       return lastResult;
     }
 

@@ -61,6 +61,7 @@ describe('pollDemand', () => {
       maxReservations: 1,
       waitSeconds: 0,
       ttlSeconds: 60,
+      terminateIntentLimit: 1000,
       templates: [
         {templateKey: 'linux', labels: ['linux'], availableSlots: 1, starting: 0, running: 0},
       ],

@@ -51,118 +51,122 @@ export async function pollDemandAndReserve(
   params: PollDemandAndReserveParams,
 ): Promise<{stats: DemandStat[]; reservations: ReservationGrant[]}> {
   return await db().transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${params.workspaceId}))`);
+    return await pollDemandAndReserveTx(tx, params);
+  });
+}
 
-    const demandRows = (
-      await tx
-        .select({
-          requiredLabels: pendingJobExecutions.requiredLabels,
-          queued: sql<number>`count(*)::int`,
-          oldestQueuedAt: sql<Date | string>`min(${pendingJobExecutions.createdAt})`,
-        })
-        .from(pendingJobExecutions)
-        .where(eq(pendingJobExecutions.workspaceId, params.workspaceId))
-        .groupBy(pendingJobExecutions.requiredLabels)
-    ).map((row) => ({
-      ...row,
-      oldestQueuedAt: new Date(row.oldestQueuedAt),
-    }));
+export async function pollDemandAndReserveTx(
+  tx: Tx,
+  params: PollDemandAndReserveParams,
+): Promise<{stats: DemandStat[]; reservations: ReservationGrant[]}> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${params.workspaceId}))`);
 
-    const activeReservationRows = await tx
+  const demandRows = (
+    await tx
       .select({
-        requiredLabels: reservations.requiredLabels,
-        reserved: sql<number>`coalesce(sum(${reservations.count}), 0)::int`,
+        requiredLabels: pendingJobExecutions.requiredLabels,
+        queued: sql<number>`count(*)::int`,
+        oldestQueuedAt: sql<Date | string>`min(${pendingJobExecutions.createdAt})`,
       })
-      .from(reservations)
-      .where(
-        and(
-          eq(reservations.workspaceId, params.workspaceId),
-          gt(reservations.expiresAt, sql`now()`),
-        ),
-      )
-      .groupBy(reservations.requiredLabels);
+      .from(pendingJobExecutions)
+      .where(eq(pendingJobExecutions.workspaceId, params.workspaceId))
+      .groupBy(pendingJobExecutions.requiredLabels)
+  ).map((row) => ({
+    ...row,
+    oldestQueuedAt: new Date(row.oldestQueuedAt),
+  }));
 
-    const reservedByLabels = new Map(
-      activeReservationRows.map((row) => [labelKey(row.requiredLabels), row.reserved]),
-    );
-    const activeProvisionerReservationRows = await tx
-      .select({
-        requiredLabels: reservations.requiredLabels,
-        reserved: sql<number>`coalesce(sum(${reservations.count}), 0)::int`,
-      })
-      .from(reservations)
-      .where(
-        and(
-          eq(reservations.workspaceId, params.workspaceId),
-          eq(reservations.provisionerId, params.provisionerId),
-          gt(reservations.expiresAt, sql`now()`),
-        ),
-      )
-      .groupBy(reservations.requiredLabels);
+  const activeReservationRows = await tx
+    .select({
+      requiredLabels: reservations.requiredLabels,
+      reserved: sql<number>`coalesce(sum(${reservations.count}), 0)::int`,
+    })
+    .from(reservations)
+    .where(
+      and(eq(reservations.workspaceId, params.workspaceId), gt(reservations.expiresAt, sql`now()`)),
+    )
+    .groupBy(reservations.requiredLabels);
 
-    const templates = params.templates.map((template) => ({
-      templateKey: template.templateKey,
-      labels: [...canonicalizeLabels(template.labels)],
-      remainingSlots: template.availableSlots,
-    }));
-    deductProvisionerReservations(templates, activeProvisionerReservationRows);
-    const stats: DemandStat[] = [];
-    const grants: ReservationGrant[] = [];
-    let remainingMaxReservations = params.maxReservations;
+  const reservedByLabels = new Map(
+    activeReservationRows.map((row) => [labelKey(row.requiredLabels), row.reserved]),
+  );
+  const activeProvisionerReservationRows = await tx
+    .select({
+      requiredLabels: reservations.requiredLabels,
+      reserved: sql<number>`coalesce(sum(${reservations.count}), 0)::int`,
+    })
+    .from(reservations)
+    .where(
+      and(
+        eq(reservations.workspaceId, params.workspaceId),
+        eq(reservations.provisionerId, params.provisionerId),
+        gt(reservations.expiresAt, sql`now()`),
+      ),
+    )
+    .groupBy(reservations.requiredLabels);
 
-    for (const demand of sortDemandRows(demandRows)) {
-      const satisfyingTemplates = templates
-        .filter((template) => isSubset(demand.requiredLabels, template.labels))
-        .sort(
-          (a, b) => a.labels.length - b.labels.length || a.templateKey.localeCompare(b.templateKey),
-        );
+  const templates = params.templates.map((template) => ({
+    templateKey: template.templateKey,
+    labels: [...canonicalizeLabels(template.labels)],
+    remainingSlots: template.availableSlots,
+  }));
+  deductProvisionerReservations(templates, activeProvisionerReservationRows);
+  const stats: DemandStat[] = [];
+  const grants: ReservationGrant[] = [];
+  let remainingMaxReservations = params.maxReservations;
 
-      if (satisfyingTemplates.length === 0) continue;
-
-      const reserved = reservedByLabels.get(labelKey(demand.requiredLabels)) ?? 0;
-      const unreserved = Math.max(0, demand.queued - reserved);
-      const capacity = satisfyingTemplates.reduce(
-        (total, template) => total + template.remainingSlots,
-        0,
+  for (const demand of sortDemandRows(demandRows)) {
+    const satisfyingTemplates = templates
+      .filter((template) => isSubset(demand.requiredLabels, template.labels))
+      .sort(
+        (a, b) => a.labels.length - b.labels.length || a.templateKey.localeCompare(b.templateKey),
       );
-      const grant = Math.min(unreserved, capacity, remainingMaxReservations);
-      let reservedAfterGrant = reserved;
 
-      if (grant > 0 && params.maxReservations > 0) {
-        const [inserted] = await tx
-          .insert(reservations)
-          .values({
-            workspaceId: params.workspaceId,
-            provisionerId: params.provisionerId,
-            requiredLabels: demand.requiredLabels,
-            count: grant,
-            expiresAt: sql`now() + (${params.ttlSeconds} || ' seconds')::interval`,
-          })
-          .returning({id: reservations.id, expiresAt: reservations.expiresAt});
+    if (satisfyingTemplates.length === 0) continue;
 
-        if (!inserted) throw new Error('Insert returned no rows');
+    const reserved = reservedByLabels.get(labelKey(demand.requiredLabels)) ?? 0;
+    const unreserved = Math.max(0, demand.queued - reserved);
+    const capacity = satisfyingTemplates.reduce(
+      (total, template) => total + template.remainingSlots,
+      0,
+    );
+    const grant = Math.min(unreserved, capacity, remainingMaxReservations);
+    let reservedAfterGrant = reserved;
 
-        remainingMaxReservations -= grant;
-        drawSlots(satisfyingTemplates, grant);
-        reservedAfterGrant += grant;
-        grants.push({
-          reservationId: inserted.id,
-          labels: demand.requiredLabels,
+    if (grant > 0 && params.maxReservations > 0) {
+      const [inserted] = await tx
+        .insert(reservations)
+        .values({
+          workspaceId: params.workspaceId,
+          provisionerId: params.provisionerId,
+          requiredLabels: demand.requiredLabels,
           count: grant,
-          expiresAt: inserted.expiresAt,
-        });
-      }
+          expiresAt: sql`now() + (${params.ttlSeconds} || ' seconds')::interval`,
+        })
+        .returning({id: reservations.id, expiresAt: reservations.expiresAt});
 
-      stats.push({
+      if (!inserted) throw new Error('Insert returned no rows');
+
+      remainingMaxReservations -= grant;
+      drawSlots(satisfyingTemplates, grant);
+      reservedAfterGrant += grant;
+      grants.push({
+        reservationId: inserted.id,
         labels: demand.requiredLabels,
-        queued: demand.queued,
-        reserved: reservedAfterGrant,
-        oldestQueuedAt: demand.oldestQueuedAt,
+        count: grant,
+        expiresAt: inserted.expiresAt,
       });
     }
 
-    return {stats, reservations: grants};
-  });
+    stats.push({
+      labels: demand.requiredLabels,
+      queued: demand.queued,
+      reserved: reservedAfterGrant,
+      oldestQueuedAt: demand.oldestQueuedAt,
+    });
+  }
+
+  return {stats, reservations: grants};
 }
 
 export async function deleteExpiredReservations(params?: {limit?: number}): Promise<number> {

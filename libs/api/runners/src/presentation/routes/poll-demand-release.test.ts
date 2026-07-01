@@ -10,14 +10,14 @@ import {pendingJobFactory} from '#test/index.js';
 const VALID_PROVISIONER_TOKEN = 'valid-provisioner-token';
 
 describe('POST /provisioners/demand/poll reservation cleanup', () => {
-  it('releases granted reservations if loading terminate intents throws', async () => {
+  it('rolls back granted reservations if loading terminate intents throws', async () => {
     vi.resetModules();
-    const listProvisionerTerminateIntents = vi
+    const listProvisionerTerminateIntentsTx = vi
       .fn()
       .mockRejectedValueOnce(new Error('db unavailable'));
-    vi.doMock('#db/index.js', async (importOriginal) => ({
-      ...(await importOriginal<typeof import('#db/index.js')>()),
-      listProvisionerTerminateIntents,
+    vi.doMock('#db/provisioned-runners.js', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('#db/provisioned-runners.js')>()),
+      listProvisionerTerminateIntentsTx,
     }));
     const {pollDemandRoute} = await import('./poll-demand.js');
     const workspaceId = crypto.randomUUID();
@@ -67,7 +67,7 @@ describe('POST /provisioners/demand/poll reservation cleanup', () => {
       expect(res.statusCode).toBe(500);
       expect(reservationRows).toHaveLength(0);
     } finally {
-      vi.doUnmock('#db/index.js');
+      vi.doUnmock('#db/provisioned-runners.js');
       await closeApp();
     }
   });
