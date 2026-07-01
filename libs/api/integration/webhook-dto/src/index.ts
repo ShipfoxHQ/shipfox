@@ -3,7 +3,7 @@ import {z} from 'zod';
 
 export const WEBHOOK_PROVIDER = 'webhook' as const;
 export const WEBHOOK_RECEIVED_EVENT = 'received' as const;
-export const WEBHOOK_RESERVED_SLUGS = ['manual', 'cron'] as const;
+export const WEBHOOK_RESERVED_SLUGS = ['github', 'gitea', 'sentry', 'manual', 'cron'] as const;
 
 const webhookReservedSlugSet = new Set<string>(WEBHOOK_RESERVED_SLUGS);
 
@@ -30,7 +30,7 @@ export const webhookConnectionDtoSchema = z.object({
   id: z.string().uuid(),
   workspace_id: z.string().uuid(),
   name: z.string(),
-  slug: webhookSlugSchema,
+  slug: connectionSlugSchema,
   lifecycle_status: z.enum(['active', 'disabled', 'error']),
   inbound_url: z.string().url(),
   created_at: z.string(),
