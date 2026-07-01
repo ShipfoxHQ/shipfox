@@ -51,11 +51,10 @@ export function WorkspaceProvisionerTokensSettingsSection({workspaceId}: {worksp
       <section className="flex flex-col gap-16">
         <div className="flex items-center justify-between gap-16 max-[640px]:items-start">
           <div className="flex flex-col gap-4">
-            <Header variant="h3">Provisioner registration tokens</Header>
+            <Header variant="h3">Runner provisioner registration tokens</Header>
             <Text size="sm" className="text-foreground-neutral-muted">
-              Let a provisioner (an autoscaler such as the Docker provisioner) connect to this
-              workspace and provision runners on demand. The provisioner mints its own short-lived
-              runner tokens.
+              Register runner provisioners that connect to this workspace and create runners
+              dynamically based on demand.
             </Text>
           </div>
           <div className="flex items-center gap-12">

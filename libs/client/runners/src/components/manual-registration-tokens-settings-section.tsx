@@ -50,8 +50,8 @@ export function WorkspaceManualRegistrationTokensSettingsSection({
           <div className="flex flex-col gap-4">
             <Header variant="h3">Runner registration tokens</Header>
             <Text size="sm" className="text-foreground-neutral-muted">
-              Let a machine register itself as a runner in this workspace and run jobs directly.
-              Reusable until revoked.
+              Register individual runner agents that run jobs directly in this workspace. Tokens are
+              reusable until revoked.
             </Text>
           </div>
           <div className="flex items-center gap-12">
