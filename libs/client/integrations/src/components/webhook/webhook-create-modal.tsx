@@ -1,4 +1,3 @@
-import {slugifyConnectionSlug} from '@shipfox/api-integration-core-dto';
 import {
   createWebhookConnectionBodySchema,
   WEBHOOK_RESERVED_SLUGS,
@@ -38,7 +37,7 @@ interface WebhookCreateModalProps {
 export function WebhookCreateModal({workspaceId, open, onOpenChange}: WebhookCreateModalProps) {
   const createWebhook = useCreateWebhookConnectionMutation();
   const [formError, setFormError] = useState<string | undefined>();
-  const [slugTouched, setSlugTouched] = useState(false);
+  const [hasManualSlug, setHasManualSlug] = useState(false);
   const [createdConnection, setCreatedConnection] = useState<WebhookConnectionDto | undefined>();
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -73,22 +72,12 @@ export function WebhookCreateModal({workspaceId, open, onOpenChange}: WebhookCre
     if (!open) {
       setCreatedConnection(undefined);
       setFormError(undefined);
-      setSlugTouched(false);
+      setHasManualSlug(false);
       form.reset();
       return;
     }
     requestAnimationFrame(() => nameInputRef.current?.focus());
   }, [form, open]);
-
-  useEffect(() => {
-    if (slugTouched) return;
-    const nextSlug = form.state.values.name.trim()
-      ? slugifyConnectionSlug(form.state.values.name, {fallback: 'webhook'})
-      : '';
-    if (form.state.values.slug !== nextSlug) {
-      form.setFieldValue('slug', nextSlug);
-    }
-  }, [form, form.state.values.name, form.state.values.slug, slugTouched]);
 
   const title = createdConnection ? 'Webhook created' : 'Add webhook';
   const handleOpenChange = (nextOpen: boolean) => {
@@ -128,12 +117,26 @@ export function WebhookCreateModal({workspaceId, open, onOpenChange}: WebhookCre
                 }}
               >
                 {(field) => (
-                  <FormField label="Name" id="webhook-name" error={fieldError(field)}>
+                  <FormField
+                    label="Name"
+                    id="webhook-name"
+                    error={fieldError(field)}
+                    className="w-full"
+                  >
                     <FormFieldInput
                       ref={nameInputRef}
                       name="name"
                       value={field.state.value}
-                      onChange={(event) => field.handleChange(event.target.value)}
+                      onChange={(event) => {
+                        const nextName = event.target.value;
+                        field.handleChange(nextName);
+                        if (!hasManualSlug) {
+                          form.setFieldValue(
+                            'slug',
+                            nextName.trim() ? suggestWebhookSlug(nextName) : '',
+                          );
+                        }
+                      }}
                       onBlur={field.handleBlur}
                       placeholder="Stripe production"
                       disabled={createWebhook.isPending}
@@ -149,22 +152,33 @@ export function WebhookCreateModal({workspaceId, open, onOpenChange}: WebhookCre
                 }}
               >
                 {(field) => (
-                  <FormField label="Slug" id="webhook-slug" error={fieldError(field)}>
+                  <FormField
+                    label="Slug"
+                    id="webhook-slug"
+                    error={fieldError(field)}
+                    className="w-full"
+                  >
                     <FormFieldInput
                       name="slug"
                       value={field.state.value}
                       onChange={(event) => {
-                        setSlugTouched(true);
-                        field.handleChange(event.target.value);
+                        const nextSlug = event.target.value;
+                        setHasManualSlug(nextSlug.trim().length > 0);
+                        field.handleChange(nextSlug);
+                        if (nextSlug.trim().length === 0 && form.state.values.name.trim()) {
+                          form.setFieldValue('slug', suggestWebhookSlug(form.state.values.name));
+                        }
                       }}
                       onBlur={field.handleBlur}
-                      placeholder="stripe-production"
+                      placeholder="webhook-stripe-production"
                       disabled={createWebhook.isPending}
                     />
                     <Text size="sm" className="text-foreground-neutral-muted">
-                      Use as{' '}
-                      <Code as="span">source: {field.state.value || 'stripe-production'}</Code> in
-                      workflow triggers.
+                      Reference in workflows with{' '}
+                      <Code as="span">
+                        source: {field.state.value || 'webhook-stripe-production'}
+                      </Code>
+                      .
                     </Text>
                   </FormField>
                 )}
@@ -214,7 +228,11 @@ export function WebhookCreateSuccessContent({
           <CopyableValue
             label="workflow source"
             value={connection.slug}
-            note="Paste as source: in your workflow trigger."
+            note={
+              <>
+                Reference in workflows with <Code as="span">source: {connection.slug}</Code>.
+              </>
+            }
           />
         </Artifact>
       </ModalBody>
@@ -254,4 +272,16 @@ function webhookSlugFieldError(value: string): string | undefined {
   }
   if (webhookSlugSchema.safeParse(trimmed).success) return undefined;
   return 'Use lowercase letters, numbers, hyphens, or underscores.';
+}
+
+function suggestWebhookSlug(name: string): string {
+  const prefix = 'webhook';
+  const suffix = name
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, '-')
+    .replaceAll(/^-+|-+$/g, '')
+    .slice(0, 100 - prefix.length - 1)
+    .replaceAll(/-+$/g, '');
+
+  return suffix ? `${prefix}-${suffix}` : prefix;
 }

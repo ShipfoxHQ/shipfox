@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import {configureApiClient} from '@shipfox/client-api';
-import {fireEvent, screen, within} from '@testing-library/react';
+import {fireEvent, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {INTEGRATIONS_TEST_WID, jsonResponse, renderIntegrationsPage} from '#test/render.js';
 import {IntegrationGallery} from './integration-gallery.js';
@@ -453,6 +453,48 @@ describe('IntegrationGallery — available section', () => {
 
     expect(await screen.findByRole('textbox', {name: 'Name'})).toBeVisible();
     expect(screen.getByRole('textbox', {name: 'Slug'})).toBeVisible();
+  });
+
+  test('fills an empty webhook slug from the name', async () => {
+    renderGallery({}, {connections: []});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Webhook'}));
+    fireEvent.change(await screen.findByRole('textbox', {name: 'Name'}), {
+      target: {value: 'Stripe production'},
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', {name: 'Slug'})).toHaveValue('webhook-stripe-production');
+    });
+  });
+
+  test('preserves a non-empty manual webhook slug until the slug is cleared', async () => {
+    renderGallery({}, {connections: []});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add Webhook'}));
+    fireEvent.change(await screen.findByRole('textbox', {name: 'Name'}), {
+      target: {value: 'Stripe production'},
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', {name: 'Slug'})).toHaveValue('webhook-stripe-production');
+    });
+
+    fireEvent.change(screen.getByRole('textbox', {name: 'Slug'}), {
+      target: {value: 'custom-stripe-hook'},
+    });
+    fireEvent.change(screen.getByRole('textbox', {name: 'Name'}), {
+      target: {value: 'Billing alerts'},
+    });
+
+    expect(screen.getByRole('textbox', {name: 'Slug'})).toHaveValue('custom-stripe-hook');
+
+    fireEvent.change(screen.getByRole('textbox', {name: 'Slug'}), {
+      target: {value: ''},
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', {name: 'Slug'})).toHaveValue('webhook-billing-alerts');
+    });
   });
 
   test('rejects reserved webhook slugs inline', async () => {
