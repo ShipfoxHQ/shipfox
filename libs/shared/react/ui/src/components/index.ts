@@ -34,6 +34,7 @@ export * from './select/index.js';
 export * from './sheet/index.js';
 export * from './shiny-text/index.js';
 export * from './skeleton/index.js';
+export * from './switch/index.js';
 export * from './table/index.js';
 export * from './tabs/index.js';
 export * from './theme/index.js';
