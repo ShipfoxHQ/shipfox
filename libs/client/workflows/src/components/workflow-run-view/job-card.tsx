@@ -13,7 +13,7 @@ import {
   useTimeTick,
 } from '@shipfox/react-ui';
 import type {ReactNode} from 'react';
-import {Fragment, useId, useRef} from 'react';
+import {Fragment, useId, useRef, useState} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {
   type Job,
@@ -21,7 +21,7 @@ import {
   type JobExecutionTime,
   type Step,
   type StepError,
-  type WorkflowStepSourceLocation,
+  type StepSourceLocation,
   WORKFLOW_JOB_STATUSES,
   workflowRunTriggerDisplayLabel,
   workflowRunTriggerLabel,
@@ -35,6 +35,11 @@ import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
   ...WORKFLOW_JOB_STATUSES.map((status) => getWorkflowStatusVisual(status).label.length),
 );
+
+interface LocalSelectedAttempt {
+  jobExecutionId: string | undefined;
+  attemptId: string | null;
+}
 
 export function JobCard({
   workspaceId,
@@ -60,20 +65,28 @@ export function JobCard({
   sourceAvailable?: boolean | undefined;
   focusedSourceStepId?: string | null | undefined;
   onOpenStepSource?:
-    | ((
-        stepId: string,
-        location: WorkflowStepSourceLocation,
-        trigger: HTMLButtonElement | null,
-      ) => void)
+    | ((stepId: string, location: StepSourceLocation, trigger: HTMLButtonElement | null) => void)
     | undefined;
 }) {
   const titleId = useId();
+  const sourceButtonRef = useRef<HTMLButtonElement>(null);
+  const [localSelectedAttempt, setLocalSelectedAttempt] = useState<LocalSelectedAttempt>({
+    jobExecutionId: undefined,
+    attemptId: null,
+  });
   const selectedExecutionStatus = selectedJobExecution?.status ?? job.status;
+  const effectiveSelectedAttemptId =
+    selectedAttemptId === undefined &&
+    localSelectedAttempt.jobExecutionId === selectedJobExecution?.id
+      ? localSelectedAttempt.attemptId
+      : selectedAttemptId;
+  const selectedSourceAction = selectedStepSourceAction(
+    selectedJobExecution,
+    effectiveSelectedAttemptId,
+  );
   const defaultRenderExpandedStep = ({
     step,
     stepId,
-    stepLabel,
-    sourceLocation,
     attempt,
     attemptError,
     attemptStatus,
@@ -86,17 +99,22 @@ export function JobCard({
         workspaceId={workspaceId}
         step={step}
         stepId={stepId}
-        stepLabel={stepLabel}
-        sourceLocation={sourceLocation}
-        sourceAvailable={sourceAvailable === true}
-        sourcePanelId={sourcePanelId}
-        sourceExpanded={focusedSourceStepId === stepId}
-        onOpenStepSource={onOpenStepSource}
         attempt={attempt}
         attemptError={attemptError}
         attemptStatus={attemptStatus}
       />
     );
+
+  function selectAttempt(attemptId: string | undefined) {
+    if (selectedAttemptId === undefined) {
+      setLocalSelectedAttempt({
+        jobExecutionId: selectedJobExecution?.id,
+        attemptId: attemptId ?? null,
+      });
+    }
+
+    onSelectedAttemptChange?.(attemptId);
+  }
 
   return (
     <section
@@ -136,6 +154,27 @@ export function JobCard({
               </Text>
             </div>
           )}
+          {sourceAvailable && selectedSourceAction && sourcePanelId && onOpenStepSource ? (
+            <div className="flex min-w-max items-center gap-6">
+              <Button
+                ref={sourceButtonRef}
+                type="button"
+                variant="secondary"
+                size="xs"
+                aria-controls={sourcePanelId}
+                aria-expanded={focusedSourceStepId === selectedSourceAction.stepId}
+                onClick={() =>
+                  onOpenStepSource(
+                    selectedSourceAction.stepId,
+                    selectedSourceAction.location,
+                    sourceButtonRef.current,
+                  )
+                }
+              >
+                View source
+              </Button>
+            </div>
+          ) : null}
         </div>
         <JobExecutionMetadata execution={selectedJobExecution} />
       </div>
@@ -145,7 +184,7 @@ export function JobCard({
             job={job}
             jobExecution={selectedJobExecution}
             selectedAttemptId={selectedAttemptId}
-            onSelectedAttemptChange={onSelectedAttemptChange}
+            onSelectedAttemptChange={selectAttempt}
             autoSelectActiveAttempt
             emptyState={emptyStateForJob(job, selectedJobExecution)}
             showHeader={false}
@@ -314,16 +353,28 @@ function MetadataSeparator() {
   return <span aria-hidden="true" className="h-12 w-px shrink-0 bg-border-neutral-strong" />;
 }
 
+function selectedStepSourceAction(
+  jobExecution: JobExecution | undefined,
+  selectedAttemptId: string | null | undefined,
+): {stepId: string; location: StepSourceLocation} | null {
+  if (!jobExecution || !selectedAttemptId) return null;
+
+  for (const step of jobExecution.steps) {
+    const selected =
+      selectedAttemptId === `carried-over:${step.id}` ||
+      step.attempts.some((attempt) => attempt.id === selectedAttemptId);
+    if (selected && step.sourceLocation) {
+      return {stepId: step.id, location: step.sourceLocation};
+    }
+  }
+
+  return null;
+}
+
 function StepAttemptDetailPanel({
   workspaceId,
   step,
   stepId,
-  stepLabel,
-  sourceLocation,
-  sourceAvailable,
-  sourcePanelId,
-  sourceExpanded,
-  onOpenStepSource,
   attempt,
   attemptError,
   attemptStatus,
@@ -331,45 +382,14 @@ function StepAttemptDetailPanel({
   workspaceId: string;
   step: Step;
   stepId: string;
-  stepLabel: string;
-  sourceLocation: WorkflowStepSourceLocation | null;
-  sourceAvailable: boolean;
-  sourcePanelId: string | undefined;
-  sourceExpanded: boolean;
-  onOpenStepSource:
-    | ((
-        stepId: string,
-        location: WorkflowStepSourceLocation,
-        trigger: HTMLButtonElement | null,
-      ) => void)
-    | undefined;
   attempt: number;
   attemptError: Record<string, unknown> | null;
   attemptStatus: string;
 }) {
-  const buttonRef = useRef<HTMLButtonElement>(null);
   const selectedAttemptError = toSelectedAttemptError(step, attemptError) ?? step.error;
-  const sourceActionLocation = sourceAvailable ? sourceLocation : null;
 
   return (
     <div className="flex min-w-0 flex-col gap-10">
-      {sourceActionLocation && sourcePanelId && onOpenStepSource ? (
-        <div className="flex min-h-28 items-center justify-end border-b border-border-neutral-base pb-12">
-          <Button
-            ref={buttonRef}
-            type="button"
-            variant="transparentMuted"
-            size="xs"
-            iconLeft="codeSSlashLine"
-            aria-label={`View source for ${stepLabel}`}
-            aria-controls={sourcePanelId}
-            aria-expanded={sourceExpanded}
-            onClick={() => onOpenStepSource(stepId, sourceActionLocation, buttonRef.current)}
-          >
-            View source
-          </Button>
-        </div>
-      ) : null}
       {isAgentConfigFailure(step, selectedAttemptError) ? (
         <AgentConfigFailureCallout
           workspaceId={workspaceId}

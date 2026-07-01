@@ -6,8 +6,8 @@ import {useNavigate} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
 import {
   type JobExecution,
-  type WorkflowStepSourceLocation,
   resolveJobExecution,
+  type StepSourceLocation,
 } from '#core/workflow-run.js';
 import {
   type WorkflowRunSelectionInput,
@@ -31,7 +31,7 @@ import {
 
 interface WorkflowSourceFocus {
   stepId: string;
-  location: WorkflowStepSourceLocation;
+  location: StepSourceLocation;
 }
 
 export interface WorkflowRunViewProps {
@@ -115,9 +115,14 @@ function RunViewContent({
   useEffect(() => {
     if (!sourceFocus) return;
     const stillLocated = query.data?.jobs.some((job) =>
-      job.steps.some((step) => step.id === sourceFocus.stepId && step.sourceLocation),
+      job.jobExecutions.some((execution) =>
+        execution.steps.some((step) => step.id === sourceFocus.stepId && step.sourceLocation),
+      ),
     );
-    if (!stillLocated) setSourceFocus(null);
+    if (!stillLocated) {
+      setSourceFocus(null);
+      lastSourceTriggerRef.current = sourceButtonRef.current;
+    }
   }, [sourceFocus, query.data]);
 
   if (query.isPending) return <WorkflowRunSkeleton />;
@@ -235,7 +240,7 @@ function RunViewContent({
 
   function openStepSource(
     stepId: string,
-    location: WorkflowStepSourceLocation,
+    location: StepSourceLocation,
     trigger: HTMLButtonElement | null,
   ) {
     setSourceFocus({stepId, location});

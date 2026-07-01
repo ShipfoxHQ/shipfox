@@ -657,7 +657,10 @@ describe('WorkflowRunView', () => {
     await user.click(deployNode);
     expect(deployNode).toHaveAttribute('aria-pressed', 'true');
 
-    const sourceButton = screen.getByRole('button', {name: 'View source'});
+    const sourceButton = within(screen.getByRole('region', {name: 'deploy-web'})).getByRole(
+      'button',
+      {name: 'View source'},
+    );
     const panelId = sourceButton.getAttribute('aria-controls');
     expect(panelId).toBeTruthy();
     expect(sourceButton).toHaveAttribute('aria-expanded', 'false');
@@ -713,7 +716,8 @@ describe('WorkflowRunView', () => {
     });
 
     renderView({selection: {stepId}});
-    await user.click(await screen.findByRole('button', {name: 'View source'}));
+    const summary = await screen.findByRole('region', {name: 'deploy-web'});
+    await user.click(within(summary).getByRole('button', {name: 'View source'}));
 
     await screen.findByRole('dialog', {name: 'Workflow source'});
     const highlightedLines = document.body.querySelectorAll('.line.highlighted-line');
@@ -736,7 +740,7 @@ describe('WorkflowRunView', () => {
     expect(screen.queryByRole('button', {name: 'View source'})).not.toBeInTheDocument();
   });
 
-  test('opens the source panel highlighting a step from its row Source button', async () => {
+  test('opens the source panel highlighting a step from the job header Source button', async () => {
     const user = userEvent.setup();
     configureApiClient({
       fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(locatedStepSourceDetail()))),
@@ -744,17 +748,20 @@ describe('WorkflowRunView', () => {
 
     renderView();
 
-    await screen.findByRole('region', {name: 'build'});
+    const jobRegion = await screen.findByRole('region', {name: 'build'});
     await user.click(screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'}));
-    const stepSourceButton = screen.getByRole('button', {name: 'View source for checkout'});
-    const summaryButton = screen.getByRole('button', {name: 'View source'});
-    expect(stepSourceButton).toHaveAttribute('aria-expanded', 'false');
-    expect(stepSourceButton).toHaveAttribute(
+    const jobSourceButton = within(jobRegion).getByRole('button', {name: 'View source'});
+    const summaryButton = within(screen.getByRole('region', {name: 'deploy-web'})).getByRole(
+      'button',
+      {name: 'View source'},
+    );
+    expect(jobSourceButton).toHaveAttribute('aria-expanded', 'false');
+    expect(jobSourceButton).toHaveAttribute(
       'aria-controls',
       summaryButton.getAttribute('aria-controls'),
     );
 
-    await user.click(stepSourceButton);
+    await user.click(jobSourceButton);
 
     await screen.findByRole('dialog', {name: 'Workflow source'});
     const highlighted = document.body.querySelectorAll('.line.highlighted-line');
@@ -762,11 +769,11 @@ describe('WorkflowRunView', () => {
     expect(highlighted[0]).toHaveTextContent('build:');
     expect(highlighted[1]).toHaveTextContent('steps:');
     // Exactly one control reports the shared panel expanded.
-    expect(stepSourceButton).toHaveAttribute('aria-expanded', 'true');
+    expect(jobSourceButton).toHaveAttribute('aria-expanded', 'true');
     expect(summaryButton).toHaveAttribute('aria-expanded', 'false');
   });
 
-  test('returns focus to the step Source button on close and preserves the selected job', async () => {
+  test('returns focus to the job Source button on close and preserves the selected job', async () => {
     const user = userEvent.setup();
     configureApiClient({
       fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(locatedStepSourceDetail()))),
@@ -774,16 +781,16 @@ describe('WorkflowRunView', () => {
 
     renderView();
 
-    await screen.findByRole('region', {name: 'build'});
+    const jobRegion = await screen.findByRole('region', {name: 'build'});
     await user.click(screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'}));
-    const stepSourceButton = screen.getByRole('button', {name: 'View source for checkout'});
+    const jobSourceButton = within(jobRegion).getByRole('button', {name: 'View source'});
 
-    await user.click(stepSourceButton);
+    await user.click(jobSourceButton);
     await screen.findByRole('dialog', {name: 'Workflow source'});
     await user.click(screen.getByRole('button', {name: 'Close source'}));
 
-    await waitFor(() => expect(stepSourceButton).toHaveFocus());
-    expect(stepSourceButton).toHaveAttribute('aria-expanded', 'false');
+    await waitFor(() => expect(jobSourceButton).toHaveFocus());
+    expect(jobSourceButton).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('region', {name: 'build'})).toBeInTheDocument();
   });
 
@@ -802,22 +809,18 @@ describe('WorkflowRunView', () => {
                   jobs: [
                     workflowJobDto({
                       id: BUILD_JOB_ID,
-                      run_id: RUN_ID,
                       name: 'build',
                       status: 'succeeded',
                       steps: [
                         workflowStepDto({
                           id: CHECKOUT_STEP_ID,
-                          job_id: BUILD_JOB_ID,
                           name: 'checkout',
-                          display_name: 'checkout',
                           status: 'succeeded',
                           source_location: null,
                           attempts: [
                             workflowStepAttemptDto({
                               id: CHECKOUT_ATTEMPT_ID,
                               step_id: CHECKOUT_STEP_ID,
-                              job_id: BUILD_JOB_ID,
                               status: 'succeeded',
                               exit_code: 0,
                               finished_at: '2026-05-07T01:01:20.000Z',
@@ -837,17 +840,20 @@ describe('WorkflowRunView', () => {
 
     const {queryClient} = renderView();
 
-    await screen.findByRole('region', {name: 'build'});
+    const jobRegion = await screen.findByRole('region', {name: 'build'});
     await user.click(screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'}));
-    const stepSourceButton = screen.getByRole('button', {name: 'View source for checkout'});
-    const summaryButton = screen.getByRole('button', {name: 'View source'});
-    await user.click(stepSourceButton);
+    const jobSourceButton = within(jobRegion).getByRole('button', {name: 'View source'});
+    const summaryButton = within(screen.getByRole('region', {name: 'deploy-web'})).getByRole(
+      'button',
+      {name: 'View source'},
+    );
+    await user.click(jobSourceButton);
     await screen.findByRole('dialog', {name: 'Workflow source'});
 
     await queryClient.refetchQueries({queryKey: workflowRunsQueryKeys.detail(RUN_ID)});
     await waitFor(() =>
       expect(
-        screen.queryByRole('button', {name: 'View source for checkout'}),
+        within(jobRegion).queryByRole('button', {name: 'View source'}),
       ).not.toBeInTheDocument(),
     );
     await user.click(screen.getByRole('button', {name: 'Close source'}));
@@ -1124,8 +1130,8 @@ function mockRequests(fetchImpl: ReturnType<typeof vi.fn>): Request[] {
 }
 
 function locatedStepSourceDetail(
-  overrides: Partial<RunDetailResponseDto> = {},
-): RunDetailResponseDto {
+  overrides: Partial<WorkflowRunDetailResponseDto> = {},
+): WorkflowRunDetailResponseDto {
   return workflowRunViewDetailDto({
     source_snapshot: {
       format: 'yaml',
@@ -1134,22 +1140,18 @@ function locatedStepSourceDetail(
     jobs: [
       workflowJobDto({
         id: BUILD_JOB_ID,
-        run_id: RUN_ID,
         name: 'build',
         status: 'succeeded',
         steps: [
           workflowStepDto({
             id: CHECKOUT_STEP_ID,
-            job_id: BUILD_JOB_ID,
             name: 'checkout',
-            display_name: 'checkout',
             status: 'succeeded',
             source_location: {start_line: 2, end_line: 3},
             attempts: [
               workflowStepAttemptDto({
                 id: CHECKOUT_ATTEMPT_ID,
                 step_id: CHECKOUT_STEP_ID,
-                job_id: BUILD_JOB_ID,
                 status: 'succeeded',
                 exit_code: 0,
                 finished_at: '2026-05-07T01:01:20.000Z',

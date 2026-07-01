@@ -22,7 +22,7 @@ import {
   type Job,
   type JobExecution,
   type Step,
-  type WorkflowStepSourceLocation,
+  type StepSourceLocation,
 } from '#core/workflow-run.js';
 import {
   buildStepListModel,
@@ -37,7 +37,7 @@ export interface StepExpandedContext {
   step: Step;
   stepId: string;
   stepLabel: string;
-  sourceLocation: WorkflowStepSourceLocation | null;
+  sourceLocation: StepSourceLocation | null;
   attempt: number;
   attemptId: string;
   attemptError: Record<string, unknown> | null;
