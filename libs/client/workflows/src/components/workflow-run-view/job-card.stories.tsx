@@ -170,6 +170,18 @@ export const ManyExecutions: Story = {
   ),
 };
 
+export const SourceAction: Story = {
+  render: () => (
+    <JobCardStory
+      job={sourceActionJob()}
+      initialJobExecutionId="exec-source-action"
+      initialAttemptId="attempt-checkout-exec-source-action"
+      sourceAvailable
+      sourcePanelId="workflow-source-panel-story"
+    />
+  ),
+};
+
 export const Content: Story = {
   decorators: [
     (Story) => (
@@ -200,12 +212,18 @@ export const TestListeningSwitcherOpen: Story = {
 function JobCardStory({
   job,
   initialJobExecutionId,
+  initialAttemptId = null,
+  sourceAvailable,
+  sourcePanelId,
 }: {
   job: Job;
   initialJobExecutionId?: string | undefined;
+  initialAttemptId?: string | null | undefined;
+  sourceAvailable?: boolean | undefined;
+  sourcePanelId?: string | undefined;
 }) {
   const [selectedJobExecutionId, setSelectedJobExecutionId] = useState(initialJobExecutionId);
-  const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
+  const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(initialAttemptId);
   const selectedJobExecution = resolveJobExecution(job, selectedJobExecutionId);
 
   function selectJobExecution(jobExecutionId: string | undefined) {
@@ -222,6 +240,10 @@ function JobCardStory({
       onSelectedJobExecutionChange={selectJobExecution}
       onSelectedAttemptChange={(attemptId) => setSelectedAttemptId(attemptId ?? null)}
       renderExpandedStep={StepDetailPlaceholder}
+      sourceAvailable={sourceAvailable}
+      sourcePanelId={sourcePanelId}
+      focusedSourceStepId={null}
+      onOpenStepSource={() => undefined}
     />
   );
 }
@@ -402,6 +424,32 @@ function runningRetryJob(): Job {
             ],
           }),
           makeStep('notify', 'pending', 2, 'exec-2', {attempts: []}),
+        ],
+      }),
+    ],
+  });
+}
+
+function sourceActionJob(): Job {
+  return makeJob({
+    id: 'job-source-action',
+    name: 'build',
+    status: 'succeeded',
+    job_executions: [
+      makeExecution({
+        id: 'exec-source-action',
+        job_id: 'job-source-action',
+        sequence: 1,
+        status: 'succeeded',
+        queued_at: QUEUED_AT,
+        started_at: STARTED_AT,
+        finished_at: FINISHED_AT,
+        steps: [
+          makeStep('checkout', 'succeeded', 0, 'exec-source-action', {
+            source_location: {start_line: 12, end_line: 16},
+          }),
+          makeStep('install', 'succeeded', 1, 'exec-source-action'),
+          makeStep('test', 'succeeded', 2, 'exec-source-action'),
         ],
       }),
     ],
