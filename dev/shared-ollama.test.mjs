@@ -57,21 +57,31 @@ describe('ollamaListenHost', () => {
 describe('processIdentityMatches', () => {
   test('matches a process by pid and recorded start time', () => {
     const currentStartTime = processStartTime(process.pid);
+    if (currentStartTime === undefined) throw new Error('Current process start time unavailable');
     const matchingState = {pid: process.pid, processStartTime: currentStartTime};
-    const mismatchedState = {
+
+    const result = processIdentityMatches(matchingState);
+
+    assert.equal(result, true);
+  });
+
+  test('rejects a reused pid with a different start time', () => {
+    const state = {
       pid: process.pid,
       processStartTime: 'Mon Jan  1 00:00:00 2001',
     };
-    const missingStartTimeState = {pid: process.pid};
 
-    const matchingResult = processIdentityMatches(matchingState);
-    const mismatchedResult = processIdentityMatches(mismatchedState);
-    const missingStartTimeResult = processIdentityMatches(missingStartTimeState);
+    const result = processIdentityMatches(state);
 
-    assert.equal(typeof currentStartTime, 'string');
-    assert.equal(matchingResult, true);
-    assert.equal(mismatchedResult, false);
-    assert.equal(missingStartTimeResult, false);
+    assert.equal(result, false);
+  });
+
+  test('rejects process state without a start time', () => {
+    const state = {pid: process.pid};
+
+    const result = processIdentityMatches(state);
+
+    assert.equal(result, false);
   });
 });
 
