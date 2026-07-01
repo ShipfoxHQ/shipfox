@@ -392,6 +392,31 @@ describe('StepList', () => {
     expect(screen.queryByText('Gate failed')).not.toBeInTheDocument();
   });
 
+  test('renders finished attempt duration from the step attempt model', () => {
+    render(
+      <StepList
+        job={makeJob({
+          steps: [
+            makeStep({
+              name: 'deploy',
+              status: 'succeeded',
+              attempts: [
+                makeAttempt({
+                  status: 'succeeded',
+                  started_at: '2026-06-21T12:00:00.000Z',
+                  finished_at: '2026-06-21T12:01:05.000Z',
+                }),
+              ],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByRole('button', {name: 'deploy, Succeeded, attempt 1'})).toBeInTheDocument();
+    expect(screen.getByText('1m 05s')).toBeInTheDocument();
+  });
+
   test('omits zero-attempt steps and hides the attempt chip for one-attempt rows', () => {
     render(
       <StepList

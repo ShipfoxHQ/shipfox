@@ -7,6 +7,7 @@ export type {
   JobStatus,
   Step,
   StepAttempt,
+  StepAttemptDisplayDuration,
   StepError,
   StepErrorCategory,
   StepErrorReason,
