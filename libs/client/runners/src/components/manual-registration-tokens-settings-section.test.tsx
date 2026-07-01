@@ -1,5 +1,5 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {Toaster} from '@shipfox/react-ui';
+import {formatDate, formatTimestamp, Toaster} from '@shipfox/react-ui';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -51,6 +51,16 @@ function lastButton(name: string): HTMLElement {
   const button = buttons.at(-1);
   if (!button) throw new Error(`Button not found: ${name}`);
   return button;
+}
+
+async function chooseTokenAction(user: ReturnType<typeof userEvent.setup>, tokenName: string) {
+  await user.click(firstButton(`Open ${tokenName} token actions`));
+  const menuItem = await screen.findByRole('menuitem', {name: 'Revoke token'});
+  expect(menuItem.querySelector('svg')).not.toBeInTheDocument();
+
+  await user.click(menuItem);
+  expect(await screen.findByRole('dialog')).toBeVisible();
+  expect(screen.getByText('Revoke token?')).toBeVisible();
 }
 
 describe('WorkspaceManualRegistrationTokensSettingsSection', () => {
@@ -106,6 +116,63 @@ describe('WorkspaceManualRegistrationTokensSettingsSection', () => {
     expect(screen.getByText('sf_mrt_raw-created-token')).toBeVisible();
   });
 
+  test('renders compact dates with exact timestamp tooltips', async () => {
+    const user = userEvent.setup();
+    const createdAt = '2026-05-08T00:00:00.000Z';
+    const expiresAt = '2026-05-09T00:00:00.000Z';
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
+        manual_registration_tokens: [
+          manualRegistrationToken({created_at: createdAt, expires_at: expiresAt}),
+        ],
+      }),
+    );
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderManualRegistrationTokens(
+      <WorkspaceManualRegistrationTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
+    );
+    const expiresDate = await screen.findAllByText(formatDate(expiresAt));
+    const createdDate = await screen.findAllByText(formatDate(createdAt));
+    const expiresDateTrigger = expiresDate[0];
+    const createdDateTrigger = createdDate[0];
+    if (!expiresDateTrigger || !createdDateTrigger) throw new Error('Token dates not rendered');
+
+    expect(screen.queryByText(formatTimestamp(expiresAt))).not.toBeInTheDocument();
+    await user.hover(expiresDateTrigger);
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(formatTimestamp(expiresAt));
+
+    await user.unhover(expiresDateTrigger);
+    await user.hover(createdDateTrigger);
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(formatTimestamp(createdAt));
+  });
+
+  test('truncates long token names and shows the full name in a tooltip', async () => {
+    const user = userEvent.setup();
+    const tokenName = 'self-hosted-runner-for-production-release-candidate-validation-on-metal';
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
+        manual_registration_tokens: [manualRegistrationToken({name: tokenName})],
+      }),
+    );
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderManualRegistrationTokens(
+      <WorkspaceManualRegistrationTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
+    );
+    const nameTrigger = await screen.findAllByRole('button', {name: tokenName});
+    const visibleNameTrigger = nameTrigger[0];
+    if (!visibleNameTrigger) throw new Error('Token name not rendered');
+
+    expect(screen.getByRole('table')).toHaveClass('table-fixed');
+    expect(visibleNameTrigger).toHaveClass('truncate');
+    await user.hover(visibleNameTrigger);
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(tokenName);
+  });
+
   test('surfaces create errors without clearing the form', async () => {
     const user = userEvent.setup();
     const fetchImpl = vi
@@ -148,7 +215,7 @@ describe('WorkspaceManualRegistrationTokensSettingsSection', () => {
       <WorkspaceManualRegistrationTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
     );
     expect((await screen.findAllByText('Deploy runner')).length).toBeGreaterThan(0);
-    await user.click(firstButton('Revoke Deploy runner'));
+    await chooseTokenAction(user, 'Deploy runner');
     await user.click(lastButton('Revoke'));
 
     await waitFor(() => expect(screen.queryByText('Deploy runner')).not.toBeInTheDocument());
@@ -174,7 +241,7 @@ describe('WorkspaceManualRegistrationTokensSettingsSection', () => {
       <WorkspaceManualRegistrationTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
     );
     expect((await screen.findAllByText('Deploy runner')).length).toBeGreaterThan(0);
-    await user.click(firstButton('Revoke Deploy runner'));
+    await chooseTokenAction(user, 'Deploy runner');
     await user.click(lastButton('Revoke'));
 
     expect(await screen.findByText('Manual registration token not found')).toBeVisible();

@@ -1,4 +1,4 @@
-import type {CreateManualRegistrationTokenResponseDto} from '@shipfox/api-runners-dto';
+import type {CreateProvisionerTokenResponseDto} from '@shipfox/api-runners-dto';
 import {
   Alert,
   Button,
@@ -19,27 +19,27 @@ import {useForm} from '@tanstack/react-form';
 import {useQueryClient} from '@tanstack/react-query';
 import {useState} from 'react';
 import {
-  manualRegistrationTokenQueryKeys,
-  useCreateManualRegistrationTokenMutation,
-} from '#hooks/api/manual-registration-tokens.js';
-import {manualRegistrationTokenCreateErrorToFormError} from './form-errors.js';
+  provisionerTokenQueryKeys,
+  useCreateProvisionerTokenMutation,
+} from '#hooks/api/provisioner-tokens.js';
+import {provisionerTokenCreateErrorToFormError} from './provisioner-token-form-errors.js';
 import {
   ExpirationSelect,
   expirationHint,
   type TokenExpirationOption,
 } from './token-expiration-select.js';
 
-export const CREATE_MANUAL_REGISTRATION_TOKEN_FORM_ID = 'create-manual-registration-token-form';
+export const CREATE_PROVISIONER_TOKEN_FORM_ID = 'create-provisioner-token-form';
 
-export function CreateManualRegistrationTokenForm({
+export function CreateProvisionerTokenForm({
   workspaceId,
   onCreated,
 }: {
   workspaceId: string;
-  onCreated: (token: CreateManualRegistrationTokenResponseDto) => void;
+  onCreated: (token: CreateProvisionerTokenResponseDto) => void;
 }) {
   const queryClient = useQueryClient();
-  const createToken = useCreateManualRegistrationTokenMutation();
+  const createToken = useCreateProvisionerTokenMutation();
   const [formError, setFormError] = useState<string | undefined>();
 
   const form = useForm({
@@ -55,11 +55,11 @@ export function CreateManualRegistrationTokenForm({
       try {
         const token = await createToken.mutateAsync({workspaceId, body});
         await queryClient.invalidateQueries({
-          queryKey: manualRegistrationTokenQueryKeys.list(workspaceId),
+          queryKey: provisionerTokenQueryKeys.list(workspaceId),
         });
         onCreated(token);
       } catch (error) {
-        const mapped = manualRegistrationTokenCreateErrorToFormError(error);
+        const mapped = provisionerTokenCreateErrorToFormError(error);
         setFormError(mapped.message);
       }
     },
@@ -69,7 +69,7 @@ export function CreateManualRegistrationTokenForm({
     <>
       <ModalBody className="gap-16">
         <form
-          id={CREATE_MANUAL_REGISTRATION_TOKEN_FORM_ID}
+          id={CREATE_PROVISIONER_TOKEN_FORM_ID}
           className="flex w-full flex-col gap-8"
           noValidate
           onSubmit={(event) => {
@@ -90,11 +90,11 @@ export function CreateManualRegistrationTokenForm({
                 <FormField
                   className="flex-1"
                   label="Token name"
-                  id="manual-registration-token-name"
+                  id="provisioner-token-name"
                   error={fieldError(field)}
                 >
                   <FormFieldInput
-                    placeholder="Local runner"
+                    placeholder="Docker provisioner"
                     maxLength={80}
                     value={field.state.value}
                     onChange={(event) => field.handleChange(event.target.value)}
@@ -108,7 +108,7 @@ export function CreateManualRegistrationTokenForm({
                 <FormField
                   className="flex-1"
                   label="Expires"
-                  id="manual-registration-token-expiration"
+                  id="provisioner-token-expiration"
                   error={fieldError(field)}
                 >
                   <ExpirationSelect
@@ -141,7 +141,7 @@ export function CreateManualRegistrationTokenForm({
       <ModalFooter>
         <Button
           type="submit"
-          form={CREATE_MANUAL_REGISTRATION_TOKEN_FORM_ID}
+          form={CREATE_PROVISIONER_TOKEN_FORM_ID}
           isLoading={createToken.isPending}
         >
           Create token
@@ -151,11 +151,7 @@ export function CreateManualRegistrationTokenForm({
   );
 }
 
-export function CreatedManualRegistrationTokenPanel({
-  token,
-}: {
-  token: CreateManualRegistrationTokenResponseDto;
-}) {
+export function CreatedProvisionerTokenPanel({token}: {token: CreateProvisionerTokenResponseDto}) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const {copy} = useCopyToClipboard({
     text: token.raw_token,
@@ -180,7 +176,7 @@ export function CreatedManualRegistrationTokenPanel({
         <div className="flex flex-col gap-2">
           <InlineTipsTitle className="mb-0">Token created</InlineTipsTitle>
           <InlineTipsDescription>
-            Copy this registration token now. It will not be shown again.
+            Copy this provisioner token now. It will not be shown again.
           </InlineTipsDescription>
         </div>
         <div className="flex items-center gap-8 max-[640px]:flex-col max-[640px]:items-stretch">

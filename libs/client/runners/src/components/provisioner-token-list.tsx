@@ -1,8 +1,9 @@
-import type {ManualRegistrationTokenDto} from '@shipfox/api-runners-dto';
+import type {ProvisionerTokenDto} from '@shipfox/api-runners-dto';
 import {
   Alert,
   Button,
   Code,
+  Dot,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -15,6 +16,7 @@ import {
   ModalFooter,
   ModalHeader,
   ModalTitle,
+  RelativeTime,
   Skeleton,
   Table,
   TableBody,
@@ -27,24 +29,27 @@ import {
 import {useQueryClient} from '@tanstack/react-query';
 import {useState} from 'react';
 import {
-  manualRegistrationTokenQueryKeys,
-  useRevokeManualRegistrationTokenMutation,
-} from '#hooks/api/manual-registration-tokens.js';
-import {manualRegistrationTokenErrorMessage} from './manual-registration-token-errors.js';
+  provisionerTokenQueryKeys,
+  useRevokeProvisionerTokenMutation,
+} from '#hooks/api/provisioner-tokens.js';
+import {provisionerTokenErrorMessage} from './provisioner-token-errors.js';
 import {
-  formatManualRegistrationTokenDate,
-  formatManualRegistrationTokenTimestamp,
-  manualRegistrationTokenDisplayName,
-} from './manual-registration-token-format.js';
+  formatProvisionerTokenDate,
+  formatProvisionerTokenTimestamp,
+  provisionerConnectionStatus,
+  provisionerTokenDisplayName,
+} from './provisioner-token-format.js';
 import {TokenDate} from './token-date.js';
 import {TokenName} from './token-name.js';
 
-export function ManualRegistrationTokenList({
+export function ProvisionerTokenList({
   workspaceId,
   tokens,
+  activeIds,
 }: {
   workspaceId: string;
-  tokens: ManualRegistrationTokenDto[];
+  tokens: ProvisionerTokenDto[];
+  activeIds: ReadonlySet<string>;
 }) {
   return (
     <>
@@ -52,10 +57,11 @@ export function ManualRegistrationTokenList({
         <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[34%]">Name</TableHead>
+              <TableHead className="w-[28%]">Name</TableHead>
               <TableHead>Prefix</TableHead>
-              <TableHead className="w-128">Expires</TableHead>
-              <TableHead className="w-128">Created</TableHead>
+              <TableHead className="w-[18%]">Status</TableHead>
+              <TableHead className="w-112">Expires</TableHead>
+              <TableHead className="w-112">Created</TableHead>
               <TableHead className="w-80 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -63,7 +69,7 @@ export function ManualRegistrationTokenList({
             {tokens.map((token) => (
               <TableRow key={token.id}>
                 <TableCell>
-                  <TokenName name={manualRegistrationTokenDisplayName(token)} />
+                  <TokenName name={provisionerTokenDisplayName(token)} />
                 </TableCell>
                 <TableCell>
                   <Code variant="paragraph" className="block truncate">
@@ -71,23 +77,23 @@ export function ManualRegistrationTokenList({
                   </Code>
                 </TableCell>
                 <TableCell>
-                  <ManualRegistrationTokenDate value={token.expires_at} />
+                  <ProvisionerStatusCell token={token} activeIds={activeIds} />
                 </TableCell>
                 <TableCell>
-                  <ManualRegistrationTokenDate value={token.created_at} />
+                  <ProvisionerTokenDate value={token.expires_at} />
+                </TableCell>
+                <TableCell>
+                  <ProvisionerTokenDate value={token.created_at} />
                 </TableCell>
                 <TableCell className="text-right">
-                  <RevokeManualRegistrationTokenButton workspaceId={workspaceId} token={token} />
+                  <RevokeProvisionerTokenButton workspaceId={workspaceId} token={token} />
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
-      <ul
-        className="hidden flex-col gap-10 max-[760px]:flex"
-        aria-label="Manual registration tokens"
-      >
+      <ul className="hidden flex-col gap-10 max-[760px]:flex" aria-label="Provisioner tokens">
         {tokens.map((token) => (
           <li
             key={token.id}
@@ -95,24 +101,30 @@ export function ManualRegistrationTokenList({
           >
             <div className="flex items-start justify-between gap-12">
               <div className="min-w-0 flex-1">
-                <TokenName name={manualRegistrationTokenDisplayName(token)} />
+                <TokenName name={provisionerTokenDisplayName(token)} />
                 <Code variant="paragraph" className="block truncate text-foreground-neutral-muted">
                   {token.prefix}
                 </Code>
               </div>
-              <RevokeManualRegistrationTokenButton workspaceId={workspaceId} token={token} />
+              <RevokeProvisionerTokenButton workspaceId={workspaceId} token={token} />
             </div>
             <dl className="mt-12 grid grid-cols-2 gap-10 text-sm">
               <div>
+                <dt className="text-foreground-neutral-muted">Status</dt>
+                <dd>
+                  <ProvisionerStatusCell token={token} activeIds={activeIds} />
+                </dd>
+              </div>
+              <div>
                 <dt className="text-foreground-neutral-muted">Expires</dt>
                 <dd>
-                  <ManualRegistrationTokenDate value={token.expires_at} />
+                  <ProvisionerTokenDate value={token.expires_at} />
                 </dd>
               </div>
               <div>
                 <dt className="text-foreground-neutral-muted">Created</dt>
                 <dd>
-                  <ManualRegistrationTokenDate value={token.created_at} />
+                  <ProvisionerTokenDate value={token.created_at} />
                 </dd>
               </div>
             </dl>
@@ -123,33 +135,59 @@ export function ManualRegistrationTokenList({
   );
 }
 
-function ManualRegistrationTokenDate({value}: {value: string | null}) {
+function ProvisionerTokenDate({value}: {value: string | null}) {
   return (
     <TokenDate
       value={value}
-      date={formatManualRegistrationTokenDate(value)}
-      timestamp={formatManualRegistrationTokenTimestamp(value)}
+      date={formatProvisionerTokenDate(value)}
+      timestamp={formatProvisionerTokenTimestamp(value)}
     />
   );
 }
 
-function RevokeManualRegistrationTokenButton({
+function ProvisionerStatusCell({
+  token,
+  activeIds,
+}: {
+  token: ProvisionerTokenDto;
+  activeIds: ReadonlySet<string>;
+}) {
+  const status = provisionerConnectionStatus(token, activeIds);
+
+  return (
+    <span className="inline-flex items-center gap-6">
+      <Dot variant={status.dotVariant} />
+      {status.kind === 'last-seen' ? (
+        <span>
+          {status.label} <RelativeTime value={status.lastSeenAt} />
+        </span>
+      ) : (
+        <span>{status.label}</span>
+      )}
+    </span>
+  );
+}
+
+function RevokeProvisionerTokenButton({
   workspaceId,
   token,
 }: {
   workspaceId: string;
-  token: ManualRegistrationTokenDto;
+  token: ProvisionerTokenDto;
 }) {
   const queryClient = useQueryClient();
-  const revokeToken = useRevokeManualRegistrationTokenMutation();
+  const revokeToken = useRevokeProvisionerTokenMutation();
   const [open, setOpen] = useState(false);
-  const tokenName = manualRegistrationTokenDisplayName(token);
+  const tokenName = provisionerTokenDisplayName(token);
 
   async function handleRevoke() {
     try {
       await revokeToken.mutateAsync({workspaceId, tokenId: token.id});
       await queryClient.invalidateQueries({
-        queryKey: manualRegistrationTokenQueryKeys.list(workspaceId),
+        queryKey: provisionerTokenQueryKeys.list(workspaceId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: provisionerTokenQueryKeys.active(workspaceId),
       });
       setOpen(false);
     } catch {
@@ -191,12 +229,12 @@ function RevokeManualRegistrationTokenButton({
           <ModalHeader title="Revoke token?" />
           <ModalBody className="gap-16">
             <Text size="sm" className="text-foreground-neutral-muted">
-              {tokenName} will stop creating new runner sessions. Existing sessions and job leases
-              expire on their own.
+              {tokenName} will stop authenticating this provisioner. Runners it already provisioned
+              keep running until their leases expire.
             </Text>
             {revokeToken.isError ? (
               <Alert variant="error" animated={false}>
-                <Text size="sm">{manualRegistrationTokenErrorMessage(revokeToken.error)}</Text>
+                <Text size="sm">{provisionerTokenErrorMessage(revokeToken.error)}</Text>
               </Alert>
             ) : null}
           </ModalBody>
@@ -219,23 +257,19 @@ function RevokeManualRegistrationTokenButton({
   );
 }
 
-export function EmptyManualRegistrationTokens() {
+export function EmptyProvisionerTokens() {
   return (
     <EmptyState
       icon="key2Line"
-      title="No usable manual registration tokens"
-      description="Create a token to connect a runner to this workspace."
+      title="No usable provisioner registration tokens"
+      description="Create a token to connect a provisioner that provisions runners on demand."
     />
   );
 }
 
-export function ManualRegistrationTokenTableSkeleton() {
+export function ProvisionerTokenTableSkeleton() {
   return (
-    <div
-      role="status"
-      aria-label="Loading manual registration tokens"
-      className="flex flex-col gap-8"
-    >
+    <div role="status" aria-label="Loading provisioner tokens" className="flex flex-col gap-8">
       {[0, 1, 2].map((row) => (
         <Skeleton key={row} className="h-44 w-full" />
       ))}
