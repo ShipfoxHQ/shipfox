@@ -9,6 +9,7 @@ export {
   type WorkflowDocument,
   type WorkflowDocumentEnv,
   type WorkflowDocumentJob,
+  type WorkflowDocumentJobCheckout,
   type WorkflowDocumentRunStepGate,
   type WorkflowDocumentStep,
   type WorkflowDocumentTrigger,

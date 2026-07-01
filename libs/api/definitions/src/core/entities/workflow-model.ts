@@ -30,6 +30,7 @@ export interface WorkflowModelJob {
   readonly key: string;
   readonly mode: WorkflowModelJobMode;
   readonly runner: readonly string[];
+  readonly checkout: WorkflowModelJobCheckout;
   readonly success?: string;
   readonly executionTimeoutMs?: number;
   readonly listening?: WorkflowModelJobListening;
@@ -64,6 +65,11 @@ export interface WorkflowModelListeningBatch {
   readonly debounceMs?: number;
   readonly maxSize?: number;
   readonly maxWaitMs?: number;
+}
+
+export interface WorkflowModelJobCheckout {
+  readonly permissions: {readonly contents: 'read' | 'write'};
+  readonly persistCredentials: boolean;
 }
 
 export type WorkflowModelStep = WorkflowModelRunStep | WorkflowModelAgentStep;

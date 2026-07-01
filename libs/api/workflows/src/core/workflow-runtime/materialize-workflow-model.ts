@@ -16,6 +16,7 @@ export interface MaterializedWorkflowJob {
   readonly mode: WorkflowModelJob['mode'];
   readonly success?: string;
   readonly executionTimeoutMs?: number;
+  readonly checkout: WorkflowModelJob['checkout'];
   readonly listening?: WorkflowModelJob['listening'];
   readonly name?: WorkflowModelJob['name'];
   readonly dependencies: readonly string[];
@@ -74,6 +75,7 @@ export function materializeWorkflowModel(
     mode: job.mode,
     ...(job.success === undefined ? {} : {success: job.success}),
     ...(job.executionTimeoutMs === undefined ? {} : {executionTimeoutMs: job.executionTimeoutMs}),
+    checkout: job.checkout,
     ...(job.listening === undefined ? {} : {listening: job.listening}),
     ...(job.name === undefined ? {} : {name: job.name}),
     dependencies: dependencySourceNames(job, jobsById),

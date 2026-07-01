@@ -1,5 +1,6 @@
 import type {WorkflowDocument} from '@shipfox/workflow-document';
 import {InvalidWorkflowModelError} from './invalid-workflow-model-error.js';
+import {DEFAULT_JOB_CHECKOUT} from './normalize-job-checkout.js';
 import {normalizeWorkflowDocument as normalizeWorkflowDocumentBase} from './normalize-workflow-document.js';
 
 function normalizeWorkflowDocument(
@@ -60,6 +61,7 @@ describe('normalizeWorkflowDocument', () => {
           mode: 'one_shot',
           key: 'build',
           runner: ['ubuntu-latest'],
+          checkout: DEFAULT_JOB_CHECKOUT,
           dependencies: [],
           steps: [
             {
@@ -164,6 +166,79 @@ describe('normalizeWorkflowDocument', () => {
     expect(model.jobs[0]).toMatchObject({
       success: 'executions.exists(e, e.index == 0 && e.status == "succeeded")',
       executionTimeoutMs: 90 * 60 * 1000,
+    });
+  });
+
+  it('defaults omitted job checkout to read permissions and persisted credentials', () => {
+    const document: WorkflowDocument = {
+      name: 'default checkout',
+      jobs: {
+        build: {
+          steps: [{run: 'npm test'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.checkout).toEqual(DEFAULT_JOB_CHECKOUT);
+  });
+
+  it('defaults empty job checkout to read permissions and persisted credentials', () => {
+    const document: WorkflowDocument = {
+      name: 'empty checkout',
+      jobs: {
+        build: {
+          checkout: {},
+          steps: [{run: 'npm test'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.checkout).toEqual(DEFAULT_JOB_CHECKOUT);
+  });
+
+  it('normalizes checkout contents write and defaults persisted credentials', () => {
+    const document: WorkflowDocument = {
+      name: 'write checkout',
+      jobs: {
+        build: {
+          checkout: {
+            permissions: {
+              contents: 'write',
+            },
+          },
+          steps: [{run: 'npm test'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.checkout).toEqual({
+      permissions: {contents: 'write'},
+      persistCredentials: true,
+    });
+  });
+
+  it('normalizes checkout persist credentials false and defaults contents read', () => {
+    const document: WorkflowDocument = {
+      name: 'no persisted credentials',
+      jobs: {
+        build: {
+          checkout: {'persist-credentials': false},
+          steps: [{run: 'npm test'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.checkout).toEqual({
+      permissions: {contents: 'read'},
+      persistCredentials: false,
     });
   });
 
