@@ -210,9 +210,10 @@ describe('POST /provisioners/demand/poll', () => {
       .insert(runningJobExecutions)
       .values({
         workspaceId,
+        workflowRunId: crypto.randomUUID(),
+        workflowRunAttemptId: crypto.randomUUID(),
         jobId: crypto.randomUUID(),
         jobExecutionId: crypto.randomUUID(),
-        runId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         runnerSessionId: crypto.randomUUID(),
         provisionerId: provisionerTokenId,

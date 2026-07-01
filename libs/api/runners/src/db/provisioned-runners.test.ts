@@ -749,9 +749,10 @@ describe('listProvisionerTerminateIntents', () => {
       .insert(runningJobExecutions)
       .values({
         workspaceId,
+        workflowRunId: crypto.randomUUID(),
+        workflowRunAttemptId: crypto.randomUUID(),
         jobId: crypto.randomUUID(),
         jobExecutionId: params.jobExecutionId ?? crypto.randomUUID(),
-        runId: crypto.randomUUID(),
         projectId: crypto.randomUUID(),
         runnerSessionId: crypto.randomUUID(),
         provisionerId: params.provisionerId ?? provisionerId,

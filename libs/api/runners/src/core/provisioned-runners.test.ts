@@ -89,9 +89,10 @@ function boundJobExecution(params: {
   cancellationRequestedAt?: Date | null;
 }) {
   return {
+    workflowRunId: crypto.randomUUID(),
+    workflowRunAttemptId: crypto.randomUUID(),
     jobId: crypto.randomUUID(),
     jobExecutionId: crypto.randomUUID(),
-    runId: crypto.randomUUID(),
     provisionedRunnerId: params.provisionedRunnerId,
     startedAt: new Date('2025-01-01T00:00:00.000Z'),
     lastHeartbeatAt: new Date('2025-01-01T00:00:00.000Z'),
