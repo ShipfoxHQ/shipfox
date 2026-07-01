@@ -15,6 +15,7 @@ export interface ProviderGridProps {
   emptyMessage: string;
   loadingLabel?: string;
   errorSubject?: string;
+  onOpenProvider?: ((provider: string) => void) | undefined;
 }
 
 export const PROVIDER_GRID_CLASS = 'grid grid-cols-2 gap-12 max-[760px]:grid-cols-1';
@@ -28,6 +29,7 @@ export function ProviderGrid({
   emptyMessage,
   loadingLabel = 'Loading providers',
   errorSubject = 'available integrations',
+  onOpenProvider,
 }: ProviderGridProps) {
   const providers = providersQuery.data?.providers ?? [];
   const installableProviders = providers.filter((provider) => PROVIDER_CATALOG[provider.provider]);
@@ -58,7 +60,11 @@ export function ProviderGrid({
     <ul className={PROVIDER_GRID_CLASS}>
       {installableProviders.map((provider) => (
         <li key={provider.provider}>
-          <ProviderCard provider={provider} workspaceId={workspaceId} />
+          <ProviderCard
+            provider={provider}
+            workspaceId={workspaceId}
+            onOpenProvider={onOpenProvider}
+          />
         </li>
       ))}
     </ul>
@@ -68,39 +74,66 @@ export function ProviderGrid({
 function ProviderCard({
   provider,
   workspaceId,
+  onOpenProvider,
 }: {
   provider: IntegrationProviderDto;
   workspaceId: string;
+  onOpenProvider?: ((provider: string) => void) | undefined;
 }) {
   const catalog = PROVIDER_CATALOG[provider.provider];
   if (!catalog) return null;
+
+  if (catalog.kind === 'modal-connect') {
+    return (
+      <button
+        type="button"
+        aria-label={`Add ${provider.display_name}`}
+        onClick={() => onOpenProvider?.(provider.provider)}
+        className="group flex h-full w-full min-w-0 items-center justify-between gap-12 rounded-8 border border-border-neutral-base bg-background-neutral-base p-16 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-button-neutral-focus focus-visible:outline-none"
+      >
+        <ProviderCardContent provider={provider} action="Add" />
+      </button>
+    );
+  }
 
   return (
     <Link
       to={catalog.setupPath}
       params={{wid: workspaceId}}
       aria-label={`Install ${provider.display_name}`}
-      className="group block h-full rounded-8 focus-visible:shadow-button-neutral-focus focus-visible:outline-none"
+      className="group flex h-full min-w-0 items-center justify-between gap-12 rounded-8 border border-border-neutral-base bg-background-neutral-base p-16 transition-colors hover:bg-background-components-hover focus-visible:shadow-button-neutral-focus focus-visible:outline-none"
     >
-      <Card className="h-full p-16 transition-colors hover:bg-background-components-hover">
-        <div className="flex min-w-0 items-center justify-between gap-12">
-          <div className="flex min-w-0 items-center gap-12">
-            <IntegrationIcon
-              source={provider.provider}
-              aria-hidden
-              className="size-24 shrink-0 text-foreground-neutral-base"
-            />
-            <Text size="md" bold className="truncate">
-              {provider.display_name}
-            </Text>
-          </div>
-          <div className="flex shrink-0 items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">
-            <Text size="sm">Install</Text>
-            <Icon name="chevronRight" className="size-16" />
-          </div>
-        </div>
-      </Card>
+      <ProviderCardContent provider={provider} action="Install" />
     </Link>
+  );
+}
+
+function ProviderCardContent({
+  provider,
+  action,
+}: {
+  provider: IntegrationProviderDto;
+  action: 'Add' | 'Install';
+}) {
+  return (
+    <>
+      <span className="flex min-w-0 items-center gap-12">
+        <IntegrationIcon
+          source={provider.provider}
+          aria-hidden
+          className="size-24 shrink-0 text-foreground-neutral-base"
+        />
+        <Text as="span" size="md" bold className="truncate">
+          {provider.display_name}
+        </Text>
+      </span>
+      <span className="flex shrink-0 items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">
+        <Text as="span" size="sm">
+          {action}
+        </Text>
+        <Icon name="chevronRight" className="size-16" />
+      </span>
+    </>
   );
 }
 

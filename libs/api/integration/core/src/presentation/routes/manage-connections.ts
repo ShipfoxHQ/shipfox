@@ -1,0 +1,78 @@
+import {AUTH_USER} from '@shipfox/api-auth-context';
+import {
+  integrationConnectionDtoSchema,
+  updateIntegrationConnectionBodySchema,
+} from '@shipfox/api-integration-core-dto';
+import {requireMembership} from '@shipfox/api-workspaces';
+import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import {z} from 'zod';
+import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
+import {
+  deleteIntegrationConnection,
+  getIntegrationConnectionById,
+  updateIntegrationConnectionLifecycleStatus,
+} from '#db/connections.js';
+import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
+
+const connectionParamsSchema = z.object({
+  connectionId: z.string().uuid(),
+});
+
+export function createUpdateIntegrationConnectionRoute(registry: IntegrationProviderRegistry) {
+  return defineRoute({
+    method: 'PATCH',
+    path: '/integration-connections/:connectionId',
+    auth: AUTH_USER,
+    description: 'Update an integration connection.',
+    schema: {
+      params: connectionParamsSchema,
+      body: updateIntegrationConnectionBodySchema,
+      response: {
+        200: integrationConnectionDtoSchema,
+      },
+    },
+    handler: async (request) => {
+      const connection = await getIntegrationConnectionById(request.params.connectionId);
+      if (!connection) {
+        throw new ClientError('Integration connection not found', 'not-found', {status: 404});
+      }
+
+      await requireMembership({request, workspaceId: connection.workspaceId});
+      const updated = await updateIntegrationConnectionLifecycleStatus({
+        id: connection.id,
+        lifecycleStatus: request.body.lifecycle_status,
+      });
+      if (!updated) {
+        throw new ClientError('Integration connection not found', 'not-found', {status: 404});
+      }
+
+      const provider = registry.list().find((candidate) => candidate.provider === updated.provider);
+      return toIntegrationConnectionDto(updated, {capabilities: provider?.capabilities ?? []});
+    },
+  });
+}
+
+export function createDeleteIntegrationConnectionRoute() {
+  return defineRoute({
+    method: 'DELETE',
+    path: '/integration-connections/:connectionId',
+    auth: AUTH_USER,
+    description: 'Delete an integration connection.',
+    schema: {
+      params: connectionParamsSchema,
+      response: {
+        204: z.void(),
+      },
+    },
+    handler: async (request, reply) => {
+      const connection = await getIntegrationConnectionById(request.params.connectionId);
+      if (!connection) {
+        throw new ClientError('Integration connection not found', 'not-found', {status: 404});
+      }
+
+      await requireMembership({request, workspaceId: connection.workspaceId});
+      await deleteIntegrationConnection({id: connection.id});
+      reply.status(204);
+    },
+  });
+}

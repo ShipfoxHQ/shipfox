@@ -4,6 +4,7 @@ import type {
   ListIntegrationConnectionsResponseDto,
   ListIntegrationProvidersResponseDto,
   ListRepositoriesResponseDto,
+  UpdateIntegrationConnectionBodyDto,
 } from '@shipfox/api-integration-core-dto';
 import type {CreateDebugConnectionBodyDto} from '@shipfox/api-integration-debug-dto';
 import type {
@@ -21,7 +22,7 @@ import type {
   SentryConnectResponseDto,
 } from '@shipfox/api-integration-sentry-dto';
 import {apiRequest} from '@shipfox/client-api';
-import {useInfiniteQuery, useMutation, useQuery} from '@tanstack/react-query';
+import {useInfiniteQuery, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 
 export const integrationsQueryKeys = {
   all: ['integrations'] as const,
@@ -153,6 +154,25 @@ export async function listRepositories({
   return await apiRequest<ListRepositoriesResponseDto>(path, {signal});
 }
 
+export async function updateIntegrationConnection({
+  connectionId,
+  body,
+}: {
+  connectionId: string;
+  body: UpdateIntegrationConnectionBodyDto;
+}) {
+  return await apiRequest<IntegrationConnectionDto>(
+    `/integration-connections/${encodeURIComponent(connectionId)}`,
+    {method: 'PATCH', body},
+  );
+}
+
+export async function deleteIntegrationConnection({connectionId}: {connectionId: string}) {
+  await apiRequest<void>(`/integration-connections/${encodeURIComponent(connectionId)}`, {
+    method: 'DELETE',
+  });
+}
+
 export function useIntegrationProvidersQuery(params?: {capability?: IntegrationCapabilityDto}) {
   const capability = params?.capability;
   return useQuery({
@@ -211,4 +231,34 @@ export function useCreateDebugConnectionMutation() {
 
 export function useCreateGiteaConnectionMutation() {
   return useMutation({mutationFn: createGiteaConnection});
+}
+
+export function useUpdateIntegrationConnectionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateIntegrationConnection,
+    onSuccess: async (connection) => {
+      await queryClient.invalidateQueries({
+        queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspace_id),
+      });
+    },
+  });
+}
+
+export function useDeleteIntegrationConnectionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      workspaceId: _workspaceId,
+      connectionId,
+    }: {
+      workspaceId: string;
+      connectionId: string;
+    }) => deleteIntegrationConnection({connectionId}),
+    onSuccess: async (_result, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: integrationsQueryKeys.connectionsByWorkspace(variables.workspaceId),
+      });
+    },
+  });
 }
