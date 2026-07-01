@@ -1,4 +1,5 @@
 ---
+"@shipfox/api-definitions": minor
 "@shipfox/workflow-document": minor
 ---
 
