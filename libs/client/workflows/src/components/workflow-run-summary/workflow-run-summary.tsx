@@ -10,6 +10,7 @@ import {
   Header,
   RelativeTime,
   Text,
+  TimeTickerProvider,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -23,6 +24,7 @@ import {
   WORKFLOW_RUN_STATUSES,
   type WorkflowRunDetail,
 } from '#core/workflow-run.js';
+import {WorkflowRunDurationLabel} from '../workflow-run-duration-label.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
 import {WorkflowRunAttemptSwitcher} from './workflow-run-attempt-switcher.js';
 
@@ -70,113 +72,126 @@ export function WorkflowRunSummary({
     latestAttempt && latestAttempt > 1 && workspaceId && projectId
       ? {workspaceId, projectId, latestAttempt}
       : null;
+  const displayDuration = run.runAttempt.displayDuration;
   const {ref: headingTextRef, isTruncated: isHeadingTruncated} =
     useIsTextTruncated<HTMLSpanElement>(run.name);
 
   return (
-    <section
-      aria-labelledby={headingId}
-      className="border-b border-border-neutral-base bg-background-subtle-base px-16 py-8"
-    >
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-12 gap-y-4 overflow-hidden">
-        <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-8">
-          <Badge variant={status.badge} size="xs">
-            <span className="text-center" style={{width: `${STATUS_BADGE_LABEL_WIDTH_CH}ch`}}>
-              {status.label}
-            </span>
-          </Badge>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Header id={headingId} variant="h3" className="min-w-0 truncate">
-                <span ref={headingTextRef} className="block min-w-0 truncate">
-                  {run.name}
-                </span>
-              </Header>
-            </TooltipTrigger>
-            {isHeadingTruncated ? (
-              <TooltipContent>
-                <Text as="span" size="xs" className="max-w-[360px] break-words">
-                  {run.name}
-                </Text>
-              </TooltipContent>
-            ) : null}
-          </Tooltip>
-        </div>
-
-        <div className="col-start-2 row-start-1 flex min-w-max items-center gap-6 justify-self-end">
-          <WorkflowRunActionSlot
-            action={action}
-            cancelling={cancelling}
-            onCancel={onCancel}
-            rerunPending={rerunPending}
-            onRerun={onRerun}
-          />
-          {sourceAvailable ? (
-            <Button
-              ref={sourceButtonRef}
-              type="button"
-              variant="secondary"
-              size="xs"
-              aria-controls={sourcePanelId}
-              aria-expanded={sourceOpen}
-              onClick={onSourceToggle}
-            >
-              View source
-            </Button>
-          ) : null}
-        </div>
-
-        <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-12 overflow-hidden text-foreground-neutral-muted">
-          {attemptSwitcher ? (
-            <WorkflowRunAttemptSwitcher
-              workspaceId={attemptSwitcher.workspaceId}
-              projectId={attemptSwitcher.projectId}
-              run={run}
-              latestAttempt={attemptSwitcher.latestAttempt}
-            />
-          ) : null}
-
-          {run.triggerDisplayLabel ? (
-            <>
-              {attemptSwitcher ? <MetadataSeparator /> : null}
-              <span className="min-w-0">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label={run.triggerLabel}
-                      className="inline-flex max-w-full min-w-0 items-center gap-4 rounded-6 border-0 bg-transparent p-0 text-left text-foreground-neutral-muted outline-none focus-visible:shadow-button-neutral-focus"
-                    >
-                      <TriggerSourceIcon
-                        provider={run.triggerProvider}
-                        source={run.triggerSource}
-                        aria-hidden="true"
-                        className="size-12 shrink-0"
-                      />
-                      <Text as="span" size="xs" className="min-w-0 truncate">
-                        {run.triggerDisplayLabel}
-                      </Text>
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <Text as="span" size="xs" className="block max-w-[360px] break-words">
-                      {run.triggerLabel}
-                    </Text>
-                  </TooltipContent>
-                </Tooltip>
+    <TimeTickerProvider intervalMs={1000} reducedMotionIntervalMs={10_000}>
+      <section
+        aria-labelledby={headingId}
+        className="border-b border-border-neutral-base bg-background-subtle-base px-16 py-8"
+      >
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-12 gap-y-4 overflow-hidden">
+          <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-8">
+            <Badge variant={status.badge} size="xs">
+              <span className="text-center" style={{width: `${STATUS_BADGE_LABEL_WIDTH_CH}ch`}}>
+                {status.label}
               </span>
-            </>
-          ) : null}
+            </Badge>
 
-          {attemptSwitcher || run.triggerDisplayLabel ? <MetadataSeparator /> : null}
-          <RelativeTime
-            value={run.runAttempt.createdAt}
-            className="shrink-0 whitespace-nowrap text-xs leading-20 text-foreground-neutral-muted"
-          />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Header id={headingId} variant="h3" className="min-w-0 truncate">
+                  <span ref={headingTextRef} className="block min-w-0 truncate">
+                    {run.name}
+                  </span>
+                </Header>
+              </TooltipTrigger>
+              {isHeadingTruncated ? (
+                <TooltipContent>
+                  <Text as="span" size="xs" className="max-w-[360px] break-words">
+                    {run.name}
+                  </Text>
+                </TooltipContent>
+              ) : null}
+            </Tooltip>
+          </div>
+
+          <div className="col-start-2 row-start-1 flex min-w-max items-center gap-6 justify-self-end">
+            <WorkflowRunActionSlot
+              action={action}
+              cancelling={cancelling}
+              onCancel={onCancel}
+              rerunPending={rerunPending}
+              onRerun={onRerun}
+            />
+            {sourceAvailable ? (
+              <Button
+                ref={sourceButtonRef}
+                type="button"
+                variant="secondary"
+                size="xs"
+                aria-controls={sourcePanelId}
+                aria-expanded={sourceOpen}
+                onClick={onSourceToggle}
+              >
+                View source
+              </Button>
+            ) : null}
+          </div>
+
+          <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-12 overflow-hidden text-foreground-neutral-muted">
+            {attemptSwitcher ? (
+              <WorkflowRunAttemptSwitcher
+                workspaceId={attemptSwitcher.workspaceId}
+                projectId={attemptSwitcher.projectId}
+                run={run}
+                latestAttempt={attemptSwitcher.latestAttempt}
+              />
+            ) : null}
+
+            {run.triggerDisplayLabel ? (
+              <>
+                {attemptSwitcher ? <MetadataSeparator /> : null}
+                <span className="min-w-0">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={run.triggerLabel}
+                        className="inline-flex max-w-full min-w-0 items-center gap-4 rounded-6 border-0 bg-transparent p-0 text-left text-foreground-neutral-muted outline-none focus-visible:shadow-button-neutral-focus"
+                      >
+                        <TriggerSourceIcon
+                          provider={run.triggerProvider}
+                          source={run.triggerSource}
+                          aria-hidden="true"
+                          className="size-12 shrink-0"
+                        />
+                        <Text as="span" size="xs" className="min-w-0 truncate">
+                          {run.triggerDisplayLabel}
+                        </Text>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <Text as="span" size="xs" className="block max-w-[360px] break-words">
+                        {run.triggerLabel}
+                      </Text>
+                    </TooltipContent>
+                  </Tooltip>
+                </span>
+              </>
+            ) : null}
+
+            {attemptSwitcher || run.triggerDisplayLabel ? <MetadataSeparator /> : null}
+            <RelativeTime
+              value={run.runAttempt.createdAt}
+              className="shrink-0 whitespace-nowrap text-xs leading-20 text-foreground-neutral-muted"
+            />
+
+            {displayDuration ? (
+              <>
+                <MetadataSeparator />
+                <WorkflowRunDurationLabel
+                  duration={displayDuration}
+                  className="text-foreground-neutral-muted"
+                />
+              </>
+            ) : null}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </TimeTickerProvider>
   );
 }
 

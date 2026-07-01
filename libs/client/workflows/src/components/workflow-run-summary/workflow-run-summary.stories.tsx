@@ -14,7 +14,7 @@ import {
 import type {ReactNode} from 'react';
 import {useEffect, useState} from 'react';
 import {screen, userEvent, within} from 'storybook/test';
-import type {WorkflowRunStatus} from '#core/workflow-run.js';
+import {WorkflowRunAttempt, type WorkflowRunStatus} from '#core/workflow-run.js';
 import {
   runAttemptsResponseDto,
   workflowJobDto,
@@ -30,6 +30,8 @@ const WORKSPACE_ID = '44444444-4444-4444-8444-444444444444';
 const PROJECT_ID = '55555555-5555-4555-8555-555555555555';
 const SWITCH_ATTEMPT_PATTERN = /Switch attempt/;
 const ATTEMPT_3_PATTERN = /Attempt 3/;
+const STORYBOOK_NOW = '2026-06-26T12:00:00.000Z';
+const RUN_STARTED_AT = '2026-06-26T11:57:46.000Z';
 const RUN_ATTEMPTS_RESPONSE = runAttemptsResponseDto({
   attempts: [
     workflowRunAttemptDto({
@@ -195,6 +197,37 @@ export const WithAttemptsOpen: Story = {
   args: ATTEMPT_SUMMARY_ARGS,
 };
 
+export const Durations: Story = {
+  render: () => (
+    <div className="flex flex-col">
+      <WorkflowRunSummary
+        run={workflowRunDetail({
+          status: 'succeeded',
+          name: 'release-finished',
+          run_attempt: workflowRunAttemptDto({
+            status: 'succeeded',
+            created_at: RUN_STARTED_AT,
+            started_at: RUN_STARTED_AT,
+            finished_at: STORYBOOK_NOW,
+          }),
+        })}
+      />
+      <WorkflowRunSummary
+        run={workflowRunDetail({
+          status: 'running',
+          name: 'release-running',
+          run_attempt: workflowRunAttemptDto({
+            status: 'running',
+            created_at: RUN_STARTED_AT,
+            started_at: RUN_STARTED_AT,
+            finished_at: null,
+          }),
+        })}
+      />
+    </div>
+  ),
+};
+
 export const Cancellable: Story = {
   args: {
     run: workflowRunDetail({status: 'running'}),
@@ -285,7 +318,7 @@ const ACTION_VARIANTS = [
   },
 ] satisfies Array<{
   label: string;
-  run: ReturnType<typeof workflowRun>;
+  run: ReturnType<typeof workflowRunDetail>;
   props: Pick<
     Parameters<typeof WorkflowRunSummary>[0],
     'cancelling' | 'onCancel' | 'rerunPending' | 'onRerun'
@@ -325,7 +358,7 @@ export const ActionVariantsWithAttempts: Story = {
             ...run,
             id: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
             currentAttempt: 2,
-            runAttempt: {
+            runAttempt: new WorkflowRunAttempt({
               id: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
               workflowRunId: `22222222-2222-4222-8222-${String(index + 2).padStart(12, '0')}`,
               attempt: 2,
@@ -334,7 +367,7 @@ export const ActionVariantsWithAttempts: Story = {
               startedAt: null,
               finishedAt: null,
               rerunMode: null,
-            },
+            }),
           }}
           latestAttempt={3}
           {...props}

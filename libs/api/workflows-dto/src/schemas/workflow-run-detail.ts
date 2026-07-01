@@ -2,7 +2,7 @@ import {z} from 'zod';
 import {jobDtoSchema} from './job.js';
 import {workflowExecutionEventSchema} from './job-listening.js';
 import {stepAttemptDtoSchema, stepDtoSchema} from './step.js';
-import {workflowRunResponseSchema, workflowRunStatusSchema} from './workflow-run.js';
+import {workflowRunAttemptDtoSchema, workflowRunResponseSchema} from './workflow-run.js';
 
 export const jobExecutionStatusSchema = z.enum([
   'pending',
@@ -55,16 +55,7 @@ export type WorkflowRunJobDetailDto = z.infer<typeof workflowRunJobDetailDtoSche
 // The run detail read model returned by `GET /workflows/runs/:id`: a run plus its
 // jobs, each job's steps, and each step's attempt history.
 export const workflowRunDetailResponseSchema = workflowRunResponseSchema.extend({
-  run_attempt: z.object({
-    id: z.string().uuid(),
-    workflow_run_id: z.string().uuid(),
-    attempt: z.number().int().positive(),
-    status: workflowRunStatusSchema,
-    created_at: z.string(),
-    started_at: z.string().nullable(),
-    finished_at: z.string().nullable(),
-    rerun_mode: z.enum(['all', 'failed']).nullable(),
-  }),
+  run_attempt: workflowRunAttemptDtoSchema,
   jobs: z.array(workflowRunJobDetailDtoSchema),
 });
 

@@ -31,6 +31,11 @@ beforeEach(() => {
 });
 
 describe('WorkflowRunSummary', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
   test('renders status, trigger metadata, and trigger time', async () => {
     renderSummary();
 
@@ -129,6 +134,50 @@ describe('WorkflowRunSummary', () => {
     expect(sourceButton).toHaveAttribute('aria-controls', 'workflow-source-panel');
     expect(sourceButton).toHaveAttribute('aria-expanded', 'false');
     expect(onSourceToggle).toHaveBeenCalledTimes(1);
+  });
+
+  test('shows the selected attempt duration, not the top-level run duration', async () => {
+    renderSummary({
+      started_at: '2026-05-07T00:00:00.000Z',
+      finished_at: '2026-05-07T00:10:00.000Z',
+      run_attempt: {
+        id: '11111111-1111-4111-8111-000000000001',
+        workflow_run_id: RUN_ID,
+        attempt: 1,
+        status: 'succeeded',
+        created_at: '2026-05-07T01:01:00.000Z',
+        started_at: '2026-05-07T01:00:00.000Z',
+        finished_at: '2026-05-07T01:02:14.000Z',
+        rerun_mode: null,
+      },
+    });
+
+    await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(screen.getByText('2m 14s')).toBeInTheDocument();
+    expect(screen.queryByText('10m 00s')).not.toBeInTheDocument();
+  });
+
+  test('shows a live selected attempt duration for running runs', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-05-07T01:02:14.000Z'));
+    renderSummary({
+      run_attempt: {
+        id: '11111111-1111-4111-8111-000000000001',
+        workflow_run_id: RUN_ID,
+        attempt: 1,
+        status: 'running',
+        created_at: '2026-05-07T01:01:00.000Z',
+        started_at: '2026-05-07T01:00:00.000Z',
+        finished_at: null,
+        rerun_mode: null,
+      },
+    });
+
+    await screen.findByRole('region', {name: 'deploy-web'});
+
+    const duration = screen.getByText('2m 14s');
+    expect(duration).toBeInTheDocument();
+    expect(duration).toHaveAttribute('aria-label', 'running 2m 14s');
   });
 
   test('omits source control when source is unavailable', async () => {
