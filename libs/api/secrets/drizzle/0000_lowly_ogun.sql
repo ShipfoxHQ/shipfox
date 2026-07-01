@@ -17,7 +17,7 @@ CREATE TABLE "secrets_values" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"last_edited_by" uuid,
-	CONSTRAINT "secrets_values_namespace_ck" CHECK ("secrets_values"."namespace" = '' OR "secrets_values"."namespace" ~ '^[a-z0-9]([a-z0-9_/-]*[a-z0-9])?$'),
+	CONSTRAINT "secrets_values_namespace_ck" CHECK (char_length("secrets_values"."namespace") <= 128 AND ("secrets_values"."namespace" = '' OR "secrets_values"."namespace" ~ '^[a-z0-9]([a-z0-9_/-]*[a-z0-9])?$')),
 	CONSTRAINT "secrets_values_key_ck" CHECK ("secrets_values"."key" ~ '^[A-Z_][A-Z0-9_]*$')
 );
 --> statement-breakpoint
@@ -31,7 +31,7 @@ CREATE TABLE "secrets_variables" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"last_edited_by" uuid,
-	CONSTRAINT "secrets_variables_namespace_ck" CHECK ("secrets_variables"."namespace" = '' OR "secrets_variables"."namespace" ~ '^[a-z0-9]([a-z0-9_/-]*[a-z0-9])?$'),
+	CONSTRAINT "secrets_variables_namespace_ck" CHECK (char_length("secrets_variables"."namespace") <= 128 AND ("secrets_variables"."namespace" = '' OR "secrets_variables"."namespace" ~ '^[a-z0-9]([a-z0-9_/-]*[a-z0-9])?$')),
 	CONSTRAINT "secrets_variables_key_ck" CHECK ("secrets_variables"."key" ~ '^[A-Z_][A-Z0-9_]*$')
 );
 --> statement-breakpoint

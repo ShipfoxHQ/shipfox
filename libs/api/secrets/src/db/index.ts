@@ -19,6 +19,7 @@ export {
   listExistingVariableManagementKeys,
   listSecretManagementRows,
   listVariableManagementRows,
+  type SecretManagementRow,
 } from './management.js';
 export {secretDataKeys} from './schema/data-keys.js';
 export {secretsOutbox} from './schema/outbox.js';

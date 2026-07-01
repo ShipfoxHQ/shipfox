@@ -2,7 +2,7 @@ import {and, asc, eq, gt, inArray, isNull, type SQL} from 'drizzle-orm';
 import type {AnyPgColumn} from 'drizzle-orm/pg-core';
 import type {Tx} from './db.js';
 import {db} from './db.js';
-import {type SecretValue, secretValues, toSecretValue} from './schema/values.js';
+import {type SecretValue, secretValues} from './schema/values.js';
 import {type SecretVariable, secretVariables, toSecretVariable} from './schema/variables.js';
 import {normalizedProjectId, type StoreScope} from './scope.js';
 
@@ -12,8 +12,10 @@ export interface ManagementListParams extends StoreScope {
   cursor?: string | undefined;
 }
 
+export type SecretManagementRow = Omit<SecretValue, 'ciphertext' | 'fingerprint'>;
+
 export interface SecretManagementListResult {
-  secrets: SecretValue[];
+  secrets: SecretManagementRow[];
   nextCursor: string | null;
 }
 
@@ -28,7 +30,7 @@ export async function listSecretManagementRows(
 ): Promise<SecretManagementListResult> {
   const executor = tx ?? db();
   const rows = await executor
-    .select()
+    .select(secretManagementColumns)
     .from(secretValues)
     .where(and(...managementFilters(secretValues, params)))
     .orderBy(asc(secretValues.key))
@@ -39,7 +41,7 @@ export async function listSecretManagementRows(
   const last = pageRows.at(-1);
 
   return {
-    secrets: pageRows.map(toSecretValue),
+    secrets: pageRows.map(toSecretManagementRow),
     nextCursor: hasMore && last ? last.key : null,
   };
 }
@@ -69,16 +71,16 @@ export async function listVariableManagementRows(
 export async function getSecretManagementRow(
   params: StoreScope & {workspaceId: string; key: string},
   tx?: Tx,
-): Promise<SecretValue | undefined> {
+): Promise<SecretManagementRow | undefined> {
   const executor = tx ?? db();
   const rows = await executor
-    .select()
+    .select(secretManagementColumns)
     .from(secretValues)
     .where(and(...managementFilters(secretValues, params), eq(secretValues.key, params.key)))
     .limit(1);
 
   const row = rows[0];
-  return row ? toSecretValue(row) : undefined;
+  return row ? toSecretManagementRow(row) : undefined;
 }
 
 export async function getVariableManagementRow(
@@ -129,15 +131,53 @@ export async function listExistingVariableManagementKeys(
 export async function deleteSecretManagementRows(
   params: StoreScope & {workspaceId: string; keys: string[]},
   tx: Tx,
-): Promise<SecretValue[]> {
+): Promise<SecretManagementRow[]> {
   if (params.keys.length === 0) return [];
 
   const rows = await tx
     .delete(secretValues)
     .where(and(...managementFilters(secretValues, params), inArray(secretValues.key, params.keys)))
-    .returning();
+    .returning(secretManagementColumns);
 
-  return rows.map(toSecretValue);
+  return rows.map(toSecretManagementRow);
+}
+
+const secretManagementColumns = {
+  id: secretValues.id,
+  workspaceId: secretValues.workspaceId,
+  projectId: secretValues.projectId,
+  namespace: secretValues.namespace,
+  key: secretValues.key,
+  createdAt: secretValues.createdAt,
+  updatedAt: secretValues.updatedAt,
+  lastEditedBy: secretValues.lastEditedBy,
+};
+
+type SecretManagementDbRow =
+  typeof secretManagementColumns extends Record<string, infer _Column>
+    ? {
+        id: string;
+        workspaceId: string;
+        projectId: string | null;
+        namespace: string;
+        key: string;
+        createdAt: Date;
+        updatedAt: Date;
+        lastEditedBy: string | null;
+      }
+    : never;
+
+function toSecretManagementRow(row: SecretManagementDbRow): SecretManagementRow {
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    projectId: row.projectId,
+    namespace: row.namespace,
+    key: row.key,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    lastEditedBy: row.lastEditedBy,
+  };
 }
 
 export async function deleteVariableManagementRows(

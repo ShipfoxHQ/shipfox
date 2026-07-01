@@ -20,7 +20,10 @@ export function translateManagementError(error: unknown): never {
     });
   }
   if (error instanceof NamespaceValidationError) {
-    throw new ClientError('Invalid namespace', 'invalid-namespace', {status: 400});
+    throw new ClientError('Invalid namespace', 'invalid-namespace', {
+      status: 400,
+      details: {namespace: error.namespace},
+    });
   }
   if (error instanceof SecretValueTooLargeError) {
     throw new ClientError(error.message, 'value-too-large', {
@@ -43,8 +46,11 @@ export function translateManagementError(error: unknown): never {
       details: {key: error.key},
     });
   }
-  if (error instanceof SecretNotFoundError || error instanceof VariableNotFoundError) {
-    throw new ClientError('Secret or variable not found', 'not-found', {status: 404});
+  if (error instanceof SecretNotFoundError) {
+    throw new ClientError('Secret not found', 'secret-not-found', {status: 404});
+  }
+  if (error instanceof VariableNotFoundError) {
+    throw new ClientError('Variable not found', 'variable-not-found', {status: 404});
   }
   if (error instanceof UnknownSecretStoreError) {
     throw new ClientError('Unknown secret store', 'unknown-secret-store', {status: 400});

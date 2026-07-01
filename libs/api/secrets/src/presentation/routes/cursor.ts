@@ -1,14 +1,23 @@
-export function encodeManagementCursor(cursor: string): string {
-  return Buffer.from(cursor, 'utf8').toString('base64url');
+interface ManagementCursor {
+  key: string;
 }
 
-export function decodeManagementCursor(cursor: string | undefined): string | null {
-  if (!cursor) return null;
+export function encodeManagementCursor(cursor: string): string {
+  return Buffer.from(JSON.stringify({key: cursor} satisfies ManagementCursor), 'utf8').toString(
+    'base64url',
+  );
+}
+
+export function decodeManagementCursor(cursor: string | undefined): string | undefined {
+  if (!cursor) return undefined;
 
   try {
-    const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
-    return decoded.length > 0 ? decoded : null;
+    const parsed: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+    const {key} = parsed as Partial<ManagementCursor>;
+    if (typeof key !== 'string' || key.length === 0) return undefined;
+    return key;
   } catch {
-    return null;
+    return undefined;
   }
 }

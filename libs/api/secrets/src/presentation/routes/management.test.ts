@@ -7,6 +7,7 @@ import {
 import {ProjectNotFoundError, requireProjectForWorkspace} from '@shipfox/api-projects';
 import {
   SECRET_CREATED,
+  SECRET_DELETED,
   SECRET_UPDATED,
   VARIABLE_CREATED,
   VARIABLE_DELETED,
@@ -266,6 +267,17 @@ describe('secrets management routes', () => {
     expect(second.json().secrets.map((secret: {key: string}) => secret.key)).toEqual(['BRAVO']);
   });
 
+  it('rejects malformed management cursors', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/secrets?cursor=not-a-cursor`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('invalid-cursor');
+  });
+
   it('rejects duplicate batch keys without returning stale warnings', async () => {
     const res = await app.inject({
       method: 'POST',
@@ -345,7 +357,39 @@ describe('secrets management routes', () => {
 
     expect(deleted.statusCode).toBe(204);
     expect(missing.statusCode).toBe(404);
+    expect(missing.json().code).toBe('variable-not-found');
     expect(events.map((event) => event.eventType)).toEqual([VARIABLE_CREATED, VARIABLE_DELETED]);
+  });
+
+  it('deletes secrets with a 204 and emits no event for missing deletes', async () => {
+    await app.inject({
+      method: 'PUT',
+      url: `/workspaces/${workspaceId}/secrets/API_TOKEN`,
+      headers: {authorization: 'Bearer user'},
+      payload: {value: 'secret-value'},
+    });
+
+    const deleted = await app.inject({
+      method: 'DELETE',
+      url: `/workspaces/${workspaceId}/secrets/API_TOKEN`,
+      headers: {authorization: 'Bearer user'},
+    });
+    const missing = await app.inject({
+      method: 'DELETE',
+      url: `/workspaces/${workspaceId}/secrets/API_TOKEN`,
+      headers: {authorization: 'Bearer user'},
+    });
+    const rows = await db()
+      .select()
+      .from(secretValues)
+      .where(eq(secretValues.workspaceId, workspaceId));
+    const events = await outboxRowsForWorkspace(workspaceId);
+
+    expect(deleted.statusCode).toBe(204);
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().code).toBe('secret-not-found');
+    expect(rows).toHaveLength(0);
+    expect(events.map((event) => event.eventType)).toEqual([SECRET_CREATED, SECRET_DELETED]);
   });
 
   it('returns 404 when project_id does not belong to the workspace', async () => {

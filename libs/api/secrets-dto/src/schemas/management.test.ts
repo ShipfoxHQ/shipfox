@@ -1,6 +1,7 @@
 import {
   batchSecretsBodySchema,
   batchVariablesBodySchema,
+  listSecretsQuerySchema,
   listSecretsResponseSchema,
   putSecretResponseSchema,
   variableDtoSchema,
@@ -47,6 +48,14 @@ describe('management schemas', () => {
 
   it('requires batch entries to be non-empty', () => {
     const result = batchSecretsBodySchema.safeParse({entries: []});
+
+    expect(result.success).toBe(false);
+  });
+
+  it('requires base64url-shaped cursors', () => {
+    const result = listSecretsQuerySchema.safeParse({
+      cursor: 'not a cursor',
+    });
 
     expect(result.success).toBe(false);
   });

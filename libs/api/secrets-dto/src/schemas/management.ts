@@ -6,6 +6,10 @@ const timestampSchema = z.string().datetime();
 const projectIdSchema = z.string().uuid().nullable();
 const optionalProjectIdSchema = z.string().uuid().optional();
 const listLimitSchema = z.coerce.number().int().min(1).max(100).default(50);
+const cursorSchema = z
+  .string()
+  .min(1)
+  .regex(/^[A-Za-z0-9_-]+$/);
 
 export const secretDtoSchema = z.object({
   key: secretKeySchema,
@@ -24,7 +28,7 @@ export type VariableDto = z.infer<typeof variableDtoSchema>;
 export const listSecretsQuerySchema = z.object({
   project_id: optionalProjectIdSchema,
   limit: listLimitSchema,
-  cursor: z.string().min(1).optional(),
+  cursor: cursorSchema.optional(),
 });
 export type ListSecretsQueryDto = z.infer<typeof listSecretsQuerySchema>;
 
@@ -38,13 +42,13 @@ export type SecretScopeQueryDto = z.infer<typeof secretScopeQuerySchema>;
 
 export const listSecretsResponseSchema = z.object({
   secrets: z.array(secretDtoSchema),
-  next_cursor: z.string().nullable(),
+  next_cursor: cursorSchema.nullable(),
 });
 export type ListSecretsResponseDto = z.infer<typeof listSecretsResponseSchema>;
 
 export const listVariablesResponseSchema = z.object({
   variables: z.array(variableDtoSchema),
-  next_cursor: z.string().nullable(),
+  next_cursor: cursorSchema.nullable(),
 });
 export type ListVariablesResponseDto = z.infer<typeof listVariablesResponseSchema>;
 

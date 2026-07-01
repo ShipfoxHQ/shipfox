@@ -12,7 +12,7 @@ export const deleteSecretRoute = defineRoute({
   schema: {
     params: z.object({workspaceId: z.string().uuid(), key: secretKeySchema}),
     querystring: secretScopeQuerySchema,
-    response: {204: z.null()},
+    response: {204: z.void()},
   },
   errorHandler: translateManagementError,
   handler: async (request, reply) => {

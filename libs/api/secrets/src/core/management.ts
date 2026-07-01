@@ -19,13 +19,13 @@ import {
   listSecretManagementRows,
   listVariableManagementRows,
   lockWorkspaceEntries,
+  type SecretManagementRow,
   type StoreScope,
   secretsOutbox,
   type Tx,
   upsertSecretValueRows,
   upsertSecretVariableRows,
 } from '#db/index.js';
-import type {SecretValue} from '#db/schema/values.js';
 import type {SecretVariable} from '#db/schema/variables.js';
 import {normalizedProjectId} from '#db/scope.js';
 import type {DekManager} from './dek-manager.js';
@@ -74,10 +74,11 @@ export function createSecretsManagementApi(params: {dekManager: DekManager}) {
       if (!variable) throw new VariableNotFoundError(input.key);
       return variable;
     },
-    async setSecrets(input: ManagementWriteParams): Promise<SecretValue[]> {
+    async setSecrets(input: ManagementWriteParams): Promise<SecretManagementRow[]> {
       const entries = normalizeEntries(input.entries);
       validateSecretKeys(entries.map((entry) => entry.key));
       validateValueBytes(entries.map((entry) => entry.value));
+      if (entries.length === 0) return [];
 
       const projectId = normalizedProjectId(input);
       const dek = await params.dekManager.getPlaintextDek(input.workspaceId);
@@ -122,6 +123,7 @@ export function createSecretsManagementApi(params: {dekManager: DekManager}) {
       const entries = normalizeEntries(input.entries);
       validateSecretKeys(entries.map((entry) => entry.key));
       validateValueBytes(entries.map((entry) => entry.value));
+      if (entries.length === 0) return Promise.resolve([]);
 
       const projectId = normalizedProjectId(input);
       return writeManagementEntries({
@@ -230,6 +232,7 @@ function deleteManagementEntries<Row extends {key: string}>(params: {
   eventType: typeof SECRET_DELETED | typeof VARIABLE_DELETED;
 }): Promise<number> {
   return db().transaction(async (tx) => {
+    await lockWorkspaceEntries(params.input.workspaceId, tx);
     const rows = await params.deleteRows(
       {
         workspaceId: params.input.workspaceId,

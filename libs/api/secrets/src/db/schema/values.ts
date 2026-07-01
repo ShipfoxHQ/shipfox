@@ -50,7 +50,7 @@ export const secretValues = pgTable(
     ),
     check(
       'secrets_values_namespace_ck',
-      sql`${table.namespace} = '' OR ${table.namespace} ~ ${sqlStringLiteral(NAMESPACE_PATTERN_SOURCE)}`,
+      sql`char_length(${table.namespace}) <= 128 AND (${table.namespace} = '' OR ${table.namespace} ~ ${sqlStringLiteral(NAMESPACE_PATTERN_SOURCE)})`,
     ),
   ],
 );
