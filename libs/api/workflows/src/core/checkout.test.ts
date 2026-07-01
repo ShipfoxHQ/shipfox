@@ -1,5 +1,8 @@
 import type {CheckoutSpec, IntegrationSourceControlService} from '@shipfox/api-integration-core';
 import {getProjectById} from '@shipfox/api-projects';
+import {eq} from 'drizzle-orm';
+import {db} from '#db/db.js';
+import {jobs} from '#db/schema/jobs.js';
 import * as workflowRuns from '#db/workflow-runs.js';
 import {jobFactory} from '#test/factories/job.js';
 import {projectFactory} from '#test/factories/project.js';
@@ -25,6 +28,7 @@ describe('resolveCheckoutIntent', () => {
       workspaceId: project.workspaceId,
       connectionId: project.sourceConnectionId,
       externalRepositoryId: project.sourceExternalRepositoryId,
+      permissions: {contents: 'read'},
     });
   });
 
@@ -86,6 +90,73 @@ describe('createJobCheckoutSpec', () => {
       connectionId: project.sourceConnectionId,
       externalRepositoryId: project.sourceExternalRepositoryId,
       ref: undefined,
+      permissions: {contents: 'read'},
+    });
+  });
+
+  it('passes the persisted job checkout permissions to the service', async () => {
+    const project = projectFactory.build();
+    mockGetProjectById.mockResolvedValue(project);
+    const job = await jobFactory.create({}, {transient: {projectId: project.id}});
+    await db()
+      .update(jobs)
+      .set({checkout: {permissions: {contents: 'write'}, persistCredentials: true}})
+      .where(eq(jobs.id, job.id));
+    const spec: CheckoutSpec = {repositoryUrl: 'https://github.com/acme/repo.git', ref: 'main'};
+    const createCheckoutSpec = vi.fn().mockResolvedValue(spec);
+    const sourceControl = {createCheckoutSpec} as unknown as IntegrationSourceControlService;
+
+    await createJobCheckoutSpec({jobId: job.id, sourceControl});
+
+    expect(createCheckoutSpec).toHaveBeenCalledWith({
+      workspaceId: project.workspaceId,
+      connectionId: project.sourceConnectionId,
+      externalRepositoryId: project.sourceExternalRepositoryId,
+      ref: undefined,
+      permissions: {contents: 'write'},
+    });
+  });
+
+  it('defaults null checkout rows to read permissions', async () => {
+    const project = projectFactory.build();
+    mockGetProjectById.mockResolvedValue(project);
+    const job = await jobFactory.create({}, {transient: {projectId: project.id}});
+    await db().update(jobs).set({checkout: null}).where(eq(jobs.id, job.id));
+    const spec: CheckoutSpec = {repositoryUrl: 'https://github.com/acme/repo.git', ref: 'main'};
+    const createCheckoutSpec = vi.fn().mockResolvedValue(spec);
+    const sourceControl = {createCheckoutSpec} as unknown as IntegrationSourceControlService;
+
+    await createJobCheckoutSpec({jobId: job.id, sourceControl});
+
+    expect(createCheckoutSpec).toHaveBeenCalledWith({
+      workspaceId: project.workspaceId,
+      connectionId: project.sourceConnectionId,
+      externalRepositoryId: project.sourceExternalRepositoryId,
+      ref: undefined,
+      permissions: {contents: 'read'},
+    });
+  });
+
+  it('fails malformed checkout rows safe to read permissions', async () => {
+    const project = projectFactory.build();
+    mockGetProjectById.mockResolvedValue(project);
+    const job = await jobFactory.create({}, {transient: {projectId: project.id}});
+    await db()
+      .update(jobs)
+      .set({checkout: {permissions: {contents: 'admin'}, persistCredentials: true} as never})
+      .where(eq(jobs.id, job.id));
+    const spec: CheckoutSpec = {repositoryUrl: 'https://github.com/acme/repo.git', ref: 'main'};
+    const createCheckoutSpec = vi.fn().mockResolvedValue(spec);
+    const sourceControl = {createCheckoutSpec} as unknown as IntegrationSourceControlService;
+
+    await createJobCheckoutSpec({jobId: job.id, sourceControl});
+
+    expect(createCheckoutSpec).toHaveBeenCalledWith({
+      workspaceId: project.workspaceId,
+      connectionId: project.sourceConnectionId,
+      externalRepositoryId: project.sourceExternalRepositoryId,
+      ref: undefined,
+      permissions: {contents: 'read'},
     });
   });
 });

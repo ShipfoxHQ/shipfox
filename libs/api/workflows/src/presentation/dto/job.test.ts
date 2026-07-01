@@ -65,6 +65,7 @@ function jobEntity(overrides: Partial<Job> = {}): Job {
     listeningUntil: null,
     dependencies: [],
     runner: null,
+    checkout: null,
     position: 0,
     version: 1,
     createdAt: new Date('2026-06-25T00:00:00.000Z'),

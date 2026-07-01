@@ -1,4 +1,8 @@
-import type {CheckoutSpec, IntegrationSourceControlService} from '@shipfox/api-integration-core';
+import type {
+  CheckoutPermissions,
+  CheckoutSpec,
+  IntegrationSourceControlService,
+} from '@shipfox/api-integration-core';
 import {getProjectById} from '@shipfox/api-projects';
 import {getJobById, getWorkflowRunByAttemptId} from '#db/workflow-runs.js';
 import {
@@ -11,12 +15,14 @@ export interface CheckoutIntent {
   workspaceId: string;
   connectionId: string;
   externalRepositoryId: string;
+  permissions: CheckoutPermissions;
 }
 
 /**
  * Resolves what to check out for a job, keyed off the authoritative `jobId`
  * (`workflowRunId`/`workflowRunAttemptId`/`workspaceId` in the lease claim are informational).
- * Chain: job → attempt → run → project source metadata. Credential-free.
+ * Chain: job → attempt → run → project source metadata. Credential-free; the
+ * returned intent carries only the job's requested checkout permission level.
  */
 export async function resolveCheckoutIntent(jobId: string): Promise<CheckoutIntent> {
   const job = await getJobById(jobId);
@@ -32,13 +38,14 @@ export async function resolveCheckoutIntent(jobId: string): Promise<CheckoutInte
     workspaceId: project.workspaceId,
     connectionId: project.sourceConnectionId,
     externalRepositoryId: project.sourceExternalRepositoryId,
+    permissions: job.checkout?.permissions ?? {contents: 'read'},
   };
 }
 
 /**
- * Resolves the job's checkout intent and exchanges it for a short-lived,
- * read-only checkout spec. `ref` is left undefined so the provider defaults to
- * the repository's default branch.
+ * Resolves the job's checkout intent and exchanges it for a provider checkout
+ * spec. `ref` is left undefined so the provider defaults to the repository's
+ * default branch.
  */
 export async function createJobCheckoutSpec({
   jobId,
@@ -53,5 +60,6 @@ export async function createJobCheckoutSpec({
     connectionId: intent.connectionId,
     externalRepositoryId: intent.externalRepositoryId,
     ref: undefined,
+    permissions: intent.permissions,
   });
 }

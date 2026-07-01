@@ -16,7 +16,7 @@ export const checkoutTokenRoute = defineRoute({
   method: 'POST',
   path: '/checkout-token',
   description:
-    "Exchanges the runner's job lease for short-lived, read-only checkout credentials for the job's repository. The job is identified by the access token, so no job ID is needed. The checkout target is resolved server-side from the job's run and project; no credential material is stored on the job or run. Returns the repository URL, ref, and (when the provider needs auth) a short-lived credential that expires soon.",
+    "Exchanges the runner's job lease for checkout credentials for the job's repository, honoring the job's requested contents permission level. The job is identified by the access token, so no job ID is needed. The checkout target is resolved server-side from the job's run and project; no credential material is stored on the job or run. Returns the repository URL, ref, and (when the provider needs auth) a short-lived credential that expires soon.",
   schema: {
     response: {
       200: checkoutTokenResponseSchema,

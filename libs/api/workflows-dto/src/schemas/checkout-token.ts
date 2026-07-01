@@ -20,12 +20,18 @@ export const checkoutTokenAuthSchema = z.discriminatedUnion('kind', [
 
 export type CheckoutTokenAuthDto = z.infer<typeof checkoutTokenAuthSchema>;
 
+export const checkoutTokenPermissionsSchema = z.object({
+  contents: z.enum(['read', 'write']),
+});
+
 export const checkoutTokenResponseSchema = z.object({
   repository_url: z.string().min(1),
   ref: z.string().min(1),
   // Optional: credential-free providers (e.g. the debug source control) return a
   // public clone URL with no auth material, so the runner clones without a token.
   auth: checkoutTokenAuthSchema.optional(),
+  permissions: checkoutTokenPermissionsSchema.optional(),
+  ephemeral: z.boolean().optional(),
 });
 
 export type CheckoutTokenResponseDto = z.infer<typeof checkoutTokenResponseSchema>;

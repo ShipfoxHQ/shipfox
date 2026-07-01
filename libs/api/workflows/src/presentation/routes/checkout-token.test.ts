@@ -27,6 +27,12 @@ const githubSpec = (token: string): CheckoutSpec => ({
   credentials: {username: 'x-access-token', token, expiresAt: new Date('2026-06-10T12:00:00.000Z')},
 });
 
+const githubWriteSpec = (token: string): CheckoutSpec => ({
+  ...githubSpec(token),
+  permissions: {contents: 'write'},
+  ephemeral: true,
+});
+
 describe('POST /runs/jobs/current/checkout-token', () => {
   let app: FastifyInstance;
   const createCheckoutSpec = vi.fn();
@@ -122,6 +128,26 @@ describe('POST /runs/jobs/current/checkout-token', () => {
     });
   });
 
+  test('returns granted checkout permissions and ephemeral metadata', async () => {
+    const project = projectFactory.build();
+    mockGetProjectById.mockResolvedValue(project);
+    const job = await jobFactory.create({}, {transient: {projectId: project.id}});
+    createCheckoutSpec.mockResolvedValue(githubWriteSpec('ghs-secret-token'));
+    const token = await mintActiveLeaseToken({jobId: job.id});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: URL,
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      permissions: {contents: 'write'},
+      ephemeral: true,
+    });
+  });
+
   test('omits auth for a credential-free (debug) spec', async () => {
     const project = projectFactory.build();
     mockGetProjectById.mockResolvedValue(project);
@@ -143,6 +169,8 @@ describe('POST /runs/jobs/current/checkout-token', () => {
       repository_url: 'https://example.com/acme/repo.git',
       ref: 'trunk',
     });
+    expect(res.json().permissions).toBeUndefined();
+    expect(res.json().ephemeral).toBeUndefined();
   });
 
   test('returns 404 for a token without an active lease', async () => {

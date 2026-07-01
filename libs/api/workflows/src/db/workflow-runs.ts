@@ -200,6 +200,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
             listeningUntil: job.listening?.until ? [...job.listening.until] : null,
             dependencies: [...job.dependencies],
             runner: job.runner.length === 0 ? null : [...job.runner],
+            checkout: job.checkout,
             position: job.position,
           })),
         )
@@ -451,6 +452,7 @@ export async function createRerunWorkflowRun(
                   listeningUntil: job.listeningUntil ? [...job.listeningUntil] : null,
                   dependencies: [...job.dependencies],
                   runner: job.runner ? [...job.runner] : null,
+                  checkout: job.checkout,
                   position: job.position,
                 };
               }),

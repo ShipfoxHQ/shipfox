@@ -148,15 +148,19 @@ export class GithubSourceControlProvider
     const {repositoryId} = parseGithubRepositoryLocator(input.externalRepositoryId);
     const repository = await this.github.getRepository({installationId, repositoryId});
     const ref = input.ref?.trim() || repository.defaultBranch;
-    const {token, expiresAt} = await this.github.createInstallationAccessToken({
+    const contents = input.permissions?.contents ?? 'read';
+    const {token, expiresAt, permissions} = await this.github.createInstallationAccessToken({
       installationId,
       repositoryId,
+      contents,
     });
 
     return {
       repositoryUrl: repository.cloneUrl,
       ref,
       credentials: {username: 'x-access-token', token, expiresAt},
+      ...(permissions ? {permissions} : {}),
+      ephemeral: true,
     };
   }
 

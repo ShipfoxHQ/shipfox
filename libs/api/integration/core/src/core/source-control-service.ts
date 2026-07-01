@@ -7,6 +7,7 @@ import {
 } from './errors.js';
 import type {IntegrationProviderRegistry} from './providers/registry.js';
 import type {
+  CheckoutPermissions,
   CheckoutSpec,
   FilePage,
   FileSnapshot,
@@ -50,6 +51,7 @@ export interface FetchSourceFileInput extends ResolveSourceRepositoryInput {
 
 export interface CreateSourceCheckoutSpecInput extends ResolveSourceRepositoryInput {
   ref?: string | undefined;
+  permissions?: CheckoutPermissions | undefined;
 }
 
 export interface ResolvedSourceRepository {
@@ -138,7 +140,7 @@ export function createSourceControlIntegrationService({
       });
     },
 
-    async createCheckoutSpec({workspaceId, connectionId, externalRepositoryId, ref}) {
+    async createCheckoutSpec({workspaceId, connectionId, externalRepositoryId, ref, permissions}) {
       const connection = await getConnection(connectionId);
       if (connection.workspaceId !== workspaceId) {
         throw new IntegrationConnectionWorkspaceMismatchError(connectionId);
@@ -152,6 +154,7 @@ export function createSourceControlIntegrationService({
         connection,
         externalRepositoryId,
         ref,
+        permissions,
       });
     },
   };

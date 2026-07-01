@@ -56,5 +56,7 @@ export function toCheckoutTokenDto(spec: CheckoutSpec): CheckoutTokenResponseDto
           },
         }
       : {}),
+    ...(spec.permissions ? {permissions: spec.permissions} : {}),
+    ...(spec.ephemeral === undefined ? {} : {ephemeral: spec.ephemeral}),
   };
 }

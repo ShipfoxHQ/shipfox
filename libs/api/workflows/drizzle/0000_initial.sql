@@ -63,6 +63,7 @@ CREATE TABLE "workflows_jobs" (
 	"listening_until" jsonb,
 	"dependencies" jsonb NOT NULL,
 	"runner" jsonb,
+	"checkout" jsonb,
 	"position" integer NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,

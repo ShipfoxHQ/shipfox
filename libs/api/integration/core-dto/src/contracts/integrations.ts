@@ -87,6 +87,10 @@ export interface CheckoutCredentials {
   expiresAt: Date;
 }
 
+export interface CheckoutPermissions {
+  contents: 'read' | 'write';
+}
+
 export interface CheckoutSpec {
   /**
    * Clone URL that must never embed authentication material. Credentials live
@@ -97,12 +101,15 @@ export interface CheckoutSpec {
   repositoryUrl: string;
   ref: string;
   credentials?: CheckoutCredentials | undefined;
+  permissions?: CheckoutPermissions | undefined;
+  ephemeral?: boolean | undefined;
 }
 
 export interface CreateCheckoutSpecInput<
   Connection extends IntegrationConnection = IntegrationConnection,
 > extends ResolveRepositoryInput<Connection> {
   ref?: string | undefined;
+  permissions?: CheckoutPermissions | undefined;
 }
 
 export interface SourceControlProvider<

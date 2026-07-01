@@ -159,6 +159,7 @@ export class GiteaSourceControlProvider
         token: config.GITEA_SERVICE_TOKEN,
         expiresAt: new Date(Date.now() + config.GITEA_CHECKOUT_TTL_SECONDS * 1000),
       },
+      ephemeral: false,
     };
   }
 }
