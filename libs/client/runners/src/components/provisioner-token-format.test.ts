@@ -1,6 +1,7 @@
 import type {ProvisionerTokenDto} from '@shipfox/api-runners-dto';
 import {
   formatProvisionerTokenDate,
+  formatProvisionerTokenTimestamp,
   provisionerConnectionStatus,
   provisionerTokenDisplayName,
 } from './provisioner-token-format.js';
@@ -34,16 +35,31 @@ describe('provisionerTokenDisplayName', () => {
 });
 
 describe('formatProvisionerTokenDate', () => {
-  test('formats timestamps', () => {
+  test('formats timestamps as dates', () => {
     const result = formatProvisionerTokenDate('2026-05-08T00:00:00.000Z');
 
     expect(result).not.toBe('Never');
+    expect(result).not.toContain(':');
   });
 
   test('formats null as never', () => {
     const result = formatProvisionerTokenDate(null);
 
     expect(result).toBe('Never');
+  });
+});
+
+describe('formatProvisionerTokenTimestamp', () => {
+  test('formats timestamps with time', () => {
+    const result = formatProvisionerTokenTimestamp('2026-05-08T00:00:00.000Z');
+
+    expect(result).toContain(':');
+  });
+
+  test('formats null as undefined', () => {
+    const result = formatProvisionerTokenTimestamp(null);
+
+    expect(result).toBeUndefined();
   });
 });
 

@@ -28,9 +28,11 @@ import {
 import {provisionerTokenErrorMessage} from './provisioner-token-errors.js';
 import {
   formatProvisionerTokenDate,
+  formatProvisionerTokenTimestamp,
   provisionerConnectionStatus,
   provisionerTokenDisplayName,
 } from './provisioner-token-format.js';
+import {TokenDate} from './token-date.js';
 
 export function ProvisionerTokenList({
   workspaceId,
@@ -65,8 +67,12 @@ export function ProvisionerTokenList({
                 <TableCell>
                   <ProvisionerStatusCell token={token} activeIds={activeIds} />
                 </TableCell>
-                <TableCell>{formatProvisionerTokenDate(token.expires_at)}</TableCell>
-                <TableCell>{formatProvisionerTokenDate(token.created_at)}</TableCell>
+                <TableCell>
+                  <ProvisionerTokenDate value={token.expires_at} />
+                </TableCell>
+                <TableCell>
+                  <ProvisionerTokenDate value={token.created_at} />
+                </TableCell>
                 <TableCell className="text-right">
                   <RevokeProvisionerTokenButton workspaceId={workspaceId} token={token} />
                 </TableCell>
@@ -101,17 +107,31 @@ export function ProvisionerTokenList({
               </div>
               <div>
                 <dt className="text-foreground-neutral-muted">Expires</dt>
-                <dd>{formatProvisionerTokenDate(token.expires_at)}</dd>
+                <dd>
+                  <ProvisionerTokenDate value={token.expires_at} />
+                </dd>
               </div>
               <div>
                 <dt className="text-foreground-neutral-muted">Created</dt>
-                <dd>{formatProvisionerTokenDate(token.created_at)}</dd>
+                <dd>
+                  <ProvisionerTokenDate value={token.created_at} />
+                </dd>
               </div>
             </dl>
           </li>
         ))}
       </ul>
     </>
+  );
+}
+
+function ProvisionerTokenDate({value}: {value: string | null}) {
+  return (
+    <TokenDate
+      value={value}
+      date={formatProvisionerTokenDate(value)}
+      timestamp={formatProvisionerTokenTimestamp(value)}
+    />
   );
 }
 

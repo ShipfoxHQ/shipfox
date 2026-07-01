@@ -26,8 +26,10 @@ import {
 import {manualRegistrationTokenErrorMessage} from './manual-registration-token-errors.js';
 import {
   formatManualRegistrationTokenDate,
+  formatManualRegistrationTokenTimestamp,
   manualRegistrationTokenDisplayName,
 } from './manual-registration-token-format.js';
+import {TokenDate} from './token-date.js';
 
 export function ManualRegistrationTokenList({
   workspaceId,
@@ -58,8 +60,12 @@ export function ManualRegistrationTokenList({
                 <TableCell>
                   <Code variant="paragraph">{token.prefix}</Code>
                 </TableCell>
-                <TableCell>{formatManualRegistrationTokenDate(token.expires_at)}</TableCell>
-                <TableCell>{formatManualRegistrationTokenDate(token.created_at)}</TableCell>
+                <TableCell>
+                  <ManualRegistrationTokenDate value={token.expires_at} />
+                </TableCell>
+                <TableCell>
+                  <ManualRegistrationTokenDate value={token.created_at} />
+                </TableCell>
                 <TableCell className="text-right">
                   <RevokeManualRegistrationTokenButton workspaceId={workspaceId} token={token} />
                 </TableCell>
@@ -91,17 +97,31 @@ export function ManualRegistrationTokenList({
             <dl className="mt-12 grid grid-cols-2 gap-10 text-sm">
               <div>
                 <dt className="text-foreground-neutral-muted">Expires</dt>
-                <dd>{formatManualRegistrationTokenDate(token.expires_at)}</dd>
+                <dd>
+                  <ManualRegistrationTokenDate value={token.expires_at} />
+                </dd>
               </div>
               <div>
                 <dt className="text-foreground-neutral-muted">Created</dt>
-                <dd>{formatManualRegistrationTokenDate(token.created_at)}</dd>
+                <dd>
+                  <ManualRegistrationTokenDate value={token.created_at} />
+                </dd>
               </div>
             </dl>
           </li>
         ))}
       </ul>
     </>
+  );
+}
+
+function ManualRegistrationTokenDate({value}: {value: string | null}) {
+  return (
+    <TokenDate
+      value={value}
+      date={formatManualRegistrationTokenDate(value)}
+      timestamp={formatManualRegistrationTokenTimestamp(value)}
+    />
   );
 }
 

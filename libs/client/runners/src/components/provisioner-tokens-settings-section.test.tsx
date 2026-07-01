@@ -1,5 +1,5 @@
 import {configureApiClient} from '@shipfox/client-api';
-import {Toaster} from '@shipfox/react-ui';
+import {formatDate, formatTimestamp, Toaster} from '@shipfox/react-ui';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -124,6 +124,43 @@ describe('WorkspaceProvisionerTokensSettingsSection', () => {
 
     expect(await screen.findByText('Token created')).toBeVisible();
     expect(screen.getByText('sf_pt_raw-created-token')).toBeVisible();
+  });
+
+  test('renders compact dates with exact timestamp tooltips', async () => {
+    const user = userEvent.setup();
+    const createdAt = '2026-05-08T00:00:00.000Z';
+    const expiresAt = '2026-05-09T00:00:00.000Z';
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (request.url.endsWith('/provisioners/active')) {
+        return Promise.resolve(jsonResponse({provisioners: []}));
+      }
+      return Promise.resolve(
+        jsonResponse({
+          tokens: [provisionerToken({created_at: createdAt, expires_at: expiresAt})],
+        }),
+      );
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    renderProvisionerTokens(
+      <WorkspaceProvisionerTokensSettingsSection workspaceId={RUNNERS_TEST_WORKSPACE_ID} />,
+    );
+    const expiresDate = await screen.findAllByText(formatDate(expiresAt));
+    const createdDate = await screen.findAllByText(formatDate(createdAt));
+    const expiresDateTrigger = expiresDate[0];
+    const createdDateTrigger = createdDate[0];
+    if (!expiresDateTrigger || !createdDateTrigger) throw new Error('Token dates not rendered');
+
+    expect(screen.queryByText(formatTimestamp(expiresAt))).not.toBeInTheDocument();
+    await user.hover(expiresDateTrigger);
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(formatTimestamp(expiresAt));
+
+    await user.unhover(expiresDateTrigger);
+    await user.hover(createdDateTrigger);
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(formatTimestamp(createdAt));
   });
 
   test('surfaces create errors without clearing the form', async () => {

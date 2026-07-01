@@ -1,6 +1,6 @@
 import type {ProvisionerTokenDto} from '@shipfox/api-runners-dto';
 import type {DotVariant} from '@shipfox/react-ui';
-import {formatTimestamp} from '@shipfox/react-ui';
+import {formatDate, formatTimestamp} from '@shipfox/react-ui';
 
 export type ProvisionerConnectionStatus =
   | {kind: 'connected'; dotVariant: DotVariant; label: 'Connected'}
@@ -9,6 +9,11 @@ export type ProvisionerConnectionStatus =
 
 export function formatProvisionerTokenDate(value: string | null): string {
   if (!value) return 'Never';
+  return formatDate(value);
+}
+
+export function formatProvisionerTokenTimestamp(value: string | null): string | undefined {
+  if (!value) return undefined;
   return formatTimestamp(value);
 }
 
