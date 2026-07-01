@@ -133,6 +133,7 @@ CREATE TABLE "workflows_workflow_run_attempts" (
 	"status" "workflows_run_status" DEFAULT 'pending' NOT NULL,
 	"rerun_mode" "workflows_rerun_mode",
 	"rerun_by_user_id" uuid,
+	"model" jsonb,
 	"version" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,

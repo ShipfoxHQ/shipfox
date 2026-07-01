@@ -159,6 +159,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
         workflowRunId: runRow.id,
         attempt: 1,
         status: 'pending',
+        model: params.model,
       })
       .returning();
     if (!attemptRow) throw new Error('Insert returned no rows');
@@ -390,6 +391,7 @@ export async function createRerunWorkflowRun(
         status: 'pending',
         rerunMode: params.mode,
         rerunByUserId: params.actorUserId,
+        model: sourceAttemptRow.model,
       })
       .returning();
     if (!newAttemptRow) throw new Error('Insert returned no rows');

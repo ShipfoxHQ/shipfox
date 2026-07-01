@@ -992,6 +992,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "model": {
+          "name": "model",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "version": {
           "name": "version",
           "type": "integer",
