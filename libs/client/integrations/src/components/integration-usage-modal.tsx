@@ -49,10 +49,14 @@ export function IntegrationUsageModal({
   children,
 }: IntegrationUsageModalProps) {
   const [selectedEvent, setSelectedEvent] = useState('');
+  const eventValuesKey = events.map((event) => event.value).join('\u0000');
 
   useEffect(() => {
-    setSelectedEvent(events[0]?.value ?? '');
-  }, [events]);
+    const eventValues = eventValuesKey ? eventValuesKey.split('\u0000') : [];
+    setSelectedEvent((current) =>
+      eventValues.includes(current) ? current : (eventValues[0] ?? ''),
+    );
+  }, [eventValuesKey]);
 
   const workflowExample = connection
     ? buildWorkflowExample({source: connection.slug, event: selectedEvent})

@@ -13,6 +13,10 @@ export const integrationConnectionLifecycleStatusSchema = z.enum(['active', 'dis
 export type IntegrationConnectionLifecycleStatusDto = z.infer<
   typeof integrationConnectionLifecycleStatusSchema
 >;
+export const updateIntegrationConnectionLifecycleStatusSchema = z.enum(['active', 'disabled']);
+export type UpdateIntegrationConnectionLifecycleStatusDto = z.infer<
+  typeof updateIntegrationConnectionLifecycleStatusSchema
+>;
 
 export const repositoryVisibilitySchema = z.enum(['public', 'private', 'internal', 'unknown']);
 export type RepositoryVisibilityDto = z.infer<typeof repositoryVisibilitySchema>;
@@ -67,7 +71,7 @@ export type ListIntegrationConnectionsResponseDto = z.infer<
 >;
 
 export const updateIntegrationConnectionBodySchema = z.object({
-  lifecycle_status: integrationConnectionLifecycleStatusSchema,
+  lifecycle_status: updateIntegrationConnectionLifecycleStatusSchema,
 });
 export type UpdateIntegrationConnectionBodyDto = z.infer<
   typeof updateIntegrationConnectionBodySchema

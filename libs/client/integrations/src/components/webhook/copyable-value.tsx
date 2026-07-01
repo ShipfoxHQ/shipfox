@@ -16,7 +16,6 @@ export function CopyableValue({label, value, note, className}: CopyableValueProp
     text: value,
     onCopy: () => {
       setCopied(true);
-      toast.success('Copied.');
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => setCopied(false), 2000);
     },

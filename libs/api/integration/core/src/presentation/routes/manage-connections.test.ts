@@ -48,6 +48,28 @@ describe('PATCH /integration-connections/:connectionId', () => {
     expect(res.json().code).toBe('not-found');
   });
 
+  it('rejects system-owned lifecycle statuses', async () => {
+    const app = await createTestApp([sourceProvider()]);
+    const connection = await upsertIntegrationConnection({
+      workspaceId: context.workspaceId,
+      provider: 'debug',
+      externalAccountId: 'debug',
+      slug: 'debug',
+      displayName: 'Debug',
+    });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/integration-connections/${connection.id}`,
+      headers: {authorization: 'Bearer user'},
+      payload: {lifecycle_status: 'error'},
+    });
+
+    const reloaded = await getIntegrationConnectionById(connection.id);
+    expect(res.statusCode).toBe(400);
+    expect(reloaded?.lifecycleStatus).toBe('active');
+  });
+
   it('returns membership errors', async () => {
     const app = await createTestApp([sourceProvider()]);
     const connection = await upsertIntegrationConnection({

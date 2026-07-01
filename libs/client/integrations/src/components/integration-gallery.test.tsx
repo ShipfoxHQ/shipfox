@@ -103,6 +103,29 @@ function fetchForGallery(options: FetchOptions = {}) {
     const request = input instanceof Request ? input : undefined;
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const method = init?.method ?? request?.method ?? 'GET';
+    if (url.includes('/integrations/webhook/connections/')) {
+      const connectionId = url.split('/integrations/webhook/connections/')[1]?.split('?')[0];
+      if (!connectionId) return Promise.resolve(jsonResponse({}, {status: 404}));
+      if (method === 'PATCH') {
+        const rawBody =
+          init?.body !== undefined ? String(init.body) : (await request?.clone().text()) || '{}';
+        const body = JSON.parse(rawBody) as {lifecycle_status?: string};
+        onUpdateConnection?.(connectionId, body);
+        const connection = webhookConnections.find(
+          (candidate) =>
+            typeof candidate === 'object' &&
+            candidate !== null &&
+            'id' in candidate &&
+            candidate.id === connectionId,
+        ) as Record<string, unknown> | undefined;
+        return Promise.resolve(
+          jsonResponse({...connection, lifecycle_status: body.lifecycle_status}),
+        );
+      }
+      if (method === 'DELETE') {
+        return Promise.resolve(jsonResponse(undefined, {status: 204}));
+      }
+    }
     if (url.includes('/integrations/webhook/connections')) {
       if (webhookConnectionsFail)
         return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
@@ -353,6 +376,67 @@ describe('IntegrationGallery — installed section', () => {
         body: {lifecycle_status: 'disabled'},
       },
     ]);
+  });
+
+  test('toggles webhook connections through the webhook endpoint', async () => {
+    const updates: Array<{connectionId: string; body: {lifecycle_status?: string}}> = [];
+    const fetchImpl = fetchForGallery({
+      connections: [webhookConnection],
+      onUpdateConnection: (connectionId, body) => updates.push({connectionId, body}),
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    renderIntegrationsPage({
+      path: `/workspaces/${INTEGRATIONS_TEST_WID}/integrations`,
+      routePath: '/workspaces/$wid/integrations',
+      element: <IntegrationGallery />,
+      extraRoutes: SETUP_ROUTES,
+    });
+
+    await openActions('Open Stripe production integration actions');
+    fireEvent.click(screen.getByRole('menuitem', {name: 'Disable integration'}));
+
+    await screen.findByText('Integration disabled.');
+    const updateRequest = fetchImpl.mock.calls
+      .map(([input]) => input)
+      .find(
+        (input) =>
+          input instanceof Request &&
+          input.url.includes(`/integrations/webhook/connections/${webhookConnection.id}`),
+      );
+    expect(updateRequest).toBeInstanceOf(Request);
+    expect((updateRequest as Request).method).toBe('PATCH');
+    expect(updates).toEqual([
+      {
+        connectionId: webhookConnection.id,
+        body: {lifecycle_status: 'disabled'},
+      },
+    ]);
+  });
+
+  test('deletes webhook connections through the webhook endpoint', async () => {
+    const fetchImpl = fetchForGallery({connections: [webhookConnection]});
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    renderIntegrationsPage({
+      path: `/workspaces/${INTEGRATIONS_TEST_WID}/integrations`,
+      routePath: '/workspaces/$wid/integrations',
+      element: <IntegrationGallery />,
+      extraRoutes: SETUP_ROUTES,
+    });
+
+    await openActions('Open Stripe production integration actions');
+    fireEvent.click(screen.getByRole('menuitem', {name: 'Delete integration'}));
+    fireEvent.click(await screen.findByRole('button', {name: 'Delete integration'}));
+
+    await screen.findByText('Integration deleted.');
+    const deleteRequest = fetchImpl.mock.calls
+      .map(([input]) => input)
+      .find(
+        (input) =>
+          input instanceof Request &&
+          input.url.includes(`/integrations/webhook/connections/${webhookConnection.id}`) &&
+          input.method === 'DELETE',
+      );
+    expect(deleteRequest).toBeInstanceOf(Request);
   });
 
   test('opens the delete confirmation from the actions menu', async () => {

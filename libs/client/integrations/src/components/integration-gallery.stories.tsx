@@ -169,6 +169,23 @@ function fetchForScenario(scenario: Scenario): typeof fetch {
     if (url.pathname.startsWith('/integration-connections/') && method === 'DELETE') {
       return Promise.resolve(jsonResponse(undefined, {status: 204}));
     }
+    if (url.pathname.startsWith('/integrations/webhook/connections/') && method === 'PATCH') {
+      return Promise.resolve(
+        jsonResponse({
+          id: url.pathname.split('/').at(-1),
+          workspace_id: WORKSPACE_ID,
+          name: 'Stripe production',
+          slug: 'stripe-prod',
+          lifecycle_status: 'disabled',
+          inbound_url: 'https://api.example.test/webhook/77777777-7777-4777-8777-777777777777',
+          created_at: '2026-04-12T00:00:00.000Z',
+          updated_at: '2026-04-12T00:00:00.000Z',
+        }),
+      );
+    }
+    if (url.pathname.startsWith('/integrations/webhook/connections/') && method === 'DELETE') {
+      return Promise.resolve(jsonResponse(undefined, {status: 204}));
+    }
     if (url.pathname === '/integration-connections') {
       if (scenario === 'connections-error') return Promise.resolve(errorResponse());
       return Promise.resolve(jsonResponse({connections: connectionsForScenario(scenario)}));

@@ -11,6 +11,10 @@ import {
   useIntegrationProvidersQuery,
   useUpdateIntegrationConnectionMutation,
 } from '#hooks/api/integrations.js';
+import {
+  useDeleteWebhookConnectionMutation,
+  useUpdateWebhookConnectionMutation,
+} from '#hooks/api/webhook-connections.js';
 import {InstalledIntegrationsSection} from './installed-integrations-section.js';
 import {IntegrationDeleteConfirmModal} from './integration-delete-confirm-modal.js';
 import {usageEventsForConnection} from './integration-usage-events.js';
@@ -40,6 +44,8 @@ export function IntegrationGalleryForWorkspace({
   const connectionsQuery = useIntegrationConnectionsQuery(workspaceId);
   const updateConnection = useUpdateIntegrationConnectionMutation();
   const deleteConnection = useDeleteIntegrationConnectionMutation();
+  const updateWebhookConnection = useUpdateWebhookConnectionMutation();
+  const deleteWebhookConnection = useDeleteWebhookConnectionMutation();
 
   const providers = providersQuery.data?.providers ?? [];
   const providersMap = new Map<string, IntegrationProviderDto>(
@@ -71,10 +77,19 @@ export function IntegrationGalleryForWorkspace({
 
   async function setConnectionActive(connection: IntegrationConnectionDto, active: boolean) {
     try {
-      await updateConnection.mutateAsync({
-        connectionId: connection.id,
-        body: {lifecycle_status: active ? 'active' : 'disabled'},
-      });
+      const body = {lifecycle_status: active ? 'active' : 'disabled'} as const;
+      if (connection.provider === 'webhook') {
+        await updateWebhookConnection.mutateAsync({
+          workspaceId,
+          connectionId: connection.id,
+          body,
+        });
+      } else {
+        await updateConnection.mutateAsync({
+          connectionId: connection.id,
+          body,
+        });
+      }
       toast.success(active ? 'Integration enabled.' : 'Integration disabled.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not update integration.');
@@ -84,10 +99,17 @@ export function IntegrationGalleryForWorkspace({
   async function confirmDeleteConnection() {
     if (!deleteConnectionTarget) return;
     try {
-      await deleteConnection.mutateAsync({
-        workspaceId,
-        connectionId: deleteConnectionTarget.id,
-      });
+      if (deleteConnectionTarget.provider === 'webhook') {
+        await deleteWebhookConnection.mutateAsync({
+          workspaceId,
+          connectionId: deleteConnectionTarget.id,
+        });
+      } else {
+        await deleteConnection.mutateAsync({
+          workspaceId,
+          connectionId: deleteConnectionTarget.id,
+        });
+      }
       toast.success('Integration deleted.');
       setDeleteConnectionId(undefined);
     } catch (error) {
@@ -100,7 +122,12 @@ export function IntegrationGalleryForWorkspace({
       <InstalledIntegrationsSection
         connectionsQuery={connectionsQuery}
         connections={sortedConnections}
-        isMutating={updateConnection.isPending || deleteConnection.isPending}
+        isMutating={
+          updateConnection.isPending ||
+          deleteConnection.isPending ||
+          updateWebhookConnection.isPending ||
+          deleteWebhookConnection.isPending
+        }
         onUse={setUsageConnectionId}
         onSetActive={(connection, active) => {
           void setConnectionActive(connection, active);
@@ -150,7 +177,7 @@ export function IntegrationGalleryForWorkspace({
       <IntegrationDeleteConfirmModal
         connectionName={deleteConnectionTarget?.display_name}
         open={deleteConnectionId !== undefined}
-        isPending={deleteConnection.isPending}
+        isPending={deleteConnection.isPending || deleteWebhookConnection.isPending}
         onOpenChange={(open) => {
           if (!open) setDeleteConnectionId(undefined);
         }}

@@ -5,9 +5,15 @@ import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {CopyableValue} from './copyable-value.js';
 
 const WEBHOOK_URL = 'https://api.example.test/webhook/77777777-7777-4777-8777-777777777777';
+const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
 
 afterEach(() => {
   vi.restoreAllMocks();
+  if (clipboardDescriptor) {
+    Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+  } else {
+    Reflect.deleteProperty(navigator, 'clipboard');
+  }
 });
 
 describe('CopyableValue', () => {
@@ -24,10 +30,6 @@ describe('CopyableValue', () => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {writeText: vi.fn().mockRejectedValue(new Error('denied'))},
-    });
-    Object.defineProperty(document, 'execCommand', {
-      configurable: true,
-      value: vi.fn().mockReturnValue(false),
     });
     const errorSpy = vi.spyOn(toast, 'error').mockImplementation(() => 'toast-id');
     render(<CopyableValue label="inbound URL" value={WEBHOOK_URL} />);

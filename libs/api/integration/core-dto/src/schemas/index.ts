@@ -29,5 +29,7 @@ export {
   repositoryDtoSchema,
   repositoryVisibilitySchema,
   type UpdateIntegrationConnectionBodyDto,
+  type UpdateIntegrationConnectionLifecycleStatusDto,
   updateIntegrationConnectionBodySchema,
+  updateIntegrationConnectionLifecycleStatusSchema,
 } from './integrations.js';
