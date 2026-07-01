@@ -396,8 +396,8 @@ function buildStep(
   return {
     id: '00000000-0000-0000-0000-000000000001',
     job_execution_id: '00000000-0000-0000-0000-000000000003',
+    key: name,
     name,
-    display_name: name ?? 'test-step',
     source_location: null,
     status: 'running',
     type: overrides.type ?? 'run',
