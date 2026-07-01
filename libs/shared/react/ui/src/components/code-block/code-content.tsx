@@ -1,10 +1,11 @@
-import type {HTMLAttributes} from 'react';
+import {type HTMLAttributes, useRef} from 'react';
 import {cn} from '#utils/cn.js';
 import {
   type CodeBlockHighlightedLineRange,
   highlightCodeBlockHtmlLines,
   isCodeBlockLineHighlighted,
 } from './line-highlight.js';
+import {useScrollHighlightedLineIntoView} from './use-scroll-highlighted-line.js';
 
 export const CODE_BLOCK_HIGHLIGHTED_LINE_STYLE =
   '!bg-[color-mix(in_srgb,var(--border-highlights-interactive)_7%,transparent)] dark:!bg-[color-mix(in_srgb,var(--border-highlights-interactive)_12%,transparent)] shadow-[inset_2px_0_0_color-mix(in_srgb,var(--border-highlights-interactive)_65%,transparent)]';
@@ -19,6 +20,7 @@ type CodeContentProps = HTMLAttributes<HTMLElement> & {
   syntaxHighlighting: boolean;
   lineNumbers?: boolean;
   highlightedLineRange?: CodeBlockHighlightedLineRange | null | undefined;
+  scrollHighlightedIntoView?: boolean | undefined;
 };
 
 export function CodeContent({
@@ -28,16 +30,26 @@ export function CodeContent({
   syntaxHighlighting,
   lineNumbers = false,
   highlightedLineRange,
+  scrollHighlightedIntoView = false,
   className,
   ...props
 }: CodeContentProps) {
+  const rootRef = useRef<HTMLElement | null>(null);
   const shouldShowHighlighted = syntaxHighlighting && !isLoading && highlightedCode;
+
+  useScrollHighlightedLineIntoView(rootRef, {
+    enabled: scrollHighlightedIntoView,
+    highlightedLineRange,
+  });
 
   if (shouldShowHighlighted) {
     const codeHtml = highlightCodeBlockHtmlLines(highlightedCode, highlightedLineRange);
 
     return (
       <div
+        ref={(node) => {
+          rootRef.current = node;
+        }}
         {...props}
         className={cn(
           'shiki-override w-full overflow-x-auto font-code [&_pre]:m-0 [&_pre]:p-0 [&_pre]:bg-transparent [&_pre]:font-code [&_code]:font-code [&_code]:bg-transparent [&_code]:text-xs [&_code]:leading-20 [&_code]:text-foreground-neutral-base [&_code]:grid',
@@ -56,7 +68,13 @@ export function CodeContent({
   const lines = code.split('\n');
 
   return (
-    <pre className={cn('m-0 p-0 bg-transparent font-code', className)} {...props}>
+    <pre
+      ref={(node) => {
+        rootRef.current = node;
+      }}
+      className={cn('m-0 p-0 bg-transparent font-code', className)}
+      {...props}
+    >
       <code
         className={cn(
           'w-full overflow-x-auto bg-transparent font-code text-xs leading-20 text-foreground-neutral-base',

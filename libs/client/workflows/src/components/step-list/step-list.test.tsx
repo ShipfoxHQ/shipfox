@@ -55,13 +55,27 @@ describe('StepList', () => {
   test('renders expanded slot content with the selected attempt context', async () => {
     const user = userEvent.setup();
     const attempt = makeAttempt({status: 'running'});
-    const step = makeStep({name: 'deploy', status: 'running', attempts: [attempt]});
+    const step = makeStep({
+      name: 'deploy',
+      status: 'running',
+      source_location: {start_line: 4, end_line: 6},
+      attempts: [attempt],
+    });
     render(
       <StepList
         job={makeJob({steps: [step]})}
-        renderExpandedStep={({stepId, attempt, attemptId, attemptStatus}) => (
+        renderExpandedStep={({
+          stepId,
+          stepLabel,
+          sourceLocation,
+          attempt,
+          attemptId,
+          attemptStatus,
+        }) => (
           <Text size="sm">
-            slot for {stepId} attempt {attempt} id {attemptId} status {attemptStatus}
+            slot for {stepId} label {stepLabel} lines{' '}
+            {sourceLocation ? `${sourceLocation.startLine}-${sourceLocation.endLine}` : 'none'}{' '}
+            attempt {attempt} id {attemptId} status {attemptStatus}
           </Text>
         )}
       />,
@@ -72,7 +86,9 @@ describe('StepList', () => {
 
     expect(deploy).toHaveAttribute('aria-expanded', 'true');
     expect(
-      screen.getByText(`slot for ${step.id} attempt 1 id ${attempt.id} status running`),
+      screen.getByText(
+        `slot for ${step.id} label deploy lines 4-6 attempt 1 id ${attempt.id} status running`,
+      ),
     ).toBeInTheDocument();
   });
 

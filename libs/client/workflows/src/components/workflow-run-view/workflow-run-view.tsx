@@ -4,7 +4,11 @@ import {QueryLoadError} from '@shipfox/client-ui';
 import {RelativeTimeProvider, toast} from '@shipfox/react-ui';
 import {useNavigate} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
-import {type JobExecution, resolveJobExecution} from '#core/workflow-run.js';
+import {
+  type JobExecution,
+  resolveJobExecution,
+  type StepSourceLocation,
+} from '#core/workflow-run.js';
 import {
   type WorkflowRunSelectionInput,
   withoutWorkflowRunSelectionSearch,
@@ -24,6 +28,11 @@ import {
   WorkflowRunSkeleton,
   WorkflowRunStaleError,
 } from './workflow-run-states.js';
+
+interface WorkflowSourceFocus {
+  stepId: string;
+  location: StepSourceLocation;
+}
 
 export interface WorkflowRunViewProps {
   workspaceId: string;
@@ -83,16 +92,38 @@ function RunViewContent({
   const [selectedJobId, setSelectedJobId] = useState<string | undefined>();
   const [selectedJobExecutionId, setSelectedJobExecutionId] = useState<string | undefined>();
   const [sourcePanelOpen, setSourcePanelOpen] = useState(false);
+  const [sourceFocus, setSourceFocus] = useState<WorkflowSourceFocus | null>(null);
   const sourcePanelId = useId();
   const sourceButtonRef = useRef<HTMLButtonElement>(null);
+  // The button that last opened the panel (summary or a step detail), so Escape /
+  // Close returns focus to whoever opened it.
+  const lastSourceTriggerRef = useRef<HTMLButtonElement | null>(null);
   const selectionControlled = selection !== undefined;
   const sourceAvailable =
     query.data?.sourceSnapshot !== null && query.data?.sourceSnapshot !== undefined;
   const cancelMutation = useCancelWorkflowRunMutation(query.data);
 
   useEffect(() => {
-    if (!sourceAvailable) setSourcePanelOpen(false);
+    if (!sourceAvailable) {
+      setSourcePanelOpen(false);
+      setSourceFocus(null);
+    }
   }, [sourceAvailable]);
+
+  // If a refetch drops the focused step or its location, degrade to whole-workflow
+  // focus so the panel never points at an unmounted Source button.
+  useEffect(() => {
+    if (!sourceFocus) return;
+    const stillLocated = query.data?.jobs.some((job) =>
+      job.jobExecutions.some((execution) =>
+        execution.steps.some((step) => step.id === sourceFocus.stepId && step.sourceLocation),
+      ),
+    );
+    if (!stillLocated) {
+      setSourceFocus(null);
+      lastSourceTriggerRef.current = sourceButtonRef.current;
+    }
+  }, [sourceFocus, query.data]);
 
   if (query.isPending) return <WorkflowRunSkeleton />;
 
@@ -123,7 +154,10 @@ function RunViewContent({
   const selectedAttemptId = selectionControlled
     ? (resolvedSelection?.selectedAttemptId ?? null)
     : undefined;
-  const highlightedLineRange = resolvedSelection?.step?.sourceLocation ?? null;
+  // Explicit per-step focus wins; fall back to the URL-selected step so deep links
+  // still pre-highlight when the summary opens the whole-workflow source.
+  const highlightedLineRange =
+    sourceFocus?.location ?? resolvedSelection?.step?.sourceLocation ?? null;
   const sourceSnapshot = runData.sourceSnapshot;
   async function rerun(mode: WorkflowRunRerunModeDto) {
     try {
@@ -190,10 +224,40 @@ function RunViewContent({
     });
   }
 
+  function openWholeWorkflowSource() {
+    setSourceFocus(null);
+    lastSourceTriggerRef.current = sourceButtonRef.current;
+    setSourcePanelOpen(true);
+  }
+
+  function toggleWholeWorkflowSource() {
+    if (sourcePanelOpen && sourceFocus === null) {
+      closeSourcePanel();
+      return;
+    }
+    openWholeWorkflowSource();
+  }
+
+  function openStepSource(
+    stepId: string,
+    location: StepSourceLocation,
+    trigger: HTMLButtonElement | null,
+  ) {
+    setSourceFocus({stepId, location});
+    lastSourceTriggerRef.current = trigger;
+    setSourcePanelOpen(true);
+  }
+
   function closeSourcePanel() {
+    const trigger = lastSourceTriggerRef.current;
+    const fallbackTrigger = sourceButtonRef.current;
     setSourcePanelOpen(false);
+    // Defer so focus lands after the panel unmounts; clear the focus only after
+    // focusing so the opener button is still expanded (force-visible) on return.
     window.setTimeout(() => {
-      sourceButtonRef.current?.focus();
+      const focusTarget = trigger?.isConnected ? trigger : fallbackTrigger;
+      focusTarget?.focus();
+      setSourceFocus(null);
     }, 0);
   }
 
@@ -213,10 +277,10 @@ function RunViewContent({
           projectId={projectId}
           run={runData}
           sourceAvailable={sourceAvailable}
-          sourceOpen={sourcePanelOpen}
+          sourceOpen={sourcePanelOpen && sourceFocus === null}
           sourcePanelId={sourcePanelId}
           sourceButtonRef={sourceButtonRef}
-          onSourceToggle={() => setSourcePanelOpen((open) => !open)}
+          onSourceToggle={toggleWholeWorkflowSource}
           cancelling={cancelMutation.isPending}
           onCancel={cancelRun}
           rerunPending={rerunMutation.isPending}
@@ -239,6 +303,10 @@ function RunViewContent({
                 selectedAttemptId={selectedJob.carriedOver ? undefined : selectedAttemptId}
                 onSelectedJobExecutionChange={selectJobExecution}
                 onSelectedAttemptChange={selectionControlled ? selectAttempt : undefined}
+                sourcePanelId={sourcePanelId}
+                sourceAvailable={sourceAvailable}
+                focusedSourceStepId={sourceFocus?.stepId ?? null}
+                onOpenStepSource={openStepSource}
               />
             ) : null}
           </div>
@@ -250,6 +318,7 @@ function RunViewContent({
         open={sourcePanelOpen && sourceAvailable}
         onClose={closeSourcePanel}
         highlightedLineRange={highlightedLineRange}
+        scrollHighlightedIntoView
       />
     </>
   );

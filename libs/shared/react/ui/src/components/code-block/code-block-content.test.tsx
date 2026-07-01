@@ -88,14 +88,80 @@ describe('CodeBlockContent', () => {
   });
 });
 
+describe('CodeBlockContent scroll-into-view', () => {
+  const originalScrollIntoView = Element.prototype.scrollIntoView;
+  const originalMatchMedia = window.matchMedia;
+  let scrollCalls: Array<{element: Element; options: ScrollIntoViewOptions | undefined}>;
+
+  beforeEach(() => {
+    scrollCalls = [];
+    Element.prototype.scrollIntoView = function scrollIntoViewStub(
+      this: Element,
+      options?: boolean | ScrollIntoViewOptions,
+    ) {
+      scrollCalls.push({element: this, options: options as ScrollIntoViewOptions | undefined});
+    };
+  });
+
+  afterEach(() => {
+    Element.prototype.scrollIntoView = originalScrollIntoView;
+    window.matchMedia = originalMatchMedia;
+  });
+
+  test('scrolls the first highlighted line to center when enabled', () => {
+    renderCodeBlockContent({
+      code: 'one\ntwo\nthree\nfour',
+      highlightedLineRange: {startLine: 2, endLine: 3},
+      scrollHighlightedIntoView: true,
+    });
+
+    expect(scrollCalls).toHaveLength(1);
+    expect(scrollCalls[0]?.element.textContent).toContain('two');
+    expect(scrollCalls[0]?.options).toMatchObject({block: 'center', behavior: 'smooth'});
+  });
+
+  test('does not scroll when the affordance is disabled', () => {
+    renderCodeBlockContent({
+      code: 'one\ntwo\nthree',
+      highlightedLineRange: {startLine: 2, endLine: 2},
+    });
+
+    expect(scrollCalls).toHaveLength(0);
+  });
+
+  test('does not scroll when there is no highlighted range', () => {
+    renderCodeBlockContent({code: 'one\ntwo\nthree', scrollHighlightedIntoView: true});
+
+    expect(scrollCalls).toHaveLength(0);
+  });
+
+  test('uses an instant scroll under reduced motion', () => {
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }) as unknown as typeof window.matchMedia;
+
+    renderCodeBlockContent({
+      code: 'one\ntwo\nthree',
+      highlightedLineRange: {startLine: 2, endLine: 2},
+      scrollHighlightedIntoView: true,
+    });
+
+    expect(scrollCalls[0]?.options).toMatchObject({block: 'center', behavior: 'auto'});
+  });
+});
+
 function renderCodeBlockContent({
   code,
   syntaxHighlighting,
   highlightedLineRange,
+  scrollHighlightedIntoView,
 }: {
   code: string;
   syntaxHighlighting?: boolean | undefined;
   highlightedLineRange?: Parameters<typeof CodeBlockContent>[0]['highlightedLineRange'];
+  scrollHighlightedIntoView?: boolean | undefined;
 }) {
   return render(
     <CodeBlockContentHost>
@@ -103,6 +169,7 @@ function renderCodeBlockContent({
         language="text"
         highlightedLineRange={highlightedLineRange}
         {...(syntaxHighlighting === undefined ? {} : {syntaxHighlighting})}
+        {...(scrollHighlightedIntoView === undefined ? {} : {scrollHighlightedIntoView})}
       >
         {code}
       </CodeBlockContent>

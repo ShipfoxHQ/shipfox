@@ -3,6 +3,7 @@ import {configureApiClient} from '@shipfox/client-api';
 import {toast} from '@shipfox/react-ui';
 import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {workflowRunsQueryKeys} from '#hooks/api/workflow-runs.js';
 import {inlineLogBody, outputLine} from '#test/fixtures/logs.js';
 import {
   runAttemptsResponseDto,
@@ -656,7 +657,10 @@ describe('WorkflowRunView', () => {
     await user.click(deployNode);
     expect(deployNode).toHaveAttribute('aria-pressed', 'true');
 
-    const sourceButton = screen.getByRole('button', {name: 'View source'});
+    const sourceButton = within(screen.getByRole('region', {name: 'deploy-web'})).getByRole(
+      'button',
+      {name: 'View source'},
+    );
     const panelId = sourceButton.getAttribute('aria-controls');
     expect(panelId).toBeTruthy();
     expect(sourceButton).toHaveAttribute('aria-expanded', 'false');
@@ -712,7 +716,8 @@ describe('WorkflowRunView', () => {
     });
 
     renderView({selection: {stepId}});
-    await user.click(await screen.findByRole('button', {name: 'View source'}));
+    const summary = await screen.findByRole('region', {name: 'deploy-web'});
+    await user.click(within(summary).getByRole('button', {name: 'View source'}));
 
     await screen.findByRole('dialog', {name: 'Workflow source'});
     const highlightedLines = document.body.querySelectorAll('.line.highlighted-line');
@@ -733,6 +738,127 @@ describe('WorkflowRunView', () => {
     await screen.findByRole('region', {name: 'deploy-web'});
 
     expect(screen.queryByRole('button', {name: 'View source'})).not.toBeInTheDocument();
+  });
+
+  test('opens the source panel highlighting a step from the job header Source button', async () => {
+    const user = userEvent.setup();
+    configureApiClient({
+      fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(locatedStepSourceDetail()))),
+    });
+
+    renderView();
+
+    const jobRegion = await screen.findByRole('region', {name: 'build'});
+    await user.click(screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'}));
+    const jobSourceButton = within(jobRegion).getByRole('button', {name: 'View source'});
+    const summaryButton = within(screen.getByRole('region', {name: 'deploy-web'})).getByRole(
+      'button',
+      {name: 'View source'},
+    );
+    expect(jobSourceButton).toHaveAttribute('aria-expanded', 'false');
+    expect(jobSourceButton).toHaveAttribute(
+      'aria-controls',
+      summaryButton.getAttribute('aria-controls'),
+    );
+
+    await user.click(jobSourceButton);
+
+    await screen.findByRole('dialog', {name: 'Workflow source'});
+    const highlighted = document.body.querySelectorAll('.line.highlighted-line');
+    expect(highlighted).toHaveLength(2);
+    expect(highlighted[0]).toHaveTextContent('build:');
+    expect(highlighted[1]).toHaveTextContent('steps:');
+    expect(jobSourceButton).toHaveAttribute('aria-expanded', 'true');
+    expect(summaryButton).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('returns focus to the job Source button on close and preserves the selected job', async () => {
+    const user = userEvent.setup();
+    configureApiClient({
+      fetchImpl: vi.fn(() => Promise.resolve(jsonResponse(locatedStepSourceDetail()))),
+    });
+
+    renderView();
+
+    const jobRegion = await screen.findByRole('region', {name: 'build'});
+    await user.click(screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'}));
+    const jobSourceButton = within(jobRegion).getByRole('button', {name: 'View source'});
+
+    await user.click(jobSourceButton);
+    await screen.findByRole('dialog', {name: 'Workflow source'});
+    await user.click(screen.getByRole('button', {name: 'Close source'}));
+
+    await waitFor(() => expect(jobSourceButton).toHaveFocus());
+    expect(jobSourceButton).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('region', {name: 'build'})).toBeInTheDocument();
+  });
+
+  test('falls back to the summary Source button when refetch removes the focused step source', async () => {
+    const user = userEvent.setup();
+    let detailRequests = 0;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.pathname === `/workflows/runs/${RUN_ID}`) {
+        detailRequests += 1;
+        return Promise.resolve(
+          jsonResponse(
+            detailRequests === 1
+              ? locatedStepSourceDetail()
+              : locatedStepSourceDetail({
+                  jobs: [
+                    workflowJobDto({
+                      id: BUILD_JOB_ID,
+                      name: 'build',
+                      status: 'succeeded',
+                      steps: [
+                        workflowStepDto({
+                          id: CHECKOUT_STEP_ID,
+                          name: 'checkout',
+                          status: 'succeeded',
+                          source_location: null,
+                          attempts: [
+                            workflowStepAttemptDto({
+                              id: CHECKOUT_ATTEMPT_ID,
+                              step_id: CHECKOUT_STEP_ID,
+                              status: 'succeeded',
+                              exit_code: 0,
+                              finished_at: '2026-05-07T01:01:20.000Z',
+                            }),
+                          ],
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+          ),
+        );
+      }
+      return Promise.resolve(jsonResponse(inlineLogBody(outputLine('done\n'), 1)));
+    });
+    configureApiClient({fetchImpl: fetchImpl as typeof fetch});
+
+    const {queryClient} = renderView();
+
+    const jobRegion = await screen.findByRole('region', {name: 'build'});
+    await user.click(screen.getByRole('button', {name: 'checkout, Succeeded, attempt 1'}));
+    const jobSourceButton = within(jobRegion).getByRole('button', {name: 'View source'});
+    const summaryButton = within(screen.getByRole('region', {name: 'deploy-web'})).getByRole(
+      'button',
+      {name: 'View source'},
+    );
+    await user.click(jobSourceButton);
+    await screen.findByRole('dialog', {name: 'Workflow source'});
+
+    await queryClient.refetchQueries({queryKey: workflowRunsQueryKeys.detail(RUN_ID)});
+    await waitFor(() =>
+      expect(
+        within(jobRegion).queryByRole('button', {name: 'View source'}),
+      ).not.toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole('button', {name: 'Close source'}));
+
+    await waitFor(() => expect(summaryButton).toHaveFocus());
+    expect(summaryButton).toHaveAttribute('aria-expanded', 'false');
   });
 
   test('re-runs all jobs from a succeeded run and navigates to the new run', async () => {
@@ -1000,6 +1126,42 @@ function mockRequests(fetchImpl: ReturnType<typeof vi.fn>): Request[] {
   return (fetchImpl.mock.calls as unknown[][])
     .map((call) => call[0])
     .filter((input): input is Request => input instanceof Request);
+}
+
+function locatedStepSourceDetail(
+  overrides: Partial<WorkflowRunDetailResponseDto> = {},
+): WorkflowRunDetailResponseDto {
+  return workflowRunViewDetailDto({
+    source_snapshot: {
+      format: 'yaml',
+      content: 'jobs:\n  build:\n    steps:\n      - run: pnpm test',
+    },
+    jobs: [
+      workflowJobDto({
+        id: BUILD_JOB_ID,
+        name: 'build',
+        status: 'succeeded',
+        steps: [
+          workflowStepDto({
+            id: CHECKOUT_STEP_ID,
+            name: 'checkout',
+            status: 'succeeded',
+            source_location: {start_line: 2, end_line: 3},
+            attempts: [
+              workflowStepAttemptDto({
+                id: CHECKOUT_ATTEMPT_ID,
+                step_id: CHECKOUT_STEP_ID,
+                status: 'succeeded',
+                exit_code: 0,
+                finished_at: '2026-05-07T01:01:20.000Z',
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+    ...overrides,
+  });
 }
 
 function workflowRunViewDetailDto(

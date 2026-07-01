@@ -17,7 +17,13 @@ import {
 import type {ReactNode} from 'react';
 import {useEffect, useId, useMemo, useRef, useState} from 'react';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
-import {isWorkflowStatus, type Job, type JobExecution, type Step} from '#core/workflow-run.js';
+import {
+  isWorkflowStatus,
+  type Job,
+  type JobExecution,
+  type Step,
+  type StepSourceLocation,
+} from '#core/workflow-run.js';
 import {
   buildStepListModel,
   defaultStepListJobExecution,
@@ -30,6 +36,8 @@ import {
 export interface StepExpandedContext {
   step: Step;
   stepId: string;
+  stepLabel: string;
+  sourceLocation: StepSourceLocation | null;
   attempt: number;
   attemptId: string;
   attemptError: Record<string, unknown> | null;
@@ -198,6 +206,8 @@ function StepListContent({
                       ? renderExpandedStep?.({
                           step: entry.step,
                           stepId: entry.step.id,
+                          stepLabel: entry.step.label,
+                          sourceLocation: entry.step.sourceLocation,
                           attempt: entry.attempt,
                           attemptId: entry.id,
                           attemptError: entry.error,
@@ -327,18 +337,19 @@ function StepRow({
       {rowContent}
     </button>
   );
+  const triggerNode = shouldShowLabelTooltip ? (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent>
+        <span className="block max-w-320 break-words">{entry.step.label}</span>
+      </TooltipContent>
+    </Tooltip>
+  ) : (
+    button
+  );
   const row = (
     <>
-      {shouldShowLabelTooltip ? (
-        <Tooltip>
-          <TooltipTrigger asChild>{button}</TooltipTrigger>
-          <TooltipContent>
-            <span className="block max-w-320 break-words">{entry.step.label}</span>
-          </TooltipContent>
-        </Tooltip>
-      ) : (
-        button
-      )}
+      {triggerNode}
       {selected && expandedContent ? (
         <AccordionContent className="border-t border-border-neutral-base bg-background-neutral-base px-12 py-12">
           <div className="grid grid-cols-[14px_14px_minmax(0,1fr)] gap-x-8">

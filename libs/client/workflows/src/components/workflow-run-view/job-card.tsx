@@ -2,6 +2,7 @@ import {agentConfigIssueSchema, stepErrorReasonSchema} from '@shipfox/api-workfl
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {
   Badge,
+  Button,
   EmptyState,
   Icon,
   RelativeTime,
@@ -12,7 +13,7 @@ import {
   useTimeTick,
 } from '@shipfox/react-ui';
 import type {ReactNode} from 'react';
-import {Fragment, useId} from 'react';
+import {Fragment, useId, useRef, useState} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {
   type Job,
@@ -20,6 +21,7 @@ import {
   type JobExecutionTime,
   type Step,
   type StepError,
+  type StepSourceLocation,
   WORKFLOW_JOB_STATUSES,
   workflowRunTriggerDisplayLabel,
   workflowRunTriggerLabel,
@@ -34,6 +36,11 @@ const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
   ...WORKFLOW_JOB_STATUSES.map((status) => getWorkflowStatusVisual(status).label.length),
 );
 
+interface LocalSelectedAttempt {
+  jobExecutionId: string | undefined;
+  attemptId: string | null;
+}
+
 export function JobCard({
   workspaceId,
   job,
@@ -42,6 +49,10 @@ export function JobCard({
   onSelectedJobExecutionChange,
   onSelectedAttemptChange,
   renderExpandedStep,
+  sourcePanelId,
+  sourceAvailable,
+  focusedSourceStepId,
+  onOpenStepSource,
 }: {
   workspaceId: string;
   job: Job;
@@ -50,9 +61,29 @@ export function JobCard({
   onSelectedJobExecutionChange: ((jobExecutionId: string | undefined) => void) | undefined;
   onSelectedAttemptChange: ((attemptId: string | undefined) => void) | undefined;
   renderExpandedStep?: ((context: StepExpandedContext) => ReactNode) | undefined;
+  sourcePanelId?: string | undefined;
+  sourceAvailable?: boolean | undefined;
+  focusedSourceStepId?: string | null | undefined;
+  onOpenStepSource?:
+    | ((stepId: string, location: StepSourceLocation, trigger: HTMLButtonElement | null) => void)
+    | undefined;
 }) {
   const titleId = useId();
+  const sourceButtonRef = useRef<HTMLButtonElement>(null);
+  const [localSelectedAttempt, setLocalSelectedAttempt] = useState<LocalSelectedAttempt>({
+    jobExecutionId: undefined,
+    attemptId: null,
+  });
   const selectedExecutionStatus = selectedJobExecution?.status ?? job.status;
+  const effectiveSelectedAttemptId =
+    selectedAttemptId === undefined &&
+    localSelectedAttempt.jobExecutionId === selectedJobExecution?.id
+      ? localSelectedAttempt.attemptId
+      : selectedAttemptId;
+  const selectedSourceAction = selectedStepSourceAction(
+    selectedJobExecution,
+    effectiveSelectedAttemptId,
+  );
   const defaultRenderExpandedStep = ({
     step,
     stepId,
@@ -73,6 +104,17 @@ export function JobCard({
         attemptStatus={attemptStatus}
       />
     );
+
+  function selectAttempt(attemptId: string | undefined) {
+    if (selectedAttemptId === undefined) {
+      setLocalSelectedAttempt({
+        jobExecutionId: selectedJobExecution?.id,
+        attemptId: attemptId ?? null,
+      });
+    }
+
+    onSelectedAttemptChange?.(attemptId);
+  }
 
   return (
     <section
@@ -112,6 +154,27 @@ export function JobCard({
               </Text>
             </div>
           )}
+          {sourceAvailable && selectedSourceAction && sourcePanelId && onOpenStepSource ? (
+            <div className="flex min-w-max items-center gap-6">
+              <Button
+                ref={sourceButtonRef}
+                type="button"
+                variant="secondary"
+                size="xs"
+                aria-controls={sourcePanelId}
+                aria-expanded={focusedSourceStepId === selectedSourceAction.stepId}
+                onClick={() =>
+                  onOpenStepSource(
+                    selectedSourceAction.stepId,
+                    selectedSourceAction.location,
+                    sourceButtonRef.current,
+                  )
+                }
+              >
+                View source
+              </Button>
+            </div>
+          ) : null}
         </div>
         <JobExecutionMetadata execution={selectedJobExecution} />
       </div>
@@ -121,7 +184,7 @@ export function JobCard({
             job={job}
             jobExecution={selectedJobExecution}
             selectedAttemptId={selectedAttemptId}
-            onSelectedAttemptChange={onSelectedAttemptChange}
+            onSelectedAttemptChange={selectAttempt}
             autoSelectActiveAttempt
             emptyState={emptyStateForJob(job, selectedJobExecution)}
             showHeader={false}
@@ -288,6 +351,24 @@ function jobExecutionTimeVerb(kind: 'queue' | 'run', time: JobExecutionTime): st
 
 function MetadataSeparator() {
   return <span aria-hidden="true" className="h-12 w-px shrink-0 bg-border-neutral-strong" />;
+}
+
+function selectedStepSourceAction(
+  jobExecution: JobExecution | undefined,
+  selectedAttemptId: string | null | undefined,
+): {stepId: string; location: StepSourceLocation} | null {
+  if (!jobExecution || !selectedAttemptId) return null;
+
+  for (const step of jobExecution.steps) {
+    const selected =
+      selectedAttemptId === `carried-over:${step.id}` ||
+      step.attempts.some((attempt) => attempt.id === selectedAttemptId);
+    if (selected && step.sourceLocation) {
+      return {stepId: step.id, location: step.sourceLocation};
+    }
+  }
+
+  return null;
 }
 
 function StepAttemptDetailPanel({
