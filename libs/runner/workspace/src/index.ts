@@ -8,12 +8,15 @@ export {
   checkoutRepository,
   GitUnavailableError,
   redactSecrets,
+  writeAmbientGitCredential,
 } from '#checkout.js';
 export {
+  cleanupJobCredentials,
   cleanupJobLogs,
   cleanupWorkspace,
   createJobDir,
   InvalidJobIdError,
+  jobCredentialsPath,
   jobLogsPath,
   jobWorkspacePath,
   resolveWorkspaceRoot,

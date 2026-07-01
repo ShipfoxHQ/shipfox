@@ -118,6 +118,8 @@ describe('POST /runs/jobs/current/checkout-token', () => {
         username: 'x-access-token',
         token: 'ghs-secret-token',
         expires_at: '2026-06-10T12:00:00.000Z',
+        carry: 'header',
+        persist: true,
       },
     });
   });

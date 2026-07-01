@@ -25,6 +25,7 @@ describe('resolveCheckoutIntent', () => {
       workspaceId: project.workspaceId,
       connectionId: project.sourceConnectionId,
       externalRepositoryId: project.sourceExternalRepositoryId,
+      persistCredentials: true,
     });
   });
 
@@ -80,7 +81,7 @@ describe('createJobCheckoutSpec', () => {
 
     const result = await createJobCheckoutSpec({jobId: job.id, sourceControl});
 
-    expect(result).toBe(spec);
+    expect(result).toEqual({spec, persistCredentials: true});
     expect(createCheckoutSpec).toHaveBeenCalledWith({
       workspaceId: project.workspaceId,
       connectionId: project.sourceConnectionId,

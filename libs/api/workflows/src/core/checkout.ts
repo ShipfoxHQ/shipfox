@@ -11,6 +11,7 @@ export interface CheckoutIntent {
   workspaceId: string;
   connectionId: string;
   externalRepositoryId: string;
+  persistCredentials: boolean;
 }
 
 /**
@@ -32,6 +33,7 @@ export async function resolveCheckoutIntent(jobId: string): Promise<CheckoutInte
     workspaceId: project.workspaceId,
     connectionId: project.sourceConnectionId,
     externalRepositoryId: project.sourceExternalRepositoryId,
+    persistCredentials: job.checkout.persistCredentials,
   };
 }
 
@@ -46,12 +48,13 @@ export async function createJobCheckoutSpec({
 }: {
   jobId: string;
   sourceControl: IntegrationSourceControlService;
-}): Promise<CheckoutSpec> {
+}): Promise<{spec: CheckoutSpec; persistCredentials: boolean}> {
   const intent = await resolveCheckoutIntent(jobId);
-  return sourceControl.createCheckoutSpec({
+  const spec = await sourceControl.createCheckoutSpec({
     workspaceId: intent.workspaceId,
     connectionId: intent.connectionId,
     externalRepositoryId: intent.externalRepositoryId,
     ref: undefined,
   });
+  return {spec, persistCredentials: intent.persistCredentials};
 }

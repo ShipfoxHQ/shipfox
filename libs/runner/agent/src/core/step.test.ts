@@ -78,6 +78,19 @@ describe('executeAgentStep', () => {
     );
   });
 
+  it('forwards the ambient git config path to the agent invocation', async () => {
+    runAgentMock.mockResolvedValue({});
+
+    await executeAgentStep(buildAgentStep({config: {prompt: 'p'}}), {
+      runtime: RUNTIME,
+      gitConfigGlobal: '/runner-cred/job-1/git-cred.config',
+    });
+
+    expect(runAgentMock).toHaveBeenCalledWith(
+      expect.objectContaining({gitConfigGlobal: '/runner-cred/job-1/git-cred.config'}),
+    );
+  });
+
   it('ignores stale provider, model, and thinking values in step config', async () => {
     runAgentMock.mockResolvedValue({});
 

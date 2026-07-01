@@ -22,6 +22,7 @@ export interface AgentInvocation {
   readonly thinking: string;
   readonly prompt: string;
   readonly credentials: Record<string, string>;
+  readonly gitConfigGlobal?: string | undefined;
   readonly signal: AbortSignal;
   /**
    * Forwards each verbatim pi session entry line as it is persisted, in order. Best-effort
@@ -47,6 +48,7 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
     thinking,
     prompt,
     credentials,
+    gitConfigGlobal,
     signal,
     onSessionEntry,
   } = invocation;
@@ -103,6 +105,11 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
   // safe, and the early stop still does its final drain.
   const stopForwarder = () => forwarder?.stop();
   signal.addEventListener('abort', stopForwarder, {once: true});
+  const restoreGitConfigGlobal = createGitConfigGlobalRestorer(gitConfigGlobal);
+  if (gitConfigGlobal) {
+    process.env.GIT_CONFIG_GLOBAL = gitConfigGlobal;
+    signal.addEventListener('abort', restoreGitConfigGlobal, {once: true});
+  }
   try {
     await session.prompt(prompt);
     return {};
@@ -110,9 +117,25 @@ export async function runAgent(invocation: AgentInvocation): Promise<{summary?: 
     // A final synchronous read forwards every entry written before the caller closes the log
     // stream, so all session records precede its end marker.
     forwarder?.stop();
+    restoreGitConfigGlobal();
     signal.removeEventListener('abort', abortSession);
     signal.removeEventListener('abort', stopForwarder);
+    signal.removeEventListener('abort', restoreGitConfigGlobal);
   }
+}
+
+function createGitConfigGlobalRestorer(gitConfigGlobal: string | undefined): () => void {
+  let restored = false;
+  const previous = process.env.GIT_CONFIG_GLOBAL;
+  return () => {
+    if (gitConfigGlobal === undefined || restored) return;
+    restored = true;
+    if (previous === undefined) {
+      delete process.env.GIT_CONFIG_GLOBAL;
+      return;
+    }
+    process.env.GIT_CONFIG_GLOBAL = previous;
+  };
 }
 
 function startForwarding(
