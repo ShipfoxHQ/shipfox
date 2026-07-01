@@ -1,4 +1,10 @@
-import type {AgentThinking, SupportedAgentProviderId} from '@shipfox/api-agent-dto';
+import type {
+  AgentProviderApi,
+  AgentProviderRef,
+  AgentThinking,
+  CustomAgentModelDto,
+  CustomProviderHeaderDto,
+} from '@shipfox/api-agent-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import type {AgentProviderConfig} from '#core/entities/agent-provider-config.js';
 import {db} from './db.js';
@@ -7,7 +13,13 @@ import {agentWorkspaceSettings} from './schema/agent-workspace-settings.js';
 
 export interface UpsertAgentProviderConfigParams {
   workspaceId: string;
-  providerId: SupportedAgentProviderId;
+  providerId: AgentProviderRef;
+  kind?: 'builtin' | 'custom' | undefined;
+  displayName?: string | null | undefined;
+  api?: AgentProviderApi | null | undefined;
+  baseUrl?: string | null | undefined;
+  headers?: CustomProviderHeaderDto[] | null | undefined;
+  models?: CustomAgentModelDto[] | null | undefined;
   encryptedCredentials: Record<string, string>;
   keyFingerprints: Record<string, string>;
   defaultModel: string | null;
@@ -24,6 +36,12 @@ export async function upsertAgentProviderConfig(
       .values({
         workspaceId: params.workspaceId,
         providerId: params.providerId,
+        ...(params.kind !== undefined ? {kind: params.kind} : {}),
+        ...(params.displayName !== undefined ? {displayName: params.displayName} : {}),
+        ...(params.api !== undefined ? {api: params.api} : {}),
+        ...(params.baseUrl !== undefined ? {baseUrl: params.baseUrl} : {}),
+        ...(params.headers !== undefined ? {headers: params.headers} : {}),
+        ...(params.models !== undefined ? {models: params.models} : {}),
         encryptedCredentials: params.encryptedCredentials,
         keyFingerprints: params.keyFingerprints,
         defaultModel: params.defaultModel,
@@ -34,6 +52,12 @@ export async function upsertAgentProviderConfig(
         set: {
           encryptedCredentials: params.encryptedCredentials,
           keyFingerprints: params.keyFingerprints,
+          ...(params.kind !== undefined ? {kind: params.kind} : {}),
+          ...(params.displayName !== undefined ? {displayName: params.displayName} : {}),
+          ...(params.api !== undefined ? {api: params.api} : {}),
+          ...(params.baseUrl !== undefined ? {baseUrl: params.baseUrl} : {}),
+          ...(params.headers !== undefined ? {headers: params.headers} : {}),
+          ...(params.models !== undefined ? {models: params.models} : {}),
           defaultModel: params.defaultModel,
           defaultThinking: params.defaultThinking,
           updatedAt: sql`NOW()`,
@@ -66,7 +90,7 @@ export async function upsertAgentProviderConfig(
 
 export async function getAgentProviderConfig(params: {
   workspaceId: string;
-  providerId: SupportedAgentProviderId;
+  providerId: AgentProviderRef;
 }): Promise<AgentProviderConfig | undefined> {
   const rows = await db()
     .select()
@@ -86,7 +110,7 @@ export async function getAgentProviderConfig(params: {
 
 export async function updateAgentProviderDefaultModel(params: {
   workspaceId: string;
-  providerId: SupportedAgentProviderId;
+  providerId: AgentProviderRef;
   defaultModel: string | null;
 }): Promise<AgentProviderConfig | undefined> {
   const rows = await db()
@@ -119,7 +143,7 @@ export async function listAgentProviderConfigs(
 
 export async function deleteAgentProviderConfig(params: {
   workspaceId: string;
-  providerId: SupportedAgentProviderId;
+  providerId: AgentProviderRef;
 }): Promise<boolean> {
   return await db().transaction(async (tx) => {
     const deleted = await tx

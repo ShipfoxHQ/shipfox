@@ -17,6 +17,17 @@ describe('materializedAgentStepConfigSchema', () => {
     });
   });
 
+  it('accepts a custom provider ref', () => {
+    const parsed = materializedAgentStepConfigSchema.parse({
+      provider: 'local-vllm',
+      model: 'llama-3.1',
+      thinking: 'high',
+      prompt: 'Fix the failing tests.',
+    });
+
+    expect(parsed.provider).toBe('local-vllm');
+  });
+
   it('rejects missing fields and strips extra fields', () => {
     const missingField = () =>
       materializedAgentStepConfigSchema.parse({

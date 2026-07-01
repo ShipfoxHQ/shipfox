@@ -1,4 +1,4 @@
-import type {AgentProviderCatalogEntryDto, AgentProviderConfigDto} from '@shipfox/api-agent-dto';
+import type {AgentProviderConfigDto} from '@shipfox/api-agent-dto';
 import {Alert, Button, fieldError, ModalBody, ModalFooter, Text} from '@shipfox/react-ui';
 import {useForm} from '@tanstack/react-form';
 import {useState} from 'react';
@@ -9,6 +9,7 @@ import {
   selectedModelForModelPayload,
 } from './default-model-field.js';
 import {agentProviderConfigErrorToFormError} from './form-errors.js';
+import type {SupportedAgentProviderCatalogEntry} from './supported-agent-provider-catalog-entry.js';
 
 const CHANGE_DEFAULT_MODEL_FORM_ID = 'agent-provider-change-default-model-form';
 
@@ -19,7 +20,7 @@ export function ChangeDefaultModelForm({
   onSaved,
 }: {
   workspaceId: string;
-  entry: AgentProviderCatalogEntryDto;
+  entry: SupportedAgentProviderCatalogEntry;
   config: AgentProviderConfigDto;
   onSaved: () => void;
 }) {
@@ -32,7 +33,7 @@ export function ChangeDefaultModelForm({
       try {
         await updateDefaultModel.mutateAsync({
           workspaceId,
-          providerId: config.provider_id,
+          providerId: entry.id,
           body: {default_model: selectedModelForModelPayload(value.default_model)},
         });
         onSaved();

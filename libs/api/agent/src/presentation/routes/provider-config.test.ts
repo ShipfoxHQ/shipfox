@@ -173,15 +173,15 @@ describe('agent provider config routes', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json().provider_id).toBe('anthropic');
       expect(res.json().default_model).toBeNull();
-      expect(res.json().key_fingerprints).toEqual({api_key: 'sk-ant-s...abcd'});
+      expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-s...abcd'});
       expect(res.body).not.toContain(secret);
       expect(res.body).not.toContain('encrypted_credentials');
       expect(replace.statusCode).toBe(200);
       expect(replace.json().default_model).toBeNull();
-      expect(replace.json().key_fingerprints).toEqual({api_key: 'sk-ant-r...wxyz'});
+      expect(replace.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-r...wxyz'});
       const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
-      expect(stored?.encryptedCredentials.api_key).not.toBeUndefined();
-      expect(stored?.encryptedCredentials.api_key).not.toContain(secret);
+      expect(stored?.encryptedCredentials['credential:api_key']).not.toBeUndefined();
+      expect(stored?.encryptedCredentials['credential:api_key']).not.toContain(secret);
       expect(stored?.defaultModel).toBeNull();
     });
 
@@ -280,7 +280,7 @@ describe('agent provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBe('claude-opus-4-8');
-      expect(res.json().key_fingerprints).toEqual({api_key: 'sk-ant-r...wxyz'});
+      expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-r...wxyz'});
       const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBe('claude-opus-4-8');
     });
@@ -297,7 +297,7 @@ describe('agent provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBeNull();
-      expect(res.json().key_fingerprints).toEqual({api_key: 'sk-ant-r...wxyz'});
+      expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-ant-r...wxyz'});
       const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBeNull();
     });
@@ -401,10 +401,10 @@ describe('agent provider config routes', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().default_model).toBe('claude-haiku-4-5');
-      expect(res.json().key_fingerprints).toEqual({api_key: 'sk-secre...abcd'});
+      expect(res.json().key_fingerprints).toEqual({'credential:api_key': 'sk-secre...abcd'});
       const stored = await getAgentProviderConfig({workspaceId, providerId: 'anthropic'});
       expect(stored?.defaultModel).toBe('claude-haiku-4-5');
-      expect(stored?.encryptedCredentials).toEqual({api_key: 'encrypted-secret'});
+      expect(stored?.encryptedCredentials).toEqual({'credential:api_key': 'encrypted-secret'});
     });
 
     it('stores Latest as a null provider default model', async () => {
@@ -487,8 +487,8 @@ describe('agent provider config routes', () => {
     const config = await upsertAgentProviderConfig({
       workspaceId: params.workspaceId ?? workspaceId,
       providerId: params.providerId,
-      encryptedCredentials: {api_key: 'encrypted-secret'},
-      keyFingerprints: {api_key: 'sk-secre...abcd'},
+      encryptedCredentials: {'credential:api_key': 'encrypted-secret'},
+      keyFingerprints: {'credential:api_key': 'sk-secre...abcd'},
       defaultModel: params.providerId === 'anthropic' ? 'claude-opus-4-8' : 'gpt-5.5-pro',
       defaultThinking: 'high',
     });

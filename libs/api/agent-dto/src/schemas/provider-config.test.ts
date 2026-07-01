@@ -90,10 +90,10 @@ describe('agent provider config schemas', () => {
     expect(parsed.provider_id).toBe('anthropic');
   });
 
-  it('rejects a set-default body for an unsupported provider', () => {
-    const parse = () => setDefaultAgentProviderBodySchema.parse({provider_id: 'openai-codex'});
+  it('parses a set-default body for an unsupported but valid provider ref', () => {
+    const parsed = setDefaultAgentProviderBodySchema.parse({provider_id: 'openai-codex'});
 
-    expect(parse).toThrow();
+    expect(parsed.provider_id).toBe('openai-codex');
   });
 
   it('parses a set-default response with a nullable provider', () => {

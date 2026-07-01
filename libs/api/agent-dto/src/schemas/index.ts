@@ -20,6 +20,24 @@ export {
   listSupportedAgentProviders,
 } from './catalog.js';
 export {
+  type AgentProviderApi,
+  agentProviderApiSchema,
+  type CreateCustomAgentProviderBodyDto,
+  type CustomAgentModelDto,
+  type CustomAgentProviderConfigDto,
+  type CustomAgentProviderRuntimeConfigDto,
+  type CustomProviderHeaderDto,
+  type CustomProviderHeaderRequestDto,
+  createCustomAgentProviderBodySchema,
+  customAgentModelSchema,
+  customAgentProviderConfigDtoSchema,
+  customAgentProviderRuntimeConfigSchema,
+  customProviderHeaderDtoSchema,
+  customProviderHeaderRequestSchema,
+  type UpdateCustomAgentProviderBodyDto,
+  updateCustomAgentProviderBodySchema,
+} from './custom-provider.js';
+export {
   type MaterializedAgentStepConfigDto,
   materializedAgentStepConfigSchema,
 } from './materialized-agent-step-config.js';
@@ -41,8 +59,12 @@ export {
 } from './provider-config.js';
 export {
   AGENT_PROVIDER_IDS,
+  AGENT_PROVIDER_SLUG_PATTERN,
   type AgentProviderId,
+  type AgentProviderRef,
   agentProviderIdSchema,
+  agentProviderRefSchema,
+  isReservedAgentProviderId,
   SUPPORTED_AGENT_PROVIDER_IDS,
   type SupportedAgentProviderId,
   supportedAgentProviderIdSchema,

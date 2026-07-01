@@ -1,10 +1,10 @@
 import {agentThinkingSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
-import {supportedAgentProviderIdSchema} from './provider-id.js';
+import {agentProviderRefSchema} from './provider-id.js';
 
 export const materializedAgentStepConfigSchema = z
   .object({
-    provider: supportedAgentProviderIdSchema,
+    provider: agentProviderRefSchema,
     model: z.string().min(1),
     thinking: agentThinkingSchema,
     prompt: z.string(),

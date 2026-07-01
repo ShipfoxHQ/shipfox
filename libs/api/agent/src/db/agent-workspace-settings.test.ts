@@ -80,8 +80,8 @@ function createProviderConfigParams(params: {
   return {
     workspaceId: params.workspaceId,
     providerId: params.providerId,
-    encryptedCredentials: {api_key: `encrypted-${params.providerId}-key`},
-    keyFingerprints: {api_key: 'sk-ant-...abcd'},
+    encryptedCredentials: {'credential:api_key': `encrypted-${params.providerId}-key`},
+    keyFingerprints: {'credential:api_key': 'sk-ant-...abcd'},
     defaultModel: 'claude-opus-4-8',
     defaultThinking: params.defaultThinking ?? 'high',
   };

@@ -143,7 +143,26 @@ describe('credential encryption', () => {
     });
 
     expect(encryptedCredentials).not.toEqual(credentials);
+    expect(encryptedCredentials['credential:api_key']).toBeDefined();
+    expect(encryptedCredentials['credential:endpoint']).toBeDefined();
     expect(decryptedCredentials).toEqual(credentials);
+  });
+
+  it('round-trips a built-in credential under the credential-prefixed AAD key', () => {
+    const encryptedCredentials = encryptCredentials({
+      workspaceId: 'workspace-1',
+      providerId: 'anthropic',
+      credentials: {api_key: 'sk-ant-secretabcd'},
+    });
+
+    const decryptedCredentials = decryptCredentials({
+      workspaceId: 'workspace-1',
+      providerId: 'anthropic',
+      encryptedCredentials,
+    });
+
+    expect(Object.keys(encryptedCredentials)).toEqual(['credential:api_key']);
+    expect(decryptedCredentials).toEqual({api_key: 'sk-ant-secretabcd'});
   });
 
   it('surfaces missing encryption key configuration errors', async () => {
@@ -175,13 +194,13 @@ describe('credential fingerprints', () => {
       api_key: 'sk-ant-api-key-secret-abcd',
     });
 
-    expect(fingerprints).toEqual({api_key: 'sk-ant-a...abcd'});
+    expect(fingerprints).toEqual({'credential:api_key': 'sk-ant-a...abcd'});
   });
 
   it('does not echo short secret values in full', () => {
     const fingerprints = fingerprintCredentials('anthropic', {api_key: 'abcd'});
 
-    expect(fingerprints).toEqual({api_key: '...'});
+    expect(fingerprints).toEqual({'credential:api_key': '...'});
   });
 
   it('strips URL credentials from non-secret fields', () => {
@@ -190,8 +209,8 @@ describe('credential fingerprints', () => {
       api_key: 'sk-azure-secret-abcd',
     });
 
-    expect(fingerprints.endpoint).toBe('https://example.test/openai');
-    expect(fingerprints.api_key).toBe('sk-azure...abcd');
+    expect(fingerprints['credential:endpoint']).toBe('https://example.test/openai');
+    expect(fingerprints['credential:api_key']).toBe('sk-azure...abcd');
   });
 
   it('does not include known secret wire forms in secret fingerprints', () => {
@@ -200,7 +219,7 @@ describe('credential fingerprints', () => {
     const fingerprints = fingerprintCredentials('anthropic', {api_key: secret});
 
     for (const form of secretWireForms(secret)) {
-      expect(fingerprints.api_key).not.toContain(form);
+      expect(fingerprints['credential:api_key']).not.toContain(form);
     }
   });
 });

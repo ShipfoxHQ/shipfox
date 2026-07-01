@@ -40,7 +40,7 @@ describe('testAndSaveProviderConfig', () => {
     });
     expect(stored).toEqual(config);
     expect(stored?.encryptedCredentials).not.toEqual(credentials);
-    expect(stored?.encryptedCredentials.api_key).not.toContain(credentials.api_key);
+    expect(stored?.encryptedCredentials['credential:api_key']).not.toContain(credentials.api_key);
     expect(
       decryptCredentials({
         workspaceId,
@@ -48,7 +48,7 @@ describe('testAndSaveProviderConfig', () => {
         encryptedCredentials: stored?.encryptedCredentials ?? {},
       }),
     ).toEqual(credentials);
-    expect(stored?.keyFingerprints).toEqual({api_key: 'sk-ant-s...abcd'});
+    expect(stored?.keyFingerprints).toEqual({'credential:api_key': 'sk-ant-s...abcd'});
     expect(stored?.defaultModel).toBeNull();
     expect(stored?.defaultThinking).toBe('high');
   });
@@ -120,8 +120,8 @@ describe('testAndSaveProviderConfig', () => {
     await upsertAgentProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {api_key: 'already-encrypted'},
-      keyFingerprints: {api_key: 'sk-old...abcd'},
+      encryptedCredentials: {'credential:api_key': 'already-encrypted'},
+      keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
       defaultModel: 'claude-haiku-4-5',
       defaultThinking: 'high',
     });
@@ -151,8 +151,8 @@ describe('testAndSaveProviderConfig', () => {
     await upsertAgentProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {api_key: 'already-encrypted'},
-      keyFingerprints: {api_key: 'sk-old...abcd'},
+      encryptedCredentials: {'credential:api_key': 'already-encrypted'},
+      keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
       defaultModel: 'claude-haiku-4-5',
       defaultThinking: 'high',
     });
@@ -215,8 +215,8 @@ describe('testAndSaveProviderConfig', () => {
     const existing = await upsertAgentProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {api_key: 'already-encrypted'},
-      keyFingerprints: {api_key: 'sk-old...abcd'},
+      encryptedCredentials: {'credential:api_key': 'already-encrypted'},
+      keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
       defaultModel: 'claude-opus-4-8',
       defaultThinking: 'high',
     });
@@ -269,8 +269,8 @@ describe('testAndSaveProviderConfig', () => {
     const existing = await upsertAgentProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {api_key: 'already-encrypted'},
-      keyFingerprints: {api_key: 'sk-old...abcd'},
+      encryptedCredentials: {'credential:api_key': 'already-encrypted'},
+      keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
       defaultModel: null,
       defaultThinking: 'high',
     });
@@ -293,8 +293,8 @@ describe('testAndSaveProviderConfig', () => {
     await upsertAgentProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {api_key: 'already-encrypted'},
-      keyFingerprints: {api_key: 'sk-old...abcd'},
+      encryptedCredentials: {'credential:api_key': 'already-encrypted'},
+      keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
       defaultModel: 'claude-haiku-4-5',
       defaultThinking: 'high',
     });
@@ -322,8 +322,8 @@ describe('testAndSaveProviderConfig', () => {
     await upsertAgentProviderConfig({
       workspaceId,
       providerId: 'anthropic',
-      encryptedCredentials: {api_key: 'already-encrypted'},
-      keyFingerprints: {api_key: 'sk-old...abcd'},
+      encryptedCredentials: {'credential:api_key': 'already-encrypted'},
+      keyFingerprints: {'credential:api_key': 'sk-old...abcd'},
       defaultModel: null,
       defaultThinking: 'high',
     });
@@ -366,8 +366,8 @@ describe('testAndSaveProviderConfig', () => {
       }),
     ).toEqual(credentials);
     expect(stored?.keyFingerprints).toEqual({
-      endpoint: 'https://azure.example.test/openai/v1',
-      api_key: 'sk-azure...abcd',
+      'credential:endpoint': 'https://azure.example.test/openai/v1',
+      'credential:api_key': 'sk-azure...abcd',
     });
   });
 
@@ -401,9 +401,9 @@ describe('testAndSaveProviderConfig', () => {
       }),
     ).toEqual(credentials);
     expect(stored?.keyFingerprints).toEqual({
-      api_key: 'cf-secre...abcd',
-      account_id: 'account-123',
-      gateway_id: 'gateway-456',
+      'credential:api_key': 'cf-secre...abcd',
+      'credential:account_id': 'account-123',
+      'credential:gateway_id': 'gateway-456',
     });
   });
 
